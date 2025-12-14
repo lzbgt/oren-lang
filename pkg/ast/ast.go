@@ -219,6 +219,23 @@ func (b *Boolean) expressionNode()      {}
 func (b *Boolean) TokenLiteral() string { return b.Token.Literal }
 func (b *Boolean) String() string       { return b.Token.Literal }
 
+// SpawnExpression: spawn <call>
+type SpawnExpression struct {
+	Token token.Token // the 'spawn' token
+	Call  Expression  // must be *CallExpression
+}
+
+func (se *SpawnExpression) expressionNode()      {}
+func (se *SpawnExpression) TokenLiteral() string { return se.Token.Literal }
+func (se *SpawnExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("spawn ")
+	if se.Call != nil {
+		out.WriteString(se.Call.String())
+	}
+	return out.String()
+}
+
 // BlockStatement
 type BlockStatement struct {
 	Token      token.Token // the { token

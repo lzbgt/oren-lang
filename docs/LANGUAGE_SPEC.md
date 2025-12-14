@@ -14,7 +14,7 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 - Line comments start with `//` and run to the end of the line.
 
 ### Keywords
-`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`
+`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`
 
 ### Identifiers
 Identifiers are ASCII letters, digits, and `_`:
@@ -47,6 +47,7 @@ statement       = var_stmt
                 | import_stmt
                 | type_stmt
                 | ffi_stmt
+                | spawn_stmt
                 | expr_stmt ;
 
 var_stmt        = "var" ident "=" expression [ ";" ] ;
@@ -59,6 +60,7 @@ continue_stmt   = "continue" [ ";" ] ;
 import_stmt     = "import" ident string_lit [ ";" ] ;
 type_stmt       = ("struct" | "class") ident "{" [ ident { "," ident } [ "," ] ] "}" [ ";" ] ;
 ffi_stmt        = "ffi" ident [ ";" ] ;
+spawn_stmt      = "spawn" expression [ ";" ] ;
 expr_stmt       = expression [ ";" ] ;
 
 for_header      = expression
@@ -83,6 +85,7 @@ prefix_expr     = literal
                 | "(" expression ")"
                 | if_expr
                 | fn_lit
+                | spawn_expr
                 | array_lit
                 | map_lit
                 | ("!" | "-" | "~") expression ;
@@ -94,6 +97,7 @@ infix_tail      = infix_op expression
 
 if_expr         = "if" expression block [ "else" block ] ;
 fn_lit          = "fn" [ ident ] "(" [ ident { "," ident } ] ")" block ;
+spawn_expr      = "spawn" expression ;
 call_suffix     = "(" [ expression { "," expression } ] ")" ;
 member_suffix   = "." ident ;
 index_suffix    = "[" expression "]" ;
@@ -163,6 +167,15 @@ The runtime is dynamically typed. Values include:
 - `break` exits the nearest enclosing loop (`while`/`for`).
 - `continue` skips to the next loop iteration.
 - `return expr` returns from the current function. A return value is always required; use `return nil` if needed.
+
+### Concurrency (v0)
+- `spawn f(...)` starts a new OS thread (C backend implementation).
+- Current limitations (implementation facts):
+  - The transpiler only lowers `spawn` for direct function calls with **0 arguments** (`spawn foo()`).
+  - `spawn foo()` returns a thread handle; use `oren_join(handle)` or `oren_detach(handle)`.
+  - `oren_join_all()` exists as a coarse “join everything” helper (used at shutdown).
+  - `oren_gc_collect()` uses a cooperative stop-the-world handshake; loop bodies are instrumented with `oren_gc_safepoint()` so collection can proceed while worker threads exist.
+  - The C runtime also does conservative stack scanning (stop-gap) so locals can act as roots during collection.
 
 ### Functions
 - `fn name(params) { ... }` defines a named function (v0: only supported at top-level by the C backend).

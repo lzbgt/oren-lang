@@ -24,6 +24,7 @@ endif
 OREN_SRC := oren.oren
 $(OREN_SRC): ;
 GO_SRC := $(shell find cmd pkg -name "*.go")
+OREN_OREN_SRC := $(shell find lib -name "*.oren")
 
 # --- Build Stages ---
 
@@ -33,12 +34,12 @@ oren_bootstrap: $(GO_SRC)
 	go build -o oren_bootstrap ./cmd/oren
 
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
-oren: oren_bootstrap $(OREN_SRC)
+oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC)
 	@echo "Building Stage 1 (Oren)..."
 	./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG)
 
 # Stage 2: Self-Hosted Compiler (Built by Stage 1)
-oren_stage2: oren $(OREN_SRC)
+oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC)
 	@echo "Building Stage 2 (Self-Hosted)..."
 	./oren build $(OREN_SRC) -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)
 
@@ -54,21 +55,27 @@ test: oren
 	@echo "=== Running Tests ==="
 	@mkdir -p build
 	@# Native Backend Tests
-	@for t in tests/native/*.oren; do \
+	@set -e; for t in tests/native/*.oren; do \
 		name=$$(basename $$t .oren); \
 		echo "Testing $$name..."; \
 		if [ "$$name" = "linux_hello" ]; then \
 			./oren build $$t --backend native -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
-			file build/$$name | grep -q "ELF" || (echo "FAIL: $$name (No ELF)"; exit 1); \
+			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
 		else \
 			./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
-			./build/$$name || (echo "FAIL: $$name (Exit code $$?)"; exit 1); \
+			./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
 		fi \
 	done
 	@# Module Tests (C Backend)
 	@echo "Testing Module System..."
 	@./oren build tests/modules/test_shapes.oren --backend c -o build/test_shapes $(CODESIGN_ARG) $(GC_ARG)
 	@./build/test_shapes || (echo "FAIL: test_shapes"; exit 1)
+	@./oren build tests/modules/test_spawn.oren --backend c -o build/test_spawn $(CODESIGN_ARG) $(GC_ARG)
+	@./build/test_spawn || (echo "FAIL: test_spawn"; exit 1)
+	@./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
+	@./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
+	@./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)
+	@./build/test_gc_stack_roots || (echo "FAIL: test_gc_stack_roots"; exit 1)
 	@echo "All Tests Passed."
 
 # Full Verification: Clean -> Bootstrap -> Stage 1 -> Stage 2 -> Validation

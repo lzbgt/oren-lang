@@ -37,3 +37,11 @@ This document captures the staged plan for turning Oren into a production-grade,
 - **Async/Tasks**: Async/await or lightweight tasks with a scheduler; GC/stack interaction.
 - **Security/Trust**: Deterministic builds, supply-chain verification, signed artifacts, sandboxed exec.
 - **Ecosystem**: Standard library build-out (collections, fs/net/crypto/time), cross-platform story (Windows), and polished docs/examples.
+
+## Agent-Native Track (AVM + Bytecode)
+This track is defined in `docs/OREN_EVOLUTION.md` and complements the phases above by targeting restricted environments (iOS/Web/Edge) where native exec toolchains may be unavailable.
+
+- **Phase A (AVM Core)**: Implement `libavm` (C) stack-machine interpreter; define OBC bytecode format + instruction set; validate with a hand-written OBC program.
+- **Phase B (Bytecode Backend)**: Add `lib/compiler/codegen_bytecode.oren` and a CLI target to emit `.obc` from the shared AST.
+- **Phase C (Inception / Self-Hosting on AVM)**: Stage0 produces `oren.obc`; run compiler-in-bytecode under `libavm` to compile and run user scripts (OBC → AVM).
+- **Phase D (`libagent`)**: Safe agent standard library (`fs`, `net/http`, `semantic`, `proc` where allowed) mapped to AVM host primitives.

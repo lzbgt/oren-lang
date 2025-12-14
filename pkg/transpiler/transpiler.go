@@ -415,6 +415,7 @@ func (t *Transpiler) transpileStatement(stmt ast.Statement) (string, error) {
 
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("while (oren_is_truthy(%s)) {\n", cond))
+		sb.WriteString("    oren_gc_safepoint();\n")
 
 		for _, bs := range s.Body.Statements {
 			st, err := t.transpileStatement(bs)
@@ -477,6 +478,7 @@ func (t *Transpiler) transpileForStatement(fs *ast.ForStatement) (string, error)
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("for (%s; %s; %s) {\n", init, cond, post))
+	sb.WriteString("    oren_gc_safepoint();\n")
 	for _, bs := range fs.Body.Statements {
 		st, err := t.transpileStatement(bs)
 		if err != nil {
@@ -567,6 +569,30 @@ func (t *Transpiler) transpileExpression(exp ast.Expression) (string, error) {
 		default:
 			return "", fmt.Errorf("unknown prefix operator: %q", e.Operator)
 		}
+	case *ast.SpawnExpression:
+		call, ok := e.Call.(*ast.CallExpression)
+		if !ok || call == nil {
+			return "", fmt.Errorf("spawn expects a call expression")
+		}
+		if len(call.Arguments) != 0 {
+			return "", fmt.Errorf("spawn currently supports 0-arg calls")
+		}
+
+		target := ""
+		switch fn := call.Function.(type) {
+		case *ast.Identifier:
+			target = fn.Value
+		case *ast.MemberExpression:
+			resolved, _, err := t.resolveNamespaceExpr(fn)
+			if err != nil {
+				return "", err
+			}
+			target = resolved
+		}
+		if target == "" {
+			return "", fmt.Errorf("spawn requires a direct function name")
+		}
+		return fmt.Sprintf("oren_spawn0(%s)", target), nil
 	case *ast.CallExpression:
 		fn, err := t.transpileExpression(e.Function)
 		if err != nil {

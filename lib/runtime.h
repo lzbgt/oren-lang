@@ -61,6 +61,7 @@ typedef struct OrenMap {
 void oren_register_root(OrenValue* slot);
 void oren_unregister_root(OrenValue* slot);
 void oren_gc_collect();
+void oren_gc_safepoint();
 
 extern OrenValue OREN_NIL;
 extern OrenValue OREN_TRUE;
@@ -68,6 +69,14 @@ extern OrenValue OREN_FALSE;
 
 void oren_init(int argc, char **argv);
 OrenValue oren_args();
+
+// Threads (C backend only for now)
+typedef OrenValue (*OrenFn0)(void);
+OrenValue oren_spawn0(OrenFn0 fn);
+OrenValue oren_join(OrenValue thread);
+OrenValue oren_detach(OrenValue thread);
+OrenValue oren_is_done(OrenValue thread);
+OrenValue oren_join_all();
 
 OrenValue oren_int(long long v);
 OrenValue oren_float(double v);
@@ -119,6 +128,7 @@ OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end);
 OrenValue oren_char(OrenValue code);
 OrenValue oren_int_to_string(OrenValue v);
 OrenValue oren_float_to_string(OrenValue v);
+OrenValue oren_string_to_float_bits(OrenValue s);
 
 OrenValue oren_read_file(OrenValue path);
 OrenValue oren_write_file(OrenValue path, OrenValue content);
@@ -136,5 +146,6 @@ OrenValue oren_chmod(OrenValue path, OrenValue mode);
 void oren_print(OrenValue v);
 void oren_print_multi(int count, ...);
 void oren_shutdown();
+void oren_panic(const char* msg);
 
 #endif

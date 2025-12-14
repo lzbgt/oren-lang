@@ -160,6 +160,23 @@ fn transpile_statement(t, stmt) {
         var v = transpile_expression(t, stmt["value"])
         return "OrenValue " + stmt["name"]["value"] + " = " + v + ";"
     }
+    if stmt["type"] == "Spawn" {
+        var call = stmt["call"]
+        if call == nil || call["type"] != "Call" { return "/* spawn expects Call */" }
+        if oren_list_len(call["args"]) != 0 { return "/* spawn currently supports 0-arg calls */" }
+
+        var target = ""
+        if call["fn"]["type"] == "Identifier" {
+            target = call["fn"]["value"]
+        } else {
+            if call["fn"]["type"] == "Member" {
+                var ns = ns_resolve(t, call["fn"])
+                if ns != nil && ns["is_ns"] == true { target = ns["name"] }
+            }
+        }
+        if target == "" { return "/* spawn requires a direct function name */" }
+        return "oren_spawn0(" + target + ");"
+    }
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
         var out = "{" + CH_LF
@@ -208,6 +225,7 @@ fn transpile_statement(t, stmt) {
     if stmt["type"] == "While" {
         var cond = transpile_expression(t, stmt["cond"])
         var inner = ""
+        inner = inner + "    oren_gc_safepoint();" + CH_LF
         var i = 0
         while i < oren_list_len(stmt["body"]["stmts"]) {
             inner = inner + "    " + transpile_statement(t, stmt["body"]["stmts"][i]) + CH_LF
@@ -223,6 +241,7 @@ fn transpile_statement(t, stmt) {
             cond_s = "oren_is_truthy(" + transpile_expression(t, stmt["cond"]) + ")"
         }
         var inner2 = ""
+        inner2 = inner2 + "    oren_gc_safepoint();" + CH_LF
         var j = 0
         while j < oren_list_len(stmt["body"]["stmts"]) {
             inner2 = inner2 + "    " + transpile_statement(t, stmt["body"]["stmts"][j]) + CH_LF
@@ -343,6 +362,23 @@ fn transpile_expression(t, exp) {
             return "oren_call_obj(" + fn_expr + ", " + int_str(argc) + ", " + args_s + ")"
         }
         return fn_expr + "(" + args_s + ")"
+    }
+    if et == "SpawnExpr" {
+        var call = exp["call"]
+        if call == nil || call["type"] != "Call" { return "/* spawn expects Call */ OREN_NIL" }
+        if oren_list_len(call["args"]) != 0 { return "/* spawn currently supports 0-arg calls */ OREN_NIL" }
+
+        var target = ""
+        if call["fn"]["type"] == "Identifier" {
+            target = call["fn"]["value"]
+        } else {
+            if call["fn"]["type"] == "Member" {
+                var ns = ns_resolve(t, call["fn"])
+                if ns != nil && ns["is_ns"] == true { target = ns["name"] }
+            }
+        }
+        if target == "" { return "/* spawn requires a direct function name */ OREN_NIL" }
+        return "oren_spawn0(" + target + ")"
     }
     if et == "Member" {
         var ns = ns_resolve(t, exp)

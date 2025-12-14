@@ -235,6 +235,48 @@ fn insn_umov_d0(rd, vn) {
     return 1309162496 + (vn * 32) + rd
 }
 
+fn insn_fmov_d_x(rd, rn) {
+    // FMOV Dd, Xn (Move general-purpose register to SIMD/FP register)
+    // Opcode: 0x9E670000 = 2657550336
+    return 2657550336 + (rn * 32) + rd
+}
+
+fn insn_umov_x_d(rd, rn) {
+    // UMOV Xd, Vn.D[0] (Move SIMD/FP register to general-purpose register)
+    // Opcode: 0x4E083C00 = 1309162496
+    return 1309162496 + (rn * 32) + rd
+}
+
+fn insn_fadd(rd, rn, rm) {
+    // FADD Dd, Dn, Dm: 0x1E602800 = 509618176
+    return 509618176 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_fsub(rd, rn, rm) {
+    // FSUB Dd, Dn, Dm: 0x1E603800 = 509622272
+    return 509622272 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_fmul(rd, rn, rm) {
+    // FMUL Dd, Dn, Dm: 0x1E600800 = 509609984
+    return 509609984 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_fdiv(rd, rn, rm) {
+    // FDIV Dd, Dn, Dm: 0x1E601800 = 509614080
+    return 509614080 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_scvtf(rd, rn) {
+    // SCVTF Dd, Xn: 0x9E620000 = 2657189888
+    return 2657189888 + (rn * 32) + rd
+}
+
+fn insn_fcvtzs(rd, rn) {
+    // FCVTZS Xd, Dn: 0x9E780000 = 2658631680
+    return 2658631680 + (rn * 32) + rd
+}
+
 fn insn_mul_4s(vd, vn, vm) {
     return 1319148544 + (vm * 65536) + (vn * 32) + vd
 }
@@ -560,6 +602,10 @@ fn native_compile_expr(ctx, expr) {
         oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
         return nil
     }
+    if expr["type"] == "SpawnExpr" {
+        print("native backend: spawn is not implemented")
+        oren_exit(1)
+    }
 
     if expr["type"] == "Array" {
         var elements = expr["elements"]
@@ -603,6 +649,31 @@ fn native_compile_expr(ctx, expr) {
         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
         push_u32_le(ctx["code"], insn_add_sp(16))
         ctx["stack_size"] = ctx["stack_size"] - 16
+        return nil
+    }
+
+    if expr["type"] == "Float" {
+        var val = oren_string_to_float_bits(expr["value"])
+        
+        // Load 64-bit value using MOVZ/MOVK sequence
+        // We use bitwise ops to handle potential sign bit correctly
+        var chunk0 = val & 65535
+        push_u32_le(ctx["code"], insn_movz(0, chunk0))
+        
+        var chunk1 = (val >> 16) & 65535
+        if chunk1 != 0 || (val >> 32) != 0 {
+            push_u32_le(ctx["code"], insn_movk(0, chunk1, 1))
+        }
+        
+        var chunk2 = (val >> 32) & 65535
+        if chunk2 != 0 || (val >> 48) != 0 {
+            push_u32_le(ctx["code"], insn_movk(0, chunk2, 2))
+        }
+        
+        var chunk3 = (val >> 48) & 65535
+        if chunk3 != 0 {
+            push_u32_le(ctx["code"], insn_movk(0, chunk3, 3))
+        }
         return nil
     }
 
@@ -748,10 +819,7 @@ fn native_compile_expr(ctx, expr) {
             native_compile_expr(ctx, expr["left"])
             // Normalize to 0/1
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-            push_u32_le(ctx["code"], insn_cset(0, 0)) // EQ? Actually need NE -> cond 1
-            // cset with cond=1 (NE)
-            // Replace last cset with NE
-            set_u32_le(ctx["code"], oren_list_len(ctx["code"]) - 1, insn_cset(0, 1))
+            push_u32_le(ctx["code"], insn_cset(0, 1)) // NE
             
             // Push left bool
             push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -904,27 +972,95 @@ fn native_compile_expr(ctx, expr) {
         
         return nil
     }
+
+    if expr["type"] == "Index" {
+        native_compile_expr(ctx, expr["left"]) // container -> X0
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        
+        native_compile_expr(ctx, expr["index"]) // index -> X0
+        
+        // Pop container -> X1
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+        
+        // oren_list_get(list, index) -> X0=list, X1=index
+        // Currently: X0=index, X1=list
+        // Swap X0, X1
+        push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // index -> X2
+        push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // list -> X0
+        push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // index -> X1
+        
+        var bl_pos = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_list_get"})
+        
+        return nil
+    }
     
     if expr["type"] == "Call" {
         var fn_name = expr["fn"]["value"]
         if fn_name == "simd_add_2d" || fn_name == "simd_sub_2d" || fn_name == "simd_and_2d" || fn_name == "simd_orr_2d" || fn_name == "simd_eor_2d" || fn_name == "simd_mul_4s" {
-            // Fallback scalar implementations
-            native_compile_expr(ctx, expr["args"][0])
+            // Compile args
+            native_compile_expr(ctx, expr["args"][0]) // arg0 -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
             
-            native_compile_expr(ctx, expr["args"][1])
+            native_compile_expr(ctx, expr["args"][1]) // arg1 -> X0
+            
+            // Pop arg0 -> X1
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
             
-            if fn_name == "simd_add_2d" { push_u32_le(ctx["code"], insn_add_reg(0, 1, 0)) }
-            if fn_name == "simd_sub_2d" { push_u32_le(ctx["code"], insn_sub_reg(0, 1, 0)) }
-            if fn_name == "simd_and_2d" { push_u32_le(ctx["code"], insn_and_reg(0, 1, 0)) }
-            if fn_name == "simd_orr_2d" { push_u32_le(ctx["code"], insn_orr_reg(0, 1, 0)) }
-            if fn_name == "simd_eor_2d" { push_u32_le(ctx["code"], insn_eor_reg(0, 1, 0)) }
-            if fn_name == "simd_mul_4s" { push_u32_le(ctx["code"], insn_mul(0, 1, 0)) }
+            // Move X1 -> D0, X0 -> D1
+            push_u32_le(ctx["code"], insn_fmov_d_x(0, 1))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 0))
+            
+            // Execute SIMD Op on V0, V1 -> V0
+            if fn_name == "simd_add_2d" { push_u32_le(ctx["code"], insn_add_2d(0, 0, 1)) }
+            if fn_name == "simd_sub_2d" { push_u32_le(ctx["code"], insn_sub_2d(0, 0, 1)) }
+            if fn_name == "simd_and_2d" { push_u32_le(ctx["code"], insn_and_16b(0, 0, 1)) }
+            if fn_name == "simd_orr_2d" { push_u32_le(ctx["code"], insn_orr_16b(0, 0, 1)) }
+            if fn_name == "simd_eor_2d" { push_u32_le(ctx["code"], insn_eor_16b(0, 0, 1)) }
+            if fn_name == "simd_mul_4s" { push_u32_le(ctx["code"], insn_mul_4s(0, 0, 1)) }
+            
+            // Move result D0 -> X0
+            push_u32_le(ctx["code"], insn_umov_d0(0, 0))
+            
+            return nil
+        }
+        
+        if fn_name == "fadd" || fn_name == "fsub" || fn_name == "fmul" || fn_name == "fdiv" {
+            // Compile args
+            native_compile_expr(ctx, expr["args"][0]) // arg0 -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            native_compile_expr(ctx, expr["args"][1]) // arg1 -> X0
+            
+            // Pop arg0 -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            // Move X1 -> D0, X0 -> D1
+            push_u32_le(ctx["code"], insn_fmov_d_x(0, 1))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 0))
+            
+            // Execute Float Op
+            if fn_name == "fadd" { push_u32_le(ctx["code"], insn_fadd(0, 0, 1)) }
+            if fn_name == "fsub" { push_u32_le(ctx["code"], insn_fsub(0, 0, 1)) }
+            if fn_name == "fmul" { push_u32_le(ctx["code"], insn_fmul(0, 0, 1)) }
+            if fn_name == "fdiv" { push_u32_le(ctx["code"], insn_fdiv(0, 0, 1)) }
+            
+            // Move result D0 -> X0 (Using UMOV for bitwise copy)
+            push_u32_le(ctx["code"], insn_umov_x_d(0, 0))
+            
             return nil
         }
         
@@ -1008,6 +1144,11 @@ fn native_compile_expr(ctx, expr) {
 
             // mmap(0, chunk, PROT=3, flags, -1, 0)
             push_u32_le(ctx["code"], insn_add_imm(1, 3, 0)) // X1 = chunk
+            
+            // SAVE X3 (chunk) before syscall
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(3, 0))
+            
             push_u32_le(ctx["code"], insn_movz(0, 0))
             push_u32_le(ctx["code"], insn_movz(2, 3))
             push_u32_le(ctx["code"], insn_movz(3, mmap_flags))
@@ -1016,6 +1157,10 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_mmap))
             if is_macos { push_u32_le(ctx["code"], 4070588432) }
             push_u32_le(ctx["code"], insn_svc(svc_imm))
+            
+            // RESTORE X3 (chunk)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
 
             // Update heap_ptr/limit: X0=base, X3=chunk
             push_u32_le(ctx["code"], insn_add_reg(2, 0, 3)) // X2 = base + chunk
@@ -1354,6 +1499,10 @@ fn native_compile_expr(ctx, expr) {
 }
 
 fn native_compile_stmt(ctx, stmt) {
+    if stmt["type"] == "Spawn" {
+        print("native backend: spawn is not implemented")
+        oren_exit(1)
+    }
     if stmt["type"] == "Block" {
         var base_stack = ctx["stack_size"]
         var stmts = stmt["stmts"]
@@ -1367,6 +1516,99 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_add_sp(delta))
             ctx["stack_size"] = base_stack
         }
+        return nil
+    }
+
+    if stmt["type"] == "Set" {
+        if stmt["left"]["type"] == "Index" {
+            native_compile_expr(ctx, stmt["left"]["left"]) // container -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            native_compile_expr(ctx, stmt["left"]["index"]) // index -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            native_compile_expr(ctx, stmt["value"]) // value -> X0
+            
+            // Pop index -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            // Pop container -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            // oren_index_set(container, index, value)
+            // Need X0=container, X1=index, X2=value
+            // Currently: X0=value, X1=index, X2=container
+            
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+            push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // cont -> X0
+            // X1 is index (ok)
+            push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+            
+            var bl_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_index_set"})
+            
+            return nil
+        }
+        if stmt["left"]["type"] == "Member" {
+             // obj.prop = val -> oren_map_set(obj, "prop", val)
+             // Similar logic, but index is string literal
+             
+             native_compile_expr(ctx, stmt["left"]["left"]) // obj -> X0
+             push_u32_le(ctx["code"], insn_sub_sp(16))
+             push_u32_le(ctx["code"], insn_str_x0_sp(0))
+             ctx["stack_size"] = ctx["stack_size"] + 16
+             
+             // Prop name string
+             var prop = stmt["left"]["prop"]["value"]
+             var bytes = oren_bytes_from_string(prop)
+             bytes_push(bytes, 0)
+             while int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+             var data_off = oren_list_len(ctx["data"])
+             bytes_extend(ctx["data"], bytes)
+             var adr_pos = oren_list_len(ctx["code"])
+             push_u32_le(ctx["code"], 0)
+             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+             // X0 has key ptr
+             
+             push_u32_le(ctx["code"], insn_sub_sp(16))
+             push_u32_le(ctx["code"], insn_str_x0_sp(0))
+             ctx["stack_size"] = ctx["stack_size"] + 16
+             
+             native_compile_expr(ctx, stmt["value"]) // val -> X0
+             
+             // Pop key -> X1
+             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+             push_u32_le(ctx["code"], insn_add_sp(16))
+             ctx["stack_size"] = ctx["stack_size"] - 16
+             
+             // Pop obj -> X2
+             push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+             push_u32_le(ctx["code"], insn_add_sp(16))
+             ctx["stack_size"] = ctx["stack_size"] - 16
+             
+             // Need X0=obj, X1=key, X2=val
+             // Currently: X0=val, X1=key, X2=obj
+             push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+             push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // obj -> X0
+             // X1 is key (ok)
+             push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+             
+             var bl_pos2 = oren_list_len(ctx["code"])
+             push_u32_le(ctx["code"], 0)
+             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set"})
+             
+             return nil
+        }
+        print("native backend: unsupported set target")
         return nil
     }
 
@@ -1670,7 +1912,38 @@ fn native_compile_stmt(ctx, stmt) {
             }
 
             if fn_name == "print" {
-                native_compile_expr(ctx, exp["args"][0])
+                var arg0 = exp["args"][0]
+                if arg0["type"] == "String" {
+                    // Print string literal directly via sys_write(fd=1, ptr, len) + newline.
+                    var s = arg0["value"]
+                    var len = oren_string_len(s)
+                    native_compile_expr(ctx, arg0) // X0 = ptr
+
+                    // X0=fd, X1=ptr, X2=len
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+                    push_u32_le(ctx["code"], insn_movz(2, len))
+                    push_u32_le(ctx["code"], insn_movz(0, 1))
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
+                    if is_macos { push_u32_le(ctx["code"], 4070588432) }
+                    push_u32_le(ctx["code"], insn_svc(svc_imm))
+
+                    // Write newline (1 byte) from stack.
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                    push_u32_le(ctx["code"], insn_movz(3, 10))
+                    push_u32_le(ctx["code"], insn_str_ptr(3, 31))
+                    push_u32_le(ctx["code"], insn_add_imm(1, 31, 0)) // X1 = SP
+                    push_u32_le(ctx["code"], insn_movz(2, 1))
+                    push_u32_le(ctx["code"], insn_movz(0, 1))
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
+                    if is_macos { push_u32_le(ctx["code"], 4070588432) }
+                    push_u32_le(ctx["code"], insn_svc(svc_imm))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+                    return nil
+                }
+
+                native_compile_expr(ctx, arg0)
                 var bl_pos_print = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_print, "name": "oren_print"})
@@ -1725,6 +1998,17 @@ fn native_compile_program_arm64(linked, platform) {
         svc_imm = 0
         sys_reg = 8
     }
+
+    // Capture argc/argv before any calls clobber argument registers.
+    // macOS (dyld LC_MAIN): X0=argc, X1=argv. Linux (ELF entry): stack has argc/argv.
+    if ctx["platform"]["os"] == "linux" {
+        // X0 = *(SP), X1 = SP + 8
+        push_u32_le(ctx["code"], insn_ldr_ptr(0, 31))
+        push_u32_le(ctx["code"], insn_add_imm(1, 31, 8))
+    }
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = argc
+    push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = argv
+
     push_u32_le(ctx["code"], insn_stp_pre())
     push_u32_le(ctx["code"], insn_mov_fp_sp())
     ctx["stack_size"] = ctx["stack_size"] + 16
@@ -1733,6 +2017,13 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_init = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
+
+    // Store argv/argc for oren_args()
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // argc
+    push_u32_le(ctx["code"], insn_mov_reg(1, 20)) // argv
+    var bl_set_args = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_args, "name": "native_runtime_set_args"})
 
     // Register Main Thread
     push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
@@ -1771,6 +2062,9 @@ fn native_compile_program_arm64(linked, platform) {
         native_compile_stmt(ctx, runtime_prog["statements"][i])
         i = i + 1
     }
+
+    // Register start of user code
+    ctx["functions"]["__top_level__"] = oren_list_len(ctx["code"])
 
     var stmts = linked["statements"]
     i = 0
@@ -1846,7 +2140,7 @@ fn native_compile_program_arm64(linked, platform) {
     return ctx
 }
 
-fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size) {
+fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size, imports_len, symtab_size, strtab_size) {
     var p = bytes_new()
     var dyld_path = "/usr/lib/dyld"
     var dyld_cmdsize = align_up(12 + oren_string_len(dyld_path) + 1, 8)
@@ -1858,9 +2152,17 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     push_u32_le(p, 0)          // Subtype
     push_u32_le(p, 2)          // File Type (Execute)
     
-    // Commands: PAGEZERO, TEXT, DATA, LINKEDIT, DYLD_INFO_ONLY, LOAD_DYLINKER, BUILD_VERSION, MAIN.
-    var sizeof_cmds_base = 72 + 152 + 152 + 72 + dyld_info_cmdsize + dyld_cmdsize + 24 + 24
-    var ncmds_base = 8
+    // Commands: PAGEZERO, TEXT, DATA, LINKEDIT, DYLD_INFO_ONLY, LOAD_DYLINKER, LOAD_DYLIB, BUILD_VERSION, MAIN.
+    var libsys_path = "/usr/lib/libSystem.B.dylib"
+    var libsys_cmdsize = align_up(24 + oren_string_len(libsys_path) + 1, 8)
+    var sizeof_cmds_base = 72 + 152 + 152 + 72 + dyld_info_cmdsize + dyld_cmdsize + libsys_cmdsize + 24 + 24
+    var ncmds_base = 9
+    
+    if symtab_size > 0 {
+        sizeof_cmds_base = sizeof_cmds_base + 24 // LC_SYMTAB
+        ncmds_base = ncmds_base + 1
+    }
+
     var sizeof_cmds = sizeof_cmds_base
     var ncmds = ncmds_base
     if sig_size > 0 {
@@ -1954,13 +2256,24 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 76); bytes_push(p, 73); bytes_push(p, 78); bytes_push(p, 75); bytes_push(p, 69); bytes_push(p, 68); bytes_push(p, 73); bytes_push(p, 84);
     i = 0; while i < 6 { bytes_push(p, 0); i = i + 1 }
     push_u64_le(p, 4294967296 + text_size + data_size) // vmaddr
-    push_u64_le(p, sig_size) // vmsize (aligned)
+    var linkedit_size = sig_size + symtab_size + (imports_len * 4) + strtab_size
+    push_u64_le(p, linkedit_size) // vmsize (aligned)
     push_u64_le(p, text_size + data_size) // fileoff
-    push_u64_le(p, sig_size) // filesize
+    push_u64_le(p, linkedit_size) // filesize
     push_u32_le(p, 1) // maxprot (R)
     push_u32_le(p, 1) // initprot (R)
     push_u32_le(p, 0) // nsects
     push_u32_le(p, 0) // flags
+    
+    // LC_SYMTAB (if needed)
+    if symtab_size > 0 {
+        push_u32_le(p, 2) // LC_SYMTAB
+        push_u32_le(p, 24) // cmdsize
+        push_u32_le(p, text_size + data_size) // symoff
+        push_u32_le(p, symtab_size / 16) // nsyms
+        push_u32_le(p, text_size + data_size + symtab_size + (imports_len * 4)) // stroff
+        push_u32_le(p, strtab_size) // strsize
+    }
     
     // 5. LC_DYLD_INFO_ONLY
     push_u32_le(p, 2147483682)
@@ -1984,7 +2297,26 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
         bytes_push(p, 0)
     }
     
-    // 7. LC_BUILD_VERSION
+    // 7. LC_LOAD_DYLIB
+    var cmd_start_lib = oren_list_len(p)
+    push_u32_le(p, 12) // LC_LOAD_DYLIB
+    push_u32_le(p, libsys_cmdsize)
+    push_u32_le(p, 24) // offset to name
+    push_u32_le(p, 0) // timestamp
+    push_u32_le(p, 0) // current version
+    push_u32_le(p, 0) // compatibility version
+    var k_lib = 0
+    var libsys_bytes = oren_bytes_from_string(libsys_path)
+    while k_lib < oren_list_len(libsys_bytes) {
+        bytes_push(p, libsys_bytes[k_lib])
+        k_lib = k_lib + 1
+    }
+    bytes_push(p, 0) // null terminator
+    while oren_list_len(p) < cmd_start_lib + libsys_cmdsize {
+        bytes_push(p, 0) // padding
+    }
+
+    // 8. LC_BUILD_VERSION
     push_u32_le(p, 50)
     push_u32_le(p, 24)
     push_u32_le(p, 1)
@@ -2038,7 +2370,7 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
     
     sig_size = 0
 
-    var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, 632)
+    var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, 632, 0, 0, 0)
     bytes_extend(prefix, code)
     if sig_size > 0 {
         var sig = codesign_adhoc_superblob(prefix, "oren", oren_list_len(code))
@@ -2059,35 +2391,78 @@ fn macho_emit_program_arm64(out_path, linked) {
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
     
-    // Generate Stubs for Imports
     var imports = ctx["import_list"]
+    
+    // FFI Tables
+    var strtab = bytes_new()
+    bytes_push(strtab, 32) // Space (index 0)
+    bytes_push(strtab, 0)
+    
+    var symtab = bytes_new()
+    var indsymtab = bytes_new()
+    
+    // Append GOT placeholder to Data
+    var got_offset = oren_list_len(data)
+    var k_got = 0
+    while k_got < oren_list_len(imports) {
+        var k = 0
+        while k < 8 { bytes_push(data, 0); k = k + 1 }
+        k_got = k_got + 1
+    }
+
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
         var name = imports[i_imp]
         var stub_pos = oren_list_len(code)
-        functions[name] = stub_pos // Register stub as function target
+        functions[name] = stub_pos 
         
-        // Stub: return 0 (avoid syscalls on missing FFI)
+        // Stub: return 0 (temporary until dyld binding is implemented)
         push_u32_le(code, insn_movz(0, 0))
         push_u32_le(code, insn_ret())
+        
+        // oren_list_push(fixups, {"type": "got_load", "pos": stub_pos, "got_index": i_imp})
+        
+        // Symbol Table
+        var name_idx = oren_list_len(strtab)
+        
+        bytes_push(strtab, 95) // '_'
+        var name_bytes = oren_bytes_from_string(name)
+        var k2 = 0
+        while k2 < oren_list_len(name_bytes) {
+             bytes_push(strtab, name_bytes[k2])
+             k2 = k2 + 1
+        }
+        bytes_push(strtab, 0)
+        
+        push_u32_le(symtab, name_idx) // n_strx
+        bytes_push(symtab, 1) // n_type (N_EXT | N_UNDF)
+        bytes_push(symtab, 0) // n_sect
+        push_u16_le(symtab, 0) // n_desc
+        push_u64_le(symtab, 0) // n_value
+        
+        push_u32_le(indsymtab, i_imp)
         
         i_imp = i_imp + 1
     }
     
-    // Align code end to 4 bytes
     while int_mod(oren_list_len(code), 4) != 0 { bytes_push(code, 0) }
     
     if functions["main"] == nil {
-        if ctx["main_idx"] != nil { functions["main"] = ctx["main_idx"] }
-        if oren_list_len(ctx["function_names"]) > 0 {
-            var fname0 = ctx["function_names"][0]
-            functions["main"] = functions[fname0]
-        } else {
-            functions["main"] = 0
+        if functions["__top_level__"] != nil { functions["main"] = functions["__top_level__"] }
+        if functions["main"] == nil {
+            if ctx["main_idx"] != nil { functions["main"] = ctx["main_idx"] }
+            if functions["main"] == nil {
+                if oren_list_len(ctx["function_names"]) > 0 {
+                    var fname0 = ctx["function_names"][0]
+                    functions["main"] = functions[fname0]
+                } else {
+                    functions["main"] = 0
+                }
+            }
         }
     }
     
-    var header_size = 1024
+    var header_size = 2048
     var text_base = 4294967296
     var code_len = oren_list_len(code)
     var text_size = align_up(header_size + code_len, 16384)
@@ -2120,14 +2495,28 @@ fn macho_emit_program_arm64(out_path, linked) {
             var insn = insn_adr(0, offset)
             set_u32_le(code, pos, insn)
         }
+
+        if fix["type"] == "got_load" {
+             var got_idx = fix["got_index"]
+             var got_entry_addr = data_vmaddr + got_offset + (got_idx * 8)
+             var pc = text_base + header_size + pos
+             var offset = got_entry_addr - pc
+             set_u32_le(code, pos, insn_adr(16, offset))
+        }
         
         i = i + 1
     }
     
     var sig_size = 0
+    var symtab_size = oren_list_len(symtab)
+    var strtab_size = oren_list_len(strtab)
+    var imports_len = oren_list_len(imports)
     
+    // Entry point is start of code (startup shim)
     var entry_idx = 0
-    var prefix = macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size)
+    
+    var prefix = macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size, imports_len, symtab_size, strtab_size)
+    
     bytes_extend(prefix, code)
     while oren_list_len(prefix) < text_size {
         bytes_push(prefix, 0)
@@ -2137,8 +2526,13 @@ fn macho_emit_program_arm64(out_path, linked) {
         bytes_push(prefix, 0)
     }
     
+    // LinkEdit content
+    bytes_extend(prefix, symtab)
+    bytes_extend(prefix, indsymtab)
+    bytes_extend(prefix, strtab)
+    
     if sig_size > 0 {
-        var sig = codesign_adhoc_superblob(prefix, "oren", text_size) // Sig usually covers text
+        var sig = codesign_adhoc_superblob(prefix, "oren", text_size) 
         bytes_extend(prefix, sig)
     }
     
@@ -2221,12 +2615,17 @@ fn elf_emit_program_arm64(out_path, linked) {
     bytes_extend(code, data)
     
     if functions["main"] == nil {
-        if ctx["main_idx"] != nil { functions["main"] = ctx["main_idx"] }
-        if oren_list_len(ctx["function_names"]) > 0 {
-            var fname0 = ctx["function_names"][0]
-            functions["main"] = functions[fname0]
-        } else {
-            functions["main"] = 0
+        if functions["__top_level__"] != nil { functions["main"] = functions["__top_level__"] }
+        if functions["main"] == nil {
+            if ctx["main_idx"] != nil { functions["main"] = ctx["main_idx"] }
+            if functions["main"] == nil {
+                if oren_list_len(ctx["function_names"]) > 0 {
+                    var fname0 = ctx["function_names"][0]
+                    functions["main"] = functions[fname0]
+                } else {
+                    functions["main"] = 0
+                }
+            }
         }
     }
     
@@ -2265,8 +2664,8 @@ fn elf_emit_program_arm64(out_path, linked) {
     }
     
     var text_size = 120 + oren_list_len(code)
-    var entry_idx = functions["main"]
-    if entry_idx == nil { entry_idx = 0 }
+    // Entry point is start of code (startup shim)
+    var entry_idx = 0
     var prefix = elf_build_prefix_arm64(text_size, code, entry_idx)
     bytes_extend(prefix, code)
     

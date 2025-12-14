@@ -84,6 +84,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
+	p.registerPrefix(token.SPAWN, p.parseSpawnExpression)
 	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
 	p.registerPrefix(token.LBRACE, p.parseHashLiteral)
 	p.registerPrefix(token.NIL, p.parseNil)
@@ -115,6 +116,20 @@ func New(l *lexer.Lexer) *Parser {
 	p.nextToken()
 
 	return p
+}
+
+func (p *Parser) parseSpawnExpression() ast.Expression {
+	tok := p.curToken
+	// spawn <call-expr>
+	p.nextToken()
+	exp := p.parseExpression(LOWEST)
+	call, ok := exp.(*ast.CallExpression)
+	if !ok {
+		msg := fmt.Sprintf("%d:%d spawn expects a call expression", tok.Line, tok.Column)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	return &ast.SpawnExpression{Token: tok, Call: call}
 }
 
 func (p *Parser) nextToken() {

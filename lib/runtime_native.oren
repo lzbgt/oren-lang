@@ -71,10 +71,10 @@ fn oren_pipe() {
 // --- Native GC/Heap Tracking ---
 
 // We use a string literal in a function to get a stable pointer to writable memory for globals.
-// 0:allocs, 8:roots, 16:lock, 24:free, 32:stack_top
-// 5 * 8 = 40 bytes.
+// 0:allocs, 8:roots, 16:lock, 24:free, 32:threads, 40:argc, 48:argv
+// 7 * 8 = 56 bytes.
 fn oren_globals() {
-    return "0000000011111111222222223333333344444444" 
+    return "00000000111111112222222233333333444444445555555566666666"
 }
 
 // Helpers
@@ -94,6 +94,12 @@ fn global_set_free(v) { ptr_set(oren_globals() + 24, v) }
 fn global_get_threads() { return ptr_get(oren_globals() + 32) }
 fn global_set_threads(v) { ptr_set(oren_globals() + 32, v) }
 
+fn global_get_argc() { return ptr_get(oren_globals() + 40) }
+fn global_set_argc(v) { ptr_set(oren_globals() + 40, v) }
+
+fn global_get_argv() { return ptr_get(oren_globals() + 48) }
+fn global_set_argv(v) { ptr_set(oren_globals() + 48, v) }
+
 fn native_runtime_init() {
     // Init globals to 0
     ptr_set(oren_globals(), 0)
@@ -101,6 +107,14 @@ fn native_runtime_init() {
     ptr_set(oren_globals() + 16, 0)
     ptr_set(oren_globals() + 24, 0)
     ptr_set(oren_globals() + 32, 0)
+    ptr_set(oren_globals() + 40, 0)
+    ptr_set(oren_globals() + 48, 0)
+    return 0
+}
+
+fn native_runtime_set_args(argc, argv) {
+    global_set_argc(argc)
+    global_set_argv(argv)
     return 0
 }
 
@@ -602,19 +616,19 @@ fn oren_new_list(cap) {
     ptr_set(header, 0)      // count
     ptr_set(header + 8, cap) // capacity
     ptr_set(header + 16, buf) // data buffer
-    ptr_set(header + 24, list_magic())
+    ptr_set(header + 24, LIST_MAGIC)
     return header
 }
 
 fn oren_list_len(list) {
     if list == 0 { return 0 }
-    if ptr_get(list + 24) != list_magic() { exit(205) }
+    if ptr_get(list + 24) != LIST_MAGIC { exit(205) }
     return ptr_get(list)
 }
 
 fn oren_list_push(list, value) {
     if list == 0 { exit(210) }
-    if ptr_get(list + 24) != list_magic() { exit(206) }
+    if ptr_get(list + 24) != LIST_MAGIC { exit(206) }
     var count = ptr_get(list)
     var cap = ptr_get(list + 8)
     var buf = ptr_get(list + 16)
@@ -642,7 +656,10 @@ fn oren_list_push(list, value) {
 
 fn oren_list_get(list, idx) {
     if list == 0 { exit(220) }
-    if ptr_get(list + 24) != list_magic() { exit(207) }
+    if ptr_get(list + 24) != LIST_MAGIC {
+        // Not a list, try map get
+        return oren_map_get(list, idx)
+    }
     var count = ptr_get(list)
     if idx < 0 { exit(221) }
     if idx >= count { exit(222) }
@@ -654,7 +671,7 @@ fn oren_list_get(list, idx) {
 fn oren_index_set(container, index, value) {
     if container == 0 { exit(230) }
     // Detect list by magic tag.
-    if ptr_get(container + 24) == list_magic() {
+    if ptr_get(container + 24) == LIST_MAGIC {
         var buf = ptr_get(container + 16)
         var count = ptr_get(container)
         var cap = ptr_get(container + 8)
@@ -693,8 +710,17 @@ fn oren_index_set(container, index, value) {
 
 // --- Args ---
 fn oren_args() {
-    // argv layout is platform-dependent; for now, fetch via syscalls:
-    // On macOS, argc/argv are passed to entry, but we don't capture them yet.
-    // TODO: Plumb argc/argv from entry trampoline; return empty for now.
-    return oren_new_list(0)
+    var argc = global_get_argc()
+    var argv = global_get_argv()
+    if argc <= 0 { return oren_new_list(0) }
+    if argv == 0 { return oren_new_list(0) }
+
+    var out = oren_new_list(argc)
+    var i = 0
+    while i < argc {
+        var s = ptr_get(argv + i * 8)
+        oren_list_push(out, s)
+        i = i + 1
+    }
+    return out
 }

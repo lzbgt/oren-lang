@@ -95,12 +95,27 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_CLASS) { return parse_type_decl(p) }
     if cur_is(p, token.TOK_FFI) { return parse_ffi(p) }
     if cur_is(p, token.TOK_TEST) { return parse_test(p) }
+    if cur_is(p, token.TOK_SPAWN) { return parse_spawn(p) }
     if cur_is(p, token.TOK_LBRACE) { return parse_block(p) }
     if cur_is(p, token.TOK_IDENT) {
         if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
         return parse_assign_or_expr_stmt(p)
     }
     return parse_expr_stmt(p)
+}
+
+fn parse_spawn(p) {
+    var tok = p["cur"]
+    // spawn <call-expr>;
+    parser_next_token(p)
+    var exp = parse_expression(p, LOWEST)
+    if exp == nil { return nil }
+    if exp["type"] != "Call" {
+        parser_add_error(p, "spawn expects a call expression")
+        return nil
+    }
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    return ast.new_spawn(tok, exp)
 }
 
 fn parse_test(p) {
@@ -239,10 +254,24 @@ fn parse_prefix(p) {
     }
     if t == token.TOK_IF { return parse_if(p) }
     if t == token.TOK_FUNCTION { return parse_function(p) }
+    if t == token.TOK_SPAWN { return parse_spawn_expr(p) }
     if t == token.TOK_LBRACKET { return parse_array(p) }
     if t == token.TOK_LBRACE { return parse_hash(p) }
     parser_add_error(p, "no prefix parse fn for " + t)
     return nil
+}
+
+fn parse_spawn_expr(p) {
+    var tok = p["cur"]
+    // spawn <call-expr>
+    parser_next_token(p)
+    var exp = parse_expression(p, LOWEST)
+    if exp == nil { return nil }
+    if exp["type"] != "Call" {
+        parser_add_error(p, "spawn expects a call expression")
+        return nil
+    }
+    return ast.new_spawn_expr(tok, exp)
 }
 
 fn parse_infix(p, left) {

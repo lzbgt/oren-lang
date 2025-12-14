@@ -53,6 +53,7 @@ var TOK_CLASS = "CLASS"
 var TOK_NIL = "NIL"
 var TOK_FFI = "FFI"
 var TOK_TEST = "TEST"
+var TOK_SPAWN = "SPAWN"
 
 // Character constants
 var CH_TAB = oren_char(9)
@@ -106,6 +107,7 @@ fn lookup_ident(ident) {
     if ident == "nil" { return TOK_NIL }
     if ident == "ffi" { return TOK_FFI }
     if ident == "test" { return TOK_TEST }
+    if ident == "spawn" { return TOK_SPAWN }
     return TOK_IDENT
 }
 

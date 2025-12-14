@@ -71,6 +71,7 @@ const (
 	CLASS    = "CLASS"
 	NIL      = "NIL"
 	FFI      = "FFI"
+	SPAWN    = "SPAWN"
 )
 
 var keywords = map[string]TokenType{
@@ -90,6 +91,7 @@ var keywords = map[string]TokenType{
 	"class":    CLASS,
 	"nil":      NIL,
 	"ffi":      FFI,
+	"spawn":    SPAWN,
 }
 
 func LookupIdent(ident string) TokenType {

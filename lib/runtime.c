@@ -1,6 +1,8 @@
 #include "runtime.h"
 #include <sys/stat.h>
 #include <pthread.h>
+#include <errno.h>
+#include <setjmp.h>
 
 OrenValue OREN_NIL;
 OrenValue OREN_TRUE;
@@ -25,9 +27,134 @@ static OrenAllocNode* g_allocs = NULL;
 static pthread_mutex_t g_alloc_mutex = PTHREAD_MUTEX_INITIALIZER;
 static OrenAllocNode* g_roots = NULL;
 static pthread_mutex_t g_collection_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_collection_cv = PTHREAD_COND_INITIALIZER;
+static int g_gc_requested = 0;
+static int g_gc_in_progress = 0;
+static int g_threads_total = 0;
+static int g_threads_waiting = 0;
+static pthread_key_t g_thread_key;
+static pthread_once_t g_thread_key_once = PTHREAD_ONCE_INIT;
+static struct OrenThreadState* g_thread_states = NULL;
+
+typedef struct OrenThreadNode {
+    pthread_t t;
+    int detached;
+    int joined;
+    int done;
+    OrenValue result;
+    char* error;
+    struct OrenThreadNode* next;
+} OrenThreadNode;
+static OrenThreadNode* g_threads = NULL;
 
 static void lock_collections() { pthread_mutex_lock(&g_collection_mutex); }
 static void unlock_collections() { pthread_mutex_unlock(&g_collection_mutex); }
+
+typedef struct OrenThreadState {
+    int at_safepoint;
+    void* stack_top;
+    void* stack_sp;
+    jmp_buf panic_buf;
+    int has_panic_buf;
+    struct OrenThreadState* next;
+} OrenThreadState;
+
+static void thread_key_init() {
+    (void)pthread_key_create(&g_thread_key, free);
+}
+
+static OrenThreadState* oren_thread_state() {
+    (void)pthread_once(&g_thread_key_once, thread_key_init);
+    OrenThreadState* st = (OrenThreadState*)pthread_getspecific(g_thread_key);
+    if (!st) {
+        st = (OrenThreadState*)calloc(1, sizeof(OrenThreadState));
+        if (!st) {
+            fprintf(stderr, "thread state alloc failed\n");
+            exit(1);
+        }
+        int stack_marker = 0;
+        st->stack_top = (void*)&stack_marker;
+        st->stack_sp = NULL;
+        st->has_panic_buf = 0;
+        pthread_setspecific(g_thread_key, st);
+        lock_collections();
+        g_threads_total++;
+        st->next = g_thread_states;
+        g_thread_states = st;
+        unlock_collections();
+    }
+    return st;
+}
+
+void oren_panic(const char* msg) {
+    OrenThreadState* st = oren_thread_state();
+    if (st && st->has_panic_buf) {
+        // We can't easily pass the string pointer through longjmp (int arg).
+        // So we might need to store it in thread state or use a global if we were single threaded.
+        // But since we are panicking, we can perhaps just longjmp and let the catcher
+        // use a side-channel or just know *that* it panicked.
+        // Ideally we store the message in the thread node?
+        // But the thread node is owned by the spawner.
+        // Let's print to stderr for now, and maybe store in thread-local static?
+        fprintf(stderr, "Panic in thread: %s\n", msg);
+        longjmp(st->panic_buf, 1);
+    }
+    fprintf(stderr, "Runtime Panic: %s\n", msg);
+    exit(1);
+}
+
+static void oren_thread_unregister() {
+    (void)pthread_once(&g_thread_key_once, thread_key_init);
+    OrenThreadState* st = (OrenThreadState*)pthread_getspecific(g_thread_key);
+    if (!st) return;
+
+    // Cooperate if a collection is in progress.
+    if (g_gc_requested) {
+        oren_gc_safepoint();
+    }
+
+    lock_collections();
+    if (st->at_safepoint) {
+        st->at_safepoint = 0;
+        g_threads_waiting--;
+        if (g_threads_waiting < 0) g_threads_waiting = 0;
+    }
+    g_threads_total--;
+    if (g_threads_total < 0) g_threads_total = 0;
+
+    // Remove from global thread-state list.
+    OrenThreadState* prev = NULL;
+    OrenThreadState* cur = g_thread_states;
+    while (cur) {
+        if (cur == st) {
+            if (prev) prev->next = cur->next;
+            else g_thread_states = cur->next;
+            break;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+
+    pthread_cond_broadcast(&g_collection_cv);
+    unlock_collections();
+    pthread_setspecific(g_thread_key, NULL);
+    free(st);
+}
+
+static void thread_list_remove(OrenThreadNode* node) {
+    if (!node) return;
+    OrenThreadNode* prev = NULL;
+    OrenThreadNode* cur = g_threads;
+    while (cur) {
+        if (cur == node) {
+            if (prev) prev->next = cur->next;
+            else g_threads = cur->next;
+            return;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+}
 
 void oren_register_root(OrenValue* slot) {
 #ifdef OREN_NO_GC
@@ -130,10 +257,27 @@ static void oren_mark_value(OrenValue v) {
     }
 }
 
+static int oren_type_valid(int t);
+static void oren_mark_stack_range(void* a, void* b);
+
 void oren_gc_collect() {
 #ifdef OREN_NO_GC
     return;
 #endif
+    OrenThreadState* self = oren_thread_state();
+    (void)self;
+
+    lock_collections();
+    while (g_gc_in_progress) {
+        pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
+    }
+    g_gc_in_progress = 1;
+    g_gc_requested = 1;
+    pthread_cond_broadcast(&g_collection_cv);
+    while (g_threads_waiting < (g_threads_total - 1)) {
+        pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
+    }
+
     pthread_mutex_lock(&g_alloc_mutex);
     // Clear prior marks (-1 -> 0)
     OrenAllocNode* n = g_allocs;
@@ -149,6 +293,31 @@ void oren_gc_collect() {
             oren_mark_value(*slot);
         }
         r = r->next;
+    }
+
+    // Mark results of completed threads (that haven't been joined/freed yet)
+    OrenThreadNode* t = g_threads;
+    while (t) {
+        if (t->done) {
+            oren_mark_value(t->result);
+        }
+        t = t->next;
+    }
+
+    // Conservative stack scanning over all registered threads.
+    int self_sp_marker = 0;
+    void* self_sp = (void*)&self_sp_marker;
+    OrenThreadState* cur = g_thread_states;
+    while (cur) {
+        void* sp = cur->stack_sp;
+        void* top = cur->stack_top;
+        if (cur == self) {
+            sp = self_sp;
+        }
+        if (sp != NULL && top != NULL) {
+            oren_mark_stack_range(sp, top);
+        }
+        cur = cur->next;
     }
     // Sweep: free unmarked (freed==0) tracked allocations
     OrenAllocNode* prev = NULL;
@@ -181,6 +350,240 @@ void oren_gc_collect() {
         n = n->next;
     }
     pthread_mutex_unlock(&g_alloc_mutex);
+
+    g_gc_requested = 0;
+    g_gc_in_progress = 0;
+    pthread_cond_broadcast(&g_collection_cv);
+    unlock_collections();
+}
+
+void oren_gc_safepoint() {
+#ifdef OREN_NO_GC
+    return;
+#endif
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return;
+
+    int sp_marker = 0;
+    st->stack_sp = (void*)&sp_marker;
+
+    lock_collections();
+    if (!g_gc_requested) {
+        unlock_collections();
+        return;
+    }
+    if (!st->at_safepoint) {
+        st->at_safepoint = 1;
+        g_threads_waiting++;
+        pthread_cond_broadcast(&g_collection_cv);
+    }
+    while (g_gc_requested) {
+        pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
+    }
+    if (st->at_safepoint) {
+        st->at_safepoint = 0;
+        g_threads_waiting--;
+        if (g_threads_waiting < 0) g_threads_waiting = 0;
+    }
+    unlock_collections();
+}
+
+static int oren_type_valid(int t) {
+    return t >= OREN_TYPE_NIL && t <= OREN_TYPE_MAP;
+}
+
+static void oren_mark_stack_range(void* a, void* b) {
+    uintptr_t lo = (uintptr_t)a;
+    uintptr_t hi = (uintptr_t)b;
+    if (lo == 0 || hi == 0) return;
+    if (lo > hi) {
+        uintptr_t tmp = lo;
+        lo = hi;
+        hi = tmp;
+    }
+    lo &= ~(uintptr_t)0x7;
+    hi &= ~(uintptr_t)0x7;
+
+    for (uintptr_t p = lo; p + sizeof(OrenValue) <= hi; p += 8) {
+        OrenValue v;
+        memcpy(&v, (void*)p, sizeof(OrenValue));
+        if (!oren_type_valid((int)v.type)) continue;
+        oren_mark_value(v);
+    }
+}
+
+typedef struct {
+    OrenFn0 fn;
+    OrenThreadNode* node;
+} OrenSpawn0Args;
+
+static void* oren_spawn0_entry(void* p) {
+    // Ensure this thread participates in safepoint GC accounting.
+    OrenThreadState* st = oren_thread_state();
+    OrenSpawn0Args* a = (OrenSpawn0Args*)p;
+    
+    if (setjmp(st->panic_buf) == 0) {
+        st->has_panic_buf = 1;
+        OrenValue res = a->fn();
+        st->has_panic_buf = 0;
+        if (a->node) {
+            lock_collections();
+            a->node->done = 1;
+            a->node->result = res;
+            int should_free = (a->node->detached && !a->node->joined);
+            unlock_collections();
+            if (should_free) {
+                free(a->node);
+            }
+        }
+    } else {
+        st->has_panic_buf = 0;
+        // Panic caught
+        if (a->node) {
+            lock_collections();
+            a->node->done = 1;
+            a->node->result = OREN_NIL;
+            a->node->error = strdup("Thread Panicked"); // Generic msg for now
+            int should_free = (a->node->detached && !a->node->joined);
+            unlock_collections();
+            if (should_free) {
+                if (a->node->error) free(a->node->error);
+                free(a->node);
+            }
+        }
+    }
+    
+    free(a);
+    oren_thread_unregister();
+    return NULL;
+}
+
+OrenValue oren_spawn0(OrenFn0 fn) {
+    if (!fn) return OREN_NIL;
+    // Ensure the main thread is registered before creating workers.
+    (void)oren_thread_state();
+    OrenThreadNode* n = (OrenThreadNode*)malloc(sizeof(OrenThreadNode));
+    if (!n) {
+        fprintf(stderr, "thread registry alloc failed\n");
+        exit(1);
+    }
+    n->detached = 0;
+    n->joined = 0;
+    n->done = 0;
+    n->result = OREN_NIL;
+    n->error = NULL;
+    n->next = NULL;
+
+    OrenSpawn0Args* args = (OrenSpawn0Args*)malloc(sizeof(OrenSpawn0Args));
+    if (!args) {
+        free(n);
+        fprintf(stderr, "spawn alloc failed\n");
+        exit(1);
+    }
+    args->fn = fn;
+    args->node = n;
+    pthread_t t;
+    int rc = pthread_create(&t, NULL, oren_spawn0_entry, args);
+    if (rc != 0) {
+        free(args);
+        free(n);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "pthread_create failed: %s", strerror(rc));
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
+    }
+    n->t = t;
+    lock_collections();
+    n->next = g_threads;
+    g_threads = n;
+    unlock_collections();
+    return oren_int((long long)(intptr_t)n);
+}
+
+static OrenThreadNode* thread_from_value(OrenValue v) {
+    if (v.type != OREN_TYPE_INT) return NULL;
+    if (v.as.int_val == 0) return NULL;
+    return (OrenThreadNode*)(intptr_t)v.as.int_val;
+}
+
+OrenValue oren_join(OrenValue thread) {
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_NIL;
+    lock_collections();
+    if (n->joined) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    if (n->detached) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    thread_list_remove(n);
+    n->joined = 1;
+    unlock_collections();
+    pthread_join(n->t, NULL);
+    
+    OrenValue res = n->result;
+    if (n->error) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
+        free(n->error);
+        free(n);
+        oren_panic(buf);
+    }
+    free(n);
+    return res;
+}
+
+OrenValue oren_detach(OrenValue thread) {
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_NIL;
+    lock_collections();
+    if (n->joined) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    if (n->detached) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    thread_list_remove(n);
+    n->detached = 1;
+    int done = n->done;
+    unlock_collections();
+    pthread_detach(n->t);
+    if (done) {
+        if (n->error) free(n->error);
+        free(n);
+    }
+    return OREN_NIL;
+}
+
+OrenValue oren_is_done(OrenValue thread) {
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_FALSE;
+    lock_collections();
+    int d = n->done;
+    unlock_collections();
+    return oren_bool(d);
+}
+
+OrenValue oren_join_all() {
+    // Join all known threads. Safe to call multiple times.
+    while (1) {
+        lock_collections();
+        OrenThreadNode* n = g_threads;
+        if (!n) {
+            unlock_collections();
+            break;
+        }
+        g_threads = n->next;
+        unlock_collections();
+        pthread_join(n->t, NULL);
+        if (n->error) free(n->error);
+        free(n);
+    }
+    return OREN_NIL;
 }
 
 static void oren_store_args(int argc, char **argv) {
@@ -220,6 +623,8 @@ void oren_init(int argc, char **argv) {
     OREN_FALSE.as.bool_val = 0;
 
     oren_store_args(argc, argv);
+    // Register the main thread for GC safepoint accounting.
+    (void)oren_thread_state();
 
 #ifdef OREN_ENABLE_PYTHON
     Py_Initialize();
@@ -328,8 +733,8 @@ OrenValue oren_add(OrenValue a, OrenValue b) {
          val.as.string_val = new_s;
          return val;
     }
-    printf("Runtime Error: Type mismatch in add\n");
-    exit(1);
+    oren_panic("Type mismatch in add");
+    return OREN_NIL;
 }
 
 OrenValue oren_sub(OrenValue a, OrenValue b) {
@@ -345,8 +750,8 @@ OrenValue oren_sub(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_INT) {
         return oren_float(a.as.float_val - (double)b.as.int_val);
     }
-    printf("Runtime Error: Type mismatch in sub\n");
-    exit(1);
+    oren_panic("Type mismatch in sub");
+    return OREN_NIL;
 }
 
 OrenValue oren_mul(OrenValue a, OrenValue b) {
@@ -362,8 +767,8 @@ OrenValue oren_mul(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_INT) {
         return oren_float(a.as.float_val * (double)b.as.int_val);
     }
-    printf("Runtime Error: Type mismatch in mul\n");
-    exit(1);
+    oren_panic("Type mismatch in mul");
+    return OREN_NIL;
 }
 
 OrenValue oren_div(OrenValue a, OrenValue b) {
@@ -379,14 +784,16 @@ OrenValue oren_div(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_INT) {
         return oren_float(a.as.float_val / (double)b.as.int_val);
     }
-    printf("Runtime Error: Type mismatch in div\n");
-    exit(1);
+    oren_panic("Type mismatch in div");
+    return OREN_NIL;
 }
 
 static uint64_t oren_u64(OrenValue v, const char *op) {
     if (v.type != OREN_TYPE_INT) {
-        printf("Runtime Error: %s expects int\n", op);
-        exit(1);
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%s expects int", op);
+        oren_panic(buf);
+        return 0ULL; // Should not be reached, but needed for compiler
     }
     return (uint64_t)v.as.int_val;
 }
@@ -443,8 +850,8 @@ OrenValue oren_eq(OrenValue a, OrenValue b) {
             if (res == -1) { PyErr_Clear(); return OREN_FALSE; }
             return oren_bool(res);
 #else
-            printf("Runtime Error: Python support is disabled\n");
-            exit(1);
+            oren_panic("Python support is disabled");
+            return OREN_FALSE;
 #endif
         }
         case OREN_TYPE_LIST:
@@ -459,14 +866,16 @@ OrenValue oren_eq(OrenValue a, OrenValue b) {
 #ifdef OREN_ENABLE_PYTHON
 OrenValue oren_py_import(OrenValue name) {
     if (name.type != OREN_TYPE_STRING) {
-        printf("Runtime Error: import expects string\n");
-        exit(1);
+        oren_panic("import expects string");
+        return OREN_NIL; // Should not be reached
     }
     PyObject* mod = PyImport_ImportModule(name.as.string_val);
     if (!mod) {
         PyErr_Print();
-        printf("Runtime Error: Could not import python module %s\n", name.as.string_val);
-        exit(1);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Could not import python module %s", name.as.string_val);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
     }
     OrenValue v;
     v.type = OREN_TYPE_PY_OBJ;
@@ -476,8 +885,8 @@ OrenValue oren_py_import(OrenValue name) {
 #else
 OrenValue oren_py_import(OrenValue name) {
     (void)name;
-    printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-    exit(1);
+    oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+    return OREN_NIL; // Should not be reached
 }
 #endif
 
@@ -487,22 +896,24 @@ OrenValue oren_get_attr(OrenValue obj, const char* attr) {
         PyObject* val = PyObject_GetAttrString(obj.as.py_obj, attr);
         if (!val) {
             PyErr_Print();
-            printf("Runtime Error: Python object has no attribute '%s'\n", attr);
-            exit(1);
+            char buf[256];
+            snprintf(buf, sizeof(buf), "Python object has no attribute '%s'", attr);
+            oren_panic(buf);
+            return OREN_NIL; // Should not be reached
         }
         return oren_py_to_oren(val);
     }
 #else
     if (obj.type == OREN_TYPE_PY_OBJ) {
-        printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-        exit(1);
+        oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+        return OREN_NIL; // Should not be reached
     }
 #endif
     if (obj.type == OREN_TYPE_MAP) {
         return oren_map_get(obj, oren_string(attr));
     }
-    printf("Runtime Error: get_attr only supported for Python objects and maps currently\n");
-    exit(1);
+    oren_panic("get_attr only supported for Python objects and maps currently");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_set_attr(OrenValue obj, const char* attr, OrenValue value) {
@@ -511,8 +922,10 @@ OrenValue oren_set_attr(OrenValue obj, const char* attr, OrenValue value) {
         PyObject* py_val = oren_to_py(value);
         if (PyObject_SetAttrString(obj.as.py_obj, attr, py_val) != 0) {
             PyErr_Print();
-            printf("Runtime Error: failed to set attribute '%s'\n", attr);
-            exit(1);
+            char buf[256];
+            snprintf(buf, sizeof(buf), "failed to set attribute '%s'", attr);
+            oren_panic(buf);
+            return value; // Should not be reached, but needed for compiler
         }
         Py_DECREF(py_val);
         return value;
@@ -521,15 +934,15 @@ OrenValue oren_set_attr(OrenValue obj, const char* attr, OrenValue value) {
     if (obj.type == OREN_TYPE_PY_OBJ) {
         (void)attr;
         (void)value;
-        printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-        exit(1);
+        oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+        return value; // Should not be reached
     }
 #endif
     if (obj.type == OREN_TYPE_MAP) {
         return oren_index_set(obj, oren_string(attr), value);
     }
-    printf("Runtime Error: set_attr only supported for Python objects and maps currently\n");
-    exit(1);
+    oren_panic("set_attr only supported for Python objects and maps currently");
+    return value; // Should not be reached
 }
 
 OrenValue oren_new_list(int count, ...) {
@@ -558,8 +971,8 @@ OrenValue oren_new_list(int count, ...) {
 
 OrenValue oren_list_len(OrenValue list) {
     if (list.type != OREN_TYPE_LIST) {
-        printf("Runtime Error: len on non-list\n");
-        exit(1);
+        oren_panic("len on non-list");
+        return OREN_NIL; // Should not be reached
     }
     lock_collections();
     int c = list.as.list_val->count;
@@ -569,8 +982,8 @@ OrenValue oren_list_len(OrenValue list) {
 
 OrenValue oren_list_push(OrenValue list, OrenValue value) {
     if (list.type != OREN_TYPE_LIST) {
-        printf("Runtime Error: push on non-list\n");
-        exit(1);
+        oren_panic("push on non-list");
+        return list; // Should not be reached
     }
     OrenList *l = list.as.list_val;
     lock_collections();
@@ -588,13 +1001,15 @@ OrenValue oren_list_push(OrenValue list, OrenValue value) {
 OrenValue oren_list_get(OrenValue list, OrenValue index) {
     if (list.type == OREN_TYPE_LIST) {
         if (index.type != OREN_TYPE_INT) {
-             printf("Runtime Error: index must be integer\n");
-             exit(1);
+             oren_panic("index must be integer");
+             return OREN_NIL; // Should not be reached
         }
         int idx = (int)index.as.int_val;
         if (idx < 0 || idx >= list.as.list_val->count) {
-             printf("Runtime Error: index out of bounds (idx=%d, count=%d, cap=%d)\n", idx, list.as.list_val->count, list.as.list_val->capacity);
-             exit(1);
+            char buf[128];
+            snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, list.as.list_val->count);
+            oren_panic(buf);
+            return OREN_NIL; // Should not be reached
         }
         lock_collections();
         OrenValue v = list.as.list_val->items[idx];
@@ -607,15 +1022,16 @@ OrenValue oren_list_get(OrenValue list, OrenValue index) {
          PyObject* item = PyObject_GetItem(list.as.py_obj, oren_to_py(index)); // This leaks the index py object reference
          if (!item) {
              PyErr_Print();
-             exit(1);
+             oren_panic("Python list get item failed");
+             return OREN_NIL; // Should not be reached
          }
          return oren_py_to_oren(item);
     }
 #else
     if (list.type == OREN_TYPE_PY_OBJ) {
         (void)index;
-        printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-        exit(1);
+        oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+        return OREN_NIL; // Should not be reached
     }
 #endif
 
@@ -624,20 +1040,22 @@ OrenValue oren_list_get(OrenValue list, OrenValue index) {
         return oren_map_get(list, index);
     }
 
-    printf("Runtime Error: index get on non-list/map\n");
-    exit(1);
+    oren_panic("index get on non-list/map");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) {
     if (container.type == OREN_TYPE_LIST) {
         if (index.type != OREN_TYPE_INT) {
-            printf("Runtime Error: index must be integer\n");
-            exit(1);
+            oren_panic("index must be integer");
+            return value; // Should not be reached
         }
         int idx = (int)index.as.int_val;
         if (idx < 0) {
-            printf("Runtime Error: index out of bounds (idx=%d, count=%d, cap=%d)\n", idx, container.as.list_val->count, container.as.list_val->capacity);
-            exit(1);
+            char buf[128];
+            snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, container.as.list_val->count);
+            oren_panic(buf);
+            return value; // Should not be reached
         }
         if (idx >= container.as.list_val->capacity) {
             int newCap = container.as.list_val->capacity == 0 ? (idx + 1) : container.as.list_val->capacity;
@@ -687,8 +1105,8 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
         PyObject* py_value = oren_to_py(value);
         if (PyObject_SetItem(container.as.py_obj, py_index, py_value) != 0) {
             PyErr_Print();
-            printf("Runtime Error: python setitem failed\n");
-            exit(1);
+            oren_panic("python setitem failed");
+            return value; // Should not be reached
         }
         Py_DECREF(py_index);
         Py_DECREF(py_value);
@@ -698,13 +1116,13 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
     if (container.type == OREN_TYPE_PY_OBJ) {
         (void)index;
         (void)value;
-        printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-        exit(1);
+        oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+        return value; // Should not be reached
     }
 #endif
 
-    printf("Runtime Error: index set on non-list/map\n");
-    exit(1);
+    oren_panic("index set on non-list/map");
+    return value; // Should not be reached
 }
 
 OrenValue oren_new_map(int count, ...) {
@@ -755,8 +1173,8 @@ OrenValue oren_call_obj(OrenValue fn, int count, ...) {
 #ifdef OREN_ENABLE_PYTHON
     if (fn.type == OREN_TYPE_PY_OBJ) {
         if (!PyCallable_Check(fn.as.py_obj)) {
-            printf("Runtime Error: Python object is not callable\n");
-            exit(1);
+            oren_panic("Python object is not callable");
+            return OREN_NIL; // Should not be reached
         }
         PyObject* py_args = PyTuple_New(count);
         for (int i = 0; i < count; i++) {
@@ -767,7 +1185,8 @@ OrenValue oren_call_obj(OrenValue fn, int count, ...) {
         Py_DECREF(py_args);
         if (!result) {
             PyErr_Print();
-            exit(1);
+            oren_panic("Python call failed");
+            return OREN_NIL; // Should not be reached
         }
         va_end(args);
         return oren_py_to_oren(result);
@@ -775,13 +1194,13 @@ OrenValue oren_call_obj(OrenValue fn, int count, ...) {
 #else
     if (fn.type == OREN_TYPE_PY_OBJ) {
         (void)count;
-        printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-        exit(1);
+        oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+        return OREN_NIL; // Should not be reached
     }
 #endif
 
-    printf("Runtime Error: Calling non-callable object (only Python callables supported via generic call so far)\n");
-    exit(1);
+    oren_panic("Calling non-callable object (only Python callables supported via generic call so far)");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_neq(OrenValue a, OrenValue b) {
@@ -805,8 +1224,8 @@ OrenValue oren_lt(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_STRING && b.type == OREN_TYPE_STRING) {
         return oren_bool(strcmp(a.as.string_val, b.as.string_val) < 0);
     }
-    printf("Runtime Error: Type mismatch in lt\n");
-    exit(1);
+    oren_panic("Type mismatch in lt");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_gt(OrenValue a, OrenValue b) {
@@ -825,8 +1244,8 @@ OrenValue oren_gt(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_STRING && b.type == OREN_TYPE_STRING) {
         return oren_bool(strcmp(a.as.string_val, b.as.string_val) > 0);
     }
-    printf("Runtime Error: Type mismatch in gt\n");
-    exit(1);
+    oren_panic("Type mismatch in gt");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_lte(OrenValue a, OrenValue b) {
@@ -845,8 +1264,8 @@ OrenValue oren_lte(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_STRING && b.type == OREN_TYPE_STRING) {
         return oren_bool(strcmp(a.as.string_val, b.as.string_val) <= 0);
     }
-    printf("Runtime Error: Type mismatch in lte\n");
-    exit(1);
+    oren_panic("Type mismatch in lte");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_gte(OrenValue a, OrenValue b) {
@@ -865,8 +1284,8 @@ OrenValue oren_gte(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_STRING && b.type == OREN_TYPE_STRING) {
         return oren_bool(strcmp(a.as.string_val, b.as.string_val) >= 0);
     }
-    printf("Runtime Error: Type mismatch in gte\n");
-    exit(1);
+    oren_panic("Type mismatch in gte");
+    return OREN_NIL;
 }
 
 void oren_print(OrenValue v) {
@@ -883,8 +1302,7 @@ void oren_print(OrenValue v) {
             Py_DECREF(str);
             break;
 #else
-            printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-            exit(1);
+            oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
 #endif
         }
         case OREN_TYPE_LIST: {
@@ -955,8 +1373,7 @@ void oren_print_multi(int count, ...) {
                 Py_DECREF(str);
                 break;
 #else
-                printf("Runtime Error: Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)\n");
-                exit(1);
+                oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
 #endif
             }
             case OREN_TYPE_LIST:
@@ -976,24 +1393,25 @@ void oren_print_multi(int count, ...) {
 
 OrenValue oren_string_len(OrenValue s) {
     if (s.type != OREN_TYPE_STRING) {
-        printf("Runtime Error: string_len expects string\n");
-        exit(1);
+        oren_panic("string_len expects string");
+        return OREN_NIL; // Should not be reached
     }
     return oren_int((long long)strlen(s.as.string_val));
 }
 
 OrenValue oren_string_char_at(OrenValue s, OrenValue index) {
     if (s.type != OREN_TYPE_STRING || index.type != OREN_TYPE_INT) {
-        printf("Runtime Error: char_at expects (string, int)\n");
-        exit(1);
+        oren_panic("char_at expects (string, int)");
+        return OREN_NIL; // Should not be reached
     }
     long long idx = index.as.int_val;
     size_t len = strlen(s.as.string_val);
     if (idx < 0 || (size_t)idx >= len) {
-        printf("Runtime Error: char_at index out of range\n");
-        exit(1);
-    }
-    char buf[2];
+        char buf[128];
+                    snprintf(buf, sizeof(buf), "char_at index out of range (idx=%lld, len=%zu)", idx, len);
+                    oren_panic(buf);
+                    return OREN_NIL; // Should not be reached
+            }    char buf[2];
     buf[0] = s.as.string_val[idx];
     buf[1] = '\0';
     return oren_string(buf);
@@ -1001,13 +1419,15 @@ OrenValue oren_string_char_at(OrenValue s, OrenValue index) {
 
 OrenValue oren_char(OrenValue code) {
     if (code.type != OREN_TYPE_INT) {
-        printf("Runtime Error: char expects int\n");
-        exit(1);
+        oren_panic("char expects int");
+        return OREN_NIL; // Should not be reached
     }
     long long v = code.as.int_val;
     if (v < 0 || v > 255) {
-        printf("Runtime Error: char code out of range\n");
-        exit(1);
+        char buf[128];
+        snprintf(buf, sizeof(buf), "char code out of range (code=%lld)", v);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
     }
     char buf[2];
     buf[0] = (char)v;
@@ -1017,13 +1437,15 @@ OrenValue oren_char(OrenValue code) {
 
 OrenValue oren_read_file(OrenValue path) {
     if (path.type != OREN_TYPE_STRING) {
-        printf("Runtime Error: read_file expects string path\n");
-        exit(1);
+        oren_panic("read_file expects string path");
+        return OREN_NIL; // Should not be reached
     }
     FILE *f = fopen(path.as.string_val, "rb");
     if (!f) {
-        printf("Runtime Error: cannot open file %s\n", path.as.string_val);
-        exit(1);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "cannot open file %s", path.as.string_val);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
     }
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
@@ -1037,13 +1459,15 @@ OrenValue oren_read_file(OrenValue path) {
 
 OrenValue oren_write_file(OrenValue path, OrenValue content) {
     if (path.type != OREN_TYPE_STRING || content.type != OREN_TYPE_STRING) {
-        printf("Runtime Error: write_file expects (string, string)\n");
-        exit(1);
+        oren_panic("write_file expects (string, string)");
+        return OREN_NIL; // Should not be reached
     }
     FILE *f = fopen(path.as.string_val, "wb");
     if (!f) {
-        printf("Runtime Error: cannot open file for write %s\n", path.as.string_val);
-        exit(1);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "cannot open file for write %s", path.as.string_val);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
     }
     fwrite(content.as.string_val, 1, strlen(content.as.string_val), f);
     fclose(f);
@@ -1052,24 +1476,28 @@ OrenValue oren_write_file(OrenValue path, OrenValue content) {
 
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
     if (path.type != OREN_TYPE_STRING || bytes.type != OREN_TYPE_LIST) {
-        printf("Runtime Error: write_bytes expects (string, list)\n");
-        exit(1);
+        oren_panic("write_bytes expects (string, list)");
+        return OREN_NIL; // Should not be reached
     }
     FILE *f = fopen(path.as.string_val, "wb");
     if (!f) {
-        printf("Runtime Error: cannot open file for write %s\n", path.as.string_val);
-        exit(1);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "cannot open file for write %s", path.as.string_val);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
     }
     for (int i = 0; i < bytes.as.list_val->count; i++) {
         OrenValue b = bytes.as.list_val->items[i];
         if (b.type != OREN_TYPE_INT) {
-            printf("Runtime Error: write_bytes expects list of ints\n");
-            exit(1);
+            oren_panic("write_bytes expects list of ints");
+            return OREN_NIL; // Should not be reached
         }
         long long v = b.as.int_val;
         if (v < 0 || v > 255) {
-            printf("Runtime Error: write_bytes byte out of range\n");
-            exit(1);
+            char buf[128];
+            snprintf(buf, sizeof(buf), "write_bytes byte out of range (val=%lld)", v);
+            oren_panic(buf);
+            return OREN_NIL; // Should not be reached
         }
         fputc((unsigned char)v, f);
     }
@@ -1079,8 +1507,8 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
 
 OrenValue oren_bytes_from_string(OrenValue s) {
     if (s.type != OREN_TYPE_STRING) {
-        printf("Runtime Error: bytes_from_string expects string\n");
-        exit(1);
+        oren_panic("bytes_from_string expects string");
+        return OREN_NIL; // Should not be reached
     }
     size_t n = strlen(s.as.string_val);
     OrenList* list = malloc(sizeof(OrenList));
@@ -1236,14 +1664,16 @@ static void oren_sha256_final(OrenSha256Ctx* ctx, uint8_t out[32]) {
 
 OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) {
     if (bytes.type != OREN_TYPE_LIST || start.type != OREN_TYPE_INT || length.type != OREN_TYPE_INT) {
-        printf("Runtime Error: sha256_range expects (list, int, int)\n");
-        exit(1);
+        oren_panic("sha256_range expects (list, int, int)");
+        return OREN_NIL; // Should not be reached
     }
     long long s = start.as.int_val;
     long long n = length.as.int_val;
     if (s < 0 || n < 0 || s + n > bytes.as.list_val->count) {
-        printf("Runtime Error: sha256_range out of bounds\n");
-        exit(1);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "sha256_range out of bounds (s=%lld, n=%lld, count=%d)", s, n, bytes.as.list_val->count);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
     }
 
     OrenSha256Ctx ctx;
@@ -1252,13 +1682,15 @@ OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) 
     for (long long i = 0; i < n; i++) {
         OrenValue b = bytes.as.list_val->items[(int)(s + i)];
         if (b.type != OREN_TYPE_INT) {
-            printf("Runtime Error: sha256_range expects list of ints\n");
-            exit(1);
+            oren_panic("sha256_range expects list of ints");
+            return OREN_NIL; // Should not be reached
         }
         long long v = b.as.int_val;
         if (v < 0 || v > 255) {
-            printf("Runtime Error: sha256_range byte out of range\n");
-            exit(1);
+            char buf[128];
+            snprintf(buf, sizeof(buf), "sha256_range byte out of range (val=%lld)", v);
+            oren_panic(buf);
+            return OREN_NIL; // Should not be reached
         }
         uint8_t byte = (uint8_t)v;
         oren_sha256_update(&ctx, &byte, 1);
@@ -1282,20 +1714,22 @@ OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) 
 
 OrenValue oren_chmod(OrenValue path, OrenValue mode) {
     if (path.type != OREN_TYPE_STRING || mode.type != OREN_TYPE_INT) {
-        printf("Runtime Error: chmod expects (string, int)\n");
-        exit(1);
+        oren_panic("chmod expects (string, int)");
+        return OREN_NIL; // Should not be reached
     }
     if (chmod(path.as.string_val, (mode_t)mode.as.int_val) != 0) {
-        printf("Runtime Error: chmod failed for %s\n", path.as.string_val);
-        exit(1);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "chmod failed for %s", path.as.string_val);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
     }
     return OREN_NIL;
 }
 
 OrenValue oren_system(OrenValue cmd) {
     if (cmd.type != OREN_TYPE_STRING) {
-        printf("Runtime Error: system expects string\n");
-        exit(1);
+        oren_panic("system expects string");
+        return OREN_NIL; // Should not be reached
     }
     int res = system(cmd.as.string_val);
     return oren_int((long long)res);
@@ -1303,8 +1737,8 @@ OrenValue oren_system(OrenValue cmd) {
 
 OrenValue oren_exit(OrenValue code) {
     if (code.type != OREN_TYPE_INT) {
-        printf("Runtime Error: exit expects int\n");
-        exit(1);
+        oren_panic("exit expects int");
+        return OREN_NIL; // Should not be reached
     }
     exit((int)code.as.int_val);
     return OREN_NIL;
@@ -1312,8 +1746,8 @@ OrenValue oren_exit(OrenValue code) {
 
 OrenValue oren_int_to_string(OrenValue v) {
     if (v.type != OREN_TYPE_INT) {
-        printf("Runtime Error: int_to_string expects int\n");
-        exit(1);
+        oren_panic("int_to_string expects int");
+        return OREN_NIL; // Should not be reached
     }
     char buf[64];
     snprintf(buf, sizeof(buf), "%lld", v.as.int_val);
@@ -1322,18 +1756,29 @@ OrenValue oren_int_to_string(OrenValue v) {
 
 OrenValue oren_float_to_string(OrenValue v) {
     if (v.type != OREN_TYPE_FLOAT) {
-        printf("Runtime Error: float_to_string expects float\n");
-        exit(1);
+        oren_panic("float_to_string expects float");
+        return OREN_NIL; // Should not be reached
     }
     char buf[64];
     snprintf(buf, sizeof(buf), "%f", v.as.float_val);
     return oren_string(buf);
 }
 
+OrenValue oren_string_to_float_bits(OrenValue s) {
+    if (s.type != OREN_TYPE_STRING) {
+        oren_panic("string_to_float_bits expects string");
+        return OREN_NIL;
+    }
+    double d = strtod(s.as.string_val, NULL);
+    uint64_t bits;
+    memcpy(&bits, &d, sizeof(bits));
+    return oren_int((long long)bits);
+}
+
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end) {
     if (s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || end.type != OREN_TYPE_INT) {
-        printf("Runtime Error: string_slice type mismatch\n");
-        exit(1);
+        oren_panic("string_slice type mismatch");
+        return OREN_NIL; // Should not be reached
     }
     char* str = s.as.string_val;
     long long len = strlen(str);
@@ -1417,6 +1862,8 @@ void oren_free(OrenValue v) {
 }
 
 void oren_shutdown() {
+    // Ensure no threads are running while tearing down runtime allocations.
+    oren_join_all();
     pthread_mutex_lock(&g_alloc_mutex);
     OrenAllocNode* n = g_allocs;
     while (n != NULL) {
@@ -1462,8 +1909,8 @@ uint64_t oren_alloc_struct(size_t bytes) {
     oren_register_alloc(p, OREN_ALLOC_STRUCT);
 #endif
     if (!p) {
-        fprintf(stderr, "struct alloc failed\n");
-        exit(1);
+        oren_panic("struct alloc failed");
+        return (uint64_t)p; // Should not be reached, but needed for compiler
     }
     return (uint64_t)p;
 }
