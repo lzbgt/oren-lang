@@ -1,0 +1,16 @@
+var l = [10, 20, 30]
+if l[0] != 10 { exit(1) }
+if l[1] != 20 { exit(2) }
+if l[2] != 30 { exit(3) }
+
+l[1] = 25
+if l[1] != 25 { exit(4) }
+
+var m = {"a": 1, "b": 2}
+if m["a"] != 1 { exit(5) }
+if m["b"] != 2 { exit(6) }
+
+m["a"] = 100
+if m["a"] != 100 { exit(7) }
+
+print("Indexing OK")

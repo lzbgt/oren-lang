@@ -90,6 +90,18 @@ var CH_LF = oren_char(10)
 var CH_CR = oren_char(13)
 var CH_TAB = oren_char(9)
 
+fn contains_curly_braces(s) {
+    var i = 0
+    var len = oren_string_len(s)
+    while i < len - 1 {
+        if oren_string_char_at(s, i) == "{" {
+            if oren_string_char_at(s, i + 1) == "}" { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
 fn c_escape_string(s) {
     var out = ""
     var i = 0
@@ -330,6 +342,30 @@ fn transpile_expression(t, exp) {
             var argc = oren_list_len(exp["args"])
             if name == "print" {
                 if argc == 0 { return "oren_print_multi(0)" }
+                
+                var is_fmt = false
+                if argc > 1 {
+                    var arg0 = exp["args"][0]
+                    if arg0["type"] == "String" {
+                        if contains_curly_braces(arg0["value"]) {
+                            is_fmt = true
+                        }
+                    }
+                }
+                
+                if is_fmt {
+                    var fmt_arg = transpile_expression(t, exp["args"][0])
+                    var other_args = ""
+                    var k = 1
+                    while k < argc {
+                        if k > 1 { other_args = other_args + ", " }
+                        other_args = other_args + transpile_expression(t, exp["args"][k])
+                        k = k + 1
+                    }
+                    var count_others = argc - 1
+                    return "oren_print_fmt(" + fmt_arg + ", " + int_str(count_others) + ", " + other_args + ")"
+                }
+
                 if argc == 1 { return "oren_print(" + args_s + ")" }
                 return "oren_print_multi(" + int_str(argc) + ", " + args_s + ")"
             }

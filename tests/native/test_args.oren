@@ -1,0 +1,7 @@
+fn main() {
+    var args = oren_args()
+    if oren_list_len(args) >= 1 {
+        exit(0)
+    }
+    exit(1)
+}

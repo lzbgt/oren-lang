@@ -73,11 +73,12 @@ fn oren_pipe() {
 // We use a string literal in a function to get a stable pointer to writable memory for globals.
 // 0:allocs, 8:roots, 16:lock, 24:free, 32:threads, 40:argc, 48:argv
 // 7 * 8 = 56 bytes.
+var g_storage = 0
+
 fn oren_globals() {
-    return "00000000111111112222222233333333444444445555555566666666"
+    return g_storage
 }
 
-// Helpers
 fn global_get_allocs() { return ptr_get(oren_globals()) }
 fn global_set_allocs(v) { ptr_set(oren_globals(), v) }
 
@@ -90,7 +91,6 @@ fn global_set_lock(v) { ptr_set(oren_globals() + 16, v) }
 fn global_get_free() { return ptr_get(oren_globals() + 24) }
 fn global_set_free(v) { ptr_set(oren_globals() + 24, v) }
 
-// 0:allocs, 8:roots, 16:lock, 24:free, 32:threads
 fn global_get_threads() { return ptr_get(oren_globals() + 32) }
 fn global_set_threads(v) { ptr_set(oren_globals() + 32, v) }
 
@@ -101,14 +101,18 @@ fn global_get_argv() { return ptr_get(oren_globals() + 48) }
 fn global_set_argv(v) { ptr_set(oren_globals() + 48, v) }
 
 fn native_runtime_init() {
-    // Init globals to 0
-    ptr_set(oren_globals(), 0)
-    ptr_set(oren_globals() + 8, 0)
-    ptr_set(oren_globals() + 16, 0)
-    ptr_set(oren_globals() + 24, 0)
-    ptr_set(oren_globals() + 32, 0)
-    ptr_set(oren_globals() + 40, 0)
-    ptr_set(oren_globals() + 48, 0)
+    print("Init start")
+    g_storage = malloc(56)
+    if g_storage == 0 { exit(199) }
+    print("Malloc done")
+    
+    // Zero it
+    var i = 0
+    while i < 7 {
+        ptr_set(g_storage + i * 8, 0)
+        i = i + 1
+    }
+    
     return 0
 }
 
@@ -130,18 +134,12 @@ fn oren_register_thread(top) {
         ptr_set(node + 8, 0) // saved_sp
         
         // Link
-        // We need lock? Ideally yes.
-        // For main thread, we are single threaded.
-        // For spawn, we need lock.
-        // Reuse global lock?
-        // simple spin lock
-        while global_get_lock() == 1 { } 
-        global_set_lock(1)
+        acquire_lock()
         
         ptr_set(node + 16, global_get_threads())
         global_set_threads(node)
         
-        global_set_lock(0)
+        release_lock()
     }
     return node
 }
@@ -188,6 +186,7 @@ fn native_gc_scan_stack() {
 // Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next
 
 fn native_try_reuse(size) {
+    if oren_globals() == 0 { return 0 }
     // Simple first-fit
     var prev = 0
     var cur = global_get_free()
@@ -208,12 +207,40 @@ fn native_try_reuse(size) {
     return 0
 }
 
+var g_panicking = 0
+
+fn acquire_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    var lock_ptr = oren_globals() + 16
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, 1) != 0 {
+        if g_panicking == 1 { return 0 }
+        spin = spin + 1
+        if spin > 1000000 {
+            var val = ptr_get(lock_ptr)
+            exit(val)
+        }
+    }
+    return 0
+}
+
+fn release_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    var lock_ptr = oren_globals() + 16
+    atomic_cas(lock_ptr, 1, 0)
+    return 0
+}
+
+fn malloc_raw(size) { return 0 }
+
 fn oren_track_alloc(ptr, size, kind) {
-    if global_get_lock() == 1 { return ptr }
-    global_set_lock(1)
+    if oren_globals() == 0 { return ptr }
+    acquire_lock()
     
     // Allocate tracking node.
-    var node = malloc(40)
+    var node = malloc_raw(40)
     
     if node != 0 {
         ptr_set(node, ptr)
@@ -224,16 +251,15 @@ fn oren_track_alloc(ptr, size, kind) {
         global_set_allocs(node)
     }
     
-    global_set_lock(0)
+    release_lock()
     return ptr
 }
 
 fn native_gc_register_root(ptr) {
     if ptr == 0 { return 0 }
-    if global_get_lock() == 1 { return 0 }
-    global_set_lock(1)
+    acquire_lock()
     
-    var node = malloc(40)
+    var node = malloc_raw(40)
     if node != 0 {
         ptr_set(node, ptr)
         ptr_set(node + 8, 0)
@@ -243,7 +269,7 @@ fn native_gc_register_root(ptr) {
         global_set_roots(node)
     }
     
-    global_set_lock(0)
+    release_lock()
     return 0
 }
 
@@ -358,6 +384,145 @@ fn native_gc_shutdown() {
     return 0
 }
 
+var g_debug_info = 0
+var g_debug_static_addr = 0
+var g_slide = 0
+
+fn oren_set_debug_info(ptr, static_addr) {
+    g_debug_info = ptr
+    g_debug_static_addr = static_addr
+    g_slide = ptr - static_addr
+    return 0
+}
+
+fn ptr_get_u64(ptr) { return ptr_get(ptr) }
+
+fn read_string_at(ptr, len) {
+    var s = malloc(len + 1)
+    var i = 0
+    while i < len {
+        ptr_set_byte(s + i, ptr_get_byte(ptr + i))
+        i = i + 1
+    }
+    ptr_set_byte(s + len, 0)
+    oren_track_alloc(s, len + 1, 1)
+    return s
+}
+
+fn find_func_info(pc) {
+    if g_debug_info == 0 { return 0 }
+    
+    // Un-slide PC to match static table
+    var static_pc = pc - g_slide
+    
+    var ptr = g_debug_info
+    var count = ptr_get_u64(ptr)
+    ptr = ptr + 8
+    
+    var i = 0
+    while i < count {
+        var start = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var end = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        
+        if static_pc >= start {
+            if static_pc < end {
+                return ptr
+            }
+        }
+        
+        var name_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + name_len
+        var p_count = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var j = 0
+        while j < p_count {
+            var pname_len = ptr_get_u64(ptr)
+            ptr = ptr + 8 + pname_len + 8 // +8 for offset
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn stack_trace_debug() {
+    print("Traceback (with debug info):")
+    var fp = get_fp()
+    var i = 0
+    while fp != 0 {
+        if i > 50 { 
+            print("  ... (truncated)")
+            return 0 
+        }
+        var pc = ptr_get(fp + 8)
+        var info_ptr = find_func_info(pc)
+        
+        print("  Frame ")
+        print(i)
+        
+        if info_ptr != 0 {
+            var name_len = ptr_get_u64(info_ptr)
+            var name = read_string_at(info_ptr + 8, name_len)
+            print(": ")
+            print(name)
+            
+            var ptr = info_ptr + 8 + name_len
+            var p_count = ptr_get_u64(ptr)
+            ptr = ptr + 8
+            var j = 0
+            while j < p_count {
+                var pname_len = ptr_get_u64(ptr)
+                var pname = read_string_at(ptr + 8, pname_len)
+                ptr = ptr + 8 + pname_len
+                var offset = ptr_get_u64(ptr)
+                ptr = ptr + 8
+                
+                var val_ptr = fp - offset
+                var val = ptr_get(val_ptr)
+                print("    ")
+                print(pname)
+                print(" = ")
+                print(val)
+                j = j + 1
+            }
+        } else {
+            print(": ???")
+        }
+        print(" (pc=")
+        print(pc)
+        print(")")
+        
+        fp = ptr_get(fp)
+        i = i + 1
+    }
+    return 0
+}
+
+fn oren_raw_print_str(s) {
+    if s == 0 { return 0 }
+    var len = oren_string_len(s)
+    sys_write(1, s, len)
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
+    return 0
+}
+
+fn oren_panic(msg) {
+    g_panicking = 1
+    print("Runtime Panic: ")
+    oren_raw_print_str(msg)
+    if g_debug_info != 0 {
+        stack_trace_debug()
+    } else {
+        stack_trace()
+    }
+    exit(1)
+    return 0
+}
+
 // ... existing code ...
 
 // Centralized struct allocation hook (uses the compiler's special-cased malloc).
@@ -435,8 +600,7 @@ fn oren_int_to_string(n) {
 }
 
 // --- Printing ---
-fn print_int(n) {
-    // crude itoa
+fn print_int_no_nl(n) {
     var buf = malloc(32)
     if buf == 0 { exit(300) }
     var i = 0
@@ -470,9 +634,70 @@ fn print_int(n) {
             e = e - 1
         }
     }
-    ptr_set_byte(buf + i, 10) // newline
-    var len = i + 1
-    sys_write(1, buf, len)
+    sys_write(1, buf, i)
+    return 0
+}
+
+fn print_int(n) {
+    print_int_no_nl(n)
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
+    return 0
+}
+
+fn oren_print_any_no_nl(val) {
+    var node = oren_find_node(val)
+    if node != 0 {
+        var kind = ptr_get(node + 16)
+        if kind == 1 { // STRING
+            var len = oren_string_len(val)
+            sys_write(1, val, len)
+            return 0
+        }
+    }
+    print_int_no_nl(val)
+    return 0
+}
+
+fn oren_print_fmt(fmt, args) {
+    // fmt is string ptr, args is list ptr
+    var len = oren_string_len(fmt)
+    var i = 0
+    var arg_idx = 0
+    var arg_count = 0
+    if args != 0 { arg_count = oren_list_len(args) }
+    
+    while i < len {
+        var c = oren_string_char_at(fmt, i)
+        if c == 123 { // '{'
+            if i + 1 < len {
+                if oren_string_char_at(fmt, i + 1) == 125 { // '}'
+                    if arg_idx < arg_count {
+                        var val = oren_list_get(args, arg_idx)
+                        oren_print_any_no_nl(val)
+                        arg_idx = arg_idx + 1
+                    } else {
+                        // Print {}
+                        sys_write(1, fmt + i, 2)
+                    }
+                    i = i + 2
+                } else {
+                    sys_write(1, fmt + i, 1)
+                    i = i + 1
+                }
+            } else {
+                sys_write(1, fmt + i, 1)
+                i = i + 1
+            }
+        } else {
+            sys_write(1, fmt + i, 1)
+            i = i + 1
+        }
+    }
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
     return 0
 }
 
@@ -481,8 +706,10 @@ fn print_bytes(ptr, len) {
 }
 
 fn oren_print(v) {
-    // Only support ints for now (native backend lacks type tags)
-    print_int(v)
+    oren_print_any_no_nl(v)
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
     return 0
 }
 
@@ -661,8 +888,14 @@ fn oren_list_get(list, idx) {
         return oren_map_get(list, idx)
     }
     var count = ptr_get(list)
-    if idx < 0 { exit(221) }
-    if idx >= count { exit(222) }
+    if idx < 0 { 
+        oren_panic("Index out of bounds (negative)")
+        return 0
+    }
+    if idx >= count { 
+        oren_panic("Index out of bounds")
+        return 0
+    }
     var buf = ptr_get(list + 16)
     return ptr_get(buf + idx * 8)
 }
@@ -723,4 +956,33 @@ fn oren_args() {
         i = i + 1
     }
     return out
+}
+
+// --- Threads ---
+ffi pthread_join
+ffi free
+
+fn oren_join(handle) {
+    if handle == 0 { return 0 }
+    
+    // handle points to 8 bytes containing pthread_t
+    var thread_id = ptr_get(handle)
+    
+    var ret_buf = malloc(8)
+    if ret_buf == 0 { exit(250) }
+    
+    // pthread_join(id, &ret)
+    pthread_join(thread_id, ret_buf)
+    
+    var ret_val = ptr_get(ret_buf)
+    
+    // Cleanup
+    // free(ret_buf) // 'free' needs to be imported/ffi'd
+    // free(handle)
+    // We haven't implemented 'free' in imports logic for runtime yet?
+    // Let's assume ffi free works if we add it.
+    free(ret_buf)
+    free(handle)
+    
+    return ret_val
 }

@@ -35,6 +35,21 @@ make verify # Run full self-hosting test
 ./oren build file.oren --analyze # Static analysis
 ```
 
+## New Features (Dec 2025)
+
+- **Shared Libraries**: Build `.dylib` (macOS) using `--lib`. Exports defined functions.
+  ```bash
+  ./oren build mylib.oren --backend native --lib -o mylib.dylib
+  ```
+- **Linking**: Link external dynamic libraries using `--link <lib>` or `-l <lib>`.
+  ```bash
+  ./oren build app.oren --backend native --link /usr/lib/libsqlite3.dylib
+  ```
+- **API Scanning**: Generate API docs from C libraries.
+  ```bash
+  ./oren scan /usr/lib/libSystem.B.dylib
+  ```
+
 ## Internal Architecture
 - **Single-Pass Compilation**: Code is emitted sequentially.
 - **Fixups**: Forward jumps (Branches) and Data references (ADR) are patched after emission.

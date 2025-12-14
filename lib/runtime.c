@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <setjmp.h>
+#include <execinfo.h>
 
 OrenValue OREN_NIL;
 OrenValue OREN_TRUE;
@@ -100,6 +101,12 @@ void oren_panic(const char* msg) {
         longjmp(st->panic_buf, 1);
     }
     fprintf(stderr, "Runtime Panic: %s\n", msg);
+    
+    void* callstack[128];
+    int frames = backtrace(callstack, 128);
+    fprintf(stderr, "Stack Trace:\n");
+    backtrace_symbols_fd(callstack, frames, 2);
+
     exit(1);
 }
 
@@ -1288,71 +1295,49 @@ OrenValue oren_gte(OrenValue a, OrenValue b) {
     return OREN_NIL;
 }
 
-void oren_print(OrenValue v) {
+static void print_value_no_newline(OrenValue v) {
     switch (v.type) {
-        case OREN_TYPE_INT: printf("%lld\n", v.as.int_val); break;
-        case OREN_TYPE_FLOAT: printf("%f\n", v.as.float_val); break;
-        case OREN_TYPE_BOOL: printf("%s\n", v.as.bool_val ? "true" : "false"); break;
-        case OREN_TYPE_STRING: printf("%s\n", v.as.string_val); break;
-        case OREN_TYPE_NIL: printf("nil\n"); break;
+        case OREN_TYPE_INT: printf("%lld", v.as.int_val); break;
+        case OREN_TYPE_FLOAT: printf("%f", v.as.float_val); break;
+        case OREN_TYPE_BOOL: printf("%s", v.as.bool_val ? "true" : "false"); break;
+        case OREN_TYPE_STRING: printf("%s", v.as.string_val); break;
+        case OREN_TYPE_NIL: printf("nil"); break;
         case OREN_TYPE_PY_OBJ: {
 #ifdef OREN_ENABLE_PYTHON
             PyObject* str = PyObject_Str(v.as.py_obj);
-            printf("%s\n", PyUnicode_AsUTF8(str));
+            printf("%s", PyUnicode_AsUTF8(str));
             Py_DECREF(str);
             break;
 #else
-            oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+            oren_panic("Python support is disabled");
 #endif
         }
         case OREN_TYPE_LIST: {
             printf("[");
             for (int i = 0; i < v.as.list_val->count; i++) {
-                // Recursive print? Using oren_print_multi style
-                // Simplification for now
-                // We cannot reuse oren_print directly because it prints newline
-                // Let's just print type name for nested for POC or simplistic recurse
                 if (i > 0) printf(", ");
-                // Hack: call print logic without newline
-                OrenValue val = v.as.list_val->items[i];
-                 switch (val.type) {
-                    case OREN_TYPE_INT: printf("%lld", val.as.int_val); break;
-                    case OREN_TYPE_FLOAT: printf("%f", val.as.float_val); break;
-                    case OREN_TYPE_BOOL: printf("%s", val.as.bool_val ? "true" : "false"); break;
-                    case OREN_TYPE_STRING: printf("%s", val.as.string_val); break;
-                    case OREN_TYPE_NIL: printf("nil"); break;
-                    default: printf("..."); break;
-                }
+                print_value_no_newline(v.as.list_val->items[i]);
             }
-            printf("]\n");
+            printf("]");
             break;
         }
         case OREN_TYPE_MAP: {
              printf("{");
              for (int i = 0; i < v.as.map_val->count; i++) {
                  if (i > 0) printf(", ");
-                 // Simplified key print
-                 OrenValue key = v.as.map_val->keys[i];
-                 switch (key.type) {
-                     case OREN_TYPE_STRING: printf("\"%s\"", key.as.string_val); break;
-                     default: printf("..."); break;
-                 }
+                 print_value_no_newline(v.as.map_val->keys[i]);
                  printf(": ");
-                 // Simplified value print (stub)
-                 OrenValue val = v.as.map_val->values[i];
-                 switch (val.type) {
-                    case OREN_TYPE_INT: printf("%lld", val.as.int_val); break;
-                    case OREN_TYPE_FLOAT: printf("%f", val.as.float_val); break;
-                    case OREN_TYPE_BOOL: printf("%s", val.as.bool_val ? "true" : "false"); break;
-                    case OREN_TYPE_STRING: printf("%s", val.as.string_val); break;
-                    case OREN_TYPE_NIL: printf("nil"); break;
-                    default: printf("..."); break;
-                }
+                 print_value_no_newline(v.as.map_val->values[i]);
              }
-             printf("}\n");
+             printf("}");
              break;
         }
     }
+}
+
+void oren_print(OrenValue v) {
+    print_value_no_newline(v);
+    printf("\n");
 }
 
 void oren_print_multi(int count, ...) {
@@ -1360,32 +1345,39 @@ void oren_print_multi(int count, ...) {
     va_start(args, count);
     for (int i = 0; i < count; i++) {
         OrenValue v = va_arg(args, OrenValue);
-        switch (v.type) {
-            case OREN_TYPE_INT: printf("%lld", v.as.int_val); break;
-            case OREN_TYPE_FLOAT: printf("%f", v.as.float_val); break;
-            case OREN_TYPE_BOOL: printf("%s", v.as.bool_val ? "true" : "false"); break;
-            case OREN_TYPE_STRING: printf("%s", v.as.string_val); break;
-            case OREN_TYPE_NIL: printf("nil"); break;
-            case OREN_TYPE_PY_OBJ: {
-#ifdef OREN_ENABLE_PYTHON
-                PyObject* str = PyObject_Str(v.as.py_obj);
-                printf("%s", PyUnicode_AsUTF8(str));
-                Py_DECREF(str);
-                break;
-#else
-                oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
-#endif
-            }
-            case OREN_TYPE_LIST:
-                // For now, call oren_print which handles list (but adds newline which is bad for multi-arg print without glue)
-                // Let's just recurse logic or print marker for now to avoid complexity in this file edit
-                printf("[...]");
-                break;
-            case OREN_TYPE_MAP:
-                printf("{...}");
-                break;
-        }
+        print_value_no_newline(v);
         if (i < count - 1) printf(" ");
+    }
+    printf("\n");
+    va_end(args);
+}
+
+void oren_print_fmt(OrenValue fmt_val, int count, ...) {
+    if (fmt_val.type != OREN_TYPE_STRING) {
+        oren_panic("print format must be string");
+        return;
+    }
+    const char* fmt = fmt_val.as.string_val;
+    va_list args;
+    va_start(args, count);
+    
+    int arg_idx = 0;
+    int len = strlen(fmt);
+    int i = 0;
+    while (i < len) {
+        if (fmt[i] == '{' && i + 1 < len && fmt[i+1] == '}') {
+            if (arg_idx < count) {
+                OrenValue v = va_arg(args, OrenValue);
+                print_value_no_newline(v);
+                arg_idx++;
+            } else {
+                printf("{}");
+            }
+            i += 2;
+        } else {
+            putchar(fmt[i]);
+            i++;
+        }
     }
     printf("\n");
     va_end(args);

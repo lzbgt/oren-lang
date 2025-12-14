@@ -145,6 +145,7 @@ OrenValue oren_chmod(OrenValue path, OrenValue mode);
 
 void oren_print(OrenValue v);
 void oren_print_multi(int count, ...);
+void oren_print_fmt(OrenValue fmt, int count, ...);
 void oren_shutdown();
 void oren_panic(const char* msg);
 

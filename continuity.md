@@ -1,65 +1,50 @@
 # Oren Continuity Notes
 
-## Strategy (Dec 2025)
-Oren is evolving toward an “agent-native” toolchain (see `docs/OREN_EVOLUTION.md`): a hybrid system that can run in both native environments (servers/desktops) and restricted environments (AVM + bytecode).
-Fact check (repo state): there is no `libavm` implementation in this repo yet; the AVM/OBC track is a planned next milestone, not an active codepath.
+## 🚨 STRATEGIC PIVOT (Dec 2025)
+**We have redefined Oren as the "First AI-Native Language" (Synth-Origin).**
+The goal is to build **AVM (Agent Virtual Machine)**: a hybrid runtime that supports Native execution (Servers) and Interpreted Bytecode (iOS/Edge).
+*   **Vision:** "PostScript for Agents." Safe, Resumable ("Pause and Heal"), and Mobile-Compliant.
+*   **Current State:** The `libavm` (Bytecode VM) project is **PAUSED**.
+*   **Blocker:** The Native Backend (`codegen_arm64.oren`) lacks critical features (Floats, Indexing, String Ops).
 
 ---
 
 ## Status
-- **Self-hosting:** Go stage0 (`cmd/oren`) -> Stage 1 `oren` -> Stage 2 (Verified).
-- **Backends:**
-  - **C:** Mainline for self-hosting and semantics. Supports Maps, Lists, GC, and OS threads (`spawn` + join/detach).
-  - **Native (ARM64):** Fast but incomplete. Supports SIMD, Atomics, basic GC hooks, syscalls; missing float codegen, general indexing semantics, and full type/print behavior parity.
-- **Runtime:**
-  - C backend uses `lib/runtime.c` (mutexed, heavy).
-  - Native backend uses `lib/runtime_native.oren` (bump-pointer, lightweight).
-- **CLI:** codesign/notarize flags on macOS, `--metadata` writes `<out>.meta.json`.
-
-## 🛑 Critical Gaps (Immediate Blockers)
-These issues prevent the Native Backend from being "Production Ready":
-1.  **No Floating Point:** The Native backend has **zero** support for float literals or math (`1.5 + 2.0`). This blocks all scientific/AI workloads.
-2.  **No Collection Access:** While you can *create* Lists/Maps, the compiler cannot generate code to *index* them (`list[0]` or `map["key"]`).
-3.  **No String Operations:** Basic concatenation (`"a" + "b"`) is unimplemented in the native code generator.
-
----
+- Self-hosting chain: Go stage0 (`cmd/oren`) builds stage1 `oren`; Makefile target `oren_stage2` exercises stage2. Default backend is C; native ARM64 Mach-O/ELF is available via `--backend native` (with `--target linux`).
+- Compiler is split across `lib/compiler/*.oren` (lexer, parser, ast, analysis, codegen, transpiler, metadata). Module loader prefixes imports, checks alias conflicts, and enforces consistent struct field offsets before merging.
+- C backend uses `lib/runtime.c` (tracked mark/sweep GC with mutexed list/map ops). Native backend injects `lib/runtime_native.oren` (bump-pointer heap + reuse list, conservative GC hooks, thread registry, inline syscalls).
+- CLI: codesign/notarize flags on macOS, `--metadata` writes `<out>.meta.json` (functions/structs), `--analyze` prints scope info. `--emit-c` is only supported for the C backend.
 
 ## Recent Achievements
-- **Threads + GC (C backend):** `spawn` returns a handle; `oren_join(handle)` / `oren_detach(handle)` implemented. GC now supports stop-the-world safepoints (`oren_gc_safepoint`) and conservative stack scanning so locals can act as roots.
-- **Native Heap:** Bump-pointer allocator backed by `mmap` (min 64KB) with free-list reuse and allocation tracking.
-- **Syscall Surface:** Inline `sys_write/read/pipe/clone` paths; atomics lowered to ARM64 `LDADD` / `CAS`; SIMD intrinsics fall back to scalar ops when needed.
-- **Language Features:** C-style block comments, `for` loops, short `:=` bindings, `test "name" {}` syntax.
-- **Native UX:** Native `print("literal")` emits `sys_write` directly.
-- **Modules/Tests:** Module system validated via `tests/modules/*`; native suite covers atomics, GC, pipe/channel, SIMD.
+- Native heap: bump-pointer allocator backed by `mmap` (min 64KB) with free-list reuse and allocation tracking; `oren_alloc_struct` centralizes struct buffers for GC accounting.
+- GC plumbing: runtime globals initialized at entry, main thread registered before user code, conservative stack scan over registered threads, mark/sweep over tracked lists/maps/strings, and block-scope cleanup in codegen to restore stack slots.
+- Syscall surface: inline `sys_write/read/pipe/clone` paths (macOS uses X16 + SVC #128; Linux uses X8 + SVC #0); atomics lowered to ARM64 `LDADD` / `CAS`; SIMD intrinsics fall back to scalar ops when needed.
+- Language/runtime: C-style block comments, `for` loops (init/cond/post), short `:=` bindings, `test "name" {}` lowered to `fn test_name`, writable data segment for globals/string literals, metadata export implemented.
+- Native UX: native backend now captures `argc/argv` and implements `oren_args()`. Native `print("literal")` emits `sys_write` directly so string-literal output is readable (variables are still untyped).
+- Concurrency (C backend): added `spawn` for zero-arg functions (`spawn foo()`) backed by `pthread_create`. `spawn` returns a handle (`OrenValue` int) and can be synchronized via `oren_join(handle)` / `oren_detach(handle)` (with `oren_join_all()` used for coarse shutdown).
+- Modules/tests: module system validated via `tests/modules/*`; native suite covers atomics, GC, pipe/channel, SIMD, maps/lists/structs; Makefile drives bootstrap + native/C test runs.
 
-## Known Issues (Pitfalls)
-- **Native threads:** `sys_clone` (threads) only targets Linux; macOS path returns `-1`. Native backend has no `spawn`.
-- **Native runtime GC lifecycle:** `native_gc_unregister_root` unimplemented; `native_gc_shutdown` does no release; GC is conservative without type tags.
-- **Native I/O:** Non-literal strings (and other non-int values) still print as raw integers/pointers unless compiled via a specialized path.
-- **Semantics parity:** native `&&`/`||` is non-short-circuit today; C backend short-circuits via C lowering.
+## Known Issues
+- **Native Backend Holes (CRITICAL):**
+    - **No Floating Point:** Compiler crashes or errors on float literals/math.
+    - **No Collection Access:** Can create Lists/Maps but cannot read from them (`Index` expr missing).
+    - **No String Concatenation:** `+` operator only handles integers.
+- `sys_pipe` SIGILL (macOS ARM64) was traced to a native backend `&&`/`||` codegen bug that corrupted the emitted instruction stream; fixed in `lib/compiler/codegen_arm64.oren`. `test_pipe`/`test_pipe_direct` now run to completion in `make test`.
+- Threads: `sys_clone` only targets Linux; macOS path returns `-1`, and there is no `spawn` wrapper or thread registry hookup beyond the main thread.
+- Native backend has no `spawn` yet (would require thread creation + stack registration without relying on dynamic linking).
+- Native runtime gaps: `native_gc_unregister_root` unimplemented; `native_gc_shutdown` does no release; GC is conservative without type tags/stack maps, so integers or non-heap pointers may be skipped or mis-marked.
+- Native I/O/printing has no type tags; non-literal strings (and other non-int values) still print as raw integers/pointers unless compiled via a specialized path.
+- FFI/import stubs just return `0` (see native import stub generation); no PLT/GOT or dyld linking; metadata export only lists function names/args and struct fields.
 
-## ⏭️ Next Steps
-
-### Immediate Priority (Production Semantics + Self-Hosting Safety)
-1. **Move from conservative to precise roots** (stack maps / typed IR) to reduce leaks and enable moving GC.
-2. **Strengthen thread API** (return values, `is_done`, errors), and add stress tests (concurrent GC, churn).
-3. **Lock semantics** in tests (short-circuit, scoping, indexing bounds) so all backends converge on the same behavior.
-
-### Native Backend Parity (Still Needed)
-4. **Thread support on macOS** (native backend: thread creation + registry integration).
-5. **Native runtime GC lifecycle hooks.**
-6. **AVM/OBC track**: implement `libavm` + bytecode backend as per `docs/OREN_EVOLUTION.md` once language core semantics are stable.
-
-### Completed
-- **FFI/Linking:** Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding info generation and GOT-based stubs. FFI calls to `libc` (e.g. `puts`) now work correctly.
-- **Memory Safety:** Fixed `malloc` implementation to save/restore registers across syscalls, preventing heap corruption.
-- **Runtime Init:** Fixed Mach-O entry point to ensure runtime initialization shim is executed, correcting uninitialized globals crash.
-- **Indexing:** Implemented `Index` (get) and `Set` (index set) in native backend.
-- **SIMD:** Implemented real ARM64 NEON instructions for `simd_*` intrinsics.
-- **Float:** Implemented `Float` literal support and `fadd/fsub/fmul/fdiv` intrinsics (native backend).
-- **Thread API:** `is_done`, return values, error reporting.
-
----
+## Next Steps
+1. **[IMMEDIATE] Native Backend Stabilization:**
+   - Implement `Index` expressions (`list[0]`) in `codegen_arm64.oren`.
+   - Implement Floating Point (Literals + NEON instructions).
+   - Implement String Concatenation (Runtime calls).
+2. Add a `spawn` wrapper and macOS thread-creation path, wiring new threads into the registry/stack scanner.
+3. Finish native GC lifecycle hooks (`native_gc_unregister_root`, `native_gc_shutdown`), then move toward precise roots (stack maps / typed values).
+4. Build a test runner that enumerates and runs `test_` functions (or generates a `main` runner when tests are present).
+5. Expand native runtime ergonomics beyond string literals (printing, diagnostics) and broaden syscall coverage (files, sockets, etc.).
 
 ## Prioritized TODOs
 This list is derived from:
@@ -80,8 +65,8 @@ This list is derived from:
   - `spawn` returns a handle (done)
   - `join(handle)` / `detach(handle)` (done)
   - `is_done(handle)` (done)
-  - per-thread return value (done)
-  - error reporting (done)
+  - `per-thread return value` (done)
+  - `error reporting` (done)
 
 #### Spec/behavior conformance tests (must gate regressions)
 - Add tests for language semantics that diverge across backends:
@@ -111,6 +96,7 @@ This list is derived from:
 - Implement missing runtime primitives needed for parity (threads/spawn, richer printing/diagnostics).
 - Align semantics with C backend (especially short-circuiting and runtime behavior).
 - Then performance work: register allocation + peephole opts (per `docs/ROADMAP.md`).
+- **[NEW] Implement Floating Point, Indexing, and String Ops (See Next Steps).**
 
 ### P3 — Agent-Native Evolution (AVM + Bytecode)
 
@@ -132,6 +118,7 @@ This list is derived from:
 - Create `LLM_GUIDE.md` focused on token efficiency and reliable prompting for Oren.
 
 ## Reference
-- **Strategy:** `docs/OREN_EVOLUTION.md` (Read this first!)
-- **Source:** `lib/compiler/*.oren`
-- **Native Runtime:** `lib/runtime_native.oren`
+- Source/compiler: `lib/compiler/*.oren`
+- Native runtime: `lib/runtime_native.oren`
+- C runtime: `lib/runtime.c`
+- Build/Test: `Makefile`, `tests/*`
