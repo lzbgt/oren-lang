@@ -102,6 +102,13 @@ The **Native Backend** currently links only against the system C library (`libSy
     cc -o myapp examples/myapp.oren.c lib/runtime.c -Ilib -pthread -lcurl
     ```
 
+    **On Windows (MSVC/CL):**
+    ```powershell
+    # Compile generated C code with CL.exe
+    # Ensure you are in a Developer Command Prompt
+    cl /Fe:myapp.exe examples/myapp.oren.c lib/runtime.c /Ilib user32.lib kernel32.lib
+    ```
+
 2.  **Native Backend Support**: Linking custom dylibs directly in the native backend is planned for a future release (will require a CLI flag like `--link <lib>`).
 
 ---
