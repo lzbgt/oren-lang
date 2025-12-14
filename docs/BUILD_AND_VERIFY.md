@@ -90,6 +90,20 @@ When you build this with `--backend native`, the compiler generates:
 
 *Note: Currently, arguments are passed as raw 64-bit values. String literals are passed as `char*` (pointers to null-terminated C strings).*
 
+### Linking Third-Party Libraries
+The **Native Backend** currently links only against the system C library (`libSystem` on macOS). To use other libraries (e.g., `libcurl`, `libsqlite3`):
+
+1.  **Use the C Backend**: The C backend allows you to pass arbitrary linker flags.
+    ```bash
+    # Generate C code
+    ./oren build examples/myapp.oren --backend c --emit-c
+    
+    # Compile manually with your libraries
+    cc -o myapp examples/myapp.oren.c lib/runtime.c -Ilib -pthread -lcurl
+    ```
+
+2.  **Native Backend Support**: Linking custom dylibs directly in the native backend is planned for a future release (will require a CLI flag like `--link <lib>`).
+
 ---
 
 ## 4. Verifying Linux Binaries with QEMU on Windows
