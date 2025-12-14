@@ -1,0 +1,14 @@
+fn main() {
+    var p = oren_pipe()
+    if oren_list_len(p) != 2 {
+        exit(1)
+    }
+    var r = oren_list_get(p, 0)
+    var w = oren_list_get(p, 1)
+    
+    // FDs should be > 2 (0, 1, 2 are stdin/out/err)
+    if r > 2 && w > 2 {
+        exit(0)
+    }
+    exit(1)
+}

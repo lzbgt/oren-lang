@@ -1,0 +1,12 @@
+fn main() {
+    /* This is a block comment */
+    /* This is a 
+       multiline block comment */
+    /* This is a /* nested */ block comment */
+    
+    var x = 10
+    // This is a line comment
+    if x == 10 {
+        print("Comments work")
+    }
+}

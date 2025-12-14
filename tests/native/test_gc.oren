@@ -1,0 +1,27 @@
+struct Node { value, next }
+
+fn main() {
+    print("Main Start")
+    var head = Node(999, 0)
+    print("Head Alloc")
+    var i = 0
+    while i < 100 {
+        // Allocate garbage
+        var n = Node(i, 0)
+        // Drop it
+        i = i + 1
+    }
+    
+    print("Before GC")
+    // Trigger GC
+    native_gc_collect()
+    print("After GC")
+    
+    // Verify head is still valid
+    if head.value == 999 {
+        print("Success")
+        exit(0)
+    }
+    print("Fail")
+    exit(1)
+}

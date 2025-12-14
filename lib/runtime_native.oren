@@ -22,20 +22,347 @@ fn stack_trace() {
 
 // TODO: implement real syscalls in native runtime (currently stubs in injected runtime)
 fn sys_write(fd, ptr, len) { return 0 }
-fn ptr_get(addr) { return 0 }
-fn ptr_set(addr, val) { return 0 }
-fn ptr_get_byte(addr) { return 0 }
-fn ptr_set_byte(addr, val) { return 0 }
-fn malloc(size) { return 0 }
-fn exit(code) { return 0 }
+fn sys_read(fd, ptr, len) { return 0 }
+fn sys_pipe(ptr) { return 0 }
+fn sys_clone(flags, stack) { return 0 }
 
-// --- Native GC/Heap Tracking (stubbed) ---
-fn native_try_reuse(size) { return 0 }
-fn oren_track_alloc(ptr, size, kind) { return ptr }
-fn native_gc_register_root(ptr) { return 0 }
-fn native_gc_unregister_root(ptr) { return 0 }
-fn native_gc_collect() { return 0 }
-fn native_gc_shutdown() { return 0 }
+// --- Channels (Pipe-based) ---
+fn oren_new_channel() {
+    return oren_pipe() // Returns [r, w]
+}
+
+fn oren_chan_send(ch, val) {
+    var w = oren_list_get(ch, 1)
+    var buf = malloc(8)
+    if buf == 0 { return 0 }
+    ptr_set(buf, val)
+    sys_write(w, buf, 8)
+    // free(buf) - no free yet
+    return 1
+}
+
+fn oren_chan_recv(ch) {
+    var r = oren_list_get(ch, 0)
+    var buf = malloc(8)
+    if buf == 0 { return 0 }
+    sys_read(r, buf, 8)
+    var val = ptr_get(buf)
+    // free(buf)
+    return val
+}
+
+// --- Native GC/Heap Tracking ---
+fn oren_pipe() {
+    var buf = malloc(16)
+    if buf == 0 { return oren_new_list(0) }
+    
+    var res = sys_pipe(buf)
+    if res != 0 { return oren_new_list(0) }
+    
+    var r = ptr_get(buf)
+    var w = ptr_get(buf + 8)
+    
+    var l = oren_new_list(2)
+    oren_list_push(l, r)
+    oren_list_push(l, w)
+    return l
+}
+
+// --- Native GC/Heap Tracking ---
+
+// We use a string literal in a function to get a stable pointer to writable memory for globals.
+// 0:allocs, 8:roots, 16:lock, 24:free, 32:stack_top
+// 5 * 8 = 40 bytes.
+fn oren_globals() {
+    return "0000000011111111222222223333333344444444" 
+}
+
+// Helpers
+fn global_get_allocs() { return ptr_get(oren_globals()) }
+fn global_set_allocs(v) { ptr_set(oren_globals(), v) }
+
+fn global_get_roots() { return ptr_get(oren_globals() + 8) }
+fn global_set_roots(v) { ptr_set(oren_globals() + 8, v) }
+
+fn global_get_lock() { return ptr_get(oren_globals() + 16) }
+fn global_set_lock(v) { ptr_set(oren_globals() + 16, v) }
+
+fn global_get_free() { return ptr_get(oren_globals() + 24) }
+fn global_set_free(v) { ptr_set(oren_globals() + 24, v) }
+
+// 0:allocs, 8:roots, 16:lock, 24:free, 32:threads
+fn global_get_threads() { return ptr_get(oren_globals() + 32) }
+fn global_set_threads(v) { ptr_set(oren_globals() + 32, v) }
+
+fn native_runtime_init() {
+    // Init globals to 0
+    ptr_set(oren_globals(), 0)
+    ptr_set(oren_globals() + 8, 0)
+    ptr_set(oren_globals() + 16, 0)
+    ptr_set(oren_globals() + 24, 0)
+    ptr_set(oren_globals() + 32, 0)
+    return 0
+}
+
+fn oren_register_thread(top) {
+    // Thread Node: [top, saved_sp, next] (24 bytes)
+    // We use malloc.
+    // Note: oren_register_thread is called from entry stub.
+    // malloc depends on globals being init.
+    // entry stub calls native_runtime_init BEFORE this. So it's safe.
+    var node = malloc(24)
+    if node != 0 {
+        ptr_set(node, top)
+        ptr_set(node + 8, 0) // saved_sp
+        
+        // Link
+        // We need lock? Ideally yes.
+        // For main thread, we are single threaded.
+        // For spawn, we need lock.
+        // Reuse global lock?
+        // simple spin lock
+        while global_get_lock() == 1 { } 
+        global_set_lock(1)
+        
+        ptr_set(node + 16, global_get_threads())
+        global_set_threads(node)
+        
+        global_set_lock(0)
+    }
+    return node
+}
+
+fn get_sp() { return 0 } // Intrinsic
+
+fn native_gc_scan_stack() {
+    var sp = get_sp()
+    var cur = global_get_threads()
+    
+    while cur != 0 {
+        var top = ptr_get(cur)
+        var saved = ptr_get(cur + 8)
+        var start = 0
+        
+        // Check if this is current thread
+        // Heuristic: sp is within 8MB below top
+        // 8MB = 8388608
+        if sp < top {
+            var diff = top - sp
+            if diff < 8388608 {
+                start = sp
+            }
+        }
+        
+        if start == 0 {
+            start = saved
+        }
+        
+        if start != 0 {
+            while start < top {
+                var val = ptr_get(start)
+                oren_mark_value(val)
+                start = start + 8
+            }
+        }
+        
+        cur = ptr_get(cur + 16)
+    }
+    return 0
+}
+
+// Node layout: [ptr, size, kind, freed, next] (5 * 8 = 40 bytes)
+// Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next
+
+fn native_try_reuse(size) {
+    // Simple first-fit
+    var prev = 0
+    var cur = global_get_free()
+    while cur != 0 {
+        var chunk_size = ptr_get(cur + 8)
+        if chunk_size >= size {
+            // Found a fit.
+            if prev == 0 {
+                global_set_free(ptr_get(cur + 32))
+            } else {
+                ptr_set(prev + 32, ptr_get(cur + 32))
+            }
+            return ptr_get(cur)
+        }
+        prev = cur
+        cur = ptr_get(cur + 32)
+    }
+    return 0
+}
+
+fn oren_track_alloc(ptr, size, kind) {
+    if global_get_lock() == 1 { return ptr }
+    global_set_lock(1)
+    
+    // Allocate tracking node.
+    var node = malloc(40)
+    
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(node + 8, size)
+        ptr_set(node + 16, kind)
+        ptr_set(node + 24, 0) // freed = 0
+        ptr_set(node + 32, global_get_allocs())
+        global_set_allocs(node)
+    }
+    
+    global_set_lock(0)
+    return ptr
+}
+
+fn native_gc_register_root(ptr) {
+    if ptr == 0 { return 0 }
+    if global_get_lock() == 1 { return 0 }
+    global_set_lock(1)
+    
+    var node = malloc(40)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(node + 8, 0)
+        ptr_set(node + 16, 0) // kind 0 for root
+        ptr_set(node + 24, 0)
+        ptr_set(node + 32, global_get_roots())
+        global_set_roots(node)
+    }
+    
+    global_set_lock(0)
+    return 0
+}
+
+fn native_gc_unregister_root(ptr) {
+    // TODO: implement removal
+    return 0
+}
+
+fn oren_find_node(ptr) {
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur) == ptr { return cur }
+        cur = ptr_get(cur + 32)
+    }
+    return 0
+}
+
+fn oren_mark_value(val) {
+    if val == 0 { return 0 }
+    
+    var node = oren_find_node(val)
+    if node != 0 {
+        var freed = ptr_get(node + 24)
+        if freed == 0 {
+            // Mark it
+            ptr_set(node + 24, -1)
+            
+            var kind = ptr_get(node + 16)
+            if kind == 2 { // LIST
+                var count = ptr_get(val)
+                var buf = ptr_get(val + 16)
+                if buf != 0 {
+                    var i = 0
+                    while i < count {
+                        var item = ptr_get(buf + i * 8)
+                        oren_mark_value(item)
+                        i = i + 1
+                    }
+                    oren_mark_value(buf)
+                }
+            }
+            if kind == 3 { // MAP
+                var count = ptr_get(val + 8)
+                var base = val + 16
+                var i = 0
+                while i < count {
+                    var k = ptr_get(base + i * 16)
+                    var v = ptr_get(base + i * 16 + 8)
+                    oren_mark_value(k)
+                    oren_mark_value(v)
+                    i = i + 1
+                }
+            }
+        }
+    }
+    return 0
+}
+
+fn native_gc_collect() {
+    // 1. Clear marks
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur + 24) == -1 {
+            ptr_set(cur + 24, 0)
+        }
+        cur = ptr_get(cur + 32)
+    }
+    
+    // 2. Mark stack
+    native_gc_scan_stack()
+
+    // 3. Mark roots
+    var r = global_get_roots()
+    while r != 0 {
+        var slot = ptr_get(r)
+        if slot != 0 {
+            var val = ptr_get(slot)
+            oren_mark_value(val)
+        }
+        r = ptr_get(r + 32)
+    }
+    
+    // 4. Sweep
+    var prev = 0
+    cur = global_get_allocs()
+    while cur != 0 {
+        var marked = 0
+        if ptr_get(cur + 24) == -1 { marked = 1 }
+        
+        var next_node = ptr_get(cur + 32)
+        
+        if marked == 1 {
+            ptr_set(cur + 24, 0)
+            prev = cur
+        } else {
+            // Garbage
+            if prev == 0 {
+                global_set_allocs(next_node)
+            } else {
+                ptr_set(prev + 32, next_node)
+            }
+            
+            ptr_set(cur + 32, global_get_free())
+            global_set_free(cur)
+        }
+        cur = next_node
+    }
+    return 0
+}
+
+fn native_gc_shutdown() {
+    return 0
+}
+
+// ... existing code ...
+
+// Centralized struct allocation hook (uses the compiler's special-cased malloc).
+fn oren_alloc_struct(size) {
+    var ptr = malloc(size)
+    // Update kind to 4 (STRUCT)
+    var node = oren_find_node(ptr)
+    if node != 0 {
+        ptr_set(node + 16, 4)
+    }
+    return ptr
+}
+
+fn oren_free_struct(ptr) {
+    // Manual free
+    // Find node, mark as available, move to free chunks?
+    // For now, no-op or rely on GC.
+    return 0
+}
 
 fn strcmp(s1, s2) {
     var i = 0
@@ -52,6 +379,45 @@ fn strcmp(s1, s2) {
         i = i + 1
     }
     return 0
+}
+
+fn oren_int_to_string(n) {
+    var buf = malloc(32)
+    if buf == 0 { exit(300) }
+    var i = 0
+    var neg = 0
+    if n < 0 {
+        neg = 1
+        n = -n
+    }
+    if n == 0 {
+        ptr_set_byte(buf, 48)
+        i = 1
+    } else {
+        while n > 0 {
+            var digit = n - (n / 10) * 10
+            ptr_set_byte(buf + i, 48 + digit)
+            i = i + 1
+            n = n / 10
+        }
+        if neg == 1 {
+            ptr_set_byte(buf + i, 45)
+            i = i + 1
+        }
+        // reverse
+        var s = 0
+        var e = i - 1
+        while s < e {
+            var t = ptr_get_byte(buf + s)
+            ptr_set_byte(buf + s, ptr_get_byte(buf + e))
+            ptr_set_byte(buf + e, t)
+            s = s + 1
+            e = e - 1
+        }
+    }
+    ptr_set_byte(buf + i, 0) // null term
+    oren_track_alloc(buf, 32, 1) // 1=STRING
+    return buf
 }
 
 // --- Printing ---

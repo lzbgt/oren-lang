@@ -1,0 +1,59 @@
+fn main() {
+    var ptr = malloc(8)
+    ptr_set(ptr, 10)
+    
+    // Test atomic_add
+    // atomic_add(ptr, value) -> returns old value (fetch_add behavior usually? or void?)
+    // In codegen_arm64.oren, atomic_add uses LDADD.
+    // LDADD Xs, Xt, [Xn] -> loads from [Xn] into Xt, adds Xs to it, stores result.
+    // Wait, LDADD reads from memory, adds value, stores result.
+    // Returns OLD value?
+    // ARM64 LDADD: "The value is loaded from memory... The value is added... and the result is stored... The value loaded from memory is returned."
+    // So it returns OLD value.
+    
+    var old = atomic_add(ptr, 5) // 10 + 5 = 15. Returns 10.
+    var current = ptr_get(ptr)
+    
+    if old != 10 {
+        print("atomic_add old value mismatch")
+        exit(1)
+    }
+    if current != 15 {
+        print("atomic_add result mismatch")
+        exit(1)
+    }
+    
+    // Test atomic_cas
+    // atomic_cas(ptr, expected, new)
+    // In codegen: CAS Xs, Xt, [Xn].
+    // Compares value at [Xn] with Xs. If equal, stores Xt to [Xn].
+    // Loads original value to Xs.
+    // Returns old value.
+    
+    var cas_res = atomic_cas(ptr, 15, 20) // Success: 15 -> 20. Returns 15.
+    current = ptr_get(ptr)
+    
+    if cas_res != 15 {
+        print("atomic_cas success return mismatch")
+        exit(1)
+    }
+    if current != 20 {
+        print("atomic_cas success result mismatch")
+        exit(1)
+    }
+    
+    cas_res = atomic_cas(ptr, 999, 30) // Fail: expected 999, got 20. Returns 20.
+    current = ptr_get(ptr)
+    
+    if cas_res != 20 {
+        print("atomic_cas fail return mismatch")
+        exit(1)
+    }
+    if current != 20 {
+        print("atomic_cas fail result mismatch")
+        exit(1)
+    }
+    
+    print("Atomics OK")
+    exit(0)
+}

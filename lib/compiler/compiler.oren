@@ -4,11 +4,12 @@ import analysis "analysis.oren"
 import lexer "lexer.oren"
 import parser "parser.oren"
 import ast "ast.oren"
+import metadata "metadata.oren"
 
 fn usage() {
     print("Usage:")
-    print("  oren <file.oren> [-o output] [--emit-c] [--backend c|native] [--cc cc] [--python] [--codesign id] [--notarize] [--notary-profile name] [--no-gc]")
-    print("  oren build <file.oren> [-o output] [--emit-c] [--backend c|native] [--cc cc] [--python] [--codesign id] [--notarize] [--notary-profile name] [--no-gc]")
+    print("  oren <file.oren> [-o output] [--emit-c] [--backend c|native] [--cc cc] [--python] [--codesign id] [--notarize] [--notary-profile name] [--no-gc] [--metadata]")
+    print("  oren build <file.oren> [-o output] [--emit-c] [--backend c|native] [--cc cc] [--python] [--codesign id] [--notarize] [--notary-profile name] [--no-gc] [--metadata]")
     print("  oren emit-c <file.oren>")
 }
 
@@ -266,6 +267,7 @@ fn compiler_main() {
     var notarize = false
     var notary_profile = "" // notarytool keychain profile
     var no_gc = false
+    var emit_meta = false
     if target == "macos" { codesign_id = "Developer ID Application: Zongbao Lu (US56HHF2Y4)" }
     if mode == "emit-c" { emit_c = true }
     var env_no_gc = oren_env("OREN_NO_GC")
@@ -280,54 +282,59 @@ fn compiler_main() {
                 analyze = true
                 i = i + 1
             } else {
-                if args[i] == "--python" {
-                    enable_python = true
+                if args[i] == "--metadata" {
+                    emit_meta = true
                     i = i + 1
                 } else {
-                    if args[i] == "--backend" {
-                        if i + 1 >= argc { print("Missing value for --backend"); return nil }
-                        backend = args[i + 1]
-                        i = i + 2
+                    if args[i] == "--python" {
+                        enable_python = true
+                        i = i + 1
                     } else {
-                        if args[i] == "--target" {
-                            if i + 1 >= argc { print("Missing value for --target"); return nil }
-                            target = args[i + 1]
+                        if args[i] == "--backend" {
+                            if i + 1 >= argc { print("Missing value for --backend"); return nil }
+                            backend = args[i + 1]
                             i = i + 2
                         } else {
-                            if args[i] == "--disasm" {
-                                disasm = true
-                                i = i + 1
+                            if args[i] == "--target" {
+                                if i + 1 >= argc { print("Missing value for --target"); return nil }
+                                target = args[i + 1]
+                                i = i + 2
                             } else {
-                                if args[i] == "--cc" {
-                                    if i + 1 >= argc { print("Missing value for --cc"); return nil }
-                                    cc = args[i + 1]
-                                    i = i + 2
+                                if args[i] == "--disasm" {
+                                    disasm = true
+                                    i = i + 1
                                 } else {
-                                    if args[i] == "-o" {
-                                        if i + 1 >= argc { print("Missing value for -o"); return nil }
-                                        out_path = args[i + 1]
+                                    if args[i] == "--cc" {
+                                        if i + 1 >= argc { print("Missing value for --cc"); return nil }
+                                        cc = args[i + 1]
                                         i = i + 2
                                     } else {
-                                        if args[i] == "--codesign" {
-                                            if i + 1 >= argc { print("Missing value for --codesign"); return nil }
-                                            codesign_id = args[i + 1]
+                                        if args[i] == "-o" {
+                                            if i + 1 >= argc { print("Missing value for -o"); return nil }
+                                            out_path = args[i + 1]
                                             i = i + 2
                                         } else {
-                                            if args[i] == "--notarize" {
-                                                notarize = true
-                                                i = i + 1
+                                            if args[i] == "--codesign" {
+                                                if i + 1 >= argc { print("Missing value for --codesign"); return nil }
+                                                codesign_id = args[i + 1]
+                                                i = i + 2
                                             } else {
-                                                if args[i] == "--notary-profile" {
-                                                    if i + 1 >= argc { print("Missing value for --notary-profile"); return nil }
-                                                    notary_profile = args[i + 1]
-                                                    i = i + 2
+                                                if args[i] == "--notarize" {
+                                                    notarize = true
+                                                    i = i + 1
                                                 } else {
-                                                    if args[i] == "--no-gc" {
-                                                        no_gc = true
-                                                        i = i + 1
+                                                    if args[i] == "--notary-profile" {
+                                                        if i + 1 >= argc { print("Missing value for --notary-profile"); return nil }
+                                                        notary_profile = args[i + 1]
+                                                        i = i + 2
                                                     } else {
-                                                        print("Unknown arg: " + args[i])
-                                                        return nil
+                                                        if args[i] == "--no-gc" {
+                                                            no_gc = true
+                                                            i = i + 1
+                                                        } else {
+                                                            print("Unknown arg: " + args[i])
+                                                            return nil
+                                                        }
                                                     }
                                                 }
                                             }
@@ -373,6 +380,14 @@ fn compiler_main() {
         }
 
         var linked = link_program(path, prog)
+        
+        if emit_meta {
+            var meta_json = metadata.generate_metadata(linked)
+            var meta_path = out_path + ".meta.json"
+            oren_write_file(meta_path, meta_json)
+            print("Wrote metadata: " + meta_path)
+        }
+
         if target == "linux" {
             codegen.elf_emit_program_arm64(out_path, linked)
         } else {

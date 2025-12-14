@@ -1,0 +1,17 @@
+fn main() {
+    var ch = oren_new_channel()
+    if oren_list_len(ch) != 2 {
+        print("Channel creation failed")
+        exit(1)
+    }
+    
+    oren_chan_send(ch, 12345)
+    var val = oren_chan_recv(ch)
+    
+    if val == 12345 {
+        print("Channel OK")
+        exit(0)
+    }
+    print("Channel value mismatch")
+    exit(1)
+}

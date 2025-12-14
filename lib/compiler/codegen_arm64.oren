@@ -548,6 +548,10 @@ fn native_compile_expr(ctx, expr) {
         var bytes = oren_bytes_from_string(s)
         bytes_push(bytes, 0) // Null terminator
         
+        while int_mod(oren_list_len(ctx["data"]), 8) != 0 {
+            bytes_push(ctx["data"], 0)
+        }
+        
         var data_off = oren_list_len(ctx["data"])
         bytes_extend(ctx["data"], bytes)
         
@@ -635,11 +639,22 @@ fn native_compile_expr(ctx, expr) {
     if expr["type"] == "Identifier" {
         var name = expr["value"]
         
-        // Check locals first
+        // Check locals
         var off = ctx["locals"][name]
         if off != nil {
             var current_sp_off = ctx["stack_size"] - off - 16
             push_u32_le(ctx["code"], insn_ldr_x0_sp(current_sp_off))
+            return nil
+        }
+
+        // Check globals
+        var global_off = ctx["globals"][name]
+        if global_off != nil {
+            var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": global_off})
+            // X0 has address. LDR X0, [X0]
+            push_u32_le(ctx["code"], insn_ldr_ptr(0, 0))
             return nil
         }
         
@@ -918,8 +933,12 @@ fn native_compile_expr(ctx, expr) {
         var args = expr["args"]
 
         if fn_name == "get_fp" {
-            // MOV X0, FP (X29) -> ADD X0, X29, #0
             push_u32_le(ctx["code"], insn_add_imm(0, 29, 0))
+            return nil
+        }
+        
+        if fn_name == "get_sp" {
+            push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP (X31) -> ADD X0, SP, #0
             return nil
         }
         
@@ -1052,6 +1071,50 @@ fn native_compile_expr(ctx, expr) {
             return nil
         }
 
+        if fn_name == "sys_read" {
+            native_compile_expr(ctx, args[0]) // fd -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args[1]) // ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args[2]) // len -> X0
+
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // ptr -> X2 (was X1 in sys_write logic, wait)
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // fd -> X1
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // X0=len (current), X1=fd, X2=ptr.
+            // Syscall: X0=fd, X1=ptr, X2=len.
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // temp save len in X3
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // fd -> X0
+            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // ptr -> X1
+            push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // len -> X2
+
+            var sys_read = 3
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                sys_read = 63
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_read))
+            if is_macos { push_u32_le(ctx["code"], 4070588432) }
+            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            return nil
+        }
+        
         if fn_name == "sys_write" {
             // sys_write(fd, ptr, len)
             native_compile_expr(ctx, args[0]) // fd -> X0
@@ -1096,6 +1159,86 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
             if is_macos { push_u32_le(ctx["code"], 4070588432) }
             push_u32_le(ctx["code"], insn_svc(svc_imm))
+            return nil
+        }
+        
+        if fn_name == "sys_pipe" {
+            native_compile_expr(ctx, args[0]) // ptr to int[2] -> X0
+            
+            var sys_pipe = 42
+            var sys_pipe2 = 293
+            var sys_reg = 16
+            var svc_imm = 128
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                sys_pipe = sys_pipe2
+                sys_reg = 8
+                svc_imm = 0
+                is_macos = false
+            }
+            
+            if is_macos {
+                // Save ptr (X0) to stack
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+                
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
+                push_u32_le(ctx["code"], 4070588432) // MOVK X16, #0x200, LSL #16
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                
+                // Restore ptr -> X2
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+                
+                // Store X0 -> [X2]
+                push_u32_le(ctx["code"], insn_str_ptr(0, 2))
+                // Store X1 -> [X2 + 8]
+                push_u32_le(ctx["code"], insn_add_imm(2, 2, 8))
+                push_u32_le(ctx["code"], insn_str_ptr(1, 2))
+                
+                push_u32_le(ctx["code"], insn_movz(0, 0)) // Return 0
+            } else {
+                // Linux pipe2(ptr, flags)
+                // ptr in X0.
+                push_u32_le(ctx["code"], insn_movz(1, 0)) // flags = 0
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+            }
+            return nil
+        }
+        
+        if fn_name == "sys_clone" {
+            native_compile_expr(ctx, args[0]) // flags -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            native_compile_expr(ctx, args[1]) // stack -> X0
+            
+            // Pop flags -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            // Syscall expects: X0=flags, X1=stack.
+            // We have X0=stack, X1=flags. Swap.
+            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = stack
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = flags
+            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // X1 = stack
+            
+            // Clear other args
+            push_u32_le(ctx["code"], insn_movz(2, 0))
+            push_u32_le(ctx["code"], insn_movz(3, 0))
+            push_u32_le(ctx["code"], insn_movz(4, 0))
+            
+            if ctx["platform"]["os"] == "linux" {
+                push_u32_le(ctx["code"], insn_movz(8, 220)) // sys_clone
+                push_u32_le(ctx["code"], insn_svc(0))
+            } else {
+                push_u32_le(ctx["code"], insn_movn(0, 0)) // -1
+            }
             return nil
         }
         
@@ -1219,7 +1362,6 @@ fn native_compile_stmt(ctx, stmt) {
             native_compile_stmt(ctx, stmts[i])
             i = i + 1
         }
-        // Pop temporaries/local slots created inside this block
         var delta = ctx["stack_size"] - base_stack
         if delta > 0 {
             push_u32_le(ctx["code"], insn_add_sp(delta))
@@ -1229,18 +1371,36 @@ fn native_compile_stmt(ctx, stmt) {
     }
 
     if stmt["type"] == "Assign" {
-        // Compile value -> X0
         native_compile_expr(ctx, stmt["value"])
         
         var name = stmt["name"]["value"]
         var off = ctx["locals"][name]
-        if off == nil {
-            print("native backend: assignment to undefined variable " + name)
+        if off != nil {
+            var current_sp_off = ctx["stack_size"] - off - 16
+            push_u32_le(ctx["code"], insn_str_x0_sp(current_sp_off))
             return nil
         }
         
-        var current_sp_off = ctx["stack_size"] - off - 16
-        push_u32_le(ctx["code"], insn_str_x0_sp(current_sp_off))
+        var global_off = ctx["globals"][name]
+        if global_off != nil {
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": global_off})
+            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
+            
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+            return nil
+        }
+        
+        print("native backend: assignment to undefined variable " + name)
         return nil
     }
 
@@ -1248,21 +1408,40 @@ fn native_compile_stmt(ctx, stmt) {
         native_compile_expr(ctx, stmt["value"])
 
         var name = stmt["name"]["value"]
-        // Reuse existing slot if the variable was already allocated (e.g., in loops)
-        var existing_off = ctx["locals"][name]
-        if existing_off != nil {
-            var current_sp_off_existing = ctx["stack_size"] - existing_off - 16
-            push_u32_le(ctx["code"], insn_str_x0_sp(current_sp_off_existing))
-            return nil
+        
+        if ctx["in_function"] {
+            var existing_off = ctx["locals"][name]
+            if existing_off != nil {
+                var current_sp_off_existing = ctx["stack_size"] - existing_off - 16
+                push_u32_le(ctx["code"], insn_str_x0_sp(current_sp_off_existing))
+                return nil
+            }
+            
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["locals"][name] = ctx["stack_size"]
+            ctx["stack_size"] = ctx["stack_size"] + 16
+        } else {
+            var data_off = oren_list_len(ctx["data"])
+            var k = 0
+            while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
+            ctx["globals"][name] = data_off
+            
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
+            
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
         }
-        
-        // Push to stack (aligned 16 bytes for ARM64 SP)
-        push_u32_le(ctx["code"], insn_sub_sp(16))
-        push_u32_le(ctx["code"], insn_str_x0_sp(0))
-        
-        // Record variable
-        ctx["locals"][name] = ctx["stack_size"]
-        ctx["stack_size"] = ctx["stack_size"] + 16
         return nil
     }
     
@@ -1278,7 +1457,6 @@ fn native_compile_stmt(ctx, stmt) {
         var name = stmt["name"]["value"]
         ctx["imports"][name] = true
         oren_list_push(ctx["import_list"], name)
-        // print("FFI import: " + name)
         return nil
     }
     
@@ -1299,9 +1477,11 @@ fn native_compile_stmt(ctx, stmt) {
         ctx["locals"] = {}
         ctx["stack_size"] = 0
         
+        ctx["in_function"] = true
+        
         push_u32_le(ctx["code"], insn_stp_pre())
         push_u32_le(ctx["code"], insn_mov_fp_sp())
-        ctx["stack_size"] = ctx["stack_size"] + 16 // account for saved FP/LR
+        ctx["stack_size"] = ctx["stack_size"] + 16 
         
         var i = 0
         while i < n_fields {
@@ -1313,14 +1493,12 @@ fn native_compile_stmt(ctx, stmt) {
             i = i + 1
         }
         
-        // Allocate contiguous struct buffer (n_fields * 8 bytes) via runtime hook
         var size_bytes = n_fields * 8
         push_u32_le(ctx["code"], insn_movz(0, size_bytes))
         var bl_pos_alloc = oren_list_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_alloc, "name": "oren_alloc_struct"})
         
-        // Save struct pointer on stack
         var struct_ptr_off = ctx["stack_size"]
         push_u32_le(ctx["code"], insn_sub_sp(16))
         push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1331,9 +1509,7 @@ fn native_compile_stmt(ctx, stmt) {
             var f_name2 = fields[i]["value"]
             var off = ctx["locals"][f_name2]
             var current_sp_off = ctx["stack_size"] - off - 16
-            // value -> X0
             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, current_sp_off))
-            // struct ptr -> X1
             var ptr_sp_off = ctx["stack_size"] - struct_ptr_off - 16
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, ptr_sp_off))
             if i > 0 {
@@ -1344,7 +1520,6 @@ fn native_compile_stmt(ctx, stmt) {
             i = i + 1
         }
         
-        // Return struct pointer
         var ptr_sp_off2 = ctx["stack_size"] - struct_ptr_off - 16
         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, ptr_sp_off2))
         push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1358,37 +1533,32 @@ fn native_compile_stmt(ctx, stmt) {
         var skip_off = (func_end - jump_skip_pos) / 4
         set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
         
+        ctx["in_function"] = false
+        
         ctx["locals"] = old_locals
         ctx["stack_size"] = old_stack_size
         return nil
     }
     
     if stmt["type"] == "While" {
-        // Label: start
         var start_pos = oren_list_len(ctx["code"])
         
-        // Condition
         native_compile_expr(ctx, stmt["cond"])
         
-        // CMP X0, XZR (Check if 0)
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
         
-        // B.EQ end (Jump if 0)
         var jump_end_pos = oren_list_len(ctx["code"])
-        push_u32_le(ctx["code"], 0) // placeholder
+        push_u32_le(ctx["code"], 0) 
         
-        // Body
         native_compile_stmt(ctx, stmt["body"])
         
-        // B start
         var loop_back_pos = oren_list_len(ctx["code"])
         var back_off = (start_pos - loop_back_pos) / 4
         push_u32_le(ctx["code"], insn_b(back_off))
         
-        // Patch end
         var end_target = oren_list_len(ctx["code"])
         var end_off = (end_target - jump_end_pos) / 4
-        set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0)) // 0 = EQ
+        set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0)) 
         
         return nil
     }
@@ -1397,35 +1567,26 @@ fn native_compile_stmt(ctx, stmt) {
         var exp = stmt["expr"]
         
         if exp["type"] == "If" {
-            // Condition
             native_compile_expr(ctx, exp["cond"])
             
-            // CMP X0, XZR (Check if 0)
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             
-            // B.EQ else_label (Jump if 0)
             var jump_else_pos = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) // placeholder
+            push_u32_le(ctx["code"], 0) 
             
-            // Consequence
             native_compile_stmt(ctx, exp["consq"])
             
-            // B end_label
             var jump_end_pos = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) // placeholder
+            push_u32_le(ctx["code"], 0) 
             
-            // Patch else_label
-            // Target is current len (start of else block)
             var else_target = oren_list_len(ctx["code"])
             var else_off = (else_target - jump_else_pos) / 4
-            set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, 0)) // 0 = EQ
+            set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, 0)) 
             
-            // Alternative
             if exp["alt"] != nil {
                 native_compile_stmt(ctx, exp["alt"])
             }
             
-            // Patch end_label
             var end_target = oren_list_len(ctx["code"])
             var end_off = (end_target - jump_end_pos) / 4
             set_u32_le(ctx["code"], jump_end_pos, insn_b(end_off))
@@ -1436,41 +1597,36 @@ fn native_compile_stmt(ctx, stmt) {
         if exp["type"] == "Function" {
             var fn_name = exp["name"]
             
-            // Align code to 4-byte boundary before function entry
             while int_mod(oren_list_len(ctx["code"]), 4) != 0 {
                 bytes_push(ctx["code"], 0)
             }
             
-            // Skip function body
             var jump_skip_pos = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) // placeholder
+            push_u32_le(ctx["code"], 0) 
             
-        // Function start
-        var func_start = oren_list_len(ctx["code"])
-        ctx["functions"][fn_name] = func_start
-        oren_list_push(ctx["function_names"], fn_name)
-        if fn_name == "main" {
-            ctx["main_idx"] = func_start
-        }
+            var func_start = oren_list_len(ctx["code"])
+            ctx["functions"][fn_name] = func_start
+            oren_list_push(ctx["function_names"], fn_name)
+            if fn_name == "main" {
+                ctx["main_idx"] = func_start
+            }
             
-            // Save context
             var old_locals = ctx["locals"]
             var old_stack_size = ctx["stack_size"]
             ctx["locals"] = {}
             ctx["stack_size"] = 0
             
-            // Prologue
+            ctx["in_function"] = true
+            
             push_u32_le(ctx["code"], insn_stp_pre())
             push_u32_le(ctx["code"], insn_mov_fp_sp())
-            ctx["stack_size"] = ctx["stack_size"] + 16 // saved FP/LR
+            ctx["stack_size"] = ctx["stack_size"] + 16 
             
-            // Params
             var params = exp["params"]
             var n_params = oren_list_len(params)
             var i = 0
             while i < n_params {
                 var p_name = params[i]["value"]
-                // Push register Xi to stack (local) using 16-byte aligned slot
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
                 ctx["locals"][p_name] = ctx["stack_size"]
@@ -1478,21 +1634,19 @@ fn native_compile_stmt(ctx, stmt) {
                 i = i + 1
             }
             
-            // Body
             native_compile_stmt(ctx, exp["body"])
             
-            // Epilogue (implicit return 0)
             push_u32_le(ctx["code"], insn_movz(0, 0))
             push_u32_le(ctx["code"], insn_mov_sp_fp())
             push_u32_le(ctx["code"], insn_ldp_post())
             push_u32_le(ctx["code"], insn_ret())
             
-            // Patch skip
             var func_end = oren_list_len(ctx["code"])
             var skip_off = (func_end - jump_skip_pos) / 4
             set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
             
-            // Restore context
+            ctx["in_function"] = false
+            
             ctx["locals"] = old_locals
             ctx["stack_size"] = old_stack_size
             return nil
@@ -1516,9 +1670,7 @@ fn native_compile_stmt(ctx, stmt) {
             }
 
             if fn_name == "print" {
-                // Evaluate argument to X0
                 native_compile_expr(ctx, exp["args"][0])
-                // Call runtime print (variadic not yet supported)
                 var bl_pos_print = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_print, "name": "oren_print"})
@@ -1526,19 +1678,15 @@ fn native_compile_stmt(ctx, stmt) {
             }
             
             if fn_name == "exit" {
-                native_compile_expr(ctx, exp["args"][0]) // result in X0
+                native_compile_expr(ctx, exp["args"][0])
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
                 if is_macos {
-                    // movk x16, #0x200, lsl #16
                     push_u32_le(ctx["code"], 4070588432)
                 }
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 return nil
             }
             
-            // Generic Call logic (same as expr)
-            // But we don't need result.
-            // Still compile it as expression for side effects.
             native_compile_expr(ctx, exp)
             return nil
         }
@@ -1554,12 +1702,14 @@ fn native_compile_program_arm64(linked, platform) {
         "data": bytes_new(),
         "fixups": [],
         "locals": {},
+        "globals": {},
         "functions": {},
         "function_names": [],
         "main_idx": nil,
         "imports": {},
         "import_list": [],
         "stack_size": 0,
+        "in_function": false,
         "platform": platform,
         "aliases": linked["aliases"],
         "type_ns": linked["type_ns"],
@@ -1578,6 +1728,18 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], insn_stp_pre())
     push_u32_le(ctx["code"], insn_mov_fp_sp())
     ctx["stack_size"] = ctx["stack_size"] + 16
+    
+    // Init Runtime
+    var bl_init = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
+
+    // Register Main Thread
+    push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
+    var bl_reg = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reg, "name": "oren_register_thread"})
+    
     var main_fix = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
@@ -1659,7 +1821,11 @@ fn native_compile_program_arm64(linked, platform) {
         if stmt["type"] == "Function" {
             var name = stmt["name"]
             var off = ctx["functions"][name]
-            sym_src = sym_src + "if off >= " + oren_int_to_string(off) + " { return " + token.CH_QUOTE + name + token.CH_QUOTE + " } "
+            if off == nil {
+                print("codegen error: function offset not found for " + name)
+            } else {
+                sym_src = sym_src + "if off >= " + oren_int_to_string(off) + " { return " + token.CH_QUOTE + name + token.CH_QUOTE + " } "
+            }
         }
         j = j + 1
     }
@@ -1680,11 +1846,11 @@ fn native_compile_program_arm64(linked, platform) {
     return ctx
 }
 
-fn macho_build_prefix_arm64(text_size, code, sig_size, entry_idx) {
+fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size) {
     var p = bytes_new()
     var dyld_path = "/usr/lib/dyld"
     var dyld_cmdsize = align_up(12 + oren_string_len(dyld_path) + 1, 8)
-    var dyld_info_cmdsize = 48 // dyld_info_command has fixed size
+    var dyld_info_cmdsize = 48
     
     // Header (Mach-O 64)
     push_u32_le(p, 4277009103) // Magic (FEEDFACF)
@@ -1692,9 +1858,9 @@ fn macho_build_prefix_arm64(text_size, code, sig_size, entry_idx) {
     push_u32_le(p, 0)          // Subtype
     push_u32_le(p, 2)          // File Type (Execute)
     
-    // Commands: PAGEZERO, TEXT, LINKEDIT, DYLD_INFO_ONLY, LOAD_DYLINKER, BUILD_VERSION, MAIN. (No CodeSignature by default)
-    var sizeof_cmds_base = 72 + 152 + 72 + dyld_info_cmdsize + dyld_cmdsize + 24 + 24
-    var ncmds_base = 7
+    // Commands: PAGEZERO, TEXT, DATA, LINKEDIT, DYLD_INFO_ONLY, LOAD_DYLINKER, BUILD_VERSION, MAIN.
+    var sizeof_cmds_base = 72 + 152 + 152 + 72 + dyld_info_cmdsize + dyld_cmdsize + 24 + 24
+    var ncmds_base = 8
     var sizeof_cmds = sizeof_cmds_base
     var ncmds = ncmds_base
     if sig_size > 0 {
@@ -1707,10 +1873,10 @@ fn macho_build_prefix_arm64(text_size, code, sig_size, entry_idx) {
     push_u32_le(p, 0) // reserved
     
     // 1. LC_SEGMENT_64 (__PAGEZERO)
-    push_u32_le(p, 25) // cmd
-    push_u32_le(p, 72) // cmdsize
+    push_u32_le(p, 25)
+    push_u32_le(p, 72)
     var i = 0
-    while i < 16 { bytes_push(p, 0); i = i + 1 } // segname
+    while i < 16 { bytes_push(p, 0); i = i + 1 }
     push_u64_le(p, 0) // vmaddr
     push_u64_le(p, 4294967296) // vmsize (4GB)
     push_u64_le(p, 0) // fileoff
@@ -1730,56 +1896,84 @@ fn macho_build_prefix_arm64(text_size, code, sig_size, entry_idx) {
     push_u64_le(p, text_size) // vmsize
     push_u64_le(p, 0) // fileoff
     push_u64_le(p, text_size) // filesize
-    push_u32_le(p, 7) // maxprot (RWX)
-    push_u32_le(p, 7) // initprot (RWX to allow runtime globals in text blob)
+    push_u32_le(p, 5) // maxprot (RX)
+    push_u32_le(p, 5) // initprot (RX)
     push_u32_le(p, 1) // nsects
     push_u32_le(p, 0) // flags
     
         // Section (__text)
-        // sectname "__text"
         bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 116); bytes_push(p, 101); bytes_push(p, 120); bytes_push(p, 116);
         i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-        // segname "__TEXT"
         bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 84); bytes_push(p, 69); bytes_push(p, 88); bytes_push(p, 84);
         i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-        push_u64_le(p, 4294967296 + 632) // addr (start of code)
-        push_u64_le(p, oren_list_len(code)) // size
-        push_u32_le(p, 632) // offset
-        push_u32_le(p, 4) // align (2^4 = 16)
+        push_u64_le(p, 4294967296 + header_size) // addr (start of code)
+        push_u64_le(p, text_size - header_size) // size (code + padding)
+        push_u32_le(p, header_size) // offset
+        push_u32_le(p, 4) // align
         push_u32_le(p, 0) // reloff
         push_u32_le(p, 0) // nreloc
-        push_u32_le(p, 2147484672) // flags (S_REGULAR | S_ATTR_SOME_INSTRUCTIONS | S_ATTR_PURE_INSTRUCTIONS)
+        push_u32_le(p, 2147484672) // flags
+        push_u32_le(p, 0) // reserved1
+        push_u32_le(p, 0) // reserved2
+        push_u32_le(p, 0) // reserved3
+
+    // 3. LC_SEGMENT_64 (__DATA)
+    push_u32_le(p, 25)
+    push_u32_le(p, 152) // 72 + 80
+    // segname "__DATA"
+    bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 68); bytes_push(p, 65); bytes_push(p, 84); bytes_push(p, 65);
+    i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
+    push_u64_le(p, 4294967296 + text_size) // vmaddr
+    push_u64_le(p, data_size) // vmsize
+    push_u64_le(p, text_size) // fileoff
+    push_u64_le(p, data_size) // filesize
+    push_u32_le(p, 3) // maxprot (RW)
+    push_u32_le(p, 3) // initprot (RW)
+    push_u32_le(p, 1) // nsects
+    push_u32_le(p, 0) // flags
+    
+        // Section (__data)
+        bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 100); bytes_push(p, 97); bytes_push(p, 116); bytes_push(p, 97);
+        i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
+        bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 68); bytes_push(p, 65); bytes_push(p, 84); bytes_push(p, 65);
+        i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
+        push_u64_le(p, 4294967296 + text_size) // addr
+        push_u64_le(p, data_len) // size (actual data size)
+        push_u32_le(p, text_size) // offset
+        push_u32_le(p, 3) // align (2^3=8)
+        push_u32_le(p, 0) // reloff
+        push_u32_le(p, 0) // nreloc
+        push_u32_le(p, 0) // flags
         push_u32_le(p, 0) // reserved1
         push_u32_le(p, 0) // reserved2
         push_u32_le(p, 0) // reserved3
         
-    // 3. LC_SEGMENT_64 (__LINKEDIT)
+    // 4. LC_SEGMENT_64 (__LINKEDIT)
     push_u32_le(p, 25)
     push_u32_le(p, 72)
-    // segname "__LINKEDIT"
     bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 76); bytes_push(p, 73); bytes_push(p, 78); bytes_push(p, 75); bytes_push(p, 69); bytes_push(p, 68); bytes_push(p, 73); bytes_push(p, 84);
     i = 0; while i < 6 { bytes_push(p, 0); i = i + 1 }
-    push_u64_le(p, 4294967296 + text_size) // vmaddr
-    push_u64_le(p, text_size) // vmsize
-    push_u64_le(p, text_size) // fileoff
+    push_u64_le(p, 4294967296 + text_size + data_size) // vmaddr
+    push_u64_le(p, sig_size) // vmsize (aligned)
+    push_u64_le(p, text_size + data_size) // fileoff
     push_u64_le(p, sig_size) // filesize
-    push_u32_le(p, 7) // maxprot
+    push_u32_le(p, 1) // maxprot (R)
     push_u32_le(p, 1) // initprot (R)
     push_u32_le(p, 0) // nsects
     push_u32_le(p, 0) // flags
     
-    // 4. LC_DYLD_INFO_ONLY (no rebase/bind info needed)
-    push_u32_le(p, 2147483682) // LC_DYLD_INFO_ONLY
+    // 5. LC_DYLD_INFO_ONLY
+    push_u32_le(p, 2147483682)
     push_u32_le(p, dyld_info_cmdsize)
     var k = 0
     while k < 10 { push_u32_le(p, 0); k = k + 1 }
     
-    // 5. LC_LOAD_DYLINKER (path = /usr/lib/dyld)
+    // 6. LC_LOAD_DYLINKER
     var dyld_bytes = oren_bytes_from_string(dyld_path)
     var cmd_start = oren_list_len(p)
-    push_u32_le(p, 14) // LC_LOAD_DYLINKER
+    push_u32_le(p, 14)
     push_u32_le(p, dyld_cmdsize)
-    push_u32_le(p, 12) // name offset
+    push_u32_le(p, 12)
     i = 0
     while i < oren_list_len(dyld_bytes) {
         bytes_push(p, dyld_bytes[i])
@@ -1790,52 +1984,33 @@ fn macho_build_prefix_arm64(text_size, code, sig_size, entry_idx) {
         bytes_push(p, 0)
     }
     
-    // 6. LC_BUILD_VERSION
-    push_u32_le(p, 50) // cmd (0x32)
-    push_u32_le(p, 24) // cmdsize
-    push_u32_le(p, 1) // platform (1 = macos)
-    push_u32_le(p, 786432) // minos 12.0.0 (12 << 16 = 786432)
-    push_u32_le(p, 786432) // sdk 12.0.0
-    push_u32_le(p, 0) // ntools
+    // 7. LC_BUILD_VERSION
+    push_u32_le(p, 50)
+    push_u32_le(p, 24)
+    push_u32_le(p, 1)
+    push_u32_le(p, 786432)
+    push_u32_le(p, 786432)
+    push_u32_le(p, 0)
     
-    // 7. LC_MAIN
-    push_u32_le(p, 2147483688) // cmd (LC_MAIN | LC_REQ_DYLD) = 0x80000028
-    push_u32_le(p, 24) // cmdsize
-    var text_file_off = 632 // header size -> start of __text
-    push_u64_le(p, text_file_off + entry_idx) // entryoff (offset from start of file to main)
-    push_u64_le(p, 0) // stacksize (0 means default)
+    // 8. LC_MAIN
+    push_u32_le(p, 2147483688)
+    push_u32_le(p, 24)
+    push_u64_le(p, header_size + entry_idx) // entryoff
+    push_u64_le(p, 0) // stacksize
                 
     if sig_size > 0 {
-                        
-                            // 5. LC_CODE_SIGNATURE
-                        
-                            push_u32_le(p, 29)
-                        
-                            push_u32_le(p, 16)
-                        
-                            push_u32_le(p, text_size) // dataoff (starts after __TEXT in file)
-                        
-                            push_u32_le(p, sig_size) // datasize
-                        
-                }
-                        
-                
-                        
-                // Header + Commands = 632 bytes (or less if no signature)
-                        
-                // Pad to 632 to align with __TEXT offset
-                        
-                while oren_list_len(p) < 632 {
-                        
-                    bytes_push(p, 0)
-                        
-                }
-                        
-                
-                        
-                return p
-                        
-            }
+        // 9. LC_CODE_SIGNATURE
+        push_u32_le(p, 29)
+        push_u32_le(p, 16)
+        push_u32_le(p, text_size + data_size) // dataoff
+        push_u32_le(p, sig_size) // datasize
+    }
+
+    while oren_list_len(p) < header_size {
+        bytes_push(p, 0)
+    }
+    return p
+}
 
 fn macho_exit_code_bytes(code) {
     var b = bytes_new()
@@ -1863,7 +2038,8 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
     
     sig_size = 0
 
-    var prefix = macho_build_prefix_arm64(text_size, code, sig_size, 0)
+    var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, 632)
+    bytes_extend(prefix, code)
     if sig_size > 0 {
         var sig = codesign_adhoc_superblob(prefix, "oren", oren_list_len(code))
         bytes_extend(prefix, sig)
@@ -1898,12 +2074,8 @@ fn macho_emit_program_arm64(out_path, linked) {
         i_imp = i_imp + 1
     }
     
-    // Append data to code (8-byte aligned)
-    while int_mod(oren_list_len(code), 8) != 0 { bytes_push(code, 0) }
-    while int_mod(oren_list_len(code), 8) != 0 { bytes_push(code, 0) }
-    var code_len_before_data = oren_list_len(code)
-    bytes_extend(code, data)
-    print("CODE_LEN_BEFORE_DATA=" + oren_int_to_string(code_len_before_data))
+    // Align code end to 4 bytes
+    while int_mod(oren_list_len(code), 4) != 0 { bytes_push(code, 0) }
     
     if functions["main"] == nil {
         if ctx["main_idx"] != nil { functions["main"] = ctx["main_idx"] }
@@ -1914,6 +2086,14 @@ fn macho_emit_program_arm64(out_path, linked) {
             functions["main"] = 0
         }
     }
+    
+    var header_size = 1024
+    var text_base = 4294967296
+    var code_len = oren_list_len(code)
+    var text_size = align_up(header_size + code_len, 16384)
+    var data_len = oren_list_len(data)
+    var data_size = align_up(data_len, 16384)
+    var data_vmaddr = text_base + text_size
     
     // Apply fixups
     var i = 0
@@ -1934,48 +2114,31 @@ fn macho_emit_program_arm64(out_path, linked) {
         
         if fix["type"] == "adr_data" {
             var data_off = fix["data_off"]
-            var target_idx = code_len_before_data + data_off
-            var offset = target_idx - pos
+            var target_addr = data_vmaddr + data_off
+            var pc = text_base + header_size + pos
+            var offset = target_addr - pc
             var insn = insn_adr(0, offset)
             set_u32_le(code, pos, insn)
-        }
-        
-        // Legacy
-        if fix["type"] == nil {
-            var data_off2 = fix["data_off"]
-            var target_idx2 = code_len_before_data + data_off2
-            // Original code used 728 offset? No, ADR uses PC relative.
-            var offset2 = target_idx2 - pos
-            // ADR X1, offset
-            // We put placeholder 0.
-            // 0x10000001 | ...
-            // Use insn_adr(1, offset2)
-            set_u32_le(code, pos, insn_adr(1, offset2))
         }
         
         i = i + 1
     }
     
-    var text_size = align_up(632 + oren_list_len(code), 16384)
-    var code_limit = text_size
-    var n_code_slots = ceil_div(code_limit, 4096)
-    var code_dir_len = (44 + 5) + (32 * n_code_slots)
-    var super_len = 12 + 8 + code_dir_len
-    var sig_size = align_up(super_len, 8)
-    
-    // Disable manual signing for now, let codesign handle it
-    sig_size = 0
+    var sig_size = 0
     
     var entry_idx = 0
-    var prefix = macho_build_prefix_arm64(text_size, code, sig_size, entry_idx)
+    var prefix = macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size)
     bytes_extend(prefix, code)
     while oren_list_len(prefix) < text_size {
         bytes_push(prefix, 0)
     }
+    bytes_extend(prefix, data)
+    while oren_list_len(prefix) < text_size + data_size {
+        bytes_push(prefix, 0)
+    }
     
     if sig_size > 0 {
-        // We sign the text segment (header + code, padded)
-        var sig = codesign_adhoc_superblob(prefix, "oren", text_size)
+        var sig = codesign_adhoc_superblob(prefix, "oren", text_size) // Sig usually covers text
         bytes_extend(prefix, sig)
     }
     

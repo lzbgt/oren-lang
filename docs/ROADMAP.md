@@ -1,6 +1,6 @@
 # Roadmap
 
-This document captures the staged plan for turning Oren into a production-grade, modern language and toolchain.
+This document captures the staged plan for turning Oren into a production-grade, modern language and toolchain. It specifically addresses the trade-offs highlighted in `docs/COMPARISON.md`.
 
 ## Goals
 - Fast native codegen for macOS/Linux ARM64 (and x86_64), with a portable C backend for constrained targets.
@@ -8,21 +8,32 @@ This document captures the staged plan for turning Oren into a production-grade,
 - Predictable memory story: optional GC (desktop/server) and deterministic/manual mode (embedded).
 - First-class developer ergonomics: formatter, linter, LSP, test runner, package manager, and debugging/profiling hooks.
 
-## Near-Term (0–2 months)
-- **Memory/GC**: Upgrade tracked allocs to a real collector (generational or tri-color mark/sweep), safepoints, per-frame roots, and refine collection locking (coarse mutex in place). Keep `OREN_NO_GC` minimal mode for embedded (STM32, etc.).
-- **Concurrency**: Core threading primitives, channels/queues, atomics; ensure runtime data structures are thread-safe.
+## Mitigation Strategies (Addressing Disadvantages)
+- **Runtime Performance**: Move from stack-machine codegen to a Register Allocator (Linear Scan or Graph Coloring) to close the 2x-10x perf gap with Zig/C. Implement basic peephole optimizations (instruction selection).
+- **Platform Limitations**: Implement x86_64 native backend (Near/Mid-term) and WebAssembly (WASM) backend (Long-term) to broaden reach beyond ARM64.
+- **Safety**: Transition from conservative stack scanning to **Precise GC** using stack maps generated at compile-time. This prevents integers from being mistaken for pointers (leaks) and enables moving collectors.
+- **Ecosystem Split**: Define a `core` library subset that is guaranteed to work in `--no-gc` mode. Standard library modules will be explicitly marked if they require the managed heap.
+
+## Phase 1
+- **Memory/GC**: [DONE] Implemented conservative stack scanning and thread registry. Next: Upgrade to **Precise GC** with stack maps, add safepoints and per-frame roots. Refine collection locking.
+- **Architecture**: **x86_64 Native Backend** skeleton to verify cross-platform compiler architecture.
+- **Concurrency**: [IN PROGRESS] Core threading primitives foundation (Thread Registry). Implementing IPC (Pipes). Next: `spawn` intrinsic (Linux clone/macOS bsdthread_create), channels/queues, atomics; ensure runtime data structures are thread-safe.
 - **FFI/Linking**: Real PLT/GOT + `LC_LOAD_DYLIB`/`DT_NEEDED` support; stable C ABI surface; clean import resolution.
-- **Native backend**: Managed struct allocation in the native runtime (no mmap-only path); consistent field layouts and nested struct support. Recent fixes: 4-byte function alignment, entry trampoline for `main`, and block-scoped stack cleanup to avoid loop leaks (fixes nested struct/value crashes on macOS).
+- **Native backend**: Managed struct allocation in the native runtime (done). Global variable support (done). Next: register allocator groundwork (IR definition).
 - **Tooling**: CLI switches parity (codesign/notarize already), add `oren fmt` skeleton and lint scaffolding.
 
-## Mid-Term (2–6 months)
+## Phase 2
+- **Optimization**: Implement **Register Allocation** (replace stack PUSH/POP with usage of X0-X28). Add basic inlining and const-prop.
+- **Concurrency (Core)**: [IN PROGRESS] Implement **Atomics** (Done). **Channels** (Implemented, debugging `sys_pipe`). **OS Threads** (`spawn` intrinsic added, wrapper pending).
 - **Type system**: Full checker with generics/monomorphization, interfaces/traits, enums/ADTs, pattern matching, result/option-based error handling.
-- **IR + Optimization**: SSA IR, register allocation, inlining, const-prop/DCE/CSE, loop opts, and better Mach-O/ELF emission; add x86_64 backend.
 - **Testing & QA**: Built-in test runner, property testing, coverage hooks, fuzz entry points.
 - **Package Management**: Module registry layout, vendoring, lockfiles, reproducible builds.
-- **Tooling**: Language Server (LSP), debugger symbols (DWARF), profiler integration.
+- **Tooling**: Language Server (LSP), debugger symbols (DWARF) for basic stepping support.
 
-## Long-Term
+## Phase 3
+- **AI Readiness**: Implement features from `docs/AI_FEATURES.md` (WASM, Metadata export, Verification).
+- **Concurrency (Advanced)**: **M:N Scheduler** (Coroutines), **Pub/Sub**, **Fan-Out**, and **Parallel Iterators** (see `docs/CONCURRENCY_MODEL.md`).
+- **Targets**: **WebAssembly (WASM)** backend.
 - **Async/Tasks**: Async/await or lightweight tasks with a scheduler; GC/stack interaction.
 - **Security/Trust**: Deterministic builds, supply-chain verification, signed artifacts, sandboxed exec.
 - **Ecosystem**: Standard library build-out (collections, fs/net/crypto/time), cross-platform story (Windows), and polished docs/examples.

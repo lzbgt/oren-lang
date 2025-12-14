@@ -1,0 +1,9 @@
+test "foo" {
+    print("Inside test foo")
+}
+
+fn main() {
+    print("Calling test_foo...")
+    test_foo()
+    print("Done")
+}

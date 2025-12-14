@@ -39,6 +39,36 @@ fn skip_comment(l) {
     return nil
 }
 
+fn skip_block_comment(l) {
+    // We already consumed the opening '/' and '*'
+    var depth = 1
+    while l["ch"] != "" && depth > 0 {
+        if l["ch"] == "/" {
+            if peek_char(l) == "*" {
+                read_char(l)
+                read_char(l)
+                depth = depth + 1
+                // Continue loop
+            } else {
+                read_char(l)
+            }
+        } else {
+            if l["ch"] == "*" {
+                if peek_char(l) == "/" {
+                    read_char(l)
+                    read_char(l)
+                    depth = depth - 1
+                } else {
+                    read_char(l)
+                }
+            } else {
+                read_char(l)
+            }
+        }
+    }
+    return nil
+}
+
 fn read_identifier(l) {
     var out = ""
     while token.is_letter(l["ch"]) || token.is_digit(l["ch"]) {
@@ -149,6 +179,12 @@ fn next_token(l) {
     if ch == "/" {
         if peek_char(l) == "/" {
             skip_comment(l)
+            return next_token(l)
+        }
+        if peek_char(l) == "*" {
+            read_char(l) // consume /
+            read_char(l) // consume *
+            skip_block_comment(l)
             return next_token(l)
         }
         read_char(l)

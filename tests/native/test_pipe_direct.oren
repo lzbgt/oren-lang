@@ -1,0 +1,16 @@
+fn main() {
+    var buf = malloc(16)
+    if buf == 0 { exit(1) }
+    
+    // Direct intrinsic call
+    sys_pipe(buf)
+    
+    var r = ptr_get(buf)
+    var w = ptr_get(buf + 8)
+    
+    if r > 2 && w > 2 {
+        print("Pipe OK")
+        exit(0)
+    }
+    exit(1)
+}

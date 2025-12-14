@@ -94,12 +94,32 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_STRUCT) { return parse_type_decl(p) }
     if cur_is(p, token.TOK_CLASS) { return parse_type_decl(p) }
     if cur_is(p, token.TOK_FFI) { return parse_ffi(p) }
+    if cur_is(p, token.TOK_TEST) { return parse_test(p) }
     if cur_is(p, token.TOK_LBRACE) { return parse_block(p) }
     if cur_is(p, token.TOK_IDENT) {
         if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
         return parse_assign_or_expr_stmt(p)
     }
     return parse_expr_stmt(p)
+}
+
+fn parse_test(p) {
+    var tok = p["cur"]
+    // test "name" { ... }
+    // Convert to function: fn test_name() { ... }
+    
+    if !expect_peek(p, token.TOK_STRING) { return nil }
+    var test_name = p["cur"]["literal"]
+    var func_name = "test_" + test_name
+    
+    // Check if block follows
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+    var body = parse_block(p)
+    
+    // Create function AST
+    // params = []
+    var fn_node = ast.new_function(tok, func_name, [], body)
+    return ast.new_expr_stmt(tok, fn_node)
 }
 
 fn parse_var(p) {

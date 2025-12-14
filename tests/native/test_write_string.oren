@@ -1,0 +1,5 @@
+fn main() {
+    var s = "hello"
+    ptr_set_byte(s, 65) // 'A'
+    print(s)
+}

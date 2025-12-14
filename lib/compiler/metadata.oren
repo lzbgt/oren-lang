@@ -1,0 +1,117 @@
+import token "token.oren"
+
+fn escape_json_string(s) {
+    // Simple escape for quotes and backslashes
+    var out = ""
+    var i = 0
+    var len = oren_string_len(s)
+    while i < len {
+        var ch = oren_string_char_at(s, i)
+        if ch == token.CH_QUOTE {
+            out = out + "\\" + token.CH_QUOTE
+        } else {
+            if ch == "\\" {
+                out = out + "\\\\"
+            } else {
+                out = out + ch
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn to_json(val) {
+    // Basic JSON serialization for dicts/lists/strings/ints
+    // In Oren self-hosted, types are dynamic. 
+    // We assume val is a structure of dicts/lists.
+    // NOTE: This relies on runtime type checks which might be tricky in native.
+    // But the compiler uses the C backend or Go bootstrap mostly for now?
+    // Wait, the compiler *is* self-hosted. 
+    // If we run `oren`, we are running the native or C backend version.
+    // Native backend has no type tags.
+    // C backend has type tags.
+    // `make oren` uses C backend (stage 1)? 
+    // Makefile: `./oren_bootstrap build oren.oren ...` -> C backend default?
+    // No, `oren_bootstrap` (Go) defaults to... generic?
+    // Let's assume C backend for the compiler for now (it's robust).
+    // C backend supports type checks (v.type). 
+    
+    // We'll write a specific metadata generator instead of generic to_json 
+    // to avoid runtime type ambiguity issues in native self-host.
+    return ""
+}
+
+fn generate_metadata(prog) {
+    var json = "{\n"
+    json = json + "  \"functions\": [\n"
+    
+    var stmts = prog["statements"]
+    var i = 0
+    var first = true
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        var func = nil
+        if s["type"] == "Function" {
+            func = s
+        }
+        if s["type"] == "ExprStmt" {
+            if s["expr"]["type"] == "Function" {
+                func = s["expr"]
+            }
+        }
+        
+        if func != nil {
+            if !first { json = json + ",\n" }
+            json = json + "    {\n"
+            json = json + "      \"name\": \"" + escape_json_string(func["name"]) + "\",\n"
+            json = json + "      \"args\": ["
+            
+            var params = func["params"]
+            var j = 0
+            var first_p = true
+            while j < oren_list_len(params) {
+                if !first_p { json = json + ", " }
+                json = json + "\"" + escape_json_string(params[j]["value"]) + "\""
+                first_p = false
+                j = j + 1
+            }
+            json = json + "]\n"
+            json = json + "    }"
+            first = false
+        }
+        i = i + 1
+    }
+    json = json + "\n  ],\n"
+    
+    json = json + "  \"structs\": [\n"
+    i = 0
+    first = true
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        if s["type"] == "Type" {
+            if !first { json = json + ",\n" }
+            json = json + "    {\n"
+            json = json + "      \"name\": \"" + escape_json_string(s["name"]["value"]) + "\",\n"
+            json = json + "      \"fields\": ["
+            
+            var fields = s["fields"]
+            var j = 0
+            var first_f = true
+            while j < oren_list_len(fields) {
+                if !first_f { json = json + ", " }
+                json = json + "\"" + escape_json_string(fields[j]["value"]) + "\""
+                first_f = false
+                j = j + 1
+            }
+            json = json + "]\n"
+            json = json + "    }"
+            first = false
+        }
+        i = i + 1
+    }
+    json = json + "\n  ]\n"
+    
+    json = json + "}\n"
+    return json
+}
