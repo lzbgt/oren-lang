@@ -18,7 +18,7 @@ This document captures the staged plan for turning Oren into a production-grade,
 - **Memory/GC**: [DONE] Implemented conservative stack scanning and thread registry. Next: Upgrade to **Precise GC** with stack maps, add safepoints and per-frame roots. Refine collection locking.
 - **Architecture**: **x86_64 Native Backend** skeleton to verify cross-platform compiler architecture.
 - **Concurrency**: [IN PROGRESS] Core threading primitives foundation (Thread Registry). Implementing IPC (Pipes). Next: `spawn` intrinsic (Linux clone/macOS bsdthread_create), channels/queues, atomics; ensure runtime data structures are thread-safe.
-- **FFI/Linking**: Real PLT/GOT + `LC_LOAD_DYLIB`/`DT_NEEDED` support; stable C ABI surface; clean import resolution.
+- **FFI/Linking**: [DONE] Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding and GOT stubs. Linux `DT_NEEDED`/PLT pending but architecture is shared.
 - **Native backend**: Managed struct allocation in the native runtime (done). Global variable support (done). Next: register allocator groundwork (IR definition).
 - **Tooling**: CLI switches parity (codesign/notarize already), add `oren fmt` skeleton and lint scaffolding.
 

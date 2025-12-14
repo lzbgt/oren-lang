@@ -36,7 +36,6 @@ These issues prevent the Native Backend from being "Production Ready":
 - **Native threads:** `sys_clone` (threads) only targets Linux; macOS path returns `-1`. Native backend has no `spawn`.
 - **Native runtime GC lifecycle:** `native_gc_unregister_root` unimplemented; `native_gc_shutdown` does no release; GC is conservative without type tags.
 - **Native I/O:** Non-literal strings (and other non-int values) still print as raw integers/pointers unless compiled via a specialized path.
-- **FFI:** Import stubs just return `0`; no PLT/GOT or dyld linking.
 - **Semantics parity:** native `&&`/`||` is non-short-circuit today; C backend short-circuits via C lowering.
 
 ## ⏭️ Next Steps
@@ -48,10 +47,13 @@ These issues prevent the Native Backend from being "Production Ready":
 
 ### Native Backend Parity (Still Needed)
 4. **Thread support on macOS** (native backend: thread creation + registry integration).
-5. **FFI/linking** (Mach-O/ELF dynamic linking) and native GC lifecycle hooks.
+5. **Native runtime GC lifecycle hooks.**
 6. **AVM/OBC track**: implement `libavm` + bytecode backend as per `docs/OREN_EVOLUTION.md` once language core semantics are stable.
 
 ### Completed
+- **FFI/Linking:** Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding info generation and GOT-based stubs. FFI calls to `libc` (e.g. `puts`) now work correctly.
+- **Memory Safety:** Fixed `malloc` implementation to save/restore registers across syscalls, preventing heap corruption.
+- **Runtime Init:** Fixed Mach-O entry point to ensure runtime initialization shim is executed, correcting uninitialized globals crash.
 - **Indexing:** Implemented `Index` (get) and `Set` (index set) in native backend.
 - **SIMD:** Implemented real ARM64 NEON instructions for `simd_*` intrinsics.
 - **Float:** Implemented `Float` literal support and `fadd/fsub/fmul/fdiv` intrinsics (native backend).

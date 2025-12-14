@@ -5,7 +5,7 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 ## Supported Features
 
 - **Executable Formats**:
-  - **macOS**: Mach-O 64-bit, PIE. The CLI signs the finished binary with your Developer ID by default; the embedded `LC_CODE_SIGNATURE` path is currently disabled.
+  - **macOS**: Mach-O 64-bit, PIE. Supports dynamic linking with `libSystem` (FFI) via `LC_DYLD_INFO_ONLY` binding opcodes and GOT stubs. The CLI signs the finished binary with your Developer ID by default.
   - **Linux**: ELF 64-bit, PIE (`ET_DYN`), System V ABI.
 
 - **Language Features**:
