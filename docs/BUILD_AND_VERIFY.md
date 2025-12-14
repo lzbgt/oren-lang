@@ -151,6 +151,23 @@ Use `scp` (available in Windows OpenSSH) to copy the binary to the running VM, t
     ./linux_hello
     ```
 
+### Advanced: Bridged Networking (Own IP)
+To give the VM its own IP address on your LAN (instead of NAT/port forwarding), you need to bridge your network adapter with a TAP adapter.
+
+1.  **Install TAP Adapter**: Install [OpenVPN](https://openvpn.net/community-downloads/) (select only the TAP adapter) or check if QEMU installed one.
+2.  **Configure Bridge (Windows)**:
+    *   Open `ncpa.cpl` (Network Connections).
+    *   Rename the TAP adapter to `tap0`.
+    *   Select your active **Ethernet** adapter and `tap0`.
+    *   Right-click -> **Bridge Connections**.
+3.  **Run QEMU**:
+    Replace `-netdev user...` with `-netdev tap,id=net0,ifname=tap0`.
+
+    ```powershell
+    qemu-system-aarch64 ... -netdev tap,id=net0,ifname=tap0 -device virtio-net-device,netdev=net0 ...
+    ```
+    *Warning: Bridging Wi-Fi adapters on Windows often fails due to hardware limitations.*
+
 ### Troubleshooting
 *   **Permissions**: If `scp` fails with "Permission denied", check the VM's SSH configuration (`/etc/ssh/sshd_config`) to ensure password authentication is enabled or your public key is added.
 *   **Architecture**: Ensure you built with `--target linux`. Run `file build/linux_hello` on the host to confirm it says `ELF 64-bit LSB executable, ARM aarch64`.
