@@ -29,6 +29,14 @@ fn ptr_set_byte(addr, val) { return 0 }
 fn malloc(size) { return 0 }
 fn exit(code) { return 0 }
 
+// --- Native GC/Heap Tracking (stubbed) ---
+fn native_try_reuse(size) { return 0 }
+fn oren_track_alloc(ptr, size, kind) { return ptr }
+fn native_gc_register_root(ptr) { return 0 }
+fn native_gc_unregister_root(ptr) { return 0 }
+fn native_gc_collect() { return 0 }
+fn native_gc_shutdown() { return 0 }
+
 fn strcmp(s1, s2) {
     var i = 0
     while 1 {
@@ -113,6 +121,7 @@ fn oren_new_map(cap) {
     }
     ptr_set(m, cap)
     ptr_set(m + 8, 0)
+    oren_track_alloc(m, size, 0)
     return m
 }
 
@@ -216,11 +225,13 @@ fn oren_new_list(cap) {
     var header = malloc(32)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
+    oren_track_alloc(header, 32, 0)
     var buf = 0
     if cap > 0 {
         buf = malloc(cap * 8)
         if buf == 0 { exit(201) }
         if buf == -1 { exit(201) }
+        oren_track_alloc(buf, cap * 8, 0)
     }
     ptr_set(header, 0)      // count
     ptr_set(header + 8, cap) // capacity
@@ -247,6 +258,7 @@ fn oren_list_push(list, value) {
         var new_buf = malloc(new_cap * 8)
         if new_buf == 0 { exit(211) }
         if new_buf == -1 { exit(211) }
+        oren_track_alloc(new_buf, new_cap * 8, 0)
         var i = 0
         while i < count {
             ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
@@ -286,6 +298,7 @@ fn oren_index_set(container, index, value) {
             if new_cap == 0 { new_cap = index + 1 }
             while new_cap <= index { new_cap = new_cap * 2 }
             var new_buf = malloc(new_cap * 8)
+            oren_track_alloc(new_buf, new_cap * 8, 0)
             var i = 0
             while i < count {
                 ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))

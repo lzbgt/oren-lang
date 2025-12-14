@@ -924,14 +924,44 @@ fn native_compile_expr(ctx, expr) {
         }
         
         if fn_name == "malloc" {
-            native_compile_expr(ctx, args[0]) // Size in X0
-            
+            // Bump-pointer heap in X28 (ptr) / X27 (limit); reuse free blocks if available.
+            native_compile_expr(ctx, args[0]) // size -> X0
+
+            // Align size up to 16: size = (size + 15) & ~15
+            push_u32_le(ctx["code"], insn_add_imm(0, 0, 15))
+            push_u32_le(ctx["code"], insn_movn(1, 15))      // X1 = ~0xF
+            push_u32_le(ctx["code"], insn_and_reg(0, 0, 1)) // X0 = aligned size
+            push_u32_le(ctx["code"], insn_mov_reg(9, 0))    // save size in X9
+
+            // Try reuse from free list
+            var bl_reuse_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // BL native_try_reuse(size)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+            var jump_reuse_done = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.NE reuse_done
+
+            // Bump path: candidate_end = heap_ptr (X28) + size
+            push_u32_le(ctx["code"], insn_mov_reg(0, 9))    // restore size
+            push_u32_le(ctx["code"], insn_mov_reg(1, 28))      // X1 = heap_ptr
+            push_u32_le(ctx["code"], insn_add_reg(2, 28, 0))   // X2 = heap_ptr + size
+            push_u32_le(ctx["code"], insn_cmp_reg(2, 27))      // cmp end, limit
+            var jump_slow = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.GT slow
+
+            // Fast path: return old heap_ptr, bump X28
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = old heap_ptr
+            push_u32_le(ctx["code"], insn_mov_reg(28, 2)) // X28 = new heap_ptr
+            var jump_end_malloc = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B end
+
+            // Slow path: mmap a fresh chunk (max(size, 64KB))
+            var slow_target = oren_list_len(ctx["code"])
             var sys_mmap = 197
             var mmap_flags = 4098 // 0x1002
             var sys_reg = 16
             var svc_imm = 128
             var is_macos = true
-            
             if ctx["platform"]["os"] == "linux" {
                 sys_mmap = 222
                 mmap_flags = 34 // 0x22
@@ -939,31 +969,56 @@ fn native_compile_expr(ctx, expr) {
                 svc_imm = 0
                 is_macos = false
             }
-            
-            // mmap(0, size, 3, flags, -1, 0)
-            // X1 = size (X0)
-            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
-            
-            // X0 = 0
+
+            // chunk = max(size, 65536)
+            push_u32_le(ctx["code"], insn_mov_reg(0, 9))
+            push_u32_le(ctx["code"], insn_movz(3, 0))
+            push_u32_le(ctx["code"], insn_movk(3, 1, 1)) // X3 = 0x10000
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 3))
+            var jump_use_chunk = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.LT use_chunk
+            // use size
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0))
+            var jump_choose_end = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B choose_end
+            // use_chunk:
+            var chunk_target = oren_list_len(ctx["code"])
+            // choose_end:
+            var choose_target = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], jump_choose_end, insn_b((choose_target - jump_choose_end) / 4))
+
+            // mmap(0, chunk, PROT=3, flags, -1, 0)
+            push_u32_le(ctx["code"], insn_add_imm(1, 3, 0)) // X1 = chunk
             push_u32_le(ctx["code"], insn_movz(0, 0))
-            
-            // X2 = 3 (PROT_READ|PROT_WRITE)
             push_u32_le(ctx["code"], insn_movz(2, 3))
-            
-            // X3 = flags
             push_u32_le(ctx["code"], insn_movz(3, mmap_flags))
-            
-            // X4 = -1 (MOVN X4, #0)
             push_u32_le(ctx["code"], insn_movn(4, 0))
-            
-            // X5 = 0
             push_u32_le(ctx["code"], insn_movz(5, 0))
-            
-            // Syscall
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_mmap))
             if is_macos { push_u32_le(ctx["code"], 4070588432) }
             push_u32_le(ctx["code"], insn_svc(svc_imm))
-            
+
+            // Update heap_ptr/limit: X0=base, X3=chunk
+            push_u32_le(ctx["code"], insn_add_reg(2, 0, 3)) // X2 = base + chunk
+            push_u32_le(ctx["code"], insn_mov_reg(28, 2))
+            push_u32_le(ctx["code"], insn_mov_reg(27, 2))
+            // X0 already holds return ptr
+
+            // Patch branches for bump/mmap paths
+            var end_target = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], jump_slow, insn_b_cond((slow_target - jump_slow) / 4, 12)) // GT -> slow
+            set_u32_le(ctx["code"], jump_end_malloc, insn_b((end_target - jump_end_malloc) / 4))
+            set_u32_le(ctx["code"], jump_use_chunk, insn_b_cond((chunk_target - jump_use_chunk) / 4, 11)) // LT -> chunk
+
+            // Track allocation (kind = misc)
+            push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
+            push_u32_le(ctx["code"], insn_movz(2, 5))       // kind = 5
+            var bl_track_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc"})
+            // Return path
+            var malloc_end = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], jump_reuse_done, insn_b_cond((malloc_end - jump_reuse_done) / 4, 1)) // B.NE -> reuse_done/end
             return nil
         }
         
@@ -1526,6 +1581,12 @@ fn native_compile_program_arm64(linked, platform) {
     var main_fix = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
+    // Preserve exit code across shutdown
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
+    var shutdown_fix = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // restore X0
     // exit(X0)
     push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
     if ctx["platform"]["os"] == "macos" { push_u32_le(ctx["code"], 4070588432) }
@@ -1670,7 +1731,7 @@ fn macho_build_prefix_arm64(text_size, code, sig_size, entry_idx) {
     push_u64_le(p, 0) // fileoff
     push_u64_le(p, text_size) // filesize
     push_u32_le(p, 7) // maxprot (RWX)
-    push_u32_le(p, 5) // initprot (RX) - actually we need RWX for self-mod? No.
+    push_u32_le(p, 7) // initprot (RWX to allow runtime globals in text blob)
     push_u32_le(p, 1) // nsects
     push_u32_le(p, 0) // flags
     
@@ -1837,7 +1898,9 @@ fn macho_emit_program_arm64(out_path, linked) {
         i_imp = i_imp + 1
     }
     
-    // Append data to code
+    // Append data to code (8-byte aligned)
+    while int_mod(oren_list_len(code), 8) != 0 { bytes_push(code, 0) }
+    while int_mod(oren_list_len(code), 8) != 0 { bytes_push(code, 0) }
     var code_len_before_data = oren_list_len(code)
     bytes_extend(code, data)
     print("CODE_LEN_BEFORE_DATA=" + oren_int_to_string(code_len_before_data))

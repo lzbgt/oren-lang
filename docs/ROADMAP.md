@@ -12,7 +12,7 @@ This document captures the staged plan for turning Oren into a production-grade,
 - **Memory/GC**: Upgrade tracked allocs to a real collector (generational or tri-color mark/sweep), safepoints, per-frame roots, and refine collection locking (coarse mutex in place). Keep `OREN_NO_GC` minimal mode for embedded (STM32, etc.).
 - **Concurrency**: Core threading primitives, channels/queues, atomics; ensure runtime data structures are thread-safe.
 - **FFI/Linking**: Real PLT/GOT + `LC_LOAD_DYLIB`/`DT_NEEDED` support; stable C ABI surface; clean import resolution.
-- **Native backend**: Managed struct allocation in the native runtime (no mmap-only path); consistent field layouts and nested struct support.
+- **Native backend**: Managed struct allocation in the native runtime (no mmap-only path); consistent field layouts and nested struct support. Recent fixes: 4-byte function alignment, entry trampoline for `main`, and block-scoped stack cleanup to avoid loop leaks (fixes nested struct/value crashes on macOS).
 - **Tooling**: CLI switches parity (codesign/notarize already), add `oren fmt` skeleton and lint scaffolding.
 
 ## Mid-Term (2–6 months)
