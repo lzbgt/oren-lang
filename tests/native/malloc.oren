@@ -1,0 +1,9 @@
+var p1 = malloc(16)
+ptr_set(p1, 100)
+var p2 = malloc(16)
+ptr_set(p2, 200)
+
+var v1 = ptr_get(p1)
+var v2 = ptr_get(p2)
+
+if v1 + v2 == 300 { exit(0) } else { exit(1) }

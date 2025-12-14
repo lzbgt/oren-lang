@@ -1,0 +1,7 @@
+fn add(a, b) {
+    return a + b
+}
+var x = 10
+var y = 20
+var z = add(x, y)
+if z == 30 { exit(0) } else { exit(1) }

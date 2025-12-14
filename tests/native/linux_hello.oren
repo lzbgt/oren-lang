@@ -1,0 +1,2 @@
+print("Hello Linux")
+exit(0)

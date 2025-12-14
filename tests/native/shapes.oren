@@ -1,0 +1,5 @@
+struct Point { x, y }
+fn make_point(x, y) { return Point(x, y) }
+var p = make_point(10, 20)
+var sum = p.x + p.y
+if sum == 30 { exit(0) } else { exit(1) }

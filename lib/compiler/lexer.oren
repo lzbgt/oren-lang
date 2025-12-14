@@ -1,0 +1,224 @@
+import token "token.oren"
+
+fn new_lexer(input) {
+    var l = {"input": input, "position": 0, "read_position": 0, "ch": ""}
+    read_char(l)
+    return l
+}
+
+fn read_char(l) {
+    var input_len = oren_string_len(l["input"])
+    if l["read_position"] >= input_len {
+        l["ch"] = ""
+    } else {
+        l["ch"] = oren_string_char_at(l["input"], l["read_position"])
+    }
+    l["position"] = l["read_position"]
+    l["read_position"] = l["read_position"] + 1
+}
+
+fn peek_char(l) {
+    var input_len = oren_string_len(l["input"])
+    if l["read_position"] >= input_len {
+        return ""
+    }
+    return oren_string_char_at(l["input"], l["read_position"])
+}
+
+fn skip_whitespace(l) {
+    while token.is_whitespace(l["ch"]) {
+        read_char(l)
+    }
+}
+
+fn skip_comment(l) {
+    while l["ch"] != "" {
+        if l["ch"] == token.CH_LF { return nil }
+        read_char(l)
+    }
+    return nil
+}
+
+fn read_identifier(l) {
+    var out = ""
+    while token.is_letter(l["ch"]) || token.is_digit(l["ch"]) {
+        out = out + l["ch"]
+        read_char(l)
+    }
+    return out
+}
+
+fn read_number(l) {
+    var out = ""
+    while token.is_digit(l["ch"]) {
+        out = out + l["ch"]
+        read_char(l)
+    }
+    return out
+}
+
+fn read_string(l) {
+    // opening quote already consumed
+    var out = ""
+    read_char(l)
+    while l["ch"] != token.CH_QUOTE {
+        if l["ch"] == "" { return out }
+        if l["ch"] == token.CH_BACKSLASH {
+            read_char(l)
+            if l["ch"] == "" { return out }
+            var escaped = ""
+            if l["ch"] == "n" { escaped = token.CH_LF }
+            if l["ch"] == "r" { escaped = token.CH_CR }
+            if l["ch"] == "t" { escaped = token.CH_TAB }
+            if l["ch"] == token.CH_QUOTE { escaped = token.CH_QUOTE }
+            if l["ch"] == token.CH_BACKSLASH { escaped = token.CH_BACKSLASH }
+            if escaped == "" { escaped = l["ch"] }
+            out = out + escaped
+            read_char(l)
+        } else {
+            out = out + l["ch"]
+            read_char(l)
+        }
+    }
+    return out
+}
+
+fn next_token(l) {
+    skip_whitespace(l)
+    var ch = l["ch"]
+
+    if ch == "&" {
+        if peek_char(l) == "&" {
+            var cur = ch
+            read_char(l)
+            var tok_and = token.new_token(token.TOK_AND, cur + l["ch"])
+            read_char(l)
+            return tok_and
+        }
+        read_char(l)
+        return token.new_token(token.TOK_BITAND, "&")
+    }
+    if ch == "|" {
+        if peek_char(l) == "|" {
+            var cur2 = ch
+            read_char(l)
+            var tok_or = token.new_token(token.TOK_OR, cur2 + l["ch"])
+            read_char(l)
+            return tok_or
+        }
+        read_char(l)
+        return token.new_token(token.TOK_BITOR, "|")
+    }
+    if ch == "^" { read_char(l); return token.new_token(token.TOK_BITXOR, "^") }
+    if ch == "=" {
+        if peek_char(l) == "=" {
+            var cur = ch
+            read_char(l)
+            var tok = token.new_token(token.TOK_EQ, cur + l["ch"])
+            read_char(l)
+            return tok
+        }
+        read_char(l)
+        return token.new_token(token.TOK_ASSIGN, "=")
+    }
+    if ch == ":" {
+        if peek_char(l) == "=" {
+            var cur = ch
+            read_char(l)
+            var tok_declare = token.new_token(token.TOK_DECLARE, cur + l["ch"])
+            read_char(l)
+            return tok_declare
+        }
+        read_char(l)
+        return token.new_token(token.TOK_COLON, ":")
+    }
+    if ch == "+" { read_char(l); return token.new_token(token.TOK_PLUS, "+") }
+    if ch == "-" { read_char(l); return token.new_token(token.TOK_MINUS, "-") }
+    if ch == "~" { read_char(l); return token.new_token(token.TOK_TILDE, "~") }
+    if ch == "!" {
+        if peek_char(l) == "=" {
+            var curb = ch
+            read_char(l)
+            var tok_not_eq = token.new_token(token.TOK_NOT_EQ, curb + l["ch"])
+            read_char(l)
+            return tok_not_eq
+        }
+        read_char(l)
+        return token.new_token(token.TOK_BANG, "!")
+    }
+    if ch == "/" {
+        if peek_char(l) == "/" {
+            skip_comment(l)
+            return next_token(l)
+        }
+        read_char(l)
+        return token.new_token(token.TOK_SLASH, "/")
+    }
+    if ch == "*" { read_char(l); return token.new_token(token.TOK_ASTERISK, "*") }
+    if ch == "<" {
+        if peek_char(l) == "=" {
+            var curc = ch
+            read_char(l)
+            var tok_lte = token.new_token(token.TOK_LTE, curc + l["ch"])
+            read_char(l)
+            return tok_lte
+        }
+        if peek_char(l) == "<" {
+            var curshl = ch
+            read_char(l)
+            var tok_shl = token.new_token(token.TOK_SHL, curshl + l["ch"])
+            read_char(l)
+            return tok_shl
+        }
+        read_char(l); return token.new_token(token.TOK_LT, "<")
+    }
+    if ch == ">" {
+        if peek_char(l) == "=" {
+            var curd = ch
+            read_char(l)
+            var tok_gte = token.new_token(token.TOK_GTE, curd + l["ch"])
+            read_char(l)
+            return tok_gte
+        }
+        if peek_char(l) == ">" {
+            var curshr = ch
+            read_char(l)
+            var tok_shr = token.new_token(token.TOK_SHR, curshr + l["ch"])
+            read_char(l)
+            return tok_shr
+        }
+        read_char(l); return token.new_token(token.TOK_GT, ">")
+    }
+    if ch == ";" { read_char(l); return token.new_token(token.TOK_SEMICOLON, ";") }
+    if ch == "." { read_char(l); return token.new_token(token.TOK_DOT, ".") }
+    if ch == "," { read_char(l); return token.new_token(token.TOK_COMMA, ",") }
+    if ch == "(" { read_char(l); return token.new_token(token.TOK_LPAREN, "(") }
+    if ch == ")" { read_char(l); return token.new_token(token.TOK_RPAREN, ")") }
+    if ch == "{" { read_char(l); return token.new_token(token.TOK_LBRACE, "{") }
+    if ch == "}" { read_char(l); return token.new_token(token.TOK_RBRACE, "}") }
+    if ch == "[" { read_char(l); return token.new_token(token.TOK_LBRACKET, "[") }
+    if ch == "]" { read_char(l); return token.new_token(token.TOK_RBRACKET, "]") }
+    if ch == token.CH_QUOTE {
+        var str = read_string(l)
+        read_char(l)
+        return token.new_token(token.TOK_STRING, str)
+    }
+    if ch == "" {
+        return token.new_token(token.TOK_EOF, "")
+    }
+    if token.is_letter(ch) {
+        var ident = read_identifier(l)
+        return token.new_token(token.lookup_ident(ident), ident)
+    }
+    if token.is_digit(ch) {
+        var num = read_number(l)
+        if l["ch"] == "." {
+            read_char(l)
+            var frac = read_number(l)
+            return token.new_token(token.TOK_FLOAT, num + "." + frac)
+        }
+        return token.new_token(token.TOK_INT, num)
+    }
+    read_char(l)
+    return token.new_token(token.TOK_ILLEGAL, ch)
+}

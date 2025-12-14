@@ -1,0 +1,31 @@
+// AST Constructors
+fn new_program() { return {"type": "Program", "statements": []} }
+fn new_identifier(tok) { return {"type": "Identifier", "token": tok, "value": tok["literal"]} }
+fn new_integer(tok) { return {"type": "Integer", "token": tok, "value": tok["literal"]} }
+fn new_float(tok) { return {"type": "Float", "token": tok, "value": tok["literal"]} }
+fn new_string(tok) { return {"type": "String", "token": tok, "value": tok["literal"]} }
+fn new_boolean(tok, val) { return {"type": "Boolean", "token": tok, "value": val} }
+fn new_nil(tok) { return {"type": "Nil", "token": tok} }
+
+fn new_var(tok, name, value) { return {"type": "Var", "token": tok, "name": name, "value": value} }
+fn new_assign(tok, name, value) { return {"type": "Assign", "token": tok, "name": name, "value": value} }
+fn new_set(tok, left, value) { return {"type": "Set", "token": tok, "left": left, "value": value} }
+fn new_return(tok, value) { return {"type": "Return", "token": tok, "value": value} }
+fn new_expr_stmt(tok, expr) { return {"type": "ExprStmt", "token": tok, "expr": expr} }
+fn new_prefix(tok, op, right) { return {"type": "Prefix", "token": tok, "op": op, "right": right} }
+fn new_infix(tok, left, op, right) { return {"type": "Infix", "token": tok, "left": left, "op": op, "right": right} }
+fn new_block(tok) { return {"type": "Block", "token": tok, "stmts": []} }
+fn new_if(tok, cond, consq, alt) { return {"type": "If", "token": tok, "cond": cond, "consq": consq, "alt": alt} }
+fn new_function(tok, name, params, body) { return {"type": "Function", "token": tok, "name": name, "params": params, "body": body} }
+fn new_call(tok, fn_expr, args) { return {"type": "Call", "token": tok, "fn": fn_expr, "args": args} }
+fn new_while(tok, cond, body) { return {"type": "While", "token": tok, "cond": cond, "body": body} }
+fn new_for(tok, init, cond, post, body) { return {"type": "For", "token": tok, "init": init, "cond": cond, "post": post, "body": body} }
+fn new_break(tok) { return {"type": "Break", "token": tok} }
+fn new_continue(tok) { return {"type": "Continue", "token": tok} }
+fn new_member(tok, left, prop) { return {"type": "Member", "token": tok, "left": left, "prop": prop} }
+fn new_array(tok, elements) { return {"type": "Array", "token": tok, "elements": elements} }
+fn new_index(tok, left, idx) { return {"type": "Index", "token": tok, "left": left, "index": idx} }
+fn new_hash(tok, pairs) { return {"type": "Hash", "token": tok, "pairs": pairs} }
+fn new_ffi(tok, name) { return {"type": "FFI", "token": tok, "name": name} }
+fn new_import(tok, name, path) { return {"type": "Import", "token": tok, "name": name, "path": path} }
+fn new_type(tok, name, fields) { return {"type": "Type", "token": tok, "name": name, "fields": fields} }

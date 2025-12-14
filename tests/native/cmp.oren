@@ -1,0 +1,11 @@
+var a = 10
+var b = 20
+var c = 10
+
+var r1 = (a < b) // 1
+var r2 = (a > b) // 0
+var r3 = (a == c) // 1
+var r4 = (a != b) // 1
+
+var total = r1 + r2 + r3 + r4
+if total == 3 { exit(0) } else { exit(1) }

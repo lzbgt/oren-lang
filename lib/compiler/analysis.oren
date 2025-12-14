@@ -1,0 +1,48 @@
+fn analyze_program(prog) {
+    print("--- Scope Analysis ---")
+    var depth = 0
+    var i = 0
+    while i < oren_list_len(prog["statements"]) {
+        analyze_stmt(prog["statements"][i], depth)
+        i = i + 1
+    }
+    print("--- End Analysis ---")
+}
+
+fn analyze_stmt(stmt, depth) {
+    var prefix = ""
+    var i = 0
+    while i < depth { prefix = prefix + "  "; i = i + 1 }
+    
+    if stmt["type"] == "Var" {
+        print(prefix + "Var declaration: " + stmt["name"]["value"] + " (Life start)")
+    }
+    if stmt["type"] == "Block" {
+        print(prefix + "Block scope start")
+        var stmts = stmt["stmts"]
+        var j = 0
+        while j < oren_list_len(stmts) {
+            analyze_stmt(stmts[j], depth + 1)
+            j = j + 1
+        }
+        print(prefix + "Block scope end (Auto-release candidates)")
+    }
+    if stmt["type"] == "ExprStmt" {
+        if stmt["expr"]["type"] == "Function" {
+            analyze_stmt(stmt["expr"], depth)
+        }
+    }
+    if stmt["type"] == "Function" {
+        print(prefix + "Function " + stmt["name"])
+        analyze_stmt(stmt["body"], depth + 1)
+    }
+    if stmt["type"] == "While" {
+        analyze_stmt(stmt["body"], depth + 1)
+    }
+    if stmt["type"] == "If" {
+        analyze_stmt(stmt["consq"], depth + 1)
+        if stmt["alt"] != nil {
+            analyze_stmt(stmt["alt"], depth + 1)
+        }
+    }
+}

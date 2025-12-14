@@ -1,0 +1,19 @@
+var p = malloc(8)
+ptr_set(p, 10)
+
+var old = atomic_add(p, 5)
+if old != 10 { exit(1) }
+var curr = ptr_get(p)
+if curr != 15 { exit(2) }
+
+var old2 = atomic_cas(p, 15, 20)
+if old2 != 15 { exit(3) }
+curr = ptr_get(p)
+if curr != 20 { exit(4) }
+
+var old3 = atomic_cas(p, 100, 30)
+if old3 != 20 { exit(5) }
+curr = ptr_get(p)
+if curr != 20 { exit(6) }
+
+exit(0)

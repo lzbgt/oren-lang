@@ -1,0 +1,321 @@
+fn print_hex(n) {
+    // Empty
+}
+
+fn stack_trace() {
+    print("Traceback (most recent call first):")
+    var fp = get_fp()
+    var i = 0
+    while fp != 0 {
+        if i > 20 { 
+            print("  ... (truncated)")
+            return 0 
+        }
+        var lr = ptr_get(fp + 8)
+        var name = resolve_symbol(lr)
+        print("  File \"?\", line ?, in " + name)
+        // print_hex(lr)
+        fp = ptr_get(fp)
+        i = i + 1
+    }
+}
+
+// TODO: implement real syscalls in native runtime (currently stubs in injected runtime)
+fn sys_write(fd, ptr, len) { return 0 }
+fn ptr_get(addr) { return 0 }
+fn ptr_set(addr, val) { return 0 }
+fn ptr_get_byte(addr) { return 0 }
+fn ptr_set_byte(addr, val) { return 0 }
+fn malloc(size) { return 0 }
+fn exit(code) { return 0 }
+
+fn strcmp(s1, s2) {
+    var i = 0
+    while 1 {
+        var b1 = ptr_get_byte(s1 + i)
+        var b2 = ptr_get_byte(s2 + i)
+        if b1 == 0 {
+            if b2 == 0 { return 0 }
+            return -1
+        }
+        if b2 == 0 { return 1 }
+        if b1 < b2 { return -1 }
+        if b1 > b2 { return 1 }
+        i = i + 1
+    }
+    return 0
+}
+
+// --- Printing ---
+fn print_int(n) {
+    // crude itoa
+    var buf = malloc(32)
+    if buf == 0 { exit(300) }
+    var i = 0
+    var neg = 0
+    if n < 0 {
+        neg = 1
+        n = -n
+    }
+    if n == 0 {
+        ptr_set_byte(buf, 48)
+        i = 1
+    } else {
+        while n > 0 {
+            var digit = n - (n / 10) * 10
+            ptr_set_byte(buf + i, 48 + digit)
+            i = i + 1
+            n = n / 10
+        }
+        if neg == 1 {
+            ptr_set_byte(buf + i, 45)
+            i = i + 1
+        }
+        // reverse
+        var s = 0
+        var e = i - 1
+        while s < e {
+            var t = ptr_get_byte(buf + s)
+            ptr_set_byte(buf + s, ptr_get_byte(buf + e))
+            ptr_set_byte(buf + e, t)
+            s = s + 1
+            e = e - 1
+        }
+    }
+    ptr_set_byte(buf + i, 10) // newline
+    var len = i + 1
+    sys_write(1, buf, len)
+    return 0
+}
+
+fn print_bytes(ptr, len) {
+    sys_write(1, ptr, len)
+}
+
+fn oren_print(v) {
+    // Only support ints for now (native backend lacks type tags)
+    print_int(v)
+    return 0
+}
+
+fn list_magic() { return 1279870019 } // 'LIST'
+
+fn oren_new_map(cap) {
+    var size = 16 + cap * 16
+    var m = malloc(size)
+    if m == 0 {
+        print("MALLOC ZERO")
+        exit(1)
+    }
+    if m == -1 {
+        print("MALLOC FAILED")
+        exit(1)
+    }
+    ptr_set(m, cap)
+    ptr_set(m + 8, 0)
+    return m
+}
+
+fn oren_map_set(m, k, v) {
+    // stack_trace()
+    if m == 0 { exit(110) }
+    if m < 4096 { exit(111) }
+    if k == 0 { exit(112) }
+    // if m > 4096 { exit(12) } 
+    
+    var cap = ptr_get(m)
+    var count = ptr_get(m + 8)
+    if cap <= 0 {
+        cap = 1024
+        ptr_set(m, cap)
+    }
+    if count < 0 {
+        count = 0
+        ptr_set(m + 8, 0)
+    }
+    if count > cap {
+        count = cap
+        ptr_set(m + 8, cap)
+    }
+    var i = 0
+    var base = m + 16
+    if base < 4096 { exit(115) }
+    while i < count {
+        var kp = ptr_get(base + i * 16)
+        if strcmp(kp, k) == 0 {
+            ptr_set(base + i * 16 + 8, v)
+            return m
+        }
+        i = i + 1
+    }
+    if count >= cap {
+        exit(99)
+    }
+    ptr_set(base + (count << 4), k)
+    ptr_set(base + (count << 4) + 8, v)
+    ptr_set(m + 8, count + 1)
+    return m
+}
+
+fn oren_map_get(m, k) {
+    var count = ptr_get(m + 8)
+    var i = 0
+    var base = m + 16
+    while i < count {
+        var kp = ptr_get(base + i * 16)
+        if strcmp(kp, k) == 0 {
+            return ptr_get(base + i * 16 + 8)
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+// Centralized struct allocation hook (uses the compiler's special-cased malloc).
+fn oren_alloc_struct(size) {
+    return malloc(size)
+}
+
+fn oren_free_struct(ptr) {
+    // No-op placeholder; free/GC will be wired later.
+    return 0
+}
+
+// --- Strings ---
+fn oren_string_len(s) {
+    if s == 0 { return 0 }
+    var i = 0
+    while ptr_get_byte(s + i) != 0 {
+        i = i + 1
+    }
+    return i
+}
+
+fn oren_string_char_at(s, idx) {
+    return ptr_get_byte(s + idx)
+}
+
+// Return a freshly allocated byte buffer (list) from a string literal pointer.
+fn oren_bytes_from_string_ptr(s_ptr) {
+    var len = oren_string_len(s_ptr)
+    var lst = oren_new_list(len)
+    var i = 0
+    while i < len {
+        var b = ptr_get_byte(s_ptr + i)
+        oren_list_push(lst, b)
+        i = i + 1
+    }
+    return lst
+}
+
+// --- Lists ---
+// Layout: [count][capacity][buffer_ptr][magic]
+var LIST_MAGIC = 1279870019 // 'LIST'
+fn oren_new_list(cap) {
+    if cap < 0 { cap = 0 }
+    var header = malloc(32)
+    if header == 0 { exit(200) }
+    if header == -1 { exit(200) }
+    var buf = 0
+    if cap > 0 {
+        buf = malloc(cap * 8)
+        if buf == 0 { exit(201) }
+        if buf == -1 { exit(201) }
+    }
+    ptr_set(header, 0)      // count
+    ptr_set(header + 8, cap) // capacity
+    ptr_set(header + 16, buf) // data buffer
+    ptr_set(header + 24, list_magic())
+    return header
+}
+
+fn oren_list_len(list) {
+    if list == 0 { return 0 }
+    if ptr_get(list + 24) != list_magic() { exit(205) }
+    return ptr_get(list)
+}
+
+fn oren_list_push(list, value) {
+    if list == 0 { exit(210) }
+    if ptr_get(list + 24) != list_magic() { exit(206) }
+    var count = ptr_get(list)
+    var cap = ptr_get(list + 8)
+    var buf = ptr_get(list + 16)
+    if count >= cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var new_buf = malloc(new_cap * 8)
+        if new_buf == 0 { exit(211) }
+        if new_buf == -1 { exit(211) }
+        var i = 0
+        while i < count {
+            ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
+            i = i + 1
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(list + 8, cap)
+        ptr_set(list + 16, buf)
+    }
+    ptr_set(buf + count * 8, value)
+    ptr_set(list, count + 1)
+    return list
+}
+
+fn oren_list_get(list, idx) {
+    if list == 0 { exit(220) }
+    if ptr_get(list + 24) != list_magic() { exit(207) }
+    var count = ptr_get(list)
+    if idx < 0 { exit(221) }
+    if idx >= count { exit(222) }
+    var buf = ptr_get(list + 16)
+    return ptr_get(buf + idx * 8)
+}
+
+// Minimal index_set for lists; maps still use oren_map_set directly.
+fn oren_index_set(container, index, value) {
+    if container == 0 { exit(230) }
+    // Detect list by magic tag.
+    if ptr_get(container + 24) == list_magic() {
+        var buf = ptr_get(container + 16)
+        var count = ptr_get(container)
+        var cap = ptr_get(container + 8)
+        if index < 0 { exit(231) }
+        if index >= cap {
+            var new_cap = cap
+            if new_cap == 0 { new_cap = index + 1 }
+            while new_cap <= index { new_cap = new_cap * 2 }
+            var new_buf = malloc(new_cap * 8)
+            var i = 0
+            while i < count {
+                ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
+                i = i + 1
+            }
+            buf = new_buf
+            cap = new_cap
+            ptr_set(container + 8, cap)
+            ptr_set(container + 16, buf)
+        }
+        if index >= count {
+            // zero-fill new slots
+            var i2 = count
+            while i2 <= index {
+                ptr_set(buf + i2 * 8, 0)
+                i2 = i2 + 1
+            }
+            ptr_set(container, index + 1)
+        }
+        ptr_set(buf + index * 8, value)
+        return value
+    }
+    // Fallback: behave like map set
+    return oren_map_set(container, index, value)
+}
+
+// --- Args ---
+fn oren_args() {
+    // argv layout is platform-dependent; for now, fetch via syscalls:
+    // On macOS, argc/argv are passed to entry, but we don't capture them yet.
+    // TODO: Plumb argc/argv from entry trampoline; return empty for now.
+    return oren_new_list(0)
+}

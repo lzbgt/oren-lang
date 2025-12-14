@@ -1,0 +1,2 @@
+var x = 42
+if x == 42 { exit(0) } else { exit(1) }

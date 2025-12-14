@@ -1,0 +1,14 @@
+struct Inner { x, y }
+struct Outer { a, b }
+
+fn main() {
+    var i1 = Inner(1, 2)
+    var i2 = Inner(3, 4)
+    var o = Outer(i1, i2)
+
+    var sum = o.a.x + o.a.y + o.b.x + o.b.y
+    if sum == 10 {
+        exit(0)
+    }
+    exit(1)
+}

@@ -1,0 +1,3 @@
+ffi puts
+puts("Hello FFI")
+exit(0)

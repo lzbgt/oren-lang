@@ -1,0 +1,8 @@
+var a = 10
+var b = 20
+var c = simd_add_2d(a, b) // 30
+var d = simd_sub_2d(b, a) // 10
+var e = simd_and_2d(3, 5) // 1
+var f = simd_mul_4s(a, b) // 200
+var total = c + d + e + f // 241
+if total == 241 { exit(0) } else { exit(1) }

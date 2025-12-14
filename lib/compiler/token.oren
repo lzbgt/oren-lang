@@ -1,0 +1,112 @@
+// Token definitions
+var TOK_ILLEGAL = "ILLEGAL"
+var TOK_EOF = "EOF"
+var TOK_IDENT = "IDENT"
+var TOK_INT = "INT"
+var TOK_FLOAT = "FLOAT"
+var TOK_STRING = "STRING"
+var TOK_ASSIGN = "="
+var TOK_PLUS = "+"
+var TOK_MINUS = "-"
+var TOK_BANG = "!"
+var TOK_TILDE = "~"
+var TOK_ASTERISK = "*"
+var TOK_SLASH = "/"
+var TOK_LT = "<"
+var TOK_GT = ">"
+var TOK_LTE = "<="
+var TOK_GTE = ">="
+var TOK_SHL = "<<"
+var TOK_SHR = ">>"
+var TOK_EQ = "=="
+var TOK_NOT_EQ = "!="
+var TOK_BITAND = "&"
+var TOK_BITOR = "|"
+var TOK_BITXOR = "^"
+var TOK_AND = "&&"
+var TOK_OR = "||"
+var TOK_DECLARE = ":="
+var TOK_DOT = "."
+var TOK_COLON = ":"
+var TOK_COMMA = ","
+var TOK_SEMICOLON = ";"
+var TOK_LPAREN = "("
+var TOK_RPAREN = ")"
+var TOK_LBRACE = "{"
+var TOK_RBRACE = "}"
+var TOK_LBRACKET = "["
+var TOK_RBRACKET = "]"
+var TOK_FUNCTION = "FUNCTION"
+var TOK_LET = "LET"
+var TOK_TRUE = "TRUE"
+var TOK_FALSE = "FALSE"
+var TOK_IF = "IF"
+var TOK_ELSE = "ELSE"
+var TOK_RETURN = "RETURN"
+var TOK_WHILE = "WHILE"
+var TOK_FOR = "FOR"
+var TOK_BREAK = "BREAK"
+var TOK_CONTINUE = "CONTINUE"
+var TOK_IMPORT = "IMPORT"
+var TOK_STRUCT = "STRUCT"
+var TOK_CLASS = "CLASS"
+var TOK_NIL = "NIL"
+var TOK_FFI = "FFI"
+
+// Character constants
+var CH_TAB = oren_char(9)
+var CH_LF = oren_char(10)
+var CH_CR = oren_char(13)
+var CH_QUOTE = oren_char(34)
+var CH_BACKSLASH = oren_char(92)
+
+// Helpers
+fn is_letter(ch) {
+    if ch == "_" { return true }
+    if ch >= "a" {
+        if ch <= "z" { return true }
+    }
+    if ch >= "A" {
+        if ch <= "Z" { return true }
+    }
+    return false
+}
+
+fn is_digit(ch) {
+    if ch >= "0" {
+        if ch <= "9" { return true }
+    }
+    return false
+}
+
+fn is_whitespace(ch) {
+    if ch == " " { return true }
+    if ch == CH_TAB { return true }
+    if ch == CH_LF { return true }
+    if ch == CH_CR { return true }
+    return false
+}
+
+fn lookup_ident(ident) {
+    if ident == "fn" { return TOK_FUNCTION }
+    if ident == "var" { return TOK_LET }
+    if ident == "true" { return TOK_TRUE }
+    if ident == "false" { return TOK_FALSE }
+    if ident == "if" { return TOK_IF }
+    if ident == "else" { return TOK_ELSE }
+    if ident == "return" { return TOK_RETURN }
+    if ident == "while" { return TOK_WHILE }
+    if ident == "for" { return TOK_FOR }
+    if ident == "break" { return TOK_BREAK }
+    if ident == "continue" { return TOK_CONTINUE }
+    if ident == "import" { return TOK_IMPORT }
+    if ident == "struct" { return TOK_STRUCT }
+    if ident == "class" { return TOK_CLASS }
+    if ident == "nil" { return TOK_NIL }
+    if ident == "ffi" { return TOK_FFI }
+    return TOK_IDENT
+}
+
+fn new_token(tt, lit) {
+    return {"type": tt, "literal": lit}
+}

@@ -1,0 +1,624 @@
+// ----- Transpiler helpers ----- 
+fn new_transpiler() {
+    return {"lines": [], "indent": 0, "functions": [], "aliases": {}, "type_ns": {}}
+}
+
+fn emit(t, s) {
+    var pad = ""
+    var i = 0
+    while i < t["indent"] {
+        pad = pad + "    "
+        i = i + 1
+    }
+    oren_list_push(t["lines"], pad + s)
+}
+
+fn indent_more(t) { t["indent"] = t["indent"] + 1 }
+fn indent_less(t) { t["indent"] = t["indent"] - 1 }
+
+fn list_join(lines, sep) {
+    var out = ""
+    var i = 0
+    var n = oren_list_len(lines)
+    while i < n {
+        out = out + lines[i]
+        if i < n - 1 { out = out + sep }
+        i = i + 1
+    }
+    return out
+}
+
+fn list_contains(lst, val) {
+    var i = 0
+    var n = oren_list_len(lst)
+    while i < n {
+        if lst[i] == val { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn trim_trailing_underscores(s) {
+    var end = oren_string_len(s)
+    while end > 0 {
+        if oren_string_char_at(s, end - 1) != "_" { break }
+        end = end - 1
+    }
+    return oren_string_slice(s, 0, end)
+}
+
+fn ns_resolve(t, exp) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        var name = exp["value"]
+        if t["aliases"][name] != nil { return {"name": t["aliases"][name], "is_ns": true} }
+        if t["type_ns"][name] == true { return {"name": name, "is_ns": true} }
+        return nil
+    }
+    if et == "Member" {
+        var left = ns_resolve(t, exp["left"])
+        if left == nil { return nil }
+        if left["is_ns"] != true { return nil }
+        var base = trim_trailing_underscores(left["name"])
+        var name2 = base + "_" + exp["prop"]["value"]
+        var is_ns2 = false
+        if t["type_ns"][name2] == true { is_ns2 = true }
+        return {"name": name2, "is_ns": is_ns2}
+    }
+    return nil
+}
+
+fn type_ctor_name(type_decl) {
+    return type_decl["name"]["value"]
+}
+
+fn type_ctor_sig(type_decl) {
+    var params = ""
+    var i = 0
+    while i < oren_list_len(type_decl["fields"]) {
+        if i > 0 { params = params + ", " }
+        params = params + "OrenValue " + type_decl["fields"][i]["value"]
+        i = i + 1
+    }
+    return "OrenValue " + type_ctor_name(type_decl) + "(" + params + ")"
+}
+
+var CH_QUOTE = oren_char(34)
+var CH_BACKSLASH = oren_char(92)
+var CH_LF = oren_char(10)
+var CH_CR = oren_char(13)
+var CH_TAB = oren_char(9)
+
+fn c_escape_string(s) {
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        var piece = ""
+        if ch == CH_BACKSLASH { piece = "\\\\" }
+        if ch == CH_QUOTE { piece = "\\\"" }
+        if ch == CH_LF { piece = "\\n" }
+        if ch == CH_CR { piece = "\\r" }
+        if ch == CH_TAB { piece = "\\t" }
+        if piece == "" { piece = ch }
+        out = out + piece
+        i = i + 1
+    }
+    return out
+}
+
+fn int_str(n) { return oren_int_to_string(n) }
+
+fn transpile_type_ctor(t, type_decl) {
+    emit(t, type_ctor_sig(type_decl) + " {")
+    indent_more(t)
+    var n = oren_list_len(type_decl["fields"])
+    if n == 0 {
+        emit(t, "return oren_new_map(0);")
+    } else {
+        var args = ""
+        var i = 0
+        while i < n {
+            if i > 0 { args = args + ", " }
+            args = args + "oren_string(" + CH_QUOTE + c_escape_string(type_decl["fields"][i]["value"]) + CH_QUOTE + "), " + type_decl["fields"][i]["value"]
+            i = i + 1
+        }
+        emit(t, "return oren_new_map(" + int_str(n) + ", " + args + ");")
+    }
+    indent_less(t)
+    emit(t, "}")
+}
+
+fn starts_with(s, prefix) {
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn function_sig(func_decl) {
+    var params = ""
+    var i = 0
+    while i < oren_list_len(func_decl["params"]) {
+        if i > 0 { params = params + ", " }
+        params = params + "OrenValue " + func_decl["params"][i]["value"]
+        i = i + 1
+    }
+    return "OrenValue " + func_decl["name"] + "(" + params + ")"
+}
+
+// ----- Transpiler core -----
+
+fn transpile_statement(t, stmt) {
+    if stmt["type"] == "Var" {
+        var v = transpile_expression(t, stmt["value"])
+        return "OrenValue " + stmt["name"]["value"] + " = " + v + ";"
+    }
+    if stmt["type"] == "Block" {
+        var stmts = stmt["stmts"]
+        var out = "{" + CH_LF
+        var i = 0
+        while i < oren_list_len(stmts) {
+            out = out + "    " + transpile_statement(t, stmts[i]) + CH_LF
+            i = i + 1
+        }
+        out = out + "}"
+        return out
+    }
+    if stmt["type"] == "Set" {
+        if stmt["left"]["type"] == "Index" {
+            var arr = transpile_expression(t, stmt["left"]["left"])
+            var idx = transpile_expression(t, stmt["left"]["index"])
+            var val = transpile_expression(t, stmt["value"])
+            return "oren_index_set(" + arr + ", " + idx + ", " + val + ");"
+        }
+        if stmt["left"]["type"] == "Member" {
+            var v_set = transpile_expression(t, stmt["value"])
+            var ns = ns_resolve(t, stmt["left"])
+            if ns != nil {
+                if list_contains(t["functions"], ns["name"]) { return "/* cannot assign to function */" }
+                return ns["name"] + " = " + v_set + ";"
+            }
+            var obj = transpile_expression(t, stmt["left"]["left"])
+            return "oren_set_attr(" + obj + ", " + CH_QUOTE + stmt["left"]["prop"]["value"] + CH_QUOTE + ", " + v_set + ");"
+        }
+        return "// unsupported set"
+    }
+    if stmt["type"] == "Assign" {
+        var v_assign = transpile_expression(t, stmt["value"])
+        return stmt["name"]["value"] + " = " + v_assign + ";"
+    }
+    if stmt["type"] == "Return" {
+        var v_ret = transpile_expression(t, stmt["value"])
+        return "return " + v_ret + ";"
+    }
+    if stmt["type"] == "ExprStmt" {
+        if stmt["expr"]["type"] == "If" {
+            return transpile_if(t, stmt["expr"])
+        }
+        var v_expr = transpile_expression(t, stmt["expr"])
+        return v_expr + ";"
+    }
+    if stmt["type"] == "While" {
+        var cond = transpile_expression(t, stmt["cond"])
+        var inner = ""
+        var i = 0
+        while i < oren_list_len(stmt["body"]["stmts"]) {
+            inner = inner + "    " + transpile_statement(t, stmt["body"]["stmts"][i]) + CH_LF
+            i = i + 1
+        }
+        return "while (oren_is_truthy(" + cond + ")) {" + CH_LF + inner + "}"
+    }
+    if stmt["type"] == "For" {
+        var init_s = transpile_for_header_stmt(t, stmt["init"])
+        var post_s = transpile_for_header_stmt(t, stmt["post"])
+        var cond_s = "1"
+        if stmt["cond"] != nil {
+            cond_s = "oren_is_truthy(" + transpile_expression(t, stmt["cond"]) + ")"
+        }
+        var inner2 = ""
+        var j = 0
+        while j < oren_list_len(stmt["body"]["stmts"]) {
+            inner2 = inner2 + "    " + transpile_statement(t, stmt["body"]["stmts"][j]) + CH_LF
+            j = j + 1
+        }
+        return "for (" + init_s + "; " + cond_s + "; " + post_s + ") {" + CH_LF + inner2 + "}"
+    }
+    if stmt["type"] == "FFI" {
+        return "// ffi " + stmt["name"]["value"]
+    }
+    return "// unknown stmt"
+}
+
+fn transpile_if(t, expr) {
+    var cond = transpile_expression(t, expr["cond"])
+    var out = "if (oren_is_truthy(" + cond + ")) {" + CH_LF
+    var i = 0
+    while i < oren_list_len(expr["consq"]["stmts"]) {
+        out = out + "    " + transpile_statement(t, expr["consq"]["stmts"][i]) + CH_LF
+        i = i + 1
+    }
+    out = out + "}"
+    if expr["alt"] != nil {
+        out = out + " else {" + CH_LF
+        i = 0
+        while i < oren_list_len(expr["alt"]["stmts"]) {
+            out = out + "    " + transpile_statement(t, expr["alt"]["stmts"][i]) + CH_LF
+            i = i + 1
+        }
+        out = out + "}"
+    }
+    return out
+}
+
+fn transpile_expression(t, exp) {
+    var et = exp["type"]
+    if et == "Integer" { return "oren_int(" + exp["value"] + ")" }
+    if et == "Float" { return "oren_float(" + exp["value"] + ")" }
+    if et == "String" { return "oren_string(" + CH_QUOTE + c_escape_string(exp["value"]) + CH_QUOTE + ")" }
+    if et == "Boolean" {
+        if exp["value"] { return "OREN_TRUE" }
+        return "OREN_FALSE"
+    }
+    if et == "Nil" { return "OREN_NIL" }
+    if et == "Identifier" { return exp["value"] }
+    if et == "Prefix" {
+        var right = transpile_expression(t, exp["right"])
+        if exp["op"] == "-" { return "oren_sub(oren_int(0), " + right + ")" }
+        if exp["op"] == "!" { return "oren_bool(!oren_is_truthy(" + right + "))" }
+        if exp["op"] == "~" { return "oren_bnot(" + right + ")" }
+    }
+    if et == "Infix" {
+        var left = transpile_expression(t, exp["left"])
+        var right_expr = transpile_expression(t, exp["right"])
+        var op = exp["op"]
+        if op == "+" { return "oren_add(" + left + ", " + right_expr + ")" }
+        if op == "-" { return "oren_sub(" + left + ", " + right_expr + ")" }
+        if op == "*" { return "oren_mul(" + left + ", " + right_expr + ")" }
+        if op == "/" { return "oren_div(" + left + ", " + right_expr + ")" }
+        if op == "&" { return "oren_band(" + left + ", " + right_expr + ")" }
+        if op == "|" { return "oren_bor(" + left + ", " + right_expr + ")" }
+        if op == "^" { return "oren_bxor(" + left + ", " + right_expr + ")" }
+        if op == "<<" { return "oren_shl(" + left + ", " + right_expr + ")" }
+        if op == ">>" { return "oren_shr(" + left + ", " + right_expr + ")" }
+        if op == "==" { return "oren_eq(" + left + ", " + right_expr + ")" }
+        if op == "!=" { return "oren_neq(" + left + ", " + right_expr + ")" }
+        if op == "&&" { return "oren_bool(oren_is_truthy(" + left + ") && oren_is_truthy(" + right_expr + "))" }
+        if op == "||" { return "oren_bool(oren_is_truthy(" + left + ") || oren_is_truthy(" + right_expr + "))" }
+        if op == "<" { return "oren_lt(" + left + ", " + right_expr + ")" }
+        if op == ">" { return "oren_gt(" + left + ", " + right_expr + ")" }
+        if op == "<=" { return "oren_lte(" + left + ", " + right_expr + ")" }
+        if op == ">=" { return "oren_gte(" + left + ", " + right_expr + ")" }
+    }
+    if et == "Call" {
+        var fn_expr = transpile_expression(t, exp["fn"])
+        var args_s = ""
+        var i = 0
+        while i < oren_list_len(exp["args"]) {
+            if i > 0 { args_s = args_s + ", " }
+            args_s = args_s + transpile_expression(t, exp["args"][i])
+            i = i + 1
+        }
+
+        if exp["fn"]["type"] == "Identifier" {
+            var name = exp["fn"]["value"]
+            var argc = oren_list_len(exp["args"])
+            if name == "print" {
+                if argc == 0 { return "oren_print_multi(0)" }
+                if argc == 1 { return "oren_print(" + args_s + ")" }
+                return "oren_print_multi(" + int_str(argc) + ", " + args_s + ")"
+            }
+            if name == "py_import" {
+                if argc == 1 { return "oren_py_import(" + args_s + ")" }
+            }
+            if name == "system" {
+                if argc == 1 { return "oren_system(" + args_s + ")" }
+            }
+            if name == "exit" {
+                if argc == 1 { return "oren_exit(" + args_s + ")" }
+            }
+        }
+
+        if exp["fn"]["type"] == "Member" {
+            var ns = ns_resolve(t, exp["fn"])
+            if ns != nil {
+                if ns["is_ns"] == true { fn_expr = ns["name"] }
+            }
+        }
+
+        var use_call_obj = true
+        if list_contains(t["functions"], fn_expr) { use_call_obj = false }
+        if exp["fn"]["type"] == "Identifier" {
+            if starts_with(exp["fn"]["value"], "oren_") { use_call_obj = false }
+        }
+        if use_call_obj {
+            var argc = oren_list_len(exp["args"])
+            if argc == 0 { return "oren_call_obj(" + fn_expr + ", 0)" }
+            return "oren_call_obj(" + fn_expr + ", " + int_str(argc) + ", " + args_s + ")"
+        }
+        return fn_expr + "(" + args_s + ")"
+    }
+    if et == "Member" {
+        var ns = ns_resolve(t, exp)
+        if ns != nil { return ns["name"] }
+        var left = transpile_expression(t, exp["left"])
+        return "oren_get_attr(" + left + ", " + CH_QUOTE + exp["prop"]["value"] + CH_QUOTE + ")"
+    }
+    if et == "Array" {
+        var els = ""
+        var i = 0
+        while i < oren_list_len(exp["elements"]) {
+            if i > 0 { els = els + ", " }
+            els = els + transpile_expression(t, exp["elements"][i])
+            i = i + 1
+        }
+        var count = oren_list_len(exp["elements"])
+        if count == 0 { return "oren_new_list(0)" }
+        return "oren_new_list(" + int_str(count) + ", " + els + ")"
+    }
+    if et == "Index" {
+        var left_expr = transpile_expression(t, exp["left"])
+        var idx = transpile_expression(t, exp["index"])
+        return "oren_list_get(" + left_expr + ", " + idx + ")"
+    }
+    if et == "Hash" {
+        var parts = ""
+        var i_pairs = 0
+        var count_pairs = oren_list_len(exp["pairs"])
+        while i_pairs < count_pairs {
+            if i_pairs > 0 { parts = parts + ", " }
+            var pair = exp["pairs"][i_pairs]
+            parts = parts + transpile_expression(t, pair["key"]) + ", " + transpile_expression(t, pair["value"])
+            i_pairs = i_pairs + 1
+        }
+        if count_pairs == 0 { return "oren_new_map(0)" }
+        return "oren_new_map(" + int_str(count_pairs) + ", " + parts + ")"
+    }
+    return "/* unknown expr */ OREN_NIL"
+}
+
+fn transpile_function(t, func_decl) {
+    emit(t, function_sig(func_decl) + " {")
+    indent_more(t)
+    var i = 0
+    while i < oren_list_len(func_decl["body"]["stmts"]) {
+        emit(t, transpile_statement(t, func_decl["body"]["stmts"][i]))
+        i = i + 1
+    }
+    emit(t, "return OREN_NIL;")
+    indent_less(t)
+    emit(t, "}")
+}
+
+fn transpile_for_header_stmt(t, stmt) {
+    if stmt == nil { return "" }
+    if stmt["type"] == "Var" {
+        var v = transpile_expression(t, stmt["value"])
+        return "OrenValue " + stmt["name"]["value"] + " = " + v
+    }
+    if stmt["type"] == "Assign" {
+        var v_assign = transpile_expression(t, stmt["value"])
+        return stmt["name"]["value"] + " = " + v_assign
+    }
+    if stmt["type"] == "ExprStmt" {
+        return transpile_expression(t, stmt["expr"])
+    }
+    return ""
+}
+
+// Helpers needed for transpile_entry
+fn dirname(path) {
+    var i = oren_string_len(path) - 1
+    while i >= 0 {
+        if oren_string_char_at(path, i) == "/" {
+            if i == 0 { return "/" }
+            return oren_string_slice(path, 0, i)
+        }
+        i = i - 1
+    }
+    return "."
+}
+
+fn collect_parts(program) {
+    var globals = []
+    var functions = []
+    var types = []
+    var main_body = []
+    var i = 0
+    while i < oren_list_len(program["statements"]) {
+        var s = program["statements"][i]
+        if s["type"] == "Import" {
+            // compile-time only
+        } else {
+            if s["type"] == "Type" {
+                oren_list_push(types, s)
+            } else {
+                if s["type"] == "Var" {
+                    oren_list_push(globals, s)
+                } else {
+                    var is_fn_decl = false
+                    if s["type"] == "ExprStmt" {
+                        if s["expr"]["type"] == "Function" {
+                            if s["expr"]["name"] != "" { is_fn_decl = true }
+                        }
+                    }
+                    if is_fn_decl { oren_list_push(functions, s["expr"]) } else { oren_list_push(main_body, s) }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return {"globals": globals, "functions": functions, "types": types, "main_body": main_body}
+}
+
+// Updated signature: pass MODULE_ORDER explicitly
+fn transpile_entry(entry_path, program, module_order, root_aliases) {
+    var units = []
+    var i = 0
+    
+    // Process loaded modules
+    while i < oren_list_len(module_order) {
+        var mod2 = module_order[i]
+        var parts = collect_parts(mod2["program"])
+        oren_list_push(units, {"program": mod2["program"], "aliases": mod2["aliases"], "parts": parts})
+        i = i + 1
+    }
+    
+    // Process root program
+    var root_parts = collect_parts(program)
+    oren_list_push(units, {"program": program, "aliases": root_aliases, "parts": root_parts})
+
+    var type_ns = {}
+    i = 0
+    while i < oren_list_len(units) {
+        var types = units[i]["parts"]["types"]
+        var j = 0
+        while j < oren_list_len(types) {
+            type_ns[types[j]["name"]["value"]] = true
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    var t = new_transpiler()
+    t["type_ns"] = type_ns
+
+    // Preload all function names for direct-call lowering.
+    i = 0
+    while i < oren_list_len(units) {
+        var funs = units[i]["parts"]["functions"]
+        var j = 0
+        while j < oren_list_len(funs) {
+            oren_list_push(t["functions"], funs[j]["name"])
+            j = j + 1
+        }
+        var types = units[i]["parts"]["types"]
+        j = 0
+        while j < oren_list_len(types) {
+            oren_list_push(t["functions"], type_ctor_name(types[j]))
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    emit(t, "#include <stdio.h>")
+    emit(t, "#include <stdlib.h>")
+    emit(t, "#include <string.h>")
+    emit(t, "#include " + CH_QUOTE + "runtime.h" + CH_QUOTE)
+    emit(t, "")
+
+    // Globals (all units).
+    i = 0
+    while i < oren_list_len(units) {
+        var globals = units[i]["parts"]["globals"]
+        var j = 0
+        while j < oren_list_len(globals) {
+            emit(t, "OrenValue " + globals[j]["name"]["value"] + ";")
+            j = j + 1
+        }
+        i = i + 1
+    }
+    emit(t, "")
+
+    // Prototypes (functions + constructors).
+    i = 0
+    while i < oren_list_len(units) {
+        var funs = units[i]["parts"]["functions"]
+        var j = 0
+        while j < oren_list_len(funs) {
+            emit(t, function_sig(funs[j]) + ";")
+            j = j + 1
+        }
+        var types = units[i]["parts"]["types"]
+        j = 0
+        while j < oren_list_len(types) {
+            emit(t, type_ctor_sig(types[j]) + ";")
+            j = j + 1
+        }
+        i = i + 1
+    }
+    emit(t, "")
+
+    // Function bodies (functions + constructors).
+    i = 0
+    while i < oren_list_len(units) {
+        t["aliases"] = units[i]["aliases"]
+        var funs = units[i]["parts"]["functions"]
+        var j = 0
+        while j < oren_list_len(funs) {
+            transpile_function(t, funs[j])
+            j = j + 1
+        }
+        var types = units[i]["parts"]["types"]
+        j = 0
+        while j < oren_list_len(types) {
+            transpile_type_ctor(t, types[j])
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    emit(t, "int main(int argc, char **argv) {")
+    indent_more(t)
+    emit(t, "oren_init(argc, argv);")
+
+    // Register globals as GC roots
+    i = 0
+    while i < oren_list_len(units) {
+        var globals = units[i]["parts"]["globals"]
+        var j = 0
+        while j < oren_list_len(globals) {
+            emit(t, "oren_register_root(&" + globals[j]["name"]["value"] + ");")
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    // Global initializers.
+    i = 0
+    while i < oren_list_len(units) {
+        t["aliases"] = units[i]["aliases"]
+        var globals = units[i]["parts"]["globals"]
+        var j = 0
+        while j < oren_list_len(globals) {
+            emit(t, globals[j]["name"]["value"] + " = " + transpile_expression(t, globals[j]["value"]) + ";")
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    // Execute module top-level statements first (excluding root unit).
+    i = 0
+    while i < oren_list_len(units) - 1 {
+        t["aliases"] = units[i]["aliases"]
+        var body = units[i]["parts"]["main_body"]
+        var j = 0
+        while j < oren_list_len(body) {
+            emit(t, transpile_statement(t, body[j]))
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    // Root top-level statements last.
+    t["aliases"] = units[oren_list_len(units) - 1]["aliases"]
+    var root_body = units[oren_list_len(units) - 1]["parts"]["main_body"]
+    i = 0
+    while i < oren_list_len(root_body) {
+        emit(t, transpile_statement(t, root_body[i]))
+        i = i + 1
+    }
+
+    emit(t, "oren_shutdown();")
+    emit(t, "return 0;")
+    indent_less(t)
+    emit(t, "}")
+
+    return list_join(t["lines"], CH_LF)
+}
