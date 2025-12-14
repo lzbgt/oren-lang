@@ -2140,7 +2140,76 @@ fn native_compile_program_arm64(linked, platform) {
     return ctx
 }
 
-fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size, imports_len, symtab_size, strtab_size) {
+fn push_uleb128(buf, val) {
+    if val == 0 {
+        bytes_push(buf, 0)
+        return nil
+    }
+    while val > 0 {
+        var byte = int_mod(val, 128)
+        val = val / 128
+        if val > 0 {
+            byte = byte | 128
+        }
+        bytes_push(buf, byte)
+    }
+    return nil
+}
+
+fn macho_build_bind_opcodes(imports, got_offset) {
+    // Generates Binding Info for dyld.
+    // See Mach-O/dyld_info.h or loader.h
+    var p = bytes_new()
+    var count = oren_list_len(imports)
+    if count == 0 { return p }
+    
+    // BIND_OPCODE_SET_DYLIB_ORDINAL_IMM (0x10) | 1 (libSystem)
+    bytes_push(p, 17) 
+    
+    // BIND_OPCODE_SET_TYPE_IMM (0x50) | 1 (BIND_TYPE_POINTER)
+    bytes_push(p, 81)
+
+    // BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB (0x70) | 2 (__DATA is seg 2)
+    bytes_push(p, 114)
+    push_uleb128(p, got_offset)
+    
+    var i = 0
+    while i < count {
+        var name = imports[i]
+        
+        // BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM (0x40) | 0
+        bytes_push(p, 64)
+        
+        // Symbol name (C-string) + '_' prefix if typical C
+        bytes_push(p, 95) // '_'
+        var name_bytes = oren_bytes_from_string(name)
+        var k = 0
+        while k < oren_list_len(name_bytes) {
+             bytes_push(p, name_bytes[k])
+             k = k + 1
+        }
+        bytes_push(p, 0)
+        
+        // BIND_OPCODE_DO_BIND (0x90)
+        bytes_push(p, 144)
+        
+        // Implicitly advances address by 8 (pointer size)
+        
+        i = i + 1
+    }
+    
+    // BIND_OPCODE_DONE (0x00)
+    bytes_push(p, 0)
+    
+    // Pad to 8 bytes? Not strictly required but good for alignment.
+    while int_mod(oren_list_len(p), 8) != 0 {
+        bytes_push(p, 0)
+    }
+    
+    return p
+}
+
+fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size, imports_len, symtab_size, strtab_size, bind_size, bind_off) {
     var p = bytes_new()
     var dyld_path = "/usr/lib/dyld"
     var dyld_cmdsize = align_up(12 + oren_string_len(dyld_path) + 1, 8)
@@ -2256,7 +2325,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 76); bytes_push(p, 73); bytes_push(p, 78); bytes_push(p, 75); bytes_push(p, 69); bytes_push(p, 68); bytes_push(p, 73); bytes_push(p, 84);
     i = 0; while i < 6 { bytes_push(p, 0); i = i + 1 }
     push_u64_le(p, 4294967296 + text_size + data_size) // vmaddr
-    var linkedit_size = sig_size + symtab_size + (imports_len * 4) + strtab_size
+    var linkedit_size = bind_size + sig_size + symtab_size + (imports_len * 4) + strtab_size
     push_u64_le(p, linkedit_size) // vmsize (aligned)
     push_u64_le(p, text_size + data_size) // fileoff
     push_u64_le(p, linkedit_size) // filesize
@@ -2269,17 +2338,25 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     if symtab_size > 0 {
         push_u32_le(p, 2) // LC_SYMTAB
         push_u32_le(p, 24) // cmdsize
-        push_u32_le(p, text_size + data_size) // symoff
+        push_u32_le(p, text_size + data_size + bind_size) // symoff
         push_u32_le(p, symtab_size / 16) // nsyms
-        push_u32_le(p, text_size + data_size + symtab_size + (imports_len * 4)) // stroff
+        push_u32_le(p, text_size + data_size + bind_size + symtab_size + (imports_len * 4)) // stroff
         push_u32_le(p, strtab_size) // strsize
     }
     
     // 5. LC_DYLD_INFO_ONLY
     push_u32_le(p, 2147483682)
     push_u32_le(p, dyld_info_cmdsize)
-    var k = 0
-    while k < 10 { push_u32_le(p, 0); k = k + 1 }
+    push_u32_le(p, 0) // rebase_off
+    push_u32_le(p, 0) // rebase_size
+    push_u32_le(p, bind_off) // bind_off
+    push_u32_le(p, bind_size) // bind_size
+    push_u32_le(p, 0) // weak_bind_off
+    push_u32_le(p, 0) // weak_bind_size
+    push_u32_le(p, 0) // lazy_bind_off
+    push_u32_le(p, 0) // lazy_bind_size
+    push_u32_le(p, 0) // export_off
+    push_u32_le(p, 0) // export_size
     
     // 6. LC_LOAD_DYLINKER
     var dyld_bytes = oren_bytes_from_string(dyld_path)
@@ -2370,7 +2447,7 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
     
     sig_size = 0
 
-    var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, 632, 0, 0, 0)
+    var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, 632, 0, 0, 0, 0, 0)
     bytes_extend(prefix, code)
     if sig_size > 0 {
         var sig = codesign_adhoc_superblob(prefix, "oren", oren_list_len(code))
@@ -2401,7 +2478,10 @@ fn macho_emit_program_arm64(out_path, linked) {
     var symtab = bytes_new()
     var indsymtab = bytes_new()
     
-    // Append GOT placeholder to Data
+    // Append GOT placeholder to Data (Aligned)
+    while int_mod(oren_list_len(data), 8) != 0 {
+        bytes_push(data, 0)
+    }
     var got_offset = oren_list_len(data)
     var k_got = 0
     while k_got < oren_list_len(imports) {
@@ -2410,17 +2490,21 @@ fn macho_emit_program_arm64(out_path, linked) {
         k_got = k_got + 1
     }
 
+    var bind_opcodes = macho_build_bind_opcodes(imports, got_offset)
+    var bind_size = oren_list_len(bind_opcodes)
+
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
         var name = imports[i_imp]
         var stub_pos = oren_list_len(code)
         functions[name] = stub_pos 
         
-        // Stub: return 0 (temporary until dyld binding is implemented)
-        push_u32_le(code, insn_movz(0, 0))
-        push_u32_le(code, insn_ret())
+        // Stub: ADR X16, <got>; LDR X16, [X16]; BR X16
+        push_u32_le(code, 0) // Placeholder for ADR
+        push_u32_le(code, 4181721616) // LDR X16, [X16]
+        push_u32_le(code, 3592356352) // BR X16
         
-        // oren_list_push(fixups, {"type": "got_load", "pos": stub_pos, "got_index": i_imp})
+        oren_list_push(fixups, {"type": "got_load", "pos": stub_pos, "got_index": i_imp})
         
         // Symbol Table
         var name_idx = oren_list_len(strtab)
@@ -2507,6 +2591,11 @@ fn macho_emit_program_arm64(out_path, linked) {
         i = i + 1
     }
     
+    // Pad strtab to 16 bytes to ensure CodeSignature alignment
+    while int_mod(oren_list_len(strtab), 16) != 0 {
+        bytes_push(strtab, 0)
+    }
+    
     var sig_size = 0
     var symtab_size = oren_list_len(symtab)
     var strtab_size = oren_list_len(strtab)
@@ -2514,8 +2603,9 @@ fn macho_emit_program_arm64(out_path, linked) {
     
     // Entry point is start of code (startup shim)
     var entry_idx = 0
+    var bind_off = text_size + data_size
     
-    var prefix = macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size, imports_len, symtab_size, strtab_size)
+    var prefix = macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx, header_size, imports_len, symtab_size, strtab_size, bind_size, bind_off)
     
     bytes_extend(prefix, code)
     while oren_list_len(prefix) < text_size {
@@ -2527,6 +2617,7 @@ fn macho_emit_program_arm64(out_path, linked) {
     }
     
     // LinkEdit content
+    bytes_extend(prefix, bind_opcodes)
     bytes_extend(prefix, symtab)
     bytes_extend(prefix, indsymtab)
     bytes_extend(prefix, strtab)
