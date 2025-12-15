@@ -163,11 +163,11 @@ Job scanning (rolling, no-execute tooling):
   - `INPUT_HASH_SHA256 <hex>`
   - `EXEC_HASH_SHA256 <hex>`
   - policy lines (`POLICY_*`)
-- `avm --print-job-json <file.obc>` prints `{"schema":"avm.job.v2", ...}`
+- `avm --print-job-json <file.obc>` prints `{"schema":"avm.job.v7", ...}`
 
-Current `job_hash_sha256` (v2) definition:
+Current `job_hash_sha256` (v7) definition:
 
-- `job_hash_sha256 = SHA256( "AVMJOB02" || program_hash_sha256_bytes || policy_hash_sha256_bytes || input_hash_sha256_bytes || exec_hash_sha256_bytes )`
+- `job_hash_sha256 = SHA256( "AVMJOB07" || program_hash_sha256_bytes || policy_hash_sha256_bytes || input_hash_sha256_bytes || exec_hash_sha256_bytes )`
 
 Current `input_hash_sha256` (v1) definition:
 
@@ -176,14 +176,20 @@ Current `input_hash_sha256` (v1) definition:
   - `snapshot_hash` is `SHA256("AVMSNAP1" || snapshot_bytes)` if `--snapshot-in` is provided
   - `replay_log_hash` is `SHA256("AVMRLOG1" || replay_log_bytes)` if `AVM_REPLAY_LOG` or `AVM_REPLAY_LOG_HEX` is provided
 
-Current `exec_hash_sha256` (v1) definition:
+Current `exec_hash_sha256` (v7) definition:
 
-- `exec_hash_sha256 = SHA256( "AVMCTX02" || flags || outputs || effective_allow_domains_mask || fs_allow_prefixes || budgets || deterministic_knobs )`
+- `exec_hash_sha256 = SHA256( "AVMCTX07" || flags || outputs || trace_limits || fs_backend || proc_backend || proc_fixtures || net_backend || effective_allow_domains_mask || fs_allow_prefixes || budgets || deterministic_knobs )`
   - flags include: `capsule`, `verify_strict`, `deny_by_default`, `record_enabled`, `replay_enabled`
-  - outputs include: record sink kind (`none|file|mem`) and `snapshot_out_enabled` (paths are intentionally not hashed)
+  - outputs include:
+    - record sink kind (`none|file|mem`) and `snapshot_out_enabled` (paths are intentionally not hashed)
+    - requested output surfaces: `state_hash`, `result_hash`, `trace_hash`, `trace_bytes`, `record_log_hex`
+  - `trace_limits` include the effective trace step limit (`--trace-limit`) and `AVM_TRACE_BYTES` (when trace bytes output is requested)
+  - `fs_backend` selects whether FS domain uses host filesystem or VirtualFS (`host|vfs`)
+  - `proc_backend` selects whether PROC domain uses host subprocess or VirtualPROC (`host|vproc`) and binds `proc_exit_code` when `vproc` is selected
+  - `net_backend` selects whether NET domain uses host network or VirtualNET (`host|vnet`) and binds `net_fixtures_hash_sha256` when fixtures are provided
   - `effective_allow_domains_mask` is what AVM will actually enforce (e.g. capsule default CORE+EXIT when deny-by-default and no allowlist provided)
   - `fs_allow_prefixes` is the normalized comma-separated list (count + length-prefixed strings)
-  - budgets include: `gas`, `timeout_ms`, `mem_bytes`, `io_bytes`, `log_bytes` (with capsule defaults applied if env unset)
+  - budgets include: `gas`, `timeout_ms`, `mem_bytes`, `io_bytes`, `log_bytes`, `trace_bytes` (with capsule defaults applied if env unset)
 
 ### 3.2 Node execution and attestation (minimum viable)
 

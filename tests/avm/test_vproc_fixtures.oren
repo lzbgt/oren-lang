@@ -1,0 +1,21 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    // This test is intended to run with:
+    //   --proc-backend vproc --proc-exit-code 7 --proc-fixtures-hex <...>
+    // so PROC domain calls return deterministic fixture responses and do not touch the host process table.
+    var rc1 = oren_system("echo hi")
+    if rc1 != 0 { fail("fixture rc mismatch") }
+
+    var rc2 = oren_system("unknown-cmd")
+    if rc2 != 7 { fail("default rc mismatch") }
+
+    oren_exit(0)
+}
+
+main()
+

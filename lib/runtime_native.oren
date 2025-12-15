@@ -1115,6 +1115,11 @@ fn oren_system(cmd) {
     return system(cmd)
 }
 
+fn oren_net_get(url) {
+    oren_panic("oren_net_get: net not implemented (use AVM)")
+    return 0
+}
+
 fn free(ptr) {
     if ptr == 0 { return 0 }
     var node = oren_find_node(ptr)

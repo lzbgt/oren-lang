@@ -118,6 +118,8 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 - **Capability model is still evolving:** host calls support both a flat numeric ID table (`CALL_NATIVE`) and a domain/op model (`CALL_NATIVE2`); next-gen direction is specified in `docs/AVM_SPEC_V1.md`.
 - **Verifier is rolling (now function-aware):** `avm` performs a bytecode verification pass (operand bounds, jump target bounds, const/global bounds, stack underflow/overflow, and stack-height consistency at CFG joins) and will reject malformed `.obc` early. Calls are verified interprocedurally by discovering reachable function entrypoints and verifying each region with **arity enforcement** (all `CALL addr` sites must agree on `nargs`). This verifier is still not a full formal proof of correctness.
 - **Policy scanning is safe (rolling):** `avm --print-policy <file.obc>` (or `--print-policy-json`) scans capabilities used by a program **without executing bytecode**. This supports “scan before execute” governance workflows.
+- **OBC inspection is safe (rolling):** `avm --inspect <file.obc>` (or `--inspect-json`) prints `.obc` metadata (file length, const count, code length, program hash, and the same capability policy view) **without executing bytecode**.
+- **OBC disassembly can be machine-readable (rolling):** `avm --disasm-json <file.obc>` (or `--disasm-consts-json`) prints decoded bytecode in a JSON schema intended for debugger/profiler tooling.
 - **Policy output is hashable (rolling):** policy scan outputs include `POLICY_HASH_SHA256 <hex>` (text) and `policy_hash_sha256` (JSON). This hash is computed from the *required* capability set discovered in bytecode (not from host allowlists). Current policy hash v1 is SHA-256 over:
   - tag bytes `AVMPOL01`
   - `used_domains_mask` as `u64_le`
@@ -128,10 +130,21 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - `program_hash_sha256`: hash of `.obc` bytes (SHA-256)
   - `policy_hash_sha256`: required capability set (from policy scan)
   - `input_hash_sha256`: hash of explicit inputs (args after `--`, snapshot input file if any, replay log if any)
-  - `exec_hash_sha256`: hash of execution context (capsule flags, effective allowlist, fs prefixes, budgets, deterministic knobs)
-  - `job_hash_sha256`: stable v2 hash over (`program_hash`, `policy_hash`, `input_hash`, `exec_hash`)
+  - `exec_hash_sha256`: hash of execution context (capsule flags, effective allowlist, fs prefixes, budgets, deterministic knobs, **requested output surfaces**, and selected virtual backends/fixtures such as `fs_backend`, `proc_backend`, `proc_fixtures_hash_sha256`, `net_backend`, `net_fixtures_hash_sha256`)
+  - `job_hash_sha256`: stable v7 hash over (`program_hash`, `policy_hash`, `input_hash`, `exec_hash`)
 - **Hashing is rolling:** `avm` can compute deterministic `STATE_HASH` and `RESULT_HASH` (SHA-256) for swarm-style k-of-n validation; these are not yet stability-promised formats.
+- **Deterministic trace hashing is available (rolling):** `avm --print-trace-hash <file.obc>` prints `TRACE_HASH ...` over a canonical trace-event stream (for agentic diffing).
+- **Deterministic trace as data is available (rolling, best-effort):** `avm --print-trace-bytes-hex <file.obc>` prints:
+  - `TRACE_TRUNCATED <0|1>` to indicate whether trace capture was cut short due to budget/alloc failure
+  - `TRACE_BYTES_HEX ...` which is the trace-event stream encoded as `BYTES` and hex-encoded for transport
+  Trace capture **must not** change program semantics: if trace bytes hit budget, AVM truncates (disables further capture) rather than aborting execution.
+  Trace capture is also isolated from `AVM_MEM_BYTES`: trace bytes storage is governed by `AVM_TRACE_BYTES`, not by the VM heap budget for program values.
 - **Deterministic record/replay is partial:** `avm` can record/replay FS-domain native calls via `AVM_RECORD_LOG` / `AVM_REPLAY_LOG`, but other effectful domains (NET/PROC/TIME/RNG) are not virtualized yet.
+- **VirtualFS backend exists (rolling):** set `--fs-backend vfs` (or `AVM_FS_BACKEND=vfs`) to route FS domain operations to an in-memory VirtualFS instead of the host filesystem. This enables “record without host effects” for FS (still subject to capability gating, allow-prefixes, and IO/log budgets).
+- **VirtualPROC backend exists (rolling):** set `--proc-backend vproc` (or `AVM_PROC_BACKEND=vproc`) to route `PROC.system` to a deterministic stub/fixture backend that performs no host subprocess effects. It returns:
+  - `AVM_PROC_EXIT_CODE` (or `--proc-exit-code`) when no fixture matches
+  - fixture exit codes when fixtures are provided via `--proc-fixtures-hex HEX` (or `AVM_PROC_FIXTURES_HEX=...`)
+- **VirtualNET backend exists (rolling):** set `--net-backend vnet` (or `AVM_NET_BACKEND=vnet`) and provide fixtures via `--net-fixtures-hex HEX` (or `AVM_NET_FIXTURES_HEX=...`) to route NET calls to deterministic fixtures (no host network).
 - **In-memory logs exist (rolling):** `AVM_RECORD_MEM=1` records to an in-memory bytes buffer (printed via `--print-record-log-hex`), and `AVM_REPLAY_LOG_HEX=...` replays without touching the filesystem.
 - **Logs are budgeted (rolling):** `AVM_LOG_BYTES` limits bytes appended to record logs (file or in-memory), including the `AVMLOG01` header. This is enforced **before** executing record-mode side effects where possible (to avoid “did the effect but couldn't log it”).
 - **TIME/RNG can be virtualized (rolling):** `AVM_DETERMINISTIC=1` enables a virtual monotonic clock and deterministic PRNG. In deterministic mode, `oren_time_now_ns()` is derived (no “advance on read”) from:
@@ -140,11 +153,19 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - executed “gas” count (`+ gas_executed * AVM_TIME_STEP_NS`, bootstrap: 1 gas per opcode dispatch)
   RNG is controlled by `AVM_RNG_SEED`.
 - **Nested universes are emerging (rolling):** AVM exposes an `AVM` capability domain (domain 8) to run a child `.obc` from `BYTES` under a restricted capability/budget config (caps + gas/deadline/mem/io/log), returning hashes and a produced in-memory replay log.
+  - Nested-universe `cfg` supports Virtual* backends and fixture injection as data (rolling, unstable):
+    - `fs_backend` (0 host, 1 vfs), `vfs_fixtures` (`BYTES`, magic `AVMVFS01`)
+    - `proc_backend` (0 host, 1 vproc), `proc_exit_code`, `proc_fixtures` (`BYTES`, magic `AVMPRC01`)
+    - `net_backend` (0 host, 1 vnet), `net_fixtures` (`BYTES`, magic `AVMNET01`)
 - **Capability domains are the direction:** effectful calls should route through `CALL_NATIVE2` domains (e.g., `PROC` for `oren_system`) so they can be denied/recorded/replayed independently of CORE.
 - **Strict verification is available (rolling):** `avm --verify-strict <file.obc>` (or `AVM_VERIFY_STRICT=1`) rejects legacy capability encodings (`CALL_NATIVE`, and CORE-domain `CALL_NATIVE2` uses that remap to effectful domains) so untrusted capsules can require domain/op-only bytecode.
 - **Capsule mode is available (rolling):** `avm --capsule <file.obc>` (or `AVM_CAPSULE=1`) enables safe defaults for running untrusted bytecode:
   - implies strict verification (`--verify-strict`)
   - enables deny-by-default capabilities (default allowlist is CORE + EXIT only)
+  - defaults to Virtual* backends unless explicitly overridden:
+    - FS uses `vfs` (no host filesystem effects) unless `--fs-backend host`
+    - PROC uses `vproc` (no host subprocess effects) unless `--proc-backend host`
+    - NET uses `vnet` (no host network; host NET is not implemented in bootstrap) unless `--net-backend host`
   - applies conservative default budgets unless overridden by env (`AVM_GAS`, `AVM_TIMEOUT_MS`, `AVM_MEM_BYTES`, `AVM_IO_BYTES`, `AVM_LOG_BYTES`)
   - to allow a small approved set without env vars, use:
     - `--allow-domains "0,1,6"` (or `AVM_ALLOW_DOMAINS=...`) to explicitly allow domains

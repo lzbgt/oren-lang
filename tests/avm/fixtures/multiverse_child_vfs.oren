@@ -1,0 +1,10 @@
+fn main() {
+    // Exercise VirtualFS fixture injection in nested universes.
+    var s = oren_read_file("x")
+    if oren_is_err(s) { oren_exit(1) }
+    oren_set_result(s)
+    oren_exit(0)
+}
+
+main()
+

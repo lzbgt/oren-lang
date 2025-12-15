@@ -106,6 +106,12 @@ test: oren
 		echo "Testing avm $$name..."; \
 		if [ "$$name" = "test_multiverse_avm_domain" ]; then \
 			./oren build tests/avm/fixtures/multiverse_child.oren --backend bytecode -o build/multiverse_child.obc $(GC_ARG); \
+		elif [ "$$name" = "test_multiverse_net_fixtures" ]; then \
+			./oren build tests/avm/fixtures/multiverse_child_net.oren --backend bytecode -o build/multiverse_child_net.obc $(GC_ARG); \
+		elif [ "$$name" = "test_multiverse_proc_fixtures" ]; then \
+			./oren build tests/avm/fixtures/multiverse_child_proc.oren --backend bytecode -o build/multiverse_child_proc.obc $(GC_ARG); \
+		elif [ "$$name" = "test_multiverse_vfs_fixtures" ]; then \
+			./oren build tests/avm/fixtures/multiverse_child_vfs.oren --backend bytecode -o build/multiverse_child_vfs.obc $(GC_ARG); \
 		fi; \
 		./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
 		if [ "$$name" = "test_budget_gas" ]; then \
@@ -143,12 +149,27 @@ test: oren
 			fi; \
 			dout=$$($(RUN_WITH_TIMEOUT) ./avm --disasm build/$$name.obc); \
 			echo "$$dout" | grep -q "CALL_NATIVE " && { echo "FAIL: $$name (Bytecode contains legacy CALL_NATIVE opcode)"; echo "$$dout"; exit 1; }; \
+			set +e; dj=$$($(RUN_WITH_TIMEOUT) ./avm --disasm-json build/$$name.obc); drc=$$?; set -e; \
+			if [ $$drc -ne 0 ]; then \
+				echo "FAIL: $$name (--disasm-json exit code $$drc)"; echo "$$dj"; exit 1; \
+			fi; \
+			echo "$$dj" | grep -q "\"schema\":\"avm.disasm.v1\"" || { echo "FAIL: $$name (disasm json missing schema)"; echo "$$dj"; exit 1; }; \
+			echo "$$dj" | grep -q "\"code_len\":" || { echo "FAIL: $$name (disasm json missing code_len)"; echo "$$dj"; exit 1; }; \
+			echo "$$dj" | grep -q "RUN_POLICY_SCAN_SHOULD_NOT_EXECUTE" && { echo "FAIL: $$name (--disasm-json executed bytecode)"; echo "$$dj"; exit 1; }; \
 			ph=$$(echo "$$out" | awk '/^POLICY_HASH_SHA256 /{print $$2; exit 0}'); \
 			echo "$$ph" | grep -Eq "^[0-9a-f]{64}$$" || { echo "FAIL: $$name (Missing/invalid POLICY_HASH_SHA256)"; echo "$$out"; exit 1; }; \
 			echo "$$out" | grep -q "^POLICY_USED_OP domain=1 op=1$$" || { echo "FAIL: $$name (Missing FS write_file op)"; echo "$$out"; exit 1; }; \
 			echo "$$out" | grep -q "^POLICY_USED_OP domain=5 op=0$$" || { echo "FAIL: $$name (Missing PROC system op)"; echo "$$out"; exit 1; }; \
 			echo "$$out" | grep -q "^POLICY_USED_OP domain=7 op=0$$" || { echo "FAIL: $$name (Missing ENV env op)"; echo "$$out"; exit 1; }; \
 			echo "$$out" | grep -q "RUN_POLICY_SCAN_SHOULD_NOT_EXECUTE" && { echo "FAIL: $$name (--print-policy executed bytecode)"; echo "$$out"; exit 1; }; \
+			set +e; iout=$$($(RUN_WITH_TIMEOUT) ./avm --inspect-json build/$$name.obc); irc=$$?; set -e; \
+			if [ $$irc -ne 0 ]; then \
+				echo "FAIL: $$name (--inspect-json exit code $$irc)"; echo "$$iout"; exit 1; \
+			fi; \
+			echo "$$iout" | grep -q "\"schema\":\"avm.obc.v1\"" || { echo "FAIL: $$name (inspect json missing schema)"; echo "$$iout"; exit 1; }; \
+			echo "$$iout" | grep -q "\"program_hash_sha256\":\"" || { echo "FAIL: $$name (inspect json missing program_hash_sha256)"; echo "$$iout"; exit 1; }; \
+			echo "$$iout" | grep -q "\"code_len\":" || { echo "FAIL: $$name (inspect json missing code_len)"; echo "$$iout"; exit 1; }; \
+			echo "$$iout" | grep -q "RUN_POLICY_SCAN_SHOULD_NOT_EXECUTE" && { echo "FAIL: $$name (--inspect-json executed bytecode)"; echo "$$iout"; exit 1; }; \
 			set +e; outj=$$($(RUN_WITH_TIMEOUT) ./avm --print-policy-json build/$$name.obc); rcj=$$?; set -e; \
 			if [ $$rcj -ne 0 ]; then \
 				echo "FAIL: $$name (--print-policy-json exit code $$rcj)"; echo "$$outj"; exit 1; \
@@ -159,7 +180,7 @@ test: oren
 			echo "$$outj" | grep -q "\"domain\":5" || { echo "FAIL: $$name (JSON missing domain=5)"; echo "$$outj"; exit 1; }; \
 			echo "$$outj" | grep -q "\"domain\":7" || { echo "FAIL: $$name (JSON missing domain=7)"; echo "$$outj"; exit 1; }; \
 			echo "$$outj" | grep -q "RUN_POLICY_SCAN_SHOULD_NOT_EXECUTE" && { echo "FAIL: $$name (--print-policy-json executed bytecode)"; echo "$$outj"; exit 1; }; \
-		elif [ "$$name" = "test_job_scan" ]; then \
+			elif [ "$$name" = "test_job_scan" ]; then \
 			rm -f build/avm_job_scan_should_not_write.txt build/avm_job_scan_should_not_write2.txt; \
 			set +e; jout=$$($(RUN_WITH_TIMEOUT) ./avm --print-job build/$$name.obc); rc=$$?; set -e; \
 			if [ $$rc -ne 0 ]; then \
@@ -185,25 +206,43 @@ test: oren
 			if [ $$rcj -ne 0 ]; then \
 				echo "FAIL: $$name (--print-job-json exit code $$rcj)"; echo "$$joutj"; exit 1; \
 			fi; \
-			echo "$$joutj" | grep -q "\"schema\":\"avm.job.v2\"" || { echo "FAIL: $$name (JSON missing schema)"; echo "$$joutj"; exit 1; }; \
+				echo "$$joutj" | grep -q "\"schema\":\"avm.job.v7\"" || { echo "FAIL: $$name (JSON missing schema)"; echo "$$joutj"; exit 1; }; \
 			echo "$$joutj" | grep -q "\"job_hash_sha256\":\"" || { echo "FAIL: $$name (JSON missing job_hash_sha256)"; echo "$$joutj"; exit 1; }; \
 			echo "$$joutj" | grep -q "\"input_hash_sha256\":\"" || { echo "FAIL: $$name (JSON missing input_hash_sha256)"; echo "$$joutj"; exit 1; }; \
 			echo "$$joutj" | grep -q "\"program_hash_sha256\":\"" || { echo "FAIL: $$name (JSON missing program_hash_sha256)"; echo "$$joutj"; exit 1; }; \
 			echo "$$joutj" | grep -q "\"exec_hash_sha256\":\"" || { echo "FAIL: $$name (JSON missing exec_hash_sha256)"; echo "$$joutj"; exit 1; }; \
 			echo "$$joutj" | grep -q "\"policy_hash_sha256\":\"" || { echo "FAIL: $$name (JSON missing policy_hash_sha256)"; echo "$$joutj"; exit 1; }; \
 			echo "$$joutj" | grep -q "RUN_JOB_SCAN_SHOULD_NOT_EXECUTE" && { echo "FAIL: $$name (--print-job-json executed bytecode)"; echo "$$joutj"; exit 1; }; \
-			if [ -f build/avm_job_scan_should_not_write.txt ] || [ -f build/avm_job_scan_should_not_write2.txt ]; then \
-				echo "FAIL: $$name (Host effects executed during print-job)"; exit 1; \
-			fi; \
-		elif [ "$$name" = "test_capsule_defaults" ]; then \
-			rm -f build/avm_capsule_should_not_write.txt build/avm_capsule_should_not_write2.txt; \
-			$(RUN_WITH_TIMEOUT) ./avm --capsule build/$$name.obc || { echo "FAIL: $$name (capsule)"; exit 1; }; \
-			if [ -f build/avm_capsule_should_not_write.txt ] || [ -f build/avm_capsule_should_not_write2.txt ]; then \
-				echo "FAIL: $$name (Capsule touched host filesystem)"; exit 1; \
-			fi; \
+				if [ -f build/avm_job_scan_should_not_write.txt ] || [ -f build/avm_job_scan_should_not_write2.txt ]; then \
+					echo "FAIL: $$name (Host effects executed during print-job)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_vfs_no_host_fs" ]; then \
+				rm -f build/avm_vfs_should_not_write.bin; \
+				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend vfs build/$$name.obc || { echo "FAIL: $$name (vfs run)"; exit 1; }; \
+				if [ -f build/avm_vfs_should_not_write.bin ]; then \
+					echo "FAIL: $$name (VFS touched host filesystem)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_vproc_no_host_proc" ]; then \
+				rm -f build/avm_vproc_should_not_touch.txt; \
+				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 0 build/$$name.obc || { echo "FAIL: $$name (vproc run)"; exit 1; }; \
+				if [ -f build/avm_vproc_should_not_touch.txt ]; then \
+					echo "FAIL: $$name (VPROC touched host filesystem via subprocess)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_vproc_fixtures" ]; then \
+				hex="41564d505243303101000000070000006563686f20686900000000"; \
+				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 7 --proc-fixtures-hex "$$hex" build/$$name.obc || { echo "FAIL: $$name (vproc fixtures run)"; exit 1; }; \
+			elif [ "$$name" = "test_vnet_no_host_net" ]; then \
+				hex="41564d4e45543031010000000100000075020000006f6b"; \
+				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,4,6" --net-backend vnet --net-fixtures-hex "$$hex" build/$$name.obc || { echo "FAIL: $$name (vnet run)"; exit 1; }; \
+			elif [ "$$name" = "test_capsule_defaults" ]; then \
+				rm -f build/avm_capsule_should_not_write.txt build/avm_capsule_should_not_write2.txt; \
+				$(RUN_WITH_TIMEOUT) ./avm --capsule build/$$name.obc || { echo "FAIL: $$name (capsule)"; exit 1; }; \
+				if [ -f build/avm_capsule_should_not_write.txt ] || [ -f build/avm_capsule_should_not_write2.txt ]; then \
+					echo "FAIL: $$name (Capsule touched host filesystem)"; exit 1; \
+				fi; \
 		elif [ "$$name" = "test_capsule_allow_fs" ]; then \
 			rm -f build/avm_capsule_allow_fs.txt; \
-			$(RUN_WITH_TIMEOUT) ./avm --capsule --allow-domains "0,1,6" --fs-allow-prefixes "build/" build/$$name.obc || { echo "FAIL: $$name (capsule allow fs)"; exit 1; }; \
+			$(RUN_WITH_TIMEOUT) ./avm --capsule --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend host build/$$name.obc || { echo "FAIL: $$name (capsule allow fs)"; exit 1; }; \
 			if [ ! -f build/avm_capsule_allow_fs.txt ]; then \
 				echo "FAIL: $$name (Expected file not created)"; exit 1; \
 			fi; \
@@ -243,8 +282,36 @@ test: oren
 				if [ "$$h1" != "$$h2" ]; then \
 					echo "FAIL: $$name (Hash mismatch $$h1 != $$h2)"; exit 1; \
 				fi; \
-			elif [ "$$name" = "test_record_replay_fs" ]; then \
-				log=build/$$name.avmlog; rm -f $$log; rm -f build/avm_rr_fs.txt; \
+				elif [ "$$name" = "test_trace_bytes_repeat" ]; then \
+					b1=$$($(RUN_WITH_TIMEOUT) ./avm --print-trace-bytes-hex build/$$name.obc | awk '/^TRACE_BYTES_HEX /{print $$2; exit 0}'); \
+					b2=$$($(RUN_WITH_TIMEOUT) ./avm --print-trace-bytes-hex build/$$name.obc | awk '/^TRACE_BYTES_HEX /{print $$2; exit 0}'); \
+					if [ "$$b1" = "" ] || [ "$$b2" = "" ]; then \
+						echo "FAIL: $$name (Missing TRACE_BYTES_HEX)"; exit 1; \
+					fi; \
+					if [ "$$b1" != "$$b2" ]; then \
+						echo "FAIL: $$name (Trace bytes mismatch)"; exit 1; \
+					fi; \
+				elif [ "$$name" = "test_trace_bytes_truncate" ]; then \
+					out=$$(AVM_TRACE_BYTES=8 $(RUN_WITH_TIMEOUT) ./avm --print-trace-bytes-hex build/$$name.obc); \
+					tr=$$(echo "$$out" | awk '/^TRACE_TRUNCATED /{print $$2; exit 0}'); \
+					hex=$$(echo "$$out" | awk '/^TRACE_BYTES_HEX /{print $$2; exit 0}'); \
+					if [ "$$tr" != "1" ]; then \
+						echo "FAIL: $$name (Expected TRACE_TRUNCATED 1, got $$tr)"; exit 1; \
+					fi; \
+					if [ "$$hex" != "41564d5452433032" ]; then \
+						echo "FAIL: $$name (Expected header-only trace bytes, got $$hex)"; exit 1; \
+					fi; \
+				elif [ "$$name" = "test_trace_bytes_mem_budget" ]; then \
+					out=$$(AVM_MEM_BYTES=1024 AVM_TRACE_BYTES=1048576 $(RUN_WITH_TIMEOUT) ./avm --print-trace-bytes-hex build/$$name.obc); \
+					tr=$$(echo "$$out" | awk '/^TRACE_TRUNCATED /{print $$2; exit 0}'); \
+					if [ "$$tr" != "0" ]; then \
+						echo "FAIL: $$name (Unexpected TRACE_TRUNCATED $$tr)"; exit 1; \
+					fi; \
+				elif [ "$$name" = "test_trace_events_native" ]; then \
+					hex=$$($(RUN_WITH_TIMEOUT) ./avm --print-trace-bytes-hex build/$$name.obc | awk '/^TRACE_BYTES_HEX /{print $$2; exit 0}'); \
+					python3 tools/trace_decode_check.py "$$hex" || { echo "FAIL: $$name (trace decode)"; exit 1; }; \
+				elif [ "$$name" = "test_record_replay_fs" ]; then \
+					log=build/$$name.avmlog; rm -f $$log; rm -f build/avm_rr_fs.txt; \
 				h1=$$(AVM_RECORD_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
 				rm -f build/avm_rr_fs.txt; \
 				h2=$$(AVM_REPLAY_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \

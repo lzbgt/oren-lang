@@ -1,0 +1,16 @@
+fn main() {
+    // This test is meant to be run with a very small AVM_MEM_BYTES budget.
+    // The program itself allocates no heap objects; only the trace-bytes diagnostic buffer grows.
+    // Diagnostics must not cause "budget exceeded (mem)".
+    var x = 1
+    var i = 0
+    while i < 20 {
+        x = x + i
+        i = i + 1
+    }
+    if x == 0 { oren_exit(1) }
+    oren_exit(0)
+}
+
+main()
+

@@ -26,6 +26,7 @@ var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1
 var AVM_DOMAIN_TIME = 2
 var AVM_DOMAIN_RNG = 3
+var AVM_DOMAIN_NET = 4
 var AVM_DOMAIN_PROC = 5
 var AVM_DOMAIN_EXIT = 6
 var AVM_DOMAIN_ENV = 7
@@ -319,6 +320,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_sleep_ms" { native_domain = AVM_DOMAIN_TIME; native_op = 1 }
         if name == "oren_rand_u64" { native_domain = AVM_DOMAIN_RNG; native_op = 0 }
         if name == "oren_rand_seed" { native_domain = AVM_DOMAIN_RNG; native_op = 1 }
+        if name == "oren_net_get" { native_domain = AVM_DOMAIN_NET; native_op = 0 }
         if name == "oren_read_file" { native_domain = AVM_DOMAIN_FS; native_op = 0 }
         if name == "oren_write_file" { native_domain = AVM_DOMAIN_FS; native_op = 1 }
         if name == "oren_write_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 2 }

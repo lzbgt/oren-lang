@@ -216,7 +216,12 @@ Rationale:
 
 Bootstrap status (rolling, implementation reality as of 2025-12-15):
 
-- `avm --print-trace-hash <file.obc>` prints `TRACE_HASH <sha256>` derived from a canonical step encoding.
+- `avm --print-trace-hash <file.obc>` prints `TRACE_HASH <sha256>` derived from a canonical trace-event encoding (step + CALL_NATIVE2 + abort).
+- `avm --print-trace-bytes-hex <file.obc>` prints:
+  - `TRACE_TRUNCATED <0|1>` (best-effort capture may truncate due to budget/alloc failure)
+  - `TRACE_BYTES_HEX ...` (trace stream as data; hex for transport)
+  Trace capture must **not** affect program semantics: if trace bytes hit budget, AVM truncates (disables further capture) rather than aborting execution.
+  Trace bytes storage is governed by `AVM_TRACE_BYTES` and is isolated from `AVM_MEM_BYTES` (program heap budget).
 - Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM_CONCURRENCY.md` for the design direction.
 
 ### 3.6 Governance-ready module boundaries (SOLID on bytecode artifacts)

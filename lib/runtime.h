@@ -149,6 +149,7 @@ OrenValue oren_read_bytes(OrenValue path);
 OrenValue oren_bytes_from_string(OrenValue s);
 OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length);
 OrenValue oren_env(OrenValue name);
+OrenValue oren_net_get(OrenValue url);
 
 // Structured errors (currently represented as a map: {"__err": true, "code": int, "msg": string})
 OrenValue oren_err(OrenValue code, OrenValue msg);

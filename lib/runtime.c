@@ -1881,6 +1881,13 @@ OrenValue oren_system(OrenValue cmd) {
     return oren_int((long long)res);
 }
 
+OrenValue oren_net_get(OrenValue url) {
+    (void)url;
+    // Native/C backend runtime does not implement host networking in bootstrap.
+    // Agentic networking is intended to run via AVM NET domain virtualization.
+    return oren_err(oren_int(7), oren_string("net not implemented (use AVM)"));
+}
+
 OrenValue oren_exit(OrenValue code) {
     if (code.type != OREN_TYPE_INT) {
         oren_panic("exit expects int");

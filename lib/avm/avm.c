@@ -674,6 +674,50 @@ static uint64_t host_random_u64() {
 #endif
 }
 
+// VirtualNET fixtures (bootstrap):
+// - domain=4 uses an in-memory fixture table so nested universes and capsules can simulate network deterministically.
+typedef struct {
+    char* url;
+    uint8_t* body;
+    uint32_t body_len;
+} AvmVnetEntry;
+
+typedef struct {
+    AvmVnetEntry* entries;
+    uint32_t count;
+} AvmVnet;
+
+static AvmVnetEntry* avm_vnet_find(AvmVM* vm, const char* url) {
+    if (!vm || !vm->vnet || !url) return NULL;
+    AvmVnet* v = (AvmVnet*)vm->vnet;
+    for (uint32_t i = 0; i < v->count; i++) {
+        if (v->entries[i].url && strcmp(v->entries[i].url, url) == 0) return &v->entries[i];
+    }
+    return NULL;
+}
+
+// VirtualPROC fixtures (bootstrap):
+// - domain=5 uses an in-memory fixture table so nested universes and capsules can simulate subprocess calls deterministically.
+// - vproc returns a deterministic exit code: fixture match if present; otherwise vm->proc_exit_code.
+typedef struct {
+    char* cmd;
+    int32_t exit_code;
+} AvmVprocEntry;
+
+typedef struct {
+    AvmVprocEntry* entries;
+    uint32_t count;
+} AvmVproc;
+
+static AvmVprocEntry* avm_vproc_find(AvmVM* vm, const char* cmd) {
+    if (!vm || !vm->vproc || !cmd) return NULL;
+    AvmVproc* v = (AvmVproc*)vm->vproc;
+    for (uint32_t i = 0; i < v->count; i++) {
+        if (v->entries[i].cmd && strcmp(v->entries[i].cmd, cmd) == 0) return &v->entries[i];
+    }
+    return NULL;
+}
+
 
 #include "avm_state.inc"
 #include "avm_native.inc"
@@ -708,6 +752,13 @@ AvmVM* avm_new() {
     vm->allowed_native_domains = 0;
     vm->fs_allow_prefixes = NULL;
     vm->fs_allow_prefix_count = 0;
+    vm->fs_backend_kind = 0;
+    vm->vfs = NULL;
+    vm->proc_backend_kind = 0;
+    vm->vproc = NULL;
+    vm->proc_exit_code = 0;
+    vm->net_backend_kind = 0;
+    vm->vnet = NULL;
     vm->gas_remaining = 0;
     vm->deadline_ns = 0;
     vm->cancelled = 0;
@@ -742,6 +793,12 @@ AvmVM* avm_new() {
     vm->trace_hash_limit = 0;
     vm->trace_hash_started = 0;
     vm->trace_hash_finalized = 0;
+    vm->trace_bytes_enabled = 0;
+    vm->trace_bytes_limit = 0;
+    vm->trace_budget_bytes = 0;
+    vm->trace_used_bytes = 0;
+    vm->trace_bytes = NULL;
+    vm->trace_bytes_truncated = 0;
     vm->break_pcs = NULL;
     vm->break_pc_count = 0;
     for(int i=0; i<MAX_GLOBALS; i++) vm->globals[i].type = AVM_VAL_NIL;
@@ -784,6 +841,11 @@ void avm_load(AvmVM* vm, AvmProgram* prog) {
     vm->exit_code = 0;
     vm->virtual_sleep_ns = 0;
     vm->gas_executed = 0;
+    vm->trace_hash_started = 0;
+    vm->trace_hash_finalized = 0;
+    vm->trace_used_bytes = 0;
+    vm->trace_bytes = NULL;
+    vm->trace_bytes_truncated = 0;
 }
 
 static void trace_sha_u8(AvmSha256Ctx* h, uint8_t v) { avm_sha256_update(h, &v, 1); }
@@ -816,34 +878,253 @@ static size_t trace_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     return 1;
 }
 
-static void trace_hash_step(AvmVM* vm, int op_pc, uint8_t op) {
-    if (!vm || !vm->trace_hash_enabled) return;
-    if (vm->trace_hash_limit && vm->gas_executed > vm->trace_hash_limit) return;
-    if (!vm->trace_hash_started) {
-        const uint8_t tag[8] = { 'A','V','M','T','R','C','0','1' };
+static AvmBytes* trace_bytes_new(void) {
+    // Trace bytes are diagnostic data, not program heap. Do not charge to heap budget.
+    int prev = 0;
+    avm_alloc_unbudgeted_push(&prev);
+    AvmBytes* b = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
+    avm_alloc_unbudgeted_pop(prev);
+    if (!b) return NULL;
+    b->data = NULL;
+    b->len = 0;
+    b->capacity = 0;
+    return b;
+}
+
+static void trace_bytes_disable_truncated(AvmVM* vm) {
+    if (!vm) return;
+    vm->trace_bytes_enabled = 0;
+    vm->trace_bytes_truncated = 1;
+}
+
+static int trace_bytes_can_fit(AvmVM* vm, uint64_t add) {
+    if (!vm) return 0;
+    if (add == 0) return 1;
+    if (vm->trace_budget_bytes == 0) return 1;
+    if (vm->trace_used_bytes > vm->trace_budget_bytes) return 0;
+    if (add > vm->trace_budget_bytes - vm->trace_used_bytes) return 0;
+    return 1;
+}
+
+static int trace_bytes_prepare(AvmVM* vm, uint64_t add) {
+    if (!vm || !vm->trace_bytes_enabled) return 1;
+    if (add == 0) return 1;
+
+    if (!vm->trace_bytes) {
+        vm->trace_bytes = trace_bytes_new();
+        if (!vm->trace_bytes) {
+            trace_bytes_disable_truncated(vm);
+            return 1;
+        }
+    }
+
+    if (!trace_bytes_can_fit(vm, add)) {
+        trace_bytes_disable_truncated(vm);
+        return 1;
+    }
+
+    uint64_t need_u64 = (uint64_t)vm->trace_bytes->len + add;
+    if (need_u64 > (uint64_t)INT32_MAX) {
+        trace_bytes_disable_truncated(vm);
+        return 1;
+    }
+    // Trace bytes are diagnostic data; don't charge these reallocations to the heap budget.
+    int prev = 0;
+    avm_alloc_unbudgeted_push(&prev);
+    int ok = bytes_ensure_cap(vm->trace_bytes, (int)need_u64);
+    avm_alloc_unbudgeted_pop(prev);
+    if (!ok) {
+        trace_bytes_disable_truncated(vm);
+        return 1;
+    }
+    return 1;
+}
+
+enum {
+    TRACE_EVT_STEP = 1,
+    TRACE_EVT_NATIVE2 = 2,
+    TRACE_EVT_ABORT = 3
+};
+
+static int trace_begin_if_needed(AvmVM* vm) {
+    if (!vm) return 0;
+    int want_any = (vm->trace_hash_enabled != 0) || (vm->trace_bytes_enabled != 0);
+    if (!want_any) return 1;
+
+    if ((vm->trace_hash_enabled && vm->trace_hash_started) || (vm->trace_bytes_enabled && vm->trace_bytes)) return 1;
+
+    const uint8_t tag[8] = { 'A','V','M','T','R','C','0','2' };
+
+    if (vm->trace_hash_enabled && !vm->trace_hash_started) {
         avm_sha256_init(&vm->trace_hash_ctx);
         avm_sha256_update(&vm->trace_hash_ctx, tag, 8);
         vm->trace_hash_started = 1;
         vm->trace_hash_finalized = 0;
     }
 
-    // Canonical encoding v1 (rolling):
-    // - u32 pc (little-endian)
-    // - u8 opcode
-    // - u16 instruction byte length
-    // - raw instruction bytes (opcode+operands), truncated if out-of-bounds
-    trace_sha_u32_le(&vm->trace_hash_ctx, (uint32_t)op_pc);
-    trace_sha_u8(&vm->trace_hash_ctx, op);
+    if (vm->trace_bytes_enabled && !vm->trace_bytes) {
+        // Trace bytes are best-effort: never fail execution if tracing can't allocate or hits budget.
+        if (!trace_bytes_prepare(vm, 8)) return 1;
+        if (!vm->trace_bytes_enabled) return 1;
+        int prev = 0;
+        avm_alloc_unbudgeted_push(&prev);
+        uint32_t p = (uint32_t)vm->trace_bytes->len;
+        int ok = mem_write_bytes(vm->trace_bytes, &p, tag, 8);
+        avm_alloc_unbudgeted_pop(prev);
+        if (!ok) {
+            trace_bytes_disable_truncated(vm);
+            return 1;
+        }
+        vm->trace_used_bytes += 8;
+    }
 
+    return 1;
+}
+
+static void trace_hash_u8(AvmVM* vm, uint8_t v) {
+    if (!vm || !vm->trace_hash_enabled || !vm->trace_hash_started) return;
+    trace_sha_u8(&vm->trace_hash_ctx, v);
+}
+static void trace_hash_u16(AvmVM* vm, uint16_t v) {
+    if (!vm || !vm->trace_hash_enabled || !vm->trace_hash_started) return;
+    trace_sha_u16_le(&vm->trace_hash_ctx, v);
+}
+static void trace_hash_u32(AvmVM* vm, uint32_t v) {
+    if (!vm || !vm->trace_hash_enabled || !vm->trace_hash_started) return;
+    trace_sha_u32_le(&vm->trace_hash_ctx, v);
+}
+static void trace_hash_bytes(AvmVM* vm, const uint8_t* data, size_t len) {
+    if (!vm || !vm->trace_hash_enabled || !vm->trace_hash_started) return;
+    if (data && len > 0) avm_sha256_update(&vm->trace_hash_ctx, data, len);
+}
+
+static int trace_emit_step(AvmVM* vm, int op_pc, uint8_t op) {
+    if (!vm) return 0;
+    if (!trace_begin_if_needed(vm)) return 1;
+    if (vm->trace_hash_limit && vm->gas_executed > vm->trace_hash_limit) return 1;
+    if (vm->trace_bytes_limit && vm->gas_executed > vm->trace_bytes_limit) return 1;
+
+    // STEP event encoding:
+    // kind=u8(1), pc=u32, op=u8, ilen=u16, bytes[ilen]
     size_t pc = (size_t)op_pc;
     size_t ilen = trace_insn_len(vm->prog ? vm->prog->code : NULL, vm->prog ? vm->prog->code_len : 0, pc);
-    if (vm->prog && vm->prog->code && pc + ilen <= vm->prog->code_len) {
-        trace_sha_u16_le(&vm->trace_hash_ctx, (uint16_t)ilen);
-        avm_sha256_update(&vm->trace_hash_ctx, vm->prog->code + pc, ilen);
-    } else {
-        trace_sha_u16_le(&vm->trace_hash_ctx, 1);
-        trace_sha_u8(&vm->trace_hash_ctx, op);
+    if (ilen > 65535) ilen = 65535;
+
+    // hash
+    trace_hash_u8(vm, TRACE_EVT_STEP);
+    trace_hash_u32(vm, (uint32_t)op_pc);
+    trace_hash_u8(vm, op);
+    trace_hash_u16(vm, (uint16_t)ilen);
+    if (vm->prog && vm->prog->code && pc + ilen <= vm->prog->code_len) trace_hash_bytes(vm, vm->prog->code + pc, ilen);
+    else trace_hash_bytes(vm, &op, 1);
+
+    // bytes
+    if (vm->trace_bytes_enabled) {
+        uint64_t need = 1 + 4 + 1 + 2 + (uint64_t)ilen;
+        (void)trace_bytes_prepare(vm, need);
+        if (vm->trace_bytes_enabled && vm->trace_bytes) {
+            int prev = 0;
+            avm_alloc_unbudgeted_push(&prev);
+            uint32_t p = (uint32_t)vm->trace_bytes->len;
+            if (!mem_write_u8(vm->trace_bytes, &p, TRACE_EVT_STEP) ||
+                !mem_write_u32_le(vm->trace_bytes, &p, (uint32_t)op_pc) ||
+                !mem_write_u8(vm->trace_bytes, &p, op) ||
+                !mem_write_u16_le(vm->trace_bytes, &p, (uint16_t)ilen)) {
+                avm_alloc_unbudgeted_pop(prev);
+                trace_bytes_disable_truncated(vm);
+                return 1;
+            }
+            if (vm->prog && vm->prog->code && pc + ilen <= vm->prog->code_len) {
+                if (!mem_write_bytes(vm->trace_bytes, &p, vm->prog->code + pc, (uint32_t)ilen)) {
+                    avm_alloc_unbudgeted_pop(prev);
+                    trace_bytes_disable_truncated(vm);
+                    return 1;
+                }
+            } else {
+                if (!mem_write_u8(vm->trace_bytes, &p, op)) {
+                    avm_alloc_unbudgeted_pop(prev);
+                    trace_bytes_disable_truncated(vm);
+                    return 1;
+                }
+            }
+            avm_alloc_unbudgeted_pop(prev);
+            vm->trace_used_bytes += need;
+        }
     }
+
+    return 1;
+}
+
+static int trace_emit_native2(AvmVM* vm, int op_pc, uint8_t domain, uint16_t op, uint8_t nargs) {
+    if (!vm) return 0;
+    if (!vm->trace_hash_enabled && !vm->trace_bytes_enabled) return 1;
+    if (!trace_begin_if_needed(vm)) return 1;
+    if (vm->trace_hash_limit && vm->gas_executed > vm->trace_hash_limit) return 1;
+    if (vm->trace_bytes_limit && vm->gas_executed > vm->trace_bytes_limit) return 1;
+
+    // NATIVE2 event encoding:
+    // kind=u8(2), pc=u32, domain=u8, op=u16, nargs=u8
+    trace_hash_u8(vm, TRACE_EVT_NATIVE2);
+    trace_hash_u32(vm, (uint32_t)op_pc);
+    trace_hash_u8(vm, domain);
+    trace_hash_u16(vm, op);
+    trace_hash_u8(vm, nargs);
+
+    if (vm->trace_bytes_enabled) {
+        uint64_t need = 1 + 4 + 1 + 2 + 1;
+        (void)trace_bytes_prepare(vm, need);
+        if (vm->trace_bytes_enabled && vm->trace_bytes) {
+            int prev = 0;
+            avm_alloc_unbudgeted_push(&prev);
+            uint32_t p = (uint32_t)vm->trace_bytes->len;
+            if (!mem_write_u8(vm->trace_bytes, &p, TRACE_EVT_NATIVE2) ||
+                !mem_write_u32_le(vm->trace_bytes, &p, (uint32_t)op_pc) ||
+                !mem_write_u8(vm->trace_bytes, &p, domain) ||
+                !mem_write_u16_le(vm->trace_bytes, &p, op) ||
+                !mem_write_u8(vm->trace_bytes, &p, nargs)) {
+                avm_alloc_unbudgeted_pop(prev);
+                trace_bytes_disable_truncated(vm);
+                return 1;
+            }
+            avm_alloc_unbudgeted_pop(prev);
+            vm->trace_used_bytes += need;
+        }
+    }
+    return 1;
+}
+
+static int trace_emit_abort(AvmVM* vm, int op_pc, uint16_t err_code) {
+    if (!vm) return 0;
+    if (!vm->trace_hash_enabled && !vm->trace_bytes_enabled) return 1;
+    if (!trace_begin_if_needed(vm)) return 1;
+    if (vm->trace_hash_limit && vm->gas_executed > vm->trace_hash_limit) return 1;
+    if (vm->trace_bytes_limit && vm->gas_executed > vm->trace_bytes_limit) return 1;
+
+    // ABORT event encoding:
+    // kind=u8(3), pc=u32, code=u16
+    trace_hash_u8(vm, TRACE_EVT_ABORT);
+    trace_hash_u32(vm, (uint32_t)op_pc);
+    trace_hash_u16(vm, err_code);
+
+    if (vm->trace_bytes_enabled) {
+        uint64_t need = 1 + 4 + 2;
+        (void)trace_bytes_prepare(vm, need);
+        if (vm->trace_bytes_enabled && vm->trace_bytes) {
+            int prev = 0;
+            avm_alloc_unbudgeted_push(&prev);
+            uint32_t p = (uint32_t)vm->trace_bytes->len;
+            if (!mem_write_u8(vm->trace_bytes, &p, TRACE_EVT_ABORT) ||
+                !mem_write_u32_le(vm->trace_bytes, &p, (uint32_t)op_pc) ||
+                !mem_write_u16_le(vm->trace_bytes, &p, err_code)) {
+                avm_alloc_unbudgeted_pop(prev);
+                trace_bytes_disable_truncated(vm);
+                return 1;
+            }
+            avm_alloc_unbudgeted_pop(prev);
+            vm->trace_used_bytes += need;
+        }
+    }
+    return 1;
 }
 
 void avm_run(AvmVM* vm) {
@@ -906,7 +1187,8 @@ void avm_run(AvmVM* vm) {
         vm->gas_executed++;
         int op_pc = vm->pc;
         uint8_t op = code[vm->pc++];
-        trace_hash_step(vm, op_pc, op);
+        // Tracing is best-effort and must never affect program semantics.
+        (void)trace_emit_step(vm, op_pc, op);
         if (vm->trace_enabled && (!vm->trace_limit || vm->gas_executed <= vm->trace_limit)) {
             FILE* out = vm->trace_out ? vm->trace_out : stderr;
             fprintf(out, "TRACE pc=%d op=0x%02x %s sp=%d fp=%d depth=%d gas=%llu\n",
@@ -1192,6 +1474,7 @@ void avm_run(AvmVM* vm) {
                 uint8_t domain = 0;
                 uint16_t op = 0;
                 avm_legacy_native_to_domop(id, &domain, &op);
+                (void)trace_emit_native2(vm, op_pc, domain, op, nargs);
 
                 AvmValue res = avm_call_native2(vm, domain, op, args, nargs);
                 vm->stack[vm->sp++] = res;
@@ -1202,6 +1485,7 @@ void avm_run(AvmVM* vm) {
                 uint16_t op = code[vm->pc++];
                 op |= (uint16_t)code[vm->pc++] << 8;
                 uint8_t nargs = code[vm->pc++];
+                (void)trace_emit_native2(vm, op_pc, domain, op, nargs);
 
                 AvmValue args[16];
                 for (int i = nargs - 1; i >= 0; i--) {
@@ -1349,5 +1633,134 @@ int avm_trace_hash(AvmVM* vm, uint8_t out[32]) {
     if (!vm || !out) return 0;
     if (!vm->trace_hash_finalized) return 0;
     memcpy(out, vm->trace_hash_out, 32);
+    return 1;
+}
+
+AvmBytes* avm_trace_bytes(AvmVM* vm) {
+    if (!vm) return NULL;
+    return vm->trace_bytes;
+}
+
+int avm_net_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len) {
+    if (!vm || !data) return 0;
+    if (len < 12) return 0; // magic + count
+    if (len > (size_t)INT32_MAX) return 0;
+
+    AvmBytes in;
+    in.data = (uint8_t*)data;
+    in.len = (int)len;
+    in.capacity = (int)len;
+
+    uint32_t pos = 0;
+    uint8_t magic[8];
+    if (!mem_read_bytes(&in, &pos, magic, 8)) return 0;
+    const uint8_t want[8] = {'A','V','M','N','E','T','0','1'};
+    if (memcmp(magic, want, 8) != 0) return 0;
+
+    uint32_t count = 0;
+    if (!mem_read_u32_le(&in, &pos, &count)) return 0;
+    if (count > 1000000u) return 0; // sanity cap (rolling)
+
+    AvmVnet* v = (AvmVnet*)avm_heap_malloc(sizeof(AvmVnet));
+    if (!v) return 0;
+    v->entries = NULL;
+    v->count = count;
+
+    if (count > 0) {
+        if (count > (uint32_t)(SIZE_MAX / sizeof(AvmVnetEntry))) return 0;
+        v->entries = (AvmVnetEntry*)avm_heap_malloc(sizeof(AvmVnetEntry) * (size_t)count);
+        if (!v->entries) return 0;
+        for (uint32_t i = 0; i < count; i++) {
+            v->entries[i].url = NULL;
+            v->entries[i].body = NULL;
+            v->entries[i].body_len = 0;
+        }
+    }
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t url_len = 0;
+        if (!mem_read_u32_le(&in, &pos, &url_len)) return 0;
+        if ((uint64_t)pos + (uint64_t)url_len > (uint64_t)in.len) return 0;
+        char* url = (char*)avm_heap_malloc((size_t)url_len + 1);
+        if (!url) return 0;
+        if (url_len > 0) memcpy(url, in.data + pos, url_len);
+        url[url_len] = 0;
+        pos += url_len;
+
+        uint32_t body_len = 0;
+        if (!mem_read_u32_le(&in, &pos, &body_len)) return 0;
+        if ((uint64_t)pos + (uint64_t)body_len > (uint64_t)in.len) return 0;
+        uint8_t* body = NULL;
+        if (body_len > 0) {
+            body = (uint8_t*)avm_heap_malloc((size_t)body_len);
+            if (!body) return 0;
+            memcpy(body, in.data + pos, body_len);
+        }
+        pos += body_len;
+
+        v->entries[i].url = url;
+        v->entries[i].body = body;
+        v->entries[i].body_len = body_len;
+    }
+
+    vm->vnet = v;
+    return 1;
+}
+
+int avm_proc_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len) {
+    if (!vm || !data) return 0;
+    if (len < 12) return 0; // magic + count
+    if (len > (size_t)INT32_MAX) return 0;
+
+    AvmBytes in;
+    in.data = (uint8_t*)data;
+    in.len = (int)len;
+    in.capacity = (int)len;
+
+    uint32_t pos = 0;
+    uint8_t magic[8];
+    if (!mem_read_bytes(&in, &pos, magic, 8)) return 0;
+    const uint8_t want[8] = {'A','V','M','P','R','C','0','1'};
+    if (memcmp(magic, want, 8) != 0) return 0;
+
+    uint32_t count = 0;
+    if (!mem_read_u32_le(&in, &pos, &count)) return 0;
+    if (count > 1000000u) return 0; // sanity cap (rolling)
+
+    AvmVproc* v = (AvmVproc*)avm_heap_malloc(sizeof(AvmVproc));
+    if (!v) return 0;
+    v->entries = NULL;
+    v->count = count;
+
+    if (count > 0) {
+        if (count > (uint32_t)(SIZE_MAX / sizeof(AvmVprocEntry))) return 0;
+        v->entries = (AvmVprocEntry*)avm_heap_malloc(sizeof(AvmVprocEntry) * (size_t)count);
+        if (!v->entries) return 0;
+        for (uint32_t i = 0; i < count; i++) {
+            v->entries[i].cmd = NULL;
+            v->entries[i].exit_code = 0;
+        }
+    }
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t cmd_len = 0;
+        if (!mem_read_u32_le(&in, &pos, &cmd_len)) return 0;
+        if ((uint64_t)pos + (uint64_t)cmd_len > (uint64_t)in.len) return 0;
+        char* cmd = (char*)avm_heap_malloc((size_t)cmd_len + 1);
+        if (!cmd) return 0;
+        if (cmd_len > 0) memcpy(cmd, in.data + pos, cmd_len);
+        cmd[cmd_len] = 0;
+        pos += cmd_len;
+
+        uint32_t exit_u32 = 0;
+        if (!mem_read_u32_le(&in, &pos, &exit_u32)) return 0;
+        int32_t exit_i32 = (int32_t)exit_u32;
+
+        v->entries[i].cmd = cmd;
+        v->entries[i].exit_code = exit_i32;
+    }
+
+    if (pos != (uint32_t)in.len) return 0;
+    vm->vproc = v;
     return 1;
 }

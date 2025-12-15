@@ -73,6 +73,10 @@ static void avm_release_heap(AvmVM* vm) {
         AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes;
         collect_value_objects(&objs, v);
     }
+    if (vm->trace_bytes) {
+        AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->trace_bytes;
+        collect_value_objects(&objs, v);
+    }
 
     avm_free_object_table_objects(&objs);
     objtable_free(&objs);

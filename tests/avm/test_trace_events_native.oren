@@ -1,0 +1,10 @@
+fn main() {
+    // Ensure we execute at least one CALL_NATIVE2 (ENV domain).
+    var p = oren_env("PATH")
+    if oren_is_err(p) { oren_exit(1) }
+    if oren_string_len(p) < 0 { oren_exit(1) }
+    oren_exit(0)
+}
+
+main()
+

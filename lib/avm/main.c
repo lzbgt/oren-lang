@@ -774,6 +774,8 @@ typedef struct {
     uint64_t mem_bytes;
     uint64_t io_bytes;
     uint64_t log_bytes;
+    // trace budget (effective, output-configurable; independent from AVM_MEM_BYTES)
+    uint64_t trace_bytes;
     // deterministic knobs
     int deterministic;
     uint64_t time_start_ns;
@@ -788,16 +790,35 @@ typedef struct {
     // output mode (hashable, path-free)
     int record_sink_kind;   // 0 none, 1 file, 2 mem
     int snapshot_out_enabled;
+    // requested output surfaces (must be bound for swarm-style jobs)
+    int output_state_hash;
+    int output_result_hash;
+    int output_trace_hash;
+    int output_trace_bytes;
+    int output_record_log_hex;
+    // trace limits (affect trace outputs)
+    uint64_t trace_step_limit; // 0 => unlimited
+    // FS backend selection (affects whether host is touched)
+    int fs_backend_kind; // 0 host, 1 vfs
+    // PROC backend selection (affects whether host is touched)
+    int proc_backend_kind; // 0 host, 1 vproc
+    int proc_exit_code;    // only meaningful for vproc
+    int has_proc_fixtures_hash;
+    uint8_t proc_fixtures_hash[32];
+    // NET backend selection (affects whether host is touched)
+    int net_backend_kind; // 0 host, 1 vnet
+    int has_net_fixtures_hash;
+    uint8_t net_fixtures_hash[32];
 } AvmExecContext;
 
-static void ctx_hash_sha256_v1(
+static void ctx_hash_sha256_v7(
     const AvmExecContext* ctx,
     const char* fs_allow_prefixes_raw,
     uint8_t out[32]
 ) {
     AvmSha256Ctx h;
     avm_sha256_init(&h);
-    const uint8_t tag[8] = { 'A','V','M','C','T','X','0','2' };
+    const uint8_t tag[8] = { 'A','V','M','C','T','X','0','7' };
     avm_sha256_update(&h, tag, 8);
 
     // flags
@@ -810,6 +831,22 @@ static void ctx_hash_sha256_v1(
     // output config (hashable, path-free)
     sha_u8(&h, (uint8_t)(ctx ? ctx->record_sink_kind : 0));
     sha_u8(&h, (uint8_t)(ctx && ctx->snapshot_out_enabled ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->output_state_hash ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->output_result_hash ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->output_trace_hash ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->output_trace_bytes ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->output_record_log_hex ? 1 : 0));
+    sha_u64_le(&h, ctx ? ctx->trace_step_limit : 0);
+
+    // backend selection
+    sha_u8(&h, (uint8_t)(ctx ? ctx->fs_backend_kind : 0));
+    sha_u8(&h, (uint8_t)(ctx ? ctx->proc_backend_kind : 0));
+    sha_u64_le(&h, (uint64_t)(ctx ? (uint64_t)(uint32_t)ctx->proc_exit_code : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->has_proc_fixtures_hash ? 1 : 0));
+    if (ctx && ctx->has_proc_fixtures_hash) avm_sha256_update(&h, ctx->proc_fixtures_hash, 32);
+    sha_u8(&h, (uint8_t)(ctx ? ctx->net_backend_kind : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->has_net_fixtures_hash ? 1 : 0));
+    if (ctx && ctx->has_net_fixtures_hash) avm_sha256_update(&h, ctx->net_fixtures_hash, 32);
 
     // allowlist (effective)
     sha_u64_le(&h, ctx ? ctx->allow_domains_mask : 0);
@@ -857,6 +894,7 @@ static void ctx_hash_sha256_v1(
     sha_u64_le(&h, ctx ? ctx->mem_bytes : 0);
     sha_u64_le(&h, ctx ? ctx->io_bytes : 0);
     sha_u64_le(&h, ctx ? ctx->log_bytes : 0);
+    sha_u64_le(&h, ctx ? ctx->trace_bytes : 0);
 
     // deterministic knobs
     sha_u8(&h, (uint8_t)(ctx && ctx->deterministic ? 1 : 0));
@@ -877,6 +915,78 @@ static void sha256_job_v2(
     AvmSha256Ctx h;
     avm_sha256_init(&h);
     const uint8_t tag[8] = { 'A','V','M','J','O','B','0','2' };
+    avm_sha256_update(&h, tag, 8);
+    avm_sha256_update(&h, program_hash, 32);
+    avm_sha256_update(&h, policy_hash, 32);
+    avm_sha256_update(&h, input_hash, 32);
+    avm_sha256_update(&h, exec_ctx_hash, 32);
+    avm_sha256_final(&h, out);
+}
+
+static void sha256_job_v3(
+    const uint8_t program_hash[32],
+    const uint8_t policy_hash[32],
+    const uint8_t input_hash[32],
+    const uint8_t exec_ctx_hash[32],
+    uint8_t out[32]
+) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','J','O','B','0','3' };
+    avm_sha256_update(&h, tag, 8);
+    avm_sha256_update(&h, program_hash, 32);
+    avm_sha256_update(&h, policy_hash, 32);
+    avm_sha256_update(&h, input_hash, 32);
+    avm_sha256_update(&h, exec_ctx_hash, 32);
+    avm_sha256_final(&h, out);
+}
+
+static void sha256_job_v4(
+    const uint8_t program_hash[32],
+    const uint8_t policy_hash[32],
+    const uint8_t input_hash[32],
+    const uint8_t exec_ctx_hash[32],
+    uint8_t out[32]
+) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','J','O','B','0','4' };
+    avm_sha256_update(&h, tag, 8);
+    avm_sha256_update(&h, program_hash, 32);
+    avm_sha256_update(&h, policy_hash, 32);
+    avm_sha256_update(&h, input_hash, 32);
+    avm_sha256_update(&h, exec_ctx_hash, 32);
+    avm_sha256_final(&h, out);
+}
+
+static void sha256_job_v6(
+    const uint8_t program_hash[32],
+    const uint8_t policy_hash[32],
+    const uint8_t input_hash[32],
+    const uint8_t exec_ctx_hash[32],
+    uint8_t out[32]
+) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','J','O','B','0','6' };
+    avm_sha256_update(&h, tag, 8);
+    avm_sha256_update(&h, program_hash, 32);
+    avm_sha256_update(&h, policy_hash, 32);
+    avm_sha256_update(&h, input_hash, 32);
+    avm_sha256_update(&h, exec_ctx_hash, 32);
+    avm_sha256_final(&h, out);
+}
+
+static void sha256_job_v7(
+    const uint8_t program_hash[32],
+    const uint8_t policy_hash[32],
+    const uint8_t input_hash[32],
+    const uint8_t exec_ctx_hash[32],
+    uint8_t out[32]
+) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','J','O','B','0','7' };
     avm_sha256_update(&h, tag, 8);
     avm_sha256_update(&h, program_hash, 32);
     avm_sha256_update(&h, policy_hash, 32);
@@ -1044,6 +1154,33 @@ static void parse_fs_allow_prefixes(AvmVM* vm, const char* s) {
     }
 }
 
+static int parse_fs_backend_kind(const char* s, int* out_kind) {
+    if (!out_kind) return 0;
+    *out_kind = 0;
+    if (!s || !s[0]) return 1;
+    if (strcmp(s, "host") == 0) { *out_kind = 0; return 1; }
+    if (strcmp(s, "vfs") == 0) { *out_kind = 1; return 1; }
+    return 0;
+}
+
+static int parse_proc_backend_kind(const char* s, int* out_kind) {
+    if (!out_kind) return 0;
+    *out_kind = 0;
+    if (!s || !s[0]) return 1;
+    if (strcmp(s, "host") == 0) { *out_kind = 0; return 1; }
+    if (strcmp(s, "vproc") == 0) { *out_kind = 1; return 1; }
+    return 0;
+}
+
+static int parse_net_backend_kind(const char* s, int* out_kind) {
+    if (!out_kind) return 0;
+    *out_kind = 0;
+    if (!s || !s[0]) return 1;
+    if (strcmp(s, "host") == 0) { *out_kind = 0; return 1; }
+    if (strcmp(s, "vnet") == 0) { *out_kind = 1; return 1; }
+    return 0;
+}
+
 static const char* op_name(uint8_t op) {
     switch (op) {
         case 0x00: return "NOP";
@@ -1095,6 +1232,141 @@ static void disasm_const(FILE* out, const AvmProgram* prog, uint16_t idx) {
     else if (v.type == AVM_VAL_LIST) fprintf(out, "<list>");
     else if (v.type == AVM_VAL_MAP) fprintf(out, "<map>");
     else fprintf(out, "<val?>");
+}
+
+static void json_print_escaped(FILE* out, const char* s) {
+    if (!out) return;
+    if (!s) s = "";
+    for (const char* p = s; *p; p++) {
+        if (*p == '\\' || *p == '\"') { fprintf(out, "\\%c", *p); }
+        else if (*p == '\n') { fprintf(out, "\\n"); }
+        else if (*p == '\r') { fprintf(out, "\\r"); }
+        else if (*p == '\t') { fprintf(out, "\\t"); }
+        else { fputc(*p, out); }
+    }
+}
+
+static const char* avm_val_type_name(AvmValue v) {
+    switch (v.type) {
+        case AVM_VAL_NIL: return "NIL";
+        case AVM_VAL_INT: return "INT";
+        case AVM_VAL_BOOL: return "BOOL";
+        case AVM_VAL_FLOAT: return "FLOAT";
+        case AVM_VAL_STRING: return "STRING";
+        case AVM_VAL_BYTES: return "BYTES";
+        case AVM_VAL_LIST: return "LIST";
+        case AVM_VAL_MAP: return "MAP";
+        default: return "VAL?";
+    }
+}
+
+static size_t disasm_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
+    if (!code || pc >= code_len) return 1;
+    uint8_t op = code[pc];
+    if (op == 0x02) return 3;                 // PUSH_CONST u16
+    if (op == 0x04 || op == 0x05) return 2;   // LOAD/STORE_LOCAL u8
+    if (op == 0x06 || op == 0x07) return 3;   // LOAD/STORE_GLOBAL u16
+    if (op == 0x30 || op == 0x31) return 3;   // JMP/JMP_IF i16
+    if (op == 0x38) return 4;                 // CALL u16 u8
+    if (op == 0x3A) return 4;                 // CALL_NATIVE u16 u8
+    if (op == 0x3B) return 5;                 // CALL_NATIVE2 u8 u16 u8
+    if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
+    return 1;
+}
+
+static void disasm_program_json(FILE* out, const AvmProgram* prog, int show_consts) {
+    if (!out || !prog) return;
+
+    fprintf(out, "{");
+    fprintf(out, "\"schema\":\"avm.disasm.v1\"");
+    fprintf(out, ",\"const_count\":%llu", (unsigned long long)prog->const_count);
+    fprintf(out, ",\"code_len\":%llu", (unsigned long long)prog->code_len);
+
+    if (show_consts) {
+        fprintf(out, ",\"consts\":[");
+        for (uint16_t i = 0; i < prog->const_count; i++) {
+            if (i) fprintf(out, ",");
+            AvmValue v = prog->constants[i];
+            fprintf(out, "{\"idx\":%u,\"type\":\"%s\"", (unsigned)i, avm_val_type_name(v));
+            if (v.type == AVM_VAL_INT) {
+                fprintf(out, ",\"i64\":%lld", (long long)v.as.i);
+            } else if (v.type == AVM_VAL_BOOL) {
+                fprintf(out, ",\"value\":%s", v.as.i ? "true" : "false");
+            } else if (v.type == AVM_VAL_FLOAT) {
+                fprintf(out, ",\"value\":%f", v.as.f);
+            } else if (v.type == AVM_VAL_STRING) {
+                fprintf(out, ",\"value\":\"");
+                json_print_escaped(out, v.as.p ? (const char*)v.as.p : "");
+                fprintf(out, "\"");
+            } else if (v.type == AVM_VAL_BYTES) {
+                fprintf(out, ",\"len\":%d", v.as.b ? v.as.b->len : 0);
+            }
+            fprintf(out, "}");
+        }
+        fprintf(out, "]");
+    }
+
+    fprintf(out, ",\"code\":[");
+    size_t pc = 0;
+    const uint8_t* code = prog->code;
+    int first = 1;
+    while (pc < prog->code_len) {
+        uint8_t op = code[pc];
+        size_t want_len = disasm_insn_len(code, prog->code_len, pc);
+        size_t remain = prog->code_len - pc;
+        size_t actual_len = want_len <= remain ? want_len : remain;
+        int truncated = (want_len > remain) ? 1 : 0;
+
+        char* hx = bytes_to_hex(code + pc, actual_len);
+
+        if (!first) fprintf(out, ",");
+        first = 0;
+        fprintf(out, "{\"pc\":%llu", (unsigned long long)pc);
+        fprintf(out, ",\"op\":%u", (unsigned)op);
+        fprintf(out, ",\"op_name\":\"%s\"", op_name(op));
+        fprintf(out, ",\"len\":%llu", (unsigned long long)actual_len);
+        fprintf(out, ",\"truncated\":%s", truncated ? "true" : "false");
+        fprintf(out, ",\"bytes_hex\":\"%s\"", hx ? hx : "");
+
+        if (!truncated) {
+            if (op == 0x02) { // PUSH_CONST u16
+                uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                fprintf(out, ",\"operands\":{\"const_idx\":%u}", (unsigned)idx);
+            } else if (op == 0x04 || op == 0x05) { // LOAD/STORE_LOCAL u8
+                fprintf(out, ",\"operands\":{\"local\":%u}", (unsigned)code[pc + 1]);
+            } else if (op == 0x06 || op == 0x07) { // LOAD/STORE_GLOBAL u16
+                uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                fprintf(out, ",\"operands\":{\"global\":%u}", (unsigned)idx);
+            } else if (op == 0x30 || op == 0x31) { // JMP/JMP_IF i16
+                int16_t off = (int16_t)((uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8));
+                size_t pc_after = pc + 3;
+                int64_t target = (int64_t)pc_after + (int64_t)off;
+                fprintf(out, ",\"operands\":{\"off\":%d,\"target\":%lld}", (int)off, (long long)target);
+            } else if (op == 0x38) { // CALL u16_addr u8_nargs
+                uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                uint8_t nargs = code[pc + 3];
+                fprintf(out, ",\"operands\":{\"addr\":%u,\"nargs\":%u}", (unsigned)addr, (unsigned)nargs);
+            } else if (op == 0x3A) { // CALL_NATIVE u16 id u8 nargs
+                uint16_t id = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                uint8_t nargs = code[pc + 3];
+                fprintf(out, ",\"operands\":{\"id\":%u,\"nargs\":%u}", (unsigned)id, (unsigned)nargs);
+            } else if (op == 0x3B) { // CALL_NATIVE2 u8 dom u16 op u8 nargs
+                uint8_t dom = code[pc + 1];
+                uint16_t nop = (uint16_t)code[pc + 2] | ((uint16_t)code[pc + 3] << 8);
+                uint8_t nargs = code[pc + 4];
+                fprintf(out, ",\"operands\":{\"domain\":%u,\"capop\":%u,\"nargs\":%u}", (unsigned)dom, (unsigned)nop, (unsigned)nargs);
+            } else if (op == 0x40 || op == 0x41) { // NEW_LIST/NEW_MAP u16 count
+                uint16_t cnt = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                fprintf(out, ",\"operands\":{\"count\":%u}", (unsigned)cnt);
+            }
+        }
+
+        fprintf(out, "}");
+        if (hx) free(hx);
+        pc += actual_len ? actual_len : 1;
+    }
+    fprintf(out, "]");
+    fprintf(out, "}\n");
 }
 
 static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
@@ -1203,6 +1475,12 @@ int main(int argc, char** argv) {
     const char* snap_out = NULL;
     const char* allow_domains_cli = NULL;
     const char* fs_allow_prefixes_cli = NULL;
+    const char* fs_backend_cli = NULL;
+    const char* proc_backend_cli = NULL;
+    const char* proc_exit_code_cli = NULL;
+    const char* proc_fixtures_hex_cli = NULL;
+    const char* net_backend_cli = NULL;
+    const char* net_fixtures_hex_cli = NULL;
     int prog_args_start = -1;
     int prog_argc = 0;
     char** prog_argv = NULL;
@@ -1213,6 +1491,7 @@ int main(int argc, char** argv) {
     int print_state_hash = 0;
     int print_result_hash = 0;
     int print_trace_hash = 0;
+    int print_trace_bytes_hex = 0;
     int print_policy = 0;
     int print_policy_json = 0;
     int print_job = 0;
@@ -1220,8 +1499,12 @@ int main(int argc, char** argv) {
     int print_record_log_hex = 0;
     int print_mem_stats = 0;
     int print_rss = 0;
+    int inspect = 0;
+    int inspect_json = 0;
     int disasm = 0;
     int disasm_consts = 0;
+    int disasm_json = 0;
+    int disasm_json_consts = 0;
     int trace = 0;
     uint64_t trace_limit = 0;
     int print_stack = 0;
@@ -1269,6 +1552,11 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--print-trace-bytes-hex") == 0) {
+            print_trace_bytes_hex = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--print-record-log-hex") == 0) {
             print_record_log_hex = 1;
             i += 1;
@@ -1304,6 +1592,16 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--inspect") == 0) {
+            inspect = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--inspect-json") == 0) {
+            inspect_json = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--verify-strict") == 0) {
             verify_strict = 1;
             i += 1;
@@ -1331,6 +1629,42 @@ int main(int argc, char** argv) {
             i += 2;
             continue;
         }
+        if (strcmp(argv[i], "--fs-backend") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --fs-backend\n"); return 1; }
+            fs_backend_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--proc-backend") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --proc-backend\n"); return 1; }
+            proc_backend_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--proc-exit-code") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --proc-exit-code\n"); return 1; }
+            proc_exit_code_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--proc-fixtures-hex") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --proc-fixtures-hex\n"); return 1; }
+            proc_fixtures_hex_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--net-backend") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --net-backend\n"); return 1; }
+            net_backend_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--net-fixtures-hex") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --net-fixtures-hex\n"); return 1; }
+            net_fixtures_hex_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
         if (strcmp(argv[i], "--disasm") == 0) {
             disasm = 1;
             i += 1;
@@ -1339,6 +1673,19 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--disasm-consts") == 0) {
             disasm = 1;
             disasm_consts = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--disasm-json") == 0) {
+            disasm = 1;
+            disasm_json = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--disasm-consts-json") == 0) {
+            disasm = 1;
+            disasm_json = 1;
+            disasm_json_consts = 1;
             i += 1;
             continue;
         }
@@ -1391,7 +1738,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] <file.obc> [-- arg1 arg2 ...]\n");
+        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
         free(break_pcs);
         return 1;
     }
@@ -1608,7 +1955,7 @@ int main(int argc, char** argv) {
                 free(break_pcs);
                 return 1;
             }
-            if (print_policy || print_policy_json || print_job || print_job_json) {
+            if (print_policy || print_policy_json || print_job || print_job_json || inspect || inspect_json) {
                 uint64_t mask = 0;
                 PolicyOp* ops = NULL;
                 size_t ops_len = 0;
@@ -1702,6 +2049,22 @@ int main(int argc, char** argv) {
                     ectx.replay_enabled = has_rlog_hash ? 1 : 0;
                     ectx.snapshot_out_enabled = (snap_out && snap_out[0]) ? 1 : 0;
                     ectx.record_sink_kind = 0;
+                    ectx.output_state_hash = print_state_hash ? 1 : 0;
+                    ectx.output_result_hash = print_result_hash ? 1 : 0;
+                    ectx.output_trace_hash = print_trace_hash ? 1 : 0;
+                    ectx.output_trace_bytes = print_trace_bytes_hex ? 1 : 0;
+                    ectx.output_record_log_hex = print_record_log_hex ? 1 : 0;
+                    // Reuse --trace-limit as a generic step limit for trace hashing/bytes if provided (0 => unlimited).
+                    ectx.trace_step_limit = trace_limit;
+                    ectx.trace_bytes = 0;
+                    ectx.fs_backend_kind = 0;
+                    ectx.proc_backend_kind = 0;
+                    ectx.proc_exit_code = 0;
+                    ectx.has_proc_fixtures_hash = 0;
+                    memset(ectx.proc_fixtures_hash, 0, 32);
+                    ectx.net_backend_kind = 0;
+                    ectx.has_net_fixtures_hash = 0;
+                    memset(ectx.net_fixtures_hash, 0, 32);
 
                     // record enabled if any record sink is configured (file or mem).
                     const char* rec_env = getenv("AVM_RECORD_LOG");
@@ -1726,18 +2089,99 @@ int main(int argc, char** argv) {
                     const char* mem_env = getenv("AVM_MEM_BYTES");
                     const char* io_env = getenv("AVM_IO_BYTES");
                     const char* log_env = getenv("AVM_LOG_BYTES");
+                    const char* trace_env = getenv("AVM_TRACE_BYTES");
 
                     if (gas_env && gas_env[0]) ectx.gas = strtoull(gas_env, NULL, 10);
                     if (timeout_env && timeout_env[0]) ectx.timeout_ms = strtoull(timeout_env, NULL, 10);
                     if (mem_env && mem_env[0]) ectx.mem_bytes = strtoull(mem_env, NULL, 10);
                     if (io_env && io_env[0]) ectx.io_bytes = strtoull(io_env, NULL, 10);
                     if (log_env && log_env[0]) ectx.log_bytes = strtoull(log_env, NULL, 10);
+                    if (trace_env && trace_env[0]) ectx.trace_bytes = strtoull(trace_env, NULL, 10);
                     if (capsule) {
                         if ((!gas_env || !gas_env[0]) && ectx.gas == 0) ectx.gas = 5000000ull;
                         if ((!timeout_env || !timeout_env[0]) && ectx.timeout_ms == 0) ectx.timeout_ms = 2000ull;
                         if ((!mem_env || !mem_env[0]) && ectx.mem_bytes == 0) ectx.mem_bytes = 32ull * 1024ull * 1024ull;
                         if ((!io_env || !io_env[0]) && ectx.io_bytes == 0) ectx.io_bytes = 1024ull * 1024ull;
                         if ((!log_env || !log_env[0]) && ectx.log_bytes == 0) ectx.log_bytes = 1024ull * 1024ull;
+                        // Keep trace-bytes default isolated and explicit: only default if trace output is requested.
+                        if (ectx.output_trace_bytes && (!trace_env || !trace_env[0]) && ectx.trace_bytes == 0) {
+                            ectx.trace_bytes = 1024ull * 1024ull;
+                        }
+                    }
+
+                    // FS backend selection (host vs virtual). Used for job hashing because it changes whether the host is touched.
+                    const char* fs_backend_s = fs_backend_cli ? fs_backend_cli : getenv("AVM_FS_BACKEND");
+                    if (capsule && (!fs_backend_s || !fs_backend_s[0])) fs_backend_s = "vfs";
+                    if (!parse_fs_backend_kind(fs_backend_s, &ectx.fs_backend_kind)) {
+                        fprintf(stderr, "Invalid fs backend (expected 'host' or 'vfs')\n");
+                        free(ops);
+                        free_constant_pool(consts, n_consts);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+
+                    // PROC backend selection (host vs virtual). Used for job hashing because it changes whether the host is touched.
+                    const char* proc_backend_s = proc_backend_cli ? proc_backend_cli : getenv("AVM_PROC_BACKEND");
+                    if (capsule && (!proc_backend_s || !proc_backend_s[0])) proc_backend_s = "vproc";
+                    if (!parse_proc_backend_kind(proc_backend_s, &ectx.proc_backend_kind)) {
+                        fprintf(stderr, "Invalid proc backend (expected 'host' or 'vproc')\n");
+                        free(ops);
+                        free_constant_pool(consts, n_consts);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    const char* proc_ec_s = proc_exit_code_cli ? proc_exit_code_cli : getenv("AVM_PROC_EXIT_CODE");
+                    if (proc_ec_s && proc_ec_s[0]) ectx.proc_exit_code = (int)strtoll(proc_ec_s, NULL, 10);
+                    const char* proc_fixtures_hex = proc_fixtures_hex_cli ? proc_fixtures_hex_cli : getenv("AVM_PROC_FIXTURES_HEX");
+                    if (proc_fixtures_hex && proc_fixtures_hex[0]) {
+                        AvmBytes* b = bytes_from_hex(proc_fixtures_hex);
+                        if (!b) {
+                            fprintf(stderr, "Invalid proc fixtures hex\n");
+                            free(ops);
+                            free_constant_pool(consts, n_consts);
+                            free(consts);
+                            free(data);
+                            free(break_pcs);
+                            return 1;
+                        }
+                        sha256_tagged_bytes8("AVMPRCF1", b->data, (size_t)b->len, ectx.proc_fixtures_hash);
+                        ectx.has_proc_fixtures_hash = 1;
+                        free(b->data);
+                        free(b);
+                    }
+
+                    // NET backend selection (host vs virtual).
+                    const char* net_backend_s = net_backend_cli ? net_backend_cli : getenv("AVM_NET_BACKEND");
+                    if (capsule && (!net_backend_s || !net_backend_s[0])) net_backend_s = "vnet";
+                    if (!parse_net_backend_kind(net_backend_s, &ectx.net_backend_kind)) {
+                        fprintf(stderr, "Invalid net backend (expected 'host' or 'vnet')\n");
+                        free(ops);
+                        free_constant_pool(consts, n_consts);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    const char* net_fixtures_hex = net_fixtures_hex_cli ? net_fixtures_hex_cli : getenv("AVM_NET_FIXTURES_HEX");
+                    if (net_fixtures_hex && net_fixtures_hex[0]) {
+                        AvmBytes* b = bytes_from_hex(net_fixtures_hex);
+                        if (!b) {
+                            fprintf(stderr, "Invalid net fixtures hex\n");
+                            free(ops);
+                            free_constant_pool(consts, n_consts);
+                            free(consts);
+                            free(data);
+                            free(break_pcs);
+                            return 1;
+                        }
+                        sha256_tagged_bytes8("AVMNETF1", b->data, (size_t)b->len, ectx.net_fixtures_hash);
+                        ectx.has_net_fixtures_hash = 1;
+                        free(b->data);
+                        free(b);
                     }
 
                     // capability allowlist (effective): bind the *effective* mask.
@@ -1759,16 +2203,16 @@ int main(int argc, char** argv) {
                     const char* fs_allow_s = fs_allow_prefixes_cli ? fs_allow_prefixes_cli : getenv("AVM_FS_ALLOW_PREFIXES");
                     uint8_t ctx_hash[32];
                     char ctx_hex[65];
-                    ctx_hash_sha256_v1(&ectx, fs_allow_s, ctx_hash);
+                    ctx_hash_sha256_v7(&ectx, fs_allow_s, ctx_hash);
                     avm_sha256_hex(ctx_hash, ctx_hex);
 
                     uint8_t job_hash[32];
                     char job_hex[65];
-                    sha256_job_v2(prog_hash, phash, input_hash, ctx_hash, job_hash);
+                    sha256_job_v7(prog_hash, phash, input_hash, ctx_hash, job_hash);
                     avm_sha256_hex(job_hash, job_hex);
 
                     if (print_job_json) {
-                        printf("{\"schema\":\"avm.job.v2\",\"job_hash_sha256\":\"%s\",\"program_hash_sha256\":\"%s\",\"input_hash_sha256\":\"%s\",\"exec_hash_sha256\":\"%s\",\"policy\":{",
+                        printf("{\"schema\":\"avm.job.v7\",\"job_hash_sha256\":\"%s\",\"program_hash_sha256\":\"%s\",\"input_hash_sha256\":\"%s\",\"exec_hash_sha256\":\"%s\",\"policy\":{",
                             job_hex, prog_hex, input_hex, ctx_hex);
                         printf("\"schema\":\"avm.policy.v1\",\"used_domains_mask\":\"0x%016llx\",\"policy_hash_sha256\":\"%s\",\"ops\":[",
                             (unsigned long long)mask, phash_hex);
@@ -1818,6 +2262,15 @@ int main(int argc, char** argv) {
                         else printf(",\"record_sink\":\"none\"");
                         printf(",\"replay_enabled\":%s", ectx.replay_enabled ? "true" : "false");
                         printf(",\"snapshot_out_enabled\":%s", ectx.snapshot_out_enabled ? "true" : "false");
+                        printf(",\"outputs\":{\"state_hash\":%s,\"result_hash\":%s,\"trace_hash\":%s,\"trace_bytes\":%s,\"record_log_hex\":%s}",
+                            ectx.output_state_hash ? "true" : "false",
+                            ectx.output_result_hash ? "true" : "false",
+                            ectx.output_trace_hash ? "true" : "false",
+                            ectx.output_trace_bytes ? "true" : "false",
+                            ectx.output_record_log_hex ? "true" : "false");
+                        printf(",\"trace\":{\"step_limit\":%llu,\"trace_bytes\":%llu}",
+                            (unsigned long long)ectx.trace_step_limit,
+                            (unsigned long long)ectx.trace_bytes);
                         printf(",\"allow_domains_mask\":\"0x%016llx\"", (unsigned long long)ectx.allow_domains_mask);
                         if (fs_allow_s && fs_allow_s[0]) {
                             // raw string for now (rolling); hash uses normalized tokenization.
@@ -1831,12 +2284,27 @@ int main(int argc, char** argv) {
                             }
                             printf("\"");
                         }
-                        printf(",\"budgets\":{\"gas\":%llu,\"timeout_ms\":%llu,\"mem_bytes\":%llu,\"io_bytes\":%llu,\"log_bytes\":%llu}",
+                        printf(",\"fs_backend\":\"%s\"", ectx.fs_backend_kind == 1 ? "vfs" : "host");
+                        printf(",\"proc_backend\":\"%s\"", ectx.proc_backend_kind == 1 ? "vproc" : "host");
+                        printf(",\"proc_exit_code\":%d", ectx.proc_exit_code);
+                        if (ectx.has_proc_fixtures_hash) {
+                            char prh[65];
+                            avm_sha256_hex(ectx.proc_fixtures_hash, prh);
+                            printf(",\"proc_fixtures_hash_sha256\":\"%s\"", prh);
+                        }
+                        printf(",\"net_backend\":\"%s\"", ectx.net_backend_kind == 1 ? "vnet" : "host");
+                        if (ectx.has_net_fixtures_hash) {
+                            char nh[65];
+                            avm_sha256_hex(ectx.net_fixtures_hash, nh);
+                            printf(",\"net_fixtures_hash_sha256\":\"%s\"", nh);
+                        }
+                        printf(",\"budgets\":{\"gas\":%llu,\"timeout_ms\":%llu,\"mem_bytes\":%llu,\"io_bytes\":%llu,\"log_bytes\":%llu,\"trace_bytes\":%llu}",
                             (unsigned long long)ectx.gas,
                             (unsigned long long)ectx.timeout_ms,
                             (unsigned long long)ectx.mem_bytes,
                             (unsigned long long)ectx.io_bytes,
-                            (unsigned long long)ectx.log_bytes);
+                            (unsigned long long)ectx.log_bytes,
+                            (unsigned long long)ectx.trace_bytes);
                         printf(",\"deterministic\":{\"enabled\":%s,\"time_start_ns\":%llu,\"time_step_ns\":%llu,\"rng_seed\":%llu}",
                             ectx.deterministic ? "true" : "false",
                             (unsigned long long)ectx.time_start_ns,
@@ -1849,6 +2317,43 @@ int main(int argc, char** argv) {
                         printf("PROGRAM_HASH_SHA256 %s\n", prog_hex);
                         printf("INPUT_HASH_SHA256 %s\n", input_hex);
                         printf("EXEC_HASH_SHA256 %s\n", ctx_hex);
+                        printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)mask);
+                        printf("POLICY_HASH_SHA256 %s\n", phash_hex);
+                        for (size_t j = 0; j < ops_len; j++) {
+                            printf("POLICY_USED_OP domain=%u op=%u\n", (unsigned)ops[j].domain, (unsigned)ops[j].op);
+                        }
+                    }
+                } else if (inspect || inspect_json) {
+                    uint8_t prog_hash[32];
+                    char prog_hex[65];
+                    sha256_bytes(data, len, prog_hash);
+                    avm_sha256_hex(prog_hash, prog_hex);
+
+                    if (inspect_json) {
+                        printf("{\"schema\":\"avm.obc.v1\"");
+                        printf(",\"magic\":\"0x0ecd\"");
+                        printf(",\"file_len\":%llu", (unsigned long long)len);
+                        printf(",\"program_hash_sha256\":\"%s\"", prog_hex);
+                        printf(",\"const_count\":%u", (unsigned)n_consts);
+                        printf(",\"code_len\":%llu", (unsigned long long)prog.code_len);
+                        printf(",\"policy\":{");
+                        printf("\"schema\":\"avm.policy.v1\"");
+                        printf(",\"used_domains_mask\":\"0x%016llx\"", (unsigned long long)mask);
+                        printf(",\"policy_hash_sha256\":\"%s\"", phash_hex);
+                        printf(",\"ops\":[");
+                        for (size_t j = 0; j < ops_len; j++) {
+                            if (j) printf(",");
+                            printf("{\"domain\":%u,\"op\":%u}", (unsigned)ops[j].domain, (unsigned)ops[j].op);
+                        }
+                        printf("]}");
+                        printf("}\n");
+                    } else {
+                        printf("OBC_SCHEMA avm.obc.v1\n");
+                        printf("OBC_MAGIC 0x0ecd\n");
+                        printf("OBC_FILE_LEN %llu\n", (unsigned long long)len);
+                        printf("PROGRAM_HASH_SHA256 %s\n", prog_hex);
+                        printf("CONST_COUNT %u\n", (unsigned)n_consts);
+                        printf("CODE_LEN %llu\n", (unsigned long long)prog.code_len);
                         printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)mask);
                         printf("POLICY_HASH_SHA256 %s\n", phash_hex);
                         for (size_t j = 0; j < ops_len; j++) {
@@ -1872,7 +2377,7 @@ int main(int argc, char** argv) {
                 }
                 free(ops);
 
-                // Safety guarantee: --print-policy* must not execute bytecode.
+                // Safety guarantee: scan-only tooling must not execute bytecode.
                 // (Disassembly is still allowed because it is non-effectful.)
                 if (!disasm) {
                     free_constant_pool(consts, n_consts);
@@ -1885,7 +2390,8 @@ int main(int argc, char** argv) {
         }
 
         if (disasm) {
-            disasm_program(stdout, &prog, disasm_consts);
+            if (disasm_json) disasm_program_json(stdout, &prog, disasm_consts || disasm_json_consts);
+            else disasm_program(stdout, &prog, disasm_consts);
             free_constant_pool(consts, n_consts);
             free(consts);
             exit_code = 0;
@@ -1904,6 +2410,15 @@ int main(int argc, char** argv) {
             vm->trace_hash_enabled = 1;
             // Reuse --trace-limit as a generic step limit for trace hashing if provided.
             vm->trace_hash_limit = trace_limit;
+        }
+        if (print_trace_bytes_hex) {
+            vm->trace_bytes_enabled = 1;
+            vm->trace_bytes_limit = trace_limit;
+            const char* trace_budget_env = getenv("AVM_TRACE_BYTES");
+            if (trace_budget_env && trace_budget_env[0]) vm->trace_budget_bytes = strtoull(trace_budget_env, NULL, 10);
+            if (capsule && (!trace_budget_env || !trace_budget_env[0]) && vm->trace_budget_bytes == 0) {
+                vm->trace_budget_bytes = 1024ull * 1024ull; // 1 MiB default in capsule mode
+            }
         }
         if (break_pc_count > 0) {
             if (repeat == 1) {
@@ -2151,6 +2666,95 @@ int main(int argc, char** argv) {
         const char* fs_allow_s = fs_allow_prefixes_cli ? fs_allow_prefixes_cli : getenv("AVM_FS_ALLOW_PREFIXES");
         parse_fs_allow_prefixes(vm, fs_allow_s);
 
+        const char* fs_backend_s = fs_backend_cli ? fs_backend_cli : getenv("AVM_FS_BACKEND");
+        if (capsule && (!fs_backend_s || !fs_backend_s[0])) fs_backend_s = "vfs";
+        if (!parse_fs_backend_kind(fs_backend_s, &vm->fs_backend_kind)) {
+            fprintf(stderr, "Invalid fs backend (expected 'host' or 'vfs')\n");
+            avm_free(vm);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
+        const char* proc_backend_s = proc_backend_cli ? proc_backend_cli : getenv("AVM_PROC_BACKEND");
+        if (capsule && (!proc_backend_s || !proc_backend_s[0])) proc_backend_s = "vproc";
+        if (!parse_proc_backend_kind(proc_backend_s, &vm->proc_backend_kind)) {
+            fprintf(stderr, "Invalid proc backend (expected 'host' or 'vproc')\n");
+            avm_free(vm);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
+        const char* proc_ec_s = proc_exit_code_cli ? proc_exit_code_cli : getenv("AVM_PROC_EXIT_CODE");
+        if (proc_ec_s && proc_ec_s[0]) vm->proc_exit_code = (int)strtoll(proc_ec_s, NULL, 10);
+        const char* proc_fixtures_hex = proc_fixtures_hex_cli ? proc_fixtures_hex_cli : getenv("AVM_PROC_FIXTURES_HEX");
+        if (vm->proc_backend_kind == 1 && proc_fixtures_hex && proc_fixtures_hex[0]) {
+            AvmBytes* b = bytes_from_hex(proc_fixtures_hex);
+            if (!b) {
+                fprintf(stderr, "Invalid proc fixtures hex\n");
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            if (!avm_proc_load_fixtures(vm, b->data, (size_t)b->len)) {
+                fprintf(stderr, "Failed to load proc fixtures (expected magic AVMPRC01)\n");
+                free(b->data);
+                free(b);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            free(b->data);
+            free(b);
+        }
+
+        const char* net_backend_s = net_backend_cli ? net_backend_cli : getenv("AVM_NET_BACKEND");
+        if (capsule && (!net_backend_s || !net_backend_s[0])) net_backend_s = "vnet";
+        if (!parse_net_backend_kind(net_backend_s, &vm->net_backend_kind)) {
+            fprintf(stderr, "Invalid net backend (expected 'host' or 'vnet')\n");
+            avm_free(vm);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
+        const char* net_fixtures_hex = net_fixtures_hex_cli ? net_fixtures_hex_cli : getenv("AVM_NET_FIXTURES_HEX");
+        if (vm->net_backend_kind == 1 && net_fixtures_hex && net_fixtures_hex[0]) {
+            AvmBytes* b = bytes_from_hex(net_fixtures_hex);
+            if (!b) {
+                fprintf(stderr, "Invalid net fixtures hex\n");
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            if (!avm_net_load_fixtures(vm, b->data, (size_t)b->len)) {
+                fprintf(stderr, "Invalid net fixtures format\n");
+                free(b->data);
+                free(b);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            free(b->data);
+            free(b);
+        }
+
         avm_load(vm, &prog);
 
         if (snap_in) {
@@ -2199,6 +2803,22 @@ int main(int argc, char** argv) {
                 printf("TRACE_HASH %s\n", hex);
             } else {
                 printf("TRACE_HASH_ERROR\n");
+            }
+        }
+
+        if (print_trace_bytes_hex) {
+            printf("TRACE_TRUNCATED %d\n", vm->trace_bytes_truncated ? 1 : 0);
+            AvmBytes* tb = avm_trace_bytes(vm);
+            if (tb && tb->data && tb->len >= 8) {
+                char* hex = bytes_to_hex(tb->data, (size_t)tb->len);
+                if (hex) {
+                    printf("TRACE_BYTES_HEX %s\n", hex);
+                    free(hex);
+                } else {
+                    printf("TRACE_BYTES_HEX_ERROR\n");
+                }
+            } else {
+                printf("TRACE_BYTES_HEX_ERROR\n");
             }
         }
 

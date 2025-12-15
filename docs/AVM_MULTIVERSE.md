@@ -125,7 +125,7 @@ Bootstrap status (repo reality as of 2025-12-15):
 
 - FS/PROC/ENV now support minimal record/replay logs in `avm` (rolling), including in-memory “log as data” (`BYTES`).
 - TIME/RNG are virtualized in deterministic mode (derived virtual clock + deterministic PRNG).
-- NET is not virtualized yet.
+- NET is virtualized in bootstrap via **VirtualNET fixtures** (no host network; deterministic fixture responses).
 
 Nested universes become dramatically more attractive once TIME and RNG are virtualized, because agents often depend on them even when “no external I/O” is intended.
 
@@ -194,6 +194,23 @@ To make “source → `.obc` inside AVM” useful (not just theoretical), we nee
    - record/replay logs and capsule outputs must be budgeted to prevent amplification.
 
 This design composes naturally with “AVM-in-AVM”: compilation is “just another universe”.
+
+## 6.2) Current bootstrap cfg keys for nested universes (implementation reality)
+
+When calling `oren_avm_run_obc_bytes(child_obc_bytes, cfg_map)`, the following `cfg` keys exist today (rolling, unstable):
+
+- Capabilities/budgets/determinism:
+  - `allowed_domains: int` (bitmask)
+  - `gas_limit: int`, `deadline_ns: int`, `mem_bytes: int`, `io_bytes: int`, `log_bytes: int`
+  - `deterministic: bool`, `time_start_ns: int`, `time_step_ns: int`, `rng_seed: int`
+- Virtual backends (avoid host effects):
+  - `fs_backend: int` (`1` = VirtualFS, `0` = host FS)
+  - `proc_backend: int` (`1` = VirtualPROC, `0` = host PROC)
+  - `net_backend: int` (`1` = VirtualNET, `0` = host NET (not implemented in bootstrap)`)
+- Fixture injection as data (for nested universes):
+  - `vfs_fixtures: bytes` with magic `AVMVFS01` (path→bytes table)
+  - `proc_fixtures: bytes` with magic `AVMPRC01` (cmd→exit_code table)
+  - `net_fixtures: bytes` with magic `AVMNET01` (url→body table)
 
 ## 7) Top emergency tasks (prioritized)
 

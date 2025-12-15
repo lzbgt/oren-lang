@@ -219,6 +219,30 @@ Disassemble with constants:
 ./avm --disasm-consts build/tmp.obc
 ```
 
+Machine-readable disassembly (JSON):
+
+```bash
+./avm --disasm-json build/tmp.obc
+```
+
+Machine-readable disassembly including constants:
+
+```bash
+./avm --disasm-consts-json build/tmp.obc
+```
+
+Inspect `.obc` metadata (otool-like header/policy scan) without executing bytecode:
+
+```bash
+./avm --inspect build/tmp.obc
+```
+
+Machine-readable JSON form (scan-only):
+
+```bash
+./avm --inspect-json build/tmp.obc
+```
+
 ### 5.2 Trace execution
 
 Trace all executed instructions (prints to stderr):

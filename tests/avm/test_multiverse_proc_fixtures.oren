@@ -1,0 +1,30 @@
+fn main() {
+    // Parent universe reads a child .obc as BYTES, then runs it as a nested universe
+    // via the AVM capability domain (domain 8).
+    //
+    // Makefile builds the child .obc at:
+    //   build/multiverse_child_proc.obc
+    var child_obc = oren_read_bytes("build/multiverse_child_proc.obc")
+
+    // Child must be able to use CORE (domain 0) and PROC (domain 5).
+    var allowed = (1 << 0) + (1 << 5)
+
+    // AVMPRC01 fixtures: 1 entry mapping cmd="echo hi" -> exit_code=0
+    // Note: exit_code is stored as u32_le (int32 payload), so 0 is 00000000.
+    var proc_fx = oren_bytes_from_hex("41564d505243303101000000070000006563686f20686900000000")
+
+    var cfg = {
+        "deterministic": true,
+        "gas_limit": 1000000,
+        "allowed_domains": allowed,
+        "proc_backend": 1,
+        "proc_exit_code": 7,
+        "proc_fixtures": proc_fx
+    }
+
+    var r1 = oren_avm_run_obc_bytes(child_obc, cfg)
+    oren_set_result({"exit_code": r1["exit_code"], "log_len": oren_bytes_len(r1["record_log"])})
+}
+
+main()
+

@@ -1,0 +1,17 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    // This test is intended to run with:
+    //   --net-backend vnet --net-fixtures-hex <...>
+    // so NET domain calls do not touch the host network.
+    var body = oren_net_get("u")
+    if body != "ok" { fail("unexpected body") }
+    oren_exit(0)
+}
+
+main()
+

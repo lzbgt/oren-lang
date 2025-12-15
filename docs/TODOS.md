@@ -8,23 +8,51 @@ Last updated: 2025-12-15
 
 ### AVM (agentic execution substrate)
 
-1) **Capsule hardening follow-ups**
-   - `--capsule` / `--untrusted` now exists and implies `--verify-strict`, deny-by-default, and conservative budgets.
-   - Added a capsule-friendly allowlist UX: `--allow-domains ...` and `--fs-allow-prefixes ...` (env vars still supported).
-   - Next: make capsule allowlists part of a signed/hashed “job object” (bind policy/budgets to program + input hashes).
+1) **Capsule must be “no host effects” by default**
+   - Goal: when running `avm --capsule` (untrusted), **do not touch the host** even if the bytecode requests FS/PROC/NET and you choose to allow those domains.
+   - Enforce by defaulting capsule runs to Virtual* backends unless explicitly overridden:
+     - `fs_backend=vfs`
+     - `proc_backend=vproc`
+     - `net_backend=vnet` (host NET remains not implemented in bootstrap)
+   - This prevents accidental “allowed FS means host FS” mistakes in governance workflows.
 
-2) **Governance-ready policy object (bind to program + inputs)**
+2) **Virtual backends (no-host effects) for safety + multiverse**
+   - Goal: allow AVM programs (and nested universes) to use FS/PROC/NET-like APIs **without touching the host** (even in “record” runs).
+   - This is required for:
+     - safe “Matrix” simulation (thousands of sandboxes)
+     - deterministic replay across swarm nodes
+     - running untrusted plugins without giving host FS/PROC
+   - Minimal order:
+     - VirtualFS (in-memory) for FS domain (read/write string + bytes), with IO/log budgeting and deterministic behavior
+     - VirtualPROC fixture backend (no real subprocesses; deterministic fixture responses) for PROC domain
+     - VirtualNET fixture backend (scripted request/response) for NET domain
+     - Nested-universe fixture injection as data (`cfg.vfs_fixtures`, `cfg.proc_fixtures`, `cfg.net_fixtures`)
+   - Must bind the chosen backend mode + fixtures into `exec_hash_sha256` / job objects (so consensus sees “what environment was used”).
+
+3) **Governance-ready job object (bind to program + inputs + exec context)**
    - `--print-policy*` is scan-before-execute (no bytecode execution) and now outputs a stable `policy_hash_sha256` (`schema: avm.policy.v1`).
    - Added `--print-job` / `--print-job-json` (schema `avm.job.v1`) which computes `job_hash_sha256 = H(program_hash, policy_hash, input_hash)` without executing bytecode.
    - Updated `--print-job*` to schema `avm.job.v2`: `job_hash_sha256 = H(program_hash, policy_hash, input_hash, exec_hash)` where `exec_hash` binds effective allowlists + fs prefixes + budgets + deterministic knobs.
-   - Next: bind output channels too (VirtualFS/VirtualPROC fixtures), then treat `job_hash` as the swarm consensus key.
+   - Updated `--print-job*` to schema `avm.job.v4`: `exec_hash` also binds requested output surfaces (trace bytes/hash, record-log hex, snapshot-out enablement, trace limits) plus FS backend selection (`host|vfs`).
+   - Updated `--print-job*` to schema `avm.job.v5`: `exec_hash` also binds PROC backend selection (`host|vproc`) and `proc_exit_code` when `vproc` is selected.
+   - Updated `--print-job*` to schema `avm.job.v6`: `exec_hash` also binds NET backend selection (`host|vnet`) and `net_fixtures_hash_sha256` when fixtures are provided.
+   - Updated `--print-job*` to schema `avm.job.v7`: `exec_hash` also binds VirtualPROC fixtures (`proc_fixtures_hash_sha256`) when fixtures are provided.
+   - Next: treat `job_hash` as the swarm consensus key (signatures/attestations are a later layer; don’t block bootstrap).
+
+4) **Diagnostics must not affect semantics**
+   - Tracing/profiling must be best-effort and must not change VM outcome.
+   - In particular: trace-bytes capture should truncate/disable on budget exhaustion (do not abort the VM).
+   - Also: trace-bytes capture must not consume `AVM_MEM_BYTES` (program heap budget); it should be governed by `AVM_TRACE_BYTES` instead.
 
 ## P1 (High Leverage for Agentic Debugging / Swarm)
 
 1) **Deterministic trace as data + `TRACE_HASH`**
    - Encode trace events into `BYTES` deterministically.
    - Hash trace stream for k-of-n validation and agentic diffing.
-   - Bootstrap status: `avm --print-trace-hash` exists; next is “trace as BYTES” (export + budget) and richer event categories.
+   - Bootstrap status:
+     - `avm --print-trace-hash` exists.
+     - `avm --print-trace-bytes-hex` exists (hex transport).
+   - Next: extend event categories (alloc/error object metadata/spans) and add a BYTES return channel (not only hex dump).
 
 2) **Deterministic cooperative tasks (AVM concurrency model)**
    - Define/implement a deterministic scheduler (single-threaded baseline first).
@@ -34,8 +62,13 @@ Last updated: 2025-12-15
      - budgets and capability gating
    - Design doc: `docs/AVM_CONCURRENCY.md`.
 
-2) **Snapshot/restore “capsule” hardening**
+3) **Snapshot/restore “capsule” hardening**
    - Move toward capsule-friendly formats (hashable, resumable, policy-bound).
+
+4) **Tooling: disassembler + debugger + profiler**
+   - Disassembler: stable “otool-like” `.obc` inspector (sections, consts, policy, hashes).
+   - Debugger: minimal “lldb-like” stepping + breakpoints + trace correlation (pc/op/stack depth).
+   - Profiler: memory/time attribution surfaces that are deterministic / loggable (must not change semantics).
 
 ## P2 (Next-Gen AVM Performance + Features)
 
@@ -60,3 +93,8 @@ Last updated: 2025-12-15
 - Leak-free teardown: VM frees remaining unreachable heap allocations at `avm_free()` (no tracing GC during run yet).
 - Record/replay log budget (`AVM_LOG_BYTES`) + child `cfg.log_bytes` subset enforcement (preflight prevents un-loggable side effects in record mode).
 - `avm` tooling: disasm/trace/breakpoints + mem-stats + `--repeat` + `--print-rss`.
+- Trace bytes capture is best-effort: if `AVM_TRACE_BYTES` budget is exceeded, AVM truncates trace bytes and prints `TRACE_TRUNCATED 1` (does not abort execution).
+- VirtualFS (bootstrap): FS domain can run with `--fs-backend vfs` / `AVM_FS_BACKEND=vfs` to avoid host filesystem effects (useful for multiverse + capsules).
+- VirtualPROC (bootstrap): PROC domain can run with `--proc-backend vproc` / `AVM_PROC_BACKEND=vproc` to avoid host subprocesses (returns deterministic `AVM_PROC_EXIT_CODE`).
+- VirtualPROC fixtures (bootstrap): PROC domain can run with `--proc-fixtures-hex` / `AVM_PROC_FIXTURES_HEX=...` to return deterministic fixture exit codes for known commands (still never touches host subprocesses).
+- VirtualNET (bootstrap): NET domain can run with `--net-backend vnet` / `AVM_NET_BACKEND=vnet` plus `AVM_NET_FIXTURES_HEX=...` to avoid host network (returns deterministic fixture bodies).

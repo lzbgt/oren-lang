@@ -1,0 +1,11 @@
+fn main() {
+    // Exercise PROC fixture injection in nested universes.
+    // Parent will set proc_exit_code=7 and provide a fixture mapping this command -> 0.
+    var rc = oren_system("echo hi")
+    if rc != 0 { oren_exit(1) }
+    oren_set_result(rc)
+    oren_exit(0)
+}
+
+main()
+

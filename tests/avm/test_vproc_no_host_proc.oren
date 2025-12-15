@@ -1,0 +1,19 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    // This test is intended to run with:
+    //   --proc-backend vproc --proc-exit-code 0
+    // so PROC domain calls do not touch the host process table.
+    var path = "build/avm_vproc_should_not_touch.txt"
+    var cmd = "sh -c 'echo hi > " + path + "'"
+    var rc = oren_system(cmd)
+    if rc != 0 { fail("unexpected rc") }
+    oren_exit(0)
+}
+
+main()
+

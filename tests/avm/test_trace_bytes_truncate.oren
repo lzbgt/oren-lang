@@ -1,0 +1,15 @@
+fn main() {
+    // A small program that executes multiple opcodes so trace capture would normally grow.
+    // The Makefile runs this with AVM_TRACE_BYTES=8, which only fits the AVMTRC02 header.
+    var x = 0
+    var i = 0
+    while i < 50 {
+        x = x + i
+        i = i + 1
+    }
+    if x == 0 { oren_exit(1) }
+    oren_exit(0)
+}
+
+main()
+

@@ -949,6 +949,145 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
     return 1;
 }
 
+typedef struct {
+    char* path;
+    uint8_t* data;
+    uint32_t len;
+} AvmVfsEntry;
+
+typedef struct {
+    AvmVfsEntry* entries;
+    uint32_t count;
+    uint32_t cap;
+} AvmVfs;
+
+static AvmVfs* avm_vfs_get_or_create(AvmVM* vm) {
+    if (!vm) return NULL;
+    if (vm->vfs) return (AvmVfs*)vm->vfs;
+    AvmVfs* v = (AvmVfs*)avm_heap_malloc(sizeof(AvmVfs));
+    if (!v) return NULL;
+    v->entries = NULL;
+    v->count = 0;
+    v->cap = 0;
+    vm->vfs = v;
+    return v;
+}
+
+static AvmVfsEntry* avm_vfs_find(AvmVfs* v, const char* path) {
+    if (!v || !path) return NULL;
+    for (uint32_t i = 0; i < v->count; i++) {
+        if (v->entries[i].path && strcmp(v->entries[i].path, path) == 0) return &v->entries[i];
+    }
+    return NULL;
+}
+
+static int avm_vfs_ensure_cap(AvmVfs* v, uint32_t need) {
+    if (!v) return 0;
+    if (need <= v->cap) return 1;
+    uint32_t nc = v->cap ? v->cap : 16;
+    while (nc < need) nc *= 2;
+    AvmVfsEntry* ne = (AvmVfsEntry*)avm_heap_realloc(v->entries, sizeof(AvmVfsEntry) * (size_t)nc);
+    if (!ne) return 0;
+    // Initialize new slots to a safe state.
+    for (uint32_t i = v->cap; i < nc; i++) {
+        ne[i].path = NULL;
+        ne[i].data = NULL;
+        ne[i].len = 0;
+    }
+    v->entries = ne;
+    v->cap = nc;
+    return 1;
+}
+
+static int avm_vfs_put(AvmVM* vm, const char* path, const uint8_t* data, uint32_t len) {
+    if (!vm || !path) return 0;
+    AvmVfs* v = avm_vfs_get_or_create(vm);
+    if (!v) return 0;
+
+    AvmVfsEntry* e = avm_vfs_find(v, path);
+    if (!e) {
+        if (!avm_vfs_ensure_cap(v, v->count + 1)) return 0;
+        e = &v->entries[v->count++];
+        e->path = NULL;
+        e->data = NULL;
+        e->len = 0;
+
+        size_t pl = strlen(path);
+        e->path = (char*)avm_heap_malloc(pl + 1);
+        if (!e->path) return 0;
+        memcpy(e->path, path, pl);
+        e->path[pl] = 0;
+    } else {
+        if (e->data) avm_heap_free(e->data);
+        e->data = NULL;
+        e->len = 0;
+    }
+
+    if (len > 0) {
+        e->data = (uint8_t*)avm_heap_malloc((size_t)len);
+        if (!e->data) return 0;
+        memcpy(e->data, data, (size_t)len);
+    }
+    e->len = len;
+    return 1;
+}
+
+static int avm_vfs_put_list(AvmVM* vm, const char* path, const AvmList* list) {
+    if (!vm || !path) return 0;
+    uint32_t len = 0;
+    if (list && list->count > 0) len = (uint32_t)list->count;
+    // Build a temporary buffer, then store it as file bytes.
+    // This is bootstrap-simple and keeps VirtualFS data independent from list lifetime.
+    uint8_t* buf = NULL;
+    if (len > 0) {
+        buf = (uint8_t*)avm_heap_malloc((size_t)len);
+        if (!buf) return 0;
+        for (uint32_t i = 0; i < len; i++) {
+            int64_t v = 0;
+            if (list && list->items && (int)i < list->count) v = list->items[i].as.i;
+            buf[i] = (uint8_t)(v & 0xFF);
+        }
+    }
+    int ok = avm_vfs_put(vm, path, buf, len);
+    if (buf) avm_heap_free(buf);
+    return ok;
+}
+
+// NOTE: legacy `oren_read_bytes` returns LIST<int>, not BYTES. VirtualFS matches that ABI.
+static AvmValue avm_vfs_read_bytes_list_value(AvmVM* vm, const uint8_t* data, uint32_t len) {
+    AvmValue res;
+    res.type = AVM_VAL_NIL;
+
+    AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+    if (!list) return avm_alloc_fail_value();
+    list->count = (int)len;
+    list->capacity = (int)len;
+    list->items = NULL;
+    if (len > 0) {
+        list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)len);
+        if (!list->items) { avm_heap_free(list); return avm_alloc_fail_value(); }
+        for (uint32_t i = 0; i < len; i++) {
+            list->items[i].type = AVM_VAL_INT;
+            list->items[i].as.i = (int64_t)(unsigned char)(data ? data[i] : 0);
+        }
+    }
+    res.type = AVM_VAL_LIST;
+    res.as.l = list;
+    return res;
+}
+
+static AvmValue avm_vfs_read_string_value(AvmVM* vm, const uint8_t* data, uint32_t len) {
+    AvmValue res;
+    res.type = AVM_VAL_NIL;
+    char* s = (char*)avm_heap_malloc((size_t)len + 1);
+    if (!s) return avm_alloc_fail_value();
+    if (len > 0) memcpy(s, data, (size_t)len);
+    s[len] = 0;
+    res.type = AVM_VAL_STRING;
+    res.as.p = s;
+    return res;
+}
+
 // Rolling ABI: CALL_NATIVE2(domain, op, nargs)
 // For now, CORE domain (0) maps op -> legacy native id.
 static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
@@ -993,6 +1132,103 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
             return rr_replay_entry(vm, vm->replay_log, domain, op, args, nargs);
         }
 
+        // VirtualFS (in-memory; no host filesystem effects). Still record/replay-capable.
+        if (vm && vm->fs_backend_kind == 1) {
+            const char* path = (nargs > 0 && args[0].type == AVM_VAL_STRING) ? (const char*)args[0].as.p : NULL;
+            AvmVfs* v = avm_vfs_get_or_create(vm);
+            if (!v) { AvmValue e = avm_alloc_fail_value(); avm_abort(vm, e); return e; }
+
+            switch (op) {
+                case 0: { // read_file -> STRING
+                    AvmVfsEntry* e = avm_vfs_find(v, path ? path : "");
+                    if (!e) return avm_err_domop(AVM_ERR_NOT_FOUND, "vfs: file not found", domain, op);
+                    // Preflight record log capacity, similar to host read_file: need 86 + len
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        uint64_t need = 86ull + (uint64_t)e->len;
+                        if (!avm_log_can_fit(vm, need)) {
+                            AvmValue err = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, err);
+                            return err;
+                        }
+                    }
+                    if (!avm_io_charge(vm, (uint64_t)e->len, (int)domain, (int)op)) return vm->last_error;
+                    AvmValue ret = avm_vfs_read_string_value(vm, e->data, e->len);
+                    if (avm_is_err_val(ret)) { avm_abort(vm, ret); }
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                case 1: { // write_file -> NIL
+                    if (nargs < 2 || args[1].type != AVM_VAL_STRING) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_file expects (path, string)", domain, op);
+                    const char* s = (const char*)args[1].as.p;
+                    uint32_t len = (uint32_t)strlen(s ? s : "");
+                    // Preflight record log capacity, similar to host write_file: need 81
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        if (!avm_log_can_fit(vm, 81ull)) {
+                            AvmValue err = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, err);
+                            return err;
+                        }
+                    }
+                    if (!avm_io_charge(vm, (uint64_t)len, (int)domain, (int)op)) return vm->last_error;
+                    if (!avm_vfs_put(vm, path ? path : "", (const uint8_t*)s, len)) {
+                        AvmValue err = avm_alloc_fail_value();
+                        avm_abort(vm, err);
+                        return err;
+                    }
+                    AvmValue ret = avm_nil();
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                case 2: { // write_bytes -> NIL
+                    if (nargs < 2 || args[1].type != AVM_VAL_LIST || !args[1].as.l) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expects (path, list)", domain, op);
+                    AvmList* list = args[1].as.l;
+                    uint32_t len = (uint32_t)(list->count < 0 ? 0 : list->count);
+                    // Preflight record log capacity, similar to host write_bytes: need 81
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        if (!avm_log_can_fit(vm, 81ull)) {
+                            AvmValue err = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, err);
+                            return err;
+                        }
+                    }
+                    if (!avm_io_charge(vm, (uint64_t)len, (int)domain, (int)op)) return vm->last_error;
+                    if (!avm_vfs_put_list(vm, path ? path : "", list)) {
+                        AvmValue err = avm_alloc_fail_value();
+                        avm_abort(vm, err);
+                        return err;
+                    }
+                    AvmValue ret = avm_nil();
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                case 3: { // read_bytes -> BYTES
+                    AvmVfsEntry* e = avm_vfs_find(v, path ? path : "");
+                    if (!e) return avm_err_domop(AVM_ERR_NOT_FOUND, "vfs: file not found", domain, op);
+                    // Preflight record log capacity: legacy read_bytes returns LIST<int> of length len.
+                    // value_size(LIST aux=len): 18 + len*9; entry_size: 68 + that = 86 + len*9
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        uint64_t need = 86ull + (uint64_t)e->len * 9ull;
+                        if (!avm_log_can_fit(vm, need)) {
+                            AvmValue err = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, err);
+                            return err;
+                        }
+                    }
+                    if (!avm_io_charge(vm, (uint64_t)e->len, (int)domain, (int)op)) return vm->last_error;
+                    AvmValue ret = avm_vfs_read_bytes_list_value(vm, e->data, e->len);
+                    if (avm_is_err_val(ret)) { avm_abort(vm, ret); }
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                default:
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
+            }
+        }
+
         switch (op) {
             case 0: { // read_file
                 AvmValue ret = avm_call_native(vm, 0, args, nargs);
@@ -1029,6 +1265,27 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         }
         if (vm->replay_log) {
             return rr_replay_entry(vm, vm->replay_log, domain, op, args, nargs);
+        }
+
+        // VirtualPROC fixtures: do not execute host subprocesses; return a deterministic exit code.
+        // If fixtures are loaded and cmd matches, use fixture exit code; otherwise fall back to vm->proc_exit_code.
+        if (vm && vm->proc_backend_kind == 1) {
+            switch (op) {
+                case 0: { // system(cmd) -> INT
+                    int64_t code = (int64_t)vm->proc_exit_code;
+                    if (nargs > 0 && args[0].type == AVM_VAL_STRING && args[0].as.p) {
+                        const char* cmd = (const char*)args[0].as.p;
+                        AvmVprocEntry* e = avm_vproc_find(vm, cmd);
+                        if (e) code = (int64_t)e->exit_code;
+                    }
+                    AvmValue ret = avm_int(code);
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                default:
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
+            }
         }
         switch (op) {
             case 0: { // system(cmd)
@@ -1173,6 +1430,46 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
+    // Domain 4: NET (bootstrap: VirtualNET fixtures only; host network is not implemented)
+    if (domain == 4) {
+        if (vm->replay_log_bytes) {
+            return rr_replay_entry_mem(vm, vm->replay_log_bytes, &vm->replay_log_pos, domain, op, args, nargs);
+        }
+        if (vm->replay_log) {
+            return rr_replay_entry(vm, vm->replay_log, domain, op, args, nargs);
+        }
+
+        if (vm && vm->net_backend_kind == 1) {
+            switch (op) {
+                case 0: { // http_get(url) -> STRING (fixture body)
+                    if (nargs < 1 || args[0].type != AVM_VAL_STRING) {
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "net.get expects (url: string)", domain, op);
+                    }
+                    const char* url = (const char*)args[0].as.p;
+                    AvmVnetEntry* e = avm_vnet_find(vm, url ? url : "");
+                    if (!e) return avm_err_domop(AVM_ERR_NOT_FOUND, "vnet: url not found", domain, op);
+
+                    // For now, treat body as a byte string and return STRING.
+                    AvmValue ret;
+                    char* s = (char*)avm_heap_malloc((size_t)e->body_len + 1);
+                    if (!s) { ret = avm_alloc_fail_value(); avm_abort(vm, ret); return ret; }
+                    if (e->body_len > 0 && e->body) memcpy(s, e->body, e->body_len);
+                    s[e->body_len] = 0;
+                    ret.type = AVM_VAL_STRING;
+                    ret.as.p = s;
+
+                    if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                default:
+                    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
+            }
+        }
+
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "host net backend not implemented", domain, op);
+    }
+
     // Domain 8: AVM (nested universes via host service)
     if (domain == 8) {
         switch (op) {
@@ -1192,6 +1489,13 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 AvmVM* child = avm_new();
                 child->argc = 0;
                 child->argv = NULL;
+                // Nested universes must not touch the host filesystem by default.
+                // If FS is allowed and record/replay is not configured, VirtualFS prevents accidental host effects.
+                child->fs_backend_kind = 1;
+                // Nested universes must not spawn host subprocesses by default.
+                child->proc_backend_kind = 1;
+                // Nested universes must not touch host network by default.
+                child->net_backend_kind = 1;
 
                 // Capabilities (hierarchical, rolling): child must be subset of parent when parent is restricted.
                 uint64_t parent_mask = vm ? vm->allowed_native_domains : 0;
@@ -1260,6 +1564,64 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     child->log_budget_bytes = lb;
                 } else {
                     child->log_budget_bytes = vm ? vm->log_budget_bytes : 0;
+                }
+
+                // VirtualFS knobs (optional; default is safe vfs backend).
+                if (avm_map_get_key(cfg, "fs_backend", &v)) child->fs_backend_kind = (int)avm_value_u64(v, (uint64_t)child->fs_backend_kind);
+                if (avm_map_get_key(cfg, "vfs_fixtures", &v) && v.type == AVM_VAL_BYTES && v.as.b && v.as.b->data) {
+                    if (child->fs_backend_kind == 1) {
+                        const uint8_t* data = v.as.b->data;
+                        size_t len = (size_t)v.as.b->len;
+                        if (len < 12) { avm_free(child); return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid vfs_fixtures (too short)", domain, op); }
+                        const uint8_t want[8] = {'A','V','M','V','F','S','0','1'};
+                        if (memcmp(data, want, 8) != 0) { avm_free(child); return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid vfs_fixtures (expected magic AVMVFS01)", domain, op); }
+                        size_t pos = 8;
+                        uint32_t count = (uint32_t)data[pos] | ((uint32_t)data[pos+1] << 8) | ((uint32_t)data[pos+2] << 16) | ((uint32_t)data[pos+3] << 24);
+                        pos += 4;
+                        for (uint32_t i = 0; i < count; i++) {
+                            if (pos + 4 > len) { avm_free(child); return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid vfs_fixtures", domain, op); }
+                            uint32_t path_len = (uint32_t)data[pos] | ((uint32_t)data[pos+1] << 8) | ((uint32_t)data[pos+2] << 16) | ((uint32_t)data[pos+3] << 24);
+                            pos += 4;
+                            if (pos + (size_t)path_len > len) { avm_free(child); return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid vfs_fixtures", domain, op); }
+                            char* path = (char*)malloc((size_t)path_len + 1);
+                            if (!path) { avm_free(child); return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op); }
+                            if (path_len > 0) memcpy(path, data + pos, path_len);
+                            path[path_len] = 0;
+                            pos += path_len;
+
+                            if (pos + 4 > len) { free(path); avm_free(child); return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid vfs_fixtures", domain, op); }
+                            uint32_t body_len = (uint32_t)data[pos] | ((uint32_t)data[pos+1] << 8) | ((uint32_t)data[pos+2] << 16) | ((uint32_t)data[pos+3] << 24);
+                            pos += 4;
+                            if (pos + (size_t)body_len > len) { free(path); avm_free(child); return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid vfs_fixtures", domain, op); }
+                            if (!avm_vfs_put(child, path, data + pos, body_len)) { free(path); avm_free(child); return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op); }
+                            free(path);
+                            pos += body_len;
+                        }
+                        if (pos != len) { avm_free(child); return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid vfs_fixtures (trailing bytes)", domain, op); }
+                    }
+                }
+
+                // VirtualPROC knobs (optional; default is safe vproc stub).
+                if (avm_map_get_key(cfg, "proc_backend", &v)) child->proc_backend_kind = (int)avm_value_u64(v, (uint64_t)child->proc_backend_kind);
+                if (avm_map_get_key(cfg, "proc_exit_code", &v)) child->proc_exit_code = (int)avm_value_u64(v, (uint64_t)child->proc_exit_code);
+                if (avm_map_get_key(cfg, "proc_fixtures", &v) && v.type == AVM_VAL_BYTES && v.as.b && v.as.b->data) {
+                    if (child->proc_backend_kind == 1) {
+                        if (!avm_proc_load_fixtures(child, v.as.b->data, (size_t)v.as.b->len)) {
+                            avm_free(child);
+                            return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid proc_fixtures (expected magic AVMPRC01)", domain, op);
+                        }
+                    }
+                }
+
+                // VirtualNET knobs (optional).
+                if (avm_map_get_key(cfg, "net_backend", &v)) child->net_backend_kind = (int)avm_value_u64(v, (uint64_t)child->net_backend_kind);
+                if (avm_map_get_key(cfg, "net_fixtures", &v) && v.type == AVM_VAL_BYTES && v.as.b && v.as.b->data) {
+                    if (child->net_backend_kind == 1) {
+                        if (!avm_net_load_fixtures(child, v.as.b->data, (size_t)v.as.b->len)) {
+                            avm_free(child);
+                            return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid net_fixtures (expected magic AVMNET01)", domain, op);
+                        }
+                    }
                 }
 
                 // Record/replay logs as data (always create a record log, even if it stays empty).

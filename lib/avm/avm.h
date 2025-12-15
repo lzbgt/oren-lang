@@ -100,6 +100,28 @@ typedef struct {
     // FS allow-list (rolling): if empty, allow all. If non-empty, path must start with one of these prefixes.
     char** fs_allow_prefixes;
     int fs_allow_prefix_count;
+    // FS backend mode (rolling):
+    // - 0: host filesystem (subject to capability + allow-prefixes + record/replay)
+    // - 1: in-memory VirtualFS (no host filesystem effects; still record/replay-capable)
+    int fs_backend_kind;
+    // Internal: VirtualFS backing store (owned by VM heap; freed on teardown via leak-free teardown).
+    void* vfs;
+
+    // PROC backend mode (rolling):
+    // - 0: host subprocess (system()) (subject to capability + record/replay)
+    // - 1: VirtualPROC fixtures (no host subprocess; deterministic stub/fixture responses)
+    int proc_backend_kind;
+    // Internal: VirtualPROC fixtures table (owned by VM heap; freed on teardown via leak-free teardown).
+    void* vproc;
+    // VirtualPROC default configuration: return code for oren_system(cmd) when no fixture matches.
+    int proc_exit_code;
+
+    // NET backend mode (rolling):
+    // - 0: host network (not implemented yet in bootstrap; should remain denied-by-default)
+    // - 1: VirtualNET fixtures (no host network; deterministic responses)
+    int net_backend_kind;
+    // Internal: VirtualNET fixtures table (owned by VM heap; freed on teardown via leak-free teardown).
+    void* vnet;
 
     // Execution budgets (rolling): 0 means "no limit".
     uint64_t gas_remaining;
@@ -183,6 +205,17 @@ typedef struct {
     uint8_t trace_hash_out[32];
     int trace_hash_finalized;
 
+    // Deterministic trace as data (rolling): canonical encoding of executed steps stored in BYTES.
+    // This supports agentic diffing and nested universes without relying on stderr logs.
+    int trace_bytes_enabled;
+    uint64_t trace_bytes_limit;  // 0 => unlimited (limit by executed steps)
+    uint64_t trace_budget_bytes; // 0 => unlimited
+    uint64_t trace_used_bytes;
+    AvmBytes* trace_bytes;
+    // trace_bytes_truncated==1 means trace bytes capture stopped early due to budget or allocation failure.
+    // This must never affect program semantics; trace capture is best-effort.
+    int trace_bytes_truncated;
+
     // Debug/breakpoints (rolling): if any breakpoints are set, VM pauses before executing an instruction at that pc.
     int* break_pcs;
     int break_pc_count;
@@ -227,6 +260,17 @@ void avm_free(AvmVM* vm);
 void avm_load(AvmVM* vm, AvmProgram* prog);
 void avm_run(AvmVM* vm);
 
+// VirtualNET fixtures (rolling):
+// Load fixtures in AVMNET01 format:
+//   magic[8]="AVMNET01"
+//   u32_le count
+//   repeated count times:
+//     u32_le url_len, url bytes
+//     u32_le body_len, body bytes
+// Returns 1 on success; 0 on parse/alloc failure.
+int avm_net_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len);
+int avm_proc_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len);
+
 // Snapshot/restore (rolling; file format subject to change while repo is rolling).
 // Snapshot does NOT include program code; restore expects vm->prog already loaded.
 int avm_snapshot(AvmVM* vm, const char* path);
@@ -240,6 +284,10 @@ int avm_result_hash(AvmVM* vm, uint8_t out[32]);
 
 // Deterministic trace hash (rolling): hashes the canonical trace stream of executed steps (opt-in).
 int avm_trace_hash(AvmVM* vm, uint8_t out[32]);
+
+// Deterministic trace bytes (rolling): returns the canonical trace stream as a BYTES buffer (vm-owned).
+// Requires trace_bytes_enabled to have been set before/during avm_run.
+AvmBytes* avm_trace_bytes(AvmVM* vm);
 
 // Heap stats (rolling): best-effort measurement of reachable heap objects from VM roots + constant pool.
 int avm_heap_stats(AvmVM* vm, AvmHeapStats* out);
