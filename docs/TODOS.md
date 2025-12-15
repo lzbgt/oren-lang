@@ -8,22 +8,19 @@ Last updated: 2025-12-15
 
 ### AVM (agentic execution substrate)
 
-1) **Memory budget enforcement (heap + buffers)**
-   - Add hard limit env: `AVM_MEM_BYTES=<n>` (and child `cfg.mem_bytes` for AVM-in-AVM).
-   - Enforce on all heap objects (`String/List/Map/Bytes`) and log buffers.
-   - Add a deterministic failure: `AVM_ERR_BUDGET` with message like `budget exceeded (mem)`.
+1) **Account replay/record log growth under budgets**
+   - Count record/replay log growth under a budget (either extend `AVM_IO_BYTES` or add `AVM_LOG_BYTES`).
+   - Enforce for:
+     - file-based logs (`AVM_RECORD_LOG`)
+     - in-memory logs (`AVM_RECORD_MEM=1` / `--print-record-log-hex`)
+     - AVM-in-AVM (`domain=8` returning `record_log` as data)
 
-2) **I/O budgets and accounting (FS first)**
-   - Add `AVM_IO_BYTES=<n>` for bytes read/written and record/replay log growth.
-   - Enforce in FS domain (`CALL_NATIVE2 domain=1`) and record/replay serializers.
-   - Add child `cfg.io_bytes` for AVM-in-AVM.
+2) **Policy output stabilization (hashable + governance-ready)**
+   - Keep `--print-policy` “no execute” invariant.
+   - Add a stable, machine-friendly output mode (e.g. JSON) once semantics stabilize.
 
-3) **Structured error contract (stable fields + codes)**
-   - Document stable error fields and codes (`code`, `msg`, optional `domain/op`).
-   - Ensure budgets/capability denials always produce consistent errors.
-
-4) **Policy scanner precision**
-   - Extend `--print-policy` to output domain+op usage (not just a domain bitmask).
+3) **Legacy opcode deprecation path**
+   - Keep `CALL_NATIVE` mapped into `(domain, op)` (done), then phase out legacy opcode when compiler emits `CALL_NATIVE2` everywhere.
 
 ## P1 (High Leverage for Agentic Debugging / Swarm)
 
@@ -47,4 +44,9 @@ Last updated: 2025-12-15
 - Deterministic TIME derived from executed gas (no “advance on now()”).
 - Function-aware bytecode verifier (removes spurious stack-join rejects).
 - AVM-in-AVM domain (nested universes) with determinism tests.
+- Memory budget (`AVM_MEM_BYTES`) + AVM-in-AVM `cfg.mem_bytes` subset enforcement.
+- FS I/O budget (`AVM_IO_BYTES`) + AVM-in-AVM `cfg.io_bytes` subset enforcement.
+- Structured error contract: stable `__err/code/msg` with optional `domain/op` metadata for policy/budget failures.
+- Policy scan: `--print-policy` outputs domain bitmask plus `(domain, op)` pairs and does not execute bytecode.
+- Leak-free teardown: VM frees remaining unreachable heap allocations at `avm_free()` (no tracing GC during run yet).
 - `avm` tooling: disasm/trace/breakpoints + mem-stats + `--repeat` + `--print-rss`.

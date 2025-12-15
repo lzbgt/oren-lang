@@ -1,0 +1,18 @@
+fn touch_effect_domains() {
+    // These calls must appear in bytecode for policy scanning, but must NOT execute
+    // when `avm --print-policy` is used (print-policy is "scan before execute").
+    var _ = oren_write_file("build/avm_policy_scan_should_not_write.txt", "x")
+    var _ = oren_system("sh -c 'echo hi > build/avm_policy_scan_should_not_write2.txt'")
+    var _ = oren_env("PATH")
+}
+
+fn main() {
+    print("RUN_POLICY_SCAN_SHOULD_NOT_EXECUTE")
+    oren_exit(0)
+
+    // Unreachable at runtime (exit terminates the VM), but must remain present in `.obc`.
+    touch_effect_domains()
+}
+
+main()
+

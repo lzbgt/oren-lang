@@ -46,7 +46,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     res = avm_err(AVM_ERR_IO, "read_file: short read");
                     break;
                 }
-                (void)avm_io_charge(vm, (uint64_t)len);
+                (void)avm_io_charge(vm, (uint64_t)len, 1, 0);
                 res.type = AVM_VAL_STRING;
                 res.as.p = buf;
             }
@@ -65,7 +65,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     break;
                 }
                 size_t len = strlen(data);
-                if (!avm_io_charge(vm, (uint64_t)len)) { fclose(f); break; }
+                if (!avm_io_charge(vm, (uint64_t)len, 1, 1)) { fclose(f); break; }
                 size_t n = fwrite(data, 1, len, f);
                 fclose(f);
                 if (n != len) {
@@ -84,16 +84,27 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             break;
         }
         case 3: { // oren_args
-            AvmList* list = malloc(sizeof(AvmList));
+            AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+            if (!list) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
             list->count = vm->argc;
             list->capacity = vm->argc;
-            list->items = malloc(sizeof(AvmValue) * vm->argc);
-            for(int i=0; i<vm->argc; i++) {
-                list->items[i].type = AVM_VAL_STRING;
-                list->items[i].as.p = vm->argv[i];
+            list->items = NULL;
+            if (vm->argc > 0) {
+                list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)vm->argc);
+                if (!list->items) { avm_heap_free(list); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
             }
-            res.type = AVM_VAL_LIST;
-            res.as.l = list;
+            for (int i = 0; i < vm->argc; i++) {
+                list->items[i] = avm_string(vm->argv ? vm->argv[i] : "");
+                if (avm_is_err_val(list->items[i])) {
+                    res = list->items[i];
+                    avm_abort(vm, res);
+                    break;
+                }
+            }
+            if (!avm_is_err_val(res)) {
+                res.type = AVM_VAL_LIST;
+                res.as.l = list;
+            }
             break;
         }
         case 4: { // oren_env
@@ -130,7 +141,8 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 int idx = (int)args[1].as.i;
                 if (idx >= 0 && idx < strlen(s)) {
                     res.type = AVM_VAL_STRING;
-                    char* buf = malloc(2);
+                    char* buf = (char*)avm_heap_malloc(2);
+                    if (!buf) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     buf[0] = s[idx];
                     buf[1] = 0;
                     res.as.p = buf;
@@ -145,7 +157,8 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 int len = strlen(s);
                 if (start >= 0 && end <= len && start <= end) {
                     int sublen = end - start;
-                    char* buf = malloc(sublen + 1);
+                    char* buf = (char*)avm_heap_malloc((size_t)sublen + 1);
+                    if (!buf) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     strncpy(buf, s + start, sublen);
                     buf[sublen] = 0;
                     res.type = AVM_VAL_STRING;
@@ -264,7 +277,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     res = avm_err(avm_err_from_errno(err), msg);
                     break;
                 }
-                if (!avm_io_charge(vm, (uint64_t)list->count)) { fclose(f); avm_heap_free(buf); break; }
+                if (!avm_io_charge(vm, (uint64_t)list->count, 1, 2)) { fclose(f); avm_heap_free(buf); break; }
                 size_t n = fwrite(buf, 1, (size_t)list->count, f);
                 fclose(f);
                 avm_heap_free(buf);
@@ -325,7 +338,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     }
                 }
                 fclose(f);
-                (void)avm_io_charge(vm, (uint64_t)len);
+                (void)avm_io_charge(vm, (uint64_t)len, 1, 3);
 
                 AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
                 if (!list) {
@@ -436,14 +449,14 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 0 && args[0].type == AVM_VAL_BYTES) {
                 AvmBytes* b = args[0].as.b;
                 if (!b || b->len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid bytes"); break; }
-                AvmList* list = (AvmList*)malloc(sizeof(AvmList));
-                if (!list) { res = avm_err(AVM_ERR_INTERNAL, "bytes_unpack: out of memory"); break; }
+                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+                if (!list) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 list->count = b->len;
                 list->capacity = b->len;
                 list->items = NULL;
                 if (b->len > 0) {
-                    list->items = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)b->len);
-                    if (!list->items) { free(list); res = avm_err(AVM_ERR_INTERNAL, "bytes_unpack: out of memory"); break; }
+                    list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)b->len);
+                    if (!list->items) { avm_heap_free(list); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     for (int i = 0; i < b->len; i++) {
                         list->items[i] = avm_int((int64_t)b->data[i]);
                     }
@@ -514,8 +527,8 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 if (!b || b->len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: invalid bytes"); break; }
                 static const char* hexd = "0123456789abcdef";
                 size_t out_len = (size_t)b->len * 2;
-                char* out = (char*)malloc(out_len + 1);
-                if (!out) { res = avm_err(AVM_ERR_INTERNAL, "bytes_to_hex: out of memory"); break; }
+                char* out = (char*)avm_heap_malloc(out_len + 1);
+                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 for (int i = 0; i < b->len; i++) {
                     uint8_t v = b->data[i];
                     out[(size_t)i * 2] = hexd[(v >> 4) & 0xF];
@@ -840,13 +853,23 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
 // Rolling ABI: CALL_NATIVE2(domain, op, nargs)
 // For now, CORE domain (0) maps op -> legacy native id.
 static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
+    // Normalize legacy/compat calls to prevent CORE domain bypass:
+    // - bootstrap tools or old bytecode may still call domain=0 with legacy IDs.
+    // - if a legacy id maps to an effectful domain, route to that domain/op before policy checks.
+    if (domain == 0) {
+        uint8_t nd = 0;
+        uint16_t nop = op;
+        avm_legacy_native_to_domop(op, &nd, &nop);
+        if (nd != 0) { domain = nd; op = nop; }
+    }
+
     // Capability check (rolling behavior):
     // - allowed_native_domains == 0 => allow all (bootstrap default)
     // - otherwise require bit set for domain
     if (vm->allowed_native_domains != 0) {
         uint64_t mask = 1ULL << (domain & 63);
         if ((vm->allowed_native_domains & mask) == 0) {
-            return avm_err(AVM_ERR_PERM, "capability denied");
+            return avm_err_domop(AVM_ERR_PERM, "capability denied", domain, op);
         }
     }
 
@@ -859,7 +882,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
             const char* path = (const char*)args[0].as.p;
             if (!avm_path_allowed(vm, path)) {
-                return avm_err(AVM_ERR_PERM, "fs path denied");
+                return avm_err_domop(AVM_ERR_PERM, "fs path denied", domain, op);
             }
         }
 
@@ -923,7 +946,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
             }
             default: break;
         }
-        return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
     // Domain 7: ENV (environment variables)
@@ -943,7 +966,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
             }
             default: break;
         }
-        return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
     // Domain 2: TIME
@@ -992,7 +1015,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
             }
             default: break;
         }
-        return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
     // Domain 3: RNG (non-crypto deterministic PRNG in deterministic mode)
@@ -1027,7 +1050,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
             }
             default: break;
         }
-        return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
     // Domain 8: AVM (nested universes via host service)
@@ -1035,15 +1058,15 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         switch (op) {
             case 0: { // run_obc_bytes(obc_bytes, cfg_map)
                 if (nargs < 1 || args[0].type != AVM_VAL_BYTES || !args[0].as.b) {
-                    return avm_err(AVM_ERR_INVALID_ARG, "avm.run_obc_bytes expects BYTES");
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "avm.run_obc_bytes expects BYTES", domain, op);
                 }
                 AvmValue cfg = avm_nil();
                 if (nargs >= 2) cfg = args[1];
 
                 AvmProgram* prog = (AvmProgram*)malloc(sizeof(AvmProgram));
-                if (!prog) return avm_err(AVM_ERR_INTERNAL, "oom");
+                if (!prog) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 if (!avm_parse_obc_from_bytes(args[0].as.b, prog)) {
-                    return avm_err(AVM_ERR_INVALID_ARG, "invalid obc bytes");
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid obc bytes", domain, op);
                 }
 
                 AvmVM* child = avm_new();
@@ -1058,7 +1081,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     uint64_t req = avm_value_u64(v, 0);
                     if (parent_mask != 0 && (req & ~parent_mask) != 0) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_PERM, "child capabilities must be subset of parent");
+                        return avm_err_domop(AVM_ERR_PERM, "child capabilities must be subset of parent", domain, op);
                     }
                     child_mask = req;
                 }
@@ -1075,7 +1098,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     uint64_t gl = avm_value_u64(v, 0);
                     if (vm && vm->gas_remaining > 0 && gl > vm->gas_remaining) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_BUDGET, "child gas_limit exceeds parent");
+                        return avm_err_domop(AVM_ERR_BUDGET, "child gas_limit exceeds parent", domain, op);
                     }
                     child->gas_remaining = gl;
                 }
@@ -1083,7 +1106,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     uint64_t dl = avm_value_u64(v, 0);
                     if (vm && vm->deadline_ns > 0 && dl > vm->deadline_ns) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_BUDGET, "child deadline exceeds parent");
+                        return avm_err_domop(AVM_ERR_BUDGET, "child deadline exceeds parent", domain, op);
                     }
                     child->deadline_ns = dl;
                 }
@@ -1091,7 +1114,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     uint64_t mb = avm_value_u64(v, 0);
                     if (vm && vm->heap_budget_bytes > 0 && mb > vm->heap_budget_bytes) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_BUDGET, "child mem_bytes exceeds parent");
+                        return avm_err_domop(AVM_ERR_BUDGET, "child mem_bytes exceeds parent", domain, op);
                     }
                     child->heap_budget_bytes = mb;
                 } else {
@@ -1102,7 +1125,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     uint64_t ib = avm_value_u64(v, 0);
                     if (vm && vm->io_budget_bytes > 0 && ib > vm->io_budget_bytes) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_BUDGET, "child io_bytes exceeds parent");
+                        return avm_err_domop(AVM_ERR_BUDGET, "child io_bytes exceeds parent", domain, op);
                     }
                     child->io_budget_bytes = ib;
                 } else {
@@ -1113,23 +1136,23 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 child->record_log_bytes = avm_new_log_bytes();
                 if (!child->record_log_bytes) {
                     avm_free(child);
-                    return avm_err(AVM_ERR_INTERNAL, "oom");
+                    return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 }
                 if (avm_map_get_key(cfg, "replay_log", &v) && v.type == AVM_VAL_BYTES && v.as.b) {
                     if (v.as.b->len < 8 || !v.as.b->data) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_INVALID_ARG, "replay_log too short");
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "replay_log too short", domain, op);
                     }
                     const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
                     if (memcmp(v.as.b->data, want, 8) != 0) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_INVALID_ARG, "invalid replay_log magic");
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid replay_log magic", domain, op);
                     }
                     // Copy replay log into child-owned memory so the child can be freed safely.
                     AvmValue copy = avm_clone_value(v);
                     if (copy.type != AVM_VAL_BYTES || !copy.as.b) {
                         avm_free(child);
-                        return avm_err(AVM_ERR_INTERNAL, "oom");
+                        return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                     }
                     child->replay_log_bytes = copy.as.b;
                     child->replay_log_pos = 8;
@@ -1149,12 +1172,12 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 if (v_sh.type == AVM_VAL_BYTES && v_sh.as.b && v_sh.as.b->data) memcpy(v_sh.as.b->data, sh, 32);
 
                 AvmMap* out = (AvmMap*)malloc(sizeof(AvmMap));
-                if (!out) { avm_free(child); return avm_err(AVM_ERR_INTERNAL, "oom"); }
+                if (!out) { avm_free(child); return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op); }
                 out->count = 5;
                 out->capacity = 8;
                 out->keys = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
                 out->values = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
-                if (!out->keys || !out->values) { avm_free(child); return avm_err(AVM_ERR_INTERNAL, "oom"); }
+                if (!out->keys || !out->values) { avm_free(child); return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op); }
 
                 out->keys[0] = avm_string("exit_code");
                 out->values[0] = avm_int((int64_t)child->exit_code);
@@ -1178,9 +1201,9 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
             }
             default: break;
         }
-        return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
     // Unknown/unsupported domain in bootstrap.
-    return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
+    return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
 }

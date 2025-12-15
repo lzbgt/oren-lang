@@ -358,7 +358,8 @@ static VerifyResult verify_program_region(
             push = 1;
 
             uint8_t dom = 0;
-            if (id == 0 || id == 1 || id == 17 || id == 18) dom = 1;
+            uint16_t capop = 0;
+            avm_legacy_native_to_domop(id, &dom, &capop);
             if (used_domains_io) *used_domains_io |= (1ULL << (dom & 63));
         } else if (op == 0x3B) { // CALL_NATIVE2 u8_domain u16_op u8_nargs
             len = 5;
@@ -661,6 +662,99 @@ static VerifyResult verify_program(const AvmProgram* prog) {
     VerifyResult r = ok_result();
     r.used_domains_mask = used_domains;
     return r;
+}
+
+typedef struct {
+    uint8_t domain;
+    uint16_t op;
+} PolicyOp;
+
+static int policy_ops_cmp(const void* a, const void* b) {
+    const PolicyOp* pa = (const PolicyOp*)a;
+    const PolicyOp* pb = (const PolicyOp*)b;
+    if (pa->domain != pb->domain) return (pa->domain < pb->domain) ? -1 : 1;
+    if (pa->op != pb->op) return (pa->op < pb->op) ? -1 : 1;
+    return 0;
+}
+
+static int policy_ops_add(PolicyOp** ops_io, size_t* len_io, size_t* cap_io, uint8_t domain, uint16_t op) {
+    if (!ops_io || !len_io || !cap_io) return 0;
+    for (size_t i = 0; i < *len_io; i++) {
+        if ((*ops_io)[i].domain == domain && (*ops_io)[i].op == op) return 1;
+    }
+    if (*len_io >= *cap_io) {
+        size_t nc = (*cap_io) ? (*cap_io) * 2 : 32;
+        void* np = realloc(*ops_io, sizeof(PolicyOp) * nc);
+        if (!np) return 0;
+        *ops_io = (PolicyOp*)np;
+        *cap_io = nc;
+    }
+    (*ops_io)[*len_io].domain = domain;
+    (*ops_io)[*len_io].op = op;
+    (*len_io)++;
+    return 1;
+}
+
+// Policy scanner (rolling): best-effort extraction of used (domain, op) pairs from bytecode.
+// This is intended to be used "before execute" for governance/inspection, so it must be non-effectful.
+// Conservative behavior is OK: scanning unreachable code is acceptable (over-approximation).
+static int policy_scan_program(const AvmProgram* prog, uint64_t* used_domains_mask_out, PolicyOp** ops_out, size_t* ops_len_out) {
+    if (!prog || !prog->code || prog->code_len == 0) return 0;
+    const uint8_t* code = prog->code;
+    size_t code_len = prog->code_len;
+
+    uint64_t domains = 0;
+    PolicyOp* ops = NULL;
+    size_t ops_len = 0;
+    size_t ops_cap = 0;
+
+    size_t pc = 0;
+    while (pc < code_len) {
+        uint8_t op = code[pc];
+        size_t len = 1;
+
+        if (op == 0x02) len = 3;
+        else if (op == 0x04 || op == 0x05) len = 2;
+        else if (op == 0x06 || op == 0x07) len = 3;
+        else if (op == 0x30 || op == 0x31) len = 3;
+        else if (op == 0x38) len = 4;
+        else if (op == 0x3A) len = 4;
+        else if (op == 0x3B) len = 5;
+        else if (op == 0x40 || op == 0x41) len = 3;
+
+        if (pc + len > code_len) { free(ops); return 0; }
+
+        if (op == 0x3A) { // CALL_NATIVE u16_id u8_nargs
+            uint16_t id = 0;
+            if (!decode_u16(code, code_len, pc + 1, &id)) { free(ops); return 0; }
+            uint8_t dom = 0;
+            uint16_t capop = 0;
+            avm_legacy_native_to_domop(id, &dom, &capop);
+            domains |= (1ULL << (dom & 63));
+            if (!policy_ops_add(&ops, &ops_len, &ops_cap, dom, capop)) { free(ops); return 0; }
+        } else if (op == 0x3B) { // CALL_NATIVE2 u8_domain u16_op u8_nargs
+            uint8_t dom = code[pc + 1];
+            uint16_t capop = (uint16_t)code[pc + 2] | ((uint16_t)code[pc + 3] << 8);
+            if (dom == 0) {
+                uint8_t nd = 0;
+                uint16_t nop = capop;
+                avm_legacy_native_to_domop(capop, &nd, &nop);
+                if (nd != 0) { dom = nd; capop = nop; }
+            }
+            domains |= (1ULL << (dom & 63));
+            if (!policy_ops_add(&ops, &ops_len, &ops_cap, dom, capop)) { free(ops); return 0; }
+        }
+
+        pc += len;
+    }
+
+    qsort(ops, ops_len, sizeof(PolicyOp), policy_ops_cmp);
+
+    if (used_domains_mask_out) *used_domains_mask_out = domains;
+    if (ops_out) *ops_out = ops;
+    else free(ops);
+    if (ops_len_out) *ops_len_out = ops_len;
+    return 1;
 }
 
 static uint64_t parse_domain_mask(const char* s) {
@@ -1198,7 +1292,32 @@ int main(int argc, char** argv) {
                 return 1;
             }
             if (print_policy) {
-                printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)vr.used_domains_mask);
+                uint64_t mask = 0;
+                PolicyOp* ops = NULL;
+                size_t ops_len = 0;
+                if (!policy_scan_program(&prog, &mask, &ops, &ops_len)) {
+                    fprintf(stderr, "AVM policy scan failed\n");
+                    free_constant_pool(consts, n_consts);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)mask);
+                for (size_t i = 0; i < ops_len; i++) {
+                    printf("POLICY_USED_OP domain=%u op=%u\n", (unsigned)ops[i].domain, (unsigned)ops[i].op);
+                }
+                free(ops);
+
+                // Safety guarantee: --print-policy must not execute bytecode.
+                // (Disassembly is still allowed because it is non-effectful.)
+                if (!disasm) {
+                    free_constant_pool(consts, n_consts);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 0;
+                }
             }
         }
 
@@ -1375,7 +1494,7 @@ int main(int argc, char** argv) {
         // Deterministic mode (rolling):
         // - AVM_DETERMINISTIC=1 enables virtual TIME and deterministic RNG.
         // - AVM_TIME_START_NS sets initial virtual clock (default 0).
-        // - AVM_TIME_STEP_NS sets per-now() increment (default 1ms).
+        // - AVM_TIME_STEP_NS sets virtual time per executed semantic step (gas unit).
         // - AVM_RNG_SEED seeds the deterministic RNG.
         const char* det_env = getenv("AVM_DETERMINISTIC");
         if (det_env && det_env[0] && det_env[0] != '0') vm->deterministic = 1;

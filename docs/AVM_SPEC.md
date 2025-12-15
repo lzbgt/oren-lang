@@ -127,7 +127,25 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   RNG is controlled by `AVM_RNG_SEED`.
 - **Nested universes are emerging (rolling):** AVM exposes an `AVM` capability domain (domain 8) to run a child `.obc` from `BYTES` under a restricted capability/budget config, returning hashes and a produced in-memory replay log.
 - **Capability domains are the direction:** effectful calls should route through `CALL_NATIVE2` domains (e.g., `PROC` for `oren_system`) so they can be denied/recorded/replayed independently of CORE.
-- **Metering is partial:** instruction “gas” and wall-time deadlines are enforced, but memory and IO budgets are not yet implemented.
+- **Metering is rolling (implemented, not yet stability-promised):**
+  - instruction “gas” (`AVM_GAS`)
+  - wall-time deadline (`AVM_TIMEOUT_MS`)
+  - heap memory budget for VM heap objects (`AVM_MEM_BYTES`)
+  - FS I/O byte budget (`AVM_IO_BYTES`)
+  Budget violations abort execution with a structured error (see below).
 - **Snapshot format is rolling:** AVM supports snapshot/restore for core types, but the file format is intentionally unstable while the repo is rolling.
-- **Heap is malloc-based:** no tracing GC; long-running programs can leak unless the host reclaims per-run.
+- **Heap is malloc-based:** no tracing GC; long-running programs can grow without bound. On teardown, `avm_free()` releases both reachable heap objects and any remaining VM-owned heap allocations to avoid per-process leak accumulation across runs.
 - **Numeric model is minimal:** only a subset of operators/constant types are encoded today.
+
+## Structured Errors (Rolling Contract)
+
+AVM represents errors as a `MAP` with stable base fields:
+
+- `__err: bool` — always `true` for error objects
+- `code: int` — numeric error code (rolling)
+- `msg: string` — human-oriented message (rolling; not stable for parsing)
+
+For policy/budget related failures, AVM may additionally include:
+
+- `domain: int` — capability domain that triggered the failure (optional)
+- `op: int` — capability operation within that domain (optional)

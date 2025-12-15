@@ -24,10 +24,13 @@
 // - Does NOT attempt to budget the VM operand stack allocation (which is currently a large fixed buffer).
 // - When the budget is exceeded, allocation helpers return NULL and set a thread-local-ish last error code.
 
-typedef struct {
+typedef struct AvmAllocHdr {
     uint64_t magic;
     AvmVM* owner;
     uint64_t size;
+    uint64_t charged_size;
+    struct AvmAllocHdr* prev;
+    struct AvmAllocHdr* next;
 } AvmAllocHdr;
 
 static const uint64_t AVM_ALLOC_MAGIC = 0x41564d414c4c4f43ull; // "AVMALLOC"
@@ -37,6 +40,7 @@ static int g_alloc_unbudgeted = 0;
 static int g_last_alloc_err = 0; // 0=none, else AVM_ERR_* (budget/internal)
 
 static AvmValue avm_err(int code, const char* msg); // forward decl (used by alloc helpers)
+static AvmValue avm_err_domop(int code, const char* msg, int domain, int op); // forward decl (used by budget/cap helpers)
 static void avm_abort(AvmVM* vm, AvmValue err); // forward decl (used by budget helpers)
 
 static void avm_alloc_owner_push(AvmVM* vm, AvmVM** prev) {
@@ -78,9 +82,17 @@ static void* avm_heap_malloc(size_t size) {
         return NULL;
     }
     h->magic = AVM_ALLOC_MAGIC;
-    h->owner = g_alloc_unbudgeted ? NULL : owner;
+    h->owner = owner;
     h->size = size;
-    if (!g_alloc_unbudgeted && owner) owner->heap_used_bytes += size;
+    h->charged_size = (!g_alloc_unbudgeted && owner) ? size : 0;
+    h->prev = NULL;
+    h->next = NULL;
+    if (owner) {
+        h->next = (AvmAllocHdr*)owner->heap_allocs_head;
+        if (h->next) h->next->prev = h;
+        owner->heap_allocs_head = h;
+    }
+    if (h->charged_size && owner) owner->heap_used_bytes += h->charged_size;
     return (void*)(h + 1);
 }
 
@@ -99,8 +111,15 @@ static void avm_heap_free(void* p) {
         return;
     }
     if (h->owner) {
-        if (h->owner->heap_used_bytes >= h->size) h->owner->heap_used_bytes -= h->size;
-        else h->owner->heap_used_bytes = 0;
+        // Remove from owner allocation list (if still linked).
+        if (h->prev) h->prev->next = h->next;
+        else if ((AvmAllocHdr*)h->owner->heap_allocs_head == h) h->owner->heap_allocs_head = h->next;
+        if (h->next) h->next->prev = h->prev;
+        h->prev = NULL;
+        h->next = NULL;
+
+        if (h->charged_size && h->owner->heap_used_bytes >= h->charged_size) h->owner->heap_used_bytes -= h->charged_size;
+        else if (h->charged_size) h->owner->heap_used_bytes = 0;
     }
     h->magic = 0;
     free(h);
@@ -120,37 +139,65 @@ static void* avm_heap_realloc(void* p, size_t new_size) {
 
     AvmVM* owner = h->owner;
     uint64_t old_size = h->size;
-    if (!g_alloc_unbudgeted && owner && owner->heap_budget_bytes > 0) {
-        uint64_t used = owner->heap_used_bytes;
-        if (used >= old_size) used -= old_size;
-        else used = 0;
-        if (new_size > owner->heap_budget_bytes) {
+    uint64_t old_charged = h->charged_size;
+    uint64_t new_charged = (old_charged != 0) ? (uint64_t)new_size : 0;
+
+    uint64_t used_without_old = 0;
+    if (owner) {
+        used_without_old = owner->heap_used_bytes;
+        if (used_without_old >= old_charged) used_without_old -= old_charged;
+        else used_without_old = 0;
+    }
+
+    if (!g_alloc_unbudgeted && owner && owner->heap_budget_bytes > 0 && new_charged != 0) {
+        if (new_charged > owner->heap_budget_bytes) {
             g_last_alloc_err = AVM_ERR_BUDGET;
             return NULL;
         }
-        if (used + new_size > owner->heap_budget_bytes) {
+        if (used_without_old + new_charged > owner->heap_budget_bytes) {
             g_last_alloc_err = AVM_ERR_BUDGET;
             return NULL;
         }
     }
 
     size_t total = sizeof(AvmAllocHdr) + new_size;
-    AvmAllocHdr* nh = (AvmAllocHdr*)realloc(h, total);
+    AvmAllocHdr* nh = (AvmAllocHdr*)malloc(total);
     if (!nh) {
         g_last_alloc_err = AVM_ERR_INTERNAL;
         return NULL;
     }
     nh->magic = AVM_ALLOC_MAGIC;
+    nh->owner = owner;
     nh->size = new_size;
+    nh->charged_size = new_charged;
+    nh->prev = NULL;
+    nh->next = NULL;
+
+    size_t copy_n = (old_size < new_size) ? (size_t)old_size : new_size;
+    if (copy_n > 0) memcpy(nh + 1, h + 1, copy_n);
+
     if (owner) {
-        if (owner->heap_used_bytes >= old_size) owner->heap_used_bytes -= old_size;
-        else owner->heap_used_bytes = 0;
-        owner->heap_used_bytes += new_size;
+        // Link new header into owner list.
+        nh->next = (AvmAllocHdr*)owner->heap_allocs_head;
+        if (nh->next) nh->next->prev = nh;
+        owner->heap_allocs_head = nh;
+        // Update accounting in one step (old already subtracted).
+        owner->heap_used_bytes = used_without_old + new_charged;
     }
+
+    // Unlink and free old header without adjusting accounting again (already handled above).
+    if (owner) {
+        if (h->prev) h->prev->next = h->next;
+        else if ((AvmAllocHdr*)owner->heap_allocs_head == h) owner->heap_allocs_head = h->next;
+        if (h->next) h->next->prev = h->prev;
+    }
+    h->magic = 0;
+    free(h);
+
     return (void*)(nh + 1);
 }
 
-static int avm_io_charge(AvmVM* vm, uint64_t bytes) {
+static int avm_io_charge(AvmVM* vm, uint64_t bytes, int domain, int op) {
     if (!vm) return 0;
     if (bytes == 0) return 1;
     if (vm->io_budget_bytes == 0) {
@@ -158,12 +205,12 @@ static int avm_io_charge(AvmVM* vm, uint64_t bytes) {
         return 1;
     }
     if (bytes > vm->io_budget_bytes) {
-        AvmValue e = avm_err(AVM_ERR_BUDGET, "budget exceeded (io)");
+        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (io)", domain, op);
         avm_abort(vm, e);
         return 0;
     }
     if (vm->io_used_bytes + bytes > vm->io_budget_bytes) {
-        AvmValue e = avm_err(AVM_ERR_BUDGET, "budget exceeded (io)");
+        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (io)", domain, op);
         avm_abort(vm, e);
         return 0;
     }
@@ -333,6 +380,59 @@ static AvmValue avm_err(int code, const char* msg) {
 
     map->keys[2] = avm_string("msg");
     map->values[2] = avm_string(msg ? msg : "");
+
+    AvmValue v;
+    v.type = AVM_VAL_MAP;
+    v.as.m = map;
+
+    avm_alloc_unbudgeted_pop(prev_budget);
+    return v;
+}
+
+// Extended structured error (rolling): optionally includes domain/op metadata.
+// This enables policy-aware debugging for agentic workflows, without changing the base error fields.
+static AvmValue avm_err_domop(int code, const char* msg, int domain, int op) {
+    int prev_budget = 0;
+    avm_alloc_unbudgeted_push(&prev_budget);
+
+    int extra = 0;
+    if (domain >= 0) extra++;
+    if (op >= 0) extra++;
+
+    AvmMap* map = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
+    if (!map) { avm_alloc_unbudgeted_pop(prev_budget); return avm_nil(); }
+    map->count = 3 + extra;
+    map->capacity = 8;
+    map->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
+    map->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
+    if (!map->keys || !map->values) {
+        if (map->keys) avm_heap_free(map->keys);
+        if (map->values) avm_heap_free(map->values);
+        avm_heap_free(map);
+        avm_alloc_unbudgeted_pop(prev_budget);
+        return avm_nil();
+    }
+
+    map->keys[0] = avm_string("__err");
+    map->values[0] = avm_bool(1);
+
+    map->keys[1] = avm_string("code");
+    map->values[1] = avm_int(code);
+
+    map->keys[2] = avm_string("msg");
+    map->values[2] = avm_string(msg ? msg : "");
+
+    int at = 3;
+    if (domain >= 0) {
+        map->keys[at] = avm_string("domain");
+        map->values[at] = avm_int(domain);
+        at++;
+    }
+    if (op >= 0) {
+        map->keys[at] = avm_string("op");
+        map->values[at] = avm_int(op);
+        at++;
+    }
 
     AvmValue v;
     v.type = AVM_VAL_MAP;
@@ -548,6 +648,24 @@ static uint64_t host_random_u64() {
 #include "avm_state.inc"
 #include "avm_native.inc"
 
+// Release any remaining heap allocations that are no longer reachable from VM roots.
+// AVM does not have a tracing GC yet; without this, allocations that become unreachable
+// during execution can accumulate across multiple `avm_run()` invocations in the same process.
+static void avm_release_unreachable_allocs(AvmVM* vm) {
+    if (!vm) return;
+    AvmAllocHdr* h = (AvmAllocHdr*)vm->heap_allocs_head;
+    while (h) {
+        AvmAllocHdr* next = h->next;
+        if (h->charged_size && vm->heap_used_bytes >= h->charged_size) vm->heap_used_bytes -= h->charged_size;
+        else if (h->charged_size) vm->heap_used_bytes = 0;
+        h->magic = 0;
+        free(h);
+        h = next;
+    }
+    vm->heap_allocs_head = NULL;
+    vm->heap_used_bytes = 0;
+}
+
 AvmVM* avm_new() {
     AvmVM* vm = (AvmVM*)malloc(sizeof(AvmVM));
     vm->stack = (AvmValue*)malloc(sizeof(AvmValue) * AVM_STACK_SIZE);
@@ -565,6 +683,7 @@ AvmVM* avm_new() {
     vm->cancelled = 0;
     vm->heap_budget_bytes = 0;
     vm->heap_used_bytes = 0;
+    vm->heap_allocs_head = NULL;
     vm->io_budget_bytes = 0;
     vm->io_used_bytes = 0;
     vm->last_error.type = AVM_VAL_NIL;
@@ -602,6 +721,8 @@ void avm_free(AvmVM* vm) {
 
     // Best-effort: release heap objects reachable from VM roots (including const pool objects).
     avm_release_heap(vm);
+    // Release any remaining unreachable heap allocations (leak-free teardown).
+    avm_release_unreachable_allocs(vm);
 
     if (vm->stack) free(vm->stack);
     if (vm->break_pcs) free(vm->break_pcs);
@@ -972,11 +1093,8 @@ void avm_run(AvmVM* vm) {
                 
                 // Legacy CALL_NATIVE is mapped through the domain/op capability system to prevent bypass.
                 uint8_t domain = 0;
-                uint16_t op = id;
-                if (id == 0) { domain = 1; op = 0; }   // read_file
-                if (id == 1) { domain = 1; op = 1; }   // write_file
-                if (id == 17) { domain = 1; op = 2; }  // write_bytes
-                if (id == 18) { domain = 1; op = 3; }  // read_bytes
+                uint16_t op = 0;
+                avm_legacy_native_to_domop(id, &domain, &op);
 
                 AvmValue res = avm_call_native2(vm, domain, op, args, nargs);
                 vm->stack[vm->sp++] = res;

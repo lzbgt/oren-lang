@@ -108,6 +108,7 @@ typedef struct {
     // (strings/lists/maps/bytes, including record/replay buffers). 0 means "no limit".
     uint64_t heap_budget_bytes;
     uint64_t heap_used_bytes;
+    void* heap_allocs_head; // internal: outstanding heap allocations (for leak-free teardown)
 
     // I/O budget (rolling): counts bytes read/written via host effect domains (FS first).
     // 0 means "no limit".
@@ -172,6 +173,36 @@ typedef struct {
     int argc;
     char** argv;
 } AvmVM;
+
+// Legacy native ID mapping (rolling/compat):
+// The bytecode backend historically used CALL_NATIVE(id, nargs) where `id` is a flat native table index.
+// AVM is moving to CALL_NATIVE2(domain, op, nargs), where domain/op are policy-controlled.
+//
+// To prevent legacy CALL_NATIVE or CORE domain (0) from bypassing capability policies, AVM maps
+// known effectful legacy IDs into their capability domains.
+//
+// Mapping policy (bootstrap, rolling):
+// - FS: legacy {0,1,17,18} -> domain 1 ops {0..3}
+// - PROC: legacy {2,5} -> domain 5 ops {0..1}
+// - ENV: legacy {4} -> domain 7 op {0}
+// - Otherwise: domain 0 (CORE), op = legacy id
+static inline void avm_legacy_native_to_domop(uint16_t legacy_id, uint8_t* domain_out, uint16_t* op_out) {
+    uint8_t domain = 0;
+    uint16_t op = legacy_id;
+
+    if (legacy_id == 0) { domain = 1; op = 0; }   // FS.read_file
+    if (legacy_id == 1) { domain = 1; op = 1; }   // FS.write_file
+    if (legacy_id == 17) { domain = 1; op = 2; }  // FS.write_bytes
+    if (legacy_id == 18) { domain = 1; op = 3; }  // FS.read_bytes
+
+    if (legacy_id == 2) { domain = 5; op = 0; }   // PROC.system
+    if (legacy_id == 5) { domain = 5; op = 1; }   // PROC.exit
+
+    if (legacy_id == 4) { domain = 7; op = 0; }   // ENV.env
+
+    if (domain_out) *domain_out = domain;
+    if (op_out) *op_out = op;
+}
 
 AvmVM* avm_new();
 void avm_free(AvmVM* vm);
