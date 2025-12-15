@@ -63,7 +63,7 @@ Authoritative specs/strategy docs:
 ```bash
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler (default target)
-make test       # native backend tests + module tests
+make test       # native + module + AVM bytecode tests
 make verify     # clean + stage2 self-hosting verification
 ```
 
@@ -98,6 +98,22 @@ make avm
 ./avm hello.obc
 ```
 
+### “Scan before execute” (policy scanning; no bytecode execution)
+```bash
+./avm --print-policy hello.obc
+./avm --print-policy-json hello.obc
+```
+
+### Budgets / determinism knobs (AVM; rolling)
+AVM is designed for agent/governance workflows, so it supports explicit budgets:
+
+- `AVM_GAS`: instruction-step budget
+- `AVM_TIMEOUT_MS`: wall-time timeout
+- `AVM_MEM_BYTES`: heap budget for VM heap objects
+- `AVM_IO_BYTES`: filesystem bytes read/written budget
+- `AVM_LOG_BYTES`: record/replay log growth budget (including header)
+- `AVM_DETERMINISTIC=1`: enable virtual TIME + deterministic RNG (`AVM_TIME_*`, `AVM_RNG_SEED`)
+
 ## Examples
 
 Run the example suite (builds + executes across backends):
@@ -116,6 +132,7 @@ Individual examples:
   - `examples/libmath.oren` + `examples/ffi_from_libmath.oren` (build dylib via `--lib`, auto-generate header `.h`, `oren scan`, then link via `--link`)
 
 ## Notes / Limitations (Important)
+- **AVM / `.obc` is rolling:** bytecode format, domains, and semantics are intentionally evolving quickly until a stability milestone is declared.
 - **Native backend Linux dynamic linking/FFI:** the ELF emitter currently stubs unresolved imports (no real dynamic linker integration yet).
 - **`--emit-c`:** only supported with `--backend c`.
 - **`oren test`:** currently supports `--backend native` only.

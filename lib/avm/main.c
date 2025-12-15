@@ -973,6 +973,7 @@ int main(int argc, char** argv) {
     int print_state_hash = 0;
     int print_result_hash = 0;
     int print_policy = 0;
+    int print_policy_json = 0;
     int print_record_log_hex = 0;
     int print_mem_stats = 0;
     int print_rss = 0;
@@ -1036,6 +1037,11 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--print-policy-json") == 0) {
+            print_policy_json = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--disasm") == 0) {
             disasm = 1;
             i += 1;
@@ -1096,7 +1102,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy] <file.obc>\n");
+        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] <file.obc>\n");
         free(break_pcs);
         return 1;
     }
@@ -1291,7 +1297,7 @@ int main(int argc, char** argv) {
                 free(break_pcs);
                 return 1;
             }
-            if (print_policy) {
+            if (print_policy || print_policy_json) {
                 uint64_t mask = 0;
                 PolicyOp* ops = NULL;
                 size_t ops_len = 0;
@@ -1303,13 +1309,22 @@ int main(int argc, char** argv) {
                     free(break_pcs);
                     return 1;
                 }
-                printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)mask);
-                for (size_t i = 0; i < ops_len; i++) {
-                    printf("POLICY_USED_OP domain=%u op=%u\n", (unsigned)ops[i].domain, (unsigned)ops[i].op);
+                if (print_policy_json) {
+                    printf("{\"used_domains_mask\":\"0x%016llx\",\"ops\":[", (unsigned long long)mask);
+                    for (size_t i = 0; i < ops_len; i++) {
+                        if (i) printf(",");
+                        printf("{\"domain\":%u,\"op\":%u}", (unsigned)ops[i].domain, (unsigned)ops[i].op);
+                    }
+                    printf("]}\n");
+                } else {
+                    printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)mask);
+                    for (size_t i = 0; i < ops_len; i++) {
+                        printf("POLICY_USED_OP domain=%u op=%u\n", (unsigned)ops[i].domain, (unsigned)ops[i].op);
+                    }
                 }
                 free(ops);
 
-                // Safety guarantee: --print-policy must not execute bytecode.
+                // Safety guarantee: --print-policy* must not execute bytecode.
                 // (Disassembly is still allowed because it is non-effectful.)
                 if (!disasm) {
                     free_constant_pool(consts, n_consts);

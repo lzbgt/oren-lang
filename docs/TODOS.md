@@ -8,12 +8,13 @@ Last updated: 2025-12-16
 
 ### AVM (agentic execution substrate)
 
-1) **Policy output stabilization (hashable + governance-ready)**
-   - Keep `--print-policy` “no execute” invariant.
-   - Add a stable, machine-friendly output mode (e.g. JSON) once semantics stabilize.
+1) **Legacy opcode deprecation path**
+   - Ensure the compiler emits `CALL_NATIVE2` everywhere (no new `CALL_NATIVE` output).
+   - Keep runtime compatibility mapping for old `.obc` as needed, but add a strict/verifier mode later to reject legacy opcodes in untrusted capsules.
 
-2) **Legacy opcode deprecation path**
-   - Keep `CALL_NATIVE` mapped into `(domain, op)` (done), then phase out legacy opcode when compiler emits `CALL_NATIVE2` everywhere.
+2) **Policy output stabilization (hashable + governance-ready)**
+   - Keep `--print-policy*` “no execute” invariant.
+   - Continue stabilizing the machine-friendly output (`--print-policy-json`) for governance (schema versioning and policy hashing later).
 
 ## P1 (High Leverage for Agentic Debugging / Swarm)
 
@@ -41,6 +42,7 @@ Last updated: 2025-12-16
 - FS I/O budget (`AVM_IO_BYTES`) + AVM-in-AVM `cfg.io_bytes` subset enforcement.
 - Structured error contract: stable `__err/code/msg` with optional `domain/op` metadata for policy/budget failures.
 - Policy scan: `--print-policy` outputs domain bitmask plus `(domain, op)` pairs and does not execute bytecode.
+- Policy JSON: `--print-policy-json` outputs a machine-friendly JSON form and does not execute bytecode.
 - Leak-free teardown: VM frees remaining unreachable heap allocations at `avm_free()` (no tracing GC during run yet).
 - Record/replay log budget (`AVM_LOG_BYTES`) + child `cfg.log_bytes` subset enforcement (preflight prevents un-loggable side effects in record mode).
 - `avm` tooling: disasm/trace/breakpoints + mem-stats + `--repeat` + `--print-rss`.

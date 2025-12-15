@@ -145,6 +145,14 @@ test: oren
 			echo "$$out" | grep -q "^POLICY_USED_OP domain=5 op=0$$" || { echo "FAIL: $$name (Missing PROC system op)"; echo "$$out"; exit 1; }; \
 			echo "$$out" | grep -q "^POLICY_USED_OP domain=7 op=0$$" || { echo "FAIL: $$name (Missing ENV env op)"; echo "$$out"; exit 1; }; \
 			echo "$$out" | grep -q "RUN_POLICY_SCAN_SHOULD_NOT_EXECUTE" && { echo "FAIL: $$name (--print-policy executed bytecode)"; echo "$$out"; exit 1; }; \
+			set +e; outj=$$($(RUN_WITH_TIMEOUT) ./avm --print-policy-json build/$$name.obc); rcj=$$?; set -e; \
+			if [ $$rcj -ne 0 ]; then \
+				echo "FAIL: $$name (--print-policy-json exit code $$rcj)"; echo "$$outj"; exit 1; \
+			fi; \
+			echo "$$outj" | grep -q "\"domain\":1" || { echo "FAIL: $$name (JSON missing domain=1)"; echo "$$outj"; exit 1; }; \
+			echo "$$outj" | grep -q "\"domain\":5" || { echo "FAIL: $$name (JSON missing domain=5)"; echo "$$outj"; exit 1; }; \
+			echo "$$outj" | grep -q "\"domain\":7" || { echo "FAIL: $$name (JSON missing domain=7)"; echo "$$outj"; exit 1; }; \
+			echo "$$outj" | grep -q "RUN_POLICY_SCAN_SHOULD_NOT_EXECUTE" && { echo "FAIL: $$name (--print-policy-json executed bytecode)"; echo "$$outj"; exit 1; }; \
 		elif [ "$$name" = "test_capability_deny_fs" ]; then \
 			AVM_ALLOW_DOMAINS=0 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
 		elif [ "$$name" = "test_snapshot_resume" ]; then \
