@@ -1,5 +1,16 @@
 # Agent Virtual Machine (AVM) Specification
 
+**Note:** This document describes the **v0.1 bootstrap** AVM (minimal instruction set).
+For the next step (no-JIT-first, ML-focused typed buffers/SIMD, capability-scoped natives), see:
+
+- `docs/AVM_SPEC_V1.md`
+- `docs/AVM_CAPABILITIES.md`
+
+Compatibility policy:
+
+- This repo is currently in **rolling ABI** mode: `.obc` format and opcodes may change.
+- When an explicit “stability milestone” is declared later, AVM can introduce `.obc` versioning and a compatibility policy at that time.
+
 ## Architecture
 AVM is a lightweight, stack-based virtual machine designed for executing Oren code in restricted environments (iOS, Edge, Web). It prioritizes safety, resumability, and simplicity.
 
@@ -9,9 +20,21 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 - **Heap:** Currently plain `malloc` allocations for strings/lists/maps (no GC yet).
 
 ## Bytecode Format (.obc)
-- **Header:** Magic (`0x0ECD`), Version.
-- **Constant Pool:** List of integers, floats, strings.
-- **Code:** Stream of 8-bit opcodes and operands.
+**Current on-disk format (as implemented today):**
+
+- **Header:** Magic (`0x0ECD`) only.
+- **Const count:** `u16` (little-endian).
+- **Constant Pool:** a sequence of tagged constants.
+- **Code:** stream of 8-bit opcodes and operands (immediately after constants).
+
+**Notes (implementation reality):**
+
+- The bootstrap encoder/decoder currently does **not** write/read an explicit bytecode version field.
+- The bootstrap constant pool currently supports:
+  - `NIL`
+  - `INT` (u64 payload)
+  - `STRING` (u16 length + bytes)
+- `FLOAT` constants exist in the v0.1 instruction table but are not yet fully wired through the current bytecode backend.
 
 ## Instruction Set (Version 0.1)
 
@@ -44,6 +67,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 | 0x38 | CALL | `u16_addr`, `u8_nargs` | `[args] -> []` | Call function. |
 | 0x39 | RET | - | `[ret] -> []` | Return from function. |
 | 0x3A | CALL_NATIVE | `u16_id`, `u8_nargs` | `[args] -> [ret]` | Call host function. |
+| 0x3B | CALL_NATIVE2 | `u8_domain`, `u16_op`, `u8_nargs` | `[args] -> [ret]` | Call host function within a capability domain (rolling ABI). |
 | 0x40 | NEW_LIST | `u16_count` | `[v1..vn] -> [list]` | Create list from n items. |
 | 0x41 | NEW_MAP | `u16_count` | `[k1,v1..] -> [map]` | Create map from n pairs. |
 | 0x42 | GET_INDEX | - | `[obj, key] -> [val]` | Get item from list/map. |
@@ -68,8 +92,16 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 15. int_mod
 16. oren_bytes_from_string
 17. oren_write_bytes
+18. oren_read_bytes
 
 ## Implementation Strategy
 1. `libavm` (C Library): Core VM loop, stack management, loader.
 2. `oren avm` (CLI): Command to run `.obc` files using `libavm`.
 3. `codegen_bytecode.oren`: Compiler backend to emit `.obc`.
+
+## Known Limitations (Bootstrap v0.1)
+
+- **Capability model is still evolving:** host calls support both a flat numeric ID table (`CALL_NATIVE`) and a domain/op model (`CALL_NATIVE2`); governance and enforcement is described in `docs/AVM_CAPABILITIES.md`.
+- **No metering:** no CPU/memory/time accounting per program yet.
+- **Heap is malloc-based:** no tracing GC; long-running programs can leak unless the host reclaims per-run.
+- **Numeric model is minimal:** only a subset of operators/constant types are encoded today.

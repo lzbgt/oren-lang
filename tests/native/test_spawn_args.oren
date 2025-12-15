@@ -1,0 +1,9 @@
+fn worker(x) {
+    return x
+}
+fn main() {
+    var t = spawn worker(42)
+    var res = oren_join(t)
+    oren_system("echo Joined " + oren_int_to_string(res))
+}
+main()

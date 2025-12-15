@@ -1,0 +1,23 @@
+fn fail(code) {
+    print("FAIL test_read_bytes")
+    exit(code)
+}
+
+fn main() {
+    var path = "build/native_test_read_bytes.bin"
+    var bytes = [0, 1, 0, 2, 255, 128, 64, 0, 10]
+    oren_write_bytes(path, bytes)
+
+    var out = oren_read_bytes(path)
+    if oren_list_len(out) != oren_list_len(bytes) { fail(1) }
+
+    var i = 0
+    while i < oren_list_len(bytes) {
+        if out[i] != bytes[i] { fail(2) }
+        i = i + 1
+    }
+
+    print("native read_bytes OK")
+}
+
+main()

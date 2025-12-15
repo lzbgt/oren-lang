@@ -94,8 +94,10 @@ graph TD
 ## 5. Current Status (Dec 2025)
 
 *   **Compiler:** Self-hosting (Stage 2) active.
-*   **Backends:** C (Transpiler) and ARM64 (Native) operational.
-*   **Next Step:** Begin **Phase 1** (AVM Core & Bytecode Definition).
+*   **Backends:** C (Transpiler), ARM64 native backend, and bytecode backend operational.
+*   **AVM:** `lib/avm` stack-machine interpreter exists; `.obc` can be emitted and executed.
+*   **Host calls:** capability-scoped `CALL_NATIVE2(domain, op, nargs)` exists (rolling ABI), with FS and CORE domains started.
+*   **Next Step:** Continue hardening the AVM for agent workloads: verifier + budgets + deterministic mode + snapshotting.
 
 ---
 
@@ -147,21 +149,34 @@ The Agent will write whatever syntax we tell it to. The adoption depends entirel
 2.  **Security:** Capability Contracts must be unbreakable.
 3.  **Portability:** The Bytecode interpreter must run everywhere.
 
+References for the current AVM direction:
+
+- Bootstrap VM (current): `docs/AVM_SPEC.md`
+- Next-gen AVM plan (no-JIT-first, ML-focused typed buffers/SIMD, capability domains): `docs/AVM_SPEC_V1.md`
+- Capability model: `docs/AVM_CAPABILITIES.md`
+- Killer-feature requirements: `docs/AGENTIC_VM_KILLER_FEATURES.md`
+- Agentic AI top requirements: `docs/AGENTIC_AI_TOP_FEATURES.md`
+
 ---
 
 ## 8. Tactical Reality: Current Gaps (Dec 2025)
 
-Before we can build the AVM (Bytecode VM), the **Native Backend** must reach feature parity with the Legacy (C) backend. Our analysis reveals critical gaps that prevent the language from being "Production Ready."
+The native backend and bytecode backend have progressed quickly; some previously blocking gaps have been addressed, but “production-ready” still requires hardening, specs, and a capability-governed runtime.
 
 ### Critical Blocks
-1.  **Floating Point:** The Native backend has **zero** support for float literals or math (`1.5 + 2.0`). This blocks all scientific/AI workloads.
-2.  **Data Access:** While you can *create* Lists/Maps, the compiler cannot generate code to *index* them (`list[0]` or `map["key"]`).
-3.  **String Operations:** Basic concatenation (`"a" + "b"`) is unimplemented in the native code generator.
+These remain the highest-risk areas for correctness and portability:
+
+1. **Capability governance:** the VM/runtime must enforce domain-scoped host calls (FS/NET/PROC/TIME/CRYPTO/SIMD), budgets, and explicit allow-lists.
+2. **Snapshotting + determinism:** required for self-healing and reliable “retry with fix” workflows.
+3. **Memory + concurrency hardening:** GC, thread/task interaction, and blocking primitives must be robust and deadlock-free.
 
 ### Immediate Action Plan
-We must stabilize the Language Core before defining the Bytecode Spec.
-1.  **Implement `Index` expressions** in `codegen_arm64.oren`.
-2.  **Implement `Float` support** (literals + NEON instructions).
-3.  **Implement String Concatenation** (runtime calls).
+We stabilize the execution substrate while evolving the specs in parallel:
 
-**Status:** `libavm` development is **PAUSED** until these core language features are stabilized in the Native Backend.
+1. **Keep the bootstrap AVM working** while drafting the next-gen plan (typed buffers + SIMD kernels + capability domains).
+2. **Implement byte-accurate I/O primitives** as a foundation for `.obc` and model artifacts (in progress; `read_bytes` exists).
+3. **Implement syscall-first runtime direction** (no C shims), starting with macOS and validating on Linux.
+4. **Add the “agent substrate” hardening loop:** verifier + budgets + timeouts + deterministic record/replay + snapshotting.
+
+**Status:** AVM is in bootstrap mode; agent-grade execution requires capability enforcement + metering + typed buffers + determinism + snapshotting.
+**Repo policy:** currently rolling/unstable until a stability milestone is declared.

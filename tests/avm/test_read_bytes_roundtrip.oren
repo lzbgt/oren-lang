@@ -1,0 +1,25 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    var path = "build/avm_test_read_bytes.bin"
+    var bytes = [0, 1, 0, 2, 255, 128, 64, 0, 10]
+    oren_write_bytes(path, bytes)
+
+    var out = oren_read_bytes(path)
+    if oren_list_len(out) != 9 { fail("length mismatch") }
+    if out[0] != 0 { fail("mismatch at 0") }
+    if out[1] != 1 { fail("mismatch at 1") }
+    if out[2] != 0 { fail("mismatch at 2") }
+    if out[3] != 2 { fail("mismatch at 3") }
+    if out[4] != 255 { fail("mismatch at 4") }
+    if out[5] != 128 { fail("mismatch at 5") }
+    if out[6] != 64 { fail("mismatch at 6") }
+    if out[7] != 0 { fail("mismatch at 7") }
+    if out[8] != 10 { fail("mismatch at 8") }
+
+    print("avm read_bytes OK")
+}

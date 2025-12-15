@@ -13,6 +13,15 @@ else
   CODESIGN_ARG :=
 endif
 
+# Test runner settings
+TEST_TIMEOUT_SECS ?= 10
+TIMEOUT_BIN := $(shell command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")
+ifneq ($(strip $(TIMEOUT_BIN)),)
+  RUN_WITH_TIMEOUT = $(TIMEOUT_BIN) $(TEST_TIMEOUT_SECS)
+else
+  RUN_WITH_TIMEOUT =
+endif
+
 # Optional GC toggle (set NO_GC=1 or OREN_NO_GC in env to compile with -DOREN_NO_GC)
 GC_ARG :=
 ifeq ($(NO_GC),1)
@@ -64,24 +73,29 @@ test: oren
 			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
 		elif [ "$$name" = "test_debug_panic" ]; then \
 			./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
-			if ./build/$$name; then \
+			set +e; $(RUN_WITH_TIMEOUT) ./build/$$name; rc=$$?; set -e; \
+			if [ $$rc -eq 0 ]; then \
 				echo "FAIL: $$name (Expected panic)"; exit 1; \
+			elif [ $$rc -eq 124 ]; then \
+				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
 			fi; \
 		else \
 			./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
-			./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
+			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
 		fi \
 	done
 	@# Module Tests (C Backend)
 	@echo "Testing Module System..."
 	@./oren build tests/modules/test_shapes.oren --backend c -o build/test_shapes $(CODESIGN_ARG) $(GC_ARG)
-	@./build/test_shapes || (echo "FAIL: test_shapes"; exit 1)
+	@$(RUN_WITH_TIMEOUT) ./build/test_shapes || (echo "FAIL: test_shapes"; exit 1)
 	@./oren build tests/modules/test_spawn.oren --backend c -o build/test_spawn $(CODESIGN_ARG) $(GC_ARG)
-	@./build/test_spawn || (echo "FAIL: test_spawn"; exit 1)
+	@$(RUN_WITH_TIMEOUT) ./build/test_spawn || (echo "FAIL: test_spawn"; exit 1)
+	@./oren build tests/modules/test_read_bytes.oren --backend c -o build/test_read_bytes $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/test_read_bytes || (echo "FAIL: test_read_bytes"; exit 1)
 	@./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
-	@./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
+	@$(RUN_WITH_TIMEOUT) ./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
 	@./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)
-	@./build/test_gc_stack_roots || (echo "FAIL: test_gc_stack_roots"; exit 1)
+	@$(RUN_WITH_TIMEOUT) ./build/test_gc_stack_roots || (echo "FAIL: test_gc_stack_roots"; exit 1)
 	@echo "All Tests Passed."
 
 # Full Verification: Clean -> Bootstrap -> Stage 1 -> Stage 2 -> Validation
@@ -89,7 +103,7 @@ verify: clean oren_stage2
 	@echo "=== Verifying Stage 2 Compiler ==="
 	@mkdir -p build
 	@./oren_stage2 build tests/native/func.oren --backend native -o build/func_stage2 $(CODESIGN_ARG) $(GC_ARG)
-	@./build/func_stage2 || (echo "FAIL: Stage 2 Verification"; exit 1)
+	@$(RUN_WITH_TIMEOUT) ./build/func_stage2 || (echo "FAIL: Stage 2 Verification"; exit 1)
 	@echo "Verification Successful: Stage 2 is functional."
 
 # --- AVM (experimental) ---
@@ -105,25 +119,25 @@ examples-test: oren avm
 	@mkdir -p build
 	@# 1) C backend hello + modules + threading
 	@./oren build examples/hello_c.oren --backend c -o build/ex_hello_c $(CODESIGN_ARG) $(GC_ARG)
-	@./build/ex_hello_c
+	@$(RUN_WITH_TIMEOUT) ./build/ex_hello_c
 	@./oren build examples/module_app.oren --backend c -o build/ex_module_app $(CODESIGN_ARG) $(GC_ARG)
-	@./build/ex_module_app
+	@$(RUN_WITH_TIMEOUT) ./build/ex_module_app
 	@./oren build examples/spawn_c.oren --backend c -o build/ex_spawn_c $(CODESIGN_ARG) $(GC_ARG)
-	@./build/ex_spawn_c
+	@$(RUN_WITH_TIMEOUT) ./build/ex_spawn_c
 	@# 2) Native backend GC + FFI
 	@./oren build examples/gc_native.oren --backend native -o build/ex_gc_native $(CODESIGN_ARG) $(GC_ARG)
-	@./build/ex_gc_native
+	@$(RUN_WITH_TIMEOUT) ./build/ex_gc_native
 	@./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG)
-	@./build/ex_ffi_puts >/dev/null
+	@$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null
 	@# 3) Native dylib export + header + scan + link
 	@./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata
 	@test -f build/libmath.h
-	@./oren scan build/libmath.dylib >/dev/null
+	@$(RUN_WITH_TIMEOUT) ./oren scan build/libmath.dylib >/dev/null
 	@./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG)
-	@./build/ex_ffi_from_libmath
+	@$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath
 	@# 4) Bytecode + AVM
 	@./oren build examples/hello.oren --backend bytecode -o build/ex_hello.obc
-	@./avm build/ex_hello.obc >/dev/null
+	@$(RUN_WITH_TIMEOUT) ./avm build/ex_hello.obc >/dev/null
 	@echo "Examples OK"
 
 # --- Cleanup ---

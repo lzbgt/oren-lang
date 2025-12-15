@@ -2,6 +2,11 @@
 
 This document outlines advanced architectural capabilities where Oren and AVM provide solutions that traditional runtimes (Python, Node.js, Docker) cannot easily match. These are the "Killer Apps" for an AI-Native runtime.
 
+See also:
+
+- `docs/AGENTIC_AI_TOP_FEATURES.md`
+- `docs/AGENTIC_VM_KILLER_FEATURES.md`
+
 ---
 
 ## 1. The "Matrix" Sandbox (Perfect Simulation)

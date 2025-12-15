@@ -45,3 +45,16 @@ This track is defined in `docs/OREN_EVOLUTION.md` and complements the phases abo
 - **Phase B (Bytecode Backend)**: Add `lib/compiler/codegen_bytecode.oren` and a CLI target to emit `.obc` from the shared AST.
 - **Phase C (Inception / Self-Hosting on AVM)**: Stage0 produces `oren.obc`; run compiler-in-bytecode under `libavm` to compile and run user scripts (OBC → AVM).
 - **Phase D (`libagent`)**: Safe agent standard library (`fs`, `net/http`, `semantic`, `proc` where allowed) mapped to AVM host primitives.
+
+### Next-Gen AVM (No-JIT-First, ML-Oriented)
+
+- Spec draft: `docs/AVM_SPEC_V1.md`
+- Capability domains (SOLID governance): `docs/AVM_CAPABILITIES.md`
+- Agentic VM killer features: `docs/AGENTIC_VM_KILLER_FEATURES.md`
+- Agentic AI top requirements (end-to-end): `docs/AGENTIC_AI_TOP_FEATURES.md`
+- Language stability / feature rollout rules (self-hosting): `docs/LANGUAGE_EVOLUTION.md`
+
+Compatibility stance:
+
+- Keep moving fast: **until a stability milestone is explicitly declared, everything is rolling/ABI-unstable**.
+- When stability is declared later, the VM/bytecode can introduce explicit versioning and a compatibility policy then.

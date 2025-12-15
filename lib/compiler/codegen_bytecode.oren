@@ -20,6 +20,10 @@ var AVM_NEW_LIST = 64
 var AVM_NEW_MAP = 65
 var AVM_GET_INDEX = 66
 var AVM_SET_INDEX = 67
+var AVM_CALL_NATIVE2 = 59
+
+var AVM_DOMAIN_CORE = 0
+var AVM_DOMAIN_FS = 1
 
 fn new_bytecode_ctx() {
     return {
@@ -111,6 +115,13 @@ fn bytecode_compile_expr(ctx, expr) {
         patch_u16(ctx, jump_then_idx, then_start - (jump_then_idx + 2))
         patch_u16(ctx, jump_else_idx, else_start - (jump_else_idx + 2))
         patch_u16(ctx, jump_end_idx, end_pc - (jump_end_idx + 2))
+
+        // Treat `if { ... } else { ... }` as an expression that evaluates to `nil`.
+        // This keeps stack depth consistent when `if` appears in statement position
+        // (ExprStmt emits AVM_POP after compiling the expression).
+        var nil_idx = add_constant(ctx, {"type": "Nil"})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, nil_idx)
         return nil
     }
 
@@ -289,9 +300,32 @@ fn bytecode_compile_expr(ctx, expr) {
             }
         }
         
+        // Rolling ABI: prefer domain-based natives for effectful calls.
+        // CORE calls currently map op == legacy native id.
+        // FS calls use a separate domain/op mapping.
+        var native_domain = -1
+        var native_op = -1
+
+        if name == "oren_read_file" { native_domain = AVM_DOMAIN_FS; native_op = 0 }
+        if name == "oren_write_file" { native_domain = AVM_DOMAIN_FS; native_op = 1 }
+        if name == "oren_write_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 2 }
+        if name == "oren_read_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 3 }
+
+        if native_domain != -1 {
+            var args = expr["args"]
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            emit_byte(ctx, AVM_CALL_NATIVE2)
+            emit_byte(ctx, native_domain)
+            emit_u16(ctx, native_op)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
+
         var native_id = -1
-        if name == "oren_read_file" { native_id = 0 }
-        if name == "oren_write_file" { native_id = 1 }
         if name == "oren_system" { native_id = 2 }
         if name == "oren_args" { native_id = 3 }
         if name == "oren_env" { native_id = 4 }
@@ -306,8 +340,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_index_set" { native_id = 14 }
         if name == "int_mod" { native_id = 15 }
         if name == "oren_bytes_from_string" { native_id = 16 }
-        if name == "oren_write_bytes" { native_id = 17 }
-        
+
         if native_id != -1 {
             var args = expr["args"]
             var i = 0
@@ -315,7 +348,8 @@ fn bytecode_compile_expr(ctx, expr) {
                 bytecode_compile_expr(ctx, args[i])
                 i = i + 1
             }
-            emit_byte(ctx, 58) // CALL_NATIVE
+            emit_byte(ctx, AVM_CALL_NATIVE2)
+            emit_byte(ctx, AVM_DOMAIN_CORE)
             emit_u16(ctx, native_id)
             emit_byte(ctx, oren_list_len(args))
             return nil
@@ -324,6 +358,9 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "print" {
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_PRINT)
+            var idx = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
             return nil
         }
         
@@ -441,8 +478,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
             var idx = ctx["local_count"]
             ctx["locals"][name] = idx
             ctx["local_count"] = idx + 1
-            emit_byte(ctx, AVM_STORE_LOCAL)
-            emit_byte(ctx, idx)
+            // Value is left on stack as the local variable slot
         }
         return nil
     }

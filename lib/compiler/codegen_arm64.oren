@@ -645,31 +645,91 @@ fn native_compile_expr(ctx, expr) {
             oren_list_push(ctx["import_list"], "exit")
         }
 
-        // Generate Wrapper: void wrapper(void* arg) { target(); return NULL; }
-        // We emit it inline and jump over it.
+        // 1. Compile arguments and build list
+        var call = expr["call"]
+        var args = call["args"]
+        var nargs = oren_list_len(args)
+        
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        var bl_new_list = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list, "name": "oren_new_list"})
+        
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        
+        var i_arg = 0
+        while i_arg < nargs {
+            native_compile_expr(ctx, args[i_arg])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            var bl_push = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push, "name": "oren_list_push"})
+            
+            i_arg = i_arg + 1
+        }
+        
+        // Wrapper: unpack args
         var jump_skip_wrapper = oren_list_len(ctx["code"])
-        push_u32_le(ctx["code"], 0) // Placeholder for B skip
+        push_u32_le(ctx["code"], 0)
 
         var wrapper_pos = oren_list_len(ctx["code"])
-        // Prologue
         push_u32_le(ctx["code"], insn_stp_pre())
         push_u32_le(ctx["code"], insn_mov_fp_sp())
         
-        // Call target
-        var call = expr["call"]
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        
+        var frame_size = align_up(nargs * 8, 16)
+        if frame_size > 0 {
+            push_u32_le(ctx["code"], insn_sub_sp(frame_size))
+        }
+        
+        var j_arg = 0
+        while j_arg < nargs {
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, frame_size))
+            push_u32_le(ctx["code"], insn_movz(1, j_arg))
+            
+            var bl_get = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_get, "name": "oren_list_get"})
+            
+            push_u32_le(ctx["code"], insn_str_reg_sp(0, j_arg * 8))
+            j_arg = j_arg + 1
+        }
+        
+        j_arg = 0
+        while j_arg < nargs {
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(j_arg, j_arg * 8))
+            j_arg = j_arg + 1
+        }
+        
         var fn_name = call["fn"]["value"]
         var bl_target = oren_list_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_target, "name": fn_name})
         
-        // Epilogue
-        // Result is in X0, return it.
+        if frame_size > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(frame_size))
+        }
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        
         push_u32_le(ctx["code"], insn_mov_sp_fp())
         push_u32_le(ctx["code"], insn_ldp_post())
         push_u32_le(ctx["code"], insn_ret())
         
         var after_wrapper = oren_list_len(ctx["code"])
-        var skip_off = (after_wrapper - jump_skip_wrapper)
+        // B immediate expects offset in instructions (bytes/4), relative to the branch instruction.
+        var skip_off = (after_wrapper - jump_skip_wrapper) / 4
         set_u32_le(ctx["code"], jump_skip_wrapper, insn_b(skip_off))
         
         // Call pthread_create
@@ -693,7 +753,7 @@ fn native_compile_expr(ctx, expr) {
         var off_val = (wrapper_pos - pc)
         push_u32_le(ctx["code"], insn_adr(2, off_val))  // X2 = &wrapper
         
-        push_u32_le(ctx["code"], insn_movz(3, 0))       // X3 = NULL
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 16)) // X3 = list
         
         var bl_pthread = oren_list_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
@@ -712,11 +772,16 @@ fn native_compile_expr(ctx, expr) {
         
         // ok:
         var ok_pos = oren_list_len(ctx["code"])
-        var ok_off = (ok_pos - jump_ok)
+        // B.<cond> immediate expects offset in instructions (bytes/4), relative to the branch instruction.
+        var ok_off = (ok_pos - jump_ok) / 4
         set_u32_le(ctx["code"], jump_ok, insn_b_cond(ok_off, 0)) // 0=EQ
         
         // Restore thread* to X0 (return value)
         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+        
+        // Pop list pointer
         push_u32_le(ctx["code"], insn_add_sp(16))
         ctx["stack_size"] = ctx["stack_size"] - 16
         
@@ -908,7 +973,16 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
             
-            if op == "+" { push_u32_le(ctx["code"], insn_add_reg(0, 1, 0)) }
+            if op == "+" { 
+                // Swap X0/X1 so X0=Left, X1=Right for oren_add call
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // Right -> X2
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // Left -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // Right -> X1
+                
+                var bl_pos = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_add"})
+            }
             if op == "-" { push_u32_le(ctx["code"], insn_sub_reg(0, 1, 0)) }
             if op == "*" { push_u32_le(ctx["code"], insn_mul(0, 1, 0)) }
             if op == "/" { push_u32_le(ctx["code"], insn_udiv(0, 1, 0)) }
@@ -1466,6 +1540,15 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_read))
             if is_macos { push_u32_le(ctx["code"], 4070588432) }
             push_u32_le(ctx["code"], insn_svc(svc_imm))
+            if is_macos {
+                // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
+                // Normalize to X0 = -1 for runtime logic that checks `< 0` / `<= 0`.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_movn(0, 0)) // X0 = -1
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
             return nil
         }
         
@@ -1513,6 +1596,112 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
             if is_macos { push_u32_le(ctx["code"], 4070588432) }
             push_u32_le(ctx["code"], insn_svc(svc_imm))
+            if is_macos {
+                // Normalize macOS syscall error (carry set, X0=errno) to X0 = -1.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_movn(0, 0)) // X0 = -1
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return nil
+        }
+
+        if fn_name == "sys_open" {
+            // sys_open(path_ptr, flags, mode)
+            // macOS: open(path, flags, mode) -> fd
+            // Linux:  openat(AT_FDCWD=-100, path, flags, mode) -> fd
+            native_compile_expr(ctx, args[0]) // path -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args[1]) // flags -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args[2]) // mode -> X0
+
+            // Pop flags -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop path -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Currently: X0=mode, X1=flags, X2=path.
+            // macOS wants: X0=path, X1=flags, X2=mode.
+            // Linux wants: X0=-100, X1=path, X2=flags, X3=mode.
+
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+
+            if is_macos {
+                push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = mode
+                push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // X0 = path
+                push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // X2 = mode
+
+                var sys_open = 5
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_open))
+                push_u32_le(ctx["code"], 4070588432) // MOVK X16, #0x200, LSL #16
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                // Normalize macOS syscall error to X0 = -1.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_movn(0, 0)) // X0 = -1
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            } else {
+                // openat(AT_FDCWD=-100, path, flags, mode)
+                push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = mode
+                push_u32_le(ctx["code"], insn_mov_reg(4, 1)) // X4 = flags
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // X1 = path
+                push_u32_le(ctx["code"], insn_mov_reg(2, 4)) // X2 = flags
+                push_u32_le(ctx["code"], insn_movn(0, 99))    // X0 = -100 (AT_FDCWD)
+
+                var sys_openat = 56
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_openat))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+            }
+
+            return nil
+        }
+
+        if fn_name == "sys_close" {
+            // sys_close(fd)
+            native_compile_expr(ctx, args[0]) // fd -> X0
+
+            var sys_close = 6
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                sys_close = 57
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_close))
+            if is_macos { push_u32_le(ctx["code"], 4070588432) }
+            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            if is_macos {
+                // Normalize macOS syscall error to X0 = -1.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_movn(0, 0)) // X0 = -1
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
             return nil
         }
         

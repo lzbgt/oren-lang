@@ -1,0 +1,9 @@
+fn worker() {
+    return 0
+}
+fn main() {
+    print("Main Start")
+    spawn worker()
+    oren_system("echo Main End")
+}
+main()

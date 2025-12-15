@@ -6,13 +6,13 @@ To empower AI workloads and fully utilize modern multi-core chips, Oren provides
 
 ### 1. Lightweight Tasks (Coroutines)
 *   **Concept:** Instead of heavy OS threads, Oren uses lightweight, runtime-managed tasks (green threads).
-*   **Syntax:** `spawn func(arg)` or `go func()`.
+*   **Syntax (draft):** `spawn func(arg)` for OS threads (implemented today), and `yield`/task APIs for lightweight coroutines (planned).
 *   **Implementation:** M:N scheduling (M tasks on N OS threads).
 *   **Goal:** Allow millions of concurrent tasks (e.g., individual agent steps, network requests) with minimal overhead.
 
 ### 2. Channels (Sized & Unsized)
 *   **Concept:** Typed, thread-safe pipes for passing data between tasks.
-*   **Syntax:** `chan<Type>(buffer_size)`.
+*   **Syntax (draft):** `chan<Type>(buffer_size)` (not implemented yet).
 *   **Behavior:**
     *   **Unsized (0):** Synchronous rendezvous. Sender blocks until receiver is ready.
     *   **Sized (N):** Buffered. Sender blocks only when buffer is full. Provides backpressure.
@@ -42,6 +42,12 @@ To empower AI workloads and fully utilize modern multi-core chips, Oren provides
 *   **Mechanism:** `task_group` blocks. When a parent scope exits, it waits for (or cancels) all child tasks.
 *   **Goal:** Prevent "orphaned" tasks and ensure clean resource shutdown (e.g., stopping all parallel searches if one result is found).
 
+Agentic requirements (must-have):
+
+*   **Cancellation propagation:** Child tasks inherit a cancellation token; parent cancellation cancels children.
+*   **Deadlines/timeouts:** Deadlines are part of the task context, so “best-first” searches can cancel losers quickly.
+*   **Supervision:** Prefer structured “supervisor” patterns for restart policies (optional, but high value for self-healing agents).
+
 ### 6. Parallel Iterators (Map-Reduce)
 *   **Concept:** Data-parallelism made easy.
 *   **Syntax:** `par_map(list, func)`, `par_reduce(list, func, init)`.
@@ -52,5 +58,18 @@ To empower AI workloads and fully utilize modern multi-core chips, Oren provides
 2.  **OS Threads:** `spawn` intrinsic (Linux clone / macOS bsdthread).
 3.  **Synchronization:** Mutexes and Condition Variables (using Atomics + Futex).
 4.  **Communication:** Channels (on top of Mutexes + Ring Buffer).
-5.  **Scheduler:** M:N Scheduler for Coroutines.
+5.  **Scheduler:** M:N Scheduler for Coroutines (stackless-first via `yield` lowering).
 6.  **High-Level:** Pub/Sub and Parallel Iterators.
+
+## Agentic VM Considerations (No-JIT, Self-Healing)
+
+For AVM execution (interpreter-only environments), concurrency primitives must:
+
+- support cancellation/timeouts (to stop work when a better plan exists)
+- be compatible with snapshot/restore (pause and resume tasks)
+- be compatible with capability gating (NET/PROC may be disabled)
+
+See:
+
+- `docs/AVM_SPEC_V1.md`
+- `docs/AGENTIC_VM_KILLER_FEATURES.md`

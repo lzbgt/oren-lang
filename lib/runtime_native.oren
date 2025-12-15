@@ -24,6 +24,8 @@ fn stack_trace() {
 fn sys_write(fd, ptr, len) { return 0 }
 fn sys_read(fd, ptr, len) { return 0 }
 fn sys_pipe(ptr) { return 0 }
+fn sys_open(path, flags, mode) { return 0 }
+fn sys_close(fd) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
 fn sys_gettid() { return 0 }
 
@@ -97,23 +99,23 @@ fn oren_globals() {
 fn global_get_allocs() { return ptr_get(oren_globals()) }
 fn global_set_allocs(v) { ptr_set(oren_globals(), v) }
 
-fn global_get_roots() { return ptr_get(oren_globals() + 8) }
-fn global_set_roots(v) { ptr_set(oren_globals() + 8, v) }
+fn global_get_roots() { return ptr_get(iadd(oren_globals(), 8)) }
+fn global_set_roots(v) { ptr_set(iadd(oren_globals(), 8), v) }
 
-fn global_get_lock() { return ptr_get(oren_globals() + 16) }
-fn global_set_lock(v) { ptr_set(oren_globals() + 16, v) }
+fn global_get_lock() { return ptr_get(iadd(oren_globals(), 16)) }
+fn global_set_lock(v) { ptr_set(iadd(oren_globals(), 16), v) }
 
-fn global_get_free() { return ptr_get(oren_globals() + 24) }
-fn global_set_free(v) { ptr_set(oren_globals() + 24, v) }
+fn global_get_free() { return ptr_get(iadd(oren_globals(), 24)) }
+fn global_set_free(v) { ptr_set(iadd(oren_globals(), 24), v) }
 
-fn global_get_threads() { return ptr_get(oren_globals() + 32) }
-fn global_set_threads(v) { ptr_set(oren_globals() + 32, v) }
+fn global_get_threads() { return ptr_get(iadd(oren_globals(), 32)) }
+fn global_set_threads(v) { ptr_set(iadd(oren_globals(), 32), v) }
 
-fn global_get_argc() { return ptr_get(oren_globals() + 40) }
-fn global_set_argc(v) { ptr_set(oren_globals() + 40, v) }
+fn global_get_argc() { return ptr_get(iadd(oren_globals(), 40)) }
+fn global_set_argc(v) { ptr_set(iadd(oren_globals(), 40), v) }
 
-fn global_get_argv() { return ptr_get(oren_globals() + 48) }
-fn global_set_argv(v) { ptr_set(oren_globals() + 48, v) }
+fn global_get_argv() { return ptr_get(iadd(oren_globals(), 48)) }
+fn global_set_argv(v) { ptr_set(iadd(oren_globals(), 48), v) }
 
 fn native_runtime_init() {
     g_storage = malloc(64)
@@ -226,27 +228,27 @@ fn acquire_lock() {
     if oren_globals() == 0 { return 0 }
     
     var tid = sys_gettid()
-    var lock_ptr = oren_globals() + 16
+    var lock_ptr = iadd(oren_globals(), 16)
     var owner = ptr_get(lock_ptr)
     
     if owner == tid {
-        var count_ptr = oren_globals() + 56
+        var count_ptr = iadd(oren_globals(), 56)
         var count = ptr_get(count_ptr)
-        ptr_set(count_ptr, count + 1)
+        ptr_set(count_ptr, iadd(count, 1))
         return 0
     }
     
     var spin = 0
     while atomic_cas(lock_ptr, 0, tid) != 0 {
         if g_panicking == 1 { return 0 }
-        spin = spin + 1
+        spin = iadd(spin, 1)
         if spin > 1000000 {
             // var val = ptr_get(lock_ptr)
             // exit(val)
         }
     }
     
-    var count_ptr = oren_globals() + 56
+    var count_ptr = iadd(oren_globals(), 56)
     ptr_set(count_ptr, 1)
     return 0
 }
@@ -256,14 +258,14 @@ fn release_lock() {
     if oren_globals() == 0 { return 0 }
     
     var tid = sys_gettid()
-    var lock_ptr = oren_globals() + 16
+    var lock_ptr = iadd(oren_globals(), 16)
     var owner = ptr_get(lock_ptr)
     
     if owner != tid {
         return 0
     }
     
-    var count_ptr = oren_globals() + 56
+    var count_ptr = iadd(oren_globals(), 56)
     var count = ptr_get(count_ptr)
     if count > 1 {
         ptr_set(count_ptr, count - 1)
@@ -322,11 +324,16 @@ fn native_gc_unregister_root(ptr) {
 
 fn oren_find_node(ptr) {
     if oren_globals() == 0 { return 0 }
+    acquire_lock()
     var cur = global_get_allocs()
     while cur != 0 {
-        if ptr_get(cur) == ptr { return cur }
-        cur = ptr_get(cur + 32)
+        if ptr_get(cur) == ptr { 
+            release_lock()
+            return cur 
+        }
+        cur = ptr_get(iadd(cur, 32))
     }
+    release_lock()
     return 0
 }
 
@@ -613,6 +620,23 @@ fn strcmp(s1, s2) {
         i = i + 1
     }
     return 0
+}
+
+fn oren_add(a, b) {
+    var na = oren_find_node(a)
+    if na != 0 {
+        var nb = oren_find_node(b)
+        if nb != 0 {
+            var ka = ptr_get(iadd(na, 16))
+            var kb = ptr_get(iadd(nb, 16))
+            if ka == 1 { // STRING
+                if kb == 1 {
+                    return string_concat(a, b)
+                }
+            }
+        }
+    }
+    return iadd(a, b)
 }
 
 fn oren_int_to_string(n) {
@@ -1035,9 +1059,70 @@ fn oren_args() {
     return out
 }
 
+// --- Binary I/O (byte-accurate) ---
+// Note: implemented via syscalls (see codegen intrinsics for sys_open/sys_read/sys_write/sys_close).
+
+fn oren_write_bytes(path, bytes) {
+    var fd = sys_open(path, 1537, 420) // O_WRONLY|O_CREAT|O_TRUNC, 0644
+    if fd < 0 { exit(260) }
+
+    var n = oren_list_len(bytes)
+    if n > 0 {
+        var buf = malloc(n)
+        if buf == 0 { exit(261) }
+        var i = 0
+        while i < n {
+            // bytes[i] is an int 0..255
+            ptr_set_byte(buf + i, bytes[i])
+            i = i + 1
+        }
+        sys_write(fd, buf, n)
+    }
+
+    sys_close(fd)
+    return 0
+}
+
+fn oren_read_bytes(path) {
+    var fd = sys_open(path, 0, 0) // O_RDONLY
+    if fd < 0 { exit(262) }
+
+    var out = oren_new_list(0)
+    var buf = malloc(4096)
+    if buf == 0 { exit(263) }
+
+    var n = 1
+    while n > 0 {
+        n = sys_read(fd, buf, 4096)
+        if n > 0 {
+            var i = 0
+            while i < n {
+                oren_list_push(out, ptr_get_byte(buf + i))
+                i = i + 1
+            }
+        }
+    }
+
+    sys_close(fd)
+    return out
+}
+
 // --- Threads ---
 ffi pthread_join
-ffi free
+ffi system
+
+fn oren_system(cmd) {
+    return system(cmd)
+}
+
+fn free(ptr) {
+    if ptr == 0 { return 0 }
+    var node = oren_find_node(ptr)
+    if node != 0 {
+        ptr_set(iadd(node, 24), 1) // freed = 1
+    }
+    return 0
+}
 
 fn oren_join(handle) {
     if handle == 0 { return 0 }

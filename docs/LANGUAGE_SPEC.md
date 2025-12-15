@@ -1,6 +1,6 @@
 # Oren Language Specification (Draft)
 
-This document describes the **Oren v0** language as implemented by the C backend (the transpiler + `lib/runtime.[ch]`) and as required for self-hosting (`oren.oren`).
+This document describes the **current Oren language** as implemented by the C backend (the transpiler + `lib/runtime.[ch]`) and as required for self-hosting (`oren.oren`).
 
 The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** the reference implementation (it supports only a subset and differs in some semantics like scoping).
 
@@ -14,7 +14,13 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 - Line comments start with `//` and run to the end of the line.
 
 ### Keywords
+Implemented today:
+
 `fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`
+
+Planned (not implemented yet):
+
+`yield`, `defer`, `assert`, `test`
 
 ### Identifiers
 Identifiers are ASCII letters, digits, and `_`:
@@ -85,6 +91,7 @@ prefix_expr     = literal
                 | "(" expression ")"
                 | if_expr
                 | fn_lit
+                | lambda_lit
                 | spawn_expr
                 | array_lit
                 | map_lit
@@ -97,6 +104,7 @@ infix_tail      = infix_op expression
 
 if_expr         = "if" expression block [ "else" block ] ;
 fn_lit          = "fn" [ ident ] "(" [ ident { "," ident } ] ")" block ;
+lambda_lit      = "|" [ ident { "," ident } ] "|" ( expression | block ) ;
 spawn_expr      = "spawn" expression ;
 call_suffix     = "(" [ expression { "," expression } ] ")" ;
 member_suffix   = "." ident ;
@@ -169,20 +177,37 @@ The runtime is dynamically typed. Values include:
 - `return expr` returns from the current function. A return value is always required; use `return nil` if needed.
 
 ### Concurrency (v0)
-- `spawn f(...)` starts a new OS thread (C backend implementation).
-- Current limitations (implementation facts):
-  - The transpiler only lowers `spawn` for direct function calls with **0 arguments** (`spawn foo()`).
-  - `spawn foo()` returns a thread handle; use `oren_join(handle)` or `oren_detach(handle)`.
+- `spawn f(...)` starts a new OS thread.
+- **Arguments**: Arguments passed to `spawn` (`spawn f(a, b)`) are evaluated in the parent thread and passed to the new thread's entry function `f`.
+- **Implementation**:
+  - `spawn foo(arg)` returns a thread handle (integer/pointer).
+  - Use `oren_join(handle)` to wait for completion and retrieve the return value.
+  - Use `oren_detach(handle)` to detach.
   - `oren_join_all()` exists as a coarse “join everything” helper (used at shutdown).
-  - `oren_gc_collect()` uses a cooperative stop-the-world handshake; loop bodies are instrumented with `oren_gc_safepoint()` so collection can proceed while worker threads exist.
-  - The C runtime also does conservative stack scanning (stop-gap) so locals can act as roots during collection.
+- **GC Integration**:
+  - `oren_gc_collect()` uses a cooperative stop-the-world handshake.
+  - Loop bodies are instrumented with `oren_gc_safepoint()` to ensure timely pausing.
+  - Stacks are conservatively scanned.
 
 ### Functions
-- `fn name(params) { ... }` defines a named function (v0: only supported at top-level by the C backend).
-- `fn(params) { ... }` parses as an anonymous function literal, but the C backend does not currently support first-class functions/closures.
+- `fn name(params) { ... }` defines a named function.
 - Calls: `f(x, y)`
-  - Calls to Oren-defined functions compile to direct C calls.
+  - Calls to Oren-defined functions compile to direct C/Native calls.
   - Calls to Python objects use the runtime’s `oren_call_obj`.
+
+### Lambdas (Closures)
+- **Syntax**: `|params| expression` or `|params| { block }`
+- **Semantics**:
+  - Lambdas are first-class values.
+  - They capture variables from their enclosing lexical scope (closures).
+- **Examples**:
+  ```oren
+  var add = |a, b| a + b
+  var x = 10
+  var adder = |y| {
+      return x + y  // captures x
+  }
+  ```
 
 ### Operators
 - `+ - * /`:
@@ -247,6 +272,7 @@ The C backend recognizes a few builtin functions and lowers them directly:
 ## Runtime Builtins (Self-Hosting and Native Backend)
 The self-hosted compiler and the (in-progress) native backend rely on a few additional runtime helpers:
 - `oren_write_bytes(path, bytes)` writes a list of byte values (`0..255`) to a file (binary-safe).
+- `oren_read_bytes(path)` reads a file as a list of byte values (`0..255`) (binary-safe; preserves `0x00`).
 - `oren_bytes_from_string(s)` converts a string to a list of byte values (`0..255`).
 - `oren_sha256_range(bytes, start, length)` computes SHA-256 over a subrange of a byte list and returns a 32-byte list.
 - `oren_chmod(path, mode)` calls `chmod(2)` (used to set the executable bit on generated binaries).
@@ -282,6 +308,69 @@ Self-hosting relies on a small runtime API (implemented in C, callable from Oren
 - `oren_string_len(s)` / `oren_string_char_at(s, i)` / `oren_char(code)` for string/char work
 - `oren_list_len(xs)` / `oren_list_push(xs, v)` for list work
 
-## Not Implemented (v0)
+## Not Implemented (Yet)
 - user-defined methods/inheritance (classes are currently data-only)
 - dynamic/runtime module loading
+
+## Planned (Essential Modern Language Features)
+
+This section lists **missing but essential** features for a modern, AI-first language. These are proposals and must be implemented across backends (C/native/bytecode) before being treated as stable.
+
+### 1) `yield` and stackless coroutines (async building block)
+
+Motivation:
+
+- enables lightweight tasks and structured concurrency without requiring OS threads for every unit of work
+- makes agent pipelines (fan-out/fan-in, streaming) practical
+
+Design direction:
+
+- implement `yield` via compiler lowering to a state machine (“stackless coroutines”) first
+- later, consider `async/await` syntax as sugar on top of the same lowering
+
+### 2) Built-in verification: `assert` and `test`
+
+Motivation:
+
+- agents need “generate → test → fix” loops as first-class workflows
+
+Design direction:
+
+- `assert(cond, msg?)` in core language
+- `test "name" { ... }` blocks collected by a test runner
+
+### 3) Structured error model (self-healing support)
+
+Current v0 behavior:
+
+- many failures are runtime panics
+
+Planned direction:
+
+- add a standardized `Result`-style convention (or explicit `try`/`catch`) so libraries can recover
+- define a stable error value shape (code/message/context)
+
+### 4) Visibility and module boundaries
+
+Motivation:
+
+- large agentic codebases need clean APIs and governance
+
+Planned direction:
+
+- `pub`/private visibility for module members
+- avoid leaking internals across imports
+
+### 5) Bytes + typed buffers (for ML-ish workloads)
+
+Motivation:
+
+- efficient byte and numeric buffer handling is required for:
+  - bytecode loading
+  - hashing
+  - embeddings/vector math
+
+Planned direction:
+
+- a first-class `bytes` value type (packed)
+- typed numeric buffers (`f32[]`, `i32[]`) with bulk ops

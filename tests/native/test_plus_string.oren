@@ -1,0 +1,7 @@
+fn main() {
+    var a = "Hello, "
+    var b = "World!"
+    var c = a + b
+    print(c)
+}
+main()

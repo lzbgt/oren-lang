@@ -18,8 +18,9 @@ This file is a short, factual snapshot of the repo state.
 These are pulled from `docs/ROADMAP.md` and the agent-native track in `docs/OREN_EVOLUTION.md`.
 
 ### P0 (Correctness / Parity)
+- **Native backend strings:** implement `+` operator string concatenation (or remove `+` from strings until v1), so native and C backends match semantics.
+- **Spawn Stability:** `spawn`/`oren_join` on native backend is sensitive to runtime/ABI regressions; all native tests are now executed with a hard timeout via `make test` to prevent hangs from blocking CI/dev.
 - **Native Linux dynamic linking:** implement `DT_NEEDED`/PLT/GOT relocations so `ffi` works on ELF (currently stubbed).
-- **Backend semantic parity tests:** add/expand tests where backends can diverge (short-circuiting, indexing, strings).
 
 ### P1 (Performance / Portability)
 - **Native register allocation:** move from stack-heavy codegen toward an IR + register allocator, plus basic peephole opts.
@@ -27,7 +28,8 @@ These are pulled from `docs/ROADMAP.md` and the agent-native track in `docs/OREN
 
 ### Agent-Native Track (AVM + Bytecode)
 - **AVM core hardening:** expand value types/op coverage and add memory management strategy (currently `malloc`-based).
-- **Bytecode backend coverage:** expand codegen beyond the current supported subset and keep it aligned with `docs/AVM_SPEC.md`.
+- **Bytecode backend fixes:** Fixed critical stack corruption bugs in `codegen_bytecode.oren` (locals persistence, expression return values). Verified with `test_compiler_boot.oren`.
+- **Next:** Debug string/memory logic in AVM (test logic anomaly), then proceed to full self-hosting ("Inception").
 
 ## References
 - Toolchain overview: `README.md`

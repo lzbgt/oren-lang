@@ -1497,6 +1497,100 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
     return OREN_NIL;
 }
 
+OrenValue oren_read_bytes(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        oren_panic("read_bytes expects string path");
+        return OREN_NIL; // Should not be reached
+    }
+
+    FILE *f = fopen(path.as.string_val, "rb");
+    if (!f) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "cannot open file %s", path.as.string_val);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        oren_panic("read_bytes: fseek failed");
+        return OREN_NIL; // Should not be reached
+    }
+    long size_long = ftell(f);
+    if (size_long < 0) {
+        fclose(f);
+        oren_panic("read_bytes: ftell failed");
+        return OREN_NIL; // Should not be reached
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        oren_panic("read_bytes: fseek failed");
+        return OREN_NIL; // Should not be reached
+    }
+
+    // Oren lists use int counts; reject files too large for the current runtime representation.
+    if (size_long > (long)INT32_MAX) {
+        fclose(f);
+        oren_panic("read_bytes: file too large");
+        return OREN_NIL; // Should not be reached
+    }
+
+    int size = (int)size_long;
+
+    unsigned char* buf = NULL;
+    if (size > 0) {
+        buf = (unsigned char*)malloc((size_t)size);
+        if (!buf) {
+            fclose(f);
+            oren_panic("read_bytes: alloc failed");
+            return OREN_NIL; // Should not be reached
+        }
+        size_t nread = fread(buf, 1, (size_t)size, f);
+        if ((int)nread != size) {
+            free(buf);
+            fclose(f);
+            oren_panic("read_bytes: short read");
+            return OREN_NIL; // Should not be reached
+        }
+    }
+
+    fclose(f);
+
+    lock_collections();
+    OrenList* list = malloc(sizeof(OrenList));
+    if (!list) {
+        unlock_collections();
+        free(buf);
+        oren_panic("read_bytes: alloc failed");
+        return OREN_NIL; // Should not be reached
+    }
+    oren_register_alloc(list, OREN_ALLOC_LIST);
+
+    list->count = size;
+    list->capacity = size;
+    list->items = NULL;
+    if (size > 0) {
+        list->items = malloc(sizeof(OrenValue) * (size_t)size);
+        if (!list->items) {
+            unlock_collections();
+            free(buf);
+            oren_panic("read_bytes: alloc failed");
+            return OREN_NIL; // Should not be reached
+        }
+        for (int i = 0; i < size; i++) {
+            list->items[i] = oren_int((unsigned char)buf[i]);
+        }
+    }
+
+    unlock_collections();
+    free(buf);
+
+    OrenValue v;
+    v.type = OREN_TYPE_LIST;
+    v.as.list_val = list;
+    return v;
+}
+
 OrenValue oren_bytes_from_string(OrenValue s) {
     if (s.type != OREN_TYPE_STRING) {
         oren_panic("bytes_from_string expects string");

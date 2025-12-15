@@ -5,7 +5,7 @@ oren
 oren_stage*
 *.o
 *.dSYM/
-avm
+
 
 # Generated C
 *.oren.c

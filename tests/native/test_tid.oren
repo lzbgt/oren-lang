@@ -1,0 +1,17 @@
+fn worker() {
+    oren_system("echo Worker Running")
+    return 123
+}
+
+fn main() {
+    print("Main Start")
+    var t = spawn worker()
+    var res = oren_join(t)
+    print("Joined")
+    if res == 123 {
+        print("PASS")
+    } else {
+        print("FAIL: Res = " + oren_int_to_string(res))
+    }
+}
+main()
