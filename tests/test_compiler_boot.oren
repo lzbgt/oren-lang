@@ -1,0 +1,28 @@
+fn main() {
+    var s = "var x = 10"
+    var len = oren_string_len(s)
+    print(len)
+    
+    var keywords = {"var": "LET"}
+    
+    var tokens = []
+    var i = 0
+    while i < len {
+        var c = oren_string_char_at(s, i)
+        if c == "v" {
+            var lit = "var"
+            var type = keywords[lit]
+            var t = {"type": type, "literal": lit}
+            oren_list_push(tokens, t)
+            i = i + 2
+        }
+        i = i + 1
+    }
+    
+    print(oren_list_len(tokens))
+    if oren_list_len(tokens) > 0 {
+        var t0 = tokens[0]
+        print(t0["type"])
+    }
+}
+main()

@@ -1,6 +1,3 @@
-# Oren
-
-Oren is a self-hosted programming language and toolchain. The compiler is written in Oren (`oren.oren`), bootstrapped by a small stage0 compiler in Go (`cmd/oren`).
 
 ## Vision / Mission (Agent-Native)
 
@@ -26,6 +23,7 @@ Authoritative strategy/roadmap docs:
   - C backend is portable to any platform with a C toolchain.
 
 ## Build, Test, Verify
+
 
 ### Prerequisites
 - `go` (stage0 bootstrap)

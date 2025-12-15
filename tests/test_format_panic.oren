@@ -1,0 +1,7 @@
+fn crash(val) {
+    var l = [1]
+    print(l[val])
+}
+
+print("Starting...")
+crash(10)

@@ -1,0 +1,16 @@
+fn worker() {
+    print("In worker")
+    return 42
+}
+
+print("Main start")
+var t = spawn worker()
+print("Spawned")
+var res = oren_join(t)
+print("Joined")
+print(res)
+if res == 42 {
+    print("SUCCESS")
+} else {
+    print("FAIL")
+}

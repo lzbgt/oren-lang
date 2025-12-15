@@ -1,0 +1,5 @@
+fn main() {
+    var tid = sys_gettid()
+    print("TID:")
+    print(tid)
+}

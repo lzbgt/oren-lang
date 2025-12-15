@@ -1,0 +1,7 @@
+fn crash_me(x) {
+    var l = []
+    print(l[100])
+}
+
+print("Starting...")
+crash_me(42)
