@@ -8,6 +8,152 @@
 #include <stdint.h>
 #include <unistd.h>
 
+// Error codes (must match the C runtime's rolling conventions in lib/runtime.h)
+#define AVM_ERR_PERM 1
+#define AVM_ERR_NOT_FOUND 2
+#define AVM_ERR_IO 3
+#define AVM_ERR_INVALID_ARG 4
+#define AVM_ERR_TIMEOUT 5
+#define AVM_ERR_CANCELLED 6
+#define AVM_ERR_NOT_IMPLEMENTED 7
+#define AVM_ERR_INTERNAL 8
+#define AVM_ERR_BUDGET 9
+
+// Rolling heap budgeting (bootstrap implementation):
+// - Applies to heap allocations for AVM value objects/buffers (STRING/LIST/MAP/BYTES), plus record/replay buffers.
+// - Does NOT attempt to budget the VM operand stack allocation (which is currently a large fixed buffer).
+// - When the budget is exceeded, allocation helpers return NULL and set a thread-local-ish last error code.
+
+typedef struct {
+    uint64_t magic;
+    AvmVM* owner;
+    uint64_t size;
+} AvmAllocHdr;
+
+static const uint64_t AVM_ALLOC_MAGIC = 0x41564d414c4c4f43ull; // "AVMALLOC"
+
+static AvmVM* g_alloc_owner = NULL;
+static int g_alloc_unbudgeted = 0;
+static int g_last_alloc_err = 0; // 0=none, else AVM_ERR_* (budget/internal)
+
+static AvmValue avm_err(int code, const char* msg); // forward decl (used by alloc helpers)
+
+static void avm_alloc_owner_push(AvmVM* vm, AvmVM** prev) {
+    if (prev) *prev = g_alloc_owner;
+    g_alloc_owner = vm;
+}
+
+static void avm_alloc_owner_pop(AvmVM* prev) {
+    g_alloc_owner = prev;
+}
+
+static void avm_alloc_unbudgeted_push(int* prev) {
+    if (prev) *prev = g_alloc_unbudgeted;
+    g_alloc_unbudgeted = 1;
+}
+
+static void avm_alloc_unbudgeted_pop(int prev) {
+    g_alloc_unbudgeted = prev;
+}
+
+static void* avm_heap_malloc(size_t size) {
+    g_last_alloc_err = 0;
+    AvmVM* owner = g_alloc_owner;
+    if (!g_alloc_unbudgeted && owner && owner->heap_budget_bytes > 0) {
+        if (size > owner->heap_budget_bytes) {
+            g_last_alloc_err = AVM_ERR_BUDGET;
+            return NULL;
+        }
+        if (owner->heap_used_bytes + size > owner->heap_budget_bytes) {
+            g_last_alloc_err = AVM_ERR_BUDGET;
+            return NULL;
+        }
+    }
+
+    size_t total = sizeof(AvmAllocHdr) + size;
+    AvmAllocHdr* h = (AvmAllocHdr*)malloc(total);
+    if (!h) {
+        g_last_alloc_err = AVM_ERR_INTERNAL;
+        return NULL;
+    }
+    h->magic = AVM_ALLOC_MAGIC;
+    h->owner = g_alloc_unbudgeted ? NULL : owner;
+    h->size = size;
+    if (!g_alloc_unbudgeted && owner) owner->heap_used_bytes += size;
+    return (void*)(h + 1);
+}
+
+static AvmAllocHdr* avm_alloc_hdr_from_ptr(void* p) {
+    if (!p) return NULL;
+    AvmAllocHdr* h = ((AvmAllocHdr*)p) - 1;
+    if (h->magic != AVM_ALLOC_MAGIC) return NULL;
+    return h;
+}
+
+static void avm_heap_free(void* p) {
+    if (!p) return;
+    AvmAllocHdr* h = avm_alloc_hdr_from_ptr(p);
+    if (!h) {
+        free(p);
+        return;
+    }
+    if (h->owner) {
+        if (h->owner->heap_used_bytes >= h->size) h->owner->heap_used_bytes -= h->size;
+        else h->owner->heap_used_bytes = 0;
+    }
+    h->magic = 0;
+    free(h);
+}
+
+static void* avm_heap_realloc(void* p, size_t new_size) {
+    g_last_alloc_err = 0;
+    if (!p) return avm_heap_malloc(new_size);
+
+    AvmAllocHdr* h = avm_alloc_hdr_from_ptr(p);
+    if (!h) {
+        // Unknown pointer: fallback to libc realloc (unbudgeted).
+        void* np = realloc(p, new_size);
+        if (!np) g_last_alloc_err = AVM_ERR_INTERNAL;
+        return np;
+    }
+
+    AvmVM* owner = h->owner;
+    uint64_t old_size = h->size;
+    if (!g_alloc_unbudgeted && owner && owner->heap_budget_bytes > 0) {
+        uint64_t used = owner->heap_used_bytes;
+        if (used >= old_size) used -= old_size;
+        else used = 0;
+        if (new_size > owner->heap_budget_bytes) {
+            g_last_alloc_err = AVM_ERR_BUDGET;
+            return NULL;
+        }
+        if (used + new_size > owner->heap_budget_bytes) {
+            g_last_alloc_err = AVM_ERR_BUDGET;
+            return NULL;
+        }
+    }
+
+    size_t total = sizeof(AvmAllocHdr) + new_size;
+    AvmAllocHdr* nh = (AvmAllocHdr*)realloc(h, total);
+    if (!nh) {
+        g_last_alloc_err = AVM_ERR_INTERNAL;
+        return NULL;
+    }
+    nh->magic = AVM_ALLOC_MAGIC;
+    nh->size = new_size;
+    if (owner) {
+        if (owner->heap_used_bytes >= old_size) owner->heap_used_bytes -= old_size;
+        else owner->heap_used_bytes = 0;
+        owner->heap_used_bytes += new_size;
+    }
+    return (void*)(nh + 1);
+}
+
+static AvmValue avm_alloc_fail_value() {
+    if (g_last_alloc_err == AVM_ERR_BUDGET) return avm_err(AVM_ERR_BUDGET, "budget exceeded (mem)");
+    return avm_err(AVM_ERR_INTERNAL, "oom");
+}
+
 static const char* avm_op_name(uint8_t op) {
     switch (op) {
         case 0x00: return "NOP";
@@ -47,21 +193,13 @@ static const char* avm_op_name(uint8_t op) {
 }
 
 char* my_strdup(const char* s) {
-    char* d = malloc(strlen(s) + 1);
-    strcpy(d, s);
+    if (!s) s = "";
+    size_t n = strlen(s);
+    char* d = (char*)avm_heap_malloc(n + 1);
+    if (!d) return NULL;
+    memcpy(d, s, n + 1);
     return d;
 }
-
-// Error codes (must match the C runtime's rolling conventions in lib/runtime.h)
-#define AVM_ERR_PERM 1
-#define AVM_ERR_NOT_FOUND 2
-#define AVM_ERR_IO 3
-#define AVM_ERR_INVALID_ARG 4
-#define AVM_ERR_TIMEOUT 5
-#define AVM_ERR_CANCELLED 6
-#define AVM_ERR_NOT_IMPLEMENTED 7
-#define AVM_ERR_INTERNAL 8
-#define AVM_ERR_BUDGET 9
 
 // Snapshot format (rolling):
 // - file magic: "AVMSNAP1" (7 bytes) + 0x00 terminator (8 bytes total)
@@ -96,6 +234,7 @@ static AvmValue avm_string(const char* s) {
     AvmValue v;
     v.type = AVM_VAL_STRING;
     v.as.p = my_strdup(s ? s : "");
+    if (!v.as.p) return avm_alloc_fail_value();
     return v;
 }
 
@@ -122,14 +261,14 @@ static AvmValue avm_nil() {
 
 static AvmValue avm_bytes_new(int len) {
     if (len < 0) return avm_nil();
-    AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
-    if (!b) return avm_nil();
+    AvmBytes* b = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
+    if (!b) return avm_alloc_fail_value();
     b->len = len;
     b->capacity = len;
     b->data = NULL;
     if (len > 0) {
-        b->data = (uint8_t*)malloc((size_t)len);
-        if (!b->data) { free(b); return avm_nil(); }
+        b->data = (uint8_t*)avm_heap_malloc((size_t)len);
+        if (!b->data) { avm_heap_free(b); return avm_alloc_fail_value(); }
         memset(b->data, 0, (size_t)len);
     }
     AvmValue v;
@@ -147,11 +286,22 @@ static int hex_nibble(char c) {
 
 // Structured error representation (rolling): map {"__err": true, "code": int, "msg": string}
 static AvmValue avm_err(int code, const char* msg) {
-    AvmMap* map = (AvmMap*)malloc(sizeof(AvmMap));
+    int prev_budget = 0;
+    avm_alloc_unbudgeted_push(&prev_budget);
+
+    AvmMap* map = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
+    if (!map) { avm_alloc_unbudgeted_pop(prev_budget); return avm_nil(); }
     map->count = 3;
     map->capacity = 8;
-    map->keys = (AvmValue*)malloc(sizeof(AvmValue) * map->capacity);
-    map->values = (AvmValue*)malloc(sizeof(AvmValue) * map->capacity);
+    map->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
+    map->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
+    if (!map->keys || !map->values) {
+        if (map->keys) avm_heap_free(map->keys);
+        if (map->values) avm_heap_free(map->values);
+        avm_heap_free(map);
+        avm_alloc_unbudgeted_pop(prev_budget);
+        return avm_nil();
+    }
 
     map->keys[0] = avm_string("__err");
     map->values[0] = avm_bool(1);
@@ -165,6 +315,8 @@ static AvmValue avm_err(int code, const char* msg) {
     AvmValue v;
     v.type = AVM_VAL_MAP;
     v.as.m = map;
+
+    avm_alloc_unbudgeted_pop(prev_budget);
     return v;
 }
 
@@ -247,7 +399,7 @@ static int bytes_ensure_cap(AvmBytes* b, int need) {
     if (need <= b->capacity) return 1;
     int new_cap = b->capacity ? b->capacity : 64;
     while (new_cap < need) new_cap *= 2;
-    uint8_t* nd = (uint8_t*)realloc(b->data, (size_t)new_cap);
+    uint8_t* nd = (uint8_t*)avm_heap_realloc(b->data, (size_t)new_cap);
     if (!nd) return 0;
     b->data = nd;
     b->capacity = new_cap;
@@ -399,20 +551,20 @@ static void avm_free_object_table_objects(ObjTable* t) {
         void* ptr = t->ptrs[id];
         if (!ptr) continue;
         if (ty == 1) { // STRING (char*)
-            free(ptr);
+            avm_heap_free(ptr);
         } else if (ty == 2) { // LIST
             AvmList* list = (AvmList*)ptr;
-            if (list->items) free(list->items);
-            free(list);
+            if (list->items) avm_heap_free(list->items);
+            avm_heap_free(list);
         } else if (ty == 3) { // MAP
             AvmMap* map = (AvmMap*)ptr;
-            if (map->keys) free(map->keys);
-            if (map->values) free(map->values);
-            free(map);
+            if (map->keys) avm_heap_free(map->keys);
+            if (map->values) avm_heap_free(map->values);
+            avm_heap_free(map);
         } else if (ty == 4) { // BYTES
             AvmBytes* b = (AvmBytes*)ptr;
-            if (b->data) free(b->data);
-            free(b);
+            if (b->data) avm_heap_free(b->data);
+            avm_heap_free(b);
         }
         t->ptrs[id] = NULL;
     }
@@ -2070,17 +2222,18 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     res = avm_err(avm_err_from_errno(err), "read_file: fseek failed");
                     break;
                 }
-                char* buf = malloc((size_t)len + 1);
+                char* buf = (char*)avm_heap_malloc((size_t)len + 1);
                 if (!buf) {
                     fclose(f);
-                    res = avm_err(AVM_ERR_INTERNAL, "read_file: out of memory");
+                    res = avm_alloc_fail_value();
+                    avm_abort(vm, res);
                     break;
                 }
                 size_t n = fread(buf, 1, (size_t)len, f);
                 buf[len] = 0;
                 fclose(f);
                 if (n != (size_t)len) {
-                    free(buf);
+                    avm_heap_free(buf);
                     res = avm_err(AVM_ERR_IO, "read_file: short read");
                     break;
                 }
@@ -2220,8 +2373,15 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 1 && args[0].type == AVM_VAL_LIST) {
                 AvmList* list = args[0].as.l;
                 if (list->count >= list->capacity) {
-                    list->capacity *= 2;
-                    list->items = realloc(list->items, sizeof(AvmValue) * list->capacity);
+                    int new_cap = list->capacity ? list->capacity * 2 : 8;
+                    AvmValue* ni = (AvmValue*)avm_heap_realloc(list->items, sizeof(AvmValue) * (size_t)new_cap);
+                    if (!ni) {
+                        res = avm_alloc_fail_value();
+                        avm_abort(vm, res);
+                        break;
+                    }
+                    list->capacity = new_cap;
+                    list->items = ni;
                 }
                 list->items[list->count++] = args[1];
             }
@@ -2247,10 +2407,21 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 char* s = (char*)args[0].as.p;
                 int len = strlen(s);
-                AvmList* list = malloc(sizeof(AvmList));
+                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+                if (!list) {
+                    res = avm_alloc_fail_value();
+                    avm_abort(vm, res);
+                    break;
+                }
                 list->count = len;
                 list->capacity = len;
-                list->items = malloc(sizeof(AvmValue) * len);
+                list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)len);
+                if (!list->items && len > 0) {
+                    avm_heap_free(list);
+                    res = avm_alloc_fail_value();
+                    avm_abort(vm, res);
+                    break;
+                }
                 for(int i=0; i<len; i++) {
                     list->items[i].type = AVM_VAL_INT;
                     list->items[i].as.i = (unsigned char)s[i];
@@ -2264,9 +2435,10 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_LIST) {
                 char* path = (char*)args[0].as.p;
                 AvmList* list = args[1].as.l;
-                uint8_t* buf = malloc(list->count);
+                uint8_t* buf = (uint8_t*)avm_heap_malloc((size_t)list->count);
                 if (!buf && list->count > 0) {
-                    res = avm_err(AVM_ERR_INTERNAL, "write_bytes: out of memory");
+                    res = avm_alloc_fail_value();
+                    avm_abort(vm, res);
                     break;
                 }
                 for(int i=0; i<list->count; i++) {
@@ -2277,13 +2449,13 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     int err = errno;
                     char msg[512];
                     snprintf(msg, sizeof(msg), "cannot open file for write: %s (errno=%d)", path, err);
-                    free(buf);
+                    avm_heap_free(buf);
                     res = avm_err(avm_err_from_errno(err), msg);
                     break;
                 }
                 size_t n = fwrite(buf, 1, (size_t)list->count, f);
                 fclose(f);
-                free(buf);
+                avm_heap_free(buf);
                 if (n != (size_t)list->count) {
                     res = avm_err(AVM_ERR_IO, "write_bytes: short write");
                     break;
@@ -2325,15 +2497,16 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 
                 uint8_t* buf = NULL;
                 if (len > 0) {
-                    buf = (uint8_t*)malloc((size_t)len);
+                    buf = (uint8_t*)avm_heap_malloc((size_t)len);
                     if (!buf) {
                         fclose(f);
-                        res = avm_err(AVM_ERR_INTERNAL, "read_bytes: out of memory");
+                        res = avm_alloc_fail_value();
+                        avm_abort(vm, res);
                         break;
                     }
                     size_t n = fread(buf, 1, (size_t)len, f);
                     if (n != (size_t)len) {
-                        free(buf);
+                        avm_heap_free(buf);
                         fclose(f);
                         res = avm_err(AVM_ERR_IO, "read_bytes: short read");
                         break;
@@ -2341,20 +2514,22 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 }
                 fclose(f);
 
-                AvmList* list = malloc(sizeof(AvmList));
+                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
                 if (!list) {
-                    free(buf);
-                    res = avm_err(AVM_ERR_INTERNAL, "read_bytes: out of memory");
+                    if (buf) avm_heap_free(buf);
+                    res = avm_alloc_fail_value();
+                    avm_abort(vm, res);
                     break;
                 }
                 list->count = (int)len;
                 list->capacity = (int)len;
                 if (len > 0) {
-                    list->items = malloc(sizeof(AvmValue) * (size_t)len);
+                    list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)len);
                     if (!list->items) {
-                        free(list);
-                        free(buf);
-                        res = avm_err(AVM_ERR_INTERNAL, "read_bytes: out of memory");
+                        avm_heap_free(list);
+                        if (buf) avm_heap_free(buf);
+                        res = avm_alloc_fail_value();
+                        avm_abort(vm, res);
                         break;
                     }
                     for (long i = 0; i < len; i++) {
@@ -2364,7 +2539,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 } else {
                     list->items = NULL;
                 }
-                free(buf);
+                if (buf) avm_heap_free(buf);
 
                 res.type = AVM_VAL_LIST;
                 res.as.l = list;
@@ -2655,7 +2830,7 @@ static AvmValue avm_clone_string(CloneTable* tab, const char* s) {
     if (found) { AvmValue r; r.type = AVM_VAL_STRING; r.as.p = found; return r; }
     char* d = my_strdup(s);
     if (!d) return avm_nil();
-    if (!clonetab_add(tab, (void*)s, d, 1)) { free(d); return avm_nil(); }
+    if (!clonetab_add(tab, (void*)s, d, 1)) { avm_heap_free(d); return avm_nil(); }
     AvmValue r; r.type = AVM_VAL_STRING; r.as.p = d; return r;
 }
 
@@ -2663,17 +2838,17 @@ static AvmValue avm_clone_bytes(CloneTable* tab, AvmBytes* b) {
     if (!b) return avm_nil();
     void* found = clonetab_find(tab, (void*)b, 4);
     if (found) { AvmValue r; r.type = AVM_VAL_BYTES; r.as.b = (AvmBytes*)found; return r; }
-    AvmBytes* nb = (AvmBytes*)malloc(sizeof(AvmBytes));
+    AvmBytes* nb = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
     if (!nb) return avm_nil();
     nb->len = b->len;
     nb->capacity = b->len;
     nb->data = NULL;
     if (b->len > 0) {
-        nb->data = (uint8_t*)malloc((size_t)b->len);
-        if (!nb->data) { free(nb); return avm_nil(); }
+        nb->data = (uint8_t*)avm_heap_malloc((size_t)b->len);
+        if (!nb->data) { avm_heap_free(nb); return avm_nil(); }
         memcpy(nb->data, b->data, (size_t)b->len);
     }
-    if (!clonetab_add(tab, (void*)b, nb, 4)) { free(nb->data); free(nb); return avm_nil(); }
+    if (!clonetab_add(tab, (void*)b, nb, 4)) { if (nb->data) avm_heap_free(nb->data); avm_heap_free(nb); return avm_nil(); }
     AvmValue r; r.type = AVM_VAL_BYTES; r.as.b = nb; return r;
 }
 
@@ -2681,16 +2856,16 @@ static AvmValue avm_clone_list(CloneTable* tab, AvmList* list) {
     if (!list) return avm_nil();
     void* found = clonetab_find(tab, (void*)list, 2);
     if (found) { AvmValue r; r.type = AVM_VAL_LIST; r.as.l = (AvmList*)found; return r; }
-    AvmList* nl = (AvmList*)malloc(sizeof(AvmList));
+    AvmList* nl = (AvmList*)avm_heap_malloc(sizeof(AvmList));
     if (!nl) return avm_nil();
     nl->count = list->count;
     nl->capacity = list->count;
     nl->items = NULL;
     if (nl->count > 0) {
-        nl->items = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)nl->count);
-        if (!nl->items) { free(nl); return avm_nil(); }
+        nl->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)nl->count);
+        if (!nl->items) { avm_heap_free(nl); return avm_nil(); }
     }
-    if (!clonetab_add(tab, (void*)list, nl, 2)) { free(nl->items); free(nl); return avm_nil(); }
+    if (!clonetab_add(tab, (void*)list, nl, 2)) { if (nl->items) avm_heap_free(nl->items); avm_heap_free(nl); return avm_nil(); }
     for (int i = 0; i < nl->count; i++) nl->items[i] = avm_clone_value_rec(tab, list->items[i]);
     AvmValue r; r.type = AVM_VAL_LIST; r.as.l = nl; return r;
 }
@@ -2699,18 +2874,18 @@ static AvmValue avm_clone_map(CloneTable* tab, AvmMap* map) {
     if (!map) return avm_nil();
     void* found = clonetab_find(tab, (void*)map, 3);
     if (found) { AvmValue r; r.type = AVM_VAL_MAP; r.as.m = (AvmMap*)found; return r; }
-    AvmMap* nm = (AvmMap*)malloc(sizeof(AvmMap));
+    AvmMap* nm = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
     if (!nm) return avm_nil();
     nm->count = map->count;
     nm->capacity = map->count;
     nm->keys = NULL;
     nm->values = NULL;
     if (nm->count > 0) {
-        nm->keys = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)nm->count);
-        nm->values = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)nm->count);
-        if (!nm->keys || !nm->values) { free(nm->keys); free(nm->values); free(nm); return avm_nil(); }
+        nm->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)nm->count);
+        nm->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)nm->count);
+        if (!nm->keys || !nm->values) { if (nm->keys) avm_heap_free(nm->keys); if (nm->values) avm_heap_free(nm->values); avm_heap_free(nm); return avm_nil(); }
     }
-    if (!clonetab_add(tab, (void*)map, nm, 3)) { free(nm->keys); free(nm->values); free(nm); return avm_nil(); }
+    if (!clonetab_add(tab, (void*)map, nm, 3)) { if (nm->keys) avm_heap_free(nm->keys); if (nm->values) avm_heap_free(nm->values); avm_heap_free(nm); return avm_nil(); }
     for (int i = 0; i < nm->count; i++) {
         nm->keys[i] = avm_clone_value_rec(tab, map->keys[i]);
         nm->values[i] = avm_clone_value_rec(tab, map->values[i]);
@@ -2753,12 +2928,12 @@ static int avm_value_truthy(AvmValue v) {
 }
 
 static AvmBytes* avm_new_log_bytes() {
-    AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+    AvmBytes* b = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
     if (!b) return NULL;
     b->len = 8;
     b->capacity = 64;
-    b->data = (uint8_t*)malloc((size_t)b->capacity);
-    if (!b->data) { free(b); return NULL; }
+    b->data = (uint8_t*)avm_heap_malloc((size_t)b->capacity);
+    if (!b->data) { avm_heap_free(b); return NULL; }
     const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
     memcpy(b->data, magic, 8);
     return b;
@@ -3099,6 +3274,17 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     }
                     child->deadline_ns = dl;
                 }
+                if (avm_map_get_key(cfg, "mem_bytes", &v)) {
+                    uint64_t mb = avm_value_u64(v, 0);
+                    if (vm && vm->heap_budget_bytes > 0 && mb > vm->heap_budget_bytes) {
+                        avm_free(child);
+                        return avm_err(AVM_ERR_BUDGET, "child mem_bytes exceeds parent");
+                    }
+                    child->heap_budget_bytes = mb;
+                } else {
+                    // Default: inherit parent budget (0 means unlimited).
+                    child->heap_budget_bytes = vm ? vm->heap_budget_bytes : 0;
+                }
 
                 // Record/replay logs as data (always create a record log, even if it stays empty).
                 child->record_log_bytes = avm_new_log_bytes();
@@ -3191,6 +3377,8 @@ AvmVM* avm_new() {
     vm->gas_remaining = 0;
     vm->deadline_ns = 0;
     vm->cancelled = 0;
+    vm->heap_budget_bytes = 0;
+    vm->heap_used_bytes = 0;
     vm->last_error.type = AVM_VAL_NIL;
     vm->exit_code = 0;
     vm->has_result_value = 0;
@@ -3255,6 +3443,10 @@ void avm_load(AvmVM* vm, AvmProgram* prog) {
 
 void avm_run(AvmVM* vm) {
     if (!vm->prog) return;
+
+    AvmVM* prev_owner = NULL;
+    avm_alloc_owner_push(vm, &prev_owner);
+
     vm->running = 1;
     vm->exit_code = 0;
     vm->last_error.type = AVM_VAL_NIL;
@@ -3621,10 +3813,12 @@ void avm_run(AvmVM* vm) {
                 uint16_t count = code[vm->pc++];
                 count |= (uint16_t)code[vm->pc++] << 8;
                 
-                AvmList* list = (AvmList*)malloc(sizeof(AvmList));
+                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+                if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 list->count = count;
-                list->capacity = count + 8;
-                list->items = (AvmValue*)malloc(sizeof(AvmValue) * list->capacity);
+                list->capacity = (int)count + 8;
+                list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)list->capacity);
+                if (!list->items) { avm_heap_free(list); avm_abort(vm, avm_alloc_fail_value()); break; }
                 
                 for(int i=count-1; i>=0; i--) {
                     list->items[i] = vm->stack[--vm->sp];
@@ -3640,11 +3834,19 @@ void avm_run(AvmVM* vm) {
                 uint16_t count = code[vm->pc++];
                 count |= (uint16_t)code[vm->pc++] << 8;
                 
-                AvmMap* map = (AvmMap*)malloc(sizeof(AvmMap));
+                AvmMap* map = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
+                if (!map) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 map->count = count;
-                map->capacity = count + 8;
-                map->keys = (AvmValue*)malloc(sizeof(AvmValue) * map->capacity);
-                map->values = (AvmValue*)malloc(sizeof(AvmValue) * map->capacity);
+                map->capacity = (int)count + 8;
+                map->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)map->capacity);
+                map->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)map->capacity);
+                if (!map->keys || !map->values) {
+                    if (map->keys) avm_heap_free(map->keys);
+                    if (map->values) avm_heap_free(map->values);
+                    avm_heap_free(map);
+                    avm_abort(vm, avm_alloc_fail_value());
+                    break;
+                }
                 
                 for(int i=count-1; i>=0; i--) {
                     map->values[i] = vm->stack[--vm->sp];
@@ -3731,4 +3933,6 @@ void avm_run(AvmVM* vm) {
                 break;
         }
     }
+
+    avm_alloc_owner_pop(prev_owner);
 }

@@ -104,6 +104,11 @@ typedef struct {
     uint64_t deadline_ns;
     int cancelled;
 
+    // Heap memory budget (rolling): counts heap allocations for AVM value objects and buffers
+    // (strings/lists/maps/bytes, including record/replay buffers). 0 means "no limit".
+    uint64_t heap_budget_bytes;
+    uint64_t heap_used_bytes;
+
     // Abort / error reporting (rolling): on budget/capability violations, last_error is set.
     AvmValue last_error;
     int exit_code;
