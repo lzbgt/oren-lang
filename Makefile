@@ -229,6 +229,15 @@ test: oren
 				if [ "$$h1" != "$$h2" ]; then \
 					echo "FAIL: $$name (Record/replay hash mismatch $$h1 != $$h2)"; echo "$$out2"; exit 1; \
 				fi; \
+			elif [ "$$name" = "test_multiverse_avm_domain" ]; then \
+				h1=$$($(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				h2=$$($(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Deterministic hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
 			else \
 				$(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
 			fi \

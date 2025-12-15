@@ -378,6 +378,8 @@ typedef struct {
     uint32_t cap;
 } ObjTable;
 
+static void collect_value_objects(ObjTable* t, AvmValue v);
+
 static void objtable_free(ObjTable* t) {
     if (!t) return;
     if (t->ptrs) free(t->ptrs);
@@ -388,6 +390,64 @@ static void objtable_free(ObjTable* t) {
     t->aux = NULL;
     t->count = 0;
     t->cap = 0;
+}
+
+static void avm_free_object_table_objects(ObjTable* t) {
+    if (!t) return;
+    for (uint32_t id = 0; id < t->count; id++) {
+        uint8_t ty = t->types[id];
+        void* ptr = t->ptrs[id];
+        if (!ptr) continue;
+        if (ty == 1) { // STRING (char*)
+            free(ptr);
+        } else if (ty == 2) { // LIST
+            AvmList* list = (AvmList*)ptr;
+            if (list->items) free(list->items);
+            free(list);
+        } else if (ty == 3) { // MAP
+            AvmMap* map = (AvmMap*)ptr;
+            if (map->keys) free(map->keys);
+            if (map->values) free(map->values);
+            free(map);
+        } else if (ty == 4) { // BYTES
+            AvmBytes* b = (AvmBytes*)ptr;
+            if (b->data) free(b->data);
+            free(b);
+        }
+        t->ptrs[id] = NULL;
+    }
+}
+
+static void avm_release_heap(AvmVM* vm) {
+    if (!vm) return;
+
+    ObjTable objs = {0};
+
+    // VM roots
+    for (int i = 0; i < vm->sp; i++) collect_value_objects(&objs, vm->stack[i]);
+    for (int i = 0; i < MAX_GLOBALS; i++) collect_value_objects(&objs, vm->globals[i]);
+    collect_value_objects(&objs, vm->result_value);
+    collect_value_objects(&objs, vm->last_error);
+
+    // Program constants are part of VM semantics (PUSH_CONST copies references).
+    if (vm->prog && vm->prog->constants) {
+        for (size_t i = 0; i < vm->prog->const_count; i++) {
+            collect_value_objects(&objs, vm->prog->constants[i]);
+        }
+    }
+
+    // Record/replay logs and buffers (owned by this VM instance in the CLI path).
+    if (vm->record_log_bytes) {
+        AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->record_log_bytes;
+        collect_value_objects(&objs, v);
+    }
+    if (vm->replay_log_bytes) {
+        AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes;
+        collect_value_objects(&objs, v);
+    }
+
+    avm_free_object_table_objects(&objs);
+    objtable_free(&objs);
 }
 
 static int objtable_find(ObjTable* t, void* ptr) {
@@ -1538,6 +1598,52 @@ int avm_result_hash(AvmVM* vm, uint8_t out[32]) {
     return 1;
 }
 
+int avm_heap_stats(AvmVM* vm, AvmHeapStats* out) {
+    if (!vm || !vm->prog || !out) return 0;
+    memset(out, 0, sizeof(*out));
+
+    ObjTable objs = {0};
+
+    for (int i = 0; i < vm->sp; i++) collect_value_objects(&objs, vm->stack[i]);
+    for (int i = 0; i < MAX_GLOBALS; i++) collect_value_objects(&objs, vm->globals[i]);
+    collect_value_objects(&objs, vm->result_value);
+    collect_value_objects(&objs, vm->last_error);
+
+    if (vm->prog && vm->prog->constants) {
+        for (size_t i = 0; i < vm->prog->const_count; i++) {
+            collect_value_objects(&objs, vm->prog->constants[i]);
+        }
+    }
+
+    if (vm->record_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->record_log_bytes; collect_value_objects(&objs, v); }
+    if (vm->replay_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes; collect_value_objects(&objs, v); }
+
+    for (uint32_t id = 0; id < objs.count; id++) {
+        uint8_t ty = objs.types[id];
+        uint32_t aux = objs.aux[id];
+        if (ty == 1) {
+            out->strings_count++;
+            out->strings_bytes += aux;
+            out->approx_total_bytes += aux + 1;
+        } else if (ty == 4) {
+            out->bytes_count++;
+            out->bytes_bytes += aux;
+            out->approx_total_bytes += aux;
+        } else if (ty == 2) {
+            out->lists_count++;
+            out->list_elems += aux;
+            out->approx_total_bytes += sizeof(AvmList) + (uint64_t)aux * sizeof(AvmValue);
+        } else if (ty == 3) {
+            out->maps_count++;
+            out->map_entries += aux;
+            out->approx_total_bytes += sizeof(AvmMap) + (uint64_t)aux * sizeof(AvmValue) * 2ull;
+        }
+    }
+
+    objtable_free(&objs);
+    return 1;
+}
+
 static int decode_value(FILE* f, uint8_t* obj_types, void** obj_ptrs, uint32_t obj_count, AvmValue* out) {
     uint8_t tag = 0;
     if (fread(&tag, 1, 1, f) != 1) return 0;
@@ -2493,6 +2599,144 @@ static int avm_map_get_key(AvmValue vmap, const char* key, AvmValue* out) {
     return 0;
 }
 
+typedef struct {
+    void** old_ptrs;
+    void** new_ptrs;
+    uint8_t* types; // 1=STRING,2=LIST,3=MAP,4=BYTES
+    uint32_t count;
+    uint32_t cap;
+} CloneTable;
+
+static void clonetab_free(CloneTable* t) {
+    if (!t) return;
+    free(t->old_ptrs);
+    free(t->new_ptrs);
+    free(t->types);
+    t->old_ptrs = NULL;
+    t->new_ptrs = NULL;
+    t->types = NULL;
+    t->count = 0;
+    t->cap = 0;
+}
+
+static void* clonetab_find(CloneTable* t, void* old_ptr, uint8_t type) {
+    if (!t || !old_ptr) return NULL;
+    for (uint32_t i = 0; i < t->count; i++) {
+        if (t->old_ptrs[i] == old_ptr && t->types[i] == type) return t->new_ptrs[i];
+    }
+    return NULL;
+}
+
+static int clonetab_add(CloneTable* t, void* old_ptr, void* new_ptr, uint8_t type) {
+    if (!t) return 0;
+    if (t->count >= t->cap) {
+        uint32_t nc = t->cap ? t->cap * 2 : 64;
+        void** no = (void**)realloc(t->old_ptrs, sizeof(void*) * nc);
+        void** nn = (void**)realloc(t->new_ptrs, sizeof(void*) * nc);
+        uint8_t* nt = (uint8_t*)realloc(t->types, sizeof(uint8_t) * nc);
+        if (!no || !nn || !nt) return 0;
+        t->old_ptrs = no;
+        t->new_ptrs = nn;
+        t->types = nt;
+        t->cap = nc;
+    }
+    t->old_ptrs[t->count] = old_ptr;
+    t->new_ptrs[t->count] = new_ptr;
+    t->types[t->count] = type;
+    t->count++;
+    return 1;
+}
+
+static AvmValue avm_clone_value_rec(CloneTable* tab, AvmValue v);
+
+static AvmValue avm_clone_string(CloneTable* tab, const char* s) {
+    if (!s) return avm_string("");
+    void* found = clonetab_find(tab, (void*)s, 1);
+    if (found) { AvmValue r; r.type = AVM_VAL_STRING; r.as.p = found; return r; }
+    char* d = my_strdup(s);
+    if (!d) return avm_nil();
+    if (!clonetab_add(tab, (void*)s, d, 1)) { free(d); return avm_nil(); }
+    AvmValue r; r.type = AVM_VAL_STRING; r.as.p = d; return r;
+}
+
+static AvmValue avm_clone_bytes(CloneTable* tab, AvmBytes* b) {
+    if (!b) return avm_nil();
+    void* found = clonetab_find(tab, (void*)b, 4);
+    if (found) { AvmValue r; r.type = AVM_VAL_BYTES; r.as.b = (AvmBytes*)found; return r; }
+    AvmBytes* nb = (AvmBytes*)malloc(sizeof(AvmBytes));
+    if (!nb) return avm_nil();
+    nb->len = b->len;
+    nb->capacity = b->len;
+    nb->data = NULL;
+    if (b->len > 0) {
+        nb->data = (uint8_t*)malloc((size_t)b->len);
+        if (!nb->data) { free(nb); return avm_nil(); }
+        memcpy(nb->data, b->data, (size_t)b->len);
+    }
+    if (!clonetab_add(tab, (void*)b, nb, 4)) { free(nb->data); free(nb); return avm_nil(); }
+    AvmValue r; r.type = AVM_VAL_BYTES; r.as.b = nb; return r;
+}
+
+static AvmValue avm_clone_list(CloneTable* tab, AvmList* list) {
+    if (!list) return avm_nil();
+    void* found = clonetab_find(tab, (void*)list, 2);
+    if (found) { AvmValue r; r.type = AVM_VAL_LIST; r.as.l = (AvmList*)found; return r; }
+    AvmList* nl = (AvmList*)malloc(sizeof(AvmList));
+    if (!nl) return avm_nil();
+    nl->count = list->count;
+    nl->capacity = list->count;
+    nl->items = NULL;
+    if (nl->count > 0) {
+        nl->items = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)nl->count);
+        if (!nl->items) { free(nl); return avm_nil(); }
+    }
+    if (!clonetab_add(tab, (void*)list, nl, 2)) { free(nl->items); free(nl); return avm_nil(); }
+    for (int i = 0; i < nl->count; i++) nl->items[i] = avm_clone_value_rec(tab, list->items[i]);
+    AvmValue r; r.type = AVM_VAL_LIST; r.as.l = nl; return r;
+}
+
+static AvmValue avm_clone_map(CloneTable* tab, AvmMap* map) {
+    if (!map) return avm_nil();
+    void* found = clonetab_find(tab, (void*)map, 3);
+    if (found) { AvmValue r; r.type = AVM_VAL_MAP; r.as.m = (AvmMap*)found; return r; }
+    AvmMap* nm = (AvmMap*)malloc(sizeof(AvmMap));
+    if (!nm) return avm_nil();
+    nm->count = map->count;
+    nm->capacity = map->count;
+    nm->keys = NULL;
+    nm->values = NULL;
+    if (nm->count > 0) {
+        nm->keys = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)nm->count);
+        nm->values = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)nm->count);
+        if (!nm->keys || !nm->values) { free(nm->keys); free(nm->values); free(nm); return avm_nil(); }
+    }
+    if (!clonetab_add(tab, (void*)map, nm, 3)) { free(nm->keys); free(nm->values); free(nm); return avm_nil(); }
+    for (int i = 0; i < nm->count; i++) {
+        nm->keys[i] = avm_clone_value_rec(tab, map->keys[i]);
+        nm->values[i] = avm_clone_value_rec(tab, map->values[i]);
+    }
+    AvmValue r; r.type = AVM_VAL_MAP; r.as.m = nm; return r;
+}
+
+static AvmValue avm_clone_value_rec(CloneTable* tab, AvmValue v) {
+    if (v.type == AVM_VAL_NIL) return avm_nil();
+    if (v.type == AVM_VAL_INT) return avm_int(v.as.i);
+    if (v.type == AVM_VAL_BOOL) return avm_bool(v.as.i != 0);
+    if (v.type == AVM_VAL_FLOAT) { AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = v.as.f; return r; }
+    if (v.type == AVM_VAL_STRING) return avm_clone_string(tab, (const char*)v.as.p);
+    if (v.type == AVM_VAL_BYTES) return avm_clone_bytes(tab, v.as.b);
+    if (v.type == AVM_VAL_LIST) return avm_clone_list(tab, v.as.l);
+    if (v.type == AVM_VAL_MAP) return avm_clone_map(tab, v.as.m);
+    return avm_nil();
+}
+
+static AvmValue avm_clone_value(AvmValue v) {
+    CloneTable tab = {0};
+    AvmValue out = avm_clone_value_rec(&tab, v);
+    clonetab_free(&tab);
+    return out;
+}
+
 static uint64_t avm_value_u64(AvmValue v, uint64_t def) {
     if (v.type == AVM_VAL_INT) {
         if (v.as.i < 0) return def;
@@ -2872,7 +3116,13 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                         avm_free(child);
                         return avm_err(AVM_ERR_INVALID_ARG, "invalid replay_log magic");
                     }
-                    child->replay_log_bytes = v.as.b;
+                    // Copy replay log into child-owned memory so the child can be freed safely.
+                    AvmValue copy = avm_clone_value(v);
+                    if (copy.type != AVM_VAL_BYTES || !copy.as.b) {
+                        avm_free(child);
+                        return avm_err(AVM_ERR_INTERNAL, "oom");
+                    }
+                    child->replay_log_bytes = copy.as.b;
                     child->replay_log_pos = 8;
                 }
 
@@ -2904,13 +3154,17 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 out->keys[2] = avm_string("state_hash");
                 out->values[2] = v_sh;
                 out->keys[3] = avm_string("record_log");
-                AvmValue v_log; v_log.type = AVM_VAL_BYTES; v_log.as.b = child->record_log_bytes;
-                out->values[3] = v_log;
+                AvmValue v_log;
+                v_log.type = AVM_VAL_BYTES;
+                v_log.as.b = child->record_log_bytes;
+                out->values[3] = avm_clone_value(v_log);
                 out->keys[4] = avm_string("last_error");
-                out->values[4] = child->last_error;
+                out->values[4] = avm_clone_value(child->last_error);
 
                 AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
                 avm_free(child);
+                if (prog->constants) free(prog->constants);
+                free(prog);
                 return ret;
             }
             default: break;
@@ -2957,12 +3211,24 @@ AvmVM* avm_new() {
     vm->trace_enabled = 0;
     vm->trace_limit = 0;
     vm->trace_out = NULL;
+    vm->break_pcs = NULL;
+    vm->break_pc_count = 0;
     for(int i=0; i<MAX_GLOBALS; i++) vm->globals[i].type = AVM_VAL_NIL;
     return vm;
 }
 
 void avm_free(AvmVM* vm) {
+    if (!vm) return;
+
+    // Close any open replay/record files (CLI can also close; best-effort here).
+    if (vm->record_log) fclose(vm->record_log);
+    if (vm->replay_log) fclose(vm->replay_log);
+
+    // Best-effort: release heap objects reachable from VM roots (including const pool objects).
+    avm_release_heap(vm);
+
     if (vm->stack) free(vm->stack);
+    if (vm->break_pcs) free(vm->break_pcs);
     if (vm->fs_allow_prefixes) {
         for (int i = 0; i < vm->fs_allow_prefix_count; i++) {
             if (vm->fs_allow_prefixes[i]) free(vm->fs_allow_prefixes[i]);
@@ -3000,6 +3266,17 @@ void avm_run(AvmVM* vm) {
     
     while (vm->running && vm->pc < vm->prog->code_len) {
         steps++;
+        if (vm->break_pc_count > 0 && vm->break_pcs) {
+            for (int bi = 0; bi < vm->break_pc_count; bi++) {
+                if (vm->pc == vm->break_pcs[bi]) {
+                    vm->paused = 1;
+                    vm->exit_code = 2; // paused (non-error)
+                    vm->running = 0;
+                    break;
+                }
+            }
+            if (!vm->running) break;
+        }
         if (vm->pause_after_steps > 0) {
             vm->pause_after_steps--;
             if (vm->pause_after_steps == 0) {

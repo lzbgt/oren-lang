@@ -5,6 +5,10 @@
 #include <string.h>
 #include <time.h>
 #include <limits.h>
+#include <unistd.h>
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
 
 uint8_t* read_file(const char* path, size_t* len) {
     FILE* f = fopen(path, "rb");
@@ -22,6 +26,29 @@ static uint64_t now_ns() {
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+static uint64_t current_rss_bytes() {
+#if defined(__APPLE__)
+    mach_task_basic_info_data_t info;
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    kern_return_t kr = task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &count);
+    if (kr != KERN_SUCCESS) return 0;
+    return (uint64_t)info.resident_size;
+#elif defined(__linux__)
+    FILE* f = fopen("/proc/self/statm", "r");
+    if (!f) return 0;
+    unsigned long size_pages = 0;
+    unsigned long rss_pages = 0;
+    int ok = fscanf(f, "%lu %lu", &size_pages, &rss_pages);
+    fclose(f);
+    if (ok != 2) return 0;
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size <= 0) return 0;
+    return (uint64_t)rss_pages * (uint64_t)page_size;
+#else
+    return 0;
+#endif
 }
 
 static int is_err_map(AvmValue v) {
@@ -104,6 +131,40 @@ static char* bytes_to_hex(const uint8_t* data, size_t len) {
     return out;
 }
 
+static void free_constant_value(AvmValue v) {
+    if (v.type == AVM_VAL_STRING) {
+        if (v.as.p) free(v.as.p);
+        return;
+    }
+    if (v.type == AVM_VAL_BYTES) {
+        AvmBytes* b = v.as.b;
+        if (!b) return;
+        if (b->data) free(b->data);
+        free(b);
+        return;
+    }
+    if (v.type == AVM_VAL_LIST) {
+        AvmList* l = v.as.l;
+        if (!l) return;
+        if (l->items) free(l->items);
+        free(l);
+        return;
+    }
+    if (v.type == AVM_VAL_MAP) {
+        AvmMap* m = v.as.m;
+        if (!m) return;
+        if (m->keys) free(m->keys);
+        if (m->values) free(m->values);
+        free(m);
+        return;
+    }
+}
+
+static void free_constant_pool(AvmValue* consts, size_t n) {
+    if (!consts) return;
+    for (size_t i = 0; i < n; i++) free_constant_value(consts[i]);
+}
+
 typedef struct {
     int ok;
     char msg[512];
@@ -140,39 +201,52 @@ static int decode_u16(const uint8_t* code, size_t code_len, size_t pos, uint16_t
     return 1;
 }
 
-// Minimal verifier (rolling, incremental):
+// Verifier (rolling, incremental, now function-aware):
 // - validates operand bounds / jump targets / const bounds
-// - validates stack underflow/overflow along reachable control flow (approximate for CALL/RET)
+// - validates stack underflow/overflow + consistent stack height at CFG joins
 // - extracts used capability domains for policy scanning
 //
-// Notes:
-// - CALL/RET are approximated to enable useful checking without full interprocedural analysis.
-// - This verifier is meant to be strict enough to reject malformed bytecode and prevent common crashes/hangs.
-static VerifyResult verify_program(const AvmProgram* prog) {
+// Function-aware model (bootstrap):
+// - "stack depth" tracked by the verifier is relative to the current frame pointer (fp), i.e. `sp - fp`.
+// - root region starts at pc=0 with depth=0
+// - a function entry is verified with initial depth = nargs (arguments on stack above fp)
+// - CALL is *not* interprocedurally explored in the same CFG; instead, callees are queued and verified separately.
+// - arity is enforced: all CALL sites to the same addr must use the same nargs.
+static VerifyResult verify_program_region(
+    const AvmProgram* prog,
+    size_t start_pc,
+    int start_depth,
+    uint16_t region_id,
+    uint64_t* used_domains_io,
+    uint16_t* callees_out,
+    uint8_t* callee_nargs_out,
+    size_t* callee_count_io,
+    size_t callee_cap
+) {
     if (!prog || !prog->code || prog->code_len == 0) return err_result("empty program");
-
     const uint8_t* code = prog->code;
     size_t code_len = prog->code_len;
 
-    int* depth_at = (int*)malloc(sizeof(int) * code_len);
-    if (!depth_at) return err_result("verify: out of memory");
-    for (size_t i = 0; i < code_len; i++) depth_at[i] = INT_MIN;
+    if (start_pc >= code_len) return err_result("verify: entry pc out of bounds");
+    if (start_depth < 0) return err_result("verify: negative entry stack depth");
+    if (start_depth > AVM_STACK_SIZE) return err_result("verify: entry stack overflow");
 
-    size_t* queue = (size_t*)malloc(sizeof(size_t) * code_len);
-    int* qdepth = (int*)malloc(sizeof(int) * code_len);
-    if (!queue || !qdepth) {
+    int* depth_at = (int*)malloc(sizeof(int) * code_len);
+    size_t qcap = code_len ? code_len : 1;
+    size_t* queue = (size_t*)malloc(sizeof(size_t) * qcap);
+    int* qdepth = (int*)malloc(sizeof(int) * qcap);
+    if (!depth_at || !queue || !qdepth) {
         free(depth_at);
         free(queue);
         free(qdepth);
         return err_result("verify: out of memory");
     }
+    for (size_t i = 0; i < code_len; i++) depth_at[i] = INT_MIN;
 
     size_t qh = 0, qt = 0;
-    queue[qt] = 0;
-    qdepth[qt] = 0;
+    queue[qt] = start_pc;
+    qdepth[qt] = start_depth;
     qt++;
-
-    uint64_t used_domains = 0;
 
     while (qh < qt) {
         size_t pc = queue[qh];
@@ -180,34 +254,27 @@ static VerifyResult verify_program(const AvmProgram* prog) {
         qh++;
 
         if (pc >= code_len) {
-            free(depth_at);
-            free(queue);
-            free(qdepth);
+            free(depth_at); free(queue); free(qdepth);
             return err_result("verify: pc out of bounds");
         }
-
         if (depth < 0) {
-            free(depth_at);
-            free(queue);
-            free(qdepth);
+            free(depth_at); free(queue); free(qdepth);
             return err_result("verify: negative stack depth");
         }
         if (depth > AVM_STACK_SIZE) {
-            free(depth_at);
-            free(queue);
-            free(qdepth);
+            free(depth_at); free(queue); free(qdepth);
             return err_result("verify: stack overflow");
         }
 
         if (depth_at[pc] != INT_MIN) {
             if (depth_at[pc] != depth) {
-                free(depth_at);
-                free(queue);
-                free(qdepth);
+                free(depth_at); free(queue); free(qdepth);
                 VerifyResult r = ok_result();
                 r.ok = 0;
-                snprintf(r.msg, sizeof(r.msg), "verify: stack height mismatch at join pc=%zu have=%d want=%d", pc, depth, depth_at[pc]);
-                r.used_domains_mask = used_domains;
+                snprintf(r.msg, sizeof(r.msg),
+                    "verify: stack height mismatch at join region=%u pc=%zu have=%d want=%d",
+                    (unsigned)region_id, pc, depth, depth_at[pc]);
+                r.used_domains_mask = used_domains_io ? *used_domains_io : 0;
                 return r;
             }
             continue;
@@ -219,7 +286,6 @@ static VerifyResult verify_program(const AvmProgram* prog) {
         int pop = 0;
         int push = 0;
 
-        // decode/validate operands and compute instruction length + stack effect
         if (op == 0x00) { // NOP
             len = 1;
         } else if (op == 0x01) { // HALT
@@ -271,10 +337,17 @@ static VerifyResult verify_program(const AvmProgram* prog) {
             uint8_t nargs = code[pc + 3];
             if (nargs > 16) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL nargs too large"); }
             pop = (int)nargs;
-            push = 1; // approximate: call returns a value
+            push = 1;
+
+            // Record callee for outer verifier (call graph).
+            if (callees_out && callee_nargs_out && callee_count_io && *callee_count_io < callee_cap) {
+                callees_out[*callee_count_io] = addr;
+                callee_nargs_out[*callee_count_io] = nargs;
+                (*callee_count_io)++;
+            }
         } else if (op == 0x39) { // RET
             len = 1;
-            pop = 1; // requires a return value on stack in current frame
+            pop = 1;
         } else if (op == 0x3A) { // CALL_NATIVE u16_id u8_nargs
             len = 4;
             uint16_t id = 0;
@@ -284,11 +357,9 @@ static VerifyResult verify_program(const AvmProgram* prog) {
             pop = (int)nargs;
             push = 1;
 
-            // Legacy domain usage mapping (rolling):
-            // FS ids: 0(read_file),1(write_file),17(write_bytes),18(read_bytes)
             uint8_t dom = 0;
             if (id == 0 || id == 1 || id == 17 || id == 18) dom = 1;
-            used_domains |= (1ULL << (dom & 63));
+            if (used_domains_io) *used_domains_io |= (1ULL << (dom & 63));
         } else if (op == 0x3B) { // CALL_NATIVE2 u8_domain u16_op u8_nargs
             len = 5;
             if (pc + len > code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated CALL_NATIVE2"); }
@@ -297,7 +368,7 @@ static VerifyResult verify_program(const AvmProgram* prog) {
             if (nargs > 16) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL_NATIVE2 nargs too large"); }
             pop = (int)nargs;
             push = 1;
-            used_domains |= (1ULL << (dom & 63));
+            if (used_domains_io) *used_domains_io |= (1ULL << (dom & 63));
         } else if (op == 0x40) { // NEW_LIST u16_count
             len = 3;
             uint16_t count = 0;
@@ -319,42 +390,31 @@ static VerifyResult verify_program(const AvmProgram* prog) {
             pop = 3;
             push = 0;
         } else {
-            free(depth_at);
-            free(queue);
-            free(qdepth);
+            free(depth_at); free(queue); free(qdepth);
             return err_result("verify: unknown opcode");
         }
 
         if (pc + len > code_len) {
-            free(depth_at);
-            free(queue);
-            free(qdepth);
+            free(depth_at); free(queue); free(qdepth);
             return err_result("verify: truncated instruction");
         }
 
         if (depth < pop) {
-            free(depth_at);
-            free(queue);
-            free(qdepth);
+            free(depth_at); free(queue); free(qdepth);
             return err_result("verify: stack underflow");
         }
         int next_depth = depth - pop + push;
         if (next_depth < 0 || next_depth > AVM_STACK_SIZE) {
-            free(depth_at);
-            free(queue);
-            free(qdepth);
+            free(depth_at); free(queue); free(qdepth);
             return err_result("verify: stack overflow/underflow");
         }
 
         size_t pc_after = pc + len;
 
         // successors
-        if (op == 0x01) { // HALT
-            continue;
-        }
-        if (op == 0x39) { // RET: terminates this control-flow path in the verifier model
-            continue;
-        }
+        if (op == 0x01) continue; // HALT
+        if (op == 0x39) continue; // RET terminates the region path
+
         if (op == 0x30 || op == 0x31) { // JMP/JMP_IF
             int16_t off = 0;
             if (!decode_i16(code, code_len, pc + 1, &off)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated JMP"); }
@@ -362,14 +422,40 @@ static VerifyResult verify_program(const AvmProgram* prog) {
             if (target64 < 0 || target64 >= (int64_t)code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: jump target out of bounds"); }
             size_t target = (size_t)target64;
 
-            // push target successor
+            if (qt >= qcap) {
+                size_t nc = qcap * 2;
+                size_t* nq = (size_t*)realloc(queue, sizeof(size_t) * nc);
+                int* nd = (int*)realloc(qdepth, sizeof(int) * nc);
+                if (!nq || !nd) {
+                    free(nq ? nq : queue);
+                    free(nd ? nd : qdepth);
+                    free(depth_at);
+                    return err_result("verify: out of memory");
+                }
+                queue = nq;
+                qdepth = nd;
+                qcap = nc;
+            }
             queue[qt] = target;
             qdepth[qt] = next_depth;
             qt++;
 
-            // JMP_IF also falls through
             if (op == 0x31) {
                 if (pc_after < code_len) {
+                    if (qt >= qcap) {
+                        size_t nc = qcap * 2;
+                        size_t* nq = (size_t*)realloc(queue, sizeof(size_t) * nc);
+                        int* nd = (int*)realloc(qdepth, sizeof(int) * nc);
+                        if (!nq || !nd) {
+                            free(nq ? nq : queue);
+                            free(nd ? nd : qdepth);
+                            free(depth_at);
+                            return err_result("verify: out of memory");
+                        }
+                        queue = nq;
+                        qdepth = nd;
+                        qcap = nc;
+                    }
                     queue[qt] = pc_after;
                     qdepth[qt] = next_depth;
                     qt++;
@@ -377,18 +463,23 @@ static VerifyResult verify_program(const AvmProgram* prog) {
             }
             continue;
         }
-        if (op == 0x38) { // CALL: explore callee entry too (best-effort)
-            uint16_t addr = 0;
-            if (!decode_u16(code, code_len, pc + 1, &addr)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated CALL"); }
-            if (addr < code_len) {
-                queue[qt] = (size_t)addr;
-                qdepth[qt] = depth; // interpreter keeps sp; args remain on stack in callee
-                qt++;
-            }
-        }
 
         // default fallthrough
         if (pc_after < code_len) {
+            if (qt >= qcap) {
+                size_t nc = qcap * 2;
+                size_t* nq = (size_t*)realloc(queue, sizeof(size_t) * nc);
+                int* nd = (int*)realloc(qdepth, sizeof(int) * nc);
+                if (!nq || !nd) {
+                    free(nq ? nq : queue);
+                    free(nd ? nd : qdepth);
+                    free(depth_at);
+                    return err_result("verify: out of memory");
+                }
+                queue = nq;
+                qdepth = nd;
+                qcap = nc;
+            }
             queue[qt] = pc_after;
             qdepth[qt] = next_depth;
             qt++;
@@ -398,6 +489,174 @@ static VerifyResult verify_program(const AvmProgram* prog) {
     free(depth_at);
     free(queue);
     free(qdepth);
+
+    VerifyResult r = ok_result();
+    r.used_domains_mask = used_domains_io ? *used_domains_io : 0;
+    return r;
+}
+
+typedef struct {
+    uint16_t addr;
+    uint8_t nargs;
+    uint8_t verified;
+} VerifyFunc;
+
+static int find_func(VerifyFunc* funcs, size_t n, uint16_t addr) {
+    for (size_t i = 0; i < n; i++) if (funcs[i].addr == addr) return (int)i;
+    return -1;
+}
+
+static VerifyResult ensure_funcs_cap(VerifyFunc** funcs_io, size_t* cap_io, size_t need) {
+    if (!funcs_io || !cap_io) return err_result("verify: internal error");
+    if (need <= *cap_io) return ok_result();
+    size_t nc = (*cap_io) ? (*cap_io) * 2 : 16;
+    while (nc < need) nc *= 2;
+    void* np = realloc(*funcs_io, sizeof(VerifyFunc) * nc);
+    if (!np) return err_result("verify: out of memory");
+    *funcs_io = (VerifyFunc*)np;
+    *cap_io = nc;
+    return ok_result();
+}
+
+static VerifyResult ensure_worklist_cap(
+    uint16_t** wl_io,
+    uint8_t** wl_nargs_io,
+    size_t* cap_io,
+    size_t need
+) {
+    if (!wl_io || !wl_nargs_io || !cap_io) return err_result("verify: internal error");
+    if (need <= *cap_io) return ok_result();
+    size_t nc = (*cap_io) ? (*cap_io) * 2 : 16;
+    while (nc < need) nc *= 2;
+    uint16_t* nw = (uint16_t*)realloc(*wl_io, sizeof(uint16_t) * nc);
+    if (!nw) return err_result("verify: out of memory");
+    uint8_t* nn = (uint8_t*)realloc(*wl_nargs_io, sizeof(uint8_t) * nc);
+    if (!nn) {
+        *wl_io = nw;
+        return err_result("verify: out of memory");
+    }
+    *wl_io = nw;
+    *wl_nargs_io = nn;
+    *cap_io = nc;
+    return ok_result();
+}
+
+static VerifyResult enqueue_func(
+    VerifyFunc** funcs_io,
+    size_t* funcs_len_io,
+    size_t* funcs_cap_io,
+    uint16_t** wl_io,
+    uint8_t** wl_nargs_io,
+    size_t* wl_t_io,
+    size_t* wl_cap_io,
+    uint64_t used_domains_mask,
+    uint16_t addr,
+    uint8_t nargs
+) {
+    if (!funcs_io || !funcs_len_io || !funcs_cap_io || !wl_io || !wl_nargs_io || !wl_t_io || !wl_cap_io) {
+        return err_result("verify: internal error");
+    }
+
+    int idx = find_func(*funcs_io, *funcs_len_io, addr);
+    if (idx >= 0) {
+        if ((*funcs_io)[(size_t)idx].nargs != nargs) {
+            VerifyResult r = ok_result();
+            r.ok = 0;
+            snprintf(r.msg, sizeof(r.msg), "verify: CALL arity mismatch addr=%u have=%u want=%u",
+                (unsigned)addr, (unsigned)nargs, (unsigned)(*funcs_io)[(size_t)idx].nargs);
+            r.used_domains_mask = used_domains_mask;
+            return r;
+        }
+        if (!(*funcs_io)[(size_t)idx].verified) {
+            VerifyResult cr = ensure_worklist_cap(wl_io, wl_nargs_io, wl_cap_io, (*wl_t_io) + 1);
+            if (!cr.ok) return cr;
+            (*wl_io)[*wl_t_io] = addr;
+            (*wl_nargs_io)[*wl_t_io] = nargs;
+            (*wl_t_io)++;
+        }
+        return ok_result();
+    }
+
+    VerifyResult fr = ensure_funcs_cap(funcs_io, funcs_cap_io, (*funcs_len_io) + 1);
+    if (!fr.ok) return fr;
+    (*funcs_io)[*funcs_len_io].addr = addr;
+    (*funcs_io)[*funcs_len_io].nargs = nargs;
+    (*funcs_io)[*funcs_len_io].verified = 0;
+    (*funcs_len_io)++;
+
+    VerifyResult cr = ensure_worklist_cap(wl_io, wl_nargs_io, wl_cap_io, (*wl_t_io) + 1);
+    if (!cr.ok) return cr;
+    (*wl_io)[*wl_t_io] = addr;
+    (*wl_nargs_io)[*wl_t_io] = nargs;
+    (*wl_t_io)++;
+    return ok_result();
+}
+
+static VerifyResult verify_program(const AvmProgram* prog) {
+    if (!prog || !prog->code || prog->code_len == 0) return err_result("empty program");
+
+    uint64_t used_domains = 0;
+
+    VerifyFunc* funcs = NULL;
+    size_t funcs_len = 0;
+    size_t funcs_cap = 0;
+
+    uint16_t* wl = NULL;
+    uint8_t* wl_nargs = NULL;
+    size_t wl_h = 0, wl_t = 0, wl_cap = 0;
+
+    // Verify root region (pc=0). Collect initial call graph.
+    {
+        // Use local buffers for callee discovery (worst-case: code_len CALL sites).
+        size_t cap = prog->code_len;
+        uint16_t* callees = (uint16_t*)malloc(sizeof(uint16_t) * cap);
+        uint8_t* cnargs = (uint8_t*)malloc(sizeof(uint8_t) * cap);
+        size_t ccnt = 0;
+        if ((!callees || !cnargs) && cap > 0) { free(callees); free(cnargs); free(funcs); free(wl); free(wl_nargs); return err_result("verify: out of memory"); }
+
+        VerifyResult vr = verify_program_region(prog, 0, 0, 0xFFFFu, &used_domains, callees, cnargs, &ccnt, cap);
+        for (size_t i = 0; i < ccnt && vr.ok; i++) {
+            VerifyResult er = enqueue_func(&funcs, &funcs_len, &funcs_cap, &wl, &wl_nargs, &wl_t, &wl_cap, used_domains, callees[i], cnargs[i]);
+            if (!er.ok) vr = er;
+        }
+
+        free(callees);
+        free(cnargs);
+        if (!vr.ok) { free(funcs); free(wl); free(wl_nargs); return vr; }
+    }
+
+    // Verify each reachable function region once.
+    while (wl_h < wl_t) {
+        uint16_t addr = wl[wl_h];
+        uint8_t nargs = wl_nargs[wl_h];
+        wl_h++;
+
+        int idx = find_func(funcs, funcs_len, addr);
+        if (idx < 0) continue;
+        if (funcs[idx].verified) continue;
+
+        size_t cap = prog->code_len;
+        uint16_t* callees = (uint16_t*)malloc(sizeof(uint16_t) * cap);
+        uint8_t* cnargs = (uint8_t*)malloc(sizeof(uint8_t) * cap);
+        size_t ccnt = 0;
+        if ((!callees || !cnargs) && cap > 0) { free(callees); free(cnargs); free(funcs); free(wl); free(wl_nargs); return err_result("verify: out of memory"); }
+
+        VerifyResult vr = verify_program_region(prog, (size_t)addr, (int)nargs, addr, &used_domains, callees, cnargs, &ccnt, cap);
+        for (size_t i = 0; i < ccnt && vr.ok; i++) {
+            VerifyResult er = enqueue_func(&funcs, &funcs_len, &funcs_cap, &wl, &wl_nargs, &wl_t, &wl_cap, used_domains, callees[i], cnargs[i]);
+            if (!er.ok) vr = er;
+        }
+
+        free(callees);
+        free(cnargs);
+
+        if (!vr.ok) { free(funcs); free(wl); free(wl_nargs); return vr; }
+        funcs[idx].verified = 1;
+    }
+
+    free(funcs);
+    free(wl);
+    free(wl_nargs);
 
     VerifyResult r = ok_result();
     r.used_domains_mask = used_domains;
@@ -583,6 +842,35 @@ static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
     }
 }
 
+static void dump_value_short(FILE* out, AvmValue v) {
+    if (!out) out = stderr;
+    if (v.type == AVM_VAL_NIL) { fprintf(out, "nil"); return; }
+    if (v.type == AVM_VAL_INT) { fprintf(out, "%lld", (long long)v.as.i); return; }
+    if (v.type == AVM_VAL_BOOL) { fprintf(out, "%s", v.as.i ? "true" : "false"); return; }
+    if (v.type == AVM_VAL_FLOAT) { fprintf(out, "%f", v.as.f); return; }
+    if (v.type == AVM_VAL_STRING) { fprintf(out, "\"%s\"", v.as.p ? (char*)v.as.p : ""); return; }
+    if (v.type == AVM_VAL_BYTES) { fprintf(out, "<bytes len=%d>", v.as.b ? v.as.b->len : 0); return; }
+    if (v.type == AVM_VAL_LIST) { fprintf(out, "<list n=%d>", v.as.l ? v.as.l->count : 0); return; }
+    if (v.type == AVM_VAL_MAP) { fprintf(out, "<map n=%d>", v.as.m ? v.as.m->count : 0); return; }
+    fprintf(out, "<val?>");
+}
+
+static void dump_stack(FILE* out, AvmVM* vm, int limit) {
+    if (!out) out = stderr;
+    if (!vm) return;
+    int n = vm->sp;
+    if (n < 0) n = 0;
+    if (limit <= 0) limit = 32;
+    int start = n - limit;
+    if (start < 0) start = 0;
+    fprintf(out, "STACK sp=%d (showing %d..%d)\n", vm->sp, start, n);
+    for (int i = start; i < n; i++) {
+        fprintf(out, "  [%d] ", i);
+        dump_value_short(out, vm->stack[i]);
+        fprintf(out, "\n");
+    }
+}
+
 int main(int argc, char** argv) {
     const char* obc_path = NULL;
     const char* snap_in = NULL;
@@ -592,10 +880,17 @@ int main(int argc, char** argv) {
     int print_result_hash = 0;
     int print_policy = 0;
     int print_record_log_hex = 0;
+    int print_mem_stats = 0;
+    int print_rss = 0;
     int disasm = 0;
     int disasm_consts = 0;
     int trace = 0;
     uint64_t trace_limit = 0;
+    int print_stack = 0;
+    int break_pc_count = 0;
+    int break_pc_cap = 0;
+    int* break_pcs = NULL;
+    int repeat = 1;
 
     int i = 1;
     while (i < argc) {
@@ -632,6 +927,16 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--print-mem-stats") == 0) {
+            print_mem_stats = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--print-rss") == 0) {
+            print_rss = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--print-policy") == 0) {
             print_policy = 1;
             i += 1;
@@ -660,6 +965,34 @@ int main(int argc, char** argv) {
             i += 2;
             continue;
         }
+        if (strcmp(argv[i], "--print-stack") == 0) {
+            print_stack = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--breakpc") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --breakpc\n"); return 1; }
+            long pc = strtol(argv[i + 1], NULL, 10);
+            if (pc < 0 || pc > INT_MAX) { fprintf(stderr, "Invalid --breakpc value\n"); return 1; }
+            if (break_pc_count >= break_pc_cap) {
+                int nc = break_pc_cap ? break_pc_cap * 2 : 8;
+                int* np = (int*)realloc(break_pcs, sizeof(int) * (size_t)nc);
+                if (!np) { fprintf(stderr, "OOM\n"); return 1; }
+                break_pcs = np;
+                break_pc_cap = nc;
+            }
+            break_pcs[break_pc_count++] = (int)pc;
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--repeat") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --repeat\n"); return 1; }
+            long n = strtol(argv[i + 1], NULL, 10);
+            if (n <= 0 || n > 100000000) { fprintf(stderr, "Invalid --repeat value\n"); return 1; }
+            repeat = (int)n;
+            i += 2;
+            continue;
+        }
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown arg: %s\n", argv[i]);
             return 1;
@@ -669,303 +1002,510 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-policy] <file.obc>\n");
+        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy] <file.obc>\n");
+        free(break_pcs);
+        return 1;
+    }
+    if (repeat > 1 && (snap_in || snap_out)) {
+        fprintf(stderr, "--repeat is not compatible with --snapshot-in/--snapshot-out (for now)\n");
+        free(break_pcs);
         return 1;
     }
     size_t len;
     uint8_t* data = read_file(obc_path, &len);
     if (!data) {
         printf("Failed to read file\n");
+        free(break_pcs);
         return 1;
     }
-    
-    // Parse OBC
-    // Header: CD 0E
-    if (len < 2 || data[0] != 0xCD || data[1] != 0x0E) {
-        printf("Invalid magic\n");
-        return 1;
-    }
-    
-    // Const count (u16)
-    size_t pos = 2;
-    uint16_t n_consts = data[pos] | (data[pos+1] << 8);
-    pos += 2;
-    
-    AvmValue* consts = (AvmValue*)malloc(sizeof(AvmValue) * n_consts);
-    for (int i = 0; i < n_consts; i++) {
-        uint8_t type = data[pos++];
-        if (type == 0) { // NIL
-            consts[i].type = AVM_VAL_NIL;
-        }
-        if (type == 1) { // INT
-            int64_t val = 0;
-            for (int k=0; k<8; k++) {
-                val |= (int64_t)data[pos++] << (k*8);
-            }
-            consts[i].type = AVM_VAL_INT;
-            consts[i].as.i = val;
-        }
-        if (type == 4) { // STRING
-            uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
-            pos += 2;
-            char* s = (char*)malloc((size_t)slen + 1);
-            for (uint16_t k = 0; k < slen; k++) s[k] = (char)data[pos++];
-            s[slen] = 0;
-            consts[i].type = AVM_VAL_STRING;
-            consts[i].as.p = s;
-        }
-        if (type == 8) { // BYTES (rolling): u32 len + raw bytes
-            if (pos + 4 > len) { fprintf(stderr, "Invalid BYTES const\n"); return 1; }
-            uint32_t blen = (uint32_t)data[pos] | ((uint32_t)data[pos + 1] << 8) | ((uint32_t)data[pos + 2] << 16) | ((uint32_t)data[pos + 3] << 24);
-            pos += 4;
-            if (pos + blen > len) { fprintf(stderr, "Invalid BYTES const\n"); return 1; }
-            AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
-            if (!b) { fprintf(stderr, "OOM\n"); return 1; }
-            b->len = (int)blen;
-            b->capacity = (int)blen;
-            b->data = NULL;
-            if (blen > 0) {
-                b->data = (uint8_t*)malloc((size_t)blen);
-                if (!b->data) { fprintf(stderr, "OOM\n"); return 1; }
-                memcpy(b->data, data + pos, blen);
-            }
-            pos += blen;
-            consts[i].type = AVM_VAL_BYTES;
-            consts[i].as.b = b;
-        }
-        // TODO: Other types
-    }
-    
-    // Code
-    uint8_t* code = data + pos;
-    size_t code_len = len - pos;
-    
-    AvmProgram prog;
-    prog.code = code;
-    prog.code_len = code_len;
-    prog.constants = consts;
-    prog.const_count = n_consts;
 
     // Verifier (rolling): reject malformed bytecode early to avoid crashes/hangs.
     // Disable only for debugging with AVM_VERIFY=0.
     const char* verify_env = getenv("AVM_VERIFY");
     int verify = 1;
     if (verify_env && verify_env[0] == '0') verify = 0;
-    if (verify) {
-        VerifyResult vr = verify_program(&prog);
-        if (!vr.ok) {
-            fprintf(stderr, "AVM verify failed: %s\n", vr.msg);
-            return 1;
-        }
-        if (print_policy) {
-            printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)vr.used_domains_mask);
-        }
-    }
 
-    if (disasm) {
-        disasm_program(stdout, &prog, disasm_consts);
-        return 0;
-    }
-    
-    AvmVM* vm = avm_new();
-    vm->argc = argc - 1;
-    vm->argv = argv + 1;
-    if (trace) {
-        vm->trace_enabled = 1;
-        vm->trace_limit = trace_limit;
-        vm->trace_out = stderr;
-    }
-
-    // Deterministic record/replay (rolling):
-    // - AVM_RECORD_LOG: path to write a native-call replay log (FS domain currently).
-    // - AVM_REPLAY_LOG: path to read a native-call replay log (FS domain currently).
-    // Only one may be set.
-    const char* record_env = getenv("AVM_RECORD_LOG");
-    const char* replay_env = getenv("AVM_REPLAY_LOG");
-    const char* replay_hex_env = getenv("AVM_REPLAY_LOG_HEX");
-    const char* record_mem_env = getenv("AVM_RECORD_MEM");
-    if (record_env && record_env[0] && replay_env && replay_env[0]) {
-        fprintf(stderr, "AVM_RECORD_LOG and AVM_REPLAY_LOG are mutually exclusive\n");
-        avm_free(vm);
+    const char* record_env0 = getenv("AVM_RECORD_LOG");
+    const char* replay_env0 = getenv("AVM_REPLAY_LOG");
+    if (repeat > 1 && ((record_env0 && record_env0[0]) || (replay_env0 && replay_env0[0]))) {
+        fprintf(stderr, "--repeat is not compatible with AVM_RECORD_LOG/AVM_REPLAY_LOG (use AVM_RECORD_MEM/AVM_REPLAY_LOG_HEX)\n");
+        free(data);
+        free(break_pcs);
         return 1;
     }
-    if ((replay_env && replay_env[0]) && (replay_hex_env && replay_hex_env[0])) {
-        fprintf(stderr, "AVM_REPLAY_LOG and AVM_REPLAY_LOG_HEX are mutually exclusive\n");
-        avm_free(vm);
-        return 1;
-    }
-    if ((record_env && record_env[0]) && (record_mem_env && record_mem_env[0] && record_mem_env[0] != '0')) {
-        fprintf(stderr, "AVM_RECORD_LOG and AVM_RECORD_MEM are mutually exclusive\n");
-        avm_free(vm);
-        return 1;
-    }
-    if (record_env && record_env[0]) {
-        FILE* rf = fopen(record_env, "wb");
-        if (!rf) {
-            fprintf(stderr, "Failed to open record log: %s\n", record_env);
-            avm_free(vm);
+
+    int exit_code = 0;
+    for (int iter = 0; iter < repeat; iter++) {
+        // Parse OBC
+        // Header: CD 0E
+        if (len < 2 || data[0] != 0xCD || data[1] != 0x0E) {
+            printf("Invalid magic\n");
+            free(data);
+            free(break_pcs);
             return 1;
         }
-        const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
-        if (fwrite(magic, 1, 8, rf) != 8) {
-            fprintf(stderr, "Failed to write log header: %s\n", record_env);
-            fclose(rf);
-            avm_free(vm);
+
+        // Const count (u16)
+        size_t pos = 2;
+        if (pos + 2 > len) {
+            fprintf(stderr, "Invalid constant pool\n");
+            free(data);
+            free(break_pcs);
             return 1;
         }
-        vm->record_log = rf;
-    }
-    if (replay_env && replay_env[0]) {
-        FILE* rf = fopen(replay_env, "rb");
-        if (!rf) {
-            fprintf(stderr, "Failed to open replay log: %s\n", replay_env);
-            avm_free(vm);
+        uint16_t n_consts = data[pos] | (data[pos + 1] << 8);
+        pos += 2;
+
+        AvmValue* consts = (AvmValue*)malloc(sizeof(AvmValue) * n_consts);
+        if (!consts && n_consts > 0) {
+            fprintf(stderr, "OOM\n");
+            free(data);
+            free(break_pcs);
             return 1;
         }
-        uint8_t magic[8];
-        if (fread(magic, 1, 8, rf) != 8) {
-            fprintf(stderr, "Invalid replay log header: %s\n", replay_env);
-            fclose(rf);
-            avm_free(vm);
-            return 1;
-        }
-        const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
-        if (memcmp(magic, want, 8) != 0) {
-            fprintf(stderr, "Invalid replay log magic: %s\n", replay_env);
-            fclose(rf);
-            avm_free(vm);
-            return 1;
-        }
-        vm->replay_log = rf;
-    }
-    if (record_mem_env && record_mem_env[0] && record_mem_env[0] != '0') {
-        // In-memory log: prepopulate header and record into vm->record_log_bytes.
-        AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
-        if (!b) { fprintf(stderr, "OOM\n"); avm_free(vm); return 1; }
-        b->len = 8;
-        b->capacity = 64;
-        b->data = (uint8_t*)malloc((size_t)b->capacity);
-        if (!b->data) { fprintf(stderr, "OOM\n"); free(b); avm_free(vm); return 1; }
-        const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
-        memcpy(b->data, magic, 8);
-        vm->record_log_bytes = b;
-    }
-    if (replay_hex_env && replay_hex_env[0]) {
-        AvmBytes* b = bytes_from_hex(replay_hex_env);
-        if (!b || b->len < 8) {
-            fprintf(stderr, "Invalid AVM_REPLAY_LOG_HEX\n");
-            if (b) { free(b->data); free(b); }
-            avm_free(vm);
-            return 1;
-        }
-        const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
-        if (memcmp(b->data, want, 8) != 0) {
-            fprintf(stderr, "Invalid replay log magic (hex)\n");
-            free(b->data); free(b);
-            avm_free(vm);
-            return 1;
-        }
-        vm->replay_log_bytes = b;
-        vm->replay_log_pos = 8;
-    }
-
-    // Deterministic mode (rolling):
-    // - AVM_DETERMINISTIC=1 enables virtual TIME and deterministic RNG.
-    // - AVM_TIME_START_NS sets initial virtual clock (default 0).
-    // - AVM_TIME_STEP_NS sets per-now() increment (default 1ms).
-    // - AVM_RNG_SEED seeds the deterministic RNG.
-    const char* det_env = getenv("AVM_DETERMINISTIC");
-    if (det_env && det_env[0] && det_env[0] != '0') vm->deterministic = 1;
-    const char* t0_env = getenv("AVM_TIME_START_NS");
-    if (t0_env && t0_env[0]) vm->virtual_now_ns = strtoull(t0_env, NULL, 10);
-    const char* step_env = getenv("AVM_TIME_STEP_NS");
-    if (step_env && step_env[0]) vm->virtual_step_ns = strtoull(step_env, NULL, 10);
-    const char* seed_env = getenv("AVM_RNG_SEED");
-    if (seed_env && seed_env[0]) vm->rng_state = strtoull(seed_env, NULL, 10);
-
-    // Budgets/timeouts (macOS-first, rolling ABI):
-    // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
-    // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)
-    const char* gas_env = getenv("AVM_GAS");
-    if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
-    const char* timeout_env = getenv("AVM_TIMEOUT_MS");
-    if (timeout_env && timeout_env[0]) {
-        uint64_t ms = strtoull(timeout_env, NULL, 10);
-        uint64_t base = now_ns();
-        if (base != 0 && ms > 0) vm->deadline_ns = base + ms * 1000000ull;
-    }
-
-    // Capability enforcement (rolling ABI):
-    // - AVM_ALLOW_DOMAINS: comma-separated domain integers (e.g. "0,1"). Unset/empty means allow all.
-    // - AVM_FS_ALLOW_PREFIXES: comma-separated path prefixes; if set, FS paths must start with an allowed prefix.
-    const char* domains_env = getenv("AVM_ALLOW_DOMAINS");
-    vm->allowed_native_domains = parse_domain_mask(domains_env);
-    const char* fs_allow_env = getenv("AVM_FS_ALLOW_PREFIXES");
-    parse_fs_allow_prefixes(vm, fs_allow_env);
-
-    avm_load(vm, &prog);
-
-    if (snap_in) {
-        if (avm_restore(vm, snap_in) != 0) {
-            fprintf(stderr, "AVM restore failed: %s\n", snap_in);
-            avm_free(vm);
-            return 1;
-        }
-    }
-
-    if (step_limit > 0) vm->pause_after_steps = step_limit;
-    avm_run(vm);
-
-    if (print_state_hash) {
-        uint8_t hash[32];
-        if (avm_state_hash(vm, hash)) {
-            char hex[65];
-            avm_sha256_hex(hash, hex);
-            printf("STATE_HASH %s\n", hex);
-        } else {
-            printf("STATE_HASH_ERROR\n");
-        }
-    }
-
-    if (print_result_hash) {
-        uint8_t hash[32];
-        if (avm_result_hash(vm, hash)) {
-            char hex[65];
-            avm_sha256_hex(hash, hex);
-            printf("RESULT_HASH %s\n", hex);
-        } else {
-            printf("RESULT_HASH_ERROR\n");
-        }
-    }
-
-    if (snap_out) {
-        if (avm_snapshot(vm, snap_out) != 0) {
-            fprintf(stderr, "AVM snapshot failed: %s\n", snap_out);
-            // do not override execution result; just report and continue
-        }
-    }
-    if (vm->exit_code != 0) {
-        dump_error(vm->last_error);
-    }
-    int exit_code = vm->exit_code;
-    if (vm->record_log) fclose(vm->record_log);
-    if (vm->replay_log) fclose(vm->replay_log);
-
-    if (print_record_log_hex) {
-        if (vm->record_log_bytes && vm->record_log_bytes->data && vm->record_log_bytes->len >= 8) {
-            char* hex = bytes_to_hex(vm->record_log_bytes->data, (size_t)vm->record_log_bytes->len);
-            if (hex) {
-                printf("RECORD_LOG_HEX %s\n", hex);
-                free(hex);
-            } else {
-                printf("RECORD_LOG_HEX_ERROR\n");
+        for (int ci = 0; ci < n_consts; ci++) consts[ci].type = AVM_VAL_NIL;
+        for (int ci = 0; ci < n_consts; ci++) {
+            if (pos >= len) {
+                fprintf(stderr, "Invalid constant pool\n");
+                free_constant_pool(consts, (size_t)ci);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
             }
-        } else {
-            printf("RECORD_LOG_HEX \n");
+            uint8_t type = data[pos++];
+            if (type == 0) { // NIL
+                consts[ci].type = AVM_VAL_NIL;
+            }
+            if (type == 1) { // INT
+                if (pos + 8 > len) {
+                    fprintf(stderr, "Invalid INT const\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                int64_t val = 0;
+                for (int k = 0; k < 8; k++) {
+                    val |= (int64_t)data[pos++] << (k * 8);
+                }
+                consts[ci].type = AVM_VAL_INT;
+                consts[ci].as.i = val;
+            }
+            if (type == 4) { // STRING
+                if (pos + 2 > len) {
+                    fprintf(stderr, "Invalid STRING const\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
+                pos += 2;
+                if (pos + slen > len) {
+                    fprintf(stderr, "Invalid STRING const\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                char* s = (char*)malloc((size_t)slen + 1);
+                if (!s) {
+                    fprintf(stderr, "OOM\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                for (uint16_t k = 0; k < slen; k++) s[k] = (char)data[pos++];
+                s[slen] = 0;
+                consts[ci].type = AVM_VAL_STRING;
+                consts[ci].as.p = s;
+            }
+            if (type == 8) { // BYTES (rolling): u32 len + raw bytes
+                if (pos + 4 > len) {
+                    fprintf(stderr, "Invalid BYTES const\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                uint32_t blen = (uint32_t)data[pos] | ((uint32_t)data[pos + 1] << 8) | ((uint32_t)data[pos + 2] << 16) | ((uint32_t)data[pos + 3] << 24);
+                pos += 4;
+                if (pos + blen > len) {
+                    fprintf(stderr, "Invalid BYTES const\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+                if (!b) {
+                    fprintf(stderr, "OOM\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                b->len = (int)blen;
+                b->capacity = (int)blen;
+                b->data = NULL;
+                if (blen > 0) {
+                    b->data = (uint8_t*)malloc((size_t)blen);
+                    if (!b->data) {
+                        fprintf(stderr, "OOM\n");
+                        free(b);
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    memcpy(b->data, data + pos, blen);
+                }
+                pos += blen;
+                consts[ci].type = AVM_VAL_BYTES;
+                consts[ci].as.b = b;
+            }
+            // TODO: Other types
         }
+
+        // Code
+        uint8_t* code = data + pos;
+        size_t code_len = len - pos;
+
+        AvmProgram prog;
+        prog.code = code;
+        prog.code_len = code_len;
+        prog.constants = consts;
+        prog.const_count = n_consts;
+
+        if (verify && iter == 0) {
+            VerifyResult vr = verify_program(&prog);
+            if (!vr.ok) {
+                fprintf(stderr, "AVM verify failed: %s\n", vr.msg);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            if (print_policy) {
+                printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)vr.used_domains_mask);
+            }
+        }
+
+        if (disasm) {
+            disasm_program(stdout, &prog, disasm_consts);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            exit_code = 0;
+            break;
+        }
+
+        AvmVM* vm = avm_new();
+        vm->argc = argc - 1;
+        vm->argv = argv + 1;
+        if (trace) {
+            vm->trace_enabled = 1;
+            vm->trace_limit = trace_limit;
+            vm->trace_out = stderr;
+        }
+        if (break_pc_count > 0) {
+            if (repeat == 1) {
+                vm->break_pcs = break_pcs;
+                vm->break_pc_count = break_pc_count;
+                break_pcs = NULL; // owned by vm now
+            } else {
+                vm->break_pcs = (int*)malloc(sizeof(int) * (size_t)break_pc_count);
+                if (!vm->break_pcs) {
+                    fprintf(stderr, "OOM\n");
+                    avm_free(vm);
+                    free_constant_pool(consts, n_consts);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                memcpy(vm->break_pcs, break_pcs, sizeof(int) * (size_t)break_pc_count);
+                vm->break_pc_count = break_pc_count;
+            }
+        }
+
+        // Deterministic record/replay (rolling):
+        // - AVM_RECORD_LOG: path to write a native-call replay log (FS domain currently).
+        // - AVM_REPLAY_LOG: path to read a native-call replay log (FS domain currently).
+        // Only one may be set.
+        const char* record_env = getenv("AVM_RECORD_LOG");
+        const char* replay_env = getenv("AVM_REPLAY_LOG");
+        const char* replay_hex_env = getenv("AVM_REPLAY_LOG_HEX");
+        const char* record_mem_env = getenv("AVM_RECORD_MEM");
+        if (record_env && record_env[0] && replay_env && replay_env[0]) {
+            fprintf(stderr, "AVM_RECORD_LOG and AVM_REPLAY_LOG are mutually exclusive\n");
+            avm_free(vm);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
+        if ((replay_env && replay_env[0]) && (replay_hex_env && replay_hex_env[0])) {
+            fprintf(stderr, "AVM_REPLAY_LOG and AVM_REPLAY_LOG_HEX are mutually exclusive\n");
+            avm_free(vm);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
+        if ((record_env && record_env[0]) && (record_mem_env && record_mem_env[0] && record_mem_env[0] != '0')) {
+            fprintf(stderr, "AVM_RECORD_LOG and AVM_RECORD_MEM are mutually exclusive\n");
+            avm_free(vm);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
+        if (record_env && record_env[0]) {
+            FILE* rf = fopen(record_env, "wb");
+            if (!rf) {
+                fprintf(stderr, "Failed to open record log: %s\n", record_env);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
+            if (fwrite(magic, 1, 8, rf) != 8) {
+                fprintf(stderr, "Failed to write log header: %s\n", record_env);
+                fclose(rf);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            vm->record_log = rf;
+        }
+        if (replay_env && replay_env[0]) {
+            FILE* rf = fopen(replay_env, "rb");
+            if (!rf) {
+                fprintf(stderr, "Failed to open replay log: %s\n", replay_env);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            uint8_t magic[8];
+            if (fread(magic, 1, 8, rf) != 8) {
+                fprintf(stderr, "Invalid replay log header: %s\n", replay_env);
+                fclose(rf);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
+            if (memcmp(magic, want, 8) != 0) {
+                fprintf(stderr, "Invalid replay log magic: %s\n", replay_env);
+                fclose(rf);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            vm->replay_log = rf;
+        }
+        if (record_mem_env && record_mem_env[0] && record_mem_env[0] != '0') {
+            // In-memory log: prepopulate header and record into vm->record_log_bytes.
+            AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+            if (!b) { fprintf(stderr, "OOM\n"); avm_free(vm); free_constant_pool(consts, n_consts); free(consts); free(data); free(break_pcs); return 1; }
+            b->len = 8;
+            b->capacity = 64;
+            b->data = (uint8_t*)malloc((size_t)b->capacity);
+            if (!b->data) { fprintf(stderr, "OOM\n"); free(b); avm_free(vm); free_constant_pool(consts, n_consts); free(consts); free(data); free(break_pcs); return 1; }
+            const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
+            memcpy(b->data, magic, 8);
+            vm->record_log_bytes = b;
+        }
+        if (replay_hex_env && replay_hex_env[0]) {
+            AvmBytes* b = bytes_from_hex(replay_hex_env);
+            if (!b || b->len < 8) {
+                fprintf(stderr, "Invalid AVM_REPLAY_LOG_HEX\n");
+                if (b) { free(b->data); free(b); }
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
+            if (memcmp(b->data, want, 8) != 0) {
+                fprintf(stderr, "Invalid replay log magic (hex)\n");
+                free(b->data); free(b);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            vm->replay_log_bytes = b;
+            vm->replay_log_pos = 8;
+        }
+
+        // Deterministic mode (rolling):
+        // - AVM_DETERMINISTIC=1 enables virtual TIME and deterministic RNG.
+        // - AVM_TIME_START_NS sets initial virtual clock (default 0).
+        // - AVM_TIME_STEP_NS sets per-now() increment (default 1ms).
+        // - AVM_RNG_SEED seeds the deterministic RNG.
+        const char* det_env = getenv("AVM_DETERMINISTIC");
+        if (det_env && det_env[0] && det_env[0] != '0') vm->deterministic = 1;
+        const char* t0_env = getenv("AVM_TIME_START_NS");
+        if (t0_env && t0_env[0]) vm->virtual_now_ns = strtoull(t0_env, NULL, 10);
+        const char* step_env = getenv("AVM_TIME_STEP_NS");
+        if (step_env && step_env[0]) vm->virtual_step_ns = strtoull(step_env, NULL, 10);
+        const char* seed_env = getenv("AVM_RNG_SEED");
+        if (seed_env && seed_env[0]) vm->rng_state = strtoull(seed_env, NULL, 10);
+
+        // Budgets/timeouts (macOS-first, rolling ABI):
+        // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
+        // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)
+        const char* gas_env = getenv("AVM_GAS");
+        if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
+        const char* timeout_env = getenv("AVM_TIMEOUT_MS");
+        if (timeout_env && timeout_env[0]) {
+            uint64_t ms = strtoull(timeout_env, NULL, 10);
+            uint64_t base = now_ns();
+            if (base != 0 && ms > 0) vm->deadline_ns = base + ms * 1000000ull;
+        }
+
+        // Capability enforcement (rolling ABI):
+        // - AVM_ALLOW_DOMAINS: comma-separated domain integers (e.g. "0,1"). Unset/empty means allow all.
+        // - AVM_FS_ALLOW_PREFIXES: comma-separated path prefixes; if set, FS paths must start with an allowed prefix.
+        const char* domains_env = getenv("AVM_ALLOW_DOMAINS");
+        vm->allowed_native_domains = parse_domain_mask(domains_env);
+        const char* fs_allow_env = getenv("AVM_FS_ALLOW_PREFIXES");
+        parse_fs_allow_prefixes(vm, fs_allow_env);
+
+        avm_load(vm, &prog);
+
+        if (snap_in) {
+            if (avm_restore(vm, snap_in) != 0) {
+                fprintf(stderr, "AVM restore failed: %s\n", snap_in);
+                avm_free(vm);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+        }
+
+        if (step_limit > 0) vm->pause_after_steps = step_limit;
+        avm_run(vm);
+
+        if (repeat > 1) printf("ITER %d\n", iter);
+
+        if (print_state_hash) {
+            uint8_t hash[32];
+            if (avm_state_hash(vm, hash)) {
+                char hex[65];
+                avm_sha256_hex(hash, hex);
+                printf("STATE_HASH %s\n", hex);
+            } else {
+                printf("STATE_HASH_ERROR\n");
+            }
+        }
+
+        if (print_result_hash) {
+            uint8_t hash[32];
+            if (avm_result_hash(vm, hash)) {
+                char hex[65];
+                avm_sha256_hex(hash, hex);
+                printf("RESULT_HASH %s\n", hex);
+            } else {
+                printf("RESULT_HASH_ERROR\n");
+            }
+        }
+
+        if (print_mem_stats) {
+            AvmHeapStats st;
+            if (avm_heap_stats(vm, &st)) {
+                printf("MEM_STATS strings=%llu strings_bytes=%llu bytes=%llu bytes_bytes=%llu lists=%llu list_elems=%llu maps=%llu map_entries=%llu approx_bytes=%llu\n",
+                    (unsigned long long)st.strings_count,
+                    (unsigned long long)st.strings_bytes,
+                    (unsigned long long)st.bytes_count,
+                    (unsigned long long)st.bytes_bytes,
+                    (unsigned long long)st.lists_count,
+                    (unsigned long long)st.list_elems,
+                    (unsigned long long)st.maps_count,
+                    (unsigned long long)st.map_entries,
+                    (unsigned long long)st.approx_total_bytes);
+            } else {
+                printf("MEM_STATS_ERROR\n");
+            }
+        }
+
+        if (print_rss) {
+            uint64_t rss = current_rss_bytes();
+            if (rss != 0) printf("RSS_BYTES %llu\n", (unsigned long long)rss);
+            else printf("RSS_BYTES_ERROR\n");
+        }
+
+        if (snap_out) {
+            if (avm_snapshot(vm, snap_out) != 0) {
+                fprintf(stderr, "AVM snapshot failed: %s\n", snap_out);
+                // do not override execution result; just report and continue
+            }
+        }
+        if (vm->exit_code != 0) {
+            dump_error(vm->last_error);
+        }
+        if (print_stack) dump_stack(stderr, vm, 32);
+        exit_code = vm->exit_code;
+        if (vm->record_log) { fclose(vm->record_log); vm->record_log = NULL; }
+        if (vm->replay_log) { fclose(vm->replay_log); vm->replay_log = NULL; }
+
+        if (print_record_log_hex) {
+            if (vm->record_log_bytes && vm->record_log_bytes->data && vm->record_log_bytes->len >= 8) {
+                char* hex = bytes_to_hex(vm->record_log_bytes->data, (size_t)vm->record_log_bytes->len);
+                if (hex) {
+                    printf("RECORD_LOG_HEX %s\n", hex);
+                    free(hex);
+                } else {
+                    printf("RECORD_LOG_HEX_ERROR\n");
+                }
+            } else {
+                printf("RECORD_LOG_HEX \n");
+            }
+        }
+
+        avm_free(vm);
+        free(consts);
+
+        if (exit_code != 0) break;
     }
 
-    avm_free(vm);
-    
+    free(data);
+    free(break_pcs);
+
     return exit_code;
 }

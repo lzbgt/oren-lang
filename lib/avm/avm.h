@@ -63,6 +63,18 @@ typedef struct {
 } AvmProgram;
 
 typedef struct {
+    uint64_t strings_count;
+    uint64_t strings_bytes;
+    uint64_t bytes_count;
+    uint64_t bytes_bytes;
+    uint64_t lists_count;
+    uint64_t list_elems;
+    uint64_t maps_count;
+    uint64_t map_entries;
+    uint64_t approx_total_bytes;
+} AvmHeapStats;
+
+typedef struct {
     int return_pc;
     int fp;
 } AvmFrame;
@@ -142,6 +154,10 @@ typedef struct {
     int trace_enabled;
     uint64_t trace_limit;
     FILE* trace_out;
+
+    // Debug/breakpoints (rolling): if any breakpoints are set, VM pauses before executing an instruction at that pc.
+    int* break_pcs;
+    int break_pc_count;
     
     int argc;
     char** argv;
@@ -162,5 +178,8 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]);
 
 // Deterministic result hash (rolling): hashes exit_code plus (ok -> selected result, err -> last_error).
 int avm_result_hash(AvmVM* vm, uint8_t out[32]);
+
+// Heap stats (rolling): best-effort measurement of reachable heap objects from VM roots + constant pool.
+int avm_heap_stats(AvmVM* vm, AvmHeapStats* out);
 
 #endif

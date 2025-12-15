@@ -237,3 +237,62 @@ Notes:
 
 - Trace is best-effort and rolling; it is intended as a foundation for a real interactive bytecode debugger (breakpoints/step/inspect).
 - For deterministic workflows, pair trace with `--print-result-hash` and/or record/replay logs for reproducible diagnosis.
+
+### 5.3 Breakpoints + stack inspection (debugger baseline)
+
+Pause before executing the instruction at a given bytecode `pc`:
+
+```bash
+./avm --breakpc 74 --print-stack build/tmp.obc
+```
+
+Notes:
+
+- When a breakpoint triggers, AVM uses the existing “paused” exit code (`2`) so it composes with snapshot/resume.
+- `--step-limit 1` can be used as a crude “single-step” mode (pause after 1 executed opcode).
+
+### 5.4 Heap/memory stats (leak profiling helper)
+
+Print a best-effort summary of reachable heap objects:
+
+```bash
+./avm --print-mem-stats build/tmp.obc
+```
+
+This is not a replacement for Instruments/leaks, but it is a fast way to see:
+
+- how many strings/bytes/lists/maps are reachable
+- approximate total heap footprint from VM roots + constant pool
+
+### 5.5 macOS leak workflow (Instruments / `leaks`)
+
+For “real” leak hunting on macOS, use system tools in addition to `--print-mem-stats`.
+
+1) **Fast check** (leaks at exit):
+
+```bash
+./oren build tests/avm/test_time_rng_deterministic.oren --backend bytecode -o build/tmp.obc
+leaks --atExit -- ./avm build/tmp.obc
+```
+
+If you want to amplify leaks in-process (more realistic for “long-running agent host” scenarios), use the built-in repeat loop:
+
+```bash
+./avm --repeat 200 --print-mem-stats --print-rss build/tmp.obc
+```
+
+Notes:
+
+- `--print-rss` reports the current process resident size (best-effort; `RSS_BYTES_ERROR` if unavailable).
+- `--repeat` is intentionally not compatible with `AVM_RECORD_LOG` / `AVM_REPLAY_LOG` (use `AVM_RECORD_MEM` / `AVM_REPLAY_LOG_HEX` instead).
+
+2) **Instrumented profiling** (GUI):
+
+- Open Instruments → “Leaks” / “Allocations”
+- Run `./avm build/tmp.obc`
+- Look for growth across repeated runs; consider adding a loop in the `.oren` test to amplify leaks
+
+Notes:
+
+- The AVM heap is currently manual (malloc/free). Any missing frees will show up quickly under nested universes or record/replay-heavy tests.
+- Prefer fixing ownership/clone rules at capability boundaries (e.g., AVM-in-AVM) rather than adding ad-hoc frees.
