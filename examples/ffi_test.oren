@@ -1,0 +1,6 @@
+ffi puts
+
+fn main() {
+    puts("Hello from C FFI!")
+}
+
