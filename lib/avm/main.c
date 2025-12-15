@@ -1469,6 +1469,59 @@ static void dump_stack(FILE* out, AvmVM* vm, int limit) {
     }
 }
 
+static void json_dump_value_short(FILE* out, AvmValue v) {
+    if (!out) return;
+    fprintf(out, "{");
+    fprintf(out, "\"type\":\"%s\"", avm_val_type_name(v));
+    if (v.type == AVM_VAL_INT) {
+        fprintf(out, ",\"i64\":%lld", (long long)v.as.i);
+    } else if (v.type == AVM_VAL_BOOL) {
+        fprintf(out, ",\"value\":%s", v.as.i ? "true" : "false");
+    } else if (v.type == AVM_VAL_FLOAT) {
+        fprintf(out, ",\"value\":%f", v.as.f);
+    } else if (v.type == AVM_VAL_STRING) {
+        fprintf(out, ",\"value\":\"");
+        json_print_escaped(out, v.as.p ? (const char*)v.as.p : "");
+        fprintf(out, "\"");
+    } else if (v.type == AVM_VAL_BYTES) {
+        fprintf(out, ",\"len\":%d", v.as.b ? v.as.b->len : 0);
+    } else if (v.type == AVM_VAL_LIST) {
+        fprintf(out, ",\"len\":%d", v.as.l ? v.as.l->count : 0);
+    } else if (v.type == AVM_VAL_MAP) {
+        fprintf(out, ",\"len\":%d", v.as.m ? v.as.m->count : 0);
+    }
+    fprintf(out, "}");
+}
+
+static void print_pause_json(FILE* out, AvmVM* vm) {
+    if (!out || !vm) return;
+    fprintf(out, "{");
+    fprintf(out, "\"schema\":\"avm.pause.v1\"");
+    fprintf(out, ",\"paused\":%s", vm->paused ? "true" : "false");
+    fprintf(out, ",\"exit_code\":%d", vm->exit_code);
+    fprintf(out, ",\"pc\":%d", vm->pc);
+    fprintf(out, ",\"sp\":%d", vm->sp);
+    fprintf(out, ",\"fp\":%d", vm->fp);
+    fprintf(out, ",\"frame_count\":%d", vm->frame_count);
+    fprintf(out, ",\"gas_executed\":%llu", (unsigned long long)vm->gas_executed);
+
+    // Top-of-stack preview (best-effort, shallow): last up to 8 values.
+    int n = vm->sp;
+    if (n < 0) n = 0;
+    int start = n - 8;
+    if (start < 0) start = 0;
+    fprintf(out, ",\"stack\":[");
+    int first = 1;
+    for (int i = start; i < n; i++) {
+        if (!first) fprintf(out, ",");
+        first = 0;
+        json_dump_value_short(out, vm->stack[i]);
+    }
+    fprintf(out, "]");
+
+    fprintf(out, "}\n");
+}
+
 int main(int argc, char** argv) {
     const char* obc_path = NULL;
     const char* snap_in = NULL;
@@ -1508,6 +1561,7 @@ int main(int argc, char** argv) {
     int trace = 0;
     uint64_t trace_limit = 0;
     int print_stack = 0;
+    int print_pause_json_flag = 0;
     int break_pc_count = 0;
     int break_pc_cap = 0;
     int* break_pcs = NULL;
@@ -1706,6 +1760,11 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--print-pause-json") == 0) {
+            print_pause_json_flag = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--breakpc") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --breakpc\n"); return 1; }
             long pc = strtol(argv[i + 1], NULL, 10);
@@ -1738,7 +1797,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
+        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--print-pause-json] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
         free(break_pcs);
         return 1;
     }
@@ -2772,6 +2831,9 @@ int main(int argc, char** argv) {
         avm_run(vm);
 
         if (repeat > 1) printf("ITER %d\n", iter);
+        if (print_pause_json_flag && vm->paused) {
+            print_pause_json(stdout, vm);
+        }
 
         if (print_state_hash) {
             uint8_t hash[32];

@@ -250,10 +250,12 @@ test: oren
 			AVM_ALLOW_DOMAINS=0 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
 		elif [ "$$name" = "test_snapshot_resume" ]; then \
 			snap=build/$$name.avms; rm -f $$snap; \
-			set +e; $(RUN_WITH_TIMEOUT) ./avm --step-limit 2000 --snapshot-out $$snap build/$$name.obc; rc=$$?; set -e; \
+			set +e; pout=$$($(RUN_WITH_TIMEOUT) ./avm --step-limit 2000 --print-pause-json --snapshot-out $$snap build/$$name.obc); rc=$$?; set -e; \
 			if [ $$rc -ne 2 ]; then \
-				echo "FAIL: $$name (Expected pause exit code 2, got $$rc)"; exit 1; \
+				echo "FAIL: $$name (Expected pause exit code 2, got $$rc)"; echo "$$pout"; exit 1; \
 			fi; \
+			echo "$$pout" | grep -q "\"schema\":\"avm.pause.v1\"" || { echo "FAIL: $$name (Missing pause json schema)"; echo "$$pout"; exit 1; }; \
+			echo "$$pout" | grep -q "\"paused\":true" || { echo "FAIL: $$name (Expected paused=true)"; echo "$$pout"; exit 1; }; \
 			$(RUN_WITH_TIMEOUT) ./avm --snapshot-in $$snap build/$$name.obc || { echo "FAIL: $$name (resume)"; exit 1; }; \
 			elif [ "$$name" = "test_state_hash_repeat" ]; then \
 				h1=$$($(RUN_WITH_TIMEOUT) ./avm --print-state-hash build/$$name.obc | awk '/^STATE_HASH /{print $$2; exit 0}'); \

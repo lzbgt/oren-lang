@@ -274,6 +274,11 @@ Notes:
 
 - When a breakpoint triggers, AVM uses the existing “paused” exit code (`2`) so it composes with snapshot/resume.
 - `--step-limit 1` can be used as a crude “single-step” mode (pause after 1 executed opcode).
+- For machine-readable pause state (for building an external debugger loop), use `--print-pause-json`:
+
+```bash
+./avm --step-limit 1 --print-pause-json build/tmp.obc
+```
 
 ### 5.4 Heap/memory stats (leak profiling helper)
 
