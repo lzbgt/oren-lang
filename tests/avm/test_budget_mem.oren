@@ -1,0 +1,10 @@
+fn main() {
+    // Intentionally unbounded allocation pressure.
+    // The harness runs this with a small AVM_MEM_BYTES and expects the VM to abort safely.
+    var xs = []
+    while 1 {
+        oren_list_push(xs, 0)
+    }
+}
+
+main()

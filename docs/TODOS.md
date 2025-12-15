@@ -16,6 +16,7 @@ Last updated: 2025-12-15
 2) **I/O budgets and accounting (FS first)**
    - Add `AVM_IO_BYTES=<n>` for bytes read/written and record/replay log growth.
    - Enforce in FS domain (`CALL_NATIVE2 domain=1`) and record/replay serializers.
+   - Add child `cfg.io_bytes` for AVM-in-AVM.
 
 3) **Structured error contract (stable fields + codes)**
    - Document stable error fields and codes (`code`, `msg`, optional `domain/op`).

@@ -1390,6 +1390,7 @@ int main(int argc, char** argv) {
     // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
     // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)
     // - AVM_MEM_BYTES: heap budget for AVM heap objects (0/unset = unlimited)
+    // - AVM_IO_BYTES: io budget for FS bytes read/written (0/unset = unlimited)
     const char* gas_env = getenv("AVM_GAS");
     if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
     const char* timeout_env = getenv("AVM_TIMEOUT_MS");
@@ -1400,6 +1401,8 @@ int main(int argc, char** argv) {
     }
     const char* mem_env = getenv("AVM_MEM_BYTES");
     if (mem_env && mem_env[0]) vm->heap_budget_bytes = strtoull(mem_env, NULL, 10);
+    const char* io_env = getenv("AVM_IO_BYTES");
+    if (io_env && io_env[0]) vm->io_budget_bytes = strtoull(io_env, NULL, 10);
 
         // Capability enforcement (rolling ABI):
         // - AVM_ALLOW_DOMAINS: comma-separated domain integers (e.g. "0,1"). Unset/empty means allow all.

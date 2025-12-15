@@ -109,6 +109,11 @@ typedef struct {
     uint64_t heap_budget_bytes;
     uint64_t heap_used_bytes;
 
+    // I/O budget (rolling): counts bytes read/written via host effect domains (FS first).
+    // 0 means "no limit".
+    uint64_t io_budget_bytes;
+    uint64_t io_used_bytes;
+
     // Abort / error reporting (rolling): on budget/capability violations, last_error is set.
     AvmValue last_error;
     int exit_code;

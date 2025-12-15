@@ -1,0 +1,12 @@
+fn main() {
+    // Intentionally unbounded filesystem writes.
+    // The harness runs this with a small AVM_IO_BYTES and expects the VM to abort safely.
+    var path = "build/avm_io_budget.txt"
+    var data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+    while 1 {
+        oren_write_file(path, data)
+    }
+}
+
+main()

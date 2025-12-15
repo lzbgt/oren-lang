@@ -118,6 +118,13 @@ test: oren
 			if [ $$rc -eq 0 ]; then \
 				echo "FAIL: $$name (Expected mem budget abort)"; exit 1; \
 			fi; \
+		elif [ "$$name" = "test_budget_io_fs" ]; then \
+			set +e; AVM_IO_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
+			if [ $$rc -eq 0 ]; then \
+				echo "FAIL: $$name (Expected io budget abort)"; exit 1; \
+			elif [ $$rc -eq 124 ]; then \
+				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
+			fi; \
 		elif [ "$$name" = "test_capability_deny_fs" ]; then \
 			AVM_ALLOW_DOMAINS=0 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
 		elif [ "$$name" = "test_snapshot_resume" ]; then \
