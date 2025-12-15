@@ -1,0 +1,24 @@
+fn main() {
+    // In deterministic mode, TIME and RNG are virtualized so the same program
+    // produces the same outputs without needing replay logs.
+    //
+    // Harness sets:
+    //   AVM_DETERMINISTIC=1
+    //   AVM_TIME_START_NS=...
+    //   AVM_TIME_STEP_NS=...
+    //   AVM_RNG_SEED=...
+
+    oren_rand_seed(12345)
+
+    var t1 = oren_time_now_ns()
+    oren_sleep_ms(10)
+    var t2 = oren_time_now_ns()
+
+    var r1 = oren_rand_u64()
+    var r2 = oren_rand_u64()
+
+    oren_set_result({"t1": t1, "t2": t2, "r1": r1, "r2": r2})
+}
+
+main()
+

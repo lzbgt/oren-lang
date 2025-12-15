@@ -1,0 +1,9 @@
+fn main() {
+    // Exercise TIME + RNG so deterministic config matters.
+    var t = oren_time_now_ns()
+    var r = oren_rand_u64()
+    oren_set_result({"t": t, "r": r})
+}
+
+main()
+

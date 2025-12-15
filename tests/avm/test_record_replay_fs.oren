@@ -1,0 +1,16 @@
+fn main() {
+    var path = "build/avm_rr_fs.txt"
+    var content = "hello-record-replay"
+
+    var w = oren_write_file(path, content)
+    if oren_is_err(w) { oren_exit(1) }
+
+    var s = oren_read_file(path)
+    if oren_is_err(s) { oren_exit(1) }
+    if s != content { oren_exit(1) }
+
+    // For consensus verification, select an explicit result.
+    oren_set_result(s)
+}
+
+main()

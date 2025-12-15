@@ -104,6 +104,9 @@ test: oren
 	@set -e; for t in tests/avm/*.oren; do \
 		name=$$(basename $$t .oren); \
 		echo "Testing avm $$name..."; \
+		if [ "$$name" = "test_multiverse_avm_domain" ]; then \
+			./oren build tests/avm/fixtures/multiverse_child.oren --backend bytecode -o build/multiverse_child.obc $(GC_ARG); \
+		fi; \
 		./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
 		if [ "$$name" = "test_budget_gas" ]; then \
 			set +e; AVM_GAS=20000 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \

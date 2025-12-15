@@ -1,0 +1,18 @@
+fn main() {
+    // This test is run twice by the harness:
+    // 1) record: AVM_RECORD_MEM=1, and we capture RECORD_LOG_HEX from stdout
+    // 2) replay: AVM_REPLAY_LOG_HEX=..., and the filesystem must not be touched
+    var path = "build/avm_rr_mem_fs.txt"
+    var content = "hello-mem-record-replay"
+
+    var w = oren_write_file(path, content)
+    if oren_is_err(w) { oren_exit(1) }
+    var s = oren_read_file(path)
+    if oren_is_err(s) { oren_exit(1) }
+    if s != content { oren_exit(1) }
+
+    oren_set_result(s)
+}
+
+main()
+

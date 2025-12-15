@@ -192,6 +192,44 @@ Design reference:
 
 - `docs/AVM_MULTIVERSE.md`
 
+### 3.5 Deterministic trace + explainability surfaces (agent debugging)
+
+Deterministic hashing of *final state* is necessary but not sufficient for agent repair.
+Agents need *localized evidence* about where divergence or failure happened.
+
+Requirements:
+
+- **Deterministic trace stream** (opt-in, budgeted):
+  - event categories: `op_step`, `call_native2`, `alloc`, `error`, `span_start/span_end`
+  - trace must be serializable as data (`BYTES`) and replayable
+- **Trace hashing**:
+  - `TRACE_HASH` is computed from a canonical encoding of trace events
+  - trace hashing must be independent of host timing and logging order
+- **Explainability hooks**:
+  - map `(pc, function)` back to source spans (when debug info is present)
+  - expose “last N events” on error to enable agentic root-cause inference
+
+Rationale:
+
+- enables “self-healing” workflows where an agent can diff traces between two runs
+- prevents “black box” failures where only a hash mismatch is available
+
+### 3.6 Governance-ready module boundaries (SOLID on bytecode artifacts)
+
+Agentic execution becomes unsafe and unmaintainable if the runtime grows as a monolith.
+
+Requirements:
+
+- **Capability domains are the unit of governance**:
+  - each domain/op is documented and policy-controlled
+  - dangerous domains (PROC/NET/AVM) are separable and deny-by-default
+- **Code as content-addressed modules**:
+  - module artifacts are hashed and referenced by hash
+  - policies can pin allowed module hashes for supply-chain control
+- **Stable “value capsule” serialization**:
+  - define a canonical wire encoding for `Nil/Int/Bool/Float/String/Bytes/List/Map`
+  - required to pass results/logs/snapshots between universes and swarm nodes
+
 ## 4) Minimal High-Leverage Implementation Order (Avoid Huge Rewrites)
 
 This ordering is chosen to unlock “agent-grade” behavior early without requiring a massive rewrite:

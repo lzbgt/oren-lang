@@ -1,0 +1,10 @@
+fn main() {
+    // ENV is effectful; record/replay must make it deterministic.
+    var v = oren_env("AVM_RR_ENV_KEY")
+    // If env var missing, value is nil; if present, value is string.
+    // We set it only for record run in the Makefile harness.
+    oren_set_result(v)
+}
+
+main()
+

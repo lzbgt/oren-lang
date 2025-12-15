@@ -1,0 +1,13 @@
+fn main() {
+    // Record run should execute this command (and create the file).
+    // Replay run must NOT execute it (file should not appear).
+    var cmd = "sh -c 'echo hi > build/avm_rr_proc.txt'"
+    var rc = oren_system(cmd)
+    if oren_is_err(rc) { oren_exit(1) }
+    if rc != 0 { oren_exit(1) }
+
+    oren_set_result(rc)
+}
+
+main()
+

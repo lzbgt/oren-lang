@@ -120,7 +120,12 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 - **Hashing is rolling:** `avm` can compute deterministic `STATE_HASH` and `RESULT_HASH` (SHA-256) for swarm-style k-of-n validation; these are not yet stability-promised formats.
 - **Deterministic record/replay is partial:** `avm` can record/replay FS-domain native calls via `AVM_RECORD_LOG` / `AVM_REPLAY_LOG`, but other effectful domains (NET/PROC/TIME/RNG) are not virtualized yet.
 - **In-memory logs exist (rolling):** `AVM_RECORD_MEM=1` records to an in-memory bytes buffer (printed via `--print-record-log-hex`), and `AVM_REPLAY_LOG_HEX=...` replays without touching the filesystem.
-- **TIME/RNG can be virtualized (rolling):** `AVM_DETERMINISTIC=1` enables a virtual monotonic clock and deterministic PRNG, controlled by `AVM_TIME_START_NS`, `AVM_TIME_STEP_NS`, and `AVM_RNG_SEED`.
+- **TIME/RNG can be virtualized (rolling):** `AVM_DETERMINISTIC=1` enables a virtual monotonic clock and deterministic PRNG. In deterministic mode, `oren_time_now_ns()` is derived (no “advance on read”) from:
+  - `AVM_TIME_START_NS` (virtual origin)
+  - accumulated `oren_sleep_ms(ms)` (`+ ms * 1e6`)
+  - executed “gas” count (`+ gas_executed * AVM_TIME_STEP_NS`, bootstrap: 1 gas per opcode dispatch)
+  RNG is controlled by `AVM_RNG_SEED`.
+- **Nested universes are emerging (rolling):** AVM exposes an `AVM` capability domain (domain 8) to run a child `.obc` from `BYTES` under a restricted capability/budget config, returning hashes and a produced in-memory replay log.
 - **Capability domains are the direction:** effectful calls should route through `CALL_NATIVE2` domains (e.g., `PROC` for `oren_system`) so they can be denied/recorded/replayed independently of CORE.
 - **Metering is partial:** instruction “gas” and wall-time deadlines are enforced, but memory and IO budgets are not yet implemented.
 - **Snapshot format is rolling:** AVM supports snapshot/restore for core types, but the file format is intentionally unstable while the repo is rolling.

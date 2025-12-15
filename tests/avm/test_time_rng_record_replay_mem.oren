@@ -1,0 +1,13 @@
+fn main() {
+    // In non-deterministic mode, TIME/RNG are effectful.
+    // This test relies on record/replay-bytes to make it deterministic.
+    var t1 = oren_time_now_ns()
+    var r1 = oren_rand_u64()
+    var t2 = oren_time_now_ns()
+    var r2 = oren_rand_u64()
+
+    oren_set_result({"t1": t1, "t2": t2, "r1": r1, "r2": r2})
+}
+
+main()
+

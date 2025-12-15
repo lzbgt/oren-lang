@@ -1,0 +1,31 @@
+fn main() {
+    // Parent universe reads a child .obc as BYTES, then runs it as a nested universe
+    // via the AVM capability domain (domain 8).
+    //
+    // Makefile builds the child .obc at:
+    //   build/multiverse_child.obc
+    var child_obc = oren_read_bytes("build/multiverse_child.obc")
+
+    // Child must be able to use CORE (domain 0), TIME (2), RNG (3).
+    var allowed = (1 << 0) + (1 << 2) + (1 << 3)
+
+    var cfg = {
+        "deterministic": true,
+        "time_start_ns": 100,
+        "time_step_ns": 7,
+        "rng_seed": 123,
+        "gas_limit": 1000000,
+        "allowed_domains": allowed
+    }
+
+    var r1 = oren_avm_run_obc_bytes(child_obc, cfg)
+    // Avoid `if`/`while` in this test: the bytecode verifier currently does a best-effort,
+    // interprocedural stack check that can be sensitive to control-flow lowering.
+    // This test's job is to ensure the AVM domain call works end-to-end and returns hashes/logs.
+    var h1 = oren_bytes_to_hex(r1["result_hash"])
+    var s1 = oren_bytes_to_hex(r1["state_hash"])
+    var log_len = oren_bytes_len(r1["record_log"])
+    oren_set_result({"exit_code": r1["exit_code"], "rh": h1, "sh": s1, "log_len": log_len})
+}
+
+main()

@@ -122,18 +122,26 @@ typedef struct {
     // - RNG domain uses a deterministic PRNG (rng_state).
     int deterministic;
     uint64_t virtual_now_ns;
-    // virtual_step_ns: time per executed instruction step in deterministic mode.
+    // virtual_step_ns: time per executed semantic step (gas unit) in deterministic mode.
     // In deterministic mode, TIME.now_ns is derived from:
-    //   virtual_now_ns + virtual_sleep_ns + steps_executed * virtual_step_ns
+    //   virtual_now_ns + virtual_sleep_ns + gas_executed * virtual_step_ns
     uint64_t virtual_step_ns;
     uint64_t virtual_sleep_ns;
     uint64_t rng_state;
-    uint64_t steps_executed;
+    // gas_executed is a semantic execution counter used for deterministic TIME.
+    // Today (bootstrap), it increments by 1 per executed opcode dispatch.
+    uint64_t gas_executed;
 
     // Cooperative pause (rolling): stop execution after N interpreter steps (not an error).
     // Used to support snapshot/resume workflows.
     uint64_t pause_after_steps;
     int paused;
+
+    // Debug/trace (rolling): best-effort execution tracing for debugging and agent diagnostics.
+    // When trace_enabled==1, the interpreter prints executed opcodes to trace_out up to trace_limit (0 => unlimited).
+    int trace_enabled;
+    uint64_t trace_limit;
+    FILE* trace_out;
     
     int argc;
     char** argv;

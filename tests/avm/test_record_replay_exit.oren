@@ -1,0 +1,9 @@
+fn main() {
+    // Explicit result, then exit successfully.
+    // In replay mode, this must not terminate the host process early; it should just end the VM run.
+    oren_set_result("ok")
+    oren_exit(0)
+}
+
+main()
+

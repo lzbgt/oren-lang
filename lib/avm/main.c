@@ -204,7 +204,11 @@ static VerifyResult verify_program(const AvmProgram* prog) {
                 free(depth_at);
                 free(queue);
                 free(qdepth);
-                return err_result("verify: stack height mismatch at join");
+                VerifyResult r = ok_result();
+                r.ok = 0;
+                snprintf(r.msg, sizeof(r.msg), "verify: stack height mismatch at join pc=%zu have=%d want=%d", pc, depth, depth_at[pc]);
+                r.used_domains_mask = used_domains;
+                return r;
             }
             continue;
         }
@@ -455,6 +459,130 @@ static void parse_fs_allow_prefixes(AvmVM* vm, const char* s) {
     }
 }
 
+static const char* op_name(uint8_t op) {
+    switch (op) {
+        case 0x00: return "NOP";
+        case 0x01: return "HALT";
+        case 0x02: return "PUSH_CONST";
+        case 0x03: return "POP";
+        case 0x04: return "LOAD_LOCAL";
+        case 0x05: return "STORE_LOCAL";
+        case 0x06: return "LOAD_GLOBAL";
+        case 0x07: return "STORE_GLOBAL";
+        case 0x10: return "ADD";
+        case 0x11: return "SUB";
+        case 0x12: return "LT";
+        case 0x13: return "EQ";
+        case 0x14: return "NEQ";
+        case 0x15: return "GT";
+        case 0x16: return "LE";
+        case 0x17: return "GE";
+        case 0x18: return "AND";
+        case 0x19: return "OR";
+        case 0x1A: return "XOR";
+        case 0x1B: return "SHL";
+        case 0x1C: return "SHR";
+        case 0x20: return "PRINT";
+        case 0x30: return "JMP";
+        case 0x31: return "JMP_IF";
+        case 0x38: return "CALL";
+        case 0x39: return "RET";
+        case 0x3A: return "CALL_NATIVE";
+        case 0x3B: return "CALL_NATIVE2";
+        case 0x40: return "NEW_LIST";
+        case 0x41: return "NEW_MAP";
+        case 0x42: return "GET_INDEX";
+        case 0x43: return "SET_INDEX";
+        default: return "OP?";
+    }
+}
+
+static void disasm_const(FILE* out, const AvmProgram* prog, uint16_t idx) {
+    if (!out || !prog || idx >= prog->const_count) return;
+    AvmValue v = prog->constants[idx];
+    fprintf(out, "c%u=", (unsigned)idx);
+    if (v.type == AVM_VAL_NIL) fprintf(out, "nil");
+    else if (v.type == AVM_VAL_INT) fprintf(out, "%lld", (long long)v.as.i);
+    else if (v.type == AVM_VAL_BOOL) fprintf(out, "%s", v.as.i ? "true" : "false");
+    else if (v.type == AVM_VAL_FLOAT) fprintf(out, "%f", v.as.f);
+    else if (v.type == AVM_VAL_STRING) fprintf(out, "\"%s\"", v.as.p ? (char*)v.as.p : "");
+    else if (v.type == AVM_VAL_BYTES) fprintf(out, "<bytes len=%d>", v.as.b ? v.as.b->len : 0);
+    else if (v.type == AVM_VAL_LIST) fprintf(out, "<list>");
+    else if (v.type == AVM_VAL_MAP) fprintf(out, "<map>");
+    else fprintf(out, "<val?>");
+}
+
+static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
+    if (!out || !prog) return;
+    if (show_consts) {
+        fprintf(out, "== CONSTS (%zu) ==\n", prog->const_count);
+        for (uint16_t i = 0; i < prog->const_count; i++) {
+            fprintf(out, "  ");
+            disasm_const(out, prog, i);
+            fprintf(out, "\n");
+        }
+    }
+
+    fprintf(out, "== CODE (%zu bytes) ==\n", prog->code_len);
+    size_t pc = 0;
+    const uint8_t* code = prog->code;
+    while (pc < prog->code_len) {
+        uint8_t op = code[pc];
+        fprintf(out, "%04zu: 0x%02x %-12s", pc, (unsigned)op, op_name(op));
+
+        if (op == 0x02 && pc + 3 <= prog->code_len) { // PUSH_CONST u16
+            uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            fprintf(out, " ");
+            disasm_const(out, prog, idx);
+            pc += 3;
+        } else if (op == 0x04 && pc + 2 <= prog->code_len) { // LOAD_LOCAL u8
+            fprintf(out, " l%u", (unsigned)code[pc + 1]);
+            pc += 2;
+        } else if (op == 0x05 && pc + 2 <= prog->code_len) { // STORE_LOCAL u8
+            fprintf(out, " l%u", (unsigned)code[pc + 1]);
+            pc += 2;
+        } else if (op == 0x06 && pc + 3 <= prog->code_len) { // LOAD_GLOBAL u16
+            uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            fprintf(out, " g%u", (unsigned)idx);
+            pc += 3;
+        } else if (op == 0x07 && pc + 3 <= prog->code_len) { // STORE_GLOBAL u16
+            uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            fprintf(out, " g%u", (unsigned)idx);
+            pc += 3;
+        } else if ((op == 0x30 || op == 0x31) && pc + 3 <= prog->code_len) { // JMP/JMP_IF i16
+            int16_t off = (int16_t)((uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8));
+            size_t pc_after = pc + 3;
+            int64_t target = (int64_t)pc_after + (int64_t)off;
+            fprintf(out, " off=%d -> %lld", (int)off, (long long)target);
+            pc += 3;
+        } else if (op == 0x38 && pc + 4 <= prog->code_len) { // CALL u16_addr u8_nargs
+            uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            uint8_t nargs = code[pc + 3];
+            fprintf(out, " addr=%u nargs=%u", (unsigned)addr, (unsigned)nargs);
+            pc += 4;
+        } else if ((op == 0x3A) && pc + 4 <= prog->code_len) { // CALL_NATIVE u16 id u8 nargs
+            uint16_t id = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            uint8_t nargs = code[pc + 3];
+            fprintf(out, " id=%u nargs=%u", (unsigned)id, (unsigned)nargs);
+            pc += 4;
+        } else if ((op == 0x3B) && pc + 5 <= prog->code_len) { // CALL_NATIVE2 u8 dom u16 op u8 nargs
+            uint8_t dom = code[pc + 1];
+            uint16_t nop = (uint16_t)code[pc + 2] | ((uint16_t)code[pc + 3] << 8);
+            uint8_t nargs = code[pc + 4];
+            fprintf(out, " dom=%u op=%u nargs=%u", (unsigned)dom, (unsigned)nop, (unsigned)nargs);
+            pc += 5;
+        } else if ((op == 0x40 || op == 0x41) && pc + 3 <= prog->code_len) { // NEW_LIST/NEW_MAP u16 count
+            uint16_t cnt = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            fprintf(out, " count=%u", (unsigned)cnt);
+            pc += 3;
+        } else {
+            pc += 1;
+        }
+
+        fprintf(out, "\n");
+    }
+}
+
 int main(int argc, char** argv) {
     const char* obc_path = NULL;
     const char* snap_in = NULL;
@@ -464,6 +592,10 @@ int main(int argc, char** argv) {
     int print_result_hash = 0;
     int print_policy = 0;
     int print_record_log_hex = 0;
+    int disasm = 0;
+    int disasm_consts = 0;
+    int trace = 0;
+    uint64_t trace_limit = 0;
 
     int i = 1;
     while (i < argc) {
@@ -505,6 +637,29 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--disasm") == 0) {
+            disasm = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--disasm-consts") == 0) {
+            disasm = 1;
+            disasm_consts = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--trace") == 0) {
+            trace = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--trace-limit") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --trace-limit\n"); return 1; }
+            trace = 1;
+            trace_limit = strtoull(argv[i + 1], NULL, 10);
+            i += 2;
+            continue;
+        }
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown arg: %s\n", argv[i]);
             return 1;
@@ -514,7 +669,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-policy] <file.obc>\n");
+        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-policy] <file.obc>\n");
         return 1;
     }
     size_t len;
@@ -606,10 +761,20 @@ int main(int argc, char** argv) {
             printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)vr.used_domains_mask);
         }
     }
+
+    if (disasm) {
+        disasm_program(stdout, &prog, disasm_consts);
+        return 0;
+    }
     
     AvmVM* vm = avm_new();
     vm->argc = argc - 1;
     vm->argv = argv + 1;
+    if (trace) {
+        vm->trace_enabled = 1;
+        vm->trace_limit = trace_limit;
+        vm->trace_out = stderr;
+    }
 
     // Deterministic record/replay (rolling):
     // - AVM_RECORD_LOG: path to write a native-call replay log (FS domain currently).

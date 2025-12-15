@@ -189,3 +189,51 @@ To give the VM its own IP address on your LAN (instead of NAT), use the macOS `v
 ### Troubleshooting
 *   **Permissions**: If `scp` fails with "Permission denied", check the VM's SSH configuration (`/etc/ssh/sshd_config`) to ensure password authentication is enabled or your public key is added.
 *   **Architecture**: Ensure you built with `--target linux`. Run `file build/linux_hello` on the host to confirm it says `ELF 64-bit LSB executable, ARM aarch64`.
+
+---
+
+## 5. AVM Tooling (Disasm + Trace)
+
+When debugging `.obc` bytecode (the AVM backend), two primitives are essential:
+
+1) **Disassembly** (like `otool -tV`): inspect decoded opcodes, operands, branch targets, and constants.
+2) **Execution trace** (like a minimal debugger log): print executed instructions with `pc/sp/fp/depth` for quick diagnosis.
+
+### 5.1 Disassemble `.obc`
+
+Build a bytecode artifact:
+
+```bash
+./oren build tests/avm/test_time_rng_deterministic.oren --backend bytecode -o build/tmp.obc
+```
+
+Disassemble code only:
+
+```bash
+./avm --disasm build/tmp.obc
+```
+
+Disassemble with constants:
+
+```bash
+./avm --disasm-consts build/tmp.obc
+```
+
+### 5.2 Trace execution
+
+Trace all executed instructions (prints to stderr):
+
+```bash
+./avm --trace build/tmp.obc
+```
+
+Trace only the first N executed steps (helps avoid huge logs):
+
+```bash
+./avm --trace-limit 2000 build/tmp.obc
+```
+
+Notes:
+
+- Trace is best-effort and rolling; it is intended as a foundation for a real interactive bytecode debugger (breakpoints/step/inspect).
+- For deterministic workflows, pair trace with `--print-result-hash` and/or record/replay logs for reproducible diagnosis.

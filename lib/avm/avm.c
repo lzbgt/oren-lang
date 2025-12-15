@@ -8,6 +8,44 @@
 #include <stdint.h>
 #include <unistd.h>
 
+static const char* avm_op_name(uint8_t op) {
+    switch (op) {
+        case 0x00: return "NOP";
+        case 0x01: return "HALT";
+        case 0x02: return "PUSH_CONST";
+        case 0x03: return "POP";
+        case 0x04: return "LOAD_LOCAL";
+        case 0x05: return "STORE_LOCAL";
+        case 0x06: return "LOAD_GLOBAL";
+        case 0x07: return "STORE_GLOBAL";
+        case 0x10: return "ADD";
+        case 0x11: return "SUB";
+        case 0x12: return "LT";
+        case 0x13: return "EQ";
+        case 0x14: return "NEQ";
+        case 0x15: return "GT";
+        case 0x16: return "LE";
+        case 0x17: return "GE";
+        case 0x18: return "AND";
+        case 0x19: return "OR";
+        case 0x1A: return "XOR";
+        case 0x1B: return "SHL";
+        case 0x1C: return "SHR";
+        case 0x20: return "PRINT";
+        case 0x30: return "JMP";
+        case 0x31: return "JMP_IF";
+        case 0x38: return "CALL";
+        case 0x39: return "RET";
+        case 0x3A: return "CALL_NATIVE";
+        case 0x3B: return "CALL_NATIVE2";
+        case 0x40: return "NEW_LIST";
+        case 0x41: return "NEW_MAP";
+        case 0x42: return "GET_INDEX";
+        case 0x43: return "SET_INDEX";
+        default: return "OP?";
+    }
+}
+
 char* my_strdup(const char* s) {
     char* d = malloc(strlen(s) + 1);
     strcpy(d, s);
@@ -1395,6 +1433,14 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
     if (!encode_value_for_hash(&h, &objs, vm->result_value)) { objtable_free(&objs); return 0; }
     if (!encode_value_for_hash(&h, &objs, vm->last_error)) { objtable_free(&objs); return 0; }
 
+    // Deterministic TIME/RNG state is observable (via TIME/RNG domains), so it must be hashed.
+    sha_u32_le(&h, (uint32_t)vm->deterministic);
+    sha_u64_le(&h, vm->virtual_now_ns);
+    sha_u64_le(&h, vm->virtual_step_ns);
+    sha_u64_le(&h, vm->virtual_sleep_ns);
+    sha_u64_le(&h, vm->rng_state);
+    sha_u64_le(&h, vm->gas_executed);
+
     avm_sha256_final(&h, out);
     objtable_free(&objs);
     return 1;
@@ -1556,7 +1602,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     }
 
     // Magic (8 bytes)
-    const uint8_t magic[8] = {'A','V','M','S','N','A','P','2'};
+    const uint8_t magic[8] = {'A','V','M','S','N','A','P','3'};
     if (fwrite(magic, 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
 
     if (!write_u32_le(f, (uint32_t)objs.count)) { fclose(f); objtable_free(&objs); return 1; }
@@ -1621,6 +1667,14 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     if (!encode_value(f, &objs, vm->result_value)) { fclose(f); objtable_free(&objs); return 1; }
     if (!encode_value(f, &objs, vm->last_error)) { fclose(f); objtable_free(&objs); return 1; }
 
+    // Deterministic TIME/RNG state (rolling; AVMSNAP3+)
+    if (!write_u8(f, (uint8_t)(vm->deterministic ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->virtual_now_ns)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->virtual_step_ns)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->virtual_sleep_ns)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->rng_state)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->gas_executed)) { fclose(f); objtable_free(&objs); return 1; }
+
     fclose(f);
     objtable_free(&objs);
     return 0;
@@ -1634,8 +1688,12 @@ int avm_restore(AvmVM* vm, const char* path) {
 
     uint8_t magic[8];
     if (fread(magic, 1, 8, f) != 8) { fclose(f); return 1; }
-    const uint8_t want[8] = {'A','V','M','S','N','A','P','2'};
-    if (memcmp(magic, want, 8) != 0) { fclose(f); return 1; }
+    const uint8_t want2[8] = {'A','V','M','S','N','A','P','2'};
+    const uint8_t want3[8] = {'A','V','M','S','N','A','P','3'};
+    int snap_ver = 0;
+    if (memcmp(magic, want2, 8) == 0) snap_ver = 2;
+    if (memcmp(magic, want3, 8) == 0) snap_ver = 3;
+    if (snap_ver == 0) { fclose(f); return 1; }
 
     int ok = 1;
     uint32_t obj_count = read_u32_le(f, &ok);
@@ -1833,6 +1891,24 @@ int avm_restore(AvmVM* vm, const char* path) {
     vm->has_result_value = (has_res != 0) ? 1 : 0;
     if (!decode_value(f, obj_types, obj_ptrs, obj_count, &vm->result_value)) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
     if (!decode_value(f, obj_types, obj_ptrs, obj_count, &vm->last_error)) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+
+    // Deterministic TIME/RNG state (rolling; AVMSNAP3+)
+    if (snap_ver >= 3) {
+        uint8_t det = 0;
+        if (fread(&det, 1, 1, f) != 1) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->deterministic = (det != 0) ? 1 : 0;
+        int ok2 = 1;
+        vm->virtual_now_ns = read_u64_le(f, &ok2);
+        vm->virtual_step_ns = read_u64_le(f, &ok2);
+        vm->virtual_sleep_ns = read_u64_le(f, &ok2);
+        vm->rng_state = read_u64_le(f, &ok2);
+        vm->gas_executed = read_u64_le(f, &ok2);
+        if (!ok2) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+    } else {
+        // AVMSNAP2 did not capture deterministic state; reset rolling fields.
+        vm->virtual_sleep_ns = 0;
+        vm->gas_executed = 0;
+    }
 
     fclose(f);
 
@@ -2402,6 +2478,133 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
     return res;
 }
 
+static int avm_map_get_key(AvmValue vmap, const char* key, AvmValue* out) {
+    if (!out) return 0;
+    out->type = AVM_VAL_NIL;
+    if (vmap.type != AVM_VAL_MAP || !vmap.as.m || !key) return 0;
+    AvmMap* map = vmap.as.m;
+    for (int i = 0; i < map->count; i++) {
+        AvmValue k = map->keys[i];
+        if (k.type == AVM_VAL_STRING && k.as.p && strcmp((const char*)k.as.p, key) == 0) {
+            *out = map->values[i];
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static uint64_t avm_value_u64(AvmValue v, uint64_t def) {
+    if (v.type == AVM_VAL_INT) {
+        if (v.as.i < 0) return def;
+        return (uint64_t)v.as.i;
+    }
+    if (v.type == AVM_VAL_BOOL) return v.as.i ? 1ull : 0ull;
+    return def;
+}
+
+static int avm_value_truthy(AvmValue v) {
+    if (v.type == AVM_VAL_BOOL) return v.as.i != 0;
+    if (v.type == AVM_VAL_INT) return v.as.i != 0;
+    return 0;
+}
+
+static AvmBytes* avm_new_log_bytes() {
+    AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+    if (!b) return NULL;
+    b->len = 8;
+    b->capacity = 64;
+    b->data = (uint8_t*)malloc((size_t)b->capacity);
+    if (!b->data) { free(b); return NULL; }
+    const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
+    memcpy(b->data, magic, 8);
+    return b;
+}
+
+static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
+    if (!obc || !out) return 0;
+    if (!obc->data || obc->len < 4) return 0;
+
+    const uint8_t* data = obc->data;
+    size_t len = (size_t)obc->len;
+
+    // Header: CD 0E
+    if (len < 2 || data[0] != 0xCD || data[1] != 0x0E) return 0;
+
+    // Const count (u16)
+    size_t pos = 2;
+    if (pos + 2 > len) return 0;
+    uint16_t n_consts = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
+    pos += 2;
+
+    AvmValue* consts = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)n_consts);
+    if (!consts && n_consts > 0) return 0;
+    for (uint16_t i = 0; i < n_consts; i++) consts[i].type = AVM_VAL_NIL;
+
+    for (uint16_t i = 0; i < n_consts; i++) {
+        if (pos >= len) return 0;
+        uint8_t type = data[pos++];
+        if (type == 0) { // NIL
+            consts[i].type = AVM_VAL_NIL;
+            continue;
+        }
+        if (type == 1) { // INT
+            if (pos + 8 > len) return 0;
+            int64_t val = 0;
+            for (int k = 0; k < 8; k++) {
+                val |= (int64_t)data[pos++] << (k * 8);
+            }
+            consts[i].type = AVM_VAL_INT;
+            consts[i].as.i = val;
+            continue;
+        }
+        if (type == 4) { // STRING
+            if (pos + 2 > len) return 0;
+            uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
+            pos += 2;
+            if (pos + slen > len) return 0;
+            char* s = (char*)malloc((size_t)slen + 1);
+            if (!s) return 0;
+            if (slen > 0) memcpy(s, data + pos, slen);
+            s[slen] = 0;
+            pos += slen;
+            consts[i].type = AVM_VAL_STRING;
+            consts[i].as.p = s;
+            continue;
+        }
+        if (type == 8) { // BYTES (rolling): u32 len + raw bytes
+            if (pos + 4 > len) return 0;
+            uint32_t blen = (uint32_t)data[pos] |
+                ((uint32_t)data[pos + 1] << 8) |
+                ((uint32_t)data[pos + 2] << 16) |
+                ((uint32_t)data[pos + 3] << 24);
+            pos += 4;
+            if (pos + blen > len) return 0;
+            AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+            if (!b) return 0;
+            b->len = (int)blen;
+            b->capacity = (int)blen;
+            b->data = NULL;
+            if (blen > 0) {
+                b->data = (uint8_t*)malloc((size_t)blen);
+                if (!b->data) { free(b); return 0; }
+                memcpy(b->data, data + pos, blen);
+            }
+            pos += blen;
+            consts[i].type = AVM_VAL_BYTES;
+            consts[i].as.b = b;
+            continue;
+        }
+        return 0;
+    }
+
+    if (pos > len) return 0;
+    out->code = (uint8_t*)(data + pos);
+    out->code_len = len - pos;
+    out->constants = consts;
+    out->const_count = n_consts;
+    return 1;
+}
+
 // Rolling ABI: CALL_NATIVE2(domain, op, nargs)
 // For now, CORE domain (0) maps op -> legacy native id.
 static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
@@ -2524,8 +2727,12 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
             case 0: { // now_ns()
                 AvmValue ret;
                 if (vm->deterministic) {
-                    ret = avm_int((int64_t)vm->virtual_now_ns);
-                    vm->virtual_now_ns += vm->virtual_step_ns;
+                    __uint128_t t = (__uint128_t)vm->virtual_now_ns;
+                    t += (__uint128_t)vm->virtual_sleep_ns;
+                    t += (__uint128_t)vm->gas_executed * (__uint128_t)vm->virtual_step_ns;
+                    uint64_t t64 = (t > (__uint128_t)UINT64_MAX) ? UINT64_MAX : (uint64_t)t;
+                    int64_t out = (t64 > (uint64_t)INT64_MAX) ? INT64_MAX : (int64_t)t64;
+                    ret = avm_int(out);
                 } else {
                     ret = avm_int((int64_t)avm_now_ns());
                 }
@@ -2539,7 +2746,11 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 if (nargs > 0 && args[0].type == AVM_VAL_INT) ms = args[0].as.i;
                 if (ms < 0) ms = 0;
                 if (vm->deterministic) {
-                    vm->virtual_now_ns += (uint64_t)ms * 1000000ull;
+                    __uint128_t add = (__uint128_t)(uint64_t)ms * 1000000ull;
+                    uint64_t add64 = (add > (__uint128_t)UINT64_MAX) ? UINT64_MAX : (uint64_t)add;
+                    uint64_t prev = vm->virtual_sleep_ns;
+                    vm->virtual_sleep_ns = prev + add64;
+                    if (vm->virtual_sleep_ns < prev) vm->virtual_sleep_ns = UINT64_MAX;
                 } else {
                     usleep((useconds_t)(ms * 1000));
                 }
@@ -2587,6 +2798,126 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
     }
 
+    // Domain 8: AVM (nested universes via host service)
+    if (domain == 8) {
+        switch (op) {
+            case 0: { // run_obc_bytes(obc_bytes, cfg_map)
+                if (nargs < 1 || args[0].type != AVM_VAL_BYTES || !args[0].as.b) {
+                    return avm_err(AVM_ERR_INVALID_ARG, "avm.run_obc_bytes expects BYTES");
+                }
+                AvmValue cfg = avm_nil();
+                if (nargs >= 2) cfg = args[1];
+
+                AvmProgram* prog = (AvmProgram*)malloc(sizeof(AvmProgram));
+                if (!prog) return avm_err(AVM_ERR_INTERNAL, "oom");
+                if (!avm_parse_obc_from_bytes(args[0].as.b, prog)) {
+                    return avm_err(AVM_ERR_INVALID_ARG, "invalid obc bytes");
+                }
+
+                AvmVM* child = avm_new();
+                child->argc = 0;
+                child->argv = NULL;
+
+                // Capabilities (hierarchical, rolling): child must be subset of parent when parent is restricted.
+                uint64_t parent_mask = vm ? vm->allowed_native_domains : 0;
+                uint64_t child_mask = parent_mask;
+                AvmValue v;
+                if (avm_map_get_key(cfg, "allowed_domains", &v)) {
+                    uint64_t req = avm_value_u64(v, 0);
+                    if (parent_mask != 0 && (req & ~parent_mask) != 0) {
+                        avm_free(child);
+                        return avm_err(AVM_ERR_PERM, "child capabilities must be subset of parent");
+                    }
+                    child_mask = req;
+                }
+                child->allowed_native_domains = child_mask;
+
+                // Determinism knobs
+                if (avm_map_get_key(cfg, "deterministic", &v)) child->deterministic = avm_value_truthy(v) ? 1 : 0;
+                if (avm_map_get_key(cfg, "time_start_ns", &v)) child->virtual_now_ns = avm_value_u64(v, child->virtual_now_ns);
+                if (avm_map_get_key(cfg, "time_step_ns", &v)) child->virtual_step_ns = avm_value_u64(v, child->virtual_step_ns);
+                if (avm_map_get_key(cfg, "rng_seed", &v)) child->rng_state = avm_value_u64(v, child->rng_state);
+
+                // Budgets (rolling): enforce child <= parent when parent is budgeted.
+                if (avm_map_get_key(cfg, "gas_limit", &v)) {
+                    uint64_t gl = avm_value_u64(v, 0);
+                    if (vm && vm->gas_remaining > 0 && gl > vm->gas_remaining) {
+                        avm_free(child);
+                        return avm_err(AVM_ERR_BUDGET, "child gas_limit exceeds parent");
+                    }
+                    child->gas_remaining = gl;
+                }
+                if (avm_map_get_key(cfg, "deadline_ns", &v)) {
+                    uint64_t dl = avm_value_u64(v, 0);
+                    if (vm && vm->deadline_ns > 0 && dl > vm->deadline_ns) {
+                        avm_free(child);
+                        return avm_err(AVM_ERR_BUDGET, "child deadline exceeds parent");
+                    }
+                    child->deadline_ns = dl;
+                }
+
+                // Record/replay logs as data (always create a record log, even if it stays empty).
+                child->record_log_bytes = avm_new_log_bytes();
+                if (!child->record_log_bytes) {
+                    avm_free(child);
+                    return avm_err(AVM_ERR_INTERNAL, "oom");
+                }
+                if (avm_map_get_key(cfg, "replay_log", &v) && v.type == AVM_VAL_BYTES && v.as.b) {
+                    if (v.as.b->len < 8 || !v.as.b->data) {
+                        avm_free(child);
+                        return avm_err(AVM_ERR_INVALID_ARG, "replay_log too short");
+                    }
+                    const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
+                    if (memcmp(v.as.b->data, want, 8) != 0) {
+                        avm_free(child);
+                        return avm_err(AVM_ERR_INVALID_ARG, "invalid replay_log magic");
+                    }
+                    child->replay_log_bytes = v.as.b;
+                    child->replay_log_pos = 8;
+                }
+
+                avm_load(child, prog);
+                avm_run(child);
+
+                uint8_t rh[32]; memset(rh, 0, sizeof(rh));
+                uint8_t sh[32]; memset(sh, 0, sizeof(sh));
+                (void)avm_result_hash(child, rh);
+                (void)avm_state_hash(child, sh);
+
+                AvmValue v_rh = avm_bytes_new(32);
+                AvmValue v_sh = avm_bytes_new(32);
+                if (v_rh.type == AVM_VAL_BYTES && v_rh.as.b && v_rh.as.b->data) memcpy(v_rh.as.b->data, rh, 32);
+                if (v_sh.type == AVM_VAL_BYTES && v_sh.as.b && v_sh.as.b->data) memcpy(v_sh.as.b->data, sh, 32);
+
+                AvmMap* out = (AvmMap*)malloc(sizeof(AvmMap));
+                if (!out) { avm_free(child); return avm_err(AVM_ERR_INTERNAL, "oom"); }
+                out->count = 5;
+                out->capacity = 8;
+                out->keys = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
+                out->values = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
+                if (!out->keys || !out->values) { avm_free(child); return avm_err(AVM_ERR_INTERNAL, "oom"); }
+
+                out->keys[0] = avm_string("exit_code");
+                out->values[0] = avm_int((int64_t)child->exit_code);
+                out->keys[1] = avm_string("result_hash");
+                out->values[1] = v_rh;
+                out->keys[2] = avm_string("state_hash");
+                out->values[2] = v_sh;
+                out->keys[3] = avm_string("record_log");
+                AvmValue v_log; v_log.type = AVM_VAL_BYTES; v_log.as.b = child->record_log_bytes;
+                out->values[3] = v_log;
+                out->keys[4] = avm_string("last_error");
+                out->values[4] = child->last_error;
+
+                AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
+                avm_free(child);
+                return ret;
+            }
+            default: break;
+        }
+        return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
+    }
+
     // Unknown/unsupported domain in bootstrap.
     return avm_err(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op");
 }
@@ -2617,10 +2948,15 @@ AvmVM* avm_new() {
     vm->replay_log_pos = 0;
     vm->deterministic = 0;
     vm->virtual_now_ns = 0;
-    vm->virtual_step_ns = 1000000ull; // 1ms default step
+    vm->virtual_step_ns = 1000ull; // 1us per executed instruction step (default; override with AVM_TIME_STEP_NS)
+    vm->virtual_sleep_ns = 0;
     vm->rng_state = 0x123456789abcdef0ull;
+    vm->gas_executed = 0;
     vm->pause_after_steps = 0;
     vm->paused = 0;
+    vm->trace_enabled = 0;
+    vm->trace_limit = 0;
+    vm->trace_out = NULL;
     for(int i=0; i<MAX_GLOBALS; i++) vm->globals[i].type = AVM_VAL_NIL;
     return vm;
 }
@@ -2647,6 +2983,8 @@ void avm_load(AvmVM* vm, AvmProgram* prog) {
     vm->result_value = avm_nil();
     vm->last_error = avm_nil();
     vm->exit_code = 0;
+    vm->virtual_sleep_ns = 0;
+    vm->gas_executed = 0;
 }
 
 void avm_run(AvmVM* vm) {
@@ -2690,7 +3028,21 @@ void avm_run(AvmVM* vm) {
             }
         }
 
+        // Semantic execution counter for deterministic TIME (bootstrap: 1 gas per opcode dispatch).
+        vm->gas_executed++;
+        int op_pc = vm->pc;
         uint8_t op = code[vm->pc++];
+        if (vm->trace_enabled && (!vm->trace_limit || vm->gas_executed <= vm->trace_limit)) {
+            FILE* out = vm->trace_out ? vm->trace_out : stderr;
+            fprintf(out, "TRACE pc=%d op=0x%02x %s sp=%d fp=%d depth=%d gas=%llu\n",
+                op_pc,
+                (unsigned)op,
+                avm_op_name(op),
+                vm->sp,
+                vm->fp,
+                vm->frame_count,
+                (unsigned long long)vm->gas_executed);
+        }
         // printf("PC: %d, OP: %d, SP: %d, FP: %d\n", vm->pc-1, op, vm->sp, vm->fp);
         switch (op) {
             case 0x00: // NOP

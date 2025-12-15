@@ -28,6 +28,7 @@ var AVM_DOMAIN_TIME = 2
 var AVM_DOMAIN_RNG = 3
 var AVM_DOMAIN_PROC = 5
 var AVM_DOMAIN_ENV = 7
+var AVM_DOMAIN_AVM = 8
 
 fn new_bytecode_ctx() {
     return {
@@ -321,6 +322,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_write_file" { native_domain = AVM_DOMAIN_FS; native_op = 1 }
         if name == "oren_write_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 2 }
         if name == "oren_read_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 3 }
+        if name == "oren_avm_run_obc_bytes" { native_domain = AVM_DOMAIN_AVM; native_op = 0 }
 
         if native_domain != -1 {
             var args = expr["args"]
