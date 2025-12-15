@@ -118,6 +118,18 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 - **Capability model is still evolving:** host calls support both a flat numeric ID table (`CALL_NATIVE`) and a domain/op model (`CALL_NATIVE2`); next-gen direction is specified in `docs/AVM_SPEC_V1.md`.
 - **Verifier is rolling (now function-aware):** `avm` performs a bytecode verification pass (operand bounds, jump target bounds, const/global bounds, stack underflow/overflow, and stack-height consistency at CFG joins) and will reject malformed `.obc` early. Calls are verified interprocedurally by discovering reachable function entrypoints and verifying each region with **arity enforcement** (all `CALL addr` sites must agree on `nargs`). This verifier is still not a full formal proof of correctness.
 - **Policy scanning is safe (rolling):** `avm --print-policy <file.obc>` (or `--print-policy-json`) scans capabilities used by a program **without executing bytecode**. This supports “scan before execute” governance workflows.
+- **Policy output is hashable (rolling):** policy scan outputs include `POLICY_HASH_SHA256 <hex>` (text) and `policy_hash_sha256` (JSON). This hash is computed from the *required* capability set discovered in bytecode (not from host allowlists). Current policy hash v1 is SHA-256 over:
+  - tag bytes `AVMPOL01`
+  - `used_domains_mask` as `u64_le`
+  - `ops_len` as `u32_le`
+  - each sorted `(domain, op)` pair as `u8` + `u16_le`
+  JSON includes `{"schema":"avm.policy.v1", ...}`.
+- **Job scanning is safe (rolling):** `avm --print-job <file.obc>` (or `--print-job-json`) prints a governance “job object” **without executing bytecode**. This binds:
+  - `program_hash_sha256`: hash of `.obc` bytes (SHA-256)
+  - `policy_hash_sha256`: required capability set (from policy scan)
+  - `input_hash_sha256`: hash of explicit inputs (args after `--`, snapshot input file if any, replay log if any)
+  - `exec_hash_sha256`: hash of execution context (capsule flags, effective allowlist, fs prefixes, budgets, deterministic knobs)
+  - `job_hash_sha256`: stable v2 hash over (`program_hash`, `policy_hash`, `input_hash`, `exec_hash`)
 - **Hashing is rolling:** `avm` can compute deterministic `STATE_HASH` and `RESULT_HASH` (SHA-256) for swarm-style k-of-n validation; these are not yet stability-promised formats.
 - **Deterministic record/replay is partial:** `avm` can record/replay FS-domain native calls via `AVM_RECORD_LOG` / `AVM_REPLAY_LOG`, but other effectful domains (NET/PROC/TIME/RNG) are not virtualized yet.
 - **In-memory logs exist (rolling):** `AVM_RECORD_MEM=1` records to an in-memory bytes buffer (printed via `--print-record-log-hex`), and `AVM_REPLAY_LOG_HEX=...` replays without touching the filesystem.
@@ -129,6 +141,14 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   RNG is controlled by `AVM_RNG_SEED`.
 - **Nested universes are emerging (rolling):** AVM exposes an `AVM` capability domain (domain 8) to run a child `.obc` from `BYTES` under a restricted capability/budget config (caps + gas/deadline/mem/io/log), returning hashes and a produced in-memory replay log.
 - **Capability domains are the direction:** effectful calls should route through `CALL_NATIVE2` domains (e.g., `PROC` for `oren_system`) so they can be denied/recorded/replayed independently of CORE.
+- **Strict verification is available (rolling):** `avm --verify-strict <file.obc>` (or `AVM_VERIFY_STRICT=1`) rejects legacy capability encodings (`CALL_NATIVE`, and CORE-domain `CALL_NATIVE2` uses that remap to effectful domains) so untrusted capsules can require domain/op-only bytecode.
+- **Capsule mode is available (rolling):** `avm --capsule <file.obc>` (or `AVM_CAPSULE=1`) enables safe defaults for running untrusted bytecode:
+  - implies strict verification (`--verify-strict`)
+  - enables deny-by-default capabilities (default allowlist is CORE + EXIT only)
+  - applies conservative default budgets unless overridden by env (`AVM_GAS`, `AVM_TIMEOUT_MS`, `AVM_MEM_BYTES`, `AVM_IO_BYTES`, `AVM_LOG_BYTES`)
+  - to allow a small approved set without env vars, use:
+    - `--allow-domains "0,1,6"` (or `AVM_ALLOW_DOMAINS=...`) to explicitly allow domains
+    - `--fs-allow-prefixes "build/"` (or `AVM_FS_ALLOW_PREFIXES=...`) to restrict FS paths
 - **Metering is rolling (implemented, not yet stability-promised):**
   - instruction “gas” (`AVM_GAS`)
   - wall-time deadline (`AVM_TIMEOUT_MS`)

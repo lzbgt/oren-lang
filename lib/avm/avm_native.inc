@@ -1048,6 +1048,27 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
     }
 
+    // Domain 6: EXIT (terminate the VM)
+    // Split from PROC so capsules can allow exit without allowing subprocesses.
+    if (domain == 6) {
+        if (vm->replay_log_bytes) {
+            return rr_replay_entry_mem(vm, vm->replay_log_bytes, &vm->replay_log_pos, domain, op, args, nargs);
+        }
+        if (vm->replay_log) {
+            return rr_replay_entry(vm, vm->replay_log, domain, op, args, nargs);
+        }
+        switch (op) {
+            case 0: { // exit(code)
+                AvmValue ret = avm_call_native(vm, 5, args, nargs);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+            default: break;
+        }
+        return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
+    }
+
     // Domain 7: ENV (environment variables)
     if (domain == 7) {
         if (vm->replay_log_bytes) {

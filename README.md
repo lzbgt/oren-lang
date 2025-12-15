@@ -104,6 +104,22 @@ make avm
 ./avm --print-policy-json hello.obc
 ```
 
+### Governance job object (bind program + policy + inputs; no bytecode execution)
+```bash
+./avm --print-job hello.obc
+./avm --print-job-json hello.obc
+```
+
+### Run as an untrusted capsule (safe defaults; rolling)
+```bash
+./avm --capsule hello.obc
+```
+
+Allow a small approved set (example: enable FS only under `build/`):
+```bash
+./avm --capsule --allow-domains "0,1,6" --fs-allow-prefixes "build/" hello.obc
+```
+
 ### Budgets / determinism knobs (AVM; rolling)
 AVM is designed for agent/governance workflows, so it supports explicit budgets:
 

@@ -738,6 +738,10 @@ AvmVM* avm_new() {
     vm->trace_enabled = 0;
     vm->trace_limit = 0;
     vm->trace_out = NULL;
+    vm->trace_hash_enabled = 0;
+    vm->trace_hash_limit = 0;
+    vm->trace_hash_started = 0;
+    vm->trace_hash_finalized = 0;
     vm->break_pcs = NULL;
     vm->break_pc_count = 0;
     for(int i=0; i<MAX_GLOBALS; i++) vm->globals[i].type = AVM_VAL_NIL;
@@ -780,6 +784,66 @@ void avm_load(AvmVM* vm, AvmProgram* prog) {
     vm->exit_code = 0;
     vm->virtual_sleep_ns = 0;
     vm->gas_executed = 0;
+}
+
+static void trace_sha_u8(AvmSha256Ctx* h, uint8_t v) { avm_sha256_update(h, &v, 1); }
+static void trace_sha_u16_le(AvmSha256Ctx* h, uint16_t v) {
+    uint8_t b[2];
+    b[0] = (uint8_t)(v & 0xFFu);
+    b[1] = (uint8_t)((v >> 8) & 0xFFu);
+    avm_sha256_update(h, b, 2);
+}
+static void trace_sha_u32_le(AvmSha256Ctx* h, uint32_t v) {
+    uint8_t b[4];
+    b[0] = (uint8_t)(v & 0xFFu);
+    b[1] = (uint8_t)((v >> 8) & 0xFFu);
+    b[2] = (uint8_t)((v >> 16) & 0xFFu);
+    b[3] = (uint8_t)((v >> 24) & 0xFFu);
+    avm_sha256_update(h, b, 4);
+}
+
+static size_t trace_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
+    if (!code || pc >= code_len) return 1;
+    uint8_t op = code[pc];
+    if (op == 0x02) return 3;                 // PUSH_CONST u16
+    if (op == 0x04 || op == 0x05) return 2;   // LOAD/STORE_LOCAL u8
+    if (op == 0x06 || op == 0x07) return 3;   // LOAD/STORE_GLOBAL u16
+    if (op == 0x30 || op == 0x31) return 3;   // JMP/JMP_IF i16
+    if (op == 0x38) return 4;                 // CALL u16 u8
+    if (op == 0x3A) return 4;                 // CALL_NATIVE u16 u8
+    if (op == 0x3B) return 5;                 // CALL_NATIVE2 u8 u16 u8
+    if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
+    return 1;
+}
+
+static void trace_hash_step(AvmVM* vm, int op_pc, uint8_t op) {
+    if (!vm || !vm->trace_hash_enabled) return;
+    if (vm->trace_hash_limit && vm->gas_executed > vm->trace_hash_limit) return;
+    if (!vm->trace_hash_started) {
+        const uint8_t tag[8] = { 'A','V','M','T','R','C','0','1' };
+        avm_sha256_init(&vm->trace_hash_ctx);
+        avm_sha256_update(&vm->trace_hash_ctx, tag, 8);
+        vm->trace_hash_started = 1;
+        vm->trace_hash_finalized = 0;
+    }
+
+    // Canonical encoding v1 (rolling):
+    // - u32 pc (little-endian)
+    // - u8 opcode
+    // - u16 instruction byte length
+    // - raw instruction bytes (opcode+operands), truncated if out-of-bounds
+    trace_sha_u32_le(&vm->trace_hash_ctx, (uint32_t)op_pc);
+    trace_sha_u8(&vm->trace_hash_ctx, op);
+
+    size_t pc = (size_t)op_pc;
+    size_t ilen = trace_insn_len(vm->prog ? vm->prog->code : NULL, vm->prog ? vm->prog->code_len : 0, pc);
+    if (vm->prog && vm->prog->code && pc + ilen <= vm->prog->code_len) {
+        trace_sha_u16_le(&vm->trace_hash_ctx, (uint16_t)ilen);
+        avm_sha256_update(&vm->trace_hash_ctx, vm->prog->code + pc, ilen);
+    } else {
+        trace_sha_u16_le(&vm->trace_hash_ctx, 1);
+        trace_sha_u8(&vm->trace_hash_ctx, op);
+    }
 }
 
 void avm_run(AvmVM* vm) {
@@ -842,6 +906,7 @@ void avm_run(AvmVM* vm) {
         vm->gas_executed++;
         int op_pc = vm->pc;
         uint8_t op = code[vm->pc++];
+        trace_hash_step(vm, op_pc, op);
         if (vm->trace_enabled && (!vm->trace_limit || vm->gas_executed <= vm->trace_limit)) {
             FILE* out = vm->trace_out ? vm->trace_out : stderr;
             fprintf(out, "TRACE pc=%d op=0x%02x %s sp=%d fp=%d depth=%d gas=%llu\n",
@@ -1272,5 +1337,17 @@ void avm_run(AvmVM* vm) {
         }
     }
 
+    if (vm->trace_hash_enabled && vm->trace_hash_started && !vm->trace_hash_finalized) {
+        avm_sha256_final(&vm->trace_hash_ctx, vm->trace_hash_out);
+        vm->trace_hash_finalized = 1;
+    }
+
     avm_alloc_owner_pop(prev_owner);
+}
+
+int avm_trace_hash(AvmVM* vm, uint8_t out[32]) {
+    if (!vm || !out) return 0;
+    if (!vm->trace_hash_finalized) return 0;
+    memcpy(out, vm->trace_hash_out, 32);
+    return 1;
 }

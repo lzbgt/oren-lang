@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "sha256.h"
+
 #define MAX_GLOBALS 256
 #define MAX_FRAMES 65536
 #define AVM_STACK_SIZE 16777216
@@ -172,6 +174,15 @@ typedef struct {
     uint64_t trace_limit;
     FILE* trace_out;
 
+    // Deterministic trace hashing (rolling): a canonical encoding of executed steps hashed via SHA-256.
+    // This is used for agentic diffing and swarm validation; it must not depend on host timing.
+    int trace_hash_enabled;
+    uint64_t trace_hash_limit; // 0 => unlimited
+    int trace_hash_started;
+    AvmSha256Ctx trace_hash_ctx;
+    uint8_t trace_hash_out[32];
+    int trace_hash_finalized;
+
     // Debug/breakpoints (rolling): if any breakpoints are set, VM pauses before executing an instruction at that pc.
     int* break_pcs;
     int break_pc_count;
@@ -189,7 +200,8 @@ typedef struct {
 //
 // Mapping policy (bootstrap, rolling):
 // - FS: legacy {0,1,17,18} -> domain 1 ops {0..3}
-// - PROC: legacy {2,5} -> domain 5 ops {0..1}
+// - PROC: legacy {2} -> domain 5 op {0}
+// - EXIT: legacy {5} -> domain 6 op {0}
 // - ENV: legacy {4} -> domain 7 op {0}
 // - Otherwise: domain 0 (CORE), op = legacy id
 static inline void avm_legacy_native_to_domop(uint16_t legacy_id, uint8_t* domain_out, uint16_t* op_out) {
@@ -202,7 +214,7 @@ static inline void avm_legacy_native_to_domop(uint16_t legacy_id, uint8_t* domai
     if (legacy_id == 18) { domain = 1; op = 3; }  // FS.read_bytes
 
     if (legacy_id == 2) { domain = 5; op = 0; }   // PROC.system
-    if (legacy_id == 5) { domain = 5; op = 1; }   // PROC.exit
+    if (legacy_id == 5) { domain = 6; op = 0; }   // EXIT.exit
 
     if (legacy_id == 4) { domain = 7; op = 0; }   // ENV.env
 
@@ -225,6 +237,9 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]);
 
 // Deterministic result hash (rolling): hashes exit_code plus (ok -> selected result, err -> last_error).
 int avm_result_hash(AvmVM* vm, uint8_t out[32]);
+
+// Deterministic trace hash (rolling): hashes the canonical trace stream of executed steps (opt-in).
+int avm_trace_hash(AvmVM* vm, uint8_t out[32]);
 
 // Heap stats (rolling): best-effort measurement of reachable heap objects from VM roots + constant pool.
 int avm_heap_stats(AvmVM* vm, AvmHeapStats* out);

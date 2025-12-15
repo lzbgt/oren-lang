@@ -1,0 +1,21 @@
+fn main() {
+    // This test is meant to be executed with:
+    //   avm --capsule --allow-domains "0,1,6" --fs-allow-prefixes "build/" ...
+    //
+    // In capsule mode, FS is denied by default; with an explicit allowlist it should work.
+
+    var path = "build/avm_capsule_allow_fs.txt"
+    var content = "capsule fs ok"
+
+    var w = oren_write_file(path, content)
+    if oren_is_err(w) { oren_exit(1) }
+
+    var s = oren_read_file(path)
+    if oren_is_err(s) { oren_exit(1) }
+    if s != content { oren_exit(1) }
+
+    oren_exit(0)
+}
+
+main()
+

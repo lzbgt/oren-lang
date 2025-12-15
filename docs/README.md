@@ -25,6 +25,7 @@ This folder contains both **canonical specs** and a few **compatibility stubs** 
 ## 4) Concurrency
 
 - Concurrency and IPC model: `docs/CONCURRENCY_MODEL.md`
+- AVM deterministic concurrency model: `docs/AVM_CONCURRENCY.md`
 
 ## 5) Strategy / Narrative / “Why”
 

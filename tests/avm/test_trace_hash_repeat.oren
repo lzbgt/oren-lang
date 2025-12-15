@@ -1,0 +1,15 @@
+fn main() {
+    // Pure deterministic workload.
+    var x = 0
+    var i = 0
+    while i < 2000 {
+        x = x + i
+        i = i + 1
+    }
+    if x == 0 { oren_exit(1) }
+    // explicit exit so the behavior is stable
+    oren_exit(0)
+}
+
+main()
+

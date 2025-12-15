@@ -155,6 +155,36 @@ Bootstrap status (rolling, as implemented today):
 - `avm --print-result-hash <file.obc>` prints `RESULT_HASH ...`
 - result selection is explicit via `oren_set_result(v)` (if not called, the result is treated as `nil`)
 
+Job scanning (rolling, no-execute tooling):
+
+- `avm --print-job <file.obc>` prints a text form with:
+  - `JOB_HASH_SHA256 <hex>`
+  - `PROGRAM_HASH_SHA256 <hex>`
+  - `INPUT_HASH_SHA256 <hex>`
+  - `EXEC_HASH_SHA256 <hex>`
+  - policy lines (`POLICY_*`)
+- `avm --print-job-json <file.obc>` prints `{"schema":"avm.job.v2", ...}`
+
+Current `job_hash_sha256` (v2) definition:
+
+- `job_hash_sha256 = SHA256( "AVMJOB02" || program_hash_sha256_bytes || policy_hash_sha256_bytes || input_hash_sha256_bytes || exec_hash_sha256_bytes )`
+
+Current `input_hash_sha256` (v1) definition:
+
+- `input_hash_sha256 = SHA256( "AVMINP01" || args || snapshot_hash? || replay_log_hash? )`
+  - `args` are the CLI args passed after `--` (count + length-prefixed strings)
+  - `snapshot_hash` is `SHA256("AVMSNAP1" || snapshot_bytes)` if `--snapshot-in` is provided
+  - `replay_log_hash` is `SHA256("AVMRLOG1" || replay_log_bytes)` if `AVM_REPLAY_LOG` or `AVM_REPLAY_LOG_HEX` is provided
+
+Current `exec_hash_sha256` (v1) definition:
+
+- `exec_hash_sha256 = SHA256( "AVMCTX02" || flags || outputs || effective_allow_domains_mask || fs_allow_prefixes || budgets || deterministic_knobs )`
+  - flags include: `capsule`, `verify_strict`, `deny_by_default`, `record_enabled`, `replay_enabled`
+  - outputs include: record sink kind (`none|file|mem`) and `snapshot_out_enabled` (paths are intentionally not hashed)
+  - `effective_allow_domains_mask` is what AVM will actually enforce (e.g. capsule default CORE+EXIT when deny-by-default and no allowlist provided)
+  - `fs_allow_prefixes` is the normalized comma-separated list (count + length-prefixed strings)
+  - budgets include: `gas`, `timeout_ms`, `mem_bytes`, `io_bytes`, `log_bytes` (with capsule defaults applied if env unset)
+
 ### 3.2 Node execution and attestation (minimum viable)
 
 Each node returns:

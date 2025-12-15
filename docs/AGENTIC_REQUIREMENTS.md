@@ -214,6 +214,11 @@ Rationale:
 - enables “self-healing” workflows where an agent can diff traces between two runs
 - prevents “black box” failures where only a hash mismatch is available
 
+Bootstrap status (rolling, implementation reality as of 2025-12-15):
+
+- `avm --print-trace-hash <file.obc>` prints `TRACE_HASH <sha256>` derived from a canonical step encoding.
+- Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM_CONCURRENCY.md` for the design direction.
+
 ### 3.6 Governance-ready module boundaries (SOLID on bytecode artifacts)
 
 Agentic execution becomes unsafe and unmaintainable if the runtime grows as a monolith.

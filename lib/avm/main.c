@@ -221,7 +221,8 @@ static VerifyResult verify_program_region(
     uint16_t* callees_out,
     uint8_t* callee_nargs_out,
     size_t* callee_count_io,
-    size_t callee_cap
+    size_t callee_cap,
+    int strict_legacy
 ) {
     if (!prog || !prog->code || prog->code_len == 0) return err_result("empty program");
     const uint8_t* code = prog->code;
@@ -350,6 +351,7 @@ static VerifyResult verify_program_region(
             pop = 1;
         } else if (op == 0x3A) { // CALL_NATIVE u16_id u8_nargs
             len = 4;
+            if (strict_legacy) { free(depth_at); free(queue); free(qdepth); return err_result("verify: legacy CALL_NATIVE is disallowed (strict)"); }
             uint16_t id = 0;
             if (!decode_u16(code, code_len, pc + 1, &id)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated CALL_NATIVE"); }
             uint8_t nargs = code[pc + 3];
@@ -365,11 +367,25 @@ static VerifyResult verify_program_region(
             len = 5;
             if (pc + len > code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated CALL_NATIVE2"); }
             uint8_t dom = code[pc + 1];
+            uint16_t cop = (uint16_t)code[pc + 2] | ((uint16_t)code[pc + 3] << 8);
             uint8_t nargs = code[pc + 4];
             if (nargs > 16) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL_NATIVE2 nargs too large"); }
             pop = (int)nargs;
             push = 1;
-            if (used_domains_io) *used_domains_io |= (1ULL << (dom & 63));
+
+            // Strict mode: disallow CORE-domain encoding when it actually targets an effectful domain
+            // via legacy-id remapping (bypass form).
+            uint8_t eff_dom = dom;
+            if (dom == 0) {
+                uint8_t nd = 0;
+                uint16_t nop = cop;
+                avm_legacy_native_to_domop(cop, &nd, &nop);
+                if (nd != 0) {
+                    if (strict_legacy) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CORE/legacy bypass CALL_NATIVE2 is disallowed (strict)"); }
+                    eff_dom = nd;
+                }
+            }
+            if (used_domains_io) *used_domains_io |= (1ULL << (eff_dom & 63));
         } else if (op == 0x40) { // NEW_LIST u16_count
             len = 3;
             uint16_t count = 0;
@@ -593,7 +609,7 @@ static VerifyResult enqueue_func(
     return ok_result();
 }
 
-static VerifyResult verify_program(const AvmProgram* prog) {
+static VerifyResult verify_program(const AvmProgram* prog, int strict_legacy) {
     if (!prog || !prog->code || prog->code_len == 0) return err_result("empty program");
 
     uint64_t used_domains = 0;
@@ -615,7 +631,7 @@ static VerifyResult verify_program(const AvmProgram* prog) {
         size_t ccnt = 0;
         if ((!callees || !cnargs) && cap > 0) { free(callees); free(cnargs); free(funcs); free(wl); free(wl_nargs); return err_result("verify: out of memory"); }
 
-        VerifyResult vr = verify_program_region(prog, 0, 0, 0xFFFFu, &used_domains, callees, cnargs, &ccnt, cap);
+        VerifyResult vr = verify_program_region(prog, 0, 0, 0xFFFFu, &used_domains, callees, cnargs, &ccnt, cap, strict_legacy);
         for (size_t i = 0; i < ccnt && vr.ok; i++) {
             VerifyResult er = enqueue_func(&funcs, &funcs_len, &funcs_cap, &wl, &wl_nargs, &wl_t, &wl_cap, used_domains, callees[i], cnargs[i]);
             if (!er.ok) vr = er;
@@ -642,7 +658,7 @@ static VerifyResult verify_program(const AvmProgram* prog) {
         size_t ccnt = 0;
         if ((!callees || !cnargs) && cap > 0) { free(callees); free(cnargs); free(funcs); free(wl); free(wl_nargs); return err_result("verify: out of memory"); }
 
-        VerifyResult vr = verify_program_region(prog, (size_t)addr, (int)nargs, addr, &used_domains, callees, cnargs, &ccnt, cap);
+        VerifyResult vr = verify_program_region(prog, (size_t)addr, (int)nargs, addr, &used_domains, callees, cnargs, &ccnt, cap, strict_legacy);
         for (size_t i = 0; i < ccnt && vr.ok; i++) {
             VerifyResult er = enqueue_func(&funcs, &funcs_len, &funcs_cap, &wl, &wl_nargs, &wl_t, &wl_cap, used_domains, callees[i], cnargs[i]);
             if (!er.ok) vr = er;
@@ -669,6 +685,34 @@ typedef struct {
     uint16_t op;
 } PolicyOp;
 
+static void sha_u8(AvmSha256Ctx* h, uint8_t v) { avm_sha256_update(h, &v, 1); }
+static void sha_u16_le(AvmSha256Ctx* h, uint16_t v) {
+    uint8_t b[2];
+    b[0] = (uint8_t)(v & 0xFFu);
+    b[1] = (uint8_t)((v >> 8) & 0xFFu);
+    avm_sha256_update(h, b, 2);
+}
+static void sha_u32_le(AvmSha256Ctx* h, uint32_t v) {
+    uint8_t b[4];
+    b[0] = (uint8_t)(v & 0xFFu);
+    b[1] = (uint8_t)((v >> 8) & 0xFFu);
+    b[2] = (uint8_t)((v >> 16) & 0xFFu);
+    b[3] = (uint8_t)((v >> 24) & 0xFFu);
+    avm_sha256_update(h, b, 4);
+}
+static void sha_u64_le(AvmSha256Ctx* h, uint64_t v) {
+    uint8_t b[8];
+    b[0] = (uint8_t)(v & 0xFFull);
+    b[1] = (uint8_t)((v >> 8) & 0xFFull);
+    b[2] = (uint8_t)((v >> 16) & 0xFFull);
+    b[3] = (uint8_t)((v >> 24) & 0xFFull);
+    b[4] = (uint8_t)((v >> 32) & 0xFFull);
+    b[5] = (uint8_t)((v >> 40) & 0xFFull);
+    b[6] = (uint8_t)((v >> 48) & 0xFFull);
+    b[7] = (uint8_t)((v >> 56) & 0xFFull);
+    avm_sha256_update(h, b, 8);
+}
+
 static int policy_ops_cmp(const void* a, const void* b) {
     const PolicyOp* pa = (const PolicyOp*)a;
     const PolicyOp* pb = (const PolicyOp*)b;
@@ -693,6 +737,166 @@ static int policy_ops_add(PolicyOp** ops_io, size_t* len_io, size_t* cap_io, uin
     (*ops_io)[*len_io].op = op;
     (*len_io)++;
     return 1;
+}
+
+static void sha256_bytes(const uint8_t* data, size_t len, uint8_t out[32]) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    if (data && len > 0) avm_sha256_update(&h, data, len);
+    avm_sha256_final(&h, out);
+}
+
+static void sha256_tagged_bytes8(const char tag8[8], const uint8_t* data, size_t len, uint8_t out[32]) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    if (tag8) avm_sha256_update(&h, (const uint8_t*)tag8, 8);
+    if (data && len > 0) avm_sha256_update(&h, data, len);
+    avm_sha256_final(&h, out);
+}
+
+static void sha256_job_v1(const uint8_t program_hash[32], const uint8_t policy_hash[32], const uint8_t input_hash[32], uint8_t out[32]) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','J','O','B','0','1' };
+    avm_sha256_update(&h, tag, 8);
+    avm_sha256_update(&h, program_hash, 32);
+    avm_sha256_update(&h, policy_hash, 32);
+    avm_sha256_update(&h, input_hash, 32);
+    avm_sha256_final(&h, out);
+}
+
+typedef struct {
+    // capability config (effective)
+    uint64_t allow_domains_mask;
+    // budgets (effective)
+    uint64_t gas;
+    uint64_t timeout_ms;
+    uint64_t mem_bytes;
+    uint64_t io_bytes;
+    uint64_t log_bytes;
+    // deterministic knobs
+    int deterministic;
+    uint64_t time_start_ns;
+    uint64_t time_step_ns;
+    uint64_t rng_seed;
+    // execution mode flags
+    int capsule;
+    int verify_strict;
+    int deny_by_default;
+    int record_enabled;
+    int replay_enabled;
+    // output mode (hashable, path-free)
+    int record_sink_kind;   // 0 none, 1 file, 2 mem
+    int snapshot_out_enabled;
+} AvmExecContext;
+
+static void ctx_hash_sha256_v1(
+    const AvmExecContext* ctx,
+    const char* fs_allow_prefixes_raw,
+    uint8_t out[32]
+) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','C','T','X','0','2' };
+    avm_sha256_update(&h, tag, 8);
+
+    // flags
+    sha_u8(&h, (uint8_t)(ctx && ctx->capsule ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->verify_strict ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->deny_by_default ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->record_enabled ? 1 : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->replay_enabled ? 1 : 0));
+
+    // output config (hashable, path-free)
+    sha_u8(&h, (uint8_t)(ctx ? ctx->record_sink_kind : 0));
+    sha_u8(&h, (uint8_t)(ctx && ctx->snapshot_out_enabled ? 1 : 0));
+
+    // allowlist (effective)
+    sha_u64_le(&h, ctx ? ctx->allow_domains_mask : 0);
+
+    // fs allow prefixes (normalized as: count + len-prefixed bytes)
+    // Empty/unset means "allow all" at the FS layer (but domain gating may still deny FS).
+    const char* s = fs_allow_prefixes_raw;
+    if (!s || !s[0]) {
+        sha_u32_le(&h, 0);
+    } else {
+        // Count prefixes
+        uint32_t cnt = 0;
+        const char* cur = s;
+        while (*cur) {
+            while (*cur == ' ') cur++;
+            const char* start = cur;
+            while (*cur && *cur != ',') cur++;
+            const char* end = cur;
+            while (end > start && end[-1] == ' ') end--;
+            if (end > start) cnt++;
+            if (*cur == ',') cur++;
+        }
+        sha_u32_le(&h, cnt);
+
+        // Emit each prefix
+        cur = s;
+        while (*cur) {
+            while (*cur == ' ') cur++;
+            const char* start = cur;
+            while (*cur && *cur != ',') cur++;
+            const char* end = cur;
+            while (end > start && end[-1] == ' ') end--;
+            if (end > start) {
+                uint32_t len = (uint32_t)(end - start);
+                sha_u32_le(&h, len);
+                avm_sha256_update(&h, (const uint8_t*)start, (size_t)len);
+            }
+            if (*cur == ',') cur++;
+        }
+    }
+
+    // budgets (effective)
+    sha_u64_le(&h, ctx ? ctx->gas : 0);
+    sha_u64_le(&h, ctx ? ctx->timeout_ms : 0);
+    sha_u64_le(&h, ctx ? ctx->mem_bytes : 0);
+    sha_u64_le(&h, ctx ? ctx->io_bytes : 0);
+    sha_u64_le(&h, ctx ? ctx->log_bytes : 0);
+
+    // deterministic knobs
+    sha_u8(&h, (uint8_t)(ctx && ctx->deterministic ? 1 : 0));
+    sha_u64_le(&h, ctx ? ctx->time_start_ns : 0);
+    sha_u64_le(&h, ctx ? ctx->time_step_ns : 0);
+    sha_u64_le(&h, ctx ? ctx->rng_seed : 0);
+
+    avm_sha256_final(&h, out);
+}
+
+static void sha256_job_v2(
+    const uint8_t program_hash[32],
+    const uint8_t policy_hash[32],
+    const uint8_t input_hash[32],
+    const uint8_t exec_ctx_hash[32],
+    uint8_t out[32]
+) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','J','O','B','0','2' };
+    avm_sha256_update(&h, tag, 8);
+    avm_sha256_update(&h, program_hash, 32);
+    avm_sha256_update(&h, policy_hash, 32);
+    avm_sha256_update(&h, input_hash, 32);
+    avm_sha256_update(&h, exec_ctx_hash, 32);
+    avm_sha256_final(&h, out);
+}
+
+static void policy_hash_sha256(uint64_t used_domains_mask, const PolicyOp* ops, size_t ops_len, uint8_t out[32]) {
+    AvmSha256Ctx h;
+    avm_sha256_init(&h);
+    const uint8_t tag[8] = { 'A','V','M','P','O','L','0','1' };
+    avm_sha256_update(&h, tag, 8);
+    sha_u64_le(&h, used_domains_mask);
+    sha_u32_le(&h, (uint32_t)ops_len);
+    for (size_t i = 0; i < ops_len; i++) {
+        sha_u8(&h, ops[i].domain);
+        sha_u16_le(&h, ops[i].op);
+    }
+    avm_sha256_final(&h, out);
 }
 
 // Policy scanner (rolling): best-effort extraction of used (domain, op) pairs from bytecode.
@@ -777,6 +981,34 @@ static uint64_t parse_domain_mask(const char* s) {
         while (*cur == ' ' || *cur == ',') cur++;
     }
     return mask;
+}
+
+static int parse_domain_mask_strict(const char* s, uint64_t* out_mask) {
+    if (!out_mask) return 0;
+    *out_mask = 0;
+    if (!s || !s[0]) return 1; // empty is allowed (caller decides semantics)
+
+    uint64_t mask = 0;
+    int saw_any = 0;
+    const char* cur = s;
+    while (*cur) {
+        while (*cur == ' ' || *cur == ',') cur++;
+        if (!*cur) break;
+
+        char* end = NULL;
+        unsigned long dom = strtoul(cur, &end, 10);
+        if (end == cur) return 0; // invalid token
+        // After the number, only space/comma/end is valid.
+        if (*end && *end != ' ' && *end != ',') return 0;
+
+        saw_any = 1;
+        mask |= (1ULL << (dom & 63));
+        cur = end;
+    }
+
+    if (!saw_any) return 0;
+    *out_mask = mask;
+    return 1;
 }
 
 static void parse_fs_allow_prefixes(AvmVM* vm, const char* s) {
@@ -969,11 +1201,22 @@ int main(int argc, char** argv) {
     const char* obc_path = NULL;
     const char* snap_in = NULL;
     const char* snap_out = NULL;
+    const char* allow_domains_cli = NULL;
+    const char* fs_allow_prefixes_cli = NULL;
+    int prog_args_start = -1;
+    int prog_argc = 0;
+    char** prog_argv = NULL;
     uint64_t step_limit = 0;
+    int verify_strict = 0;
+    int capsule = 0;
+    int deny_by_default = 0;
     int print_state_hash = 0;
     int print_result_hash = 0;
+    int print_trace_hash = 0;
     int print_policy = 0;
     int print_policy_json = 0;
+    int print_job = 0;
+    int print_job_json = 0;
     int print_record_log_hex = 0;
     int print_mem_stats = 0;
     int print_rss = 0;
@@ -989,6 +1232,10 @@ int main(int argc, char** argv) {
 
     int i = 1;
     while (i < argc) {
+        if (strcmp(argv[i], "--") == 0) {
+            prog_args_start = i + 1;
+            break;
+        }
         if (strcmp(argv[i], "--snapshot-in") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --snapshot-in\n"); return 1; }
             snap_in = argv[i + 1];
@@ -1017,6 +1264,11 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--print-trace-hash") == 0) {
+            print_trace_hash = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--print-record-log-hex") == 0) {
             print_record_log_hex = 1;
             i += 1;
@@ -1040,6 +1292,43 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--print-policy-json") == 0) {
             print_policy_json = 1;
             i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--print-job") == 0) {
+            print_job = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--print-job-json") == 0) {
+            print_job_json = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--verify-strict") == 0) {
+            verify_strict = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--capsule") == 0 || strcmp(argv[i], "--untrusted") == 0) {
+            capsule = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--deny-by-default") == 0) {
+            deny_by_default = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--allow-domains") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --allow-domains\n"); return 1; }
+            allow_domains_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--fs-allow-prefixes") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --fs-allow-prefixes\n"); return 1; }
+            fs_allow_prefixes_cli = argv[i + 1];
+            i += 2;
             continue;
         }
         if (strcmp(argv[i], "--disasm") == 0) {
@@ -1102,9 +1391,13 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] <file.obc>\n");
+        printf("Usage: avm [--disasm|--disasm-consts] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] <file.obc> [-- arg1 arg2 ...]\n");
         free(break_pcs);
         return 1;
+    }
+    if (prog_args_start >= 0 && prog_args_start <= argc) {
+        prog_argc = argc - prog_args_start;
+        prog_argv = argv + prog_args_start;
     }
     if (repeat > 1 && (snap_in || snap_out)) {
         fprintf(stderr, "--repeat is not compatible with --snapshot-in/--snapshot-out (for now)\n");
@@ -1124,6 +1417,24 @@ int main(int argc, char** argv) {
     const char* verify_env = getenv("AVM_VERIFY");
     int verify = 1;
     if (verify_env && verify_env[0] == '0') verify = 0;
+
+    // Strict verification (rolling): reject legacy/native-bypass forms early.
+    // Enable with either CLI `--verify-strict` or `AVM_VERIFY_STRICT=1`.
+    const char* verify_strict_env = getenv("AVM_VERIFY_STRICT");
+    if (verify_strict_env && verify_strict_env[0] && verify_strict_env[0] != '0') verify_strict = 1;
+
+    // Capsule mode (rolling): safe defaults for running untrusted `.obc`.
+    // Enable with `--capsule` / `--untrusted` or `AVM_CAPSULE=1`.
+    const char* capsule_env = getenv("AVM_CAPSULE");
+    if (capsule_env && capsule_env[0] && capsule_env[0] != '0') capsule = 1;
+    if (capsule) {
+        verify_strict = 1;
+        deny_by_default = 1;
+    }
+
+    // Deny-by-default mode (rolling): when AVM_ALLOW_DOMAINS is unset/empty, deny all non-CORE domains.
+    const char* deny_env = getenv("AVM_DENY_BY_DEFAULT");
+    if (deny_env && deny_env[0] && deny_env[0] != '0') deny_by_default = 1;
 
     const char* record_env0 = getenv("AVM_RECORD_LOG");
     const char* replay_env0 = getenv("AVM_REPLAY_LOG");
@@ -1288,7 +1599,7 @@ int main(int argc, char** argv) {
         prog.const_count = n_consts;
 
         if (verify && iter == 0) {
-            VerifyResult vr = verify_program(&prog);
+            VerifyResult vr = verify_program(&prog, verify_strict);
             if (!vr.ok) {
                 fprintf(stderr, "AVM verify failed: %s\n", vr.msg);
                 free_constant_pool(consts, n_consts);
@@ -1297,7 +1608,7 @@ int main(int argc, char** argv) {
                 free(break_pcs);
                 return 1;
             }
-            if (print_policy || print_policy_json) {
+            if (print_policy || print_policy_json || print_job || print_job_json) {
                 uint64_t mask = 0;
                 PolicyOp* ops = NULL;
                 size_t ops_len = 0;
@@ -1309,8 +1620,244 @@ int main(int argc, char** argv) {
                     free(break_pcs);
                     return 1;
                 }
-                if (print_policy_json) {
-                    printf("{\"used_domains_mask\":\"0x%016llx\",\"ops\":[", (unsigned long long)mask);
+                uint8_t phash[32];
+                char phash_hex[65];
+                policy_hash_sha256(mask, ops, ops_len, phash);
+                avm_sha256_hex(phash, phash_hex);
+
+                if (print_job || print_job_json) {
+                    // program_hash: hash of the full .obc file bytes (including header)
+                    uint8_t prog_hash[32];
+                    char prog_hex[65];
+                    sha256_bytes(data, len, prog_hash);
+                    avm_sha256_hex(prog_hash, prog_hex);
+
+                    // input_hash: hash of explicit inputs (args + snapshot + replay log, if any)
+                    AvmSha256Ctx ih;
+                    avm_sha256_init(&ih);
+                    const uint8_t itag[8] = { 'A','V','M','I','N','P','0','1' };
+                    avm_sha256_update(&ih, itag, 8);
+
+                    // args (as passed after `--`)
+                    sha_u32_le(&ih, (uint32_t)prog_argc);
+                    for (int ai = 0; ai < prog_argc; ai++) {
+                        const char* s = prog_argv ? prog_argv[ai] : NULL;
+                        size_t sl = s ? strlen(s) : 0;
+                        sha_u32_le(&ih, (uint32_t)sl);
+                        if (s && sl > 0) avm_sha256_update(&ih, (const uint8_t*)s, sl);
+                    }
+
+                    // snapshot input (hash file contents)
+                    uint8_t snap_hash[32];
+                    int has_snap_hash = 0;
+                    if (snap_in && snap_in[0]) {
+                        size_t slen = 0;
+                        uint8_t* sdata = read_file(snap_in, &slen);
+                        if (sdata) {
+                            sha256_tagged_bytes8("AVMSNAP1", sdata, slen, snap_hash);
+                            has_snap_hash = 1;
+                            free(sdata);
+                        }
+                    }
+                    sha_u8(&ih, (uint8_t)(has_snap_hash ? 1 : 0));
+                    if (has_snap_hash) avm_sha256_update(&ih, snap_hash, 32);
+
+                    // replay log input (hash content if configured)
+                    uint8_t rlog_hash[32];
+                    int has_rlog_hash = 0;
+                    const char* replay_env = getenv("AVM_REPLAY_LOG");
+                    const char* replay_hex_env = getenv("AVM_REPLAY_LOG_HEX");
+                    if (replay_env && replay_env[0]) {
+                        size_t rlen = 0;
+                        uint8_t* rdata = read_file(replay_env, &rlen);
+                        if (rdata) {
+                            sha256_tagged_bytes8("AVMRLOG1", rdata, rlen, rlog_hash);
+                            has_rlog_hash = 1;
+                            free(rdata);
+                        }
+                    } else if (replay_hex_env && replay_hex_env[0]) {
+                        AvmBytes* b = bytes_from_hex(replay_hex_env);
+                        if (b) {
+                            sha256_tagged_bytes8("AVMRLOG1", b->data, (size_t)b->len, rlog_hash);
+                            has_rlog_hash = 1;
+                            free(b->data);
+                            free(b);
+                        }
+                    }
+                    sha_u8(&ih, (uint8_t)(has_rlog_hash ? 1 : 0));
+                    if (has_rlog_hash) avm_sha256_update(&ih, rlog_hash, 32);
+
+                    uint8_t input_hash[32];
+                    char input_hex[65];
+                    avm_sha256_final(&ih, input_hash);
+                    avm_sha256_hex(input_hash, input_hex);
+
+                    // execution context hash: bind budgets + capability allowlists + determinism knobs.
+                    AvmExecContext ectx;
+                    memset(&ectx, 0, sizeof(ectx));
+                    ectx.capsule = capsule ? 1 : 0;
+                    ectx.verify_strict = verify_strict ? 1 : 0;
+                    ectx.deny_by_default = deny_by_default ? 1 : 0;
+                    ectx.record_enabled = 0;
+                    ectx.replay_enabled = has_rlog_hash ? 1 : 0;
+                    ectx.snapshot_out_enabled = (snap_out && snap_out[0]) ? 1 : 0;
+                    ectx.record_sink_kind = 0;
+
+                    // record enabled if any record sink is configured (file or mem).
+                    const char* rec_env = getenv("AVM_RECORD_LOG");
+                    const char* rec_mem_env = getenv("AVM_RECORD_MEM");
+                    if ((rec_env && rec_env[0]) || (rec_mem_env && rec_mem_env[0] && rec_mem_env[0] != '0')) ectx.record_enabled = 1;
+                    if (rec_env && rec_env[0]) ectx.record_sink_kind = 1;
+                    else if (rec_mem_env && rec_mem_env[0] && rec_mem_env[0] != '0') ectx.record_sink_kind = 2;
+
+                    // deterministic knobs (from env; capsule does not force determinism)
+                    const char* det_env = getenv("AVM_DETERMINISTIC");
+                    if (det_env && det_env[0] && det_env[0] != '0') ectx.deterministic = 1;
+                    const char* t0_env = getenv("AVM_TIME_START_NS");
+                    if (t0_env && t0_env[0]) ectx.time_start_ns = strtoull(t0_env, NULL, 10);
+                    const char* step_env = getenv("AVM_TIME_STEP_NS");
+                    if (step_env && step_env[0]) ectx.time_step_ns = strtoull(step_env, NULL, 10);
+                    const char* seed_env = getenv("AVM_RNG_SEED");
+                    if (seed_env && seed_env[0]) ectx.rng_seed = strtoull(seed_env, NULL, 10);
+
+                    // budgets (effective): capsule applies defaults only if env is unset.
+                    const char* gas_env = getenv("AVM_GAS");
+                    const char* timeout_env = getenv("AVM_TIMEOUT_MS");
+                    const char* mem_env = getenv("AVM_MEM_BYTES");
+                    const char* io_env = getenv("AVM_IO_BYTES");
+                    const char* log_env = getenv("AVM_LOG_BYTES");
+
+                    if (gas_env && gas_env[0]) ectx.gas = strtoull(gas_env, NULL, 10);
+                    if (timeout_env && timeout_env[0]) ectx.timeout_ms = strtoull(timeout_env, NULL, 10);
+                    if (mem_env && mem_env[0]) ectx.mem_bytes = strtoull(mem_env, NULL, 10);
+                    if (io_env && io_env[0]) ectx.io_bytes = strtoull(io_env, NULL, 10);
+                    if (log_env && log_env[0]) ectx.log_bytes = strtoull(log_env, NULL, 10);
+                    if (capsule) {
+                        if ((!gas_env || !gas_env[0]) && ectx.gas == 0) ectx.gas = 5000000ull;
+                        if ((!timeout_env || !timeout_env[0]) && ectx.timeout_ms == 0) ectx.timeout_ms = 2000ull;
+                        if ((!mem_env || !mem_env[0]) && ectx.mem_bytes == 0) ectx.mem_bytes = 32ull * 1024ull * 1024ull;
+                        if ((!io_env || !io_env[0]) && ectx.io_bytes == 0) ectx.io_bytes = 1024ull * 1024ull;
+                        if ((!log_env || !log_env[0]) && ectx.log_bytes == 0) ectx.log_bytes = 1024ull * 1024ull;
+                    }
+
+                    // capability allowlist (effective): bind the *effective* mask.
+                    // If deny-by-default is enabled and allowlist is absent, default to CORE+EXIT.
+                    const char* domains_s = allow_domains_cli ? allow_domains_cli : getenv("AVM_ALLOW_DOMAINS");
+                    uint64_t parsed_mask = 0;
+                    if (!parse_domain_mask_strict(domains_s, &parsed_mask)) {
+                        fprintf(stderr, "Invalid allow domains list\n");
+                        free(ops);
+                        free_constant_pool(consts, n_consts);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    if (deny_by_default && (!domains_s || !domains_s[0])) ectx.allow_domains_mask = (1ULL << 0) | (1ULL << 6);
+                    else ectx.allow_domains_mask = parsed_mask;
+
+                    const char* fs_allow_s = fs_allow_prefixes_cli ? fs_allow_prefixes_cli : getenv("AVM_FS_ALLOW_PREFIXES");
+                    uint8_t ctx_hash[32];
+                    char ctx_hex[65];
+                    ctx_hash_sha256_v1(&ectx, fs_allow_s, ctx_hash);
+                    avm_sha256_hex(ctx_hash, ctx_hex);
+
+                    uint8_t job_hash[32];
+                    char job_hex[65];
+                    sha256_job_v2(prog_hash, phash, input_hash, ctx_hash, job_hash);
+                    avm_sha256_hex(job_hash, job_hex);
+
+                    if (print_job_json) {
+                        printf("{\"schema\":\"avm.job.v2\",\"job_hash_sha256\":\"%s\",\"program_hash_sha256\":\"%s\",\"input_hash_sha256\":\"%s\",\"exec_hash_sha256\":\"%s\",\"policy\":{",
+                            job_hex, prog_hex, input_hex, ctx_hex);
+                        printf("\"schema\":\"avm.policy.v1\",\"used_domains_mask\":\"0x%016llx\",\"policy_hash_sha256\":\"%s\",\"ops\":[",
+                            (unsigned long long)mask, phash_hex);
+                        for (size_t j = 0; j < ops_len; j++) {
+                            if (j) printf(",");
+                            printf("{\"domain\":%u,\"op\":%u}", (unsigned)ops[j].domain, (unsigned)ops[j].op);
+                        }
+                        printf("]}");
+
+                        // inputs section (explicit inputs only)
+                        printf(",\"inputs\":{\"args\":[");
+                        for (int ai = 0; ai < prog_argc; ai++) {
+                            if (ai) printf(",");
+                            const char* s = prog_argv ? prog_argv[ai] : "";
+                            // Minimal JSON escaping (quotes + backslash)
+                            printf("\"");
+                            for (const char* p = s; *p; p++) {
+                                if (*p == '\\' || *p == '\"') { printf("\\\\%c", *p); }
+                                else if (*p == '\n') { printf("\\\\n"); }
+                                else if (*p == '\r') { printf("\\\\r"); }
+                                else if (*p == '\t') { printf("\\\\t"); }
+                                else { printf("%c", *p); }
+                            }
+                            printf("\"");
+                        }
+                        printf("]");
+                        if (has_snap_hash) {
+                            char sh[65];
+                            avm_sha256_hex(snap_hash, sh);
+                            printf(",\"snapshot_in_sha256\":\"%s\"", sh);
+                        }
+                        if (has_rlog_hash) {
+                            char rh[65];
+                            avm_sha256_hex(rlog_hash, rh);
+                            printf(",\"replay_log_sha256\":\"%s\"", rh);
+                        }
+                        printf("}");
+
+                        // execution context (bound by exec_hash_sha256)
+                        printf(",\"exec\":{");
+                        printf("\"capsule\":%s", ectx.capsule ? "true" : "false");
+                        printf(",\"verify_strict\":%s", ectx.verify_strict ? "true" : "false");
+                        printf(",\"deny_by_default\":%s", ectx.deny_by_default ? "true" : "false");
+                        printf(",\"record_enabled\":%s", ectx.record_enabled ? "true" : "false");
+                        if (ectx.record_sink_kind == 1) printf(",\"record_sink\":\"file\"");
+                        else if (ectx.record_sink_kind == 2) printf(",\"record_sink\":\"mem\"");
+                        else printf(",\"record_sink\":\"none\"");
+                        printf(",\"replay_enabled\":%s", ectx.replay_enabled ? "true" : "false");
+                        printf(",\"snapshot_out_enabled\":%s", ectx.snapshot_out_enabled ? "true" : "false");
+                        printf(",\"allow_domains_mask\":\"0x%016llx\"", (unsigned long long)ectx.allow_domains_mask);
+                        if (fs_allow_s && fs_allow_s[0]) {
+                            // raw string for now (rolling); hash uses normalized tokenization.
+                            printf(",\"fs_allow_prefixes\":\"");
+                            for (const char* p = fs_allow_s; *p; p++) {
+                                if (*p == '\\' || *p == '\"') { printf("\\\\%c", *p); }
+                                else if (*p == '\n') { printf("\\\\n"); }
+                                else if (*p == '\r') { printf("\\\\r"); }
+                                else if (*p == '\t') { printf("\\\\t"); }
+                                else { printf("%c", *p); }
+                            }
+                            printf("\"");
+                        }
+                        printf(",\"budgets\":{\"gas\":%llu,\"timeout_ms\":%llu,\"mem_bytes\":%llu,\"io_bytes\":%llu,\"log_bytes\":%llu}",
+                            (unsigned long long)ectx.gas,
+                            (unsigned long long)ectx.timeout_ms,
+                            (unsigned long long)ectx.mem_bytes,
+                            (unsigned long long)ectx.io_bytes,
+                            (unsigned long long)ectx.log_bytes);
+                        printf(",\"deterministic\":{\"enabled\":%s,\"time_start_ns\":%llu,\"time_step_ns\":%llu,\"rng_seed\":%llu}",
+                            ectx.deterministic ? "true" : "false",
+                            (unsigned long long)ectx.time_start_ns,
+                            (unsigned long long)ectx.time_step_ns,
+                            (unsigned long long)ectx.rng_seed);
+                        printf("}");
+                        printf("}\n");
+                    } else {
+                        printf("JOB_HASH_SHA256 %s\n", job_hex);
+                        printf("PROGRAM_HASH_SHA256 %s\n", prog_hex);
+                        printf("INPUT_HASH_SHA256 %s\n", input_hex);
+                        printf("EXEC_HASH_SHA256 %s\n", ctx_hex);
+                        printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)mask);
+                        printf("POLICY_HASH_SHA256 %s\n", phash_hex);
+                        for (size_t j = 0; j < ops_len; j++) {
+                            printf("POLICY_USED_OP domain=%u op=%u\n", (unsigned)ops[j].domain, (unsigned)ops[j].op);
+                        }
+                    }
+                } else if (print_policy_json) {
+                    printf("{\"schema\":\"avm.policy.v1\",\"used_domains_mask\":\"0x%016llx\",\"policy_hash_sha256\":\"%s\",\"ops\":[",
+                        (unsigned long long)mask, phash_hex);
                     for (size_t i = 0; i < ops_len; i++) {
                         if (i) printf(",");
                         printf("{\"domain\":%u,\"op\":%u}", (unsigned)ops[i].domain, (unsigned)ops[i].op);
@@ -1318,6 +1865,7 @@ int main(int argc, char** argv) {
                     printf("]}\n");
                 } else {
                     printf("POLICY_USED_DOMAINS_MASK 0x%016llx\n", (unsigned long long)mask);
+                    printf("POLICY_HASH_SHA256 %s\n", phash_hex);
                     for (size_t i = 0; i < ops_len; i++) {
                         printf("POLICY_USED_OP domain=%u op=%u\n", (unsigned)ops[i].domain, (unsigned)ops[i].op);
                     }
@@ -1345,12 +1893,17 @@ int main(int argc, char** argv) {
         }
 
         AvmVM* vm = avm_new();
-        vm->argc = argc - 1;
-        vm->argv = argv + 1;
+        vm->argc = prog_argc;
+        vm->argv = prog_argv;
         if (trace) {
             vm->trace_enabled = 1;
             vm->trace_limit = trace_limit;
             vm->trace_out = stderr;
+        }
+        if (print_trace_hash) {
+            vm->trace_hash_enabled = 1;
+            // Reuse --trace-limit as a generic step limit for trace hashing if provided.
+            vm->trace_hash_limit = trace_limit;
         }
         if (break_pc_count > 0) {
             if (repeat == 1) {
@@ -1541,7 +2094,7 @@ int main(int argc, char** argv) {
         const char* seed_env = getenv("AVM_RNG_SEED");
         if (seed_env && seed_env[0]) vm->rng_state = strtoull(seed_env, NULL, 10);
 
-    // Budgets/timeouts (macOS-first, rolling ABI):
+        // Budgets/timeouts (macOS-first, rolling ABI):
     // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
     // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)
     // - AVM_MEM_BYTES: heap budget for AVM heap objects (0/unset = unlimited)
@@ -1562,13 +2115,41 @@ int main(int argc, char** argv) {
     const char* log_env = getenv("AVM_LOG_BYTES");
     if (log_env && log_env[0]) vm->log_budget_bytes = strtoull(log_env, NULL, 10);
 
+        // Capsule defaults (rolling): apply safe budgets unless explicitly overridden by env.
+        // These defaults are intentionally conservative and may evolve while the repo is rolling.
+        if (capsule) {
+            if ((!gas_env || !gas_env[0]) && vm->gas_remaining == 0) vm->gas_remaining = 5000000ull;
+            if ((!timeout_env || !timeout_env[0]) && vm->deadline_ns == 0) {
+                uint64_t base = now_ns();
+                if (base != 0) vm->deadline_ns = base + 2000ull * 1000000ull; // 2000ms
+            }
+            if ((!mem_env || !mem_env[0]) && vm->heap_budget_bytes == 0) vm->heap_budget_bytes = 32ull * 1024ull * 1024ull; // 32 MiB
+            if ((!io_env || !io_env[0]) && vm->io_budget_bytes == 0) vm->io_budget_bytes = 1024ull * 1024ull; // 1 MiB
+            if ((!log_env || !log_env[0]) && vm->log_budget_bytes == 0) vm->log_budget_bytes = 1024ull * 1024ull; // 1 MiB
+        }
+
         // Capability enforcement (rolling ABI):
         // - AVM_ALLOW_DOMAINS: comma-separated domain integers (e.g. "0,1"). Unset/empty means allow all.
         // - AVM_FS_ALLOW_PREFIXES: comma-separated path prefixes; if set, FS paths must start with an allowed prefix.
-        const char* domains_env = getenv("AVM_ALLOW_DOMAINS");
-        vm->allowed_native_domains = parse_domain_mask(domains_env);
-        const char* fs_allow_env = getenv("AVM_FS_ALLOW_PREFIXES");
-        parse_fs_allow_prefixes(vm, fs_allow_env);
+        const char* domains_s = allow_domains_cli ? allow_domains_cli : getenv("AVM_ALLOW_DOMAINS");
+        uint64_t parsed_mask = 0;
+        if (!parse_domain_mask_strict(domains_s, &parsed_mask)) {
+            fprintf(stderr, "Invalid allow domains list\n");
+            avm_free(vm);
+            free_constant_pool(consts, n_consts);
+            free(consts);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
+        if (deny_by_default && (!domains_s || !domains_s[0])) {
+            // Minimal safe set: CORE (0) + EXIT (6).
+            vm->allowed_native_domains = (1ULL << 0) | (1ULL << 6);
+        } else {
+            vm->allowed_native_domains = parsed_mask;
+        }
+        const char* fs_allow_s = fs_allow_prefixes_cli ? fs_allow_prefixes_cli : getenv("AVM_FS_ALLOW_PREFIXES");
+        parse_fs_allow_prefixes(vm, fs_allow_s);
 
         avm_load(vm, &prog);
 
@@ -1607,6 +2188,17 @@ int main(int argc, char** argv) {
                 printf("RESULT_HASH %s\n", hex);
             } else {
                 printf("RESULT_HASH_ERROR\n");
+            }
+        }
+
+        if (print_trace_hash) {
+            uint8_t hash[32];
+            if (avm_trace_hash(vm, hash)) {
+                char hex[65];
+                avm_sha256_hex(hash, hex);
+                printf("TRACE_HASH %s\n", hex);
+            } else {
+                printf("TRACE_HASH_ERROR\n");
             }
         }
 

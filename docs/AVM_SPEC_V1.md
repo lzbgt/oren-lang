@@ -240,14 +240,15 @@ Current rolling assignments (subject to change):
 - `2`: TIME
 - `3`: RNG / CRYPTO
 - `4`: NET
-- `5`: PROC
-- `6`: SIMD (side-effect free vector kernels)
+- `5`: PROC (subprocess / shell)
+- `6`: EXIT (terminate the VM)
 - `7`: ENV
+- `9`: SIMD (side-effect free vector kernels) (planned)
 
 Bootstrap status (rolling, implementation reality):
 
 - `oren_system(cmd)` is treated as a **PROC** operation (domain `5`, op `0`) in the bytecode backend.
-- `oren_exit(code)` is treated as a **PROC** operation (domain `5`, op `1`) in the bytecode backend.
+- `oren_exit(code)` is treated as an **EXIT** operation (domain `6`, op `0`) in the bytecode backend.
 - `oren_env(name)` is treated as an **ENV** operation (domain `7`, op `0`) in the bytecode backend.
 - Legacy flat native IDs still exist for bootstrap compatibility, but effectful calls should move behind capability domains (PROC/FS/…).
 
