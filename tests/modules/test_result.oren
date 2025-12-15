@@ -1,0 +1,13 @@
+import r "../../lib/std/result.oren"
+
+var v = oren_read_file("__definitely_not_a_real_file__.txt")
+var s = r.unwrap_or(v, "fallback")
+
+if s == "fallback" {
+    print("Result OK")
+    exit(0)
+}
+
+print("Result FAIL")
+exit(1)
+

@@ -1,0 +1,13 @@
+fn main() {
+    // When FS capability is denied, the VM should return a structured error.
+    // Expected PERM == 1 (rolling convention).
+    var v = oren_read_file("some_file_that_might_or_might_not_exist.txt")
+    var code = oren_err_code(v)
+    if code != 1 {
+        oren_exit(1)
+    }
+    print("avm capability deny ok")
+}
+
+main()
+

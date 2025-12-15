@@ -93,6 +93,12 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 16. oren_bytes_from_string
 17. oren_write_bytes
 18. oren_read_bytes
+19. oren_err
+20. oren_is_err
+21. oren_err_code
+22. oren_err_msg
+23. oren_set_result
+24. oren_get_result
 
 ## Implementation Strategy
 1. `libavm` (C Library): Core VM loop, stack management, loader.
@@ -102,6 +108,9 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 ## Known Limitations (Bootstrap v0.1)
 
 - **Capability model is still evolving:** host calls support both a flat numeric ID table (`CALL_NATIVE`) and a domain/op model (`CALL_NATIVE2`); next-gen direction is specified in `docs/AVM_SPEC_V1.md`.
-- **No metering:** no CPU/memory/time accounting per program yet.
+- **Verifier is minimal (rolling):** `avm` performs a basic bytecode verification pass (operand bounds, jump target bounds, stack underflow checks) and will reject malformed `.obc` early. This verifier is not yet a full formal proof of correctness.
+- **Hashing is rolling:** `avm` can compute deterministic `STATE_HASH` and `RESULT_HASH` (SHA-256) for swarm-style k-of-n validation; these are not yet stability-promised formats.
+- **Metering is partial:** instruction “gas” and wall-time deadlines are enforced, but memory and IO budgets are not yet implemented.
+- **Snapshot format is rolling:** AVM supports snapshot/restore for core types, but the file format is intentionally unstable while the repo is rolling.
 - **Heap is malloc-based:** no tracing GC; long-running programs can leak unless the host reclaims per-run.
 - **Numeric model is minimal:** only a subset of operators/constant types are encoded today.

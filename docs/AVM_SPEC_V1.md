@@ -277,6 +277,11 @@ Define a serialization format for:
 - heap objects (strings/bytes/buffers/lists/maps)
 - program counter and call frames
 
+Bootstrap status (rolling):
+
+- `avm` supports a minimal snapshot/restore for `Nil/Int/Float/Bool/String/List/Map` to enable “pause and resume” workflows and future agent mobility.
+- Snapshot files are intentionally marked rolling/unstable until a stability milestone is declared.
+
 ### 5.2 Deterministic execution mode
 
 Add an optional “deterministic mode” to:

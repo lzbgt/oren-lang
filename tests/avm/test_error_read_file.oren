@@ -1,0 +1,12 @@
+fn main() {
+    var v = oren_read_file("__definitely_not_a_real_file__.txt")
+    var code = oren_err_code(v)
+    if code != 2 {
+        // Expected NOT_FOUND == 2 (rolling convention).
+        oren_exit(1)
+    }
+    print("avm error ok")
+}
+
+main()
+

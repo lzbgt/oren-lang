@@ -6,6 +6,7 @@
 
 #define MAX_GLOBALS 256
 #define MAX_FRAMES 65536
+#define AVM_STACK_SIZE 16777216
 
 typedef enum {
     AVM_VAL_NIL = 0,
@@ -71,6 +72,29 @@ typedef struct {
     // Capability model (rolling/unstable): bitmask of allowed native domains.
     // If zero, treat as "allow all" for now.
     uint64_t allowed_native_domains;
+
+    // FS allow-list (rolling): if empty, allow all. If non-empty, path must start with one of these prefixes.
+    char** fs_allow_prefixes;
+    int fs_allow_prefix_count;
+
+    // Execution budgets (rolling): 0 means "no limit".
+    uint64_t gas_remaining;
+    uint64_t deadline_ns;
+    int cancelled;
+
+    // Abort / error reporting (rolling): on budget/capability violations, last_error is set.
+    AvmValue last_error;
+    int exit_code;
+
+    // Result selection (rolling): consensus jobs should set an explicit result value.
+    // If has_result_value==0, the result is treated as nil.
+    int has_result_value;
+    AvmValue result_value;
+
+    // Cooperative pause (rolling): stop execution after N interpreter steps (not an error).
+    // Used to support snapshot/resume workflows.
+    uint64_t pause_after_steps;
+    int paused;
     
     int argc;
     char** argv;
@@ -80,5 +104,16 @@ AvmVM* avm_new();
 void avm_free(AvmVM* vm);
 void avm_load(AvmVM* vm, AvmProgram* prog);
 void avm_run(AvmVM* vm);
+
+// Snapshot/restore (rolling; file format subject to change while repo is rolling).
+// Snapshot does NOT include program code; restore expects vm->prog already loaded.
+int avm_snapshot(AvmVM* vm, const char* path);
+int avm_restore(AvmVM* vm, const char* path);
+
+// Deterministic state hash (rolling): hashes heap + globals + stack + control state.
+int avm_state_hash(AvmVM* vm, uint8_t out[32]);
+
+// Deterministic result hash (rolling): hashes exit_code plus (ok -> selected result, err -> last_error).
+int avm_result_hash(AvmVM* vm, uint8_t out[32]);
 
 #endif

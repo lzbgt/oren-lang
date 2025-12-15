@@ -1,0 +1,17 @@
+fn main() {
+    // Explicitly select a result value for consensus hashing.
+    // This should be deterministic across runs.
+    var xs = []
+    oren_list_push(xs, 7)
+    oren_list_push(xs, 8)
+    oren_list_push(xs, 9)
+
+    var m = {"a": 10, "b": 20}
+    m["b"] = 21
+
+    // Choose a compound result so hashing covers heap graph + canonical map ordering.
+    oren_set_result({"xs": xs, "m": m})
+}
+
+main()
+

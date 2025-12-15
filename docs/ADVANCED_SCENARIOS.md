@@ -47,4 +47,8 @@ See also:
 *   **The Oren Solution:** **Deterministic Execution.**
     *   **Mechanism:** Because Oren execution is deterministic (no undefined behavior), multiple agents can run the exact same `proposal.oren` script.
     *   **Scenario:** A swarm needs to agree on a resource allocation. They exchange the logic script. Each agent runs it locally. If the output hashes match, consensus is reached.
-    *   **Impact:** A lightweight, trustless coordination layer for multi-agent systems.
+*   **Impact:** A lightweight, trustless coordination layer for multi-agent systems.
+
+Design validation and a concrete path to implementation:
+
+- `docs/AVM_SWARM_CONSENSUS.md`

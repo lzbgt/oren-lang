@@ -36,6 +36,10 @@ Requirements:
   - provide a “single-thread deterministic” baseline first
   - when coroutines land, define a deterministic scheduler mode (or record/replay scheduling)
 
+Swarm implication:
+
+- deterministic mode is the substrate for “k-of-n verification” and swarm consensus on result/state hashes (see `docs/AVM_SWARM_CONSENSUS.md`).
+
 ### 1.2 Snapshot / restore (resumability)
 
 Requirements:
@@ -189,4 +193,3 @@ This ordering is chosen to unlock “agent-grade” behavior early without requi
 - Syscall-first runtime plan: `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
 - Language spec: `docs/LANGUAGE_SPEC.md`
 - Concurrency model: `docs/CONCURRENCY_MODEL.md`
-

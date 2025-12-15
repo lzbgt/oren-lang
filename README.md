@@ -95,10 +95,4 @@ Individual examples:
 - **macOS signing:** the compiler attempts to codesign outputs (configured Developer ID, with ad-hoc fallback); see `docs/CODESIGN.md`.
 
 ## Docs
-- `docs/BUILD_AND_VERIFY.md` build + verification
-- `docs/SELF_HOSTING.md` self-hosting chain details
-- `docs/C_BACKEND.md` C backend behavior
-- `docs/NATIVE_BACKEND.md` native ARM64 backend
-- `docs/LANGUAGE_SPEC.md` language syntax/semantics
-- `docs/CODESIGN.md` macOS codesign/notarize flags
-- `docs/ROADMAP.md` roadmap
+- `docs/README.md` the starting point

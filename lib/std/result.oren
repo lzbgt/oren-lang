@@ -1,0 +1,39 @@
+// Minimal Result-style helpers for the rolling structured-error convention.
+//
+// Convention:
+// - success: any non-error value
+// - error: map {"__err": true, "code": int, "msg": string}
+
+fn is_err(v) {
+    return oren_is_err(v)
+}
+
+fn is_ok(v) {
+    if oren_is_err(v) { return false }
+    return true
+}
+
+fn unwrap(v) {
+    if oren_is_err(v) {
+        var msg = oren_err_msg(v)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
+    return v
+}
+
+fn unwrap_or(v, default_value) {
+    if oren_is_err(v) { return default_value }
+    return v
+}
+
+fn expect(v, message) {
+    if oren_is_err(v) {
+        if message != nil { print(message) }
+        var msg = oren_err_msg(v)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
+    return v
+}
+

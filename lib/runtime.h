@@ -26,6 +26,18 @@ typedef enum {
     OREN_TYPE_MAP
 } OrenType;
 
+// Stable error codes (rolling ABI; subject to refinement, but keep numbers stable once used).
+// Convention: 0 == "no error"; non-zero indicates failure.
+#define OREN_ERR_PERM 1
+#define OREN_ERR_NOT_FOUND 2
+#define OREN_ERR_IO 3
+#define OREN_ERR_INVALID_ARG 4
+#define OREN_ERR_TIMEOUT 5
+#define OREN_ERR_CANCELLED 6
+#define OREN_ERR_NOT_IMPLEMENTED 7
+#define OREN_ERR_INTERNAL 8
+#define OREN_ERR_BUDGET 9
+
 struct OrenList;
 struct OrenMap;
 
@@ -137,6 +149,17 @@ OrenValue oren_read_bytes(OrenValue path);
 OrenValue oren_bytes_from_string(OrenValue s);
 OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length);
 OrenValue oren_env(OrenValue name);
+
+// Structured errors (currently represented as a map: {"__err": true, "code": int, "msg": string})
+OrenValue oren_err(OrenValue code, OrenValue msg);
+OrenValue oren_is_err(OrenValue v);
+OrenValue oren_err_code(OrenValue v);
+OrenValue oren_err_msg(OrenValue v);
+
+// Result selection (rolling): allows a program/library to publish an explicit “result value”
+// for consensus hashing / tooling. Backends are expected to treat this as optional.
+OrenValue oren_set_result(OrenValue v);
+OrenValue oren_get_result();
 void oren_free(OrenValue v);
 uint64_t oren_alloc_struct(size_t bytes);
 void oren_free_struct(uint64_t ptr);

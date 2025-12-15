@@ -1,0 +1,9 @@
+fn main() {
+    // Intentionally infinite loop; AVM_GAS should stop this safely.
+    while 1 {
+        // no-op
+    }
+}
+
+main()
+

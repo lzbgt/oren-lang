@@ -107,6 +107,12 @@ fn load_module(base, path) {
     oren_list_push(MODULE_STACK, full)
 
     var src = oren_read_file(full)
+    if oren_is_err(src) {
+        print("Failed to read file: " + full)
+        var msg = oren_err_msg(src)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
     var l = lexer.new_lexer(src)
     var p = parser.new_parser(l)
     var prog = parser.parse_program(p)
@@ -302,6 +308,12 @@ fn compiler_main() {
             return nil
         }
         var content = oren_read_file(nm_out)
+        if oren_is_err(content) {
+            print("Scan failed (cannot read nm output): " + nm_out)
+            var msg = oren_err_msg(content)
+            if msg != nil { print(msg) }
+            return nil
+        }
         var len = oren_string_len(content)
         var idx = 0
         
@@ -476,6 +488,12 @@ fn compiler_main() {
     }
 
     var src = oren_read_file(path)
+    if oren_is_err(src) {
+        print("Failed to read file: " + path)
+        var msg = oren_err_msg(src)
+        if msg != nil { print(msg) }
+        return nil
+    }
     var l = lexer.new_lexer(src)
     var p = parser.new_parser(l)
     var prog = parser.parse_program(p)
@@ -641,14 +659,26 @@ fn compiler_main() {
                 si = si + 1
             }
             h_content = h_content + "\n#ifdef __cplusplus\n}\n#endif\n\n#endif\n"
-            oren_write_file(header_path, h_content)
+            var w = oren_write_file(header_path, h_content)
+            if oren_is_err(w) {
+                print("Failed to write header: " + header_path)
+                var msg = oren_err_msg(w)
+                if msg != nil { print(msg) }
+                oren_exit(1)
+            }
             print("Wrote header: " + header_path)
         }
         
         if emit_meta {
             var meta_json = metadata.generate_metadata(linked)
             var meta_path = out_path + ".meta.json"
-            oren_write_file(meta_path, meta_json)
+            var w2 = oren_write_file(meta_path, meta_json)
+            if oren_is_err(w2) {
+                print("Failed to write metadata: " + meta_path)
+                var msg2 = oren_err_msg(w2)
+                if msg2 != nil { print(msg2) }
+                oren_exit(1)
+            }
             print("Wrote metadata: " + meta_path)
         }
 
@@ -690,7 +720,13 @@ fn compiler_main() {
     var linked_c = link_program(path, prog)
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     var c_path = path + ".c"
-    oren_write_file(c_path, c_code)
+    var w3 = oren_write_file(c_path, c_code)
+    if oren_is_err(w3) {
+        print("Failed to write C output: " + c_path)
+        var msg3 = oren_err_msg(w3)
+        if msg3 != nil { print(msg3) }
+        oren_exit(1)
+    }
     if emit_c {
         print("Wrote " + c_path)
         return nil

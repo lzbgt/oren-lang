@@ -9,6 +9,7 @@ OrenValue OREN_NIL;
 OrenValue OREN_TRUE;
 OrenValue OREN_FALSE;
 static OrenList *OREN_ARG_LIST = NULL;
+static OrenValue OREN_RESULT_VALUE;
 
 typedef enum {
     OREN_ALLOC_STRING = 1,
@@ -622,12 +623,25 @@ OrenValue oren_args() {
     return v;
 }
 
+OrenValue oren_set_result(OrenValue v) {
+    OREN_RESULT_VALUE = v;
+    return v;
+}
+
+OrenValue oren_get_result() {
+    return OREN_RESULT_VALUE;
+}
+
 void oren_init(int argc, char **argv) {
     OREN_NIL.type = OREN_TYPE_NIL;
     OREN_TRUE.type = OREN_TYPE_BOOL;
     OREN_TRUE.as.bool_val = 1;
     OREN_FALSE.type = OREN_TYPE_BOOL;
     OREN_FALSE.as.bool_val = 0;
+
+    // Result selection is part of the agentic tooling surface; keep it GC-live as a root.
+    OREN_RESULT_VALUE = OREN_NIL;
+    oren_register_root(&OREN_RESULT_VALUE);
 
     oren_store_args(argc, argv);
     // Register the main thread for GC safepoint accounting.
@@ -1427,6 +1441,57 @@ OrenValue oren_char(OrenValue code) {
     return oren_string(buf);
 }
 
+static OrenValue oren_string_const(const char* s) {
+    OrenValue v;
+    v.type = OREN_TYPE_STRING;
+    v.as.string_val = (char*)s;
+    return v;
+}
+
+OrenValue oren_err(OrenValue code, OrenValue msg) {
+    if (code.type != OREN_TYPE_INT || msg.type != OREN_TYPE_STRING) {
+        oren_panic("oren_err expects (int, string)");
+        return OREN_NIL; // Should not be reached
+    }
+    return oren_new_map(
+        3,
+        oren_string_const("__err"), OREN_TRUE,
+        oren_string_const("code"), code,
+        oren_string_const("msg"), msg
+    );
+}
+
+OrenValue oren_is_err(OrenValue v) {
+    if (v.type != OREN_TYPE_MAP) return OREN_FALSE;
+    OrenValue marker = oren_map_get(v, oren_string_const("__err"));
+    return oren_bool(oren_is_truthy(marker));
+}
+
+OrenValue oren_err_code(OrenValue v) {
+    if (!oren_is_err(v).as.bool_val) return oren_int(-1);
+    OrenValue code = oren_map_get(v, oren_string_const("code"));
+    if (code.type != OREN_TYPE_INT) return oren_int(-1);
+    return code;
+}
+
+OrenValue oren_err_msg(OrenValue v) {
+    if (!oren_is_err(v).as.bool_val) return OREN_NIL;
+    OrenValue msg = oren_map_get(v, oren_string_const("msg"));
+    if (msg.type != OREN_TYPE_STRING) return OREN_NIL;
+    return msg;
+}
+
+static OrenValue oren_err_from_errno(const char* action, const char* path, int err) {
+    int code = OREN_ERR_IO;
+    if (err == EACCES || err == EPERM) code = OREN_ERR_PERM;
+    else if (err == ENOENT) code = OREN_ERR_NOT_FOUND;
+
+    char buf[512];
+    if (path) snprintf(buf, sizeof(buf), "%s: %s (errno=%d)", action, path, err);
+    else snprintf(buf, sizeof(buf), "%s (errno=%d)", action, err);
+    return oren_err(oren_int(code), oren_string(buf));
+}
+
 OrenValue oren_read_file(OrenValue path) {
     if (path.type != OREN_TYPE_STRING) {
         oren_panic("read_file expects string path");
@@ -1434,18 +1499,26 @@ OrenValue oren_read_file(OrenValue path) {
     }
     FILE *f = fopen(path.as.string_val, "rb");
     if (!f) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "cannot open file %s", path.as.string_val);
-        oren_panic(buf);
-        return OREN_NIL; // Should not be reached
+        return oren_err_from_errno("cannot open file", path.as.string_val, errno);
     }
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
+    if (size < 0) {
+        fclose(f);
+        return oren_err_from_errno("cannot stat file", path.as.string_val, errno);
+    }
     char *buf = malloc(size + 1);
-    fread(buf, 1, size, f);
+    if (!buf) {
+        fclose(f);
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("out of memory"));
+    }
+    size_t n = fread(buf, 1, (size_t)size, f);
     buf[size] = '\0';
     fclose(f);
+    if (n != (size_t)size) {
+        return oren_err_from_errno("cannot read file", path.as.string_val, errno);
+    }
     return oren_string(buf);
 }
 
@@ -1456,42 +1529,40 @@ OrenValue oren_write_file(OrenValue path, OrenValue content) {
     }
     FILE *f = fopen(path.as.string_val, "wb");
     if (!f) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "cannot open file for write %s", path.as.string_val);
-        oren_panic(buf);
-        return OREN_NIL; // Should not be reached
+        return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
     }
-    fwrite(content.as.string_val, 1, strlen(content.as.string_val), f);
+    size_t len = strlen(content.as.string_val);
+    size_t n = fwrite(content.as.string_val, 1, len, f);
     fclose(f);
+    if (n != len) {
+        return oren_err_from_errno("cannot write file", path.as.string_val, errno);
+    }
     return OREN_NIL;
 }
 
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
     if (path.type != OREN_TYPE_STRING || bytes.type != OREN_TYPE_LIST) {
-        oren_panic("write_bytes expects (string, list)");
-        return OREN_NIL; // Should not be reached
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects (string, list<int>)"));
     }
     FILE *f = fopen(path.as.string_val, "wb");
     if (!f) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "cannot open file for write %s", path.as.string_val);
-        oren_panic(buf);
-        return OREN_NIL; // Should not be reached
+        return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
     }
     for (int i = 0; i < bytes.as.list_val->count; i++) {
         OrenValue b = bytes.as.list_val->items[i];
         if (b.type != OREN_TYPE_INT) {
-            oren_panic("write_bytes expects list of ints");
-            return OREN_NIL; // Should not be reached
+            fclose(f);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects list of ints"));
         }
         long long v = b.as.int_val;
         if (v < 0 || v > 255) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "write_bytes byte out of range (val=%lld)", v);
-            oren_panic(buf);
-            return OREN_NIL; // Should not be reached
+            fclose(f);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes byte out of range"));
         }
-        fputc((unsigned char)v, f);
+        if (fputc((unsigned char)v, f) == EOF) {
+            fclose(f);
+            return oren_err_from_errno("cannot write bytes", path.as.string_val, errno);
+        }
     }
     fclose(f);
     return OREN_NIL;
@@ -1505,34 +1576,27 @@ OrenValue oren_read_bytes(OrenValue path) {
 
     FILE *f = fopen(path.as.string_val, "rb");
     if (!f) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "cannot open file %s", path.as.string_val);
-        oren_panic(buf);
-        return OREN_NIL; // Should not be reached
+        return oren_err_from_errno("cannot open file", path.as.string_val, errno);
     }
 
     if (fseek(f, 0, SEEK_END) != 0) {
         fclose(f);
-        oren_panic("read_bytes: fseek failed");
-        return OREN_NIL; // Should not be reached
+        return oren_err_from_errno("read_bytes: fseek failed", path.as.string_val, errno);
     }
     long size_long = ftell(f);
     if (size_long < 0) {
         fclose(f);
-        oren_panic("read_bytes: ftell failed");
-        return OREN_NIL; // Should not be reached
+        return oren_err_from_errno("read_bytes: ftell failed", path.as.string_val, errno);
     }
     if (fseek(f, 0, SEEK_SET) != 0) {
         fclose(f);
-        oren_panic("read_bytes: fseek failed");
-        return OREN_NIL; // Should not be reached
+        return oren_err_from_errno("read_bytes: fseek failed", path.as.string_val, errno);
     }
 
     // Oren lists use int counts; reject files too large for the current runtime representation.
     if (size_long > (long)INT32_MAX) {
         fclose(f);
-        oren_panic("read_bytes: file too large");
-        return OREN_NIL; // Should not be reached
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("read_bytes: file too large"));
     }
 
     int size = (int)size_long;
@@ -1542,15 +1606,13 @@ OrenValue oren_read_bytes(OrenValue path) {
         buf = (unsigned char*)malloc((size_t)size);
         if (!buf) {
             fclose(f);
-            oren_panic("read_bytes: alloc failed");
-            return OREN_NIL; // Should not be reached
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
         }
         size_t nread = fread(buf, 1, (size_t)size, f);
         if ((int)nread != size) {
             free(buf);
             fclose(f);
-            oren_panic("read_bytes: short read");
-            return OREN_NIL; // Should not be reached
+            return oren_err_from_errno("read_bytes: short read", path.as.string_val, errno);
         }
     }
 
@@ -1561,8 +1623,7 @@ OrenValue oren_read_bytes(OrenValue path) {
     if (!list) {
         unlock_collections();
         free(buf);
-        oren_panic("read_bytes: alloc failed");
-        return OREN_NIL; // Should not be reached
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
     }
     oren_register_alloc(list, OREN_ALLOC_LIST);
 
@@ -1574,8 +1635,7 @@ OrenValue oren_read_bytes(OrenValue path) {
         if (!list->items) {
             unlock_collections();
             free(buf);
-            oren_panic("read_bytes: alloc failed");
-            return OREN_NIL; // Should not be reached
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
         }
         for (int i = 0; i < size; i++) {
             list->items[i] = oren_int((unsigned char)buf[i]);

@@ -1,0 +1,18 @@
+fn main() {
+    // Pure deterministic state construction: list + map with fixed keys.
+    var xs = []
+    oren_list_push(xs, 1)
+    oren_list_push(xs, 2)
+    oren_list_push(xs, 3)
+
+    var m = {"a": 10, "b": 20, "c": 30}
+    // Mutate deterministically
+    m["b"] = 21
+
+    // Use values so they stay live.
+    if oren_list_len(xs) != 3 { oren_exit(1) }
+    if m["b"] != 21 { oren_exit(1) }
+}
+
+main()
+

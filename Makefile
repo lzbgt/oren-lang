@@ -96,6 +96,51 @@ test: oren
 	@$(RUN_WITH_TIMEOUT) ./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
 	@./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_gc_stack_roots || (echo "FAIL: test_gc_stack_roots"; exit 1)
+	@./oren build tests/modules/test_result.oren --backend c -o build/test_result $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/test_result || (echo "FAIL: test_result"; exit 1)
+	@# AVM Tests (Bytecode backend + interpreter)
+	@echo "Testing AVM..."
+	@$(MAKE) avm >/dev/null
+	@set -e; for t in tests/avm/*.oren; do \
+		name=$$(basename $$t .oren); \
+		echo "Testing avm $$name..."; \
+		./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
+		if [ "$$name" = "test_budget_gas" ]; then \
+			set +e; AVM_GAS=20000 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
+			if [ $$rc -eq 0 ]; then \
+				echo "FAIL: $$name (Expected budget abort)"; exit 1; \
+			fi; \
+		elif [ "$$name" = "test_capability_deny_fs" ]; then \
+			AVM_ALLOW_DOMAINS=0 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
+		elif [ "$$name" = "test_snapshot_resume" ]; then \
+			snap=build/$$name.avms; rm -f $$snap; \
+			set +e; $(RUN_WITH_TIMEOUT) ./avm --step-limit 2000 --snapshot-out $$snap build/$$name.obc; rc=$$?; set -e; \
+			if [ $$rc -ne 2 ]; then \
+				echo "FAIL: $$name (Expected pause exit code 2, got $$rc)"; exit 1; \
+			fi; \
+			$(RUN_WITH_TIMEOUT) ./avm --snapshot-in $$snap build/$$name.obc || { echo "FAIL: $$name (resume)"; exit 1; }; \
+			elif [ "$$name" = "test_state_hash_repeat" ]; then \
+				h1=$$($(RUN_WITH_TIMEOUT) ./avm --print-state-hash build/$$name.obc | awk '/^STATE_HASH /{print $$2; exit 0}'); \
+				h2=$$($(RUN_WITH_TIMEOUT) ./avm --print-state-hash build/$$name.obc | awk '/^STATE_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing STATE_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_result_hash_repeat" ]; then \
+				h1=$$($(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				h2=$$($(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
+			else \
+				$(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
+			fi \
+		done
 	@echo "All Tests Passed."
 
 # Full Verification: Clean -> Bootstrap -> Stage 1 -> Stage 2 -> Validation
@@ -108,9 +153,9 @@ verify: clean oren_stage2
 
 # --- AVM (experimental) ---
 
-avm: lib/avm/main.c lib/avm/avm.c lib/avm/avm.h
+avm: lib/avm/main.c lib/avm/avm.c lib/avm/avm.h lib/avm/sha256.c lib/avm/sha256.h
 	@echo "Building AVM..."
-	$(CC) -O2 -o avm lib/avm/main.c lib/avm/avm.c
+	$(CC) -O2 -o avm lib/avm/main.c lib/avm/avm.c lib/avm/sha256.c
 
 # --- Examples (verification) ---
 

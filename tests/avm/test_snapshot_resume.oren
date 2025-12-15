@@ -1,0 +1,14 @@
+fn main() {
+    // This is intentionally long enough that a small --step-limit pauses mid-run.
+    var i = 0
+    while i < 200000 {
+        i = i + 1
+    }
+    if i != 200000 {
+        oren_exit(1)
+    }
+    print("snapshot resume ok")
+}
+
+main()
+

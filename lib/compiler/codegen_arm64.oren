@@ -2612,6 +2612,12 @@ fn native_compile_program_arm64(linked, platform) {
     
     // Inject Runtime
     var runtime_src = oren_read_file("lib/runtime_native.oren")
+    if oren_is_err(runtime_src) {
+        print("Failed to read lib/runtime_native.oren")
+        var msg = oren_err_msg(runtime_src)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
     var l = lexer.new_lexer(runtime_src)
     var p = parser.new_parser(l)
     var runtime_prog = parser.parse_program(p)
@@ -3122,7 +3128,13 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
         bytes_extend(prefix, sig)
     }
 
-    oren_write_bytes(out_path, prefix)
+    var w = oren_write_bytes(out_path, prefix)
+    if oren_is_err(w) {
+        print("Failed to write output: " + out_path)
+        var msg = oren_err_msg(w)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
     oren_chmod(out_path, 493) // 0755
     return nil
 }
@@ -3344,7 +3356,13 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         bytes_extend(prefix, sig)
     }
     
-    oren_write_bytes(out_path, prefix)
+    var w2 = oren_write_bytes(out_path, prefix)
+    if oren_is_err(w2) {
+        print("Failed to write output: " + out_path)
+        var msg2 = oren_err_msg(w2)
+        if msg2 != nil { print(msg2) }
+        oren_exit(1)
+    }
     oren_chmod(out_path, 493) // 0755
     return nil
 }
@@ -3477,7 +3495,13 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     var prefix = elf_build_prefix_arm64(text_size, code, entry_idx)
     bytes_extend(prefix, code)
     
-    oren_write_bytes(out_path, prefix)
+    var w3 = oren_write_bytes(out_path, prefix)
+    if oren_is_err(w3) {
+        print("Failed to write output: " + out_path)
+        var msg3 = oren_err_msg(w3)
+        if msg3 != nil { print(msg3) }
+        oren_exit(1)
+    }
     oren_chmod(out_path, 493) // 0755
     return nil
 }
