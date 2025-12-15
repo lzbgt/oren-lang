@@ -14,6 +14,21 @@ This file is a short, factual snapshot of the repo state.
 - **Native backend strings:** `+` is integer-only; use `string_concat(a, b)` for strings.
 - **Native backend Linux FFI:** ELF dynamic linking isn’t implemented yet; unresolved imports are stubbed.
 
+## Prioritized TODOs (Roadmap-Driven)
+These are pulled from `docs/ROADMAP.md` and the agent-native track in `docs/OREN_EVOLUTION.md`.
+
+### P0 (Correctness / Parity)
+- **Native Linux dynamic linking:** implement `DT_NEEDED`/PLT/GOT relocations so `ffi` works on ELF (currently stubbed).
+- **Backend semantic parity tests:** add/expand tests where backends can diverge (short-circuiting, indexing, strings).
+
+### P1 (Performance / Portability)
+- **Native register allocation:** move from stack-heavy codegen toward an IR + register allocator, plus basic peephole opts.
+- **x86_64 native backend skeleton:** validate cross-arch compiler architecture (per roadmap).
+
+### Agent-Native Track (AVM + Bytecode)
+- **AVM core hardening:** expand value types/op coverage and add memory management strategy (currently `malloc`-based).
+- **Bytecode backend coverage:** expand codegen beyond the current supported subset and keep it aligned with `docs/AVM_SPEC.md`.
+
 ## References
 - Toolchain overview: `README.md`
 - Build & verify: `docs/BUILD_AND_VERIFY.md`

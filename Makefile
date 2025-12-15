@@ -1,4 +1,4 @@
-.PHONY: all clean bootstrap test verify stage1 stage2
+.PHONY: all clean bootstrap test verify stage1 stage2 avm examples-test
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -97,6 +97,34 @@ verify: clean oren_stage2
 avm: lib/avm/main.c lib/avm/avm.c lib/avm/avm.h
 	@echo "Building AVM..."
 	$(CC) -O2 -o avm lib/avm/main.c lib/avm/avm.c
+
+# --- Examples (verification) ---
+
+examples-test: oren avm
+	@echo "=== Running Examples ==="
+	@mkdir -p build
+	@# 1) C backend hello + modules + threading
+	@./oren build examples/hello_c.oren --backend c -o build/ex_hello_c $(CODESIGN_ARG) $(GC_ARG)
+	@./build/ex_hello_c
+	@./oren build examples/module_app.oren --backend c -o build/ex_module_app $(CODESIGN_ARG) $(GC_ARG)
+	@./build/ex_module_app
+	@./oren build examples/spawn_c.oren --backend c -o build/ex_spawn_c $(CODESIGN_ARG) $(GC_ARG)
+	@./build/ex_spawn_c
+	@# 2) Native backend GC + FFI
+	@./oren build examples/gc_native.oren --backend native -o build/ex_gc_native $(CODESIGN_ARG) $(GC_ARG)
+	@./build/ex_gc_native
+	@./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG)
+	@./build/ex_ffi_puts >/dev/null
+	@# 3) Native dylib export + header + scan + link
+	@./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata
+	@test -f build/libmath.h
+	@./oren scan build/libmath.dylib >/dev/null
+	@./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG)
+	@./build/ex_ffi_from_libmath
+	@# 4) Bytecode + AVM
+	@./oren build examples/hello.oren --backend bytecode -o build/ex_hello.obc
+	@./avm build/ex_hello.obc >/dev/null
+	@echo "Examples OK"
 
 # --- Cleanup ---
 

@@ -1,0 +1,2 @@
+print("hello, oren (C backend)")
+exit(0)

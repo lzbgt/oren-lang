@@ -1,0 +1,22 @@
+struct Node { value, next }
+
+fn main() {
+    print("gc_native: start")
+    var head = Node(999, 0)
+
+    var i = 0
+    while i < 100 {
+        var n = Node(i, 0)
+        i = i + 1
+    }
+
+    native_gc_collect()
+
+    if head.value != 999 {
+        print("gc_native: FAIL (head corrupted)")
+        exit(1)
+    }
+    print("gc_native: OK")
+    exit(0)
+}
+

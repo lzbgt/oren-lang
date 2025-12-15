@@ -1,0 +1,13 @@
+ffi add
+
+fn main() {
+    var x = add(40, 2)
+    print(x)
+    if x == 42 {
+        print("ffi_from_libmath: OK")
+        exit(0)
+    }
+    print("ffi_from_libmath: FAIL")
+    exit(1)
+}
+

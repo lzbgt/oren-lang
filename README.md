@@ -69,6 +69,23 @@ make avm
 ./avm hello.obc
 ```
 
+## Examples
+
+Run the example suite (builds + executes across backends):
+```bash
+make examples-test
+```
+
+Individual examples:
+- **C backend**
+  - `examples/hello_c.oren` (top-level script style)
+  - `examples/module_app.oren` + `examples/modules/math.oren` (module import + name resolution)
+  - `examples/spawn_c.oren` (threads via `spawn` + `oren_join`)
+- **Native backend**
+  - `examples/gc_native.oren` (allocation + `native_gc_collect()` sanity)
+  - `examples/ffi_test.oren` (FFI against `libSystem` via `ffi puts`)
+  - `examples/libmath.oren` + `examples/ffi_from_libmath.oren` (build dylib via `--lib`, auto-generate header `.h`, `oren scan`, then link via `--link`)
+
 ## Notes / Limitations (Important)
 - **Native backend string concatenation:** `+` is integer-only; use `string_concat(a, b)` for strings.
 - **Native backend Linux dynamic linking/FFI:** the ELF emitter currently stubs unresolved imports (no real dynamic linker integration yet).
