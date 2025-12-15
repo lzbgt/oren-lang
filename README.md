@@ -2,6 +2,8 @@
 
 Oren is a modern, statically-typed (conceptually), self-hosting programming language that targets **macOS (Mach-O)** and **Linux (ELF)** on **ARM64**. It features a clean syntax, module system, and native SIMD support.
 
+It is written by AI agent and for AI agent: [revolutionary cases in mind](docs/OREN_EVOLUTION.md)
+
 ## Quick Start
 
 ### Prerequisites
