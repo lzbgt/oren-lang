@@ -83,6 +83,15 @@ Minimum ops:
 - `BYTES_SET_U8` (optional if BYTES mutable)
 - `BYTES_SLICE` (optional)
 
+Bootstrap status (rolling, implemented in `lib/avm`):
+
+- AVM now has a `BYTES` value type (`AVM_VAL_BYTES`) in addition to `String/List/Map`.
+- Current bootstrap intrinsics are minimal and intentionally utilitarian:
+  - `oren_bytes_from_hex(s)` / `oren_bytes_to_hex(bytes)` for binary-safe embedding via text
+  - `oren_bytes_len(bytes)`, `oren_bytes_get_u8(bytes, i)`, `oren_bytes_set_u8(bytes, i, v)`
+  - `oren_bytes_pack(list<int>)` / `oren_bytes_unpack(bytes)` to interop with existing list-based byte APIs
+- Constant pool support exists (rolling): const tag `8` encodes `BYTES` as `u32_len + raw bytes`.
+
 ### 2.2 Add typed numeric buffers (core for ML)
 
 Add value types for typed, packed numeric arrays:
@@ -232,6 +241,14 @@ Current rolling assignments (subject to change):
 - `4`: NET
 - `5`: PROC
 - `6`: SIMD (side-effect free vector kernels)
+- `7`: ENV
+
+Bootstrap status (rolling, implementation reality):
+
+- `oren_system(cmd)` is treated as a **PROC** operation (domain `5`, op `0`) in the bytecode backend.
+- `oren_exit(code)` is treated as a **PROC** operation (domain `5`, op `1`) in the bytecode backend.
+- `oren_env(name)` is treated as an **ENV** operation (domain `7`, op `0`) in the bytecode backend.
+- Legacy flat native IDs still exist for bootstrap compatibility, but effectful calls should move behind capability domains (PROC/FS/…).
 
 Governance rules (SOLID-like):
 
@@ -265,6 +282,16 @@ For testing/simulation and deterministic replay, host services should be virtual
 - PROC can be disabled or simulated
 
 In deterministic record/replay mode, the host can record all native call I/O and replay without touching the real host.
+
+Bootstrap status (rolling):
+
+- AVM supports a minimal record/replay log for FS-domain calls:
+  - record: `AVM_RECORD_LOG=path ./avm build/program.obc`
+  - replay: `AVM_REPLAY_LOG=path ./avm build/program.obc`
+- AVM also supports deterministic “virtual” TIME/RNG for nested universes:
+  - `AVM_DETERMINISTIC=1` uses a virtual monotonic clock and a deterministic PRNG
+  - `AVM_TIME_START_NS`, `AVM_TIME_STEP_NS`, `AVM_RNG_SEED` control the virtual sources
+- This is intentionally minimal and is meant to evolve into full multi-domain virtualization (FS/NET/PROC/TIME/RNG) plus replay-log hashing.
 
 ## 5) Self-Healing Features (Planned)
 

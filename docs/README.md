@@ -31,6 +31,7 @@ This folder contains both **canonical specs** and a few **compatibility stubs** 
 - Overall evolution strategy: `docs/OREN_EVOLUTION.md`
 - Advanced scenarios (“killer apps”): `docs/ADVANCED_SCENARIOS.md`
 - Swarm consensus + agent mobility: `docs/AVM_SWARM_CONSENSUS.md`
+- Nested universes (“AVM in AVM”): `docs/AVM_MULTIVERSE.md`
 - Comparison notes: `docs/COMPARISON.md`
 
 ## 7) Tools

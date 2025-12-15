@@ -62,6 +62,48 @@ static void dump_error(AvmValue v) {
     fprintf(stderr, "\n");
 }
 
+static int hex_nibble(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+    return -1;
+}
+
+static AvmBytes* bytes_from_hex(const char* s) {
+    if (!s) return NULL;
+    size_t n = strlen(s);
+    if ((n & 1) != 0) return NULL;
+    AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+    if (!b) return NULL;
+    b->len = (int)(n / 2);
+    b->capacity = b->len;
+    b->data = NULL;
+    if (b->len > 0) {
+        b->data = (uint8_t*)malloc((size_t)b->len);
+        if (!b->data) { free(b); return NULL; }
+    }
+    for (size_t i = 0; i < n; i += 2) {
+        int hi = hex_nibble(s[i]);
+        int lo = hex_nibble(s[i + 1]);
+        if (hi < 0 || lo < 0) { free(b->data); free(b); return NULL; }
+        b->data[i / 2] = (uint8_t)((hi << 4) | lo);
+    }
+    return b;
+}
+
+static char* bytes_to_hex(const uint8_t* data, size_t len) {
+    static const char* hexd = "0123456789abcdef";
+    char* out = (char*)malloc(len * 2 + 1);
+    if (!out) return NULL;
+    for (size_t i = 0; i < len; i++) {
+        uint8_t v = data[i];
+        out[i * 2] = hexd[(v >> 4) & 0xF];
+        out[i * 2 + 1] = hexd[v & 0xF];
+    }
+    out[len * 2] = 0;
+    return out;
+}
+
 typedef struct {
     int ok;
     char msg[512];
@@ -421,6 +463,7 @@ int main(int argc, char** argv) {
     int print_state_hash = 0;
     int print_result_hash = 0;
     int print_policy = 0;
+    int print_record_log_hex = 0;
 
     int i = 1;
     while (i < argc) {
@@ -452,6 +495,11 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--print-record-log-hex") == 0) {
+            print_record_log_hex = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--print-policy") == 0) {
             print_policy = 1;
             i += 1;
@@ -466,7 +514,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--print-state-hash] [--print-result-hash] [--print-policy] <file.obc>\n");
+        printf("Usage: avm [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--print-state-hash] [--print-result-hash] [--print-record-log-hex] [--print-policy] <file.obc>\n");
         return 1;
     }
     size_t len;
@@ -511,6 +559,25 @@ int main(int argc, char** argv) {
             consts[i].type = AVM_VAL_STRING;
             consts[i].as.p = s;
         }
+        if (type == 8) { // BYTES (rolling): u32 len + raw bytes
+            if (pos + 4 > len) { fprintf(stderr, "Invalid BYTES const\n"); return 1; }
+            uint32_t blen = (uint32_t)data[pos] | ((uint32_t)data[pos + 1] << 8) | ((uint32_t)data[pos + 2] << 16) | ((uint32_t)data[pos + 3] << 24);
+            pos += 4;
+            if (pos + blen > len) { fprintf(stderr, "Invalid BYTES const\n"); return 1; }
+            AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+            if (!b) { fprintf(stderr, "OOM\n"); return 1; }
+            b->len = (int)blen;
+            b->capacity = (int)blen;
+            b->data = NULL;
+            if (blen > 0) {
+                b->data = (uint8_t*)malloc((size_t)blen);
+                if (!b->data) { fprintf(stderr, "OOM\n"); return 1; }
+                memcpy(b->data, data + pos, blen);
+            }
+            pos += blen;
+            consts[i].type = AVM_VAL_BYTES;
+            consts[i].as.b = b;
+        }
         // TODO: Other types
     }
     
@@ -543,6 +610,113 @@ int main(int argc, char** argv) {
     AvmVM* vm = avm_new();
     vm->argc = argc - 1;
     vm->argv = argv + 1;
+
+    // Deterministic record/replay (rolling):
+    // - AVM_RECORD_LOG: path to write a native-call replay log (FS domain currently).
+    // - AVM_REPLAY_LOG: path to read a native-call replay log (FS domain currently).
+    // Only one may be set.
+    const char* record_env = getenv("AVM_RECORD_LOG");
+    const char* replay_env = getenv("AVM_REPLAY_LOG");
+    const char* replay_hex_env = getenv("AVM_REPLAY_LOG_HEX");
+    const char* record_mem_env = getenv("AVM_RECORD_MEM");
+    if (record_env && record_env[0] && replay_env && replay_env[0]) {
+        fprintf(stderr, "AVM_RECORD_LOG and AVM_REPLAY_LOG are mutually exclusive\n");
+        avm_free(vm);
+        return 1;
+    }
+    if ((replay_env && replay_env[0]) && (replay_hex_env && replay_hex_env[0])) {
+        fprintf(stderr, "AVM_REPLAY_LOG and AVM_REPLAY_LOG_HEX are mutually exclusive\n");
+        avm_free(vm);
+        return 1;
+    }
+    if ((record_env && record_env[0]) && (record_mem_env && record_mem_env[0] && record_mem_env[0] != '0')) {
+        fprintf(stderr, "AVM_RECORD_LOG and AVM_RECORD_MEM are mutually exclusive\n");
+        avm_free(vm);
+        return 1;
+    }
+    if (record_env && record_env[0]) {
+        FILE* rf = fopen(record_env, "wb");
+        if (!rf) {
+            fprintf(stderr, "Failed to open record log: %s\n", record_env);
+            avm_free(vm);
+            return 1;
+        }
+        const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
+        if (fwrite(magic, 1, 8, rf) != 8) {
+            fprintf(stderr, "Failed to write log header: %s\n", record_env);
+            fclose(rf);
+            avm_free(vm);
+            return 1;
+        }
+        vm->record_log = rf;
+    }
+    if (replay_env && replay_env[0]) {
+        FILE* rf = fopen(replay_env, "rb");
+        if (!rf) {
+            fprintf(stderr, "Failed to open replay log: %s\n", replay_env);
+            avm_free(vm);
+            return 1;
+        }
+        uint8_t magic[8];
+        if (fread(magic, 1, 8, rf) != 8) {
+            fprintf(stderr, "Invalid replay log header: %s\n", replay_env);
+            fclose(rf);
+            avm_free(vm);
+            return 1;
+        }
+        const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
+        if (memcmp(magic, want, 8) != 0) {
+            fprintf(stderr, "Invalid replay log magic: %s\n", replay_env);
+            fclose(rf);
+            avm_free(vm);
+            return 1;
+        }
+        vm->replay_log = rf;
+    }
+    if (record_mem_env && record_mem_env[0] && record_mem_env[0] != '0') {
+        // In-memory log: prepopulate header and record into vm->record_log_bytes.
+        AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+        if (!b) { fprintf(stderr, "OOM\n"); avm_free(vm); return 1; }
+        b->len = 8;
+        b->capacity = 64;
+        b->data = (uint8_t*)malloc((size_t)b->capacity);
+        if (!b->data) { fprintf(stderr, "OOM\n"); free(b); avm_free(vm); return 1; }
+        const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
+        memcpy(b->data, magic, 8);
+        vm->record_log_bytes = b;
+    }
+    if (replay_hex_env && replay_hex_env[0]) {
+        AvmBytes* b = bytes_from_hex(replay_hex_env);
+        if (!b || b->len < 8) {
+            fprintf(stderr, "Invalid AVM_REPLAY_LOG_HEX\n");
+            if (b) { free(b->data); free(b); }
+            avm_free(vm);
+            return 1;
+        }
+        const uint8_t want[8] = {'A','V','M','L','O','G','0','1'};
+        if (memcmp(b->data, want, 8) != 0) {
+            fprintf(stderr, "Invalid replay log magic (hex)\n");
+            free(b->data); free(b);
+            avm_free(vm);
+            return 1;
+        }
+        vm->replay_log_bytes = b;
+        vm->replay_log_pos = 8;
+    }
+
+    // Deterministic mode (rolling):
+    // - AVM_DETERMINISTIC=1 enables virtual TIME and deterministic RNG.
+    // - AVM_TIME_START_NS sets initial virtual clock (default 0).
+    // - AVM_TIME_STEP_NS sets per-now() increment (default 1ms).
+    // - AVM_RNG_SEED seeds the deterministic RNG.
+    const char* det_env = getenv("AVM_DETERMINISTIC");
+    if (det_env && det_env[0] && det_env[0] != '0') vm->deterministic = 1;
+    const char* t0_env = getenv("AVM_TIME_START_NS");
+    if (t0_env && t0_env[0]) vm->virtual_now_ns = strtoull(t0_env, NULL, 10);
+    const char* step_env = getenv("AVM_TIME_STEP_NS");
+    if (step_env && step_env[0]) vm->virtual_step_ns = strtoull(step_env, NULL, 10);
+    const char* seed_env = getenv("AVM_RNG_SEED");
+    if (seed_env && seed_env[0]) vm->rng_state = strtoull(seed_env, NULL, 10);
 
     // Budgets/timeouts (macOS-first, rolling ABI):
     // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
@@ -609,6 +783,23 @@ int main(int argc, char** argv) {
         dump_error(vm->last_error);
     }
     int exit_code = vm->exit_code;
+    if (vm->record_log) fclose(vm->record_log);
+    if (vm->replay_log) fclose(vm->replay_log);
+
+    if (print_record_log_hex) {
+        if (vm->record_log_bytes && vm->record_log_bytes->data && vm->record_log_bytes->len >= 8) {
+            char* hex = bytes_to_hex(vm->record_log_bytes->data, (size_t)vm->record_log_bytes->len);
+            if (hex) {
+                printf("RECORD_LOG_HEX %s\n", hex);
+                free(hex);
+            } else {
+                printf("RECORD_LOG_HEX_ERROR\n");
+            }
+        } else {
+            printf("RECORD_LOG_HEX \n");
+        }
+    }
+
     avm_free(vm);
     
     return exit_code;

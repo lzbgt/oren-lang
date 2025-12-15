@@ -10,6 +10,10 @@ This document validates and extends the idea:
 
 The goal is to turn this into a **practical, testable architecture** that is attractive for AI-era workloads, without pretending away distributed-systems realities.
 
+Related design extension:
+
+- Nested universes (“AVM in AVM”): `docs/AVM_MULTIVERSE.md`
+
 ## 0) What problem this solves (and what it does not)
 
 ### Solves

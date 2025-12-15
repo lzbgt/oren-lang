@@ -34,6 +34,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - `NIL`
   - `INT` (u64 payload)
   - `STRING` (u16 length + bytes)
+  - `BYTES` (u32 length + bytes) (rolling; used for embedding binary blobs)
 - `FLOAT` constants exist in the v0.1 instruction table but are not yet fully wired through the current bytecode backend.
 
 ## Instruction Set (Version 0.1)
@@ -99,6 +100,13 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 22. oren_err_msg
 23. oren_set_result
 24. oren_get_result
+30. oren_bytes_pack
+31. oren_bytes_unpack
+32. oren_bytes_len
+33. oren_bytes_get_u8
+34. oren_bytes_set_u8
+35. oren_bytes_from_hex
+36. oren_bytes_to_hex
 
 ## Implementation Strategy
 1. `libavm` (C Library): Core VM loop, stack management, loader.
@@ -110,6 +118,10 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 - **Capability model is still evolving:** host calls support both a flat numeric ID table (`CALL_NATIVE`) and a domain/op model (`CALL_NATIVE2`); next-gen direction is specified in `docs/AVM_SPEC_V1.md`.
 - **Verifier is minimal (rolling):** `avm` performs a basic bytecode verification pass (operand bounds, jump target bounds, stack underflow checks) and will reject malformed `.obc` early. This verifier is not yet a full formal proof of correctness.
 - **Hashing is rolling:** `avm` can compute deterministic `STATE_HASH` and `RESULT_HASH` (SHA-256) for swarm-style k-of-n validation; these are not yet stability-promised formats.
+- **Deterministic record/replay is partial:** `avm` can record/replay FS-domain native calls via `AVM_RECORD_LOG` / `AVM_REPLAY_LOG`, but other effectful domains (NET/PROC/TIME/RNG) are not virtualized yet.
+- **In-memory logs exist (rolling):** `AVM_RECORD_MEM=1` records to an in-memory bytes buffer (printed via `--print-record-log-hex`), and `AVM_REPLAY_LOG_HEX=...` replays without touching the filesystem.
+- **TIME/RNG can be virtualized (rolling):** `AVM_DETERMINISTIC=1` enables a virtual monotonic clock and deterministic PRNG, controlled by `AVM_TIME_START_NS`, `AVM_TIME_STEP_NS`, and `AVM_RNG_SEED`.
+- **Capability domains are the direction:** effectful calls should route through `CALL_NATIVE2` domains (e.g., `PROC` for `oren_system`) so they can be denied/recorded/replayed independently of CORE.
 - **Metering is partial:** instruction “gas” and wall-time deadlines are enforced, but memory and IO budgets are not yet implemented.
 - **Snapshot format is rolling:** AVM supports snapshot/restore for core types, but the file format is intentionally unstable while the repo is rolling.
 - **Heap is malloc-based:** no tracing GC; long-running programs can leak unless the host reclaims per-run.

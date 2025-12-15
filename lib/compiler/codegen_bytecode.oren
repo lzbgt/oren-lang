@@ -24,6 +24,10 @@ var AVM_CALL_NATIVE2 = 59
 
 var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1
+var AVM_DOMAIN_TIME = 2
+var AVM_DOMAIN_RNG = 3
+var AVM_DOMAIN_PROC = 5
+var AVM_DOMAIN_ENV = 7
 
 fn new_bytecode_ctx() {
     return {
@@ -306,6 +310,13 @@ fn bytecode_compile_expr(ctx, expr) {
         var native_domain = -1
         var native_op = -1
 
+        if name == "oren_system" { native_domain = AVM_DOMAIN_PROC; native_op = 0 }
+        if name == "oren_exit" { native_domain = AVM_DOMAIN_PROC; native_op = 1 }
+        if name == "oren_env" { native_domain = AVM_DOMAIN_ENV; native_op = 0 }
+        if name == "oren_time_now_ns" { native_domain = AVM_DOMAIN_TIME; native_op = 0 }
+        if name == "oren_sleep_ms" { native_domain = AVM_DOMAIN_TIME; native_op = 1 }
+        if name == "oren_rand_u64" { native_domain = AVM_DOMAIN_RNG; native_op = 0 }
+        if name == "oren_rand_seed" { native_domain = AVM_DOMAIN_RNG; native_op = 1 }
         if name == "oren_read_file" { native_domain = AVM_DOMAIN_FS; native_op = 0 }
         if name == "oren_write_file" { native_domain = AVM_DOMAIN_FS; native_op = 1 }
         if name == "oren_write_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 2 }
@@ -326,10 +337,7 @@ fn bytecode_compile_expr(ctx, expr) {
         }
 
         var native_id = -1
-        if name == "oren_system" { native_id = 2 }
         if name == "oren_args" { native_id = 3 }
-        if name == "oren_env" { native_id = 4 }
-        if name == "oren_exit" { native_id = 5 }
         if name == "oren_string_len" { native_id = 6 }
         if name == "oren_string_char_at" { native_id = 7 }
         if name == "oren_string_slice" { native_id = 8 }
@@ -346,6 +354,16 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_err_msg" { native_id = 22 }
         if name == "oren_set_result" { native_id = 23 }
         if name == "oren_get_result" { native_id = 24 }
+        if name == "oren_bytes_pack" { native_id = 30 }
+        if name == "oren_bytes_unpack" { native_id = 31 }
+        if name == "oren_bytes_len" { native_id = 32 }
+        if name == "oren_bytes_get_u8" { native_id = 33 }
+        if name == "oren_bytes_set_u8" { native_id = 34 }
+        if name == "oren_bytes_from_hex" { native_id = 35 }
+        if name == "oren_bytes_to_hex" { native_id = 36 }
+        if name == "oren_avm_record_to_bytes" { native_id = 40 }
+        if name == "oren_avm_get_record_bytes" { native_id = 41 }
+        if name == "oren_avm_set_replay_bytes" { native_id = 42 }
 
         if native_id != -1 {
             var args = expr["args"]

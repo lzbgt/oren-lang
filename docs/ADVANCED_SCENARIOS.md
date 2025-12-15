@@ -52,3 +52,17 @@ See also:
 Design validation and a concrete path to implementation:
 
 - `docs/AVM_SWARM_CONSENSUS.md`
+
+## 5. Nested Universes ("AVM in AVM")
+
+**The Problem:** Large agentic systems need safe, fast, repeatable simulation and governance, but “one big VM” becomes a monolith.
+
+*   **Traditional Failure:** Running untrusted plugins inside the same runtime shares state, budgets, and side effects. Separating them with processes/containers is too heavy for running thousands of tiny simulations (and often unavailable on iOS/AppStore).
+*   **The Oren/AVM Solution:** **Nested deterministic universes**.
+    *   **Mechanism:** An AVM program can spawn child AVM instances (universes) under a strict capability subset and sub-budgets, with effects virtualized via record/replay or Virtual* backends.
+    *   **Scenario:** An outer “planner agent” evaluates 1,000 candidate plans by spawning 1,000 child universes, each running the plan against the same VirtualFS/VirtualNET fixtures.
+    *   **Impact:** “Matrix sandbox” becomes composable and hierarchical: the outer agent governs budgets/caps and can validate child outputs via `RESULT_HASH`/`STATE_HASH`.
+
+Design feasibility and a concrete staged plan:
+
+- `docs/AVM_MULTIVERSE.md`

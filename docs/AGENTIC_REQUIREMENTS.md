@@ -173,6 +173,25 @@ Requirements:
   - compatibility check
   - migrate state when possible
 
+### 3.4 Nested universes (“AVM in AVM”) for scalable simulation
+
+Requirements:
+
+- ability for a program to spawn *child universes* under:
+  - strict capability subset (FS/NET/PROC/TIME/RNG/ENV)
+  - hierarchical budgets (gas/time/memory/IO)
+  - deterministic record/replay or Virtual* backends
+- child universes must be resumable (snapshot capsules) and hashable (`RESULT_HASH`/`STATE_HASH`)
+
+Rationale:
+
+- enables “Matrix sandbox” simulation at scale without heavy containers/processes
+- enables hierarchical governance: outer agent validates inner agents and plugins
+
+Design reference:
+
+- `docs/AVM_MULTIVERSE.md`
+
 ## 4) Minimal High-Leverage Implementation Order (Avoid Huge Rewrites)
 
 This ordering is chosen to unlock “agent-grade” behavior early without requiring a massive rewrite:

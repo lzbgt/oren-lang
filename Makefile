@@ -137,6 +137,95 @@ test: oren
 				if [ "$$h1" != "$$h2" ]; then \
 					echo "FAIL: $$name (Hash mismatch $$h1 != $$h2)"; exit 1; \
 				fi; \
+			elif [ "$$name" = "test_record_replay_fs" ]; then \
+				log=build/$$name.avmlog; rm -f $$log; rm -f build/avm_rr_fs.txt; \
+				h1=$$(AVM_RECORD_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				rm -f build/avm_rr_fs.txt; \
+				h2=$$(AVM_REPLAY_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Record/replay hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
+				if [ -f build/avm_rr_fs.txt ]; then \
+					echo "FAIL: $$name (Replay touched filesystem unexpectedly)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_record_replay_proc" ]; then \
+				log=build/$$name.avmlog; rm -f $$log; rm -f build/avm_rr_proc.txt; \
+				h1=$$(AVM_RECORD_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ ! -f build/avm_rr_proc.txt ]; then \
+					echo "FAIL: $$name (Record did not execute system command)"; exit 1; \
+				fi; \
+				rm -f build/avm_rr_proc.txt; \
+				h2=$$(AVM_REPLAY_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Record/replay hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
+				if [ -f build/avm_rr_proc.txt ]; then \
+					echo "FAIL: $$name (Replay executed system command unexpectedly)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_record_replay_exit" ]; then \
+				log=build/$$name.avmlog; rm -f $$log; \
+				h1=$$(AVM_RECORD_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				h2=$$(AVM_REPLAY_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Record/replay hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_record_replay_env" ]; then \
+				log=build/$$name.avmlog; rm -f $$log; \
+				h1=$$(AVM_RR_ENV_KEY=hello AVM_RECORD_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				h2=$$(AVM_REPLAY_LOG=$$log $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Record/replay hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_record_replay_mem_fs" ]; then \
+				rm -f build/avm_rr_mem_fs.txt; \
+				out=$$(AVM_RECORD_MEM=1 $(RUN_WITH_TIMEOUT) ./avm --print-result-hash --print-record-log-hex build/$$name.obc); \
+				h1=$$(echo "$$out" | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				loghex=$$(echo "$$out" | awk '/^RECORD_LOG_HEX /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$loghex" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH or RECORD_LOG_HEX)"; echo "$$out"; exit 1; \
+				fi; \
+				rm -f build/avm_rr_mem_fs.txt; \
+				out2=$$(AVM_REPLAY_LOG_HEX=$$loghex $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc); \
+				h2=$$(echo "$$out2" | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Record/replay hash mismatch $$h1 != $$h2)"; echo "$$out2"; exit 1; \
+				fi; \
+				if [ -f build/avm_rr_mem_fs.txt ]; then \
+					echo "FAIL: $$name (Replay touched filesystem unexpectedly)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_time_rng_deterministic" ]; then \
+				h1=$$(AVM_DETERMINISTIC=1 AVM_TIME_START_NS=100 AVM_TIME_STEP_NS=7 AVM_RNG_SEED=123 $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				h2=$$(AVM_DETERMINISTIC=1 AVM_TIME_START_NS=100 AVM_TIME_STEP_NS=7 AVM_RNG_SEED=123 $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH)"; exit 1; \
+				fi; \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Deterministic hash mismatch $$h1 != $$h2)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_time_rng_record_replay_mem" ]; then \
+				out=$$(AVM_RECORD_MEM=1 $(RUN_WITH_TIMEOUT) ./avm --print-result-hash --print-record-log-hex build/$$name.obc); \
+				h1=$$(echo "$$out" | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				loghex=$$(echo "$$out" | awk '/^RECORD_LOG_HEX /{print $$2; exit 0}'); \
+				if [ "$$h1" = "" ] || [ "$$loghex" = "" ]; then \
+					echo "FAIL: $$name (Missing RESULT_HASH or RECORD_LOG_HEX)"; echo "$$out"; exit 1; \
+				fi; \
+				out2=$$(AVM_REPLAY_LOG_HEX=$$loghex $(RUN_WITH_TIMEOUT) ./avm --print-result-hash build/$$name.obc); \
+				h2=$$(echo "$$out2" | awk '/^RESULT_HASH /{print $$2; exit 0}'); \
+				if [ "$$h1" != "$$h2" ]; then \
+					echo "FAIL: $$name (Record/replay hash mismatch $$h1 != $$h2)"; echo "$$out2"; exit 1; \
+				fi; \
 			else \
 				$(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
 			fi \

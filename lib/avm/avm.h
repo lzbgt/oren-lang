@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #define MAX_GLOBALS 256
 #define MAX_FRAMES 65536
@@ -15,11 +16,13 @@ typedef enum {
     AVM_VAL_BOOL = 3,
     AVM_VAL_STRING = 4,
     AVM_VAL_LIST = 5,
-    AVM_VAL_MAP = 6
+    AVM_VAL_MAP = 6,
+    AVM_VAL_BYTES = 7
 } AvmType;
 
 struct AvmList;
 struct AvmMap;
+struct AvmBytes;
 
 typedef struct {
     AvmType type;
@@ -29,6 +32,7 @@ typedef struct {
         void* p;
         struct AvmList* l;
         struct AvmMap* m;
+        struct AvmBytes* b;
     } as;
 } AvmValue;
 
@@ -44,6 +48,12 @@ typedef struct AvmMap {
     int count;
     int capacity;
 } AvmMap;
+
+typedef struct AvmBytes {
+    uint8_t* data;
+    int len;
+    int capacity;
+} AvmBytes;
 
 typedef struct {
     uint8_t* code;
@@ -90,6 +100,35 @@ typedef struct {
     // If has_result_value==0, the result is treated as nil.
     int has_result_value;
     AvmValue result_value;
+
+    // Deterministic record/replay (rolling): used to virtualize effectful host calls (FS first).
+    // - If replay_log is set, effectful calls are replayed from the log (no host effects).
+    // - If record_log is set, effectful calls are executed normally and appended to the log.
+    // - If both are NULL, normal behavior.
+    FILE* record_log;
+    FILE* replay_log;
+
+    // In-memory record/replay logs (rolling):
+    // - record_log_bytes: when set, record effectful calls into a BYTES buffer (no filesystem needed).
+    // - replay_log_bytes: when set, replay effectful calls from a BYTES buffer.
+    // These are intended to enable "AVM in AVM" (nested universes) where logs must be data, not host files.
+    AvmBytes* record_log_bytes;
+    AvmBytes* replay_log_bytes;
+    uint32_t replay_log_pos;
+
+    // Deterministic mode (rolling): for nested universes, eliminate reliance on host wall-time and entropy.
+    // When deterministic==1:
+    // - TIME domain uses a virtual monotonic clock (virtual_now_ns), advanced deterministically.
+    // - RNG domain uses a deterministic PRNG (rng_state).
+    int deterministic;
+    uint64_t virtual_now_ns;
+    // virtual_step_ns: time per executed instruction step in deterministic mode.
+    // In deterministic mode, TIME.now_ns is derived from:
+    //   virtual_now_ns + virtual_sleep_ns + steps_executed * virtual_step_ns
+    uint64_t virtual_step_ns;
+    uint64_t virtual_sleep_ns;
+    uint64_t rng_state;
+    uint64_t steps_executed;
 
     // Cooperative pause (rolling): stop execution after N interpreter steps (not an error).
     // Used to support snapshot/resume workflows.
