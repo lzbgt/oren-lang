@@ -219,6 +219,53 @@ All effectful native calls (FS/NET/PROC/TIME/RNG) must either:
 - accept an explicit timeout parameter, or
 - consult the VM execution context for deadline/cancellation.
 
+## 4.5 Capability domains (rolling assignments) + SOLID governance
+
+The capability surface is split into **domains** to avoid a monolithic “god” native table and to enable least-privilege enforcement.
+
+Current rolling assignments (subject to change):
+
+- `0`: CORE (pure utilities, no external side effects; always allowed)
+- `1`: FS (filesystem)
+- `2`: TIME
+- `3`: RNG / CRYPTO
+- `4`: NET
+- `5`: PROC
+- `6`: SIMD (side-effect free vector kernels)
+
+Governance rules (SOLID-like):
+
+- each domain has a single responsibility
+- cross-domain dependencies are forbidden unless explicitly layered
+- keep domain surfaces minimal; prefer composable primitives over “do everything” calls
+
+### 4.5.1 Call encoding (bytecode ABI)
+
+Rolling ABI encoding (implemented today):
+
+- opcode: `CALL_NATIVE2`
+- operands: `u8 domain`, `u16 op`, `u8 nargs`
+
+### 4.5.2 Error contract (self-healing requirement)
+
+Native calls must not hard-crash the VM for expected failures (permission denied, file not found, timeout).
+
+Pick one representation and standardize it when a stability milestone is declared:
+
+- dedicated `ERR` value type (preferred), or
+- `nil` + error code, or
+- a tagged map like `{ "ok": false, "code": ..., "msg": ... }`
+
+### 4.5.3 Virtualization (“Matrix sandbox”) + record/replay
+
+For testing/simulation and deterministic replay, host services should be virtualizable:
+
+- FS can be backed by `VirtualFS` (in-memory, snapshot-friendly)
+- NET can be backed by `VirtualNET` (fixtures / recorded responses)
+- PROC can be disabled or simulated
+
+In deterministic record/replay mode, the host can record all native call I/O and replay without touching the real host.
+
 ## 5) Self-Healing Features (Planned)
 
 ### 5.1 Snapshot / restore (VM state)
@@ -299,7 +346,6 @@ This is essential for safely executing LLM-generated or untrusted scripts.
 ## 7) Related Docs
 
 - Current bootstrap VM: `docs/AVM_SPEC.md`
-- Killer-feature requirements: `docs/AGENTIC_VM_KILLER_FEATURES.md`
-- Agentic AI top requirements: `docs/AGENTIC_AI_TOP_FEATURES.md`
+- Agentic requirements (language + compiler + AVM): `docs/AGENTIC_REQUIREMENTS.md`
 - System evolution context: `docs/OREN_EVOLUTION.md`
 - Roadmap: `docs/ROADMAP.md`

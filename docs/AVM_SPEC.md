@@ -4,7 +4,7 @@
 For the next step (no-JIT-first, ML-focused typed buffers/SIMD, capability-scoped natives), see:
 
 - `docs/AVM_SPEC_V1.md`
-- `docs/AVM_CAPABILITIES.md`
+- `docs/AGENTIC_REQUIREMENTS.md`
 
 Compatibility policy:
 
@@ -101,7 +101,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 
 ## Known Limitations (Bootstrap v0.1)
 
-- **Capability model is still evolving:** host calls support both a flat numeric ID table (`CALL_NATIVE`) and a domain/op model (`CALL_NATIVE2`); governance and enforcement is described in `docs/AVM_CAPABILITIES.md`.
+- **Capability model is still evolving:** host calls support both a flat numeric ID table (`CALL_NATIVE`) and a domain/op model (`CALL_NATIVE2`); next-gen direction is specified in `docs/AVM_SPEC_V1.md`.
 - **No metering:** no CPU/memory/time accounting per program yet.
 - **Heap is malloc-based:** no tracing GC; long-running programs can leak unless the host reclaims per-run.
 - **Numeric model is minimal:** only a subset of operators/constant types are encoded today.

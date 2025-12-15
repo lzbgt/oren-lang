@@ -4,8 +4,8 @@ This document outlines advanced architectural capabilities where Oren and AVM pr
 
 See also:
 
-- `docs/AGENTIC_AI_TOP_FEATURES.md`
-- `docs/AGENTIC_VM_KILLER_FEATURES.md`
+- `docs/AGENTIC_REQUIREMENTS.md`
+- `docs/AVM_SPEC_V1.md`
 
 ---
 

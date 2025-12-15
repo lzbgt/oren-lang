@@ -49,9 +49,7 @@ This track is defined in `docs/OREN_EVOLUTION.md` and complements the phases abo
 ### Next-Gen AVM (No-JIT-First, ML-Oriented)
 
 - Spec draft: `docs/AVM_SPEC_V1.md`
-- Capability domains (SOLID governance): `docs/AVM_CAPABILITIES.md`
-- Agentic VM killer features: `docs/AGENTIC_VM_KILLER_FEATURES.md`
-- Agentic AI top requirements (end-to-end): `docs/AGENTIC_AI_TOP_FEATURES.md`
+- Agentic requirements (end-to-end): `docs/AGENTIC_REQUIREMENTS.md`
 - Language stability / feature rollout rules (self-hosting): `docs/LANGUAGE_EVOLUTION.md`
 
 Compatibility stance:

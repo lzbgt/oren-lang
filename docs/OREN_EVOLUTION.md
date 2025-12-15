@@ -153,9 +153,7 @@ References for the current AVM direction:
 
 - Bootstrap VM (current): `docs/AVM_SPEC.md`
 - Next-gen AVM plan (no-JIT-first, ML-focused typed buffers/SIMD, capability domains): `docs/AVM_SPEC_V1.md`
-- Capability model: `docs/AVM_CAPABILITIES.md`
-- Killer-feature requirements: `docs/AGENTIC_VM_KILLER_FEATURES.md`
-- Agentic AI top requirements: `docs/AGENTIC_AI_TOP_FEATURES.md`
+- Agentic requirements (end-to-end): `docs/AGENTIC_REQUIREMENTS.md`
 
 ---
 
