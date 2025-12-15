@@ -1,0 +1,1 @@
+var np = py_import("numpy"); var a = np.array([1.5, 2.5]); print(a.mean())

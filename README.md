@@ -1,70 +1,89 @@
-# Oren Programming Language
+# Oren
 
-Oren is a modern, statically-typed (conceptually), self-hosting programming language that targets **macOS (Mach-O)** and **Linux (ELF)** on **ARM64**. It features a clean syntax, module system, and native SIMD support.
+Oren is a self-hosted programming language and toolchain. The compiler is written in Oren (`oren.oren`), bootstrapped by a small stage0 compiler in Go (`cmd/oren`).
 
-## Quick Start
+## Vision / Mission (Agent-Native)
+
+Oren is aimed at **agent execution**, not just “a static language”.
+
+- **Vision:** make Oren a practical “native tongue” for AI agents: fast on servers/desktops, but still runnable in restricted environments.
+- **Core idea:** a **hybrid runtime model**:
+  - **Native mode:** compile to machine code (or via the C backend) for performance and full system access where allowed.
+  - **Bytecode mode:** compile to portable bytecode (`.obc`) intended to run on **AVM (Agent Virtual Machine)** in environments where native execution/toolchains aren’t available.
+- **Long-term goals (design direction):** safe/capability-scoped execution, portability, and tooling that supports fast “read → fix compiler → rebuild” loops for agents.
+
+Authoritative strategy/roadmap docs:
+- `docs/OREN_EVOLUTION.md`
+- `docs/ROADMAP.md` (see “Agent-Native Track (AVM + Bytecode)”)
+
+## Status (Current Reality)
+- **Backends**
+  - **C backend (default):** transpile to C and compile with `cc` (used for the self-hosting chain).
+  - **Native backend (ARM64):** emits Mach-O (macOS) or ELF (Linux) directly (`--backend native`).
+  - **Bytecode backend (experimental):** emits `.obc` (`--backend bytecode`) for the AVM prototype.
+- **Platforms**
+  - Native backend targets **macOS arm64** and **Linux arm64**.
+  - C backend is portable to any platform with a C toolchain.
+
+## Build, Test, Verify
 
 ### Prerequisites
-- macOS (Apple Silicon) or Linux (ARM64).
-- `go` (for initial bootstrap).
-- `make`.
-- `cc` (for C backend).
+- `go` (stage0 bootstrap)
+- `make`
+- `cc` (for the C backend; used in self-hosting)
 
-### Build & Test
-1. **Bootstrap**: Build the compiler using the stage0 Go compiler.
-   ```bash
-   make bootstrap
-   ```
-2. **Verify**: Run the full self-hosting verification suite (Bootstrap -> Stage 1 -> Stage 2 -> Native Tests).
-   ```bash
-   make verify
-   ```
-3. **Run Tests**:
-   ```bash
-   make test
-   ```
+### Commands
+```bash
+make bootstrap   # build stage0 Go compiler
+make            # build stage1 self-hosted compiler (default target)
+make test       # native backend tests + module tests
+make verify     # clean + stage2 self-hosting verification
+```
 
-### Codesigning on macOS
-- Default identity: `Developer ID Application: Zongbao Lu (US56HHF2Y4)` is pre-wired for convenience. Builds/tests on macOS auto-codesign using this unless overridden.
-- Override by setting `CODESIGN_IDENTITY`, or pass `--codesign "<identity>"` to `./oren build ...`; the Go bootstrap also respects `OREN_CODESIGN_ID` if you prefer an env var.
-- Optional notarization: `--notarize [--notary-profile <profile>]` will submit with `notarytool` and staple the ticket. Provide a keychain profile or set `APPLE_ID`, `APPLE_ID_PASS`, and `APPLE_TEAM_ID` in the environment.
-- Installing the identity: In Xcode → Settings → Accounts, sign in with your Apple Developer account, select your team, then **Manage Certificates…** and create/download a *Developer ID Application* certificate. Verify availability with `security find-identity -v -p codesigning`. End users do **not** need your certificate; a Developer ID–signed + notarized binary runs without extra setup.
-- More detail: see `docs/CODESIGN.md`.
+## Using The Compiler
 
-### Memory
-- Runtime tracks strings/lists/maps and frees them on shutdown; call `oren_gc_collect()` to mark/sweep from registered roots, or `oren_free(value)` for deterministic release.
-- Disable GC scanning with `--no-gc` (or env `OREN_NO_GC=1`) to make the collector/roots a no-op while still getting shutdown cleanup—useful for constrained/embedded targets.
-- See `docs/MEMORY.md` for the current memory model, GC hooks, and roadmap.
-- Lists/maps in the C runtime are protected by a coarse mutex for thread-safe reads/writes; finer-grained concurrency and safepoints are on the roadmap.
+### Build an executable (C backend, default)
+```bash
+./oren build examples/hello.oren -o hello
+```
 
-## Roadmap
-- Active roadmap is tracked in `docs/ROADMAP.md` (memory/GC, concurrency, FFI/linking, type system, tooling, package manager, async/tasks, x86_64, and ecosystem goals).
+### Emit C only (C backend)
+```bash
+./oren build examples/hello.oren --backend c --emit-c
+# writes examples/hello.oren.c
+```
 
-## Features
+### Build a native ARM64 binary (macOS/Linux)
+```bash
+./oren build examples/hello.oren --backend native -o hello_native
+./oren build examples/hello.oren --backend native --target linux -o hello_linux
+```
 
-- **Backends**:
-  - **Native (Default)**: Generates Mach-O (macOS) or ELF (Linux) executables directly.
-  - **C**: Transpiles to C for portability (`--backend c`).
+### Run native tests (single file)
+```bash
+./oren test tests/native/test_gc.oren --target macos
+```
 
-- **Language Features**:
-  - **Variables**: `var x = 10`.
-  - **Control Flow**: `if/else`, `while` loops.
-  - **Functions**: `fn add(a, b) { return a + b }`.
-  - **Modules**: `import alias "path/to/file.oren"`.
-  - **Structs**: `struct Point { x, y }` (C backend only currently).
-  - **SIMD**: Native 128-bit NEON intrinsics (`simd_add_2d`, `simd_mul_4s`, etc.).
+### Build bytecode + run on AVM (experimental)
+```bash
+./oren build examples/hello.oren --backend bytecode -o hello.obc
+make avm
+./avm hello.obc
+```
 
-- **CLI Tools**:
-  - `--target linux|macos`: Cross-compile (header generation).
-  - `--disasm`: Disassemble output using `otool` or `objdump`.
+## Notes / Limitations (Important)
+- **Native backend string concatenation:** `+` is integer-only; use `string_concat(a, b)` for strings.
+- **Native backend Linux dynamic linking/FFI:** the ELF emitter currently stubs unresolved imports (no real dynamic linker integration yet).
+- **`--emit-c`:** only supported with `--backend c`.
+- **`oren test`:** currently supports `--backend native` only.
+- **`--metadata`:** currently emitted by the native backend (`<out>.meta.json`).
+- **macOS signing:** the compiler attempts to codesign outputs (configured Developer ID, with ad-hoc fallback); see `docs/CODESIGN.md`.
 
-## Project Structure
-- `oren.oren`: The self-hosted compiler source (monolithic).
-- `cmd/oren`: Stage 0 Go bootstrap compiler.
-- `lib/`: Runtime library (C backend).
-- `tests/`: Unit tests (Native, Modules, Legacy).
-- `docs/`: Documentation (`NATIVE_BACKEND.md`, `LANGUAGE_SPEC.md`).
-
-## Self-Hosting
-Oren is self-hosting. The `oren.oren` compiler can compile itself.
-See `docs/SELF_HOSTING.md` for details.
+## Docs
+- `docs/BUILD_AND_VERIFY.md` build + verification
+- `docs/SELF_HOSTING.md` self-hosting chain details
+- `docs/C_BACKEND.md` C backend behavior
+- `docs/NATIVE_BACKEND.md` native ARM64 backend
+- `docs/LANGUAGE_SPEC.md` language syntax/semantics
+- `docs/CODESIGN.md` macOS codesign/notarize flags
+- `docs/ROADMAP.md` roadmap

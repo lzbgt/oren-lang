@@ -1,0 +1,634 @@
+// AVM Bytecode Backend
+
+// Opcodes
+var AVM_NOP = 0
+var AVM_HALT = 1
+var AVM_PUSH_CONST = 2
+var AVM_POP = 3
+var AVM_ADD = 16
+var AVM_SUB = 17
+var AVM_PRINT = 32
+var AVM_LOAD_LOCAL = 4
+var AVM_STORE_LOCAL = 5
+var AVM_LOAD_GLOBAL = 6
+var AVM_STORE_GLOBAL = 7
+var AVM_JMP = 48
+var AVM_JMP_IF = 49
+var AVM_CALL = 56
+var AVM_RET = 57
+var AVM_NEW_LIST = 64
+var AVM_NEW_MAP = 65
+var AVM_GET_INDEX = 66
+var AVM_SET_INDEX = 67
+
+fn new_bytecode_ctx() {
+    return {
+        "code": [],
+        "constants": [],
+        "constant_map": {},
+        "locals": {},
+        "local_count": 0,
+        "globals": {},
+        "global_count": 0,
+        "in_function": false,
+        "functions": {},
+        "fixups": [],
+        "field_offsets": {},
+        "aliases": {}
+    }
+}
+
+fn emit_byte(ctx, b) {
+    oren_list_push(ctx["code"], b)
+}
+
+fn emit_u16(ctx, n) {
+    emit_byte(ctx, n & 255)
+    emit_byte(ctx, (n / 256) & 255)
+}
+
+fn emit_i16(ctx, n) {
+    // Two's complement?
+    if n < 0 { n = n + 65536 }
+    emit_u16(ctx, n)
+}
+
+fn patch_u16(ctx, idx, n) {
+    if n < 0 { n = n + 65536 }
+    var low = n & 255
+    var high = (n / 256) & 255
+    // ctx["code"] is list. Oren list update?
+    // list[idx] = val.
+    // Oren AST uses list[i].
+    // Runtime oren_index_set.
+    // Yes, list index set works.
+    var code = ctx["code"]
+    code[idx] = low
+    code[idx+1] = high
+}
+
+fn add_constant(ctx, val) {
+    var idx = oren_list_len(ctx["constants"])
+    oren_list_push(ctx["constants"], val)
+    return idx
+}
+
+fn bytecode_compile_expr(ctx, expr) {
+    if expr == nil {
+        var idx = add_constant(ctx, {"type": "Nil"})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+    
+    // print("Expr: " + expr["type"])
+
+    if expr["type"] == "If" {
+        bytecode_compile_expr(ctx, expr["cond"])
+        
+        emit_byte(ctx, AVM_JMP_IF)
+        var jump_then_idx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        
+        emit_byte(ctx, AVM_JMP)
+        var jump_else_idx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        
+        var then_start = oren_list_len(ctx["code"])
+        bytecode_compile_stmt(ctx, expr["consq"])
+        
+        emit_byte(ctx, AVM_JMP)
+        var jump_end_idx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        
+        var else_start = oren_list_len(ctx["code"])
+        if expr["alt"] != nil {
+            bytecode_compile_stmt(ctx, expr["alt"])
+        }
+        
+        var end_pc = oren_list_len(ctx["code"])
+        
+        patch_u16(ctx, jump_then_idx, then_start - (jump_then_idx + 2))
+        patch_u16(ctx, jump_else_idx, else_start - (jump_else_idx + 2))
+        patch_u16(ctx, jump_end_idx, end_pc - (jump_end_idx + 2))
+        return nil
+    }
+
+    if expr["type"] == "Hash" {
+        var entries = expr["pairs"]
+        var i = 0
+        while i < oren_list_len(entries) {
+            var ent = entries[i]
+            bytecode_compile_expr(ctx, ent["key"])
+            bytecode_compile_expr(ctx, ent["value"])
+            i = i + 1
+        }
+        emit_byte(ctx, AVM_NEW_MAP)
+        emit_u16(ctx, oren_list_len(entries))
+        return nil
+    }
+
+    if expr["type"] == "Array" {
+        var elements = expr["elements"]
+        var i = 0
+        while i < oren_list_len(elements) {
+            bytecode_compile_expr(ctx, elements[i])
+            i = i + 1
+        }
+        emit_byte(ctx, AVM_NEW_LIST)
+        emit_u16(ctx, oren_list_len(elements))
+        return nil
+    }
+    
+    if expr["type"] == "Member" {
+        var left_node = expr["left"]
+        if left_node["type"] == "Identifier" {
+            var left = left_node["value"]
+            var alias = ctx["aliases"][left]
+            if alias != nil {
+                var prop = expr["prop"]["value"]
+                var name = alias + prop
+                var glob = ctx["globals"][name]
+                if glob != nil {
+                    emit_byte(ctx, AVM_LOAD_GLOBAL)
+                    emit_u16(ctx, glob)
+                    return nil
+                }
+                // Fallthrough if not global (maybe member of variable shadowing module?)
+            }
+        }
+        
+        bytecode_compile_expr(ctx, expr["left"])
+        var prop = expr["prop"]["value"]
+        var offset = ctx["field_offsets"][prop]
+        if offset != nil {
+            var idx = add_constant(ctx, {"type": "Integer", "value": offset})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
+            emit_byte(ctx, AVM_GET_INDEX)
+        }
+        return nil
+    }
+
+    if expr["type"] == "Index" {
+        bytecode_compile_expr(ctx, expr["left"])
+        bytecode_compile_expr(ctx, expr["index"])
+        emit_byte(ctx, AVM_GET_INDEX)
+        return nil
+    }
+
+    if expr["type"] == "String" {
+        var idx = add_constant(ctx, {"type": "String", "value": expr["value"]})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+
+    if expr["type"] == "Nil" {
+        var idx = add_constant(ctx, {"type": "Nil"})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+
+    if expr["type"] == "Boolean" {
+        var v = 0
+        if expr["value"] == true { v = 1 }
+        var idx = add_constant(ctx, {"type": "Integer", "value": v})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+
+    if expr["type"] == "Integer" {
+        var s = expr["value"]
+        var val = 0
+        var i = 0
+        while i < oren_string_len(s) {
+            var digit = 0
+            var c = oren_string_char_at(s, i)
+            if c == "0" { digit = 0 }
+            if c == "1" { digit = 1 }
+            if c == "2" { digit = 2 }
+            if c == "3" { digit = 3 }
+            if c == "4" { digit = 4 }
+            if c == "5" { digit = 5 }
+            if c == "6" { digit = 6 }
+            if c == "7" { digit = 7 }
+            if c == "8" { digit = 8 }
+            if c == "9" { digit = 9 }
+            val = val * 10 + digit
+            i = i + 1
+        }
+        
+        var idx = add_constant(ctx, {"type": "Integer", "value": val})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+    
+    if expr["type"] == "Identifier" {
+        var name = expr["value"]
+        var loc = ctx["locals"][name]
+        if loc != nil {
+            emit_byte(ctx, AVM_LOAD_LOCAL)
+            emit_byte(ctx, loc)
+            return nil
+        }
+        var glob = ctx["globals"][name]
+        if glob != nil {
+            emit_byte(ctx, AVM_LOAD_GLOBAL)
+            emit_u16(ctx, glob)
+            return nil
+        }
+        // Error: undefined
+        return nil
+    }
+    
+    if expr["type"] == "Infix" {
+        bytecode_compile_expr(ctx, expr["left"])
+        bytecode_compile_expr(ctx, expr["right"])
+        if expr["op"] == "+" {
+            emit_byte(ctx, AVM_ADD)
+        }
+        if expr["op"] == "-" {
+            emit_byte(ctx, AVM_SUB)
+        }
+        if expr["op"] == "<" {
+            emit_byte(ctx, 18)
+        }
+        if expr["op"] == "==" { emit_byte(ctx, 19) }
+        if expr["op"] == "!=" { emit_byte(ctx, 20) }
+        if expr["op"] == ">"  { emit_byte(ctx, 21) }
+        if expr["op"] == "<=" { emit_byte(ctx, 22) }
+        if expr["op"] == ">=" { emit_byte(ctx, 23) }
+        if expr["op"] == "&"  { emit_byte(ctx, 24) }
+        if expr["op"] == "|"  { emit_byte(ctx, 25) }
+        if expr["op"] == "^"  { emit_byte(ctx, 26) }
+        if expr["op"] == "<<" { emit_byte(ctx, 27) }
+        if expr["op"] == ">>" { emit_byte(ctx, 28) }
+        return nil
+    }
+    
+    if expr["type"] == "Call" {
+        var name = ""
+        var fn_node = expr["fn"]
+        if fn_node["type"] == "Identifier" {
+            name = fn_node["value"]
+        }
+        if fn_node["type"] == "Member" {
+            if fn_node["left"]["type"] == "Identifier" {
+                var left = fn_node["left"]["value"]
+                var prop = fn_node["prop"]["value"]
+                var alias = ctx["aliases"][left]
+                if alias != nil {
+                    name = alias + prop
+                } else {
+                    print("Method call not supported: " + left + "." + prop)
+                }
+            }
+        }
+        
+        var native_id = -1
+        if name == "oren_read_file" { native_id = 0 }
+        if name == "oren_write_file" { native_id = 1 }
+        if name == "oren_system" { native_id = 2 }
+        if name == "oren_args" { native_id = 3 }
+        if name == "oren_env" { native_id = 4 }
+        if name == "oren_exit" { native_id = 5 }
+        if name == "oren_string_len" { native_id = 6 }
+        if name == "oren_string_char_at" { native_id = 7 }
+        if name == "oren_string_slice" { native_id = 8 }
+        if name == "oren_string_char_code_at" { native_id = 9 }
+        if name == "oren_int_to_string" { native_id = 10 }
+        if name == "oren_list_len" { native_id = 12 }
+        if name == "oren_list_push" { native_id = 13 }
+        if name == "oren_index_set" { native_id = 14 }
+        if name == "int_mod" { native_id = 15 }
+        if name == "oren_bytes_from_string" { native_id = 16 }
+        if name == "oren_write_bytes" { native_id = 17 }
+        
+        if native_id != -1 {
+            var args = expr["args"]
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            emit_byte(ctx, 58) // CALL_NATIVE
+            emit_u16(ctx, native_id)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
+
+        if name == "print" {
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_PRINT)
+            return nil
+        }
+        
+        var args = expr["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            bytecode_compile_expr(ctx, args[i])
+            i = i + 1
+        }
+        
+        emit_byte(ctx, AVM_CALL)
+        var call_pos = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        emit_byte(ctx, oren_list_len(args))
+        
+        oren_list_push(ctx["fixups"], {"pos": call_pos, "name": name})
+        return nil
+    }
+    
+    return nil
+}
+
+fn bytecode_compile_function(ctx, stmt) {
+    var name = stmt["name"]
+    
+    emit_byte(ctx, AVM_JMP)
+    var jump_skip_idx = oren_list_len(ctx["code"])
+    emit_u16(ctx, 0)
+    
+    var start_pc = oren_list_len(ctx["code"])
+    ctx["functions"][name] = start_pc
+    
+    var old_locals = ctx["locals"]
+    var old_local_count = ctx["local_count"]
+    var old_in_function = ctx["in_function"]
+    ctx["locals"] = {}
+    ctx["local_count"] = 0
+    ctx["in_function"] = true
+    
+    var params = stmt["params"]
+    var i = 0
+    while i < oren_list_len(params) {
+        var pname = params[i]["value"]
+        ctx["locals"][pname] = ctx["local_count"]
+        ctx["local_count"] = ctx["local_count"] + 1
+        i = i + 1
+    }
+    
+    bytecode_compile_stmt(ctx, stmt["body"])
+    
+    var idx = add_constant(ctx, {"type": "Integer", "value": 0})
+    emit_byte(ctx, AVM_PUSH_CONST)
+    emit_u16(ctx, idx)
+    emit_byte(ctx, AVM_RET)
+    
+    var end_pc = oren_list_len(ctx["code"])
+    patch_u16(ctx, jump_skip_idx, end_pc - (jump_skip_idx + 2))
+    
+    ctx["locals"] = old_locals
+    ctx["local_count"] = old_local_count
+    ctx["in_function"] = old_in_function
+    return nil
+}
+
+fn bytecode_compile_stmt(ctx, stmt) {
+    if stmt["type"] == "Type" {
+        var fields = stmt["fields"]
+        var i = 0
+        while i < oren_list_len(fields) {
+            var f = fields[i]["value"]
+            if ctx["field_offsets"][f] == nil {
+                ctx["field_offsets"][f] = i
+            }
+            i = i + 1
+        }
+        return nil
+    }
+
+    if stmt["type"] == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr["type"] == "Function" {
+            return bytecode_compile_function(ctx, expr)
+        }
+        bytecode_compile_expr(ctx, expr)
+        emit_byte(ctx, AVM_POP)
+        return nil
+    }
+    
+    if stmt["type"] == "Function" {
+        return bytecode_compile_function(ctx, stmt)
+    }
+    
+    if stmt["type"] == "Return" {
+        if stmt["value"] != nil {
+            bytecode_compile_expr(ctx, stmt["value"])
+        } else {
+            var idx = add_constant(ctx, {"type": "Integer", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
+        }
+        emit_byte(ctx, AVM_RET)
+        return nil
+    }
+    
+    if stmt["type"] == "Var" {
+        bytecode_compile_expr(ctx, stmt["value"])
+        var name = stmt["name"]["value"]
+        if ctx["in_function"] != true {
+            var idx = ctx["global_count"]
+            ctx["globals"][name] = idx
+            ctx["global_count"] = idx + 1
+            emit_byte(ctx, AVM_STORE_GLOBAL)
+            emit_u16(ctx, idx)
+        } else {
+            var idx = ctx["local_count"]
+            ctx["locals"][name] = idx
+            ctx["local_count"] = idx + 1
+            emit_byte(ctx, AVM_STORE_LOCAL)
+            emit_byte(ctx, idx)
+        }
+        return nil
+    }
+    
+    if stmt["type"] == "Assign" {
+        // Assign is for variables (Identifier)
+        var target = stmt["name"]
+        if target["type"] == "Identifier" {
+            bytecode_compile_expr(ctx, stmt["value"])
+            var name = target["value"]
+            var loc = ctx["locals"][name]
+            if loc != nil {
+                emit_byte(ctx, AVM_STORE_LOCAL)
+                emit_byte(ctx, loc)
+                return nil
+            }
+            var glob = ctx["globals"][name]
+            if glob != nil {
+                emit_byte(ctx, AVM_STORE_GLOBAL)
+                emit_u16(ctx, glob)
+                return nil
+            }
+        }
+        return nil
+    }
+    
+    if stmt["type"] == "Set" {
+        var left = stmt["left"]
+        if left["type"] == "Index" {
+            bytecode_compile_expr(ctx, left["left"])
+            bytecode_compile_expr(ctx, left["index"])
+            bytecode_compile_expr(ctx, stmt["value"])
+            emit_byte(ctx, AVM_SET_INDEX)
+            return nil
+        }
+        if left["type"] == "Member" {
+            bytecode_compile_expr(ctx, left["left"])
+            var prop = left["prop"]["value"]
+            var offset = ctx["field_offsets"][prop]
+            if offset != nil {
+                var idx = add_constant(ctx, {"type": "Integer", "value": offset})
+                emit_byte(ctx, AVM_PUSH_CONST)
+                emit_u16(ctx, idx)
+                bytecode_compile_expr(ctx, stmt["value"])
+                emit_byte(ctx, AVM_SET_INDEX)
+            }
+            return nil
+        }
+        return nil
+    }
+    
+    if stmt["type"] == "Block" {
+        var stmts = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(stmts) {
+            bytecode_compile_stmt(ctx, stmts[i])
+            i = i + 1
+        }
+        return nil
+    }
+    
+    if stmt["type"] == "While" {
+        var start_pc = oren_list_len(ctx["code"])
+        bytecode_compile_expr(ctx, stmt["cond"])
+        
+        emit_byte(ctx, AVM_JMP_IF)
+        var jump_body_idx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        
+        emit_byte(ctx, AVM_JMP)
+        var jump_end_idx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        
+        var body_start = oren_list_len(ctx["code"])
+        bytecode_compile_stmt(ctx, stmt["body"])
+        
+        emit_byte(ctx, AVM_JMP)
+        var jump_back_idx = oren_list_len(ctx["code"])
+        var off_back = start_pc - (jump_back_idx + 2)
+        emit_i16(ctx, off_back)
+        
+        var end_pc = oren_list_len(ctx["code"])
+        
+        patch_u16(ctx, jump_body_idx, body_start - (jump_body_idx + 2))
+        patch_u16(ctx, jump_end_idx, end_pc - (jump_end_idx + 2))
+        
+        return nil
+    }
+    
+    return nil
+}
+fn bytecode_compile_program(linked) {
+    var ctx = new_bytecode_ctx()
+    ctx["aliases"] = linked["aliases"]
+    var stmts = linked["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        bytecode_compile_stmt(ctx, stmts[i])
+        i = i + 1
+    }
+    
+    // Entry: call main() if present.
+    var main_addr = ctx["functions"]["main"]
+    if main_addr != nil {
+        emit_byte(ctx, AVM_CALL)
+        emit_u16(ctx, main_addr)
+        emit_byte(ctx, 0) // nargs
+        emit_byte(ctx, AVM_POP) // ignore return value
+    }
+    
+    emit_byte(ctx, AVM_HALT)
+    
+    var j = 0
+    var fixups = ctx["fixups"]
+    while j < oren_list_len(fixups) {
+        var fix = fixups[j]
+        var name = fix["name"]
+        var pos = fix["pos"]
+        var addr = ctx["functions"][name]
+        if addr != nil {
+            patch_u16(ctx, pos, addr)
+        } else {
+            print("Undefined function: " + name)
+        }
+        j = j + 1
+    }
+    
+    return ctx
+}
+
+fn emit_u64_le(bytes, n) {
+    var i = 0
+    while i < 8 {
+        oren_list_push(bytes, n & 255)
+        n = n / 256
+        i = i + 1
+    }
+}
+
+fn bytecode_emit_program(out_path, ctx) {
+    var bytes = []
+    // Magic: 0x0ECD (CD 0E)
+    oren_list_push(bytes, 205)
+    oren_list_push(bytes, 14)
+    
+    // Constants
+    var consts = ctx["constants"]
+    var n_consts = oren_list_len(consts)
+    // Count (u16)
+    oren_list_push(bytes, n_consts & 255)
+    oren_list_push(bytes, (n_consts / 256) & 255)
+    
+    var i = 0
+    while i < n_consts {
+        var c = consts[i]
+        if c["type"] == "Nil" {
+            oren_list_push(bytes, 0) // Type NIL
+        }
+        if c["type"] == "Integer" {
+            oren_list_push(bytes, 1) // Type INT
+            emit_u64_le(bytes, c["value"])
+        }
+        if c["type"] == "String" {
+            oren_list_push(bytes, 4) // Type STRING
+            var s = c["value"]
+            var s_bytes = oren_bytes_from_string(s)
+            var len = oren_list_len(s_bytes)
+            oren_list_push(bytes, len & 255)
+            oren_list_push(bytes, (len / 256) & 255)
+            var k = 0
+            while k < len {
+                oren_list_push(bytes, s_bytes[k])
+                k = k + 1
+            }
+        }
+        i = i + 1
+    }
+    
+    // Code
+    var code = ctx["code"]
+    var i_code = 0
+    while i_code < oren_list_len(code) {
+        oren_list_push(bytes, code[i_code])
+        i_code = i_code + 1
+    }
+    
+    oren_write_bytes(out_path, bytes)
+    return nil
+}

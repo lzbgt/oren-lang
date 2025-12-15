@@ -1,0 +1,14 @@
+import s "shapes.oren"
+
+var p1 = s.make_point(0, 0)
+var p2 = s.make_point(10, 20)
+var r = s.Rect(p1, p2)
+
+var a = s.area(r)
+if a == 200 {
+    print("Shapes Test Passed")
+    exit(0)
+} else {
+    print("Shapes Test Failed")
+    exit(1)
+}

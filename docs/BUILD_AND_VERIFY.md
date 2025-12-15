@@ -63,7 +63,11 @@ Transpiles Oren to C, then compiles with the system C compiler (`cc`). Best for 
 
 ## 3. Using FFI (Foreign Function Interface)
 
-Oren provides a simple mechanism to call C functions directly from your native backend builds. This works by dynamically linking against system libraries (e.g., `libSystem` on macOS).
+Oren can call external C symbols via `ffi <name>` when using the **native backend**.
+
+Current status:
+- **macOS (Mach-O):** uses dyld binding opcodes and GOT stubs; this enables basic FFI against `libSystem` and any dylibs you load via `--link`.
+- **Linux (ELF):** the ELF emitter does not implement dynamic linking yet; unresolved imports are currently stubbed (so FFI is not functional on Linux native builds).
 
 ### Usage
 Declare the external symbol using the `ffi` keyword, then call it like a regular function.
@@ -91,7 +95,13 @@ When you build this with `--backend native`, the compiler generates:
 *Note: Currently, arguments are passed as raw 64-bit values. String literals are passed as `char*` (pointers to null-terminated C strings).*
 
 ### Linking Third-Party Libraries
-The **Native Backend** currently links only against the system C library (`libSystem` on macOS). To use other libraries (e.g., `libcurl`, `libsqlite3`):
+The native backend always loads `libSystem` on macOS. To load additional dylibs:
+
+```bash
+./oren build examples/ffi_test.oren --backend native --link /usr/lib/libsqlite3.dylib -o ffi_sqlite
+```
+
+To link arbitrary libraries portably (or on Linux today), use the C backend:
 
 1.  **Use the C Backend**: The C backend allows you to pass arbitrary linker flags.
     ```bash
@@ -109,7 +119,7 @@ The **Native Backend** currently links only against the system C library (`libSy
     cl /Fe:myapp.exe examples/myapp.oren.c lib/runtime.c /Ilib user32.lib kernel32.lib
     ```
 
-2.  **Native Backend Support**: Linking custom dylibs directly in the native backend is planned for a future release (will require a CLI flag like `--link <lib>`).
+2.  **Linux Native Backend Support**: ELF dynamic linking (`DT_NEEDED` / PLT/GOT relocations) is not implemented yet.
 
 ---
 

@@ -6,7 +6,7 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 
 - **Executable Formats**:
   - **macOS**: Mach-O 64-bit, PIE. Supports dynamic linking with `libSystem` (FFI) via `LC_DYLD_INFO_ONLY` binding opcodes and GOT stubs. The CLI signs the finished binary with your Developer ID by default.
-  - **Linux**: ELF 64-bit, PIE (`ET_DYN`), System V ABI.
+  - **Linux**: ELF 64-bit (`ET_EXEC`) with a minimal single `PT_LOAD` image (no dynamic section / no dynamic linker integration yet).
 
 - **Language Features**:
   - **Control Flow**: `if/else`, `while`, `Block`, `Return`.
@@ -17,7 +17,8 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
   - **Modules**: `import` loads code (merged).
 
 - **Memory & Concurrency**:
-  - **Allocation**: Bump-pointer heap (X28/X27) with on-demand `mmap` growth (max of request or 64KB) and a runtime hook `oren_alloc_struct` for struct buffers. Stack slots in inner blocks are released automatically to keep frames bounded across loops. GC hooks exist but are currently no-ops; native allocations are still arena-style.
+  - **Allocation**: Bump-pointer heap (X28/X27) with on-demand `mmap` growth (max of request or 64KB) and a runtime hook `oren_alloc_struct` for struct buffers. Stack slots in inner blocks are released automatically to keep frames bounded across loops.
+  - **GC**: Conservative mark/sweep GC is implemented in `lib/runtime_native.oren` and can be triggered manually via `native_gc_collect()`.
   - **Access**: `ptr_get`, `ptr_set`, `ptr_get_byte`, `ptr_set_byte`.
   - **Lists**: `oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` (list-aware), plus array literal lowering in codegen.
   - **Atomics**: `atomic_add` (LDADD), `atomic_cas` (CAS).
@@ -25,6 +26,10 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 
 - **Runtime**:
   - Automatically injects `lib/runtime_native.oren` which implements `String` comparison and `Map` logic.
+
+## Notes / Limitations
+- **String concatenation:** `+` is integer-only on the native backend; use `string_concat(a, b)` for strings.
+- **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).
 
 ## CLI Usage
 ```bash

@@ -5,6 +5,7 @@ all: oren
 
 # Platform settings
 UNAME_S := $(shell uname -s)
+CC ?= cc
 CODESIGN_IDENTITY ?= Developer ID Application: Zongbao Lu (US56HHF2Y4)
 ifeq ($(UNAME_S),Darwin)
   CODESIGN_ARG := --codesign "$(CODESIGN_IDENTITY)"
@@ -61,6 +62,11 @@ test: oren
 		if [ "$$name" = "linux_hello" ]; then \
 			./oren build $$t --backend native -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
 			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
+		elif [ "$$name" = "test_debug_panic" ]; then \
+			./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			if ./build/$$name; then \
+				echo "FAIL: $$name (Expected panic)"; exit 1; \
+			fi; \
 		else \
 			./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
 			./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
@@ -86,8 +92,19 @@ verify: clean oren_stage2
 	@./build/func_stage2 || (echo "FAIL: Stage 2 Verification"; exit 1)
 	@echo "Verification Successful: Stage 2 is functional."
 
+# --- AVM (experimental) ---
+
+avm: lib/avm/main.c lib/avm/avm.c lib/avm/avm.h
+	@echo "Building AVM..."
+	$(CC) -O2 -o avm lib/avm/main.c lib/avm/avm.c
+
 # --- Cleanup ---
 
 clean:
 	@echo "Cleaning workspace..."
-	rm -rf oren_bootstrap oren oren_stage2 build/ *.c *.dSYM verify_full.sh run_tests.sh
+	rm -rf build/ *.dSYM verify_full.sh run_tests.sh
+	rm -f oren_bootstrap oren oren_stage2 oren_stage3 avm
+	rm -f *.oren.c *.obc *.otool *.dylib *.so
+	@# Remove local test binaries (keep .oren sources)
+	@find tests/native -maxdepth 1 -type f ! -name '*.oren' -delete 2>/dev/null || true
+	@find tests/modules -maxdepth 1 -type f ! -name '*.oren' -delete 2>/dev/null || true

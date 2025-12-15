@@ -1,0 +1,4 @@
+print((1 << 4) | 2)        // 18
+print((255 & 15) ^ 3)      // 12
+print(~0)                  // -1
+print((1 << 63) >> 63)     // 1 (logical shift)

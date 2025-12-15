@@ -1,0 +1,36 @@
+var ok = 0
+
+fn worker() {
+    // Keep heap objects only in locals; stack scanning should keep them alive.
+    var xs = [1, 2, 3, 4]
+    var sum = 0
+    var i = 0
+    while i < 200000 {
+        // touch list each iteration
+        sum = sum + xs[0]
+        i = i + 1
+    }
+    if xs[3] == 4 && sum > 0 {
+        ok = 1
+    }
+    return nil
+}
+
+var t = spawn worker()
+
+// Collect repeatedly while worker is alive.
+var j = 0
+while j < 30 {
+    oren_gc_collect()
+    j = j + 1
+}
+
+oren_join(t)
+
+if ok == 1 {
+    print("GC stack roots OK")
+    exit(0)
+}
+print("GC stack roots FAIL")
+exit(1)
+

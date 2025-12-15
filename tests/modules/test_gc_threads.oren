@@ -1,0 +1,26 @@
+var counter = 0
+
+fn worker() {
+    var i = 0
+    while i < 200000 {
+        counter = counter + 1
+        i = i + 1
+    }
+    return nil
+}
+
+var t = spawn worker()
+var j = 0
+while j < 20 {
+    // Should be able to collect while a worker thread is alive.
+    // Safepoints are injected into loops by the transpiler.
+    oren_gc_collect()
+    j = j + 1
+}
+oren_join(t)
+if counter == 200000 {
+    print("GC+Threads OK")
+    exit(0)
+}
+print("GC+Threads FAIL")
+exit(1)

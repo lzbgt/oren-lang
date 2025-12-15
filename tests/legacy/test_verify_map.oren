@@ -1,0 +1,1 @@
+var m = {"key": 100}; print(m["key"])

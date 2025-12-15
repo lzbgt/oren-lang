@@ -1,0 +1,2 @@
+import a "mod_a.oren"
+exit(a.x)

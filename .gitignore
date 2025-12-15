@@ -5,9 +5,22 @@ oren
 oren_stage*
 *.o
 *.dSYM/
+avm
 
 # Generated C
 *.oren.c
+
+# Bytecode / libs / misc artifacts
+*.obc
+*.otool
+*.dylib
+*.so
+
+# Test/build byproducts (keep sources)
+tests/native/*
+!tests/native/*.oren
+tests/modules/*
+!tests/modules/*.oren
 
 .DS_Store
 build/

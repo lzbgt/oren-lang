@@ -1,0 +1,12 @@
+struct Point { x, y }
+class Rect { tl, br }
+
+fn make_point(x, y) {
+    return Point(x, y)
+}
+
+fn area(r) {
+    var w = r.br.x - r.tl.x
+    var h = r.br.y - r.tl.y
+    return w * h
+}

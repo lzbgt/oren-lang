@@ -1,4 +1,5 @@
 import codegen "codegen_arm64.oren"
+import codegen_bytecode "codegen_bytecode.oren"
 import transpiler "transpiler.oren"
 import analysis "analysis.oren"
 import lexer "lexer.oren"
@@ -8,9 +9,29 @@ import metadata "metadata.oren"
 
 fn usage() {
     print("Usage:")
-    print("  oren <file.oren> [-o output] [--emit-c] [--backend c|native] [--cc cc] [--python] [--codesign id] [--notarize] [--notary-profile name] [--no-gc] [--metadata]")
-    print("  oren build <file.oren> [-o output] [--emit-c] [--backend c|native] [--cc cc] [--python] [--codesign id] [--notarize] [--notary-profile name] [--no-gc] [--metadata]")
+    print("  oren <file.oren> [flags]               (alias for: oren build <file.oren>)")
+    print("  oren build <file.oren> [flags]")
     print("  oren emit-c <file.oren>")
+    print("  oren test <file.oren> [--target macos|linux]")
+    print("  oren scan <lib.dylib>")
+    print("")
+    print("Flags:")
+    print("  -o <path>                Output path (default: strip .oren)")
+    print("  --backend c|native|bytecode")
+    print("  --emit-c                 (C backend only) stop after generating <file.oren>.c")
+    print("  --cc <cc>                (C backend) C compiler (default: cc)")
+    print("  --target macos|linux      (native backend) target OS (default: macos)")
+    print("  --disasm                  (native backend) disassemble output via otool/objdump")
+    print("  --debug                   (native backend) embed debug info for stack traces")
+    print("  --lib | --shared          (native backend) build a shared library")
+    print("  --link <path> | -l <path> (native backend, macOS) add LC_LOAD_DYLIB")
+    print("  --metadata                (native backend) write <out>.meta.json")
+    print("  --analyze                 print analysis info and exit")
+    print("  --python                  (C backend) enable Python integration (requires python3-config)")
+    print("  --codesign <id>           (macOS) codesign output (default: configured Developer ID)")
+    print("  --notarize                (macOS) notarize output with notarytool")
+    print("  --notary-profile <name>   (macOS) notarytool keychain profile")
+    print("  --no-gc                   disable GC scanning (also via env OREN_NO_GC=1)")
 }
 
 fn shell_quote(s) {
@@ -27,6 +48,18 @@ fn dirname(path) {
         i = i - 1
     }
     return "."
+}
+
+fn starts_with(s, prefix) {
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
 }
 
 fn default_output_path(path) {
@@ -237,11 +270,14 @@ fn compiler_main() {
     var i = 1
     if args[i] == "build" { mode = "build"; i = i + 1 }
     else {
-        if args[i] == "emit-c" { mode = "emit-c"; i = i + 1 }
+        if args[i] == "test" { mode = "test"; i = i + 1 }
         else {
-            if args[i] == "scan" { mode = "scan"; i = i + 1 }
+            if args[i] == "emit-c" { mode = "emit-c"; i = i + 1 }
             else {
-                if args[i] == "--emit-c" { mode = "emit-c"; i = i + 1 }
+                if args[i] == "scan" { mode = "scan"; i = i + 1 }
+                else {
+                    if args[i] == "--emit-c" { mode = "emit-c"; i = i + 1 }
+                }
             }
         }
     }
@@ -434,7 +470,7 @@ fn compiler_main() {
         }
     }
 
-    if backend != "c" && backend != "native" {
+    if backend != "c" && backend != "native" && backend != "bytecode" {
         print("Unknown backend: " + backend)
         return nil
     }
@@ -455,6 +491,100 @@ fn compiler_main() {
     
     if analyze {
         analysis.analyze_program(prog)
+        return nil
+    }
+
+    if mode == "test" {
+        if backend != "native" {
+            print("Test runner currently supports --backend native only.")
+            return nil
+        }
+        
+        var tests = []
+        var stmts = prog["statements"]
+        var si = 0
+        while si < oren_list_len(stmts) {
+            var s = stmts[si]
+            var fn_node = nil
+            if s["type"] == "Function" { fn_node = s }
+            if s["type"] == "ExprStmt" {
+                var expr = s["expr"]
+                if expr != nil {
+                    if expr["type"] == "Function" { fn_node = expr }
+                }
+            }
+            if fn_node != nil {
+                var name_node = fn_node["name"]
+                if name_node != nil {
+                    var name = name_node
+                    if starts_with(name, "test_") {
+                        oren_list_push(tests, name)
+                    }
+                }
+            }
+            si = si + 1
+        }
+        
+        var main_stmts = []
+        var print_tok = {"literal": "print"}
+        var print_id = ast.new_identifier(print_tok)
+        
+        var start_tok = {"literal": "Running tests..."}
+        var start_call = ast.new_call(nil, print_id, [ast.new_string(start_tok)])
+        oren_list_push(main_stmts, ast.new_expr_stmt(nil, start_call))
+        
+        var ti = 0
+        while ti < oren_list_len(tests) {
+            var tname = tests[ti]
+            var t_tok = {"literal": tname}
+            var t_call = ast.new_call(nil, ast.new_identifier(t_tok), [])
+            oren_list_push(main_stmts, ast.new_expr_stmt(nil, t_call))
+            
+            var msg = "PASS: " + tname
+            var msg_tok = {"literal": msg}
+            var msg_call = ast.new_call(nil, print_id, [ast.new_string(msg_tok)])
+            oren_list_push(main_stmts, ast.new_expr_stmt(nil, msg_call))
+            
+            ti = ti + 1
+        }
+        
+        var end_tok = {"literal": "All tests passed."}
+        var end_call = ast.new_call(nil, print_id, [ast.new_string(end_tok)])
+        oren_list_push(main_stmts, ast.new_expr_stmt(nil, end_call))
+        
+        var main_fn = ast.new_function(nil, "main", [], ast.new_block(nil))
+        main_fn["body"]["stmts"] = main_stmts
+        oren_list_push(prog["statements"], ast.new_expr_stmt(nil, main_fn))
+        
+        var linked = link_program(path, prog)
+        var out_test = path + ".test"
+        
+        if target == "linux" {
+            codegen.elf_emit_program_arm64(out_test, linked, [], false, [], false)
+        } else {
+            codegen.macho_emit_program_arm64(out_test, linked, [], false, [], false)
+        }
+        
+        if target == "macos" {
+             var cs_cmd = "codesign -s - --force " + shell_quote(out_test)
+             oren_system(cs_cmd)
+        }
+        
+        print("Executing tests...")
+        var res = oren_system("./" + out_test)
+        oren_system("rm " + out_test)
+        if res != 0 {
+            print("Tests FAILED.")
+            oren_exit(1)
+        }
+        return nil
+    }
+
+    if backend == "bytecode" {
+        var linked_bc = link_program(path, prog)
+        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc)
+        codegen_bytecode.bytecode_emit_program(out_path, ctx)
+        print("Bytecode emitted: " + out_path)
         return nil
     }
 

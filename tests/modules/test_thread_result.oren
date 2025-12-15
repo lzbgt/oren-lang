@@ -1,0 +1,55 @@
+fn worker_success() {
+    print("Worker running")
+    return 42
+}
+
+fn worker_sleep() {
+    var i = 0
+    while i < 100000 {
+        i = i + 1
+    }
+    return "done"
+}
+
+var t1 = spawn worker_success()
+
+// Check is_done (might be false initially, or true if fast)
+// We can't deterministicly check false without sleep, but we can check true after join
+var res1 = oren_join(t1)
+if res1 != 42 {
+    print("Error: Expected 42, got " + oren_int_to_string(res1))
+    exit(1)
+}
+print("Join result OK")
+
+// Test is_done
+var t2 = spawn worker_sleep()
+// We check is_done immediately, it should ideally be false or true (bool).
+if oren_is_done(t2) == true {
+   // fast
+}
+
+var joined = oren_join(t2)
+if joined != "done" {
+    print("Error: Expected 'done', got " + joined)
+    exit(1)
+}
+print("Join result 2 OK")
+
+fn worker_quick() { return 1 }
+var t3 = spawn worker_quick()
+// Busy wait to let t3 finish
+var j = 0
+while j < 5000000 { j = j + 1 }
+
+if oren_is_done(t3) {
+    print("is_done verified true")
+} else {
+    print("Warning: is_done false (machine slow?)")
+}
+var res3 = oren_join(t3)
+if res3 != 1 {
+    print("Error: Expected 1")
+    exit(1)
+}
+print("Thread Result Test OK")

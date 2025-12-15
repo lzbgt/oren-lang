@@ -1,0 +1,16 @@
+var done = 0
+
+fn worker() {
+    done = 1
+    return nil
+}
+
+var t = spawn worker()
+oren_join(t)
+
+if done == 1 {
+    print("Spawn OK")
+    exit(0)
+}
+print("Spawn FAIL")
+exit(1)

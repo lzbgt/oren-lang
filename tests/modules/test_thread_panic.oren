@@ -1,0 +1,28 @@
+fn panicking_worker() {
+    print("Panicking worker starting")
+    var x = "bad" + 1 // This will cause a type mismatch panic
+    print("Panicking worker should not reach here: " + x)
+    return nil
+}
+
+fn test_main() {
+    print("Main thread starting")
+    var t = spawn panicking_worker()
+    print("Worker spawned, joining...")
+    
+    // Attempt to join the panicking worker
+    // Expect oren_join to re-panic in the main thread
+    // There is no try-catch in Oren, so the process will exit here.
+    // The test is to verify it exits with a message from oren_join, not from the worker directly.
+    // The main thread should receive the panic message from oren_join and then exit(1) via oren_panic
+    // We cannot 'catch' the panic in Oren itself in this test.
+    // This test will PASS if the output contains "Joined thread failed: Thread Panicked" and exits with 1.
+    // It will FAIL if it prints "Panicking worker should not reach here" or exits with 0.
+    
+    oren_join(t) // This should cause a panic in the main thread
+    
+    print("Should not reach here in main thread")
+    exit(1) // Force exit if somehow reached here
+}
+
+test_main()

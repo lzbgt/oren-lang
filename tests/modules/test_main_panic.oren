@@ -1,0 +1,7 @@
+fn main_panic_fn() {
+    // This will cause a type mismatch panic
+    var x = "hello" + 1
+    print("This should not be printed after panic: " + x)
+}
+main_panic_fn()
+print("Should not reach here after main_panic_fn")
