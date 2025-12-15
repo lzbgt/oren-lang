@@ -910,7 +910,63 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
     return 1;
 }
 
-static int rr_write_entry(FILE* f, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
+static int rr_value_wire_size(AvmValue v, uint64_t* out_bytes) {
+    if (!out_bytes) return 0;
+    ObjTable objs = {0};
+    collect_value_objects(&objs, v);
+
+    uint64_t sz = 0;
+    // obj_count (u32)
+    sz += 4;
+
+    for (uint32_t id = 0; id < objs.count; id++) {
+        uint8_t t = objs.types[id];
+        uint32_t aux = objs.aux[id];
+
+        // object header: type (u8) + aux (u32)
+        if (sz > UINT64_MAX - 5) { objtable_free(&objs); return 0; }
+        sz += 5;
+
+        uint64_t payload_len = 0;
+        if (t == 1) payload_len = aux;                    // STRING bytes
+        else if (t == 2) payload_len = (uint64_t)aux * 9;  // LIST values
+        else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull; // MAP key/value pairs
+        else if (t == 4) payload_len = aux;                // BYTES bytes
+        else { objtable_free(&objs); return 0; }
+
+        if (sz > UINT64_MAX - payload_len) { objtable_free(&objs); return 0; }
+        sz += payload_len;
+    }
+
+    // root value encoding: fixed 9 bytes (tag u8 + payload u64)
+    if (sz > UINT64_MAX - 9) { objtable_free(&objs); return 0; }
+    sz += 9;
+
+    objtable_free(&objs);
+    *out_bytes = sz;
+    return 1;
+}
+
+static int rr_entry_wire_size(uint8_t domain, uint16_t op, AvmValue ret, uint64_t* out_bytes) {
+    if (!out_bytes) return 0;
+
+    // domain (u8) + op (u16) + nargs (u8) + args_hash (32) + ret_hash (32)
+    uint64_t base = 1 + 2 + 1 + 32 + 32;
+    uint64_t vsz = 0;
+    if (!rr_value_wire_size(ret, &vsz)) return 0;
+
+    if (base > UINT64_MAX - vsz) return 0;
+    *out_bytes = base + vsz;
+    (void)domain;
+    (void)op;
+    return 1;
+}
+
+static int rr_write_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
+    uint64_t need = 0;
+    if (!rr_entry_wire_size(domain, op, ret, &need)) return 0;
+    if (!avm_log_charge(vm, need, (int)domain, (int)op)) return 0;
+
     uint8_t args_h[32];
     uint8_t ret_h[32];
     if (!avm_args_hash(domain, op, args, nargs, args_h)) return 0;
@@ -965,7 +1021,11 @@ static AvmValue rr_replay_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op,
     return ret;
 }
 
-static int rr_write_entry_mem(AvmBytes* out, uint32_t* pos, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
+static int rr_write_entry_mem(AvmVM* vm, AvmBytes* out, uint32_t* pos, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
+    uint64_t need = 0;
+    if (!rr_entry_wire_size(domain, op, ret, &need)) return 0;
+    if (!avm_log_charge(vm, need, (int)domain, (int)op)) return 0;
+
     uint8_t args_h[32];
     uint8_t ret_h[32];
     if (!avm_args_hash(domain, op, args, nargs, args_h)) return 0;
@@ -1664,4 +1724,3 @@ static int avm_path_allowed(AvmVM* vm, const char* path) {
     }
     return 0;
 }
-

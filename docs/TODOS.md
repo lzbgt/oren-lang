@@ -2,24 +2,17 @@
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.
 
-Last updated: 2025-12-15
+Last updated: 2025-12-16
 
 ## P0 (Emergency / Blocking Safety)
 
 ### AVM (agentic execution substrate)
 
-1) **Account replay/record log growth under budgets**
-   - Count record/replay log growth under a budget (either extend `AVM_IO_BYTES` or add `AVM_LOG_BYTES`).
-   - Enforce for:
-     - file-based logs (`AVM_RECORD_LOG`)
-     - in-memory logs (`AVM_RECORD_MEM=1` / `--print-record-log-hex`)
-     - AVM-in-AVM (`domain=8` returning `record_log` as data)
-
-2) **Policy output stabilization (hashable + governance-ready)**
+1) **Policy output stabilization (hashable + governance-ready)**
    - Keep `--print-policy` “no execute” invariant.
    - Add a stable, machine-friendly output mode (e.g. JSON) once semantics stabilize.
 
-3) **Legacy opcode deprecation path**
+2) **Legacy opcode deprecation path**
    - Keep `CALL_NATIVE` mapped into `(domain, op)` (done), then phase out legacy opcode when compiler emits `CALL_NATIVE2` everywhere.
 
 ## P1 (High Leverage for Agentic Debugging / Swarm)
@@ -49,4 +42,5 @@ Last updated: 2025-12-15
 - Structured error contract: stable `__err/code/msg` with optional `domain/op` metadata for policy/budget failures.
 - Policy scan: `--print-policy` outputs domain bitmask plus `(domain, op)` pairs and does not execute bytecode.
 - Leak-free teardown: VM frees remaining unreachable heap allocations at `avm_free()` (no tracing GC during run yet).
+- Record/replay log budget (`AVM_LOG_BYTES`) + child `cfg.log_bytes` subset enforcement (preflight prevents un-loggable side effects in record mode).
 - `avm` tooling: disasm/trace/breakpoints + mem-stats + `--repeat` + `--print-rss`.

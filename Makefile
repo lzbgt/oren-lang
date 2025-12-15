@@ -125,6 +125,17 @@ test: oren
 			elif [ $$rc -eq 124 ]; then \
 				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
 			fi; \
+		elif [ "$$name" = "test_budget_log_mem" ]; then \
+			rm -f build/avm_log_budget_should_not_write.txt; \
+			set +e; AVM_RECORD_MEM=1 AVM_LOG_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
+			if [ $$rc -eq 0 ]; then \
+				echo "FAIL: $$name (Expected log budget abort)"; exit 1; \
+			elif [ $$rc -eq 124 ]; then \
+				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
+			fi; \
+			if [ -f build/avm_log_budget_should_not_write.txt ]; then \
+				echo "FAIL: $$name (Host FS effect executed despite log budget abort)"; exit 1; \
+			fi; \
 		elif [ "$$name" = "test_policy_scan" ]; then \
 			set +e; out=$$($(RUN_WITH_TIMEOUT) ./avm --print-policy build/$$name.obc); rc=$$?; set -e; \
 			if [ $$rc -ne 0 ]; then \

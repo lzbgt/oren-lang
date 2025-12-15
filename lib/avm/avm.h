@@ -115,6 +115,12 @@ typedef struct {
     uint64_t io_budget_bytes;
     uint64_t io_used_bytes;
 
+    // Record/replay log budget (rolling): counts bytes appended to record logs (both file-based and in-memory).
+    // This is separate from IO budget because logs are "determinism data" and may be used as capsules.
+    // 0 means "no limit".
+    uint64_t log_budget_bytes;
+    uint64_t log_used_bytes;
+
     // Abort / error reporting (rolling): on budget/capability violations, last_error is set.
     AvmValue last_error;
     int exit_code;

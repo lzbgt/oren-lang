@@ -1,17 +1,46 @@
 
-## Vision / Mission (Agent-Native)
+## Vision / Mission (Agent-Native, AI-era Ambition)
 
-Oren is aimed at **agent execution**, not just “a static language”.
+This repo is not “just another language + compiler”. It is aiming at an **AI-era execution substrate**:
 
-- **Vision:** make Oren a practical “native tongue” for AI agents: fast on servers/desktops, but still runnable in restricted environments.
-- **Core idea:** a **hybrid runtime model**:
-  - **Native mode:** compile to machine code (or via the C backend) for performance and full system access where allowed.
-  - **Bytecode mode:** compile to portable bytecode (`.obc`) intended to run on **AVM (Agent Virtual Machine)** in environments where native execution/toolchains aren’t available.
-- **Long-term goals (design direction):** safe/capability-scoped execution, portability, and tooling that supports fast “read → fix compiler → rebuild” loops for agents.
+- A practical, self-hosting language (Oren) that can implement its own libraries in `.oren`.
+- A deterministic, capability-governed virtual machine (AVM) that can run agent code as **data capsules**.
+- A path to “AVM inside AVM” (nested universes) and **swarm consensus** workflows where agents can be validated/replayed across nodes.
 
-Authoritative strategy/roadmap docs:
-- `docs/OREN_EVOLUTION.md`
-- `docs/ROADMAP.md` (see “Agent-Native Track (AVM + Bytecode)”)
+### Core thesis
+
+Agent systems need **replayability + governance** more than they need “max micro-benchmark speed” on day 1:
+
+- Programs must be runnable in restricted sandboxes without a native toolchain.
+- Effects must be explicit (capability domains), budgeted (gas/mem/io/log), and ideally record/replayable.
+- Determinism must compose with nested universes (“multi-universe simulation” is a killer primitive for agents).
+
+### Hybrid execution model (what exists + what it’s for)
+
+- **Native mode:** compile to machine code (or via the C backend) for performance and full system access where allowed.
+- **Bytecode mode:** compile to portable bytecode (`.obc`) intended to run on **AVM (Agent Virtual Machine)**:
+  - deterministic hashing (`STATE_HASH` / `RESULT_HASH`) for k-of-n validation
+  - capability domains (`CALL_NATIVE2 domain/op`) for governance and sandboxing
+  - deterministic TIME/RNG (virtual clock derived from executed steps + seeded PRNG)
+  - nested universes (AVM-in-AVM) under restricted caps + budgets
+
+### “Closed Loop” compiler-in-AVM (design target)
+
+The end-state for restricted deployments (mobile/edge) is a **closed loop**:
+
+- AVM can run the Oren compiler itself as a bytecode “capsule” (`oren.obc`)
+- agent code can ship as `.oren` source, and be compiled to `.obc` inside the sandbox
+- compilation can be made deterministic and policy-governed (caps + gas/mem/io/log) and validated via hashes
+
+This is the foundation for self-healing agent workflows where “code is data”, compilation is reproducible, and a swarm can validate both the compiler capsule and the produced `.obc`.
+
+Authoritative specs/strategy docs:
+- `docs/AGENTIC_REQUIREMENTS.md` (top requirements, prioritized)
+- `docs/AVM_SPEC.md` (current bootstrap spec)
+- `docs/AVM_SPEC_V1.md` (next-gen direction)
+- `docs/AVM_SWARM_CONSENSUS.md` (swarm validation + mobility model)
+- `docs/AVM_MULTIVERSE.md` (nested universes / AVM-in-AVM)
+- `docs/ROADMAP.md` and `docs/OREN_EVOLUTION.md`
 
 ## Status (Current Reality)
 - **Backends**
@@ -87,7 +116,6 @@ Individual examples:
   - `examples/libmath.oren` + `examples/ffi_from_libmath.oren` (build dylib via `--lib`, auto-generate header `.h`, `oren scan`, then link via `--link`)
 
 ## Notes / Limitations (Important)
-- **Native backend string concatenation:** `+` is integer-only; use `string_concat(a, b)` for strings.
 - **Native backend Linux dynamic linking/FFI:** the ELF emitter currently stubs unresolved imports (no real dynamic linker integration yet).
 - **`--emit-c`:** only supported with `--backend c`.
 - **`oren test`:** currently supports `--backend native` only.
@@ -96,3 +124,9 @@ Individual examples:
 
 ## Docs
 - `docs/README.md` the starting point
+
+## License
+
+Copyright (c) 2025 Lu Zongbao (rikusouhou@gmail.com).
+
+This project is licensed under the Apache License, Version 2.0. See `LICENSE`.

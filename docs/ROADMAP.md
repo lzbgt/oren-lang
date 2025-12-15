@@ -46,6 +46,16 @@ This track is defined in `docs/OREN_EVOLUTION.md` and complements the phases abo
 - **Phase C (Inception / Self-Hosting on AVM)**: Stage0 produces `oren.obc`; run compiler-in-bytecode under `libavm` to compile and run user scripts (OBC → AVM).
 - **Phase D (`libagent`)**: Safe agent standard library (`fs`, `net/http`, `semantic`, `proc` where allowed) mapped to AVM host primitives.
 
+### Design note: “source → `.obc` inside AVM” closes the loop
+
+The “inception” step is not only for iOS convenience; it is the core agent-native primitive:
+
+- ship source as data
+- compile inside a deterministic, budgeted, capability-scoped universe
+- validate artifacts by hashes (compiler capsule + produced `.obc`)
+
+This enables swarm governance and self-healing workflows (see `docs/AVM_MULTIVERSE.md` and `docs/AVM_SWARM_CONSENSUS.md`).
+
 ### Next-Gen AVM (No-JIT-First, ML-Oriented)
 
 - Spec draft: `docs/AVM_SPEC_V1.md`

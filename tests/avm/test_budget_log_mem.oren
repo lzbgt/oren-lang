@@ -1,0 +1,15 @@
+fn main() {
+    // Enable in-memory recording so log growth is controlled by AVM_LOG_BYTES.
+    // Under a small log budget, the first recorded host call should abort deterministically.
+    oren_avm_record_to_bytes()
+
+    // FS write is effectful + recorded; AVM should refuse/abort once the log budget is exceeded.
+    // (No need to assert inside Oren; the harness expects non-zero exit.)
+    oren_write_file("build/avm_log_budget_should_not_write.txt", "x")
+
+    // If we ever get here, the VM failed to enforce log budgets.
+    oren_exit(0)
+}
+
+main()
+

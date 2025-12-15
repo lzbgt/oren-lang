@@ -133,7 +133,7 @@ Nested universes become dramatically more attractive once TIME and RNG are virtu
 
 Parent/child budgeting must be **hierarchical**:
 
-- Parent has a total budget (gas/time/memory/IO).
+- Parent has a total budget (gas/time/memory/IO/log).
 - Parent allocates sub-budgets to each child universe.
 - Child cannot exceed allocated budget.
 - Parent cannot exceed its own budget due to child overhead.
@@ -143,6 +143,7 @@ This prevents:
 - “fork bomb” universes
 - slow replay log amplification attacks
 - memory blowups from nested simulation
+- log amplification attacks (producing huge record/replay logs as “data capsules”)
 
 ## 6) Why this is an “AI-era” killer feature (not a traditional VM feature)
 
@@ -155,6 +156,44 @@ Nested universes enable a common agent loop pattern:
 5) Outer agent optionally replays the winning child universe on multiple swarm nodes (k-of-n).
 
 This is “best-first search with safe simulation” as a first-class runtime capability.
+
+## 6.1) Closing the loop: compiler-in-AVM (source → `.obc` inside the sandbox)
+
+This repo’s “agent-native” ambition becomes dramatically more powerful once AVM can **ingest Oren source** and **emit `.obc`** *without a host toolchain*.
+
+At a systems level, this does **not** require AVM to implement a full compiler in C.
+Instead, AVM can run the compiler itself as a deterministic capsule:
+
+- `oren.obc` (the Oren compiler compiled to bytecode)
+- optional compiler snapshot (warm-start)
+- strict governance: caps + budgets (gas/mem/io/log) + deterministic TIME/RNG
+
+### Why this is attractive (agentic / swarm reasons)
+
+- **Compilation becomes reproducible** (hashable) when the compiler capsule + inputs are fixed.
+- A swarm can validate:
+  1) the compiler capsule hash, and
+  2) the produced `.obc` hash,
+  before trusting the result.
+- “Self-healing toolchains”: an agent can ship source, compile in-sandbox, and iterate without ever requiring `cc`/`ld`/`codesign`.
+
+### What is required (practical prerequisites)
+
+To make “source → `.obc` inside AVM” useful (not just theoretical), we need:
+
+1) **VirtualFS fixture** for nested universes:
+   - parent provides a virtual filesystem tree (as data)
+   - child compiler reads `main.oren` and writes `out.obc` into VirtualFS
+2) **A stable input channel**:
+   - either a VirtualFS file, or explicit `stdin_bytes` / `input_bytes` provided by policy
+3) **A result retrieval channel**:
+   - either VirtualFS file read-back, or returning `BYTES` directly
+4) **Deterministic compilation mode**:
+   - deterministic TIME/RNG already exist; compilation must avoid host nondeterminism (env, clocks)
+5) **Budgeted logs**:
+   - record/replay logs and capsule outputs must be budgeted to prevent amplification.
+
+This design composes naturally with “AVM-in-AVM”: compilation is “just another universe”.
 
 ## 7) Top emergency tasks (prioritized)
 

@@ -31,6 +31,22 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     res = avm_err(avm_err_from_errno(err), "read_file: fseek failed");
                     break;
                 }
+                // Preflight: ensure the record log has space BEFORE performing the read in record mode.
+                // For read_file, the return shape is a single STRING of length `len`.
+                if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                    // entry_size = (domain/op header+hashes) 68 + value_size(STRING) (18 + len) = 86 + len
+                    uint8_t dom = 0;
+                    uint16_t capop = 0;
+                    avm_legacy_native_to_domop(id, &dom, &capop);
+                    uint64_t need = 86ull + (uint64_t)len;
+                    if (!avm_log_can_fit(vm, need)) {
+                        fclose(f);
+                        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                        avm_abort(vm, e);
+                        res = e;
+                        break;
+                    }
+                }
                 char* buf = (char*)avm_heap_malloc((size_t)len + 1);
                 if (!buf) {
                     fclose(f);
@@ -56,6 +72,19 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_STRING) {
                 char* path = (char*)args[0].as.p;
                 char* data = (char*)args[1].as.p;
+                // Preflight: ensure record log can store this entry BEFORE performing any filesystem effects.
+                if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                    uint8_t dom = 0;
+                    uint16_t capop = 0;
+                    avm_legacy_native_to_domop(id, &dom, &capop);
+                    // entry_size for NIL return: 68 + value_size(NIL)=13 => 81
+                    if (!avm_log_can_fit(vm, 81ull)) {
+                        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                        avm_abort(vm, e);
+                        res = e;
+                        break;
+                    }
+                }
                 FILE* f = fopen(path, "wb");
                 if (!f) {
                     int err = errno;
@@ -77,6 +106,19 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         }
         case 2: { // oren_system
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
+                // Preflight: ensure record log can store this entry BEFORE executing the command.
+                if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                    uint8_t dom = 0;
+                    uint16_t capop = 0;
+                    avm_legacy_native_to_domop(id, &dom, &capop);
+                    // entry_size for INT return: value_size(INT)=13 => 81
+                    if (!avm_log_can_fit(vm, 81ull)) {
+                        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                        avm_abort(vm, e);
+                        res = e;
+                        break;
+                    }
+                }
                 int ret = system((char*)args[0].as.p);
                 res.type = AVM_VAL_INT;
                 res.as.i = ret;
@@ -111,6 +153,20 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 char* val = getenv((char*)args[0].as.p);
                 if (val) {
+                    // Preflight (best-effort): ensure record log can store the returned string.
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        uint8_t dom = 0;
+                        uint16_t capop = 0;
+                        avm_legacy_native_to_domop(id, &dom, &capop);
+                        uint64_t n = (uint64_t)strlen(val);
+                        uint64_t need = 86ull + n;
+                        if (!avm_log_can_fit(vm, need)) {
+                            AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                            avm_abort(vm, e);
+                            res = e;
+                            break;
+                        }
+                    }
                     res.type = AVM_VAL_STRING;
                     res.as.p = my_strdup(val);
                 }
@@ -120,6 +176,17 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         case 5: { // oren_exit
             // AVM semantics (rolling): exit terminates the VM run, not the host process.
             // This is required for record/replay and consensus hashing to work reliably.
+            if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                uint8_t dom = 0;
+                uint16_t capop = 0;
+                avm_legacy_native_to_domop(id, &dom, &capop);
+                if (!avm_log_can_fit(vm, 81ull)) {
+                    AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                    avm_abort(vm, e);
+                    res = e;
+                    break;
+                }
+            }
             if (nargs > 0 && args[0].type == AVM_VAL_INT) {
                 vm->exit_code = (int)args[0].as.i;
             } else {
@@ -259,6 +326,18 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_LIST) {
                 char* path = (char*)args[0].as.p;
                 AvmList* list = args[1].as.l;
+                // Preflight: ensure record log can store this entry BEFORE performing any filesystem effects.
+                if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                    uint8_t dom = 0;
+                    uint16_t capop = 0;
+                    avm_legacy_native_to_domop(id, &dom, &capop);
+                    if (!avm_log_can_fit(vm, 81ull)) {
+                        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                        avm_abort(vm, e);
+                        res = e;
+                        break;
+                    }
+                }
                 uint8_t* buf = (uint8_t*)avm_heap_malloc((size_t)list->count);
                 if (!buf && list->count > 0) {
                     res = avm_alloc_fail_value();
@@ -318,6 +397,23 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     fclose(f);
                     res = avm_err(avm_err_from_errno(err), "read_bytes: fseek failed");
                     break;
+                }
+
+                // Preflight: ensure the record log has space BEFORE performing the read in record mode.
+                // For read_bytes, the return shape is LIST<int> of length `len` (legacy behavior).
+                if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                    uint8_t dom = 0;
+                    uint16_t capop = 0;
+                    avm_legacy_native_to_domop(id, &dom, &capop);
+                    // value_size(LIST of aux=len): 18 + len*9; entry_size: 68 + that = 86 + len*9
+                    uint64_t need = 86ull + (uint64_t)len * 9ull;
+                    if (!avm_log_can_fit(vm, need)) {
+                        fclose(f);
+                        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
+                        avm_abort(vm, e);
+                        res = e;
+                        break;
+                    }
                 }
 
                 uint8_t* buf = NULL;
@@ -549,8 +645,11 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             // Preallocate header.
             uint32_t p = 0;
             const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
+            vm->log_used_bytes = 0;
+            if (!avm_log_charge(vm, 8, 0, 40)) { break; }
             if (!mem_write_bytes(bv.as.b, &p, magic, 8)) { res = avm_err(AVM_ERR_INTERNAL, "record_to_bytes: out of memory"); break; }
             vm->record_log_bytes = bv.as.b;
+            vm->log_used_bytes = 8;
             res = avm_nil();
             break;
         }
@@ -897,26 +996,26 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         switch (op) {
             case 0: { // read_file
                 AvmValue ret = avm_call_native(vm, 0, args, nargs);
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 1: { // write_file
                 AvmValue ret = avm_call_native(vm, 1, args, nargs);
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 2: { // write_bytes
                 AvmValue ret = avm_call_native(vm, 17, args, nargs);
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 3: { // read_bytes
                 AvmValue ret = avm_call_native(vm, 18, args, nargs);
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             default: break;
@@ -934,14 +1033,14 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         switch (op) {
             case 0: { // system(cmd)
                 AvmValue ret = avm_call_native(vm, 2, args, nargs);
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 1: { // exit(code)
                 AvmValue ret = avm_call_native(vm, 5, args, nargs);
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             default: break;
@@ -960,8 +1059,8 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
         switch (op) {
             case 0: { // env(name)
                 AvmValue ret = avm_call_native(vm, 4, args, nargs);
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             default: break;
@@ -991,8 +1090,8 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 } else {
                     ret = avm_int((int64_t)avm_now_ns());
                 }
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 1: { // sleep_ms(ms)
@@ -1009,8 +1108,8 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 } else {
                     usleep((useconds_t)(ms * 1000));
                 }
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             default: break;
@@ -1035,8 +1134,8 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 } else {
                     ret = avm_int((int64_t)host_random_u64());
                 }
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 1: { // rand_seed(u64)
@@ -1044,8 +1143,8 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 if (nargs > 0 && args[0].type == AVM_VAL_INT) seed = (uint64_t)args[0].as.i;
                 vm->rng_state = seed ? seed : 0x123456789abcdef0ull;
                 AvmValue ret = avm_nil();
-                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
-                if (vm->record_log) (void)rr_write_entry(vm->record_log, domain, op, args, nargs, ret);
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             default: break;
@@ -1131,6 +1230,16 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                 } else {
                     child->io_budget_bytes = vm ? vm->io_budget_bytes : 0;
                 }
+                if (avm_map_get_key(cfg, "log_bytes", &v)) {
+                    uint64_t lb = avm_value_u64(v, 0);
+                    if (vm && vm->log_budget_bytes > 0 && lb > vm->log_budget_bytes) {
+                        avm_free(child);
+                        return avm_err_domop(AVM_ERR_BUDGET, "child log_bytes exceeds parent", domain, op);
+                    }
+                    child->log_budget_bytes = lb;
+                } else {
+                    child->log_budget_bytes = vm ? vm->log_budget_bytes : 0;
+                }
 
                 // Record/replay logs as data (always create a record log, even if it stays empty).
                 child->record_log_bytes = avm_new_log_bytes();
@@ -1138,6 +1247,11 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
                     avm_free(child);
                     return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 }
+                if (child->log_budget_bytes > 0 && 8 > child->log_budget_bytes) {
+                    avm_free(child);
+                    return avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", domain, op);
+                }
+                child->log_used_bytes = 8;
                 if (avm_map_get_key(cfg, "replay_log", &v) && v.type == AVM_VAL_BYTES && v.as.b) {
                     if (v.as.b->len < 8 || !v.as.b->data) {
                         avm_free(child);

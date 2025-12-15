@@ -209,6 +209,7 @@ AVM must support enforceable budgets:
 - wall-time budget (with periodic preemption points)
 - memory budget (heap + typed buffers)
 - I/O budget (bytes read/written; network calls)
+- record/replay log growth budget (bytes appended to deterministic logs)
 
 Metering is required for:
 

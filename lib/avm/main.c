@@ -1405,6 +1405,16 @@ int main(int argc, char** argv) {
                 return 1;
             }
             const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
+            if (vm->log_budget_bytes > 0 && 8 > vm->log_budget_bytes) {
+                fprintf(stderr, "AVM_LOG_BYTES too small for log header (need 8)\n");
+                fclose(rf);
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
             if (fwrite(magic, 1, 8, rf) != 8) {
                 fprintf(stderr, "Failed to write log header: %s\n", record_env);
                 fclose(rf);
@@ -1416,6 +1426,7 @@ int main(int argc, char** argv) {
                 return 1;
             }
             vm->record_log = rf;
+            vm->log_used_bytes += 8;
         }
         if (replay_env && replay_env[0]) {
             FILE* rf = fopen(replay_env, "rb");
@@ -1463,6 +1474,16 @@ int main(int argc, char** argv) {
             const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
             memcpy(b->data, magic, 8);
             vm->record_log_bytes = b;
+            if (vm->log_budget_bytes > 0 && 8 > vm->log_budget_bytes) {
+                fprintf(stderr, "AVM_LOG_BYTES too small for log header (need 8)\n");
+                avm_free(vm);
+                free_constant_pool(consts, n_consts);
+                free(consts);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+            vm->log_used_bytes += 8;
         }
         if (replay_hex_env && replay_hex_env[0]) {
             AvmBytes* b = bytes_from_hex(replay_hex_env);
@@ -1510,6 +1531,7 @@ int main(int argc, char** argv) {
     // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)
     // - AVM_MEM_BYTES: heap budget for AVM heap objects (0/unset = unlimited)
     // - AVM_IO_BYTES: io budget for FS bytes read/written (0/unset = unlimited)
+    // - AVM_LOG_BYTES: record/replay log budget (bytes appended, incl header) (0/unset = unlimited)
     const char* gas_env = getenv("AVM_GAS");
     if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
     const char* timeout_env = getenv("AVM_TIMEOUT_MS");
@@ -1522,6 +1544,8 @@ int main(int argc, char** argv) {
     if (mem_env && mem_env[0]) vm->heap_budget_bytes = strtoull(mem_env, NULL, 10);
     const char* io_env = getenv("AVM_IO_BYTES");
     if (io_env && io_env[0]) vm->io_budget_bytes = strtoull(io_env, NULL, 10);
+    const char* log_env = getenv("AVM_LOG_BYTES");
+    if (log_env && log_env[0]) vm->log_budget_bytes = strtoull(log_env, NULL, 10);
 
         // Capability enforcement (rolling ABI):
         // - AVM_ALLOW_DOMAINS: comma-separated domain integers (e.g. "0,1"). Unset/empty means allow all.

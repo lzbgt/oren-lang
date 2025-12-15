@@ -218,6 +218,36 @@ static int avm_io_charge(AvmVM* vm, uint64_t bytes, int domain, int op) {
     return 1;
 }
 
+static int avm_log_charge(AvmVM* vm, uint64_t bytes, int domain, int op) {
+    if (!vm) return 0;
+    if (bytes == 0) return 1;
+    if (vm->log_budget_bytes == 0) {
+        vm->log_used_bytes += bytes;
+        return 1;
+    }
+    if (bytes > vm->log_budget_bytes) {
+        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", domain, op);
+        avm_abort(vm, e);
+        return 0;
+    }
+    if (vm->log_used_bytes + bytes > vm->log_budget_bytes) {
+        AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", domain, op);
+        avm_abort(vm, e);
+        return 0;
+    }
+    vm->log_used_bytes += bytes;
+    return 1;
+}
+
+static int avm_log_can_fit(AvmVM* vm, uint64_t bytes) {
+    if (!vm) return 0;
+    if (bytes == 0) return 1;
+    if (vm->log_budget_bytes == 0) return 1;
+    if (bytes > vm->log_budget_bytes) return 0;
+    if (vm->log_used_bytes + bytes > vm->log_budget_bytes) return 0;
+    return 1;
+}
+
 static AvmValue avm_alloc_fail_value() {
     if (g_last_alloc_err == AVM_ERR_BUDGET) return avm_err(AVM_ERR_BUDGET, "budget exceeded (mem)");
     return avm_err(AVM_ERR_INTERNAL, "oom");
@@ -686,6 +716,8 @@ AvmVM* avm_new() {
     vm->heap_allocs_head = NULL;
     vm->io_budget_bytes = 0;
     vm->io_used_bytes = 0;
+    vm->log_budget_bytes = 0;
+    vm->log_used_bytes = 0;
     vm->last_error.type = AVM_VAL_NIL;
     vm->exit_code = 0;
     vm->has_result_value = 0;
