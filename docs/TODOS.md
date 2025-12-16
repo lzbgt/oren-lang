@@ -4,6 +4,11 @@ This repo is in **rolling ABI** mode (no version gates yet). This file is the ca
 
 Last updated: 2025-12-16
 
+Focus statement (to avoid roadmap thrash):
+
+- AVM is an **agent execution substrate** (deterministic, capability-governed, multiverse-friendly), not a near-term “general runtime for other languages”.
+- Native backend is **syscall-first** (no libc/pthreads shims) so Oren can build real production libraries in `.oren`.
+
 ## P0 (Emergency / Blocking Safety)
 
 ### Cross-cutting (prevents hangs / makes rolling safe)
@@ -76,12 +81,19 @@ Last updated: 2025-12-16
      - safe “Matrix” simulation (thousands of sandboxes)
      - deterministic replay across swarm nodes
      - running untrusted plugins without giving host FS/PROC
+   - Clarify contract (domains vs backends):
+     - capability domains define *what effect is requested* (FS/NET/PROC)
+     - backends define *where it executes* (virtual vs host)
+     - “virtual by default” is a policy choice (capsule/simulation), not a redefinition of the domains
    - Minimal order:
      - VirtualFS (in-memory) for FS domain (read/write string + bytes), with IO/log budgeting and deterministic behavior
      - VirtualPROC fixture backend (no real subprocesses; deterministic fixture responses) for PROC domain
      - VirtualNET fixture backend (scripted request/response) for NET domain
      - Nested-universe fixture injection as data (`cfg.vfs_fixtures`, `cfg.proc_fixtures`, `cfg.net_fixtures`)
    - Must bind the chosen backend mode + fixtures into `exec_hash_sha256` / job objects (so consensus sees “what environment was used”).
+   - Nested universes must support two modes cleanly:
+     - **simulation mode:** virtual backends only (default; deterministic; snapshot-friendly)
+     - **live mode:** allow explicit `*_backend=host` (direct host mapping; no relay) under strict subset rules (caps/allowlists/budgets), bound into `exec_hash`
 
 9) **Governance-ready job object (bind to program + inputs + exec context)**
    - `--print-policy*` is scan-before-execute (no bytecode execution) and now outputs a stable `policy_hash_sha256` (`schema: avm.policy.v1`).
@@ -122,6 +134,10 @@ Last updated: 2025-12-16
      - define a canonical request shape (recommended: HTTP-ish request/response rather than raw sockets).
    - Add record/replay for NET domain (so “real host net” can be audited where allowed).
    - Ensure task scheduler integrates NET as an async/blocking op (no blocking forever).
+
+4) **Handle delegation (fd/socket passing) — later explicit mode**
+   - Do not attempt this in v0 capsule/deterministic mode.
+   - If added later, it must be an explicit opt-in flag (e.g. `host_handles_allowed=1`) bound into `exec_hash`, with clear snapshot portability limits.
 
 4) **Snapshot/restore “capsule” hardening**
    - Move toward capsule-friendly formats (hashable, resumable, policy-bound).

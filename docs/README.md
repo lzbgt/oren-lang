@@ -1,10 +1,11 @@
 # Docs Index (Canonical Map)
 
-**Last updated:** 2025-12-15  
+**Last updated:** 2025-12-16  
 This folder contains both **canonical specs** and a few **compatibility stubs** kept to avoid link rot while the repo evolves in rolling mode.
 
 ## 1) “Start Here”
 
+- `docs/EVOLUTION_GUIDE.md` — beginner guide: bootstrapping + backends + day0→final evolution narrative.
 - `docs/AGENTIC_REQUIREMENTS.md` — top agentic-AI requirements (language + compiler + AVM), prioritized and implementation-ordered.
 - `docs/ROADMAP.md` — what to implement next (phases, priorities).
 - `docs/BUILD_AND_VERIFY.md` — how to build, test, and verify the toolchain.

@@ -129,6 +129,88 @@ Bootstrap status (repo reality as of 2025-12-15):
 
 Nested universes become dramatically more attractive once TIME and RNG are virtualized, because agents often depend on them even when “no external I/O” is intended.
 
+## 4.1) Virtual by default, host by explicit enrollment (recommended)
+
+In this repo’s design, capability **domains** (FS/NET/PROC/…) define *what effect is being requested*.
+Separately, each domain is bound at runtime to a **backend**:
+
+- **virtual backend**: no host effects, deterministic fixtures, snapshot-friendly
+- **host backend**: touches real host resources, not inherently deterministic or snapshot-portable
+
+Recommended rule (matches capsule safety goals):
+
+1) **Capsule / simulation / nested universes default to virtual backends** (VirtualFS/VirtualNET/VirtualPROC).
+2) Host backends are allowed only by **explicit enrollment** in the execution context (and therefore bound into `EXEC_HASH_SHA256` / job objects).
+
+This keeps governance honest: a verifier can distinguish “safe simulation” vs “live host effects”.
+
+## 4.2) Direct host mapping (no relay) vs proxying through the parent
+
+There are two ways a child universe can touch real resources:
+
+### Option A: direct host mapping (no relay; simplest)
+
+The child universe runs with `*_backend=host` and directly executes host calls in-process.
+
+This is attractive because:
+
+- no “relay protocol” between universes is required
+- performance is better (no marshaling or forwarding)
+- semantics are simple (“child is just another VM instance in the same host process”)
+
+Safety requirement (must hold):
+
+- child effective policy must be a strict subset of the parent:
+  - capabilities subset
+  - allowlists subset (FS prefixes / NET allowlist / PROC allowlist)
+  - budgets subset (gas/mem/io/log/timeouts)
+- backend selection must be bound into `exec_hash` so it is audit-visible
+
+Tradeoff:
+
+- determinism is reduced unless effects are recorded/replayed
+- snapshot/mobility is reduced because host resources cannot be serialized directly
+
+### Option B: proxying/relaying via the parent (more control; more complexity)
+
+The child universe requests effects, but the parent (or host) performs them on its behalf.
+
+This can add control points (e.g., interactive approvals, extra auditing), but it introduces:
+
+- an IPC/protocol design problem
+- performance overhead
+- new failure modes (relay bugs break determinism)
+
+Recommendation:
+
+- Use Option A (direct host mapping) for trusted “live” workflows.
+- Use Virtual backends + record/replay for deterministic/governed workflows.
+
+## 4.3) Handle delegation (fd/socket passing) — later, explicit mode only
+
+A tempting extension is to allow the parent universe to pass already-open host resources to a child:
+
+- open file descriptors
+- sockets
+- process handles
+
+This is powerful, but it has sharp edges for the core niche (determinism + mobility):
+
+- raw host handles are not snapshot-portable
+- replay on another node cannot reproduce the same handle identity
+- policy must define who owns closing the handle and how budgets are charged
+
+Recommended v0 stance:
+
+- **Name-based access only** in nested universes (paths/URLs/commands) under allowlists.
+- Do **not** allow passing raw host handles between universes in capsule/deterministic mode.
+
+If/when handle delegation is added later:
+
+- make it an explicit opt-in execution flag (e.g., `host_handles_allowed=1`)
+- bind it into `exec_hash` (so governance sees that the run is non-portable)
+- define snapshot restrictions clearly (either “cannot snapshot” or “snapshot does not preserve handles”)
+
 ## 5) Hierarchical budgets (must-have for safety)
 
 Parent/child budgeting must be **hierarchical**:

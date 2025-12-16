@@ -143,8 +143,13 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   Trace stream shape (rolling):
   - `TRACE_HASH` covers only *semantic* events: `STEP`, `CALL_NATIVE2`, `ABORT` (stable enough for k-of-n validation in rolling mode).
   - `TRACE_BYTES_HEX` may additionally include **bytes-only** diagnostic events like `ALLOC`/`FREE`/`REALLOC` to enable leak/memory profiling without perturbing consensus hashes.
-- **Deterministic record/replay is partial:** `avm` can record/replay FS-domain native calls via `AVM_RECORD_LOG` / `AVM_REPLAY_LOG`, but other effectful domains (NET/PROC/TIME/RNG) are not virtualized yet.
-- **VirtualFS backend exists (rolling):** set `--fs-backend vfs` (or `AVM_FS_BACKEND=vfs`) to route FS domain operations to an in-memory VirtualFS instead of the host filesystem. This enables “record without host effects” for FS (still subject to capability gating, allow-prefixes, and IO/log budgets).
+- **Domains vs backends (important):** capability **domains** (FS/NET/PROC/…) define *what effect is being requested*; **backends** define *where that effect is executed*.
+  - In “capsule / simulation” workflows, backends should default to **virtual** (no host effects).
+  - In “trusted / live” workflows, a domain may still be allowed while using a **host** backend, but that must be an explicit choice bound into the execution context (`EXEC_HASH_SHA256`) so governance can tell “virtual run” vs “host run”.
+  - Nested universes may select host backends only under strict subset rules (caps/allowlists/budgets), and doing so changes determinism/snapshot portability unless effects are recorded/replayed.
+
+- **Deterministic record/replay is partial:** `avm` can record/replay FS-domain native calls via `AVM_RECORD_LOG` / `AVM_REPLAY_LOG`, but other effectful domains (NET/PROC/TIME/RNG) are not fully record/replayed yet (VirtualNET/VirtualPROC exist via fixtures).
+- **VirtualFS backend exists (rolling):** set `--fs-backend vfs` (or `AVM_FS_BACKEND=vfs`) to route FS domain operations to an in-memory VirtualFS instead of the host filesystem. This enables “no host effects by default” workflows (still subject to capability gating, allow-prefixes, and IO/log budgets).
 - **VirtualPROC backend exists (rolling):** set `--proc-backend vproc` (or `AVM_PROC_BACKEND=vproc`) to route `PROC.system` to a deterministic stub/fixture backend that performs no host subprocess effects. It returns:
   - `AVM_PROC_EXIT_CODE` (or `--proc-exit-code`) when no fixture matches
   - fixture exit codes when fixtures are provided via `--proc-fixtures-hex HEX` (or `AVM_PROC_FIXTURES_HEX=...`)

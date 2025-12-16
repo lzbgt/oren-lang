@@ -43,7 +43,7 @@ Agentic/production constraints that drive prioritization (rolling mode):
 - **Tooling**: Language Server (LSP), debugger symbols (DWARF) for basic stepping support.
 
 ## Phase 3
-- **AI Readiness**: Implement features from `docs/AI_FEATURES.md` (WASM, Metadata export, Verification).
+- **AI Readiness**: Implement agent-native features from `docs/AGENTIC_REQUIREMENTS.md` (metadata export, verification, deterministic workflows).
 - **Concurrency (Advanced)**: **M:N Scheduler** (Coroutines), **Pub/Sub**, **Fan-Out**, and **Parallel Iterators** (see `docs/CONCURRENCY_MODEL.md`).
 - **Targets**: **WebAssembly (WASM)** backend.
 - **Async/Tasks**: Async/await or lightweight tasks with a scheduler; GC/stack interaction.
