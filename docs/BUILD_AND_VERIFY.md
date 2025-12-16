@@ -61,6 +61,19 @@ Transpiles Oren to C, then compiles with the system C compiler (`cc`). Best for 
 
 ---
 
+## 2.1 Test Runner Timeouts (Rolling Safety)
+
+This repo runs in **rolling ABI** mode, so the priority is fast iteration and avoiding hangs.
+The `make test` runner enforces **hard wall-time timeouts** for both “build steps” and “run steps”.
+
+Environment knobs:
+
+- `TEST_TIMEOUT_SECS` (default `10`): maximum seconds allowed for executing a built test binary or running `avm`.
+- `BUILD_TIMEOUT_SECS` (default `120`): maximum seconds allowed for compilation steps during tests (notably when the C backend invokes `cc`, `ld`, and codesign).
+- `TIMEOUT_KILL_SECS` (default `2`): grace period before force-kill after the timeout expires.
+
+If `timeout` is not available, `make test` will fail with a clear message (install coreutils on macOS: `brew install coreutils`).
+
 ## 3. Using FFI (Foreign Function Interface)
 
 Oren can call external C symbols via `ffi <name>` when using the **native backend**.

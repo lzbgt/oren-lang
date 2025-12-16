@@ -15,11 +15,18 @@ endif
 
 # Test runner settings
 TEST_TIMEOUT_SECS ?= 10
+# Build steps can legitimately take longer than executing tests, especially when
+# the C backend invokes `cc`/`ld`/codesign. Still, they must not hang forever in
+# rolling mode.
+BUILD_TIMEOUT_SECS ?= 120
+TIMEOUT_KILL_SECS ?= 2
 TIMEOUT_BIN := $(shell command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")
 ifneq ($(strip $(TIMEOUT_BIN)),)
-  RUN_WITH_TIMEOUT = $(TIMEOUT_BIN) $(TEST_TIMEOUT_SECS)
+  RUN_WITH_TIMEOUT = $(TIMEOUT_BIN) -k $(TIMEOUT_KILL_SECS) $(TEST_TIMEOUT_SECS)
+  RUN_BUILD_WITH_TIMEOUT = $(TIMEOUT_BIN) -k $(TIMEOUT_KILL_SECS) $(BUILD_TIMEOUT_SECS)
 else
   RUN_WITH_TIMEOUT =
+  RUN_BUILD_WITH_TIMEOUT =
 endif
 
 # Optional GC toggle (set NO_GC=1 or OREN_NO_GC in env to compile with -DOREN_NO_GC)
@@ -63,16 +70,18 @@ stage2: oren_stage2
 # Run all tests using Stage 1 compiler
 test: oren
 	@echo "=== Running Tests ==="
+	@# Hard requirement in rolling mode: tests must not be able to hang forever.
+	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
 	@mkdir -p build
 	@# Native Backend Tests
 	@set -e; for t in tests/native/*.oren; do \
 		name=$$(basename $$t .oren); \
 		echo "Testing $$name..."; \
 		if [ "$$name" = "linux_hello" ]; then \
-			./oren build $$t --backend native -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
 			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
 		elif [ "$$name" = "test_debug_panic" ]; then \
-			./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
 			set +e; $(RUN_WITH_TIMEOUT) ./build/$$name; rc=$$?; set -e; \
 			if [ $$rc -eq 0 ]; then \
 				echo "FAIL: $$name (Expected panic)"; exit 1; \
@@ -80,40 +89,40 @@ test: oren
 				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
 			fi; \
 		else \
-			./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
 			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
 		fi \
 	done
 	@# Module Tests (C Backend)
 	@echo "Testing Module System..."
-	@./oren build tests/modules/test_shapes.oren --backend c -o build/test_shapes $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_shapes.oren --backend c -o build/test_shapes $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_shapes || (echo "FAIL: test_shapes"; exit 1)
-	@./oren build tests/modules/test_spawn.oren --backend c -o build/test_spawn $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_spawn.oren --backend c -o build/test_spawn $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_spawn || (echo "FAIL: test_spawn"; exit 1)
-	@./oren build tests/modules/test_read_bytes.oren --backend c -o build/test_read_bytes $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_read_bytes.oren --backend c -o build/test_read_bytes $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_read_bytes || (echo "FAIL: test_read_bytes"; exit 1)
-	@./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
-	@./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_gc_stack_roots || (echo "FAIL: test_gc_stack_roots"; exit 1)
-	@./oren build tests/modules/test_result.oren --backend c -o build/test_result $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_result.oren --backend c -o build/test_result $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_result || (echo "FAIL: test_result"; exit 1)
 	@# AVM Tests (Bytecode backend + interpreter)
 	@echo "Testing AVM..."
-	@$(MAKE) avm >/dev/null
+	@$(RUN_BUILD_WITH_TIMEOUT) $(MAKE) avm >/dev/null
 	@set -e; for t in tests/avm/*.oren; do \
 		name=$$(basename $$t .oren); \
 		echo "Testing avm $$name..."; \
 		if [ "$$name" = "test_multiverse_avm_domain" ]; then \
-			./oren build tests/avm/fixtures/multiverse_child.oren --backend bytecode -o build/multiverse_child.obc $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child.oren --backend bytecode -o build/multiverse_child.obc $(GC_ARG); \
 		elif [ "$$name" = "test_multiverse_net_fixtures" ]; then \
-			./oren build tests/avm/fixtures/multiverse_child_net.oren --backend bytecode -o build/multiverse_child_net.obc $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_net.oren --backend bytecode -o build/multiverse_child_net.obc $(GC_ARG); \
 		elif [ "$$name" = "test_multiverse_proc_fixtures" ]; then \
-			./oren build tests/avm/fixtures/multiverse_child_proc.oren --backend bytecode -o build/multiverse_child_proc.obc $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_proc.oren --backend bytecode -o build/multiverse_child_proc.obc $(GC_ARG); \
 		elif [ "$$name" = "test_multiverse_vfs_fixtures" ]; then \
-			./oren build tests/avm/fixtures/multiverse_child_vfs.oren --backend bytecode -o build/multiverse_child_vfs.obc $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_vfs.oren --backend bytecode -o build/multiverse_child_vfs.obc $(GC_ARG); \
 		fi; \
-		./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
+		$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
 		if [ "$$name" = "test_budget_gas" ]; then \
 			set +e; AVM_GAS=20000 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
 			if [ $$rc -eq 0 ]; then \

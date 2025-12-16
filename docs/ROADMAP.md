@@ -8,6 +8,13 @@ This document captures the staged plan for turning Oren into a production-grade,
 - Predictable memory story: optional GC (desktop/server) and deterministic/manual mode (embedded).
 - First-class developer ergonomics: formatter, linter, LSP, test runner, package manager, and debugging/profiling hooks.
 
+Agentic/production constraints that drive prioritization (rolling mode):
+- **Syscall-first native runtime (no C shims)** for core runtime services on macOS/Linux.
+- **Native TCP/IP** support for production server/desktop usage (with explicit timeouts/cancellation).
+- **AVM virtualization + multiverse** for safe agent execution (VirtualFS/VirtualNET/VirtualPROC, nested universes).
+- **Compiler-in-AVM** (“source → `.obc` inside the sandbox”) for closed-loop deployments without host toolchains.
+- **Linux parity early** (validate on QEMU host) to avoid macOS-only drift.
+
 ## Mitigation Strategies (Addressing Disadvantages)
 - **Runtime Performance**: Move from stack-machine codegen to a Register Allocator (Linear Scan or Graph Coloring) to close the 2x-10x perf gap with Zig/C. Implement basic peephole optimizations (instruction selection).
 - **Platform Limitations**: Implement x86_64 native backend (Near/Mid-term) and WebAssembly (WASM) backend (Long-term) to broaden reach beyond ARM64.
@@ -21,6 +28,11 @@ This document captures the staged plan for turning Oren into a production-grade,
 - **FFI/Linking**: [DONE] Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding and GOT stubs. Linux `DT_NEEDED`/PLT pending but architecture is shared.
 - **Native backend**: Managed struct allocation in the native runtime (done). Global variable support (done). Next: register allocator groundwork (IR definition).
 - **Tooling**: CLI switches parity (codesign/notarize already), add `oren fmt` skeleton and lint scaffolding.
+
+### Phase 1 (Syscall-First Native Runtime Track)
+- **Syscall-first OS boundary**: expand/lock `sys_*` surface (FS/PROC/ENV/TIME + NET) and keep all core runtime services behind it.
+- **Native TCP/IP (macOS arm64)**: minimal socket/connect/send/recv + timeout/cancellation story.
+- **Linux arm64 parity**: implement the same syscall surface and run smoke tests on the trusted QEMU host early and continuously.
 
 ## Phase 2
 - **Optimization**: Implement **Register Allocation** (replace stack PUSH/POP with usage of X0-X28). Add basic inlining and const-prop.
