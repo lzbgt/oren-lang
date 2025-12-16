@@ -6,7 +6,7 @@ To empower AI workloads and fully utilize modern multi-core chips, Oren provides
 
 ### 1. Lightweight Tasks (Coroutines)
 *   **Concept:** Instead of heavy OS threads, Oren uses lightweight, runtime-managed tasks (green threads).
-*   **Syntax (draft):** `spawn func(arg)` for OS threads (implemented today), and `yield`/task APIs for lightweight coroutines (planned).
+*   **Syntax (draft):** `spawn func(arg)` exists today as a concurrency placeholder; on **macOS native** it is currently implemented as **fork + pipe** (process-based) for syscall-first correctness, and will evolve toward OS threads + coroutines.
 *   **Implementation:** M:N scheduling (M tasks on N OS threads).
 *   **Goal:** Allow millions of concurrent tasks (e.g., individual agent steps, network requests) with minimal overhead.
 

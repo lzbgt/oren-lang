@@ -26,8 +26,16 @@ fn sys_read(fd, ptr, len) { return 0 }
 fn sys_pipe(ptr) { return 0 }
 fn sys_open(path, flags, mode) { return 0 }
 fn sys_close(fd) { return 0 }
+fn sys_fork() { return 0 }
+fn sys_execve(path, argv, envp) { return 0 }
+fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
 fn sys_gettid() { return 0 }
+fn sys_ulock_wait(operation, addr, value, timeout_us) { return 0 }
+fn sys_ulock_wake(operation, addr, wake_value) { return 0 }
+fn sys_bsdthread_create(func, func_arg, stack, pthread, flags) { return 0 }
+fn sys_bsdthread_terminate(stackaddr, freesize, port, sema_or_ulock) { return 0 }
+fn sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset) { return 0 }
 
 fn oren_memcpy(dst, src, len) {
     var i = 0
@@ -128,6 +136,33 @@ fn native_runtime_init() {
         i = i + 1
     }
     return 0
+}
+
+// macOS syscall-first threading init (Darwin bsdthread + ulock model).
+//
+// NOTE:
+// - This is intentionally "best-effort" for now: if the process is already
+//   registered (because the host runtime registered earlier), the syscall
+//   will fail with EINVAL; we treat that as non-fatal for v0.
+// - For Oren's syscall-first runtime we want the kernel threadstart function
+//   to be OUR stub (emitted by the native backend), not libpthread.
+//
+// Args are code pointers to the native backend's thread entry stubs.
+fn native_runtime_threading_init(threadstart, wqthread) {
+    // Some Darwin kernels validate pthsize for bsdthread_register; use 16KB (page-sized) like libpthread.
+    var pthsize = 16384
+
+    // NOTE: Modern Darwin bsdthread_register has multiple historical ABIs.
+    // Passing a pthread init-data struct can trigger EINVAL on some kernels.
+    // For v0 syscall-first spawn, we register only threadstart/wqthread + pthsize
+    // and omit init-data / workqueue settings.
+    var rv = sys_bsdthread_register(threadstart, wqthread, pthsize, 0, 0, 0, 0)
+    // For syscall-first spawn to work, the process must be registered.
+    // If registration fails, bsdthread_create will start threads with the system's default
+    // threadstart (libsystem_pthread), which expects a full pthread runtime and will crash.
+    // sys_bsdthread_register returns -errno on failure.
+    if rv < 0 { exit(0 - rv) }
+    return rv
 }
 
 fn native_runtime_set_args(argc, argv) {
@@ -242,9 +277,15 @@ fn acquire_lock() {
     while atomic_cas(lock_ptr, 0, tid) != 0 {
         if g_panicking == 1 { return 0 }
         spin = iadd(spin, 1)
-        if spin > 1000000 {
-            // var val = ptr_get(lock_ptr)
-            // exit(val)
+        // Park after a small amount of spinning to avoid burning CPU.
+        if spin > 1000 {
+            // Wait while lock owner hasn't changed.
+            var owner_now = ptr_get(lock_ptr)
+            if owner_now != 0 {
+                // operation=UL_COMPARE_AND_WAIT (1), timeout_us=0 => forever
+                sys_ulock_wait(1, lock_ptr, owner_now, 0)
+            }
+            spin = 0
         }
     }
     
@@ -274,6 +315,9 @@ fn release_lock() {
     
     ptr_set(count_ptr, 0)
     atomic_cas(lock_ptr, tid, 0)
+    // Wake any waiters that parked in acquire_lock.
+    // operation=UL_COMPARE_AND_WAIT|ULF_WAKE_ALL = 1|0x100 = 257
+    sys_ulock_wake(257, lock_ptr, 0)
     return 0
 }
 
@@ -1108,11 +1152,44 @@ fn oren_read_bytes(path) {
 }
 
 // --- Threads ---
-ffi pthread_join
-ffi system
-
 fn oren_system(cmd) {
-    return system(cmd)
+    // Syscall-first `system(3)` equivalent: fork + execve("/bin/sh", ["sh","-c",cmd], envp) + wait4.
+    if cmd == 0 { return -1 }
+
+    var pid = sys_fork()
+    if pid < 0 { return -1 }
+
+    if pid == 0 {
+        // Child: execve /bin/sh -c <cmd>
+        var sh = "/bin/sh"
+        var arg0 = "sh"
+        var arg1 = "-c"
+
+        var argv = malloc(32) // 4 pointers
+        if argv == 0 { exit(127) }
+        ptr_set(argv + 0, arg0)
+        ptr_set(argv + 8, arg1)
+        ptr_set(argv + 16, cmd)
+        ptr_set(argv + 24, 0)
+
+        var envp = malloc(8) // 1 pointer (NULL-terminated)
+        if envp == 0 { exit(127) }
+        ptr_set(envp, 0)
+
+        sys_execve(sh, argv, envp)
+        // If execve returns, it failed.
+        exit(127)
+    }
+
+    // Parent: wait4(pid, &status, 0, 0)
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { return -1 }
+    ptr_set(status_ptr, 0)
+
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid < 0 { return -1 }
+
+    return ptr_get(status_ptr)
 }
 
 fn oren_net_get(url) {
@@ -1131,25 +1208,30 @@ fn free(ptr) {
 
 fn oren_join(handle) {
     if handle == 0 { return 0 }
-    
-    // handle points to 8 bytes containing pthread_t
-    var thread_id = ptr_get(handle)
-    
-    var ret_buf = malloc(8)
-    if ret_buf == 0 { exit(250) }
-    
-    // pthread_join(id, &ret)
-    pthread_join(thread_id, ret_buf)
-    
-    var ret_val = ptr_get(ret_buf)
-    
-    // Cleanup
-    // free(ret_buf) // 'free' needs to be imported/ffi'd
-    // free(handle)
-    // We haven't implemented 'free' in imports logic for runtime yet?
-    // Let's assume ffi free works if we add it.
-    free(ret_buf)
+
+    // Spawn handle layout (native backend, macOS v0 fork+pipe):
+    // 0: pid (u64)
+    // 8: read_fd (u64)
+
+    var pid = ptr_get(handle)
+    var fd = ptr_get(handle + 8)
+
+    var buf = malloc(8)
+    if buf == 0 { exit(270) }
+    ptr_set(buf, 0)
+
+    var n = sys_read(fd, buf, 8)
+    sys_close(fd)
+    if n < 0 { exit(271) }
+
+    // Reap child (best-effort).
+    var st = malloc(8)
+    if st != 0 {
+        ptr_set(st, 0)
+        sys_wait4(pid, st, 0, 0)
+    }
+
+    var ret_val = ptr_get(buf)
     free(handle)
-    
     return ret_val
 }

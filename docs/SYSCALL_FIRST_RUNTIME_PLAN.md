@@ -1,7 +1,7 @@
 # Syscall-First Native Runtime Plan (No C Shims)
 
 **Status:** Active plan (documented for later reference)  
-**Last updated:** 2025-12-15  
+**Last updated:** 2025-12-16  
 **Repo:** `compiler-mini` (Oren)
 
 ## 0. Summary (What We Are Doing)
@@ -17,14 +17,17 @@ The plan avoids future “rip-and-replace” by:
 
 This is aligned with the “correct architecture first” constraint: **no temporary C shims** that would later be rewritten out.
 
-## 1. Current Reality (As of 2025-12-15)
+## 1. Current Reality (As of 2025-12-16)
 
 - Native backend injects `lib/runtime_native.oren` into programs.
-- `lib/runtime_native.oren` already contains `sys_*` stubs:
-  - `sys_write`, `sys_read`, `sys_pipe`, `sys_clone`, `sys_gettid` (currently return 0).
-- Native backend currently imports symbols like `malloc`, `pthread_create`, `pthread_join`, `exit` (implementation detail; will be removed over time).
-- The long-term direction (per docs) expects:
-  - IPC and channels, atomics, threads, and a future M:N scheduler (coroutines).
+- The native backend treats `sys_*` calls as **compiler intrinsics** and emits syscalls inline (Darwin arm64 on macOS; Linux arm64 is separate work).
+  - The `sys_*` functions remain as stubs in source so programs typecheck, but native code does not call those stubs.
+- `oren_system()` is now syscall-first on macOS: `fork + execve("/bin/sh", ...) + wait4`.
+- `spawn`/`oren_join` on macOS is currently implemented as **fork + pipe** (process-based) for v0 correctness.
+  - This avoids the Darwin `bsdthread_register/bsdthread_create` ABI surface until a robust syscall-first thread design is implemented.
+- Darwin fork ABI nuance is now accounted for:
+  - kernel returns `X0=child_pid` in both parent/child and `X1=0(parent)/1(child)`
+  - the runtime-facing `sys_fork()` intrinsic returns POSIX semantics (`0` in child).
 
 ## 2. Decisions (Hard Constraints)
 
@@ -221,4 +224,3 @@ We consider the native runtime “independent” when:
   - `sys_*` kernel-shaped primitives
   - pure runtime code in `.oren`
 - `make test` passes on macOS and the Linux syscall-dependent tests pass on QEMU host.
-

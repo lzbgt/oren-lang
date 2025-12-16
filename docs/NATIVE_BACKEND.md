@@ -21,8 +21,10 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
   - **GC**: Conservative mark/sweep GC is implemented in `lib/runtime_native.oren` and can be triggered manually via `native_gc_collect()`.
   - **Access**: `ptr_get`, `ptr_set`, `ptr_get_byte`, `ptr_set_byte`.
   - **Lists**: `oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` (list-aware), plus array literal lowering in codegen.
-  - **Atomics**: `atomic_add` (LDADD), `atomic_cas` (CAS).
-  - **SIMD**: 128-bit NEON intrinsics (`simd_add_2d`, `mul_4s`, etc.).
+- **Atomics**: `atomic_add` (LDADD), `atomic_cas` (CAS).
+- **SIMD**: 128-bit NEON intrinsics (`simd_add_2d`, `mul_4s`, etc.).
+- **Spawn/Join (macOS v0)**: `spawn` is currently implemented as **fork + pipe** (process-based) and `oren_join` reads the returned value from the pipe and reaps the child via `wait4`.
+  - This is a deliberate syscall-first compatibility choice to avoid depending on `pthread_*` / `bsdthread_*` ABIs until a robust OS-thread design lands.
 
 - **Runtime**:
   - Automatically injects `lib/runtime_native.oren` which implements `String` comparison and `Map` logic.

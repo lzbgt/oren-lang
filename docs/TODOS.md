@@ -71,6 +71,11 @@ Last updated: 2025-12-15
    - Profiler: memory/time attribution surfaces that are deterministic / loggable (must not change semantics).
      - Bootstrap progress: trace stream now includes bytes-only `ALLOC/FREE/REALLOC` events (not included in `TRACE_HASH`) and `tools/avm_trace_profile.py` can decode `TRACE_BYTES_HEX` into an allocation profile JSON.
 
+5) **Native backend: syscall-first PROC + spawn correctness (macOS)**
+   - Keep native backend free of libc/pthreads shims for core runtime services.
+   - Maintain correctness of Darwin syscall ABI details (notably `fork`: kernel returns `X0=child_pid` in both parent/child and uses `X1` to indicate child).
+   - Current v0 `spawn` uses `fork + pipe` (process-based); plan a future transition to true OS threads and/or coroutines once the syscall-first threading layer is solid (see `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`).
+
 ## P2 (Next-Gen AVM Performance + Features)
 
 1) **Typed buffers + SIMD kernels (no-JIT-first path)**
@@ -81,6 +86,7 @@ Last updated: 2025-12-15
 
 ## Recently Completed (for context)
 
+- macOS syscall-first: fixed Darwin `fork` ABI handling (child indicated via `X1`) in `sys_fork` and native `spawn`, enabling correct `oren_system` and `spawn`/`oren_join` behavior without libc/pthreads.
 - Deterministic TIME derived from executed gas (no “advance on now()”).
 - Function-aware bytecode verifier (removes spurious stack-join rejects).
 - AVM-in-AVM domain (nested universes) with determinism tests.
