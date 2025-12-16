@@ -54,12 +54,13 @@ Agentic requirements (must-have):
 *   **AI Use Case:** Batch processing of embeddings, parallel evaluations of agent trajectories.
 
 ## Implementation Roadmap
-1.  **Foundation:** Thread Registry & Atomics (Done/In-Progress).
-2.  **OS Threads:** `spawn` intrinsic (Linux clone / macOS bsdthread).
-3.  **Synchronization:** Mutexes and Condition Variables (using Atomics + Futex).
-4.  **Communication:** Channels (on top of Mutexes + Ring Buffer).
-5.  **Scheduler:** M:N Scheduler for Coroutines (stackless-first via `yield` lowering).
-6.  **High-Level:** Pub/Sub and Parallel Iterators.
+1.  **Foundation:** Atomics + minimal thread/task IDs (Done/In-Progress).
+2.  **N:1 greenlets first (macOS-first):** cooperative scheduler + explicit `yield` + non-blocking IO (kqueue/kevent).
+3.  **Synchronization + IPC:** channels + select (structured concurrency primitives built on the scheduler).
+4.  **N:M GMP (production):** syscall-first OS thread creation + parking/unparking + work stealing.
+5.  **High-Level:** task groups, supervision, pub/sub, parallel iterators.
+
+See `docs/NATIVE_GMP_SCHEDULER.md` for the syscall-first “no shims” G-M-P design and the staged plan that avoids a later rewrite.
 
 ## Agentic VM Considerations (No-JIT, Self-Healing)
 

@@ -175,46 +175,73 @@ Focus statement (to avoid roadmap thrash):
      - `avm --print-trace-bytes-hex` exists (hex transport).
    - Next: extend event categories (alloc/error object metadata/spans) and add a BYTES return channel (not only hex dump).
 
-3) **NET domain contract + replay/fixture story (AVM)**
+3) **Language meta-system: unified attributes (decorators + field annotations)**
+   - Direction is documented in `docs/LANGUAGE_SPEC.md` (“Meta / Attributes”) and is required for:
+     - user- and library-defined metadata (docs/IDE tooling)
+     - governance-friendly APIs (`@cap.requires(...)`)
+     - future derive-style codegen (`@derive(...)`) without “Python runtime decorator” semantics
+     - AVM tooling (disasm/debug/profiling correlation) once metadata is embedded in `.obc`
+   - Minimal no-rewrite implementation stages:
+     - M1: parse and preserve `@attr(...)` on function/type declarations in the compiler AST (ignored for semantics).
+     - M2: allow field/param attributes (still metadata-only).
+     - M3: strict mode (`--strict-attrs` / env) where unknown attributes are a compile error unless declared/allowed.
+     - M4: `.obc` metadata section (attributes + names) plus separate `meta_hash`:
+       - `program_hash` remains semantics-only (code + constants), must not include inert metadata.
+       - `meta_hash` covers metadata for auditing/debugging.
+     - M5: surface attributes in `avm --disasm-json` / `--inspect-json` (tooling must not execute bytecode).
+
+4) **Object model scaffolding: traits/protocols + composition (no inheritance-first)**
+   - Direction is documented in `docs/OBJECT_MODEL.md` and `docs/LANGUAGE_SPEC.md` (“Object Model”).
+   - Goal: make syscall-first boundaries and AVM virtualization natural:
+     - define `FS/NET/PROC/ENV/TIME` as traits and pass explicit capability objects (instead of implicit globals).
+   - Minimal no-rewrite implementation stages:
+     - T1: `trait` declarations as compile-time contracts (no runtime rep; no dynamic dispatch yet).
+     - T2: `impl Trait for Type` + static dispatch where concrete types are known.
+     - T3: optional trait objects (explicit opt-in) for dynamic dispatch (plugins).
+     - T4: `enum` + `match` for ADTs (agent workflow state machines), later exhaustiveness checks.
+
+5) **NET domain contract + replay/fixture story (AVM)**
    - Keep NET semantics virtualizable and deterministic by design:
      - VirtualNET fixtures remain the default for capsules and nested universes.
      - define a canonical request shape (recommended: HTTP-ish request/response rather than raw sockets).
    - Add record/replay for NET domain (so “real host net” can be audited where allowed).
    - Ensure task scheduler integrates NET as an async/blocking op (no blocking forever).
 
-4) **Handle delegation (fd/socket passing) — later explicit mode**
+6) **Handle delegation (fd/socket passing) — later explicit mode**
    - Do not attempt this in v0 capsule/deterministic mode.
    - If added later, it must be an explicit opt-in flag (e.g. `host_handles_allowed=1`) bound into `exec_hash`, with clear snapshot portability limits.
 
-4) **Snapshot/restore “capsule” hardening**
+7) **Snapshot/restore “capsule” hardening**
    - Move toward capsule-friendly formats (hashable, resumable, policy-bound).
 
-5) **“AVM as Oren built-in library” (libavm embedding)**
+8) **“AVM as Oren built-in library” (libavm embedding)**
    - Mandatory for the “embed libavm + oren.obc on iOS/edge” story (`docs/OREN_EVOLUTION.md`).
    - Minimal no-rewrite path:
      - stabilize a small `libavm` C API: `avm_run_bytes(...) -> {result, hashes, record_log_bytes, snapshot_bytes}`
      - provide Oren bindings in a standard module (so Oren programs can spawn child universes without shelling out)
      - start with C-backend integration (link `libavm` into `lib/runtime.c`) and keep native-backend integration as a follow-up.
 
-6) **Compiler-in-AVM (“source -> .obc inside a child universe”)**
+9) **Compiler-in-AVM (“source -> .obc inside a child universe”)**
    - Mandatory for closing the loop (multiverse + in-memory compilation) without a host toolchain.
    - Break into minimal milestones to avoid massive rewrites:
      - M1: get a small “compiler capsule MVP” that compiles a single-file `.oren` subset to `.obc`, using VirtualFS for IO.
      - M2: extend to imports/modules, deterministic compilation mode, and returning `.obc` as `BYTES`.
      - M3: use this path to compile AVM-facing stdlib modules inside the sandbox.
 
-7) **Tooling: disassembler + debugger + profiler**
+10) **Tooling: disassembler + debugger + profiler**
    - Disassembler: stable “otool-like” `.obc` inspector (sections, consts, policy, hashes).
    - Debugger: minimal “lldb-like” stepping + breakpoints + trace correlation (pc/op/stack depth).
    - Profiler: memory/time attribution surfaces that are deterministic / loggable (must not change semantics).
      - Bootstrap progress: trace stream now includes bytes-only `ALLOC/FREE/REALLOC` events (not included in `TRACE_HASH`) and `tools/avm_trace_profile.py` can decode `TRACE_BYTES_HEX` into an allocation profile JSON.
 
-8) **Native backend: syscall-first threads + coroutines (post-v0)**
+11) **Native backend concurrency: N:1 greenlets first, then N:M GMP (no shims)**
    - Keep native backend free of libc/pthreads shims for core runtime services.
    - Current v0 `spawn` uses `fork + pipe` (process-based) for correctness.
-   - Next: transition to OS threads and/or coroutines once the syscall-first thread boundary is stable (see `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`).
+   - Next (no huge rewrite path, see `docs/NATIVE_GMP_SCHEDULER.md`):
+     - N:1 stage: cooperative greenlets + explicit `yield` + non-blocking IO (kqueue/kevent on macOS).
+     - N:M stage: syscall-first OS threads + parking/unparking + work stealing + GC coordination.
 
-9) **Compile-time evaluation (“comptime”) — pure-only first**
+12) **Compile-time evaluation (“comptime”) — pure-only first**
    - Goal: make compilation deterministic and agent-friendly without a huge rewrite.
    - Stage C0: constant evaluation for pure expressions only (no FS/NET/PROC/ENV/TIME, no nondeterministic RNG), with explicit budgets to prevent compiler hangs.
    - Later stages (pure comptime functions, bounded reflection) can follow once C0 is stable.
@@ -239,6 +266,11 @@ Focus statement (to avoid roadmap thrash):
 - Deterministic TIME derived from executed gas (no “advance on now()”).
 - Function-aware bytecode verifier (removes spurious stack-join rejects).
 - AVM-in-AVM domain (nested universes) with determinism tests.
+- Bool/nil/bitwise foundations across backends:
+  - bytecode constant pool now emits/loads `BOOL` constants
+  - AVM comparisons now return typed `BOOL` values and support `nil`/`bool` equality
+  - native backend supports `true/false/nil`, prefix `!`/`~`, and short-circuit `&&`/`||`
+  - regressions: `tests/native/test_bool_bit_ops.oren`, `tests/avm/test_bool_bit_ops.oren`
 - Memory budget (`AVM_MEM_BYTES`) + AVM-in-AVM `cfg.mem_bytes` subset enforcement.
 - FS I/O budget (`AVM_IO_BYTES`) + AVM-in-AVM `cfg.io_bytes` subset enforcement.
 - Structured error contract: stable `__err/code/msg` with optional `domain/op` metadata for policy/budget failures.

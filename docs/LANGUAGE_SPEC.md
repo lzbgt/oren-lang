@@ -20,7 +20,7 @@ Implemented today:
 
 Planned (not implemented yet):
 
-`yield`, `defer`, `assert`, `test`
+`yield`, `defer`, `assert`, `test`, `trait`, `impl`, `enum`, `match`, `pub`
 
 ### Identifiers
 Identifiers are ASCII letters, digits, and `_`:
@@ -140,6 +140,74 @@ infix_op        = "+" | "-" | "*" | "/"
 All infix operators are left-associative.
 
 ## Semantics
+
+### Meta / Attributes (declaration annotations) (design direction)
+
+Oren adopts a **unified attribute model** for “decorators” and “field annotations”.
+The syntax is inspired by Python’s `@decorator`, but the semantics are intentionally different:
+
+- **Python:** `@decorator` is runtime function transformation (`f = decorator(f)`).
+- **Oren:** `@attr(...)` is **compile-time metadata**, not arbitrary code execution.
+
+This design is chosen to preserve:
+
+- deterministic builds
+- AVM governance and policy scan safety (scan-before-execute)
+- multiverse friendliness (metadata must not change semantics unless explicitly specified)
+
+#### Syntax (conceptual)
+
+Attributes attach to declarations:
+
+- functions
+- types (`struct` / future `enum` / future `trait`)
+- impl blocks (future)
+- parameters (future)
+- fields (future)
+
+Example (function):
+
+```oren
+@trace("net.connect")
+@cap.requires(domain="NET", ops=["tcp_connect"])
+fn tcp_connect(ip, port, timeout_ms) { ... }
+```
+
+Example (field annotation):
+
+```oren
+struct User {
+    @doc("database primary key")
+    @serde.rename("user_id")
+    id
+}
+```
+
+#### Determinism rules (must-haves)
+
+1) **Unknown attributes are allowed and inert by default**
+   - If the compiler does not recognize an attribute, it must not change code generation, execution, verification, gas/time, or policy scan results.
+   - Unknown attributes may be preserved for tooling (docs/IDE/disasm metadata), but are semantically ignored.
+
+2) **Attribute arguments are compile-time constants (v0)**
+   - Allowed: `int`, `bool`, `string`, `nil` (and later: constant list/map literals if/when const-literals are formalized).
+   - Not allowed in v0: arbitrary expression evaluation or calling functions inside attribute arguments.
+
+3) **Reserved namespaces**
+   - Compiler/tool-reserved: `oren.*`, `avm.*`, `cap.*`, `ffi.*`, `codegen.*`, `trace.*`
+   - Library/user metadata should use a vendor prefix (recommended): `myorg.*`, `acme.*`, etc.
+
+4) **Strict attribute mode (governance)**
+   - For audited builds (and later swarm consensus workflows), Oren should support a strict mode:
+     - unknown attributes are a compile error unless explicitly declared/allowed
+     - reserved namespace misuse is always an error
+
+#### Hashing and artifact identity (important for swarm / consensus)
+
+If/when `.obc` gains a metadata section that contains attributes:
+
+- **Execution identity** (`program_hash`) must be derived from semantics (code + constants), not from inert metadata.
+- Metadata may have its own hash (`meta_hash`) for auditing/debugging, but must not affect consensus execution identity.
 
 ### Values and Types
 The runtime is dynamically typed. Values include:
@@ -373,6 +441,33 @@ Non-goal:
   - `p.a` reads the `"a"` field.
   - `p.a = v` writes the `"a"` field.
 
+### Object Model (recommended direction)
+
+Oren’s long-term object model is:
+
+- **traits / protocols + composition** as the primary abstraction mechanism
+- **no inheritance-first design** (avoid fragile class hierarchies)
+- **ADTs (sum types)** + pattern matching for closed-world modeling (agent state machines, workflows) (planned)
+
+Rationale:
+
+- traits/protocols align naturally with syscall-first and capability-based design:
+  - FS / NET / PROC / ENV / TIME should be explicit “capability objects” rather than implicit globals
+- composition keeps data layout and ownership clearer across backends (C/native/AVM)
+- sum types make “self-healing agent loops” more robust by encoding states explicitly
+
+Implementation reality today (bootstrap):
+
+- `struct`/`class` are currently **data-only** shapes backed by runtime maps.
+- There is no method syntax and no inheritance.
+
+Planned evolution (minimal rewrite):
+
+1) Introduce `trait` (protocol) declarations as compile-time contracts.
+2) Add `impl Trait for Type` (or structural conformance rules) with mostly static dispatch.
+3) Add optional dynamic dispatch via “trait objects” only where needed (plugin systems).
+4) Add `enum` + `match` for sum types and exhaustiveness checking (later milestone).
+
 ### Modules and Imports
 - `import math "path/to/math.oren"` compiles the referenced file as a module and binds it to the identifier `math` as a **namespace**.
 - Accessing module members uses member syntax:
@@ -432,7 +527,7 @@ Self-hosting relies on a small runtime API (implemented in C, callable from Oren
 - `oren_list_len(xs)` / `oren_list_push(xs, v)` for list work
 
 ## Not Implemented (Yet)
-- user-defined methods/inheritance (classes are currently data-only)
+- user-defined methods / inheritance (classes are currently data-only; long-term direction is traits + composition)
 - dynamic/runtime module loading
 
 ## Planned (Essential Modern Language Features)

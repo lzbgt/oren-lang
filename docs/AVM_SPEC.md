@@ -30,11 +30,12 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 **Notes (implementation reality):**
 
 - The bootstrap encoder/decoder currently does **not** write/read an explicit bytecode version field.
-- The bootstrap constant pool currently supports:
-  - `NIL`
-  - `INT` (u64 payload)
-  - `STRING` (u16 length + bytes)
-  - `BYTES` (u32 length + bytes) (rolling; used for embedding binary blobs)
+- The bootstrap constant pool currently supports (tagged constants, tag is `u8`):
+  - `0`: `NIL` (no payload)
+  - `1`: `INT` (`u64` payload, little-endian)
+  - `2`: `BOOL` (`u8` payload, `0|1`)
+  - `4`: `STRING` (`u16` length + bytes, little-endian length)
+- The “BYTES constant” concept exists in some roadmap docs, but is not currently emitted by the bytecode backend in this repo’s rolling v0.1 format.
 - `FLOAT` constants exist in the v0.1 instruction table but are not yet fully wired through the current bytecode backend.
 
 ## Instruction Set (Version 0.1)
