@@ -1,0 +1,22 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    // Demo: VirtualNET fixtures (no host network effects).
+    //
+    // Intended run command (example):
+    //   ./avm --deny-by-default --allow-domains "0,4,6" --net-backend vnet --net-fixtures-hex <...> build/ex_avm_vnet_demo.obc
+    //
+    // The fixture set maps url="u" -> body="ok".
+    var body = oren_net_get("u")
+    if body != "ok" { fail("unexpected body") }
+
+    print("VNET demo OK (no host NET effects)")
+    oren_exit(0)
+}
+
+main()
+

@@ -1,0 +1,41 @@
+fn main() {
+    // Demo: AVM-in-AVM (nested universe) + VirtualNET fixtures.
+    //
+    // Flow:
+    // 1) Parent reads child .obc bytes from host FS.
+    // 2) Parent runs child as a nested universe (domain AVM).
+    // 3) Child uses NET, but it is virtualized via fixtures.
+    //
+    // This is the “direct child run” model: the child runs as an in-process VM instance,
+    // not via a relay protocol between universes.
+
+    var child_obc = oren_read_bytes("build/ex_multiverse_child_net.obc")
+
+    // Child must be allowed CORE (0) + NET (4).
+    var allowed = (1 << 0) + (1 << 4)
+
+    // AVMNET01 fixtures: 1 entry mapping url="u" -> body="ok"
+    var net_fx = oren_bytes_from_hex("41564d4e45543031010000000100000075020000006f6b")
+
+    var cfg = {
+        "deterministic": true,
+        "gas_limit": 1000000,
+        "allowed_domains": allowed,
+        "net_backend": 1,
+        "net_fixtures": net_fx
+    }
+
+    var r = oren_avm_run_obc_bytes(child_obc, cfg)
+    var exit_code = r["exit_code"]
+    var result = r["result"]
+    var log_len = oren_bytes_len(r["record_log"])
+
+    print("child exit_code=" + oren_int_to_string(exit_code))
+    print("child result=" + result)
+    print("child log_len=" + oren_int_to_string(log_len))
+
+    oren_set_result({"exit_code": exit_code, "result": result, "log_len": log_len})
+}
+
+main()
+

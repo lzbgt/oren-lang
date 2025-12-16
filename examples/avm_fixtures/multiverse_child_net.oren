@@ -1,0 +1,12 @@
+fn main() {
+    // Child universe program: exercises NET via fixtures.
+    //
+    // Parent universe config supplies VirtualNET fixtures mapping url="u" -> body="ok".
+    var s = oren_net_get("u")
+    if oren_is_err(s) { oren_exit(1) }
+    oren_set_result(s)
+    oren_exit(0)
+}
+
+main()
+

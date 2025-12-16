@@ -443,28 +443,46 @@ avm: lib/avm/main.c lib/avm/avm.c lib/avm/avm.h lib/avm/sha256.c lib/avm/sha256.
 
 examples-test: oren avm
 	@echo "=== Running Examples ==="
+	@# Examples are not allowed to hang (rolling mode). Require timeout tooling.
+	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
 	@mkdir -p build
 	@# 1) C backend hello + modules + threading
-	@./oren build examples/hello_c.oren --backend c -o build/ex_hello_c $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello_c.oren --backend c -o build/ex_hello_c $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_hello_c
-	@./oren build examples/module_app.oren --backend c -o build/ex_module_app $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/module_app.oren --backend c -o build/ex_module_app $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_module_app
-	@./oren build examples/spawn_c.oren --backend c -o build/ex_spawn_c $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/spawn_c.oren --backend c -o build/ex_spawn_c $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_spawn_c
 	@# 2) Native backend GC + FFI
-	@./oren build examples/gc_native.oren --backend native -o build/ex_gc_native $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/gc_native.oren --backend native -o build/ex_gc_native $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_gc_native
-	@./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null
 	@# 3) Native dylib export + header + scan + link
-	@./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata
 	@test -f build/libmath.h
 	@$(RUN_WITH_TIMEOUT) ./oren scan build/libmath.dylib >/dev/null
-	@./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath
 	@# 4) Bytecode + AVM
-	@./oren build examples/hello.oren --backend bytecode -o build/ex_hello.obc
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello.oren --backend bytecode -o build/ex_hello.obc
 	@$(RUN_WITH_TIMEOUT) ./avm build/ex_hello.obc >/dev/null
+	@# 5) AVM Virtual backends demos (VFS / VPROC / VNET)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_vfs_demo.oren --backend bytecode -o build/ex_avm_vfs_demo.obc
+	@rm -f build/ex_avm_vfs_demo.bin
+	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend vfs build/ex_avm_vfs_demo.obc
+	@test ! -f build/ex_avm_vfs_demo.bin
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_vproc_demo.oren --backend bytecode -o build/ex_avm_vproc_demo.obc
+	@rm -f build/ex_avm_vproc_should_not_touch.txt
+	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 0 build/ex_avm_vproc_demo.obc
+	@test ! -f build/ex_avm_vproc_should_not_touch.txt
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_vnet_demo.oren --backend bytecode -o build/ex_avm_vnet_demo.obc
+	@hex="41564d4e45543031010000000100000075020000006f6b"; \
+		$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,4,6" --net-backend vnet --net-fixtures-hex "$$hex" build/ex_avm_vnet_demo.obc
+	@# 6) AVM multiverse demo (parent runs child with VirtualNET fixtures)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_fixtures/multiverse_child_net.oren --backend bytecode -o build/ex_multiverse_child_net.obc
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_multiverse_net_demo.oren --backend bytecode -o build/ex_avm_multiverse_net_demo.obc
+	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,8,6" --fs-allow-prefixes "build/" --fs-backend host build/ex_avm_multiverse_net_demo.obc >/dev/null
 	@echo "Examples OK"
 
 # --- Cleanup ---

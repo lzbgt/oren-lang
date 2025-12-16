@@ -1,0 +1,35 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    // Demo: VirtualFS (no host filesystem effects).
+    //
+    // Intended run command (example):
+    //   ./avm --deny-by-default --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend vfs build/ex_avm_vfs_demo.obc
+    //
+    // Note: This program uses FS domain operations, but when routed to VirtualFS
+    // they should not touch the host filesystem.
+
+    var path = "build/ex_avm_vfs_demo.bin"
+    var bytes = [1, 2, 3, 4, 5, 255, 0]
+    oren_write_bytes(path, bytes)
+
+    var out = oren_read_bytes(path)
+    if oren_list_len(out) != 7 { fail("length mismatch") }
+    if out[0] != 1 { fail("mismatch 0") }
+    if out[1] != 2 { fail("mismatch 1") }
+    if out[2] != 3 { fail("mismatch 2") }
+    if out[3] != 4 { fail("mismatch 3") }
+    if out[4] != 5 { fail("mismatch 4") }
+    if out[5] != 255 { fail("mismatch 5") }
+    if out[6] != 0 { fail("mismatch 6") }
+
+    print("VFS demo OK (no host FS effects)")
+    oren_exit(0)
+}
+
+main()
+

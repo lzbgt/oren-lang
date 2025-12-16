@@ -1,0 +1,26 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn main() {
+    // Demo: VirtualPROC (no host subprocess effects).
+    //
+    // Intended run command (example):
+    //   ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 0 build/ex_avm_vproc_demo.obc
+    //
+    // This program requests PROC.system, but VirtualPROC should not actually spawn a host process.
+    // It will return a deterministic exit code.
+
+    var path = "build/ex_avm_vproc_should_not_touch.txt"
+    var cmd = "sh -c 'echo hi > " + path + "'"
+    var rc = oren_system(cmd)
+    if rc != 0 { fail("unexpected rc") }
+
+    print("VPROC demo OK (no host PROC effects)")
+    oren_exit(0)
+}
+
+main()
+
