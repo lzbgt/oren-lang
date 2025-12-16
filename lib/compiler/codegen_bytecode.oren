@@ -45,7 +45,8 @@ fn new_bytecode_ctx() {
         "functions": {},
         "fixups": [],
         "field_offsets": {},
-        "aliases": {}
+        "aliases": {},
+        "loop_ctx": nil
     }
 }
 
@@ -212,7 +213,7 @@ fn bytecode_compile_expr(ctx, expr) {
     if expr["type"] == "Boolean" {
         var v = 0
         if expr["value"] == true { v = 1 }
-        var idx = add_constant(ctx, {"type": "Integer", "value": v})
+        var idx = add_constant(ctx, {"type": "Bool", "value": v})
         emit_byte(ctx, AVM_PUSH_CONST)
         emit_u16(ctx, idx)
         return nil
@@ -264,6 +265,84 @@ fn bytecode_compile_expr(ctx, expr) {
     }
     
     if expr["type"] == "Infix" {
+        // Short-circuit boolean ops (rolling): `&&` and `||` always return BOOL (0/1).
+        if expr["op"] == "&&" {
+            // if left truthy -> eval right and return truthiness(right), else return false
+            bytecode_compile_expr(ctx, expr["left"])
+
+            emit_byte(ctx, AVM_JMP_IF)
+            var jump_eval_right = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            // left is falsey
+            var f_idx = add_constant(ctx, {"type": "Bool", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+            emit_byte(ctx, AVM_JMP)
+            var jump_end = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            var eval_right_pc = oren_list_len(ctx["code"])
+            bytecode_compile_expr(ctx, expr["right"])
+            emit_byte(ctx, AVM_JMP_IF)
+            var jump_push_true = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            // right falsey
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+            emit_byte(ctx, AVM_JMP)
+            var jump_end2 = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            var push_true_pc = oren_list_len(ctx["code"])
+            var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, t_idx)
+
+            var end_pc = oren_list_len(ctx["code"])
+            patch_u16(ctx, jump_eval_right, eval_right_pc - (jump_eval_right + 2))
+            patch_u16(ctx, jump_push_true, push_true_pc - (jump_push_true + 2))
+            patch_u16(ctx, jump_end, end_pc - (jump_end + 2))
+            patch_u16(ctx, jump_end2, end_pc - (jump_end2 + 2))
+            return nil
+        }
+
+        if expr["op"] == "||" {
+            // if left truthy -> return true, else eval right and return truthiness(right)
+            bytecode_compile_expr(ctx, expr["left"])
+
+            emit_byte(ctx, AVM_JMP_IF)
+            var jump_push_true_left = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            // eval right
+            var eval_right_pc = oren_list_len(ctx["code"])
+            bytecode_compile_expr(ctx, expr["right"])
+            emit_byte(ctx, AVM_JMP_IF)
+            var jump_push_true_right = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            // right falsey
+            var f_idx = add_constant(ctx, {"type": "Bool", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+            emit_byte(ctx, AVM_JMP)
+            var jump_end = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            var push_true_pc = oren_list_len(ctx["code"])
+            var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, t_idx)
+
+            var end_pc = oren_list_len(ctx["code"])
+            patch_u16(ctx, jump_push_true_left, push_true_pc - (jump_push_true_left + 2))
+            patch_u16(ctx, jump_push_true_right, push_true_pc - (jump_push_true_right + 2))
+            patch_u16(ctx, jump_end, end_pc - (jump_end + 2))
+            return nil
+        }
+
         bytecode_compile_expr(ctx, expr["left"])
         bytecode_compile_expr(ctx, expr["right"])
         if expr["op"] == "+" {
@@ -285,6 +364,61 @@ fn bytecode_compile_expr(ctx, expr) {
         if expr["op"] == "^"  { emit_byte(ctx, 26) }
         if expr["op"] == "<<" { emit_byte(ctx, 27) }
         if expr["op"] == ">>" { emit_byte(ctx, 28) }
+        return nil
+    }
+
+    if expr["type"] == "Prefix" {
+        var op = expr["op"]
+        // Unary minus: 0 - x
+        if op == "-" {
+            var z_idx = add_constant(ctx, {"type": "Integer", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, z_idx)
+            bytecode_compile_expr(ctx, expr["right"])
+            emit_byte(ctx, AVM_SUB)
+            return nil
+        }
+
+        // Logical NOT: `!x` returns BOOL (0/1) based on truthiness(x)
+        if op == "!" {
+            bytecode_compile_expr(ctx, expr["right"])
+
+            emit_byte(ctx, AVM_JMP_IF)
+            var jump_truthy = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            // falsey -> true
+            var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, t_idx)
+            emit_byte(ctx, AVM_JMP)
+            var jump_end = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+
+            // truthy -> false
+            var truthy_pc = oren_list_len(ctx["code"])
+            var f_idx = add_constant(ctx, {"type": "Bool", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+
+            var end_pc = oren_list_len(ctx["code"])
+            patch_u16(ctx, jump_truthy, truthy_pc - (jump_truthy + 2))
+            patch_u16(ctx, jump_end, end_pc - (jump_end + 2))
+            return nil
+        }
+
+        // Bitwise NOT: `~x` implemented as `x ^ -1` (two's complement)
+        if op == "~" {
+            bytecode_compile_expr(ctx, expr["right"])
+            var m1_idx = add_constant(ctx, {"type": "Integer", "value": -1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, m1_idx)
+            emit_byte(ctx, 26) // BITXOR
+            return nil
+        }
+
+        // Unknown prefix: compile operand and leave it (best-effort).
+        bytecode_compile_expr(ctx, expr["right"])
         return nil
     }
     
@@ -369,6 +503,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_avm_record_to_bytes" { native_id = 40 }
         if name == "oren_avm_get_record_bytes" { native_id = 41 }
         if name == "oren_avm_set_replay_bytes" { native_id = 42 }
+        if name == "oren_iter_next" { native_id = 43 }
 
         if native_id != -1 {
             var args = expr["args"]
@@ -437,6 +572,24 @@ fn bytecode_compile_function(ctx, stmt) {
         ctx["local_count"] = ctx["local_count"] + 1
         i = i + 1
     }
+
+    // Pre-allocate function locals so var-decls inside loops do not grow stack at runtime.
+    // The AVM uses one stack for both locals and evaluation:
+    // - fp points at the first argument (CALL sets fp = sp - nargs)
+    // - LOAD/STORE_LOCAL index into stack[fp + idx]
+    // Therefore we must ensure sp is advanced to include all locals slots up-front.
+    bytecode_collect_locals_stmt(ctx, stmt["body"])
+
+    var need = ctx["local_count"] - oren_list_len(params)
+    if need > 0 {
+        var nil_idx = add_constant(ctx, {"type": "Nil"})
+        var k = 0
+        while k < need {
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, nil_idx)
+            k = k + 1
+        }
+    }
     
     bytecode_compile_stmt(ctx, stmt["body"])
     
@@ -454,7 +607,87 @@ fn bytecode_compile_function(ctx, stmt) {
     return nil
 }
 
+fn bytecode_collect_locals_stmt(ctx, stmt) {
+    if stmt == nil { return nil }
+
+    // Do not descend into nested functions (they have their own locals scope).
+    if stmt["type"] == "Function" { return nil }
+    if stmt["type"] == "ExprStmt" {
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "Function" { return nil }
+        // If is an expression in the AST but can contain blocks with Var statements.
+        // Collect locals declared inside those blocks (Oren has function-scope vars today).
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "If" {
+            bytecode_collect_locals_stmt(ctx, stmt["expr"]["consq"])
+            if stmt["expr"]["alt"] != nil {
+                bytecode_collect_locals_stmt(ctx, stmt["expr"]["alt"])
+            }
+        }
+    }
+
+    if stmt["type"] == "Var" {
+        var name = stmt["name"]["value"]
+        if ctx["locals"][name] == nil {
+            ctx["locals"][name] = ctx["local_count"]
+            ctx["local_count"] = ctx["local_count"] + 1
+        }
+        return nil
+    }
+    if stmt["type"] == "Block" {
+        var stmts = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(stmts) {
+            bytecode_collect_locals_stmt(ctx, stmts[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if stmt["type"] == "While" {
+        bytecode_collect_locals_stmt(ctx, stmt["body"])
+        return nil
+    }
+    if stmt["type"] == "For" {
+        if stmt["init"] != nil { bytecode_collect_locals_stmt(ctx, stmt["init"]) }
+        if stmt["post"] != nil { bytecode_collect_locals_stmt(ctx, stmt["post"]) }
+        bytecode_collect_locals_stmt(ctx, stmt["body"])
+        return nil
+    }
+    if stmt["type"] == "Return" { return nil }
+    if stmt["type"] == "Assign" { return nil }
+    if stmt["type"] == "Set" { return nil }
+    if stmt["type"] == "Type" { return nil }
+    if stmt["type"] == "FFI" { return nil }
+    if stmt["type"] == "Break" { return nil }
+    if stmt["type"] == "Continue" { return nil }
+    return nil
+}
+
 fn bytecode_compile_stmt(ctx, stmt) {
+    if stmt["type"] == "Break" {
+        var loop = ctx["loop_ctx"]
+        if loop == nil {
+            print("bytecode backend: break outside of loop")
+            oren_exit(1)
+        }
+        emit_byte(ctx, AVM_JMP)
+        var jidx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        oren_list_push(loop["break_jumps"], jidx)
+        return nil
+    }
+
+    if stmt["type"] == "Continue" {
+        var loop2 = ctx["loop_ctx"]
+        if loop2 == nil {
+            print("bytecode backend: continue outside of loop")
+            oren_exit(1)
+        }
+        emit_byte(ctx, AVM_JMP)
+        var jidx2 = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+        oren_list_push(loop2["continue_jumps"], jidx2)
+        return nil
+    }
+
     if stmt["type"] == "Type" {
         var fields = stmt["fields"]
         var i = 0
@@ -504,10 +737,14 @@ fn bytecode_compile_stmt(ctx, stmt) {
             emit_byte(ctx, AVM_STORE_GLOBAL)
             emit_u16(ctx, idx)
         } else {
-            var idx = ctx["local_count"]
-            ctx["locals"][name] = idx
-            ctx["local_count"] = idx + 1
-            // Value is left on stack as the local variable slot
+            var idx = ctx["locals"][name]
+            if idx == nil {
+                // Should not happen: we pre-collect locals in bytecode_compile_function.
+                print("bytecode backend: internal error, missing local slot for " + name)
+                oren_exit(1)
+            }
+            emit_byte(ctx, AVM_STORE_LOCAL)
+            emit_byte(ctx, idx)
         }
         return nil
     }
@@ -582,7 +819,13 @@ fn bytecode_compile_stmt(ctx, stmt) {
         emit_u16(ctx, 0)
         
         var body_start = oren_list_len(ctx["code"])
+
+        // Loop context: patchable break/continue.
+        var prev_loop = ctx["loop_ctx"]
+        var loop = {"prev": prev_loop, "start_pc": start_pc, "continue_target": start_pc, "break_jumps": [], "continue_jumps": []}
+        ctx["loop_ctx"] = loop
         bytecode_compile_stmt(ctx, stmt["body"])
+        ctx["loop_ctx"] = prev_loop
         
         emit_byte(ctx, AVM_JMP)
         var jump_back_idx = oren_list_len(ctx["code"])
@@ -593,7 +836,86 @@ fn bytecode_compile_stmt(ctx, stmt) {
         
         patch_u16(ctx, jump_body_idx, body_start - (jump_body_idx + 2))
         patch_u16(ctx, jump_end_idx, end_pc - (jump_end_idx + 2))
+
+        // Patch breaks/continues.
+        var bi = 0
+        while bi < oren_list_len(loop["break_jumps"]) {
+            var bpos = loop["break_jumps"][bi]
+            patch_u16(ctx, bpos, end_pc - (bpos + 2))
+            bi = bi + 1
+        }
+        var ci = 0
+        while ci < oren_list_len(loop["continue_jumps"]) {
+            var cpos = loop["continue_jumps"][ci]
+            patch_u16(ctx, cpos, loop["continue_target"] - (cpos + 2))
+            ci = ci + 1
+        }
         
+        return nil
+    }
+
+    if stmt["type"] == "For" {
+        // for { body }
+        // for cond { body }
+        // for init; cond; post { body }
+        if stmt["init"] != nil { bytecode_compile_stmt(ctx, stmt["init"]) }
+
+        var start_pc = oren_list_len(ctx["code"])
+        if stmt["cond"] != nil {
+            bytecode_compile_expr(ctx, stmt["cond"])
+        } else {
+            var t_idx = add_constant(ctx, {"type": "Integer", "value": 1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, t_idx)
+        }
+
+        emit_byte(ctx, AVM_JMP_IF)
+        var jump_body_idx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+
+        emit_byte(ctx, AVM_JMP)
+        var jump_end_idx = oren_list_len(ctx["code"])
+        emit_u16(ctx, 0)
+
+        var body_start = oren_list_len(ctx["code"])
+
+        // Continue should jump to post, which we only know after compiling the body.
+        var prev_loop = ctx["loop_ctx"]
+        var loop = {"prev": prev_loop, "start_pc": start_pc, "continue_target": nil, "break_jumps": [], "continue_jumps": []}
+        ctx["loop_ctx"] = loop
+        bytecode_compile_stmt(ctx, stmt["body"])
+
+        // Post clause (continue target)
+        var post_start = oren_list_len(ctx["code"])
+        loop["continue_target"] = post_start
+        if stmt["post"] != nil { bytecode_compile_stmt(ctx, stmt["post"]) }
+
+        ctx["loop_ctx"] = prev_loop
+
+        emit_byte(ctx, AVM_JMP)
+        var jump_back_idx = oren_list_len(ctx["code"])
+        var off_back = start_pc - (jump_back_idx + 2)
+        emit_i16(ctx, off_back)
+
+        var end_pc = oren_list_len(ctx["code"])
+
+        patch_u16(ctx, jump_body_idx, body_start - (jump_body_idx + 2))
+        patch_u16(ctx, jump_end_idx, end_pc - (jump_end_idx + 2))
+
+        // Patch breaks/continues.
+        var bi2 = 0
+        while bi2 < oren_list_len(loop["break_jumps"]) {
+            var bpos2 = loop["break_jumps"][bi2]
+            patch_u16(ctx, bpos2, end_pc - (bpos2 + 2))
+            bi2 = bi2 + 1
+        }
+        var ci2 = 0
+        while ci2 < oren_list_len(loop["continue_jumps"]) {
+            var cpos2 = loop["continue_jumps"][ci2]
+            patch_u16(ctx, cpos2, loop["continue_target"] - (cpos2 + 2))
+            ci2 = ci2 + 1
+        }
+
         return nil
     }
     
@@ -669,6 +991,12 @@ fn bytecode_emit_program(out_path, ctx) {
         if c["type"] == "Integer" {
             oren_list_push(bytes, 1) // Type INT
             emit_u64_le(bytes, c["value"])
+        }
+        if c["type"] == "Bool" {
+            oren_list_push(bytes, 2) // Type BOOL (u8: 0|1)
+            var b = c["value"]
+            if b != 0 { b = 1 }
+            oren_list_push(bytes, b)
         }
         if c["type"] == "String" {
             oren_list_push(bytes, 4) // Type STRING

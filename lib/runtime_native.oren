@@ -31,11 +31,26 @@ fn sys_execve(path, argv, envp) { return 0 }
 fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
 fn sys_gettid() { return 0 }
+fn sys_fcntl(fd, cmd, arg) { return 0 }
 fn sys_ulock_wait(operation, addr, value, timeout_us) { return 0 }
 fn sys_ulock_wake(operation, addr, wake_value) { return 0 }
 fn sys_bsdthread_create(func, func_arg, stack, pthread, flags) { return 0 }
 fn sys_bsdthread_terminate(stackaddr, freesize, port, sema_or_ulock) { return 0 }
 fn sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset) { return 0 }
+
+// --- TCP/IP (syscall-first; macOS arm64 first) ---
+fn sys_socket(domain, type, protocol) { return 0 }
+fn sys_connect(fd, addr, addrlen) { return 0 }
+fn sys_bind(fd, addr, addrlen) { return 0 }
+fn sys_listen(fd, backlog) { return 0 }
+fn sys_accept(fd, addr, addrlen_ptr) { return 0 }
+fn sys_getsockopt(fd, level, optname, optval, optlen_ptr) { return 0 }
+fn sys_setsockopt(fd, level, optname, optval, optlen) { return 0 }
+fn sys_shutdown(fd, how) { return 0 }
+fn sys_sendto(fd, buf, len, flags, to, tolen) { return 0 }
+fn sys_recvfrom(fd, buf, len, flags, from, fromlen) { return 0 }
+fn sys_kqueue() { return 0 }
+fn sys_kevent(kq, changelist, nchanges, eventlist, nevents, timeout_ptr) { return 0 }
 
 fn oren_memcpy(dst, src, len) {
     var i = 0
@@ -138,6 +153,31 @@ fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), 56), v) }
 
 fn global_get_envp() { return ptr_get(iadd(oren_globals(), 64)) }
 fn global_set_envp(v) { ptr_set(iadd(oren_globals(), 64), v) }
+
+// --- Fork hygiene (rolling; syscall-first) ---
+// After fork(), the child process inherits any in-memory locks held at the moment of fork.
+// Our native runtime allocator uses an in-memory lock keyed by a thread-id token.
+// If a lock is held by the parent at fork time, the child must reset those lock fields
+// before doing further allocations, or it can deadlock (classic "fork while locked" issue).
+//
+// This is not a "pthread atfork" shim; it's purely internal runtime hygiene for fork-based v0 features.
+fn native_runtime_after_fork_child() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    // lock_owner_tid
+    global_set_lock(0)
+    // lock_recurse_count
+    global_set_lock_count(0)
+    return 0
+}
+
+fn oren_fork() {
+    var pid = sys_fork()
+    if pid == 0 {
+        native_runtime_after_fork_child()
+    }
+    return pid
+}
 
 fn native_runtime_init() {
     // Reserve room for current globals + some growth slack (rolling ABI).
@@ -915,9 +955,15 @@ fn oren_print(v) {
 }
 
 fn list_magic() { return 1279870019 } // 'LIST'
+fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
 
 fn oren_new_map(cap) {
-    var size = 16 + cap * 16
+    // Layout:
+    //   [cap][count][magic][reserved] then entries:
+    //   entry i: [key_ptr][value]
+    // This gives the native runtime a reliable discriminator between map pointers and
+    // string pointers (which are otherwise both raw addresses).
+    var size = 32 + cap * 16
     var m = malloc(size)
     if m == 0 {
         print("MALLOC ZERO")
@@ -929,6 +975,8 @@ fn oren_new_map(cap) {
     }
     ptr_set(m, cap)
     ptr_set(m + 8, 0)
+    ptr_set(m + 16, map_magic())
+    ptr_set(m + 24, 0)
     oren_track_alloc(m, size, 0)
     return m
 }
@@ -939,6 +987,7 @@ fn oren_map_set(m, k, v) {
     if m < 4096 { exit(111) }
     if k == 0 { exit(112) }
     // if m > 4096 { exit(12) } 
+    if ptr_get(m + 16) != map_magic() { exit(113) }
     
     var cap = ptr_get(m)
     var count = ptr_get(m + 8)
@@ -955,7 +1004,7 @@ fn oren_map_set(m, k, v) {
         ptr_set(m + 8, cap)
     }
     var i = 0
-    var base = m + 16
+    var base = m + 32
     if base < 4096 { exit(115) }
     while i < count {
         var kp = ptr_get(base + i * 16)
@@ -968,16 +1017,38 @@ fn oren_map_set(m, k, v) {
     if count >= cap {
         exit(99)
     }
-    ptr_set(base + (count << 4), k)
-    ptr_set(base + (count << 4) + 8, v)
+
+    // Deterministic ordered maps (rolling): keep keys sorted by strcmp (ascending).
+    // Keys are assumed to be string pointers; do not use non-string keys in v0.
+    var insert_at = 0
+    while insert_at < count {
+        var ek = ptr_get(base + insert_at * 16)
+        if strcmp(ek, k) > 0 { break }
+        insert_at = insert_at + 1
+    }
+
+    // Shift entries right to make space.
+    var j = count
+    while j > insert_at {
+        var from = base + (j - 1) * 16
+        var to = base + j * 16
+        ptr_set(to + 0, ptr_get(from + 0))
+        ptr_set(to + 8, ptr_get(from + 8))
+        j = j - 1
+    }
+
+    ptr_set(base + insert_at * 16, k)
+    ptr_set(base + insert_at * 16 + 8, v)
     ptr_set(m + 8, count + 1)
     return m
 }
 
 fn oren_map_get(m, k) {
+    if m == 0 { return 0 }
+    if ptr_get(m + 16) != map_magic() { return 0 }
     var count = ptr_get(m + 8)
     var i = 0
-    var base = m + 16
+    var base = m + 32
     while i < count {
         var kp = ptr_get(base + i * 16)
         if strcmp(kp, k) == 0 {
@@ -986,6 +1057,22 @@ fn oren_map_get(m, k) {
         i = i + 1
     }
     return 0
+}
+
+fn oren_map_len(m) {
+    if m == 0 { return 0 }
+    if ptr_get(m + 16) != map_magic() { return 0 }
+    return ptr_get(m + 8)
+}
+
+fn oren_map_key_at(m, idx) {
+    if m == 0 { return 0 }
+    if ptr_get(m + 16) != map_magic() { return 0 }
+    var count = ptr_get(m + 8)
+    if idx < 0 { return 0 }
+    if idx >= count { return 0 }
+    var base = m + 32
+    return ptr_get(base + idx * 16)
 }
 
 // Centralized struct allocation hook (uses the compiler's special-cased malloc).
@@ -1010,6 +1097,69 @@ fn oren_string_len(s) {
 
 fn oren_string_char_at(s, idx) {
     return ptr_get_byte(iadd(s, idx))
+}
+
+// --- Iteration (generic `for x in ...`) ---
+// Iterator contract:
+//   oren_iter_next(container, idx) -> [ok, value]
+// Where ok is 1 when value exists, 0 when iteration is complete.
+//
+// Native backend note:
+// - Lists and maps are heap objects with magic tags.
+// - Strings are raw pointers (C strings); iteration stops at NUL byte.
+// - "bytes" in native v0 is typically `list<int 0..255>` (from `oren_read_bytes`).
+fn oren_iter_next(container, idx) {
+    // Compute result first, then allocate the return list last.
+    // This avoids reliance on any particular native backend local/param storage strategy.
+    var ok = 0
+    var val = 0
+
+    // Prevent accidental deref of small integers/null in rolling native mode.
+    // (This is a safety guard; iterating non-containers is still a logic error.)
+    if container >= 4096 {
+        // List: yield elements.
+        if container != 0 {
+            if ptr_get(container + 24) == list_magic() {
+                var count = ptr_get(container)
+                if idx >= 0 {
+                    if idx < count {
+                        ok = 1
+                        // Use the well-tested list accessor to avoid relying on raw buffer math here.
+                        val = oren_list_get(container, idx)
+                    }
+                }
+            } else {
+                // Map: yield keys in deterministic order (stored sorted).
+                if ptr_get(container + 16) == map_magic() {
+                    var count2 = ptr_get(container + 8)
+                    if idx >= 0 {
+                        if idx < count2 {
+                            ok = 1
+                            val = oren_map_key_at(container, idx)
+                        }
+                    }
+                } else {
+                    // String: yield byte codepoints until NUL terminator.
+                    if idx >= 0 {
+                        var ch = ptr_get_byte(iadd(container, idx))
+                        if ch != 0 {
+                            ok = 1
+                            val = ch
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // NOTE (rolling native backend):
+    // Construct the `[ok, value]` pair by directly writing into the list buffer.
+    var out = oren_new_list(2)
+    var out_buf = ptr_get(out + 16)
+    ptr_set(out, 2) // count
+    ptr_set(out_buf + 0, ok)
+    ptr_set(out_buf + 8, val)
+    return out
 }
 
 // Return a freshly allocated byte buffer (list) from a string literal pointer.
@@ -1049,7 +1199,6 @@ fn string_concat(a, b) {
 
 // --- Lists ---
 // Layout: [count][capacity][buffer_ptr][magic]
-var LIST_MAGIC = 1279870019 // 'LIST'
 fn oren_new_list(cap) {
     if cap < 0 { cap = 0 }
     var header = malloc(32)
@@ -1066,19 +1215,19 @@ fn oren_new_list(cap) {
     ptr_set(header, 0)      // count
     ptr_set(header + 8, cap) // capacity
     ptr_set(header + 16, buf) // data buffer
-    ptr_set(header + 24, LIST_MAGIC)
+    ptr_set(header + 24, list_magic())
     return header
 }
 
 fn oren_list_len(list) {
     if list == 0 { return 0 }
-    if ptr_get(list + 24) != LIST_MAGIC { exit(205) }
+    if ptr_get(list + 24) != list_magic() { exit(205) }
     return ptr_get(list)
 }
 
 fn oren_list_push(list, value) {
     if list == 0 { exit(210) }
-    if ptr_get(list + 24) != LIST_MAGIC { exit(206) }
+    if ptr_get(list + 24) != list_magic() { exit(206) }
     var count = ptr_get(list)
     var cap = ptr_get(list + 8)
     var buf = ptr_get(list + 16)
@@ -1106,7 +1255,7 @@ fn oren_list_push(list, value) {
 
 fn oren_list_get(list, idx) {
     if list == 0 { exit(220) }
-    if ptr_get(list + 24) != LIST_MAGIC {
+    if ptr_get(list + 24) != list_magic() {
         // Not a list, try map get
         return oren_map_get(list, idx)
     }
@@ -1127,7 +1276,7 @@ fn oren_list_get(list, idx) {
 fn oren_index_set(container, index, value) {
     if container == 0 { exit(230) }
     // Detect list by magic tag.
-    if ptr_get(container + 24) == LIST_MAGIC {
+    if ptr_get(container + 24) == list_magic() {
         var buf = ptr_get(container + 16)
         var count = ptr_get(container)
         var cap = ptr_get(container + 8)
@@ -1229,12 +1378,295 @@ fn oren_read_bytes(path) {
     return out
 }
 
+// --- TCP/IP (syscall-first) ---
+// Notes:
+// - macOS/BSD socket structs are built manually (byte-by-byte) without libc.
+// - All potentially-blocking operations use kqueue/kevent with a caller-provided timeout.
+// - Return convention: functions return fd/nbytes on success, or negative errno on failure.
+//
+// IMPORTANT (rolling): avoid relying on initialized global integer vars for numeric constants.
+// Use numeric literals inside the functions to keep behavior robust during bootstrap.
+
+fn oren_tcp_parse_ipv4_into(ip, out4_ptr) {
+    if ip == 0 { return 0 }
+    if out4_ptr == 0 { return 0 }
+
+    var part = 0
+    var acc = 0
+    var digits = 0
+    var i = 0
+    while 1 {
+        var ch = oren_string_char_at(ip, i)
+        if ch == 0 { break }
+        if ch >= 48 {
+            if ch <= 57 {
+                acc = acc * 10 + (ch - 48)
+                if acc > 255 { return 0 }
+                digits = digits + 1
+            } else {
+                return 0
+            }
+        } else {
+            if ch == 46 {
+                if digits == 0 { return 0 }
+                if part >= 3 { return 0 }
+                ptr_set_byte(out4_ptr + part, acc)
+                part = part + 1
+                acc = 0
+                digits = 0
+            } else {
+                return 0
+            }
+        }
+        i = i + 1
+    }
+
+    if part != 3 { return 0 }
+    if digits == 0 { return 0 }
+    ptr_set_byte(out4_ptr + 3, acc)
+    return 1
+}
+
+fn oren_tcp_sockaddr_in(ip, port) {
+    // struct sockaddr_in (BSD):
+    //   u8  sin_len
+    //   u8  sin_family
+    //   u16 sin_port (big-endian)
+    //   u32 sin_addr (bytes)
+    //   u8  sin_zero[8]
+    var sa = malloc(16)
+    if sa == 0 { return 0 }
+    if sa == -1 { return 0 }
+    oren_track_alloc(sa, 16, 0)
+
+    // zero-fill
+    var zi = 0
+    while zi < 16 {
+        ptr_set_byte(sa + zi, 0)
+        zi = zi + 1
+    }
+
+    ptr_set_byte(sa + 0, 16) // len
+    ptr_set_byte(sa + 1, 2) // AF_INET
+    // port in network order
+    var hi = (port >> 8) & 255
+    var lo = port & 255
+    ptr_set_byte(sa + 2, hi)
+    ptr_set_byte(sa + 3, lo)
+
+    // address bytes
+    if ip == 0 {
+        // default: 127.0.0.1
+        ptr_set_byte(sa + 4, 127)
+        ptr_set_byte(sa + 5, 0)
+        ptr_set_byte(sa + 6, 0)
+        ptr_set_byte(sa + 7, 1)
+    } else {
+        var ok = oren_tcp_parse_ipv4_into(ip, sa + 4)
+        if ok == 0 { return 0 }
+    }
+
+    return sa
+}
+
+fn oren_tcp_set_nonblock(fd) {
+    var flags = sys_fcntl(fd, 3, 0) // F_GETFL
+    if flags < 0 { return flags }
+    var r = sys_fcntl(fd, 4, flags | 4) // F_SETFL, O_NONBLOCK
+    return r
+}
+
+fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
+    // Returns 1 if ready, 0 if timed out, or negative errno.
+    if timeout_ms < 0 { timeout_ms = 0 }
+    var kq = sys_kqueue()
+    if kq < 0 { return kq }
+
+    var change = malloc(32)
+    if change == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(change, 32, 0)
+    var ev = malloc(32)
+    if ev == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 32, 0)
+
+    // Zero-fill the kevent structs (malloc does not promise zeroed memory).
+    var zi = 0
+    while zi < 32 {
+        ptr_set_byte(change + zi, 0)
+        ptr_set_byte(ev + zi, 0)
+        zi = zi + 1
+    }
+
+    // struct kevent:
+    // ident (u64) @0
+    // filter (i16) @8
+    // flags (u16)  @10
+    // fflags (u32) @12
+    // data (i64)   @16
+    // udata (ptr)  @24
+    ptr_set(change + 0, fd)
+    ptr_set_byte(change + 8, filter & 255)
+    ptr_set_byte(change + 9, (filter >> 8) & 255)
+    var kflags = 1 | 4 | 16 // EV_ADD | EV_ENABLE | EV_ONESHOT
+    ptr_set_byte(change + 10, kflags & 255)
+    ptr_set_byte(change + 11, (kflags >> 8) & 255)
+    ptr_set(change + 16, 0)
+    ptr_set(change + 24, 0)
+
+    // timespec*
+    var ts = 0
+    ts = malloc(16)
+    if ts == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ts, 16, 0)
+    var sec = timeout_ms / 1000
+    var nsec = (timeout_ms - sec * 1000) * 1000000
+    ptr_set(ts + 0, sec)
+    ptr_set(ts + 8, nsec)
+
+    var n = sys_kevent(kq, change, 1, ev, 1, ts)
+    sys_close(kq)
+    return n
+}
+
+fn oren_tcp_connect(ip, port, timeout_ms) {
+    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    if fd < 0 { return fd }
+
+    // Non-blocking + explicit wait for connect completion.
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 {
+        sys_close(fd)
+        return nb
+    }
+
+    var sa = oren_tcp_sockaddr_in(ip, port)
+    if sa == 0 {
+        sys_close(fd)
+        return 0 - 22 // EINVAL
+    }
+
+    var rc = sys_connect(fd, sa, 16)
+    if rc == 0 { return fd }
+    if rc != 0 - 36 { // EINPROGRESS
+        sys_close(fd)
+        return rc
+    }
+
+    var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
+    if n == 0 {
+        sys_close(fd)
+        return 0 - 60 // ETIMEDOUT
+    }
+    if n < 0 {
+        sys_close(fd)
+        return n
+    }
+
+    // Check SO_ERROR to determine connect result.
+    var soerr_buf = malloc(8)
+    if soerr_buf == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(soerr_buf, 8, 0)
+    ptr_set(soerr_buf, 0)
+    var olen = malloc(8)
+    if olen == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(olen, 8, 0)
+    ptr_set(olen, 4)
+
+    var grc = sys_getsockopt(fd, 65535, 4103, soerr_buf, olen) // SOL_SOCKET, SO_ERROR
+    if grc < 0 {
+        sys_close(fd)
+        return grc
+    }
+    var soerr = ptr_get(soerr_buf)
+    if soerr != 0 {
+        sys_close(fd)
+        return 0 - soerr
+    }
+
+    return fd
+}
+
+fn oren_tcp_listen_local(port) {
+    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    if fd < 0 { return fd }
+
+    // Allow quick reuse during tests.
+    var one = malloc(8)
+    if one == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(one, 8, 0)
+    ptr_set(one, 1)
+    var sroc = sys_setsockopt(fd, 65535, 4, one, 4) // SOL_SOCKET, SO_REUSEADDR
+    if sroc < 0 {
+        sys_close(fd)
+        return sroc
+    }
+
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 {
+        sys_close(fd)
+        return nb
+    }
+
+    var sa = oren_tcp_sockaddr_in(0, port) // 127.0.0.1
+    if sa == 0 {
+        sys_close(fd)
+        return 0 - 22 // EINVAL
+    }
+
+    var brc = sys_bind(fd, sa, 16)
+    if brc < 0 {
+        sys_close(fd)
+        return brc
+    }
+
+    var lrc = sys_listen(fd, 16)
+    if lrc < 0 {
+        sys_close(fd)
+        return lrc
+    }
+
+    return fd
+}
+
+fn oren_tcp_accept(listen_fd, timeout_ms) {
+    var n = oren_tcp_wait_kqueue(listen_fd, -1, timeout_ms) // EVFILT_READ
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    return sys_accept(listen_fd, 0, 0)
+}
+
+fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
+    if len <= 0 { return 0 }
+    var n = oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
+    if r == 0 - 35 { return 0 } // EAGAIN: treat as no data
+    return r
+}
+
+fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
+    if len <= 0 { return 0 }
+    var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    return sys_sendto(fd, buf, len, 0, 0, 0)
+}
+
+fn oren_tcp_close(fd) {
+    if fd < 0 { return 0 }
+    // best-effort shutdown; ignore errors
+    sys_shutdown(fd, 2) // SHUT_RDWR
+    sys_close(fd)
+    return 0
+}
+
 // --- Threads ---
 fn oren_system(cmd) {
     // Syscall-first `system(3)` equivalent: fork + execve("/bin/sh", ["sh","-c",cmd], envp) + wait4.
     if cmd == 0 { return -1 }
 
-    var pid = sys_fork()
+    var pid = oren_fork()
     if pid < 0 { return -1 }
 
     if pid == 0 {

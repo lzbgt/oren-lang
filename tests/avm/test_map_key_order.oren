@@ -1,0 +1,40 @@
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn main() {
+    var obc1 = oren_read_bytes("build/map_order_child_ab.obc")
+    var obc2 = oren_read_bytes("build/map_order_child_cba.obc")
+
+    var allowed = (1 << 0) + (1 << 2) + (1 << 3)
+
+    var cfg = {
+        "deterministic": true,
+        "time_start_ns": 0,
+        "time_step_ns": 1,
+        "rng_seed": 1,
+        "gas_limit": 1000000,
+        "allowed_domains": allowed
+    }
+
+    var r1 = oren_avm_run_obc_bytes(obc1, cfg)
+    var r2 = oren_avm_run_obc_bytes(obc2, cfg)
+
+    // Result hashes should match (same semantic result).
+    var rh1 = oren_bytes_to_hex(r1["result_hash"])
+    var rh2 = oren_bytes_to_hex(r2["result_hash"])
+    if rh1 != rh2 { fail() }
+
+    // State hashes must match as well: map storage must be key-ordered (not insertion-ordered).
+    var sh1 = oren_bytes_to_hex(r1["state_hash"])
+    var sh2 = oren_bytes_to_hex(r2["state_hash"])
+    if sh1 != sh2 { fail() }
+
+    print("map key order OK")
+}
+
+main()
+

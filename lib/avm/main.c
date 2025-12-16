@@ -1916,6 +1916,19 @@ int main(int argc, char** argv) {
                 consts[ci].type = AVM_VAL_INT;
                 consts[ci].as.i = val;
             }
+            if (type == 2) { // BOOL (rolling): u8 0|1
+                if (pos + 1 > len) {
+                    fprintf(stderr, "Invalid BOOL const\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                uint8_t b = data[pos++];
+                consts[ci].type = AVM_VAL_BOOL;
+                consts[ci].as.i = (b != 0) ? 1 : 0;
+            }
             if (type == 4) { // STRING
                 if (pos + 2 > len) {
                     fprintf(stderr, "Invalid STRING const\n");

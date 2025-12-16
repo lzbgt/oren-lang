@@ -129,6 +129,7 @@ OrenValue oren_new_list(int count, ...);
 OrenValue oren_list_len(OrenValue list);
 OrenValue oren_list_push(OrenValue list, OrenValue value);
 OrenValue oren_list_get(OrenValue list, OrenValue index);
+OrenValue oren_iter_next(OrenValue container, OrenValue idx);
 OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value);
 
 OrenValue oren_new_map(int count, ...);

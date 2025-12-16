@@ -1,0 +1,14 @@
+fn main() {
+    var m = {"b": 1, "a": 2, "c": 3}
+    var h = 0
+    for k in m {
+        // keys should be in deterministic order: a, b, c
+        var c0 = oren_string_char_at(k, 0)
+        h = h * 131 + c0
+    }
+    var want = ((0 * 131 + 97) * 131 + 98) * 131 + 99
+    if h != want { exit(1) }
+    print("for-in map keys OK")
+    exit(0)
+}
+

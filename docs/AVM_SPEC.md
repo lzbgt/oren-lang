@@ -107,6 +107,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 34. oren_bytes_set_u8
 35. oren_bytes_from_hex
 36. oren_bytes_to_hex
+43. oren_iter_next
 
 ## Implementation Strategy
 1. `libavm` (C Library): Core VM loop, stack management, loader.

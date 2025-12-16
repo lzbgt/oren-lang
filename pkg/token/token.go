@@ -66,6 +66,7 @@ const (
 	FOR      = "FOR"
 	BREAK    = "BREAK"
 	CONTINUE = "CONTINUE"
+	IN       = "IN"
 	IMPORT   = "IMPORT"
 	STRUCT   = "STRUCT"
 	CLASS    = "CLASS"
@@ -86,6 +87,7 @@ var keywords = map[string]TokenType{
 	"for":      FOR,
 	"break":    BREAK,
 	"continue": CONTINUE,
+	"in":       IN,
 	"import":   IMPORT,
 	"struct":   STRUCT,
 	"class":    CLASS,

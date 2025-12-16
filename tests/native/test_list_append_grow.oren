@@ -1,0 +1,14 @@
+fn main() {
+    var xs = []
+    var i = 0
+    while i < 100 {
+        xs[i] = i
+        i = i + 1
+    }
+
+    if xs[0] != 0 { exit(1) }
+    if xs[99] != 99 { exit(2) }
+    if xs[50] != 50 { exit(3) }
+    exit(0)
+}
+

@@ -63,6 +63,8 @@ type Parser struct {
 
 	prefixParseFns map[token.TokenType]prefixParseFn
 	infixParseFns  map[token.TokenType]infixParseFn
+
+	gensymCounter int
 }
 
 func New(l *lexer.Lexer) *Parser {
@@ -163,6 +165,12 @@ func (p *Parser) peekError(t token.TokenType) {
 	msg := fmt.Sprintf("%d:%d expected next token to be %s, got %s instead",
 		p.peekToken.Line, p.peekToken.Column, t, p.peekToken.Type)
 	p.errors = append(p.errors, msg)
+}
+
+func (p *Parser) gensym() int {
+	n := p.gensymCounter
+	p.gensymCounter++
+	return n
 }
 
 func (p *Parser) ParseProgram() *ast.Program {
@@ -420,6 +428,104 @@ func (p *Parser) parseForStatement() *ast.ForStatement {
 
 	// Move to first token after `for`.
 	p.nextToken()
+
+	// Iterator sugar: `for <ident> in <expr> { ... }`
+	//
+	// Desugars to a 3-clause `for` using an internal state list and a runtime iterator hook:
+	//   var @forin_N = [<expr>, 0, 1]
+	//   for ; @forin_N[2] != 0; @forin_N[1] = @forin_N[1] + 1 {
+	//       var @forinr_N = oren_iter_next(@forin_N[0], @forin_N[1]) // -> [ok, value]
+	//       @forin_N[2] = @forinr_N[0]
+	//       if @forin_N[2] != 0 {
+	//           var <ident> = @forinr_N[1]
+	//           <body>
+	//       }
+	//   }
+	//
+	// We use '@' in the internal name (not a valid identifier character), avoiding collisions.
+	if p.curTokenIs(token.IDENT) && p.peekTokenIs(token.IN) {
+		userVar := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		stateName := fmt.Sprintf("@forin_%d", p.gensym())
+		resName := fmt.Sprintf("@forinr_%d", p.gensym())
+		stateIdent := &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: stateName}, Value: stateName}
+		resIdent := &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: resName}, Value: resName}
+
+		// consume 'in'
+		p.nextToken()
+		// move to iterable expr
+		p.nextToken()
+		iterable := p.parseExpression(LOWEST)
+		if iterable == nil {
+			return nil
+		}
+
+		if !p.expectPeek(token.LBRACE) {
+			return nil
+		}
+		userBody := p.parseBlockStatement()
+
+		zero := &ast.IntegerLiteral{Token: token.Token{Type: token.INT, Literal: "0"}, Value: 0}
+		one := &ast.IntegerLiteral{Token: token.Token{Type: token.INT, Literal: "1"}, Value: 1}
+		two := &ast.IntegerLiteral{Token: token.Token{Type: token.INT, Literal: "2"}, Value: 2}
+
+		// init: var @forin = [iterable, 0, 1]
+		stateInit := &ast.ArrayLiteral{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Elements: []ast.Expression{iterable, zero, one}}
+		stmt.Init = &ast.VarStatement{Token: token.Token{Type: token.LET, Literal: "var"}, Name: stateIdent, Value: stateInit}
+
+		// state accessors
+		st0 := &ast.IndexExpression{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Left: stateIdent, Index: zero}
+		st1 := &ast.IndexExpression{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Left: stateIdent, Index: one}
+		st2 := &ast.IndexExpression{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Left: stateIdent, Index: two}
+
+		// cond: @forin[2] != 0
+		stmt.Condition = &ast.InfixExpression{Token: token.Token{Type: token.NOT_EQ, Literal: "!="}, Left: st2, Operator: "!=", Right: zero}
+
+		// post: @forin[1] = @forin[1] + 1
+		inc := &ast.InfixExpression{Token: token.Token{Type: token.PLUS, Literal: "+"}, Left: st1, Operator: "+", Right: one}
+		stmt.Post = &ast.SetStatement{
+			Token: token.Token{Type: token.ASSIGN, Literal: "="},
+			Left:  &ast.IndexExpression{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Left: stateIdent, Index: one},
+			Value: inc,
+		}
+
+		// body:
+		//   var @forinr = oren_iter_next(@forin[0], @forin[1])
+		//   @forin[2] = @forinr[0]
+		//   if @forin[2] != 0 { var user = @forinr[1]; <user_body> }
+		callNext := &ast.CallExpression{
+			Token:    token.Token{Type: token.LPAREN, Literal: "("},
+			Function: &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "oren_iter_next"}, Value: "oren_iter_next"},
+			Arguments: []ast.Expression{
+				st0,
+				st1,
+			},
+		}
+		bindRes := &ast.VarStatement{Token: token.Token{Type: token.LET, Literal: "var"}, Name: resIdent, Value: callNext}
+
+		res0 := &ast.IndexExpression{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Left: resIdent, Index: zero}
+		res1 := &ast.IndexExpression{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Left: resIdent, Index: one}
+
+		// @forin[2] = @forinr[0]
+		setOk := &ast.SetStatement{
+			Token: token.Token{Type: token.ASSIGN, Literal: "="},
+			Left:  &ast.IndexExpression{Token: token.Token{Type: token.LBRACKET, Literal: "["}, Left: stateIdent, Index: two},
+			Value: res0,
+		}
+
+		guardCond := &ast.InfixExpression{Token: token.Token{Type: token.NOT_EQ, Literal: "!="}, Left: st2, Operator: "!=", Right: zero}
+		bindUser := &ast.VarStatement{Token: token.Token{Type: token.LET, Literal: "var"}, Name: userVar, Value: res1}
+		guardBlock := &ast.BlockStatement{Token: token.Token{Type: token.LBRACE, Literal: "{"}}
+		guardBlock.Statements = append(guardBlock.Statements, bindUser)
+		guardBlock.Statements = append(guardBlock.Statements, userBody.Statements...)
+		guardIf := &ast.IfExpression{Token: token.Token{Type: token.IF, Literal: "if"}, Condition: guardCond, Consequence: guardBlock, Alternative: nil}
+		guardIfStmt := &ast.ExpressionStatement{Token: token.Token{Type: token.IF, Literal: "if"}, Expression: guardIf}
+
+		stmt.Body = &ast.BlockStatement{Token: token.Token{Type: token.LBRACE, Literal: "{"}}
+		stmt.Body.Statements = append(stmt.Body.Statements, bindRes)
+		stmt.Body.Statements = append(stmt.Body.Statements, setOk)
+		stmt.Body.Statements = append(stmt.Body.Statements, guardIfStmt)
+		return stmt
+	}
 
 	// `for cond { ... }` or `for init; cond; post { ... }`
 	if !p.curTokenIs(token.SEMICOLON) {

@@ -44,10 +44,16 @@ fn precedence(tokType) {
 
 // ----- Parser -----
 fn new_parser(l) {
-    var p = {"l": l, "errors": [], "cur": token.new_token(token.TOK_ILLEGAL, ""), "peek": token.new_token(token.TOK_ILLEGAL, "")}
+    var p = {"l": l, "errors": [], "cur": token.new_token(token.TOK_ILLEGAL, ""), "peek": token.new_token(token.TOK_ILLEGAL, ""), "gensym": 0}
     parser_next_token(p)
     parser_next_token(p)
     return p
+}
+
+fn parser_gensym(p, prefix) {
+    var n = p["gensym"]
+    p["gensym"] = n + 1
+    return prefix + oren_int_to_string(n)
 }
 
 fn parser_add_error(p, msg) {
@@ -522,6 +528,94 @@ fn parse_for(p) {
 
     // Move to first token after `for`.
     parser_next_token(p)
+
+    // Iterator sugar:
+    //   for <ident> in <expr> { <body> }
+    //
+    // Desugars to a 3-clause `for` using an internal state list and a runtime iterator hook:
+    //   var @forin_N = [<expr>, 0, 1]
+    //   for ; @forin_N[2] != 0; @forin_N[1] = @forin_N[1] + 1 {
+    //       var @forinr_N = oren_iter_next(@forin_N[0], @forin_N[1]) // -> [ok, value]
+    //       @forin_N[2] = @forinr_N[0]
+    //       if @forin_N[2] != 0 {
+    //           var <ident> = @forinr_N[1]
+    //           <body>
+    //       }
+    //   }
+    //
+    // Notes:
+    // - The internal name contains '@' which is not a legal identifier character in the lexer,
+    //   so it cannot collide with source names.
+    // - This keeps backends minimal: it relies only on existing `for`, indexing, and `oren_list_len`.
+    if cur_is(p, token.TOK_IDENT) && peek_is(p, token.TOK_IN) {
+        var user_name = ast.new_identifier(p["cur"])
+        var st_name = parser_gensym(p, "@forin_")
+        var res_name = parser_gensym(p, "@forinr_")
+        var st_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, st_name), "value": st_name}
+        var res_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, res_name), "value": res_name}
+
+        // consume 'in'
+        parser_next_token(p)
+        // move to iterable expr
+        parser_next_token(p)
+        var iterable = parse_expression(p, LOWEST)
+        if iterable == nil { return nil }
+        if !expect_peek(p, token.TOK_LBRACE) { return nil }
+        var user_body = parse_block(p)
+
+        // init: var @forin = [iterable, 0]
+        var zero = {"type": "Integer", "token": token.new_token(token.TOK_INT, "0"), "value": "0"}
+        var one = {"type": "Integer", "token": token.new_token(token.TOK_INT, "1"), "value": "1"}
+        var two = {"type": "Integer", "token": token.new_token(token.TOK_INT, "2"), "value": "2"}
+        var state_init = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [iterable, zero, one]}
+        var init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, state_init)
+
+        // state accessors
+        var st0 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, zero)
+        var st1 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one)
+        var st2 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, two)
+
+        // cond: @forin[2] != 0
+        var cond_expr = ast.new_infix(token.new_token(token.TOK_NOT_EQ, "!="), st2, "!=", zero)
+
+        // post: @forin[1] = @forin[1] + 1
+        var inc_expr = ast.new_infix(token.new_token(token.TOK_PLUS, "+"), st1, "+", one)
+        var post_stmt = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one), inc_expr)
+
+        // body:
+        //   var @forinr = oren_iter_next(@forin[0], @forin[1])
+        //   @forin[2] = @forinr[0]
+        //   if @forin[2] != 0 { var user = @forinr[1]; <user_body> }
+        var fn_next = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, "oren_iter_next"), "value": "oren_iter_next"}
+        var call_next = ast.new_call(token.new_token(token.TOK_LPAREN, "("), fn_next, [st0, st1])
+        var bind_res = ast.new_var(token.new_token(token.TOK_LET, "var"), res_ident, call_next)
+
+        var res0 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), res_ident, zero)
+        var res1 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), res_ident, one)
+
+        // @forin[2] = @forinr[0]
+        var set_ok = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, two), res0)
+
+        // if @forin[2] != 0 { var user = @forinr[1]; <user_body> }
+        var guard_cond = ast.new_infix(token.new_token(token.TOK_NOT_EQ, "!="), st2, "!=", zero)
+        var guard_block = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+        var bind_user = ast.new_var(token.new_token(token.TOK_LET, "var"), user_name, res1)
+        oren_list_push(guard_block["stmts"], bind_user)
+        var bi = 0
+        while bi < oren_list_len(user_body["stmts"]) {
+            oren_list_push(guard_block["stmts"], user_body["stmts"][bi])
+            bi = bi + 1
+        }
+        var if_guard = ast.new_if(token.new_token(token.TOK_IF, "if"), guard_cond, guard_block, nil)
+        var if_guard_stmt = ast.new_expr_stmt(token.new_token(token.TOK_IF, "if"), if_guard)
+
+        var body_block = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+        oren_list_push(body_block["stmts"], bind_res)
+        oren_list_push(body_block["stmts"], set_ok)
+        oren_list_push(body_block["stmts"], if_guard_stmt)
+
+        return ast.new_for(tok, init_stmt, cond_expr, post_stmt, body_block)
+    }
 
     var init = nil
     var cond = nil

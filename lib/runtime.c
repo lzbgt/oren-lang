@@ -1100,21 +1100,59 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
     if (container.type == OREN_TYPE_MAP) {
         OrenMap* map = container.as.map_val;
         lock_collections();
-        for (int i = 0; i < map->count; i++) {
-            if (oren_eq(map->keys[i], index).as.bool_val) {
-                map->values[i] = value;
-                unlock_collections();
-                return value;
-            }
+        if (!(index.type == OREN_TYPE_NIL || index.type == OREN_TYPE_BOOL || index.type == OREN_TYPE_INT || index.type == OREN_TYPE_STRING)) {
+            unlock_collections();
+            oren_panic("map key type not supported (need nil/bool/int/string)");
+            return value; // Should not be reached
         }
+
+        int rk = (index.type == OREN_TYPE_NIL) ? 0 : (index.type == OREN_TYPE_BOOL) ? 1 : (index.type == OREN_TYPE_INT) ? 2 : 3;
+
+        int lo = 0;
+        int hi = map->count;
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            OrenValue mk = map->keys[mid];
+            int rmk = (mk.type == OREN_TYPE_NIL) ? 0 : (mk.type == OREN_TYPE_BOOL) ? 1 : (mk.type == OREN_TYPE_INT) ? 2 : 3;
+
+            int cmp = 0;
+            if (rmk != rk) {
+                cmp = (rmk < rk) ? -1 : 1;
+            } else if (index.type == OREN_TYPE_NIL) {
+                cmp = 0;
+            } else if (index.type == OREN_TYPE_BOOL) {
+                cmp = (mk.as.bool_val < index.as.bool_val) ? -1 : (mk.as.bool_val > index.as.bool_val) ? 1 : 0;
+            } else if (index.type == OREN_TYPE_INT) {
+                cmp = (mk.as.int_val < index.as.int_val) ? -1 : (mk.as.int_val > index.as.int_val) ? 1 : 0;
+            } else { // STRING
+                cmp = strcmp(mk.as.string_val, index.as.string_val);
+                if (cmp < 0) cmp = -1;
+                else if (cmp > 0) cmp = 1;
+            }
+
+            if (cmp < 0) lo = mid + 1;
+            else hi = mid;
+        }
+        int idx = lo;
+
+        if (idx < map->count && oren_eq(map->keys[idx], index).as.bool_val) {
+            map->values[idx] = value;
+            unlock_collections();
+            return value;
+        }
+
         if (map->count >= map->capacity) {
-            int newCap = map->capacity == 0 ? 4 : map->capacity * 2;
+            int newCap = map->capacity == 0 ? 8 : map->capacity * 2;
             map->keys = realloc(map->keys, sizeof(OrenValue) * newCap);
             map->values = realloc(map->values, sizeof(OrenValue) * newCap);
             map->capacity = newCap;
         }
-        map->keys[map->count] = index;
-        map->values[map->count] = value;
+        for (int j = map->count; j > idx; j--) {
+            map->keys[j] = map->keys[j - 1];
+            map->values[j] = map->values[j - 1];
+        }
+        map->keys[idx] = index;
+        map->values[idx] = value;
         map->count += 1;
         unlock_collections();
         return value;
@@ -1153,14 +1191,71 @@ OrenValue oren_new_map(int count, ...) {
     lock_collections();
     OrenMap* map = malloc(sizeof(OrenMap));
     oren_register_alloc(map, OREN_ALLOC_MAP);
-    map->count = count;
-    map->capacity = count;
-    map->keys = malloc(sizeof(OrenValue) * count);
-    map->values = malloc(sizeof(OrenValue) * count);
+    map->count = 0;
+    map->capacity = count + 8;
+    map->keys = malloc(sizeof(OrenValue) * map->capacity);
+    map->values = malloc(sizeof(OrenValue) * map->capacity);
 
+    // Deterministic ordered maps (rolling): keep keys in sorted order.
+    // Supported key types: NIL, BOOL, INT, STRING.
+    // Ordering: NIL < BOOL < INT < STRING.
+    // Duplicate keys: last assignment wins.
     for (int i = 0; i < count; i++) {
-        map->keys[i] = va_arg(args, OrenValue);
-        map->values[i] = va_arg(args, OrenValue);
+        OrenValue key = va_arg(args, OrenValue);
+        OrenValue value = va_arg(args, OrenValue);
+
+        if (!(key.type == OREN_TYPE_NIL || key.type == OREN_TYPE_BOOL || key.type == OREN_TYPE_INT || key.type == OREN_TYPE_STRING)) {
+            oren_panic("map key type not supported (need nil/bool/int/string)");
+            break;
+        }
+
+        int rk = (key.type == OREN_TYPE_NIL) ? 0 : (key.type == OREN_TYPE_BOOL) ? 1 : (key.type == OREN_TYPE_INT) ? 2 : 3;
+
+        int lo = 0;
+        int hi = map->count;
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            OrenValue mk = map->keys[mid];
+            int rmk = (mk.type == OREN_TYPE_NIL) ? 0 : (mk.type == OREN_TYPE_BOOL) ? 1 : (mk.type == OREN_TYPE_INT) ? 2 : 3;
+
+            int cmp = 0;
+            if (rmk != rk) {
+                cmp = (rmk < rk) ? -1 : 1;
+            } else if (key.type == OREN_TYPE_NIL) {
+                cmp = 0;
+            } else if (key.type == OREN_TYPE_BOOL) {
+                cmp = (mk.as.bool_val < key.as.bool_val) ? -1 : (mk.as.bool_val > key.as.bool_val) ? 1 : 0;
+            } else if (key.type == OREN_TYPE_INT) {
+                cmp = (mk.as.int_val < key.as.int_val) ? -1 : (mk.as.int_val > key.as.int_val) ? 1 : 0;
+            } else { // STRING
+                cmp = strcmp(mk.as.string_val, key.as.string_val);
+                if (cmp < 0) cmp = -1;
+                else if (cmp > 0) cmp = 1;
+            }
+
+            if (cmp < 0) lo = mid + 1;
+            else hi = mid;
+        }
+        int idx = lo;
+
+        if (idx < map->count && oren_eq(map->keys[idx], key).as.bool_val) {
+            map->values[idx] = value;
+            continue;
+        }
+
+        if (map->count >= map->capacity) {
+            int newCap = map->capacity == 0 ? 8 : map->capacity * 2;
+            map->keys = realloc(map->keys, sizeof(OrenValue) * newCap);
+            map->values = realloc(map->values, sizeof(OrenValue) * newCap);
+            map->capacity = newCap;
+        }
+        for (int j = map->count; j > idx; j--) {
+            map->keys[j] = map->keys[j - 1];
+            map->values[j] = map->values[j - 1];
+        }
+        map->keys[idx] = key;
+        map->values[idx] = value;
+        map->count += 1;
     }
 
     va_end(args);
@@ -1395,6 +1490,58 @@ void oren_print_fmt(OrenValue fmt_val, int count, ...) {
     }
     printf("\n");
     va_end(args);
+}
+
+// Iterator hook for `for x in <container>` sugar.
+// Contract:
+//   oren_iter_next(container, idx:int) -> [ok:int, value]
+// Where ok is 1 when a value exists, 0 when iteration is complete.
+//
+// v0 iteration rules:
+// - list: yields elements (idx 0..len-1)
+// - map: yields keys in deterministic key order (idx 0..count-1)
+// - string: yields byte codepoints (unsigned 0..255), stops at NUL terminator
+OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
+    if (idx.type != OREN_TYPE_INT) {
+        oren_panic("iter_next expects (container, int idx)");
+        return OREN_NIL; // Should not be reached
+    }
+
+    long long i = idx.as.int_val;
+    if (i < 0) {
+        return oren_new_list(2, oren_int(0), OREN_NIL);
+    }
+
+    if (container.type == OREN_TYPE_LIST) {
+        OrenList* l = container.as.list_val;
+        if (i < l->count) {
+            return oren_new_list(2, oren_int(1), l->items[(int)i]);
+        }
+        return oren_new_list(2, oren_int(0), OREN_NIL);
+    }
+
+    if (container.type == OREN_TYPE_MAP) {
+        OrenMap* m = container.as.map_val;
+        if (i < m->count) {
+            return oren_new_list(2, oren_int(1), m->keys[(int)i]);
+        }
+        return oren_new_list(2, oren_int(0), OREN_NIL);
+    }
+
+    if (container.type == OREN_TYPE_STRING) {
+        const unsigned char* s = (const unsigned char*)container.as.string_val;
+        if (!s) {
+            return oren_new_list(2, oren_int(0), OREN_NIL);
+        }
+        unsigned char ch = s[i];
+        if (ch == 0) {
+            return oren_new_list(2, oren_int(0), OREN_NIL);
+        }
+        return oren_new_list(2, oren_int(1), oren_int((long long)ch));
+    }
+
+    oren_panic("iter_next: unsupported container type (need list/map/string)");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_string_len(OrenValue s) {

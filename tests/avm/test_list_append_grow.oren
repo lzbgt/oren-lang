@@ -1,0 +1,28 @@
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a != b { fail() }
+}
+
+fn main() {
+    var xs = []
+    var i = 0
+    while i < 100 {
+        xs[i] = i
+        i = i + 1
+    }
+
+    assert_eq(xs[0], 0)
+    assert_eq(xs[50], 50)
+    assert_eq(xs[99], 99)
+
+    print("avm list append grow OK")
+}
+
+main()
+

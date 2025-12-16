@@ -1,0 +1,9 @@
+fn main() {
+    // Insert in different order: c, b, a
+    var m = {"c": 3, "b": 1, "a": 2}
+    // Same semantic result.
+    oren_set_result(m["a"] + m["b"] + m["c"])
+}
+
+main()
+

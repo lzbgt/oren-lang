@@ -49,6 +49,16 @@ Focus statement (to avoid roadmap thrash):
      - `oren_tcp_connect(ip, port, timeout_ms)` (v0 can start with IPv4 dotted quad only; DNS can come later)
      - `oren_tcp_read(fd, n, timeout_ms)` / `oren_tcp_write(fd, bytes, timeout_ms)` / `oren_tcp_close(fd)`
    - Must integrate with deadlines/timeouts (no “block forever”).
+   - Status (macOS): implemented syscall-first TCP core + kqueue/kevent timeouts, plus a loopback regression test:
+     - `sys_socket`, `sys_connect`, `sys_bind`, `sys_listen`, `sys_accept`
+     - `sys_sendto`, `sys_recvfrom`, `sys_shutdown`, `sys_setsockopt`, `sys_getsockopt`
+     - `sys_kqueue`, `sys_kevent`, `sys_fcntl`
+     - `.oren` helpers: `oren_tcp_connect`, `oren_tcp_listen_local`, `oren_tcp_accept`, `oren_tcp_read_into`, `oren_tcp_write_from`, `oren_tcp_close`
+     - test: `tests/native/test_tcp_loopback.oren`
+   - Remaining (still required by the “real stdlib NET” goal):
+     - add `sys_getsockname` + `sys_getpeername` (useful for debugging/introspection)
+     - add `sys_send`/`sys_recv` aliases (can be thin wrappers over sendto/recvfrom)
+     - add Linux syscall lowering for the same surface (see P0.6)
 
 5) **ABI hygiene for rolling native runtime globals + pointer arithmetic**
    - Blocking: silent ABI slot collisions can deadlock/hang (hard to debug).
@@ -109,6 +119,43 @@ Focus statement (to avoid roadmap thrash):
    - Tracing/profiling must be best-effort and must not change VM outcome.
    - In particular: trace-bytes capture should truncate/disable on budget exhaustion (do not abort the VM).
    - Also: trace-bytes capture must not consume `AVM_MEM_BYTES` (program heap budget); it should be governed by `AVM_TRACE_BYTES` instead.
+
+11) **Native backend control-flow correctness (break/continue)**
+   - Blocking: missing `break`/`continue` causes infinite loops and can manifest as “hangs” in syscall-first runtime code (e.g. parsers, scanners).
+   - Implement in native backend codegen with correct stack hygiene and loop nesting support.
+   - Status (macOS native + bytecode backend):
+     - native backend: `while` and `for` support `break`/`continue` with proper nesting; `continue` in `for` runs `post`.
+     - bytecode backend: `while` and `for` support `break`/`continue`, and function locals are pre-allocated so var-decls inside loops don’t grow the VM stack.
+
+12) **Deterministic maps: key-ordered storage**
+   - For consensus and replayability, maps must not rely on insertion order (which can vary by compilation/lowering) or pointer-based ordering.
+   - Contract (v0):
+     - Map keys are restricted to `nil/bool/int/string` (reject other key types).
+     - Maps store keys in deterministic ascending order: `nil < bool < int < string`, with strings ordered by bytewise compare (`strcmp`).
+     - Duplicate key behavior: last assignment wins.
+   - Enforced in:
+     - AVM map construction (`NEW_MAP`) + map set (`SET_INDEX`)
+     - AVM map get (`GET_INDEX`) uses the same key contract (binary search over ordered keys; rejects unsupported key types)
+     - Native runtime `oren_map_set` (string keys)
+     - C runtime `oren_new_map` + map set via `oren_index_set`
+   - Regression: `tests/avm/test_map_key_order.oren` compares nested-universe `state_hash` across different insertion orders.
+   - Regression: `tests/avm/test_map_key_types.oren` covers `nil/bool/int/string` keys, checks `result_hash` + `state_hash` across different insertion orders.
+
+13) **`for x in ...` must be generic (rolling iterator hook)**
+   - Goal: `for <name> in <iterable> { ... }` works uniformly across backends and container types needed for stdlib work.
+   - Current implementation (rolling):
+     - parser desugars to a `for init; cond; post { ... }` that calls `oren_iter_next(container, idx) -> [ok:int, value]`.
+     - Implemented across:
+       - native backend runtime (`lib/runtime_native.oren`): list/map/string
+       - C backend runtime (`lib/runtime.c`): list/map/string
+       - AVM core natives (`lib/avm/avm_native.inc` id 43): list/map/string/bytes
+   - Current semantics:
+     - `list`: yields elements in index order
+     - `map`: yields keys in deterministic key order
+     - `string`: yields byte codepoints (`0..255`)
+     - `bytes` (AVM): yields u8 values (`0..255`)
+   - Next (still required for the “streams everywhere” goal):
+     - define an iterator/stream protocol beyond built-in containers (e.g. `Stream` type, channel receive iteration, and/or a `__iter_next` callable contract) and bind it into determinism/capabilities.
 
 ## P1 (High Leverage for Agentic Debugging / Swarm)
 
@@ -207,3 +254,5 @@ Focus statement (to avoid roadmap thrash):
 - VirtualPROC (bootstrap): PROC domain can run with `--proc-backend vproc` / `AVM_PROC_BACKEND=vproc` to avoid host subprocesses (returns deterministic `AVM_PROC_EXIT_CODE`).
 - VirtualPROC fixtures (bootstrap): PROC domain can run with `--proc-fixtures-hex` / `AVM_PROC_FIXTURES_HEX=...` to return deterministic fixture exit codes for known commands (still never touches host subprocesses).
 - VirtualNET (bootstrap): NET domain can run with `--net-backend vnet` / `AVM_NET_BACKEND=vnet` plus `AVM_NET_FIXTURES_HEX=...` to avoid host network (returns deterministic fixture bodies).
+- AVM list append growth: `SET_INDEX` on lists now grows capacity when appending at `i == count` (no silent drop); regression in `tests/avm/test_list_append_grow.oren` (also mirrored in native).
+- Nested containers smoke tests: added `tests/native/test_nested_containers.oren` and `tests/avm/test_nested_containers.oren` (map/list nesting + alias mutation).

@@ -1,0 +1,36 @@
+struct S { m, l, n }
+
+fn main() {
+    var m = {
+        "x": [1, 2, 3],
+        "y": {"z": 4}
+    }
+
+    var l = [
+        [10, 20],
+        [30]
+    ]
+
+    var n = {
+        "a": {"b": [5]}
+    }
+
+    var s = S(m, l, n)
+
+    if s.m["x"][1] != 2 { exit(1) }
+    if s.m["y"]["z"] != 4 { exit(1) }
+    if s.l[0][1] != 20 { exit(1) }
+    if s.n["a"]["b"][0] != 5 { exit(1) }
+
+    // Mutate nested containers through aliases (should update through the struct as well).
+    var xs = s.m["x"]
+    xs[1] = 42
+    if s.m["x"][1] != 42 { exit(1) }
+
+    var y = s.m["y"]
+    y["z"] = 7
+    if s.m["y"]["z"] != 7 { exit(1) }
+
+    exit(0)
+}
+

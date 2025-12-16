@@ -121,8 +121,14 @@ test: oren
 			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_proc.oren --backend bytecode -o build/multiverse_child_proc.obc $(GC_ARG); \
 		elif [ "$$name" = "test_multiverse_vfs_fixtures" ]; then \
 			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_vfs.oren --backend bytecode -o build/multiverse_child_vfs.obc $(GC_ARG); \
-		fi; \
-		$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
+			elif [ "$$name" = "test_map_key_order" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_order_child_ab.oren --backend bytecode -o build/map_order_child_ab.obc $(GC_ARG); \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_order_child_cba.oren --backend bytecode -o build/map_order_child_cba.obc $(GC_ARG); \
+			elif [ "$$name" = "test_map_key_types" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_key_types_child1.oren --backend bytecode -o build/map_key_types_child1.obc $(GC_ARG); \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_key_types_child2.oren --backend bytecode -o build/map_key_types_child2.obc $(GC_ARG); \
+			fi; \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
 		if [ "$$name" = "test_budget_gas" ]; then \
 			set +e; AVM_GAS=20000 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
 			if [ $$rc -eq 0 ]; then \

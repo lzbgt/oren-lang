@@ -45,6 +45,8 @@ static int g_last_alloc_err = 0; // 0=none, else AVM_ERR_* (budget/internal)
 
 static AvmValue avm_err(int code, const char* msg); // forward decl (used by alloc helpers)
 static AvmValue avm_err_domop(int code, const char* msg, int domain, int op); // forward decl (used by budget/cap helpers)
+static int avm_map_key_supported(AvmValue k);
+static int avm_map_set_sorted(AvmMap* map, AvmValue key, AvmValue val);
 static void avm_abort(AvmVM* vm, AvmValue err); // forward decl (used by budget helpers)
 
 // Forward decls: trace hooks (bytes-only) used by allocator.
@@ -461,7 +463,7 @@ static AvmValue avm_err(int code, const char* msg) {
 
     AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
     if (!map) { avm_alloc_unbudgeted_pop(prev_budget); return avm_nil(); }
-    map->count = 3;
+    map->count = 0;
     map->capacity = 8;
     map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
     map->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
@@ -473,14 +475,10 @@ static AvmValue avm_err(int code, const char* msg) {
         return avm_nil();
     }
 
-    map->keys[0] = avm_string("__err");
-    map->values[0] = avm_bool(1);
-
-    map->keys[1] = avm_string("code");
-    map->values[1] = avm_int(code);
-
-    map->keys[2] = avm_string("msg");
-    map->values[2] = avm_string(msg ? msg : "");
+    // Insert through sorted-map API so all maps are stored key-ordered in memory.
+    avm_map_set_sorted(map, avm_string("__err"), avm_bool(1));
+    avm_map_set_sorted(map, avm_string("code"), avm_int(code));
+    avm_map_set_sorted(map, avm_string("msg"), avm_string(msg ? msg : ""));
 
     AvmValue v;
     v.type = AVM_VAL_MAP;
@@ -502,7 +500,7 @@ static AvmValue avm_err_domop(int code, const char* msg, int domain, int op) {
 
     AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
     if (!map) { avm_alloc_unbudgeted_pop(prev_budget); return avm_nil(); }
-    map->count = 3 + extra;
+    map->count = 0;
     map->capacity = 8;
     map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
     map->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
@@ -514,25 +512,15 @@ static AvmValue avm_err_domop(int code, const char* msg, int domain, int op) {
         return avm_nil();
     }
 
-    map->keys[0] = avm_string("__err");
-    map->values[0] = avm_bool(1);
+    avm_map_set_sorted(map, avm_string("__err"), avm_bool(1));
+    avm_map_set_sorted(map, avm_string("code"), avm_int(code));
+    avm_map_set_sorted(map, avm_string("msg"), avm_string(msg ? msg : ""));
 
-    map->keys[1] = avm_string("code");
-    map->values[1] = avm_int(code);
-
-    map->keys[2] = avm_string("msg");
-    map->values[2] = avm_string(msg ? msg : "");
-
-    int at = 3;
     if (domain >= 0) {
-        map->keys[at] = avm_string("domain");
-        map->values[at] = avm_int(domain);
-        at++;
+        avm_map_set_sorted(map, avm_string("domain"), avm_int(domain));
     }
     if (op >= 0) {
-        map->keys[at] = avm_string("op");
-        map->values[at] = avm_int(op);
-        at++;
+        avm_map_set_sorted(map, avm_string("op"), avm_int(op));
     }
 
     AvmValue v;
@@ -566,6 +554,138 @@ static AvmValue avm_map_get(AvmMap* map, const char* key) {
         }
     }
     return avm_nil();
+}
+
+// --- Deterministic map key ordering (v0) ---
+//
+// AVM maps must be deterministic across nodes and across nested universes. To avoid relying on
+// pointer addresses (nondeterministic), we restrict and order keys semantically.
+//
+// Supported key types:
+//   - NIL, BOOL, INT, STRING
+//
+// Ordering:
+//   NIL < BOOL < INT < STRING
+static int avm_map_key_supported(AvmValue k) {
+    return (k.type == AVM_VAL_NIL || k.type == AVM_VAL_BOOL || k.type == AVM_VAL_INT || k.type == AVM_VAL_STRING);
+}
+
+static int avm_key_rank(AvmValue k) {
+    if (k.type == AVM_VAL_NIL) return 0;
+    if (k.type == AVM_VAL_BOOL) return 1;
+    if (k.type == AVM_VAL_INT) return 2;
+    if (k.type == AVM_VAL_STRING) return 3;
+    return 99;
+}
+
+static int avm_key_cmp(AvmValue a, AvmValue b) {
+    int ra = avm_key_rank(a);
+    int rb = avm_key_rank(b);
+    if (ra < rb) return -1;
+    if (ra > rb) return 1;
+    if (a.type == AVM_VAL_NIL) return 0;
+    if (a.type == AVM_VAL_BOOL) {
+        if (a.as.i < b.as.i) return -1;
+        if (a.as.i > b.as.i) return 1;
+        return 0;
+    }
+    if (a.type == AVM_VAL_INT) {
+        if (a.as.i < b.as.i) return -1;
+        if (a.as.i > b.as.i) return 1;
+        return 0;
+    }
+    if (a.type == AVM_VAL_STRING) {
+        int r = strcmp((char*)a.as.p, (char*)b.as.p);
+        if (r < 0) return -1;
+        if (r > 0) return 1;
+        return 0;
+    }
+    return 0;
+}
+
+static int avm_key_eq(AvmValue a, AvmValue b) {
+    if (a.type != b.type) return 0;
+    if (a.type == AVM_VAL_NIL) return 1;
+    if (a.type == AVM_VAL_BOOL) return a.as.i == b.as.i;
+    if (a.type == AVM_VAL_INT) return a.as.i == b.as.i;
+    if (a.type == AVM_VAL_STRING) return strcmp((char*)a.as.p, (char*)b.as.p) == 0;
+    return 0;
+}
+
+static int avm_map_find_index(AvmMap* map, AvmValue key, int* found) {
+    if (found) *found = 0;
+    if (!map) return 0;
+    int lo = 0;
+    int hi = map->count;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        int c = avm_key_cmp(map->keys[mid], key);
+        if (c < 0) lo = mid + 1;
+        else hi = mid;
+    }
+    int idx = lo;
+    if (idx < map->count && avm_key_eq(map->keys[idx], key)) {
+        if (found) *found = 1;
+    }
+    return idx;
+}
+
+static int avm_list_ensure_cap(AvmList* list, int need) {
+    if (!list) return 0;
+    if (need <= list->capacity) return 1;
+    int new_cap = list->capacity ? list->capacity : 8;
+    while (new_cap < need) new_cap *= 2;
+    AvmValue* ni = (AvmValue*)avm_heap_realloc_k(list->items, sizeof(AvmValue) * (size_t)new_cap, AVM_ALLOC_KIND_LIST);
+    if (!ni) return 0;
+    list->items = ni;
+    list->capacity = new_cap;
+    return 1;
+}
+
+static int avm_map_ensure_cap(AvmMap* map, int need) {
+    if (!map) return 0;
+    if (need <= map->capacity) return 1;
+    int new_cap = map->capacity ? map->capacity : 8;
+    while (new_cap < need) new_cap *= 2;
+    // Avoid partial realloc success (keys grows but values fails, or vice versa) by allocating new buffers.
+    AvmValue* nk = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)new_cap, AVM_ALLOC_KIND_MAP);
+    AvmValue* nv = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)new_cap, AVM_ALLOC_KIND_MAP);
+    if (!nk || !nv) {
+        if (nk) avm_heap_free(nk);
+        if (nv) avm_heap_free(nv);
+        return 0;
+    }
+    if (map->count > 0) {
+        memcpy(nk, map->keys, sizeof(AvmValue) * (size_t)map->count);
+        memcpy(nv, map->values, sizeof(AvmValue) * (size_t)map->count);
+    }
+    if (map->keys) avm_heap_free(map->keys);
+    if (map->values) avm_heap_free(map->values);
+    map->keys = nk;
+    map->values = nv;
+    map->capacity = new_cap;
+    return 1;
+}
+
+static int avm_map_set_sorted(AvmMap* map, AvmValue key, AvmValue val) {
+    if (!map) return 0;
+
+    int found = 0;
+    int idx = avm_map_find_index(map, key, &found);
+    if (found) {
+        map->values[idx] = val;
+        return 1;
+    }
+
+    if (!avm_map_ensure_cap(map, map->count + 1)) return 0;
+    for (int i = map->count; i > idx; i--) {
+        map->keys[i] = map->keys[i - 1];
+        map->values[i] = map->values[i - 1];
+    }
+    map->keys[idx] = key;
+    map->values[idx] = val;
+    map->count++;
+    return 1;
 }
 
 static int avm_is_err_val(AvmValue v) {
@@ -1446,7 +1566,7 @@ void avm_run(AvmVM* vm) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
                     AvmValue res;
-                    res.type = AVM_VAL_INT;
+                    res.type = AVM_VAL_BOOL;
                     res.as.i = (a.as.i < b.as.i) ? 1 : 0;
                     vm->stack[vm->sp++] = res;
                 }
@@ -1456,8 +1576,10 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    AvmValue res; res.type = AVM_VAL_INT;
+                    AvmValue res; res.type = AVM_VAL_BOOL;
                     if (a.type != b.type) res.as.i = 0;
+                    else if (a.type == AVM_VAL_NIL) res.as.i = 1;
+                    else if (a.type == AVM_VAL_BOOL) res.as.i = (a.as.i == b.as.i);
                     else if (a.type == AVM_VAL_INT) res.as.i = (a.as.i == b.as.i);
                     else if (a.type == AVM_VAL_STRING) res.as.i = (strcmp((char*)a.as.p, (char*)b.as.p) == 0);
                     else res.as.i = 0;
@@ -1469,8 +1591,10 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    AvmValue res; res.type = AVM_VAL_INT;
+                    AvmValue res; res.type = AVM_VAL_BOOL;
                     if (a.type != b.type) res.as.i = 1;
+                    else if (a.type == AVM_VAL_NIL) res.as.i = 0;
+                    else if (a.type == AVM_VAL_BOOL) res.as.i = (a.as.i != b.as.i);
                     else if (a.type == AVM_VAL_INT) res.as.i = (a.as.i != b.as.i);
                     else if (a.type == AVM_VAL_STRING) res.as.i = (strcmp((char*)a.as.p, (char*)b.as.p) != 0);
                     else res.as.i = 1;
@@ -1482,7 +1606,7 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    AvmValue res; res.type = AVM_VAL_INT;
+                    AvmValue res; res.type = AVM_VAL_BOOL;
                     res.as.i = (a.as.i > b.as.i);
                     vm->stack[vm->sp++] = res;
                 }
@@ -1492,7 +1616,7 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    AvmValue res; res.type = AVM_VAL_INT;
+                    AvmValue res; res.type = AVM_VAL_BOOL;
                     res.as.i = (a.as.i <= b.as.i);
                     vm->stack[vm->sp++] = res;
                 }
@@ -1502,7 +1626,7 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    AvmValue res; res.type = AVM_VAL_INT;
+                    AvmValue res; res.type = AVM_VAL_BOOL;
                     res.as.i = (a.as.i >= b.as.i);
                     vm->stack[vm->sp++] = res;
                 }
@@ -1700,7 +1824,7 @@ void avm_run(AvmVM* vm) {
                 
                 AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
                 if (!map) { avm_abort(vm, avm_alloc_fail_value()); break; }
-                map->count = count;
+                map->count = 0;
                 map->capacity = (int)count + 8;
                 map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)map->capacity, AVM_ALLOC_KIND_MAP);
                 map->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)map->capacity, AVM_ALLOC_KIND_MAP);
@@ -1712,9 +1836,23 @@ void avm_run(AvmVM* vm) {
                     break;
                 }
                 
-                for(int i=count-1; i>=0; i--) {
-                    map->values[i] = vm->stack[--vm->sp];
-                    map->keys[i] = vm->stack[--vm->sp];
+                // Insert sequentially so "last key wins" and storage stays key-ordered.
+                if ((int)count * 2 <= vm->sp) {
+                    int base = vm->sp - (int)count * 2;
+                    for (uint16_t i = 0; i < count; i++) {
+                        AvmValue key = vm->stack[base + (int)i * 2];
+                        AvmValue val = vm->stack[base + (int)i * 2 + 1];
+                        if (!avm_map_key_supported(key)) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
+                            break;
+                        }
+                        if (!avm_map_set_sorted(map, key, val)) {
+                            avm_abort(vm, avm_alloc_fail_value());
+                            break;
+                        }
+                    }
+                    vm->sp = base;
+                    if (!vm->running) { break; }
                 }
                 
                 AvmValue res;
@@ -1735,17 +1873,14 @@ void avm_run(AvmVM* vm) {
                             res = obj.as.l->items[i];
                         }
                     } else if (obj.type == AVM_VAL_MAP) {
-                        for(int i=0; i<obj.as.m->count; i++) {
-                            AvmValue k = obj.as.m->keys[i];
-                            int match = 0;
-                            if (k.type == key.type) {
-                                if (k.type == AVM_VAL_INT) match = (k.as.i == key.as.i);
-                                else if (k.type == AVM_VAL_STRING) match = (strcmp((char*)k.as.p, (char*)key.as.p) == 0);
-                            }
-                            if (match) {
-                                res = obj.as.m->values[i];
-                                break;
-                            }
+                        if (!avm_map_key_supported(key)) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
+                            break;
+                        }
+                        int found = 0;
+                        int idx = avm_map_find_index(obj.as.m, key, &found);
+                        if (found) {
+                            res = obj.as.m->values[idx];
                         }
                     }
                     vm->stack[vm->sp++] = res;
@@ -1763,29 +1898,20 @@ void avm_run(AvmVM* vm) {
                         if (i >= 0 && i < obj.as.l->count) {
                             obj.as.l->items[i] = val;
                         } else if (i == obj.as.l->count) {
-                            if (obj.as.l->count < obj.as.l->capacity) {
-                                obj.as.l->items[obj.as.l->count++] = val;
-                            }
-                        }
-                    } else if (obj.type == AVM_VAL_MAP) {
-                        int found = 0;
-                        for(int i=0; i<obj.as.m->count; i++) {
-                            AvmValue k = obj.as.m->keys[i];
-                            int match = 0;
-                            if (k.type == key.type) {
-                                if (k.type == AVM_VAL_INT) match = (k.as.i == key.as.i);
-                                else if (k.type == AVM_VAL_STRING) match = (strcmp((char*)k.as.p, (char*)key.as.p) == 0);
-                            }
-                            if (match) {
-                                obj.as.m->values[i] = val;
-                                found = 1;
+                            if (!avm_list_ensure_cap(obj.as.l, obj.as.l->count + 1)) {
+                                avm_abort(vm, avm_alloc_fail_value());
                                 break;
                             }
+                            obj.as.l->items[obj.as.l->count++] = val;
                         }
-                        if (!found && obj.as.m->count < obj.as.m->capacity) {
-                            obj.as.m->keys[obj.as.m->count] = key;
-                            obj.as.m->values[obj.as.m->count] = val;
-                            obj.as.m->count++;
+                    } else if (obj.type == AVM_VAL_MAP) {
+                        if (!avm_map_key_supported(key)) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
+                            break;
+                        }
+                        if (!avm_map_set_sorted(obj.as.m, key, val)) {
+                            avm_abort(vm, avm_alloc_fail_value());
+                            break;
                         }
                     }
                 }

@@ -1,0 +1,12 @@
+fn main() {
+    var s = "ABC"
+    var sum = 0
+    for ch in s {
+        // iterates byte codepoints
+        sum = sum + ch
+    }
+    if sum != (65 + 66 + 67) { exit(1) }
+    print("for-in string OK")
+    exit(0)
+}
+

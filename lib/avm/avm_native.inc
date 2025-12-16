@@ -676,6 +676,59 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 43: { // oren_iter_next(container, idx:int) -> [ok:int, value]
+            if (nargs == 2 && args[1].type == AVM_VAL_INT) {
+                AvmValue container = args[0];
+                int64_t idx = args[1].as.i;
+
+                AvmValue okv = avm_int(0);
+                AvmValue val = avm_nil();
+
+                if (idx >= 0) {
+                    if (container.type == AVM_VAL_LIST && container.as.l) {
+                        AvmList* l = container.as.l;
+                        if (idx < l->count) {
+                            okv = avm_int(1);
+                            val = l->items[(int)idx];
+                        }
+                    } else if (container.type == AVM_VAL_MAP && container.as.m) {
+                        AvmMap* m = container.as.m;
+                        if (idx < m->count) {
+                            okv = avm_int(1);
+                            val = m->keys[(int)idx]; // map iteration yields keys
+                        }
+                    } else if (container.type == AVM_VAL_STRING && container.as.p) {
+                        const unsigned char* s = (const unsigned char*)container.as.p;
+                        size_t n = strlen((const char*)s);
+                        if ((uint64_t)idx < (uint64_t)n) {
+                            unsigned char ch = s[idx];
+                            okv = avm_int(1);
+                            val = avm_int((int64_t)ch);
+                        }
+                    } else if (container.type == AVM_VAL_BYTES && container.as.b) {
+                        AvmBytes* b = container.as.b;
+                        if (idx < b->len) {
+                            okv = avm_int(1);
+                            val = avm_int((int64_t)b->data[(int)idx]);
+                        }
+                    }
+                }
+
+                AvmList* out = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                out->count = 2;
+                out->capacity = 2;
+                out->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * 2u, AVM_ALLOC_KIND_LIST);
+                if (!out->items) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                out->items[0] = okv;
+                out->items[1] = val;
+                res.type = AVM_VAL_LIST;
+                res.as.l = out;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_iter_next expects (container, int)");
+            }
+            break;
+        }
         // TODO: Implement others
         default:
             printf("Unknown native id: %d\n", id);

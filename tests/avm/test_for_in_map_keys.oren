@@ -1,0 +1,16 @@
+fn main() {
+    var m = {"b": 1, "a": 2, "c": 3}
+    var h = 0
+    for k in m {
+        var c0 = oren_string_char_code_at(k, 0)
+        h = (h << 7) + (h << 1) + h + c0
+    }
+    var want = 0
+    want = (want << 7) + (want << 1) + want + 97
+    want = (want << 7) + (want << 1) + want + 98
+    want = (want << 7) + (want << 1) + want + 99
+    if h != want { oren_exit(1) }
+    print("avm for-in map keys OK")
+}
+
+main()

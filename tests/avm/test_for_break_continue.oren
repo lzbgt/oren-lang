@@ -1,0 +1,50 @@
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a != b { fail() }
+}
+
+fn main() {
+    // Nested while: break exits only inner loop.
+    var i = 0
+    var sum = 0
+    while i < 3 {
+        var j = 0
+        while j < 5 {
+            if j == 2 { break }
+            sum = sum + 1
+            j = j + 1
+        }
+        i = i + 1
+    }
+    assert_eq(sum, 6)
+
+    // for: continue must execute post (otherwise it can hang at k==2).
+    var ksum = 0
+    for var k = 0; k < 5; k = k + 1 {
+        if k == 2 { continue }
+        ksum = ksum + 1
+    }
+    assert_eq(ksum, 4)
+
+    // Nested for semantics.
+    var cnt = 0
+    for var a = 0; a < 3; a = a + 1 {
+        for var b = 0; b < 5; b = b + 1 {
+            if b == 2 { continue }
+            if b == 4 { break }
+            cnt = cnt + 1
+        }
+    }
+    assert_eq(cnt, 9)
+
+    print("avm for/break/continue OK")
+}
+
+main()
+

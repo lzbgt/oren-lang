@@ -1,0 +1,26 @@
+fn main() {
+    var m = {}
+
+    // Same keys/values as child1 but inserted in a different order.
+    m["b"] = 7
+    m["a"] = 6
+    m[1] = 5
+    m[0] = 4
+    m[true] = 3
+    m[false] = 2
+    m[nil] = 1
+
+    var s = 0
+    s = s + m[nil]
+    s = s + m[false]
+    s = s + m[true]
+    s = s + m[0]
+    s = s + m[1]
+    s = s + m["a"]
+    s = s + m["b"]
+
+    print(s)
+}
+
+main()
+

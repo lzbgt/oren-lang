@@ -227,6 +227,18 @@ Design note:
 - `for` has two forms:
   - Condition-only: `for cond { ... }`
   - Three-clause: `for init; cond; post { ... }`
+- `for <name> in <iterable> { ... }` is iterator sugar (rolling):
+  - It is a source-level desugaring that relies on a runtime hook `oren_iter_next(iterable, idx)`.
+  - Iterator hook contract:
+    - `oren_iter_next(container, idx:int) -> [ok:int, value]`
+    - `ok == 1` means `value` is valid for this `idx`
+    - `ok == 0` means iteration is complete
+  - Current container coverage (rolling):
+    - `list`: yields elements in index order
+    - `map`: yields **keys** in deterministic key order (see deterministic maps contract)
+    - `string`: yields byte codepoints (`0..255`), stopping at NUL terminator
+    - `bytes` (AVM): yields `u8` values (`0..255`)
+  - Streams / iterators beyond these built-ins require an explicit iterator protocol extension (planned; not stable yet).
 - `break` exits the nearest enclosing loop (`while`/`for`).
 - `continue` skips to the next loop iteration.
 - `return expr` returns from the current function. A return value is always required; use `return nil` if needed.

@@ -1,0 +1,9 @@
+fn main() {
+    // Insert in order: b, a, c
+    var m = {"b": 1, "a": 2, "c": 3}
+    // Make sure the map is live in heap/state.
+    oren_set_result(m["a"] + m["b"] + m["c"])
+}
+
+main()
+

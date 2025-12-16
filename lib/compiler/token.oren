@@ -47,6 +47,7 @@ var TOK_WHILE = "WHILE"
 var TOK_FOR = "FOR"
 var TOK_BREAK = "BREAK"
 var TOK_CONTINUE = "CONTINUE"
+var TOK_IN = "IN"
 var TOK_IMPORT = "IMPORT"
 var TOK_STRUCT = "STRUCT"
 var TOK_CLASS = "CLASS"
@@ -101,6 +102,7 @@ fn lookup_ident(ident) {
     if ident == "for" { return TOK_FOR }
     if ident == "break" { return TOK_BREAK }
     if ident == "continue" { return TOK_CONTINUE }
+    if ident == "in" { return TOK_IN }
     if ident == "import" { return TOK_IMPORT }
     if ident == "struct" { return TOK_STRUCT }
     if ident == "class" { return TOK_CLASS }

@@ -1,0 +1,33 @@
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a != b { fail() }
+}
+
+fn main() {
+    var xs = [10, 20, 30]
+    var sum = 0
+    for x in xs {
+        sum = sum + x
+    }
+    assert_eq(sum, 60)
+
+    // Nested for-in should not collide internal state vars.
+    var cnt = 0
+    for a in [1, 2] {
+        for b in [3, 4, 5] {
+            cnt = cnt + 1
+        }
+    }
+    assert_eq(cnt, 6)
+
+    print("avm for-in list OK")
+}
+
+main()
+
