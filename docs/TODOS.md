@@ -2,13 +2,32 @@
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.
 
-Last updated: 2025-12-15
+Last updated: 2025-12-16
 
 ## P0 (Emergency / Blocking Safety)
 
+### Native backend (syscall-first runtime; macOS-first)
+
+1) **Syscall-first PROC + ENV correctness (no libc; macOS arm64)**
+   - This is the “independent runtime” foundation: if PROC/ENV is wrong, `spawn`, `oren_join`, and `oren_system` can hang or misbehave.
+   - Requirements:
+     - `oren_system()` must pass the intended `argv` (`["sh","-c",cmd]`) and must not accidentally launch an interactive shell.
+     - Preserve/forward parent environment to `execve` without libc (capture `envp` at entry, fallback derivation from `argv/argc` only as backup).
+     - `oren_getenv(key)` must be safe (bounded scan; never hang on malformed envp).
+   - Add regression tests:
+     - `oren_system("echo ...")` must complete quickly (guard with timeout in the test runner).
+     - `oren_getenv("CODEX_LOG_LEVEL")` (or another known CI env var) returns non-zero when set; returns 0 quickly when absent.
+
+2) **ABI hygiene for rolling native runtime globals**
+   - The injected runtime uses a small “globals storage” block as a rolling ABI.
+   - Rules (must be enforced/documented):
+     - Never reuse a slot for two unrelated purposes (e.g. lock recursion count vs envp).
+     - Prefer named getters/setters (`global_get_*`) over raw offsets.
+     - In native runtime code, use `iadd(ptr, off)` for pointer arithmetic; avoid `ptr + off` when `ptr` is a pointer value.
+
 ### AVM (agentic execution substrate)
 
-1) **Capsule must be “no host effects” by default**
+3) **Capsule must be “no host effects” by default**
    - Goal: when running `avm --capsule` (untrusted), **do not touch the host** even if the bytecode requests FS/PROC/NET and you choose to allow those domains.
    - Enforce by defaulting capsule runs to Virtual* backends unless explicitly overridden:
      - `fs_backend=vfs`
@@ -16,7 +35,7 @@ Last updated: 2025-12-15
      - `net_backend=vnet` (host NET remains not implemented in bootstrap)
    - This prevents accidental “allowed FS means host FS” mistakes in governance workflows.
 
-2) **Virtual backends (no-host effects) for safety + multiverse**
+4) **Virtual backends (no-host effects) for safety + multiverse**
    - Goal: allow AVM programs (and nested universes) to use FS/PROC/NET-like APIs **without touching the host** (even in “record” runs).
    - This is required for:
      - safe “Matrix” simulation (thousands of sandboxes)
@@ -29,7 +48,7 @@ Last updated: 2025-12-15
      - Nested-universe fixture injection as data (`cfg.vfs_fixtures`, `cfg.proc_fixtures`, `cfg.net_fixtures`)
    - Must bind the chosen backend mode + fixtures into `exec_hash_sha256` / job objects (so consensus sees “what environment was used”).
 
-3) **Governance-ready job object (bind to program + inputs + exec context)**
+5) **Governance-ready job object (bind to program + inputs + exec context)**
    - `--print-policy*` is scan-before-execute (no bytecode execution) and now outputs a stable `policy_hash_sha256` (`schema: avm.policy.v1`).
    - Added `--print-job` / `--print-job-json` (schema `avm.job.v1`) which computes `job_hash_sha256 = H(program_hash, policy_hash, input_hash)` without executing bytecode.
    - Updated `--print-job*` to schema `avm.job.v2`: `job_hash_sha256 = H(program_hash, policy_hash, input_hash, exec_hash)` where `exec_hash` binds effective allowlists + fs prefixes + budgets + deterministic knobs.
@@ -39,7 +58,7 @@ Last updated: 2025-12-15
    - Updated `--print-job*` to schema `avm.job.v7`: `exec_hash` also binds VirtualPROC fixtures (`proc_fixtures_hash_sha256`) when fixtures are provided.
    - Next: treat `job_hash` as the swarm consensus key (signatures/attestations are a later layer; don’t block bootstrap).
 
-4) **Diagnostics must not affect semantics**
+6) **Diagnostics must not affect semantics**
    - Tracing/profiling must be best-effort and must not change VM outcome.
    - In particular: trace-bytes capture should truncate/disable on budget exhaustion (do not abort the VM).
    - Also: trace-bytes capture must not consume `AVM_MEM_BYTES` (program heap budget); it should be governed by `AVM_TRACE_BYTES` instead.
@@ -71,10 +90,10 @@ Last updated: 2025-12-15
    - Profiler: memory/time attribution surfaces that are deterministic / loggable (must not change semantics).
      - Bootstrap progress: trace stream now includes bytes-only `ALLOC/FREE/REALLOC` events (not included in `TRACE_HASH`) and `tools/avm_trace_profile.py` can decode `TRACE_BYTES_HEX` into an allocation profile JSON.
 
-5) **Native backend: syscall-first PROC + spawn correctness (macOS)**
+5) **Native backend: syscall-first thread/coroutine transition plan (post-v0)**
    - Keep native backend free of libc/pthreads shims for core runtime services.
-   - Maintain correctness of Darwin syscall ABI details (notably `fork`: kernel returns `X0=child_pid` in both parent/child and uses `X1` to indicate child).
-   - Current v0 `spawn` uses `fork + pipe` (process-based); plan a future transition to true OS threads and/or coroutines once the syscall-first threading layer is solid (see `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`).
+   - Current v0 `spawn` uses `fork + pipe` (process-based) for correctness.
+   - Next: transition to OS threads and/or coroutines once the syscall-first thread boundary is stable (see `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`).
 
 ## P2 (Next-Gen AVM Performance + Features)
 

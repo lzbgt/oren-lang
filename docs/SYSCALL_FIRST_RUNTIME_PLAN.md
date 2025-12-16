@@ -23,6 +23,7 @@ This is aligned with the “correct architecture first” constraint: **no tempo
 - The native backend treats `sys_*` calls as **compiler intrinsics** and emits syscalls inline (Darwin arm64 on macOS; Linux arm64 is separate work).
   - The `sys_*` functions remain as stubs in source so programs typecheck, but native code does not call those stubs.
 - `oren_system()` is now syscall-first on macOS: `fork + execve("/bin/sh", ...) + wait4`.
+- ENV is syscall-free (no libc): the entry stub captures `envp` and stores it in the runtime globals, and `oren_getenv(key)` scans the initial `envp` block (bounded; never hangs).
 - `spawn`/`oren_join` on macOS is currently implemented as **fork + pipe** (process-based) for v0 correctness.
   - This avoids the Darwin `bsdthread_register/bsdthread_create` ABI surface until a robust syscall-first thread design is implemented.
 - Darwin fork ABI nuance is now accounted for:

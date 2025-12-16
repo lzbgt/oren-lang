@@ -96,8 +96,16 @@ fn oren_pipe() {
 // --- Native GC/Heap Tracking ---
 
 // We use a string literal in a function to get a stable pointer to writable memory for globals.
-// 0:allocs, 8:roots, 16:lock, 24:free, 32:threads, 40:argc, 48:argv
-// 7 * 8 = 56 bytes.
+// Layout (8-byte slots):
+//   0:allocs
+//   8:roots
+//   16:lock_owner_tid
+//   24:free
+//   32:threads
+//   40:argc
+//   48:argv
+//   56:lock_recurse_count
+//   64:envp
 var g_storage = 0
 
 fn oren_globals() {
@@ -125,13 +133,21 @@ fn global_set_argc(v) { ptr_set(iadd(oren_globals(), 40), v) }
 fn global_get_argv() { return ptr_get(iadd(oren_globals(), 48)) }
 fn global_set_argv(v) { ptr_set(iadd(oren_globals(), 48), v) }
 
+fn global_get_lock_count() { return ptr_get(iadd(oren_globals(), 56)) }
+fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), 56), v) }
+
+fn global_get_envp() { return ptr_get(iadd(oren_globals(), 64)) }
+fn global_set_envp(v) { ptr_set(iadd(oren_globals(), 64), v) }
+
 fn native_runtime_init() {
-    g_storage = malloc(64)
+    // Reserve room for current globals + some growth slack (rolling ABI).
+    // 10 * 8 = 80 bytes.
+    g_storage = malloc(80)
     if g_storage == 0 { exit(199) }
     
     // Zero it
     var i = 0
-    while i < 8 {
+    while i < 10 {
         ptr_set(g_storage + i * 8, 0)
         i = i + 1
     }
@@ -168,6 +184,68 @@ fn native_runtime_threading_init(threadstart, wqthread) {
 fn native_runtime_set_args(argc, argv) {
     global_set_argc(argc)
     global_set_argv(argv)
+    return 0
+}
+
+fn native_runtime_set_envp(envp) {
+    // Keep this function leaf-like (no calls) to avoid any stack-offset bugs
+    // while the compiler/runtime ABI is still evolving.
+    ptr_set(iadd(oren_globals(), 64), envp)
+    return 0
+}
+
+// --- ENV (syscall-free; reads process initial envp block) ---
+//
+// Returns pointer to value substring for KEY in envp ("KEY=VALUE"), or 0 if not found.
+// NOTE: This returns a pointer into the process environment strings (not a copy).
+fn oren_getenv(key) {
+    // Keep this leaf-like (no calls) to avoid any cross-call local slot issues
+    // while the native backend ABI is still rolling.
+    if key == 0 { return 0 }
+
+    var g = oren_globals()
+    var envp = ptr_get(iadd(g, 64))
+
+    // If envp wasn't captured at entry, derive it from argv/argc layout:
+    // envp starts right after argv[argc] and the NULL terminator.
+    var argc = ptr_get(iadd(g, 40))
+    var argv = ptr_get(iadd(g, 48))
+    if envp == 0 {
+        if argv == 0 { return 0 }
+        envp = iadd(argv, (iadd(argc, 1)) * 8)
+    }
+    if envp == 0 { return 0 }
+
+    // key_len = strlen(key)
+    var key_len = 0
+    while ptr_get_byte(iadd(key, key_len)) != 0 {
+        key_len = key_len + 1
+    }
+
+    // Hard cap to avoid hangs if envp is malformed / unterminated.
+    var i = 0
+    while i < 4096 {
+        var ent = ptr_get(iadd(envp, i * 8))
+        if ent == 0 { return 0 }
+
+        // Check prefix match "KEY="
+        var j = 0
+        while j < key_len {
+            if ptr_get_byte(iadd(ent, j)) != ptr_get_byte(iadd(key, j)) {
+                j = -1
+                break
+            }
+            j = j + 1
+        }
+
+        if j != -1 {
+            if ptr_get_byte(iadd(ent, key_len)) == 61 { // '='
+                return iadd(ent, key_len + 1)
+            }
+        }
+
+        i = i + 1
+    }
     return 0
 }
 
@@ -924,14 +1002,14 @@ fn oren_free_struct(ptr) {
 fn oren_string_len(s) {
     if s == 0 { return 0 }
     var i = 0
-    while ptr_get_byte(s + i) != 0 {
+    while ptr_get_byte(iadd(s, i)) != 0 {
         i = i + 1
     }
     return i
 }
 
 fn oren_string_char_at(s, idx) {
-    return ptr_get_byte(s + idx)
+    return ptr_get_byte(iadd(s, idx))
 }
 
 // Return a freshly allocated byte buffer (list) from a string literal pointer.
@@ -1165,18 +1243,31 @@ fn oren_system(cmd) {
         var arg0 = "sh"
         var arg1 = "-c"
 
-        var argv = malloc(32) // 4 pointers
-        if argv == 0 { exit(127) }
-        ptr_set(argv + 0, arg0)
-        ptr_set(argv + 8, arg1)
-        ptr_set(argv + 16, cmd)
-        ptr_set(argv + 24, 0)
+        var child_argv = malloc(32) // 4 pointers
+        if child_argv == 0 { exit(127) }
+        ptr_set(child_argv + 0, arg0)
+        ptr_set(child_argv + 8, arg1)
+        ptr_set(child_argv + 16, cmd)
+        ptr_set(child_argv + 24, 0)
 
-        var envp = malloc(8) // 1 pointer (NULL-terminated)
-        if envp == 0 { exit(127) }
-        ptr_set(envp, 0)
+        // Preserve parent environment without libc.
+        // Prefer the envp captured at process entry; fallback to deriving envp from argv/argc.
+        var g = oren_globals()
+        var envp = ptr_get(iadd(g, 64))
+        if envp == 0 {
+            var argc = ptr_get(iadd(g, 40))
+            var parent_argv = ptr_get(iadd(g, 48))
+            if parent_argv != 0 {
+                envp = iadd(parent_argv, (iadd(argc, 1)) * 8)
+            }
+        }
+        if envp == 0 {
+            envp = malloc(8) // 1 pointer (NULL-terminated)
+            if envp == 0 { exit(127) }
+            ptr_set(envp, 0)
+        }
 
-        sys_execve(sh, argv, envp)
+        sys_execve(sh, child_argv, envp)
         // If execve returns, it failed.
         exit(127)
     }

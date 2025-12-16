@@ -2893,19 +2893,43 @@ fn native_compile_program_arm64(linked, platform) {
         sys_reg = 8
     }
 
-    // Capture argc/argv before any calls clobber argument registers.
-    // macOS (dyld LC_MAIN): X0=argc, X1=argv. Linux (ELF entry): stack has argc/argv.
+    // Capture argc/argv/envp before any calls clobber argument registers.
+    //
+    // Linux (ELF entry):
+    //   stack layout: [argc][argv...NULL][envp...NULL][auxv...]
+    //   we load argc/argv from SP.
+    //
+    // macOS (dyld LC_MAIN):
+    //   X0=argc, X1=argv (empirically X2 is not reliable for envp here).
+    //
+    // For both OSes we derive:
+    //   envp = argv + (argc + 1) * 8
     if ctx["platform"]["os"] == "linux" {
-        // X0 = *(SP), X1 = SP + 8
+        // X0 = *(SP), X1 = SP + 8  (argv)
         push_u32_le(ctx["code"], insn_ldr_ptr(0, 31))
         push_u32_le(ctx["code"], insn_add_imm(1, 31, 8))
     }
     push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = argc
     push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = argv
 
+    // envp = argv + (argc + 1) * 8
+    push_u32_le(ctx["code"], insn_add_imm(2, 19, 1)) // X2 = argc + 1
+    push_u32_le(ctx["code"], insn_movz(3, 8))        // X3 = 8
+    push_u32_le(ctx["code"], insn_mul(2, 2, 3))      // X2 = (argc+1)*8
+    push_u32_le(ctx["code"], insn_add_reg(21, 20, 2)) // X21 = envp
+
     push_u32_le(ctx["code"], insn_stp_pre())
     push_u32_le(ctx["code"], insn_mov_fp_sp())
     ctx["stack_size"] = ctx["stack_size"] + 16
+
+    // Our generated functions do not currently preserve callee-saved registers
+    // (AAPCS would require preserving X19-X28). Because the entry stub must
+    // keep argc/argv/envp stable across runtime init calls, save them explicitly.
+    push_u32_le(ctx["code"], insn_sub_sp(32))
+    push_u32_le(ctx["code"], insn_str_reg_sp(19, 0))
+    push_u32_le(ctx["code"], insn_str_reg_sp(20, 8))
+    push_u32_le(ctx["code"], insn_str_reg_sp(21, 16))
+    ctx["stack_size"] = ctx["stack_size"] + 32
     
     // Init Heap Globals (X28=ptr, X27=limit) to 0 before any runtime calls.
     push_u32_le(ctx["code"], insn_movz(28, 0))
@@ -2916,12 +2940,38 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
 
-    // Store argv/argc for oren_args()
+    // Restore argc/argv/envp saved across native_runtime_init.
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(19, 0))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(20, 8))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(21, 16))
+    push_u32_le(ctx["code"], insn_add_sp(32))
+    ctx["stack_size"] = ctx["stack_size"] - 32
+
+    // Store argv/argc for oren_args() and envp for oren_getenv()/execve env inheritance.
+    //
+    // Preserve envp across the set_args call (our generated code does not preserve
+    // callee-saved registers yet), and set envp AFTER set_args so any runtime-side
+    // behavior cannot accidentally clear it.
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_reg_sp(21, 0))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    // native_runtime_set_args(argc, argv)
     push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // argc
     push_u32_le(ctx["code"], insn_mov_reg(1, 20)) // argv
     var bl_set_args = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_args, "name": "native_runtime_set_args"})
+
+    // native_runtime_set_envp(envp)
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(21, 0))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+
+    push_u32_le(ctx["code"], insn_mov_reg(0, 21)) // envp
+    var bl_set_envp = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
 
     if platform["debug"] == true {
         push_u32_le(ctx["code"], 0)
