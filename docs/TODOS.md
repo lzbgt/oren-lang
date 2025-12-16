@@ -69,6 +69,7 @@ Last updated: 2025-12-15
    - Disassembler: stable “otool-like” `.obc` inspector (sections, consts, policy, hashes).
    - Debugger: minimal “lldb-like” stepping + breakpoints + trace correlation (pc/op/stack depth).
    - Profiler: memory/time attribution surfaces that are deterministic / loggable (must not change semantics).
+     - Bootstrap progress: trace stream now includes bytes-only `ALLOC/FREE/REALLOC` events (not included in `TRACE_HASH`) and `tools/avm_trace_profile.py` can decode `TRACE_BYTES_HEX` into an allocation profile JSON.
 
 ## P2 (Next-Gen AVM Performance + Features)
 

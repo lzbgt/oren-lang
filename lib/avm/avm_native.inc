@@ -47,7 +47,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                         break;
                     }
                 }
-                char* buf = (char*)avm_heap_malloc((size_t)len + 1);
+                char* buf = (char*)avm_heap_malloc_k((size_t)len + 1, AVM_ALLOC_KIND_STRING);
                 if (!buf) {
                     fclose(f);
                     res = avm_alloc_fail_value();
@@ -126,13 +126,13 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             break;
         }
         case 3: { // oren_args
-            AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+            AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
             if (!list) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
             list->count = vm->argc;
             list->capacity = vm->argc;
             list->items = NULL;
             if (vm->argc > 0) {
-                list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)vm->argc);
+                list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)vm->argc, AVM_ALLOC_KIND_LIST);
                 if (!list->items) { avm_heap_free(list); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
             }
             for (int i = 0; i < vm->argc; i++) {
@@ -208,7 +208,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 int idx = (int)args[1].as.i;
                 if (idx >= 0 && idx < strlen(s)) {
                     res.type = AVM_VAL_STRING;
-                    char* buf = (char*)avm_heap_malloc(2);
+                    char* buf = (char*)avm_heap_malloc_k(2, AVM_ALLOC_KIND_STRING);
                     if (!buf) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     buf[0] = s[idx];
                     buf[1] = 0;
@@ -224,7 +224,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 int len = strlen(s);
                 if (start >= 0 && end <= len && start <= end) {
                     int sublen = end - start;
-                    char* buf = (char*)avm_heap_malloc((size_t)sublen + 1);
+                    char* buf = (char*)avm_heap_malloc_k((size_t)sublen + 1, AVM_ALLOC_KIND_STRING);
                     if (!buf) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     strncpy(buf, s + start, sublen);
                     buf[sublen] = 0;
@@ -265,7 +265,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 AvmList* list = args[0].as.l;
                 if (list->count >= list->capacity) {
                     int new_cap = list->capacity ? list->capacity * 2 : 8;
-                    AvmValue* ni = (AvmValue*)avm_heap_realloc(list->items, sizeof(AvmValue) * (size_t)new_cap);
+                    AvmValue* ni = (AvmValue*)avm_heap_realloc_k(list->items, sizeof(AvmValue) * (size_t)new_cap, AVM_ALLOC_KIND_LIST);
                     if (!ni) {
                         res = avm_alloc_fail_value();
                         avm_abort(vm, res);
@@ -298,7 +298,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 char* s = (char*)args[0].as.p;
                 int len = strlen(s);
-                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
                 if (!list) {
                     res = avm_alloc_fail_value();
                     avm_abort(vm, res);
@@ -306,7 +306,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 }
                 list->count = len;
                 list->capacity = len;
-                list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)len);
+                list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)len, AVM_ALLOC_KIND_LIST);
                 if (!list->items && len > 0) {
                     avm_heap_free(list);
                     res = avm_alloc_fail_value();
@@ -338,7 +338,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                         break;
                     }
                 }
-                uint8_t* buf = (uint8_t*)avm_heap_malloc((size_t)list->count);
+                uint8_t* buf = (uint8_t*)avm_heap_malloc_k((size_t)list->count, AVM_ALLOC_KIND_BYTES);
                 if (!buf && list->count > 0) {
                     res = avm_alloc_fail_value();
                     avm_abort(vm, res);
@@ -418,7 +418,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 
                 uint8_t* buf = NULL;
                 if (len > 0) {
-                    buf = (uint8_t*)avm_heap_malloc((size_t)len);
+                    buf = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES);
                     if (!buf) {
                         fclose(f);
                         res = avm_alloc_fail_value();
@@ -436,7 +436,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 fclose(f);
                 (void)avm_io_charge(vm, (uint64_t)len, 1, 3);
 
-                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
                 if (!list) {
                     if (buf) avm_heap_free(buf);
                     res = avm_alloc_fail_value();
@@ -446,7 +446,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 list->count = (int)len;
                 list->capacity = (int)len;
                 if (len > 0) {
-                    list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)len);
+                    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)len, AVM_ALLOC_KIND_LIST);
                     if (!list->items) {
                         avm_heap_free(list);
                         if (buf) avm_heap_free(buf);
@@ -545,13 +545,13 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 0 && args[0].type == AVM_VAL_BYTES) {
                 AvmBytes* b = args[0].as.b;
                 if (!b || b->len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_unpack: invalid bytes"); break; }
-                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
                 if (!list) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 list->count = b->len;
                 list->capacity = b->len;
                 list->items = NULL;
                 if (b->len > 0) {
-                    list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)b->len);
+                    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)b->len, AVM_ALLOC_KIND_LIST);
                     if (!list->items) { avm_heap_free(list); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     for (int i = 0; i < b->len; i++) {
                         list->items[i] = avm_int((int64_t)b->data[i]);
@@ -623,7 +623,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 if (!b || b->len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_to_hex: invalid bytes"); break; }
                 static const char* hexd = "0123456789abcdef";
                 size_t out_len = (size_t)b->len * 2;
-                char* out = (char*)avm_heap_malloc(out_len + 1);
+                char* out = (char*)avm_heap_malloc_k(out_len + 1, AVM_ALLOC_KIND_STRING);
                 if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 for (int i = 0; i < b->len; i++) {
                     uint8_t v = b->data[i];
@@ -763,13 +763,13 @@ static AvmValue avm_clone_bytes(CloneTable* tab, AvmBytes* b) {
     if (!b) return avm_nil();
     void* found = clonetab_find(tab, (void*)b, 4);
     if (found) { AvmValue r; r.type = AVM_VAL_BYTES; r.as.b = (AvmBytes*)found; return r; }
-    AvmBytes* nb = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
+    AvmBytes* nb = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_BYTES);
     if (!nb) return avm_nil();
     nb->len = b->len;
     nb->capacity = b->len;
     nb->data = NULL;
     if (b->len > 0) {
-        nb->data = (uint8_t*)avm_heap_malloc((size_t)b->len);
+        nb->data = (uint8_t*)avm_heap_malloc_k((size_t)b->len, AVM_ALLOC_KIND_BYTES);
         if (!nb->data) { avm_heap_free(nb); return avm_nil(); }
         memcpy(nb->data, b->data, (size_t)b->len);
     }
@@ -781,13 +781,13 @@ static AvmValue avm_clone_list(CloneTable* tab, AvmList* list) {
     if (!list) return avm_nil();
     void* found = clonetab_find(tab, (void*)list, 2);
     if (found) { AvmValue r; r.type = AVM_VAL_LIST; r.as.l = (AvmList*)found; return r; }
-    AvmList* nl = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+    AvmList* nl = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
     if (!nl) return avm_nil();
     nl->count = list->count;
     nl->capacity = list->count;
     nl->items = NULL;
     if (nl->count > 0) {
-        nl->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)nl->count);
+        nl->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)nl->count, AVM_ALLOC_KIND_LIST);
         if (!nl->items) { avm_heap_free(nl); return avm_nil(); }
     }
     if (!clonetab_add(tab, (void*)list, nl, 2)) { if (nl->items) avm_heap_free(nl->items); avm_heap_free(nl); return avm_nil(); }
@@ -799,15 +799,15 @@ static AvmValue avm_clone_map(CloneTable* tab, AvmMap* map) {
     if (!map) return avm_nil();
     void* found = clonetab_find(tab, (void*)map, 3);
     if (found) { AvmValue r; r.type = AVM_VAL_MAP; r.as.m = (AvmMap*)found; return r; }
-    AvmMap* nm = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
+    AvmMap* nm = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
     if (!nm) return avm_nil();
     nm->count = map->count;
     nm->capacity = map->count;
     nm->keys = NULL;
     nm->values = NULL;
     if (nm->count > 0) {
-        nm->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)nm->count);
-        nm->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)nm->count);
+        nm->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)nm->count, AVM_ALLOC_KIND_MAP);
+        nm->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)nm->count, AVM_ALLOC_KIND_MAP);
         if (!nm->keys || !nm->values) { if (nm->keys) avm_heap_free(nm->keys); if (nm->values) avm_heap_free(nm->values); avm_heap_free(nm); return avm_nil(); }
     }
     if (!clonetab_add(tab, (void*)map, nm, 3)) { if (nm->keys) avm_heap_free(nm->keys); if (nm->values) avm_heap_free(nm->values); avm_heap_free(nm); return avm_nil(); }
@@ -853,11 +853,11 @@ static int avm_value_truthy(AvmValue v) {
 }
 
 static AvmBytes* avm_new_log_bytes() {
-    AvmBytes* b = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
+    AvmBytes* b = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_BYTES);
     if (!b) return NULL;
     b->len = 8;
     b->capacity = 64;
-    b->data = (uint8_t*)avm_heap_malloc((size_t)b->capacity);
+    b->data = (uint8_t*)avm_heap_malloc_k((size_t)b->capacity, AVM_ALLOC_KIND_BYTES);
     if (!b->data) { avm_heap_free(b); return NULL; }
     const uint8_t magic[8] = {'A','V','M','L','O','G','0','1'};
     memcpy(b->data, magic, 8);
@@ -964,7 +964,7 @@ typedef struct {
 static AvmVfs* avm_vfs_get_or_create(AvmVM* vm) {
     if (!vm) return NULL;
     if (vm->vfs) return (AvmVfs*)vm->vfs;
-    AvmVfs* v = (AvmVfs*)avm_heap_malloc(sizeof(AvmVfs));
+    AvmVfs* v = (AvmVfs*)avm_heap_malloc_k(sizeof(AvmVfs), AVM_ALLOC_KIND_VFS);
     if (!v) return NULL;
     v->entries = NULL;
     v->count = 0;
@@ -986,7 +986,7 @@ static int avm_vfs_ensure_cap(AvmVfs* v, uint32_t need) {
     if (need <= v->cap) return 1;
     uint32_t nc = v->cap ? v->cap : 16;
     while (nc < need) nc *= 2;
-    AvmVfsEntry* ne = (AvmVfsEntry*)avm_heap_realloc(v->entries, sizeof(AvmVfsEntry) * (size_t)nc);
+    AvmVfsEntry* ne = (AvmVfsEntry*)avm_heap_realloc_k(v->entries, sizeof(AvmVfsEntry) * (size_t)nc, AVM_ALLOC_KIND_VFS);
     if (!ne) return 0;
     // Initialize new slots to a safe state.
     for (uint32_t i = v->cap; i < nc; i++) {
@@ -1013,7 +1013,7 @@ static int avm_vfs_put(AvmVM* vm, const char* path, const uint8_t* data, uint32_
         e->len = 0;
 
         size_t pl = strlen(path);
-        e->path = (char*)avm_heap_malloc(pl + 1);
+        e->path = (char*)avm_heap_malloc_k(pl + 1, AVM_ALLOC_KIND_VFS);
         if (!e->path) return 0;
         memcpy(e->path, path, pl);
         e->path[pl] = 0;
@@ -1024,7 +1024,7 @@ static int avm_vfs_put(AvmVM* vm, const char* path, const uint8_t* data, uint32_
     }
 
     if (len > 0) {
-        e->data = (uint8_t*)avm_heap_malloc((size_t)len);
+        e->data = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_VFS);
         if (!e->data) return 0;
         memcpy(e->data, data, (size_t)len);
     }
@@ -1040,7 +1040,7 @@ static int avm_vfs_put_list(AvmVM* vm, const char* path, const AvmList* list) {
     // This is bootstrap-simple and keeps VirtualFS data independent from list lifetime.
     uint8_t* buf = NULL;
     if (len > 0) {
-        buf = (uint8_t*)avm_heap_malloc((size_t)len);
+        buf = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES);
         if (!buf) return 0;
         for (uint32_t i = 0; i < len; i++) {
             int64_t v = 0;
@@ -1058,13 +1058,13 @@ static AvmValue avm_vfs_read_bytes_list_value(AvmVM* vm, const uint8_t* data, ui
     AvmValue res;
     res.type = AVM_VAL_NIL;
 
-    AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+    AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
     if (!list) return avm_alloc_fail_value();
     list->count = (int)len;
     list->capacity = (int)len;
     list->items = NULL;
     if (len > 0) {
-        list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)len);
+        list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)len, AVM_ALLOC_KIND_LIST);
         if (!list->items) { avm_heap_free(list); return avm_alloc_fail_value(); }
         for (uint32_t i = 0; i < len; i++) {
             list->items[i].type = AVM_VAL_INT;
@@ -1079,7 +1079,7 @@ static AvmValue avm_vfs_read_bytes_list_value(AvmVM* vm, const uint8_t* data, ui
 static AvmValue avm_vfs_read_string_value(AvmVM* vm, const uint8_t* data, uint32_t len) {
     AvmValue res;
     res.type = AVM_VAL_NIL;
-    char* s = (char*)avm_heap_malloc((size_t)len + 1);
+    char* s = (char*)avm_heap_malloc_k((size_t)len + 1, AVM_ALLOC_KIND_STRING);
     if (!s) return avm_alloc_fail_value();
     if (len > 0) memcpy(s, data, (size_t)len);
     s[len] = 0;
@@ -1451,7 +1451,7 @@ static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValu
 
                     // For now, treat body as a byte string and return STRING.
                     AvmValue ret;
-                    char* s = (char*)avm_heap_malloc((size_t)e->body_len + 1);
+                    char* s = (char*)avm_heap_malloc_k((size_t)e->body_len + 1, AVM_ALLOC_KIND_STRING);
                     if (!s) { ret = avm_alloc_fail_value(); avm_abort(vm, ret); return ret; }
                     if (e->body_len > 0 && e->body) memcpy(s, e->body, e->body_len);
                     s[e->body_len] = 0;

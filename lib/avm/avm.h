@@ -185,6 +185,10 @@ typedef struct {
     // Today (bootstrap), it increments by 1 per executed opcode dispatch.
     uint64_t gas_executed;
 
+    // Allocation id counter (rolling): used only for diagnostics/profiling output surfaces.
+    // This must not affect program semantics; it is not included in state/result hashes.
+    uint32_t alloc_next_id;
+
     // Cooperative pause (rolling): stop execution after N interpreter steps (not an error).
     // Used to support snapshot/resume workflows.
     uint64_t pause_after_steps;

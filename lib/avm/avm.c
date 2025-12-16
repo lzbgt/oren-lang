@@ -29,6 +29,10 @@ typedef struct AvmAllocHdr {
     AvmVM* owner;
     uint64_t size;
     uint64_t charged_size;
+    uint32_t alloc_id;   // 0 if untracked/unowned
+    uint32_t alloc_pc;   // best-effort VM pc at allocation time (rolling)
+    uint8_t alloc_kind;  // best-effort classification (rolling)
+    uint8_t _pad0[7];
     struct AvmAllocHdr* prev;
     struct AvmAllocHdr* next;
 } AvmAllocHdr;
@@ -42,6 +46,23 @@ static int g_last_alloc_err = 0; // 0=none, else AVM_ERR_* (budget/internal)
 static AvmValue avm_err(int code, const char* msg); // forward decl (used by alloc helpers)
 static AvmValue avm_err_domop(int code, const char* msg, int domain, int op); // forward decl (used by budget/cap helpers)
 static void avm_abort(AvmVM* vm, AvmValue err); // forward decl (used by budget helpers)
+
+// Forward decls: trace hooks (bytes-only) used by allocator.
+static int trace_emit_alloc_bytes(AvmVM* vm, uint32_t pc, uint32_t alloc_id, uint8_t kind, uint32_t size, uint32_t charged);
+static int trace_emit_free_bytes(AvmVM* vm, uint32_t pc, uint32_t alloc_id, uint8_t kind, uint32_t size, uint32_t charged);
+static int trace_emit_realloc_bytes(AvmVM* vm, uint32_t pc, uint32_t alloc_id, uint8_t kind, uint32_t old_size, uint32_t new_size, uint32_t old_charged, uint32_t new_charged);
+
+enum {
+    AVM_ALLOC_KIND_UNKNOWN = 0,
+    AVM_ALLOC_KIND_STRING = 1,
+    AVM_ALLOC_KIND_BYTES = 2,
+    AVM_ALLOC_KIND_LIST = 3,
+    AVM_ALLOC_KIND_MAP = 4,
+    AVM_ALLOC_KIND_VFS = 5,
+    AVM_ALLOC_KIND_VPROC = 6,
+    AVM_ALLOC_KIND_VNET = 7,
+    AVM_ALLOC_KIND_TMP = 8
+};
 
 static void avm_alloc_owner_push(AvmVM* vm, AvmVM** prev) {
     if (prev) *prev = g_alloc_owner;
@@ -61,7 +82,7 @@ static void avm_alloc_unbudgeted_pop(int prev) {
     g_alloc_unbudgeted = prev;
 }
 
-static void* avm_heap_malloc(size_t size) {
+static void* avm_heap_malloc_k(size_t size, uint8_t kind) {
     g_last_alloc_err = 0;
     AvmVM* owner = g_alloc_owner;
     if (!g_alloc_unbudgeted && owner && owner->heap_budget_bytes > 0) {
@@ -85,15 +106,31 @@ static void* avm_heap_malloc(size_t size) {
     h->owner = owner;
     h->size = size;
     h->charged_size = (!g_alloc_unbudgeted && owner) ? size : 0;
+    h->alloc_id = 0;
+    h->alloc_pc = owner ? (uint32_t)owner->pc : 0;
+    h->alloc_kind = kind;
     h->prev = NULL;
     h->next = NULL;
     if (owner) {
+        h->alloc_id = owner->alloc_next_id++;
         h->next = (AvmAllocHdr*)owner->heap_allocs_head;
         if (h->next) h->next->prev = h;
         owner->heap_allocs_head = h;
     }
     if (h->charged_size && owner) owner->heap_used_bytes += h->charged_size;
+
+    // Best-effort diagnostics: allocation events go to trace BYTES only (not TRACE_HASH).
+    // Skip unbudgeted allocations to avoid recursion (trace bytes storage is unbudgeted).
+    if (owner && owner->trace_bytes_enabled && h->charged_size > 0) {
+        uint32_t pc = (uint32_t)owner->pc;
+        (void)trace_emit_alloc_bytes(owner, pc, h->alloc_id, h->alloc_kind, (uint32_t)h->size, (uint32_t)h->charged_size);
+    }
+
     return (void*)(h + 1);
+}
+
+static void* avm_heap_malloc(size_t size) {
+    return avm_heap_malloc_k(size, AVM_ALLOC_KIND_UNKNOWN);
 }
 
 static AvmAllocHdr* avm_alloc_hdr_from_ptr(void* p) {
@@ -110,6 +147,14 @@ static void avm_heap_free(void* p) {
         free(p);
         return;
     }
+
+    // Best-effort diagnostics: free events go to trace BYTES only (not TRACE_HASH).
+    // Skip unbudgeted allocations (charged_size==0) to avoid recursion & noise.
+    if (h->owner && h->owner->trace_bytes_enabled && h->charged_size > 0) {
+        uint32_t pc = (uint32_t)h->owner->pc;
+        (void)trace_emit_free_bytes(h->owner, pc, h->alloc_id, h->alloc_kind, (uint32_t)h->size, (uint32_t)h->charged_size);
+    }
+
     if (h->owner) {
         // Remove from owner allocation list (if still linked).
         if (h->prev) h->prev->next = h->next;
@@ -125,9 +170,9 @@ static void avm_heap_free(void* p) {
     free(h);
 }
 
-static void* avm_heap_realloc(void* p, size_t new_size) {
+static void* avm_heap_realloc_k(void* p, size_t new_size, uint8_t kind) {
     g_last_alloc_err = 0;
-    if (!p) return avm_heap_malloc(new_size);
+    if (!p) return avm_heap_malloc_k(new_size, kind);
 
     AvmAllocHdr* h = avm_alloc_hdr_from_ptr(p);
     if (!h) {
@@ -170,6 +215,9 @@ static void* avm_heap_realloc(void* p, size_t new_size) {
     nh->owner = owner;
     nh->size = new_size;
     nh->charged_size = new_charged;
+    nh->alloc_id = h->alloc_id;
+    nh->alloc_pc = owner ? (uint32_t)owner->pc : 0;
+    nh->alloc_kind = kind ? kind : h->alloc_kind;
     nh->prev = NULL;
     nh->next = NULL;
 
@@ -194,7 +242,18 @@ static void* avm_heap_realloc(void* p, size_t new_size) {
     h->magic = 0;
     free(h);
 
+    // Best-effort diagnostics: realloc events go to trace BYTES only (not TRACE_HASH).
+    // Only log budgeted allocations (charged_size>0) to avoid recursion/noise.
+    if (owner && owner->trace_bytes_enabled && new_charged > 0) {
+        (void)trace_emit_realloc_bytes(owner, (uint32_t)owner->pc, nh->alloc_id, nh->alloc_kind,
+            (uint32_t)old_size, (uint32_t)new_size, (uint32_t)old_charged, (uint32_t)new_charged);
+    }
+
     return (void*)(nh + 1);
+}
+
+static void* avm_heap_realloc(void* p, size_t new_size) {
+    return avm_heap_realloc_k(p, new_size, AVM_ALLOC_KIND_UNKNOWN);
 }
 
 static int avm_io_charge(AvmVM* vm, uint64_t bytes, int domain, int op) {
@@ -294,7 +353,7 @@ static const char* avm_op_name(uint8_t op) {
 char* my_strdup(const char* s) {
     if (!s) s = "";
     size_t n = strlen(s);
-    char* d = (char*)avm_heap_malloc(n + 1);
+    char* d = (char*)avm_heap_malloc_k(n + 1, AVM_ALLOC_KIND_STRING);
     if (!d) return NULL;
     memcpy(d, s, n + 1);
     return d;
@@ -360,13 +419,13 @@ static AvmValue avm_nil() {
 
 static AvmValue avm_bytes_new(int len) {
     if (len < 0) return avm_nil();
-    AvmBytes* b = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
+    AvmBytes* b = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_BYTES);
     if (!b) return avm_alloc_fail_value();
     b->len = len;
     b->capacity = len;
     b->data = NULL;
     if (len > 0) {
-        b->data = (uint8_t*)avm_heap_malloc((size_t)len);
+        b->data = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES);
         if (!b->data) { avm_heap_free(b); return avm_alloc_fail_value(); }
         memset(b->data, 0, (size_t)len);
     }
@@ -388,12 +447,12 @@ static AvmValue avm_err(int code, const char* msg) {
     int prev_budget = 0;
     avm_alloc_unbudgeted_push(&prev_budget);
 
-    AvmMap* map = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
+    AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
     if (!map) { avm_alloc_unbudgeted_pop(prev_budget); return avm_nil(); }
     map->count = 3;
     map->capacity = 8;
-    map->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
-    map->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
+    map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
+    map->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
     if (!map->keys || !map->values) {
         if (map->keys) avm_heap_free(map->keys);
         if (map->values) avm_heap_free(map->values);
@@ -429,12 +488,12 @@ static AvmValue avm_err_domop(int code, const char* msg, int domain, int op) {
     if (domain >= 0) extra++;
     if (op >= 0) extra++;
 
-    AvmMap* map = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
+    AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
     if (!map) { avm_alloc_unbudgeted_pop(prev_budget); return avm_nil(); }
     map->count = 3 + extra;
     map->capacity = 8;
-    map->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
-    map->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * map->capacity);
+    map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
+    map->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * map->capacity, AVM_ALLOC_KIND_MAP);
     if (!map->keys || !map->values) {
         if (map->keys) avm_heap_free(map->keys);
         if (map->values) avm_heap_free(map->values);
@@ -551,7 +610,7 @@ static int bytes_ensure_cap(AvmBytes* b, int need) {
     if (need <= b->capacity) return 1;
     int new_cap = b->capacity ? b->capacity : 64;
     while (new_cap < need) new_cap *= 2;
-    uint8_t* nd = (uint8_t*)avm_heap_realloc(b->data, (size_t)new_cap);
+    uint8_t* nd = (uint8_t*)avm_heap_realloc_k(b->data, (size_t)new_cap, AVM_ALLOC_KIND_BYTES);
     if (!nd) return 0;
     b->data = nd;
     b->capacity = new_cap;
@@ -784,6 +843,7 @@ AvmVM* avm_new() {
     vm->virtual_sleep_ns = 0;
     vm->rng_state = 0x123456789abcdef0ull;
     vm->gas_executed = 0;
+    vm->alloc_next_id = 1;
     vm->pause_after_steps = 0;
     vm->paused = 0;
     vm->trace_enabled = 0;
@@ -882,7 +942,7 @@ static AvmBytes* trace_bytes_new(void) {
     // Trace bytes are diagnostic data, not program heap. Do not charge to heap budget.
     int prev = 0;
     avm_alloc_unbudgeted_push(&prev);
-    AvmBytes* b = (AvmBytes*)avm_heap_malloc(sizeof(AvmBytes));
+    AvmBytes* b = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_TMP);
     avm_alloc_unbudgeted_pop(prev);
     if (!b) return NULL;
     b->data = NULL;
@@ -943,7 +1003,10 @@ static int trace_bytes_prepare(AvmVM* vm, uint64_t add) {
 enum {
     TRACE_EVT_STEP = 1,
     TRACE_EVT_NATIVE2 = 2,
-    TRACE_EVT_ABORT = 3
+    TRACE_EVT_ABORT = 3,
+    TRACE_EVT_ALLOC = 4,
+    TRACE_EVT_FREE = 5,
+    TRACE_EVT_REALLOC = 6
 };
 
 static int trace_begin_if_needed(AvmVM* vm) {
@@ -1124,6 +1187,98 @@ static int trace_emit_abort(AvmVM* vm, int op_pc, uint16_t err_code) {
             vm->trace_used_bytes += need;
         }
     }
+    return 1;
+}
+
+static int trace_emit_alloc_bytes(AvmVM* vm, uint32_t pc, uint32_t alloc_id, uint8_t kind, uint32_t size, uint32_t charged) {
+    if (!vm) return 0;
+    if (!vm->trace_bytes_enabled) return 1;
+    if (!trace_begin_if_needed(vm)) return 1;
+    if (vm->trace_bytes_limit && vm->gas_executed > vm->trace_bytes_limit) return 1;
+
+    // ALLOC event encoding (bytes-only; not included in TRACE_HASH):
+    // kind=u8(4), pc=u32, alloc_id=u32, alloc_kind=u8, size=u32, charged=u32
+    uint64_t need = 1 + 4 + 4 + 1 + 4 + 4;
+    (void)trace_bytes_prepare(vm, need);
+    if (!vm->trace_bytes_enabled || !vm->trace_bytes) return 1;
+
+    int prev = 0;
+    avm_alloc_unbudgeted_push(&prev);
+    uint32_t p = (uint32_t)vm->trace_bytes->len;
+    int ok = mem_write_u8(vm->trace_bytes, &p, TRACE_EVT_ALLOC) &&
+        mem_write_u32_le(vm->trace_bytes, &p, pc) &&
+        mem_write_u32_le(vm->trace_bytes, &p, alloc_id) &&
+        mem_write_u8(vm->trace_bytes, &p, kind) &&
+        mem_write_u32_le(vm->trace_bytes, &p, size) &&
+        mem_write_u32_le(vm->trace_bytes, &p, charged);
+    avm_alloc_unbudgeted_pop(prev);
+    if (!ok) {
+        trace_bytes_disable_truncated(vm);
+        return 1;
+    }
+    vm->trace_used_bytes += need;
+    return 1;
+}
+
+static int trace_emit_free_bytes(AvmVM* vm, uint32_t pc, uint32_t alloc_id, uint8_t kind, uint32_t size, uint32_t charged) {
+    if (!vm) return 0;
+    if (!vm->trace_bytes_enabled) return 1;
+    if (!trace_begin_if_needed(vm)) return 1;
+    if (vm->trace_bytes_limit && vm->gas_executed > vm->trace_bytes_limit) return 1;
+
+    // FREE event encoding (bytes-only; not included in TRACE_HASH):
+    // kind=u8(5), pc=u32, alloc_id=u32, alloc_kind=u8, size=u32, charged=u32
+    uint64_t need = 1 + 4 + 4 + 1 + 4 + 4;
+    (void)trace_bytes_prepare(vm, need);
+    if (!vm->trace_bytes_enabled || !vm->trace_bytes) return 1;
+
+    int prev = 0;
+    avm_alloc_unbudgeted_push(&prev);
+    uint32_t p = (uint32_t)vm->trace_bytes->len;
+    int ok = mem_write_u8(vm->trace_bytes, &p, TRACE_EVT_FREE) &&
+        mem_write_u32_le(vm->trace_bytes, &p, pc) &&
+        mem_write_u32_le(vm->trace_bytes, &p, alloc_id) &&
+        mem_write_u8(vm->trace_bytes, &p, kind) &&
+        mem_write_u32_le(vm->trace_bytes, &p, size) &&
+        mem_write_u32_le(vm->trace_bytes, &p, charged);
+    avm_alloc_unbudgeted_pop(prev);
+    if (!ok) {
+        trace_bytes_disable_truncated(vm);
+        return 1;
+    }
+    vm->trace_used_bytes += need;
+    return 1;
+}
+
+static int trace_emit_realloc_bytes(AvmVM* vm, uint32_t pc, uint32_t alloc_id, uint8_t kind, uint32_t old_size, uint32_t new_size, uint32_t old_charged, uint32_t new_charged) {
+    if (!vm) return 0;
+    if (!vm->trace_bytes_enabled) return 1;
+    if (!trace_begin_if_needed(vm)) return 1;
+    if (vm->trace_bytes_limit && vm->gas_executed > vm->trace_bytes_limit) return 1;
+
+    // REALLOC event encoding (bytes-only; not included in TRACE_HASH):
+    // kind=u8(6), pc=u32, alloc_id=u32, alloc_kind=u8, old_size=u32, new_size=u32, old_charged=u32, new_charged=u32
+    uint64_t need = 1 + 4 + 4 + 1 + 4 + 4 + 4 + 4;
+    (void)trace_bytes_prepare(vm, need);
+    if (!vm->trace_bytes_enabled || !vm->trace_bytes) return 1;
+
+    int prev = 0;
+    avm_alloc_unbudgeted_push(&prev);
+    uint32_t p = (uint32_t)vm->trace_bytes->len;
+    int ok = mem_write_u8(vm->trace_bytes, &p, TRACE_EVT_REALLOC) &&
+        mem_write_u32_le(vm->trace_bytes, &p, pc) &&
+        mem_write_u32_le(vm->trace_bytes, &p, alloc_id) &&
+        mem_write_u8(vm->trace_bytes, &p, kind) &&
+        mem_write_u32_le(vm->trace_bytes, &p, old_size) &&
+        mem_write_u32_le(vm->trace_bytes, &p, new_size) &&
+        mem_write_u32_le(vm->trace_bytes, &p, old_charged) &&
+        mem_write_u32_le(vm->trace_bytes, &p, new_charged);
+    avm_alloc_unbudgeted_pop(prev);
+    if (!ok) {
+        trace_bytes_disable_truncated(vm);
+        return 1;
+    }
+    vm->trace_used_bytes += need;
     return 1;
 }
 
@@ -1500,11 +1655,11 @@ void avm_run(AvmVM* vm) {
                 uint16_t count = code[vm->pc++];
                 count |= (uint16_t)code[vm->pc++] << 8;
                 
-                AvmList* list = (AvmList*)avm_heap_malloc(sizeof(AvmList));
+                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
                 if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 list->count = count;
                 list->capacity = (int)count + 8;
-                list->items = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)list->capacity);
+                list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)list->capacity, AVM_ALLOC_KIND_LIST);
                 if (!list->items) { avm_heap_free(list); avm_abort(vm, avm_alloc_fail_value()); break; }
                 
                 for(int i=count-1; i>=0; i--) {
@@ -1521,12 +1676,12 @@ void avm_run(AvmVM* vm) {
                 uint16_t count = code[vm->pc++];
                 count |= (uint16_t)code[vm->pc++] << 8;
                 
-                AvmMap* map = (AvmMap*)avm_heap_malloc(sizeof(AvmMap));
+                AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
                 if (!map) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 map->count = count;
                 map->capacity = (int)count + 8;
-                map->keys = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)map->capacity);
-                map->values = (AvmValue*)avm_heap_malloc(sizeof(AvmValue) * (size_t)map->capacity);
+                map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)map->capacity, AVM_ALLOC_KIND_MAP);
+                map->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)map->capacity, AVM_ALLOC_KIND_MAP);
                 if (!map->keys || !map->values) {
                     if (map->keys) avm_heap_free(map->keys);
                     if (map->values) avm_heap_free(map->values);
@@ -1661,14 +1816,14 @@ int avm_net_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len) {
     if (!mem_read_u32_le(&in, &pos, &count)) return 0;
     if (count > 1000000u) return 0; // sanity cap (rolling)
 
-    AvmVnet* v = (AvmVnet*)avm_heap_malloc(sizeof(AvmVnet));
+    AvmVnet* v = (AvmVnet*)avm_heap_malloc_k(sizeof(AvmVnet), AVM_ALLOC_KIND_VNET);
     if (!v) return 0;
     v->entries = NULL;
     v->count = count;
 
     if (count > 0) {
         if (count > (uint32_t)(SIZE_MAX / sizeof(AvmVnetEntry))) return 0;
-        v->entries = (AvmVnetEntry*)avm_heap_malloc(sizeof(AvmVnetEntry) * (size_t)count);
+        v->entries = (AvmVnetEntry*)avm_heap_malloc_k(sizeof(AvmVnetEntry) * (size_t)count, AVM_ALLOC_KIND_VNET);
         if (!v->entries) return 0;
         for (uint32_t i = 0; i < count; i++) {
             v->entries[i].url = NULL;
@@ -1681,7 +1836,7 @@ int avm_net_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len) {
         uint32_t url_len = 0;
         if (!mem_read_u32_le(&in, &pos, &url_len)) return 0;
         if ((uint64_t)pos + (uint64_t)url_len > (uint64_t)in.len) return 0;
-        char* url = (char*)avm_heap_malloc((size_t)url_len + 1);
+        char* url = (char*)avm_heap_malloc_k((size_t)url_len + 1, AVM_ALLOC_KIND_VNET);
         if (!url) return 0;
         if (url_len > 0) memcpy(url, in.data + pos, url_len);
         url[url_len] = 0;
@@ -1692,7 +1847,7 @@ int avm_net_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len) {
         if ((uint64_t)pos + (uint64_t)body_len > (uint64_t)in.len) return 0;
         uint8_t* body = NULL;
         if (body_len > 0) {
-            body = (uint8_t*)avm_heap_malloc((size_t)body_len);
+            body = (uint8_t*)avm_heap_malloc_k((size_t)body_len, AVM_ALLOC_KIND_VNET);
             if (!body) return 0;
             memcpy(body, in.data + pos, body_len);
         }
@@ -1727,14 +1882,14 @@ int avm_proc_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len) {
     if (!mem_read_u32_le(&in, &pos, &count)) return 0;
     if (count > 1000000u) return 0; // sanity cap (rolling)
 
-    AvmVproc* v = (AvmVproc*)avm_heap_malloc(sizeof(AvmVproc));
+    AvmVproc* v = (AvmVproc*)avm_heap_malloc_k(sizeof(AvmVproc), AVM_ALLOC_KIND_VPROC);
     if (!v) return 0;
     v->entries = NULL;
     v->count = count;
 
     if (count > 0) {
         if (count > (uint32_t)(SIZE_MAX / sizeof(AvmVprocEntry))) return 0;
-        v->entries = (AvmVprocEntry*)avm_heap_malloc(sizeof(AvmVprocEntry) * (size_t)count);
+        v->entries = (AvmVprocEntry*)avm_heap_malloc_k(sizeof(AvmVprocEntry) * (size_t)count, AVM_ALLOC_KIND_VPROC);
         if (!v->entries) return 0;
         for (uint32_t i = 0; i < count; i++) {
             v->entries[i].cmd = NULL;
@@ -1746,7 +1901,7 @@ int avm_proc_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len) {
         uint32_t cmd_len = 0;
         if (!mem_read_u32_le(&in, &pos, &cmd_len)) return 0;
         if ((uint64_t)pos + (uint64_t)cmd_len > (uint64_t)in.len) return 0;
-        char* cmd = (char*)avm_heap_malloc((size_t)cmd_len + 1);
+        char* cmd = (char*)avm_heap_malloc_k((size_t)cmd_len + 1, AVM_ALLOC_KIND_VPROC);
         if (!cmd) return 0;
         if (cmd_len > 0) memcpy(cmd, in.data + pos, cmd_len);
         cmd[cmd_len] = 0;

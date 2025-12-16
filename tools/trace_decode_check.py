@@ -59,6 +59,21 @@ def main() -> int:
             pos += 4
             _code = struct.unpack_from("<H", b, pos)[0]
             pos += 2
+        elif kind == 4:  # ALLOC (bytes-only diagnostics)
+            # pc=u32, alloc_id=u32, alloc_kind=u8, size=u32, charged=u32
+            if pos + 4 + 4 + 1 + 4 + 4 > len(b):
+                return 2
+            pos += 4 + 4 + 1 + 4 + 4
+        elif kind == 5:  # FREE (bytes-only diagnostics)
+            # pc=u32, alloc_id=u32, alloc_kind=u8, size=u32, charged=u32
+            if pos + 4 + 4 + 1 + 4 + 4 > len(b):
+                return 2
+            pos += 4 + 4 + 1 + 4 + 4
+        elif kind == 6:  # REALLOC (bytes-only diagnostics)
+            # pc=u32, alloc_id=u32, alloc_kind=u8, old_size=u32, new_size=u32, old_charged=u32, new_charged=u32
+            if pos + 4 + 4 + 1 + 4 + 4 + 4 + 4 > len(b):
+                return 2
+            pos += 4 + 4 + 1 + 4 + 4 + 4 + 4
         else:
             print(f"unknown trace event kind {kind}", file=sys.stderr)
             return 2
@@ -72,4 +87,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

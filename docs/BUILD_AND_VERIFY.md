@@ -310,6 +310,12 @@ If you want to amplify leaks in-process (more realistic for “long-running agen
 ./avm --repeat 200 --print-mem-stats --print-rss build/tmp.obc
 ```
 
+If you want a **deterministic allocation profile** (no Instruments, machine-readable), capture trace bytes and decode them:
+
+```bash
+AVM_TRACE_BYTES=$((4*1024*1024)) ./avm --print-trace-bytes-hex build/tmp.obc | ./tools/avm_trace_profile.py --from-stdin
+```
+
 Notes:
 
 - `--print-rss` reports the current process resident size (best-effort; `RSS_BYTES_ERROR` if unavailable).
