@@ -182,7 +182,7 @@ typedef struct {
     uint64_t virtual_sleep_ns;
     uint64_t rng_state;
     // gas_executed is a semantic execution counter used for deterministic TIME.
-    // Today (bootstrap), it increments by 1 per executed opcode dispatch.
+    // Today (bootstrap), it increments by the semantic `gas_cost(op)` per executed opcode dispatch (currently 1 for all ops).
     uint64_t gas_executed;
 
     // Allocation id counter (rolling): used only for diagnostics/profiling output surfaces.

@@ -167,10 +167,17 @@ Focus statement (to avoid roadmap thrash):
    - Current v0 `spawn` uses `fork + pipe` (process-based) for correctness.
    - Next: transition to OS threads and/or coroutines once the syscall-first thread boundary is stable (see `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`).
 
+9) **Compile-time evaluation (“comptime”) — pure-only first**
+   - Goal: make compilation deterministic and agent-friendly without a huge rewrite.
+   - Stage C0: constant evaluation for pure expressions only (no FS/NET/PROC/ENV/TIME, no nondeterministic RNG), with explicit budgets to prevent compiler hangs.
+   - Later stages (pure comptime functions, bounded reflection) can follow once C0 is stable.
+
 ## P2 (Next-Gen AVM Performance + Features)
 
 1) **Typed buffers + SIMD kernels (no-JIT-first path)**
    - Implement `F32_BUF` + minimal vector ops (`dot/add/mul/reduce`) with scalar fallback.
+   - This is also the recommended path for **float32** support in v0 without adding a second scalar float tag to the dynamic value model.
+   - Follow-up: define fixed-width numeric types (`i32/u32/u128`, `f32/f64`) primarily as typed-buffer element types and serialization/FFI boundary types.
 
 2) **VirtualNET / VirtualPROC backends (fixtures)**
    - Enable “Matrix sandbox” simulation and deterministic replay of realistic workflows.

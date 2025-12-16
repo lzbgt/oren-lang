@@ -290,10 +290,10 @@ Bootstrap status (rolling):
 - AVM supports a minimal record/replay log for FS-domain calls:
   - record: `AVM_RECORD_LOG=path ./avm build/program.obc`
   - replay: `AVM_REPLAY_LOG=path ./avm build/program.obc`
-- AVM also supports deterministic “virtual” TIME/RNG for nested universes:
+  - AVM also supports deterministic “virtual” TIME/RNG for nested universes:
   - `AVM_DETERMINISTIC=1` uses a virtual monotonic clock and a deterministic PRNG
   - TIME is derived from VM work (no “advance on read”):
-    - `now_ns = AVM_TIME_START_NS + sleep_accum_ns + gas_executed * AVM_TIME_STEP_NS`
+    - `now_ns = AVM_TIME_START_NS + sleep_accum_ns + gas_executed * AVM_TIME_STEP_NS` (where `gas_executed` is the sum of semantic `gas_cost(op)`)
     - `oren_sleep_ms(ms)` increases `sleep_accum_ns` by `ms * 1e6`
   - `AVM_RNG_SEED` seeds the deterministic PRNG
 - This is intentionally minimal and is meant to evolve into full multi-domain virtualization (FS/NET/PROC/TIME/RNG) plus replay-log hashing.

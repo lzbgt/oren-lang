@@ -350,6 +350,18 @@ static const char* avm_op_name(uint8_t op) {
     }
 }
 
+// Semantic gas cost model for AVM opcodes.
+// IMPORTANT: This is part of VM *semantics* for determinism/governance:
+// - AVM_GAS budget is charged in gas units (not wall time).
+// - Deterministic TIME derives from gas_executed * virtual_step_ns.
+// Bootstrap rule: every opcode costs 1 gas. This keeps behavior stable today while
+// making it trivial to introduce non-uniform costs later (e.g. for expensive ops)
+// without reworking the interpreter/JIT budget plumbing.
+static uint32_t avm_gas_cost(uint8_t op) {
+    (void)op;
+    return 1u;
+}
+
 char* my_strdup(const char* s) {
     if (!s) s = "";
     size_t n = strlen(s);
@@ -1319,13 +1331,6 @@ void avm_run(AvmVM* vm) {
                 break;
             }
         }
-        if (vm->gas_remaining > 0) {
-            vm->gas_remaining--;
-            if (vm->gas_remaining == 0) {
-                avm_abort(vm, avm_err(AVM_ERR_BUDGET, "budget exceeded (gas)"));
-                break;
-            }
-        }
         if (vm->cancelled) {
             avm_abort(vm, avm_err(AVM_ERR_CANCELLED, "cancelled"));
             break;
@@ -1338,10 +1343,27 @@ void avm_run(AvmVM* vm) {
             }
         }
 
-        // Semantic execution counter for deterministic TIME (bootstrap: 1 gas per opcode dispatch).
-        vm->gas_executed++;
         int op_pc = vm->pc;
-        uint8_t op = code[vm->pc++];
+        uint8_t op = code[vm->pc];
+        uint32_t cost = avm_gas_cost(op);
+        if (cost == 0) cost = 1u;
+
+        // Charge gas budget using the semantic cost model.
+        if (vm->gas_remaining > 0) {
+            if (vm->gas_remaining < (uint64_t)cost) {
+                avm_abort(vm, avm_err(AVM_ERR_BUDGET, "budget exceeded (gas)"));
+                break;
+            }
+            vm->gas_remaining -= (uint64_t)cost;
+            if (vm->gas_remaining == 0) {
+                avm_abort(vm, avm_err(AVM_ERR_BUDGET, "budget exceeded (gas)"));
+                break;
+            }
+        }
+
+        // Semantic execution counter for deterministic TIME (bootstrap: 1 gas per opcode dispatch).
+        vm->gas_executed += (uint64_t)cost;
+        vm->pc++;
         // Tracing is best-effort and must never affect program semantics.
         (void)trace_emit_step(vm, op_pc, op);
         if (vm->trace_enabled && (!vm->trace_limit || vm->gas_executed <= vm->trace_limit)) {

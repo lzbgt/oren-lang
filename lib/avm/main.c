@@ -1552,6 +1552,7 @@ int main(int argc, char** argv) {
     int print_record_log_hex = 0;
     int print_mem_stats = 0;
     int print_rss = 0;
+    int print_run_json = 0;
     int inspect = 0;
     int inspect_json = 0;
     int disasm = 0;
@@ -1623,6 +1624,11 @@ int main(int argc, char** argv) {
         }
         if (strcmp(argv[i], "--print-rss") == 0) {
             print_rss = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--print-run-json") == 0) {
+            print_run_json = 1;
             i += 1;
             continue;
         }
@@ -1797,7 +1803,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--print-pause-json] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
+        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--print-pause-json] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-run-json] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
         free(break_pcs);
         return 1;
     }
@@ -2828,11 +2834,31 @@ int main(int argc, char** argv) {
         }
 
         if (step_limit > 0) vm->pause_after_steps = step_limit;
+        uint64_t run_wall_start_ns = now_ns();
         avm_run(vm);
+        uint64_t run_wall_end_ns = now_ns();
 
         if (repeat > 1) printf("ITER %d\n", iter);
         if (print_pause_json_flag && vm->paused) {
             print_pause_json(stdout, vm);
+        }
+        if (print_run_json) {
+            uint64_t elapsed_ns = 0;
+            if (run_wall_start_ns != 0 && run_wall_end_ns != 0 && run_wall_end_ns >= run_wall_start_ns) {
+                elapsed_ns = run_wall_end_ns - run_wall_start_ns;
+            }
+            fprintf(stdout, "{");
+            fprintf(stdout, "\"schema\":\"avm.run.v1\"");
+            fprintf(stdout, ",\"exit_code\":%d", vm->exit_code);
+            fprintf(stdout, ",\"gas_executed\":%llu", (unsigned long long)vm->gas_executed);
+            fprintf(stdout, ",\"wall_elapsed_ns\":%llu", (unsigned long long)elapsed_ns);
+            if (elapsed_ns > 0 && vm->gas_executed > 0) {
+                double ns_per_gas = (double)elapsed_ns / (double)vm->gas_executed;
+                double gas_per_sec = (double)vm->gas_executed / ((double)elapsed_ns / 1e9);
+                fprintf(stdout, ",\"ns_per_gas\":%.3f", ns_per_gas);
+                fprintf(stdout, ",\"gas_per_sec\":%.3f", gas_per_sec);
+            }
+            fprintf(stdout, "}\n");
         }
 
         if (print_state_hash) {

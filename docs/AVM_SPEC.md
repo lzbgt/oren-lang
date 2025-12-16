@@ -159,7 +159,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 - **TIME/RNG can be virtualized (rolling):** `AVM_DETERMINISTIC=1` enables a virtual monotonic clock and deterministic PRNG. In deterministic mode, `oren_time_now_ns()` is derived (no “advance on read”) from:
   - `AVM_TIME_START_NS` (virtual origin)
   - accumulated `oren_sleep_ms(ms)` (`+ ms * 1e6`)
-  - executed “gas” count (`+ gas_executed * AVM_TIME_STEP_NS`, bootstrap: 1 gas per opcode dispatch)
+  - executed “gas” count (`+ gas_executed * AVM_TIME_STEP_NS`, bootstrap: `gas_cost(op)=1` for every opcode dispatch)
   RNG is controlled by `AVM_RNG_SEED`.
 - **Nested universes are emerging (rolling):** AVM exposes an `AVM` capability domain (domain 8) to run a child `.obc` from `BYTES` under a restricted capability/budget config (caps + gas/deadline/mem/io/log), returning hashes and a produced in-memory replay log.
   - Nested-universe `cfg` supports Virtual* backends and fixture injection as data (rolling, unstable):

@@ -145,12 +145,67 @@ All infix operators are left-associative.
 The runtime is dynamically typed. Values include:
 - `nil`
 - `bool` (`true`/`false`)
-- `int` (signed 64-bit in the C runtime)
-- `float` (double in the C runtime)
+- `int` (signed 64-bit in the C runtime; two’s complement)
+- `float` (**IEEE-754 binary64 / float64**)
 - `string` (byte string)
 - `list`
 - `map`
 - `python object` (opaque wrapper used by the optional Python FFI)
+
+#### Numeric model (important for cross-backend correctness)
+
+Oren currently has *one* scalar floating-point type:
+
+- `float` is **float64** (binary64).
+
+Implementation reality today:
+
+- **C backend:** stores `float` as a C `double` (`OREN_TYPE_FLOAT`).
+- **Native backend (ARM64):** represents `float` values as the **raw 64-bit IEEE-754 bit pattern** in a 64-bit register; floating ops use dedicated intrinsics (`fadd/fsub/fmul/fdiv`) and preserve bit-level results.
+- **AVM:** the v0.1 `.obc` format mentions `FLOAT` in the instruction table, but float constants are not fully wired end-to-end yet; treat AVM float support as **rolling/incomplete** until tests and the bytecode backend guarantee it.
+
+If you need **float32** in v0, the recommended path is **typed buffers** (`F32_BUF`) rather than introducing a second scalar float tag immediately (see “Planned” below). This avoids a large cross-backend rewrite of the dynamic value representation.
+
+#### Default widths vs explicit widths (recommended policy)
+
+Oren is currently dynamically typed, but numeric *width* still matters for:
+
+- scientific computing (typed buffers, SIMD kernels)
+- stable cross-platform serialization
+- FFI and system boundaries
+
+Recommended policy (minimal rewrite, maximum clarity):
+
+1) **Keep ergonomic defaults**
+   - `int` is signed 64-bit (`i64`) in the reference runtime today.
+   - `float` is `f64` (binary64) today.
+
+   These defaults are chosen because they:
+   - avoid “pointer-width drift” across targets
+   - are easier to keep deterministic across backends (C/native/AVM)
+   - are generally sufficient for orchestration logic (agent workflows)
+
+2) **Add explicit fixed-width numeric types (for performance + correctness)**
+   - Signed/unsigned integers: `i8/i16/i32/i64/i128` and `u8/u16/u32/u64/u128`
+   - Floats: `f32` and `f64`
+
+   These should be used for:
+   - typed buffers (`F32_BUF`, `I32_BUF`, etc.)
+   - binary protocols / hashing / stable encodings
+   - FFI boundaries where exact size matters
+
+3) **Treat `usize`/`isize` as “FFI/pointer boundary types” (optional, later)**
+   - If introduced, `usize` must be defined precisely as “pointer width of the target”.
+   - For deterministic `.obc` / AVM workflows, prefer fixed widths (`u64`) unless the program is explicitly declared “native-only”.
+
+Design note:
+
+- Introducing fixed-width numeric types does not require a full static type system on day 1.
+  A staged approach can start with:
+  - typed buffers and numeric ops that explicitly operate on `F32_BUF`/`I32_BUF`
+  - literal suffixes for compile-time constants (e.g., `1u32`, `1i64`, `1.0f32`) later
+  - explicit conversion builtins (`u32(x)`, `i64(x)`, `f32(x)`) once semantics are defined
+  - only later (optional) a broader static type checker
 
 ### Truthiness
 - `nil` is falsey
@@ -194,6 +249,62 @@ The runtime is dynamically typed. Values include:
 - Calls: `f(x, y)`
   - Calls to Oren-defined functions compile to direct C/Native calls.
   - Calls to Python objects use the runtime’s `oren_call_obj`.
+
+#### Fixed arity vs variadic calls (current reality)
+
+- User-defined Oren functions are **fixed-arity** today:
+  - `fn f(a, b) { ... }` must be called as `f(x, y)` (exactly 2 args).
+  - There is no language syntax for user-defined variadic functions yet.
+- Some **builtins are variadic**, notably `print(...)` (it lowers to a runtime helper that accepts a count + varargs at the C layer).
+
+Design note:
+
+Adding true language-level varargs (e.g. `fn f(a, ...rest) {}`) has ABI consequences across backends. The minimal no-rewrite path is to first add a **call-site “spread”** feature for variadic builtins (e.g. `print(xs...)` where `xs` is a list), and only later consider user-defined variadic functions once calling conventions are stabilized.
+
+### Compile-time execution (“comptime”) (design direction)
+
+Oren should treat compile-time evaluation as a first-class concept, but it must stay aligned with the core niche:
+
+- deterministic builds
+- governance/capability model consistency
+- AVM “compiler-in-AVM” viability (no host toolchain, no host effects by default)
+
+Recommended staged model (minimal rewrite):
+
+#### Stage C0: constant evaluation (pure, deterministic)
+
+- Compile-time evaluation exists, but is limited to:
+  - pure expression evaluation (numeric ops, string ops, bytes packing/unpacking helpers)
+  - constant folding and constant propagation
+- Forbidden at compile time:
+  - FS/NET/PROC/ENV access
+  - host time and nondeterministic RNG
+- Compile-time evaluation is budgeted (gas/step cap) to prevent “compiler hangs”.
+
+#### Stage C1: comptime functions (pure-only)
+
+- Allow a restricted subset of function calls at compile time, with rules:
+  - must be pure and deterministic
+  - no host effects (capabilities default to CORE-only)
+  - explicitly budgeted (gas/mem)
+
+#### Stage C2: comptime reflection (bounded)
+
+- Add only what is needed for tooling and safe codegen:
+  - type queries (`type_of`)
+  - field enumeration for structs (once structs become more than maps)
+  - metadata generation
+
+#### Stage C3 (optional, later): effectful comptime (explicit opt-in + recorded)
+
+- If compile-time effects are ever allowed, they must be:
+  - explicitly capability-scoped
+  - record/replayable (like AVM effects)
+  - bound into a “build job hash” so builds are auditable
+
+Non-goal:
+
+- Do not implement “arbitrary Zig-style comptime with host IO by default” early; that creates nondeterministic builds and forces large cross-backend rewrites.
 
 ### Lambdas (Closures)
 - **Syntax**: `|params| expression` or `|params| { block }`
@@ -374,3 +485,20 @@ Planned direction:
 
 - a first-class `bytes` value type (packed)
 - typed numeric buffers (`f32[]`, `i32[]`) with bulk ops
+
+### 6) Variadic ergonomics (without a huge ABI rewrite)
+
+Motivation:
+
+- Many agent workflows need “collect arguments and forward them” patterns:
+  - logging/tracing utilities
+  - wrapper functions that forward to `print(...)` / formatting
+
+Recommended staged design:
+
+1) **Call-site spread/splat for variadic builtins**
+   - Example: `print(xs...)` where `xs` is a `list` of values.
+   - This does not require changing the calling convention for user-defined functions.
+2) **User-defined variadic functions (optional, later)**
+   - Example syntax: `fn f(a, ...rest) { ... }` where `rest` is a `list`.
+   - Requires defining a stable cross-backend calling convention (likely “argc + argv” or “rest list packing”).
