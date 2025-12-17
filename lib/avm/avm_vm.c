@@ -448,6 +448,10 @@ void avm_run(AvmVM* vm) {
                 uint16_t addr = code[vm->pc++];
                 addr |= (uint16_t)code[vm->pc++] << 8;
                 uint8_t argc = code[vm->pc++];
+                if (vm->frame_count >= MAX_FRAMES) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "call stack overflow"));
+                    break;
+                }
                 vm->frames[vm->frame_count].return_pc = vm->pc;
                 vm->frames[vm->frame_count].fp = vm->fp;
                 vm->frame_count++;
@@ -456,13 +460,34 @@ void avm_run(AvmVM* vm) {
                 break;
             }
             case 0x39: { // RET
+                // Function return convention (production/rolling):
+                // - Callee leaves a single return value on the stack.
+                // - RET pops that value, discards the entire callee frame (args+locals+temps),
+                //   then pushes the return value for the caller.
+                //
+                // This matches the verifier model: CALL pops nargs and pushes 1.
+                if (vm->sp <= 0) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on RET"));
+                    break;
+                }
+                AvmValue ret = vm->stack[--vm->sp];
+                int callee_fp = vm->fp;
+
                 vm->frame_count--;
                 if (vm->frame_count < 0) {
+                    // Returning from top-level: keep the return value as the final stack value.
+                    vm->sp = 0;
+                    vm->stack[vm->sp++] = ret;
                     vm->running = 0;
-                } else {
-                    vm->pc = vm->frames[vm->frame_count].return_pc;
-                    vm->fp = vm->frames[vm->frame_count].fp;
+                    break;
                 }
+
+                // Discard callee frame contents and present return value to caller.
+                vm->sp = callee_fp;
+                vm->stack[vm->sp++] = ret;
+
+                vm->pc = vm->frames[vm->frame_count].return_pc;
+                vm->fp = vm->frames[vm->frame_count].fp;
                 break;
             }
             case 0x3A: { // CALL_NATIVE u16 u8 (legacy mapping)

@@ -1,0 +1,26 @@
+// Regression: AVM CALL/RET must restore stack discipline.
+// Without proper RET cleanup, even simple loops of function calls corrupt the stack.
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn inc(x) {
+    return x + 1
+}
+
+fn main() {
+    var i = 0
+    var x = 0
+    while i < 10000 {
+        x = inc(x)
+        i = i + 1
+    }
+    if x != 10000 { fail() }
+    print("avm call/ret stack discipline OK")
+}
+
+main()

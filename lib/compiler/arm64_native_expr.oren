@@ -18,6 +18,48 @@ fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
 fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
 
+fn trim_trailing_underscores(s) {
+    var end = oren_string_len(s)
+    while end > 0 {
+        if oren_string_char_at(s, end - 1) != "_" { break }
+        end = end - 1
+    }
+    return oren_string_slice(s, 0, end)
+}
+
+// Resolve module/type namespace paths (import aliases + type namespaces) into
+// flattened symbol names, matching the C-backend's `ns_resolve` convention.
+//
+// Examples:
+// - `http.get` => `http_get` (if `http` is an import alias mapping to `http_`)
+// - `math.PI`  => `math_PI`
+// - returns nil if the expression is not a namespace path.
+fn native_ns_resolve(ctx, exp) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        var name = exp["value"]
+        if ctx["aliases"][name] != nil { return {"name": ctx["aliases"][name], "is_ns": true} }
+        if ctx["type_ns"] != nil {
+            if ctx["type_ns"][name] == true { return {"name": name, "is_ns": true} }
+        }
+        return nil
+    }
+    if et == "Member" {
+        var left = native_ns_resolve(ctx, exp["left"])
+        if left == nil { return nil }
+        if left["is_ns"] != true { return nil }
+        var base = trim_trailing_underscores(left["name"])
+        var name2 = base + "_" + exp["prop"]["value"]
+        var is_ns2 = false
+        if ctx["type_ns"] != nil {
+            if ctx["type_ns"][name2] == true { is_ns2 = true }
+        }
+        return {"name": name2, "is_ns": is_ns2}
+    }
+    return nil
+}
+
 fn insn_ret() { return core.insn_ret() }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
@@ -978,6 +1020,15 @@ fn native_compile_expr(ctx, expr) {
     }
     
     if expr["type"] == "Member" {
+        var nsr = native_ns_resolve(ctx, expr)
+        if nsr != nil {
+            if nsr["is_ns"] == true {
+                print("native backend: cannot use namespace '" + nsr["name"] + "' as value")
+                return nil
+            }
+            return native_compile_expr(ctx, {"type": "Identifier", "value": nsr["name"]})
+        }
+
         var prop_name = expr["prop"]["value"]
         var off_idx = ctx["field_offsets"][prop_name]
         if off_idx != nil {
@@ -1060,6 +1111,18 @@ fn native_compile_expr(ctx, expr) {
         if fn_expr == nil {
             print("native backend: call with nil callee")
             oren_exit(1)
+        }
+
+        // Fast-path module namespace calls: `mod.fn(args...)` where `mod` is an import alias.
+        if fn_expr["type"] == "Member" {
+            var nsr2 = native_ns_resolve(ctx, fn_expr)
+            if nsr2 != nil {
+                if nsr2["is_ns"] == true {
+                    print("native backend: cannot call namespace '" + nsr2["name"] + "'")
+                    oren_exit(1)
+                }
+                fn_expr = {"type": "Identifier", "value": nsr2["name"]}
+            }
         }
 
         // Indirect call path: callee is an expression (or a variable) that evaluates to a callable object.

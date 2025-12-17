@@ -1,0 +1,14 @@
+// Minimal HTTP stdlib (native backend, rolling).
+//
+// This is intentionally small:
+// - No TLS
+// - No DNS
+// - No chunked decoding
+//
+// The goal is to provide a stable module path for native Oren libraries to build on,
+// while the syscall-first NET substrate evolves.
+
+fn get(url) {
+    return oren_net_get(url)
+}
+

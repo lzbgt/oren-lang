@@ -265,6 +265,32 @@ Focus statement (to avoid roadmap thrash):
    - Next (design; no rewrite path):
      - introduce a persistent “update” form for structs (e.g. `p2 = p with { x=..., y=... }` or `p2 = Point(p.x, newy)`), after traits/enums stabilize.
 
+15) **AVM call stack discipline (CALL/RET must not leak stack)**
+   - Production-blocking correctness: without proper stack restoration on `RET`, even trivial function calls corrupt stack state and can grow without bound.
+   - Contract (rolling):
+     - `CALL addr,nargs` consumes `nargs` arguments and (on return) leaves **exactly one** value on the caller stack.
+     - `RET` discards the entire callee frame (args/locals/temps) and pushes the return value for the caller.
+   - Status: implemented in the AVM interpreter (`lib/avm/avm_vm.c`) with a regression `tests/avm/test_call_stack_discipline.oren`.
+
+16) **Test suite scalability (reduce redundant compiles; keep coverage)**
+   - Problem: `make test` compiles+links each `.oren` file separately; many “atomic” tests overlap and some are implicitly covered by more complex ones.
+   - Goal: keep iteration velocity high while preserving correctness coverage.
+   - Approach (rolling):
+     - keep “atomic” tests as files (debuggable, bisect-friendly)
+     - add “suite” tests that cover a whole domain in one binary (NET, TIME, PROC/ENV, etc.)
+     - run a curated list by default (`make test`), and keep an escape hatch to run everything (`make test-native-all`)
+   - Status:
+     - added `tests/native/test_net_suite.oren` (TCP loopback + send/recv intrinsics + sockname/peername + HTTP GET loopback)
+     - added `tests/native/test_time_suite.oren` (sleep + unix time + monotonic raw)
+     - `make test` now runs a curated native list; `make test-native-all` runs the full glob.
+     - `make test` now runs a curated AVM list (see `AVM_TESTS` in `Makefile`); override with `make test AVM_TESTS="tests/avm/*.oren"` for full AVM coverage.
+
+17) **Native stdlib modules (syscall-first; no libc)**
+   - Goal: “real code” in `.oren` should import stable modules instead of calling raw `oren_*` helpers directly.
+   - Status (rolling, macOS-first):
+     - added `lib/std/net/http.oren` with `http.get(url)` backed by `oren_net_get(url)`
+     - native backend now supports module namespace resolution for expressions and calls (e.g. `http.get(...)`), matching the C-backend `ns_resolve` flattening convention.
+
 ## P1 (High Leverage for Agentic Debugging / Swarm)
 
 1) **AVM deterministic cooperative tasks (concurrency model; mandatory for agents)**

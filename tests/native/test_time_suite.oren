@@ -1,0 +1,36 @@
+fn fail(code) {
+    print("time suite: FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn test_sleep_ms() {
+    // Minimal TIME substrate smoke test (syscall-first).
+    // We don't assert wall-clock accuracy; only that it returns and doesn't hang.
+    var r = oren_sleep_ms(1)
+    if r < 0 { fail(900) }
+}
+
+fn test_time_unix() {
+    // TIME: wall/unix time should be available without libc.
+    var t = oren_time_unix_ns()
+    if t <= 0 { fail(901) }
+}
+
+fn test_time_mono_raw() {
+    // TIME: monotonic raw must not go backwards.
+    var a = oren_time_mono_raw()
+    oren_sleep_ms(1)
+    var b = oren_time_mono_raw()
+    if b < a { fail(902) }
+}
+
+fn main() {
+    test_sleep_ms()
+    test_time_unix()
+    test_time_mono_raw()
+    print("time suite: OK")
+    exit(0)
+}
+
+main()
+

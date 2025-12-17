@@ -66,8 +66,8 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 | 0x20 | PRINT | - | `[val] -> []` | Print top value to stdout. |
 | 0x30 | JMP | `i16_off` | - | Unconditional jump. |
 | 0x31 | JMP_IF | `i16_off` | `[cond] -> []` | Jump if truthy. |
-| 0x38 | CALL | `u16_addr`, `u8_nargs` | `[args] -> []` | Call function. |
-| 0x39 | RET | - | `[ret] -> []` | Return from function. |
+| 0x38 | CALL | `u16_addr`, `u8_nargs` | `[args] -> [ret]` | Call function (returns one value). |
+| 0x39 | RET | - | `[ret] -> []` | Return from function (pops callee return value and resumes caller). |
 | 0x3A | CALL_NATIVE | `u16_id`, `u8_nargs` | `[args] -> [ret]` | Call host function. |
 | 0x3B | CALL_NATIVE2 | `u8_domain`, `u16_op`, `u8_nargs` | `[args] -> [ret]` | Call host function within a capability domain (rolling ABI). |
 | 0x40 | NEW_LIST | `u16_count` | `[v1..vn] -> [list]` | Create list from n items. |

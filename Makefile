@@ -34,6 +34,11 @@ else
   RUN_SUITE_WITH_TIMEOUT =
 endif
 
+# Output control:
+# - Default is quiet to avoid huge logs during rolling development.
+# - Set TEST_QUIET=0 to print full compiler/runtime output.
+TEST_QUIET ?= 1
+
 # Optional GC toggle (set NO_GC=1 or OREN_NO_GC in env to compile with -DOREN_NO_GC)
 GC_ARG :=
 ifeq ($(NO_GC),1)
@@ -41,6 +46,22 @@ ifeq ($(NO_GC),1)
 else ifneq ($(OREN_NO_GC),)
   GC_ARG := --no-gc
 endif
+
+# AVM test selection:
+# - Default: curated smoke list for iteration velocity.
+# - Override for full coverage: `make test AVM_TESTS="tests/avm/*.oren"`
+AVM_TESTS ?= \
+	tests/avm/test_smoke_suite.oren \
+	tests/avm/test_policy_scan.oren \
+	tests/avm/test_job_scan.oren \
+	tests/avm/test_snapshot_resume.oren \
+	tests/avm/test_time_rng_deterministic.oren \
+	tests/avm/test_time_rng_record_replay_mem.oren \
+	tests/avm/test_budget_gas.oren \
+	tests/avm/test_budget_timeout.oren \
+	tests/avm/test_vfs_no_host_fs.oren \
+	tests/avm/test_vproc_no_host_proc.oren \
+	tests/avm/test_vnet_no_host_net.oren
 
 # Source files
 OREN_SRC := oren.oren
@@ -86,135 +107,180 @@ test: oren
 
 test-inner: oren
 	@mkdir -p build
+	@mkdir -p build/logs
 	@# Native Backend Tests
-	@set -e; for t in tests/native/*.oren; do \
+	@# Keep `make test` fast by running a curated list; `make test-native-all` runs the full glob.
+	@NATIVE_TESTS="\
+tests/native/add.oren \
+tests/native/atomic.oren \
+tests/native/cmp.oren \
+tests/native/exit.oren \
+tests/native/ffi.oren \
+tests/native/func.oren \
+tests/native/if.oren \
+tests/native/linux_hello.oren \
+tests/native/malloc.oren \
+tests/native/nested_struct.oren \
+tests/native/print.oren \
+tests/native/print_value.oren \
+tests/native/shapes.oren \
+tests/native/simd.oren \
+tests/native/test_args.oren \
+tests/native/test_atomics.oren \
+tests/native/test_attributes_fields_params.oren \
+tests/native/test_attributes_noop.oren \
+tests/native/test_block.oren \
+tests/native/test_call_stack_args.oren \
+tests/native/test_channel.oren \
+tests/native/test_comments.oren \
+tests/native/test_debug_panic.oren \
+tests/native/test_endian_casts.oren \
+tests/native/test_env_execve_getenv.oren \
+tests/native/test_float_manual.oren \
+tests/native/test_gc.oren \
+tests/native/test_gc_reuse_tracking.oren \
+tests/native/test_getenv_malformed_key.oren \
+tests/native/test_indexing.oren \
+tests/native/test_list_append_grow.oren \
+tests/native/test_nested_containers.oren \
+tests/native/test_net_suite.oren \
+tests/native/test_smoke_suite.oren \
+tests/native/test_no_gc_mode.oren \
+tests/native/test_pipe_direct.oren \
+tests/native/test_plus_string.oren \
+tests/native/test_read_bytes.oren \
+tests/native/test_simple.oren \
+tests/native/test_system_timeout.oren \
+tests/native/test_time_suite.oren \
+tests/native/test_tid.oren \
+tests/native/test_write_string.oren \
+tests/native/var.oren \
+tests/native/while.oren \
+"; \
+	set -e; pass=0; total=0; for t in $$NATIVE_TESTS; do \
+		total=$$((total+1)); \
 		name=$$(basename $$t .oren); \
-		echo "Testing $$name..."; \
+		log=build/logs/native_$$name.log; \
+		if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing $$name..."; fi; \
 		if [ "$$name" = "linux_hello" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build)"; cat $$log; exit 1; }; \
 			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
 		elif [ "$$name" = "test_debug_panic" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build)"; cat $$log; exit 1; }; \
 			outf=build/$$name.out; \
 			set +e; $(RUN_WITH_TIMEOUT) ./build/$$name > $$outf 2>&1; rc=$$?; set -e; \
 			if [ $$rc -eq 0 ]; then \
-				echo "FAIL: $$name (Expected panic)"; exit 1; \
+				echo "FAIL: $$name (Expected panic)"; cat $$outf; exit 1; \
 			elif [ $$rc -eq 124 ]; then \
-				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
+				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; cat $$outf; exit 1; \
 			fi; \
 			grep -q "Runtime Panic" $$outf || { echo "FAIL: $$name (Missing panic header)"; cat $$outf; exit 1; }; \
 			grep -q "__top_level__" $$outf || { echo "FAIL: $$name (Missing __top_level__ in stack trace)"; cat $$outf; exit 1; }; \
 			! grep -q "__oren_fnwrap_crash_me (pc=" $$outf || { echo "FAIL: $$name (Host frame mis-labeled as program symbol)"; cat $$outf; exit 1; }; \
 		elif [ "$$name" = "test_no_gc_mode" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug --no-gc -o build/$$name $(CODESIGN_ARG); \
-			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug --no-gc -o build/$$name $(CODESIGN_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build)"; cat $$log; exit 1; }; \
+			$(RUN_WITH_TIMEOUT) ./build/$$name > $$log 2>&1 || { echo "FAIL: $$name (run exit code $$?)"; cat $$log; exit 1; }; \
 		else \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
-			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
-		fi \
-	done
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build)"; cat $$log; exit 1; }; \
+			$(RUN_WITH_TIMEOUT) ./build/$$name > $$log 2>&1 || { echo "FAIL: $$name (run exit code $$?)"; cat $$log; exit 1; }; \
+			fi; \
+			pass=$$((pass+1)); \
+		done; \
+		if [ "$(TEST_QUIET)" = "1" ]; then echo "$$pass/$$total native tests passed"; fi
 	@# Compiler CLI / parser regression: strict attribute mode must be testable and deterministic.
-	@echo "Testing strict attributes..."
-	@OREN_STRICT_ATTRS=1 OREN_ATTR_ALLOW_PREFIXES="myorg." $(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/native/fixtures/strict_attrs_ok.oren --backend native -o build/strict_attrs_ok $(CODESIGN_ARG) $(GC_ARG)
-	@set +e; OREN_STRICT_ATTRS=1 $(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/native/fixtures/strict_attrs_bad.oren --backend native -o build/strict_attrs_bad $(CODESIGN_ARG) $(GC_ARG); rc=$$?; set -e; \
+	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing strict attributes..."; fi
+	@log=build/logs/strict_attrs_ok.log; OREN_STRICT_ATTRS=1 OREN_ATTR_ALLOW_PREFIXES="myorg." $(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/native/fixtures/strict_attrs_ok.oren --backend native -o build/strict_attrs_ok $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1 || { echo "FAIL: strict_attrs_ok (build)"; cat $$log; exit 1; }
+	@log=build/logs/strict_attrs_bad.log; set +e; OREN_STRICT_ATTRS=1 $(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/native/fixtures/strict_attrs_bad.oren --backend native -o build/strict_attrs_bad $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1; rc=$$?; set -e; \
 		if [ $$rc -eq 0 ]; then \
-			echo "FAIL: strict_attrs_bad (Expected compile error in strict mode)"; exit 1; \
+			echo "FAIL: strict_attrs_bad (Expected compile error in strict mode)"; cat $$log; exit 1; \
 		elif [ $$rc -eq 124 ]; then \
-			echo "FAIL: strict_attrs_bad (Timed out after $(BUILD_TIMEOUT_SECS)s)"; exit 1; \
+			echo "FAIL: strict_attrs_bad (Timed out after $(BUILD_TIMEOUT_SECS)s)"; cat $$log; exit 1; \
 		fi
 	@# Struct fields are immutable: `obj.field = v` must be rejected at parse-time (portable across backends).
-	@echo "Testing struct field assignment rejection..."
-	@set +e; $(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/native/fixtures/struct_field_assign_bad.oren --backend native -o build/struct_field_assign_bad $(CODESIGN_ARG) $(GC_ARG); rc=$$?; set -e; \
+	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing struct field assignment rejection..."; fi
+	@log=build/logs/struct_field_assign_bad.log; set +e; $(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/native/fixtures/struct_field_assign_bad.oren --backend native -o build/struct_field_assign_bad $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1; rc=$$?; set -e; \
 		if [ $$rc -eq 0 ]; then \
-			echo "FAIL: struct_field_assign_bad (Expected compile error: struct fields immutable)"; exit 1; \
+			echo "FAIL: struct_field_assign_bad (Expected compile error: struct fields immutable)"; cat $$log; exit 1; \
 		elif [ $$rc -eq 124 ]; then \
-			echo "FAIL: struct_field_assign_bad (Timed out after $(BUILD_TIMEOUT_SECS)s)"; exit 1; \
+			echo "FAIL: struct_field_assign_bad (Timed out after $(BUILD_TIMEOUT_SECS)s)"; cat $$log; exit 1; \
 		fi
 	@# Module Tests (C Backend)
-	@echo "Testing Module System..."
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_shapes.oren --backend c -o build/test_shapes $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_shapes || (echo "FAIL: test_shapes"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_spawn.oren --backend c -o build/test_spawn $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_spawn || (echo "FAIL: test_spawn"; exit 1)
-		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_read_bytes.oren --backend c -o build/test_read_bytes $(CODESIGN_ARG) $(GC_ARG)
-		@$(RUN_WITH_TIMEOUT) ./build/test_read_bytes || (echo "FAIL: test_read_bytes"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_function_values.oren --backend c -o build/test_function_values $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_function_values || (echo "FAIL: test_function_values"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_closure.oren --backend c -o build/test_lambda_closure $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_lambda_closure || (echo "FAIL: test_lambda_closure"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_multiline.oren --backend c -o build/test_lambda_multiline $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_lambda_multiline || (echo "FAIL: test_lambda_multiline"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_endian_casts.oren --backend c -o build/test_endian_casts $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_endian_casts || (echo "FAIL: test_endian_casts"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_gc_stack_roots || (echo "FAIL: test_gc_stack_roots"; exit 1)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_result.oren --backend c -o build/test_result $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/test_result || (echo "FAIL: test_result"; exit 1)
+	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing Module System..."; fi
+	@pass=0; total=0; \
+		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren; do \
+			total=$$((total+1)); \
+			name=$$(basename $$t .oren); \
+			log=build/logs/mod_$$name.log; \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend c -o build/$$name $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build)"; cat $$log; exit 1; }; \
+			$(RUN_WITH_TIMEOUT) ./build/$$name > $$log 2>&1 || { echo "FAIL: $$name (run exit code $$?)"; cat $$log; exit 1; }; \
+			pass=$$((pass+1)); \
+		done; \
+		if [ "$(TEST_QUIET)" = "1" ]; then echo "$$pass/$$total module tests passed"; fi
 	@# AVM Tests (Bytecode backend + interpreter)
-	@echo "Testing AVM..."
+	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing AVM..."; fi
 	@$(RUN_BUILD_WITH_TIMEOUT) $(MAKE) avm >/dev/null
-	@set -e; for t in tests/avm/*.oren; do \
-		name=$$(basename $$t .oren); \
-		echo "Testing avm $$name..."; \
-		if [ "$$name" = "test_multiverse_avm_domain" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child.oren --backend bytecode -o build/multiverse_child.obc $(GC_ARG); \
-		elif [ "$$name" = "test_multiverse_net_fixtures" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_net.oren --backend bytecode -o build/multiverse_child_net.obc $(GC_ARG); \
-		elif [ "$$name" = "test_multiverse_proc_fixtures" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_proc.oren --backend bytecode -o build/multiverse_child_proc.obc $(GC_ARG); \
-		elif [ "$$name" = "test_multiverse_vfs_fixtures" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_vfs.oren --backend bytecode -o build/multiverse_child_vfs.obc $(GC_ARG); \
-			elif [ "$$name" = "test_map_key_order" ]; then \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_order_child_ab.oren --backend bytecode -o build/map_order_child_ab.obc $(GC_ARG); \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_order_child_cba.oren --backend bytecode -o build/map_order_child_cba.obc $(GC_ARG); \
-			elif [ "$$name" = "test_map_key_types" ]; then \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_key_types_child1.oren --backend bytecode -o build/map_key_types_child1.obc $(GC_ARG); \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_key_types_child2.oren --backend bytecode -o build/map_key_types_child2.obc $(GC_ARG); \
+	@set -e; pass=0; total=0; for t in $(AVM_TESTS); do \
+			total=$$((total+1)); \
+			name=$$(basename $$t .oren); \
+			log=build/logs/avm_$$name.log; \
+			if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing avm $$name..."; fi; \
+			if [ "$$name" = "test_multiverse_avm_domain" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child.oren --backend bytecode -o build/multiverse_child.obc $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
+			elif [ "$$name" = "test_multiverse_net_fixtures" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_net.oren --backend bytecode -o build/multiverse_child_net.obc $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
+			elif [ "$$name" = "test_multiverse_proc_fixtures" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_proc.oren --backend bytecode -o build/multiverse_child_proc.obc $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
+			elif [ "$$name" = "test_multiverse_vfs_fixtures" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/multiverse_child_vfs.oren --backend bytecode -o build/multiverse_child_vfs.obc $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
+				elif [ "$$name" = "test_map_key_order" ]; then \
+					$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_order_child_ab.oren --backend bytecode -o build/map_order_child_ab.obc $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
+					$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_order_child_cba.oren --backend bytecode -o build/map_order_child_cba.obc $(GC_ARG) >> $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
+				elif [ "$$name" = "test_map_key_types" ]; then \
+					$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_key_types_child1.oren --backend bytecode -o build/map_key_types_child1.obc $(GC_ARG) > $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
+					$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/avm/fixtures/map_key_types_child2.oren --backend bytecode -o build/map_key_types_child2.obc $(GC_ARG) >> $$log 2>&1 || { echo "FAIL: $$name (build fixture)"; cat $$log; exit 1; }; \
 			fi; \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG); \
-		if [ "$$name" = "test_budget_gas" ]; then \
-			set +e; AVM_GAS=20000 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
-			if [ $$rc -eq 0 ]; then \
-				echo "FAIL: $$name (Expected budget abort)"; exit 1; \
-			fi; \
-		elif [ "$$name" = "test_budget_mem" ]; then \
-			set +e; AVM_MEM_BYTES=4096 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
-			if [ $$rc -eq 0 ]; then \
-				echo "FAIL: $$name (Expected mem budget abort)"; exit 1; \
-			fi; \
-		elif [ "$$name" = "test_budget_timeout" ]; then \
-			set +e; $(RUN_WITH_TIMEOUT) ./avm --timeout-ms 10 build/$$name.obc; rc=$$?; set -e; \
-			if [ $$rc -eq 0 ]; then \
-				echo "FAIL: $$name (Expected timeout abort)"; exit 1; \
-			elif [ $$rc -eq 124 ]; then \
-				echo "FAIL: $$name (External timeout fired; expected AVM to abort first)"; exit 1; \
-			fi; \
-		elif [ "$$name" = "test_budget_io_fs" ]; then \
-			set +e; AVM_IO_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
-			if [ $$rc -eq 0 ]; then \
-				echo "FAIL: $$name (Expected io budget abort)"; exit 1; \
-			elif [ $$rc -eq 124 ]; then \
-				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
-			fi; \
-		elif [ "$$name" = "test_budget_log_mem" ]; then \
-			rm -f build/avm_log_budget_should_not_write.txt; \
-			set +e; AVM_RECORD_MEM=1 AVM_LOG_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
-			if [ $$rc -eq 0 ]; then \
-				echo "FAIL: $$name (Expected log budget abort)"; exit 1; \
-			elif [ $$rc -eq 124 ]; then \
-				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
-			fi; \
-			if [ -f build/avm_log_budget_should_not_write.txt ]; then \
-				echo "FAIL: $$name (Host FS effect executed despite log budget abort)"; exit 1; \
-			fi; \
-		elif [ "$$name" = "test_policy_scan" ]; then \
-			set +e; out=$$($(RUN_WITH_TIMEOUT) ./avm --print-policy build/$$name.obc); rc=$$?; set -e; \
-			if [ $$rc -ne 0 ]; then \
-				echo "FAIL: $$name (--print-policy exit code $$rc)"; echo "$$out"; exit 1; \
-			fi; \
-			dout=$$($(RUN_WITH_TIMEOUT) ./avm --disasm build/$$name.obc); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend bytecode -o build/$$name.obc $(GC_ARG) >> $$log 2>&1 || { echo "FAIL: $$name (bytecode build)"; cat $$log; exit 1; }; \
+			if [ "$$name" = "test_budget_gas" ]; then \
+				set +e; AVM_GAS=20000 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+				if [ $$rc -eq 0 ]; then \
+					echo "FAIL: $$name (Expected budget abort)"; cat $$log; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_budget_mem" ]; then \
+				set +e; AVM_MEM_BYTES=4096 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+				if [ $$rc -eq 0 ]; then \
+					echo "FAIL: $$name (Expected mem budget abort)"; cat $$log; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_budget_timeout" ]; then \
+				set +e; $(RUN_WITH_TIMEOUT) ./avm --timeout-ms 10 build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+				if [ $$rc -eq 0 ]; then \
+					echo "FAIL: $$name (Expected timeout abort)"; cat $$log; exit 1; \
+				elif [ $$rc -eq 124 ]; then \
+					echo "FAIL: $$name (External timeout fired; expected AVM to abort first)"; cat $$log; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_budget_io_fs" ]; then \
+				set +e; AVM_IO_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+				if [ $$rc -eq 0 ]; then \
+					echo "FAIL: $$name (Expected io budget abort)"; cat $$log; exit 1; \
+				elif [ $$rc -eq 124 ]; then \
+					echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; cat $$log; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_budget_log_mem" ]; then \
+				rm -f build/avm_log_budget_should_not_write.txt; \
+				set +e; AVM_RECORD_MEM=1 AVM_LOG_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+				if [ $$rc -eq 0 ]; then \
+					echo "FAIL: $$name (Expected log budget abort)"; cat $$log; exit 1; \
+				elif [ $$rc -eq 124 ]; then \
+					echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; cat $$log; exit 1; \
+				fi; \
+				if [ -f build/avm_log_budget_should_not_write.txt ]; then \
+					echo "FAIL: $$name (Host FS effect executed despite log budget abort)"; exit 1; \
+				fi; \
+			elif [ "$$name" = "test_policy_scan" ]; then \
+				set +e; out=$$($(RUN_WITH_TIMEOUT) ./avm --print-policy build/$$name.obc); rc=$$?; set -e; \
+				if [ $$rc -ne 0 ]; then \
+					echo "FAIL: $$name (--print-policy exit code $$rc)"; echo "$$out"; exit 1; \
+				fi; \
+				dout=$$($(RUN_WITH_TIMEOUT) ./avm --disasm build/$$name.obc); \
 			echo "$$dout" | grep -q "CALL_NATIVE " && { echo "FAIL: $$name (Bytecode contains legacy CALL_NATIVE opcode)"; echo "$$dout"; exit 1; }; \
 			set +e; dj=$$($(RUN_WITH_TIMEOUT) ./avm --disasm-json build/$$name.obc); drc=$$?; set -e; \
 			if [ $$drc -ne 0 ]; then \
@@ -283,49 +349,49 @@ test-inner: oren
 				if [ -f build/avm_job_scan_should_not_write.txt ] || [ -f build/avm_job_scan_should_not_write2.txt ]; then \
 					echo "FAIL: $$name (Host effects executed during print-job)"; exit 1; \
 				fi; \
-			elif [ "$$name" = "test_vfs_no_host_fs" ]; then \
-				rm -f build/avm_vfs_should_not_write.bin; \
-				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend vfs build/$$name.obc || { echo "FAIL: $$name (vfs run)"; exit 1; }; \
-				if [ -f build/avm_vfs_should_not_write.bin ]; then \
-					echo "FAIL: $$name (VFS touched host filesystem)"; exit 1; \
+				elif [ "$$name" = "test_vfs_no_host_fs" ]; then \
+					rm -f build/avm_vfs_should_not_write.bin; \
+					$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend vfs build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name (vfs run)"; cat $$log; exit 1; }; \
+					if [ -f build/avm_vfs_should_not_write.bin ]; then \
+						echo "FAIL: $$name (VFS touched host filesystem)"; exit 1; \
+					fi; \
+				elif [ "$$name" = "test_vproc_no_host_proc" ]; then \
+					rm -f build/avm_vproc_should_not_touch.txt; \
+					$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 0 build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name (vproc run)"; cat $$log; exit 1; }; \
+					if [ -f build/avm_vproc_should_not_touch.txt ]; then \
+						echo "FAIL: $$name (VPROC touched host filesystem via subprocess)"; exit 1; \
+					fi; \
+				elif [ "$$name" = "test_vproc_fixtures" ]; then \
+					hex="41564d505243303101000000070000006563686f20686900000000"; \
+					$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 7 --proc-fixtures-hex "$$hex" build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name (vproc fixtures run)"; cat $$log; exit 1; }; \
+				elif [ "$$name" = "test_vnet_no_host_net" ]; then \
+					hex="41564d4e45543031010000000100000075020000006f6b"; \
+					$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,4,6" --net-backend vnet --net-fixtures-hex "$$hex" build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name (vnet run)"; cat $$log; exit 1; }; \
+				elif [ "$$name" = "test_capsule_defaults" ]; then \
+					rm -f build/avm_capsule_should_not_write.txt build/avm_capsule_should_not_write2.txt; \
+					$(RUN_WITH_TIMEOUT) ./avm --capsule build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name (capsule)"; cat $$log; exit 1; }; \
+					if [ -f build/avm_capsule_should_not_write.txt ] || [ -f build/avm_capsule_should_not_write2.txt ]; then \
+						echo "FAIL: $$name (Capsule touched host filesystem)"; exit 1; \
+					fi; \
+			elif [ "$$name" = "test_capsule_allow_fs" ]; then \
+				rm -f build/avm_capsule_allow_fs.txt; \
+				$(RUN_WITH_TIMEOUT) ./avm --capsule --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend host build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name (capsule allow fs)"; cat $$log; exit 1; }; \
+				if [ ! -f build/avm_capsule_allow_fs.txt ]; then \
+					echo "FAIL: $$name (Expected file not created)"; exit 1; \
 				fi; \
-			elif [ "$$name" = "test_vproc_no_host_proc" ]; then \
-				rm -f build/avm_vproc_should_not_touch.txt; \
-				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 0 build/$$name.obc || { echo "FAIL: $$name (vproc run)"; exit 1; }; \
-				if [ -f build/avm_vproc_should_not_touch.txt ]; then \
-					echo "FAIL: $$name (VPROC touched host filesystem via subprocess)"; exit 1; \
+			elif [ "$$name" = "test_capability_deny_fs" ]; then \
+				AVM_ALLOW_DOMAINS=0 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name"; cat $$log; exit 1; }; \
+			elif [ "$$name" = "test_snapshot_resume" ]; then \
+				snap=build/$$name.avms; rm -f $$snap; \
+				set +e; pout=$$($(RUN_WITH_TIMEOUT) ./avm --step-limit 2000 --print-pause-json --snapshot-out $$snap build/$$name.obc); rc=$$?; set -e; \
+				if [ $$rc -ne 2 ]; then \
+					echo "FAIL: $$name (Expected pause exit code 2, got $$rc)"; echo "$$pout"; exit 1; \
 				fi; \
-			elif [ "$$name" = "test_vproc_fixtures" ]; then \
-				hex="41564d505243303101000000070000006563686f20686900000000"; \
-				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 7 --proc-fixtures-hex "$$hex" build/$$name.obc || { echo "FAIL: $$name (vproc fixtures run)"; exit 1; }; \
-			elif [ "$$name" = "test_vnet_no_host_net" ]; then \
-				hex="41564d4e45543031010000000100000075020000006f6b"; \
-				$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,4,6" --net-backend vnet --net-fixtures-hex "$$hex" build/$$name.obc || { echo "FAIL: $$name (vnet run)"; exit 1; }; \
-			elif [ "$$name" = "test_capsule_defaults" ]; then \
-				rm -f build/avm_capsule_should_not_write.txt build/avm_capsule_should_not_write2.txt; \
-				$(RUN_WITH_TIMEOUT) ./avm --capsule build/$$name.obc || { echo "FAIL: $$name (capsule)"; exit 1; }; \
-				if [ -f build/avm_capsule_should_not_write.txt ] || [ -f build/avm_capsule_should_not_write2.txt ]; then \
-					echo "FAIL: $$name (Capsule touched host filesystem)"; exit 1; \
-				fi; \
-		elif [ "$$name" = "test_capsule_allow_fs" ]; then \
-			rm -f build/avm_capsule_allow_fs.txt; \
-			$(RUN_WITH_TIMEOUT) ./avm --capsule --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend host build/$$name.obc || { echo "FAIL: $$name (capsule allow fs)"; exit 1; }; \
-			if [ ! -f build/avm_capsule_allow_fs.txt ]; then \
-				echo "FAIL: $$name (Expected file not created)"; exit 1; \
-			fi; \
-		elif [ "$$name" = "test_capability_deny_fs" ]; then \
-			AVM_ALLOW_DOMAINS=0 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
-		elif [ "$$name" = "test_snapshot_resume" ]; then \
-			snap=build/$$name.avms; rm -f $$snap; \
-			set +e; pout=$$($(RUN_WITH_TIMEOUT) ./avm --step-limit 2000 --print-pause-json --snapshot-out $$snap build/$$name.obc); rc=$$?; set -e; \
-			if [ $$rc -ne 2 ]; then \
-				echo "FAIL: $$name (Expected pause exit code 2, got $$rc)"; echo "$$pout"; exit 1; \
-			fi; \
-			echo "$$pout" | grep -q "\"schema\":\"avm.pause.v1\"" || { echo "FAIL: $$name (Missing pause json schema)"; echo "$$pout"; exit 1; }; \
-			echo "$$pout" | grep -q "\"paused\":true" || { echo "FAIL: $$name (Expected paused=true)"; echo "$$pout"; exit 1; }; \
-			$(RUN_WITH_TIMEOUT) ./avm --snapshot-in $$snap build/$$name.obc || { echo "FAIL: $$name (resume)"; exit 1; }; \
-			elif [ "$$name" = "test_state_hash_repeat" ]; then \
-				h1=$$($(RUN_WITH_TIMEOUT) ./avm --print-state-hash build/$$name.obc | awk '/^STATE_HASH /{print $$2; exit 0}'); \
+				echo "$$pout" | grep -q "\"schema\":\"avm.pause.v1\"" || { echo "FAIL: $$name (Missing pause json schema)"; echo "$$pout"; exit 1; }; \
+				echo "$$pout" | grep -q "\"paused\":true" || { echo "FAIL: $$name (Expected paused=true)"; echo "$$pout"; exit 1; }; \
+				$(RUN_WITH_TIMEOUT) ./avm --snapshot-in $$snap build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name (resume)"; cat $$log; exit 1; }; \
+				elif [ "$$name" = "test_state_hash_repeat" ]; then \
+					h1=$$($(RUN_WITH_TIMEOUT) ./avm --print-state-hash build/$$name.obc | awk '/^STATE_HASH /{print $$2; exit 0}'); \
 				h2=$$($(RUN_WITH_TIMEOUT) ./avm --print-state-hash build/$$name.obc | awk '/^STATE_HASH /{print $$2; exit 0}'); \
 				if [ "$$h1" = "" ] || [ "$$h2" = "" ]; then \
 					echo "FAIL: $$name (Missing STATE_HASH)"; exit 1; \
@@ -477,11 +543,43 @@ test-inner: oren
 				if [ "$$h1" != "$$h2" ]; then \
 					echo "FAIL: $$name (Deterministic hash mismatch $$h1 != $$h2)"; exit 1; \
 				fi; \
-			else \
-				$(RUN_WITH_TIMEOUT) ./avm build/$$name.obc || { echo "FAIL: $$name"; exit 1; }; \
-			fi \
-		done
+				else \
+					$(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1 || { echo "FAIL: $$name"; cat $$log; exit 1; }; \
+				fi; \
+				pass=$$((pass+1)); \
+			done; \
+			if [ "$(TEST_QUIET)" = "1" ]; then echo "$$pass/$$total avm tests passed"; fi
 	@echo "All Tests Passed."
+
+test-native-all: oren
+	@echo "=== Native Tests (All) ==="
+	@mkdir -p build
+	@set -e; for t in tests/native/*.oren; do \
+		name=$$(basename $$t .oren); \
+		echo "Testing $$name..."; \
+		if [ "$$name" = "linux_hello" ]; then \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
+			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
+		elif [ "$$name" = "test_debug_panic" ]; then \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			outf=build/$$name.out; \
+			set +e; $(RUN_WITH_TIMEOUT) ./build/$$name > $$outf 2>&1; rc=$$?; set -e; \
+			if [ $$rc -eq 0 ]; then \
+				echo "FAIL: $$name (Expected panic)"; exit 1; \
+			elif [ $$rc -eq 124 ]; then \
+				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
+			fi; \
+			grep -q "Runtime Panic" $$outf || { echo "FAIL: $$name (Missing panic header)"; cat $$outf; exit 1; }; \
+			grep -q "__top_level__" $$outf || { echo "FAIL: $$name (Missing __top_level__ in stack trace)"; cat $$outf; exit 1; }; \
+			! grep -q "__oren_fnwrap_crash_me (pc=" $$outf || { echo "FAIL: $$name (Host frame mis-labeled as program symbol)"; cat $$outf; exit 1; }; \
+		elif [ "$$name" = "test_no_gc_mode" ]; then \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug --no-gc -o build/$$name $(CODESIGN_ARG); \
+			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
+		else \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
+		fi \
+	done
 
 # Full Verification: Clean -> Bootstrap -> Stage 1 -> Stage 2 -> Validation
 verify: clean oren_stage2

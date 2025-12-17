@@ -601,6 +601,17 @@ Programmer-facing semantics can stay “value-like” (immutable, safe), while t
 - stack placement (fast, no GC pressure) for non-escaping temporaries
 - heap placement (stable lifetime) when the address must outlive the frame
 
+### Copy-on-write (COW) vs compiler optimizations (design note)
+
+Immutability does not imply “always copy”.
+
+Two implementation strategies are compatible with the immutable-handle model:
+
+1) **Always-copy persistent update** (simple baseline): updating a struct/list produces a new object and copies data.
+2) **Compiler AOT copy-elision / uniqueness optimization** (preferred “no rewrite” path): when the compiler can prove a value is not shared/aliased, it may update in place without violating immutability semantics (no other reference can observe the mutation).
+
+A runtime refcount-based COW scheme is possible later, but it is intentionally not the first step in a GC-based runtime because it complicates memory ownership and (eventually) concurrency.
+
 ### Implications for networking and endian casting
 
 For packet parsing, the ideal long-term ergonomics is to avoid allocations entirely:
