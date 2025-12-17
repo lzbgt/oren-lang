@@ -1,4 +1,4 @@
-.PHONY: all clean bootstrap test test-inner verify stage1 stage2 avm examples-test examples-test-inner
+.PHONY: all clean bootstrap test test-inner test-legacy test-legacy-inner verify stage1 stage2 avm examples-test examples-test-inner
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -60,6 +60,7 @@ AVM_TESTS ?= \
 	tests/avm/test_time_rng_record_replay_mem.oren \
 	tests/avm/test_budget_gas.oren \
 	tests/avm/test_budget_timeout.oren \
+	tests/avm/test_call_depth_limit.oren \
 	tests/avm/test_vfs_no_host_fs.oren \
 	tests/avm/test_vproc_no_host_proc.oren \
 	tests/avm/test_vnet_no_host_net.oren \
@@ -107,7 +108,27 @@ test: oren
 		exit $$rc; \
 	}
 
-test-inner: oren
+test-inner: oren avm
+	@# Canonical curated runner lives inside the compiler:
+	@# - timeout-protected
+	@# - failure-only output
+	@# - curated lists are in sync with repo evolution
+	@./oren test --target macos $(GC_ARG)
+
+# Legacy suite: historical Makefile-driven runner.
+# Keep it for “extra coverage” during rolling refactors, but do not make it the default.
+test-legacy: oren avm
+	@echo "=== Running Tests (Legacy Makefile Suite) ==="
+	@# Hard requirement in rolling mode: tests must not be able to hang forever.
+	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
+	@# Global failsafe: wrap the entire suite.
+	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) test-legacy-inner || { \
+		rc=$$?; \
+		if [ $$rc -eq 124 ]; then echo "FAIL: legacy test suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
+		exit $$rc; \
+	}
+
+test-legacy-inner: oren
 	@mkdir -p build
 	@mkdir -p build/logs
 	@# Native Backend Tests
@@ -266,6 +287,13 @@ tests/native/while.oren \
 				set +e; $(RUN_WITH_TIMEOUT) ./avm --timeout-ms 10 build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
 				if [ $$rc -eq 0 ]; then \
 					echo "FAIL: $$name (Expected timeout abort)" >> $$log; failed="$$failed $$name"; continue; \
+				elif [ $$rc -eq 124 ]; then \
+					echo "FAIL: $$name (External timeout fired; expected AVM to abort first)" >> $$log; failed="$$failed $$name"; continue; \
+				fi; \
+			elif [ "$$name" = "test_call_depth_limit" ]; then \
+				set +e; $(RUN_WITH_TIMEOUT) ./avm --call-depth-max 32 build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+				if [ $$rc -eq 0 ]; then \
+					echo "FAIL: $$name (Expected call depth abort)" >> $$log; failed="$$failed $$name"; continue; \
 				elif [ $$rc -eq 124 ]; then \
 					echo "FAIL: $$name (External timeout fired; expected AVM to abort first)" >> $$log; failed="$$failed $$name"; continue; \
 				fi; \

@@ -43,6 +43,7 @@ fn build_avm_cli_spec() {
 
     // Budgets / timeouts
     ap.cmd_option(r, "--timeout-ms", nil, "int", 0, "Wall-time deadline in milliseconds (0 = none)")
+    ap.cmd_option(r, "--call-depth-max", nil, "int", 0, "Max call depth (0 = MAX_FRAMES)")
 
     // Repeat / hashes / logs
     ap.cmd_option(r, "--repeat", nil, "int", 1, "Run program N times (for stability checks)")
@@ -84,7 +85,7 @@ fn build_avm_cli_spec() {
     return p
 }
 
-fn main() {
+fn gen_avm_help() {
     var p = build_avm_cli_spec()
     var lines = ap.render_help_lines(p, nil)
     oren_list_push(lines, "Notes:")
@@ -107,3 +108,5 @@ fn main() {
     print("")
     print("#endif")
 }
+
+gen_avm_help()

@@ -15,13 +15,15 @@ This document explains the current state and the planned evolution.
 
 `make test` is a curated, timeout-protected suite intended for fast iteration:
 
-- compiles and runs a curated list of **native backend** tests
-- compiles and runs curated **C backend module** tests (module system coverage)
-- compiles `.oren` → `.obc`, then runs curated **AVM** tests via `./avm`
+- runs the canonical curated runner: `./oren test`
 - captures per-test logs under `build/logs/`
 - prints **only summaries** on success; prints **details only on failures**
 
 It requires `timeout` (Linux) or `gtimeout` (macOS coreutils).
+
+Legacy behavior (broader Makefile-driven lists) is preserved as:
+
+- `make test-legacy`
 
 ### 2) `./oren test` (repo runner inside the compiler)
 
@@ -93,4 +95,3 @@ This is **not required** for the next milestones. The immediate goal is:
 - syscall-first native backend correctness
 - Oren-native tooling ergonomics
 - deterministic AVM core primitives (snapshot/resume/record-replay)
-

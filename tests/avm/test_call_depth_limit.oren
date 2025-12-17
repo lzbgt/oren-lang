@@ -1,0 +1,12 @@
+fn rec(n) {
+    if n == 0 { return 0 }
+    return rec(n - 1)
+}
+
+// This test is expected to fail (non-zero exit) when run under AVM with a small
+// `--call-depth-max` value. The curated test runner drives it with a low limit.
+rec(1000)
+
+// If the call depth limit is not enforced, we'd reach here (unexpected).
+oren_exit(0)
+

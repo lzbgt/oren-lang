@@ -60,6 +60,16 @@ This repo is in **rolling ABI** mode. This file is intentionally short: it is th
    - Acceptance:
      - `make test` runs repeatedly without monotonic memory growth (spot-check via local tooling).
 
+7) **Deterministic stack overflow guard (AVM call depth)**
+   - Why:
+     - prevents “infinite recursion” from turning into host crashes / UB (especially in multiverse runs)
+     - makes failure mode deterministic and budget-like (governable, testable)
+   - Deliverables:
+     - configurable call depth cap (CLI + env; inherited/overridable for child universes)
+     - regression test that trips the limit quickly (low gas, low wall time)
+   - Acceptance:
+     - curated AVM suite includes a call-depth-limit test that fails deterministically (expected non-zero exit)
+
 ## P1 — High Leverage Toward Final Product
 
 1) **Packed struct views over bytes (network parsing; zero allocation)**

@@ -798,6 +798,7 @@ typedef struct {
     // budgets (effective)
     uint64_t gas;
     uint64_t timeout_ms;
+    uint64_t call_depth_max;
     uint64_t mem_bytes;
     uint64_t io_bytes;
     uint64_t log_bytes;
@@ -918,6 +919,7 @@ static void ctx_hash_sha256_v7(
     // budgets (effective)
     sha_u64_le(&h, ctx ? ctx->gas : 0);
     sha_u64_le(&h, ctx ? ctx->timeout_ms : 0);
+    sha_u64_le(&h, ctx ? ctx->call_depth_max : 0);
     sha_u64_le(&h, ctx ? ctx->mem_bytes : 0);
     sha_u64_le(&h, ctx ? ctx->io_bytes : 0);
     sha_u64_le(&h, ctx ? ctx->log_bytes : 0);
@@ -1601,6 +1603,7 @@ int main(int argc, char** argv) {
     const char* net_backend_cli = NULL;
     const char* net_fixtures_hex_cli = NULL;
     const char* timeout_ms_cli = NULL;
+    const char* call_depth_max_cli = NULL;
     int prog_args_start = -1;
     int prog_argc = 0;
     char** prog_argv = NULL;
@@ -1662,6 +1665,12 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--timeout-ms") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --timeout-ms\n"); return 1; }
             timeout_ms_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--call-depth-max") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --call-depth-max\n"); return 1; }
+            call_depth_max_cli = argv[i + 1];
             i += 2;
             continue;
         }
@@ -2242,6 +2251,7 @@ int main(int argc, char** argv) {
                     // budgets (effective): capsule applies defaults only if env is unset.
                     const char* gas_env = getenv("AVM_GAS");
                     const char* timeout_env = timeout_ms_cli ? timeout_ms_cli : getenv("AVM_TIMEOUT_MS");
+                    const char* depth_env = call_depth_max_cli ? call_depth_max_cli : getenv("AVM_CALL_DEPTH_MAX");
                     const char* mem_env = getenv("AVM_MEM_BYTES");
                     const char* io_env = getenv("AVM_IO_BYTES");
                     const char* log_env = getenv("AVM_LOG_BYTES");
@@ -2249,6 +2259,14 @@ int main(int argc, char** argv) {
 
                     if (gas_env && gas_env[0]) ectx.gas = strtoull(gas_env, NULL, 10);
                     if (timeout_env && timeout_env[0]) ectx.timeout_ms = strtoull(timeout_env, NULL, 10);
+                    // Call depth max is effectively bounded by MAX_FRAMES (fixed storage in AvmVM).
+                    if (depth_env && depth_env[0]) {
+                        uint64_t d = strtoull(depth_env, NULL, 10);
+                        if (d == 0 || d > (uint64_t)MAX_FRAMES) ectx.call_depth_max = (uint64_t)MAX_FRAMES;
+                        else ectx.call_depth_max = d;
+                    } else {
+                        ectx.call_depth_max = (uint64_t)MAX_FRAMES;
+                    }
                     if (mem_env && mem_env[0]) ectx.mem_bytes = strtoull(mem_env, NULL, 10);
                     if (io_env && io_env[0]) ectx.io_bytes = strtoull(io_env, NULL, 10);
                     if (log_env && log_env[0]) ectx.log_bytes = strtoull(log_env, NULL, 10);
@@ -2454,9 +2472,10 @@ int main(int argc, char** argv) {
                             avm_sha256_hex(ectx.net_fixtures_hash, nh);
                             printf(",\"net_fixtures_hash_sha256\":\"%s\"", nh);
                         }
-                        printf(",\"budgets\":{\"gas\":%llu,\"timeout_ms\":%llu,\"mem_bytes\":%llu,\"io_bytes\":%llu,\"log_bytes\":%llu,\"trace_bytes\":%llu}",
+                        printf(",\"budgets\":{\"gas\":%llu,\"timeout_ms\":%llu,\"call_depth_max\":%llu,\"mem_bytes\":%llu,\"io_bytes\":%llu,\"log_bytes\":%llu,\"trace_bytes\":%llu}",
                             (unsigned long long)ectx.gas,
                             (unsigned long long)ectx.timeout_ms,
+                            (unsigned long long)ectx.call_depth_max,
                             (unsigned long long)ectx.mem_bytes,
                             (unsigned long long)ectx.io_bytes,
                             (unsigned long long)ectx.log_bytes,
@@ -2771,6 +2790,7 @@ int main(int argc, char** argv) {
     // - AVM_MEM_BYTES: heap budget for AVM heap objects (0/unset = unlimited)
     // - AVM_IO_BYTES: io budget for FS bytes read/written (0/unset = unlimited)
     // - AVM_LOG_BYTES: record/replay log budget (bytes appended, incl header) (0/unset = unlimited)
+    // - AVM_CALL_DEPTH_MAX: maximum call depth (0/unset = MAX_FRAMES)
     const char* gas_env = getenv("AVM_GAS");
     if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
     const char* timeout_env = timeout_ms_cli ? timeout_ms_cli : getenv("AVM_TIMEOUT_MS");
@@ -2778,6 +2798,17 @@ int main(int argc, char** argv) {
         uint64_t ms = strtoull(timeout_env, NULL, 10);
         uint64_t base = now_ns();
         if (base != 0 && ms > 0) vm->deadline_ns = base + ms * 1000000ull;
+    }
+    const char* depth_env = call_depth_max_cli ? call_depth_max_cli : getenv("AVM_CALL_DEPTH_MAX");
+    if (depth_env && depth_env[0]) {
+        uint64_t d = strtoull(depth_env, NULL, 10);
+        if (d == 0) {
+            vm->frame_limit = (uint32_t)MAX_FRAMES;
+        } else if (d > (uint64_t)MAX_FRAMES) {
+            vm->frame_limit = (uint32_t)MAX_FRAMES;
+        } else {
+            vm->frame_limit = (uint32_t)d;
+        }
     }
     const char* mem_env = getenv("AVM_MEM_BYTES");
     if (mem_env && mem_env[0]) vm->heap_budget_bytes = strtoull(mem_env, NULL, 10);

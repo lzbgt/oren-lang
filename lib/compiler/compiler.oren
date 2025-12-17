@@ -198,6 +198,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/avm/test_time_rng_record_replay_mem.oren",
         "tests/avm/test_budget_gas.oren",
         "tests/avm/test_budget_timeout.oren",
+        "tests/avm/test_call_depth_limit.oren",
         "tests/avm/test_vfs_no_host_fs.oren",
         "tests/avm/test_vproc_no_host_proc.oren",
         "tests/avm/test_vnet_no_host_net.oren",
@@ -372,6 +373,16 @@ fn run_repo_tests(target, no_gc) {
                             run_rc3 = 0
                         }
                     } else {
+                        if name3 == "test_call_depth_limit" {
+                            run_rc3 = normalize_rc(oren_system("sh -c " + shell_quote(timeout_bin + " " + oren_int_to_string(run_timeout) + " ./avm --call-depth-max 32 " + shell_quote(out3) + " > " + shell_quote(log3) + " 2>&1")))
+                            // Expected: AVM exits non-zero due to call depth limit.
+                            // Unexpected: success (0) or external wall-time timeout (124).
+                            if run_rc3 == 0 || run_rc3 == 124 {
+                                run_rc3 = 1
+                            } else {
+                                run_rc3 = 0
+                            }
+                        } else {
                         if name3 == "test_budget_timeout" {
                             run_rc3 = normalize_rc(oren_system("sh -c " + shell_quote(timeout_bin + " " + oren_int_to_string(run_timeout) + " ./avm --timeout-ms 10 " + shell_quote(out3) + " > " + shell_quote(log3) + " 2>&1")))
                             // Expected: AVM exits non-zero due to internal deadline.
@@ -400,6 +411,7 @@ fn run_repo_tests(target, no_gc) {
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }

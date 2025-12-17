@@ -1777,6 +1777,11 @@ int avm_restore(AvmVM* vm, const char* path) {
     vm->sp = (int)sp;
     vm->fp = (int)fp;
     vm->frame_count = (int)frame_count;
+    {
+        uint32_t fl = vm->frame_limit ? vm->frame_limit : (uint32_t)MAX_FRAMES;
+        if (fl > (uint32_t)MAX_FRAMES) fl = (uint32_t)MAX_FRAMES;
+        if (frame_count > fl) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+    }
 
     for (uint32_t i = 0; i < frame_count; i++) {
         uint32_t rpc = read_u32_le(f, &ok);

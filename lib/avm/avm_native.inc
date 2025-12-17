@@ -1602,6 +1602,19 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 if (avm_map_get_key(cfg, "time_step_ns", &v)) child->virtual_step_ns = avm_value_u64(v, child->virtual_step_ns);
                 if (avm_map_get_key(cfg, "rng_seed", &v)) child->rng_state = avm_value_u64(v, child->rng_state);
 
+                // Deterministic safety budget: call depth limit.
+                // If parent is restricted, child must not exceed parent.
+                child->frame_limit = vm ? vm->frame_limit : (uint32_t)MAX_FRAMES;
+                if (avm_map_get_key(cfg, "call_depth_max", &v)) {
+                    uint64_t req = avm_value_u64(v, 0);
+                    uint32_t want = (req == 0 || req > (uint64_t)MAX_FRAMES) ? (uint32_t)MAX_FRAMES : (uint32_t)req;
+                    if (vm && vm->frame_limit > 0 && vm->frame_limit < (uint32_t)MAX_FRAMES && want > vm->frame_limit) {
+                        avm_free(child);
+                        return avm_err_domop(AVM_ERR_BUDGET, "child call_depth_max exceeds parent", domain, op);
+                    }
+                    child->frame_limit = want;
+                }
+
                 // Budgets (rolling): enforce child <= parent when parent is budgeted.
                 if (avm_map_get_key(cfg, "gas_limit", &v)) {
                     uint64_t gl = avm_value_u64(v, 0);

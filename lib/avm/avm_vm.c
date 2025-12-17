@@ -67,6 +67,7 @@ AvmVM* avm_new() {
     vm->fp = 0;
     vm->env = avm_nil();
     vm->frame_count = 0;
+    vm->frame_limit = MAX_FRAMES;
     vm->allowed_native_domains = 0;
     vm->fs_allow_prefixes = NULL;
     vm->fs_allow_prefix_count = 0;
@@ -466,8 +467,10 @@ void avm_run(AvmVM* vm) {
                 uint16_t addr = code[vm->pc++];
                 addr |= (uint16_t)code[vm->pc++] << 8;
                 uint8_t argc = code[vm->pc++];
-                if (vm->frame_count >= MAX_FRAMES) {
-                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "call stack overflow"));
+                uint32_t fl = vm->frame_limit ? vm->frame_limit : (uint32_t)MAX_FRAMES;
+                if (fl > (uint32_t)MAX_FRAMES) fl = (uint32_t)MAX_FRAMES;
+                if (vm->frame_count >= (int)fl) {
+                    avm_abort(vm, avm_err(AVM_ERR_BUDGET, "call stack overflow (depth limit)"));
                     break;
                 }
                 vm->frames[vm->frame_count].return_pc = vm->pc;
@@ -540,8 +543,10 @@ void avm_run(AvmVM* vm) {
                 }
                 vm->sp -= 1;
 
-                if (vm->frame_count >= MAX_FRAMES) {
-                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "call stack overflow"));
+                uint32_t fl = vm->frame_limit ? vm->frame_limit : (uint32_t)MAX_FRAMES;
+                if (fl > (uint32_t)MAX_FRAMES) fl = (uint32_t)MAX_FRAMES;
+                if (vm->frame_count >= (int)fl) {
+                    avm_abort(vm, avm_err(AVM_ERR_BUDGET, "call stack overflow (depth limit)"));
                     break;
                 }
                 vm->frames[vm->frame_count].return_pc = vm->pc;

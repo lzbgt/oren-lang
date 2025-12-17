@@ -185,7 +185,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
     - FS uses `vfs` (no host filesystem effects) unless `--fs-backend host`
     - PROC uses `vproc` (no host subprocess effects) unless `--proc-backend host`
     - NET uses `vnet` (no host network; host NET is not implemented in bootstrap) unless `--net-backend host`
-  - applies conservative default budgets unless overridden by env (`AVM_GAS`, `AVM_TIMEOUT_MS`, `AVM_MEM_BYTES`, `AVM_IO_BYTES`, `AVM_LOG_BYTES`)
+  - applies conservative default budgets unless overridden by env (`AVM_GAS`, `AVM_TIMEOUT_MS`, `AVM_MEM_BYTES`, `AVM_IO_BYTES`, `AVM_LOG_BYTES`, `AVM_CALL_DEPTH_MAX`)
   - to allow a small approved set without env vars, use:
     - `--allow-domains "0,1,6"` (or `AVM_ALLOW_DOMAINS=...`) to explicitly allow domains
     - `--fs-allow-prefixes "build/"` (or `AVM_FS_ALLOW_PREFIXES=...`) to restrict FS paths
@@ -195,6 +195,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - heap memory budget for VM heap objects (`AVM_MEM_BYTES`)
   - FS I/O byte budget (`AVM_IO_BYTES`)
   - record/replay log growth budget (`AVM_LOG_BYTES`)
+  - call depth limit (`AVM_CALL_DEPTH_MAX` or `--call-depth-max`)
   Budget violations abort execution with a structured error (see below).
 - **Snapshot format is rolling:** AVM supports snapshot/restore for core types, but the file format is intentionally unstable while the repo is rolling.
 - **Heap is malloc-based:** no tracing GC; long-running programs can grow without bound. On teardown, `avm_free()` releases both reachable heap objects and any remaining VM-owned heap allocations to avoid per-process leak accumulation across runs.

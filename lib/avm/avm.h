@@ -107,6 +107,11 @@ typedef struct {
     AvmValue globals[MAX_GLOBALS];
     AvmFrame frames[MAX_FRAMES];
     int frame_count;
+    // Call stack depth limit (rolling; deterministic safety):
+    // - must be <= MAX_FRAMES (fixed storage in AvmVM)
+    // - 0 means "use MAX_FRAMES"
+    // Configurable via CLI/env and child-universe config.
+    uint32_t frame_limit;
     int fp; 
     // Current call environment for closures (restored via AvmFrame.env on return).
     AvmValue env;
