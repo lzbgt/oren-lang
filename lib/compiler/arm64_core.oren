@@ -1,0 +1,549 @@
+// --- Binary Utils ---
+fn bytes_new() { return [] }
+fn bytes_push(b, v) { oren_list_push(b, v) }
+fn bytes_extend(b, other) {
+    var i = 0
+    while i < oren_list_len(other) {
+        oren_list_push(b, other[i])
+        i = i + 1
+    }
+}
+
+// --- Codegen Scopes (native backend locals) ---
+//
+// The native backend tracks locals as SP-relative offsets derived from `ctx["stack_size"]`.
+// Blocks restore SP at runtime, so we must also restore the compiler's locals bindings when
+// leaving a block. Otherwise stale offsets alias later locals (e.g. parent/child branches).
+//
+// We implement lexical scopes with an undo log:
+// - scope_enter_codegen(): push a scope frame
+// - scope_mark_declared_codegen(name, prev_off): record previous binding
+// - scope_exit_codegen(): restore previous bindings
+//
+fn scope_enter_codegen(ctx) {
+    var prev = ctx["scope"]
+    ctx["scope"] = {"prev": prev, "undo": [], "names": {}}
+}
+
+fn scope_current_codegen(ctx) {
+    return ctx["scope"]
+}
+
+fn scope_mark_declared_codegen(ctx, name, prev_off) {
+    var scope = scope_current_codegen(ctx)
+    if scope == nil {
+        scope_enter_codegen(ctx)
+        scope = scope_current_codegen(ctx)
+    }
+    scope["names"][name] = 1
+    oren_list_push(scope["undo"], {"name": name, "prev": prev_off})
+}
+
+fn scope_exit_codegen(ctx) {
+    var scope = ctx["scope"]
+    if scope == nil { return nil }
+
+    var undo = scope["undo"]
+    var i = oren_list_len(undo) - 1
+    while i >= 0 {
+        var u = undo[i]
+        var name = u["name"]
+        var prev = u["prev"]
+        if prev == nil {
+            ctx["locals"][name] = nil
+        } else {
+            ctx["locals"][name] = prev
+        }
+        i = i - 1
+    }
+
+    ctx["scope"] = scope["prev"]
+    return nil
+}
+
+fn set_u32_le(buf, offset, n) {
+    var base = offset
+    oren_index_set(buf, base, int_mod(n, 256))
+    oren_index_set(buf, base+1, int_mod(n / 256, 256))
+    oren_index_set(buf, base+2, int_mod(n / 65536, 256))
+    oren_index_set(buf, base+3, int_mod(n / 16777216, 256))
+}
+
+fn align_up(n, align) {
+    return (n + align - 1) / align * align
+}
+
+fn ceil_div(a, b) {
+    return (a + b - 1) / b
+}
+
+fn int_mod(a, b) { return a - (a / b) * b }
+
+fn emit_sub_sp_any(ctx, bytes) {
+    // SUB SP, SP, #imm12 (imm12 max 4095). Keep 16B alignment.
+    var n = bytes
+    while n > 0 {
+        var chunk = n
+        if chunk > 4080 { chunk = 4080 } // 255 * 16 keeps alignment and fits imm12
+        push_u32_le(ctx["code"], insn_sub_sp(chunk))
+        n = n - chunk
+    }
+}
+
+fn emit_add_sp_any(ctx, bytes) {
+    // ADD SP, SP, #imm12 (imm12 max 4095). Keep 16B alignment.
+    var n = bytes
+    while n > 0 {
+        var chunk = n
+        if chunk > 4080 { chunk = 4080 } // 255 * 16 keeps alignment and fits imm12
+        push_u32_le(ctx["code"], insn_add_sp(chunk))
+        n = n - chunk
+    }
+}
+
+fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) {
+    // Load *(u64*)(base + offset_bytes) into dst.
+    if offset_bytes == 0 {
+        push_u32_le(ctx["code"], insn_ldr_ptr(dst, base))
+        return nil
+    }
+
+    if offset_bytes >= -256 && offset_bytes <= 255 {
+        push_u32_le(ctx["code"], insn_ldur_reg(dst, base, offset_bytes))
+        return nil
+    }
+
+    // addr = base + offset
+    emit_load_u64_imm(ctx, 11, offset_bytes)
+    push_u32_le(ctx["code"], insn_add_reg(12, base, 11))
+    push_u32_le(ctx["code"], insn_ldr_ptr(dst, 12))
+    return nil
+}
+
+fn int_from_string(s) {
+    var i = 0
+    var n = 0
+    var neg = false
+    if oren_string_char_at(s, 0) == "-" {
+        neg = true
+        i = 1
+    }
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        var digit = 0
+        if ch == "0" { digit = 0 }
+        if ch == "1" { digit = 1 }
+        if ch == "2" { digit = 2 }
+        if ch == "3" { digit = 3 }
+        if ch == "4" { digit = 4 }
+        if ch == "5" { digit = 5 }
+        if ch == "6" { digit = 6 }
+        if ch == "7" { digit = 7 }
+        if ch == "8" { digit = 8 }
+        if ch == "9" { digit = 9 }
+        n = n * 10 + digit
+        i = i + 1
+    }
+    if neg { return -n }
+    return n
+}
+
+fn contains_curly_braces(s) {
+    var i = 0
+    var len = oren_string_len(s)
+    while i < len - 1 {
+        if oren_string_char_at(s, i) == "{" {
+            if oren_string_char_at(s, i + 1) == "}" { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn push_u32_le(buf, n) {
+    bytes_push(buf, int_mod(n, 256))
+    bytes_push(buf, int_mod(n / 256, 256))
+    bytes_push(buf, int_mod(n / 65536, 256))
+    bytes_push(buf, int_mod(n / 16777216, 256))
+}
+
+fn push_u32_be(buf, n) {
+    bytes_push(buf, int_mod(n / 16777216, 256))
+    bytes_push(buf, int_mod(n / 65536, 256))
+    bytes_push(buf, int_mod(n / 256, 256))
+    bytes_push(buf, int_mod(n, 256))
+}
+
+fn push_u64_le(buf, n) {
+    var i = 0
+    while i < 8 {
+        var byte = int_mod(n, 256)
+        bytes_push(buf, byte)
+        n = n / 256
+        i = i + 1
+    }
+}
+
+// --- ARM64 Instructions ---
+
+fn insn_ret() { return 3596551104 } // RET (0xD65F03C0)
+
+fn insn_movz(reg, imm16) {
+    // MOVZ Xreg, #imm16
+    return 3531603968 + (imm16 * 32) + reg
+}
+
+fn insn_mov_reg(rd, rn) {
+    // MOV Xrd, Xrn (alias of ORR Xrd, XZR, Xrn)
+    return 2852127712 + (rn * 65536) + rd // 0xAA0003E0 base
+}
+
+fn insn_movn(rd, imm) {
+    return 2457862144 + (imm * 32) + rd
+}
+
+fn insn_svc(imm) {
+    return 3556769793 + (imm * 32)
+}
+
+fn insn_add_sp(imm) {
+    return 2432697343 + (imm * 1024)
+}
+
+fn insn_str_x0_sp(offset) {
+    return 4177527776 + ((offset / 8) * 1024)
+}
+
+fn insn_ldr_reg_sp(reg, offset) {
+    return 4181722080 + ((offset / 8) * 1024) + reg
+}
+
+fn insn_ldr_x0_sp(offset) {
+    return insn_ldr_reg_sp(0, offset)
+}
+
+fn insn_sub_imm(rd, rn, imm) {
+    // SUB Xrd, Xrn, #imm (imm12, shift=0)
+    return 3506438144 + (imm * 1024) + (rn * 32) + rd // base 0xD1000000
+}
+
+fn insn_stur_reg(rt, rn, offset) {
+    // STUR Xt, [Xn, #imm9] (unscaled signed byte offset, imm9 range [-256,255])
+    var imm9 = offset
+    if imm9 < 0 { imm9 = imm9 + 512 } // 2's complement 9-bit
+    return 4160749568 + (imm9 * 4096) + (rn * 32) + rt // base 0xF8000000
+}
+
+fn insn_ldur_reg(rt, rn, offset) {
+    // LDUR Xt, [Xn, #imm9] (unscaled signed byte offset, imm9 range [-256,255])
+    var imm9 = offset
+    if imm9 < 0 { imm9 = imm9 + 512 } // 2's complement 9-bit
+    return 4164943872 + (imm9 * 4096) + (rn * 32) + rt // base 0xF8400000
+}
+
+fn emit_load_u64_imm(ctx, reg, val) {
+    // Load unsigned immediate into Xreg using MOVZ/MOVK sequence.
+    var low = int_mod(val, 65536)
+    push_u32_le(ctx["code"], insn_movz(reg, low))
+
+    var rest = val / 65536
+    var shift = 1
+    while rest > 0 {
+        var part = int_mod(rest, 65536)
+        push_u32_le(ctx["code"], insn_movk(reg, part, shift))
+        rest = rest / 65536
+        shift = shift + 1
+    }
+}
+
+fn emit_add_sp_offset_to_reg(ctx, reg, offset) {
+    // Emit: Xreg = SP + offset (offset in bytes, may be negative).
+    if offset == 0 {
+        push_u32_le(ctx["code"], insn_add_imm(reg, 31, 0))
+        return nil
+    }
+
+    if offset > 0 {
+        if offset <= 4095 {
+            push_u32_le(ctx["code"], insn_add_imm(reg, 31, offset))
+            return nil
+        }
+        emit_load_u64_imm(ctx, reg, offset)
+        push_u32_le(ctx["code"], insn_add_reg(reg, 31, reg))
+        return nil
+    }
+
+    // offset < 0
+    var abs = 0 - offset
+    if abs <= 4095 {
+        push_u32_le(ctx["code"], insn_sub_imm(reg, 31, abs))
+        return nil
+    }
+    emit_load_u64_imm(ctx, reg, abs)
+    push_u32_le(ctx["code"], insn_sub_reg(reg, 31, reg))
+    return nil
+}
+
+fn emit_ldr_reg_sp_any(ctx, reg, offset) {
+    // Safe stack load helper:
+    // - prefers scaled LDR [SP, #imm12*8] when possible
+    // - falls back to LDUR [SP, #imm9] for small signed offsets
+    // - otherwise materializes the address into a scratch register and loads via [Xtmp]
+    if offset >= 0 && int_mod(offset, 8) == 0 && offset <= (4095 * 8) {
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(reg, offset))
+        return nil
+    }
+
+    if offset >= -256 && offset <= 255 {
+        push_u32_le(ctx["code"], insn_ldur_reg(reg, 31, offset))
+        return nil
+    }
+
+    var scratch = 15
+    if reg == scratch { scratch = 14 }
+    emit_add_sp_offset_to_reg(ctx, scratch, offset)
+    push_u32_le(ctx["code"], insn_ldr_ptr(reg, scratch))
+    return nil
+}
+
+fn emit_str_reg_sp_any(ctx, reg, offset) {
+    // Safe stack store helper (see emit_ldr_reg_sp_any for rationale).
+    if offset >= 0 && int_mod(offset, 8) == 0 && offset <= (4095 * 8) {
+        push_u32_le(ctx["code"], insn_str_reg_sp(reg, offset))
+        return nil
+    }
+
+    if offset >= -256 && offset <= 255 {
+        push_u32_le(ctx["code"], insn_stur_reg(reg, 31, offset))
+        return nil
+    }
+
+    var scratch = 15
+    if reg == scratch { scratch = 14 }
+    emit_add_sp_offset_to_reg(ctx, scratch, offset)
+    push_u32_le(ctx["code"], insn_str_ptr(reg, scratch))
+    return nil
+}
+
+fn insn_add_reg(rd, rn, rm) {
+    return 2332033024 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_and_reg(rd, rn, rm) {
+    return 2315255808 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_orr_reg(rd, rn, rm) {
+    return 2852126720 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_eor_reg(rd, rn, rm) {
+    return 3388997632 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_lslv(rd, rn, rm) {
+    return 2596282368 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_lsrv(rd, rn, rm) {
+    return 2596283392 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_cmp_reg(rn, rm) {
+    return 3942645791 + (rm * 65536) + (rn * 32)
+}
+
+fn insn_cset(rd, cond) {
+    // Alias for CSINC Xd, XZR, XZR, invert(cond)
+    return 2594113504 + ((cond ^ 1) * 4096) + rd
+}
+
+fn insn_b(off) {
+    if off < 0 {
+        off = off + 67108864 // 2^26
+    }
+    return 335544320 + off
+}
+
+fn insn_b_cond(off, cond) {
+    if off < 0 {
+        off = off + 524288 // 2^19
+    }
+    return 1409286144 + (off * 32) + cond
+}
+
+fn insn_bl(off) {
+    if off < 0 {
+        off = off + 67108864
+    }
+    return 2483027968 + off
+}
+
+fn insn_sub_sp(imm) {
+    return 3506439167 + (imm * 1024)
+}
+
+fn insn_sub_reg(rd, rn, rm) {
+    return 3405774848 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_stp_pre() {
+    return 2847898621
+}
+
+fn insn_ldp_post() {
+    return 2831252477
+}
+
+fn insn_mov_fp_sp() {
+    return 2432697341
+}
+
+fn insn_mov_sp_fp() {
+    return 2432697279
+}
+
+fn insn_str_reg_pre(i) {
+    return 4162752480 + i
+}
+
+fn insn_str_reg_sp(reg, offset) {
+    return 4177527776 + ((offset / 8) * 1024) + reg
+}
+
+fn insn_dup_2d(vd, rn) {
+    return 1309147136 + (rn * 32) + vd
+}
+
+fn insn_add_2d(vd, vn, vm) {
+    return 1310753792 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_sub_2d(vd, vn, vm) {
+    return 1847624704 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_and_16b(vd, vn, vm) {
+    return 1310727168 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_orr_16b(vd, vn, vm) {
+    return 1319115776 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_eor_16b(vd, vn, vm) {
+    return 1847598080 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_umov_d0(rd, vn) {
+    return 1309162496 + (vn * 32) + rd
+}
+
+fn insn_fmov_d_x(rd, rn) {
+    // FMOV Dd, Xn (Move general-purpose register to SIMD/FP register)
+    // Opcode: 0x9E670000 = 2657550336
+    return 2657550336 + (rn * 32) + rd
+}
+
+fn insn_umov_x_d(rd, rn) {
+    // UMOV Xd, Vn.D[0] (Move SIMD/FP register to general-purpose register)
+    // Opcode: 0x4E083C00 = 1309162496
+    return 1309162496 + (rn * 32) + rd
+}
+
+fn insn_fadd(rd, rn, rm) {
+    // FADD Dd, Dn, Dm: 0x1E602800 = 509618176
+    return 509618176 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_fcmp(rn, rm) {
+    // FCMP Dn, Dm: 0x1E602000 = 509616128
+    return 509616128 + (rm * 65536) + (rn * 32)
+}
+
+fn insn_fsub(rd, rn, rm) {
+    // FSUB Dd, Dn, Dm: 0x1E603800 = 509622272
+    return 509622272 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_fmul(rd, rn, rm) {
+    // FMUL Dd, Dn, Dm: 0x1E600800 = 509609984
+    return 509609984 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_fdiv(rd, rn, rm) {
+    // FDIV Dd, Dn, Dm: 0x1E601800 = 509614080
+    return 509614080 + (rm * 65536) + (rn * 32) + rd
+}
+
+fn insn_scvtf(rd, rn) {
+    // SCVTF Dd, Xn: 0x9E620000 = 2657189888
+    return 2657189888 + (rn * 32) + rd
+}
+
+fn insn_fcvtzs(rd, rn) {
+    // FCVTZS Xd, Dn: 0x9E780000 = 2658631680
+    return 2658631680 + (rn * 32) + rd
+}
+
+fn insn_mul_4s(vd, vn, vm) {
+    return 1319148544 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_ldr_ptr(rd, rn) {
+    return 4181721088 + (rn * 32) + rd
+}
+
+fn insn_str_ptr(rd, rn) {
+    return 4177526784 + (rn * 32) + rd
+}
+
+fn insn_ldr_w(rt, rn, offset) {
+    // LDR Wt, [Xn, #imm12<<2] (unsigned offset encoding, scaled by 4)
+    return 3107989504 + ((offset / 4) * 1024) + (rn * 32) + rt // base 0xB9400000
+}
+
+fn insn_strb(rt, rn) {
+    // STRB Wt, [Xn] with imm = 0 (unsigned offset encoding)
+    return 956301312 + (rn * 32) + rt
+}
+
+fn insn_add_imm(rd, rn, imm) {
+    return 2432696320 + (imm * 1024) + (rn * 32) + rd
+}
+
+fn insn_ldadd(rs, rt, rn) {
+    return 4162846720 + (rs * 65536) + (rn * 32) + rt
+}
+
+fn insn_cas(rs, rt, rn) {
+    return 3365993472 + (rs * 65536) + (rn * 32) + rt
+}
+
+fn insn_ldrb(rt, rn) {
+    return 960495616 + (rn * 32) + rt
+}
+
+fn insn_mul(rd, rn, rm) {
+    return 2600467456 + (rm * 65536) + (32 * 1024) + (rn * 32) + rd
+}
+
+fn insn_udiv(rd, rn, rm) {
+    // UDIV Xrd, Xrn, Xrm
+    return 2596276224 + (rm * 65536) + (rn * 32) + rd // base 0x9AC00800
+}
+
+fn insn_movk(reg, imm16, shift_idx) {
+    return 4068474880 + (shift_idx * 2097152) + (imm16 * 32) + reg
+}
+
+fn insn_adr(reg, imm) {
+    if imm < 0 {
+        imm = imm + 2097152 // 2^21
+    }
+    var lo = imm & 3
+    var hi = imm / 4
+    return 268435456 + (lo * 536870912) + (hi * 32) + reg
+}
+
+// --- Native Compiler ---

@@ -1,0 +1,829 @@
+import core "arm64_core.oren"
+import exprm "arm64_native_expr.oren"
+
+// Re-export core helpers locally so the native stmt compiler stays readable.
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn align_up(n, align) { return core.align_up(n, align) }
+fn ceil_div(a, b) { return core.ceil_div(a, b) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+fn contains_curly_braces(s) { return core.contains_curly_braces(s) }
+
+fn scope_enter_codegen(ctx) { return core.scope_enter_codegen(ctx) }
+fn scope_current_codegen(ctx) { return core.scope_current_codegen(ctx) }
+fn scope_mark_declared_codegen(ctx, name, prev_off) { return core.scope_mark_declared_codegen(ctx, name, prev_off) }
+fn scope_exit_codegen(ctx) { return core.scope_exit_codegen(ctx) }
+
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_ldp_post() { return core.insn_ldp_post() }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_ret() { return core.insn_ret() }
+fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
+fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_svc(imm) { return core.insn_svc(imm) }
+
+fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
+fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+
+// Delegate expression compilation to the expr module.
+fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+
+fn native_compile_stmt(ctx, stmt) {
+    if stmt["type"] == "Spawn" {
+        // Delegate to expression compilation, ignore result (X0)
+        var expr = {"type": "SpawnExpr", "call": stmt["call"]}
+        native_compile_expr(ctx, expr)
+        return nil
+    }
+    if stmt["type"] == "Break" {
+        var loop = ctx["loop_ctx"]
+        if loop == nil {
+            print("native backend: break outside of loop")
+            oren_exit(1)
+        }
+
+        // Restore stack to the loop base before leaving.
+        var base_stack = loop["base_stack"]
+        var delta = ctx["stack_size"] - base_stack
+        if delta > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(delta))
+        }
+
+        // Jump to loop end (patched after body is compiled).
+        var jpos = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(loop["break_jumps"], jpos)
+        return nil
+    }
+    if stmt["type"] == "Continue" {
+        var loop2 = ctx["loop_ctx"]
+        if loop2 == nil {
+            print("native backend: continue outside of loop")
+            oren_exit(1)
+        }
+
+        // Restore stack to the loop base before continuing.
+        var base_stack2 = loop2["base_stack"]
+        var delta2 = ctx["stack_size"] - base_stack2
+        if delta2 > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(delta2))
+        }
+
+        // Jump to the loop-specific continue target.
+        // - while: condition start
+        // - for: post start (so post runs before re-checking condition)
+        var cont = loop2["continue_pos"]
+        if cont != nil {
+            var back_pos = oren_list_len(ctx["code"])
+            var back_off = (cont - back_pos) / 4
+            push_u32_le(ctx["code"], insn_b(back_off))
+        } else {
+            // Patch later (used for `for`, whose post-start is only known after body compilation).
+            var jpos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(loop2["continue_jumps"], jpos)
+        }
+        return nil
+    }
+    if stmt["type"] == "Block" {
+        if ctx["in_function"] {
+            scope_enter_codegen(ctx)
+        }
+        var base_stack = ctx["stack_size"]
+        var stmts = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(stmts) {
+            native_compile_stmt(ctx, stmts[i])
+            i = i + 1
+        }
+        var delta = ctx["stack_size"] - base_stack
+        if delta > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(delta))
+            ctx["stack_size"] = base_stack
+        }
+        if ctx["in_function"] {
+            scope_exit_codegen(ctx)
+        }
+        return nil
+    }
+
+    if stmt["type"] == "Set" {
+        if stmt["left"]["type"] == "Index" {
+            native_compile_expr(ctx, stmt["left"]["left"]) // container -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            native_compile_expr(ctx, stmt["left"]["index"]) // index -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            native_compile_expr(ctx, stmt["value"]) // value -> X0
+            
+            // Pop index -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            // Pop container -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            // oren_index_set(container, index, value)
+            // Need X0=container, X1=index, X2=value
+            // Currently: X0=value, X1=index, X2=container
+            
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+            push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // cont -> X0
+            // X1 is index (ok)
+            push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+            
+            var bl_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_index_set"})
+            
+            return nil
+        }
+        if stmt["left"]["type"] == "Member" {
+             // obj.prop = val -> oren_map_set(obj, "prop", val)
+             // Similar logic, but index is string literal
+             
+             native_compile_expr(ctx, stmt["left"]["left"]) // obj -> X0
+             push_u32_le(ctx["code"], insn_sub_sp(16))
+             push_u32_le(ctx["code"], insn_str_x0_sp(0))
+             ctx["stack_size"] = ctx["stack_size"] + 16
+             
+             // Prop name string
+             var prop = stmt["left"]["prop"]["value"]
+             var bytes = oren_bytes_from_string(prop)
+             bytes_push(bytes, 0)
+             while int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+             var data_off = oren_list_len(ctx["data"])
+             bytes_extend(ctx["data"], bytes)
+             var adr_pos = oren_list_len(ctx["code"])
+             push_u32_le(ctx["code"], 0)
+             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+             // X0 has key ptr
+             
+             push_u32_le(ctx["code"], insn_sub_sp(16))
+             push_u32_le(ctx["code"], insn_str_x0_sp(0))
+             ctx["stack_size"] = ctx["stack_size"] + 16
+             
+             native_compile_expr(ctx, stmt["value"]) // val -> X0
+             
+             // Pop key -> X1
+             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+             push_u32_le(ctx["code"], insn_add_sp(16))
+             ctx["stack_size"] = ctx["stack_size"] - 16
+             
+             // Pop obj -> X2
+             push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+             push_u32_le(ctx["code"], insn_add_sp(16))
+             ctx["stack_size"] = ctx["stack_size"] - 16
+             
+             // Need X0=obj, X1=key, X2=val
+             // Currently: X0=val, X1=key, X2=obj
+             push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+             push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // obj -> X0
+             // X1 is key (ok)
+             push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+             
+             var bl_pos2 = oren_list_len(ctx["code"])
+             push_u32_le(ctx["code"], 0)
+             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set"})
+             
+             return nil
+        }
+        print("native backend: unsupported set target")
+        return nil
+    }
+
+    if stmt["type"] == "Assign" {
+        native_compile_expr(ctx, stmt["value"])
+        
+        var name = stmt["name"]["value"]
+        var off = ctx["locals"][name]
+        if off != nil {
+            var current_sp_off = ctx["stack_size"] - off - 16
+            emit_str_reg_sp_any(ctx, 0, current_sp_off)
+            return nil
+        }
+        
+        var global_off = ctx["globals"][name]
+        if global_off != nil {
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": global_off})
+            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
+            
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+            return nil
+        }
+        
+        print("native backend: assignment to undefined variable " + name)
+        return nil
+    }
+
+    if stmt["type"] == "Var" {
+        native_compile_expr(ctx, stmt["value"])
+
+        var name = stmt["name"]["value"]
+        
+        if ctx["in_function"] {
+            // `var` introduces a new binding in the current lexical scope.
+            // If the name was already declared in this same scope, treat it as
+            // re-initialization for backward compatibility.
+            var scope = scope_current_codegen(ctx)
+            if scope != nil {
+                if scope["names"][name] != nil {
+                    var existing_off = ctx["locals"][name]
+                    if existing_off != nil {
+                        var current_sp_off_existing = ctx["stack_size"] - existing_off - 16
+                        emit_str_reg_sp_any(ctx, 0, current_sp_off_existing)
+                        return nil
+                    }
+                }
+            }
+            
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+
+            // Record previous binding so it can be restored when leaving the scope.
+            var prev_off = ctx["locals"][name]
+            scope_mark_declared_codegen(ctx, name, prev_off)
+
+            ctx["locals"][name] = ctx["stack_size"]
+            ctx["stack_size"] = ctx["stack_size"] + 16
+        } else {
+            var data_off = oren_list_len(ctx["data"])
+            var k = 0
+            while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
+            ctx["globals"][name] = data_off
+            
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            
+            var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
+            
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            
+            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+        }
+        return nil
+    }
+    
+    if stmt["type"] == "Return" {
+        native_compile_expr(ctx, stmt["value"])
+        push_u32_le(ctx["code"], insn_mov_sp_fp())
+        push_u32_le(ctx["code"], insn_ldp_post())
+        push_u32_le(ctx["code"], insn_ret())
+        return nil
+    }
+    
+    if stmt["type"] == "For" {
+        // Native `for`:
+        // - init runs once
+        // - cond checked before each iteration (nil => true)
+        // - continue jumps to post start (so post runs), then loops back to cond
+        // - break exits the loop
+
+        var outer_base_stack = ctx["stack_size"]
+        if stmt["init"] != nil { native_compile_stmt(ctx, stmt["init"]) }
+        var loop_base_stack = ctx["stack_size"]
+
+        var start_pos = oren_list_len(ctx["code"])
+
+        var prev_loop = ctx["loop_ctx"]
+        var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": nil, "break_jumps": [], "continue_jumps": []}
+        ctx["loop_ctx"] = loop
+
+        // Condition (nil => true)
+        if stmt["cond"] != nil {
+            native_compile_expr(ctx, stmt["cond"])
+        } else {
+            push_u32_le(ctx["code"], insn_movz(0, 1))
+        }
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jump_end_pos = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+
+        native_compile_stmt(ctx, stmt["body"])
+
+        // Ensure stack is restored to the loop base before post/next iter.
+        var loop_delta = ctx["stack_size"] - loop_base_stack
+        if loop_delta > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(loop_delta))
+            ctx["stack_size"] = loop_base_stack
+        }
+
+        // Post clause (continue target).
+        var post_start = oren_list_len(ctx["code"])
+        loop["continue_pos"] = post_start
+        if stmt["post"] != nil { native_compile_stmt(ctx, stmt["post"]) }
+
+        var post_delta = ctx["stack_size"] - loop_base_stack
+        if post_delta > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(post_delta))
+            ctx["stack_size"] = loop_base_stack
+        }
+
+        // Jump back to the condition.
+        var loop_back_pos = oren_list_len(ctx["code"])
+        var back_off = (start_pos - loop_back_pos) / 4
+        push_u32_le(ctx["code"], insn_b(back_off))
+
+        var end_target = oren_list_len(ctx["code"])
+        var end_off = (end_target - jump_end_pos) / 4
+        set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0))
+
+        // Patch breaks/continues recorded inside the loop body.
+        var bi = 0
+        while bi < oren_list_len(loop["break_jumps"]) {
+            var bpos = loop["break_jumps"][bi]
+            var boff = (end_target - bpos) / 4
+            set_u32_le(ctx["code"], bpos, insn_b(boff))
+            bi = bi + 1
+        }
+        var ci = 0
+        while ci < oren_list_len(loop["continue_jumps"]) {
+            var cpos = loop["continue_jumps"][ci]
+            var coff = (post_start - cpos) / 4
+            set_u32_le(ctx["code"], cpos, insn_b(coff))
+            ci = ci + 1
+        }
+
+        ctx["loop_ctx"] = prev_loop
+
+        // `for` introduces an init-scope like a block: pop init locals after the loop.
+        var init_delta = loop_base_stack - outer_base_stack
+        if init_delta > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(init_delta))
+            ctx["stack_size"] = outer_base_stack
+        }
+        return nil
+    }
+    
+    if stmt["type"] == "FFI" {
+        var name = stmt["name"]["value"]
+        ctx["imports"][name] = true
+        oren_list_push(ctx["import_list"], name)
+        return nil
+    }
+    
+    if stmt["type"] == "Type" {
+        var name = stmt["name"]["value"]
+        var fields = stmt["fields"]
+        var n_fields = oren_list_len(fields)
+        
+        var jump_skip_pos = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        
+        var func_start = oren_list_len(ctx["code"])
+        ctx["functions"][name] = func_start
+        oren_list_push(ctx["function_names"], name)
+        
+        var old_locals = ctx["locals"]
+        var old_stack_size = ctx["stack_size"]
+        ctx["locals"] = {}
+        ctx["stack_size"] = 0
+        
+        ctx["in_function"] = true
+        
+        push_u32_le(ctx["code"], insn_stp_pre())
+        push_u32_le(ctx["code"], insn_mov_fp_sp())
+        ctx["stack_size"] = ctx["stack_size"] + 16 
+        
+        var i = 0
+        while i < n_fields {
+            var f_name = fields[i]["value"]
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
+            ctx["locals"][f_name] = ctx["stack_size"]
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            i = i + 1
+        }
+        
+        var size_bytes = n_fields * 8
+        push_u32_le(ctx["code"], insn_movz(0, size_bytes))
+        var bl_pos_alloc = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_alloc, "name": "oren_alloc_struct"})
+        
+        var struct_ptr_off = ctx["stack_size"]
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        
+        i = 0
+        while i < n_fields {
+            var f_name2 = fields[i]["value"]
+            var off = ctx["locals"][f_name2]
+            var current_sp_off = ctx["stack_size"] - off - 16
+            emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
+            var ptr_sp_off = ctx["stack_size"] - struct_ptr_off - 16
+            emit_ldr_reg_sp_any(ctx, 1, ptr_sp_off)
+            if i > 0 {
+                var byte_off2 = i * 8
+                push_u32_le(ctx["code"], insn_add_imm(1, 1, byte_off2))
+            }
+            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+            i = i + 1
+        }
+        
+        var ptr_sp_off2 = ctx["stack_size"] - struct_ptr_off - 16
+        emit_ldr_reg_sp_any(ctx, 0, ptr_sp_off2)
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+        
+        push_u32_le(ctx["code"], insn_mov_sp_fp())
+        push_u32_le(ctx["code"], insn_ldp_post())
+        push_u32_le(ctx["code"], insn_ret())
+        
+        var func_end = oren_list_len(ctx["code"])
+        var skip_off = (func_end - jump_skip_pos) / 4
+        set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
+        
+        ctx["in_function"] = false
+        
+        ctx["locals"] = old_locals
+        ctx["stack_size"] = old_stack_size
+        return nil
+    }
+    
+    if stmt["type"] == "While" {
+        var loop_base_stack = ctx["stack_size"]
+        var start_pos = oren_list_len(ctx["code"])
+
+        var prev_loop = ctx["loop_ctx"]
+        var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": start_pos, "break_jumps": [], "continue_jumps": []}
+        ctx["loop_ctx"] = loop
+        
+        native_compile_expr(ctx, stmt["cond"])
+        
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        
+        var jump_end_pos = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) 
+        
+        native_compile_stmt(ctx, stmt["body"])
+
+        // Ensure stack is restored to the loop base before iterating.
+        var loop_delta = ctx["stack_size"] - loop_base_stack
+        if loop_delta > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(loop_delta))
+            ctx["stack_size"] = loop_base_stack
+        }
+        
+        var loop_back_pos = oren_list_len(ctx["code"])
+        var back_off = (start_pos - loop_back_pos) / 4
+        push_u32_le(ctx["code"], insn_b(back_off))
+        
+        var end_target = oren_list_len(ctx["code"])
+        var end_off = (end_target - jump_end_pos) / 4
+        set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0)) 
+
+        // Patch any breaks emitted inside the loop body to jump here.
+        var bi = 0
+        while bi < oren_list_len(loop["break_jumps"]) {
+            var bpos = loop["break_jumps"][bi]
+            var boff = (end_target - bpos) / 4
+            set_u32_le(ctx["code"], bpos, insn_b(boff))
+            bi = bi + 1
+        }
+
+        // Patch any continues that were emitted before the continue target was known.
+        var ci = 0
+        while ci < oren_list_len(loop["continue_jumps"]) {
+            var cpos = loop["continue_jumps"][ci]
+            var coff = (loop["continue_pos"] - cpos) / 4
+            set_u32_le(ctx["code"], cpos, insn_b(coff))
+            ci = ci + 1
+        }
+
+        // Pop loop context
+        ctx["loop_ctx"] = prev_loop
+        
+        return nil
+    }
+
+    if stmt["type"] == "ExprStmt" {
+        var exp = stmt["expr"]
+        
+        if exp["type"] == "If" {
+            var base_stack = ctx["stack_size"]
+            
+            native_compile_expr(ctx, exp["cond"])
+            
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+            
+            var jump_else_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) 
+            
+            native_compile_stmt(ctx, exp["consq"])
+
+            var cons_delta = ctx["stack_size"] - base_stack
+            if cons_delta > 0 {
+                push_u32_le(ctx["code"], insn_add_sp(cons_delta))
+                ctx["stack_size"] = base_stack
+            }
+            
+            var jump_end_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) 
+            
+            var else_target = oren_list_len(ctx["code"])
+            var else_off = (else_target - jump_else_pos) / 4
+            set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, 0)) 
+            
+            if exp["alt"] != nil {
+                native_compile_stmt(ctx, exp["alt"])
+            }
+
+            var alt_delta = ctx["stack_size"] - base_stack
+            if alt_delta > 0 {
+                push_u32_le(ctx["code"], insn_add_sp(alt_delta))
+                ctx["stack_size"] = base_stack
+            }
+            
+            var end_target = oren_list_len(ctx["code"])
+            var end_off = (end_target - jump_end_pos) / 4
+            set_u32_le(ctx["code"], jump_end_pos, insn_b(end_off))
+            
+            return nil
+        }
+        
+        if exp["type"] == "Function" {
+            var fn_name = exp["name"]
+            
+            while int_mod(oren_list_len(ctx["code"]), 4) != 0 {
+                bytes_push(ctx["code"], 0)
+            }
+            
+            var jump_skip_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) 
+            
+            var func_start = oren_list_len(ctx["code"])
+            ctx["functions"][fn_name] = func_start
+            oren_list_push(ctx["function_names"], fn_name)
+            if fn_name == "main" {
+                ctx["main_idx"] = func_start
+            }
+            
+            var old_locals = ctx["locals"]
+            var old_stack_size = ctx["stack_size"]
+            var old_scope = ctx["scope"]
+            ctx["locals"] = {}
+            ctx["stack_size"] = 0
+            ctx["scope"] = nil
+            
+            ctx["in_function"] = true
+            scope_enter_codegen(ctx) // function scope
+            
+            push_u32_le(ctx["code"], insn_stp_pre())
+            push_u32_le(ctx["code"], insn_mov_fp_sp())
+            ctx["stack_size"] = ctx["stack_size"] + 16 
+
+            // Save SP after prologue. If the caller passed stack arguments (arg8+),
+            // they are located at [sp + 16 + (i-8)*8] relative to this base.
+            push_u32_le(ctx["code"], insn_add_imm(9, 31, 0)) // X9 = SP
+            
+            var fn_scope = scope_current_codegen(ctx)
+            var params_info = []
+            var params = exp["params"]
+            var n_params = oren_list_len(params)
+            var i = 0
+            while i < n_params {
+                var p_name = params[i]["value"]
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                if i < 8 {
+                    push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
+                } else {
+                    // Load stack arg i (>=8) from caller stack into our local slot.
+                    // src = *(u64*)(saved_sp + 16 + (i-8)*8)
+                    var off = 16 + (i - 8) * 8
+                    emit_load_ptr_from_base_plus(ctx, 10, 9, off) // X10 = arg_i
+                    push_u32_le(ctx["code"], insn_str_reg_sp(10, 0))
+                }
+                ctx["locals"][p_name] = ctx["stack_size"]
+                ctx["stack_size"] = ctx["stack_size"] + 16
+                if fn_scope != nil { fn_scope["names"][p_name] = 1 }
+                
+                if ctx["platform"]["debug"] == true {
+                    oren_list_push(params_info, {"name": p_name, "offset": ctx["locals"][p_name]})
+                }
+                
+                i = i + 1
+            }
+            
+            native_compile_stmt(ctx, exp["body"])
+            
+            push_u32_le(ctx["code"], insn_movz(0, 0))
+            push_u32_le(ctx["code"], insn_mov_sp_fp())
+            push_u32_le(ctx["code"], insn_ldp_post())
+            push_u32_le(ctx["code"], insn_ret())
+            
+            var func_end = oren_list_len(ctx["code"])
+            
+            if ctx["platform"]["debug"] == true {
+                oren_list_push(ctx["debug_info"]["funcs"], {
+                    "name": fn_name,
+                    "start": func_start,
+                    "end": func_end,
+                    "params": params_info
+                })
+            }
+            
+            var skip_off = (func_end - jump_skip_pos) / 4
+            set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
+            
+            ctx["in_function"] = false
+            
+            ctx["locals"] = old_locals
+            ctx["stack_size"] = old_stack_size
+            ctx["scope"] = old_scope
+            return nil
+        }
+        
+        if exp["type"] == "Call" {
+            var fn_name = exp["fn"]["value"]
+            
+            var sys_write = 4
+            var sys_exit = 1
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            
+            if ctx["platform"]["os"] == "linux" {
+                sys_write = 64
+                sys_exit = 93
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+
+            if fn_name == "sys_write" {
+                native_compile_expr(ctx, exp["args"][0]) // fd
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+                
+                native_compile_expr(ctx, exp["args"][1]) // ptr
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+                
+                native_compile_expr(ctx, exp["args"][2]) // len
+                
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // ptr
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+                
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // len -> X2
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // fd -> X0
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+                
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                return nil
+            }
+
+            if fn_name == "print" {
+                var args = exp["args"]
+                var argc = oren_list_len(args)
+                var arg0 = args[0]
+                
+                var is_fmt = false
+                if argc > 1 {
+                    if arg0["type"] == "String" {
+                        if contains_curly_braces(arg0["value"]) {
+                            is_fmt = true
+                        }
+                    }
+                }
+                
+                if is_fmt {
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var bl_new_list = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list, "name": "oren_new_list"})
+                    
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                    
+                    var k = 1
+                    while k < argc {
+                        native_compile_expr(ctx, args[k]) 
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+                        
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                        push_u32_le(ctx["code"], insn_add_sp(16))
+                        ctx["stack_size"] = ctx["stack_size"] - 16
+                        
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                        
+                        var bl_push = oren_list_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push, "name": "oren_list_push"})
+                        
+                        k = k + 1
+                    }
+                    
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+                    
+                    native_compile_expr(ctx, arg0)
+                    
+                    var bl_fmt = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fmt, "name": "oren_print_fmt"})
+                    return nil
+                }
+
+                if arg0["type"] == "String" {
+                    // Print string literal directly via sys_write(fd=1, ptr, len) + newline.
+                    var s = arg0["value"]
+                    var len = oren_string_len(s)
+                    native_compile_expr(ctx, arg0) // X0 = ptr
+
+                    // X0=fd, X1=ptr, X2=len
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+                    push_u32_le(ctx["code"], insn_movz(2, len))
+                    push_u32_le(ctx["code"], insn_movz(0, 1))
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
+                    push_u32_le(ctx["code"], insn_svc(svc_imm))
+
+                    // Write newline (1 byte) from stack.
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                    push_u32_le(ctx["code"], insn_movz(3, 10))
+                    push_u32_le(ctx["code"], insn_str_ptr(3, 31))
+                    push_u32_le(ctx["code"], insn_add_imm(1, 31, 0)) // X1 = SP
+                    push_u32_le(ctx["code"], insn_movz(2, 1))
+                    push_u32_le(ctx["code"], insn_movz(0, 1))
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
+                    push_u32_le(ctx["code"], insn_svc(svc_imm))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+                    return nil
+                }
+
+                native_compile_expr(ctx, arg0)
+                var bl_pos_print = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_print, "name": "oren_print"})
+                return nil
+            }
+            
+            if fn_name == "exit" {
+                native_compile_expr(ctx, exp["args"][0])
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                return nil
+            }
+            
+            native_compile_expr(ctx, exp)
+            return nil
+        }
+        
+        native_compile_expr(ctx, exp)
+        return nil
+    }
+}

@@ -24,11 +24,16 @@ Focus statement (to avoid roadmap thrash):
    - Goal: keep compiler/runtime modules small enough that invariants (stack/heap/scope/ABI) are auditable.
    - Refactor trigger: any single compiler module > ~2000 LOC must be split by responsibility (SOLID).
    - Status (compiler):
-     - `lib/compiler/codegen_arm64.oren` split into focused modules:
+     - `lib/compiler/codegen_arm64.oren` refactor completed into focused modules (SOLID split):
+       - `lib/compiler/arm64_core.oren` (byte utils, scope helpers, insn encodings, emit helpers) (~549 LOC)
+       - `lib/compiler/arm64_native_expr.oren` (expression lowering, syscall lowering) (~2824 LOC)
+       - `lib/compiler/arm64_native_stmt.oren` (statement lowering) (~782 LOC)
+       - `lib/compiler/arm64_native_program.oren` (program entry lowering + symbol table generation) (~260 LOC)
+       - `lib/compiler/codegen_arm64.oren` is now a thin facade for legacy imports
        - `lib/compiler/renamer.oren` (module rename pass)
        - `lib/compiler/arm64_macho.oren` (Mach-O emit + codesign blob builder)
        - `lib/compiler/arm64_elf.oren` (ELF emit)
-     - Remaining work: split `lib/compiler/codegen_arm64.oren` further into (1) instruction encoding, (2) generic emit helpers, (3) native compiler lowering.
+     - Remaining work (next SOLID split target): `lib/compiler/arm64_native_expr.oren` is still >2000 LOC; split further by responsibility once invariants are stable (e.g. syscall lowering vs generic call ABI vs container ops).
 
 ### Native backend (syscall-first runtime; macOS-first; production-critical)
 
@@ -90,7 +95,7 @@ Focus statement (to avoid roadmap thrash):
      - add a script to run a Linux native smoke subset on the trusted QEMU host (`blu@qemu-blu.localc`)
      - keep a short “Linux native smoke list” of tests that cover spawn/system/env/net basics
    - Status (rolling):
-     - Linux syscall lowering is started for NET socket syscalls (socket/connect/bind/listen/accept/sendto/recvfrom/getsockopt/setsockopt/getpeername/getsockname/shutdown) + `fcntl` in `lib/compiler/codegen_arm64.oren` (numbers referenced from `docs/refs/linux_asm_generic_unistd.h`).
+     - Linux syscall lowering is started for NET socket syscalls (socket/connect/bind/listen/accept/sendto/recvfrom/getsockopt/setsockopt/getpeername/getsockname/shutdown) + `fcntl` in `lib/compiler/arm64_native_expr.oren` (numbers referenced from `docs/refs/linux_asm_generic_unistd.h`).
      - Linux PROC syscall lowering is started for fork/exec/wait: `sys_fork` uses `clone(SIGCHLD, stack=NULL)`, `sys_execve` uses `__NR_execve`, `sys_wait4` uses `__NR_wait4` (refs: `docs/refs/linux_man_clone.2`, `docs/refs/linux_asm_generic_unistd.h`).
      - Linux smoke runner exists (preferred on macOS): `tools/linux_native_smoke_docker.sh` (Ubuntu 24.04 `linux/arm64`, per-binary `timeout`, container reuse via `OREN_DOCKER_KEEP=1`).
      - Linux smoke runner (optional / unstable): `tools/linux_native_smoke_qemu.sh` (trusted host, but may flap; keep as backup).

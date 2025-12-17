@@ -1,0 +1,297 @@
+import core "arm64_core.oren"
+import stmtm "arm64_native_stmt.oren"
+import parser "parser.oren"
+import lexer "lexer.oren"
+import token "token.oren"
+
+// Re-export core helpers locally so the native program compiler stays readable.
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn align_up(n, align) { return core.align_up(n, align) }
+fn ceil_div(a, b) { return core.ceil_div(a, b) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_ldr_ptr(rt, rn) { return core.insn_ldr_ptr(rt, rn) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
+fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_svc(imm) { return core.insn_svc(imm) }
+
+// Delegate statement compilation to the stmt module.
+fn native_compile_stmt(ctx, stmt) { return stmtm.native_compile_stmt(ctx, stmt) }
+
+fn native_compile_program_arm64(linked, platform) {
+    var ctx = {
+        "code": bytes_new(),
+        "data": bytes_new(),
+        "fixups": [],
+        "locals": {},
+        "globals": {},
+        "functions": {},
+        "function_names": [],
+        "main_idx": nil,
+        "imports": {},
+        "import_list": [],
+        "stack_size": 0,
+        "in_function": false,
+        "loop_ctx": nil,
+        "scope": nil,
+        "platform": platform,
+        "aliases": linked["aliases"],
+        "type_ns": linked["type_ns"],
+        "field_offsets": linked["field_offsets"]
+    }
+    
+    if platform["debug"] == true {
+        ctx["debug_info"] = {"funcs": []}
+    }
+    
+    // Entry stub: calls main and exits with its result
+    var sys_exit = 1
+    var svc_imm = 128
+    var sys_reg = 16
+    if ctx["platform"]["os"] == "linux" {
+        sys_exit = 93
+        svc_imm = 0
+        sys_reg = 8
+    }
+
+    // Capture argc/argv/envp before any calls clobber argument registers.
+    //
+    // Linux (ELF entry):
+    //   stack layout: [argc][argv...NULL][envp...NULL][auxv...]
+    //   we load argc/argv from SP.
+    //
+    // macOS (dyld LC_MAIN):
+    //   X0=argc, X1=argv (empirically X2 is not reliable for envp here).
+    //
+    // For both OSes we derive:
+    //   envp = argv + (argc + 1) * 8
+    if ctx["platform"]["os"] == "linux" {
+        // X0 = *(SP), X1 = SP + 8  (argv)
+        push_u32_le(ctx["code"], insn_ldr_ptr(0, 31))
+        push_u32_le(ctx["code"], insn_add_imm(1, 31, 8))
+    }
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = argc
+    push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = argv
+
+    // envp = argv + (argc + 1) * 8
+    push_u32_le(ctx["code"], insn_add_imm(2, 19, 1)) // X2 = argc + 1
+    push_u32_le(ctx["code"], insn_movz(3, 8))        // X3 = 8
+    push_u32_le(ctx["code"], insn_mul(2, 2, 3))      // X2 = (argc+1)*8
+    push_u32_le(ctx["code"], insn_add_reg(21, 20, 2)) // X21 = envp
+
+    push_u32_le(ctx["code"], insn_stp_pre())
+    push_u32_le(ctx["code"], insn_mov_fp_sp())
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    // Our generated functions do not currently preserve callee-saved registers
+    // (AAPCS would require preserving X19-X28). Because the entry stub must
+    // keep argc/argv/envp stable across runtime init calls, save them explicitly.
+    push_u32_le(ctx["code"], insn_sub_sp(32))
+    push_u32_le(ctx["code"], insn_str_reg_sp(19, 0))
+    push_u32_le(ctx["code"], insn_str_reg_sp(20, 8))
+    push_u32_le(ctx["code"], insn_str_reg_sp(21, 16))
+    ctx["stack_size"] = ctx["stack_size"] + 32
+    
+    // Init Heap Globals (X28=ptr, X27=limit) to 0 before any runtime calls.
+    push_u32_le(ctx["code"], insn_movz(28, 0))
+    push_u32_le(ctx["code"], insn_movz(27, 0))
+    
+    // Init Runtime
+    var bl_init = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
+
+    // Restore argc/argv/envp saved across native_runtime_init.
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(19, 0))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(20, 8))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(21, 16))
+    push_u32_le(ctx["code"], insn_add_sp(32))
+    ctx["stack_size"] = ctx["stack_size"] - 32
+
+    // Store argv/argc for oren_args() and envp for oren_getenv()/execve env inheritance.
+    //
+    // Preserve envp across the set_args call (our generated code does not preserve
+    // callee-saved registers yet), and set envp AFTER set_args so any runtime-side
+    // behavior cannot accidentally clear it.
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_reg_sp(21, 0))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    // native_runtime_set_args(argc, argv)
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // argc
+    push_u32_le(ctx["code"], insn_mov_reg(1, 20)) // argv
+    var bl_set_args = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_args, "name": "native_runtime_set_args"})
+
+    // native_runtime_set_envp(envp)
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(21, 0))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+
+    push_u32_le(ctx["code"], insn_mov_reg(0, 21)) // envp
+    var bl_set_envp = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
+
+    if platform["debug"] == true {
+        push_u32_le(ctx["code"], 0)
+        var debug_adr_pos = oren_list_len(ctx["code"]) - 4
+        ctx["debug_fixup_pos"] = debug_adr_pos
+        
+        var static_addr_pos = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], insn_movz(1, 0))
+        push_u32_le(ctx["code"], insn_movk(1, 0, 1))
+        push_u32_le(ctx["code"], insn_movk(1, 0, 2))
+        push_u32_le(ctx["code"], insn_movk(1, 0, 3))
+        ctx["debug_static_addr_pos"] = static_addr_pos
+        
+        var bl_set_dbg = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_dbg, "name": "oren_set_debug_info"})
+    }
+
+    // Register Main Thread
+    push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
+    var bl_reg = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reg, "name": "oren_register_thread"})
+    
+    var main_fix = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
+    // Preserve exit code across shutdown
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
+    var shutdown_fix = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // restore X0
+    // exit(X0)
+    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
+    push_u32_le(ctx["code"], insn_svc(svc_imm))
+    // Should not return
+    
+    // Inject Runtime
+    var runtime_src = oren_read_file("lib/runtime_native.oren")
+    if oren_is_err(runtime_src) {
+        print("Failed to read lib/runtime_native.oren")
+        var msg = oren_err_msg(runtime_src)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
+    var l = lexer.new_lexer(runtime_src)
+    var p = parser.new_parser(l)
+    var runtime_prog = parser.parse_program(p)
+    if oren_list_len(p["errors"]) != 0 {
+        print("Parse errors in lib/runtime_native.oren:")
+        var ei = 0
+        while ei < oren_list_len(p["errors"]) {
+            print(p["errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    
+    // Compile runtime functions
+    var i = 0
+    while i < oren_list_len(runtime_prog["statements"]) {
+        native_compile_stmt(ctx, runtime_prog["statements"][i])
+        i = i + 1
+    }
+
+    // Register start of user code
+    ctx["functions"]["__top_level__"] = oren_list_len(ctx["code"])
+
+    var stmts = linked["statements"]
+    i = 0
+    while i < oren_list_len(stmts) {
+        native_compile_stmt(ctx, stmts[i])
+        i = i + 1
+    }
+    
+    // Record entry (main) offset if present
+    ctx["entry_idx"] = 0
+    
+    // Implicit exit(0)
+    push_u32_le(ctx["code"], insn_movz(0, 0))
+    if ctx["platform"]["os"] == "linux" {
+        push_u32_le(ctx["code"], insn_movz(8, 93))
+        push_u32_le(ctx["code"], 3556769793) // SVC #0
+    } else {
+        push_u32_le(ctx["code"], insn_movz(16, 1))
+        push_u32_le(ctx["code"], 3556769921) // SVC #128
+    }
+    
+    // Generate resolve_symbol function
+    // Assuming macOS base 0x100000000 + 632
+    var base_addr = 4294967928 
+    if ctx["platform"]["os"] == "linux" {
+        base_addr = 4194304 + 120 // 0x400000 + 120 (ELF header approx, need verify)
+    }
+    
+    var sym_src = "fn resolve_symbol(addr) { var off = addr - " + oren_int_to_string(base_addr) + " "
+    
+    // Scan runtime functions
+    var j = 0
+    while j < oren_list_len(runtime_prog["statements"]) {
+        var stmt = runtime_prog["statements"][j]
+        if stmt["type"] == "Function" {
+            var name = stmt["name"]
+            var off = ctx["functions"][name]
+            sym_src = sym_src + "if off >= " + oren_int_to_string(off) + " { return " + token.CH_QUOTE + name + token.CH_QUOTE + " } "
+        }
+        j = j + 1
+    }
+    
+    // Scan user functions
+    j = 0
+    while j < oren_list_len(stmts) {
+        var stmt = stmts[j]
+        if stmt["type"] == "Function" {
+            var name = stmt["name"]
+            var off = ctx["functions"][name]
+            if off == nil {
+                print("codegen error: function offset not found for " + name)
+            } else {
+                sym_src = sym_src + "if off >= " + oren_int_to_string(off) + " { return " + token.CH_QUOTE + name + token.CH_QUOTE + " } "
+            }
+        }
+        j = j + 1
+    }
+    
+    sym_src = sym_src + "return \"???\" }"
+    
+    print("Generating symbol table...")
+    var l_sym = lexer.new_lexer(sym_src)
+    var p_sym = parser.new_parser(l_sym)
+    var prog_sym = parser.parse_program(p_sym)
+    if oren_list_len(prog_sym["statements"]) > 0 {
+        native_compile_stmt(ctx, prog_sym["statements"][0])
+    } else {
+        print("native backend: failed to compile resolve_symbol")
+        // print(sym_src) // Debug
+    }
+
+    return ctx
+}
+
+// NOTE: Mach-O/ELF emitters were refactored into:
+// - lib/compiler/arm64_macho.oren
+// - lib/compiler/arm64_elf.oren
