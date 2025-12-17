@@ -148,6 +148,13 @@ test: oren
 			if [ $$rc -eq 0 ]; then \
 				echo "FAIL: $$name (Expected mem budget abort)"; exit 1; \
 			fi; \
+		elif [ "$$name" = "test_budget_timeout" ]; then \
+			set +e; $(RUN_WITH_TIMEOUT) ./avm --timeout-ms 10 build/$$name.obc; rc=$$?; set -e; \
+			if [ $$rc -eq 0 ]; then \
+				echo "FAIL: $$name (Expected timeout abort)"; exit 1; \
+			elif [ $$rc -eq 124 ]; then \
+				echo "FAIL: $$name (External timeout fired; expected AVM to abort first)"; exit 1; \
+			fi; \
 		elif [ "$$name" = "test_budget_io_fs" ]; then \
 			set +e; AVM_IO_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc; rc=$$?; set -e; \
 			if [ $$rc -eq 0 ]; then \

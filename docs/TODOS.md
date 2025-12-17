@@ -18,6 +18,7 @@ Focus statement (to avoid roadmap thrash):
    - This is non-negotiable in rolling mode: a single hang kills iteration velocity.
    - Baseline:
      - `make test` uses `timeout` for native/AVM invocations where a hang is possible.
+     - `avm` also supports an in-process wall-time budget: `--timeout-ms N` (or `AVM_TIMEOUT_MS`) so tooling/users don’t rely only on external `timeout`.
      - add a short per-test timeout for spawn/system and a longer global suite timeout.
 
 2) **SOLID refactors for “debuggable production”**

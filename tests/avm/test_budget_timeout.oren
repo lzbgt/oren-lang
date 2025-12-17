@@ -1,0 +1,10 @@
+// Regression: AVM CLI timeout must abort infinite loops quickly.
+// This is primarily a safety feature for rolling iteration and tooling.
+
+fn main() {
+    var i = 0
+    while true {
+        i = i + 1
+    }
+    return i
+}

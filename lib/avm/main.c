@@ -1534,6 +1534,7 @@ int main(int argc, char** argv) {
     const char* proc_fixtures_hex_cli = NULL;
     const char* net_backend_cli = NULL;
     const char* net_fixtures_hex_cli = NULL;
+    const char* timeout_ms_cli = NULL;
     int prog_args_start = -1;
     int prog_argc = 0;
     char** prog_argv = NULL;
@@ -1589,6 +1590,12 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--step-limit") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --step-limit\n"); return 1; }
             step_limit = strtoull(argv[i + 1], NULL, 10);
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--timeout-ms") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --timeout-ms\n"); return 1; }
+            timeout_ms_cli = argv[i + 1];
             i += 2;
             continue;
         }
@@ -1803,7 +1810,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--print-pause-json] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-run-json] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
+        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--print-pause-json] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--timeout-ms N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-run-json] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
         free(break_pcs);
         return 1;
     }
@@ -2163,7 +2170,7 @@ int main(int argc, char** argv) {
 
                     // budgets (effective): capsule applies defaults only if env is unset.
                     const char* gas_env = getenv("AVM_GAS");
-                    const char* timeout_env = getenv("AVM_TIMEOUT_MS");
+                    const char* timeout_env = timeout_ms_cli ? timeout_ms_cli : getenv("AVM_TIMEOUT_MS");
                     const char* mem_env = getenv("AVM_MEM_BYTES");
                     const char* io_env = getenv("AVM_IO_BYTES");
                     const char* log_env = getenv("AVM_LOG_BYTES");
@@ -2695,7 +2702,7 @@ int main(int argc, char** argv) {
     // - AVM_LOG_BYTES: record/replay log budget (bytes appended, incl header) (0/unset = unlimited)
     const char* gas_env = getenv("AVM_GAS");
     if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
-    const char* timeout_env = getenv("AVM_TIMEOUT_MS");
+    const char* timeout_env = timeout_ms_cli ? timeout_ms_cli : getenv("AVM_TIMEOUT_MS");
     if (timeout_env && timeout_env[0]) {
         uint64_t ms = strtoull(timeout_env, NULL, 10);
         uint64_t base = now_ns();
