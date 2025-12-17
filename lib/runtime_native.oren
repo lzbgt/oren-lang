@@ -13,7 +13,10 @@ fn stack_trace() {
         }
         var lr = ptr_get(iadd(fp, 8))
         var name = resolve_symbol(lr)
-        print(string_concat("  File \"?\", line ?, in ", name))
+        var s0 = string_concat("  at ", name)
+        var s1 = string_concat(s0, " (pc=")
+        var s2 = string_concat(s1, oren_int_to_string(lr))
+        print(string_concat(s2, ")"))
         // print_hex(lr)
         fp = ptr_get(fp)
         i = i + 1
@@ -776,8 +779,40 @@ fn find_func_info(pc) {
     return 0
 }
 
+fn debug_value_to_string(val) {
+    var node = oren_find_node(val)
+    if node != 0 {
+        var kind = ptr_get(node + 16)
+        if kind == 1 { // STRING
+            return val
+        }
+        if kind == 2 { // LIST
+            var s0 = "<list ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
+        if kind == 3 { // MAP
+            var s0 = "<map ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
+        if kind == 4 { // STRUCT
+            var s0 = "<struct ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
+    }
+    return oren_int_to_string(val)
+}
+
 fn stack_trace_debug() {
-    print("Traceback (most recent call last):")
+    // Native backend debug stack trace (best-effort):
+    // - prints function name + pc offset
+    // - prints parameter values when available
+    print("Traceback (most recent call first):")
     var fp = get_fp()
     var i = 0
     while fp != 0 {
@@ -785,20 +820,30 @@ fn stack_trace_debug() {
             print("  ... (truncated)")
             return 0 
         }
+        // ABI note: at [fp+8] we have the *saved LR* (return address) for this frame,
+        // which is an address in the *caller*'s code. For readable traces we associate
+        // that PC with the caller function, and print caller params from the caller's FP.
         var pc = ptr_get(fp + 8)
+        var caller_fp = ptr_get(fp)
         var info_ptr = find_func_info(pc)
         
         if info_ptr != 0 {
+            var f_start = ptr_get_u64(info_ptr - 16)
+            // var f_end = ptr_get_u64(info_ptr - 8)
+            var static_pc = pc - g_slide
+            var off_in_func = static_pc - f_start
+
             var name_len = ptr_get_u64(info_ptr)
             var name = read_string_at(info_ptr + 8, name_len)
             
-            // Format: File "...", line 10, in <module>
-            // We don't have file/line info yet, only func name.
-            // Python style:
-            //   File "<unknown>", line 0, in func_name
-            //     args...
-            
-            print(string_concat("  File \"?\", line ?, in ", name))
+            // We don't have file/line info yet; print a stable, useful shape:
+            //   at func +off (pc=...)
+            var s0 = string_concat("  at ", name)
+            var s1 = string_concat(s0, " +")
+            var s2 = string_concat(s1, oren_int_to_string(off_in_func))
+            var s3 = string_concat(s2, " (pc=")
+            var s4 = string_concat(s3, oren_int_to_string(pc))
+            print(string_concat(s4, ")"))
             
             var ptr = info_ptr + 8 + name_len
             var p_count = ptr_get_u64(ptr)
@@ -810,20 +855,23 @@ fn stack_trace_debug() {
                 ptr = ptr + 8 + pname_len
                 var offset = ptr_get_u64(ptr)
                 ptr = ptr + 8
-                
-                var val_ptr = fp - offset
-                var val = ptr_get(val_ptr)
-                var s1 = string_concat("    ", pname)
-                var s2 = string_concat(s1, " = ")
-                print(string_concat(s2, oren_int_to_string(val)))
+
+                // Param locals live in the caller's frame (because PC maps to caller).
+                if caller_fp != 0 {
+                    var val_ptr = caller_fp - offset
+                    var val = ptr_get(val_ptr)
+                    var s1 = string_concat("    ", pname)
+                    var s2 = string_concat(s1, " = ")
+                    print(string_concat(s2, debug_value_to_string(val)))
+                }
                 j = j + 1
             }
         } else {
-            var s = string_concat("  File \"?\", line ?, in ??? (pc=", oren_int_to_string(pc))
-            print(string_concat(s, ")"))
+            var s0 = string_concat("  at <unknown> (pc=", oren_int_to_string(pc))
+            print(string_concat(s0, ")"))
         }
         
-        fp = ptr_get(fp)
+        fp = caller_fp
         i = i + 1
     }
     return 0

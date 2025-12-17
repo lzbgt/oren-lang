@@ -240,42 +240,74 @@ fn native_compile_program_arm64(linked, platform) {
     }
     
     // Generate resolve_symbol function
-    // Assuming macOS base 0x100000000 + 632
-    var base_addr = 4294967928 
+    // NOTE: resolve_symbol is used by the native runtime's non-debug stack trace.
+    // It must match the actual static __TEXT base + header size used by the Mach-O emitter.
+    //
+    // Mach-O emitter uses:
+    //   text_base=0x100000000, header_size=2048
+    // so the first instruction is at 0x100000000 + 2048.
+    var base_addr = 4294969344
     if ctx["platform"]["os"] == "linux" {
         base_addr = 4194304 + 120 // 0x400000 + 120 (ELF header approx, need verify)
     }
-    
-    var sym_src = "fn resolve_symbol(addr) { var off = addr - " + oren_int_to_string(base_addr) + " "
-    
-    // Scan runtime functions
+
+    // Build list of {off:int, name:string} and sort descending by off.
+    // This ensures resolve_symbol picks the closest preceding function.
+    var sym_entries = []
+
+    // Runtime functions
     var j = 0
     while j < oren_list_len(runtime_prog["statements"]) {
-        var stmt = runtime_prog["statements"][j]
-        if stmt["type"] == "Function" {
-            var name = stmt["name"]
+        var st = runtime_prog["statements"][j]
+        if st["type"] == "Function" {
+            var name = st["name"]
             var off = ctx["functions"][name]
-            sym_src = sym_src + "if off >= " + oren_int_to_string(off) + " { return " + token.CH_QUOTE + name + token.CH_QUOTE + " } "
-        }
-        j = j + 1
-    }
-    
-    // Scan user functions
-    j = 0
-    while j < oren_list_len(stmts) {
-        var stmt = stmts[j]
-        if stmt["type"] == "Function" {
-            var name = stmt["name"]
-            var off = ctx["functions"][name]
-            if off == nil {
-                print("codegen error: function offset not found for " + name)
-            } else {
-                sym_src = sym_src + "if off >= " + oren_int_to_string(off) + " { return " + token.CH_QUOTE + name + token.CH_QUOTE + " } "
+            if off != nil {
+                oren_list_push(sym_entries, {"off": off, "name": name})
             }
         }
         j = j + 1
     }
-    
+
+    // User functions
+    j = 0
+    while j < oren_list_len(stmts) {
+        var st2 = stmts[j]
+        if st2["type"] == "Function" {
+            var name2 = st2["name"]
+            var off2 = ctx["functions"][name2]
+            if off2 == nil {
+                print("codegen error: function offset not found for " + name2)
+            } else {
+                oren_list_push(sym_entries, {"off": off2, "name": name2})
+            }
+        }
+        j = j + 1
+    }
+
+    // Insertion sort (descending by off). Small N; keep it simple and deterministic.
+    var si = 1
+    while si < oren_list_len(sym_entries) {
+        var key = sym_entries[si]
+        var k_off = key["off"]
+        var k = si - 1
+        while k >= 0 {
+            if sym_entries[k]["off"] >= k_off { break }
+            sym_entries[k + 1] = sym_entries[k]
+            k = k - 1
+        }
+        sym_entries[k + 1] = key
+        si = si + 1
+    }
+
+    var sym_src = "fn resolve_symbol(addr) { var off = addr - " + oren_int_to_string(base_addr) + " "
+	    j = 0
+	    while j < oren_list_len(sym_entries) {
+	        var e = sym_entries[j]
+	        sym_src = sym_src + "if off >= " + oren_int_to_string(e["off"]) + " { return " + token.CH_QUOTE + e["name"] + token.CH_QUOTE + " } "
+	        j = j + 1
+	    }
+
     sym_src = sym_src + "return \"???\" }"
     
     print("Generating symbol table...")

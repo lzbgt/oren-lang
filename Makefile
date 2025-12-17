@@ -91,10 +91,10 @@ test-inner: oren
 		name=$$(basename $$t .oren); \
 		echo "Testing $$name..."; \
 		if [ "$$name" = "linux_hello" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name --target linux $(CODESIGN_ARG) $(GC_ARG); \
 			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
 		elif [ "$$name" = "test_debug_panic" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
 			set +e; $(RUN_WITH_TIMEOUT) ./build/$$name; rc=$$?; set -e; \
 			if [ $$rc -eq 0 ]; then \
 				echo "FAIL: $$name (Expected panic)"; exit 1; \
@@ -102,7 +102,7 @@ test-inner: oren
 				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
 			fi; \
 		else \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
 			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
 		fi \
 	done

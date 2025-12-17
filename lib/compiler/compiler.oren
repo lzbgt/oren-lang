@@ -624,11 +624,13 @@ fn compiler_main() {
         
         var linked = link_program(path, prog)
         var out_test = path + ".test"
-        
+
         if target == "linux" {
-            arm64_elf.elf_emit_program_arm64(out_test, linked, [], false, [], false)
+            // Always embed native debug info for `oren test` so panics produce readable stack traces.
+            arm64_elf.elf_emit_program_arm64(out_test, linked, [], false, [], true)
         } else {
-            arm64_macho.macho_emit_program_arm64(out_test, linked, [], false, [], false)
+            // Always embed native debug info for `oren test` so panics produce readable stack traces.
+            arm64_macho.macho_emit_program_arm64(out_test, linked, [], false, [], true)
         }
         
         if target == "macos" {
