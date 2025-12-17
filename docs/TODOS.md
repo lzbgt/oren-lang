@@ -253,6 +253,18 @@ Focus statement (to avoid roadmap thrash):
    - Next (still required for the “streams everywhere” goal):
      - define an iterator/stream protocol beyond built-in containers (e.g. `Stream` type, channel receive iteration, and/or a `__iter_next` callable contract) and bind it into determinism/capabilities.
 
+14) **Struct field immutability (portable semantics)**
+   - Why it matters:
+     - backends currently differ in struct representation (maps vs contiguous buffers)
+     - allowing `obj.field = v` makes semantics ambiguous and risks backend-specific behavior
+   - Contract (rolling):
+     - `obj.field` is **read-only** field access
+     - `obj.field = v` is a **compile-time error**
+     - use `xs[i] = v` / `m[key] = v` for mutation (lists/maps), and construct a new struct value instead of mutating
+   - Status: implemented as a parser error (fixture: `tests/native/fixtures/struct_field_assign_bad.oren`).
+   - Next (design; no rewrite path):
+     - introduce a persistent “update” form for structs (e.g. `p2 = p with { x=..., y=... }` or `p2 = Point(p.x, newy)`), after traits/enums stabilize.
+
 ## P1 (High Leverage for Agentic Debugging / Swarm)
 
 1) **AVM deterministic cooperative tasks (concurrency model; mandatory for agents)**
@@ -338,6 +350,21 @@ Focus statement (to avoid roadmap thrash):
      - N:M stage: syscall-first OS threads + parking/unparking + work stealing + GC coordination.
 
 12) **Compile-time evaluation (“comptime”) — pure-only first**
+
+13) **Packed struct views over bytes (network parsing; zero-allocation)**
+   - Goal: parse protocol headers without allocations and without exposing UB.
+   - Motivation:
+     - syscall-first networking wants low overhead and deterministic semantics
+     - “allocation per packet” does not scale; a view is the correct primitive
+   - Contract (design target; see `docs/LANGUAGE_SPEC.md`):
+     - a packed view value is `{bytes, offset}` (immutable, non-owning)
+     - field reads are endian-aware and bounds-checked
+     - no host-endianness or unaligned loads; semantics must be stable under interpreter/JIT/native
+   - Minimal milestones:
+     - PV1: define schema via attributes (metadata-only), ignored by runtime
+     - PV2: add a `pack_view(TypeName, bytes, offset)` intrinsic returning a view object
+     - PV3: lower `view.field` reads to `oren_bytes_get_u{N}_{be|le}` based on schema metadata
+     - PV4: allow nested packed views (e.g. IPv4 header contains options slice)
    - Goal: make compilation deterministic and agent-friendly without a huge rewrite.
    - Stage C0: constant evaluation for pure expressions only (no FS/NET/PROC/ENV/TIME, no nondeterministic RNG), with explicit budgets to prevent compiler hangs.
    - Later stages (pure comptime functions, bounded reflection) can follow once C0 is stable.

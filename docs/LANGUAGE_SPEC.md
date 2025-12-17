@@ -452,13 +452,20 @@ Non-goal:
 
 ### Structs and Classes
 - `struct Name { a, b, c }` and `class Name { a, b, c }` declare a nominal “shape” with a fixed set of field names.
-- Instances are currently represented as runtime maps with string keys (so field access is a map lookup).
 - Construction:
-  - `Name.new(v1, v2, v3)` returns a new instance (keys `"a"`, `"b"`, `"c"` in declaration order).
-  - `Name(v1, v2, v3)` is shorthand for `Name.new(...)`.
-- Field access and assignment:
-  - `p.a` reads the `"a"` field.
-  - `p.a = v` writes the `"a"` field.
+  - `Name(v1, v2, v3)` constructs a new instance (fields in declaration order).
+- Field access:
+  - `p.a` reads field `a`.
+- Field assignment:
+  - **Not supported.** Struct/class fields are **immutable** in Oren’s rolling design.
+  - Use maps/lists when you need mutation (`m[key] = v`, `xs[i] = v`), or construct a new value.
+
+Notes (rolling reality):
+
+- Backends differ today:
+  - **C backend:** `struct` construction lowers to a map-like runtime object (convenient, but not layout-stable).
+  - **Native backend:** `struct` construction uses a contiguous field buffer (fast, but still rolling).
+- Treat struct/class values as **opaque immutable handles** until a layout is stabilized across backends.
 
 ### Object Model (recommended direction)
 
@@ -599,9 +606,32 @@ Programmer-facing semantics can stay “value-like” (immutable, safe), while t
 For packet parsing, the ideal long-term ergonomics is to avoid allocations entirely:
 
 - introduce **packed struct views** over a byte slice, with explicit endianness:
-  - e.g. `struct Ipv4Hdr @packed @net(be) { total_len: u16, ... }`
-  - reading `hdr.total_len` performs endian conversion from the underlying bytes
-  - the “value” of such a view can be `{bytes, offset}` (still immutable)
+  - design idea:
+    - declare a packed schema (metadata-only) and treat a “header value” as `{bytes, offset}`
+    - reading `hdr.total_len` performs endian conversion from the underlying bytes
+    - the view is immutable, bounds-checked, and deterministic
+
+Proposed (not implemented) sketch using attributes:
+
+```oren
+@net.packed(endian="be")
+struct Ipv4Hdr { total_len, proto, src, dst }
+
+fn demo(pkt) {
+    // view: zero allocation; just a handle to (pkt, 0)
+    var hdr = pack_view(Ipv4Hdr, pkt, 0)
+    var len = hdr.total_len
+    return len
+}
+```
+
+Constraints the design must enforce (for determinism + safety):
+
+- only fixed-width scalar fields in v0 (u8/u16/u32/u64 and signed variants; bool later)
+- explicit byte order at the schema or field level (no implicit host endianness)
+- no unaligned host loads (must be bytewise reads so semantics are stable under interpreter/JIT/native)
+- bounds checks are mandatory (out-of-bounds returns an error object, not UB)
+- views must be non-owning (bytes slice outlives the view handle)
 
 Until then, the endian helpers (`oren_bytes_get_u16_be`, etc.) are the stable base primitive.
 

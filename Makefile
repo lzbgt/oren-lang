@@ -122,6 +122,14 @@ test-inner: oren
 		elif [ $$rc -eq 124 ]; then \
 			echo "FAIL: strict_attrs_bad (Timed out after $(BUILD_TIMEOUT_SECS)s)"; exit 1; \
 		fi
+	@# Struct fields are immutable: `obj.field = v` must be rejected at parse-time (portable across backends).
+	@echo "Testing struct field assignment rejection..."
+	@set +e; $(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/native/fixtures/struct_field_assign_bad.oren --backend native -o build/struct_field_assign_bad $(CODESIGN_ARG) $(GC_ARG); rc=$$?; set -e; \
+		if [ $$rc -eq 0 ]; then \
+			echo "FAIL: struct_field_assign_bad (Expected compile error: struct fields immutable)"; exit 1; \
+		elif [ $$rc -eq 124 ]; then \
+			echo "FAIL: struct_field_assign_bad (Timed out after $(BUILD_TIMEOUT_SECS)s)"; exit 1; \
+		fi
 	@# Module Tests (C Backend)
 	@echo "Testing Module System..."
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_shapes.oren --backend c -o build/test_shapes $(CODESIGN_ARG) $(GC_ARG)
