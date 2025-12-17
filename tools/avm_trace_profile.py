@@ -55,7 +55,7 @@ def parse_trace_bytes(trace: bytes) -> dict:
     if tag != b"AVMTRC02":
         raise ValueError(f"unsupported trace tag {tag!r} (expected b'AVMTRC02')")
 
-    # Event ids (rolling, see lib/avm/avm.c):
+    # Event ids (rolling, see lib/avm/avm_trace.c):
     EVT_STEP = 1
     EVT_NATIVE2 = 2
     EVT_ABORT = 3
@@ -291,4 +291,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

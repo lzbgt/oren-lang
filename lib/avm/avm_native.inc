@@ -1143,7 +1143,7 @@ static AvmValue avm_vfs_read_string_value(AvmVM* vm, const uint8_t* data, uint32
 
 // Rolling ABI: CALL_NATIVE2(domain, op, nargs)
 // For now, CORE domain (0) maps op -> legacy native id.
-static AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
+AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
     // Normalize legacy/compat calls to prevent CORE domain bypass:
     // - bootstrap tools or old bytecode may still call domain=0 with legacy IDs.
     // - if a legacy id maps to an effectful domain, route to that domain/op before policy checks.

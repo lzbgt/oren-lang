@@ -1,0 +1,10 @@
+fn main() {
+    // Minimal TIME substrate smoke test (syscall-first).
+    // We don't assert wall-clock accuracy; only that it returns and doesn't hang.
+    var r = oren_sleep_ms(1)
+    if r < 0 { exit(900) }
+    print("sleep OK")
+    exit(0)
+}
+
+main()

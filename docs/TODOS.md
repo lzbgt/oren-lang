@@ -316,7 +316,8 @@ Focus statement (to avoid roadmap thrash):
    - Enable “Matrix sandbox” simulation and deterministic replay of realistic workflows.
 
 3) **Codebase factoring (do only when it prevents progress)**
-   - `lib/avm/avm.c` is large; split by domain/module only when adding new surfaces (NET record/replay, TASK scheduler, snapshot format v2) to avoid churn.
+   - AVM core has been split into SOLID-ish C modules under `lib/avm/` (e.g. `lib/avm/avm_vm.c`, `lib/avm/avm_native.c`, `lib/avm/avm_state.c`).
+   - Future factoring should continue by capability domain (NET/PROC/FS/TIME/RNG) and by deterministic surfaces (hashing/tracing/snapshot), avoiding random churn.
    - Goal: factor by capability domains and by deterministic surfaces (hashing, tracing, snapshot) rather than “random file splitting”.
 
 4) **NET_DIAG diagnostic ops (host-only first; ICMP; later ARP/neighbor table)**

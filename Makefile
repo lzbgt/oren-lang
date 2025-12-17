@@ -470,9 +470,14 @@ verify: clean oren_stage2
 
 # --- AVM (experimental) ---
 
-avm: lib/avm/main.c lib/avm/avm.c lib/avm/avm.h lib/avm/sha256.c lib/avm/sha256.h
+avm: lib/avm/main.c lib/avm/avm.h lib/avm/avm_internal.h lib/avm/sha256.c lib/avm/sha256.h \
+     lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c lib/avm/avm_containers.c \
+     lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c lib/avm/avm_native.c \
+     lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c
 	@echo "Building AVM..."
-	$(CC) -O2 -o avm lib/avm/main.c lib/avm/avm.c lib/avm/sha256.c
+	$(CC) -O2 -o avm lib/avm/main.c lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c \
+		lib/avm/avm_containers.c lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c \
+		lib/avm/avm_native.c lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c lib/avm/sha256.c
 
 # --- Examples (verification) ---
 

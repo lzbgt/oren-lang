@@ -1,0 +1,11 @@
+fn main() {
+    // TIME: monotonic raw must not go backwards.
+    var a = oren_time_mono_raw()
+    oren_sleep_ms(1)
+    var b = oren_time_mono_raw()
+    if b < a { exit(900) }
+    print("time mono raw ok")
+    exit(0)
+}
+
+main()

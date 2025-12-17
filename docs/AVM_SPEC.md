@@ -16,7 +16,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 
 ### Data Model
 - **Values:** `AvmValue` (`type` tag + union), see `lib/avm/avm.h`.
-- **Stack:** `AvmValue[]` stack inside the VM (`lib/avm/avm.c`).
+- **Stack:** `AvmValue[]` stack inside the VM (`lib/avm/avm_vm.c`).
 - **Heap:** Currently plain `malloc` allocations for strings/lists/maps (no GC yet).
 
 ## Bytecode Format (.obc)

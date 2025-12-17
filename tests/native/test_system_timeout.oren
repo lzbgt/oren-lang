@@ -1,0 +1,16 @@
+fn main() {
+    // Regression: syscall-first PROC must be cancellable without hanging the test runner.
+    //
+    // This uses `oren_system_timeout` which:
+    // - polls wait4(WNOHANG)
+    // - sleeps via syscall-first TIME
+    // - kills + reaps on timeout
+    //
+    // Expect: returns -ETIMEDOUT (we use BSD's 60 as the v0 convention).
+    var rc = oren_system_timeout("sleep 5", 20)
+    if rc != 0 - 60 { exit(900) }
+    print("system timeout OK")
+    exit(0)
+}
+
+main()

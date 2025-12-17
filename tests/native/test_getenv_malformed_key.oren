@@ -1,0 +1,26 @@
+fn main() {
+    // Regression: oren_getenv() must be bounded even if passed a malformed
+    // (unterminated) "string pointer".
+    //
+    // Native backend strings are raw pointers; if user code passes an invalid
+    // pointer, we still must not spin forever.
+
+    var n = 4096
+    var p = malloc(n)
+    if p == 0 { exit(900) }
+
+    // Fill with non-zero bytes and no trailing NUL.
+    var i = 0
+    while i < n {
+        ptr_set_byte(p + i, 65) // 'A'
+        i = i + 1
+    }
+
+    var v = oren_getenv(p)
+    if v != 0 { exit(901) }
+
+    print("getenv bounded OK")
+    exit(0)
+}
+
+main()

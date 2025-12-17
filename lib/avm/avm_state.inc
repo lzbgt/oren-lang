@@ -966,7 +966,7 @@ static int rr_entry_wire_size(uint8_t domain, uint16_t op, AvmValue ret, uint64_
     return 1;
 }
 
-static int rr_write_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
+int rr_write_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
     uint64_t need = 0;
     if (!rr_entry_wire_size(domain, op, ret, &need)) return 0;
     if (!avm_log_charge(vm, need, (int)domain, (int)op)) return 0;
@@ -987,7 +987,7 @@ static int rr_write_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op, AvmVa
     return 1;
 }
 
-static AvmValue rr_replay_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
+AvmValue rr_replay_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
     uint8_t got_domain = 0;
     uint16_t got_op = 0;
     uint8_t got_nargs = 0;
@@ -1025,7 +1025,7 @@ static AvmValue rr_replay_entry(AvmVM* vm, FILE* f, uint8_t domain, uint16_t op,
     return ret;
 }
 
-static int rr_write_entry_mem(AvmVM* vm, AvmBytes* out, uint32_t* pos, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
+int rr_write_entry_mem(AvmVM* vm, AvmBytes* out, uint32_t* pos, uint8_t domain, uint16_t op, AvmValue* args, int nargs, AvmValue ret) {
     uint64_t need = 0;
     if (!rr_entry_wire_size(domain, op, ret, &need)) return 0;
     if (!avm_log_charge(vm, need, (int)domain, (int)op)) return 0;
@@ -1044,7 +1044,7 @@ static int rr_write_entry_mem(AvmVM* vm, AvmBytes* out, uint32_t* pos, uint8_t d
     return 1;
 }
 
-static AvmValue rr_replay_entry_mem(AvmVM* vm, const AvmBytes* in, uint32_t* pos, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
+AvmValue rr_replay_entry_mem(AvmVM* vm, const AvmBytes* in, uint32_t* pos, uint8_t domain, uint16_t op, AvmValue* args, int nargs) {
     uint8_t got_domain = 0;
     uint16_t got_op = 0;
     uint8_t got_nargs = 0;
@@ -1715,7 +1715,7 @@ int avm_restore(AvmVM* vm, const char* path) {
     return 0;
 }
 
-static int avm_path_allowed(AvmVM* vm, const char* path) {
+int avm_path_allowed(AvmVM* vm, const char* path) {
     if (!vm) return 0;
     if (vm->fs_allow_prefix_count <= 0) return 1;
     if (!path) return 0;

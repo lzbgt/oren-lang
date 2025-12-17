@@ -1,0 +1,9 @@
+fn main() {
+    // TIME: wall/unix time should be available without libc.
+    var t = oren_time_unix_ns()
+    if t <= 0 { exit(900) }
+    print("time unix ok")
+    exit(0)
+}
+
+main()
