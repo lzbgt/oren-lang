@@ -213,7 +213,7 @@ tests/native/while.oren \
 	@# Module Tests (C Backend)
 	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing Module System..."; fi
 	@pass=0; total=0; failed=""; \
-		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren; do \
+		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren tests/modules/test_argparse.oren; do \
 			total=$$((total+1)); \
 			name=$$(basename $$t .oren); \
 			log=build/logs/mod_$$name.log; \

@@ -1,5 +1,6 @@
 #include "avm.h"
 #include "sha256.h"
+#include "avm_help.inc"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1866,6 +1867,11 @@ int main(int argc, char** argv) {
             i += 2;
             continue;
         }
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            fputs(AVM_HELP_TEXT, stdout);
+            free(break_pcs);
+            return 0;
+        }
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown arg: %s\n", argv[i]);
             return 1;
@@ -1875,7 +1881,7 @@ int main(int argc, char** argv) {
     }
 
     if (!obc_path) {
-        printf("Usage: avm [--disasm|--disasm-consts|--disasm-json|--disasm-consts-json] [--trace|--trace-limit N] [--breakpc PC] [--print-stack] [--print-pause-json] [--snapshot-in file] [--snapshot-out file] [--step-limit N] [--timeout-ms N] [--repeat N] [--print-state-hash] [--print-result-hash] [--print-trace-hash] [--print-trace-bytes-hex] [--print-record-log-hex] [--print-mem-stats] [--print-rss] [--print-run-json] [--print-policy|--print-policy-json] [--print-job|--print-job-json] [--inspect|--inspect-json] [--verify-strict] [--capsule|--untrusted] [--deny-by-default] [--allow-domains \"0,1,6\"] [--fs-allow-prefixes \"build/,/tmp/\"] [--fs-backend host|vfs] [--proc-backend host|vproc] [--proc-exit-code N] [--proc-fixtures-hex HEX] [--net-backend host|vnet] [--net-fixtures-hex HEX] <file.obc> [-- arg1 arg2 ...]\n");
+        fputs(AVM_HELP_TEXT, stdout);
         free(break_pcs);
         return 1;
     }

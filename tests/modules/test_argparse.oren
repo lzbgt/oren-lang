@@ -1,0 +1,43 @@
+import ap "../../lib/std/argparse.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn test_basic_parse() {
+    var p = ap.new_parser("tool", "demo tool")
+    var c = ap.add_command(p, "run", "run the tool")
+    ap.cmd_flag(c, "--verbose", "-v", "verbose mode")
+    ap.cmd_option(c, "--out", "-o", "string", "a.out", "output path")
+    ap.cmd_option(c, "--n", nil, "int", 3, "count")
+    ap.cmd_positional(c, "file", true, "input file")
+
+    var r = ap.parse(p, ["run", "-v", "--out=bin", "--n", "7", "in.txt", "--", "x", "y"])
+    assert(r["ok"] == true, "parse ok")
+    assert(r["cmd"] == "run", "cmd")
+    assert(r["opts"]["verbose"] == true, "verbose")
+    assert(r["opts"]["out"] == "bin", "out")
+    assert(r["opts"]["n"] == 7, "n")
+    assert(r["pos"][0] == "in.txt", "pos file")
+    assert(r["rest"][0] == "x", "rest x")
+    assert(r["rest"][1] == "y", "rest y")
+}
+
+fn test_help_early_exit() {
+    var p = ap.new_parser("tool", "demo tool")
+    var c = ap.add_command(p, "run", "run the tool")
+    ap.cmd_flag(c, "--verbose", "-v", "verbose mode")
+
+    var r = ap.parse(p, ["run", "--help"])
+    assert(r["ok"] == false, "help returns ok=false")
+    assert(r["code"] == 0, "help code 0")
+    assert(r["help"] != nil, "help text present")
+}
+
+test_basic_parse()
+test_help_early_exit()
+print("ok")
+exit(0)

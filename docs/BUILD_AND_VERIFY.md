@@ -200,6 +200,21 @@ When debugging `.obc` bytecode (the AVM backend), two primitives are essential:
 1) **Disassembly** (like `otool -tV`): inspect decoded opcodes, operands, branch targets, and constants.
 2) **Execution trace** (like a minimal debugger log): print executed instructions with `pc/sp/fp/depth` for quick diagnosis.
 
+### 5.0 CLI help is generated
+
+The `./avm --help` text is generated from an Oren CLI spec:
+
+- Generator: `tools/gen_avm_help.oren`
+- Output (checked in): `lib/avm/avm_help.inc`
+
+If AVM CLI flags change, regenerate the include by running:
+
+```bash
+./oren build tools/gen_avm_help.oren --backend native -o build/gen_avm_help
+./build/gen_avm_help > lib/avm/avm_help.inc
+make avm
+```
+
 ### 5.1 Disassemble `.obc`
 
 Build a bytecode artifact:

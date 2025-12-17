@@ -8,35 +8,55 @@ import lexer "lexer.oren"
 import parser "parser.oren"
 import ast "ast.oren"
 import metadata "metadata.oren"
+import argparse "../std/argparse.oren"
+
+fn cli_spec() {
+    var p = argparse.new_parser("oren", "Oren compiler / toolchain driver")
+
+    var build = argparse.add_command(p, "build", "Build a .oren file (native/c/bytecode)")
+    argparse.cmd_positional(build, "file.oren", true, "Input source file")
+    argparse.cmd_option(build, "--backend", nil, "string", "c", "Backend: c|native|bytecode")
+    argparse.cmd_option(build, "-o", nil, "string", "", "Output path (default: strip .oren)")
+    argparse.cmd_flag(build, "--emit-c", nil, "(C backend) stop after generating <file.oren>.c")
+    argparse.cmd_option(build, "--cc", nil, "string", "cc", "(C backend) C compiler")
+    argparse.cmd_option(build, "--target", nil, "string", "macos", "(native backend) target OS: macos|linux")
+    argparse.cmd_flag(build, "--disasm", nil, "(native backend) disassemble output via otool/objdump")
+    argparse.cmd_flag(build, "--debug", nil, "(native backend) embed debug info for stack traces")
+    argparse.cmd_flag(build, "--lib", nil, "(native backend) build a shared library")
+    argparse.cmd_flag(build, "--shared", nil, "(native backend) build a shared library (alias)")
+    argparse.cmd_option(build, "--link", "-l", "string", "", "(native backend, macOS) add LC_LOAD_DYLIB")
+    argparse.cmd_flag(build, "--metadata", nil, "(native backend) write <out>.meta.json")
+    argparse.cmd_flag(build, "--analyze", nil, "Print analysis info and exit")
+    argparse.cmd_flag(build, "--python", nil, "(C backend) enable Python integration (requires python3-config)")
+    argparse.cmd_flag(build, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
+    argparse.cmd_option(build, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
+    argparse.cmd_option(build, "--codesign", nil, "string", "", "(macOS) codesign identity")
+    argparse.cmd_flag(build, "--notarize", nil, "(macOS) notarize output with notarytool")
+    argparse.cmd_option(build, "--notary-profile", nil, "string", "", "(macOS) notarytool keychain profile")
+    argparse.cmd_flag(build, "--no-gc", nil, "Disable GC scanning (also via env OREN_NO_GC=1)")
+
+    var emitc = argparse.add_command(p, "emit-c", "Alias for: build --backend c --emit-c")
+    argparse.cmd_positional(emitc, "file.oren", true, "Input source file")
+
+    var test = argparse.add_command(p, "test", "Run tests (repo runner or in-file test_ runner)")
+    argparse.cmd_positional(test, "file.oren", false, "Optional: run test_ functions in a single file (native-only)")
+    argparse.cmd_option(test, "--target", nil, "string", "macos", "(native backend) target OS: macos|linux")
+    argparse.cmd_flag(test, "--no-gc", nil, "Disable GC scanning (also via env OREN_NO_GC=1)")
+
+    var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
+    argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
+
+    return p
+}
 
 fn usage() {
-    print("Usage:")
-    print("  oren <file.oren> [flags]               (alias for: oren build <file.oren>)")
-    print("  oren build <file.oren> [flags]")
-    print("  oren emit-c <file.oren>")
-    print("  oren test                               (repo test runner; curated, fast)")
-    print("  oren test <file.oren> [--target macos|linux]   (in-file test_ runner; native-only)")
-    print("  oren scan <lib.dylib>")
-    print("")
-    print("Flags:")
-    print("  -o <path>                Output path (default: strip .oren)")
-    print("  --backend c|native|bytecode")
-    print("  --emit-c                 (C backend only) stop after generating <file.oren>.c")
-    print("  --cc <cc>                (C backend) C compiler (default: cc)")
-    print("  --target macos|linux      (native backend) target OS (default: macos)")
-    print("  --disasm                  (native backend) disassemble output via otool/objdump")
-    print("  --debug                   (native backend) embed debug info for stack traces")
-    print("  --lib | --shared          (native backend) build a shared library")
-    print("  --link <path> | -l <path> (native backend, macOS) add LC_LOAD_DYLIB")
-    print("  --metadata                (native backend) write <out>.meta.json")
-    print("  --analyze                 print analysis info and exit")
-    print("  --python                  (C backend) enable Python integration (requires python3-config)")
-    print("  --strict-attrs            reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
-    print("  --attr-allow-prefixes CSV allow attribute name prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
-    print("  --codesign <id>           (macOS) codesign output (default: configured Developer ID)")
-    print("  --notarize                (macOS) notarize output with notarytool")
-    print("  --notary-profile <name>   (macOS) notarytool keychain profile")
-    print("  --no-gc                   disable GC scanning (also via env OREN_NO_GC=1)")
+    var p = cli_spec()
+    var lines = argparse.render_help_lines(p, nil)
+    var i = 0
+    while i < oren_list_len(lines) {
+        print(lines[i])
+        i = i + 1
+    }
 }
 
 fn shell_quote(s) {
@@ -159,7 +179,8 @@ fn run_repo_tests(target, no_gc) {
         "tests/modules/test_endian_casts.oren",
         "tests/modules/test_gc_threads.oren",
         "tests/modules/test_gc_stack_roots.oren",
-        "tests/modules/test_result.oren"
+        "tests/modules/test_result.oren",
+        "tests/modules/test_argparse.oren"
     ]
 
     var avm_tests = [
@@ -697,6 +718,16 @@ fn compiler_main() {
     var args = oren_args()
     var argc = oren_list_len(args)
     if argc < 2 { usage(); return nil }
+
+    // Global help (works for all subcommands).
+    var hi = 1
+    while hi < argc {
+        if args[hi] == "--help" || args[hi] == "-h" {
+            usage()
+            return nil
+        }
+        hi = hi + 1
+    }
 
     var mode = "build"
     var i = 1
@@ -1285,5 +1316,3 @@ fn compiler_main() {
     print("Build successful: " + out_path)
     return nil
 }
-
-compiler_main()
