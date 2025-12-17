@@ -28,6 +28,9 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 
 - **Runtime**:
   - Automatically injects `lib/runtime_native.oren` which implements `String` comparison and `Map` logic.
+  - `oren_net_get(url)` is implemented on native as a minimal HTTP/1.0 GET over syscall-first TCP:
+    - supported form: `http://<ipv4>[:port][/path]`
+    - no TLS/HTTPS, no DNS, no chunked decoding (v0).
 
 ## Notes / Limitations
 - **String concatenation:** `+` is integer-only on the native backend; use `string_concat(a, b)` for strings.

@@ -114,6 +114,9 @@ Focus statement (to avoid roadmap thrash):
      - `sys_kqueue`, `sys_kevent`, `sys_fcntl`
      - `.oren` helpers: `oren_tcp_connect`, `oren_tcp_listen_local`, `oren_tcp_accept`, `oren_tcp_read_into`, `oren_tcp_write_from`, `oren_tcp_close`
      - test: `tests/native/test_tcp_loopback.oren`
+     - minimal HTTP GET helper built on top of TCP syscalls:
+       - `oren_net_get("http://<ipv4>[:port][/path]")` (v0; no TLS/DNS/chunked)
+       - regression: `tests/native/test_http_get_loopback.oren`
    - Remaining (still required by the “real stdlib NET” goal):
      - add `sys_getsockname` + `sys_getpeername` (useful for debugging/introspection) (done; regression: `tests/native/test_tcp_sockname_peername.oren`)
      - add `sys_send`/`sys_recv` first-class intrinsics (may lower to sendto/recvfrom with NULL addr) (done; regression: `tests/native/test_tcp_send_recv.oren`)

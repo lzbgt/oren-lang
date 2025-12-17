@@ -1,0 +1,48 @@
+fn server(port) {
+    var listen_fd = oren_tcp_listen_local(port)
+    if listen_fd < 0 { exit(10) }
+    var fd = oren_tcp_accept(listen_fd, 5000)
+    if fd < 0 { exit(11) }
+
+    var body = "HELLO"
+    var hdr = "HTTP/1.0 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n"
+    var resp = hdr + body
+    var n = oren_tcp_write_from(fd, resp, oren_string_len(resp), 5000)
+    if n < 0 { exit(12) }
+
+    oren_tcp_close(fd)
+    oren_tcp_close(listen_fd)
+    exit(0)
+}
+
+var port = 18080
+var pid = oren_fork()
+if pid == 0 {
+    server(port)
+}
+
+// Give the child a moment to bind/listen (v0).
+oren_sleep_ms(50)
+
+var url = "http://127.0.0.1:18080/"
+var body = oren_net_get(url)
+if body == 0 {
+    print("http_get: FAIL (nil)")
+    exit(1)
+}
+
+if strcmp(body, "HELLO") != 0 {
+    print("http_get: FAIL (body mismatch)")
+    print(body)
+    exit(1)
+}
+
+// Reap child (best-effort).
+var status_ptr = malloc(8)
+ptr_set(status_ptr, 0)
+sys_wait4(pid, status_ptr, 0, 0)
+free(status_ptr)
+
+print("http_get: OK")
+exit(0)
+
