@@ -1,0 +1,332 @@
+// std/json (rolling)
+//
+// Key constraint: native backend currently cannot reliably distinguish `nil`/`false`/`0`
+// at runtime (all may be represented as small integers). To stay portable and deterministic
+// across backends, this module uses an explicit tagged JsonValue representation.
+//
+// JsonValue shape (map):
+//   {"t":"null"}
+//   {"t":"bool","b":0|1}
+//   {"t":"int","i":<int>}
+//   {"t":"string","s":<string>}
+//   {"t":"array","a":[JsonValue...]}
+//   {"t":"object","o":{ string_key: JsonValue, ... }}  // map iteration yields keys in sorted order
+
+fn jnull() { return {"t": "null"} }
+fn jbool(b) { return {"t": "bool", "b": b} }
+fn jint(i) { return {"t": "int", "i": i} }
+fn jstring(s) { return {"t": "string", "s": s} }
+fn jarray(a) { return {"t": "array", "a": a} }
+fn jobject(o) { return {"t": "object", "o": o} }
+
+fn _is_ws(b) {
+    return b == 32 || b == 9 || b == 10 || b == 13
+}
+
+fn _skip_ws(bs, pos) {
+    var n = oren_list_len(bs)
+    var i = pos
+    while i < n {
+        if !_is_ws(bs[i]) { break }
+        i = i + 1
+    }
+    return i
+}
+
+fn _err(msg, pos) {
+    return {"ok": 0, "err": msg, "pos": pos}
+}
+
+fn _ok(v, pos) {
+    return {"ok": 1, "v": v, "pos": pos}
+}
+
+fn _match_lit(bs, pos, lit_bytes) {
+    var i = 0
+    while i < oren_list_len(lit_bytes) {
+        if bs[pos + i] != lit_bytes[i] { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
+fn _parse_string(bs, pos) {
+    var n = oren_list_len(bs)
+    if pos >= n { return _err("unexpected EOF", pos) }
+    if bs[pos] != 34 { return _err("expected '\"'", pos) }
+    pos = pos + 1
+
+    var out = []
+    while pos < n {
+        var ch = bs[pos]
+        if ch == 34 {
+            // closing quote
+            pos = pos + 1
+            var s = oren_string_from_bytes(out)
+            if s == nil { return _err("string_from_bytes failed", pos) }
+            return _ok(jstring(s), pos)
+        }
+        if ch == 92 {
+            // escape
+            pos = pos + 1
+            if pos >= n { return _err("unexpected EOF in escape", pos) }
+            var e = bs[pos]
+            if e == 34 { oren_list_push(out, 34) }
+            else {
+                if e == 92 { oren_list_push(out, 92) }
+                else {
+                    if e == 47 { oren_list_push(out, 47) }
+                    else {
+                        if e == 98 { oren_list_push(out, 8) }    // \b
+                        else {
+                            if e == 102 { oren_list_push(out, 12) }  // \f
+                            else {
+                                if e == 110 { oren_list_push(out, 10) }  // \n
+                                else {
+                                    if e == 114 { oren_list_push(out, 13) }  // \r
+                                    else {
+                                        if e == 116 { oren_list_push(out, 9) }   // \t
+                                        else {
+                                            if e == 117 {
+                                                // \uXXXX not supported in rolling v0 (no unicode scalar model yet).
+                                                return _err("unsupported escape: \\uXXXX", pos)
+                                            } else {
+                                                return _err("invalid escape sequence", pos)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            pos = pos + 1
+        } else {
+            // raw byte (UTF-8 passthrough)
+            oren_list_push(out, ch)
+            pos = pos + 1
+        }
+    }
+    return _err("unexpected EOF in string", pos)
+}
+
+fn _parse_int(bs, pos) {
+    var n = oren_list_len(bs)
+    if pos >= n { return _err("unexpected EOF", pos) }
+
+    var neg = 0
+    if bs[pos] == 45 {
+        neg = 1
+        pos = pos + 1
+        if pos >= n { return _err("expected digit after '-'", pos) }
+    }
+
+    var any = 0
+    var v = 0
+    while pos < n {
+        var b = bs[pos]
+        if b < 48 || b > 57 { break }
+        any = 1
+        v = v * 10 + (b - 48)
+        pos = pos + 1
+    }
+    if any == 0 { return _err("expected digit", pos) }
+    if neg == 1 { v = -v }
+    return _ok(jint(v), pos)
+}
+
+fn _parse_array(bs, pos) {
+    var n = oren_list_len(bs)
+    if pos >= n { return _err("unexpected EOF", pos) }
+    if bs[pos] != 91 { return _err("expected '['", pos) }
+    pos = pos + 1
+    pos = _skip_ws(bs, pos)
+
+    var items = []
+    if pos < n && bs[pos] == 93 {
+        return _ok(jarray(items), pos + 1)
+    }
+
+    while 1 {
+        pos = _skip_ws(bs, pos)
+        var r = _parse_value(bs, pos)
+        if r["ok"] != 1 { return r }
+        oren_list_push(items, r["v"])
+        pos = _skip_ws(bs, r["pos"])
+        if pos >= n { return _err("unexpected EOF in array", pos) }
+        if bs[pos] == 44 {
+            pos = pos + 1
+            continue
+        }
+        if bs[pos] == 93 {
+            pos = pos + 1
+            return _ok(jarray(items), pos)
+        }
+        return _err("expected ',' or ']'", pos)
+    }
+    return _err("unreachable", pos)
+}
+
+fn _parse_object(bs, pos) {
+    var n = oren_list_len(bs)
+    if pos >= n { return _err("unexpected EOF", pos) }
+    if bs[pos] != 123 { return _err("expected '{'", pos) }
+    pos = pos + 1
+    pos = _skip_ws(bs, pos)
+
+    var obj = {}
+    if pos < n && bs[pos] == 125 {
+        return _ok(jobject(obj), pos + 1)
+    }
+
+    while 1 {
+        pos = _skip_ws(bs, pos)
+        var rk = _parse_string(bs, pos)
+        if rk["ok"] != 1 { return rk }
+        var k = rk["v"]["s"]
+        pos = _skip_ws(bs, rk["pos"])
+        if pos >= n { return _err("unexpected EOF in object", pos) }
+        if bs[pos] != 58 { return _err("expected ':'", pos) }
+        pos = pos + 1
+        pos = _skip_ws(bs, pos)
+        var rv = _parse_value(bs, pos)
+        if rv["ok"] != 1 { return rv }
+        obj[k] = rv["v"]
+        pos = _skip_ws(bs, rv["pos"])
+        if pos >= n { return _err("unexpected EOF in object", pos) }
+        if bs[pos] == 44 {
+            pos = pos + 1
+            continue
+        }
+        if bs[pos] == 125 {
+            pos = pos + 1
+            return _ok(jobject(obj), pos)
+        }
+        return _err("expected ',' or '}'", pos)
+    }
+    return _err("unreachable", pos)
+}
+
+fn _parse_value(bs, pos) {
+    var n = oren_list_len(bs)
+    pos = _skip_ws(bs, pos)
+    if pos >= n { return _err("unexpected EOF", pos) }
+    var b = bs[pos]
+
+    if b == 34 { return _parse_string(bs, pos) }
+    if b == 91 { return _parse_array(bs, pos) }
+    if b == 123 { return _parse_object(bs, pos) }
+    if b == 45 { return _parse_int(bs, pos) }
+    if b >= 48 && b <= 57 { return _parse_int(bs, pos) }
+
+    // Literals: true/false/null
+    if b == 116 { // 't'
+        var lit = [116, 114, 117, 101] // true
+        if pos + 4 <= n && _match_lit(bs, pos, lit) == 1 {
+            return _ok(jbool(1), pos + 4)
+        }
+        return _err("invalid literal", pos)
+    }
+    if b == 102 { // 'f'
+        var lit2 = [102, 97, 108, 115, 101] // false
+        if pos + 5 <= n && _match_lit(bs, pos, lit2) == 1 {
+            return _ok(jbool(0), pos + 5)
+        }
+        return _err("invalid literal", pos)
+    }
+    if b == 110 { // 'n'
+        var lit3 = [110, 117, 108, 108] // null
+        if pos + 4 <= n && _match_lit(bs, pos, lit3) == 1 {
+            return _ok(jnull(), pos + 4)
+        }
+        return _err("invalid literal", pos)
+    }
+
+    return _err("unexpected token", pos)
+}
+
+fn decode(s) {
+    var bs = oren_bytes_from_string(s)
+    var r = _parse_value(bs, 0)
+    if r["ok"] != 1 { return r }
+    var pos = _skip_ws(bs, r["pos"])
+    if pos != oren_list_len(bs) {
+        return _err("trailing input", pos)
+    }
+    return r
+}
+
+fn _escape_string(s) {
+    var bs = oren_bytes_from_string(s)
+    var out = []
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 34 { // "
+            oren_list_push(out, 92); oren_list_push(out, 34)
+        } else {
+            if b == 92 { // \
+                oren_list_push(out, 92); oren_list_push(out, 92)
+            } else {
+                if b == 10 { // \n
+                    oren_list_push(out, 92); oren_list_push(out, 110)
+                } else {
+                    if b == 13 { // \r
+                        oren_list_push(out, 92); oren_list_push(out, 114)
+                    } else {
+                        if b == 9 { // \t
+                            oren_list_push(out, 92); oren_list_push(out, 116)
+                        } else {
+                            // pass through raw byte (UTF-8)
+                            oren_list_push(out, b)
+                        }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return oren_string_from_bytes(out)
+}
+
+fn encode(jv) {
+    var t = jv["t"]
+    if t == "null" { return "null" }
+    if t == "bool" {
+        if jv["b"] != 0 { return "true" }
+        return "false"
+    }
+    if t == "int" {
+        return oren_int_to_string(jv["i"])
+    }
+    if t == "string" {
+        return "\"" + _escape_string(jv["s"]) + "\""
+    }
+    if t == "array" {
+        var a = jv["a"]
+        var out = "["
+        var i = 0
+        while i < oren_list_len(a) {
+            if i > 0 { out = out + "," }
+            out = out + encode(a[i])
+            i = i + 1
+        }
+        out = out + "]"
+        return out
+    }
+    if t == "object" {
+        var o = jv["o"]
+        var out2 = "{"
+        var first = 1
+        for k in o {
+            if first != 1 { out2 = out2 + "," }
+            first = 0
+            out2 = out2 + "\"" + _escape_string(k) + "\":" + encode(o[k])
+        }
+        out2 = out2 + "}"
+        return out2
+    }
+    // Unknown tag: encode as null (rolling safety).
+    return "null"
+}

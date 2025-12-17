@@ -321,38 +321,71 @@ fn test_tcp_sockname_peername() {
 }
 
 fn test_http_get_loopback() {
-    fn server(port) {
-        var listen_fd = oren_tcp_listen_local(port)
+    // Robust loopback HTTP: child chooses an available port and tells parent via pipe
+    // (avoids flakiness if a fixed port is already in use).
+
+    var ch = oren_pipe()
+    var r = oren_list_get(ch, 0)
+    var w = oren_list_get(ch, 1)
+
+    var pid = oren_fork()
+    if pid == 0 {
+        sys_close(r)
+
+        var port = 48080
+        var listen_fd = -1
+        var tries = 0
+        while tries < 50 {
+            listen_fd = oren_tcp_listen_local(port)
+            if listen_fd >= 0 { break }
+            port = port + 1
+            tries = tries + 1
+        }
         if listen_fd < 0 { exit(10) }
+
+        var pbuf = malloc(8)
+        if pbuf == 0 { exit(11) }
+        ptr_set(pbuf, port)
+        var wn0 = sys_write(w, pbuf, 8)
+        if wn0 != 8 { exit(12) }
+        sys_close(w)
+
         var fd = oren_tcp_accept(listen_fd, 5000)
-        if fd < 0 { exit(11) }
+        if fd < 0 { exit(13) }
 
         var body = "HELLO"
         var hdr = "HTTP/1.0 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n"
         var resp = hdr + body
         var n = oren_tcp_write_from(fd, resp, oren_string_len(resp), 5000)
-        if n < 0 { exit(12) }
+        if n < 0 { exit(14) }
 
         oren_tcp_close(fd)
         oren_tcp_close(listen_fd)
         exit(0)
     }
 
-    var port = 18080
-    var pid = oren_fork()
-    if pid == 0 {
-        server(port)
+    // Parent
+    sys_close(w)
+    var pbuf2 = malloc(8)
+    if pbuf2 == 0 { fail(1010) }
+    var got = 0
+    while got < 8 {
+        var n = sys_read(r, pbuf2 + got, 8 - got)
+        if n <= 0 { fail(1011) }
+        got = got + n
     }
+    var port2 = ptr_get(pbuf2)
+    if port2 < 1 { fail(1012) }
+    sys_close(r)
 
-    // Give the child a moment to bind/listen (v0).
+    // Give the child a moment to accept (v0).
     oren_sleep_ms(50)
 
-    var url = "http://127.0.0.1:18080/"
-    var body = http.get(url)
-    if body == 0 { fail(1001) }
-    if strcmp(body, "HELLO") != 0 { fail(1002) }
+    var url = "http://127.0.0.1:" + oren_int_to_string(port2) + "/"
+    var body2 = http.get(url)
+    if body2 == 0 { fail(1001) }
+    if strcmp(body2, "HELLO") != 0 { fail(1002) }
 
-    // Reap child (best-effort).
     var status_ptr = malloc(8)
     ptr_set(status_ptr, 0)
     sys_wait4(pid, status_ptr, 0, 0)

@@ -42,21 +42,30 @@ fn index_of(s, sub) {
     return -1
 }
 
-fn char_is_ws(ch) {
-    if ch == " " { return true }
-    if ch == "\n" { return true }
-    if ch == "\r" { return true }
-    if ch == "\t" { return true }
-    return false
-}
-
 fn trim(s) {
     if s == nil { return nil }
-    var n = oren_string_len(s)
+    // Cross-backend: avoid relying on `oren_string_char_at` representation differences.
+    // Normalize by trimming based on byte codes from `oren_bytes_from_string`.
+    var bs = oren_bytes_from_string(s)
+    var n = oren_list_len(bs)
     var i = 0
-    while i < n && char_is_ws(oren_string_char_at(s, i)) { i = i + 1 }
+    while i < n {
+        var b = bs[i]
+        if !(b == 32 || b == 9 || b == 10 || b == 13) { break }
+        i = i + 1
+    }
     var j = n
-    while j > i && char_is_ws(oren_string_char_at(s, j - 1)) { j = j - 1 }
-    return oren_string_slice(s, i, j)
+    while j > i {
+        var b2 = bs[j - 1]
+        if !(b2 == 32 || b2 == 9 || b2 == 10 || b2 == 13) { break }
+        j = j - 1
+    }
+    if i == 0 && j == n { return s }
+    var out_bytes = []
+    var k = i
+    while k < j {
+        oren_list_push(out_bytes, bs[k])
+        k = k + 1
+    }
+    return oren_string_from_bytes(out_bytes)
 }
-

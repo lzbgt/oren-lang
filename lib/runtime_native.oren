@@ -1661,6 +1661,28 @@ fn oren_bytes_from_string_ptr(s_ptr) {
     return lst
 }
 
+// Build a string (NUL-terminated) from a list<int 0..255>.
+// This is the inverse of `oren_bytes_from_string(...)` in other backends.
+fn oren_string_from_bytes(bytes) {
+    if bytes == 0 { return 0 }
+    var n = oren_list_len(bytes)
+    if n < 0 { return 0 }
+    var out = malloc(n + 1)
+    if out == 0 { return 0 }
+    var i = 0
+    while i < n {
+        var b = oren_list_get(bytes, i)
+        // Best-effort clamp for rolling native mode.
+        if b < 0 { b = 0 }
+        if b > 255 { b = 255 }
+        ptr_set_byte(out + i, b)
+        i = i + 1
+    }
+    ptr_set_byte(out + n, 0)
+    oren_track_alloc(out, n + 1, 1) // 1=STRING
+    return out
+}
+
 fn string_concat(a, b) {
     var la = oren_string_len(a)
     var lb = oren_string_len(b)

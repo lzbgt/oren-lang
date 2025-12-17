@@ -1,0 +1,38 @@
+import json "../../lib/std/json.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn test_decode_encode() {
+    // Input JSON contains an escaped newline (`\\n`) and an escaped quote (`\\\"`).
+    var r = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\n\\\"y\"}")
+    assert(r["ok"] == 1, "decode ok")
+    var out = json.encode(r["v"])
+    // keys are stored/iterated deterministically; encoder emits without spaces.
+    assert(out == "{\"a\":1,\"b\":2,\"s\":\"x\\n\\\"y\"}", "encode deterministic + escapes")
+}
+
+fn test_int_zero_not_null() {
+    var v = json.jint(0)
+    assert(json.encode(v) == "0", "int zero encodes as number")
+    var rn = json.decode("null")
+    assert(rn["ok"] == 1, "decode null ok")
+    assert(json.encode(rn["v"]) == "null", "null encodes as null")
+}
+
+fn test_nested() {
+    var r = json.decode("{\"x\":[true,false,null,3]}")
+    assert(r["ok"] == 1, "decode nested ok")
+    var out = json.encode(r["v"])
+    assert(out == "{\"x\":[true,false,null,3]}", "nested roundtrip")
+}
+
+test_decode_encode()
+test_int_zero_not_null()
+test_nested()
+print("ok")
+exit(0)

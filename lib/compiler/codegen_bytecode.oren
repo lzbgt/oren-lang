@@ -848,6 +848,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_index_set" { native_id = 14 }
         if name == "int_mod" { native_id = 15 }
         if name == "oren_bytes_from_string" { native_id = 16 }
+        if name == "oren_string_from_bytes" { native_id = 44 }
         if name == "oren_err" { native_id = 19 }
         if name == "oren_is_err" { native_id = 20 }
         if name == "oren_err_code" { native_id = 21 }

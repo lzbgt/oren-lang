@@ -729,6 +729,31 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 44: { // oren_string_from_bytes(list<int 0..255>) -> string
+            if (nargs > 0 && args[0].type == AVM_VAL_LIST) {
+                AvmList* list = args[0].as.l;
+                if (!list || list->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "string_from_bytes: invalid list"); break; }
+                size_t n = (size_t)list->count;
+                char* out = (char*)avm_heap_malloc_k(n + 1, AVM_ALLOC_KIND_STRING);
+                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                for (size_t i = 0; i < n; i++) {
+                    AvmValue it = list->items[i];
+                    if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
+                        res = avm_err(AVM_ERR_INVALID_ARG, "string_from_bytes: expected list<int 0..255>");
+                        break;
+                    }
+                    out[i] = (char)(unsigned char)it.as.i;
+                }
+                if (!avm_is_err_val(res)) {
+                    out[n] = 0;
+                    res.type = AVM_VAL_STRING;
+                    res.as.p = out;
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_string_from_bytes expects (list)");
+            }
+            break;
+        }
         // TODO: Implement others
         default:
             printf("Unknown native id: %d\n", id);

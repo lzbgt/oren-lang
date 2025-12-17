@@ -198,6 +198,22 @@ struct User {
 
 3) **Reserved namespaces**
    - Compiler/tool-reserved: `oren.*`, `avm.*`, `cap.*`, `ffi.*`, `codegen.*`, `trace.*`
+
+#### Stdlib impact: JSON serde (rolling plan)
+
+The primary near-term reason attributes exist in this repo is **compile-time-governed serde**:
+
+- `@serde.rename("wire_name")` for field/key remapping
+- `@serde.skip()` to omit a field
+- `@serde.default("...")` / `@serde.default(0)` (literal-only in v0) for missing fields
+
+**Determinism rule:** serde attributes must not introduce runtime code execution. They are metadata only.
+
+Implementation staging (rolling):
+
+1) Preserve attrs through parsing/linking and expose them to tooling (native `--metadata`, and embedded `.obc` metadata).
+2) Provide `std/json` that is portable across backends (no reliance on runtime reflection).
+3) Add attribute-driven codegen helpers (compiler plugin phase / macro phase), or AVM metadata query primitives, to enable ergonomic `json.encode(User{...})` / `json.decode(User, "...")`.
    - Library/user metadata should use a vendor prefix (recommended): `myorg.*`, `acme.*`, etc.
 
 4) **Strict attribute mode (governance)**

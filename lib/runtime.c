@@ -2202,6 +2202,37 @@ OrenValue oren_bytes_from_string(OrenValue s) {
     return v;
 }
 
+OrenValue oren_string_from_bytes(OrenValue bytes) {
+    if (bytes.type != OREN_TYPE_LIST) {
+        oren_panic("string_from_bytes expects list<int 0..255>");
+        return OREN_NIL; // Should not be reached
+    }
+    OrenList* list = bytes.as.list_val;
+    if (!list || list->count < 0) {
+        oren_panic("string_from_bytes: invalid list");
+        return OREN_NIL; // Should not be reached
+    }
+    size_t n = (size_t)list->count;
+    char* buf = (char*)malloc(n + 1);
+    if (!buf) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_from_bytes: out of memory"));
+    }
+    for (size_t i = 0; i < n; i++) {
+        OrenValue it = list->items[i];
+        if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
+            free(buf);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes: expected list<int 0..255>"));
+        }
+        buf[i] = (char)(unsigned char)it.as.int_val;
+    }
+    buf[n] = 0;
+    OrenValue v;
+    v.type = OREN_TYPE_STRING;
+    v.as.string_val = buf;
+    oren_register_alloc(buf, OREN_ALLOC_STRING);
+    return v;
+}
+
 typedef struct {
     uint8_t data[64];
     uint32_t datalen;

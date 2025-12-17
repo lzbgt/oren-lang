@@ -47,6 +47,78 @@ fn trim_trailing_underscores(s) {
     return oren_string_slice(s, 0, end)
 }
 
+fn is_c_keyword(s) {
+    if s == nil { return false }
+    // Minimal set: enough to avoid obvious collisions in generated C.
+    if s == "auto" { return true }
+    if s == "break" { return true }
+    if s == "case" { return true }
+    if s == "char" { return true }
+    if s == "const" { return true }
+    if s == "continue" { return true }
+    if s == "default" { return true }
+    if s == "do" { return true }
+    if s == "double" { return true }
+    if s == "else" { return true }
+    if s == "enum" { return true }
+    if s == "extern" { return true }
+    if s == "float" { return true }
+    if s == "for" { return true }
+    if s == "goto" { return true }
+    if s == "if" { return true }
+    if s == "inline" { return true }
+    if s == "int" { return true }
+    if s == "long" { return true }
+    if s == "register" { return true }
+    if s == "restrict" { return true }
+    if s == "return" { return true }
+    if s == "short" { return true }
+    if s == "signed" { return true }
+    if s == "sizeof" { return true }
+    if s == "static" { return true }
+    if s == "struct" { return true }
+    if s == "switch" { return true }
+    if s == "typedef" { return true }
+    if s == "union" { return true }
+    if s == "unsigned" { return true }
+    if s == "void" { return true }
+    if s == "volatile" { return true }
+    if s == "while" { return true }
+    return false
+}
+
+fn c_ident(name) {
+    // The parser may generate internal identifiers containing '@' (for `for x in ...` sugar).
+    // Those are valid in the Oren AST but not valid C identifiers.
+    if name == nil || name == "" { return "_" }
+
+    var bs = oren_bytes_from_string(name)
+    var out = []
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        var ok = 0
+        // '_' or A-Z or a-z or 0-9
+        if b == 95 { ok = 1 }
+        if b >= 65 && b <= 90 { ok = 1 }
+        if b >= 97 && b <= 122 { ok = 1 }
+        if b >= 48 && b <= 57 { ok = 1 }
+        if ok == 0 { b = 95 }
+
+        // Leading digit is not allowed in C identifiers.
+        if i == 0 && b >= 48 && b <= 57 {
+            oren_list_push(out, 95)
+        }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+
+    var s = oren_string_from_bytes(out)
+    if s == nil || s == "" { s = "_" }
+    if is_c_keyword(s) { s = "oren_" + s }
+    return s
+}
+
 fn ns_resolve(t, exp) {
     if exp == nil { return nil }
     var et = exp["type"]
@@ -70,7 +142,7 @@ fn ns_resolve(t, exp) {
 }
 
 fn type_ctor_name(type_decl) {
-    return type_decl["name"]["value"]
+    return c_ident(type_decl["name"]["value"])
 }
 
 fn type_ctor_sig(type_decl) {
@@ -78,7 +150,7 @@ fn type_ctor_sig(type_decl) {
     var i = 0
     while i < oren_list_len(type_decl["fields"]) {
         if i > 0 { params = params + ", " }
-        params = params + "OrenValue " + type_decl["fields"][i]["value"]
+        params = params + "OrenValue " + c_ident(type_decl["fields"][i]["value"])
         i = i + 1
     }
     return "OrenValue " + type_ctor_name(type_decl) + "(" + params + ")"
@@ -566,7 +638,7 @@ fn transpile_lambda_def(t, def) {
         var i = 0
         while i < oren_list_len(caps) {
             var nm = caps[i]
-            emit(t, "OrenValue " + nm + " = __env->items[" + oren_int_to_string(i) + "];")
+            emit(t, "OrenValue " + c_ident(nm) + " = __env->items[" + oren_int_to_string(i) + "];")
             i = i + 1
         }
     }
@@ -579,7 +651,7 @@ fn transpile_lambda_def(t, def) {
         emit(t, "if (argc != " + oren_int_to_string(pc) + ") { oren_panic(\"arity mismatch\"); }")
         var j = 0
         while j < pc {
-            emit(t, "OrenValue " + fun["params"][j]["value"] + " = argv[" + oren_int_to_string(j) + "];")
+            emit(t, "OrenValue " + c_ident(fun["params"][j]["value"]) + " = argv[" + oren_int_to_string(j) + "];")
             j = j + 1
         }
     }
@@ -601,7 +673,7 @@ fn transpile_lambda_def(t, def) {
 fn transpile_statement(t, stmt) {
     if stmt["type"] == "Var" {
         var v = transpile_expression(t, stmt["value"])
-        return "OrenValue " + stmt["name"]["value"] + " = " + v + ";"
+        return "OrenValue " + c_ident(stmt["name"]["value"]) + " = " + v + ";"
     }
     if stmt["type"] == "Spawn" {
         var call = stmt["call"]
@@ -650,7 +722,7 @@ fn transpile_statement(t, stmt) {
     }
     if stmt["type"] == "Assign" {
         var v_assign = transpile_expression(t, stmt["value"])
-        return stmt["name"]["value"] + " = " + v_assign + ";"
+        return c_ident(stmt["name"]["value"]) + " = " + v_assign + ";"
     }
     if stmt["type"] == "Return" {
         var v_ret = transpile_expression(t, stmt["value"])
@@ -697,7 +769,7 @@ fn transpile_statement(t, stmt) {
         return "continue;"
     }
     if stmt["type"] == "FFI" {
-        return "// ffi " + stmt["name"]["value"]
+        return "// ffi " + c_ident(stmt["name"]["value"])
     }
     return "// unknown stmt"
 }
@@ -739,7 +811,7 @@ fn transpile_expression(t, exp) {
         if list_contains(t["functions"], name_id) {
             return "oren_func(" + fnwrap_name(name_id) + ", NULL)"
         }
-        return name_id
+        return c_ident(name_id)
     }
     if et == "Function" {
         // Anonymous function literal (lambda) lowers to a closure (capture-by-value).
@@ -968,11 +1040,22 @@ fn transpile_for_header_stmt(t, stmt) {
     if stmt == nil { return "" }
     if stmt["type"] == "Var" {
         var v = transpile_expression(t, stmt["value"])
-        return "OrenValue " + stmt["name"]["value"] + " = " + v
+        return "OrenValue " + c_ident(stmt["name"]["value"]) + " = " + v
     }
     if stmt["type"] == "Assign" {
         var v_assign = transpile_expression(t, stmt["value"])
-        return stmt["name"]["value"] + " = " + v_assign
+        return c_ident(stmt["name"]["value"]) + " = " + v_assign
+    }
+    if stmt["type"] == "Set" {
+        // Support index assignments in `for` headers (needed by `for x in ...` desugaring).
+        if stmt["left"] != nil && stmt["left"]["type"] == "Index" {
+            var arr = transpile_expression(t, stmt["left"]["left"])
+            var idx = transpile_expression(t, stmt["left"]["index"])
+            var val = transpile_expression(t, stmt["value"])
+            return "oren_index_set(" + arr + ", " + idx + ", " + val + ")"
+        }
+        // Member assignments are not allowed for structs; ignore here.
+        return ""
     }
     if stmt["type"] == "ExprStmt" {
         return transpile_expression(t, stmt["expr"])

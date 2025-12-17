@@ -74,6 +74,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short: it is th
 3) **Attributes/meta system: embed into `.obc`**
    - Preserve function/type/field/param attributes end-to-end for tooling and governance.
    - (Note: P0 covers preservation to `--metadata`; this item is specifically about `.obc` packaging.)
+   - Follow-on: expose embedded metadata to `.oren` code via a safe AVM query primitive (so stdlib can implement attribute-driven serde without host effects).
 
 4) **`libavm` embedding API + “AVM as Oren stdlib”**
    - C API: run program bytes, return result + hashes + trace/record/snapshot as BYTES.
@@ -98,3 +99,5 @@ This repo is in **rolling ABI** mode. This file is intentionally short: it is th
 - AVM: bytecode supports first-class function values + closures (capture-by-value v0) with `PUSH_FUNC`, `MAKE_CLOSURE`, `LOAD_ENV`, `CALL_INDIRECT` and a regression `tests/avm/test_closure_fn_values.oren`.
 - Compiler: native `--metadata` now preserves function/type/field/param attributes in `<out>.meta.json` (tooling surface for serde/governance).
 - Compiler/AVM: `.obc` now embeds an unused `BYTES` constant with `"OREN_META\\n1\\n"` + JSON metadata so tools can discover attrs without sidecar files.
+- Core runtime: `oren_string_from_bytes(list<int>)` exists across C backend + AVM + native backend (enables portable JSON parsing/building).
+- Syslib: added `lib/std/json.oren` (explicit JsonValue representation, deterministic object key ordering).

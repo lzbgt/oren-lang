@@ -182,7 +182,9 @@ fn run_repo_tests(target, no_gc) {
         "tests/modules/test_result.oren",
         "tests/modules/test_argparse.oren",
         "tests/modules/test_metadata_attrs.oren",
-        "tests/modules/test_strings.oren"
+        "tests/modules/test_strings.oren",
+        "tests/modules/test_string_from_bytes.oren",
+        "tests/modules/test_json.oren"
     ]
 
     var avm_tests = [
