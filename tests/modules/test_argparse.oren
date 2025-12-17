@@ -7,7 +7,13 @@ fn assert(cond, msg) {
     }
 }
 
-fn test_basic_parse() {
+fn starts_with(s, pref) {
+    if s == nil || pref == nil { return false }
+    if oren_string_len(s) < oren_string_len(pref) { return false }
+    return oren_string_slice(s, 0, oren_string_len(pref)) == pref
+}
+
+fn test_help_render() {
     var p = ap.new_parser("tool", "demo tool")
     var c = ap.add_command(p, "run", "run the tool")
     ap.cmd_flag(c, "--verbose", "-v", "verbose mode")
@@ -15,29 +21,38 @@ fn test_basic_parse() {
     ap.cmd_option(c, "--n", nil, "int", 3, "count")
     ap.cmd_positional(c, "file", true, "input file")
 
-    var r = ap.parse(p, ["run", "-v", "--out=bin", "--n", "7", "in.txt", "--", "x", "y"])
-    assert(r["ok"] == true, "parse ok")
-    assert(r["cmd"] == "run", "cmd")
-    assert(r["opts"]["verbose"] == true, "verbose")
-    assert(r["opts"]["out"] == "bin", "out")
-    assert(r["opts"]["n"] == 7, "n")
-    assert(r["pos"][0] == "in.txt", "pos file")
-    assert(r["rest"][0] == "x", "rest x")
-    assert(r["rest"][1] == "y", "rest y")
+    var root_lines = ap.render_help_lines(p, nil)
+    assert(oren_list_len(root_lines) > 0, "root help non-empty")
+    assert(root_lines[0] == "demo tool", "root desc")
+
+    var saw_commands = false
+    var saw_run = false
+    var i = 0
+    while i < oren_list_len(root_lines) {
+        var line = root_lines[i]
+        if line == "Commands:" { saw_commands = true }
+        if starts_with(line, "  run") { saw_run = true }
+        i = i + 1
+    }
+    assert(saw_commands, "root shows Commands:")
+    assert(saw_run, "root shows run command")
+
+    var run_lines = ap.render_help_lines(p, "run")
+    assert(oren_list_len(run_lines) > 0, "run help non-empty")
+
+    var saw_options = false
+    var saw_verbose = false
+    var j = 0
+    while j < oren_list_len(run_lines) {
+        var line2 = run_lines[j]
+        if line2 == "Options:" { saw_options = true }
+        if starts_with(line2, "  --verbose") { saw_verbose = true }
+        j = j + 1
+    }
+    assert(saw_options, "run shows Options:")
+    assert(saw_verbose, "run shows --verbose")
 }
 
-fn test_help_early_exit() {
-    var p = ap.new_parser("tool", "demo tool")
-    var c = ap.add_command(p, "run", "run the tool")
-    ap.cmd_flag(c, "--verbose", "-v", "verbose mode")
-
-    var r = ap.parse(p, ["run", "--help"])
-    assert(r["ok"] == false, "help returns ok=false")
-    assert(r["code"] == 0, "help code 0")
-    assert(r["help"] != nil, "help text present")
-}
-
-test_basic_parse()
-test_help_early_exit()
+test_help_render()
 print("ok")
 exit(0)

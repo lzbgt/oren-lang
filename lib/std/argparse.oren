@@ -13,14 +13,34 @@ fn _starts_with(s, pref) {
     var sl = oren_string_len(s)
     var pl = oren_string_len(pref)
     if sl < pl { return false }
-    return oren_string_slice(s, 0, pl) == pref
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(pref, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _streq(a, b) {
+    if a == nil || b == nil { return false }
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
+    if al != bl { return false }
+    var i = 0
+    while i < al {
+        if oren_string_char_at(a, i) != oren_string_char_at(b, i) { return false }
+        i = i + 1
+    }
+    return true
 }
 
 fn _contains(s, ch) {
     if s == nil || ch == nil { return false }
+    if oren_string_len(ch) != 1 { return false }
+    var target = oren_string_char_at(ch, 0)
     var i = 0
     while i < oren_string_len(s) {
-        if oren_string_slice(s, i, i + 1) == ch { return true }
+        if oren_string_char_at(s, i) == target { return true }
         i = i + 1
     }
     return false
@@ -45,8 +65,37 @@ fn _to_int(s) {
     var n = 0
     while i < oren_string_len(s) {
         var c = oren_string_slice(s, i, i + 1)
-        if c < "0" || c > "9" { return nil }
-        n = n * 10 + (c - "0")
+        var d = nil
+        if c == "0" { d = 0 }
+        else {
+            if c == "1" { d = 1 }
+            else {
+                if c == "2" { d = 2 }
+                else {
+                    if c == "3" { d = 3 }
+                    else {
+                        if c == "4" { d = 4 }
+                        else {
+                            if c == "5" { d = 5 }
+                            else {
+                                if c == "6" { d = 6 }
+                                else {
+                                    if c == "7" { d = 7 }
+                                    else {
+                                        if c == "8" { d = 8 }
+                                        else {
+                                            if c == "9" { d = 9 }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if d == nil { return nil }
+        n = n * 10 + d
         i = i + 1
     }
     return n
@@ -85,7 +134,7 @@ fn add_command(p, name, desc) {
 
 fn cmd_flag(cmd, long_name, short_name, help) {
     var opt = {
-        "kind": "bool",
+        "kind": 1,
         "long": long_name,
         "short": short_name,
         "help": help,
@@ -97,8 +146,12 @@ fn cmd_flag(cmd, long_name, short_name, help) {
 
 fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     // kind: "string" | "int"
+    var kind_code = nil
+    if kind == "string" { kind_code = 2 }
+    if kind == "int" { kind_code = 3 }
+    if kind_code == nil { kind_code = 2 }
     var opt = {
-        "kind": kind,
+        "kind": kind_code,
         "long": long_name,
         "short": short_name,
         "help": help,
@@ -118,7 +171,7 @@ fn _find_cmd(p, name) {
     var i = 0
     while i < oren_list_len(p["commands"]) {
         var c = p["commands"][i]
-        if c["name"] == name { return c }
+        if _streq(c["name"], name) { return c }
         i = i + 1
     }
     return nil
@@ -129,8 +182,10 @@ fn _find_opt(cmd, tok) {
     var i = 0
     while i < oren_list_len(cmd["options"]) {
         var o = cmd["options"][i]
-        if o["long"] == tok { return o }
-        if o["short"] != nil && o["short"] == tok { return o }
+        var ln = o["long"]
+        if _streq(ln, tok) { return o }
+        var sh = o["short"]
+        if sh != nil && _streq(sh, tok) { return o }
         i = i + 1
     }
     return nil
@@ -170,7 +225,7 @@ fn _render_command_usage_line(p, cmd) {
 fn render_help_lines(p, cmd_name) {
     // Returns list of lines (without trailing newlines).
     var cmd = nil
-    if cmd_name != nil && cmd_name != "" {
+    if cmd_name != nil && !_streq(cmd_name, "") {
         cmd = _find_cmd(p, cmd_name)
         if cmd == nil { cmd = p["root"] }
     } else {
@@ -209,8 +264,8 @@ fn render_help_lines(p, cmd_name) {
             var o = cmd["options"][oi]
             var line2 = "  " + o["long"]
             if o["short"] != nil && o["short"] != "" { line2 = line2 + ", " + o["short"] }
-            if o["kind"] == "string" { line2 = line2 + " <str>" }
-            if o["kind"] == "int" { line2 = line2 + " <int>" }
+            if o["kind"] == 2 { line2 = line2 + " <str>" }
+            if o["kind"] == 3 { line2 = line2 + " <int>" }
             if o["help"] != nil && o["help"] != "" { line2 = line2 + "    " + o["help"] }
             oren_list_push(lines, line2)
             oi = oi + 1
@@ -292,7 +347,7 @@ fn parse(p, argv) {
     var stop_opts = false
     while i < oren_list_len(argv) {
         var tok = argv[i]
-        if stop_opts != true && tok == "--" {
+        if stop_opts != true && _streq(tok, "--") {
             stop_opts = true
             i = i + 1
             continue
@@ -319,10 +374,18 @@ fn parse(p, argv) {
             var key = opt["long"]
             if _starts_with(key, "--") { key = oren_string_slice(key, 2, oren_string_len(key)) }
 
-            if opt["kind"] == "bool" {
+            // Robustness rule:
+            // - kind 2/3 => expects a value (string/int)
+            // - anything else => treat as a bool flag (value-less)
+            var kind = opt["kind"]
+            var is_value_opt = false
+            if kind == 2 { is_value_opt = true }
+            if kind == 3 { is_value_opt = true }
+
+            if !is_value_opt {
                 res["opts"][key] = true
                 // `--help` is handled as a successful early-exit.
-                if key == "help" {
+                if _streq(key, "help") {
                     res["ok"] = false
                     res["code"] = 0
                     res["help"] = render_help(p, cmd_name)
@@ -330,37 +393,36 @@ fn parse(p, argv) {
                     return res
                 }
                 i = i + 1
-                continue
-            }
-
-            var val = value_inline
-            if val == nil {
-                if i + 1 >= oren_list_len(argv) {
-                    res["err"] = "missing value for: " + flag
-                    res["help"] = render_help(p, cmd_name)
-                    return res
-                }
-                val = argv[i + 1]
-                i = i + 2
             } else {
-                i = i + 1
-            }
-
-            if opt["kind"] == "string" {
-                res["opts"][key] = val
-            } else {
-                if opt["kind"] == "int" {
-                    var n = _to_int(val)
-                    if n == nil {
-                        res["err"] = "invalid int for " + flag + ": " + val
+                var val = value_inline
+                if val == nil {
+                    if i + 1 >= oren_list_len(argv) {
+                        res["err"] = "missing value for: " + flag
                         res["help"] = render_help(p, cmd_name)
                         return res
                     }
-                    res["opts"][key] = n
+                    val = argv[i + 1]
+                    i = i + 2
                 } else {
-                    res["err"] = "unsupported option kind: " + opt["kind"]
-                    res["help"] = render_help(p, cmd_name)
-                    return res
+                    i = i + 1
+                }
+
+                if kind == 2 {
+                    res["opts"][key] = val
+                } else {
+                    if kind == 3 {
+                        var n = _to_int(val)
+                        if n == nil {
+                            res["err"] = "invalid int for " + flag + ": " + val
+                            res["help"] = render_help(p, cmd_name)
+                            return res
+                        }
+                        res["opts"][key] = n
+                    } else {
+                        res["err"] = "unsupported option kind for: " + flag
+                        res["help"] = render_help(p, cmd_name)
+                        return res
+                    }
                 }
             }
             continue
