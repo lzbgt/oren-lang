@@ -359,10 +359,79 @@ fn test_http_get_loopback() {
     free(status_ptr)
 }
 
+fn test_tcp_timeouts() {
+    // Ensure timeout-bounded operations return -ETIMEDOUT (-60) and do not hang.
+
+    // accept timeout on an idle listener
+    var port = 40010
+    var lfd = oren_tcp_listen_local(port)
+    if lfd < 0 { fail(900) }
+    var afd = oren_tcp_accept(lfd, 10)
+    if afd != 0 - 60 { fail(901) }
+    oren_tcp_close(lfd)
+
+    // read timeout on an established connection with no data
+    var ch = oren_pipe()
+    var r = oren_list_get(ch, 0)
+    var w = oren_list_get(ch, 1)
+
+    var pid = sys_fork()
+    if pid < 0 { fail(910) }
+
+    if pid == 0 {
+        sys_close(r)
+        var port2 = 40012
+        var lfd2 = oren_tcp_listen_local(port2)
+        if lfd2 < 0 { exit(911) }
+        var pbuf = malloc(8)
+        if pbuf == 0 { exit(912) }
+        ptr_set(pbuf, port2)
+        var wn = sys_write(w, pbuf, 8)
+        if wn != 8 { exit(913) }
+        sys_close(w)
+
+        var cfd = oren_tcp_accept(lfd2, 2000)
+        if cfd < 0 { exit(914) }
+        var one = malloc(1)
+        if one == 0 { exit(915) }
+        var rn = oren_tcp_read_into(cfd, one, 1, 20)
+        if rn != 0 - 60 { exit(916) }
+        oren_tcp_close(cfd)
+        oren_tcp_close(lfd2)
+        exit(0)
+    }
+
+    // Parent: connect and keep the socket open briefly without sending.
+    sys_close(w)
+    var pbuf2 = malloc(8)
+    if pbuf2 == 0 { fail(920) }
+    var got = 0
+    while got < 8 {
+        var n = sys_read(r, pbuf2 + got, 8 - got)
+        if n <= 0 { fail(921) }
+        got = got + n
+    }
+    var port3 = ptr_get(pbuf2)
+    if port3 < 1 { fail(922) }
+    sys_close(r)
+
+    var cfd2 = oren_tcp_connect("127.0.0.1", port3, 2000)
+    if cfd2 < 0 { fail(923) }
+    // keep open long enough for child to observe no data
+    oren_sleep_ms(50)
+    oren_tcp_close(cfd2)
+
+    var st = malloc(8)
+    if st == 0 { fail(924) }
+    ptr_set(st, 0)
+    sys_wait4(pid, st, 0, 0)
+}
+
 fn main() {
     test_tcp_loopback()
     test_tcp_sockname_peername()
     test_tcp_send_recv_intrinsics()
+    test_tcp_timeouts()
     test_http_get_loopback()
     print("net suite: OK")
     exit(0)

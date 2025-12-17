@@ -690,6 +690,12 @@ fn transpile_statement(t, stmt) {
         }
         return "for (" + init_s + "; " + cond_s + "; " + post_s + ") {" + CH_LF + inner2 + "}"
     }
+    if stmt["type"] == "Break" {
+        return "break;"
+    }
+    if stmt["type"] == "Continue" {
+        return "continue;"
+    }
     if stmt["type"] == "FFI" {
         return "// ffi " + stmt["name"]["value"]
     }

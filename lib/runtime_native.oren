@@ -2127,6 +2127,10 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
 
     var n = sys_kevent(kq, change, 1, ev, 1, ts)
     sys_close(kq)
+    // Avoid leaking temporaries; free() is deterministic and reuses blocks.
+    free(change)
+    free(ev)
+    free(ts)
     return n
 }
 
@@ -2148,6 +2152,7 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
     }
 
     var rc = sys_connect(fd, sa, 16)
+    free(sa)
     if rc == 0 { return fd }
     if rc != 0 - 36 { // EINPROGRESS
         sys_close(fd)
@@ -2176,10 +2181,14 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
 
     var grc = sys_getsockopt(fd, 65535, 4103, soerr_buf, olen) // SOL_SOCKET, SO_ERROR
     if grc < 0 {
+        free(soerr_buf)
+        free(olen)
         sys_close(fd)
         return grc
     }
     var soerr = ptr_get(soerr_buf)
+    free(soerr_buf)
+    free(olen)
     if soerr != 0 {
         sys_close(fd)
         return 0 - soerr
@@ -2198,6 +2207,7 @@ fn oren_tcp_listen_local(port) {
     oren_track_alloc(one, 8, 0)
     ptr_set(one, 1)
     var sroc = sys_setsockopt(fd, 65535, 4, one, 4) // SOL_SOCKET, SO_REUSEADDR
+    free(one)
     if sroc < 0 {
         sys_close(fd)
         return sroc
@@ -2216,6 +2226,7 @@ fn oren_tcp_listen_local(port) {
     }
 
     var brc = sys_bind(fd, sa, 16)
+    free(sa)
     if brc < 0 {
         sys_close(fd)
         return brc
@@ -2420,9 +2431,14 @@ fn oren_net_get(url) {
     var r1 = string_concat(r0, " HTTP/1.0\r\nHost: ")
     var r2 = string_concat(r1, host)
     var r3 = string_concat(r2, "\r\nConnection: close\r\n\r\n")
+    // Free intermediate concatenation buffers to avoid unbounded growth on repeated calls.
+    free(r0)
+    free(r1)
+    free(r2)
 
     var req_len = oren_string_len(r3)
     var wr = oren_tcp_write_from(fd, r3, req_len, 5000)
+    free(r3)
     if wr < 0 {
         oren_tcp_close(fd)
         return 0
@@ -2441,7 +2457,10 @@ fn oren_net_get(url) {
         var tmp = malloc(1024)
         if tmp == 0 { break }
         var n = oren_tcp_read_into(fd, tmp, 1024, 5000)
-        if n <= 0 { break }
+        if n <= 0 {
+            free(tmp)
+            break
+        }
 
         // Ensure capacity for used+n
         while used + n > cap {
@@ -2450,11 +2469,13 @@ fn oren_net_get(url) {
             var new_buf = malloc(new_cap)
             if new_buf == 0 { break }
             oren_memcpy(new_buf, buf, used)
+            free(buf)
             buf = new_buf
             cap = new_cap
         }
         oren_memcpy(buf + used, tmp, n)
         used = used + n
+        free(tmp)
     }
 
     oren_tcp_close(fd)
@@ -2481,10 +2502,14 @@ fn oren_net_get(url) {
 
     var body_len = used - body_off
     var out = malloc(body_len + 1)
-    if out == 0 { return 0 }
+    if out == 0 {
+        free(buf)
+        return 0
+    }
     oren_memcpy(out, buf + body_off, body_len)
     ptr_set_byte(out + body_len, 0)
     oren_track_alloc(out, body_len + 1, 1)
+    free(buf)
     return out
 }
 
