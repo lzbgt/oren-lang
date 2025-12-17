@@ -101,6 +101,9 @@ test-inner: oren
 			elif [ $$rc -eq 124 ]; then \
 				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
 			fi; \
+		elif [ "$$name" = "test_no_gc_mode" ]; then \
+			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug --no-gc -o build/$$name $(CODESIGN_ARG); \
+			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
 		else \
 			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
 			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
@@ -127,6 +130,8 @@ test-inner: oren
 		@$(RUN_WITH_TIMEOUT) ./build/test_function_values || (echo "FAIL: test_function_values"; exit 1)
 		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_closure.oren --backend c -o build/test_lambda_closure $(CODESIGN_ARG) $(GC_ARG)
 		@$(RUN_WITH_TIMEOUT) ./build/test_lambda_closure || (echo "FAIL: test_lambda_closure"; exit 1)
+		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_multiline.oren --backend c -o build/test_lambda_multiline $(CODESIGN_ARG) $(GC_ARG)
+		@$(RUN_WITH_TIMEOUT) ./build/test_lambda_multiline || (echo "FAIL: test_lambda_multiline"; exit 1)
 		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
 		@$(RUN_WITH_TIMEOUT) ./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)

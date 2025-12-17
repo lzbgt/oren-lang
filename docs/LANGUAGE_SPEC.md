@@ -338,6 +338,8 @@ Design note:
 - Functions are **first-class values**:
   - A function identifier in expression position yields a callable function value (usable as an argument, stored in variables, returned from other functions).
   - Lambdas are anonymous functions: `|x, y| x + y` and empty-params lambdas `|| expr`.
+  - Lambdas can also have a **full block body** (multi-line, locals, control flow), using braces:
+    - `|n| { var acc = 0; while acc < n { acc = acc + 1 }; return acc }`
 - Calling a function value uses the normal call syntax: `f(1, 2)`.
 - `spawn` also uses normal call syntax and can spawn calls to function values/closures (not only direct function symbols).
 

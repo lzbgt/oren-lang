@@ -1,0 +1,17 @@
+var base = 7
+var f = |n| {
+    var acc = base
+    var i = 0
+    while i < n {
+        acc = acc + 2
+        i = i + 1
+    }
+    return acc
+}
+
+base = 1000
+if f(3) != 13 { // 7 + 2 + 2 + 2
+    exit(1)
+}
+print("Lambda multiline OK")
+exit(0)

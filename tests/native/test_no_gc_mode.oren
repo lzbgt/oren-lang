@@ -1,0 +1,33 @@
+fn main() {
+    // This test is compiled with `--no-gc` (see Makefile), so native GC scanning
+    // should be disabled while allocation tracking stays enabled.
+
+    // Root registration should be a no-op (but must not crash/hang).
+    var slot = malloc(8)
+    if slot == 0 { exit(90) }
+    ptr_set(slot, 0)
+    native_gc_register_root(slot)
+
+    // Allocate some tracked objects.
+    var s = "hello"
+    var l = [1, 2, 3]
+    var m = {"a": 1, "b": 2}
+
+    // Make slot point at a tracked value.
+    ptr_set(slot, s)
+
+    // Collection should be a no-op in no-gc mode.
+    native_gc_collect()
+
+    // Cleanup API should still be callable.
+    native_gc_unregister_root(slot)
+    free(slot)
+
+    // Ensure program still runs to completion.
+    if oren_string_len(s) != 5 { exit(91) }
+    if oren_list_len(l) != 3 { exit(92) }
+    if oren_map_len(m) != 2 { exit(93) }
+    if oren_map_key_at(m, 0) == 0 { exit(94) }
+    if oren_map_key_at(m, 1) == 0 { exit(95) }
+    return 0
+}

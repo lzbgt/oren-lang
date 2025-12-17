@@ -642,10 +642,10 @@ fn compiler_main() {
 
         if target == "linux" {
             // Always embed native debug info for `oren test` so panics produce readable stack traces.
-            arm64_elf.elf_emit_program_arm64(out_test, linked, [], false, [], true)
+            arm64_elf.elf_emit_program_arm64(out_test, linked, [], false, [], true, no_gc)
         } else {
             // Always embed native debug info for `oren test` so panics produce readable stack traces.
-            arm64_macho.macho_emit_program_arm64(out_test, linked, [], false, [], true)
+            arm64_macho.macho_emit_program_arm64(out_test, linked, [], false, [], true, no_gc)
         }
         
         if target == "macos" {
@@ -748,9 +748,9 @@ fn compiler_main() {
         }
 
         if target == "linux" {
-            arm64_elf.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode)
+            arm64_elf.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc)
         } else {
-            arm64_macho.macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode)
+            arm64_macho.macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc)
         }
 
         if target == "macos" {

@@ -487,8 +487,8 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
     return nil
 }
 
-fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode) {
-    var ctx = native_compile_program_arm64(linked, {"os": "macos", "debug": debug_mode})
+fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode, no_gc) {
+    var ctx = native_compile_program_arm64(linked, {"os": "macos", "debug": debug_mode, "no_gc": no_gc})
     if ctx == nil { return nil }
     
     var code = ctx["code"]

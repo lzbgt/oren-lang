@@ -1,0 +1,28 @@
+fn main() {
+    var base = 3
+
+    // Multi-line lambda body with locals + loop + explicit return.
+    var f = |n| {
+        var acc = base
+        var i = 0
+        while i < n {
+            acc = acc + i
+            i = i + 1
+        }
+        return acc
+    }
+
+    // Capture-by-value check (base should be captured at lambda creation time).
+    base = 100
+
+    var r = f(4) // 3 + (0+1+2+3) = 9
+    if r != 9 { exit(10) }
+
+    // spawn must work with callable variables and multi-line lambda bodies.
+    var t = spawn f(5) // 3 + (0+1+2+3+4) = 13
+    var rv = oren_join(t)
+    if rv != 13 { exit(11) }
+
+    return 0
+}
+

@@ -448,7 +448,24 @@ fn oren_register_thread(top) {
 
 fn get_sp() { return 0 } // Intrinsic
 
+// GC mode toggle (native backend):
+// - enabled (default): conservative mark/sweep from stack + registered roots
+// - disabled (deterministic/manual): disable scanning/collection; keep tracking so `free()` can reuse blocks
+var g_gc_enabled = 1
+
+fn native_runtime_init_gc_mode(default_enabled) {
+    // default_enabled is provided by the compiler from `--no-gc`.
+    g_gc_enabled = default_enabled
+
+    // Runtime override: allow disabling GC via environment variable.
+    // Any non-empty value disables scanning/collection.
+    var v = oren_getenv("OREN_NO_GC")
+    if v != 0 { g_gc_enabled = 0 }
+    return 0
+}
+
 fn native_gc_scan_stack() {
+    if g_gc_enabled == 0 { return 0 }
     var sp = get_sp()
     var cur = global_get_threads()
     
@@ -597,6 +614,7 @@ fn oren_track_alloc(ptr, size, kind) {
 }
 
 fn native_gc_register_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
     if ptr == 0 { return 0 }
     acquire_lock()
     
@@ -615,6 +633,7 @@ fn native_gc_register_root(ptr) {
 }
 
 fn native_gc_unregister_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
     if ptr == 0 { return 0 }
     acquire_lock()
 
@@ -658,6 +677,7 @@ fn oren_find_node(ptr) {
 }
 
 fn oren_mark_value(val) {
+    if g_gc_enabled == 0 { return 0 }
     if val == 0 { return 0 }
     
     var node = oren_find_node(val)
@@ -703,6 +723,7 @@ fn oren_mark_value(val) {
 }
 
 fn native_gc_collect() {
+    if g_gc_enabled == 0 { return 0 }
     // 1. Clear marks
     var cur = global_get_allocs()
     while cur != 0 {

@@ -23,7 +23,12 @@ Oren’s default stance is automatic management on desktop/server targets, with 
 - List/map operations in the C runtime take a coarse mutex, so concurrent reads/writes across threads are serialized. This is a stopgap; per-object or lock-free structures plus GC safepoints are planned for the full concurrency story.
 
 ## Limitations & next steps
-- Native backend allocations currently use `mmap` directly and sit outside the managed heap; only C-backend objects participate in GC today. Block-scoped stack cleanup is in place to avoid frame leaks inside loops, but native heap accounting + GC integration still need to land.
-- Native backend now uses a bump-pointer heap with `mmap` growth (64KB granularity) but still lacks tracing/roots; GC hooks are stubbed and reclaiming native allocations remains a future milestone.
+- Native backend participates in the same *tracked-heap + mark/sweep* approach as the C backend:
+  - allocations are registered in a tracking list
+  - collection is conservative (stack scan + optional registered roots)
+  - collection is explicit today (`native_gc_collect()`), and higher-level safepoints can be added later
+- The deterministic/manual lane is available on native too:
+  - compile with `--no-gc` to make GC scanning/collection a no-op by default
+  - runtime override: `OREN_NO_GC=1` disables scanning/collection (useful for production rollouts)
 - Collection locking is coarse; per-object locking or lock-free structures plus concurrent-friendly GC are still needed.
 - The collector is stop-the-world and must be invoked explicitly; automatic triggers and per-frame root tracking are planned.
