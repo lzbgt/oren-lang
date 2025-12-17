@@ -1,7 +1,8 @@
 import token "token.oren"
 
 fn escape_json_string(s) {
-    // Simple escape for quotes and backslashes
+    // Minimal JSON escaping for strings we emit in metadata.
+    // Keep it deterministic and avoid allocations beyond concatenation.
     var out = ""
     var i = 0
     var len = oren_string_len(s)
@@ -13,7 +14,19 @@ fn escape_json_string(s) {
             if ch == "\\" {
                 out = out + "\\\\"
             } else {
-                out = out + ch
+                if ch == "\n" {
+                    out = out + "\\n"
+                } else {
+                    if ch == "\r" {
+                        out = out + "\\r"
+                    } else {
+                        if ch == "\t" {
+                            out = out + "\\t"
+                        } else {
+                            out = out + ch
+                        }
+                    }
+                }
             }
         }
         i = i + 1
@@ -21,24 +34,102 @@ fn escape_json_string(s) {
     return out
 }
 
+fn json_string(s) {
+    if s == nil { return "null" }
+    return "\"" + escape_json_string(s) + "\""
+}
+
+fn json_attr_value(val) {
+    if val == nil { return "null" }
+    var t = val["type"]
+    if t == "String" { return json_string(val["value"]) }
+    if t == "Integer" { return val["value"] }
+    if t == "Float" { return val["value"] }
+    if t == "Boolean" {
+        if val["value"] == true { return "true" }
+        return "false"
+    }
+    if t == "Nil" { return "null" }
+    return "null"
+}
+
+fn json_attr_args(args) {
+    if args == nil { return "[]" }
+    var out = "["
+    var i = 0
+    var first = true
+    while i < oren_list_len(args) {
+        var a = args[i]
+        if !first { out = out + ", " }
+        out = out + "{"
+        out = out + "\"key\": " + json_string(a["key"]) + ", "
+        out = out + "\"value\": " + json_attr_value(a["value"])
+        out = out + "}"
+        first = false
+        i = i + 1
+    }
+    out = out + "]"
+    return out
+}
+
+fn json_attrs(attrs) {
+    if attrs == nil { return "[]" }
+    var out = "["
+    var i = 0
+    var first = true
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if !first { out = out + ", " }
+        out = out + "{"
+        out = out + "\"name\": " + json_string(a["name"]) + ", "
+        out = out + "\"args\": " + json_attr_args(a["args"])
+        out = out + "}"
+        first = false
+        i = i + 1
+    }
+    out = out + "]"
+    return out
+}
+
+fn json_named_node(node) {
+    if node == nil { return "{ \"name\": null, \"attrs\": [] }" }
+    var name = node["value"]
+    var attrs = node["attrs"]
+    return "{ \"name\": " + json_string(name) + ", \"attrs\": " + json_attrs(attrs) + " }"
+}
+
+fn json_named_list(nodes) {
+    if nodes == nil { return "[]" }
+    var out = "["
+    var i = 0
+    var first = true
+    while i < oren_list_len(nodes) {
+        if !first { out = out + ", " }
+        out = out + json_named_node(nodes[i])
+        first = false
+        i = i + 1
+    }
+    out = out + "]"
+    return out
+}
+
+fn json_string_list(nodes) {
+    if nodes == nil { return "[]" }
+    var out = "["
+    var i = 0
+    var first = true
+    while i < oren_list_len(nodes) {
+        if !first { out = out + ", " }
+        out = out + json_string(nodes[i]["value"])
+        first = false
+        i = i + 1
+    }
+    out = out + "]"
+    return out
+}
+
 fn to_json(val) {
-    // Basic JSON serialization for dicts/lists/strings/ints
-    // In Oren self-hosted, types are dynamic. 
-    // We assume val is a structure of dicts/lists.
-    // NOTE: This relies on runtime type checks which might be tricky in native.
-    // But the compiler uses the C backend or Go bootstrap mostly for now?
-    // Wait, the compiler *is* self-hosted. 
-    // If we run `oren`, we are running the native or C backend version.
-    // Native backend has no type tags.
-    // C backend has type tags.
-    // `make oren` uses C backend (stage 1)? 
-    // Makefile: `./oren_bootstrap build oren.oren ...` -> C backend default?
-    // No, `oren_bootstrap` (Go) defaults to... generic?
-    // Let's assume C backend for the compiler for now (it's robust).
-    // C backend supports type checks (v.type). 
-    
-    // We'll write a specific metadata generator instead of generic to_json 
-    // to avoid runtime type ambiguity issues in native self-host.
+    // Deprecated placeholder: keep for compatibility with older comments.
     return ""
 }
 
@@ -64,19 +155,15 @@ fn generate_metadata(prog) {
         if func != nil {
             if !first { json = json + ",\n" }
             json = json + "    {\n"
-            json = json + "      \"name\": \"" + escape_json_string(func["name"]) + "\",\n"
-            json = json + "      \"args\": ["
-            
+            json = json + "      \"name\": " + json_string(func["name"]) + ",\n"
+
+            // Backwards-compatible: keep the old `args` list (just names).
             var params = func["params"]
-            var j = 0
-            var first_p = true
-            while j < oren_list_len(params) {
-                if !first_p { json = json + ", " }
-                json = json + "\"" + escape_json_string(params[j]["value"]) + "\""
-                first_p = false
-                j = j + 1
-            }
-            json = json + "]\n"
+            json = json + "      \"args\": " + json_string_list(params) + ",\n"
+
+            // New: rich params and function-level attrs.
+            json = json + "      \"params\": " + json_named_list(params) + ",\n"
+            json = json + "      \"attrs\": " + json_attrs(func["attrs"]) + "\n"
             json = json + "    }"
             first = false
         }
@@ -92,19 +179,15 @@ fn generate_metadata(prog) {
         if s["type"] == "Type" {
             if !first { json = json + ",\n" }
             json = json + "    {\n"
-            json = json + "      \"name\": \"" + escape_json_string(s["name"]["value"]) + "\",\n"
-            json = json + "      \"fields\": ["
-            
+            json = json + "      \"name\": " + json_string(s["name"]["value"]) + ",\n"
+            json = json + "      \"attrs\": " + json_attrs(s["attrs"]) + ",\n"
+
+            // Backwards-compatible: keep a flat list of names.
             var fields = s["fields"]
-            var j = 0
-            var first_f = true
-            while j < oren_list_len(fields) {
-                if !first_f { json = json + ", " }
-                json = json + "\"" + escape_json_string(fields[j]["value"]) + "\""
-                first_f = false
-                j = j + 1
-            }
-            json = json + "]\n"
+            json = json + "      \"field_names\": " + json_string_list(fields) + ",\n"
+
+            // New: rich field list including attrs.
+            json = json + "      \"fields\": " + json_named_list(fields) + "\n"
             json = json + "    }"
             first = false
         }

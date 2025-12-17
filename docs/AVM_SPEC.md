@@ -35,7 +35,11 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - `1`: `INT` (`u64` payload, little-endian)
   - `2`: `BOOL` (`u8` payload, `0|1`)
   - `4`: `STRING` (`u16` length + bytes, little-endian length)
-- The “BYTES constant” concept exists in some roadmap docs, but is not currently emitted by the bytecode backend in this repo’s rolling v0.1 format.
+- `8`: `BYTES` (`u32` length + raw bytes, little-endian length)
+- Rolling convention: the compiler currently appends an **unused** `BYTES` constant containing metadata:
+  - payload prefix: ASCII `"OREN_META\n1\n"`
+  - remainder: UTF-8 JSON metadata (same structure as native `--metadata` output)
+  - this constant is intentionally not referenced by bytecode, so it does not affect execution semantics.
 - `FLOAT` constants exist in the v0.1 instruction table but are not yet fully wired through the current bytecode backend.
 
 ## Instruction Set (Version 0.1)

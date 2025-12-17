@@ -1,16 +1,11 @@
 import ap "../../lib/std/argparse.oren"
+import strings "../../lib/std/strings.oren"
 
 fn assert(cond, msg) {
     if !cond {
         print("ASSERT FAIL: " + msg)
         exit(1)
     }
-}
-
-fn starts_with(s, pref) {
-    if s == nil || pref == nil { return false }
-    if oren_string_len(s) < oren_string_len(pref) { return false }
-    return oren_string_slice(s, 0, oren_string_len(pref)) == pref
 }
 
 fn test_help_render() {
@@ -31,7 +26,7 @@ fn test_help_render() {
     while i < oren_list_len(root_lines) {
         var line = root_lines[i]
         if line == "Commands:" { saw_commands = true }
-        if starts_with(line, "  run") { saw_run = true }
+        if strings.starts_with(line, "  run") { saw_run = true }
         i = i + 1
     }
     assert(saw_commands, "root shows Commands:")
@@ -46,7 +41,7 @@ fn test_help_render() {
     while j < oren_list_len(run_lines) {
         var line2 = run_lines[j]
         if line2 == "Options:" { saw_options = true }
-        if starts_with(line2, "  --verbose") { saw_verbose = true }
+        if strings.starts_with(line2, "  --verbose") { saw_verbose = true }
         j = j + 1
     }
     assert(saw_options, "run shows Options:")

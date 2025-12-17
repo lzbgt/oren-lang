@@ -54,7 +54,11 @@ fn new_bytecode_ctx() {
         "aliases": {},
         "loop_ctx": nil,
         "lambda_counter": 0,
-        "env_captures": nil
+        "env_captures": nil,
+
+        // Optional BYTES blob appended to the constant pool by the compiler driver
+        // (tooling metadata, not referenced by program code).
+        "meta_bytes": nil
     }
 }
 
@@ -1398,6 +1402,15 @@ fn emit_u64_le(bytes, n) {
     }
 }
 
+fn emit_u32_le(bytes, n) {
+    var i = 0
+    while i < 4 {
+        oren_list_push(bytes, n & 255)
+        n = n / 256
+        i = i + 1
+    }
+}
+
 fn bytecode_emit_program(out_path, ctx) {
     var bytes = []
     // Magic: 0x0ECD (CD 0E)
@@ -1406,6 +1419,11 @@ fn bytecode_emit_program(out_path, ctx) {
     
     // Constants
     var consts = ctx["constants"]
+    var meta = ctx["meta_bytes"]
+    if meta != nil && oren_list_len(meta) > 0 {
+        // Rolling: append as an unused BYTES constant.
+        oren_list_push(consts, {"type": "Bytes", "value": meta})
+    }
     var n_consts = oren_list_len(consts)
     // Count (u16)
     oren_list_push(bytes, n_consts & 255)
@@ -1438,6 +1456,18 @@ fn bytecode_emit_program(out_path, ctx) {
             while k < len {
                 oren_list_push(bytes, s_bytes[k])
                 k = k + 1
+            }
+        }
+        if c["type"] == "Bytes" {
+            // Type BYTES (rolling): u32 length + raw bytes
+            oren_list_push(bytes, 8)
+            var b = c["value"]
+            var blen = oren_list_len(b)
+            emit_u32_le(bytes, blen)
+            var k2 = 0
+            while k2 < blen {
+                oren_list_push(bytes, b[k2])
+                k2 = k2 + 1
             }
         }
         i = i + 1

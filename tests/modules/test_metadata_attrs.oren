@@ -1,0 +1,68 @@
+import lexer "../../lib/compiler/lexer.oren"
+import parser "../../lib/compiler/parser.oren"
+import metadata "../../lib/compiler/metadata.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn contains(hay, needle) {
+    if hay == nil || needle == nil { return false }
+    var hl = oren_string_len(hay)
+    var nl = oren_string_len(needle)
+    if nl == 0 { return true }
+    if hl < nl { return false }
+    var i = 0
+    while i + nl <= hl {
+        if oren_string_slice(hay, i, i + nl) == needle { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn parse_src(src) {
+    var l = lexer.new_lexer(src)
+    var p = parser.new_parser(l)
+    var prog = parser.parse_program(p)
+    if oren_list_len(p["errors"]) != 0 {
+        var i = 0
+        while i < oren_list_len(p["errors"]) {
+            print("parse error: " + p["errors"][i])
+            i = i + 1
+        }
+        assert(false, "parse ok")
+    }
+    return prog
+}
+
+fn test_metadata_includes_attrs() {
+    var src = ""
+    src = src + "@doc(\"hello\")\n"
+    src = src + "fn f(@serde.rename(\"x\") a, b) { return 0 }\n"
+    src = src + "@serde.tag(\"t\")\n"
+    src = src + "struct S { @serde.rename(\"id\") id, name }\n"
+
+    var prog = parse_src(src)
+    var j = metadata.generate_metadata(prog)
+
+    // Function-level attrs are preserved.
+    assert(contains(j, "\"name\": \"f\""), "function present")
+    assert(contains(j, "\"attrs\": [{\"name\": \"doc\""), "function doc attr preserved")
+    assert(contains(j, "\"key\": null, \"value\": \"hello\""), "positional attr arg encoded")
+
+    // Param-level attrs are preserved.
+    assert(contains(j, "\"params\": [{ \"name\": \"a\", \"attrs\": [{\"name\": \"serde.rename\""), "param attr preserved")
+
+    // Struct + field attrs are preserved.
+    assert(contains(j, "\"name\": \"S\""), "struct present")
+    assert(contains(j, "\"attrs\": [{\"name\": \"serde.tag\""), "struct attr preserved")
+    assert(contains(j, "\"fields\": [{ \"name\": \"id\", \"attrs\": [{\"name\": \"serde.rename\""), "field attr preserved")
+}
+
+test_metadata_includes_attrs()
+print("ok")
+exit(0)
+

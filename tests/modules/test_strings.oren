@@ -1,0 +1,25 @@
+import s "../../lib/std/strings.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn test_strings() {
+    assert(s.starts_with("hello", "he"), "starts_with")
+    assert(!s.starts_with("hello", "ha"), "starts_with false")
+    assert(s.ends_with("hello", "lo"), "ends_with")
+    assert(!s.ends_with("hello", "ll"), "ends_with false")
+    assert(s.contains("hello", "ell"), "contains")
+    assert(!s.contains("hello", "xyz"), "contains false")
+    assert(s.index_of("hello", "ell") == 1, "index_of")
+    assert(s.index_of("hello", "xyz") == -1, "index_of missing")
+    assert(s.trim("  hi\t") == "hi", "trim")
+}
+
+test_strings()
+print("ok")
+exit(0)
+

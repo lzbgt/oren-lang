@@ -1,0 +1,62 @@
+fn starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    return oren_string_slice(s, 0, pl) == prefix
+}
+
+fn ends_with(s, suffix) {
+    if s == nil || suffix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(suffix)
+    if sl < pl { return false }
+    return oren_string_slice(s, sl - pl, sl) == suffix
+}
+
+fn contains(s, sub) {
+    if s == nil || sub == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(sub)
+    if pl == 0 { return true }
+    if sl < pl { return false }
+    var i = 0
+    while i + pl <= sl {
+        if oren_string_slice(s, i, i + pl) == sub { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn index_of(s, sub) {
+    if s == nil || sub == nil { return -1 }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(sub)
+    if pl == 0 { return 0 }
+    if sl < pl { return -1 }
+    var i = 0
+    while i + pl <= sl {
+        if oren_string_slice(s, i, i + pl) == sub { return i }
+        i = i + 1
+    }
+    return -1
+}
+
+fn char_is_ws(ch) {
+    if ch == " " { return true }
+    if ch == "\n" { return true }
+    if ch == "\r" { return true }
+    if ch == "\t" { return true }
+    return false
+}
+
+fn trim(s) {
+    if s == nil { return nil }
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n && char_is_ws(oren_string_char_at(s, i)) { i = i + 1 }
+    var j = n
+    while j > i && char_is_ws(oren_string_char_at(s, j - 1)) { j = j - 1 }
+    return oren_string_slice(s, i, j)
+}
+

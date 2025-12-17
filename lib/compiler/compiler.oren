@@ -180,7 +180,9 @@ fn run_repo_tests(target, no_gc) {
         "tests/modules/test_gc_threads.oren",
         "tests/modules/test_gc_stack_roots.oren",
         "tests/modules/test_result.oren",
-        "tests/modules/test_argparse.oren"
+        "tests/modules/test_argparse.oren",
+        "tests/modules/test_metadata_attrs.oren",
+        "tests/modules/test_strings.oren"
     ]
 
     var avm_tests = [
@@ -1126,6 +1128,29 @@ fn compiler_main() {
     if backend == "bytecode" {
         var linked_bc = link_program(path, prog)
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc)
+
+        // Rolling: embed metadata into the `.obc` constant pool as a BYTES constant so:
+        // - tooling can discover attrs/types/fields without a sidecar file
+        // - execution semantics remain unchanged (metadata is not referenced by code)
+        //
+        // Format (rolling, v0):
+        //   bytes = "OREN_META\n1\n" + <meta_json_utf8_bytes>
+        var meta_json = metadata.generate_metadata(linked_bc)
+        var hdr = oren_bytes_from_string("OREN_META\n1\n")
+        var payload = oren_bytes_from_string(meta_json)
+        var meta_bytes = []
+        var hi = 0
+        while hi < oren_list_len(hdr) {
+            oren_list_push(meta_bytes, hdr[hi])
+            hi = hi + 1
+        }
+        var pi = 0
+        while pi < oren_list_len(payload) {
+            oren_list_push(meta_bytes, payload[pi])
+            pi = pi + 1
+        }
+        ctx["meta_bytes"] = meta_bytes
+
         codegen_bytecode.bytecode_emit_program(out_path, ctx)
         print("Bytecode emitted: " + out_path)
         return nil
