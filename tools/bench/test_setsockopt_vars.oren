@@ -1,0 +1,14 @@
+fn main() {
+    var fd = sys_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+    if fd < 0 { exit(790) }
+    var one = malloc(8)
+    if one == 0 { exit(791) }
+    ptr_set(one, 1)
+    var rc = sys_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, one, 4)
+    if rc < 0 { exit(792) }
+    sys_close(fd)
+    print("setsockopt vars: OK")
+}
+
+main()
+

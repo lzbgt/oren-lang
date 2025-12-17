@@ -1,0 +1,15 @@
+fn main() {
+    var out = malloc(4)
+    if out == 0 { exit(901) }
+    var ok = oren_tcp_parse_ipv4_into("127.0.0.1", out)
+    if ok == 0 { exit(902) }
+    // Expect 127.0.0.1
+    if ptr_get_byte(out + 0) != 127 { exit(903) }
+    if ptr_get_byte(out + 1) != 0 { exit(904) }
+    if ptr_get_byte(out + 2) != 0 { exit(905) }
+    if ptr_get_byte(out + 3) != 1 { exit(906) }
+    print("ipv4 parse: OK")
+}
+
+main()
+

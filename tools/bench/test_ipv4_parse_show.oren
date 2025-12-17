@@ -1,0 +1,13 @@
+fn main() {
+    var out = malloc(4)
+    if out == 0 { exit(901) }
+    var ok = oren_tcp_parse_ipv4_into("127.0.0.1", out)
+    print_int(ok)
+    print_int(ptr_get_byte(out + 0))
+    print_int(ptr_get_byte(out + 1))
+    print_int(ptr_get_byte(out + 2))
+    print_int(ptr_get_byte(out + 3))
+    print("done")
+}
+
+main()

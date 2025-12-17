@@ -1,0 +1,48 @@
+fn main() {
+    print("pipe/fork/listen-steps: start")
+    var ch = oren_pipe()
+    var r = oren_list_get(ch, 0)
+    var w = oren_list_get(ch, 1)
+
+    var pid = sys_fork()
+    if pid < 0 { exit(800) }
+    if pid == 0 {
+        // Child
+        sys_close(r)
+
+        var fd = sys_socket(2, 1, 6)
+        if fd < 0 { exit(801) }
+        var one = malloc(8); if one == 0 { exit(802) }
+        ptr_set(one, 1)
+        var sroc = sys_setsockopt(fd, 65535, 4, one, 4)
+        if sroc < 0 { exit(803) }
+        var nb = oren_tcp_set_nonblock(fd)
+        if nb < 0 { exit(804) }
+        var sa = oren_tcp_sockaddr_in(0, 40000)
+        if sa == 0 { exit(805) }
+        var brc = sys_bind(fd, sa, 16)
+        if brc < 0 { exit(806) }
+        var lrc = sys_listen(fd, 16)
+        if lrc < 0 { exit(807) }
+
+        // Signal success to parent
+        var ok = malloc(8); if ok == 0 { exit(808) }
+        ptr_set(ok, 1)
+        sys_write(w, ok, 8)
+        sys_close(w)
+        exit(0)
+    }
+
+    // Parent
+    sys_close(w)
+    var buf = malloc(8); if buf == 0 { exit(810) }
+    var n = sys_read(r, buf, 8)
+    if n != 8 { exit(811) }
+    sys_close(r)
+    var st = malloc(8); ptr_set(st, 0)
+    sys_wait4(pid, st, 0, 0)
+    print("pipe/fork/listen-steps: OK")
+}
+
+main()
+

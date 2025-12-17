@@ -1,0 +1,12 @@
+fn main() {
+    TCP_DEBUG = 1
+    print("listen_local: start")
+    var fd = oren_tcp_listen_local(40000)
+    print("listen_local: after")
+    if fd < 0 { exit(740) }
+    print("listen_local: ok")
+    oren_tcp_close(fd)
+}
+
+main()
+

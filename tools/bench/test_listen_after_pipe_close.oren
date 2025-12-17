@@ -1,0 +1,22 @@
+fn main() {
+    print("listen-after-close: start")
+    var ch = oren_pipe()
+    var r = oren_list_get(ch, 0)
+    var w = oren_list_get(ch, 1)
+    // Close one end to mimic the tcp test's child process setup.
+    sys_close(r)
+    print("listen-after-close: closed r")
+
+    var fd = oren_tcp_listen_local(40000)
+    if fd < 0 {
+        print("listen-after-close: listen failed")
+        exit(770)
+    }
+    print("listen-after-close: listen ok")
+    // best-effort cleanup
+    oren_tcp_close(fd)
+    sys_close(w)
+}
+
+main()
+

@@ -1,0 +1,35 @@
+fn main() {
+    print("ore listen steps: start")
+    var fd = sys_socket(2, 1, 6)
+    if fd < 0 { exit(760) }
+    print("ore listen steps: socket ok")
+
+    var one = malloc(8)
+    if one == 0 { exit(761) }
+    ptr_set(one, 1)
+    var sroc = sys_setsockopt(fd, 65535, 4, one, 4)
+    if sroc < 0 { exit(762) }
+    print("ore listen steps: setsockopt ok")
+
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 { exit(763) }
+    print("ore listen steps: nonblock ok")
+
+    var sa = oren_tcp_sockaddr_in(0, 40000)
+    if sa == 0 { exit(764) }
+    print("ore listen steps: sockaddr ok")
+
+    var brc = sys_bind(fd, sa, 16)
+    if brc < 0 { exit(765) }
+    print("ore listen steps: bind ok")
+
+    var lrc = sys_listen(fd, 16)
+    if lrc < 0 { exit(766) }
+    print("ore listen steps: listen ok")
+
+    oren_tcp_close(fd)
+    print("ore listen steps: done")
+}
+
+main()
+

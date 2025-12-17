@@ -1,0 +1,22 @@
+fn main() {
+    print("pipe/fork: start")
+    var ch = oren_pipe()
+    if ch == 0 { exit(730) }
+    print("pipe/fork: pipe ok")
+    var pid = oren_fork()
+    if pid < 0 { exit(731) }
+    if pid == 0 {
+        print("pipe/fork: child start")
+        var p = malloc(8)
+        if p == 0 { exit(732) }
+        ptr_set(p, 1)
+        print("pipe/fork: child malloc ok")
+        exit(0)
+    }
+    var st = malloc(8); ptr_set(st, 0)
+    sys_wait4(pid, st, 0, 0)
+    print("pipe/fork: parent done")
+}
+
+main()
+

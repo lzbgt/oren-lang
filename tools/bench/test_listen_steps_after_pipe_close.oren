@@ -1,0 +1,42 @@
+fn main() {
+    print("listen-steps-after-close: start")
+    var ch = oren_pipe()
+    var r = oren_list_get(ch, 0)
+    var w = oren_list_get(ch, 1)
+    sys_close(r)
+    print("listen-steps-after-close: closed r")
+
+    var fd = sys_socket(2, 1, 6)
+    if fd < 0 { exit(780) }
+    print("listen-steps-after-close: socket ok")
+
+    var one = malloc(8)
+    if one == 0 { exit(781) }
+    ptr_set(one, 1)
+    var sroc = sys_setsockopt(fd, 65535, 4, one, 4)
+    if sroc < 0 { exit(782) }
+    print("listen-steps-after-close: setsockopt ok")
+
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 { exit(783) }
+    print("listen-steps-after-close: nonblock ok")
+
+    var sa = oren_tcp_sockaddr_in(0, 40000)
+    if sa == 0 { exit(784) }
+    print("listen-steps-after-close: sockaddr ok")
+
+    var brc = sys_bind(fd, sa, 16)
+    if brc < 0 { exit(785) }
+    print("listen-steps-after-close: bind ok")
+
+    var lrc = sys_listen(fd, 16)
+    if lrc < 0 { exit(786) }
+    print("listen-steps-after-close: listen ok")
+
+    oren_tcp_close(fd)
+    sys_close(w)
+    print("listen-steps-after-close: done")
+}
+
+main()
+

@@ -1,0 +1,17 @@
+fn main() {
+    var s = "127.0.0.1"
+    print_int(oren_string_len(s))
+    print_int(oren_string_char_at(s, 0))
+    print_int(oren_string_char_at(s, 1))
+    print_int(oren_string_char_at(s, 2))
+    print_int(oren_string_char_at(s, 3))
+    print_int(oren_string_char_at(s, 4))
+    print_int(oren_string_char_at(s, 5))
+    print_int(oren_string_char_at(s, 6))
+    print_int(oren_string_char_at(s, 7))
+    print_int(oren_string_char_at(s, 8))
+    print_int(oren_string_char_at(s, 9))
+    print("done")
+}
+
+main()

@@ -1,0 +1,87 @@
+fn my_parse(ip, out4_ptr) {
+    if ip == 0 { return 0 }
+    if out4_ptr == 0 { return 0 }
+
+    var part = 0
+    var acc = 0
+    var digits = 0
+    var i = 0
+    while 1 {
+        var ch = oren_string_char_at(ip, i)
+        if ch == 0 { break }
+
+        if ch >= 48 {
+            if ch <= 57 {
+                acc = acc * 10 + (ch - 48)
+                if acc > 255 {
+                    print("fail: acc>255")
+                    print_int(i)
+                    print_int(ch)
+                    print_int(acc)
+                    return 0
+                }
+                digits = digits + 1
+            } else {
+                print("fail: non-digit >=48")
+                print_int(i)
+                print_int(ch)
+                print_int(part)
+                print_int(digits)
+                print_int(acc)
+                return 0
+            }
+        } else {
+            if ch == 46 {
+                if digits == 0 {
+                    print("fail: dot with no digits")
+                    print_int(i)
+                    print_int(part)
+                    return 0
+                }
+                if part >= 3 {
+                    print("fail: too many parts")
+                    print_int(i)
+                    print_int(part)
+                    return 0
+                }
+                ptr_set_byte(out4_ptr + part, acc)
+                part = part + 1
+                acc = 0
+                digits = 0
+            } else {
+                print("fail: unexpected char")
+                print_int(i)
+                print_int(ch)
+                return 0
+            }
+        }
+
+        i = i + 1
+    }
+
+    if part != 3 {
+        print("fail: end part")
+        print_int(part)
+        return 0
+    }
+    if digits == 0 {
+        print("fail: end digits")
+        return 0
+    }
+    ptr_set_byte(out4_ptr + 3, acc)
+    return 1
+}
+
+fn main() {
+    var out = malloc(4)
+    if out == 0 { exit(901) }
+    var ok = my_parse("127.0.0.1", out)
+    print_int(ok)
+    print_int(ptr_get_byte(out + 0))
+    print_int(ptr_get_byte(out + 1))
+    print_int(ptr_get_byte(out + 2))
+    print_int(ptr_get_byte(out + 3))
+    print("end")
+}
+
+main()

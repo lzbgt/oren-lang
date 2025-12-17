@@ -1,0 +1,10 @@
+fn main() {
+    var i = 0
+    while 1 {
+        i = i + 1
+        if i == 1 { break }
+    }
+    print("break ok")
+}
+
+main()

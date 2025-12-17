@@ -1,0 +1,52 @@
+fn fill_sockaddr_local(sa, port) {
+    // sockaddr_in for 127.0.0.1:port
+    var i = 0
+    while i < 16 {
+        ptr_set_byte(sa + i, 0)
+        i = i + 1
+    }
+    ptr_set_byte(sa + 0, 16)
+    ptr_set_byte(sa + 1, 2) // AF_INET
+    ptr_set_byte(sa + 2, (port >> 8) & 255)
+    ptr_set_byte(sa + 3, port & 255)
+    ptr_set_byte(sa + 4, 127)
+    ptr_set_byte(sa + 5, 0)
+    ptr_set_byte(sa + 6, 0)
+    ptr_set_byte(sa + 7, 1)
+    return 0
+}
+
+fn main() {
+    print("bind/listen: start")
+    var fd = sys_socket(2, 1, 6)
+    if fd < 0 { exit(710) }
+    print("bind/listen: socket ok")
+
+    var one = malloc(8)
+    ptr_set(one, 1)
+    var sroc = sys_setsockopt(fd, 65535, 4, one, 4) // SOL_SOCKET, SO_REUSEADDR
+    print("bind/listen: setsockopt done")
+    if sroc < 0 { exit(711) }
+
+    var flags = sys_fcntl(fd, 3, 0) // F_GETFL
+    if flags < 0 { exit(712) }
+    var frc = sys_fcntl(fd, 4, flags | 4) // F_SETFL, O_NONBLOCK
+    print("bind/listen: fcntl done")
+    if frc < 0 { exit(713) }
+
+    var sa = malloc(16)
+    fill_sockaddr_local(sa, 40000)
+    var brc = sys_bind(fd, sa, 16)
+    print("bind/listen: bind done")
+    if brc < 0 { exit(714) }
+
+    var lrc = sys_listen(fd, 16)
+    print("bind/listen: listen done")
+    if lrc < 0 { exit(715) }
+
+    sys_close(fd)
+    print("bind/listen: ok")
+}
+
+main()
+

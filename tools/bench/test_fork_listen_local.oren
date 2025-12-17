@@ -1,0 +1,20 @@
+fn main() {
+    TCP_DEBUG = 1
+    print("fork/listen: parent start")
+    var pid = oren_fork()
+    if pid < 0 { exit(750) }
+    if pid == 0 {
+        print("fork/listen: child start")
+        var fd = oren_tcp_listen_local(40000)
+        print("fork/listen: child after listen")
+        if fd < 0 { exit(751) }
+        oren_tcp_close(fd)
+        exit(0)
+    }
+    var st = malloc(8); ptr_set(st, 0)
+    sys_wait4(pid, st, 0, 0)
+    print("fork/listen: parent done")
+}
+
+main()
+

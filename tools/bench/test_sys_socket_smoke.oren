@@ -1,0 +1,14 @@
+fn main() {
+    print("socket: before")
+    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    print("socket: after")
+    if fd < 0 {
+        print("socket: failed")
+        exit(701)
+    }
+    sys_close(fd)
+    print("socket: ok")
+}
+
+main()
+
