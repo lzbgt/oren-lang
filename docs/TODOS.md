@@ -141,6 +141,15 @@ Focus statement (to avoid roadmap thrash):
      - native backend generic calls now follow AAPCS64 arg passing: X0..X7 + stack args for arg8+, and function prologues correctly load arg8+ from caller stack.
      - regression: `tests/native/test_call_stack_args.oren` (also in Docker Linux smoke list).
 
+7) **Native memory hygiene: libc-free allocator + no leaks**
+   - Native backend must remain libc-free (no `libc malloc/free`).
+   - The compiler intrinsic `malloc(...)` is an internal runtime primitive (implemented on top of syscalls); user/library code should migrate toward type-driven allocation (constructors/literals) and avoid raw `malloc` calls.
+   - Enforce correctness:
+     - de-duplicate tracking records (no two GC nodes may point at the same ptr)
+     - keep runtime metadata (globals/thread bookkeeping) out of GC-managed allocations
+     - ensure `free(ptr)` works even when GC scanning is disabled (`--no-gc`)
+   - Regression: `tests/native/test_gc_reuse_tracking.oren`
+
 7) **Linux arm64 native backend parity (mandatory; avoid divergence)**
    - The production goal includes Linux; verify early to avoid “macOS-only drift”.
    - Deliverables:
@@ -333,6 +342,18 @@ Focus statement (to avoid roadmap thrash):
    - Stage C0: constant evaluation for pure expressions only (no FS/NET/PROC/ENV/TIME, no nondeterministic RNG), with explicit budgets to prevent compiler hangs.
    - Later stages (pure comptime functions, bounded reflection) can follow once C0 is stable.
 
+13) **Unify struct semantics across backends + plan escape analysis**
+   - Production semantics target:
+     - pass-by-immutable-value
+     - struct value is an immutable handle (pointer-sized), not a stack-cloned blob
+     - compiler uses escape analysis to decide stack vs heap placement
+   - Unify backend representation:
+     - C backend currently lowers `struct` constructors to maps (convenient but not layout-stable).
+     - Native backend uses contiguous struct buffers (`oren_alloc_struct(n_fields*8)`).
+     - Bytecode backend will need a consistent model as well.
+   - Networking motivation:
+     - enable “packed struct view over bytes” with explicit `@be/@le` field reads as a future no-allocation parsing path.
+
 ## P2 (Next-Gen AVM Performance + Features)
 
 1) **Typed buffers + SIMD kernels (no-JIT-first path)**
@@ -364,3 +385,5 @@ Focus statement (to avoid roadmap thrash):
      - if implemented later, prefer “inspect neighbor table” capability (read-only) rather than “craft ARP frames”.
 
 ## Recently Completed (for context)
+
+- Native panic traces: add pseudo symbols for `__top_level__` (top-level statement lowering) and `__entry_stub__` (arm64 entry shim) so stack traces are readable even without an explicit `fn main()`.

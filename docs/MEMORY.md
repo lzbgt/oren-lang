@@ -1,23 +1,23 @@
 # Memory Model
 
-Oren’s default stance is automatic management on desktop/server targets, with a deterministic/manual lane for embedded/bare-metal.
+Oren’s native backend is **syscall-first** and **libc-free**. Memory management is designed so long-running programs do not grow memory unboundedly (no “leak by design”), while still supporting a deterministic/manual lane.
 
 ## Modes
-- **Auto-managed (default)**: desktop/server builds keep the current tracked heap + mark/sweep collector. GC triggering is manual today (`oren_gc_collect`), but the plan is to make it opportunistic (safepoints) once the native backend hooks are in place.
-- **Deterministic/Manual**: set `--no-gc` / `OREN_NO_GC` to disable scanning. You keep ownership explicit (`oren_free`) and still get shutdown cleanup. This is the intended path for STM32-style targets where pauses aren’t acceptable.
+- **Auto-managed (default)**: allocations are tracked and reclaimed via a conservative mark/sweep collector (`native_gc_collect()`).
+- **Deterministic/Manual**: set `--no-gc` / `OREN_NO_GC=1` to disable GC scanning/collection. You still can explicitly release memory via `free(ptr)` (returns blocks to the reuse pool). This is the intended path for targets where pauses aren’t acceptable.
 
 ## What is managed
-- Strings, lists, and maps created by the C backend (`lib/runtime.c`) are registered in an allocation table. They are freed automatically on `oren_shutdown()` and can be reclaimed eagerly with `oren_gc_collect()` (mark/sweep from registered roots).
-- Manual reclamation is available through `oren_free(value)`; this is useful for large temporaries or deterministic teardown.
-- Command-line arguments are stored in a tracked list so they are cleaned up with the rest of the runtime.
+- In the native backend, heap allocations are performed by the compiler’s intrinsic `malloc(...)`, implemented directly on top of OS syscalls (not `libc malloc`).
+- Runtime objects (strings/lists/maps/structs/function-closures) are tracked by the native runtime so GC can traverse container graphs and reuse freed blocks.
+- **Runtime metadata** (globals storage, thread-list nodes, root-list nodes) is allocated with `malloc_raw(...)` so it is not subject to GC (prevents GC from reclaiming internal runtime bookkeeping).
 
 ## Roots & collection
-- Roots are any `OrenValue*` slots passed to `oren_register_root(slot)`; they are unregistered via `oren_unregister_root(slot)`. Globals emitted by the transpilers register automatically.
-- The collector is cooperative: call `oren_gc_collect()` at safe points to reclaim unreachable tracked allocations. If you never call it, shutdown will still free tracked blocks.
+- The collector is cooperative: call `native_gc_collect()` at safe points to reclaim unreachable tracked allocations.
+- Roots are for “stable address” slots used by the runtime/compiler; user code should not normally need to manipulate roots directly in v0.
 
 ## Disabling GC
-- Builds can disable GC scanning by defining `OREN_NO_GC` (or passing `--no-gc` to the CLI). Roots/mark-sweep become no-ops, but the runtime still tracks allocations so `oren_free` and shutdown cleanup continue to work.
-- This is the recommended configuration for constrained/embedded targets (e.g., STM32) where you want deterministic ownership without a runtime collector pause.
+- Builds can disable GC scanning by defining `OREN_NO_GC` (or passing `--no-gc` to the CLI). Stack scanning and mark/sweep become no-ops.
+- Manual reclamation still works: `free(ptr)` removes the allocation from the tracked set and returns it to the reuse pool (so long-running programs can stay bounded even with GC disabled).
 
 ## Thread Safety
 - List/map operations in the C runtime take a coarse mutex, so concurrent reads/writes across threads are serialized. This is a stopgap; per-object or lock-free structures plus GC safepoints are planned for the full concurrency story.

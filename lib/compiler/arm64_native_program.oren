@@ -704,6 +704,10 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
     push_u32_le(ctx["code"], insn_svc(svc_imm))
     // Should not return
+
+    // Record the end of the entry stub so debug symbolization can label it
+    // without overlapping the injected runtime function ranges.
+    ctx["entry_stub_end"] = oren_list_len(ctx["code"])
     
     // Inject Runtime
     var runtime_src = oren_read_file("lib/runtime_native.oren")
@@ -759,6 +763,11 @@ fn native_compile_program_arm64(linked, platform) {
         i = i + 1
     }
 
+    // Record end of top-level statement lowering (before wrapper emission).
+    // This lets debug stack traces show a stable "__top_level__" frame for
+    // programs that run statements at top-level without an explicit fn main().
+    var top_level_end = oren_list_len(ctx["code"])
+
     // Synthesize wrappers for first-class named functions and for lambda literals.
     // These wrappers implement the uniform callable ABI:
     //   fn wrapper(__env, __args_list) -> value
@@ -778,6 +787,31 @@ fn native_compile_program_arm64(linked, platform) {
     while wi < oren_list_len(ctx["lambda_defs"]) {
         native_compile_stmt(ctx, synth_lambda_wrapper(ctx["lambda_defs"][wi]))
         wi = wi + 1
+    }
+
+    // Debug pseudo-symbols for code regions that are not Function nodes:
+    // - the entry stub (prologue + runtime init + call main + exit)
+    // - top-level statement lowering ("main" alias) for programs without fn main()
+    if ctx["platform"]["debug"] == true {
+        var entry_end = ctx["entry_stub_end"]
+        if entry_end != nil && entry_end > 0 {
+            oren_list_push(ctx["debug_info"]["funcs"], {
+                "name": "__entry_stub__",
+                "start": 0,
+                "end": entry_end,
+                "params": []
+            })
+        }
+
+        var top_start = ctx["functions"]["__top_level__"]
+        if top_start != nil && top_level_end > top_start {
+            oren_list_push(ctx["debug_info"]["funcs"], {
+                "name": "__top_level__",
+                "start": top_start,
+                "end": top_level_end,
+                "params": []
+            })
+        }
     }
     
     // Record entry (main) offset if present
@@ -809,6 +843,15 @@ fn native_compile_program_arm64(linked, platform) {
     // This ensures resolve_symbol picks the closest preceding function.
     var sym_entries = []
 
+    // Pseudo-symbols for unlabeled code regions:
+    // - entry stub at offset 0
+    // - top-level statement lowering (when present)
+    oren_list_push(sym_entries, {"off": 0, "name": "__entry_stub__"})
+    var top_off = ctx["functions"]["__top_level__"]
+    if top_off != nil {
+        oren_list_push(sym_entries, {"off": top_off, "name": "__top_level__"})
+    }
+
     // Runtime functions
     var j = 0
     while j < oren_list_len(runtime_prog["statements"]) {
@@ -835,6 +878,30 @@ fn native_compile_program_arm64(linked, platform) {
             } else {
                 oren_list_push(sym_entries, {"off": off2, "name": name2})
             }
+        }
+        j = j + 1
+    }
+
+    // Wrapper symbols for first-class named functions (deterministic: driven by func_decl_order).
+    j = 0
+    while j < oren_list_len(ctx["func_decl_order"]) {
+        var fname = ctx["func_decl_order"][j]
+        var wname = "__oren_fnwrap_" + fname
+        var woff = ctx["functions"][wname]
+        if woff != nil {
+            oren_list_push(sym_entries, {"off": woff, "name": wname})
+        }
+        j = j + 1
+    }
+
+    // Lambda wrapper symbols (deterministic: driven by lambda_defs collection order).
+    j = 0
+    while j < oren_list_len(ctx["lambda_defs"]) {
+        var def = ctx["lambda_defs"][j]
+        var lname = def["name"]
+        var loff = ctx["functions"][lname]
+        if loff != nil {
+            oren_list_push(sym_entries, {"off": loff, "name": lname})
         }
         j = j + 1
     }

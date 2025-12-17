@@ -142,12 +142,13 @@ fn oren_pipe() {
 //   0:allocs
 //   8:roots
 //   16:lock_owner_tid
-//   24:free
+//   24:free_nodes
 //   32:threads
 //   40:argc
 //   48:argv
 //   56:lock_recurse_count
 //   64:envp
+//   72:free_blocks
 var g_storage = 0
 
 fn oren_globals() {
@@ -162,12 +163,13 @@ var GLOBAL_SLOT_BYTES = 8
 var GLOBAL_OFF_ALLOCS = 0
 var GLOBAL_OFF_ROOTS = 8
 var GLOBAL_OFF_LOCK_OWNER_TID = 16
-var GLOBAL_OFF_FREE = 24
+var GLOBAL_OFF_FREE_NODES = 24
 var GLOBAL_OFF_THREADS = 32
 var GLOBAL_OFF_ARGC = 40
 var GLOBAL_OFF_ARGV = 48
 var GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
 var GLOBAL_OFF_ENVP = 64
+var GLOBAL_OFF_FREE_BLOCKS = 72
 
 // Reserve extra room for rolling ABI growth (must be >= 9 slots today).
 var GLOBAL_SLOTS_RESERVED = 16
@@ -181,8 +183,11 @@ fn global_set_roots(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ROOTS), v) }
 fn global_get_lock() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)) }
 fn global_set_lock(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID), v) }
 
-fn global_get_free() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE)) }
-fn global_set_free(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE), v) }
+fn global_get_free_nodes() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE_NODES)) }
+fn global_set_free_nodes(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE_NODES), v) }
+
+fn global_get_free_blocks() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE_BLOCKS)) }
+fn global_set_free_blocks(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE_BLOCKS), v) }
 
 fn global_get_threads() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_THREADS)) }
 fn global_set_threads(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_THREADS), v) }
@@ -225,22 +230,30 @@ fn oren_fork() {
 }
 
 fn native_runtime_init() {
+    // The native backend is still rolling and does not reliably run global initializers
+    // before entering the runtime. Ensure globals used by early allocation are safe.
+    g_storage = 0
+
     // IMPORTANT: today the native backend does not reliably run global initializers
     // before entering the runtime. Treat these as "constants" that must be set here.
     GLOBAL_SLOT_BYTES = 8
     GLOBAL_OFF_ALLOCS = 0
     GLOBAL_OFF_ROOTS = 8
     GLOBAL_OFF_LOCK_OWNER_TID = 16
-    GLOBAL_OFF_FREE = 24
+    GLOBAL_OFF_FREE_NODES = 24
     GLOBAL_OFF_THREADS = 32
     GLOBAL_OFF_ARGC = 40
     GLOBAL_OFF_ARGV = 48
     GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
     GLOBAL_OFF_ENVP = 64
+    GLOBAL_OFF_FREE_BLOCKS = 72
     GLOBAL_SLOTS_RESERVED = 16
 
     // Reserve room for current globals + some growth slack (rolling ABI).
-    g_storage = malloc(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
+    //
+    // IMPORTANT: allocate globals storage with malloc_raw so it is NOT tracked by GC.
+    // This is runtime metadata and must never be reclaimed by mark/sweep.
+    g_storage = malloc_raw(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
     if g_storage == 0 { exit(199) }
     
     // Zero it
@@ -426,11 +439,8 @@ fn oren_time_mono_raw() {
 
 fn oren_register_thread(top) {
     // Thread Node: [top, saved_sp, next] (24 bytes)
-    // We use malloc.
-    // Note: oren_register_thread is called from entry stub.
-    // malloc depends on globals being init.
-    // entry stub calls native_runtime_init BEFORE this. So it's safe.
-    var node = malloc(24)
+    // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
+    var node = malloc_raw(24)
     if node != 0 {
         ptr_set(node, top)
         ptr_set(iadd(node, 8), 0) // saved_sp
@@ -504,25 +514,71 @@ fn native_gc_scan_stack() {
 // Node layout: [ptr, size, kind, freed, next] (5 * 8 = 40 bytes)
 // Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next
 
-fn native_try_reuse(size) {
+// Try to reuse a raw node allocation (used by malloc_raw callers like root lists).
+// This must NOT reuse freed "blocks" (which are tracked allocation records pointing at object memory),
+// otherwise we'd lose pointers to freed object memory and create leaks/corruption.
+fn native_try_reuse_node(size) {
     if oren_globals() == 0 { return 0 }
-    // Simple first-fit
+    acquire_lock()
     var prev = 0
-    var cur = global_get_free()
+    var cur = global_get_free_nodes()
     while cur != 0 {
-        var chunk_size = ptr_get(iadd(cur, 8))
-        if chunk_size >= size {
-            // Found a fit.
+        var node_size = ptr_get(iadd(cur, 8))
+        if node_size >= size {
+            var next = ptr_get(iadd(cur, 32))
             if prev == 0 {
-                global_set_free(ptr_get(iadd(cur, 32)))
+                global_set_free_nodes(next)
             } else {
-                ptr_set(iadd(prev, 32), ptr_get(iadd(cur, 32)))
+                ptr_set(iadd(prev, 32), next)
             }
-            return ptr_get(cur)
+            // Clear next pointer; caller will overwrite fields.
+            ptr_set(iadd(cur, 32), 0)
+            release_lock()
+            return cur
         }
         prev = cur
         cur = ptr_get(iadd(cur, 32))
     }
+    release_lock()
+    return 0
+}
+
+fn native_try_reuse(size) {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    // Simple first-fit from the free list.
+    var prev = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        var chunk_size = ptr_get(iadd(cur, 8))
+        if chunk_size >= size {
+            // Unlink from free list.
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+
+            // Reactivate this tracking node by placing it back into allocs.
+            // NOTE:
+            // - We keep chunk_size (capacity) as-is; size is the requested logical size.
+            // - kind defaults to 5 (misc). Callers may later call `oren_track_alloc(...)`
+            //   to specialize kind (e.g. string/list/map/struct/func).
+            ptr_set(iadd(cur, 8), size)
+            ptr_set(iadd(cur, 16), 5)
+            ptr_set(iadd(cur, 24), 0) // not freed, not marked
+            ptr_set(iadd(cur, 32), global_get_allocs())
+            global_set_allocs(cur)
+
+            var out = ptr_get(cur)
+            release_lock()
+            return out
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
     return 0
 }
 
@@ -596,19 +652,58 @@ fn malloc_raw(size) { return 0 }
 fn oren_track_alloc(ptr, size, kind) {
     if oren_globals() == 0 { return ptr }
     acquire_lock()
-    
-    // Allocate tracking node.
+
+    // De-duplicate: if already tracked (allocs), update in place.
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur) == ptr {
+            if size != 0 { ptr_set(iadd(cur, 8), size) }
+            if kind != 0 { ptr_set(iadd(cur, 16), kind) }
+            // Clear "freed" and mark flags on re-track.
+            ptr_set(iadd(cur, 24), 0)
+            release_lock()
+            return ptr
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+
+    // If it exists in the free list (reused pointer or manual re-track),
+    // move it back into allocs to avoid duplicate nodes pointing at the same ptr.
+    var prev = 0
+    cur = global_get_free_blocks()
+    while cur != 0 {
+        if ptr_get(cur) == ptr {
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+
+            ptr_set(iadd(cur, 8), size)
+            ptr_set(iadd(cur, 16), kind)
+            ptr_set(iadd(cur, 24), 0)
+            ptr_set(iadd(cur, 32), global_get_allocs())
+            global_set_allocs(cur)
+
+            release_lock()
+            return ptr
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+
+    // Allocate a new tracking node.
     var node = malloc_raw(40)
-    
     if node != 0 {
         ptr_set(node, ptr)
         ptr_set(iadd(node, 8), size)
         ptr_set(iadd(node, 16), kind)
-        ptr_set(iadd(node, 24), 0) // freed = 0
+        ptr_set(iadd(node, 24), 0) // not freed, not marked
         ptr_set(iadd(node, 32), global_get_allocs())
         global_set_allocs(node)
     }
-    
+
     release_lock()
     return ptr
 }
@@ -648,8 +743,12 @@ fn native_gc_unregister_root(ptr) {
                 ptr_set(iadd(prev, 32), next)
             }
             // Reuse node storage via free list.
-            ptr_set(iadd(cur, 32), global_get_free())
-            global_set_free(cur)
+            ptr_set(cur, 0)
+            ptr_set(iadd(cur, 8), 40)
+            ptr_set(iadd(cur, 16), 0)
+            ptr_set(iadd(cur, 24), 0)
+            ptr_set(iadd(cur, 32), global_get_free_nodes())
+            global_set_free_nodes(cur)
             release_lock()
             return 0
         }
@@ -766,9 +865,9 @@ fn native_gc_collect() {
             } else {
                 ptr_set(iadd(prev, 32), next_node)
             }
-            
-            ptr_set(iadd(cur, 32), global_get_free())
-            global_set_free(cur)
+
+            ptr_set(iadd(cur, 32), global_get_free_blocks())
+            global_set_free_blocks(cur)
         }
         cur = next_node
     }
@@ -782,11 +881,47 @@ fn native_gc_shutdown() {
 var g_debug_info = 0
 var g_debug_static_addr = 0
 var g_slide = 0
+var g_prog_pc_min = 0
+var g_prog_pc_max = 0
+
+fn compute_program_pc_bounds() {
+    // Best-effort: compute min/max static PC covered by debug function ranges.
+    // This is used to avoid mis-labeling host/shared-library PCs via resolve_symbol().
+    g_prog_pc_min = 0
+    g_prog_pc_max = 0
+    if g_debug_info == 0 { return 0 }
+    var ptr = g_debug_info
+    var count = ptr_get_u64(ptr)
+    ptr = ptr + 8
+    var i = 0
+    while i < count {
+        var start = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var end = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        if g_prog_pc_min == 0 || start < g_prog_pc_min { g_prog_pc_min = start }
+        if end > g_prog_pc_max { g_prog_pc_max = end }
+
+        var name_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + name_len
+        var p_count = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var j = 0
+        while j < p_count {
+            var pname_len = ptr_get_u64(ptr)
+            ptr = ptr + 8 + pname_len + 8 // +8 for offset
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return 0
+}
 
 fn oren_set_debug_info(ptr, static_addr) {
     g_debug_info = ptr
     g_debug_static_addr = static_addr
     g_slide = ptr - static_addr
+    compute_program_pc_bounds()
     return 0
 }
 
@@ -936,8 +1071,22 @@ fn stack_trace_debug() {
                 j = j + 1
             }
         } else {
-            var s0 = string_concat("  at <unknown> (pc=", oren_int_to_string(pc))
-            print(string_concat(s0, ")"))
+            // Fallback: try best-effort symbol resolution even when debug-info
+            // range lookup fails (e.g. top-level code regions or entry stub).
+            var name = "<unknown>"
+            if g_debug_info != 0 && g_prog_pc_min != 0 && g_prog_pc_max != 0 {
+                var static_pc = pc - g_slide
+                if static_pc >= g_prog_pc_min && static_pc < g_prog_pc_max {
+                    name = resolve_symbol(pc)
+                    if name == nil { name = "<unknown>" }
+                } else {
+                    name = "<unknown host>"
+                }
+            }
+            var s0 = string_concat("  at ", name)
+            var s1 = string_concat(s0, " (pc=")
+            var s2 = string_concat(s1, oren_int_to_string(pc))
+            print(string_concat(s2, ")"))
         }
         
         fp = caller_fp
@@ -1612,6 +1761,119 @@ fn oren_list_get(list, idx) {
     return ptr_get(buf + idx * 8)
 }
 
+// Set list element in-bounds (does not grow). Returns the written value.
+fn oren_list_set(list, idx, value) {
+    if list == 0 { oren_panic("list_set on nil") }
+    if ptr_get(list + 24) != list_magic() { oren_panic("list_set on non-list") }
+    var count = ptr_get(list)
+    if idx < 0 { oren_panic("Index out of bounds (negative)") }
+    if idx >= count { oren_panic("Index out of bounds") }
+    var buf = ptr_get(list + 16)
+    if buf == 0 { oren_panic("list buffer is nil") }
+    ptr_set(buf + idx * 8, value)
+    return value
+}
+
+// --- Byte-order helpers (network parsing / serialization) ---
+//
+// In native v0, "bytes" are typically `list<int 0..255>`.
+// These helpers are deterministic and libc-free.
+
+fn oren_bytes_get_u8(bytes, idx) {
+    var v = oren_list_get(bytes, idx)
+    if v < 0 || v > 255 { oren_panic("byte out of range") }
+    return v
+}
+
+fn oren_bytes_set_u8(bytes, idx, v) {
+    if v < 0 || v > 255 { oren_panic("byte out of range") }
+    return oren_list_set(bytes, idx, v)
+}
+
+fn oren_bytes_get_u16_be(bytes, idx) {
+    var b0 = oren_bytes_get_u8(bytes, idx)
+    var b1 = oren_bytes_get_u8(bytes, idx + 1)
+    return (b0 << 8) | b1
+}
+
+fn oren_bytes_get_u16_le(bytes, idx) {
+    var b0 = oren_bytes_get_u8(bytes, idx)
+    var b1 = oren_bytes_get_u8(bytes, idx + 1)
+    return (b1 << 8) | b0
+}
+
+fn oren_bytes_get_i16_be(bytes, idx) {
+    var u = oren_bytes_get_u16_be(bytes, idx)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+
+fn oren_bytes_get_i16_le(bytes, idx) {
+    var u = oren_bytes_get_u16_le(bytes, idx)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+
+fn oren_bytes_put_u16_be(bytes, idx, v) {
+    if v < 0 || v > 65535 { oren_panic("u16 out of range") }
+    oren_bytes_set_u8(bytes, idx, (v >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 1, v & 255)
+    return bytes
+}
+
+fn oren_bytes_put_u16_le(bytes, idx, v) {
+    if v < 0 || v > 65535 { oren_panic("u16 out of range") }
+    oren_bytes_set_u8(bytes, idx, v & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (v >> 8) & 255)
+    return bytes
+}
+
+fn oren_bytes_get_u32_be(bytes, idx) {
+    var b0 = oren_bytes_get_u8(bytes, idx)
+    var b1 = oren_bytes_get_u8(bytes, idx + 1)
+    var b2 = oren_bytes_get_u8(bytes, idx + 2)
+    var b3 = oren_bytes_get_u8(bytes, idx + 3)
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+}
+
+fn oren_bytes_get_u32_le(bytes, idx) {
+    var b0 = oren_bytes_get_u8(bytes, idx)
+    var b1 = oren_bytes_get_u8(bytes, idx + 1)
+    var b2 = oren_bytes_get_u8(bytes, idx + 2)
+    var b3 = oren_bytes_get_u8(bytes, idx + 3)
+    return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+}
+
+fn oren_bytes_get_i32_be(bytes, idx) {
+    var u = oren_bytes_get_u32_be(bytes, idx)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_bytes_get_i32_le(bytes, idx) {
+    var u = oren_bytes_get_u32_le(bytes, idx)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_bytes_put_u32_be(bytes, idx, v) {
+    if v < 0 || v > 4294967295 { oren_panic("u32 out of range") }
+    oren_bytes_set_u8(bytes, idx, (v >> 24) & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (v >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (v >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, v & 255)
+    return bytes
+}
+
+fn oren_bytes_put_u32_le(bytes, idx, v) {
+    if v < 0 || v > 4294967295 { oren_panic("u32 out of range") }
+    oren_bytes_set_u8(bytes, idx, v & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (v >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (v >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, (v >> 24) & 255)
+    return bytes
+}
+
 // Minimal index_set for lists; maps still use oren_map_set directly.
 fn oren_index_set(container, index, value) {
     if container == 0 { exit(230) }
@@ -2228,10 +2490,35 @@ fn oren_net_get(url) {
 
 fn free(ptr) {
     if ptr == 0 { return 0 }
-    var node = oren_find_node(ptr)
-    if node != 0 {
-        ptr_set(iadd(node, 24), 1) // freed = 1
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+
+    // Deterministic/manual-friendly free:
+    // - remove from allocs list immediately
+    // - push into free_blocks so future malloc() can reuse the block
+    //
+    // This must work even when GC scanning is disabled (`--no-gc` / OREN_NO_GC=1).
+    var prev = 0
+    var cur = global_get_allocs()
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if ptr_get(cur) == ptr {
+            if prev == 0 {
+                global_set_allocs(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            ptr_set(iadd(cur, 24), 0) // clear freed/mark flags
+            ptr_set(iadd(cur, 32), global_get_free_blocks())
+            global_set_free_blocks(cur)
+            release_lock()
+            return 0
+        }
+        prev = cur
+        cur = next
     }
+
+    release_lock()
     return 0
 }
 

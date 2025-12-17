@@ -95,12 +95,16 @@ test-inner: oren
 			file build/$$name | grep -q "ELF" || { echo "FAIL: $$name (No ELF)"; exit 1; }; \
 		elif [ "$$name" = "test_debug_panic" ]; then \
 			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug -o build/$$name $(CODESIGN_ARG) $(GC_ARG); \
-			set +e; $(RUN_WITH_TIMEOUT) ./build/$$name; rc=$$?; set -e; \
+			outf=build/$$name.out; \
+			set +e; $(RUN_WITH_TIMEOUT) ./build/$$name > $$outf 2>&1; rc=$$?; set -e; \
 			if [ $$rc -eq 0 ]; then \
 				echo "FAIL: $$name (Expected panic)"; exit 1; \
 			elif [ $$rc -eq 124 ]; then \
 				echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; exit 1; \
 			fi; \
+			grep -q "Runtime Panic" $$outf || { echo "FAIL: $$name (Missing panic header)"; cat $$outf; exit 1; }; \
+			grep -q "__top_level__" $$outf || { echo "FAIL: $$name (Missing __top_level__ in stack trace)"; cat $$outf; exit 1; }; \
+			! grep -q "__oren_fnwrap_crash_me (pc=" $$outf || { echo "FAIL: $$name (Host frame mis-labeled as program symbol)"; cat $$outf; exit 1; }; \
 		elif [ "$$name" = "test_no_gc_mode" ]; then \
 			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend native --debug --no-gc -o build/$$name $(CODESIGN_ARG); \
 			$(RUN_WITH_TIMEOUT) ./build/$$name || { echo "FAIL: $$name (Exit code $$?)"; exit 1; }; \
@@ -126,14 +130,16 @@ test-inner: oren
 	@$(RUN_WITH_TIMEOUT) ./build/test_spawn || (echo "FAIL: test_spawn"; exit 1)
 		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_read_bytes.oren --backend c -o build/test_read_bytes $(CODESIGN_ARG) $(GC_ARG)
 		@$(RUN_WITH_TIMEOUT) ./build/test_read_bytes || (echo "FAIL: test_read_bytes"; exit 1)
-		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_function_values.oren --backend c -o build/test_function_values $(CODESIGN_ARG) $(GC_ARG)
-		@$(RUN_WITH_TIMEOUT) ./build/test_function_values || (echo "FAIL: test_function_values"; exit 1)
-		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_closure.oren --backend c -o build/test_lambda_closure $(CODESIGN_ARG) $(GC_ARG)
-		@$(RUN_WITH_TIMEOUT) ./build/test_lambda_closure || (echo "FAIL: test_lambda_closure"; exit 1)
-		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_multiline.oren --backend c -o build/test_lambda_multiline $(CODESIGN_ARG) $(GC_ARG)
-		@$(RUN_WITH_TIMEOUT) ./build/test_lambda_multiline || (echo "FAIL: test_lambda_multiline"; exit 1)
-		@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
-		@$(RUN_WITH_TIMEOUT) ./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_function_values.oren --backend c -o build/test_function_values $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/test_function_values || (echo "FAIL: test_function_values"; exit 1)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_closure.oren --backend c -o build/test_lambda_closure $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/test_lambda_closure || (echo "FAIL: test_lambda_closure"; exit 1)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_lambda_multiline.oren --backend c -o build/test_lambda_multiline $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/test_lambda_multiline || (echo "FAIL: test_lambda_multiline"; exit 1)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_endian_casts.oren --backend c -o build/test_endian_casts $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/test_endian_casts || (echo "FAIL: test_endian_casts"; exit 1)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_threads.oren --backend c -o build/test_gc_threads $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/test_gc_threads || (echo "FAIL: test_gc_threads"; exit 1)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_gc_stack_roots.oren --backend c -o build/test_gc_stack_roots $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/test_gc_stack_roots || (echo "FAIL: test_gc_stack_roots"; exit 1)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build tests/modules/test_result.oren --backend c -o build/test_result $(CODESIGN_ARG) $(GC_ARG)

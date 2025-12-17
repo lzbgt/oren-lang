@@ -514,6 +514,97 @@ The self-hosted compiler and the (in-progress) native backend rely on a few addi
 - `oren_sha256_range(bytes, start, length)` computes SHA-256 over a subrange of a byte list and returns a 32-byte list.
 - `oren_chmod(path, mode)` calls `chmod(2)` (used to set the executable bit on generated binaries).
 
+### Endian-aware byte casting (network order)
+
+Parsing network packets is a core requirement for syscall-first `.oren` libraries. Oren provides **deterministic**, **libc-free** helpers for reading integers from byte sequences with explicit endianness.
+
+Current v0 reality:
+
+- “bytes” are commonly represented as `list<int 0..255>` (from `oren_read_bytes`, sockets, etc.).
+- Integers are currently dynamic `int` (signed 64-bit across backends).
+
+Helpers (v0):
+
+- `oren_bytes_get_u16_be(bytes, off)` / `oren_bytes_get_u16_le(bytes, off)`
+- `oren_bytes_get_i16_be(bytes, off)` / `oren_bytes_get_i16_le(bytes, off)`
+- `oren_bytes_get_u32_be(bytes, off)` / `oren_bytes_get_u32_le(bytes, off)`
+- `oren_bytes_get_i32_be(bytes, off)` / `oren_bytes_get_i32_le(bytes, off)`
+- `oren_bytes_put_u16_be(bytes, off, v)` / `oren_bytes_put_u16_le(bytes, off, v)`
+- `oren_bytes_put_u32_be(bytes, off, v)` / `oren_bytes_put_u32_le(bytes, off, v)`
+
+Example:
+
+```oren
+// IPv4 header layout (partial):
+//   u8  ver_ihl
+//   u8  dscp_ecn
+//   u16 total_len (BE)
+//   ...
+var pkt = oren_read_bytes("ip.bin")
+var total_len = oren_bytes_get_u16_be(pkt, 2)
+```
+
+Future direction (syntax sugar; no rewrite required):
+
+- Add cast syntax that can specify byte order explicitly, e.g.:
+  - `total_len = bytes[2..4] as u16@be`
+  - `total_len = u16@be(bytes, 2)`
+
+Until fixed-width scalar types are stabilized across all backends, these helpers are the portable, production-friendly way to parse protocol headers.
+
+## Value Model: “Immutable Values”, Structs, and Escape (Design)
+
+Oren’s long-term direction is **pass-by-value with immutability-by-default**. That does *not* imply “copy entire structs on every call”.
+
+The production-friendly model (especially for syscall-first networking and agentic workloads) is:
+
+- Scalar values (ints/bools) are immediate values.
+- Compound values (strings/lists/maps/structs/closures) are **immutable handles** to heap objects.
+  - The “value” passed to a function is the handle (typically a pointer-sized value), not a deep copy.
+  - Immutability is what makes this model safe and intuitive.
+
+### Current v0 reality (rolling)
+
+- The language is still dynamically typed at runtime.
+- Backends differ today:
+  - **C backend**: `struct` constructors currently lower to **maps** (`oren_new_map(...)`). This is convenient but not layout-stable.
+  - **Native backend**: `struct` constructors allocate a **contiguous field buffer** via `oren_alloc_struct(n_fields * 8)` and treat field access as `base + field_index*8`.
+
+This mismatch is acceptable for rolling bootstrapping, but it must be unified before treating “struct layout” as stable.
+
+### The target semantics (what you described)
+
+You want the following (this is the correct design for performance and safety):
+
+1) Parameters are passed by immutable value.
+2) A struct “value” is an **immutable address/handle** (pointer-sized), not a stack-cloned blob.
+3) If a struct value would otherwise refer to stack storage (e.g. a temporary), the compiler must ensure it does not escape:
+   - If it escapes (returned, stored into heap, captured by closure, stored globally), allocate it on the heap and return the heap address.
+   - If it does not escape, it may be stack-allocated for performance.
+
+This is classic **escape analysis**:
+
+- returning a local address ⇒ escape ⇒ heap allocate
+- passing to an unknown function ⇒ conservative escape (until interprocedural analysis exists)
+
+### Why “stack semantics” + “heap representation” is valid
+
+Programmer-facing semantics can stay “value-like” (immutable, safe), while the compiler chooses:
+
+- stack placement (fast, no GC pressure) for non-escaping temporaries
+- heap placement (stable lifetime) when the address must outlive the frame
+
+### Implications for networking and endian casting
+
+For packet parsing, the ideal long-term ergonomics is to avoid allocations entirely:
+
+- introduce **packed struct views** over a byte slice, with explicit endianness:
+  - e.g. `struct Ipv4Hdr @packed @net(be) { total_len: u16, ... }`
+  - reading `hdr.total_len` performs endian conversion from the underlying bytes
+  - the “value” of such a view can be `{bytes, offset}` (still immutable)
+
+Until then, the endian helpers (`oren_bytes_get_u16_be`, etc.) are the stable base primitive.
+
 ### Native Backend Intrinsics
 The native ARM64 backend supports low-level intrinsics for performance and system access:
 - **SIMD (NEON)**:

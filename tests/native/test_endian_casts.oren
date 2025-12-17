@@ -1,0 +1,36 @@
+fn main() {
+    // u16
+    var b16 = [18, 52] // 0x12 0x34
+    if oren_bytes_get_u16_be(b16, 0) != 4660 { exit(1) }   // 0x1234
+    if oren_bytes_get_u16_le(b16, 0) != 13330 { exit(2) }  // 0x3412
+
+    // i16
+    var b16n = [255, 254] // 0xFFFE
+    if oren_bytes_get_i16_be(b16n, 0) != -2 { exit(3) }
+    if oren_bytes_get_i16_le([254, 255], 0) != -2 { exit(4) }
+
+    // u32
+    var b32 = [1, 2, 3, 4]
+    if oren_bytes_get_u32_be(b32, 0) != 16909060 { exit(5) } // 0x01020304
+    if oren_bytes_get_u32_le(b32, 0) != 67305985 { exit(6) } // 0x04030201
+
+    // i32
+    var b32n = [255, 255, 255, 254] // 0xFFFFFFFE
+    if oren_bytes_get_i32_be(b32n, 0) != -2 { exit(7) }
+
+    // put helpers
+    var out = [0, 0, 0, 0]
+    oren_bytes_put_u16_be(out, 0, 4660)
+    if out[0] != 18 { exit(8) }
+    if out[1] != 52 { exit(9) }
+
+    oren_bytes_put_u32_le(out, 0, 16909060)
+    if out[0] != 4 { exit(10) }
+    if out[1] != 3 { exit(11) }
+    if out[2] != 2 { exit(12) }
+    if out[3] != 1 { exit(13) }
+
+    print("endian casts OK")
+    exit(0)
+}
+

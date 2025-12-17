@@ -1,0 +1,20 @@
+// Module/C backend regression: endian-aware reads must exist and behave the same
+// as the native backend (for stdlib portability).
+
+var b16 = [18, 52]
+if oren_bytes_get_u16_be(b16, 0) != 4660 { exit(1) }
+if oren_bytes_get_u16_le(b16, 0) != 13330 { exit(2) }
+
+var b16n = [255, 254]
+if oren_bytes_get_i16_be(b16n, 0) != -2 { exit(3) }
+
+var b32 = [1, 2, 3, 4]
+if oren_bytes_get_u32_be(b32, 0) != 16909060 { exit(4) }
+if oren_bytes_get_u32_le(b32, 0) != 67305985 { exit(5) }
+
+var b32n = [255, 255, 255, 254]
+if oren_bytes_get_i32_be(b32n, 0) != -2 { exit(6) }
+
+print("module endian casts OK")
+exit(0)
+

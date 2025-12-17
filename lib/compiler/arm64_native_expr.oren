@@ -1331,10 +1331,16 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(9, 0))
 
-            // Try reuse from free list
+            // Try reuse:
+            // - malloc(): reuse freed blocks (tracked alloc records pointing at object memory)
+            // - malloc_raw(): reuse free node storage (tracking/root nodes), never object blocks
             var bl_reuse_pos = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) // BL native_try_reuse(size)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
+            push_u32_le(ctx["code"], 0)
+            if fn_name == "malloc" {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
+            } else {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse_node"})
+            }
             
             // RESTORE X9
             push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))

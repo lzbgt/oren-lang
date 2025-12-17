@@ -1,0 +1,45 @@
+// Regression: allocations reused from the GC free list must be re-tracked.
+//
+// If re-tracking is broken, an object that is only reachable through a reused
+// container may be collected, causing memory corruption / wrong results later.
+
+fn main() {
+    // 1) Create a list and drop it so its list-header allocation can enter the free list.
+    var tmp = []
+    oren_list_push(tmp, 1)
+    tmp = 0
+    native_gc_collect()
+
+    // 2) Build nested structure where `inner` is only reachable via `outer`.
+    var inner = []
+    oren_list_push(inner, 777)
+    var outer = []
+    oren_list_push(outer, inner)
+
+    // Drop the direct reference: after this, `inner` must remain alive only via `outer`.
+    inner = 0
+
+    // 3) Collect. If `outer` was allocated via reuse but not re-tracked, GC will not
+    // traverse `outer` -> `inner`, and `inner` may be collected.
+    native_gc_collect()
+
+    // 4) Force some allocations that would likely reuse freed blocks if `inner` was freed.
+    var i = 0
+    while i < 2000 {
+        var g = []
+        oren_list_push(g, i)
+        // Drop it immediately.
+        g = 0
+        i = i + 1
+    }
+
+    // 5) `inner` must still be reachable and correct.
+    var inner2 = oren_list_get(outer, 0)
+    var x = oren_list_get(inner2, 0)
+    if x != 777 {
+        print("FAIL: expected 777, got " + oren_int_to_string(x))
+        exit(1)
+    }
+    print("gc reuse tracking OK")
+    exit(0)
+}
