@@ -1,0 +1,18 @@
+@myorg.file(tag="attrs-fields-params")
+struct Pair {
+    @doc("first")
+    a,
+    @doc("second")
+    b,
+}
+
+fn sum2(@myorg.param(name="x") x, @myorg.param(name="y") y) {
+    return x + y
+}
+
+fn main() {
+    if sum2(10, 20) != 30 { print("bad sum2") }
+    print("avm attributes fields/params OK")
+}
+
+main()

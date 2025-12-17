@@ -2,7 +2,7 @@
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.
 
-Last updated: 2025-12-16
+Last updated: 2025-12-17
 
 Focus statement (to avoid roadmap thrash):
 
@@ -38,6 +38,7 @@ Focus statement (to avoid roadmap thrash):
    - Regression tests:
      - `oren_system("echo ...")` completes quickly (guard with timeout).
      - `oren_getenv(...)` returns quickly for missing keys and returns non-zero for a known-set key (when present).
+     - `sys_execve(..., envp)` overrides env and `oren_system(...)` inherits it (regression: `tests/native/test_env_execve_getenv.oren`).
 
 4) **Native TCP/IP syscalls (macOS arm64) — minimal, correct, cancellable**
    - Mandatory for the final product: native Oren needs real TCP/IP without libc wrappers.
@@ -56,8 +57,8 @@ Focus statement (to avoid roadmap thrash):
      - `.oren` helpers: `oren_tcp_connect`, `oren_tcp_listen_local`, `oren_tcp_accept`, `oren_tcp_read_into`, `oren_tcp_write_from`, `oren_tcp_close`
      - test: `tests/native/test_tcp_loopback.oren`
    - Remaining (still required by the “real stdlib NET” goal):
-     - add `sys_getsockname` + `sys_getpeername` (useful for debugging/introspection)
-     - add `sys_send`/`sys_recv` aliases (can be thin wrappers over sendto/recvfrom)
+     - add `sys_getsockname` + `sys_getpeername` (useful for debugging/introspection) (done; regression: `tests/native/test_tcp_sockname_peername.oren`)
+     - add `sys_send`/`sys_recv` first-class intrinsics (may lower to sendto/recvfrom with NULL addr) (done; regression: `tests/native/test_tcp_send_recv.oren`)
      - add Linux syscall lowering for the same surface (see P0.6)
 
 5) **ABI hygiene for rolling native runtime globals + pointer arithmetic**
@@ -67,6 +68,7 @@ Focus statement (to avoid roadmap thrash):
      - Prefer named getters/setters (`global_get_*`) over raw offsets.
      - In native runtime `.oren`, use `iadd(ptr, off)` for pointer arithmetic; avoid `ptr + off` when `ptr` is a pointer value.
      - Entry stub must preserve its own state across runtime calls until native codegen preserves callee-saved regs (AAPCS).
+   - Status (macOS native runtime): globals layout is centralized (named offsets + reserved slack), and allocator/thread tracking uses `iadd(...)` for struct offsets (`lib/runtime_native.oren`).
 
 6) **Linux arm64 native backend parity (mandatory; avoid divergence)**
    - The production goal includes Linux; verify early to avoid “macOS-only drift”.
@@ -74,6 +76,10 @@ Focus statement (to avoid roadmap thrash):
      - implement Linux syscall lowering for the same `sys_*` surface (FS/PROC/ENV/TIME + NET sockets)
      - add a script to run a Linux native smoke subset on the trusted QEMU host (`blu@qemu-blu.localc`)
      - keep a short “Linux native smoke list” of tests that cover spawn/system/env/net basics
+   - Status (rolling):
+     - Linux syscall lowering is started for NET socket syscalls (socket/connect/bind/listen/accept/sendto/recvfrom/getsockopt/setsockopt/getpeername/getsockname/shutdown) + `fcntl` in `lib/compiler/codegen_arm64.oren` (numbers referenced from `docs/refs/linux_asm_generic_unistd.h`).
+     - Linux PROC syscall lowering is started for fork/exec/wait: `sys_fork` uses `clone(SIGCHLD, stack=NULL)`, `sys_execve` uses `__NR_execve`, `sys_wait4` uses `__NR_wait4` (refs: `docs/refs/linux_man_clone.2`, `docs/refs/linux_asm_generic_unistd.h`).
+     - Linux smoke runner exists: `tools/linux_native_smoke_qemu.sh` (runs a minimal safe subset; expand as PROC/ENV/NET grows on Linux).
 
 ### AVM (agentic execution substrate; safety + multiverse)
 
@@ -182,9 +188,9 @@ Focus statement (to avoid roadmap thrash):
      - future derive-style codegen (`@derive(...)`) without “Python runtime decorator” semantics
      - AVM tooling (disasm/debug/profiling correlation) once metadata is embedded in `.obc`
    - Minimal no-rewrite implementation stages:
-     - M1: parse and preserve `@attr(...)` on function/type declarations in the compiler AST (ignored for semantics).
-     - M2: allow field/param attributes (still metadata-only).
-     - M3: strict mode (`--strict-attrs` / env) where unknown attributes are a compile error unless declared/allowed.
+     - M1: parse and preserve `@attr(...)` on function/type declarations in the compiler AST (ignored for semantics). (done; regressions: `tests/native/test_attributes_noop.oren`, `tests/avm/test_attributes_noop.oren`)
+     - M2: allow field/param attributes (still metadata-only). (done; regressions: `tests/native/test_attributes_fields_params.oren`, `tests/avm/test_attributes_fields_params.oren`)
+     - M3: strict mode (`--strict-attrs` / env) where unknown attributes are a compile error unless declared/allowed. (done; regressions: `tests/native/fixtures/strict_attrs_ok.oren`, `tests/native/fixtures/strict_attrs_bad.oren` via `make test`)
      - M4: `.obc` metadata section (attributes + names) plus separate `meta_hash`:
        - `program_hash` remains semantics-only (code + constants), must not include inert metadata.
        - `meta_hash` covers metadata for auditing/debugging.
@@ -259,6 +265,21 @@ Focus statement (to avoid roadmap thrash):
 3) **Codebase factoring (do only when it prevents progress)**
    - `lib/avm/avm.c` is large; split by domain/module only when adding new surfaces (NET record/replay, TASK scheduler, snapshot format v2) to avoid churn.
    - Goal: factor by capability domains and by deterministic surfaces (hashing, tracing, snapshot) rather than “random file splitting”.
+
+4) **NET_DIAG diagnostic ops (host-only first; ICMP; later ARP/neighbor table)**
+   - Keep these out of the core NET substrate (TCP/UDP/DNS/TLS); they are diagnostics and frequently have privilege / platform constraints.
+   - Design direction:
+     - add a separate NET diagnostic capability catalog (`NET_DIAG`) (or NET domain ops with an explicit `diag.*` naming convention).
+     - expose high-level APIs (not raw packet crafting) first:
+       - `ping(ip, timeout_ms) -> {ok:bool, rtt_ms:int, ttl?:int, err?:map}`
+       - `traceroute(ip, max_hops, timeout_ms) -> list[...]`
+     - in AVM/capsule/multiverse mode: diagnostics must be virtualized (fixtures or record/replay), never “hit the real network” unless explicitly allowed and bound into `exec_hash`.
+   - ICMP:
+     - include ICMP echo/time-exceeded in the diagnostic catalog (not required for v0/v1 bootstrap).
+     - note: raw ICMP often requires privileges; handle permission errors deterministically.
+   - ARP / neighbor discovery:
+     - defer; platform-specific and often requires link-layer access (BPF-like interfaces) or OS neighbor tables.
+     - if implemented later, prefer “inspect neighbor table” capability (read-only) rather than “craft ARP frames”.
 
 ## Recently Completed (for context)
 

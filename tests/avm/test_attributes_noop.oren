@@ -1,0 +1,8 @@
+@doc("attributes are metadata-only in v0")
+@myorg.tag(name="parser-smoke")
+fn main() {
+    print("avm attributes OK")
+}
+
+main()
+

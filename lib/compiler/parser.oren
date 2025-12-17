@@ -44,10 +44,91 @@ fn precedence(tokType) {
 
 // ----- Parser -----
 fn new_parser(l) {
-    var p = {"l": l, "errors": [], "cur": token.new_token(token.TOK_ILLEGAL, ""), "peek": token.new_token(token.TOK_ILLEGAL, ""), "gensym": 0}
+    var p = {
+        "l": l,
+        "errors": [],
+        "cur": token.new_token(token.TOK_ILLEGAL, ""),
+        "peek": token.new_token(token.TOK_ILLEGAL, ""),
+        "gensym": 0,
+
+        // Attribute validation knobs (set by the compiler front-end).
+        // Defaults are permissive (rolling mode).
+        "strict_attrs": false,
+        "attr_allow_prefixes": [],
+
+        // Built-in, compiler-recognized attribute names (strict mode allows only these
+        // unless a prefix is explicitly allowlisted).
+        "known_attrs": ["doc", "deprecated"]
+    }
     parser_next_token(p)
     parser_next_token(p)
     return p
+}
+
+fn str_starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn attr_is_reserved(name) {
+    // Reserved namespaces (compiler/tool meaning).
+    if str_starts_with(name, "oren.") { return true }
+    if str_starts_with(name, "avm.") { return true }
+    if str_starts_with(name, "cap.") { return true }
+    if str_starts_with(name, "ffi.") { return true }
+    if str_starts_with(name, "codegen.") { return true }
+    if str_starts_with(name, "trace.") { return true }
+    return false
+}
+
+fn attr_is_known(p, name) {
+    var known = p["known_attrs"]
+    var i = 0
+    while i < oren_list_len(known) {
+        if known[i] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn attr_is_allowlisted(p, name) {
+    var prefixes = p["attr_allow_prefixes"]
+    var i = 0
+    while i < oren_list_len(prefixes) {
+        var pref = prefixes[i]
+        if pref != nil && pref != "" {
+            if str_starts_with(name, pref) { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn attr_validate(p, name) {
+    if p["strict_attrs"] != true { return nil }
+
+    // Reserved namespaces require explicit compiler support in strict mode.
+    if attr_is_reserved(name) {
+        if !attr_is_known(p, name) {
+            parser_add_error(p, "unknown reserved attribute '" + name + "' in strict mode")
+        }
+        return nil
+    }
+
+    // Non-reserved: allow if known or allowlisted by prefix.
+    if attr_is_known(p, name) { return nil }
+    if attr_is_allowlisted(p, name) { return nil }
+
+    parser_add_error(p, "unknown attribute '" + name + "' in strict mode (allow via --attr-allow-prefixes / OREN_ATTR_ALLOW_PREFIXES)")
+    return nil
 }
 
 fn parser_gensym(p, prefix) {
@@ -80,13 +161,119 @@ fn expect_peek(p, t) {
 fn parse_program(p) {
     var prog = ast.new_program()
     while p["cur"]["type"] != token.TOK_EOF {
+        var attrs = parse_attr_list(p)
         var stmt = parse_statement(p)
         if stmt != nil {
+            attach_attrs_to_stmt(p, stmt, attrs)
             oren_list_push(prog["statements"], stmt)
         }
         parser_next_token(p)
     }
     return prog
+}
+
+fn parse_attr_list(p) {
+    var attrs = []
+    while cur_is(p, token.TOK_AT) {
+        var a = parse_attr(p)
+        if a != nil { oren_list_push(attrs, a) }
+        // Move to the next token after this attribute.
+        parser_next_token(p)
+    }
+    return attrs
+}
+
+fn parse_attr(p) {
+    // Current token is '@'
+    var at_tok = p["cur"]
+    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    var name = p["cur"]["literal"]
+    // Support dotted namespaces: @myorg.tag(...)
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // '.'
+        if !expect_peek(p, token.TOK_IDENT) { return nil }
+        name = name + "." + p["cur"]["literal"]
+    }
+
+    attr_validate(p, name)
+
+    var args = []
+    // Optional ( ... )
+    if peek_is(p, token.TOK_LPAREN) {
+        parser_next_token(p) // '('
+        parser_next_token(p) // first token inside args (or ')')
+
+        if cur_is(p, token.TOK_RPAREN) {
+            // no args
+        } else {
+            var cont = true
+            while cont {
+                var key = nil
+                var val = nil
+
+                if cur_is(p, token.TOK_IDENT) && peek_is(p, token.TOK_ASSIGN) {
+                    key = p["cur"]["literal"]
+                    parser_next_token(p) // '='
+                    parser_next_token(p) // value
+                }
+
+                val = parse_attr_literal(p)
+                if val == nil {
+                    parser_add_error(p, "attribute args must be compile-time literals")
+                    return nil
+                }
+                oren_list_push(args, {"key": key, "value": val})
+
+                if peek_is(p, token.TOK_COMMA) {
+                    parser_next_token(p) // ','
+                    parser_next_token(p) // next
+                } else {
+                    cont = false
+                }
+            }
+
+            if !peek_is(p, token.TOK_RPAREN) {
+                parser_add_error(p, "expected ')' after attribute args")
+                return nil
+            }
+            parser_next_token(p) // ')'
+        }
+    }
+
+    return {"type": "Attr", "token": at_tok, "name": name, "args": args}
+}
+
+fn parse_attr_literal(p) {
+    // Only allow literals in v0 attribute args to keep builds deterministic.
+    var t = p["cur"]["type"]
+    if t == token.TOK_STRING { return ast.new_string(p["cur"]) }
+    if t == token.TOK_INT { return ast.new_integer(p["cur"]) }
+    if t == token.TOK_FLOAT { return ast.new_float(p["cur"]) }
+    if t == token.TOK_TRUE { return ast.new_boolean(p["cur"], true) }
+    if t == token.TOK_FALSE { return ast.new_boolean(p["cur"], false) }
+    if t == token.TOK_NIL { return ast.new_nil(p["cur"]) }
+    return nil
+}
+
+fn attach_attrs_to_stmt(p, stmt, attrs) {
+    if attrs == nil { return nil }
+    if oren_list_len(attrs) == 0 { return nil }
+
+    // Allowed targets (M1): declarations only.
+    if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" {
+        stmt["attrs"] = attrs
+        return nil
+    }
+    if stmt["type"] == "ExprStmt" {
+        var exp = stmt["expr"]
+        if exp != nil && exp["type"] == "Function" {
+            exp["attrs"] = attrs
+            return nil
+        }
+    }
+
+    parser_add_error(p, "attributes may only precede declarations (fn/struct/class/import/ffi)")
+    return nil
 }
 
 fn parse_statement(p) {
@@ -366,12 +553,30 @@ fn parse_parameters(p) {
         parser_next_token(p)
         return params
     }
-    parser_next_token(p)
-    oren_list_push(params, ast.new_identifier(p["cur"]))
+    parser_next_token(p) // first token in params (could be '@' or ident)
+
+    // param := {attr} ident
+    var attrs0 = parse_attr_list(p)
+    if p["cur"]["type"] != token.TOK_IDENT {
+        parser_add_error(p, "expected parameter name, got " + p["cur"]["type"])
+        return params
+    }
+    var id0 = ast.new_identifier(p["cur"])
+    if attrs0 != nil && oren_list_len(attrs0) > 0 { id0["attrs"] = attrs0 }
+    oren_list_push(params, id0)
+
     while peek_is(p, token.TOK_COMMA) {
         parser_next_token(p)
-        parser_next_token(p)
-        oren_list_push(params, ast.new_identifier(p["cur"]))
+        parser_next_token(p) // next token after comma (could be '@' or ident)
+
+        var attrsN = parse_attr_list(p)
+        if p["cur"]["type"] != token.TOK_IDENT {
+            parser_add_error(p, "expected parameter name, got " + p["cur"]["type"])
+            return params
+        }
+        var idN = ast.new_identifier(p["cur"])
+        if attrsN != nil && oren_list_len(attrsN) > 0 { idN["attrs"] = attrsN }
+        oren_list_push(params, idN)
     }
     if !expect_peek(p, token.TOK_RPAREN) { return params }
     return params
@@ -698,11 +903,15 @@ fn parse_type_decl(p) {
         if cur_is(p, token.TOK_RBRACE) { cont = false }
         if cur_is(p, token.TOK_EOF) { cont = false }
         if cont {
+            // field := {attr} ident
+            var fattrs = parse_attr_list(p)
             if p["cur"]["type"] != token.TOK_IDENT {
                 parser_add_error(p, "expected field name, got " + p["cur"]["type"])
                 return nil
             }
-            oren_list_push(fields, ast.new_identifier(p["cur"]))
+            var fid = ast.new_identifier(p["cur"])
+            if fattrs != nil && oren_list_len(fattrs) > 0 { fid["attrs"] = fattrs }
+            oren_list_push(fields, fid)
             if peek_is(p, token.TOK_COMMA) {
                 parser_next_token(p) // ,
                 parser_next_token(p) // next field or }

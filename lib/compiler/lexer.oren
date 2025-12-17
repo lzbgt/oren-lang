@@ -226,6 +226,7 @@ fn next_token(l) {
         read_char(l); return token.new_token(token.TOK_GT, ">")
     }
     if ch == ";" { read_char(l); return token.new_token(token.TOK_SEMICOLON, ";") }
+    if ch == "@" { read_char(l); return token.new_token(token.TOK_AT, "@") }
     if ch == "." { read_char(l); return token.new_token(token.TOK_DOT, ".") }
     if ch == "," { read_char(l); return token.new_token(token.TOK_COMMA, ",") }
     if ch == "(" { read_char(l); return token.new_token(token.TOK_LPAREN, "(") }

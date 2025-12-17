@@ -1,0 +1,19 @@
+@myorg.file(tag="attrs-fields-params")
+struct Pair {
+    @doc("first")
+    a,
+    @doc("second")
+    b,
+}
+
+fn sum2(@myorg.param(name="x") x, @myorg.param(name="y") y) {
+    return x + y
+}
+
+fn main() {
+    // Do not instantiate structs here: bytecode backend doesn't support `Type.new` calls yet.
+    // This is a parser/codegen acceptance test, and attrs must remain metadata-only.
+    if sum2(10, 20) != 30 { exit(952) }
+    print("attributes fields/params OK")
+    exit(0)
+}

@@ -11,7 +11,7 @@ fn stack_trace() {
             print("  ... (truncated)")
             return 0 
         }
-        var lr = ptr_get(fp + 8)
+        var lr = ptr_get(iadd(fp, 8))
         var name = resolve_symbol(lr)
         print(string_concat("  File \"?\", line ?, in ", name))
         // print_hex(lr)
@@ -44,11 +44,17 @@ fn sys_connect(fd, addr, addrlen) { return 0 }
 fn sys_bind(fd, addr, addrlen) { return 0 }
 fn sys_listen(fd, backlog) { return 0 }
 fn sys_accept(fd, addr, addrlen_ptr) { return 0 }
+fn sys_getpeername(fd, addr, addrlen_ptr) { return 0 }
+fn sys_getsockname(fd, addr, addrlen_ptr) { return 0 }
 fn sys_getsockopt(fd, level, optname, optval, optlen_ptr) { return 0 }
 fn sys_setsockopt(fd, level, optname, optval, optlen) { return 0 }
 fn sys_shutdown(fd, how) { return 0 }
 fn sys_sendto(fd, buf, len, flags, to, tolen) { return 0 }
 fn sys_recvfrom(fd, buf, len, flags, from, fromlen) { return 0 }
+// Convenience aliases (BSD-style send/recv) implemented in terms of sendto/recvfrom.
+// These are pure wrappers; no new syscall lowering required.
+fn sys_send(fd, buf, len, flags) { return sys_sendto(fd, buf, len, flags, 0, 0) }
+fn sys_recv(fd, buf, len, flags) { return sys_recvfrom(fd, buf, len, flags, 0, 0) }
 fn sys_kqueue() { return 0 }
 fn sys_kevent(kq, changelist, nchanges, eventlist, nevents, timeout_ptr) { return 0 }
 
@@ -56,10 +62,10 @@ fn oren_memcpy(dst, src, len) {
     var i = 0
     while i < len {
         if len - i >= 8 {
-            ptr_set(dst + i, ptr_get(src + i))
+            ptr_set(iadd(dst, i), ptr_get(iadd(src, i)))
             i = i + 8
         } else {
-            ptr_set_byte(dst + i, ptr_get_byte(src + i))
+            ptr_set_byte(iadd(dst, i), ptr_get_byte(iadd(src, i)))
             i = i + 1
         }
     }
@@ -100,7 +106,7 @@ fn oren_pipe() {
     if res != 0 { return oren_new_list(0) }
     
     var r = ptr_get(buf)
-    var w = ptr_get(buf + 8)
+    var w = ptr_get(iadd(buf, 8))
     
     var l = oren_new_list(2)
     oren_list_push(l, r)
@@ -127,32 +133,50 @@ fn oren_globals() {
     return g_storage
 }
 
-fn global_get_allocs() { return ptr_get(oren_globals()) }
-fn global_set_allocs(v) { ptr_set(oren_globals(), v) }
+// NOTE (ABI hygiene; rolling):
+// - Keep a single authoritative definition of global slot offsets.
+// - Do not reuse slots for unrelated purposes.
+// - Prefer global_get_*/global_set_* helpers over raw offsets.
+var GLOBAL_SLOT_BYTES = 8
+var GLOBAL_OFF_ALLOCS = 0
+var GLOBAL_OFF_ROOTS = 8
+var GLOBAL_OFF_LOCK_OWNER_TID = 16
+var GLOBAL_OFF_FREE = 24
+var GLOBAL_OFF_THREADS = 32
+var GLOBAL_OFF_ARGC = 40
+var GLOBAL_OFF_ARGV = 48
+var GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
+var GLOBAL_OFF_ENVP = 64
 
-fn global_get_roots() { return ptr_get(iadd(oren_globals(), 8)) }
-fn global_set_roots(v) { ptr_set(iadd(oren_globals(), 8), v) }
+// Reserve extra room for rolling ABI growth (must be >= 9 slots today).
+var GLOBAL_SLOTS_RESERVED = 16
 
-fn global_get_lock() { return ptr_get(iadd(oren_globals(), 16)) }
-fn global_set_lock(v) { ptr_set(iadd(oren_globals(), 16), v) }
+fn global_get_allocs() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ALLOCS)) }
+fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ALLOCS), v) }
 
-fn global_get_free() { return ptr_get(iadd(oren_globals(), 24)) }
-fn global_set_free(v) { ptr_set(iadd(oren_globals(), 24), v) }
+fn global_get_roots() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ROOTS)) }
+fn global_set_roots(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ROOTS), v) }
 
-fn global_get_threads() { return ptr_get(iadd(oren_globals(), 32)) }
-fn global_set_threads(v) { ptr_set(iadd(oren_globals(), 32), v) }
+fn global_get_lock() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)) }
+fn global_set_lock(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID), v) }
 
-fn global_get_argc() { return ptr_get(iadd(oren_globals(), 40)) }
-fn global_set_argc(v) { ptr_set(iadd(oren_globals(), 40), v) }
+fn global_get_free() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE)) }
+fn global_set_free(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE), v) }
 
-fn global_get_argv() { return ptr_get(iadd(oren_globals(), 48)) }
-fn global_set_argv(v) { ptr_set(iadd(oren_globals(), 48), v) }
+fn global_get_threads() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_THREADS)) }
+fn global_set_threads(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_THREADS), v) }
 
-fn global_get_lock_count() { return ptr_get(iadd(oren_globals(), 56)) }
-fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), 56), v) }
+fn global_get_argc() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ARGC)) }
+fn global_set_argc(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ARGC), v) }
 
-fn global_get_envp() { return ptr_get(iadd(oren_globals(), 64)) }
-fn global_set_envp(v) { ptr_set(iadd(oren_globals(), 64), v) }
+fn global_get_argv() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ARGV)) }
+fn global_set_argv(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ARGV), v) }
+
+fn global_get_lock_count() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)) }
+fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT), v) }
+
+fn global_get_envp() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENVP)) }
+fn global_set_envp(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENVP), v) }
 
 // --- Fork hygiene (rolling; syscall-first) ---
 // After fork(), the child process inherits any in-memory locks held at the moment of fork.
@@ -180,15 +204,28 @@ fn oren_fork() {
 }
 
 fn native_runtime_init() {
+    // IMPORTANT: today the native backend does not reliably run global initializers
+    // before entering the runtime. Treat these as "constants" that must be set here.
+    GLOBAL_SLOT_BYTES = 8
+    GLOBAL_OFF_ALLOCS = 0
+    GLOBAL_OFF_ROOTS = 8
+    GLOBAL_OFF_LOCK_OWNER_TID = 16
+    GLOBAL_OFF_FREE = 24
+    GLOBAL_OFF_THREADS = 32
+    GLOBAL_OFF_ARGC = 40
+    GLOBAL_OFF_ARGV = 48
+    GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
+    GLOBAL_OFF_ENVP = 64
+    GLOBAL_SLOTS_RESERVED = 16
+
     // Reserve room for current globals + some growth slack (rolling ABI).
-    // 10 * 8 = 80 bytes.
-    g_storage = malloc(80)
+    g_storage = malloc(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
     if g_storage == 0 { exit(199) }
     
     // Zero it
     var i = 0
-    while i < 10 {
-        ptr_set(g_storage + i * 8, 0)
+    while i < GLOBAL_SLOTS_RESERVED {
+        ptr_set(iadd(g_storage, i * GLOBAL_SLOT_BYTES), 0)
         i = i + 1
     }
     return 0
@@ -230,7 +267,7 @@ fn native_runtime_set_args(argc, argv) {
 fn native_runtime_set_envp(envp) {
     // Keep this function leaf-like (no calls) to avoid any stack-offset bugs
     // while the compiler/runtime ABI is still evolving.
-    ptr_set(iadd(oren_globals(), 64), envp)
+    global_set_envp(envp)
     return 0
 }
 
@@ -244,12 +281,12 @@ fn oren_getenv(key) {
     if key == 0 { return 0 }
 
     var g = oren_globals()
-    var envp = ptr_get(iadd(g, 64))
+    var envp = ptr_get(iadd(g, GLOBAL_OFF_ENVP))
 
     // If envp wasn't captured at entry, derive it from argv/argc layout:
     // envp starts right after argv[argc] and the NULL terminator.
-    var argc = ptr_get(iadd(g, 40))
-    var argv = ptr_get(iadd(g, 48))
+    var argc = ptr_get(iadd(g, GLOBAL_OFF_ARGC))
+    var argv = ptr_get(iadd(g, GLOBAL_OFF_ARGV))
     if envp == 0 {
         if argv == 0 { return 0 }
         envp = iadd(argv, (iadd(argc, 1)) * 8)
@@ -298,12 +335,12 @@ fn oren_register_thread(top) {
     var node = malloc(24)
     if node != 0 {
         ptr_set(node, top)
-        ptr_set(node + 8, 0) // saved_sp
+        ptr_set(iadd(node, 8), 0) // saved_sp
         
         // Link
         acquire_lock()
         
-        ptr_set(node + 16, global_get_threads())
+        ptr_set(iadd(node, 16), global_get_threads())
         global_set_threads(node)
         
         release_lock()
@@ -319,7 +356,7 @@ fn native_gc_scan_stack() {
     
     while cur != 0 {
         var top = ptr_get(cur)
-        var saved = ptr_get(cur + 8)
+        var saved = ptr_get(iadd(cur, 8))
         var start = 0
         
         // Check if this is current thread
@@ -340,11 +377,11 @@ fn native_gc_scan_stack() {
             while start < top {
                 var val = ptr_get(start)
                 oren_mark_value(val)
-                start = start + 8
+                start = iadd(start, 8)
             }
         }
         
-        cur = ptr_get(cur + 16)
+        cur = ptr_get(iadd(cur, 16))
     }
     return 0
 }
@@ -358,18 +395,18 @@ fn native_try_reuse(size) {
     var prev = 0
     var cur = global_get_free()
     while cur != 0 {
-        var chunk_size = ptr_get(cur + 8)
+        var chunk_size = ptr_get(iadd(cur, 8))
         if chunk_size >= size {
             // Found a fit.
             if prev == 0 {
-                global_set_free(ptr_get(cur + 32))
+                global_set_free(ptr_get(iadd(cur, 32)))
             } else {
-                ptr_set(prev + 32, ptr_get(cur + 32))
+                ptr_set(iadd(prev, 32), ptr_get(iadd(cur, 32)))
             }
             return ptr_get(cur)
         }
         prev = cur
-        cur = ptr_get(cur + 32)
+        cur = ptr_get(iadd(cur, 32))
     }
     return 0
 }
@@ -381,11 +418,11 @@ fn acquire_lock() {
     if oren_globals() == 0 { return 0 }
     
     var tid = sys_gettid()
-    var lock_ptr = iadd(oren_globals(), 16)
+    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)
     var owner = ptr_get(lock_ptr)
     
     if owner == tid {
-        var count_ptr = iadd(oren_globals(), 56)
+        var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
         var count = ptr_get(count_ptr)
         ptr_set(count_ptr, iadd(count, 1))
         return 0
@@ -407,7 +444,7 @@ fn acquire_lock() {
         }
     }
     
-    var count_ptr = iadd(oren_globals(), 56)
+    var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
     ptr_set(count_ptr, 1)
     return 0
 }
@@ -417,14 +454,14 @@ fn release_lock() {
     if oren_globals() == 0 { return 0 }
     
     var tid = sys_gettid()
-    var lock_ptr = iadd(oren_globals(), 16)
+    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)
     var owner = ptr_get(lock_ptr)
     
     if owner != tid {
         return 0
     }
     
-    var count_ptr = iadd(oren_globals(), 56)
+    var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
     var count = ptr_get(count_ptr)
     if count > 1 {
         ptr_set(count_ptr, count - 1)
@@ -450,10 +487,10 @@ fn oren_track_alloc(ptr, size, kind) {
     
     if node != 0 {
         ptr_set(node, ptr)
-        ptr_set(node + 8, size)
-        ptr_set(node + 16, kind)
-        ptr_set(node + 24, 0) // freed = 0
-        ptr_set(node + 32, global_get_allocs())
+        ptr_set(iadd(node, 8), size)
+        ptr_set(iadd(node, 16), kind)
+        ptr_set(iadd(node, 24), 0) // freed = 0
+        ptr_set(iadd(node, 32), global_get_allocs())
         global_set_allocs(node)
     }
     
@@ -468,10 +505,10 @@ fn native_gc_register_root(ptr) {
     var node = malloc_raw(40)
     if node != 0 {
         ptr_set(node, ptr)
-        ptr_set(node + 8, 0)
-        ptr_set(node + 16, 0) // kind 0 for root
-        ptr_set(node + 24, 0)
-        ptr_set(node + 32, global_get_roots())
+        ptr_set(iadd(node, 8), 0)
+        ptr_set(iadd(node, 16), 0) // kind 0 for root
+        ptr_set(iadd(node, 24), 0)
+        ptr_set(iadd(node, 32), global_get_roots())
         global_set_roots(node)
     }
     
@@ -504,19 +541,19 @@ fn oren_mark_value(val) {
     
     var node = oren_find_node(val)
     if node != 0 {
-        var freed = ptr_get(node + 24)
+        var freed = ptr_get(iadd(node, 24))
         if freed == 0 {
             // Mark it
-            ptr_set(node + 24, -1)
+            ptr_set(iadd(node, 24), -1)
             
-            var kind = ptr_get(node + 16)
+            var kind = ptr_get(iadd(node, 16))
             if kind == 2 { // LIST
                 var count = ptr_get(val)
-                var buf = ptr_get(val + 16)
+                var buf = ptr_get(iadd(val, 16))
                 if buf != 0 {
                     var i = 0
                     while i < count {
-                        var item = ptr_get(buf + i * 8)
+                        var item = ptr_get(iadd(buf, i * 8))
                         oren_mark_value(item)
                         i = i + 1
                     }
@@ -524,12 +561,12 @@ fn oren_mark_value(val) {
                 }
             }
             if kind == 3 { // MAP
-                var count = ptr_get(val + 8)
-                var base = val + 16
+                var count = ptr_get(iadd(val, 8))
+                var base = iadd(val, 16)
                 var i = 0
                 while i < count {
-                    var k = ptr_get(base + i * 16)
-                    var v = ptr_get(base + i * 16 + 8)
+                    var k = ptr_get(iadd(base, i * 16))
+                    var v = ptr_get(iadd(base, i * 16 + 8))
                     oren_mark_value(k)
                     oren_mark_value(v)
                     i = i + 1
@@ -544,10 +581,10 @@ fn native_gc_collect() {
     // 1. Clear marks
     var cur = global_get_allocs()
     while cur != 0 {
-        if ptr_get(cur + 24) == -1 {
-            ptr_set(cur + 24, 0)
+        if ptr_get(iadd(cur, 24)) == -1 {
+            ptr_set(iadd(cur, 24), 0)
         }
-        cur = ptr_get(cur + 32)
+        cur = ptr_get(iadd(cur, 32))
     }
     
     // 2. Mark stack
@@ -561,7 +598,7 @@ fn native_gc_collect() {
             var val = ptr_get(slot)
             oren_mark_value(val)
         }
-        r = ptr_get(r + 32)
+        r = ptr_get(iadd(r, 32))
     }
     
     // 4. Sweep
@@ -569,22 +606,22 @@ fn native_gc_collect() {
     cur = global_get_allocs()
     while cur != 0 {
         var marked = 0
-        if ptr_get(cur + 24) == -1 { marked = 1 }
+        if ptr_get(iadd(cur, 24)) == -1 { marked = 1 }
         
-        var next_node = ptr_get(cur + 32)
+        var next_node = ptr_get(iadd(cur, 32))
         
         if marked == 1 {
-            ptr_set(cur + 24, 0)
+            ptr_set(iadd(cur, 24), 0)
             prev = cur
         } else {
             // Garbage
             if prev == 0 {
                 global_set_allocs(next_node)
             } else {
-                ptr_set(prev + 32, next_node)
+                ptr_set(iadd(prev, 32), next_node)
             }
             
-            ptr_set(cur + 32, global_get_free())
+            ptr_set(iadd(cur, 32), global_get_free())
             global_set_free(cur)
         }
         cur = next_node

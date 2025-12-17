@@ -1,0 +1,55 @@
+fn streq_lit(p, lit) {
+    // Compare C-string pointer `p` with a string literal pointer `lit`.
+    if p == 0 { return 0 }
+    if lit == 0 { return 0 }
+    var i = 0
+    while 1 {
+        var a = ptr_get_byte(p + i)
+        var b = ptr_get_byte(lit + i)
+        if a != b { return 0 }
+        if a == 0 { return 1 }
+        i = i + 1
+    }
+}
+
+fn main() {
+    // Validates syscall-first ENV correctness without libc:
+    // - envp capture / storage for the process
+    // - oren_getenv bounded scan and correct match
+    // - sys_execve envp override works
+    // - oren_system inherits envp (child sees $OREN_TEST_ENV)
+
+    var key = "OREN_TEST_ENV"
+    var val = oren_getenv(key)
+
+    if val == 0 {
+        // First run: re-exec ourselves with a controlled envp.
+        var argvp = global_get_argv()
+        if argvp == 0 { exit(900) }
+        var path = ptr_get(argvp)
+        if path == 0 { exit(901) }
+
+        var envstr = "OREN_TEST_ENV=1"
+        var envp = malloc(16) // 2 pointers
+        if envp == 0 { exit(902) }
+        ptr_set(envp + 0, envstr)
+        ptr_set(envp + 8, 0)
+
+        sys_execve(path, argvp, envp)
+        // If we reached here, execve failed. Exit non-zero for the test harness.
+        exit(903)
+    }
+
+    // Second run: verify value is "1".
+    if streq_lit(val, "1") == 0 { exit(910) }
+
+    // Verify oren_system preserves envp for child process.
+    var rc = oren_system("test \"$OREN_TEST_ENV\" = \"1\"")
+    if rc != 0 { exit(911) }
+
+    print("env execve getenv OK")
+    exit(0)
+}
+
+main()
+
