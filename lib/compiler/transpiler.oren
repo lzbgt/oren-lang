@@ -1,6 +1,6 @@
 // ----- Transpiler helpers ----- 
 fn new_transpiler() {
-    return {"lines": [], "indent": 0, "functions": [], "aliases": {}, "type_ns": {}}
+    return {"lines": [], "indent": 0, "functions": [], "aliases": {}, "type_ns": {}, "lambda_defs": [], "lambda_counter": 0}
 }
 
 fn emit(t, s) {
@@ -140,6 +140,23 @@ fn transpile_type_ctor(t, type_decl) {
     }
     indent_less(t)
     emit(t, "}")
+
+    // Uniform-call wrapper so constructors can be used as first-class function values.
+    var ctor_name = type_ctor_name(type_decl)
+    emit(t, fnwrap_sig_by_name(ctor_name) + " {")
+    indent_more(t)
+    emit(t, "(void)env;")
+    emit(t, "if (argc != " + int_str(oren_list_len(type_decl["fields"])) + ") { oren_panic(\"arity mismatch\"); }")
+    var args2 = ""
+    var k = 0
+    while k < oren_list_len(type_decl["fields"]) {
+        if k > 0 { args2 = args2 + ", " }
+        args2 = args2 + "argv[" + int_str(k) + "]"
+        k = k + 1
+    }
+    emit(t, "return " + ctor_name + "(" + args2 + ");")
+    indent_less(t)
+    emit(t, "}")
 }
 
 fn starts_with(s, prefix) {
@@ -165,6 +182,420 @@ fn function_sig(func_decl) {
     return "OrenValue " + func_decl["name"] + "(" + params + ")"
 }
 
+fn fnwrap_name(name) {
+    return name + "__oren_fnwrap"
+}
+
+fn fnwrap_sig_by_name(name) {
+    return "OrenValue " + fnwrap_name(name) + "(void* env, int argc, OrenValue* argv)"
+}
+
+fn lambda_sig_by_name(name) {
+    return "OrenValue " + name + "(void* env, int argc, OrenValue* argv)"
+}
+
+fn is_builtin_ident_name(name) {
+    if name == "print" { return true }
+    if name == "py_import" { return true }
+    if name == "system" { return true }
+    if name == "exit" { return true }
+    return false
+}
+
+fn is_non_capturable_ident_name(name) {
+    if name == nil || name == "" { return true }
+    if is_builtin_ident_name(name) { return true }
+    if starts_with(name, "oren_") { return true }
+    if starts_with(name, "sys_") { return true }
+    return false
+}
+
+fn lambda_gensym(t, unit_prefix) {
+    var n = t["lambda_counter"]
+    t["lambda_counter"] = n + 1
+    return "__oren_lambda_" + unit_prefix + "_" + oren_int_to_string(n)
+}
+
+fn lambda_collect_declared_in_expression(exp, declared) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Function" {
+        // Nested lambdas are their own scopes.
+        return nil
+    }
+    if et == "Call" {
+        lambda_collect_declared_in_expression(exp["fn"], declared)
+        var i = 0
+        while i < oren_list_len(exp["args"]) {
+            lambda_collect_declared_in_expression(exp["args"][i], declared)
+            i = i + 1
+        }
+        return nil
+    }
+    if et == "Prefix" { lambda_collect_declared_in_expression(exp["right"], declared); return nil }
+    if et == "Infix" {
+        lambda_collect_declared_in_expression(exp["left"], declared)
+        lambda_collect_declared_in_expression(exp["right"], declared)
+        return nil
+    }
+    if et == "If" {
+        lambda_collect_declared_in_expression(exp["cond"], declared)
+        lambda_collect_declared_in_statement(exp["consq"], declared)
+        if exp["alt"] != nil { lambda_collect_declared_in_statement(exp["alt"], declared) }
+        return nil
+    }
+    if et == "Member" { lambda_collect_declared_in_expression(exp["left"], declared); return nil }
+    if et == "Index" {
+        lambda_collect_declared_in_expression(exp["left"], declared)
+        lambda_collect_declared_in_expression(exp["index"], declared)
+        return nil
+    }
+    if et == "Array" {
+        var j = 0
+        while j < oren_list_len(exp["elements"]) {
+            lambda_collect_declared_in_expression(exp["elements"][j], declared)
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var k = 0
+        while k < oren_list_len(exp["pairs"]) {
+            var pair = exp["pairs"][k]
+            lambda_collect_declared_in_expression(pair["key"], declared)
+            lambda_collect_declared_in_expression(pair["value"], declared)
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" { lambda_collect_declared_in_expression(exp["call"], declared); return nil }
+    return nil
+}
+
+fn lambda_collect_declared_in_statement(stmt, declared) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st == "Var" {
+        var nm = stmt["name"]["value"]
+        if nm != nil && nm != "" { declared[nm] = true }
+        lambda_collect_declared_in_expression(stmt["value"], declared)
+        return nil
+    }
+    if st == "Assign" { lambda_collect_declared_in_expression(stmt["value"], declared); return nil }
+    if st == "Set" {
+        lambda_collect_declared_in_expression(stmt["left"], declared)
+        lambda_collect_declared_in_expression(stmt["value"], declared)
+        return nil
+    }
+    if st == "Return" { lambda_collect_declared_in_expression(stmt["value"], declared); return nil }
+    if st == "ExprStmt" { lambda_collect_declared_in_expression(stmt["expr"], declared); return nil }
+    if st == "Block" {
+        var i = 0
+        while i < oren_list_len(stmt["stmts"]) {
+            lambda_collect_declared_in_statement(stmt["stmts"][i], declared)
+            i = i + 1
+        }
+        return nil
+    }
+    if st == "While" {
+        lambda_collect_declared_in_expression(stmt["cond"], declared)
+        lambda_collect_declared_in_statement(stmt["body"], declared)
+        return nil
+    }
+    if st == "For" {
+        lambda_collect_declared_in_statement(stmt["init"], declared)
+        lambda_collect_declared_in_expression(stmt["cond"], declared)
+        lambda_collect_declared_in_statement(stmt["post"], declared)
+        lambda_collect_declared_in_statement(stmt["body"], declared)
+        return nil
+    }
+    if st == "Spawn" { lambda_collect_declared_in_expression(stmt["call"], declared); return nil }
+    // Break/Continue/FFI/Import/Type: no locals.
+    return nil
+}
+
+fn maybe_add_capture(name, declared, seen, out) {
+    if is_non_capturable_ident_name(name) { return nil }
+    if declared[name] == true { return nil }
+    if seen[name] == true { return nil }
+    seen[name] = true
+    oren_list_push(out, name)
+    return nil
+}
+
+fn lambda_collect_used_in_expression(exp, declared, seen, out) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        maybe_add_capture(exp["value"], declared, seen, out)
+        return nil
+    }
+    if et == "Function" {
+        // Nested lambdas are their own closures.
+        return nil
+    }
+    if et == "Call" {
+        lambda_collect_used_in_expression(exp["fn"], declared, seen, out)
+        var i = 0
+        while i < oren_list_len(exp["args"]) {
+            lambda_collect_used_in_expression(exp["args"][i], declared, seen, out)
+            i = i + 1
+        }
+        return nil
+    }
+    if et == "Prefix" { lambda_collect_used_in_expression(exp["right"], declared, seen, out); return nil }
+    if et == "Infix" {
+        lambda_collect_used_in_expression(exp["left"], declared, seen, out)
+        lambda_collect_used_in_expression(exp["right"], declared, seen, out)
+        return nil
+    }
+    if et == "If" {
+        lambda_collect_used_in_expression(exp["cond"], declared, seen, out)
+        lambda_collect_used_in_statement(exp["consq"], declared, seen, out)
+        if exp["alt"] != nil { lambda_collect_used_in_statement(exp["alt"], declared, seen, out) }
+        return nil
+    }
+    if et == "Member" {
+        lambda_collect_used_in_expression(exp["left"], declared, seen, out)
+        return nil
+    }
+    if et == "Index" {
+        lambda_collect_used_in_expression(exp["left"], declared, seen, out)
+        lambda_collect_used_in_expression(exp["index"], declared, seen, out)
+        return nil
+    }
+    if et == "Array" {
+        var j = 0
+        while j < oren_list_len(exp["elements"]) {
+            lambda_collect_used_in_expression(exp["elements"][j], declared, seen, out)
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var k = 0
+        while k < oren_list_len(exp["pairs"]) {
+            var pair = exp["pairs"][k]
+            lambda_collect_used_in_expression(pair["key"], declared, seen, out)
+            lambda_collect_used_in_expression(pair["value"], declared, seen, out)
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" { lambda_collect_used_in_expression(exp["call"], declared, seen, out); return nil }
+    return nil
+}
+
+fn lambda_collect_used_in_statement(stmt, declared, seen, out) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st == "Var" { lambda_collect_used_in_expression(stmt["value"], declared, seen, out); return nil }
+    if st == "Assign" {
+        maybe_add_capture(stmt["name"]["value"], declared, seen, out)
+        lambda_collect_used_in_expression(stmt["value"], declared, seen, out)
+        return nil
+    }
+    if st == "Set" {
+        if stmt["left"]["type"] == "Identifier" {
+            maybe_add_capture(stmt["left"]["value"], declared, seen, out)
+        } else {
+            lambda_collect_used_in_expression(stmt["left"], declared, seen, out)
+        }
+        lambda_collect_used_in_expression(stmt["value"], declared, seen, out)
+        return nil
+    }
+    if st == "Return" { lambda_collect_used_in_expression(stmt["value"], declared, seen, out); return nil }
+    if st == "ExprStmt" { lambda_collect_used_in_expression(stmt["expr"], declared, seen, out); return nil }
+    if st == "Block" {
+        var i = 0
+        while i < oren_list_len(stmt["stmts"]) {
+            lambda_collect_used_in_statement(stmt["stmts"][i], declared, seen, out)
+            i = i + 1
+        }
+        return nil
+    }
+    if st == "While" {
+        lambda_collect_used_in_expression(stmt["cond"], declared, seen, out)
+        lambda_collect_used_in_statement(stmt["body"], declared, seen, out)
+        return nil
+    }
+    if st == "For" {
+        lambda_collect_used_in_statement(stmt["init"], declared, seen, out)
+        lambda_collect_used_in_expression(stmt["cond"], declared, seen, out)
+        lambda_collect_used_in_statement(stmt["post"], declared, seen, out)
+        lambda_collect_used_in_statement(stmt["body"], declared, seen, out)
+        return nil
+    }
+    if st == "Spawn" { lambda_collect_used_in_expression(stmt["call"], declared, seen, out); return nil }
+    return nil
+}
+
+fn lambda_free_vars(fun) {
+    var declared = {}
+    // params
+    var i = 0
+    while i < oren_list_len(fun["params"]) {
+        declared[fun["params"][i]["value"]] = true
+        i = i + 1
+    }
+    // var decls (any depth)
+    lambda_collect_declared_in_statement(fun["body"], declared)
+
+    var out = []
+    var seen = {}
+    lambda_collect_used_in_statement(fun["body"], declared, seen, out)
+    return out
+}
+
+fn collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Function" {
+        if exp["name"] == "" {
+            if exp["lambda_name"] == nil {
+                exp["lambda_name"] = lambda_gensym(t, unit_prefix)
+                exp["captures"] = lambda_free_vars(exp)
+                oren_list_push(t["lambda_defs"], {"name": exp["lambda_name"], "fun": exp, "captures": exp["captures"], "aliases": unit_aliases})
+            }
+            // Still recurse to find nested lambdas inside this lambda body (as expressions).
+            collect_lambdas_in_statement(t, unit_prefix, unit_aliases, exp["body"])
+            return nil
+        }
+        // Named function literals are top-level decls in this compiler; ignore.
+        return nil
+    }
+    if et == "Call" {
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["fn"])
+        var i = 0
+        while i < oren_list_len(exp["args"]) {
+            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["args"][i])
+            i = i + 1
+        }
+        return nil
+    }
+    if et == "Prefix" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["right"]); return nil }
+    if et == "Infix" {
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["left"])
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["right"])
+        return nil
+    }
+    if et == "If" {
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["cond"])
+        collect_lambdas_in_statement(t, unit_prefix, unit_aliases, exp["consq"])
+        if exp["alt"] != nil { collect_lambdas_in_statement(t, unit_prefix, unit_aliases, exp["alt"]) }
+        return nil
+    }
+    if et == "Member" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["left"]); return nil }
+    if et == "Index" {
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["left"])
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["index"])
+        return nil
+    }
+    if et == "Array" {
+        var j = 0
+        while j < oren_list_len(exp["elements"]) {
+            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["elements"][j])
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var k = 0
+        while k < oren_list_len(exp["pairs"]) {
+            var pair = exp["pairs"][k]
+            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, pair["key"])
+            collect_lambdas_in_expression(t, unit_prefix, unit_aliases, pair["value"])
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, exp["call"]); return nil }
+    return nil
+}
+
+fn collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st == "Var" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["value"]); return nil }
+    if st == "Assign" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["value"]); return nil }
+    if st == "Set" {
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["left"])
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["value"])
+        return nil
+    }
+    if st == "Return" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["value"]); return nil }
+    if st == "ExprStmt" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["expr"]); return nil }
+    if st == "Block" {
+        var i = 0
+        while i < oren_list_len(stmt["stmts"]) {
+            collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt["stmts"][i])
+            i = i + 1
+        }
+        return nil
+    }
+    if st == "While" {
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["cond"])
+        collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt["body"])
+        return nil
+    }
+    if st == "For" {
+        collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt["init"])
+        collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["cond"])
+        collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt["post"])
+        collect_lambdas_in_statement(t, unit_prefix, unit_aliases, stmt["body"])
+        return nil
+    }
+    if st == "Spawn" { collect_lambdas_in_expression(t, unit_prefix, unit_aliases, stmt["call"]); return nil }
+    return nil
+}
+
+fn transpile_lambda_def(t, def) {
+    var lname = def["name"]
+    var fun = def["fun"]
+    var caps = def["captures"]
+    t["aliases"] = def["aliases"]
+
+    emit(t, lambda_sig_by_name(lname) + " {")
+    indent_more(t)
+
+    if oren_list_len(caps) == 0 {
+        emit(t, "(void)env;")
+    } else {
+        emit(t, "OrenList* __env = (OrenList*)env;")
+        emit(t, "if (!__env || __env->count != " + oren_int_to_string(oren_list_len(caps)) + ") { oren_panic(\"closure env mismatch\"); }")
+        var i = 0
+        while i < oren_list_len(caps) {
+            var nm = caps[i]
+            emit(t, "OrenValue " + nm + " = __env->items[" + oren_int_to_string(i) + "];")
+            i = i + 1
+        }
+    }
+
+    var pc = oren_list_len(fun["params"])
+    if pc == 0 {
+        emit(t, "(void)argc;")
+        emit(t, "(void)argv;")
+    } else {
+        emit(t, "if (argc != " + oren_int_to_string(pc) + ") { oren_panic(\"arity mismatch\"); }")
+        var j = 0
+        while j < pc {
+            emit(t, "OrenValue " + fun["params"][j]["value"] + " = argv[" + oren_int_to_string(j) + "];")
+            j = j + 1
+        }
+    }
+
+    var body = fun["body"]["stmts"]
+    var k = 0
+    while k < oren_list_len(body) {
+        emit(t, transpile_statement(t, body[k]))
+        k = k + 1
+    }
+    emit(t, "return OREN_NIL;")
+
+    indent_less(t)
+    emit(t, "}")
+}
+
 // ----- Transpiler core -----
 
 fn transpile_statement(t, stmt) {
@@ -175,19 +606,17 @@ fn transpile_statement(t, stmt) {
     if stmt["type"] == "Spawn" {
         var call = stmt["call"]
         if call == nil || call["type"] != "Call" { return "/* spawn expects Call */" }
-        if oren_list_len(call["args"]) != 0 { return "/* spawn currently supports 0-arg calls */" }
-
-        var target = ""
-        if call["fn"]["type"] == "Identifier" {
-            target = call["fn"]["value"]
-        } else {
-            if call["fn"]["type"] == "Member" {
-                var ns = ns_resolve(t, call["fn"])
-                if ns != nil && ns["is_ns"] == true { target = ns["name"] }
-            }
+        var fn_expr = transpile_expression(t, call["fn"])
+        var n = oren_list_len(call["args"])
+        if n == 0 { return "oren_spawn_call_list(" + fn_expr + ", oren_new_list(0));" }
+        var args = ""
+        var i = 0
+        while i < n {
+            if i > 0 { args = args + ", " }
+            args = args + transpile_expression(t, call["args"][i])
+            i = i + 1
         }
-        if target == "" { return "/* spawn requires a direct function name */" }
-        return "oren_spawn0(" + target + ");"
+        return "oren_spawn_call_list(" + fn_expr + ", oren_new_list(" + oren_int_to_string(n) + ", " + args + "));"
     }
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
@@ -298,7 +727,30 @@ fn transpile_expression(t, exp) {
         return "OREN_FALSE"
     }
     if et == "Nil" { return "OREN_NIL" }
-    if et == "Identifier" { return exp["value"] }
+    if et == "Identifier" {
+        var name_id = exp["value"]
+        // First-class function values in C backend: wrap known functions into OrenValue via oren_func.
+        if list_contains(t["functions"], name_id) {
+            return "oren_func(" + fnwrap_name(name_id) + ", NULL)"
+        }
+        return name_id
+    }
+    if et == "Function" {
+        // Anonymous function literal (lambda) lowers to a closure (capture-by-value).
+        if exp["name"] != "" { return "/* function decl is not an expression */ OREN_NIL" }
+        var lname = exp["lambda_name"]
+        if lname == nil { return "/* lambda not collected */ OREN_NIL" }
+        var caps = exp["captures"]
+        if caps == nil || oren_list_len(caps) == 0 { return "oren_closure(" + lname + ", 0)" }
+        var args = ""
+        var i = 0
+        while i < oren_list_len(caps) {
+            if i > 0 { args = args + ", " }
+            args = args + transpile_expression(t, {"type": "Identifier", "value": caps[i]})
+            i = i + 1
+        }
+        return "oren_closure(" + lname + ", " + oren_int_to_string(oren_list_len(caps)) + ", " + args + ")"
+    }
     if et == "Prefix" {
         var right = transpile_expression(t, exp["right"])
         if exp["op"] == "-" { return "oren_sub(oren_int(0), " + right + ")" }
@@ -328,6 +780,22 @@ fn transpile_expression(t, exp) {
         if op == ">=" { return "oren_gte(" + left + ", " + right_expr + ")" }
     }
     if et == "Call" {
+        var fn_sym = ""
+        // Determine direct-call symbol before transpiling `exp["fn"]`, because a known function identifier
+        // is lowered to `oren_func(...)` (a value) in expression position.
+        if exp["fn"]["type"] == "Identifier" {
+            var nm = exp["fn"]["value"]
+            if list_contains(t["functions"], nm) { fn_sym = nm }
+            if starts_with(nm, "oren_") { fn_sym = nm }
+        } else {
+            if exp["fn"]["type"] == "Member" {
+                var ns2 = ns_resolve(t, exp["fn"])
+                if ns2 != nil && ns2["is_ns"] == true {
+                    if list_contains(t["functions"], ns2["name"]) { fn_sym = ns2["name"] }
+                }
+            }
+        }
+
         var fn_expr = transpile_expression(t, exp["fn"])
         var args_s = ""
         var i = 0
@@ -388,7 +856,7 @@ fn transpile_expression(t, exp) {
         }
 
         var use_call_obj = true
-        if list_contains(t["functions"], fn_expr) { use_call_obj = false }
+        if fn_sym != "" { use_call_obj = false }
         if exp["fn"]["type"] == "Identifier" {
             if starts_with(exp["fn"]["value"], "oren_") { use_call_obj = false }
         }
@@ -397,28 +865,33 @@ fn transpile_expression(t, exp) {
             if argc == 0 { return "oren_call_obj(" + fn_expr + ", 0)" }
             return "oren_call_obj(" + fn_expr + ", " + int_str(argc) + ", " + args_s + ")"
         }
+        // Direct call
+        if fn_sym != "" { return fn_sym + "(" + args_s + ")" }
         return fn_expr + "(" + args_s + ")"
     }
     if et == "SpawnExpr" {
         var call = exp["call"]
         if call == nil || call["type"] != "Call" { return "/* spawn expects Call */ OREN_NIL" }
-        if oren_list_len(call["args"]) != 0 { return "/* spawn currently supports 0-arg calls */ OREN_NIL" }
-
-        var target = ""
-        if call["fn"]["type"] == "Identifier" {
-            target = call["fn"]["value"]
-        } else {
-            if call["fn"]["type"] == "Member" {
-                var ns = ns_resolve(t, call["fn"])
-                if ns != nil && ns["is_ns"] == true { target = ns["name"] }
-            }
+        var fn_expr = transpile_expression(t, call["fn"])
+        var n = oren_list_len(call["args"])
+        if n == 0 { return "oren_spawn_call_list(" + fn_expr + ", oren_new_list(0))" }
+        var args = ""
+        var i = 0
+        while i < n {
+            if i > 0 { args = args + ", " }
+            args = args + transpile_expression(t, call["args"][i])
+            i = i + 1
         }
-        if target == "" { return "/* spawn requires a direct function name */ OREN_NIL" }
-        return "oren_spawn0(" + target + ")"
+        return "oren_spawn_call_list(" + fn_expr + ", oren_new_list(" + oren_int_to_string(n) + ", " + args + "))"
     }
     if et == "Member" {
         var ns = ns_resolve(t, exp)
-        if ns != nil { return ns["name"] }
+        if ns != nil {
+            if list_contains(t["functions"], ns["name"]) {
+                return "oren_func(" + fnwrap_name(ns["name"]) + ", NULL)"
+            }
+            return ns["name"]
+        }
         var left = transpile_expression(t, exp["left"])
         return "oren_get_attr(" + left + ", " + CH_QUOTE + exp["prop"]["value"] + CH_QUOTE + ")"
     }
@@ -464,6 +937,23 @@ fn transpile_function(t, func_decl) {
         i = i + 1
     }
     emit(t, "return OREN_NIL;")
+    indent_less(t)
+    emit(t, "}")
+
+    // Uniform-call wrapper so functions can be used as first-class function values.
+    var fname = func_decl["name"]
+    emit(t, fnwrap_sig_by_name(fname) + " {")
+    indent_more(t)
+    emit(t, "(void)env;")
+    emit(t, "if (argc != " + int_str(oren_list_len(func_decl["params"])) + ") { oren_panic(\"arity mismatch\"); }")
+    var args2 = ""
+    var k = 0
+    while k < oren_list_len(func_decl["params"]) {
+        if k > 0 { args2 = args2 + ", " }
+        args2 = args2 + "argv[" + int_str(k) + "]"
+        k = k + 1
+    }
+    emit(t, "return " + fname + "(" + args2 + ");")
     indent_less(t)
     emit(t, "}")
 }
@@ -538,13 +1028,13 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     while i < oren_list_len(module_order) {
         var mod2 = module_order[i]
         var parts = collect_parts(mod2["program"])
-        oren_list_push(units, {"program": mod2["program"], "aliases": mod2["aliases"], "parts": parts})
+        oren_list_push(units, {"program": mod2["program"], "aliases": mod2["aliases"], "parts": parts, "prefix": mod2["prefix"]})
         i = i + 1
     }
     
     // Process root program
     var root_parts = collect_parts(program)
-    oren_list_push(units, {"program": program, "aliases": root_aliases, "parts": root_parts})
+    oren_list_push(units, {"program": program, "aliases": root_aliases, "parts": root_parts, "prefix": "root"})
 
     var type_ns = {}
     i = 0
@@ -598,6 +1088,35 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     }
     emit(t, "")
 
+    // Collect all lambdas before emitting prototypes.
+    i = 0
+    while i < oren_list_len(units) {
+        t["aliases"] = units[i]["aliases"]
+        var pref = units[i]["prefix"]
+        // globals init
+        var globals2 = units[i]["parts"]["globals"]
+        var jg = 0
+        while jg < oren_list_len(globals2) {
+            collect_lambdas_in_expression(t, pref, units[i]["aliases"], globals2[jg]["value"])
+            jg = jg + 1
+        }
+        // function bodies
+        var funs2 = units[i]["parts"]["functions"]
+        var jf = 0
+        while jf < oren_list_len(funs2) {
+            collect_lambdas_in_statement(t, pref, units[i]["aliases"], funs2[jf]["body"])
+            jf = jf + 1
+        }
+        // top-level statements
+        var body2 = units[i]["parts"]["main_body"]
+        var jb = 0
+        while jb < oren_list_len(body2) {
+            collect_lambdas_in_statement(t, pref, units[i]["aliases"], body2[jb])
+            jb = jb + 1
+        }
+        i = i + 1
+    }
+
     // Prototypes (functions + constructors).
     i = 0
     while i < oren_list_len(units) {
@@ -605,19 +1124,32 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         var j = 0
         while j < oren_list_len(funs) {
             emit(t, function_sig(funs[j]) + ";")
+            emit(t, fnwrap_sig_by_name(funs[j]["name"]) + ";")
             j = j + 1
         }
         var types = units[i]["parts"]["types"]
         j = 0
         while j < oren_list_len(types) {
             emit(t, type_ctor_sig(types[j]) + ";")
+            emit(t, fnwrap_sig_by_name(type_ctor_name(types[j])) + ";")
             j = j + 1
         }
+        i = i + 1
+    }
+    // Lambda prototypes.
+    i = 0
+    while i < oren_list_len(t["lambda_defs"]) {
+        emit(t, lambda_sig_by_name(t["lambda_defs"][i]["name"]) + ";")
         i = i + 1
     }
     emit(t, "")
 
     // Function bodies (functions + constructors).
+    i = 0
+    while i < oren_list_len(t["lambda_defs"]) {
+        transpile_lambda_def(t, t["lambda_defs"][i])
+        i = i + 1
+    }
     i = 0
     while i < oren_list_len(units) {
         t["aliases"] = units[i]["aliases"]

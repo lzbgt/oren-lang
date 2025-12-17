@@ -27,14 +27,32 @@ Focus statement (to avoid roadmap thrash):
    - Status (compiler):
      - `lib/compiler/codegen_arm64.oren` refactor completed into focused modules (SOLID split):
        - `lib/compiler/arm64_core.oren` (byte utils, scope helpers, insn encodings, emit helpers) (~549 LOC)
-       - `lib/compiler/arm64_native_expr.oren` (expression lowering, syscall lowering) (~2824 LOC)
+       - `lib/compiler/arm64_native_expr.oren` (expression lowering; delegates syscall lowering) (~1308 LOC)
+       - `lib/compiler/arm64_native_expr_syscalls.oren` (syscall lowering; helper used by `arm64_native_expr.oren`) (~1903 LOC)
        - `lib/compiler/arm64_native_stmt.oren` (statement lowering) (~782 LOC)
        - `lib/compiler/arm64_native_program.oren` (program entry lowering + symbol table generation) (~260 LOC)
        - `lib/compiler/codegen_arm64.oren` is now a thin facade for legacy imports
        - `lib/compiler/renamer.oren` (module rename pass)
        - `lib/compiler/arm64_macho.oren` (Mach-O emit + codesign blob builder)
        - `lib/compiler/arm64_elf.oren` (ELF emit)
-     - Remaining work (next SOLID split target): `lib/compiler/arm64_native_expr.oren` is still >2000 LOC; split further by responsibility once invariants are stable (e.g. syscall lowering vs generic call ABI vs container ops).
+     - Next watch item (SOLID): if `lib/compiler/arm64_native_expr_syscalls.oren` grows past ~2000 LOC, split by syscall domain (FS vs NET vs PROC vs TIME) so invariants remain auditable.
+
+3) **First-class functions: function values + lambdas (must)**
+   - Why it is P0:
+     - required for real library design (callbacks, iterators, schedulers, async/concurrency)
+     - required for compiler modularity (passing `compile_expr` callbacks avoids cyclic imports cleanly)
+   - Status (bootstrap/C backend):
+     - runtime supports `OREN_TYPE_FUNC` + `oren_func(...)` + `oren_call_obj(...)` dispatch
+     - both transpilers (Go bootstrap + self-hosted `lib/compiler/transpiler.oren`) emit wrapper entrypoints `__oren_fnwrap` and wrap known functions into first-class values
+     - parser supports lambda syntax: `|params| expr_or_block` and `|| expr_or_block` (empty params)
+     - closures (lambdas) are fully executable on the C backend:
+       - auto free-var capture, **capture-by-value** (v0)
+       - runtime helper `oren_closure(...)` builds a GC-managed env list
+       - `spawn` lowers to `oren_spawn_call_list(...)` so closures/function-values can be spawned (not just direct symbols)
+   - Remaining (still mandatory):
+     - bytecode backend: represent function values + closures and implement indirect call op
+     - native backend: represent function values + closures and implement indirect calls (likely via a uniform wrapper ABI + `blr` or a runtime `oren_call_obj_list` helper)
+     - closure capture rules + determinism (captured values, env layout) must be part of the spec
 
 ### Native backend (syscall-first runtime; macOS-first; production-critical)
 

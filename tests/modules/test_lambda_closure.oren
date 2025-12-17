@@ -1,0 +1,35 @@
+fn apply2(f, x, y) {
+    return f(x, y)
+}
+
+// Capture-by-value semantics (v0): captured values freeze at lambda creation.
+var m = 3
+var addm = |x| x + m
+m = 100
+var r1 = addm(10)
+if r1 != 13 {
+    print("FAIL: lambda capture-by-value")
+    exit(1)
+}
+
+// Lambda as a first-class function value.
+var mul = |a, b| a * b
+var r2 = apply2(mul, 6, 7)
+if r2 != 42 {
+    print("FAIL: lambda as function value")
+    exit(1)
+}
+
+// Spawn must accept function values/closures, not only direct function names.
+var n = 5
+var th = spawn (|| n + 1)()
+n = 999
+var r3 = oren_join(th)
+if r3 != 6 {
+    print("FAIL: spawn closure")
+    exit(1)
+}
+
+print("Lambda closure OK")
+exit(0)
+

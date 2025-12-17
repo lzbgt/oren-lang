@@ -23,6 +23,7 @@ type moduleInfo struct {
 }
 
 type unit struct {
+	prefix   string
 	ctx       transpileCtx
 	globals   []*ast.VarStatement
 	functions []*ast.FunctionLiteral

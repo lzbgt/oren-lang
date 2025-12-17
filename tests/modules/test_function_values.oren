@@ -1,0 +1,17 @@
+fn add(a, b) {
+    return a + b
+}
+
+fn apply2(f, x, y) {
+    // Indirect call via a function value.
+    return f(x, y)
+}
+
+var f = add
+var r = apply2(f, 20, 22)
+if r != 42 {
+    print("FAIL: function values")
+    exit(1)
+} else {
+    print("Function values OK")
+}

@@ -447,11 +447,66 @@ fn parse_prefix(p) {
     }
     if t == token.TOK_IF { return parse_if(p) }
     if t == token.TOK_FUNCTION { return parse_function(p) }
+    if t == token.TOK_BITOR { return parse_lambda(p) }
+    if t == token.TOK_OR { return parse_lambda(p) } // allow empty-params lambda: || expr
     if t == token.TOK_SPAWN { return parse_spawn_expr(p) }
     if t == token.TOK_LBRACKET { return parse_array(p) }
     if t == token.TOK_LBRACE { return parse_hash(p) }
     parser_add_error(p, "no prefix parse fn for " + t)
     return nil
+}
+
+fn parse_lambda(p) {
+    // lambda literal:
+    //   |params| expr
+    //   |params| { block }
+    //
+    // Lowered to an anonymous Function node (name="").
+    var tok = p["cur"] // '|'
+    var params = []
+
+    // Parse params between | ... |.
+    // Special-case: lexer tokenizes `||` as TOK_OR, so `|| body` means empty params.
+    if tok["type"] == token.TOK_OR {
+        // empty params
+    } else {
+        if peek_is(p, token.TOK_BITOR) {
+            parser_next_token(p) // consume closing '|'
+        } else {
+            parser_next_token(p) // first param
+            if !cur_is(p, token.TOK_IDENT) {
+                parser_add_error(p, "lambda expects identifier parameters")
+                return nil
+            }
+            oren_list_push(params, ast.new_identifier(p["cur"]))
+            while peek_is(p, token.TOK_COMMA) {
+                parser_next_token(p) // comma
+                parser_next_token(p) // ident
+                if !cur_is(p, token.TOK_IDENT) {
+                    parser_add_error(p, "lambda expects identifier parameters")
+                    return nil
+                }
+                oren_list_push(params, ast.new_identifier(p["cur"]))
+            }
+            if !expect_peek(p, token.TOK_BITOR) { return nil }
+        }
+    }
+
+    // Body: block or expression
+    parser_next_token(p)
+    var body = nil
+    if cur_is(p, token.TOK_LBRACE) {
+        body = parse_block(p)
+    } else {
+        var exp = parse_expression(p, LOWEST)
+        if exp == nil { return nil }
+        var b = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+        var rtok = token.new_token(token.TOK_RETURN, "return")
+        oren_list_push(b["stmts"], ast.new_return(rtok, exp))
+        body = b
+    }
+
+    return ast.new_function(tok, "", params, body)
 }
 
 fn parse_spawn_expr(p) {

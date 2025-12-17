@@ -23,7 +23,8 @@ typedef enum {
     OREN_TYPE_STRING,
     OREN_TYPE_PY_OBJ,
     OREN_TYPE_LIST,
-    OREN_TYPE_MAP
+    OREN_TYPE_MAP,
+    OREN_TYPE_FUNC
 } OrenType;
 
 // Stable error codes (rolling ABI; subject to refinement, but keep numbers stable once used).
@@ -41,7 +42,18 @@ typedef enum {
 struct OrenList;
 struct OrenMap;
 
+typedef struct OrenValue OrenValue;
+
+// First-class function values (C backend):
+// - A uniform call ABI so functions can be stored in OrenValue and invoked via oren_call_obj.
+// - `env` is reserved for closures; v0 uses env=NULL.
+typedef OrenValue (*OrenFn)(void* env, int argc, OrenValue* argv);
 typedef struct {
+    OrenFn fn;
+    void* env;
+} OrenFunc;
+
+struct OrenValue {
     OrenType type;
     union {
         long long int_val;
@@ -51,8 +63,9 @@ typedef struct {
         PyObject* py_obj;
         struct OrenList* list_val;
         struct OrenMap* map_val;
+        OrenFunc func_val;
     } as;
-} OrenValue;
+};
 
 typedef struct OrenList {
     OrenValue* items;
@@ -85,10 +98,19 @@ OrenValue oren_args();
 // Threads (C backend only for now)
 typedef OrenValue (*OrenFn0)(void);
 OrenValue oren_spawn0(OrenFn0 fn);
+// Spawn a thread that calls a callable `fn` with arguments from a list.
+// This is the preferred API for supporting first-class functions and closures.
+OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list);
 OrenValue oren_join(OrenValue thread);
 OrenValue oren_detach(OrenValue thread);
 OrenValue oren_is_done(OrenValue thread);
 OrenValue oren_join_all();
+
+OrenValue oren_func(OrenFn fn, void* env);
+// Create a closure by capturing values into an environment (capture-by-value).
+// The environment is stored as a GC-managed list; the returned function value
+// keeps it alive via GC marking of `OREN_TYPE_FUNC`.
+OrenValue oren_closure(OrenFn fn, int capture_count, ...);
 
 OrenValue oren_int(long long v);
 OrenValue oren_float(double v);
@@ -124,6 +146,9 @@ OrenValue oren_py_import(OrenValue name);
 OrenValue oren_py_call(OrenValue obj, int count, ...); // Specific call?
 // Actually, generic call support is better
 OrenValue oren_call_obj(OrenValue fn, int count, ...);
+// Non-varargs forms (useful for spawn/callback paths).
+OrenValue oren_call_obj_argv(OrenValue fn, int argc, OrenValue* argv);
+OrenValue oren_call_obj_list(OrenValue fn, OrenValue args_list);
 
 OrenValue oren_new_list(int count, ...);
 OrenValue oren_list_len(OrenValue list);

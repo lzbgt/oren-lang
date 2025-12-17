@@ -90,6 +90,11 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
 	p.registerPrefix(token.LBRACE, p.parseHashLiteral)
 	p.registerPrefix(token.NIL, p.parseNil)
+	// Lambda literal: |params| expr_or_block
+	// Token is `|` which is also BITOR infix; only used in prefix position.
+	p.registerPrefix(token.BITOR, p.parseLambdaLiteral)
+	// Empty-params lambda can be written as `|| expr` (lexer emits token.OR).
+	p.registerPrefix(token.OR, p.parseLambdaLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -118,6 +123,62 @@ func New(l *lexer.Lexer) *Parser {
 	p.nextToken()
 
 	return p
+}
+
+func (p *Parser) parseLambdaLiteral() ast.Expression {
+	// Grammar:
+	//   lambda_lit = "|" [ ident { "," ident } ] "|" ( expression | block ) ;
+	//
+	// We lower lambdas to FunctionLiteral with empty Name.
+	lit := &ast.FunctionLiteral{Token: p.curToken, Name: ""}
+
+	// Parse parameter list (between | ... |).
+	params := []*ast.Identifier{}
+
+	if p.curTokenIs(token.OR) {
+		// `|| body` : empty params, delimiters already consumed by lexer/tokenizer.
+	} else {
+		// If next token is another |, it is an empty parameter list.
+		if p.peekTokenIs(token.BITOR) {
+			p.nextToken() // consume closing '|'
+		} else {
+			p.nextToken() // move to first param
+			if p.curTokenIs(token.BITOR) {
+				// allow `| |` style (should have been caught by peekTokenIs, but keep it safe)
+			} else {
+				ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+				params = append(params, ident)
+				for p.peekTokenIs(token.COMMA) {
+					p.nextToken() // comma
+					p.nextToken() // ident
+					ident2 := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+					params = append(params, ident2)
+				}
+			}
+			if !p.expectPeek(token.BITOR) {
+				return nil
+			}
+		}
+	}
+	lit.Parameters = params
+
+	// Parse body: either { ... } or expression.
+	p.nextToken()
+	if p.curTokenIs(token.LBRACE) {
+		lit.Body = p.parseBlockStatement()
+		return lit
+	}
+
+	// Expression-bodied lambda: wrap as `{ return <expr>; }`
+	expr := p.parseExpression(LOWEST)
+	if expr == nil {
+		return nil
+	}
+	retTok := token.Token{Type: token.RETURN, Literal: "return", Line: p.curToken.Line, Column: p.curToken.Column}
+	ret := &ast.ReturnStatement{Token: retTok, ReturnValue: expr}
+	bodyTok := token.Token{Type: token.LBRACE, Literal: "{", Line: p.curToken.Line, Column: p.curToken.Column}
+	lit.Body = &ast.BlockStatement{Token: bodyTok, Statements: []ast.Statement{ret}}
+	return lit
 }
 
 func (p *Parser) parseSpawnExpression() ast.Expression {

@@ -105,7 +105,10 @@ infix_tail      = infix_op expression
 if_expr         = "if" expression block [ "else" block ] ;
 fn_lit          = "fn" [ ident ] "(" [ ident { "," ident } ] ")" block ;
 lambda_lit      = "|" [ ident { "," ident } ] "|" ( expression | block ) ;
+                // Note: for empty parameter lists, the source form `|| expr` is allowed (lexer emits a single `||` token).
 spawn_expr      = "spawn" expression ;
+                // v0 restriction (all backends): `spawn` currently requires a call expression,
+                // e.g. `spawn f(x, y)`; it does not spawn arbitrary expressions.
 call_suffix     = "(" [ expression { "," expression } ] ")" ;
 member_suffix   = "." ident ;
 index_suffix    = "[" expression "]" ;
@@ -329,6 +332,20 @@ Design note:
 - Calls: `f(x, y)`
   - Calls to Oren-defined functions compile to direct C/Native calls.
   - Calls to Python objects use the runtime’s `oren_call_obj`.
+
+#### First-class functions and lambdas (v0)
+
+- Functions are **first-class values**:
+  - A function identifier in expression position yields a callable function value (usable as an argument, stored in variables, returned from other functions).
+  - Lambdas are anonymous functions: `|x, y| x + y` and empty-params lambdas `|| expr`.
+- Calling a function value uses the normal call syntax: `f(1, 2)`.
+- `spawn` also uses normal call syntax and can spawn calls to function values/closures (not only direct function symbols).
+
+#### Lambdas and closure capture semantics (v0)
+
+- Lambdas **auto-capture** free variables from their surrounding scope.
+- Capture is **by value** (snapshot at lambda creation time), not by reference.
+- The capture list order is deterministic (source-order of first use), which is important for replayability/consensus in deterministic modes.
 
 #### Fixed arity vs variadic calls (current reality)
 

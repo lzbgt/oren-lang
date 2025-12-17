@@ -45,6 +45,9 @@ typedef struct OrenThreadNode {
     int done;
     OrenValue result;
     char* error;
+    // Spawned-call state (for closure-safe spawning). When using `oren_spawn0`, these remain NIL.
+    OrenValue fn;
+    OrenValue args_list;
     struct OrenThreadNode* next;
 } OrenThreadNode;
 static OrenThreadNode* g_threads = NULL;
@@ -263,6 +266,34 @@ static void oren_mark_value(OrenValue v) {
         }
         return;
     }
+    if (v.type == OREN_TYPE_FUNC) {
+        // A function value is an immediate value, but its closure environment (if any)
+        // may point to GC-tracked allocations (typically an OrenList of captured values).
+        void* env = v.as.func_val.env;
+        if (!env) return;
+        OrenAllocNode* n = oren_find_node(env);
+        if (!n || n->freed != 0) return;
+        if (n->kind == OREN_ALLOC_LIST) {
+            OrenValue tmp;
+            tmp.type = OREN_TYPE_LIST;
+            tmp.as.list_val = (OrenList*)env;
+            oren_mark_value(tmp);
+        } else if (n->kind == OREN_ALLOC_MAP) {
+            OrenValue tmp;
+            tmp.type = OREN_TYPE_MAP;
+            tmp.as.map_val = (OrenMap*)env;
+            oren_mark_value(tmp);
+        } else if (n->kind == OREN_ALLOC_STRING) {
+            OrenValue tmp;
+            tmp.type = OREN_TYPE_STRING;
+            tmp.as.string_val = (char*)env;
+            oren_mark_value(tmp);
+        } else {
+            // Struct envs are not traversed. v0 closure env uses list/map.
+            n->freed = -1;
+        }
+        return;
+    }
 }
 
 static int oren_type_valid(int t);
@@ -306,9 +337,14 @@ void oren_gc_collect() {
     // Mark results of completed threads (that haven't been joined/freed yet)
     OrenThreadNode* t = g_threads;
     while (t) {
-        if (t->done) {
-            oren_mark_value(t->result);
-        }
+        // Threads are tracked outside the GC heap, so we must explicitly keep any
+        // referenced OrenValues alive across collections.
+        //
+        // - `result` keeps finished thread outputs alive until join/free.
+        // - `fn` and `args_list` keep in-flight callables and their arguments alive.
+        if (t->done) oren_mark_value(t->result);
+        oren_mark_value(t->fn);
+        oren_mark_value(t->args_list);
         t = t->next;
     }
 
@@ -397,7 +433,7 @@ void oren_gc_safepoint() {
 }
 
 static int oren_type_valid(int t) {
-    return t >= OREN_TYPE_NIL && t <= OREN_TYPE_MAP;
+    return t >= OREN_TYPE_NIL && t <= OREN_TYPE_FUNC;
 }
 
 static void oren_mark_stack_range(void* a, void* b) {
@@ -480,6 +516,8 @@ OrenValue oren_spawn0(OrenFn0 fn) {
     n->done = 0;
     n->result = OREN_NIL;
     n->error = NULL;
+    n->fn = OREN_NIL;
+    n->args_list = OREN_NIL;
     n->next = NULL;
 
     OrenSpawn0Args* args = (OrenSpawn0Args*)malloc(sizeof(OrenSpawn0Args));
@@ -492,6 +530,114 @@ OrenValue oren_spawn0(OrenFn0 fn) {
     args->node = n;
     pthread_t t;
     int rc = pthread_create(&t, NULL, oren_spawn0_entry, args);
+    if (rc != 0) {
+        free(args);
+        free(n);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "pthread_create failed: %s", strerror(rc));
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
+    }
+    n->t = t;
+    lock_collections();
+    n->next = g_threads;
+    g_threads = n;
+    unlock_collections();
+    return oren_int((long long)(intptr_t)n);
+}
+
+typedef struct {
+    OrenValue fn;
+    OrenValue args_list;
+    OrenThreadNode* node;
+} OrenSpawnCallArgs;
+
+static void* oren_spawn_call_entry(void* p) {
+    // Ensure this thread participates in safepoint GC accounting.
+    OrenThreadState* st = oren_thread_state();
+    OrenSpawnCallArgs* a = (OrenSpawnCallArgs*)p;
+
+    if (setjmp(st->panic_buf) == 0) {
+        st->has_panic_buf = 1;
+        OrenValue res = oren_call_obj_list(a->fn, a->args_list);
+        st->has_panic_buf = 0;
+        if (a->node) {
+            lock_collections();
+            a->node->done = 1;
+            a->node->result = res;
+            a->node->fn = OREN_NIL;
+            a->node->args_list = OREN_NIL;
+            int should_free = (a->node->detached && !a->node->joined);
+            unlock_collections();
+            if (should_free) {
+                oren_unregister_root(&a->node->fn);
+                oren_unregister_root(&a->node->args_list);
+                free(a->node);
+            }
+        }
+    } else {
+        st->has_panic_buf = 0;
+        if (a->node) {
+            lock_collections();
+            a->node->done = 1;
+            a->node->result = OREN_NIL;
+            a->node->fn = OREN_NIL;
+            a->node->args_list = OREN_NIL;
+            a->node->error = strdup("Thread Panicked");
+            int should_free = (a->node->detached && !a->node->joined);
+            unlock_collections();
+            if (should_free) {
+                oren_unregister_root(&a->node->fn);
+                oren_unregister_root(&a->node->args_list);
+                if (a->node->error) free(a->node->error);
+                free(a->node);
+            }
+        }
+    }
+
+    free(a);
+    oren_thread_unregister();
+    return NULL;
+}
+
+OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list) {
+    // Ensure the main thread is registered before creating workers.
+    (void)oren_thread_state();
+    if (args_list.type != OREN_TYPE_LIST) {
+        oren_panic("spawn_call_list expects args_list to be a list");
+        return OREN_NIL; // Should not be reached
+    }
+
+    OrenThreadNode* n = (OrenThreadNode*)malloc(sizeof(OrenThreadNode));
+    if (!n) {
+        fprintf(stderr, "thread registry alloc failed\n");
+        exit(1);
+    }
+    n->detached = 0;
+    n->joined = 0;
+    n->done = 0;
+    n->result = OREN_NIL;
+    n->error = NULL;
+    n->fn = fn;
+    n->args_list = args_list;
+    n->next = NULL;
+
+    // Root callable + argument list so GC cannot collect them while the thread is running.
+    // These roots are cleared when the thread node is freed (join/detach completion).
+    oren_register_root(&n->fn);
+    oren_register_root(&n->args_list);
+
+    OrenSpawnCallArgs* args = (OrenSpawnCallArgs*)malloc(sizeof(OrenSpawnCallArgs));
+    if (!args) {
+        free(n);
+        fprintf(stderr, "spawn alloc failed\n");
+        exit(1);
+    }
+    args->fn = fn;
+    args->args_list = args_list;
+    args->node = n;
+    pthread_t t;
+    int rc = pthread_create(&t, NULL, oren_spawn_call_entry, args);
     if (rc != 0) {
         free(args);
         free(n);
@@ -532,6 +678,8 @@ OrenValue oren_join(OrenValue thread) {
     pthread_join(n->t, NULL);
     
     OrenValue res = n->result;
+    oren_unregister_root(&n->fn);
+    oren_unregister_root(&n->args_list);
     if (n->error) {
         char buf[256];
         snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
@@ -561,6 +709,8 @@ OrenValue oren_detach(OrenValue thread) {
     unlock_collections();
     pthread_detach(n->t);
     if (done) {
+        oren_unregister_root(&n->fn);
+        oren_unregister_root(&n->args_list);
         if (n->error) free(n->error);
         free(n);
     }
@@ -588,6 +738,8 @@ OrenValue oren_join_all() {
         g_threads = n->next;
         unlock_collections();
         pthread_join(n->t, NULL);
+        oren_unregister_root(&n->fn);
+        oren_unregister_root(&n->args_list);
         if (n->error) free(n->error);
         free(n);
     }
@@ -722,6 +874,50 @@ OrenValue oren_string(const char* s) {
 
 OrenValue oren_bool(int v) {
     return v ? OREN_TRUE : OREN_FALSE;
+}
+
+OrenValue oren_func(OrenFn fn, void* env) {
+    OrenValue val;
+    val.type = OREN_TYPE_FUNC;
+    val.as.func_val.fn = fn;
+    val.as.func_val.env = env;
+    return val;
+}
+
+OrenValue oren_closure(OrenFn fn, int capture_count, ...) {
+    if (!fn) return OREN_NIL;
+    if (capture_count <= 0) {
+        return oren_func(fn, NULL);
+    }
+
+    va_list args;
+    va_start(args, capture_count);
+
+    lock_collections();
+    OrenList* list = malloc(sizeof(OrenList));
+    if (!list) {
+        unlock_collections();
+        va_end(args);
+        oren_panic("closure env alloc failed");
+        return OREN_NIL; // Should not be reached
+    }
+    oren_register_alloc(list, OREN_ALLOC_LIST);
+    list->count = capture_count;
+    list->capacity = capture_count;
+    list->items = malloc(sizeof(OrenValue) * (size_t)capture_count);
+    if (!list->items) {
+        unlock_collections();
+        va_end(args);
+        oren_panic("closure env items alloc failed");
+        return OREN_NIL; // Should not be reached
+    }
+    for (int i = 0; i < capture_count; i++) {
+        list->items[i] = va_arg(args, OrenValue);
+    }
+    unlock_collections();
+
+    va_end(args);
+    return oren_func(fn, list);
 }
 
 int oren_is_truthy(OrenValue v) {
@@ -864,6 +1060,8 @@ OrenValue oren_eq(OrenValue a, OrenValue b) {
         case OREN_TYPE_BOOL: return oren_bool(a.as.bool_val == b.as.bool_val);
         case OREN_TYPE_STRING: return oren_bool(strcmp(a.as.string_val, b.as.string_val) == 0);
         case OREN_TYPE_NIL: return OREN_TRUE;
+        case OREN_TYPE_FUNC:
+            return oren_bool(a.as.func_val.fn == b.as.func_val.fn && a.as.func_val.env == b.as.func_val.env);
         case OREN_TYPE_PY_OBJ: {
 #ifdef OREN_ENABLE_PYTHON
             // Check identity or equality
@@ -1282,7 +1480,78 @@ OrenValue oren_map_get(OrenValue map, OrenValue key) {
     return OREN_NIL;
 }
 
+OrenValue oren_call_obj_argv(OrenValue fn, int argc, OrenValue* argv) {
+    if (fn.type == OREN_TYPE_FUNC) {
+        return fn.as.func_val.fn(fn.as.func_val.env, argc, argv);
+    }
+
+#ifdef OREN_ENABLE_PYTHON
+    if (fn.type == OREN_TYPE_PY_OBJ) {
+        if (!PyCallable_Check(fn.as.py_obj)) {
+            oren_panic("Python object is not callable");
+            return OREN_NIL; // Should not be reached
+        }
+        PyObject* py_args = PyTuple_New(argc);
+        for (int i = 0; i < argc; i++) {
+            PyTuple_SetItem(py_args, i, oren_to_py(argv[i])); // Steals ref
+        }
+        PyObject* result = PyObject_CallObject(fn.as.py_obj, py_args);
+        Py_DECREF(py_args);
+        if (!result) {
+            PyErr_Print();
+            oren_panic("Python call failed");
+            return OREN_NIL; // Should not be reached
+        }
+        return oren_py_to_oren(result);
+    }
+#else
+    if (fn.type == OREN_TYPE_PY_OBJ) {
+        (void)argc;
+        (void)argv;
+        oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+        return OREN_NIL; // Should not be reached
+    }
+#endif
+
+    oren_panic("Calling non-callable object");
+    return OREN_NIL; // Should not be reached
+}
+
+OrenValue oren_call_obj_list(OrenValue fn, OrenValue args_list) {
+    if (args_list.type != OREN_TYPE_LIST) {
+        oren_panic("call_obj_list expects args_list to be a list");
+        return OREN_NIL; // Should not be reached
+    }
+    OrenList* l = args_list.as.list_val;
+    int argc = 0;
+    OrenValue* argv = NULL;
+    if (l) {
+        argc = l->count;
+        argv = l->items;
+    }
+    return oren_call_obj_argv(fn, argc, argv);
+}
+
 OrenValue oren_call_obj(OrenValue fn, int count, ...) {
+    if (fn.type == OREN_TYPE_FUNC) {
+        OrenValue* argv = NULL;
+        if (count > 0) {
+            argv = (OrenValue*)calloc((size_t)count, sizeof(OrenValue));
+            if (!argv) {
+                oren_panic("oren_call_obj: out of memory");
+            }
+        }
+        va_list args;
+        va_start(args, count);
+        for (int i = 0; i < count; i++) {
+            argv[i] = va_arg(args, OrenValue);
+        }
+        va_end(args);
+        OrenValue out = fn.as.func_val.fn(fn.as.func_val.env, count, argv);
+        if (argv) free(argv);
+        return out;
+    }
+
     va_list args;
     va_start(args, count);
 
@@ -1411,6 +1680,7 @@ static void print_value_no_newline(OrenValue v) {
         case OREN_TYPE_BOOL: printf("%s", v.as.bool_val ? "true" : "false"); break;
         case OREN_TYPE_STRING: printf("%s", v.as.string_val); break;
         case OREN_TYPE_NIL: printf("nil"); break;
+        case OREN_TYPE_FUNC: printf("<func %p>", (void*)v.as.func_val.fn); break;
         case OREN_TYPE_PY_OBJ: {
 #ifdef OREN_ENABLE_PYTHON
             PyObject* str = PyObject_Str(v.as.py_obj);
