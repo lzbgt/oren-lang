@@ -2044,6 +2044,242 @@ fn native_compile_expr(ctx, expr) {
             return nil
         }
 
+        if fn_name == "sys_gettimeofday" {
+            // sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> 0_or_neg_errno
+            //
+            // macOS syscall signature (xnu syscalls.master):
+            //   gettimeofday(struct timeval *tp, struct timezone *tzp, uint64_t *mach_absolute_time)
+            // syscall number: 116
+            //
+            // Linux syscall signature:
+            //   gettimeofday(struct timeval *tp, struct timezone *tzp)
+            // __NR_gettimeofday = 169 (aarch64)
+            //
+            // We standardize the Oren-side signature to always accept 3 args.
+            // On Linux we ignore the 3rd arg.
+
+            native_compile_expr(ctx, args[0]) // tv_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args[1]) // tz_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args[2]) // abs_ptr -> X0
+            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = abs_ptr (macOS only)
+
+            // Pop tz_ptr -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop tv_ptr -> X0
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            var sys_reg = 16
+            var svc_imm = 128
+            var sysno = 116 // Darwin SYS_gettimeofday
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                sys_reg = 8
+                svc_imm = 0
+                sysno = 169
+                is_macos = false
+                // Linux ignores abs_ptr; clear X2 for safety.
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+            }
+
+            // Preserve heap globals across syscall (rolling ABI hygiene).
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
+            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            if is_macos {
+                // Normalize macOS syscall error to X0 = -errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return nil
+        }
+
+        if fn_name == "sys_nanosleep" {
+            // sys_nanosleep(ns) -> 0_or_neg_errno
+            //
+            // Goal: provide a syscall-first sleep primitive without libc.
+            // - macOS: use kqueue+kevent timeout (kqueue() + kevent(..., timeout))
+            // - Linux: use nanosleep syscall
+            //
+            // This is intentionally minimal and is used as the base for future
+            // cancellable PROC/NET ops and for native scheduler readiness.
+
+            native_compile_expr(ctx, args[0]) // ns -> X0
+
+            // Preserve heap globals across syscalls (rolling ABI hygiene).
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // Fast path: ns <= 0 => return 0 (no sleep)
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
+            var br_do = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.GT do_sleep
+            push_u32_le(ctx["code"], insn_movz(0, 0))
+            var br_ep = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B epilogue
+            var br_kq_ep = nil
+            var do_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_do, insn_b_cond((do_pos - br_do) / 4, 12)) // GT
+
+            if ctx["platform"]["os"] == "linux" {
+                // Linux aarch64: __NR_nanosleep = 101
+                //
+                // nanosleep(const struct timespec* req, struct timespec* rem)
+                // Build timespec on stack: { tv_sec(u64), tv_nsec(u64) }
+                //
+                // Stack: [SP] timespec(16) | [SP+16] saved x27/x28
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // X2 = ns
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+                // X3 = 1_000_000_000
+                emit_load_u64_imm(ctx, 3, 1000000000)
+                // X4 = sec = ns / 1e9
+                push_u32_le(ctx["code"], insn_udiv(4, 2, 3))
+                // X5 = sec * 1e9
+                push_u32_le(ctx["code"], insn_mul(5, 4, 3))
+                // X6 = nsec = ns - sec*1e9
+                push_u32_le(ctx["code"], insn_sub_reg(6, 2, 5))
+
+                // Store timespec at SP
+                push_u32_le(ctx["code"], insn_str_reg_sp(4, 0)) // tv_sec
+                push_u32_le(ctx["code"], insn_str_reg_sp(6, 8)) // tv_nsec
+
+                // X0 = req = SP, X1 = rem = NULL
+                push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_movz(8, 101))
+                push_u32_le(ctx["code"], insn_svc(0))
+
+                // Pop timespec
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+            } else {
+                // macOS: sleep via kqueue + kevent timeout.
+                //
+                // We create a temporary kqueue fd each call (v0 minimalism),
+                // then call kevent(kq, NULL,0, NULL,0, &ts) and close(kq).
+                //
+                // Stack:
+                //   [SP+0]  timespec (16)   (allocated after kqueue)
+                //   [SP+16] slot (16): [0]=result, [8]=kqfd
+                //   [SP+32] saved x27/x28
+
+                // slot(16): store original ns at [slot+0]
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_reg_sp(0, 0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // kqueue() => fd
+                push_u32_le(ctx["code"], insn_movz(16, 362))
+                push_u32_le(ctx["code"], insn_svc(128))
+                // Normalize macOS syscall error to X0 = -errno and clean up the slot.
+                var br_kq_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0=-errno
+                // Pop slot (we haven't allocated timespec yet on the error path).
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+                br_kq_ep = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B epilogue
+                var kq_ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_kq_ok, insn_b_cond((kq_ok_pos - br_kq_ok) / 4, 3)) // CC
+
+                // Store kq fd into slot[8]
+                push_u32_le(ctx["code"], insn_str_reg_sp(0, 8))
+
+                // Build timespec on stack (16)
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // Reload ns from slot[16]
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // X2=ns
+                emit_load_u64_imm(ctx, 3, 1000000000)            // X3=1e9
+                push_u32_le(ctx["code"], insn_udiv(4, 2, 3))     // X4=sec
+                push_u32_le(ctx["code"], insn_mul(5, 4, 3))      // X5=sec*1e9
+                push_u32_le(ctx["code"], insn_sub_reg(6, 2, 5))  // X6=nsec
+                push_u32_le(ctx["code"], insn_str_reg_sp(4, 0))  // tv_sec
+                push_u32_le(ctx["code"], insn_str_reg_sp(6, 8))  // tv_nsec
+
+                // kevent(kq,0,0,0,0, &ts)
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 24)) // X0=kqfd (slot[8])
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_movz(3, 0))
+                push_u32_le(ctx["code"], insn_movz(4, 0))
+                push_u32_le(ctx["code"], insn_add_imm(5, 31, 0)) // X5=timeout_ptr (SP)
+                push_u32_le(ctx["code"], insn_movz(16, 363)) // SYS_kevent
+                push_u32_le(ctx["code"], insn_svc(128))
+                // Normalize error to X0 = -errno.
+                var br_ke_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0=-errno
+                var ke_ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ke_ok, insn_b_cond((ke_ok_pos - br_ke_ok) / 4, 3)) // CC
+
+                // Save result into slot[0] (SP+16)
+                push_u32_le(ctx["code"], insn_str_reg_sp(0, 16))
+
+                // close(kqfd) best-effort
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 24))
+                push_u32_le(ctx["code"], insn_movz(16, 6)) // SYS_close
+                push_u32_le(ctx["code"], insn_svc(128))
+
+                // Restore result into X0
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+
+                // Pop timespec
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Pop slot
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Patch kqueue-failure branch to epilogue.
+                // (We must do this after ep_pos is known below.)
+            }
+
+            var ep_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_ep, insn_b((ep_pos - br_ep) / 4))
+            if br_kq_ep != nil {
+                set_u32_le(ctx["code"], br_kq_ep, insn_b((ep_pos - br_kq_ep) / 4))
+            }
+
+            // Epilogue: restore X27/X28 and return with X0 set.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            return nil
+        }
+
         if fn_name == "sys_send" || fn_name == "sys_recv" {
             // sys_{send,recv}(fd, buf, len, flags) (Darwin)
             //
@@ -2380,6 +2616,63 @@ fn native_compile_expr(ctx, expr) {
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
                 push_u32_le(ctx["code"], insn_movn(0, 0)) // X0=-1
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return nil
+        }
+
+        if fn_name == "sys_kill" {
+            // sys_kill(pid, signum) -> 0_or_neg_errno
+            //
+            // Linux aarch64: __NR_kill = 129
+            // Darwin: SYS_kill = 37, kernel signature includes a 3rd `posix` arg.
+            // We pass posix=1 for the standard POSIX behavior.
+
+            native_compile_expr(ctx, args[0]) // pid -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args[1]) // signum -> X0
+            push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = signum
+
+            // Pop pid -> X0
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            var sys_reg = 16
+            var svc_imm = 128
+            var sysno = 37 // Darwin SYS_kill
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                sys_reg = 8
+                svc_imm = 0
+                sysno = 129
+                is_macos = false
+            } else {
+                // posix=1 (third argument)
+                push_u32_le(ctx["code"], insn_movz(2, 1))
+            }
+
+            // Preserve heap globals across syscall (rolling ABI hygiene).
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
+            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            if is_macos {
+                // Normalize macOS syscall error to X0 = -errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }

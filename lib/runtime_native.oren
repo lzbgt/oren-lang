@@ -32,6 +32,8 @@ fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
 fn sys_gettid() { return 0 }
 fn sys_fcntl(fd, cmd, arg) { return 0 }
+fn sys_kill(pid, signum) { return 0 }
+fn sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) { return 0 }
 fn sys_ulock_wait(operation, addr, value, timeout_us) { return 0 }
 fn sys_ulock_wake(operation, addr, wake_value) { return 0 }
 fn sys_bsdthread_create(func, func_arg, stack, pthread, flags) { return 0 }
@@ -57,6 +59,7 @@ fn sys_send(fd, buf, len, flags) { return sys_sendto(fd, buf, len, flags, 0, 0) 
 fn sys_recv(fd, buf, len, flags) { return sys_recvfrom(fd, buf, len, flags, 0, 0) }
 fn sys_kqueue() { return 0 }
 fn sys_kevent(kq, changelist, nchanges, eventlist, nevents, timeout_ptr) { return 0 }
+fn sys_nanosleep(ns) { return 0 }
 
 fn oren_memcpy(dst, src, len) {
     var i = 0
@@ -295,9 +298,12 @@ fn oren_getenv(key) {
 
     // key_len = strlen(key)
     var key_len = 0
-    while ptr_get_byte(iadd(key, key_len)) != 0 {
+    // Hard cap to avoid hangs if `key` is malformed / unterminated.
+    while key_len < 4096 {
+        if ptr_get_byte(iadd(key, key_len)) == 0 { break }
         key_len = key_len + 1
     }
+    if key_len >= 4096 { return 0 }
 
     // Hard cap to avoid hangs if envp is malformed / unterminated.
     var i = 0
@@ -324,6 +330,80 @@ fn oren_getenv(key) {
         i = i + 1
     }
     return 0
+}
+
+// --- TIME (syscall-first) ---
+//
+// Provide a minimal “sleep” primitive without libc.
+// We keep TIME intentionally small in v0: higher-level deadlines/cancellation can be built on top.
+//
+// sys_nanosleep(ns) is a native-backend intrinsic implemented per-OS:
+// - macOS: kqueue/kevent timeout (no libc shims)
+// - Linux: nanosleep syscall
+//
+// Returns 0 on success, or -errno.
+fn oren_sleep_ns(ns) {
+    if ns <= 0 { return 0 }
+    return sys_nanosleep(ns)
+}
+
+fn oren_sleep_ms(ms) {
+    if ms <= 0 { return 0 }
+    // ms -> ns
+    return sys_nanosleep(ms * 1000000)
+}
+
+fn oren_kill(pid, signum) {
+    return sys_kill(pid, signum)
+}
+
+// Wall time in nanoseconds since Unix epoch (best-effort; not monotonic).
+fn oren_time_unix_ns() {
+    // struct timeval { tv_sec(u64), tv_usec(u64) } (we use 2x u64 for simplicity)
+    var tv = malloc(16)
+    if tv == 0 { return 0 }
+    ptr_set(tv + 0, 0)
+    ptr_set(tv + 8, 0)
+
+    var rc = sys_gettimeofday(tv, 0, 0)
+    if rc < 0 {
+        free(tv)
+        return 0
+    }
+
+    var sec = ptr_get(tv + 0)
+    var usec = ptr_get(tv + 8)
+    free(tv)
+    return sec * 1000000000 + usec * 1000
+}
+
+// Monotonic “raw” time. For correctness, treat as compare-only (do not assume units).
+// On Linux, this will be nanoseconds (via clock_gettime64 monotonic in the intrinsic).
+// On macOS, this is mach_absolute_time units (returned by gettimeofday's 3rd out-arg).
+fn oren_time_mono_raw() {
+    var tv = malloc(16)
+    if tv == 0 { return 0 }
+    ptr_set(tv + 0, 0)
+    ptr_set(tv + 8, 0)
+
+    var abs_ptr = malloc(8)
+    if abs_ptr == 0 {
+        free(tv)
+        return 0
+    }
+    ptr_set(abs_ptr, 0)
+
+    var rc = sys_gettimeofday(tv, 0, abs_ptr)
+    if rc < 0 {
+        free(abs_ptr)
+        free(tv)
+        return 0
+    }
+
+    var t = ptr_get(abs_ptr)
+    free(abs_ptr)
+    free(tv)
+    return t
 }
 
 fn oren_register_thread(top) {
@@ -1700,7 +1780,15 @@ fn oren_tcp_close(fd) {
 
 // --- Threads ---
 fn oren_system(cmd) {
-    // Syscall-first `system(3)` equivalent: fork + execve("/bin/sh", ["sh","-c",cmd], envp) + wait4.
+    return oren_system_timeout(cmd, -1)
+}
+
+fn oren_system_timeout(cmd, timeout_ms) {
+    // Syscall-first `system(3)` equivalent with an optional timeout.
+    // - timeout_ms < 0: wait forever (system-like)
+    // - timeout_ms >= 0: poll wait4(WNOHANG) and kill child on timeout
+    //
+    // Returns wait status (raw), or negative on internal failure, or -60 on timeout.
     if cmd == 0 { return -1 }
 
     var pid = oren_fork()
@@ -1721,13 +1809,15 @@ fn oren_system(cmd) {
 
         // Preserve parent environment without libc.
         // Prefer the envp captured at process entry; fallback to deriving envp from argv/argc.
-        var g = oren_globals()
-        var envp = ptr_get(iadd(g, 64))
+        var envp = global_get_envp()
         if envp == 0 {
-            var argc = ptr_get(iadd(g, 40))
-            var parent_argv = ptr_get(iadd(g, 48))
+            var argc = global_get_argc()
+            var parent_argv = global_get_argv()
             if parent_argv != 0 {
-                envp = iadd(parent_argv, (iadd(argc, 1)) * 8)
+                // Cap derived pointer math so a corrupted argc can't walk arbitrarily.
+                if argc >= 0 && argc <= 1048576 {
+                    envp = iadd(parent_argv, (iadd(argc, 1)) * 8)
+                }
             }
         }
         if envp == 0 {
@@ -1741,15 +1831,45 @@ fn oren_system(cmd) {
         exit(127)
     }
 
-    // Parent: wait4(pid, &status, 0, 0)
+    // Parent: wait4(pid, &status, options, 0)
     var status_ptr = malloc(8)
     if status_ptr == 0 { return -1 }
     ptr_set(status_ptr, 0)
 
-    var wpid = sys_wait4(pid, status_ptr, 0, 0)
-    if wpid < 0 { return -1 }
+    if timeout_ms < 0 {
+        var wpid = sys_wait4(pid, status_ptr, 0, 0)
+        if wpid < 0 {
+            free(status_ptr)
+            return -1
+        }
+        var status = ptr_get(status_ptr)
+        free(status_ptr)
+        return status
+    }
 
-    return ptr_get(status_ptr)
+    // Poll: wait4(..., WNOHANG=1) + sleep(1ms) until timeout.
+    var remaining = timeout_ms
+    while remaining > 0 {
+        var wpid2 = sys_wait4(pid, status_ptr, 1, 0) // WNOHANG
+        if wpid2 == pid {
+            var status2 = ptr_get(status_ptr)
+            free(status_ptr)
+            return status2
+        }
+        if wpid2 < 0 {
+            free(status_ptr)
+            return -1
+        }
+        // wpid2 == 0 => child still running
+        oren_sleep_ms(1)
+        remaining = remaining - 1
+    }
+
+    // Timeout: kill child and reap to avoid zombies.
+    oren_kill(pid, 9) // SIGKILL
+    sys_wait4(pid, status_ptr, 0, 0) // best-effort reap
+    free(status_ptr)
+    return 0 - 60 // ETIMEDOUT (BSD)
 }
 
 fn oren_net_get(url) {

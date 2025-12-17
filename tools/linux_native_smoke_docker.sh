@@ -33,6 +33,10 @@ SMOKE_TESTS=(
   tests/native/test_bool_bit_ops.oren
   tests/native/test_call_stack_args.oren
   tests/native/test_env_execve_getenv.oren
+  tests/native/test_sleep_ms.oren
+  tests/native/test_time_now.oren
+  tests/native/test_time_mono_raw.oren
+  tests/native/test_system_timeout.oren
   tests/native/test_for_break_continue.oren
   tests/native/test_for_in_list.oren
   tests/native/test_for_in_string.oren

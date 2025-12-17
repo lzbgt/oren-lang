@@ -1,4 +1,4 @@
-.PHONY: all clean bootstrap test verify stage1 stage2 avm examples-test
+.PHONY: all clean bootstrap test test-inner verify stage1 stage2 avm examples-test examples-test-inner
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -19,14 +19,19 @@ TEST_TIMEOUT_SECS ?= 10
 # the C backend invokes `cc`/`ld`/codesign. Still, they must not hang forever in
 # rolling mode.
 BUILD_TIMEOUT_SECS ?= 120
+# Global failsafe for the whole suite. Per-test timeouts should catch most hangs;
+# this prevents the entire run from blocking forever if something slips through.
+SUITE_TIMEOUT_SECS ?= 900
 TIMEOUT_KILL_SECS ?= 2
 TIMEOUT_BIN := $(shell command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")
 ifneq ($(strip $(TIMEOUT_BIN)),)
   RUN_WITH_TIMEOUT = $(TIMEOUT_BIN) -k $(TIMEOUT_KILL_SECS) $(TEST_TIMEOUT_SECS)
   RUN_BUILD_WITH_TIMEOUT = $(TIMEOUT_BIN) -k $(TIMEOUT_KILL_SECS) $(BUILD_TIMEOUT_SECS)
+  RUN_SUITE_WITH_TIMEOUT = $(TIMEOUT_BIN) -k $(TIMEOUT_KILL_SECS) $(SUITE_TIMEOUT_SECS)
 else
   RUN_WITH_TIMEOUT =
   RUN_BUILD_WITH_TIMEOUT =
+  RUN_SUITE_WITH_TIMEOUT =
 endif
 
 # Optional GC toggle (set NO_GC=1 or OREN_NO_GC in env to compile with -DOREN_NO_GC)
@@ -72,6 +77,14 @@ test: oren
 	@echo "=== Running Tests ==="
 	@# Hard requirement in rolling mode: tests must not be able to hang forever.
 	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
+	@# Global failsafe: wrap the entire suite.
+	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) test-inner || { \
+		rc=$$?; \
+		if [ $$rc -eq 124 ]; then echo "FAIL: test suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
+		exit $$rc; \
+	}
+
+test-inner: oren
 	@mkdir -p build
 	@# Native Backend Tests
 	@set -e; for t in tests/native/*.oren; do \
@@ -467,6 +480,14 @@ examples-test: oren avm
 	@echo "=== Running Examples ==="
 	@# Examples are not allowed to hang (rolling mode). Require timeout tooling.
 	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
+	@# Global failsafe: wrap the entire examples suite too.
+	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) examples-test-inner || { \
+		rc=$$?; \
+		if [ $$rc -eq 124 ]; then echo "FAIL: examples suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
+		exit $$rc; \
+	}
+
+examples-test-inner: oren avm
 	@mkdir -p build
 	@# 1) C backend hello + modules + threading
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello_c.oren --backend c -o build/ex_hello_c $(CODESIGN_ARG) $(GC_ARG)

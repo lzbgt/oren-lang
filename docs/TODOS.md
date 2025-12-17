@@ -19,7 +19,7 @@ Focus statement (to avoid roadmap thrash):
    - Baseline:
      - `make test` uses `timeout` for native/AVM invocations where a hang is possible.
      - `avm` also supports an in-process wall-time budget: `--timeout-ms N` (or `AVM_TIMEOUT_MS`) so tooling/users don’t rely only on external `timeout`.
-     - add a short per-test timeout for spawn/system and a longer global suite timeout.
+     - add a short per-test timeout for spawn/system and a longer global suite timeout (done; see `SUITE_TIMEOUT_SECS` in `Makefile`).
 
 2) **SOLID refactors for “debuggable production”**
    - Goal: keep compiler/runtime modules small enough that invariants (stack/heap/scope/ABI) are auditable.
@@ -54,9 +54,33 @@ Focus statement (to avoid roadmap thrash):
    - Regression tests:
      - `oren_system("echo ...")` completes quickly (guard with timeout).
      - `oren_getenv(...)` returns quickly for missing keys and returns non-zero for a known-set key (when present).
+     - malformed key must not hang `oren_getenv` (unterminated string pointer regression: `tests/native/test_getenv_malformed_key.oren`).
      - `sys_execve(..., envp)` overrides env and `oren_system(...)` inherits it (regression: `tests/native/test_env_execve_getenv.oren`).
+     - cancellable `system` wrapper kills + reaps on timeout: `tests/native/test_system_timeout.oren`.
 
-4) **Native TCP/IP syscalls (macOS arm64) — minimal, correct, cancellable**
+4) **Syscall-first TIME substrate (native; no libc)**
+   - Needed for production libraries to be self-contained (retries, backoff, polling loops) and to avoid “block forever” in higher-level PROC/NET wrappers.
+   - “Best option” for native (host) time is:
+     - monotonic for deadlines/backoff logic
+     - wall/unix time only for logging/telemetry (not for correctness)
+   - Minimal v0 surface (OS boundary):
+     - `sys_nanosleep(ns) -> 0_or_neg_errno`
+       - macOS implementation uses `kqueue + kevent(timeout)` (no libc shim).
+       - Linux implementation uses `__NR_nanosleep` (aarch64).
+     - `sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> 0_or_neg_errno`
+       - macOS syscall provides a 3rd out-param `mach_absolute_time` (used as monotonic “raw” time).
+       - Linux syscall provides `gettimeofday(tv, tz)` (no abs time); pass abs_ptr=0.
+   - Runtime helpers:
+     - `oren_sleep_ns(ns)` / `oren_sleep_ms(ms)`
+     - `oren_time_unix_ns() -> int` (wall time)
+     - `oren_time_mono_raw() -> int` (monotonic raw ticks; compare-only)
+   - Status: implemented + regression:
+     - `tests/native/test_sleep_ms.oren` (smoke)
+     - `tests/native/test_time_now.oren` (unix wall time)
+     - `tests/native/test_time_mono_raw.oren` (monotonic raw; compare-only)
+     - `tests/native/test_system_timeout.oren` (wait4 WNOHANG + sleep + kill + reap)
+
+5) **Native TCP/IP syscalls (macOS arm64) — minimal, correct, cancellable**
    - Mandatory for the final product: native Oren needs real TCP/IP without libc wrappers.
    - Minimal syscall-first surface (exact naming can evolve, but keep the boundary small):
      - `sys_socket`, `sys_connect`, `sys_bind`, `sys_listen`, `sys_accept`
@@ -77,7 +101,7 @@ Focus statement (to avoid roadmap thrash):
      - add `sys_send`/`sys_recv` first-class intrinsics (may lower to sendto/recvfrom with NULL addr) (done; regression: `tests/native/test_tcp_send_recv.oren`)
      - add Linux syscall lowering for the same surface (see P0.6)
 
-5) **ABI hygiene for rolling native runtime globals + pointer arithmetic**
+6) **ABI hygiene for rolling native runtime globals + pointer arithmetic**
    - Blocking: silent ABI slot collisions can deadlock/hang (hard to debug).
    - Rules (must be enforced/documented):
      - Never reuse a globals slot for two unrelated purposes.
@@ -89,7 +113,7 @@ Focus statement (to avoid roadmap thrash):
      - native backend generic calls now follow AAPCS64 arg passing: X0..X7 + stack args for arg8+, and function prologues correctly load arg8+ from caller stack.
      - regression: `tests/native/test_call_stack_args.oren` (also in Docker Linux smoke list).
 
-6) **Linux arm64 native backend parity (mandatory; avoid divergence)**
+7) **Linux arm64 native backend parity (mandatory; avoid divergence)**
    - The production goal includes Linux; verify early to avoid “macOS-only drift”.
    - Deliverables:
      - implement Linux syscall lowering for the same `sys_*` surface (FS/PROC/ENV/TIME + NET sockets)
@@ -98,10 +122,14 @@ Focus statement (to avoid roadmap thrash):
    - Status (rolling):
      - Linux syscall lowering is started for NET socket syscalls (socket/connect/bind/listen/accept/sendto/recvfrom/getsockopt/setsockopt/getpeername/getsockname/shutdown) + `fcntl` in `lib/compiler/arm64_native_expr.oren` (numbers referenced from `docs/refs/linux_asm_generic_unistd.h`).
      - Linux PROC syscall lowering is started for fork/exec/wait: `sys_fork` uses `clone(SIGCHLD, stack=NULL)`, `sys_execve` uses `__NR_execve`, `sys_wait4` uses `__NR_wait4` (refs: `docs/refs/linux_man_clone.2`, `docs/refs/linux_asm_generic_unistd.h`).
+     - Linux TIME/PROC hygiene (rolling):
+       - `sys_nanosleep` uses `__NR_nanosleep` (enables `oren_sleep_ms` and polling-based timeouts).
+       - `sys_kill` uses `__NR_kill` (enables “timeout => kill + reap” patterns).
      - Linux smoke runner exists (preferred on macOS): `tools/linux_native_smoke_docker.sh` (Ubuntu 24.04 `linux/arm64`, per-binary `timeout`, container reuse via `OREN_DOCKER_KEEP=1`).
      - Linux smoke runner (optional / unstable): `tools/linux_native_smoke_qemu.sh` (trusted host, but may flap; keep as backup).
      - Regression coverage (Docker smoke):
        - PROC spawn/join works: `tests/native/test_spawn_simple.oren`, `tests/native/test_spawn_args.oren`
+       - TIME+PROC timeout works: `tests/native/test_sleep_ms.oren`, `tests/native/test_system_timeout.oren`
        - TCP loopback with fork works: `tools/bench/test_linux_tcp_loopback_fork.oren`
 
 ### AVM (agentic execution substrate; safety + multiverse)

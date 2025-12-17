@@ -1,7 +1,7 @@
 # Syscall-First Native Runtime Plan (No C Shims)
 
 **Status:** Active plan (documented for later reference)  
-**Last updated:** 2025-12-16  
+**Last updated:** 2025-12-17  
 **Repo:** `compiler-mini` (Oren)
 
 ## 0. Summary (What We Are Doing)
@@ -24,6 +24,9 @@ This is aligned with the “correct architecture first” constraint: **no tempo
   - The `sys_*` functions remain as stubs in source so programs typecheck, but native code does not call those stubs.
 - `oren_system()` is now syscall-first on macOS: `fork + execve("/bin/sh", ...) + wait4`.
 - ENV is syscall-free (no libc): the entry stub captures `envp` and stores it in the runtime globals, and `oren_getenv(key)` scans the initial `envp` block (bounded; never hangs).
+- TIME is now syscall-first (no libc): `sys_nanosleep(ns)` is implemented as a native-backend intrinsic:
+  - macOS: sleeps via `kqueue + kevent(timeout)`
+  - Linux: sleeps via `__NR_nanosleep`
 - `spawn`/`oren_join` on macOS is currently implemented as **fork + pipe** (process-based) for v0 correctness.
   - This avoids the Darwin `bsdthread_register/bsdthread_create` ABI surface until a robust syscall-first thread design is implemented.
 - Darwin fork ABI nuance is now accounted for:
@@ -137,6 +140,9 @@ macOS implementation maps to `ulock_wait/ulock_wake` (or equivalent Darwin primi
 ### Time
 
 - `sys_nanosleep(ns) -> 0_or_neg_errno`
+- `sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> 0_or_neg_errno`
+  - macOS: syscall provides a 3rd out-param `mach_absolute_time` (usable as monotonic raw time).
+  - Linux: syscall has no abs out-param; pass `abs_ptr=0`.
 
 ## 6. Milestones (ABCDE as Deliverables on This Architecture)
 
