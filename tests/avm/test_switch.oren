@@ -1,6 +1,6 @@
 fn fail(msg) {
     print("FAIL: " + msg)
-    exit(1)
+    oren_exit(1)
 }
 
 fn main() {
@@ -15,8 +15,7 @@ fn main() {
 
     if y != 20 { fail("switch") }
     print("ok")
-    exit(0)
+    oren_exit(0)
 }
 
 main()
-
