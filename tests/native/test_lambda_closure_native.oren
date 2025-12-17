@@ -1,0 +1,25 @@
+fn add(a, b) {
+    return a + b
+}
+
+fn main() {
+    // Named function values.
+    var f = add
+    var r = f(2, 3)
+    if r != 5 { exit(10) }
+
+    // Lambda capture-by-value.
+    var x = 10
+    var g = |y| x + y
+    x = 20
+    var r2 = g(1)
+    if r2 != 11 { exit(11) }
+
+    // Spawn a callable stored in a variable.
+    var t = spawn g(5)
+    var rv = oren_join(t)
+    if rv != 15 { exit(12) }
+
+    return 0
+}
+

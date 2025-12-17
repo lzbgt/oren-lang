@@ -379,6 +379,12 @@ fn insn_bl(off) {
     return 2483027968 + off
 }
 
+fn insn_blr(rn) {
+    // BLR Xrn (branch with link to register)
+    // Encoding: 0xD63F0000 | (rn << 5)
+    return 3594452992 + (rn * 32)
+}
+
 fn insn_sub_sp(imm) {
     return 3506439167 + (imm * 1024)
 }

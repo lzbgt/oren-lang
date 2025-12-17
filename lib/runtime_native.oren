@@ -693,6 +693,10 @@ fn oren_mark_value(val) {
                     i = i + 1
                 }
             }
+            if kind == 6 { // FUNC (closure env)
+                var env = ptr_get(iadd(val, 8))
+                oren_mark_value(env)
+            }
         }
     }
     return 0
@@ -842,6 +846,12 @@ fn debug_value_to_string(val) {
             return string_concat(s1, ">"
             )
         }
+        if kind == 6 { // FUNC
+            var s0 = "<func ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
     }
     return oren_int_to_string(val)
 }
@@ -948,6 +958,64 @@ fn oren_panic(msg) {
     }
     exit(1)
     return 0
+}
+
+// --- First-class functions (native backend) ---
+//
+// Representation (tracked allocation kind=6):
+//   [0] code_ptr (u64)  - entrypoint taking (env, args_list)
+//   [8] env_ptr  (u64)  - closure environment (typically a list), or 0
+fn oren_func(code_ptr, env_ptr) {
+    if code_ptr == 0 { return 0 }
+    var obj = malloc(16)
+    if obj == 0 { exit(320) }
+    ptr_set(obj, code_ptr)
+    ptr_set(obj + 8, env_ptr)
+    // Update kind to 6 (FUNC) so GC can traverse env_ptr.
+    var node = oren_find_node(obj)
+    if node != 0 {
+        ptr_set(node + 16, 6)
+    }
+    return obj
+}
+
+// Spawn a callable object with an args list.
+//
+// This is the syscall-first native analogue of the C backend's spawn-callable helper.
+// It returns the same handle layout expected by `oren_join(handle)`:
+//   0: pid (u64)
+//   8: read_fd (u64)
+fn oren_spawn_call_list(fn_obj, args_list) {
+    var pipe_buf = malloc(16)
+    if pipe_buf == 0 { exit(321) }
+    var rv = sys_pipe(pipe_buf)
+    if rv != 0 { exit(322) }
+
+    var rfd = ptr_get(pipe_buf)
+    var wfd = ptr_get(pipe_buf + 8)
+
+    var pid = sys_fork()
+    if pid == 0 {
+        // Child
+        sys_close(rfd)
+        var ret = oren_call_obj_list(fn_obj, args_list)
+        var out = malloc(8)
+        if out == 0 { exit(323) }
+        ptr_set(out, ret)
+        sys_write(wfd, out, 8)
+        sys_close(wfd)
+        exit(0)
+        return 0
+    }
+
+    // Parent
+    sys_close(wfd)
+
+    var handle = malloc(16)
+    if handle == 0 { exit(324) }
+    ptr_set(handle, pid)
+    ptr_set(handle + 8, rfd)
+    return handle
 }
 
 // ... existing code ...

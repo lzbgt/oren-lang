@@ -132,6 +132,19 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
             var insn = insn_adr(0, offset2)
             set_u32_le(code, pos, insn)
         }
+
+        if fix["type"] == "adr_code" {
+            var name3 = fix["name"]
+            var target2 = functions[name3]
+            if target2 == nil {
+                print("native backend: undefined function " + name3)
+                return nil
+            }
+            var reg = fix["reg"]
+            if reg == nil { reg = 0 }
+            var off_bytes = target2 - pos
+            set_u32_le(code, pos, insn_adr(reg, off_bytes))
+        }
         
         // Legacy
         if fix["type"] == nil {
@@ -159,4 +172,3 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     oren_chmod(out_path, 493) // 0755
     return nil
 }
-

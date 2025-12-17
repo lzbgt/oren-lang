@@ -51,8 +51,15 @@ Focus statement (to avoid roadmap thrash):
        - `spawn` lowers to `oren_spawn_call_list(...)` so closures/function-values can be spawned (not just direct symbols)
    - Remaining (still mandatory):
      - bytecode backend: represent function values + closures and implement indirect call op
-     - native backend: represent function values + closures and implement indirect calls (likely via a uniform wrapper ABI + `blr` or a runtime `oren_call_obj_list` helper)
      - closure capture rules + determinism (captured values, env layout) must be part of the spec
+   - Status (native backend):
+     - runtime supports first-class callable objects (`oren_func(code_ptr, env_ptr)`, tracked kind=6; GC marks `env_ptr`)
+     - compiler collects lambdas and emits wrappers:
+       - `__oren_lambda_<N>(__env, __args)` for lambda bodies + capture binding
+       - `__oren_fnwrap_<name>(__env, __args)` for named functions
+     - indirect calls are implemented via `blr` to the wrapper code pointer
+     - `spawn` lowers to `oren_spawn_call_list(fn_obj, args_list)` so closures/function-values can be spawned
+     - regression: `tests/native/test_lambda_closure_native.oren`
 
 ### Native backend (syscall-first runtime; macOS-first; production-critical)
 

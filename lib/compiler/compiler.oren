@@ -414,12 +414,17 @@ fn compiler_main() {
     var no_gc = false
     var emit_meta = false
     var is_shared_lib = false
+    // Rolling mode: default native builds to embed debug info so panics produce readable stack traces.
+    // Users can still disable by explicitly setting OREN_NATIVE_NO_DEBUG=1 (kept as an env knob so we
+    // don't need to introduce a new CLI flag yet).
     var debug_mode = false
     var link_libs = []
     if target == "macos" { codesign_id = "Developer ID Application: Zongbao Lu (US56HHF2Y4)" }
     if mode == "emit-c" { emit_c = true }
     var env_no_gc = oren_env("OREN_NO_GC")
     if env_no_gc != nil { no_gc = true }
+    var env_native_no_debug = oren_env("OREN_NATIVE_NO_DEBUG")
+    if env_native_no_debug != nil { debug_mode = false }
     var env_strict_attrs = oren_env("OREN_STRICT_ATTRS")
     if env_strict_attrs != nil { STRICT_ATTRS = true }
     var env_attr_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
@@ -474,10 +479,10 @@ fn compiler_main() {
                                             target = args[i + 1]
                                             i = i + 2
                                         } else {
-                                            if args[i] == "--disasm" {
-                                                disasm = true
-                                                i = i + 1
-                                            } else {
+                                    if args[i] == "--disasm" {
+                                        disasm = true
+                                        i = i + 1
+                                    } else {
                                                 if args[i] == "--cc" {
                                                     if i + 1 >= argc { print("Missing value for --cc"); return nil }
                                                     cc = args[i + 1]
@@ -524,6 +529,16 @@ fn compiler_main() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // If user did not explicitly request debug info, default it on for native backend builds.
+    // This makes runtime panics actionable by default (stack traces map to function names).
+    if backend == "native" {
+        if debug_mode == false {
+            if env_native_no_debug == nil {
+                debug_mode = true
             }
         }
     }
