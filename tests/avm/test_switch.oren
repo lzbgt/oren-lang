@@ -1,0 +1,22 @@
+fn fail(msg) {
+    print("FAIL: " + msg)
+    exit(1)
+}
+
+fn main() {
+    var x = 2
+    var y = 0
+
+    switch x {
+        case 1 { y = 10 }
+        case 2 { y = 20 }
+        default { y = 30 }
+    }
+
+    if y != 20 { fail("switch") }
+    print("ok")
+    exit(0)
+}
+
+main()
+

@@ -281,6 +281,7 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_RETURN) { return parse_return(p) }
     if cur_is(p, token.TOK_WHILE) { return parse_while(p) }
     if cur_is(p, token.TOK_FOR) { return parse_for(p) }
+    if cur_is(p, token.TOK_SWITCH) { return parse_switch(p) }
     if cur_is(p, token.TOK_BREAK) { return parse_break(p) }
     if cur_is(p, token.TOK_CONTINUE) { return parse_continue(p) }
     if cur_is(p, token.TOK_IMPORT) { return parse_import(p) }
@@ -309,6 +310,124 @@ fn parse_spawn(p) {
     }
     if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
     return ast.new_spawn(tok, exp)
+}
+
+fn switch_case_condition(switch_ident, values) {
+    if values == nil || oren_list_len(values) == 0 { return nil }
+    var tok_eq = token.new_token(token.TOK_EQ, "==")
+    var tok_or = token.new_token(token.TOK_OR, "||")
+    var cond = ast.new_infix(tok_eq, switch_ident, "==", values[0])
+    var i = 1
+    while i < oren_list_len(values) {
+        var c2 = ast.new_infix(tok_eq, switch_ident, "==", values[i])
+        cond = ast.new_infix(tok_or, cond, "||", c2)
+        i = i + 1
+    }
+    return cond
+}
+
+fn parse_switch(p) {
+    var tok = p["cur"]
+
+    // switch <expr> { case ... { ... } default { ... } }
+    parser_next_token(p)
+    var sw_expr = parse_expression(p, LOWEST)
+    if sw_expr == nil { return nil }
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+
+    // Evaluate switch expression once.
+    var st_name = parser_gensym(p, "@switch_")
+    var st_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, st_name), "value": st_name}
+    var init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, sw_expr)
+
+    var cases = []
+    var default_block = nil
+
+    // Enter switch body.
+    parser_next_token(p) // first token inside '{' or '}'
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_CASE) {
+            // case <expr> { ... }
+            var values = []
+            parser_next_token(p) // first token of case expression
+            var v0 = parse_expression(p, LOWEST)
+            if v0 == nil { return nil }
+            oren_list_push(values, v0)
+
+            while peek_is(p, token.TOK_COMMA) {
+                parser_next_token(p) // ','
+                parser_next_token(p) // next value
+                var vn = parse_expression(p, LOWEST)
+                if vn == nil { return nil }
+                oren_list_push(values, vn)
+            }
+
+            // Optional ':' before block
+            if peek_is(p, token.TOK_COLON) {
+                parser_next_token(p) // ':'
+            }
+            if !expect_peek(p, token.TOK_LBRACE) { return nil }
+            var body = parse_block(p)
+            oren_list_push(cases, {"values": values, "body": body})
+
+            // Advance after the '}' of the block.
+            parser_next_token(p)
+            continue
+        }
+
+        if cur_is(p, token.TOK_DEFAULT) {
+            // default { ... }
+            if default_block != nil {
+                parser_add_error(p, "duplicate default in switch")
+                return nil
+            }
+            if peek_is(p, token.TOK_COLON) {
+                parser_next_token(p) // ':'
+            }
+            if !expect_peek(p, token.TOK_LBRACE) { return nil }
+            default_block = parse_block(p)
+            parser_next_token(p)
+            continue
+        }
+
+        parser_add_error(p, "expected 'case' or 'default' in switch")
+        return nil
+    }
+
+    // Build nested if/else chain.
+    var if_expr = nil
+    var i = oren_list_len(cases) - 1
+    while i >= 0 {
+        var c = cases[i]
+        var cond = switch_case_condition(st_ident, c["values"])
+        var consq = c["body"]
+
+        var alt = default_block
+        if if_expr != nil {
+            alt = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+            oren_list_push(alt["stmts"], ast.new_expr_stmt(token.new_token(token.TOK_IF, "if"), if_expr))
+        }
+
+        if_expr = ast.new_if(token.new_token(token.TOK_IF, "if"), cond, consq, alt)
+        i = i - 1
+    }
+
+    // If no cases, just evaluate expression and do nothing.
+    var out = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+    oren_list_push(out["stmts"], init_stmt)
+    if if_expr != nil {
+        oren_list_push(out["stmts"], ast.new_expr_stmt(tok, if_expr))
+    } else {
+        if default_block != nil {
+            // switch expr { default { ... } }
+            var out_i = 0
+            while out_i < oren_list_len(default_block["stmts"]) {
+                oren_list_push(out["stmts"], default_block["stmts"][out_i])
+                out_i = out_i + 1
+            }
+        }
+    }
+    return out
 }
 
 fn parse_test(p) {

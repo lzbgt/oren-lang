@@ -1,0 +1,22 @@
+fn fail(code) {
+    print("switch: FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn main() {
+    var x = 3
+    var y = 0
+
+    switch x {
+        case 1 { y = 10 }
+        case 2, 3 { y = 20 }
+        default { y = 30 }
+    }
+
+    if y != 20 { fail(1) }
+    print("switch: OK")
+    exit(0)
+}
+
+main()
+

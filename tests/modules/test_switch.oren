@@ -1,0 +1,52 @@
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+var g_calls = 0
+fn f() {
+    g_calls = g_calls + 1
+    return 2
+}
+
+fn test_switch_basic() {
+    var x = 2
+    var y = 0
+
+    switch x {
+        case 1 { y = 10 }
+        case 2, 3: { y = 20 }
+        default { y = 30 }
+    }
+
+    assert(y == 20, "case match")
+}
+
+fn test_switch_eval_once() {
+    g_calls = 0
+    var y = 0
+    switch f() {
+        case 1 { y = 10 }
+        case 2 { y = 20 }
+        default { y = 30 }
+    }
+    assert(y == 20, "switch result")
+    assert(g_calls == 1, "switch expr evaluated once")
+}
+
+fn test_switch_default_only() {
+    var y = 0
+    switch 123 {
+        default { y = 7 }
+    }
+    assert(y == 7, "default only")
+}
+
+test_switch_basic()
+test_switch_eval_once()
+test_switch_default_only()
+print("ok")
+exit(0)
+

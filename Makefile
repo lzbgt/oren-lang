@@ -62,7 +62,8 @@ AVM_TESTS ?= \
 	tests/avm/test_budget_timeout.oren \
 	tests/avm/test_vfs_no_host_fs.oren \
 	tests/avm/test_vproc_no_host_proc.oren \
-	tests/avm/test_vnet_no_host_net.oren
+	tests/avm/test_vnet_no_host_net.oren \
+	tests/avm/test_switch.oren
 
 # Source files
 OREN_SRC := oren.oren
@@ -213,7 +214,7 @@ tests/native/while.oren \
 	@# Module Tests (C Backend)
 	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing Module System..."; fi
 	@pass=0; total=0; failed=""; \
-		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren tests/modules/test_argparse.oren tests/modules/test_metadata_attrs.oren tests/modules/test_strings.oren tests/modules/test_string_from_bytes.oren tests/modules/test_json.oren; do \
+		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren tests/modules/test_argparse.oren tests/modules/test_metadata_attrs.oren tests/modules/test_strings.oren tests/modules/test_string_from_bytes.oren tests/modules/test_json.oren tests/modules/test_switch.oren; do \
 			total=$$((total+1)); \
 			name=$$(basename $$t .oren); \
 			log=build/logs/mod_$$name.log; \

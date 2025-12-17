@@ -56,6 +56,9 @@ var TOK_NIL = "NIL"
 var TOK_FFI = "FFI"
 var TOK_TEST = "TEST"
 var TOK_SPAWN = "SPAWN"
+var TOK_SWITCH = "SWITCH"
+var TOK_CASE = "CASE"
+var TOK_DEFAULT = "DEFAULT"
 
 // Character constants
 var CH_TAB = oren_char(9)
@@ -111,6 +114,9 @@ fn lookup_ident(ident) {
     if ident == "ffi" { return TOK_FFI }
     if ident == "test" { return TOK_TEST }
     if ident == "spawn" { return TOK_SPAWN }
+    if ident == "switch" { return TOK_SWITCH }
+    if ident == "case" { return TOK_CASE }
+    if ident == "default" { return TOK_DEFAULT }
     return TOK_IDENT
 }
 

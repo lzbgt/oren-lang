@@ -16,7 +16,7 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 ### Keywords
 Implemented today:
 
-`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`
+`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`
 
 Planned (not implemented yet):
 
@@ -48,6 +48,7 @@ statement       = var_stmt
                 | return_stmt
                 | while_stmt
                 | for_stmt
+                | switch_stmt
                 | break_stmt
                 | continue_stmt
                 | import_stmt
@@ -61,6 +62,9 @@ short_var_stmt  = ident ":=" expression [ ";" ] ;
 return_stmt     = "return" expression [ ";" ] ;
 while_stmt      = "while" expression block ;
 for_stmt        = "for" [ for_header ] block ;
+switch_stmt     = "switch" expression "{" { case_clause } [ default_clause ] "}" ;
+case_clause     = "case" expression { "," expression } [ ":" ] block ;
+default_clause  = "default" [ ":" ] block ;
 break_stmt      = "break" [ ";" ] ;
 continue_stmt   = "continue" [ ";" ] ;
 import_stmt     = "import" ident string_lit [ ";" ] ;
