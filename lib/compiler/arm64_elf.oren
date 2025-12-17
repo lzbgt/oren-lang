@@ -1,0 +1,162 @@
+import codegen "codegen_arm64.oren"
+
+// ELF emitter for arm64 (Linux).
+// Single responsibility: take a linked program, call the arm64 native codegen,
+// apply fixups, and write an ELF executable.
+
+// ---- Thin wrappers into core codegen module (minimize churn) ----
+fn bytes_new() { return codegen.bytes_new() }
+fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
+fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+
+fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
+
+fn align_up(n, align) { return codegen.align_up(n, align) }
+fn int_mod(a, b) { return codegen.int_mod(a, b) }
+
+fn insn_movz(reg, imm16) { return codegen.insn_movz(reg, imm16) }
+fn insn_ret() { return codegen.insn_ret() }
+fn insn_bl(off) { return codegen.insn_bl(off) }
+fn insn_adr(reg, imm) { return codegen.insn_adr(reg, imm) }
+
+fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }
+
+fn push_u16_le(buf, n) {
+    bytes_push(buf, int_mod(n, 256))
+    bytes_push(buf, int_mod(n / 256, 256))
+}
+
+fn elf_build_prefix_arm64(text_size, code, entry_idx) {
+    var p = bytes_new()
+    
+    // ELF Header (64 bytes)
+    bytes_push(p, 127); bytes_push(p, 69); bytes_push(p, 76); bytes_push(p, 70); // .ELF
+    bytes_push(p, 2); // Class: 64-bit
+    bytes_push(p, 1); // Data: Little endian
+    bytes_push(p, 1); // Version
+    bytes_push(p, 0); // OS ABI: System V
+    push_u64_le(p, 0) // Padding
+    
+    push_u16_le(p, 2) // Type: EXEC
+    push_u16_le(p, 183) // Machine: AArch64
+    push_u32_le(p, 1) // Version
+    var text_file_off = 120 // Ehdr + Phdr size
+    push_u64_le(p, 4194304 + text_file_off + entry_idx) // Entry point
+    push_u64_le(p, 64) // Phdr offset
+    push_u64_le(p, 0) // Shdr offset
+    push_u32_le(p, 0) // Flags
+    push_u16_le(p, 64) // Ehdr size
+    push_u16_le(p, 56) // Phdr size
+    push_u16_le(p, 1) // Phdr count
+    push_u16_le(p, 64) // Shdr size
+    push_u16_le(p, 0) // Shdr count
+    push_u16_le(p, 0) // String index
+    
+    // Program Header (56 bytes)
+    push_u32_le(p, 1) // Type: LOAD
+    push_u32_le(p, 7) // Flags: RWE (0x1 | 0x2 | 0x4)
+    push_u64_le(p, 0) // Offset
+    push_u64_le(p, 4194304) // VAddr (0x400000)
+    push_u64_le(p, 4194304) // PAddr
+    push_u64_le(p, text_file_off + oren_list_len(code)) // FileSize
+    push_u64_le(p, text_file_off + oren_list_len(code)) // MemSize
+    push_u64_le(p, 65536) // Align
+    
+    return p
+}
+
+fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode) {
+    var ctx = native_compile_program_arm64(linked, {"os": "linux"})
+    if ctx == nil { return nil }
+    
+    var code = ctx["code"]
+    var data = ctx["data"]
+    var fixups = ctx["fixups"]
+    var functions = ctx["functions"]
+    
+    // Generate Stubs for Imports (Placeholder)
+    var imports = ctx["import_list"]
+    var i_imp = 0
+    while i_imp < oren_list_len(imports) {
+        var name = imports[i_imp]
+        var stub_pos = oren_list_len(code)
+        functions[name] = stub_pos
+        
+        // Stub: return 0 (avoid syscalls on missing FFI)
+        push_u32_le(code, insn_movz(0, 0))
+        push_u32_le(code, insn_ret())
+        
+        i_imp = i_imp + 1
+    }
+    
+    var code_len_before_data = oren_list_len(code)
+    bytes_extend(code, data)
+    
+    if functions["main"] == nil {
+        if functions["__top_level__"] != nil { functions["main"] = functions["__top_level__"] }
+        if functions["main"] == nil {
+            if ctx["main_idx"] != nil { functions["main"] = ctx["main_idx"] }
+            if functions["main"] == nil {
+                if oren_list_len(ctx["function_names"]) > 0 {
+                    var fname0 = ctx["function_names"][0]
+                    functions["main"] = functions[fname0]
+                } else {
+                    functions["main"] = 0
+                }
+            }
+        }
+    }
+    
+    var i = 0
+    while i < oren_list_len(fixups) {
+        var fix = fixups[i]
+        var pos = fix["pos"]
+        
+        if fix["type"] == "bl" {
+            var name2 = fix["name"]
+            var target = functions[name2]
+            if target == nil {
+                print("native backend: undefined function " + name2)
+                return nil
+            }
+            var offset = (target - pos) / 4
+            set_u32_le(code, pos, insn_bl(offset))
+        }
+        
+        if fix["type"] == "adr_data" {
+            var data_off = fix["data_off"]
+            var target_idx = code_len_before_data + data_off
+            var offset2 = target_idx - pos
+            var insn = insn_adr(0, offset2)
+            set_u32_le(code, pos, insn)
+        }
+        
+        // Legacy
+        if fix["type"] == nil {
+            var data_off2 = fix["data_off"]
+            var target_idx2 = code_len_before_data + data_off2
+            var offset3 = target_idx2 - pos
+            set_u32_le(code, pos, insn_adr(1, offset3))
+        }
+        i = i + 1
+    }
+    
+    var text_size = 120 + oren_list_len(code)
+    // Entry point is start of code (startup shim)
+    var entry_idx = 0
+    var prefix = elf_build_prefix_arm64(text_size, code, entry_idx)
+    bytes_extend(prefix, code)
+    
+    var w3 = oren_write_bytes(out_path, prefix)
+    if oren_is_err(w3) {
+        print("Failed to write output: " + out_path)
+        var msg3 = oren_err_msg(w3)
+        if msg3 != nil { print(msg3) }
+        oren_exit(1)
+    }
+    oren_chmod(out_path, 493) // 0755
+    return nil
+}
+

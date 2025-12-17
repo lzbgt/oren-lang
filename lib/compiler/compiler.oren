@@ -1,4 +1,6 @@
-import codegen "codegen_arm64.oren"
+import renamer "renamer.oren"
+import arm64_macho "arm64_macho.oren"
+import arm64_elf "arm64_elf.oren"
 import codegen_bytecode "codegen_bytecode.oren"
 import transpiler "transpiler.oren"
 import analysis "analysis.oren"
@@ -180,20 +182,20 @@ fn load_module(base, path) {
     // Or better, put them in `analysis.oren` or a new `modules.oren`.
     // Let's put module logic in `compiler.oren` for now as it orchestrates loading.
     
-    var pairs = codegen.collect_toplevel_rename_pairs(prog, mod["prefix"])
+    var pairs = renamer.collect_toplevel_rename_pairs(prog, mod["prefix"])
     i = 0
     while i < oren_list_len(prog["statements"]) {
         var s2 = prog["statements"][i]
         if s2["type"] == "Import" {
             var alias2 = s2["name"]["value"]
-            if codegen.rename_lookup(pairs, alias2) != "" {
+            if renamer.rename_lookup(pairs, alias2) != "" {
                 print("Import alias conflicts with top-level name: " + alias2 + " in " + full)
                 oren_exit(1)
             }
         }
         i = i + 1
     }
-    codegen.rename_program_in_place(prog, pairs)
+    renamer.rename_program_in_place(prog, pairs)
 
     if mod["added"] != true {
         mod["added"] = true
@@ -624,9 +626,9 @@ fn compiler_main() {
         var out_test = path + ".test"
         
         if target == "linux" {
-            codegen.elf_emit_program_arm64(out_test, linked, [], false, [], false)
+            arm64_elf.elf_emit_program_arm64(out_test, linked, [], false, [], false)
         } else {
-            codegen.macho_emit_program_arm64(out_test, linked, [], false, [], false)
+            arm64_macho.macho_emit_program_arm64(out_test, linked, [], false, [], false)
         }
         
         if target == "macos" {
@@ -729,9 +731,9 @@ fn compiler_main() {
         }
 
         if target == "linux" {
-            codegen.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode)
+            arm64_elf.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode)
         } else {
-            codegen.macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode)
+            arm64_macho.macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode)
         }
 
         if target == "macos" {

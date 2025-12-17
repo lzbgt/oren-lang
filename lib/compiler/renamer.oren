@@ -1,0 +1,256 @@
+// Oren compiler: module renaming pass (prefix-based).
+//
+// Single responsibility:
+// - Collect top-level rename pairs for a module prefix
+// - Rewrite a parsed AST in-place so all top-level symbols become unique
+//
+// This is used by the compiler module loader/linker. It is intentionally backend-agnostic.
+
+fn collect_toplevel_rename_pairs(prog, prefix) {
+    var pairs = {}
+    var i = 0
+    var stmts = prog["statements"]
+    while i < oren_list_len(stmts) {
+        var stmt = stmts[i]
+        if stmt["type"] == "Var" {
+            var name = stmt["name"]["value"]
+            pairs[name] = prefix + name
+        }
+        if stmt["type"] == "Function" {
+            var name2 = stmt["name"]
+            pairs[name2] = prefix + name2
+        }
+        if stmt["type"] == "ExprStmt" {
+            if stmt["expr"]["type"] == "Function" {
+                var name3 = stmt["expr"]["name"]
+                if name3 != "" { pairs[name3] = prefix + name3 }
+            }
+        }
+        if stmt["type"] == "Type" {
+            var name4 = stmt["name"]["value"]
+            pairs[name4] = prefix + name4
+        }
+        i = i + 1
+    }
+    return pairs
+}
+
+fn rename_lookup(pairs, name) {
+    if pairs[name] != nil { return pairs[name] }
+    return ""
+}
+
+fn scope_has(stack, name) {
+    var i = oren_list_len(stack) - 1
+    while i >= 0 {
+        if stack[i][name] == true { return true }
+        i = i - 1
+    }
+    return false
+}
+
+fn scope_declare(stack, name) {
+    var n = oren_list_len(stack)
+    if n == 0 { return nil }
+    stack[n - 1][name] = true
+    return nil
+}
+
+fn scope_push(stack) {
+    var next = []
+    var i = 0
+    while i < oren_list_len(stack) {
+        oren_list_push(next, stack[i])
+        i = i + 1
+    }
+    oren_list_push(next, {})
+    return next
+}
+
+fn rename_program_in_place(prog, pairs) {
+    var stmts = prog["statements"]
+    var stack = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        rename_stmt(stmts[i], pairs, stack, true)
+        i = i + 1
+    }
+}
+
+fn rename_stmt(stmt, pairs, stack, at_top_level) {
+    if stmt == nil { return nil }
+    if stmt["type"] == "Import" { return nil }
+    if stmt["type"] == "Var" {
+        var name = stmt["name"]["value"]
+        if at_top_level {
+            var new_name = rename_lookup(pairs, name)
+            if new_name != "" { stmt["name"]["value"] = new_name }
+        } else {
+            scope_declare(stack, name)
+        }
+        rename_expr(stmt["value"], pairs, stack)
+        return nil
+    }
+    if stmt["type"] == "Assign" {
+        if stmt["name"] != nil {
+            var target = stmt["name"]["value"]
+            var new_name2 = rename_lookup(pairs, target)
+            if new_name2 != "" && !scope_has(stack, target) {
+                stmt["name"]["value"] = new_name2
+            }
+        }
+        rename_expr(stmt["value"], pairs, stack)
+        return nil
+    }
+    if stmt["type"] == "Set" {
+        rename_expr(stmt["left"], pairs, stack)
+        rename_expr(stmt["value"], pairs, stack)
+        return nil
+    }
+    if stmt["type"] == "Return" {
+        rename_expr(stmt["value"], pairs, stack)
+        return nil
+    }
+    if stmt["type"] == "Function" {
+        if at_top_level {
+            var new_name3 = rename_lookup(pairs, stmt["name"])
+            if new_name3 != "" { stmt["name"] = new_name3 }
+        } else {
+            if stmt["name"] != "" { scope_declare(stack, stmt["name"]) }
+        }
+        var next = scope_push(stack)
+        var i = 0
+        while i < oren_list_len(stmt["params"]) {
+            scope_declare(next, stmt["params"][i]["value"])
+            i = i + 1
+        }
+        rename_stmt(stmt["body"], pairs, next, false)
+        return nil
+    }
+    if stmt["type"] == "Block" {
+        var next2 = scope_push(stack)
+        var stmts2 = stmt["stmts"]
+        var i2 = 0
+        while i2 < oren_list_len(stmts2) {
+            rename_stmt(stmts2[i2], pairs, next2, false)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if stmt["type"] == "ExprStmt" {
+        if stmt["expr"] != nil {
+            if at_top_level && stmt["expr"]["type"] == "Function" {
+                if stmt["expr"]["name"] != "" {
+                    var new_name4 = rename_lookup(pairs, stmt["expr"]["name"])
+                    if new_name4 != "" { stmt["expr"]["name"] = new_name4 }
+                }
+            }
+            rename_expr(stmt["expr"], pairs, stack)
+        }
+        return nil
+    }
+    if stmt["type"] == "If" {
+        rename_expr(stmt["cond"], pairs, stack)
+        rename_stmt(stmt["consq"], pairs, stack, false)
+        rename_stmt(stmt["alt"], pairs, stack, false)
+        return nil
+    }
+    if stmt["type"] == "While" {
+        rename_expr(stmt["cond"], pairs, stack)
+        rename_stmt(stmt["body"], pairs, stack, false)
+        return nil
+    }
+    if stmt["type"] == "For" {
+        var next3 = scope_push(stack)
+        rename_stmt(stmt["init"], pairs, next3, false)
+        rename_expr(stmt["cond"], pairs, next3)
+        rename_stmt(stmt["post"], pairs, next3, false)
+        rename_stmt(stmt["body"], pairs, next3, false)
+        return nil
+    }
+    if stmt["type"] == "Type" {
+        if at_top_level {
+            var new_name5 = rename_lookup(pairs, stmt["name"]["value"])
+            if new_name5 != "" { stmt["name"]["value"] = new_name5 }
+        }
+        return nil
+    }
+    return nil
+}
+
+fn rename_expr(expr, pairs, stack) {
+    if expr == nil { return nil }
+    if expr["type"] == "Identifier" {
+        if scope_has(stack, expr["value"]) { return nil }
+        var new_name = rename_lookup(pairs, expr["value"])
+        if new_name != "" { expr["value"] = new_name }
+        return nil
+    }
+    if expr["type"] == "Function" {
+        if expr["name"] != "" {
+            var new_name_fn = rename_lookup(pairs, expr["name"])
+            if new_name_fn != "" { expr["name"] = new_name_fn }
+        }
+        var next = scope_push(stack)
+        var i = 0
+        while i < oren_list_len(expr["params"]) {
+            scope_declare(next, expr["params"][i]["value"])
+            i = i + 1
+        }
+        rename_stmt(expr["body"], pairs, next, false)
+        return nil
+    }
+    if expr["type"] == "Call" {
+        rename_expr(expr["fn"], pairs, stack)
+        var args = expr["args"]
+        var i2 = 0
+        while i2 < oren_list_len(args) {
+            rename_expr(args[i2], pairs, stack)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if expr["type"] == "Infix" {
+        rename_expr(expr["left"], pairs, stack)
+        rename_expr(expr["right"], pairs, stack)
+        return nil
+    }
+    if expr["type"] == "Prefix" {
+        rename_expr(expr["right"], pairs, stack)
+        return nil
+    }
+    if expr["type"] == "Hash" {
+        var pairs_list = expr["pairs"]
+        var i3 = 0
+        while i3 < oren_list_len(pairs_list) {
+            rename_expr(pairs_list[i3]["value"], pairs, stack)
+            i3 = i3 + 1
+        }
+        return nil
+    }
+    if expr["type"] == "Member" {
+        rename_expr(expr["left"], pairs, stack)
+        return nil
+    }
+    if expr["type"] == "Index" {
+        rename_expr(expr["left"], pairs, stack)
+        rename_expr(expr["index"], pairs, stack)
+        return nil
+    }
+    if expr["type"] == "Array" {
+        var elements = expr["elements"]
+        var i2 = 0
+        while i2 < oren_list_len(elements) {
+            rename_expr(elements[i2], pairs, stack)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if expr["type"] == "If" {
+        rename_expr(expr["cond"], pairs, stack)
+        rename_stmt(expr["consq"], pairs, stack, false)
+        rename_stmt(expr["alt"], pairs, stack, false)
+        return nil
+    }
+    return nil
+}

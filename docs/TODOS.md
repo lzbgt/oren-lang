@@ -20,6 +20,16 @@ Focus statement (to avoid roadmap thrash):
      - `make test` uses `timeout` for native/AVM invocations where a hang is possible.
      - add a short per-test timeout for spawn/system and a longer global suite timeout.
 
+2) **SOLID refactors for “debuggable production”**
+   - Goal: keep compiler/runtime modules small enough that invariants (stack/heap/scope/ABI) are auditable.
+   - Refactor trigger: any single compiler module > ~2000 LOC must be split by responsibility (SOLID).
+   - Status (compiler):
+     - `lib/compiler/codegen_arm64.oren` split into focused modules:
+       - `lib/compiler/renamer.oren` (module rename pass)
+       - `lib/compiler/arm64_macho.oren` (Mach-O emit + codesign blob builder)
+       - `lib/compiler/arm64_elf.oren` (ELF emit)
+     - Remaining work: split `lib/compiler/codegen_arm64.oren` further into (1) instruction encoding, (2) generic emit helpers, (3) native compiler lowering.
+
 ### Native backend (syscall-first runtime; macOS-first; production-critical)
 
 2) **Syscall-first OS boundary must be complete enough for “real programs”**
@@ -69,6 +79,9 @@ Focus statement (to avoid roadmap thrash):
      - In native runtime `.oren`, use `iadd(ptr, off)` for pointer arithmetic; avoid `ptr + off` when `ptr` is a pointer value.
      - Entry stub must preserve its own state across runtime calls until native codegen preserves callee-saved regs (AAPCS).
    - Status (macOS native runtime): globals layout is centralized (named offsets + reserved slack), and allocator/thread tracking uses `iadd(...)` for struct offsets (`lib/runtime_native.oren`).
+   - Status (native backend ABI):
+     - native backend generic calls now follow AAPCS64 arg passing: X0..X7 + stack args for arg8+, and function prologues correctly load arg8+ from caller stack.
+     - regression: `tests/native/test_call_stack_args.oren` (also in Docker Linux smoke list).
 
 6) **Linux arm64 native backend parity (mandatory; avoid divergence)**
    - The production goal includes Linux; verify early to avoid “macOS-only drift”.
@@ -79,7 +92,11 @@ Focus statement (to avoid roadmap thrash):
    - Status (rolling):
      - Linux syscall lowering is started for NET socket syscalls (socket/connect/bind/listen/accept/sendto/recvfrom/getsockopt/setsockopt/getpeername/getsockname/shutdown) + `fcntl` in `lib/compiler/codegen_arm64.oren` (numbers referenced from `docs/refs/linux_asm_generic_unistd.h`).
      - Linux PROC syscall lowering is started for fork/exec/wait: `sys_fork` uses `clone(SIGCHLD, stack=NULL)`, `sys_execve` uses `__NR_execve`, `sys_wait4` uses `__NR_wait4` (refs: `docs/refs/linux_man_clone.2`, `docs/refs/linux_asm_generic_unistd.h`).
-     - Linux smoke runner exists: `tools/linux_native_smoke_qemu.sh` (runs a minimal safe subset; expand as PROC/ENV/NET grows on Linux).
+     - Linux smoke runner exists (preferred on macOS): `tools/linux_native_smoke_docker.sh` (Ubuntu 24.04 `linux/arm64`, per-binary `timeout`, container reuse via `OREN_DOCKER_KEEP=1`).
+     - Linux smoke runner (optional / unstable): `tools/linux_native_smoke_qemu.sh` (trusted host, but may flap; keep as backup).
+     - Regression coverage (Docker smoke):
+       - PROC spawn/join works: `tests/native/test_spawn_simple.oren`, `tests/native/test_spawn_args.oren`
+       - TCP loopback with fork works: `tools/bench/test_linux_tcp_loopback_fork.oren`
 
 ### AVM (agentic execution substrate; safety + multiverse)
 
@@ -132,6 +149,8 @@ Focus statement (to avoid roadmap thrash):
    - Status (macOS native + bytecode backend):
      - native backend: `while` and `for` support `break`/`continue` with proper nesting; `continue` in `for` runs `post`.
      - bytecode backend: `while` and `for` support `break`/`continue`, and function locals are pre-allocated so var-decls inside loops don’t grow the VM stack.
+   - Status (native backend locals hygiene):
+     - native backend now enforces lexical block scoping for locals in codegen (restores locals bindings when leaving a block), preventing stale SP-relative offsets from aliasing later locals (critical for `if pid==0 { ... }` patterns in syscall-first code).
 
 12) **Deterministic maps: key-ordered storage**
    - For consensus and replayability, maps must not rely on insertion order (which can vary by compilation/lowering) or pointer-based ordering.

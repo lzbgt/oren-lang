@@ -1,0 +1,129 @@
+fn linux_sockaddr_in_loopback(port) {
+    // Linux sockaddr_in layout (16 bytes):
+    //   u16 sin_family (little-endian) at [0..1]
+    //   u16 sin_port   (big-endian)    at [2..3]
+    //   u32 sin_addr   (bytes)         at [4..7]
+    //   u8  zero[8]                   at [8..15]
+    var sa = malloc(16)
+    if sa == 0 { return 0 }
+
+    // zero fill
+    var i = 0
+    while i < 16 {
+        ptr_set_byte(sa + i, 0)
+        i = i + 1
+    }
+
+    // AF_INET = 2 (u16 LE)
+    ptr_set_byte(sa + 0, 2)
+    ptr_set_byte(sa + 1, 0)
+
+    // port (u16 BE)
+    var hi = (port >> 8) & 255
+    var lo = port & 255
+    ptr_set_byte(sa + 2, hi)
+    ptr_set_byte(sa + 3, lo)
+
+    // 127.0.0.1
+    ptr_set_byte(sa + 4, 127)
+    ptr_set_byte(sa + 5, 0)
+    ptr_set_byte(sa + 6, 0)
+    ptr_set_byte(sa + 7, 1)
+
+    return sa
+}
+
+fn main() {
+    var listen_fd = sys_socket(2, 1, 0) // AF_INET, SOCK_STREAM
+    if listen_fd < 0 { exit(10) }
+
+    // bind to ephemeral port (0)
+    var bind_sa = linux_sockaddr_in_loopback(0)
+    if bind_sa == 0 { exit(11) }
+    var br = sys_bind(listen_fd, bind_sa, 16)
+    if br < 0 { exit(12) }
+
+    var lr = sys_listen(listen_fd, 16)
+    if lr < 0 { exit(13) }
+
+    // read back assigned port via getsockname()
+    var sn_sa = malloc(16)
+    if sn_sa == 0 { exit(14) }
+    var sn_lenp = malloc(8)
+    if sn_lenp == 0 { exit(15) }
+    ptr_set(sn_lenp, 16)
+    var snr = sys_getsockname(listen_fd, sn_sa, sn_lenp)
+    if snr < 0 { exit(16) }
+    var hi = ptr_get_byte(sn_sa + 2)
+    var lo = ptr_get_byte(sn_sa + 3)
+    var port = hi * 256 + lo
+    if port <= 0 { exit(17) }
+
+    var pid = sys_fork()
+    if pid < 0 { exit(18) }
+
+    if pid == 0 {
+        // child: accept then echo response
+        var acc_sa = malloc(16)
+        if acc_sa == 0 { exit(30) }
+        var acc_lenp = malloc(8)
+        if acc_lenp == 0 { exit(31) }
+        ptr_set(acc_lenp, 16)
+
+        var cfd = sys_accept(listen_fd, acc_sa, acc_lenp)
+        if cfd < 0 { exit(32) }
+
+        var buf = malloc(4)
+        if buf == 0 { exit(33) }
+
+        var n = sys_recv(cfd, buf, 4, 0)
+        if n != 4 { exit(34) }
+
+        // reply "pong"
+        ptr_set_byte(buf + 0, 112) // p
+        ptr_set_byte(buf + 1, 111) // o
+        ptr_set_byte(buf + 2, 110) // n
+        ptr_set_byte(buf + 3, 103) // g
+        var wn = sys_send(cfd, buf, 4, 0)
+        if wn != 4 { exit(35) }
+
+        sys_close(cfd)
+        sys_close(listen_fd)
+        exit(0)
+    }
+
+    // parent: connect and exchange a message
+    var fd = sys_socket(2, 1, 0)
+    if fd < 0 { exit(40) }
+    var conn_sa = linux_sockaddr_in_loopback(port)
+    if conn_sa == 0 { exit(41) }
+    var cr = sys_connect(fd, conn_sa, 16)
+    if cr < 0 { exit(42) }
+
+    var buf = malloc(4)
+    if buf == 0 { exit(43) }
+    ptr_set_byte(buf + 0, 112) // p
+    ptr_set_byte(buf + 1, 105) // i
+    ptr_set_byte(buf + 2, 110) // n
+    ptr_set_byte(buf + 3, 103) // g
+    var wn = sys_send(fd, buf, 4, 0)
+    if wn != 4 { exit(44) }
+
+    var rn = sys_recv(fd, buf, 4, 0)
+    if rn != 4 { exit(45) }
+    if ptr_get_byte(buf + 0) != 112 { exit(46) }
+    if ptr_get_byte(buf + 1) != 111 { exit(47) }
+    if ptr_get_byte(buf + 2) != 110 { exit(48) }
+    if ptr_get_byte(buf + 3) != 103 { exit(49) }
+
+    var st = malloc(8)
+    if st == 0 { exit(50) }
+    ptr_set(st, 0)
+    var wr = sys_wait4(pid, st, 0, 0)
+    if wr < 0 { exit(51) }
+
+    sys_close(fd)
+    sys_close(listen_fd)
+    print("linux tcp loopback fork OK")
+}
+
