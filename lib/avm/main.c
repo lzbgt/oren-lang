@@ -386,6 +386,32 @@ static VerifyResult verify_program_region(
                 }
             }
             if (used_domains_io) *used_domains_io |= (1ULL << (eff_dom & 63));
+        } else if (op == 0x3C) { // PUSH_FUNC u16_addr
+            len = 3;
+            uint16_t addr = 0;
+            if (!decode_u16(code, code_len, pc + 1, &addr)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated PUSH_FUNC"); }
+            if (addr >= code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: PUSH_FUNC addr out of bounds"); }
+            pop = 0;
+            push = 1;
+        } else if (op == 0x3D) { // CALL_INDIRECT u8_nargs
+            len = 2;
+            if (pc + len > code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated CALL_INDIRECT"); }
+            uint8_t nargs = code[pc + 1];
+            if (nargs > 16) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL_INDIRECT nargs too large"); }
+            pop = (int)nargs + 1; // fn + args
+            push = 1;
+        } else if (op == 0x3E) { // MAKE_CLOSURE u8_ncap
+            len = 2;
+            if (pc + len > code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated MAKE_CLOSURE"); }
+            uint8_t ncap = code[pc + 1];
+            if (ncap > 32) { free(depth_at); free(queue); free(qdepth); return err_result("verify: MAKE_CLOSURE ncap too large"); }
+            pop = (int)ncap + 1; // captures + base fn
+            push = 1;
+        } else if (op == 0x3F) { // LOAD_ENV u8_idx
+            len = 2;
+            if (pc + len > code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated LOAD_ENV"); }
+            pop = 0;
+            push = 1;
         } else if (op == 0x40) { // NEW_LIST u16_count
             len = 3;
             uint16_t count = 0;
@@ -1211,6 +1237,10 @@ static const char* op_name(uint8_t op) {
         case 0x39: return "RET";
         case 0x3A: return "CALL_NATIVE";
         case 0x3B: return "CALL_NATIVE2";
+        case 0x3C: return "PUSH_FUNC";
+        case 0x3D: return "CALL_INDIRECT";
+        case 0x3E: return "MAKE_CLOSURE";
+        case 0x3F: return "LOAD_ENV";
         case 0x40: return "NEW_LIST";
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
@@ -1231,6 +1261,7 @@ static void disasm_const(FILE* out, const AvmProgram* prog, uint16_t idx) {
     else if (v.type == AVM_VAL_BYTES) fprintf(out, "<bytes len=%d>", v.as.b ? v.as.b->len : 0);
     else if (v.type == AVM_VAL_LIST) fprintf(out, "<list>");
     else if (v.type == AVM_VAL_MAP) fprintf(out, "<map>");
+    else if (v.type == AVM_VAL_FUNC) fprintf(out, "<func addr=%u>", v.as.fn ? (unsigned)v.as.fn->addr : 0u);
     else fprintf(out, "<val?>");
 }
 
@@ -1256,6 +1287,7 @@ static const char* avm_val_type_name(AvmValue v) {
         case AVM_VAL_BYTES: return "BYTES";
         case AVM_VAL_LIST: return "LIST";
         case AVM_VAL_MAP: return "MAP";
+        case AVM_VAL_FUNC: return "FUNC";
         default: return "VAL?";
     }
 }
@@ -1270,6 +1302,10 @@ static size_t disasm_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     if (op == 0x38) return 4;                 // CALL u16 u8
     if (op == 0x3A) return 4;                 // CALL_NATIVE u16 u8
     if (op == 0x3B) return 5;                 // CALL_NATIVE2 u8 u16 u8
+    if (op == 0x3C) return 3;                 // PUSH_FUNC u16
+    if (op == 0x3D) return 2;                 // CALL_INDIRECT u8
+    if (op == 0x3E) return 2;                 // MAKE_CLOSURE u8
+    if (op == 0x3F) return 2;                 // LOAD_ENV u8
     if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
     return 1;
 }
@@ -1355,6 +1391,18 @@ static void disasm_program_json(FILE* out, const AvmProgram* prog, int show_cons
                 uint16_t nop = (uint16_t)code[pc + 2] | ((uint16_t)code[pc + 3] << 8);
                 uint8_t nargs = code[pc + 4];
                 fprintf(out, ",\"operands\":{\"domain\":%u,\"capop\":%u,\"nargs\":%u}", (unsigned)dom, (unsigned)nop, (unsigned)nargs);
+            } else if (op == 0x3C) { // PUSH_FUNC u16 addr
+                uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                fprintf(out, ",\"operands\":{\"addr\":%u}", (unsigned)addr);
+            } else if (op == 0x3D) { // CALL_INDIRECT u8 nargs
+                uint8_t nargs = code[pc + 1];
+                fprintf(out, ",\"operands\":{\"nargs\":%u}", (unsigned)nargs);
+            } else if (op == 0x3E) { // MAKE_CLOSURE u8 ncap
+                uint8_t ncap = code[pc + 1];
+                fprintf(out, ",\"operands\":{\"ncap\":%u}", (unsigned)ncap);
+            } else if (op == 0x3F) { // LOAD_ENV u8 idx
+                uint8_t idx = code[pc + 1];
+                fprintf(out, ",\"operands\":{\"idx\":%u}", (unsigned)idx);
             } else if (op == 0x40 || op == 0x41) { // NEW_LIST/NEW_MAP u16 count
                 uint16_t cnt = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
                 fprintf(out, ",\"operands\":{\"count\":%u}", (unsigned)cnt);
@@ -1428,6 +1476,22 @@ static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
             uint8_t nargs = code[pc + 4];
             fprintf(out, " dom=%u op=%u nargs=%u", (unsigned)dom, (unsigned)nop, (unsigned)nargs);
             pc += 5;
+        } else if ((op == 0x3C) && pc + 3 <= prog->code_len) { // PUSH_FUNC u16 addr
+            uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            fprintf(out, " addr=%u", (unsigned)addr);
+            pc += 3;
+        } else if ((op == 0x3D) && pc + 2 <= prog->code_len) { // CALL_INDIRECT u8 nargs
+            uint8_t nargs = code[pc + 1];
+            fprintf(out, " nargs=%u", (unsigned)nargs);
+            pc += 2;
+        } else if ((op == 0x3E) && pc + 2 <= prog->code_len) { // MAKE_CLOSURE u8 ncap
+            uint8_t ncap = code[pc + 1];
+            fprintf(out, " ncap=%u", (unsigned)ncap);
+            pc += 2;
+        } else if ((op == 0x3F) && pc + 2 <= prog->code_len) { // LOAD_ENV u8 idx
+            uint8_t idx = code[pc + 1];
+            fprintf(out, " idx=%u", (unsigned)idx);
+            pc += 2;
         } else if ((op == 0x40 || op == 0x41) && pc + 3 <= prog->code_len) { // NEW_LIST/NEW_MAP u16 count
             uint16_t cnt = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
             fprintf(out, " count=%u", (unsigned)cnt);
@@ -1450,6 +1514,7 @@ static void dump_value_short(FILE* out, AvmValue v) {
     if (v.type == AVM_VAL_BYTES) { fprintf(out, "<bytes len=%d>", v.as.b ? v.as.b->len : 0); return; }
     if (v.type == AVM_VAL_LIST) { fprintf(out, "<list n=%d>", v.as.l ? v.as.l->count : 0); return; }
     if (v.type == AVM_VAL_MAP) { fprintf(out, "<map n=%d>", v.as.m ? v.as.m->count : 0); return; }
+    if (v.type == AVM_VAL_FUNC) { fprintf(out, "<func addr=%u>", v.as.fn ? (unsigned)v.as.fn->addr : 0u); return; }
     fprintf(out, "<val?>");
 }
 

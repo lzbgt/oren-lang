@@ -70,6 +70,10 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 | 0x39 | RET | - | `[ret] -> []` | Return from function (pops callee return value and resumes caller). |
 | 0x3A | CALL_NATIVE | `u16_id`, `u8_nargs` | `[args] -> [ret]` | Call host function. |
 | 0x3B | CALL_NATIVE2 | `u8_domain`, `u16_op`, `u8_nargs` | `[args] -> [ret]` | Call host function within a capability domain (rolling ABI). |
+| 0x3C | PUSH_FUNC | `u16_addr` | `[] -> [fn]` | Push a function value for a code address (env=nil). |
+| 0x3D | CALL_INDIRECT | `u8_nargs` | `[fn, args] -> [ret]` | Call a function value / closure (returns one value). |
+| 0x3E | MAKE_CLOSURE | `u8_ncap` | `[caps, fn] -> [fn]` | Build a closure by capturing `ncap` values into a list env. |
+| 0x3F | LOAD_ENV | `u8_idx` | `[] -> [val]` | Load captured value `env[idx]` for the current function call. |
 | 0x40 | NEW_LIST | `u16_count` | `[v1..vn] -> [list]` | Create list from n items. |
 | 0x41 | NEW_MAP | `u16_count` | `[k1,v1..] -> [map]` | Create map from n pairs. |
 | 0x42 | GET_INDEX | - | `[obj, key] -> [val]` | Get item from list/map. |

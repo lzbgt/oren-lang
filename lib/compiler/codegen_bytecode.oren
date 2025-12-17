@@ -21,6 +21,10 @@ var AVM_NEW_MAP = 65
 var AVM_GET_INDEX = 66
 var AVM_SET_INDEX = 67
 var AVM_CALL_NATIVE2 = 59
+var AVM_PUSH_FUNC = 60
+var AVM_CALL_INDIRECT = 61
+var AVM_MAKE_CLOSURE = 62
+var AVM_LOAD_ENV = 63
 
 var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1
@@ -43,11 +47,264 @@ fn new_bytecode_ctx() {
         "global_count": 0,
         "in_function": false,
         "functions": {},
+        "declared_funcs": {},
         "fixups": [],
+        "fun_fixups": [],
         "field_offsets": {},
         "aliases": {},
-        "loop_ctx": nil
+        "loop_ctx": nil,
+        "lambda_counter": 0,
+        "env_captures": nil
     }
+}
+
+fn is_builtin_ident_name(name) {
+    if name == "print" { return true }
+    if name == "py_import" { return true }
+    if name == "system" { return true }
+    if name == "exit" { return true }
+    return false
+}
+
+fn is_non_capturable_ident_name(name) {
+    if name == nil || name == "" { return true }
+    if is_builtin_ident_name(name) { return true }
+    if str_starts_with(name, "oren_") { return true }
+    if str_starts_with(name, "sys_") { return true }
+    return false
+}
+
+fn lambda_gensym(ctx) {
+    var n = ctx["lambda_counter"]
+    ctx["lambda_counter"] = n + 1
+    return "__oren_lambda_bc_" + oren_int_to_string(n)
+}
+
+fn lambda_collect_declared_in_expression(exp, declared) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Function" {
+        // Nested lambdas are their own scopes.
+        return nil
+    }
+    if et == "Call" {
+        lambda_collect_declared_in_expression(exp["fn"], declared)
+        var i = 0
+        while i < oren_list_len(exp["args"]) {
+            lambda_collect_declared_in_expression(exp["args"][i], declared)
+            i = i + 1
+        }
+        return nil
+    }
+    if et == "Prefix" { lambda_collect_declared_in_expression(exp["right"], declared); return nil }
+    if et == "Infix" {
+        lambda_collect_declared_in_expression(exp["left"], declared)
+        lambda_collect_declared_in_expression(exp["right"], declared)
+        return nil
+    }
+    if et == "If" {
+        lambda_collect_declared_in_expression(exp["cond"], declared)
+        lambda_collect_declared_in_statement(exp["consq"], declared)
+        if exp["alt"] != nil { lambda_collect_declared_in_statement(exp["alt"], declared) }
+        return nil
+    }
+    if et == "Member" { lambda_collect_declared_in_expression(exp["left"], declared); return nil }
+    if et == "Index" {
+        lambda_collect_declared_in_expression(exp["left"], declared)
+        lambda_collect_declared_in_expression(exp["index"], declared)
+        return nil
+    }
+    if et == "Array" {
+        var j = 0
+        while j < oren_list_len(exp["elements"]) {
+            lambda_collect_declared_in_expression(exp["elements"][j], declared)
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var k = 0
+        while k < oren_list_len(exp["pairs"]) {
+            var pair = exp["pairs"][k]
+            lambda_collect_declared_in_expression(pair["key"], declared)
+            lambda_collect_declared_in_expression(pair["value"], declared)
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" { lambda_collect_declared_in_expression(exp["call"], declared); return nil }
+    return nil
+}
+
+fn lambda_collect_declared_in_statement(stmt, declared) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st == "Var" {
+        var nm = stmt["name"]["value"]
+        if nm != nil && nm != "" { declared[nm] = true }
+        lambda_collect_declared_in_expression(stmt["value"], declared)
+        return nil
+    }
+    if st == "Assign" { lambda_collect_declared_in_expression(stmt["value"], declared); return nil }
+    if st == "Set" {
+        lambda_collect_declared_in_expression(stmt["left"], declared)
+        lambda_collect_declared_in_expression(stmt["value"], declared)
+        return nil
+    }
+    if st == "Return" { lambda_collect_declared_in_expression(stmt["value"], declared); return nil }
+    if st == "ExprStmt" { lambda_collect_declared_in_expression(stmt["expr"], declared); return nil }
+    if st == "Block" {
+        var i = 0
+        while i < oren_list_len(stmt["stmts"]) {
+            lambda_collect_declared_in_statement(stmt["stmts"][i], declared)
+            i = i + 1
+        }
+        return nil
+    }
+    if st == "While" {
+        lambda_collect_declared_in_expression(stmt["cond"], declared)
+        lambda_collect_declared_in_statement(stmt["body"], declared)
+        return nil
+    }
+    if st == "For" {
+        lambda_collect_declared_in_statement(stmt["init"], declared)
+        lambda_collect_declared_in_expression(stmt["cond"], declared)
+        lambda_collect_declared_in_statement(stmt["post"], declared)
+        lambda_collect_declared_in_statement(stmt["body"], declared)
+        return nil
+    }
+    if st == "Spawn" { lambda_collect_declared_in_expression(stmt["call"], declared); return nil }
+    return nil
+}
+
+fn maybe_add_capture(name, declared, seen, out) {
+    if is_non_capturable_ident_name(name) { return nil }
+    if declared[name] == true { return nil }
+    if seen[name] == true { return nil }
+    seen[name] = true
+    oren_list_push(out, name)
+    return nil
+}
+
+fn lambda_collect_used_in_expression(exp, declared, seen, out) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        maybe_add_capture(exp["value"], declared, seen, out)
+        return nil
+    }
+    if et == "Function" {
+        // Nested lambdas are their own closures.
+        return nil
+    }
+    if et == "Call" {
+        lambda_collect_used_in_expression(exp["fn"], declared, seen, out)
+        var i = 0
+        while i < oren_list_len(exp["args"]) {
+            lambda_collect_used_in_expression(exp["args"][i], declared, seen, out)
+            i = i + 1
+        }
+        return nil
+    }
+    if et == "Prefix" { lambda_collect_used_in_expression(exp["right"], declared, seen, out); return nil }
+    if et == "Infix" {
+        lambda_collect_used_in_expression(exp["left"], declared, seen, out)
+        lambda_collect_used_in_expression(exp["right"], declared, seen, out)
+        return nil
+    }
+    if et == "If" {
+        lambda_collect_used_in_expression(exp["cond"], declared, seen, out)
+        lambda_collect_used_in_statement(exp["consq"], declared, seen, out)
+        if exp["alt"] != nil { lambda_collect_used_in_statement(exp["alt"], declared, seen, out) }
+        return nil
+    }
+    if et == "Member" { lambda_collect_used_in_expression(exp["left"], declared, seen, out); return nil }
+    if et == "Index" {
+        lambda_collect_used_in_expression(exp["left"], declared, seen, out)
+        lambda_collect_used_in_expression(exp["index"], declared, seen, out)
+        return nil
+    }
+    if et == "Array" {
+        var j = 0
+        while j < oren_list_len(exp["elements"]) {
+            lambda_collect_used_in_expression(exp["elements"][j], declared, seen, out)
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var k = 0
+        while k < oren_list_len(exp["pairs"]) {
+            var pair = exp["pairs"][k]
+            lambda_collect_used_in_expression(pair["key"], declared, seen, out)
+            lambda_collect_used_in_expression(pair["value"], declared, seen, out)
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" { lambda_collect_used_in_expression(exp["call"], declared, seen, out); return nil }
+    return nil
+}
+
+fn lambda_collect_used_in_statement(stmt, declared, seen, out) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st == "Var" { lambda_collect_used_in_expression(stmt["value"], declared, seen, out); return nil }
+    if st == "Assign" {
+        maybe_add_capture(stmt["name"]["value"], declared, seen, out)
+        lambda_collect_used_in_expression(stmt["value"], declared, seen, out)
+        return nil
+    }
+    if st == "Set" {
+        if stmt["left"]["type"] == "Identifier" {
+            maybe_add_capture(stmt["left"]["value"], declared, seen, out)
+        } else {
+            lambda_collect_used_in_expression(stmt["left"], declared, seen, out)
+        }
+        lambda_collect_used_in_expression(stmt["value"], declared, seen, out)
+        return nil
+    }
+    if st == "Return" { lambda_collect_used_in_expression(stmt["value"], declared, seen, out); return nil }
+    if st == "ExprStmt" { lambda_collect_used_in_expression(stmt["expr"], declared, seen, out); return nil }
+    if st == "Block" {
+        var i = 0
+        while i < oren_list_len(stmt["stmts"]) {
+            lambda_collect_used_in_statement(stmt["stmts"][i], declared, seen, out)
+            i = i + 1
+        }
+        return nil
+    }
+    if st == "While" {
+        lambda_collect_used_in_expression(stmt["cond"], declared, seen, out)
+        lambda_collect_used_in_statement(stmt["body"], declared, seen, out)
+        return nil
+    }
+    if st == "For" {
+        lambda_collect_used_in_statement(stmt["init"], declared, seen, out)
+        lambda_collect_used_in_expression(stmt["cond"], declared, seen, out)
+        lambda_collect_used_in_statement(stmt["post"], declared, seen, out)
+        lambda_collect_used_in_statement(stmt["body"], declared, seen, out)
+        return nil
+    }
+    if st == "Spawn" { lambda_collect_used_in_expression(stmt["call"], declared, seen, out); return nil }
+    return nil
+}
+
+fn lambda_free_vars(fun) {
+    var declared = {}
+    // params
+    var i = 0
+    while i < oren_list_len(fun["params"]) {
+        declared[fun["params"][i]["value"]] = true
+        i = i + 1
+    }
+    // var decls (any depth)
+    lambda_collect_declared_in_statement(fun["body"], declared)
+
+    var out = []
+    var seen = {}
+    lambda_collect_used_in_statement(fun["body"], declared, seen, out)
+    return out
 }
 
 fn emit_byte(ctx, b) {
@@ -83,6 +340,15 @@ fn add_constant(ctx, val) {
     var idx = oren_list_len(ctx["constants"])
     oren_list_push(ctx["constants"], val)
     return idx
+}
+
+fn str_starts_with(s, prefix) {
+    if s == nil { return false }
+    if prefix == nil { return false }
+    var plen = oren_string_len(prefix)
+    if plen == 0 { return true }
+    if oren_string_len(s) < plen { return false }
+    return oren_string_slice(s, 0, plen) == prefix
 }
 
 fn bytecode_compile_expr(ctx, expr) {
@@ -158,6 +424,53 @@ fn bytecode_compile_expr(ctx, expr) {
         emit_u16(ctx, oren_list_len(elements))
         return nil
     }
+
+    if expr["type"] == "Function" {
+        // Function literal (lambda): parser lowers `|...| { ... }` into an anonymous Function node (name="").
+        // Rolling closure model (v0): capture-by-value, env is a LIST in deterministic first-use order.
+        if expr["name"] == "" {
+            if expr["lambda_name"] == nil {
+                expr["lambda_name"] = lambda_gensym(ctx)
+                expr["captures"] = lambda_free_vars(expr)
+            }
+            var lname = expr["lambda_name"]
+            // Compile the lambda body exactly once (it is skipped at runtime via an entry JMP).
+            if ctx["functions"][lname] == nil {
+                var old_name = expr["name"]
+                expr["name"] = lname
+                bytecode_compile_function(ctx, expr)
+                expr["name"] = old_name
+            }
+
+            var caps = expr["captures"]
+            if caps == nil { caps = [] }
+            var ci = 0
+            while ci < oren_list_len(caps) {
+                bytecode_compile_expr(ctx, {"type": "Identifier", "value": caps[ci]})
+                ci = ci + 1
+            }
+
+            emit_byte(ctx, AVM_PUSH_FUNC)
+            emit_u16(ctx, ctx["functions"][lname])
+            if oren_list_len(caps) > 0 {
+                emit_byte(ctx, AVM_MAKE_CLOSURE)
+                emit_byte(ctx, oren_list_len(caps))
+            }
+            return nil
+        }
+
+        // Named function literal in expression position: treat as a function value.
+        // Ensure the function body is compiled and then push it as a function value.
+        var nm = expr["name"]
+        if nm != nil && nm != "" {
+            if ctx["functions"][nm] == nil {
+                bytecode_compile_function(ctx, expr)
+            }
+            emit_byte(ctx, AVM_PUSH_FUNC)
+            emit_u16(ctx, ctx["functions"][nm])
+            return nil
+        }
+    }
     
     if expr["type"] == "Member" {
         var left_node = expr["left"]
@@ -171,6 +484,19 @@ fn bytecode_compile_expr(ctx, expr) {
                 if glob != nil {
                     emit_byte(ctx, AVM_LOAD_GLOBAL)
                     emit_u16(ctx, glob)
+                    return nil
+                }
+                var faddr = ctx["functions"][name]
+                if faddr != nil {
+                    emit_byte(ctx, AVM_PUSH_FUNC)
+                    emit_u16(ctx, faddr)
+                    return nil
+                }
+                if ctx["declared_funcs"][name] == true {
+                    emit_byte(ctx, AVM_PUSH_FUNC)
+                    var fpos = oren_list_len(ctx["code"])
+                    emit_u16(ctx, 0)
+                    oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
                     return nil
                 }
                 // Fallthrough if not global (maybe member of variable shadowing module?)
@@ -254,13 +580,38 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, loc)
             return nil
         }
+        var caps = ctx["env_captures"]
+        if caps != nil {
+            var cidx = caps[name]
+            if cidx != nil {
+                emit_byte(ctx, AVM_LOAD_ENV)
+                emit_byte(ctx, cidx)
+                return nil
+            }
+        }
         var glob = ctx["globals"][name]
         if glob != nil {
             emit_byte(ctx, AVM_LOAD_GLOBAL)
             emit_u16(ctx, glob)
             return nil
         }
-        // Error: undefined
+        var faddr = ctx["functions"][name]
+        if faddr != nil {
+            emit_byte(ctx, AVM_PUSH_FUNC)
+            emit_u16(ctx, faddr)
+            return nil
+        }
+        if ctx["declared_funcs"][name] == true {
+            emit_byte(ctx, AVM_PUSH_FUNC)
+            var fpos = oren_list_len(ctx["code"])
+            emit_u16(ctx, 0)
+            oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
+            return nil
+        }
+        // Unknown identifier: leave it as NIL (best-effort in rolling mode).
+        var nidx = add_constant(ctx, {"type": "Nil"})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, nidx)
         return nil
     }
     
@@ -425,8 +776,12 @@ fn bytecode_compile_expr(ctx, expr) {
     if expr["type"] == "Call" {
         var name = ""
         var fn_node = expr["fn"]
+        var indirect = false
         if fn_node["type"] == "Identifier" {
             name = fn_node["value"]
+            // If the identifier resolves to a variable slot, it is a function value call.
+            if ctx["locals"][name] != nil { indirect = true }
+            if ctx["globals"][name] != nil { indirect = true }
         }
         if fn_node["type"] == "Member" {
             if fn_node["left"]["type"] == "Identifier" {
@@ -436,10 +791,12 @@ fn bytecode_compile_expr(ctx, expr) {
                 if alias != nil {
                     name = alias + prop
                 } else {
-                    print("Method call not supported: " + left + "." + prop)
+                    // method call / computed member: treat as indirect call of a function value
+                    indirect = true
                 }
             }
         }
+        if name == "" { indirect = true }
         
         // Rolling ABI: prefer domain-based natives for effectful calls.
         // CORE calls currently map op == legacy native id.
@@ -519,6 +876,20 @@ fn bytecode_compile_expr(ctx, expr) {
             return nil
         }
 
+        if indirect == true {
+            // General call: fn can be a function value / closure.
+            bytecode_compile_expr(ctx, fn_node)
+            var args = expr["args"]
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            emit_byte(ctx, AVM_CALL_INDIRECT)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
+
         if name == "print" {
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_PRINT)
@@ -560,9 +931,23 @@ fn bytecode_compile_function(ctx, stmt) {
     var old_locals = ctx["locals"]
     var old_local_count = ctx["local_count"]
     var old_in_function = ctx["in_function"]
+    var old_env_captures = ctx["env_captures"]
     ctx["locals"] = {}
     ctx["local_count"] = 0
     ctx["in_function"] = true
+
+    // Closure env mapping (rolling): captured free vars are accessed via LOAD_ENV.
+    ctx["env_captures"] = nil
+    var caps = stmt["captures"]
+    if caps != nil && oren_list_len(caps) > 0 {
+        var cmap = {}
+        var ci = 0
+        while ci < oren_list_len(caps) {
+            cmap[caps[ci]] = ci
+            ci = ci + 1
+        }
+        ctx["env_captures"] = cmap
+    }
     
     var params = stmt["params"]
     var i = 0
@@ -604,6 +989,7 @@ fn bytecode_compile_function(ctx, stmt) {
     ctx["locals"] = old_locals
     ctx["local_count"] = old_local_count
     ctx["in_function"] = old_in_function
+    ctx["env_captures"] = old_env_captures
     return nil
 }
 
@@ -703,7 +1089,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
 
     if stmt["type"] == "ExprStmt" {
         var expr = stmt["expr"]
-        if expr["type"] == "Function" {
+        if expr["type"] == "Function" && expr["name"] != nil && expr["name"] != "" {
             return bytecode_compile_function(ctx, expr)
         }
         bytecode_compile_expr(ctx, expr)
@@ -753,6 +1139,14 @@ fn bytecode_compile_stmt(ctx, stmt) {
         // Assign is for variables (Identifier)
         var target = stmt["name"]
         if target["type"] == "Identifier" {
+            var caps = ctx["env_captures"]
+            if caps != nil {
+                var cidx = caps[target["value"]]
+                if cidx != nil {
+                    print("bytecode backend: cannot assign to captured var '" + target["value"] + "' (capture-by-value)")
+                    oren_exit(1)
+                }
+            }
             bytecode_compile_expr(ctx, stmt["value"])
             var name = target["value"]
             var loc = ctx["locals"][name]
@@ -925,6 +1319,26 @@ fn bytecode_compile_program(linked) {
     var ctx = new_bytecode_ctx()
     ctx["aliases"] = linked["aliases"]
     var stmts = linked["statements"]
+
+    // Pre-pass: record declared top-level function names so identifiers can become function values
+    // even before the function body is compiled (forward refs).
+    var pi = 0
+    while pi < oren_list_len(stmts) {
+        var st = stmts[pi]
+        if st != nil && st["type"] == "Function" {
+            var nm = st["name"]
+            if nm != nil && nm != "" { ctx["declared_funcs"][nm] = true }
+        }
+        if st != nil && st["type"] == "ExprStmt" {
+            var ex = st["expr"]
+            if ex != nil && ex["type"] == "Function" {
+                var nm2 = ex["name"]
+                if nm2 != nil && nm2 != "" { ctx["declared_funcs"][nm2] = true }
+            }
+        }
+        pi = pi + 1
+    }
+
     var i = 0
     while i < oren_list_len(stmts) {
         bytecode_compile_stmt(ctx, stmts[i])
@@ -955,6 +1369,21 @@ fn bytecode_compile_program(linked) {
             print("Undefined function: " + name)
         }
         j = j + 1
+    }
+
+    var k = 0
+    var ffix = ctx["fun_fixups"]
+    while k < oren_list_len(ffix) {
+        var fix2 = ffix[k]
+        var name2 = fix2["name"]
+        var pos2 = fix2["pos"]
+        var addr2 = ctx["functions"][name2]
+        if addr2 != nil {
+            patch_u16(ctx, pos2, addr2)
+        } else {
+            print("Undefined function value: " + name2)
+        }
+        k = k + 1
     }
     
     return ctx

@@ -1,0 +1,49 @@
+@myorg.tag(name="avm-closures")
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn inc(x) { return x + 1 }
+
+fn mk_add(x) {
+    // Lambda literal (closure): captures x by value.
+    return |y| { return x + y }
+}
+
+fn main() {
+    // Named function as a first-class value.
+    var f = inc
+    assert_eq(f(2), 3)
+
+    // Closure capture + indirect call.
+    var add5 = mk_add(5)
+    assert_eq(add5(7), 12)
+
+    // Closures stored in containers + indirect call of Index expression.
+    var fs = []
+    var i = 0
+    while i < 3 {
+        var j = i
+        var g = |z| { return j + z }
+        oren_list_push(fs, g)
+        i = i + 1
+    }
+
+    assert_eq(fs[0](10), 10)
+    assert_eq(fs[1](10), 11)
+    assert_eq(fs[2](10), 12)
+
+    print("avm closures OK")
+}
+
+main()
+

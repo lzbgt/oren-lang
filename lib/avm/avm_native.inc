@@ -954,6 +954,13 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
             consts[i].as.i = val;
             continue;
         }
+        if (type == 2) { // BOOL (u8 0|1)
+            if (pos + 1 > len) return 0;
+            uint8_t b = data[pos++];
+            consts[i].type = AVM_VAL_BOOL;
+            consts[i].as.i = b ? 1 : 0;
+            continue;
+        }
         if (type == 4) { // STRING
             if (pos + 2 > len) return 0;
             uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);

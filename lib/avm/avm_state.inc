@@ -1,6 +1,6 @@
 typedef struct {
     void** ptrs;
-    uint8_t* types; // 1=STRING,2=LIST,3=MAP,4=BYTES
+    uint8_t* types; // 1=STRING,2=LIST,3=MAP,4=BYTES,5=FUNC
     uint32_t* aux;
     uint32_t count;
     uint32_t cap;
@@ -41,6 +41,9 @@ static void avm_free_object_table_objects(ObjTable* t) {
             AvmBytes* b = (AvmBytes*)ptr;
             if (b->data) avm_heap_free(b->data);
             avm_heap_free(b);
+        } else if (ty == 5) { // FUNC
+            AvmFunc* fn = (AvmFunc*)ptr;
+            avm_heap_free(fn);
         }
         t->ptrs[id] = NULL;
     }
@@ -56,6 +59,8 @@ static void avm_release_heap(AvmVM* vm) {
     for (int i = 0; i < MAX_GLOBALS; i++) collect_value_objects(&objs, vm->globals[i]);
     collect_value_objects(&objs, vm->result_value);
     collect_value_objects(&objs, vm->last_error);
+    collect_value_objects(&objs, vm->env);
+    for (int i = 0; i < vm->frame_count; i++) collect_value_objects(&objs, vm->frames[i].env);
 
     // Program constants are part of VM semantics (PUSH_CONST copies references).
     if (vm->prog && vm->prog->constants) {
@@ -157,6 +162,13 @@ static void collect_value_objects(ObjTable* t, AvmValue v) {
         objtable_add(t, v.as.b, 4, len);
         return;
     }
+    if (v.type == AVM_VAL_FUNC && v.as.fn) {
+        if (objtable_find(t, v.as.fn) >= 0) return;
+        uint32_t addr = (uint32_t)v.as.fn->addr;
+        objtable_add(t, v.as.fn, 5, addr);
+        collect_value_objects(t, v.as.fn->env);
+        return;
+    }
 }
 
 static int encode_value(FILE* f, ObjTable* objs, AvmValue v) {
@@ -194,6 +206,11 @@ static int encode_value(FILE* f, ObjTable* objs, AvmValue v) {
     } else if (v.type == AVM_VAL_BYTES) {
         tag = 4;
         int id = objtable_find(objs, v.as.b);
+        if (id < 0) return 0;
+        payload = (uint64_t)id;
+    } else if (v.type == AVM_VAL_FUNC) {
+        tag = 4;
+        int id = objtable_find(objs, v.as.fn);
         if (id < 0) return 0;
         payload = (uint64_t)id;
     } else {
@@ -244,6 +261,11 @@ static int encode_value_mem(AvmBytes* out, uint32_t* pos, ObjTable* objs, AvmVal
         int id = objtable_find(objs, v.as.b);
         if (id < 0) return 0;
         payload = (uint64_t)id;
+    } else if (v.type == AVM_VAL_FUNC) {
+        tag = 4;
+        int id = objtable_find(objs, v.as.fn);
+        if (id < 0) return 0;
+        payload = (uint64_t)id;
     } else {
         tag = 0;
         payload = 0;
@@ -272,6 +294,7 @@ static int decode_value_mem(const AvmBytes* in, uint32_t* pos, const uint8_t* ob
         if (ot == 2) { out->type = AVM_VAL_LIST; out->as.l = (AvmList*)obj_ptrs[id]; return 1; }
         if (ot == 3) { out->type = AVM_VAL_MAP; out->as.m = (AvmMap*)obj_ptrs[id]; return 1; }
         if (ot == 4) { out->type = AVM_VAL_BYTES; out->as.b = (AvmBytes*)obj_ptrs[id]; return 1; }
+        if (ot == 5) { out->type = AVM_VAL_FUNC; out->as.fn = (AvmFunc*)obj_ptrs[id]; return 1; }
         return 0;
     }
     return 0;
@@ -326,6 +349,11 @@ static int encode_value_for_hash(AvmSha256Ctx* h, ObjTable* objs, AvmValue v) {
         int id = objtable_find(objs, v.as.b);
         if (id < 0) return 0;
         payload = (uint64_t)id;
+    } else if (v.type == AVM_VAL_FUNC) {
+        tag = 4;
+        int id = objtable_find(objs, v.as.fn);
+        if (id < 0) return 0;
+        payload = (uint64_t)id;
     } else {
         tag = 0;
         payload = 0;
@@ -364,6 +392,7 @@ static int encode_value_bytes(ObjTable* objs, AvmValue v, uint8_t out[9]) {
     else if (v.type == AVM_VAL_LIST) { tag = 4; int id = objtable_find(objs, v.as.l); if (id < 0) return 0; payload = (uint64_t)id; }
     else if (v.type == AVM_VAL_MAP) { tag = 4; int id = objtable_find(objs, v.as.m); if (id < 0) return 0; payload = (uint64_t)id; }
     else if (v.type == AVM_VAL_BYTES) { tag = 4; int id = objtable_find(objs, v.as.b); if (id < 0) return 0; payload = (uint64_t)id; }
+    else if (v.type == AVM_VAL_FUNC) { tag = 4; int id = objtable_find(objs, v.as.fn); if (id < 0) return 0; payload = (uint64_t)id; }
     else { tag = 0; payload = 0; }
 
     out[0] = tag;
@@ -442,6 +471,10 @@ static int avm_value_hash(AvmValue v, uint8_t out[32]) {
             AvmBytes* b = (AvmBytes*)objs.ptrs[id];
             if (!b || (uint32_t)b->len != aux) { objtable_free(&objs); return 0; }
             if (aux > 0) avm_sha256_update(&h, b->data, aux);
+        } else if (t == 5) { // FUNC
+            AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
+            if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
+            if (!encode_value_for_hash(&h, &objs, fn->env)) { objtable_free(&objs); return 0; }
         } else {
             objtable_free(&objs);
             return 0;
@@ -549,6 +582,10 @@ static int rr_write_value(FILE* f, AvmValue v) {
             if (aux > 0) {
                 if (fwrite(b->data, 1, aux, f) != aux) { objtable_free(&objs); return 0; }
             }
+        } else if (t == 5) { // FUNC
+            AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
+            if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
+            if (!encode_value(f, &objs, fn->env)) { objtable_free(&objs); return 0; }
         } else {
             objtable_free(&objs);
             return 0;
@@ -597,6 +634,7 @@ static int rr_read_value(FILE* f, AvmValue* out) {
         else if (t == 2) payload_len = (uint64_t)aux * 9ull;
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
+        else if (t == 5) payload_len = 9ull;
         else { ok = 0; break; }
 
         if (fseek(f, (long)payload_len, SEEK_CUR) != 0) { ok = 0; break; }
@@ -649,6 +687,13 @@ static int rr_read_value(FILE* f, AvmValue* out) {
                 if (!b->data) { free(b); ok = 0; break; }
             }
             obj_ptrs[id] = b;
+        } else if (t == 5) {
+            AvmFunc* fn = (AvmFunc*)malloc(sizeof(AvmFunc));
+            if (!fn) { ok = 0; break; }
+            fn->addr = aux;
+            fn->env.type = AVM_VAL_NIL;
+            fn->env.as.i = 0;
+            obj_ptrs[id] = fn;
         } else {
             ok = 0;
             break;
@@ -688,6 +733,10 @@ static int rr_read_value(FILE* f, AvmValue* out) {
             if (aux > 0) {
                 if (fread(b->data, 1, aux, f) != aux) { ok = 0; break; }
             }
+        } else if (t == 5) {
+            AvmFunc* fn = (AvmFunc*)obj_ptrs[id];
+            if (!fn || fn->addr != aux) { ok = 0; break; }
+            if (!decode_value(f, obj_types, obj_ptrs, obj_count, &fn->env)) { ok = 0; break; }
         } else {
             ok = 0;
             break;
@@ -744,6 +793,10 @@ static int rr_write_value_mem(AvmBytes* out, uint32_t* pos, AvmValue v) {
             if (aux > 0) {
                 if (!mem_write_bytes(out, pos, b->data, aux)) { objtable_free(&objs); return 0; }
             }
+        } else if (t == 5) { // FUNC
+            AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
+            if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
+            if (!encode_value_mem(out, pos, &objs, fn->env)) { objtable_free(&objs); return 0; }
         } else {
             objtable_free(&objs);
             return 0;
@@ -793,6 +846,7 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
         else if (t == 2) payload_len = (uint64_t)aux * 9ull;
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
+        else if (t == 5) payload_len = 9ull;
         else { ok = 0; break; }
 
         if ((uint64_t)(*pos) + payload_len > (uint64_t)in->len) { ok = 0; break; }
@@ -847,6 +901,13 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
                 if (!b->data) { free(b); ok = 0; break; }
             }
             obj_ptrs[id] = b;
+        } else if (t == 5) {
+            AvmFunc* fn = (AvmFunc*)malloc(sizeof(AvmFunc));
+            if (!fn) { ok = 0; break; }
+            fn->addr = aux;
+            fn->env.type = AVM_VAL_NIL;
+            fn->env.as.i = 0;
+            obj_ptrs[id] = fn;
         } else {
             ok = 0;
             break;
@@ -890,6 +951,10 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
                 if ((uint64_t)cur + (uint64_t)aux > (uint64_t)in->len) { ok = 0; break; }
                 memcpy(b->data, in->data + cur, aux);
             }
+        } else if (t == 5) {
+            AvmFunc* fn = (AvmFunc*)obj_ptrs[id];
+            if (!fn || fn->addr != aux) { ok = 0; break; }
+            if (!decode_value_mem(in, &cur, obj_types, obj_ptrs, obj_count, &fn->env)) { ok = 0; break; }
         } else {
             ok = 0;
             break;
@@ -936,6 +1001,7 @@ static int rr_value_wire_size(AvmValue v, uint64_t* out_bytes) {
         else if (t == 2) payload_len = (uint64_t)aux * 9;  // LIST values
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull; // MAP key/value pairs
         else if (t == 4) payload_len = aux;                // BYTES bytes
+        else if (t == 5) payload_len = 9ull;               // FUNC env value
         else { objtable_free(&objs); return 0; }
 
         if (sz > UINT64_MAX - payload_len) { objtable_free(&objs); return 0; }
@@ -1092,6 +1158,8 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
     for (int i = 0; i < MAX_GLOBALS; i++) collect_value_objects(&objs, vm->globals[i]);
     collect_value_objects(&objs, vm->result_value);
     collect_value_objects(&objs, vm->last_error);
+    collect_value_objects(&objs, vm->env);
+    for (int i = 0; i < vm->frame_count; i++) collect_value_objects(&objs, vm->frames[i].env);
 
     AvmSha256Ctx h;
     avm_sha256_init(&h);
@@ -1155,6 +1223,10 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
             AvmBytes* b = (AvmBytes*)objs.ptrs[id];
             if (!b || (uint32_t)b->len != aux) { objtable_free(&objs); return 0; }
             if (aux > 0) avm_sha256_update(&h, b->data, aux);
+        } else if (t == 5) { // FUNC
+            AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
+            if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
+            if (!encode_value_for_hash(&h, &objs, fn->env)) { objtable_free(&objs); return 0; }
         } else {
             objtable_free(&objs);
             return 0;
@@ -1166,9 +1238,13 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
     sha_u32_le(&h, (uint32_t)vm->fp);
     sha_u32_le(&h, (uint32_t)vm->frame_count);
 
+    // Closure environment is semantically observable (LOAD_ENV), so it must be hashed.
+    if (!encode_value_for_hash(&h, &objs, vm->env)) { objtable_free(&objs); return 0; }
+
     for (int i = 0; i < vm->frame_count; i++) {
         sha_u32_le(&h, (uint32_t)vm->frames[i].return_pc);
         sha_u32_le(&h, (uint32_t)vm->frames[i].fp);
+        if (!encode_value_for_hash(&h, &objs, vm->frames[i].env)) { objtable_free(&objs); return 0; }
     }
 
     for (int i = 0; i < MAX_GLOBALS; i++) {
@@ -1276,6 +1352,10 @@ int avm_result_hash(AvmVM* vm, uint8_t out[32]) {
             AvmBytes* b = (AvmBytes*)objs.ptrs[id];
             if (!b || (uint32_t)b->len != aux) { objtable_free(&objs); return 0; }
             if (aux > 0) avm_sha256_update(&h, b->data, aux);
+        } else if (t == 5) { // FUNC
+            AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
+            if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
+            if (!encode_value_for_hash(&h, &objs, fn->env)) { objtable_free(&objs); return 0; }
         } else {
             objtable_free(&objs);
             return 0;
@@ -1374,6 +1454,7 @@ static int decode_value(FILE* f, uint8_t* obj_types, void** obj_ptrs, uint32_t o
         if (ot == 2) { out->type = AVM_VAL_LIST; out->as.l = (AvmList*)obj_ptrs[id]; return 1; }
         if (ot == 3) { out->type = AVM_VAL_MAP; out->as.m = (AvmMap*)obj_ptrs[id]; return 1; }
         if (ot == 4) { out->type = AVM_VAL_BYTES; out->as.b = (AvmBytes*)obj_ptrs[id]; return 1; }
+        if (ot == 5) { out->type = AVM_VAL_FUNC; out->as.fn = (AvmFunc*)obj_ptrs[id]; return 1; }
         return 0;
     }
     return 0;
@@ -1393,6 +1474,10 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     collect_value_objects(&objs, vm->result_value);
     collect_value_objects(&objs, vm->last_error);
 
+    // Closure environments (rolling): required for pause/resume inside functions with captures.
+    collect_value_objects(&objs, vm->env);
+    for (int i = 0; i < vm->frame_count; i++) collect_value_objects(&objs, vm->frames[i].env);
+
     FILE* f = fopen(path, "wb");
     if (!f) {
         objtable_free(&objs);
@@ -1400,7 +1485,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     }
 
     // Magic (8 bytes)
-    const uint8_t magic[8] = {'A','V','M','S','N','A','P','3'};
+    const uint8_t magic[8] = {'A','V','M','S','N','A','P','4'};
     if (fwrite(magic, 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
 
     if (!write_u32_le(f, (uint32_t)objs.count)) { fclose(f); objtable_free(&objs); return 1; }
@@ -1435,6 +1520,10 @@ int avm_snapshot(AvmVM* vm, const char* path) {
             if (aux > 0) {
                 if (fwrite(b->data, 1, aux, f) != aux) { fclose(f); objtable_free(&objs); return 1; }
             }
+        } else if (t == 5) { // FUNC
+            AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
+            if (!fn || fn->addr != aux) { fclose(f); objtable_free(&objs); return 1; }
+            if (!encode_value(f, &objs, fn->env)) { fclose(f); objtable_free(&objs); return 1; }
         } else {
             fclose(f);
             objtable_free(&objs);
@@ -1446,11 +1535,15 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     if (!write_u32_le(f, (uint32_t)vm->pc)) { fclose(f); objtable_free(&objs); return 1; }
     if (!write_u32_le(f, (uint32_t)vm->sp)) { fclose(f); objtable_free(&objs); return 1; }
     if (!write_u32_le(f, (uint32_t)vm->fp)) { fclose(f); objtable_free(&objs); return 1; }
+    // Current closure environment (rolling; AVMSNAP4+)
+    if (!encode_value(f, &objs, vm->env)) { fclose(f); objtable_free(&objs); return 1; }
+
     if (!write_u32_le(f, (uint32_t)vm->frame_count)) { fclose(f); objtable_free(&objs); return 1; }
 
     for (int i = 0; i < vm->frame_count; i++) {
         if (!write_u32_le(f, (uint32_t)vm->frames[i].return_pc)) { fclose(f); objtable_free(&objs); return 1; }
         if (!write_u32_le(f, (uint32_t)vm->frames[i].fp)) { fclose(f); objtable_free(&objs); return 1; }
+        if (!encode_value(f, &objs, vm->frames[i].env)) { fclose(f); objtable_free(&objs); return 1; }
     }
 
     for (int i = 0; i < MAX_GLOBALS; i++) {
@@ -1488,9 +1581,11 @@ int avm_restore(AvmVM* vm, const char* path) {
     if (fread(magic, 1, 8, f) != 8) { fclose(f); return 1; }
     const uint8_t want2[8] = {'A','V','M','S','N','A','P','2'};
     const uint8_t want3[8] = {'A','V','M','S','N','A','P','3'};
+    const uint8_t want4[8] = {'A','V','M','S','N','A','P','4'};
     int snap_ver = 0;
     if (memcmp(magic, want2, 8) == 0) snap_ver = 2;
     if (memcmp(magic, want3, 8) == 0) snap_ver = 3;
+    if (memcmp(magic, want4, 8) == 0) snap_ver = 4;
     if (snap_ver == 0) { fclose(f); return 1; }
 
     int ok = 1;
@@ -1529,6 +1624,7 @@ int avm_restore(AvmVM* vm, const char* path) {
         else if (t == 2) payload_len = (uint64_t)aux * 9ull;
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
+        else if (t == 5) payload_len = 9ull;
         else { ok = 0; break; }
 
         if (fseek(f, (long)payload_len, SEEK_CUR) != 0) { ok = 0; break; }
@@ -1623,6 +1719,10 @@ int avm_restore(AvmVM* vm, const char* path) {
             if (aux > 0) {
                 if (fread(b->data, 1, aux, f) != aux) { ok = 0; break; }
             }
+        } else if (t == 5) {
+            AvmFunc* fn = (AvmFunc*)obj_ptrs[id];
+            if (!fn || fn->addr != aux) { ok = 0; break; }
+            if (!decode_value(f, obj_types, obj_ptrs, obj_count, &fn->env)) { ok = 0; break; }
         } else {
             ok = 0;
             break;
@@ -1648,6 +1748,7 @@ int avm_restore(AvmVM* vm, const char* path) {
         else if (t == 2) payload_len = (uint64_t)aux * 9ull;
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
+        else if (t == 5) payload_len = 9ull;
         else { ok = 0; break; }
         if (fseek(f, (long)payload_len, SEEK_CUR) != 0) { ok = 0; break; }
     }
@@ -1657,6 +1758,15 @@ int avm_restore(AvmVM* vm, const char* path) {
     uint32_t pc = read_u32_le(f, &ok);
     uint32_t sp = read_u32_le(f, &ok);
     uint32_t fp = read_u32_le(f, &ok);
+
+    // Current closure environment (rolling; AVMSNAP4+).
+    if (snap_ver >= 4) {
+        if (!decode_value(f, obj_types, obj_ptrs, obj_count, &vm->env)) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+    } else {
+        vm->env.type = AVM_VAL_NIL;
+        vm->env.as.i = 0;
+    }
+
     uint32_t frame_count = read_u32_le(f, &ok);
     if (!ok) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
     if (frame_count > MAX_FRAMES) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
@@ -1674,6 +1784,12 @@ int avm_restore(AvmVM* vm, const char* path) {
         if (!ok) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
         vm->frames[i].return_pc = (int)rpc;
         vm->frames[i].fp = (int)fpp;
+        if (snap_ver >= 4) {
+            if (!decode_value(f, obj_types, obj_ptrs, obj_count, &vm->frames[i].env)) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        } else {
+            vm->frames[i].env.type = AVM_VAL_NIL;
+            vm->frames[i].env.as.i = 0;
+        }
     }
 
     for (int i = 0; i < MAX_GLOBALS; i++) {

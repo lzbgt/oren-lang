@@ -33,6 +33,10 @@ const char* avm_op_name(uint8_t op) {
         case 0x39: return "RET";
         case 0x3A: return "CALL_NATIVE";
         case 0x3B: return "CALL_NATIVE2";
+        case 0x3C: return "PUSH_FUNC";
+        case 0x3D: return "CALL_INDIRECT";
+        case 0x3E: return "MAKE_CLOSURE";
+        case 0x3F: return "LOAD_ENV";
         case 0x40: return "NEW_LIST";
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
@@ -61,6 +65,7 @@ AvmVM* avm_new() {
     vm->running = 0;
     vm->prog = NULL;
     vm->fp = 0;
+    vm->env = avm_nil();
     vm->frame_count = 0;
     vm->allowed_native_domains = 0;
     vm->fs_allow_prefixes = NULL;
@@ -147,6 +152,7 @@ void avm_load(AvmVM* vm, AvmProgram* prog) {
     vm->pc = 0;
     vm->sp = 0;
     vm->fp = 0;
+    vm->env = avm_nil();
     vm->frame_count = 0;
     vm->paused = 0;
     vm->has_result_value = 0;
@@ -160,6 +166,18 @@ void avm_load(AvmVM* vm, AvmProgram* prog) {
     vm->trace_used_bytes = 0;
     vm->trace_bytes = NULL;
     vm->trace_bytes_truncated = 0;
+}
+
+static AvmValue avm_func_new(AvmVM* vm, uint32_t addr, AvmValue env) {
+    (void)vm;
+    AvmFunc* fn = (AvmFunc*)avm_heap_malloc_k(sizeof(AvmFunc), AVM_ALLOC_KIND_FUNC);
+    if (!fn) return avm_alloc_fail_value();
+    fn->addr = addr;
+    fn->env = env;
+    AvmValue v;
+    v.type = AVM_VAL_FUNC;
+    v.as.fn = fn;
+    return v;
 }
 
 void avm_run(AvmVM* vm) {
@@ -454,8 +472,10 @@ void avm_run(AvmVM* vm) {
                 }
                 vm->frames[vm->frame_count].return_pc = vm->pc;
                 vm->frames[vm->frame_count].fp = vm->fp;
+                vm->frames[vm->frame_count].env = vm->env;
                 vm->frame_count++;
                 vm->fp = vm->sp - argc;
+                vm->env = avm_nil();
                 vm->pc = addr;
                 break;
             }
@@ -488,6 +508,101 @@ void avm_run(AvmVM* vm) {
 
                 vm->pc = vm->frames[vm->frame_count].return_pc;
                 vm->fp = vm->frames[vm->frame_count].fp;
+                vm->env = vm->frames[vm->frame_count].env;
+                break;
+            }
+            case 0x3C: { // PUSH_FUNC u16
+                uint16_t addr = code[vm->pc++];
+                addr |= (uint16_t)code[vm->pc++] << 8;
+                AvmValue fv = avm_func_new(vm, (uint32_t)addr, avm_nil());
+                if (avm_is_err_val(fv)) { avm_abort(vm, fv); break; }
+                vm->stack[vm->sp++] = fv;
+                break;
+            }
+            case 0x3D: { // CALL_INDIRECT u8
+                uint8_t argc = code[vm->pc++];
+                if (vm->sp < (int)argc + 1) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on CALL_INDIRECT"));
+                    break;
+                }
+                int fn_idx = vm->sp - (int)argc - 1;
+                AvmValue fv = vm->stack[fn_idx];
+                if (fv.type != AVM_VAL_FUNC || !fv.as.fn) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CALL_INDIRECT expects function value"));
+                    break;
+                }
+                uint32_t addr = fv.as.fn->addr;
+                AvmValue callee_env = fv.as.fn->env;
+
+                // Remove fn value from the stack by shifting args down over it.
+                for (int i = fn_idx; i < vm->sp - 1; i++) {
+                    vm->stack[i] = vm->stack[i + 1];
+                }
+                vm->sp -= 1;
+
+                if (vm->frame_count >= MAX_FRAMES) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "call stack overflow"));
+                    break;
+                }
+                vm->frames[vm->frame_count].return_pc = vm->pc;
+                vm->frames[vm->frame_count].fp = vm->fp;
+                vm->frames[vm->frame_count].env = vm->env;
+                vm->frame_count++;
+                vm->fp = vm->sp - (int)argc;
+                vm->env = callee_env;
+                vm->pc = (int)addr;
+                break;
+            }
+            case 0x3E: { // MAKE_CLOSURE u8
+                uint8_t ncap = code[vm->pc++];
+                if (vm->sp < (int)ncap + 1) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on MAKE_CLOSURE"));
+                    break;
+                }
+                AvmValue base = vm->stack[vm->sp - 1];
+                if (base.type != AVM_VAL_FUNC || !base.as.fn) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "MAKE_CLOSURE expects function value"));
+                    break;
+                }
+
+                AvmList* env_list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                if (!env_list) { avm_abort(vm, avm_alloc_fail_value()); break; }
+                env_list->count = (int)ncap;
+                env_list->capacity = (int)ncap;
+                env_list->items = NULL;
+                if (ncap > 0) {
+                    env_list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)ncap, AVM_ALLOC_KIND_LIST);
+                    if (!env_list->items) { avm_heap_free(env_list); avm_abort(vm, avm_alloc_fail_value()); break; }
+                    // Capture values are below the base function on the stack:
+                    //   [... cap0 cap1 ... cap(n-1) base_fn]
+                    int start = vm->sp - 1 - (int)ncap;
+                    for (int i = 0; i < (int)ncap; i++) {
+                        env_list->items[i] = vm->stack[start + i];
+                    }
+                }
+
+                AvmValue envv;
+                envv.type = AVM_VAL_LIST;
+                envv.as.l = env_list;
+                AvmValue clo = avm_func_new(vm, base.as.fn->addr, envv);
+                if (avm_is_err_val(clo)) { avm_abort(vm, clo); break; }
+
+                vm->sp -= (int)ncap + 1;
+                vm->stack[vm->sp++] = clo;
+                break;
+            }
+            case 0x3F: { // LOAD_ENV u8
+                uint8_t idx = code[vm->pc++];
+                if (vm->env.type != AVM_VAL_LIST || !vm->env.as.l) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "LOAD_ENV with nil env"));
+                    break;
+                }
+                AvmList* env_list = vm->env.as.l;
+                if ((int)idx >= env_list->count) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "LOAD_ENV out of range"));
+                    break;
+                }
+                vm->stack[vm->sp++] = env_list->items[(int)idx];
                 break;
             }
             case 0x3A: { // CALL_NATIVE u16 u8 (legacy mapping)

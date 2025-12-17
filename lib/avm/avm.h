@@ -19,12 +19,16 @@ typedef enum {
     AVM_VAL_STRING = 4,
     AVM_VAL_LIST = 5,
     AVM_VAL_MAP = 6,
-    AVM_VAL_BYTES = 7
+    AVM_VAL_BYTES = 7,
+    // First-class function value (closure): code address + captured environment value.
+    // Rolling ABI: representation may evolve; semantics must remain deterministic.
+    AVM_VAL_FUNC = 8
 } AvmType;
 
 struct AvmList;
 struct AvmMap;
 struct AvmBytes;
+struct AvmFunc;
 
 typedef struct {
     AvmType type;
@@ -35,8 +39,18 @@ typedef struct {
         struct AvmList* l;
         struct AvmMap* m;
         struct AvmBytes* b;
+        struct AvmFunc* fn;
     } as;
 } AvmValue;
+
+typedef struct AvmFunc {
+    // Code address inside AvmProgram->code (rolling: currently u16 addresses in opcodes).
+    uint32_t addr;
+    // Captured environment (rolling):
+    // - nil for non-closures / no captures
+    // - LIST for capture-by-value env layouts (capture order is compiler-defined but deterministic)
+    AvmValue env;
+} AvmFunc;
 
 typedef struct AvmList {
     AvmValue* items;
@@ -79,6 +93,8 @@ typedef struct {
 typedef struct {
     int return_pc;
     int fp;
+    // Saved environment (closures): restore vm->env on return.
+    AvmValue env;
 } AvmFrame;
 
 typedef struct {
@@ -92,6 +108,8 @@ typedef struct {
     AvmFrame frames[MAX_FRAMES];
     int frame_count;
     int fp; 
+    // Current call environment for closures (restored via AvmFrame.env on return).
+    AvmValue env;
 
     // Capability model (rolling/unstable): bitmask of allowed native domains.
     // If zero, treat as "allow all" for now.
