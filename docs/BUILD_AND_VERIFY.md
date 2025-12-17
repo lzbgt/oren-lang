@@ -66,6 +66,14 @@ Transpiles Oren to C, then compiles with the system C compiler (`cc`). Best for 
 This repo runs in **rolling ABI** mode, so the priority is fast iteration and avoiding hangs.
 The `make test` runner enforces **hard wall-time timeouts** for both “build steps” and “run steps”.
 
+In addition, the compiler now includes a repo-runner:
+
+```bash
+./oren test
+```
+
+`./oren test` follows the same principles (curated, timeout-protected, failure-only logs), but it lives inside the Oren toolchain and is the first step toward an **Oren-native** build/test system. See `docs/TEST_SYSTEM.md` for the evolution plan.
+
 Environment knobs:
 
 - `TEST_TIMEOUT_SECS` (default `10`): maximum seconds allowed for executing a built test binary or running `avm`.

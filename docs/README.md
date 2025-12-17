@@ -9,6 +9,7 @@ This folder contains both **canonical specs** and a few **compatibility stubs** 
 - `docs/AGENTIC_REQUIREMENTS.md` — top agentic-AI requirements (language + compiler + AVM), prioritized and implementation-ordered.
 - `docs/ROADMAP.md` — what to implement next (phases, priorities).
 - `docs/BUILD_AND_VERIFY.md` — how to build, test, and verify the toolchain.
+- `docs/TEST_SYSTEM.md` — how the repo test/build system evolves from Makefile → Oren-native tooling.
 
 ## 2) Canonical Specs
 

@@ -7,14 +7,38 @@ This repo is in **rolling ABI** mode. This file is intentionally short: it is th
 
 ## How to Verify
 
-- Fast curated suite (quiet output): `make test`
+- Fast curated suite (quiet output, preferred): `./oren test`
+- Larger curated suite (quiet output): `make test`
 - Verbose (prints each test command): `make test TEST_QUIET=0`
 - Full AVM suite: `make test AVM_TESTS="tests/avm/*.oren"`
 - Full native glob: `make test-native-all`
 
 ## P0 — Emergency / Blocks Rolling Progress
 
-1) **AVM deterministic cooperative concurrency MVP (single-threaded)**
+1) **Syscall-first native OS substrate: correctness before features**
+   - Deliverables:
+     - FS + PROC + ENV + TIME + NET are stable enough to build `.oren` stdlib without libc shims.
+     - cancellable patterns (deadline/timeout) exist for PROC and NET wrappers.
+     - native NET supports loopback TCP with explicit timeouts (no implicit hangs).
+   - Acceptance:
+     - native smoke covers: spawn/system, getenv/envp forwarding, sleep/time, TCP loopback.
+
+2) **Oren-native build/test driver (reduce Makefile dependency)**
+   - Deliverables:
+     - `./oren test` is canonical and stays in sync with the curated suite.
+     - Makefile is a thin wrapper (or optional) rather than the source of truth.
+     - failure-only output + stable logs under `build/logs/`.
+   - Acceptance:
+     - contributors can iterate using only `./oren test` on macOS.
+
+3) **“No hangs” guarantee (tests + tools)**
+   - Deliverables:
+     - Per-test timeouts for anything that can block (PROC/NET/TIME).
+     - CLI-level AVM wall-time timeout remains supported (`--timeout-ms` / `AVM_TIMEOUT_MS`).
+   - Acceptance:
+     - A bug cannot deadlock CI/iteration indefinitely; timeouts fail fast with logs in `build/logs/`.
+
+4) **AVM deterministic cooperative concurrency MVP (single-threaded)**
    - Deliverables:
      - `task.spawn(fn, args)` / `task.join(id)` (deterministic ordering).
      - channels + `select` (deterministic ready selection).
@@ -22,21 +46,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short: it is th
    - Acceptance:
      - A small agent loop (message passing + sleep/backoff) snapshots and resumes deterministically.
 
-2) **“No hangs” guarantee (tests + tools)**
-   - Deliverables:
-     - Per-test timeouts for anything that can block (PROC/NET/TIME).
-     - CLI-level AVM wall-time timeout remains supported (`--timeout-ms` / `AVM_TIMEOUT_MS`).
-   - Acceptance:
-     - A bug cannot deadlock CI/iteration indefinitely; timeouts fail fast with logs in `build/logs/`.
-
-3) **Syscall-first native OS substrate: correctness before features**
-   - Deliverables:
-     - FS + PROC + ENV + TIME + NET are stable enough to build `.oren` stdlib without libc shims.
-     - cancellable patterns (deadline/timeout) exist for PROC and NET wrappers.
-   - Acceptance:
-     - native smoke covers: spawn/system, getenv/envp forwarding, sleep/time, TCP loopback.
-
-4) **Memory hygiene: “production hardening” baseline**
+5) **Memory hygiene: “production hardening” baseline**
    - Deliverables:
      - zero known leaks in native runtime + AVM teardown for curated tests.
      - add deterministic, failure-only diagnostics surfaces (trace-bytes / alloc profile).
