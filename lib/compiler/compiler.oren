@@ -911,6 +911,26 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(rp_out))
 
+    // getcwd (runtime; host-mode only):
+    var cwd_out = "build/runtime_getcwd_prog"
+    var cwd_log = "build/logs/runtime_getcwd_prog_build.log"
+    var cwd_cmd = "./oren build " + shell_quote("tests/native/fixtures/runtime_getcwd_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cwd_out) + gc_arg
+    var cwd_rc = run_shell_capture(timeout_bin, build_timeout, cwd_cmd, cwd_log)
+    if cwd_rc != 0 || file_exists(cwd_out) != true {
+        print("native failed: runtime_getcwd_prog (build)")
+        oren_system("cat " + shell_quote(cwd_log))
+        oren_exit(1)
+    }
+    var cwd_run_log = "build/logs/runtime_getcwd_prog_run.log"
+    var cwd_run_cmd = "./" + cwd_out
+    var cwd_run_rc = run_shell_capture(timeout_bin, run_timeout, cwd_run_cmd, cwd_run_log)
+    if cwd_run_rc != 0 {
+        print("native failed: runtime_getcwd_prog (run)")
+        oren_system("cat " + shell_quote(cwd_run_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cwd_out))
+
     // Capsule NET allowlist (native runtime): deny-by-default endpoint enrollment.
     // Connect:
     // - no enrollment -> deny

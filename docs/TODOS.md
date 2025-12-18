@@ -19,7 +19,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Next enrollments (beyond domain bitmask):
       - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
       - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
-      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir/access/rmdir/stat/lstat/fstat/getdirentries64 + runtime readdir; next: getcwd/etc), then mounts UX polish + virtual mount mirroring (native/AVM)
+      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir/access/rmdir/stat/lstat/fstat/getdirentries64 + runtime readdir; next: realpath_checked/exists helpers (host) + AVM mirror), then mounts UX polish + virtual mount mirroring (native/AVM)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.
@@ -31,7 +31,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Harden parser/codegen invariants (scope, stack/heap, argument passing).
    - Fix nested control-flow edge cases (e.g. nested `for` break depth).
    - Ensure deterministic container behavior matches spec across all backends.
-   - Define and enforce string equality semantics across backends (native now does content-compare for "stringy" expressions; extend coverage as needed).
+   - Define and enforce string equality semantics across backends (native has `oren_string_eq`; unify language-level `==` semantics across native/C/AVM).
 
 4) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - Deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
@@ -48,6 +48,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
   - FS coverage includes `sys_open`, `sys_unlink`, `sys_rename`, `sys_mkdir`, `sys_access`, `sys_rmdir`, `sys_stat`, `sys_lstat`, `sys_fstat`, `sys_getdirentries64` (macOS uses `stat64`=338).
   - Added runtime `oren_readdir(path)` built on `sys_getdirentries64` (portable parsing heuristics).
   - Added runtime `oren_realpath(path)` (pure lexical path normalization; deterministic) and `oren_string_eq(a,b)`.
+  - Added runtime `oren_getcwd()` (host-mode via fcntl(F_GETPATH); denied in capsule mode to avoid leaking host paths).
 - AVM multiverse: nested universes inherit VirtualFS and host FS restrictions.
 - AVM host FS mounts: `--fs-mounts[-read|-write]` maps virtual paths to enrolled host prefixes.
 - AVM float64: `.obc` FLOAT consts + `* /` ops, mixed numeric comparisons, canonical float ops test.

@@ -61,6 +61,7 @@ fn sys_gettid() { return 0 }
 fn sys_fcntl(fd, cmd, arg) { return 0 }
 fn sys_kill(pid, signum) { return 0 }
 fn sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) { return 0 }
+fn sys_getcwd(buf, size) { return 0 }
 fn sys_ulock_wait(operation, addr, value, timeout_us) { return 0 }
 fn sys_ulock_wake(operation, addr, wake_value) { return 0 }
 fn sys_bsdthread_create(func, func_arg, stack, pthread, flags) { return 0 }
@@ -4221,6 +4222,41 @@ fn oren_realpath(path) {
     ptr_set_byte(out + total, 0)
     oren_track_alloc(out, total + 1, 1)
     return out
+}
+
+@cap.requires(domain="FS")
+fn oren_getcwd() {
+    // Returns the current working directory.
+    //
+    // Security/determinism note:
+    // - In capsule mode we deny by default to avoid leaking host paths.
+    // - In host mode (non-capsule) on macOS we use fcntl(F_GETPATH).
+    // - On Linux we will use sys_getcwd when running natively.
+
+    native_capsule_require(CAP_FS, "FS")
+    if global_get_capsule_mode() == 1 {
+        print("CAPSULE DENY: GETCWD")
+        exit(78)
+    }
+
+    // macOS implementation: open(".") + fcntl(F_GETPATH=50)
+    // (works without libc; relies on sys_open + sys_fcntl intrinsics)
+    var fd = sys_open(".", 0, 0)
+    if fd < 0 { exit(281) }
+
+    var buf = malloc(4096)
+    if buf == 0 { sys_close(fd); exit(282) }
+
+    var rc = sys_fcntl(fd, 50, buf)
+    if rc < 0 { sys_close(fd); exit(283) }
+
+    var cc = sys_close(fd)
+    if cc < 0 { exit(284) }
+
+    // Treat the buffer as a returned string.
+    // fcntl(F_GETPATH) NUL-terminates.
+    oren_track_alloc(buf, 4096, 1) // STRING
+    return buf
 }
 
 // --- Binary I/O (byte-accurate) ---

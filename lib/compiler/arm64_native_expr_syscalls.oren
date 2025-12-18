@@ -778,6 +778,49 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             return true
         }
 
+        if fn_name == "sys_getcwd" {
+            // sys_getcwd(buf, size) -> nbytes or negative errno
+            // Linux: getcwd(buf, size) (__NR_getcwd=17 on aarch64)
+            // macOS: no direct syscall; oren_getcwd() uses fcntl(F_GETPATH) instead.
+            compile_expr(ctx, args[0]) // buf -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // size -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+
+            // X0=buf, X1=size
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+
+            if is_macos {
+                // Not supported as a syscall on macOS in this backend.
+                // Return -ENOSYS (38).
+                push_u32_le(ctx["code"], insn_movn(0, 37)) // -38
+            } else {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 17))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+            }
+
+            // Pop size + buf
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 32
+            return true
+        }
+
         if fn_name == "sys_getdirentries64" {
             // sys_getdirentries64(fd, buf, bufsize, pos_ptr) -> nbytes or negative errno
             // macOS: getdirentries64(fd, buf, bufsize, position_ptr) (344)

@@ -1,0 +1,7 @@
+fn main() {
+    var cwd = oren_getcwd()
+    if cwd == 0 { exit(2) }
+    if oren_string_len(cwd) <= 0 { exit(3) }
+    if ptr_get_byte(cwd) != 47 { exit(4) } // must start with '/'
+    print("ok")
+}
