@@ -44,9 +44,11 @@ fn sys_read(fd, ptr, len) { return 0 }
 fn sys_pipe(ptr) { return 0 }
 fn sys_open(path, flags, mode) { return 0 }
 fn sys_close(fd) { return 0 }
+fn sys_access(path, mode) { return 0 }
 fn sys_unlink(path) { return 0 }
 fn sys_rename(from, to) { return 0 }
 fn sys_mkdir(path, mode) { return 0 }
+fn sys_rmdir(path) { return 0 }
 fn sys_fork() { return 0 }
 fn sys_execve(path, argv, envp) { return 0 }
 fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
@@ -1070,6 +1072,15 @@ fn native_capsule_sys_unlink_post(pair, rc) {
     return native_capsule_sys_open_post(pair, rc)
 }
 
+fn native_capsule_sys_access_pre(path) {
+    // access is a read op.
+    return native_capsule_fs_path_resolve_pair(path, 0)
+}
+
+fn native_capsule_sys_access_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
 fn native_capsule_sys_mkdir_pre(path) {
     // mkdir is a write op.
     return native_capsule_fs_path_resolve_pair(path, 1)
@@ -1111,6 +1122,15 @@ fn native_capsule_sys_rename_post(bundle, rc) {
         free(bundle)
     }
     return rc
+}
+
+fn native_capsule_sys_rmdir_pre(path) {
+    // rmdir is a write op.
+    return native_capsule_fs_path_resolve_pair(path, 1)
+}
+
+fn native_capsule_sys_rmdir_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
 }
 
 fn native_ipv4_is_loopback(ip) {

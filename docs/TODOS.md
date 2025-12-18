@@ -53,3 +53,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - Native capsule PROC: enforce capability checks at raw `sys_*` PROC boundary (no bypass), force capsule envp on execve, restrict wait/kill to owned child pids.
 - Native capsule FS: enforce syscall-boundary checks for `sys_open` (no bypass), including mount-enrolled host path allow and virtual->host resolution.
 - Native capsule FS: add syscall-boundary checks for `sys_unlink/sys_rename/sys_mkdir` (no bypass) + canonical tests.
+- Native capsule FS: add syscall-boundary checks for `sys_access/sys_rmdir` (no bypass) + canonical tests.

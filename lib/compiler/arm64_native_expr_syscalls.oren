@@ -500,6 +500,145 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             return true
         }
 
+        if fn_name == "sys_access" {
+            // sys_access(path, mode) -> 0 or negative errno
+            // macOS: access(path, mode) (33)
+            // Linux: accessat(AT_FDCWD=-100, path, mode, 0) (__NR_faccessat=48)
+            //
+            // Capsule hardening: enforce FS at syscall boundary (no bypass), with mount resolution.
+            compile_expr(ctx, args[0]) // path -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // mode -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_access_pre(path) -> pair
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
+            var bl_pre_a = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_a, "name": "native_capsule_sys_access_pre"})
+            // save pair
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // X0 = resolved path, X1 = mode
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // pair
+            push_u32_le(ctx["code"], insn_ldr_ptr(0, 2))    // path_ptr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // mode (below pair slot)
+
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+
+            if is_macos {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 33))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3))
+            } else {
+                // faccessat(AT_FDCWD=-100, path, mode, flags=0)
+                push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2=mode
+                push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
+                push_u32_le(ctx["code"], insn_movz(3, 0))    // flags=0
+                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 48))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+            }
+
+            // post: native_capsule_sys_access_post(pair, rc) -> rc
+            push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pair
+            var bl_post_a = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_a, "name": "native_capsule_sys_access_post"})
+
+            // Pop pair + mode + path
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
+            return true
+        }
+
+        if fn_name == "sys_rmdir" {
+            // sys_rmdir(path) -> 0 or negative errno
+            // macOS: rmdir(path) (137)
+            // Linux: rmdir(path) is rmdir syscall? Actually uses unlinkat with AT_REMOVEDIR; keep v0 minimal:
+            //        use unlinkat(AT_FDCWD=-100, path, AT_REMOVEDIR=0x200) (__NR_unlinkat=35)
+            //
+            // Capsule hardening: enforce FS at syscall boundary (no bypass), with mount resolution.
+            compile_expr(ctx, args[0]) // path -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_rmdir_pre(path) -> pair
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            var bl_pre_rd = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_rd, "name": "native_capsule_sys_rmdir_pre"})
+            // save pair
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            // X1 = resolved path
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_ldr_ptr(1, 2))
+
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+
+            if is_macos {
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 137))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3))
+            } else {
+                // unlinkat(AT_FDCWD=-100, path, AT_REMOVEDIR=0x200)
+                push_u32_le(ctx["code"], insn_mov_reg(1, 1)) // X1=path
+                push_u32_le(ctx["code"], insn_movz(2, 512))  // AT_REMOVEDIR
+                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 35))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+            }
+
+            // post: native_capsule_sys_rmdir_post(pair, rc) -> rc
+            push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pair
+            var bl_post_rd = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_rd, "name": "native_capsule_sys_rmdir_post"})
+
+            // Pop pair + original path
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 32
+            return true
+        }
+
         if fn_name == "sys_close" {
             // sys_close(fd)
             compile_expr(ctx, args[0]) // fd -> X0

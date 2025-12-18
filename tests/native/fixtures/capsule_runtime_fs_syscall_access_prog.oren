@@ -1,0 +1,9 @@
+fn main() {
+    // Raw sys_access capsule FS test:
+    // - In capsule mode, sys_access must be enforced at syscall boundary (no bypass).
+    // - With OREN_FS_MOUNTS_READ=v/=... and allow domains FS, access("v/in.txt", F_OK=0) should be allowed.
+    var rc = sys_access("v/in.txt", 0)
+    if rc < 0 { exit(2) }
+    print("ok")
+}
+
