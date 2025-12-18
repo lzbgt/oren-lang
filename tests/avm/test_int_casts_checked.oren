@@ -1,0 +1,39 @@
+@myorg.tag(name="avm-int-casts-checked")
+
+import ints "../../lib/std/ints.oren"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn main() {
+    var ok = ints.try_u8(255)
+    assert_true(oren_is_err(ok) == 0)
+    assert_eq(ok, 255)
+
+    var bad = ints.try_u8(256)
+    assert_true(oren_is_err(bad) != 0)
+    assert_eq(oren_err_code(bad), 4)
+
+    var uok = ints.try_u64(ints.MAX_I64)
+    assert_true(oren_is_err(uok) == 0)
+
+    var ubad = ints.try_u64(ints.MAX_I64 + 1)
+    assert_true(oren_is_err(ubad) != 0)
+
+    print("avm int_casts_checked OK")
+}
+
+main()

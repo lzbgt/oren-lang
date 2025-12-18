@@ -309,6 +309,7 @@ fn native_runtime_set_envp(envp) {
 //
 // Returns pointer to value substring for KEY in envp ("KEY=VALUE"), or 0 if not found.
 // NOTE: This returns a pointer into the process environment strings (not a copy).
+@cap.requires(domain="ENV")
 fn oren_getenv(key) {
     // Keep this leaf-like (no calls) to avoid any cross-call local slot issues
     // while the native backend ABI is still rolling.
@@ -373,11 +374,13 @@ fn oren_getenv(key) {
 // - Linux: nanosleep syscall
 //
 // Returns 0 on success, or -errno.
+@cap.requires(domain="TIME")
 fn oren_sleep_ns(ns) {
     if ns <= 0 { return 0 }
     return sys_nanosleep(ns)
 }
 
+@cap.requires(domain="TIME")
 fn oren_sleep_ms(ms) {
     if ms <= 0 { return 0 }
     // ms -> ns
@@ -1438,10 +1441,10 @@ fn oren_print_fmt(fmt, args) {
     if args != 0 { arg_count = oren_list_len(args) }
     
     while i < len {
-        var c = oren_string_char_at(fmt, i)
+        var c = ptr_get_byte(fmt + i)
         if c == 123 { // '{'
             if i + 1 < len {
-                if oren_string_char_at(fmt, i + 1) == 125 { // '}'
+                if ptr_get_byte(fmt + i + 1) == 125 { // '}'
                     if arg_idx < arg_count {
                         var val = oren_list_get(args, arg_idx)
                         oren_print_any_no_nl(val)
@@ -1606,6 +1609,39 @@ fn oren_map_key_at(m, idx) {
     return ptr_get(base + idx * 16)
 }
 
+// --- Structured errors (rolling, portable) ---
+// Convention matches C/AVM:
+//   error = map {"__err": true, "code": int, "msg": string}
+//
+// NOTE: in native v0, `nil/false/0` collapse to 0 in some contexts. This convention
+// uses a tagged map pointer (map_magic) so `oren_is_err` can discriminate reliably.
+fn oren_err(code, msg) {
+    var m = oren_new_map(8)
+    oren_map_set(m, "__err", 1)
+    oren_map_set(m, "code", code)
+    oren_map_set(m, "msg", msg)
+    return m
+}
+
+fn oren_is_err(v) {
+    if v == 0 { return 0 }
+    if v < 4096 { return 0 }
+    if ptr_get(v + 16) != map_magic() { return 0 }
+    var marker = oren_map_get(v, "__err")
+    if marker == 0 { return 0 }
+    return 1
+}
+
+fn oren_err_code(v) {
+    if oren_is_err(v) == 0 { return -1 }
+    return oren_map_get(v, "code")
+}
+
+fn oren_err_msg(v) {
+    if oren_is_err(v) == 0 { return 0 }
+    return oren_map_get(v, "msg")
+}
+
 // --- Strings ---
 fn oren_string_len(s) {
     if s == 0 { return 0 }
@@ -1617,7 +1653,17 @@ fn oren_string_len(s) {
 }
 
 fn oren_string_char_at(s, idx) {
-    return ptr_get_byte(iadd(s, idx))
+    if s == 0 { oren_panic("char_at expects string") }
+    var len = oren_string_len(s)
+    if idx < 0 || idx >= len {
+        oren_panic("char_at index out of range")
+    }
+    var out = malloc(2)
+    if out == 0 { oren_panic("malloc failed") }
+    ptr_set_byte(out + 0, ptr_get_byte(iadd(s, idx)))
+    ptr_set_byte(out + 1, 0)
+    oren_track_alloc(out, 2, 1)
+    return out
 }
 
 // Slice a C-string into a newly allocated, NUL-terminated string.
@@ -2122,6 +2168,7 @@ fn oren_args() {
 // --- Binary I/O (byte-accurate) ---
 // Note: implemented via syscalls (see codegen intrinsics for sys_open/sys_read/sys_write/sys_close).
 
+@cap.requires(domain="FS")
 fn oren_write_bytes(path, bytes) {
     var fd = sys_open(path, 1537, 420) // O_WRONLY|O_CREAT|O_TRUNC, 0644
     if fd < 0 { exit(260) }
@@ -2155,6 +2202,7 @@ fn oren_write_bytes(path, bytes) {
     return 0
 }
 
+@cap.requires(domain="FS")
 fn oren_read_bytes(path) {
     var fd = sys_open(path, 0, 0) // O_RDONLY
     if fd < 0 { exit(262) }
@@ -2198,7 +2246,7 @@ fn oren_tcp_parse_ipv4_into(ip, out4_ptr) {
     var digits = 0
     var i = 0
     while 1 {
-        var ch = oren_string_char_at(ip, i)
+        var ch = ptr_get_byte(ip + i)
         if ch == 0 { break }
         if ch >= 48 {
             if ch <= 57 {
@@ -2271,6 +2319,7 @@ fn oren_tcp_sockaddr_in(ip, port) {
     return sa
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_set_nonblock(fd) {
     var flags = sys_fcntl(fd, 3, 0) // F_GETFL
     if flags < 0 { return flags }
@@ -2278,6 +2327,7 @@ fn oren_tcp_set_nonblock(fd) {
     return r
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
     // Returns 1 if ready, 0 if timed out, or negative errno.
     if timeout_ms < 0 { timeout_ms = 0 }
@@ -2334,6 +2384,7 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
     return n
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
     var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
     if fd < 0 { return fd }
@@ -2397,6 +2448,7 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
     return fd
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_listen_local(port) {
     var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
     if fd < 0 { return fd }
@@ -2441,6 +2493,7 @@ fn oren_tcp_listen_local(port) {
     return fd
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_accept(listen_fd, timeout_ms) {
     var n = oren_tcp_wait_kqueue(listen_fd, -1, timeout_ms) // EVFILT_READ
     if n == 0 { return 0 - 60 } // ETIMEDOUT
@@ -2448,6 +2501,7 @@ fn oren_tcp_accept(listen_fd, timeout_ms) {
     return sys_accept(listen_fd, 0, 0)
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
     if len <= 0 { return 0 }
     var n = oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
@@ -2458,6 +2512,7 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
     return r
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
     if len <= 0 { return 0 }
     var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
@@ -2466,6 +2521,7 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
     return sys_sendto(fd, buf, len, 0, 0, 0)
 }
 
+@cap.requires(domain="NET")
 fn oren_tcp_close(fd) {
     if fd < 0 { return 0 }
     // best-effort shutdown; ignore errors
@@ -2475,6 +2531,7 @@ fn oren_tcp_close(fd) {
 }
 
 // --- Threads ---
+@cap.requires(domain="PROC")
 fn oren_system(cmd) {
     return oren_system_timeout(cmd, -1)
 }

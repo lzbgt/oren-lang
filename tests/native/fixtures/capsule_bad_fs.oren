@@ -1,0 +1,5 @@
+fn main() {
+    // Capsule BAD: FS domain is not enrolled by default.
+    oren_write_bytes("build/capsule_bad_fs.bin", [1, 2, 3])
+}
+

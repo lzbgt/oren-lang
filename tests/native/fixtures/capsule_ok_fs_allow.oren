@@ -1,0 +1,5 @@
+fn main() {
+    // Capsule OK (with --cap-allow-domains FS): FS functions are allowed by enrollment.
+    oren_write_bytes("build/capsule_ok_fs_allow.bin", [7, 8, 9])
+}
+

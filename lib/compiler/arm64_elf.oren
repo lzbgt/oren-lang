@@ -67,8 +67,8 @@ fn elf_build_prefix_arm64(text_size, code, entry_idx) {
     return p
 }
 
-fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode, no_gc) {
-    var ctx = native_compile_program_arm64(linked, {"os": "linux", "debug": debug_mode, "no_gc": no_gc})
+fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode, no_gc, capsule, cap_allow_domains) {
+    var ctx = native_compile_program_arm64(linked, {"os": "linux", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
     
     var code = ctx["code"]

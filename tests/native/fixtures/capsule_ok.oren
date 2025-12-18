@@ -1,0 +1,7 @@
+fn main() {
+    // Capsule OK: pure compute only.
+    var x = 40 + 2
+    if x != 42 { exit(1) }
+    print("capsule ok")
+}
+

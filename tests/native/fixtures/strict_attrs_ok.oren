@@ -1,0 +1,5 @@
+@doc("Strict attribute mode: allowlisted prefixes + known attrs")
+@myorg.feature("alpha", 1, true, nil)
+fn main() {
+    print("strict attrs ok")
+}

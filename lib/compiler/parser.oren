@@ -62,6 +62,8 @@ fn new_parser(l) {
         // NOTE: keep this list small but complete for reserved compiler attributes.
         "known_attrs": [
             "doc", "deprecated",
+            // Capability-governed host effects (enforced only when capsule mode is enabled).
+            "cap.requires",
             // Packed struct / byte views (compile-time lowering).
             "oren.packed",
             "oren.u8", "oren.i8",

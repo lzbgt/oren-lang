@@ -35,3 +35,53 @@ fn i32(x) {
     if u >= 2147483648 { return u - 4294967296 }
     return u
 }
+
+// Checked casts (return structured error on out-of-range).
+// Error code uses OREN_ERR_INVALID_ARG = 4 (rolling; consistent with C backend).
+
+fn try_u8(x) {
+    if x < 0 || x > 255 { return oren_err(4, "try_u8: out of range") }
+    return x
+}
+
+fn try_i8(x) {
+    if x < -128 || x > 127 { return oren_err(4, "try_i8: out of range") }
+    return x
+}
+
+fn try_u16(x) {
+    if x < 0 || x > 65535 { return oren_err(4, "try_u16: out of range") }
+    return x
+}
+
+fn try_i16(x) {
+    if x < -32768 || x > 32767 { return oren_err(4, "try_i16: out of range") }
+    return x
+}
+
+fn try_u32(x) {
+    if x < 0 || x > 4294967295 { return oren_err(4, "try_u32: out of range") }
+    return x
+}
+
+fn try_i32(x) {
+    if x < -2147483648 || x > 2147483647 { return oren_err(4, "try_i32: out of range") }
+    return x
+}
+
+// 64-bit notes:
+// - v0 uses a signed machine int; values above 2^63-1 cannot be represented as an `int`.
+// - `u64`/`try_u64` therefore only support 0..MAX_I64 in v0.
+var MAX_I64 = 9223372036854775807
+
+fn i64(x) { return x }
+fn u64(x) {
+    if x < 0 { return 0 } // wrap semantics for negative values are not meaningful for u64 in v0
+    return x
+}
+
+fn try_i64(x) { return x }
+fn try_u64(x) {
+    if x < 0 || x > MAX_I64 { return oren_err(4, "try_u64: out of range for v0 int") }
+    return x
+}

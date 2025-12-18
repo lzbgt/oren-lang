@@ -31,6 +31,8 @@ fn cli_spec() {
     argparse.cmd_flag(build, "--python", nil, "(C backend) enable Python integration (requires python3-config)")
     argparse.cmd_flag(build, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
     argparse.cmd_option(build, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
+    argparse.cmd_flag(build, "--capsule", nil, "(native backend) capability-safe subset: deny host effects unless allowlisted (also via env OREN_CAPSULE=1)")
+    argparse.cmd_option(build, "--cap-allow-domains", nil, "string", "", "CSV allow capability domains in capsule mode (also via env OREN_CAP_ALLOW_DOMAINS)")
     argparse.cmd_option(build, "--codesign", nil, "string", "", "(macOS) codesign identity")
     argparse.cmd_flag(build, "--notarize", nil, "(macOS) notarize output with notarytool")
     argparse.cmd_option(build, "--notary-profile", nil, "string", "", "(macOS) notarytool keychain profile")
@@ -193,6 +195,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/native/test_read_bytes.oren",
         "tests/native/test_bytes_set_endian.oren",
         "tests/native/test_int_casts.oren",
+        "tests/native/test_int_casts_checked.oren",
         "tests/native/test_pack_view.oren",
         "tests/native/test_system_timeout.oren",
         "tests/native/test_spawn_join_timeout.oren",
@@ -208,6 +211,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/modules/test_read_bytes.oren",
         "tests/modules/test_bytes_set_endian.oren",
         "tests/modules/test_int_casts.oren",
+        "tests/modules/test_int_casts_checked.oren",
         "tests/modules/test_function_values.oren",
         "tests/modules/test_lambda_closure.oren",
         "tests/modules/test_lambda_multiline.oren",
@@ -228,6 +232,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/avm/test_smoke_suite.oren",
         "tests/avm/test_bytes_set_endian.oren",
         "tests/avm/test_int_casts.oren",
+        "tests/avm/test_int_casts_checked.oren",
         "tests/avm/test_pack_view.oren",
         "tests/avm/test_closure_fn_values.oren",
         "tests/avm/test_policy_scan.oren",
@@ -286,6 +291,51 @@ fn run_repo_tests(target, no_gc) {
     if imm_rc == 0 {
         print("native failed: struct_field_assign_bad (expected compile error: struct fields immutable)")
         oren_system("cat " + shell_quote(imm_log))
+        oren_exit(1)
+    }
+
+    // Capsule mode (native): capability gating fixtures.
+    // - OK: pure program compiles in capsule mode
+    // - BAD: direct syscalls are rejected
+    // - BAD: FS-gated APIs are rejected unless FS is enrolled
+    // - OK: FS-gated APIs compile when FS is enrolled
+    var cap_ok_log = "build/logs/capsule_ok.log"
+    var cap_ok_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_ok.oren") + " --backend native --target " + target + " -o " + shell_quote("build/capsule_ok") + " --capsule" + gc_arg
+    var cap_ok_rc = run_shell_capture(timeout_bin, build_timeout, cap_ok_cmd, cap_ok_log)
+    oren_system("rm -f " + shell_quote("build/capsule_ok"))
+    if cap_ok_rc != 0 {
+        print("native failed: capsule_ok (expected capsule compile success)")
+        oren_system("cat " + shell_quote(cap_ok_log))
+        oren_exit(1)
+    }
+
+    var cap_bad_sys_log = "build/logs/capsule_bad_syscall.log"
+    var cap_bad_sys_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_bad_syscall.oren") + " --backend native --target " + target + " -o " + shell_quote("build/capsule_bad_syscall") + " --capsule" + gc_arg
+    var cap_bad_sys_rc = run_shell_capture(timeout_bin, build_timeout, cap_bad_sys_cmd, cap_bad_sys_log)
+    oren_system("rm -f " + shell_quote("build/capsule_bad_syscall"))
+    if cap_bad_sys_rc == 0 {
+        print("native failed: capsule_bad_syscall (expected capsule compile error)")
+        oren_system("cat " + shell_quote(cap_bad_sys_log))
+        oren_exit(1)
+    }
+
+    var cap_bad_fs_log = "build/logs/capsule_bad_fs.log"
+    var cap_bad_fs_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_bad_fs.oren") + " --backend native --target " + target + " -o " + shell_quote("build/capsule_bad_fs") + " --capsule" + gc_arg
+    var cap_bad_fs_rc = run_shell_capture(timeout_bin, build_timeout, cap_bad_fs_cmd, cap_bad_fs_log)
+    oren_system("rm -f " + shell_quote("build/capsule_bad_fs"))
+    if cap_bad_fs_rc == 0 {
+        print("native failed: capsule_bad_fs (expected capsule compile error: FS not enrolled)")
+        oren_system("cat " + shell_quote(cap_bad_fs_log))
+        oren_exit(1)
+    }
+
+    var cap_ok_fs_log = "build/logs/capsule_ok_fs_allow.log"
+    var cap_ok_fs_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_ok_fs_allow.oren") + " --backend native --target " + target + " -o " + shell_quote("build/capsule_ok_fs_allow") + " --capsule --cap-allow-domains FS" + gc_arg
+    var cap_ok_fs_rc = run_shell_capture(timeout_bin, build_timeout, cap_ok_fs_cmd, cap_ok_fs_log)
+    oren_system("rm -f " + shell_quote("build/capsule_ok_fs_allow"))
+    if cap_ok_fs_rc != 0 {
+        print("native failed: capsule_ok_fs_allow (expected capsule compile success with FS enrolled)")
+        oren_system("cat " + shell_quote(cap_ok_fs_log))
         oren_exit(1)
     }
 
@@ -611,6 +661,8 @@ var MODULE_ID_COUNTER = 0
 // Defaults keep rolling mode permissive.
 var STRICT_ATTRS = false
 var ATTR_ALLOW_PREFIXES = []
+var CAPSULE = false
+var CAP_ALLOW_DOMAINS = []
 
 fn split_csv(s) {
     var out = []
@@ -1002,6 +1054,10 @@ fn compiler_main() {
     if env_strict_attrs != nil { STRICT_ATTRS = true }
     var env_attr_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
     if env_attr_allow != nil { ATTR_ALLOW_PREFIXES = split_csv(env_attr_allow) }
+    var env_capsule = oren_env("OREN_CAPSULE")
+    if env_capsule != nil { CAPSULE = true }
+    var env_cap_domains = oren_env("OREN_CAP_ALLOW_DOMAINS")
+    if env_cap_domains != nil { CAP_ALLOW_DOMAINS = split_csv(env_cap_domains) }
 
     while i < argc {
         if args[i] == "--emit-c" {
@@ -1031,6 +1087,15 @@ fn compiler_main() {
                                 if args[i] == "--attr-allow-prefixes" {
                                     if i + 1 >= argc { print("Missing value for --attr-allow-prefixes"); return nil }
                                     ATTR_ALLOW_PREFIXES = split_csv(args[i + 1])
+                                    i = i + 2
+                                } else {
+                            if args[i] == "--capsule" {
+                                CAPSULE = true
+                                i = i + 1
+                            } else {
+                                if args[i] == "--cap-allow-domains" {
+                                    if i + 1 >= argc { print("Missing value for --cap-allow-domains"); return nil }
+                                    CAP_ALLOW_DOMAINS = split_csv(args[i + 1])
                                     i = i + 2
                                 } else {
                             if args[i] == "--python" {
@@ -1095,6 +1160,8 @@ fn compiler_main() {
                                             }
                                         }
                                     }
+                                }
+                            }
                                 }
                             }
                                 }
@@ -1215,10 +1282,10 @@ fn compiler_main() {
 
         if target == "linux" {
             // Always embed native debug info for `oren test` so panics produce readable stack traces.
-            arm64_elf.elf_emit_program_arm64(out_test, linked, [], false, [], true, no_gc)
+            arm64_elf.elf_emit_program_arm64(out_test, linked, [], false, [], true, no_gc, false, [])
         } else {
             // Always embed native debug info for `oren test` so panics produce readable stack traces.
-            arm64_macho.macho_emit_program_arm64(out_test, linked, [], false, [], true, no_gc)
+            arm64_macho.macho_emit_program_arm64(out_test, linked, [], false, [], true, no_gc, false, [])
         }
         
         if target == "macos" {
@@ -1344,9 +1411,9 @@ fn compiler_main() {
         }
 
         if target == "linux" {
-            arm64_elf.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc)
+            arm64_elf.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, CAPSULE, CAP_ALLOW_DOMAINS)
         } else {
-            arm64_macho.macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc)
+            arm64_macho.macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, CAPSULE, CAP_ALLOW_DOMAINS)
         }
 
         if target == "macos" {

@@ -1,0 +1,38 @@
+import ints "../../lib/std/ints.oren"
+
+fn fail(code) {
+    print("native int_casts_checked FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn main() {
+    var ok = ints.try_u8(255)
+    assert_true(oren_is_err(ok) == 0, 10)
+    assert_eq(ok, 255, 11)
+
+    var bad = ints.try_u8(256)
+    assert_true(oren_is_err(bad) != 0, 20)
+    assert_eq(oren_err_code(bad), 4, 21)
+
+    var bad2 = ints.try_i8(128)
+    assert_true(oren_is_err(bad2) != 0, 30)
+
+    var uok = ints.try_u64(ints.MAX_I64)
+    assert_true(oren_is_err(uok) == 0, 40)
+
+    var ubad = ints.try_u64(ints.MAX_I64 + 1)
+    assert_true(oren_is_err(ubad) != 0, 41)
+
+    print("native int_casts_checked OK")
+    exit(0)
+}

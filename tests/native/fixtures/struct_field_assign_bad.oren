@@ -1,0 +1,8 @@
+struct Node { value }
+
+fn main() {
+    var n = Node(1)
+    // Struct fields are immutable; this must be a compile error.
+    n.value = 2
+    exit(0)
+}

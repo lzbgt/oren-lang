@@ -1,0 +1,4 @@
+@unknown.bad(1)
+fn main() {
+    print("strict attrs bad (should not compile in strict mode)")
+}

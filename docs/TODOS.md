@@ -16,10 +16,15 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
+   - Extend capsule gating from “compile-time deny” into a full enrollment story:
+     - default deny of host-effectful APIs
+     - explicit opt-in enrollment (per-domain) for FS/NET/PROC/ENV/TIME
+     - clear separation between pure stdlib vs host-effect stdlib
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked).
-   - Extend casts to cover `i64/u64` (and checked variants) and `f32/f64` story.
+   - Extend casts to cover `f32/f64` story (including parsing + bit-casts).
+   - Tighten `i64/u64` semantics for v0 (u64 currently limited to `0..MAX_I64` until big-int/u128 story exists).
    - Keep endian-aware helpers for packet parsing/serialization (`be/le`) and explicit bit/byte casts.
 
 3) **P1 [correctness] Language core robustness**
@@ -41,3 +46,8 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - Packed struct views PV2/PV3: `pack_view("Type", bytes, off).field` reads and writes lower to byte ops (no allocation).
 - Endian-aware byte writes: `oren_bytes_set_{u16,i16,u32,i32}_{be,le}` added across backends with tests.
 - Fixed-width integer cast APIs (wrap/truncate): `lib/std/ints.oren` with native/module/avm tests.
+- Checked integer casts + native structured errors:
+  - `lib/std/ints.oren`: `try_*` casts returning `oren_err(4, ...)` on out-of-range.
+  - `lib/runtime_native.oren`: `oren_err/oren_is_err/oren_err_code/oren_err_msg` now implemented for native backend portability.
+- Native backend string `oren_string_char_at` semantics aligned with C/AVM (returns 1-byte string + bounds checks), and internal callers updated to use raw byte reads where appropriate.
+- Capsule mode (native backend): `--capsule` compile-time capability gating using `@cap.requires(domain="...")` annotations (FS/NET/PROC/ENV/TIME) plus compile-fail fixtures.

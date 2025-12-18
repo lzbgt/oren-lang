@@ -3,6 +3,7 @@ import stmtm "arm64_native_stmt.oren"
 import parser "parser.oren"
 import lexer "lexer.oren"
 import token "token.oren"
+import capsule "capsule.oren"
 
 // Re-export core helpers locally so the native program compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -728,6 +729,12 @@ fn native_compile_program_arm64(linked, platform) {
             ei = ei + 1
         }
         oren_exit(1)
+    }
+
+    // Capsule mode: enforce capability gating on user code before codegen.
+    // Note: enforced against runtime annotations, but scanned on user program only.
+    if platform["capsule"] == true {
+        capsule.enforce_capsule(runtime_prog, linked, platform["cap_allow_domains"])
     }
 
     // Collect named function declarations (runtime + user) so the native backend can:

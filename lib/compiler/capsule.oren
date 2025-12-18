@@ -1,0 +1,361 @@
+// Capsule mode (native backend): compile-time capability gating.
+//
+// Goal (v0):
+// - prevent host-effects by default (FS/NET/PROC/ENV/TIME) unless explicitly enrolled
+// - keep the mechanism simple and deterministic (no dynamic policy at runtime)
+//
+// Enforcement model:
+// - In capsule mode, calls to functions annotated with `@cap.requires(domain="...")`
+//   are rejected unless the requested domain is allowlisted.
+// - Direct syscall intrinsics (`sys_*`) are always rejected in user code in capsule mode.
+// - `ffi` declarations are rejected in capsule mode (it bypasses the capability model).
+
+fn str_starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn ascii_upper(s) {
+    if s == nil { return s }
+    var out = ""
+    var lower = "abcdefghijklmnopqrstuvwxyz"
+    var upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        var j = 0
+        var mapped = nil
+        while j < oren_string_len(lower) {
+            if oren_string_char_at(lower, j) == ch {
+                mapped = oren_string_char_at(upper, j)
+                j = oren_string_len(lower)
+            } else {
+                j = j + 1
+            }
+        }
+        if mapped != nil { out = out + mapped } else { out = out + ch }
+        i = i + 1
+    }
+    return out
+}
+
+fn build_allow_set(domains_csv_list) {
+    var allow = {}
+    if domains_csv_list == nil { return allow }
+    var i = 0
+    while i < oren_list_len(domains_csv_list) {
+        var d = domains_csv_list[i]
+        if d != nil && d != "" {
+            allow[ascii_upper(d)] = true
+        }
+        i = i + 1
+    }
+    return allow
+}
+
+fn attr_get_arg(attr, key) {
+    if attr == nil { return nil }
+    var args = attr["args"]
+    if args == nil { return nil }
+    var i = 0
+    while i < oren_list_len(args) {
+        var kv = args[i]
+        if kv != nil && kv["key"] == key {
+            return kv["value"]
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn fn_required_domains(fn_node) {
+    var out = []
+    if fn_node == nil { return out }
+    var attrs = fn_node["attrs"]
+    if attrs == nil { return out }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["type"] == "Attr" && a["name"] == "cap.requires" {
+            var dom_lit = attr_get_arg(a, "domain")
+            if dom_lit != nil && dom_lit["type"] == "String" {
+                var d = dom_lit["value"]
+                if d != nil && d != "" {
+                    oren_list_push(out, ascii_upper(d))
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn fn_info_add_in_place(out, stmts) {
+    if stmts == nil { return out }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        if s != nil {
+            if s["type"] == "ExprStmt" {
+                var e = s["expr"]
+                if e != nil && e["type"] == "Function" {
+                    var name = e["name"]
+                    if name != nil && name != "" {
+                        out[name] = {"domains": fn_required_domains(e)}
+                    }
+                }
+            } else {
+                if s["type"] == "Function" {
+                    var name2 = s["name"]
+                    if name2 != nil && name2 != "" {
+                        out[name2] = {"domains": fn_required_domains(s)}
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn resolve_member_call_name(fn_expr, aliases) {
+    // Resolve `alias.name` where alias is an import alias, into its prefixed symbol.
+    if fn_expr == nil || fn_expr["type"] != "Member" { return "" }
+    var left = fn_expr["left"]
+    var prop = fn_expr["prop"]
+    if left == nil || prop == nil { return "" }
+    if left["type"] != "Identifier" { return "" }
+    if prop["type"] != "Identifier" { return "" }
+    if aliases == nil { return "" }
+    var pref = aliases[left["value"]]
+    if pref == nil { return "" }
+    return pref + prop["value"]
+}
+
+fn capsule_violation(errors, msg) {
+    oren_list_push(errors, msg)
+    return nil
+}
+
+fn check_callee_name(errors, callee_name, fn_info, allow_set) {
+    if callee_name == nil || callee_name == "" { return nil }
+
+    // Hard rule: direct syscalls are never allowed from user code in capsule mode.
+    if str_starts_with(callee_name, "sys_") {
+        return capsule_violation(errors, "capsule: direct syscall '" + callee_name + "' is not allowed (use capability-governed runtime APIs instead)")
+    }
+
+    var info = fn_info[callee_name]
+    if info == nil { return nil }
+
+    var req = info["domains"]
+    if req == nil || oren_list_len(req) == 0 { return nil }
+
+    var i = 0
+    while i < oren_list_len(req) {
+        var d = req[i]
+        if allow_set[d] != true {
+            return capsule_violation(errors, "capsule: call to '" + callee_name + "' requires domain '" + d + "' (allow via --cap-allow-domains / OREN_CAP_ALLOW_DOMAINS)")
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn capsule_scan_stmt(errors, stmt, fn_info, allow_set, aliases) {
+    if stmt == nil { return nil }
+
+    if stmt["type"] == "FFI" {
+        capsule_violation(errors, "capsule: 'ffi' declarations are not allowed (bypasses capability gating)")
+        return nil
+    }
+    if stmt["type"] == "Var" {
+        capsule_scan_expr(errors, stmt["value"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "Assign" {
+        capsule_scan_expr(errors, stmt["value"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "Set" {
+        capsule_scan_expr(errors, stmt["left"], fn_info, allow_set, aliases)
+        capsule_scan_expr(errors, stmt["value"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "Return" {
+        capsule_scan_expr(errors, stmt["value"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "ExprStmt" {
+        capsule_scan_expr(errors, stmt["expr"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "Block" {
+        var stmts = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(stmts) {
+            capsule_scan_stmt(errors, stmts[i], fn_info, allow_set, aliases)
+            i = i + 1
+        }
+        return nil
+    }
+    if stmt["type"] == "If" {
+        capsule_scan_expr(errors, stmt["cond"], fn_info, allow_set, aliases)
+        capsule_scan_stmt(errors, stmt["consq"], fn_info, allow_set, aliases)
+        capsule_scan_stmt(errors, stmt["alt"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "While" {
+        capsule_scan_expr(errors, stmt["cond"], fn_info, allow_set, aliases)
+        capsule_scan_stmt(errors, stmt["body"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "For" {
+        capsule_scan_stmt(errors, stmt["init"], fn_info, allow_set, aliases)
+        capsule_scan_expr(errors, stmt["cond"], fn_info, allow_set, aliases)
+        capsule_scan_stmt(errors, stmt["post"], fn_info, allow_set, aliases)
+        capsule_scan_stmt(errors, stmt["body"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "Spawn" {
+        capsule_scan_expr(errors, stmt["call"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if stmt["type"] == "Function" {
+        // In v0, functions are expressions too; only scan body.
+        capsule_scan_stmt(errors, stmt["body"], fn_info, allow_set, aliases)
+        return nil
+    }
+    // Type/Import/Break/Continue/etc: no action.
+    return nil
+}
+
+fn capsule_scan_expr(errors, expr, fn_info, allow_set, aliases) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var callee = ""
+        if fn_expr != nil {
+            if fn_expr["type"] == "Identifier" {
+                callee = fn_expr["value"]
+            } else {
+                callee = resolve_member_call_name(fn_expr, aliases)
+            }
+        }
+        check_callee_name(errors, callee, fn_info, allow_set)
+
+        // Scan arguments and callee expression (covers dynamic calls too).
+        capsule_scan_expr(errors, fn_expr, fn_info, allow_set, aliases)
+        var args = expr["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            capsule_scan_expr(errors, args[i], fn_info, allow_set, aliases)
+            i = i + 1
+        }
+        return nil
+    }
+
+    if t == "SpawnExpr" {
+        capsule_scan_expr(errors, expr["call"], fn_info, allow_set, aliases)
+        return nil
+    }
+
+    if t == "Identifier" {
+        // Taking a restricted function as a value must also be gated.
+        check_callee_name(errors, expr["value"], fn_info, allow_set)
+        return nil
+    }
+
+    if t == "Member" {
+        // module.symbol as a value must be gated
+        var resolved = resolve_member_call_name(expr, aliases)
+        if resolved != "" {
+            check_callee_name(errors, resolved, fn_info, allow_set)
+        }
+        capsule_scan_expr(errors, expr["left"], fn_info, allow_set, aliases)
+        return nil
+    }
+
+    if t == "Infix" {
+        capsule_scan_expr(errors, expr["left"], fn_info, allow_set, aliases)
+        capsule_scan_expr(errors, expr["right"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if t == "Prefix" {
+        capsule_scan_expr(errors, expr["right"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if t == "If" {
+        capsule_scan_expr(errors, expr["cond"], fn_info, allow_set, aliases)
+        capsule_scan_stmt(errors, expr["consq"], fn_info, allow_set, aliases)
+        capsule_scan_stmt(errors, expr["alt"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        var i2 = 0
+        while i2 < oren_list_len(els) {
+            capsule_scan_expr(errors, els[i2], fn_info, allow_set, aliases)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        capsule_scan_expr(errors, expr["left"], fn_info, allow_set, aliases)
+        capsule_scan_expr(errors, expr["index"], fn_info, allow_set, aliases)
+        return nil
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var pi = 0
+        while pi < oren_list_len(pairs) {
+            capsule_scan_expr(errors, pairs[pi]["key"], fn_info, allow_set, aliases)
+            capsule_scan_expr(errors, pairs[pi]["value"], fn_info, allow_set, aliases)
+            pi = pi + 1
+        }
+        return nil
+    }
+    if t == "Function" {
+        capsule_scan_stmt(errors, expr["body"], fn_info, allow_set, aliases)
+        return nil
+    }
+    return nil
+}
+
+fn enforce_capsule(runtime_prog, linked, allow_domains_csv_list) {
+    var allow_set = build_allow_set(allow_domains_csv_list)
+    var aliases = nil
+    if linked != nil { aliases = linked["aliases"] }
+
+    // Runtime + user code define the symbol universe. We enforce on user code only.
+    var fn_info = {}
+    if runtime_prog != nil { fn_info_add_in_place(fn_info, runtime_prog["statements"]) }
+    if linked != nil { fn_info_add_in_place(fn_info, linked["statements"]) }
+
+    var errors = []
+    var i = 0
+    while i < oren_list_len(linked["statements"]) {
+        capsule_scan_stmt(errors, linked["statements"][i], fn_info, allow_set, aliases)
+        i = i + 1
+    }
+    if oren_list_len(errors) > 0 {
+        print("Capsule mode rejected program (capability violations):")
+        var ei = 0
+        while ei < oren_list_len(errors) {
+            print("  - " + errors[ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    return nil
+}

@@ -1,0 +1,6 @@
+fn main() {
+    // Capsule BAD: direct syscalls are forbidden in capsule mode.
+    var fd = sys_open("x", 0, 0)
+    print(fd)
+}
+

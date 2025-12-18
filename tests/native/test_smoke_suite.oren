@@ -66,6 +66,11 @@ fn main() {
     assert_streq(ks[0], "a", 41)
     assert_streq(ks[1], "b", 42)
 
+    // --- string char_at must be portable across backends ---
+    // It returns a 1-byte string (not an int codepoint).
+    assert_streq(oren_string_char_at("abc", 0), "a", 43)
+    assert_streq(oren_string_char_at("abc", 2), "c", 44)
+
     // --- std/json (portable, explicit JsonValue) ---
     var jr = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\\\n\\\"y\"}")
     assert_eq(jr["ok"], 1, 45)

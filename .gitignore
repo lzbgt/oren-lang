@@ -15,10 +15,13 @@ oren_stage*
 *.otool
 *.dylib
 *.so
+/avm
 
 # Test/build byproducts (keep sources)
 tests/native/*
 !tests/native/*.oren
+!tests/native/fixtures/
+!tests/native/fixtures/*.oren
 tests/modules/*
 !tests/modules/*.oren
 
