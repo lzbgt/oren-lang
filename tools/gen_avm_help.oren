@@ -71,6 +71,9 @@ fn build_avm_cli_spec() {
     ap.cmd_flag(r, "--deny-by-default", nil, "Deny all domains unless allowlisted")
     ap.cmd_option(r, "--allow-domains", nil, "string", "", "CSV of allowed domain ids (e.g. 0,1,6)")
     ap.cmd_option(r, "--fs-allow-prefixes", nil, "string", "", "CSV of allowed FS path prefixes")
+    ap.cmd_option(r, "--fs-mounts", nil, "string", "", "CSV mounts virt/=host/ (sets both read+write)")
+    ap.cmd_option(r, "--fs-mounts-read", nil, "string", "", "CSV mounts virt/=host/ (read only)")
+    ap.cmd_option(r, "--fs-mounts-write", nil, "string", "", "CSV mounts virt/=host/ (write only)")
 
     // Virtual backends
     ap.cmd_option(r, "--fs-backend", nil, "string", "host", "FS backend: host|vfs")

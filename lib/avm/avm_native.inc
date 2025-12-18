@@ -1332,6 +1332,164 @@ typedef struct {
     uint32_t cap;
 } AvmVfs;
 
+static int avm_clone_fs_allow_prefixes(AvmVM* dst, AvmVM* src) {
+    if (!dst) return 0;
+    if (!src) return 1;
+    if (src->fs_allow_prefix_count <= 0 || !src->fs_allow_prefixes) return 1;
+
+    int n = src->fs_allow_prefix_count;
+    dst->fs_allow_prefix_count = 0;
+    dst->fs_allow_prefixes = (char**)malloc(sizeof(char*) * (size_t)n);
+    if (!dst->fs_allow_prefixes) return 0;
+    for (int i = 0; i < n; i++) dst->fs_allow_prefixes[i] = NULL;
+
+    for (int i = 0; i < n; i++) {
+        const char* s = src->fs_allow_prefixes[i];
+        if (!s) s = "";
+        size_t sl = strlen(s);
+        dst->fs_allow_prefixes[i] = (char*)malloc(sl + 1);
+        if (!dst->fs_allow_prefixes[i]) {
+            for (int j = 0; j < n; j++) { if (dst->fs_allow_prefixes[j]) free(dst->fs_allow_prefixes[j]); }
+            free(dst->fs_allow_prefixes);
+            dst->fs_allow_prefixes = NULL;
+            dst->fs_allow_prefix_count = 0;
+            return 0;
+        }
+        memcpy(dst->fs_allow_prefixes[i], s, sl);
+        dst->fs_allow_prefixes[i][sl] = 0;
+        dst->fs_allow_prefix_count++;
+    }
+
+    return 1;
+}
+
+static int avm_clone_fs_mounts(AvmVM* dst, AvmVM* src) {
+    if (!dst) return 0;
+    if (!src) return 1;
+
+    // Clone read mounts
+    if (src->fs_mounts_read_count > 0 && src->fs_mounts_read_virt && src->fs_mounts_read_host) {
+        int n = src->fs_mounts_read_count;
+        dst->fs_mounts_read_count = 0;
+        dst->fs_mounts_read_virt = (char**)malloc(sizeof(char*) * (size_t)n);
+        dst->fs_mounts_read_host = (char**)malloc(sizeof(char*) * (size_t)n);
+        if (!dst->fs_mounts_read_virt || !dst->fs_mounts_read_host) {
+            if (dst->fs_mounts_read_virt) free(dst->fs_mounts_read_virt);
+            if (dst->fs_mounts_read_host) free(dst->fs_mounts_read_host);
+            dst->fs_mounts_read_virt = NULL;
+            dst->fs_mounts_read_host = NULL;
+            dst->fs_mounts_read_count = 0;
+            return 0;
+        }
+        for (int i = 0; i < n; i++) { dst->fs_mounts_read_virt[i] = NULL; dst->fs_mounts_read_host[i] = NULL; }
+        for (int i = 0; i < n; i++) {
+            const char* v = src->fs_mounts_read_virt[i] ? src->fs_mounts_read_virt[i] : "";
+            const char* h = src->fs_mounts_read_host[i] ? src->fs_mounts_read_host[i] : "";
+            size_t vl = strlen(v);
+            size_t hl = strlen(h);
+            dst->fs_mounts_read_virt[i] = (char*)malloc(vl + 1);
+            dst->fs_mounts_read_host[i] = (char*)malloc(hl + 1);
+            if (!dst->fs_mounts_read_virt[i] || !dst->fs_mounts_read_host[i]) {
+                if (dst->fs_mounts_read_virt[i]) free(dst->fs_mounts_read_virt[i]);
+                if (dst->fs_mounts_read_host[i]) free(dst->fs_mounts_read_host[i]);
+                for (int j = 0; j < n; j++) {
+                    if (dst->fs_mounts_read_virt[j]) free(dst->fs_mounts_read_virt[j]);
+                    if (dst->fs_mounts_read_host[j]) free(dst->fs_mounts_read_host[j]);
+                }
+                free(dst->fs_mounts_read_virt);
+                free(dst->fs_mounts_read_host);
+                dst->fs_mounts_read_virt = NULL;
+                dst->fs_mounts_read_host = NULL;
+                dst->fs_mounts_read_count = 0;
+                return 0;
+            }
+            memcpy(dst->fs_mounts_read_virt[i], v, vl); dst->fs_mounts_read_virt[i][vl] = 0;
+            memcpy(dst->fs_mounts_read_host[i], h, hl); dst->fs_mounts_read_host[i][hl] = 0;
+            dst->fs_mounts_read_count++;
+        }
+    }
+
+    // Clone write mounts
+    if (src->fs_mounts_write_count > 0 && src->fs_mounts_write_virt && src->fs_mounts_write_host) {
+        int n = src->fs_mounts_write_count;
+        dst->fs_mounts_write_count = 0;
+        dst->fs_mounts_write_virt = (char**)malloc(sizeof(char*) * (size_t)n);
+        dst->fs_mounts_write_host = (char**)malloc(sizeof(char*) * (size_t)n);
+        if (!dst->fs_mounts_write_virt || !dst->fs_mounts_write_host) {
+            if (dst->fs_mounts_write_virt) free(dst->fs_mounts_write_virt);
+            if (dst->fs_mounts_write_host) free(dst->fs_mounts_write_host);
+            dst->fs_mounts_write_virt = NULL;
+            dst->fs_mounts_write_host = NULL;
+            dst->fs_mounts_write_count = 0;
+            return 0;
+        }
+        for (int i = 0; i < n; i++) { dst->fs_mounts_write_virt[i] = NULL; dst->fs_mounts_write_host[i] = NULL; }
+        for (int i = 0; i < n; i++) {
+            const char* v = src->fs_mounts_write_virt[i] ? src->fs_mounts_write_virt[i] : "";
+            const char* h = src->fs_mounts_write_host[i] ? src->fs_mounts_write_host[i] : "";
+            size_t vl = strlen(v);
+            size_t hl = strlen(h);
+            dst->fs_mounts_write_virt[i] = (char*)malloc(vl + 1);
+            dst->fs_mounts_write_host[i] = (char*)malloc(hl + 1);
+            if (!dst->fs_mounts_write_virt[i] || !dst->fs_mounts_write_host[i]) {
+                if (dst->fs_mounts_write_virt[i]) free(dst->fs_mounts_write_virt[i]);
+                if (dst->fs_mounts_write_host[i]) free(dst->fs_mounts_write_host[i]);
+                for (int j = 0; j < n; j++) {
+                    if (dst->fs_mounts_write_virt[j]) free(dst->fs_mounts_write_virt[j]);
+                    if (dst->fs_mounts_write_host[j]) free(dst->fs_mounts_write_host[j]);
+                }
+                free(dst->fs_mounts_write_virt);
+                free(dst->fs_mounts_write_host);
+                dst->fs_mounts_write_virt = NULL;
+                dst->fs_mounts_write_host = NULL;
+                dst->fs_mounts_write_count = 0;
+                return 0;
+            }
+            memcpy(dst->fs_mounts_write_virt[i], v, vl); dst->fs_mounts_write_virt[i][vl] = 0;
+            memcpy(dst->fs_mounts_write_host[i], h, hl); dst->fs_mounts_write_host[i][hl] = 0;
+            dst->fs_mounts_write_count++;
+        }
+    }
+
+    return 1;
+}
+
+static char* avm_fs_map_path(const AvmVM* vm, const char* vpath, int is_write, int* matched_out) {
+    if (matched_out) *matched_out = 0;
+    if (!vm || !vpath) return NULL;
+    if (vm->fs_backend_kind != 0) return NULL; // mapping is host-backend only
+
+    const char* const* virt = is_write ? (const char* const*)vm->fs_mounts_write_virt : (const char* const*)vm->fs_mounts_read_virt;
+    const char* const* host = is_write ? (const char* const*)vm->fs_mounts_write_host : (const char* const*)vm->fs_mounts_read_host;
+    int n = is_write ? vm->fs_mounts_write_count : vm->fs_mounts_read_count;
+    if (!virt || !host || n <= 0) return NULL;
+
+    int best = -1;
+    size_t best_len = 0;
+    for (int i = 0; i < n; i++) {
+        const char* vp = virt[i];
+        if (!vp) continue;
+        size_t vl = strlen(vp);
+        if (vl == 0) continue;
+        if (strncmp(vpath, vp, vl) == 0) {
+            if (vl > best_len) { best = i; best_len = vl; }
+        }
+    }
+    if (best < 0) return NULL;
+    if (matched_out) *matched_out = 1;
+
+    const char* hp = host[best] ? host[best] : "";
+    size_t hl = strlen(hp);
+    const char* rest = vpath + best_len;
+    size_t rl = strlen(rest);
+    char* out = (char*)malloc(hl + rl + 1);
+    if (!out) return NULL;
+    if (hl) memcpy(out, hp, hl);
+    if (rl) memcpy(out + hl, rest, rl);
+    out[hl + rl] = 0;
+    return out;
+}
+
 static AvmVfs* avm_vfs_get_or_create(AvmVM* vm) {
     if (!vm) return NULL;
     if (vm->vfs) return (AvmVfs*)vm->vfs;
@@ -1424,6 +1582,22 @@ static int avm_vfs_put_list(AvmVM* vm, const char* path, const AvmList* list) {
     return ok;
 }
 
+static int avm_vfs_clone(AvmVM* dst, AvmVM* src) {
+    if (!dst) return 0;
+    if (!src || !src->vfs) return 1;
+    AvmVfs* sv = (AvmVfs*)src->vfs;
+    if (!sv || sv->count == 0) return 1;
+
+    for (uint32_t i = 0; i < sv->count; i++) {
+        AvmVfsEntry* se = &sv->entries[i];
+        const char* path = se->path ? se->path : "";
+        const uint8_t* data = se->data;
+        uint32_t len = se->len;
+        if (!avm_vfs_put(dst, path, data, len)) return 0;
+    }
+    return 1;
+}
+
 // NOTE: legacy `oren_read_bytes` returns LIST<int>, not BYTES. VirtualFS matches that ABI.
 static AvmValue avm_vfs_read_bytes_list_value(AvmVM* vm, const uint8_t* data, uint32_t len) {
     AvmValue res;
@@ -1488,7 +1662,19 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
     // Domain 1: FS (filesystem). Map op -> legacy ids for now.
     // This is a rolling ABI: domain/op tables may evolve quickly.
     if (domain == 1) {
-        if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
+        int is_write = (op == 1 || op == 2) ? 1 : 0;
+        int mounts_mode = 0;
+        if (vm && vm->fs_backend_kind == 0) {
+            // If any mounts are configured on the host FS backend, mounts become the explicit enrollment mechanism.
+            // In mount mode:
+            // - FS ops must match the corresponding read/write mount set
+            // - there is no fallback to allow-prefixes (avoid surprising host effects)
+            mounts_mode = (vm->fs_mounts_read_count > 0 || vm->fs_mounts_write_count > 0);
+        }
+
+        // Host filesystem allow-prefix policy only applies to the host FS backend, and only when mounts are not used.
+        // VirtualFS is in-memory and has no host effects, so it should not be constrained by host path prefixes.
+        if (vm && vm->fs_backend_kind == 0 && !mounts_mode && nargs > 0 && args[0].type == AVM_VAL_STRING) {
             const char* path = (const char*)args[0].as.p;
             if (!avm_path_allowed(vm, path)) {
                 return avm_err_domop(AVM_ERR_PERM, "fs path denied", domain, op);
@@ -1602,25 +1788,81 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
 
         switch (op) {
             case 0: { // read_file
-                AvmValue ret = avm_call_native(vm, 0, args, nargs);
+                AvmValue* use_args = args;
+                AvmValue tmp_args[4];
+                char* mapped = NULL;
+                if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    int matched = 0;
+                    mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    tmp_args[0] = args[0];
+                    tmp_args[0].as.p = mapped;
+                    for (int i = 1; i < nargs && i < 4; i++) tmp_args[i] = args[i];
+                    use_args = tmp_args;
+                }
+                AvmValue ret = avm_call_native(vm, 0, use_args, nargs);
+                if (mapped) free(mapped);
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 1: { // write_file
-                AvmValue ret = avm_call_native(vm, 1, args, nargs);
+                AvmValue* use_args = args;
+                AvmValue tmp_args[4];
+                char* mapped = NULL;
+                if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    int matched = 0;
+                    mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    tmp_args[0] = args[0];
+                    tmp_args[0].as.p = mapped;
+                    for (int i = 1; i < nargs && i < 4; i++) tmp_args[i] = args[i];
+                    use_args = tmp_args;
+                }
+                AvmValue ret = avm_call_native(vm, 1, use_args, nargs);
+                if (mapped) free(mapped);
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 2: { // write_bytes
-                AvmValue ret = avm_call_native(vm, 17, args, nargs);
+                AvmValue* use_args = args;
+                AvmValue tmp_args[4];
+                char* mapped = NULL;
+                if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    int matched = 0;
+                    mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    tmp_args[0] = args[0];
+                    tmp_args[0].as.p = mapped;
+                    for (int i = 1; i < nargs && i < 4; i++) tmp_args[i] = args[i];
+                    use_args = tmp_args;
+                }
+                AvmValue ret = avm_call_native(vm, 17, use_args, nargs);
+                if (mapped) free(mapped);
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
             case 3: { // read_bytes
-                AvmValue ret = avm_call_native(vm, 18, args, nargs);
+                AvmValue* use_args = args;
+                AvmValue tmp_args[4];
+                char* mapped = NULL;
+                if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    int matched = 0;
+                    mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    tmp_args[0] = args[0];
+                    tmp_args[0].as.p = mapped;
+                    for (int i = 1; i < nargs && i < 4; i++) tmp_args[i] = args[i];
+                    use_args = tmp_args;
+                }
+                AvmValue ret = avm_call_native(vm, 18, use_args, nargs);
+                if (mapped) free(mapped);
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
@@ -1864,6 +2106,21 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 // Nested universes must not touch the host filesystem by default.
                 // If FS is allowed and record/replay is not configured, VirtualFS prevents accidental host effects.
                 child->fs_backend_kind = 1;
+                // FS allow-prefix enrollment is hierarchical: child must inherit parent restrictions by default.
+                // This prevents a nested universe from widening host filesystem access by switching fs_backend to host.
+                if (vm && vm->fs_allow_prefix_count > 0) {
+                    if (!avm_clone_fs_allow_prefixes(child, vm)) {
+                        avm_free(child);
+                        return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    }
+                }
+                // FS mounts enrollment is also hierarchical (host FS backend only).
+                if (vm && vm->fs_backend_kind == 0 && (vm->fs_mounts_read_count > 0 || vm->fs_mounts_write_count > 0)) {
+                    if (!avm_clone_fs_mounts(child, vm)) {
+                        avm_free(child);
+                        return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    }
+                }
                 // Nested universes must not spawn host subprocesses by default.
                 child->proc_backend_kind = 1;
                 // Nested universes must not touch host network by default.
@@ -1953,6 +2210,17 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
 
                 // VirtualFS knobs (optional; default is safe vfs backend).
                 if (avm_map_get_key(cfg, "fs_backend", &v)) child->fs_backend_kind = (int)avm_value_u64(v, (uint64_t)child->fs_backend_kind);
+                // VirtualFS layering (rolling):
+                // - default: inherit parent VirtualFS when the parent is using VirtualFS (nested universes).
+                // - allow disabling via cfg["vfs_inherit"]=false for isolation.
+                int vfs_inherit = (vm && vm->fs_backend_kind == 1) ? 1 : 0;
+                if (avm_map_get_key(cfg, "vfs_inherit", &v)) vfs_inherit = avm_value_truthy(v) ? 1 : 0;
+                if (vfs_inherit && child->fs_backend_kind == 1) {
+                    if (!avm_vfs_clone(child, vm)) {
+                        avm_free(child);
+                        return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                    }
+                }
                 if (avm_map_get_key(cfg, "vfs_fixtures", &v) && v.type == AVM_VAL_BYTES && v.as.b && v.as.b->data) {
                     if (child->fs_backend_kind == 1) {
                         const uint8_t* data = v.as.b->data;

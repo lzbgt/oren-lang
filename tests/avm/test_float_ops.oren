@@ -1,0 +1,43 @@
+@myorg.tag(name="avm-float-ops")
+
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn assert_true(x, msg) {
+    if x { return 0 }
+    fail(msg)
+}
+
+fn assert_eq(a, b, msg) {
+    if a == b { return 0 }
+    fail(msg)
+}
+
+fn main() {
+    var a = 1.5
+    var b = 2.5
+
+    assert_eq(a + b, 4.0, "add")
+    assert_eq(b - a, 1.0, "sub")
+    assert_eq(a * 2.0, 3.0, "mul")
+    assert_eq(3.0 / a, 2.0, "div")
+
+    assert_eq(-a, -1.5, "unary minus")
+
+    // String concat (dynamic +).
+    assert_eq("a" + "b", "ab", "string concat")
+
+    // Mixed numeric comparisons (int/float).
+    assert_true(2 < 2.5, "lt mixed")
+    assert_true(2 <= 2.0, "le mixed")
+    assert_true(3.0 > 2, "gt mixed")
+    assert_true(3.0 >= 3, "ge mixed")
+
+    print("avm float_ops OK")
+}
+
+main()
+

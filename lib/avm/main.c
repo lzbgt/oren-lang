@@ -319,7 +319,7 @@ static VerifyResult verify_program_region(
             if (!decode_u16(code, code_len, pc + 1, &idx)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated STORE_GLOBAL"); }
             if (idx >= MAX_GLOBALS) { free(depth_at); free(queue); free(qdepth); return err_result("verify: global index out of bounds"); }
             pop = 1;
-        } else if (op >= 0x10 && op <= 0x1C) { // binary numeric ops + shifts + comparisons
+        } else if (op >= 0x10 && op <= 0x1E) { // binary numeric ops + shifts + comparisons
             len = 1;
             pop = 2;
             push = 1;
@@ -839,14 +839,16 @@ typedef struct {
     uint8_t net_fixtures_hash[32];
 } AvmExecContext;
 
-static void ctx_hash_sha256_v7(
+static void ctx_hash_sha256_v8(
     const AvmExecContext* ctx,
     const char* fs_allow_prefixes_raw,
+    const char* fs_mounts_read_raw,
+    const char* fs_mounts_write_raw,
     uint8_t out[32]
 ) {
     AvmSha256Ctx h;
     avm_sha256_init(&h);
-    const uint8_t tag[8] = { 'A','V','M','C','T','X','0','7' };
+    const uint8_t tag[8] = { 'A','V','M','C','T','X','0','8' };
     avm_sha256_update(&h, tag, 8);
 
     // flags
@@ -908,6 +910,84 @@ static void ctx_hash_sha256_v7(
             const char* end = cur;
             while (end > start && end[-1] == ' ') end--;
             if (end > start) {
+                uint32_t len = (uint32_t)(end - start);
+                sha_u32_le(&h, len);
+                avm_sha256_update(&h, (const uint8_t*)start, (size_t)len);
+            }
+            if (*cur == ',') cur++;
+        }
+    }
+
+    // fs mounts (raw strings, normalized as tokenization like allow prefixes):
+    // - empty/unset means "no mounts configured"
+    // - when mounts are set for an op type, host FS calls must match a mount
+    // Format (rolling, v0): CSV of entries "virt=host" (both are prefixes).
+    const char* mounts_read = fs_mounts_read_raw;
+    const char* mounts_write = fs_mounts_write_raw;
+    if ((!mounts_read || !mounts_read[0])) sha_u32_le(&h, 0);
+    else {
+        uint32_t cnt = 0;
+        const char* cur = mounts_read;
+        while (*cur) {
+            while (*cur == ' ' || *cur == ',') cur++;
+            if (!*cur) break;
+            const char* start = cur;
+            while (*cur && *cur != ',') cur++;
+            const char* end = cur;
+            while (end > start && end[-1] == ' ') end--;
+            // Require at least one '=' in the token; otherwise ignore (still hashed as absent).
+            int has_eq = 0;
+            for (const char* p = start; p < end; p++) { if (*p == '=') { has_eq = 1; break; } }
+            if (end > start && has_eq) cnt++;
+            if (*cur == ',') cur++;
+        }
+        sha_u32_le(&h, cnt);
+        cur = mounts_read;
+        while (*cur) {
+            while (*cur == ' ' || *cur == ',') cur++;
+            if (!*cur) break;
+            const char* start = cur;
+            while (*cur && *cur != ',') cur++;
+            const char* end = cur;
+            while (end > start && end[-1] == ' ') end--;
+            int has_eq = 0;
+            for (const char* p = start; p < end; p++) { if (*p == '=') { has_eq = 1; break; } }
+            if (end > start && has_eq) {
+                uint32_t len = (uint32_t)(end - start);
+                sha_u32_le(&h, len);
+                avm_sha256_update(&h, (const uint8_t*)start, (size_t)len);
+            }
+            if (*cur == ',') cur++;
+        }
+    }
+    if ((!mounts_write || !mounts_write[0])) sha_u32_le(&h, 0);
+    else {
+        uint32_t cnt = 0;
+        const char* cur = mounts_write;
+        while (*cur) {
+            while (*cur == ' ' || *cur == ',') cur++;
+            if (!*cur) break;
+            const char* start = cur;
+            while (*cur && *cur != ',') cur++;
+            const char* end = cur;
+            while (end > start && end[-1] == ' ') end--;
+            int has_eq = 0;
+            for (const char* p = start; p < end; p++) { if (*p == '=') { has_eq = 1; break; } }
+            if (end > start && has_eq) cnt++;
+            if (*cur == ',') cur++;
+        }
+        sha_u32_le(&h, cnt);
+        cur = mounts_write;
+        while (*cur) {
+            while (*cur == ' ' || *cur == ',') cur++;
+            if (!*cur) break;
+            const char* start = cur;
+            while (*cur && *cur != ',') cur++;
+            const char* end = cur;
+            while (end > start && end[-1] == ' ') end--;
+            int has_eq = 0;
+            for (const char* p = start; p < end; p++) { if (*p == '=') { has_eq = 1; break; } }
+            if (end > start && has_eq) {
                 uint32_t len = (uint32_t)(end - start);
                 sha_u32_le(&h, len);
                 avm_sha256_update(&h, (const uint8_t*)start, (size_t)len);
@@ -1241,6 +1321,87 @@ static void parse_fs_allow_prefixes(AvmVM* vm, const char* s) {
 
         if (*cur == ',') cur++;
     }
+}
+
+static void free_fs_mounts(char*** virt, char*** host, int* count) {
+    if (virt && *virt) {
+        for (int i = 0; count && i < *count; i++) {
+            if ((*virt)[i]) free((*virt)[i]);
+        }
+        free(*virt);
+        *virt = NULL;
+    }
+    if (host && *host) {
+        for (int i = 0; count && i < *count; i++) {
+            if ((*host)[i]) free((*host)[i]);
+        }
+        free(*host);
+        *host = NULL;
+    }
+    if (count) *count = 0;
+}
+
+static void parse_fs_mounts(char*** out_virt, char*** out_host, int* out_count, const char* s) {
+    if (!out_virt || !out_host || !out_count) return;
+    free_fs_mounts(out_virt, out_host, out_count);
+    if (!s || !s[0]) return; // empty => no mounts configured
+
+    // Count candidate tokens (CSV)
+    int count = 0;
+    for (const char* p = s; *p; p++) {
+        if (*p == ',') count++;
+    }
+    count++; // commas + 1
+
+    char** v = (char**)calloc((size_t)count, sizeof(char*));
+    char** h = (char**)calloc((size_t)count, sizeof(char*));
+    if (!v || !h) { if (v) free(v); if (h) free(h); return; }
+
+    int n = 0;
+    const char* cur = s;
+    while (*cur) {
+        while (*cur == ' ') cur++;
+        const char* start = cur;
+        while (*cur && *cur != ',') cur++;
+        const char* end = cur;
+        while (end > start && end[-1] == ' ') end--;
+
+        // Split on first '='
+        const char* eq = NULL;
+        for (const char* p = start; p < end; p++) {
+            if (*p == '=') { eq = p; break; }
+        }
+        if (eq && eq > start && (eq + 1) < end) {
+            const char* vs = start;
+            const char* ve = eq;
+            const char* hs = eq + 1;
+            const char* he = end;
+            while (ve > vs && ve[-1] == ' ') ve--;
+            while (hs < he && *hs == ' ') hs++;
+            while (he > hs && he[-1] == ' ') he--;
+
+            size_t vl = (size_t)(ve - vs);
+            size_t hl = (size_t)(he - hs);
+            if (vl > 0 && hl > 0) {
+                v[n] = (char*)malloc(vl + 1);
+                h[n] = (char*)malloc(hl + 1);
+                if (!v[n] || !h[n]) {
+                    if (v[n]) free(v[n]);
+                    if (h[n]) free(h[n]);
+                } else {
+                    memcpy(v[n], vs, vl); v[n][vl] = 0;
+                    memcpy(h[n], hs, hl); h[n][hl] = 0;
+                    n++;
+                }
+            }
+        }
+
+        if (*cur == ',') cur++;
+    }
+
+    *out_virt = v;
+    *out_host = h;
+    *out_count = n;
 }
 
 static int parse_fs_backend_kind(const char* s, int* out_kind) {
@@ -1656,6 +1817,9 @@ int main(int argc, char** argv) {
     const char* snap_out = NULL;
     const char* allow_domains_cli = NULL;
     const char* fs_allow_prefixes_cli = NULL;
+    const char* fs_mounts_cli = NULL;
+    const char* fs_mounts_read_cli = NULL;
+    const char* fs_mounts_write_cli = NULL;
     const char* fs_backend_cli = NULL;
     const char* proc_backend_cli = NULL;
     const char* proc_exit_code_cli = NULL;
@@ -1828,6 +1992,24 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--fs-allow-prefixes") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --fs-allow-prefixes\n"); return 1; }
             fs_allow_prefixes_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--fs-mounts") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --fs-mounts\n"); return 1; }
+            fs_mounts_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--fs-mounts-read") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --fs-mounts-read\n"); return 1; }
+            fs_mounts_read_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--fs-mounts-write") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --fs-mounts-write\n"); return 1; }
+            fs_mounts_write_cli = argv[i + 1];
             i += 2;
             continue;
         }
@@ -2076,6 +2258,24 @@ int main(int argc, char** argv) {
                 uint8_t b = data[pos++];
                 consts[ci].type = AVM_VAL_BOOL;
                 consts[ci].as.i = (b != 0) ? 1 : 0;
+            }
+            if (type == 3) { // FLOAT (rolling): IEEE-754 f64 bits as u64 little-endian
+                if (pos + 8 > len) {
+                    fprintf(stderr, "Invalid FLOAT const\n");
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
+                }
+                uint64_t bits = 0;
+                for (int k = 0; k < 8; k++) {
+                    bits |= (uint64_t)data[pos++] << (k * 8);
+                }
+                double d = 0.0;
+                memcpy(&d, &bits, sizeof(bits));
+                consts[ci].type = AVM_VAL_FLOAT;
+                consts[ci].as.f = d;
             }
             if (type == 4) { // STRING
                 if (pos + 2 > len) {
@@ -2464,9 +2664,24 @@ int main(int argc, char** argv) {
                         if (!fs_allow_s || !fs_allow_s[0]) fs_allow_s = getenv("OREN_FS_ALLOW_READ_PREFIXES");
                         if (!fs_allow_s || !fs_allow_s[0]) fs_allow_s = getenv("OREN_FS_ALLOW_WRITE_PREFIXES");
                     }
+                    const char* fs_m_read_s = fs_mounts_read_cli ? fs_mounts_read_cli : getenv("AVM_FS_MOUNTS_READ");
+                    const char* fs_m_write_s = fs_mounts_write_cli ? fs_mounts_write_cli : getenv("AVM_FS_MOUNTS_WRITE");
+                    const char* fs_m_both_s = fs_mounts_cli ? fs_mounts_cli : getenv("AVM_FS_MOUNTS");
+                    if ((!fs_m_read_s || !fs_m_read_s[0]) && fs_m_both_s && fs_m_both_s[0]) fs_m_read_s = fs_m_both_s;
+                    if ((!fs_m_write_s || !fs_m_write_s[0]) && fs_m_both_s && fs_m_both_s[0]) fs_m_write_s = fs_m_both_s;
+                    if (capsule) {
+                        if ((!fs_m_read_s || !fs_m_read_s[0])) {
+                            fs_m_read_s = getenv("OREN_FS_MOUNTS_READ");
+                            if (!fs_m_read_s || !fs_m_read_s[0]) fs_m_read_s = getenv("OREN_FS_MOUNTS");
+                        }
+                        if ((!fs_m_write_s || !fs_m_write_s[0])) {
+                            fs_m_write_s = getenv("OREN_FS_MOUNTS_WRITE");
+                            if (!fs_m_write_s || !fs_m_write_s[0]) fs_m_write_s = getenv("OREN_FS_MOUNTS");
+                        }
+                    }
                     uint8_t ctx_hash[32];
                     char ctx_hex[65];
-                    ctx_hash_sha256_v7(&ectx, fs_allow_s, ctx_hash);
+                    ctx_hash_sha256_v8(&ectx, fs_allow_s, fs_m_read_s, fs_m_write_s, ctx_hash);
                     avm_sha256_hex(ctx_hash, ctx_hex);
 
                     uint8_t job_hash[32];
@@ -2539,6 +2754,28 @@ int main(int argc, char** argv) {
                             // raw string for now (rolling); hash uses normalized tokenization.
                             printf(",\"fs_allow_prefixes\":\"");
                             for (const char* p = fs_allow_s; *p; p++) {
+                                if (*p == '\\' || *p == '\"') { printf("\\\\%c", *p); }
+                                else if (*p == '\n') { printf("\\\\n"); }
+                                else if (*p == '\r') { printf("\\\\r"); }
+                                else if (*p == '\t') { printf("\\\\t"); }
+                                else { printf("%c", *p); }
+                            }
+                            printf("\"");
+                        }
+                        if (fs_m_read_s && fs_m_read_s[0]) {
+                            printf(",\"fs_mounts_read\":\"");
+                            for (const char* p = fs_m_read_s; *p; p++) {
+                                if (*p == '\\' || *p == '\"') { printf("\\\\%c", *p); }
+                                else if (*p == '\n') { printf("\\\\n"); }
+                                else if (*p == '\r') { printf("\\\\r"); }
+                                else if (*p == '\t') { printf("\\\\t"); }
+                                else { printf("%c", *p); }
+                            }
+                            printf("\"");
+                        }
+                        if (fs_m_write_s && fs_m_write_s[0]) {
+                            printf(",\"fs_mounts_write\":\"");
+                            for (const char* p = fs_m_write_s; *p; p++) {
                                 if (*p == '\\' || *p == '\"') { printf("\\\\%c", *p); }
                                 else if (*p == '\n') { printf("\\\\n"); }
                                 else if (*p == '\r') { printf("\\\\r"); }
@@ -2964,6 +3201,24 @@ int main(int argc, char** argv) {
             if (!fs_allow_s || !fs_allow_s[0]) fs_allow_s = getenv("OREN_FS_ALLOW_WRITE_PREFIXES");
         }
         parse_fs_allow_prefixes(vm, fs_allow_s);
+
+        const char* fs_m_read_s = fs_mounts_read_cli ? fs_mounts_read_cli : getenv("AVM_FS_MOUNTS_READ");
+        const char* fs_m_write_s = fs_mounts_write_cli ? fs_mounts_write_cli : getenv("AVM_FS_MOUNTS_WRITE");
+        const char* fs_m_both_s = fs_mounts_cli ? fs_mounts_cli : getenv("AVM_FS_MOUNTS");
+        if ((!fs_m_read_s || !fs_m_read_s[0]) && fs_m_both_s && fs_m_both_s[0]) fs_m_read_s = fs_m_both_s;
+        if ((!fs_m_write_s || !fs_m_write_s[0]) && fs_m_both_s && fs_m_both_s[0]) fs_m_write_s = fs_m_both_s;
+        if (capsule) {
+            if ((!fs_m_read_s || !fs_m_read_s[0])) {
+                fs_m_read_s = getenv("OREN_FS_MOUNTS_READ");
+                if (!fs_m_read_s || !fs_m_read_s[0]) fs_m_read_s = getenv("OREN_FS_MOUNTS");
+            }
+            if ((!fs_m_write_s || !fs_m_write_s[0])) {
+                fs_m_write_s = getenv("OREN_FS_MOUNTS_WRITE");
+                if (!fs_m_write_s || !fs_m_write_s[0]) fs_m_write_s = getenv("OREN_FS_MOUNTS");
+            }
+        }
+        parse_fs_mounts(&vm->fs_mounts_read_virt, &vm->fs_mounts_read_host, &vm->fs_mounts_read_count, fs_m_read_s);
+        parse_fs_mounts(&vm->fs_mounts_write_virt, &vm->fs_mounts_write_host, &vm->fs_mounts_write_count, fs_m_write_s);
 
         const char* fs_backend_s = fs_backend_cli ? fs_backend_cli : getenv("AVM_FS_BACKEND");
         if (capsule && (!fs_backend_s || !fs_backend_s[0])) fs_backend_s = "vfs";

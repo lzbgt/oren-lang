@@ -253,7 +253,16 @@ Implementation reality today:
 
 - **C backend:** stores `float` as a C `double` (`OREN_TYPE_FLOAT`).
 - **Native backend (ARM64):** represents `float` values as the **raw 64-bit IEEE-754 bit pattern** in a 64-bit register; floating ops use dedicated intrinsics (`fadd/fsub/fmul/fdiv`) and preserve bit-level results.
-- **AVM:** the v0.1 `.obc` format mentions `FLOAT` in the instruction table, but float constants are not fully wired end-to-end yet; treat AVM float support as **rolling/incomplete** until tests and the bytecode backend guarantee it.
+- **AVM:** float64 is now wired end-to-end in the bytecode backend and VM:
+  - float literals compile into `.obc` as **f64 bit-pattern constants**
+  - arithmetic `+ - * /` and comparisons `< <= > >=` support numeric mixing (`int`/`float`) similar to the C runtime
+  - `+` also supports string concatenation (`"a" + "b"`)
+
+  This is still **rolling** (no stable ISA guarantee yet), but it is now covered by canonical AVM tests.
+
+Important rolling note:
+
+- Operator-level float arithmetic is not yet consistent across all backends. The native backend currently treats `+ - * /` as integer ops (and `+` also supports string concat); float math is performed via explicit intrinsics (`fadd/fsub/fmul/fdiv`). AVM and C backend currently support float operators directly.
 
 If you need **float32** in v0, the recommended path is **typed buffers** (`F32_BUF`) rather than introducing a second scalar float tag immediately (see “Planned” below). This avoids a large cross-backend rewrite of the dynamic value representation.
 

@@ -1076,11 +1076,30 @@ fn native_capsule_require_proc_exec(path) {
 fn native_capsule_proc_match_token(arg, tok_ptr, tok_len) {
     // Supports:
     // - "*" wildcard token (matches any string, including empty)
+    // - "<prefix>*" suffix-wildcard token (matches any string starting with <prefix>)
     if tok_len == 1 {
         if ptr_get_byte(tok_ptr) == 42 { return true } // '*'
     }
 
     if arg == 0 { return false }
+
+    // Prefix wildcard: "abc*" matches "abc", "abcd", "abcXYZ", ...
+    // Rolling: we only support '*' as the last byte to keep the matcher simple and deterministic.
+    if tok_len > 1 {
+        if ptr_get_byte(tok_ptr + (tok_len - 1)) == 42 { // '*'
+            var plen = tok_len - 1
+            var i2 = 0
+            while i2 < plen {
+                var ac2 = ptr_get_byte(arg + i2)
+                if ac2 == 0 { return false }
+                if ac2 != ptr_get_byte(tok_ptr + i2) { return false }
+                i2 = i2 + 1
+                if i2 > 4096 { return false }
+            }
+            return true
+        }
+    }
+
     var i = 0
     while i < tok_len {
         var ac = ptr_get_byte(arg + i)

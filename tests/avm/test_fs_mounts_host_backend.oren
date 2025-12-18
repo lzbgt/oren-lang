@@ -1,0 +1,40 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn assert_true(x, msg) {
+    if x { return 0 }
+    fail(msg)
+}
+
+fn main() {
+    // This test is intended to run with:
+    //   --fs-backend host
+    //   --deny-by-default --allow-domains "0,1,6"
+    //   --fs-mounts-read  "v/=build/mnt_avm/"
+    //   --fs-mounts-write "v/=build/mnt_avm/"
+    //
+    // The program uses ONLY virtual paths (v/...), and the host mapping is an external enrollment.
+
+    var vpath = "v/out.txt"
+    var content = "mount ok"
+
+    var w = oren_write_file(vpath, content)
+    if oren_is_err(w) { fail("write via mount failed") }
+
+    var s = oren_read_file(vpath)
+    if oren_is_err(s) { fail("read via mount failed") }
+    assert_true(s == content, "content mismatch")
+
+    // Paths that do not match any configured mount must be denied when mounts are present.
+    var deny_path = "build/avm_mount_deny.txt"
+    var w2 = oren_write_file(deny_path, "nope")
+    assert_true(oren_is_err(w2), "expected mount deny for non-mounted path")
+
+    oren_exit(0)
+}
+
+main()
+

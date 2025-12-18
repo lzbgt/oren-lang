@@ -15,6 +15,8 @@ const char* avm_op_name(uint8_t op) {
         case 0x07: return "STORE_GLOBAL";
         case 0x10: return "ADD";
         case 0x11: return "SUB";
+        case 0x1D: return "MUL";
+        case 0x1E: return "DIV";
         case 0x12: return "LT";
         case 0x13: return "EQ";
         case 0x14: return "NEQ";
@@ -71,6 +73,12 @@ AvmVM* avm_new() {
     vm->allowed_native_domains = 0;
     vm->fs_allow_prefixes = NULL;
     vm->fs_allow_prefix_count = 0;
+    vm->fs_mounts_read_virt = NULL;
+    vm->fs_mounts_read_host = NULL;
+    vm->fs_mounts_read_count = 0;
+    vm->fs_mounts_write_virt = NULL;
+    vm->fs_mounts_write_host = NULL;
+    vm->fs_mounts_write_count = 0;
     vm->fs_backend_kind = 0;
     vm->vfs = NULL;
     vm->proc_backend_kind = 0;
@@ -153,6 +161,22 @@ void avm_free(AvmVM* vm) {
             if (vm->fs_allow_prefixes[i]) free(vm->fs_allow_prefixes[i]);
         }
         free(vm->fs_allow_prefixes);
+    }
+    if (vm->fs_mounts_read_virt || vm->fs_mounts_read_host) {
+        for (int i = 0; i < vm->fs_mounts_read_count; i++) {
+            if (vm->fs_mounts_read_virt && vm->fs_mounts_read_virt[i]) free(vm->fs_mounts_read_virt[i]);
+            if (vm->fs_mounts_read_host && vm->fs_mounts_read_host[i]) free(vm->fs_mounts_read_host[i]);
+        }
+        if (vm->fs_mounts_read_virt) free(vm->fs_mounts_read_virt);
+        if (vm->fs_mounts_read_host) free(vm->fs_mounts_read_host);
+    }
+    if (vm->fs_mounts_write_virt || vm->fs_mounts_write_host) {
+        for (int i = 0; i < vm->fs_mounts_write_count; i++) {
+            if (vm->fs_mounts_write_virt && vm->fs_mounts_write_virt[i]) free(vm->fs_mounts_write_virt[i]);
+            if (vm->fs_mounts_write_host && vm->fs_mounts_write_host[i]) free(vm->fs_mounts_write_host[i]);
+        }
+        if (vm->fs_mounts_write_virt) free(vm->fs_mounts_write_virt);
+        if (vm->fs_mounts_write_host) free(vm->fs_mounts_write_host);
     }
     free(vm);
 }
@@ -319,10 +343,29 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    AvmValue res;
-                    res.type = AVM_VAL_INT;
-                    res.as.i = a.as.i + b.as.i;
-                    vm->stack[vm->sp++] = res;
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_int(a.as.i + b.as.i);
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f + b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = (double)a.as.i + b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f + (double)b.as.i; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_STRING && b.type == AVM_VAL_STRING) {
+                        const char* sa = a.as.p ? (const char*)a.as.p : "";
+                        const char* sb = b.as.p ? (const char*)b.as.p : "";
+                        size_t la = strlen(sa);
+                        size_t lb = strlen(sb);
+                        char* s = (char*)avm_heap_malloc_k(la + lb + 1, AVM_ALLOC_KIND_STRING);
+                        if (!s) { AvmValue e = avm_alloc_fail_value(); avm_abort(vm, e); vm->stack[vm->sp++] = e; break; }
+                        memcpy(s, sa, la);
+                        memcpy(s + la, sb, lb);
+                        s[la + lb] = 0;
+                        AvmValue r; r.type = AVM_VAL_STRING; r.as.p = s; vm->stack[vm->sp++] = r;
+                    } else {
+                        // Rolling behavior: type mismatch yields nil (avoid host crash).
+                        vm->stack[vm->sp++] = avm_nil();
+                    }
                 }
                 break;
             }
@@ -330,10 +373,53 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    AvmValue res;
-                    res.type = AVM_VAL_INT;
-                    res.as.i = a.as.i - b.as.i;
-                    vm->stack[vm->sp++] = res;
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_int(a.as.i - b.as.i);
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f - b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = (double)a.as.i - b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f - (double)b.as.i; vm->stack[vm->sp++] = r;
+                    } else {
+                        vm->stack[vm->sp++] = avm_nil();
+                    }
+                }
+                break;
+            }
+            case 0x1D: { // MUL
+                if (vm->sp >= 2) {
+                    AvmValue b = vm->stack[--vm->sp];
+                    AvmValue a = vm->stack[--vm->sp];
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_int(a.as.i * b.as.i);
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f * b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = (double)a.as.i * b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f * (double)b.as.i; vm->stack[vm->sp++] = r;
+                    } else {
+                        vm->stack[vm->sp++] = avm_nil();
+                    }
+                }
+                break;
+            }
+            case 0x1E: { // DIV
+                if (vm->sp >= 2) {
+                    AvmValue b = vm->stack[--vm->sp];
+                    AvmValue a = vm->stack[--vm->sp];
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_int(a.as.i / b.as.i);
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f / b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = (double)a.as.i / b.as.f; vm->stack[vm->sp++] = r;
+                    } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) {
+                        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f / (double)b.as.i; vm->stack[vm->sp++] = r;
+                    } else {
+                        vm->stack[vm->sp++] = avm_nil();
+                    }
                 }
                 break;
             }
@@ -341,7 +427,12 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_bool(a.as.i < b.as.i);
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.i < b.as.i);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool(a.as.f < b.as.f);
+                    else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool((double)a.as.i < b.as.f);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.f < (double)b.as.i);
+                    else if (a.type == AVM_VAL_STRING && b.type == AVM_VAL_STRING) vm->stack[vm->sp++] = avm_bool(strcmp((char*)a.as.p, (char*)b.as.p) < 0);
+                    else vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
             }
@@ -381,7 +472,12 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_bool(a.as.i > b.as.i);
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.i > b.as.i);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool(a.as.f > b.as.f);
+                    else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool((double)a.as.i > b.as.f);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.f > (double)b.as.i);
+                    else if (a.type == AVM_VAL_STRING && b.type == AVM_VAL_STRING) vm->stack[vm->sp++] = avm_bool(strcmp((char*)a.as.p, (char*)b.as.p) > 0);
+                    else vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
             }
@@ -389,7 +485,12 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_bool(a.as.i <= b.as.i);
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.i <= b.as.i);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool(a.as.f <= b.as.f);
+                    else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool((double)a.as.i <= b.as.f);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.f <= (double)b.as.i);
+                    else if (a.type == AVM_VAL_STRING && b.type == AVM_VAL_STRING) vm->stack[vm->sp++] = avm_bool(strcmp((char*)a.as.p, (char*)b.as.p) <= 0);
+                    else vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
             }
@@ -397,7 +498,12 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_bool(a.as.i >= b.as.i);
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.i >= b.as.i);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool(a.as.f >= b.as.f);
+                    else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) vm->stack[vm->sp++] = avm_bool((double)a.as.i >= b.as.f);
+                    else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_bool(a.as.f >= (double)b.as.i);
+                    else if (a.type == AVM_VAL_STRING && b.type == AVM_VAL_STRING) vm->stack[vm->sp++] = avm_bool(strcmp((char*)a.as.p, (char*)b.as.p) >= 0);
+                    else vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
             }

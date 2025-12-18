@@ -212,6 +212,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/modules/test_bytes_set_endian.oren",
         "tests/modules/test_int_casts.oren",
         "tests/modules/test_int_casts_checked.oren",
+        "tests/modules/test_float_ops.oren",
         "tests/modules/test_function_values.oren",
         "tests/modules/test_lambda_closure.oren",
         "tests/modules/test_lambda_multiline.oren",
@@ -239,6 +240,9 @@ fn run_repo_tests(target, no_gc) {
         "tests/avm/test_job_scan.oren",
         "tests/avm/test_snapshot_resume.oren",
         "tests/avm/test_multiverse_invalid_obc.oren",
+        "tests/avm/test_multiverse_vfs_inherit.oren",
+        "tests/avm/test_fs_mounts_host_backend.oren",
+        "tests/avm/test_float_ops.oren",
         "tests/avm/test_time_rng_deterministic.oren",
         "tests/avm/test_time_rng_record_replay_mem.oren",
         "tests/avm/test_budget_gas.oren",
@@ -638,7 +642,7 @@ fn run_repo_tests(target, no_gc) {
 
     var cap_proc_env_deny_log = "build/logs/capsule_runtime_proc_env_prog_run_deny.log"
     // NOTE: OREN_PROC_ALLOW_ARGV is intentionally set even for the deny case to isolate "env is filtered by default".
-    var cap_proc_env_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ARGV=\"/usr/bin/printenv|printenv|OREN_TEST_SECRET\" OREN_TEST_SECRET=shh ./" + cap_proc_env_out
+    var cap_proc_env_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ARGV=\"/usr/bin/printenv|printenv|OREN_*\" OREN_TEST_SECRET=shh ./" + cap_proc_env_out
     var cap_proc_env_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_env_deny_cmd, cap_proc_env_deny_log)
     if cap_proc_env_deny_rc == 0 {
         print("native failed: capsule_runtime_proc_env_prog (expected env to be filtered by default)")
@@ -647,7 +651,7 @@ fn run_repo_tests(target, no_gc) {
     }
 
     var cap_proc_env_ok_log = "build/logs/capsule_runtime_proc_env_prog_run_allow.log"
-    var cap_proc_env_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ENV_KEYS=OREN_TEST_SECRET OREN_PROC_ALLOW_ARGV=\"/usr/bin/printenv|printenv|OREN_TEST_SECRET\" OREN_TEST_SECRET=shh ./" + cap_proc_env_out
+    var cap_proc_env_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ENV_KEYS=OREN_TEST_SECRET OREN_PROC_ALLOW_ARGV=\"/usr/bin/printenv|printenv|OREN_*\" OREN_TEST_SECRET=shh ./" + cap_proc_env_out
     var cap_proc_env_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_env_ok_cmd, cap_proc_env_ok_log)
     if cap_proc_env_ok_rc != 0 {
         print("native failed: capsule_runtime_proc_env_prog (expected env allowlist to pass)")
@@ -836,6 +840,33 @@ fn run_repo_tests(target, no_gc) {
 
         // Test-specific run modes (ported from Makefile’s curated AVM runner).
         var run_rc3 = 0
+        if name3 == "test_multiverse_vfs_inherit" {
+            // Build nested-universe fixtures (bytecode programs consumed as data by the test).
+            var fx1 = "build/multiverse_grandchild_read_x.obc"
+            var fx1_cmd = "./oren build " + shell_quote("tests/avm/fixtures/multiverse_grandchild_read_x.oren") + " --backend bytecode -o " + shell_quote(fx1) + gc_arg
+            var fx1_rc = run_shell_capture(timeout_bin, build_timeout, fx1_cmd, log3)
+            if fx1_rc != 0 || file_exists(fx1) != true { run_rc3 = 1 }
+
+            var fx2 = "build/multiverse_child_vfs_inherit.obc"
+            var fx2_cmd = "./oren build " + shell_quote("tests/avm/fixtures/multiverse_child_vfs_inherit.oren") + " --backend bytecode -o " + shell_quote(fx2) + gc_arg
+            var fx2_rc = 0
+            if run_rc3 == 0 { fx2_rc = run_shell_capture(timeout_bin, build_timeout, fx2_cmd, log3) }
+            if run_rc3 == 0 && (fx2_rc != 0 || file_exists(fx2) != true) { run_rc3 = 1 }
+
+            var fx3 = "build/multiverse_child_host_fs_prefix_probe.obc"
+            var fx3_cmd = "./oren build " + shell_quote("tests/avm/fixtures/multiverse_child_host_fs_prefix_probe.oren") + " --backend bytecode -o " + shell_quote(fx3) + gc_arg
+            var fx3_rc = 0
+            if run_rc3 == 0 { fx3_rc = run_shell_capture(timeout_bin, build_timeout, fx3_cmd, log3) }
+            if run_rc3 == 0 && (fx3_rc != 0 || file_exists(fx3) != true) { run_rc3 = 1 }
+
+            if run_rc3 == 0 {
+                // This test requires the top-level VM to have a restrictive FS allowlist so we can validate
+                // hierarchical propagation to nested universes.
+                run_rc3 = run_shell_capture(timeout_bin, run_timeout, "./avm --fs-allow-prefixes \"build/\" " + shell_quote(out3), log3)
+            }
+
+            oren_system("rm -f build/multiverse_grandchild_read_x.obc build/multiverse_child_vfs_inherit.obc build/multiverse_child_host_fs_prefix_probe.obc")
+        } else {
         if name3 == "test_policy_scan" {
             oren_system("rm -f build/avm_policy_scan_should_not_write.txt build/avm_policy_scan_should_not_write2.txt")
             run_rc3 = run_shell_capture(timeout_bin, run_timeout, "./avm --print-policy " + shell_quote(out3), log3)
@@ -892,6 +923,14 @@ fn run_repo_tests(target, no_gc) {
                                 run_rc3 = 0
                             }
                         } else {
+                            if name3 == "test_fs_mounts_host_backend" {
+                                // AVM host FS mounts: explicit virtual->host enrollment, aligned with native mounts.
+                                oren_system("rm -rf build/mnt_avm && mkdir -p build/mnt_avm")
+                                oren_system("rm -f build/avm_mount_deny.txt build/mnt_avm/out.txt")
+                                run_rc3 = run_shell_capture(timeout_bin, run_timeout, "./avm --deny-by-default --allow-domains \"0,1,6\" --fs-backend host --fs-mounts-read \"v/=build/mnt_avm/\" --fs-mounts-write \"v/=build/mnt_avm/\" " + shell_quote(out3), log3)
+                                oren_system("rm -rf build/mnt_avm")
+                                oren_system("rm -f build/avm_mount_deny.txt")
+                            } else {
                             if name3 == "test_vfs_no_host_fs" {
                                 oren_system("rm -f build/avm_vfs_should_not_write.bin")
                                 run_rc3 = run_shell_capture(timeout_bin, run_timeout, "./avm --deny-by-default --allow-domains \"0,1,6\" --fs-allow-prefixes \"build/\" --fs-backend vfs " + shell_quote(out3), log3)
@@ -914,14 +953,16 @@ fn run_repo_tests(target, no_gc) {
                                     } else {
                                         run_rc3 = run_shell_capture(timeout_bin, run_timeout, "./avm " + shell_quote(out3), log3)
                                     }
+                                    }
                                 }
                                 }
                             }
-                        }
+                            }
                         }
                     }
                 }
             }
+        }
         }
 
         oren_system("rm -f " + shell_quote(out3))

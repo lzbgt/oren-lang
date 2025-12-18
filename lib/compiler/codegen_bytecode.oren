@@ -7,6 +7,8 @@ var AVM_PUSH_CONST = 2
 var AVM_POP = 3
 var AVM_ADD = 16
 var AVM_SUB = 17
+var AVM_MUL = 29
+var AVM_DIV = 30
 var AVM_PRINT = 32
 var AVM_LOAD_LOCAL = 4
 var AVM_STORE_LOCAL = 5
@@ -575,6 +577,16 @@ fn bytecode_compile_expr(ctx, expr) {
         emit_u16(ctx, idx)
         return nil
     }
+
+    if expr["type"] == "Float" {
+        // Encode float constants as IEEE-754 f64 raw bits, like the native backend.
+        // This avoids locale-dependent parsing inside the VM and keeps results deterministic.
+        var bits = oren_string_to_float_bits(expr["value"])
+        var idx = add_constant(ctx, {"type": "Float", "value": bits})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
     
     if expr["type"] == "Identifier" {
         var name = expr["value"]
@@ -705,6 +717,12 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if expr["op"] == "-" {
             emit_byte(ctx, AVM_SUB)
+        }
+        if expr["op"] == "*" {
+            emit_byte(ctx, AVM_MUL)
+        }
+        if expr["op"] == "/" {
+            emit_byte(ctx, AVM_DIV)
         }
         if expr["op"] == "<" {
             emit_byte(ctx, 18)
@@ -1403,10 +1421,10 @@ fn bytecode_compile_program(linked) {
 }
 
 fn emit_u64_le(bytes, n) {
+    // Bit-exact for signed ints too (needed for float64 bit patterns).
     var i = 0
     while i < 8 {
-        oren_list_push(bytes, n & 255)
-        n = n / 256
+        oren_list_push(bytes, (n >> (i * 8)) & 255)
         i = i + 1
     }
 }
@@ -1453,6 +1471,11 @@ fn bytecode_emit_program(out_path, ctx) {
             var b = c["value"]
             if b != 0 { b = 1 }
             oren_list_push(bytes, b)
+        }
+        if c["type"] == "Float" {
+            // Type FLOAT (rolling): IEEE-754 f64 bits as u64 little-endian.
+            oren_list_push(bytes, 3)
+            emit_u64_le(bytes, c["value"])
         }
         if c["type"] == "String" {
             oren_list_push(bytes, 4) // Type STRING

@@ -1,0 +1,39 @@
+import strings "../../lib/std/strings.oren"
+
+fn fail(code) {
+    print("module float_ops FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+var a = 1.5
+var b = 2.5
+
+assert_eq(a + b, 4.0, 10)
+assert_eq(b - a, 1.0, 11)
+assert_eq(a * 2.0, 3.0, 12)
+assert_eq(3.0 / a, 2.0, 13)
+
+assert_eq(-a, -1.5, 20)
+
+// String concat (dynamic +) + helper coverage.
+assert_eq("a" + "b", "ab", 30)
+assert_true(strings.starts_with("abcd", "ab"), 31)
+
+// Mixed numeric comparisons (int/float).
+assert_true(2 < 2.5, 40)
+assert_true(2 <= 2.0, 41)
+assert_true(3.0 > 2, 42)
+assert_true(3.0 >= 3, 43)
+
+print("module float_ops OK")
+exit(0)

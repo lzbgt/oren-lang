@@ -1,0 +1,12 @@
+fn main() {
+    // Grandchild universe: reads a VFS file injected/created by the parent universe.
+    // This is used to validate VirtualFS inheritance across nested universes.
+    var s = oren_read_file("x")
+    if oren_is_err(s) { oren_exit(1) }
+    if s != "ok" { oren_exit(2) }
+    oren_set_result(s)
+    oren_exit(0)
+}
+
+main()
+

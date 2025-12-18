@@ -1,0 +1,18 @@
+fn main() {
+    // Child universe: runs with host filesystem backend, but should inherit the parent's
+    // fs_allow_prefixes restriction when nested via avm.run_obc_bytes.
+    //
+    // Parent test runs the top-level AVM with --fs-allow-prefixes "build/".
+    // Without hierarchical propagation, this child could read arbitrary host files.
+
+    var s = oren_read_file("README.md")
+    if oren_is_err(s) {
+        // Expected: denied by fs_allow_prefixes inherited from parent.
+        oren_exit(0)
+    }
+    // Unexpected: child accessed host FS outside the parent's allowlist.
+    oren_exit(1)
+}
+
+main()
+

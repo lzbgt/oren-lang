@@ -123,6 +123,19 @@ typedef struct {
     // FS allow-list (rolling): if empty, allow all. If non-empty, path must start with one of these prefixes.
     char** fs_allow_prefixes;
     int fs_allow_prefix_count;
+
+    // FS mount mappings (rolling): optional virtual->host prefix mapping for the host FS backend.
+    // These are intended to keep bytecode paths stable/deterministic while allowing explicit enrollment
+    // into a host-backed filesystem (similar to the native runtime mounts).
+    //
+    // If mounts are configured for an operation type (read or write), host FS calls must match a mount.
+    // If no mount matches, the operation is denied (AVM_ERR_PERM).
+    char** fs_mounts_read_virt;
+    char** fs_mounts_read_host;
+    int fs_mounts_read_count;
+    char** fs_mounts_write_virt;
+    char** fs_mounts_write_host;
+    int fs_mounts_write_count;
     // FS backend mode (rolling):
     // - 0: host filesystem (subject to capability + allow-prefixes + record/replay)
     // - 1: in-memory VirtualFS (no host filesystem effects; still record/replay-capable)

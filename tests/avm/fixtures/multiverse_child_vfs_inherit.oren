@@ -1,0 +1,33 @@
+fn main() {
+    // Child universe: uses VirtualFS, writes a file, then spawns a grandchild universe.
+    // The grandchild must inherit this universe's VirtualFS state and be able to read "x".
+
+    // Make sure VirtualFS write works and creates state for inheritance.
+    oren_write_file("x", "ok")
+
+    // Grandchild obc is injected into this universe's VirtualFS as "g.obc".
+    // NOTE: `oren_read_bytes` returns LIST<int> (legacy ABI); pack to BYTES for avm.run_obc_bytes.
+    var obc_list = oren_read_bytes("g.obc")
+    if oren_is_err(obc_list) { oren_exit(10) }
+    var obc = oren_bytes_pack(obc_list)
+    if oren_is_err(obc) { oren_exit(11) }
+
+    // Allow CORE + FS + EXIT (grandchild uses FS + exit).
+    var allowed = (1 << 0) + (1 << 1) + (1 << 6)
+
+    var cfg = {
+        "deterministic": true,
+        "gas_limit": 1000000,
+        "allowed_domains": allowed,
+        "fs_backend": 1,
+        "vfs_inherit": true
+    }
+
+    var r = oren_avm_run_obc_bytes(obc, cfg)
+    // If grandchild fails, propagate the exit code to make debugging visible to the parent.
+    if r["exit_code"] != 0 { oren_exit(r["exit_code"]) }
+    oren_set_result(r)
+    oren_exit(0)
+}
+
+main()
