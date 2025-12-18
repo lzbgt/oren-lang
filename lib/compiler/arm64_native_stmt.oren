@@ -13,7 +13,7 @@ fn contains_curly_braces(s) { return core.contains_curly_braces(s) }
 
 fn scope_enter_codegen(ctx) { return core.scope_enter_codegen(ctx) }
 fn scope_current_codegen(ctx) { return core.scope_current_codegen(ctx) }
-fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy) { return core.scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy) }
+fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy, prev_list_stringy) { return core.scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy, prev_list_stringy) }
 fn scope_exit_codegen(ctx) { return core.scope_exit_codegen(ctx) }
 
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
@@ -222,6 +222,7 @@ fn native_compile_stmt(ctx, stmt) {
         native_compile_expr(ctx, stmt["value"])
         var is_floaty = exprm.native_expr_is_floaty(ctx, stmt["value"])
         var is_stringy = exprm.native_expr_is_stringy(ctx, stmt["value"])
+        var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
         
         var name = stmt["name"]["value"]
         var off = ctx["locals"][name]
@@ -230,6 +231,7 @@ fn native_compile_stmt(ctx, stmt) {
             emit_str_reg_sp_any(ctx, 0, current_sp_off)
             if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty }
             if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy }
+            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy }
             return nil
         }
         
@@ -251,6 +253,7 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_str_ptr(0, 1))
             if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty }
             if ctx["globals_stringy"] != nil { ctx["globals_stringy"][name] = is_stringy }
+            if ctx["globals_list_stringy"] != nil { ctx["globals_list_stringy"][name] = is_list_stringy }
             return nil
         }
         
@@ -262,6 +265,7 @@ fn native_compile_stmt(ctx, stmt) {
         native_compile_expr(ctx, stmt["value"])
         var is_floaty2 = exprm.native_expr_is_floaty(ctx, stmt["value"])
         var is_stringy2 = exprm.native_expr_is_stringy(ctx, stmt["value"])
+        var is_list_stringy2 = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
 
         var name = stmt["name"]["value"]
         
@@ -278,6 +282,7 @@ fn native_compile_stmt(ctx, stmt) {
                         emit_str_reg_sp_any(ctx, 0, current_sp_off_existing)
                         if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
                         if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
+                        if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
                         return nil
                     }
                 }
@@ -292,11 +297,14 @@ fn native_compile_stmt(ctx, stmt) {
             if ctx["locals_floaty"] != nil { prev_floaty = ctx["locals_floaty"][name] }
             var prev_stringy = nil
             if ctx["locals_stringy"] != nil { prev_stringy = ctx["locals_stringy"][name] }
-            scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy)
+            var prev_list_stringy = nil
+            if ctx["locals_list_stringy"] != nil { prev_list_stringy = ctx["locals_list_stringy"][name] }
+            scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy, prev_list_stringy)
 
             ctx["locals"][name] = ctx["stack_size"]
             if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
             if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
+            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
             ctx["stack_size"] = ctx["stack_size"] + 16
         } else {
             var data_off = oren_list_len(ctx["data"])
@@ -305,6 +313,7 @@ fn native_compile_stmt(ctx, stmt) {
             ctx["globals"][name] = data_off
             if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty2 }
             if ctx["globals_stringy"] != nil { ctx["globals_stringy"][name] = is_stringy2 }
+            if ctx["globals_list_stringy"] != nil { ctx["globals_list_stringy"][name] = is_list_stringy2 }
             
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -422,7 +431,7 @@ fn native_compile_stmt(ctx, stmt) {
         return nil
     }
     
-    if stmt["type"] == "Type" {
+        if stmt["type"] == "Type" {
         var name = stmt["name"]["value"]
         var fields = stmt["fields"]
         var n_fields = oren_list_len(fields)
@@ -435,8 +444,14 @@ fn native_compile_stmt(ctx, stmt) {
         oren_list_push(ctx["function_names"], name)
         
         var old_locals = ctx["locals"]
+        var old_locals_floaty = ctx["locals_floaty"]
+        var old_locals_stringy = ctx["locals_stringy"]
+        var old_locals_list_stringy = ctx["locals_list_stringy"]
         var old_stack_size = ctx["stack_size"]
         ctx["locals"] = {}
+        ctx["locals_floaty"] = {}
+        ctx["locals_stringy"] = {}
+        ctx["locals_list_stringy"] = {}
         ctx["stack_size"] = 0
         
         ctx["in_function"] = true
@@ -498,6 +513,9 @@ fn native_compile_stmt(ctx, stmt) {
         ctx["in_function"] = false
         
         ctx["locals"] = old_locals
+        ctx["locals_floaty"] = old_locals_floaty
+        ctx["locals_stringy"] = old_locals_stringy
+        ctx["locals_list_stringy"] = old_locals_list_stringy
         ctx["stack_size"] = old_stack_size
         return nil
     }
@@ -621,9 +639,15 @@ fn native_compile_stmt(ctx, stmt) {
             }
             
             var old_locals = ctx["locals"]
+            var old_locals_floaty = ctx["locals_floaty"]
+            var old_locals_stringy = ctx["locals_stringy"]
+            var old_locals_list_stringy = ctx["locals_list_stringy"]
             var old_stack_size = ctx["stack_size"]
             var old_scope = ctx["scope"]
             ctx["locals"] = {}
+            ctx["locals_floaty"] = {}
+            ctx["locals_stringy"] = {}
+            ctx["locals_list_stringy"] = {}
             ctx["stack_size"] = 0
             ctx["scope"] = nil
             
@@ -690,6 +714,9 @@ fn native_compile_stmt(ctx, stmt) {
             ctx["in_function"] = false
             
             ctx["locals"] = old_locals
+            ctx["locals_floaty"] = old_locals_floaty
+            ctx["locals_stringy"] = old_locals_stringy
+            ctx["locals_list_stringy"] = old_locals_list_stringy
             ctx["stack_size"] = old_stack_size
             ctx["scope"] = old_scope
             return nil

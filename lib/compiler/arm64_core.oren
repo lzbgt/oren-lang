@@ -29,14 +29,14 @@ fn scope_current_codegen(ctx) {
     return ctx["scope"]
 }
 
-fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy) {
+fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy, prev_list_stringy) {
     var scope = scope_current_codegen(ctx)
     if scope == nil {
         scope_enter_codegen(ctx)
         scope = scope_current_codegen(ctx)
     }
     scope["names"][name] = 1
-    oren_list_push(scope["undo"], {"name": name, "prev": prev_off, "prev_floaty": prev_floaty, "prev_stringy": prev_stringy})
+    oren_list_push(scope["undo"], {"name": name, "prev": prev_off, "prev_floaty": prev_floaty, "prev_stringy": prev_stringy, "prev_list_stringy": prev_list_stringy})
 }
 
 fn scope_exit_codegen(ctx) {
@@ -70,6 +70,14 @@ fn scope_exit_codegen(ctx) {
                 ctx["locals_stringy"][name] = nil
             } else {
                 ctx["locals_stringy"][name] = ps
+            }
+        }
+        if ctx["locals_list_stringy"] != nil {
+            var pls = u["prev_list_stringy"]
+            if pls == nil {
+                ctx["locals_list_stringy"][name] = nil
+            } else {
+                ctx["locals_list_stringy"][name] = pls
             }
         }
         i = i - 1

@@ -1,0 +1,29 @@
+// macOS arm64 ABI constants used by the syscall-first native backend.
+//
+// Policy:
+// - Prefer repo-owned constants (this file + docs/refs) over depending on host SDK headers.
+// - System headers may be used for audit/verification, but must not be a build dependency.
+//
+// References:
+// - `docs/refs/darwin_xnu_syscalls.master` (XNU syscall table)
+// - `docs/refs/darwin_arm64_abi.md` (curated subset + offset notes)
+
+// --- Syscall numbers (arm64, macOS / Darwin) ---
+fn darwin_sys_stat64() { return 338 }
+fn darwin_sys_fstat64() { return 339 }
+fn darwin_sys_lstat64() { return 340 }
+fn darwin_sys_getdirentries64() { return 344 }
+
+// --- libc-independent fcntl constants (used by host-mode convenience helpers) ---
+// NOTE: `F_GETPATH` is a Darwin fcntl command that writes the file path for an fd.
+// It is used by `oren_getcwd()` in host-mode to avoid `getcwd(3)` (libc).
+fn darwin_fcntl_f_getpath() { return 50 }
+
+// --- `struct stat` layout (Darwin) ---
+// Verified on macOS arm64 by compiling a tiny audit C program (no runtime dependency):
+// - sizeof(struct stat) == 144
+// - offsetof(st_mode) == 4
+// - offsetof(st_size) == 96
+fn darwin_stat_size_bytes() { return 144 }
+fn darwin_stat_off_st_mode() { return 4 }
+fn darwin_stat_off_st_size() { return 96 }

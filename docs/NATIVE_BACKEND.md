@@ -37,6 +37,7 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 
 - The native backend emits syscalls as **inline `svc`** instructions (Darwin arm64 uses `X16` as the syscall register) and does **not** call libc’s `syscall(2)` wrapper.
 - Syscall numbers are taken from Darwin/XNU references (see `docs/refs/darwin_xnu_syscalls.master`).
+- Repo-owned ABI constants (syscalls + offsets) live in `lib/compiler/arm64_abi_macos.oren` (see `docs/refs/darwin_arm64_abi.md`).
 - `sys_stat(path, st_ptr)` on macOS uses **`stat64` (syscall 338)** for correct 64-bit `struct stat` behavior on arm64.
 - `sys_lstat(path, st_ptr)` on macOS uses **`lstat64` (syscall 340)** (no-follow symlink metadata).
 - `sys_fstat(fd, st_ptr)` on macOS uses **`fstat64` (syscall 339)**.

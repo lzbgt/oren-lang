@@ -1,0 +1,45 @@
+fn fail(msg) {
+    print("FAIL")
+    print(msg)
+    oren_exit(1)
+}
+
+fn assert_true(x, msg) {
+    if x { return 0 }
+    fail(msg)
+}
+
+fn main() {
+    // Intended runner config:
+    //   --deny-by-default --allow-domains "0,1,6" --fs-backend vfs
+    // This test validates AVM parity for FS helpers introduced in native runtime:
+    // - oren_exists(path)
+    // - oren_readdir(dir)
+    // plus the pure helper:
+    // - oren_realpath(path)
+
+    // Populate VFS with a small directory tree.
+    var w1 = oren_write_file("v/dir/in.txt", "ok")
+    if oren_is_err(w1) { fail("write in.txt failed") }
+
+    var w2 = oren_write_file("v/dir/sub/n.txt", "x")
+    if oren_is_err(w2) { fail("write sub/n.txt failed") }
+
+    assert_true(oren_exists("v/dir/in.txt") == true, "exists(in.txt) expected true")
+    assert_true(oren_exists("v/dir") == true, "exists(dir) expected true")
+    assert_true(oren_exists("v/dir/nope") == false, "exists(nope) expected false")
+
+    var names = oren_readdir("v/dir")
+    if oren_list_len(names) != 2 { fail("readdir len expected 2") }
+
+    // Deterministic ordering: ascending by strcmp.
+    assert_true(names[0] == "in.txt", "readdir[0] expected in.txt")
+    assert_true(names[1] == "sub", "readdir[1] expected sub")
+
+    var rp = oren_realpath("v/dir/../dir//in.txt")
+    assert_true(rp == "v/dir/in.txt", "realpath normalization mismatch")
+
+    oren_exit(0)
+}
+
+main()

@@ -1015,6 +1015,88 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 53: { // oren_realpath(path:string) -> string (pure lexical normalization)
+            if (nargs > 0 && args[0].type == AVM_VAL_STRING && args[0].as.p) {
+                const char* path = (const char*)args[0].as.p;
+                size_t n = strlen(path);
+                int is_abs = (n > 0 && path[0] == '/');
+
+                typedef struct { const char* s; uint32_t len; } Seg;
+                // Worst-case segments <= n (each char could be a 1-byte segment).
+                Seg* segs = (Seg*)avm_heap_malloc_k(sizeof(Seg) * (n ? n : 1), AVM_ALLOC_KIND_TMP);
+                if (!segs) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                uint32_t seg_count = 0;
+
+                size_t i2 = 0;
+                while (i2 <= n) {
+                    while (i2 < n && path[i2] == '/') i2++;
+                    if (i2 >= n) break;
+                    size_t start = i2;
+                    while (i2 < n && path[i2] != '/') i2++;
+                    size_t end = i2;
+                    uint32_t len = (uint32_t)(end - start);
+                    const char* seg = path + start;
+
+                    // "."
+                    if (len == 1 && seg[0] == '.') continue;
+
+                    // ".."
+                    if (len == 2 && seg[0] == '.' && seg[1] == '.') {
+                        if (seg_count > 0) {
+                            Seg last = segs[seg_count - 1];
+                            int last_is_dd = (last.len == 2 && last.s[0] == '.' && last.s[1] == '.');
+                            if (is_abs || !last_is_dd) {
+                                seg_count--;
+                                continue;
+                            }
+                        }
+                        if (!is_abs) {
+                            segs[seg_count++] = (Seg){ seg, len };
+                        }
+                        continue;
+                    }
+
+                    segs[seg_count++] = (Seg){ seg, len };
+                }
+
+                if (seg_count == 0) {
+                    const char* base = is_abs ? "/" : ".";
+                    size_t bl = 1;
+                    char* out_s = (char*)avm_heap_malloc_k(bl + 1, AVM_ALLOC_KIND_STRING);
+                    if (!out_s) { avm_heap_free(segs); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    out_s[0] = base[0]; out_s[1] = 0;
+                    avm_heap_free(segs);
+                    res.type = AVM_VAL_STRING;
+                    res.as.p = out_s;
+                    break;
+                }
+
+                uint64_t total = is_abs ? 1ull : 0ull;
+                for (uint32_t si = 0; si < seg_count; si++) {
+                    total += (uint64_t)segs[si].len;
+                    if (si + 1 < seg_count) total += 1ull;
+                }
+                if (total > 0x7fffffffULL) { avm_heap_free(segs); res = avm_err(AVM_ERR_INVALID_ARG, "oren_realpath: path too long"); break; }
+                char* out_s = (char*)avm_heap_malloc_k((size_t)total + 1, AVM_ALLOC_KIND_STRING);
+                if (!out_s) { avm_heap_free(segs); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+
+                uint64_t off = 0;
+                if (is_abs) { out_s[0] = '/'; off = 1; }
+                for (uint32_t si = 0; si < seg_count; si++) {
+                    Seg sg = segs[si];
+                    if (sg.len) memcpy(out_s + off, sg.s, sg.len);
+                    off += sg.len;
+                    if (si + 1 < seg_count) out_s[off++] = '/';
+                }
+                out_s[total] = 0;
+                avm_heap_free(segs);
+                res.type = AVM_VAL_STRING;
+                res.as.p = out_s;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_realpath expects (string)");
+            }
+            break;
+        }
         // TODO: Implement others
         default:
             printf("Unknown native id: %d\n", id);
@@ -1490,6 +1572,14 @@ static char* avm_fs_map_path(const AvmVM* vm, const char* vpath, int is_write, i
     return out;
 }
 
+static int cmp_avm_value_string(const void* a, const void* b) {
+    const AvmValue* va = (const AvmValue*)a;
+    const AvmValue* vb = (const AvmValue*)b;
+    const char* sa = (va && va->type == AVM_VAL_STRING && va->as.p) ? (const char*)va->as.p : "";
+    const char* sb = (vb && vb->type == AVM_VAL_STRING && vb->as.p) ? (const char*)vb->as.p : "";
+    return strcmp(sa, sb);
+}
+
 static AvmVfs* avm_vfs_get_or_create(AvmVM* vm) {
     if (!vm) return NULL;
     if (vm->vfs) return (AvmVfs*)vm->vfs;
@@ -1781,6 +1871,96 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                     return ret;
                 }
+                case 4: { // exists(path) -> BOOL
+                    // VFS semantics:
+                    // - true if the exact path exists as a file
+                    // - true if any entry exists under `path/` (treat as directory existence)
+                    int ex = 0;
+                    const char* pth = path ? path : "";
+                    if (pth[0] != 0) {
+                        AvmVfsEntry* fe = avm_vfs_find(v, pth);
+                        if (fe) ex = 1;
+                    }
+                    if (!ex) {
+                        size_t pl = strlen(pth);
+                        if (pl > 0) {
+                            for (uint32_t ii = 0; ii < v->count; ii++) {
+                                const char* ep = v->entries[ii].path;
+                                if (!ep) continue;
+                                if (strncmp(ep, pth, pl) == 0 && ep[pl] == '/') { ex = 1; break; }
+                            }
+                        }
+                    }
+
+                    AvmValue ret = avm_bool(ex);
+                    if (vm->record_log_bytes) { uint32_t ppos = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &ppos, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                case 5: { // readdir(path) -> LIST<string>
+                    const char* d = path ? path : "";
+                    size_t dl = strlen(d);
+                    int has_trailing = (dl > 0 && d[dl - 1] == '/');
+
+                    AvmList* out = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                    if (!out) { AvmValue e = avm_alloc_fail_value(); avm_abort(vm, e); return e; }
+                    out->count = 0;
+                    out->capacity = 0;
+                    out->items = NULL;
+
+                    // Collect immediate child names by scanning VFS entries.
+                    for (uint32_t ii = 0; ii < v->count; ii++) {
+                        const char* ep = v->entries[ii].path;
+                        if (!ep) continue;
+
+                        const char* rest = NULL;
+                        if (dl == 0) {
+                            rest = ep;
+                        } else if (has_trailing) {
+                            if (strncmp(ep, d, dl) != 0) continue;
+                            rest = ep + dl;
+                        } else {
+                            if (strncmp(ep, d, dl) != 0) continue;
+                            if (ep[dl] != '/') continue;
+                            rest = ep + dl + 1;
+                        }
+
+                        if (!rest || rest[0] == 0) continue;
+
+                        // Immediate child name is up to next '/'.
+                        const char* slash = strchr(rest, '/');
+                        size_t nl = slash ? (size_t)(slash - rest) : strlen(rest);
+                        if (nl == 0) continue;
+                        if (nl == 1 && rest[0] == '.') continue;
+                        if (nl == 2 && rest[0] == '.' && rest[1] == '.') continue;
+
+                        // Deduplicate by linear scan (small lists; bootstrap).
+                        int dup = 0;
+                        for (int j = 0; j < out->count; j++) {
+                            if (out->items[j].type != AVM_VAL_STRING || !out->items[j].as.p) continue;
+                            const char* cur = (const char*)out->items[j].as.p;
+                            if (strncmp(cur, rest, nl) == 0 && cur[nl] == 0) { dup = 1; break; }
+                        }
+                        if (dup) continue;
+
+                        char* name = (char*)avm_heap_malloc_k(nl + 1, AVM_ALLOC_KIND_STRING);
+                        if (!name) { AvmValue e = avm_alloc_fail_value(); avm_abort(vm, e); return e; }
+                        memcpy(name, rest, nl);
+                        name[nl] = 0;
+
+                        if (!avm_list_ensure_cap(out, out->count + 1)) { AvmValue e = avm_alloc_fail_value(); avm_abort(vm, e); return e; }
+                        AvmValue vv; vv.type = AVM_VAL_STRING; vv.as.p = name;
+                        out->items[out->count++] = vv;
+                    }
+
+                    if (out->count > 1) qsort(out->items, (size_t)out->count, sizeof(AvmValue), cmp_avm_value_string);
+
+                    AvmValue ret; ret.type = AVM_VAL_LIST; ret.as.l = out;
+                    if (vm->record_log_bytes) { uint32_t ppos = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &ppos, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+
                 default:
                     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
             }
@@ -1867,6 +2047,109 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                 return ret;
             }
+            case 4: { // exists
+                if (nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    AvmValue* use_args = args;
+                    AvmValue tmp_args[1];
+                    char* mapped = NULL;
+                    if (vm && vm->fs_backend_kind == 0 && mounts_mode && args[0].as.p) {
+                        int matched = 0;
+                        mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                        if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                        if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                        tmp_args[0] = args[0];
+                        tmp_args[0].as.p = mapped;
+                        use_args = tmp_args;
+                    }
+
+                    const char* path2 = (use_args[0].as.p) ? (const char*)use_args[0].as.p : "";
+                    int ok = (access(path2, F_OK) == 0);
+
+                    if (mapped) free(mapped);
+
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        if (!avm_log_can_fit(vm, 81ull)) {
+                            AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, e);
+                            return e;
+                        }
+                    }
+                    if (!avm_io_charge(vm, 0, (int)domain, (int)op)) return vm->last_error;
+
+                    AvmValue ret = avm_bool(ok);
+                    if (vm->record_log_bytes) { uint32_t ppos = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &ppos, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                return avm_err_domop(AVM_ERR_INVALID_ARG, "exists expects (string)", domain, op);
+            }
+            case 5: { // readdir
+                if (nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
+                    AvmValue* use_args = args;
+                    AvmValue tmp_args[1];
+                    char* mapped = NULL;
+                    if (vm && vm->fs_backend_kind == 0 && mounts_mode && args[0].as.p) {
+                        int matched = 0;
+                        mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                        if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                        if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                        tmp_args[0] = args[0];
+                        tmp_args[0].as.p = mapped;
+                        use_args = tmp_args;
+                    }
+
+                    const char* path2 = (use_args[0].as.p) ? (const char*)use_args[0].as.p : "";
+                    DIR* dir = opendir(path2);
+                    if (!dir) {
+                        int err = errno;
+                        if (mapped) free(mapped);
+                        return avm_err_domop(avm_err_from_errno(err), "readdir: cannot open dir", domain, op);
+                    }
+
+                    AvmList* out = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                    if (!out) { closedir(dir); if (mapped) free(mapped); AvmValue e = avm_alloc_fail_value(); avm_abort(vm, e); return e; }
+                    out->count = 0;
+                    out->capacity = 0;
+                    out->items = NULL;
+
+                    uint64_t io_bytes = 0;
+
+                    for (;;) {
+                        struct dirent* ent = readdir(dir);
+                        if (!ent) break;
+                        const char* name = ent->d_name;
+                        if (!name) continue;
+                        if (name[0] == '.' && name[1] == 0) continue;
+                        if (name[0] == '.' && name[1] == '.' && name[2] == 0) continue;
+
+                        AvmValue sv = avm_string(name);
+                        if (avm_is_err_val(sv)) { closedir(dir); if (mapped) free(mapped); avm_abort(vm, sv); return sv; }
+                        if (!avm_list_ensure_cap(out, out->count + 1)) { closedir(dir); if (mapped) free(mapped); AvmValue e = avm_alloc_fail_value(); avm_abort(vm, e); return e; }
+                        out->items[out->count++] = sv;
+                        io_bytes += (uint64_t)strlen(name);
+                    }
+
+                    closedir(dir);
+                    if (mapped) free(mapped);
+
+                    if (out->count > 1) qsort(out->items, (size_t)out->count, sizeof(AvmValue), cmp_avm_value_string);
+
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        if (!avm_log_can_fit(vm, 86ull + io_bytes + (uint64_t)out->count * 32ull)) {
+                            AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, e);
+                            return e;
+                        }
+                    }
+                    if (!avm_io_charge(vm, io_bytes, (int)domain, (int)op)) return vm->last_error;
+
+                    AvmValue ret; ret.type = AVM_VAL_LIST; ret.as.l = out;
+                    if (vm->record_log_bytes) { uint32_t ppos = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &ppos, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                return avm_err_domop(AVM_ERR_INVALID_ARG, "readdir expects (string)", domain, op);
+            }
             default: break;
         }
     }
@@ -1896,6 +2179,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                     return ret;
                 }
+
                 default:
                     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
             }
@@ -2075,6 +2359,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                     return ret;
                 }
+
                 default:
                     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
             }

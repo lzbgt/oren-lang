@@ -1,4 +1,5 @@
 import core "arm64_core.oren"
+import abi "arm64_abi_macos.oren"
 
 // Re-export core helpers locally so the native expr compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -614,7 +615,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             }
 
             if is_macos {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 338))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_stat64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
@@ -687,7 +688,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             }
 
             if is_macos {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 340))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_lstat64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
@@ -754,7 +755,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             }
 
             if is_macos {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 339))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_fstat64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
@@ -868,7 +869,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             }
 
             if is_macos {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 344))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_getdirentries64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)

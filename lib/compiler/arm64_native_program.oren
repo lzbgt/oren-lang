@@ -545,6 +545,7 @@ fn native_compile_program_arm64(linked, platform) {
         "globals": {},
         "globals_floaty": {},
         "globals_stringy": {},
+        "globals_list_stringy": {},
         "functions": {},
         "function_names": [],
         // Named function declarations (name -> arity) collected before codegen.
@@ -563,6 +564,7 @@ fn native_compile_program_arm64(linked, platform) {
         "scope": nil,
         "locals_floaty": {},
         "locals_stringy": {},
+        "locals_list_stringy": {},
         "platform": platform,
         "aliases": linked["aliases"],
         "type_ns": linked["type_ns"],

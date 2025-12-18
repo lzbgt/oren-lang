@@ -244,6 +244,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/avm/test_multiverse_invalid_obc.oren",
         "tests/avm/test_multiverse_vfs_inherit.oren",
         "tests/avm/test_fs_mounts_host_backend.oren",
+        "tests/avm/test_fs_helpers_vfs.oren",
         "tests/avm/test_float_ops.oren",
         "tests/avm/test_time_rng_deterministic.oren",
         "tests/avm/test_time_rng_record_replay_mem.oren",
@@ -1528,7 +1529,7 @@ fn run_repo_tests(target, no_gc) {
                                 oren_system("rm -rf build/mnt_avm")
                                 oren_system("rm -f build/avm_mount_deny.txt")
                             } else {
-                            if name3 == "test_vfs_no_host_fs" {
+                            if name3 == "test_vfs_no_host_fs" || name3 == "test_fs_helpers_vfs" {
                                 oren_system("rm -f build/avm_vfs_should_not_write.bin")
                                 run_rc3 = run_shell_capture(timeout_bin, run_timeout, "./avm --deny-by-default --allow-domains \"0,1,6\" --fs-allow-prefixes \"build/\" --fs-backend vfs " + shell_quote(out3), log3)
                                 if file_exists("build/avm_vfs_should_not_write.bin") { run_rc3 = 1 }

@@ -163,6 +163,35 @@ fn native_expr_is_floaty(ctx, expr) {
     return false
 }
 
+fn native_expr_is_list_stringy(ctx, expr) {
+    // Heuristic for "list of strings" propagation in the native backend.
+    // This is used to make `xs[i] == "lit"` work when `xs` comes from known APIs like `oren_readdir`.
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_list_stringy"] != nil {
+                if ctx["locals_list_stringy"][name] == true { return true }
+            }
+            if ctx["globals_list_stringy"] != nil {
+                if ctx["globals_list_stringy"][name] == true { return true }
+            }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "oren_readdir" { return true }
+            if nm == "oren_args" { return true }
+        }
+        return false
+    }
+    return false
+}
+
 fn native_expr_is_stringy(ctx, expr) {
     // Heuristic "string propagation" for the native backend.
     //
@@ -181,6 +210,10 @@ fn native_expr_is_stringy(ctx, expr) {
                 if ctx["globals_stringy"][name] == true { return true }
             }
         }
+        return false
+    }
+    if et == "Index" {
+        if native_expr_is_list_stringy(ctx, expr["left"]) { return true }
         return false
     }
     if et == "Infix" {
@@ -204,6 +237,8 @@ fn native_expr_is_stringy(ctx, expr) {
             if nm == "oren_realpath" { return true }
             if nm == "oren_realpath_checked" { return true }
             if nm == "oren_getcwd" { return true }
+            if nm == "oren_env" { return true }
+            if nm == "oren_read_file" { return true }
             if nm == "string_concat" { return true }
         }
         return false

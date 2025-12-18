@@ -838,6 +838,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_write_file" { native_domain = AVM_DOMAIN_FS; native_op = 1 }
         if name == "oren_write_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 2 }
         if name == "oren_read_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 3 }
+        if name == "oren_exists" { native_domain = AVM_DOMAIN_FS; native_op = 4 }
+        if name == "oren_readdir" { native_domain = AVM_DOMAIN_FS; native_op = 5 }
         if name == "oren_avm_run_obc_bytes" { native_domain = AVM_DOMAIN_AVM; native_op = 0 }
 
         if native_domain != -1 {
@@ -892,6 +894,9 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_avm_get_record_bytes" { native_id = 41 }
         if name == "oren_avm_set_replay_bytes" { native_id = 42 }
         if name == "oren_iter_next" { native_id = 43 }
+
+        // Pure path normalization (portable across backends; implemented natively in each backend).
+        if name == "oren_realpath" { native_id = 53 }
 
         if native_id != -1 {
             var args = expr["args"]

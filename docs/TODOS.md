@@ -1,6 +1,6 @@
 # TODOs (Prioritized, Rolling)
 
-This repo is in **rolling ABI** mode. This file is intentionally short (≈5–10 items): it is the execution order for the next engineering work.
+This repo is in **rolling ABI** mode. This file is intentionally short (about 5-10 items): it is the execution order for the next engineering work.
 
 - Completed / detailed history: `docs/TODOS_ARCHIVE.md`
 - Platform focus right now: **macOS arm64 first** (but avoid designs that block Linux arm64 later).
@@ -15,43 +15,35 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 
 1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
-   - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
-   - Next enrollments (beyond domain bitmask):
-      - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
-      - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
-      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir/access/rmdir/stat/lstat/fstat/getdirentries64 + runtime readdir/realpath/getcwd/exists/realpath_checked; next: AVM mirror + enforce string == semantics (native/C/AVM)), then mounts UX polish + virtual mount mirroring (native/AVM)
+   - Capability enrollment model: explicit mapping virtual -> host resources; deny-by-default with capability checks at the raw `sys_*` boundary (no bypass).
+   - Next: mounts UX polish + virtual mount mirroring (native/AVM) + more FS syscalls as needed.
 
-2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
-   - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.
-   - Extend casts to cover `f32/f64` story (including parsing + bit-casts) and endian-aware helpers (`be/le`).
-   - Tighten `i64/u64` semantics for v0 (u64 currently limited to `0..MAX_I64` until big-int/u128 story exists).
-   - DONE: native float operator parity for floaty expressions (compile-time tracked), plus canonical tests.
+2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
+   - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
+   - Treat system headers as audit-only.
+   - macOS arm64 is partially done via `lib/compiler/arm64_abi_macos.oren` + `docs/refs/darwin_arm64_abi.md`.
+   - Next: Linux arm64 parity tables + a single shared ABI layer used by native codegen.
 
-3) **P1 [correctness] Language core robustness**
-   - Centralize OS ABI constants (syscall numbers/struct offsets) in repo docs/refs + code, and treat system headers as audit-only (no build/runtime dependency).
-   - Harden parser/codegen invariants (scope, stack/heap, argument passing).
-   - Fix nested control-flow edge cases (e.g. nested `for` break depth).
-   - Ensure deterministic container behavior matches spec across all backends.
-   - Define and enforce string equality semantics across backends (native has `oren_string_eq`; unify language-level `==` semantics across native/C/AVM).
+3) **P1 [correctness] Unify language-level `==` / `!=` semantics for strings across backends**
+   - Native backend uses a compile-time "stringy" heuristic + runtime `strcmp`; AVM/C backends do type-tagged `strcmp`.
+   - Keep expanding coverage via tests: strings from FS (`readdir`), ENV, `realpath`, `read_file`, etc.
+   - Must keep `s == nil` safe (no accidental `strcmp(s, 0)` lowering).
 
-4) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
+4) **P1 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
+   - Define cast semantics (truncate vs checked) and enforce consistent behavior across native/C/AVM.
+   - Extend casts to cover `f32/f64` + endian-aware helpers (`be/le`) for packed parsing.
+
+5) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - Deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
 
-5) **P2 [ux] Tooling**
-   - `.obc` disassembler (“otool-like”) + metadata extractor (reads embedded `OREN_META\n1\n` BYTES convention).
+6) **P2 [ux] Tooling**
+   - `.obc` disassembler ("otool-like") + metadata extractor (reads embedded `OREN_META\n1\n` bytes convention).
 
-6) **P2 [maint] Refactors without semantic churn**
-   - Split oversized modules (e.g. AVM/codegen) once behavior is covered by tests.
+7) **P2 [maint] Refactors without semantic churn**
+   - Split oversized modules (AVM/codegen) once behavior is covered by tests.
 
-## Recently Completed
+## Recently Completed (high signal)
 
-- Native capsule OS boundary: enforce NET/PROC/FS at raw `sys_*` (no bypass), with enrollment mapping + curated tests.
-  - FS coverage includes `sys_open`, `sys_unlink`, `sys_rename`, `sys_mkdir`, `sys_access`, `sys_rmdir`, `sys_stat`, `sys_lstat`, `sys_fstat`, `sys_getdirentries64` (macOS uses `stat64`=338).
-  - Added runtime `oren_readdir(path)` built on `sys_getdirentries64` (portable parsing heuristics).
-  - Added runtime `oren_realpath(path)` (pure lexical path normalization; deterministic) and `oren_string_eq(a,b)`.
-  - Added runtime `oren_getcwd()` (host-mode via fcntl(F_GETPATH); denied in capsule mode to avoid leaking host paths).
-  - Added runtime `oren_exists(path)` + `oren_realpath_checked(path)` (capsule-safe).
-- AVM multiverse: nested universes inherit VirtualFS and host FS restrictions.
-- AVM host FS mounts: `--fs-mounts[-read|-write]` maps virtual paths to enrolled host prefixes.
-- AVM float64: `.obc` FLOAT consts + `* /` ops, mixed numeric comparisons, canonical float ops test.
-- Native backend: float operator parity for floaty expressions + fixed SCVTF/FCVTZS instruction encodings.
+- AVM FS-domain helpers: `oren_exists` + `oren_readdir` (VFS + host mounts), plus CORE `oren_realpath` (pure lexical).
+- macOS arm64 ABI constants moved into repo-owned module: `lib/compiler/arm64_abi_macos.oren` (+ refs in `docs/refs/darwin_arm64_abi.md`).
+- Native backend string comparisons: fixed false-floaty Index classification that broke `names[i] == "lit"` for lists produced by helpers like `oren_readdir`.

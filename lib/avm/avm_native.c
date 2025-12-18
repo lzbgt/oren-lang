@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dirent.h>
+
 #include <unistd.h>
 
 // Native capability dispatchers and record/replay logic live in a shared `.inc` for now.
