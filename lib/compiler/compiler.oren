@@ -191,6 +191,8 @@ fn run_repo_tests(target, no_gc) {
         "tests/native/test_env_execve_getenv.oren",
         "tests/native/test_syscall_errno.oren",
         "tests/native/test_read_bytes.oren",
+        "tests/native/test_bytes_set_endian.oren",
+        "tests/native/test_int_casts.oren",
         "tests/native/test_pack_view.oren",
         "tests/native/test_system_timeout.oren",
         "tests/native/test_spawn_join_timeout.oren",
@@ -204,6 +206,8 @@ fn run_repo_tests(target, no_gc) {
         "tests/modules/test_spawn.oren",
         "tests/modules/test_spawn_join_timeout.oren",
         "tests/modules/test_read_bytes.oren",
+        "tests/modules/test_bytes_set_endian.oren",
+        "tests/modules/test_int_casts.oren",
         "tests/modules/test_function_values.oren",
         "tests/modules/test_lambda_closure.oren",
         "tests/modules/test_lambda_multiline.oren",
@@ -222,6 +226,8 @@ fn run_repo_tests(target, no_gc) {
 
     var avm_tests = [
         "tests/avm/test_smoke_suite.oren",
+        "tests/avm/test_bytes_set_endian.oren",
+        "tests/avm/test_int_casts.oren",
         "tests/avm/test_pack_view.oren",
         "tests/avm/test_closure_fn_values.oren",
         "tests/avm/test_policy_scan.oren",

@@ -605,17 +605,257 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     AvmBytes* b = args[0].as.b;
                     if (!b || idx < 0 || idx >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u8: index out of bounds"); break; }
                     b->data[(int)idx] = (uint8_t)val;
-                    res = args[0];
+                    res = avm_int(val);
                 } else if (args[0].type == AVM_VAL_LIST) {
                     AvmList* list = args[0].as.l;
                     if (!list || idx < 0 || idx >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u8: index out of bounds"); break; }
                     list->items[(int)idx] = avm_int(val);
-                    res = args[0];
+                    res = avm_int(val);
                 } else {
                     res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u8 expects (bytes|list<int>, int, int)");
                 }
             } else {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u8 expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 45: { // oren_bytes_set_u16_be(bytes|list<int>, idx, val) -> int (0..65535)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFu;
+                uint8_t b0 = (uint8_t)((u >> 8) & 0xFFu);
+                uint8_t b1 = (uint8_t)(u & 0xFFu);
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 1 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u16_be: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    res = avm_int((int64_t)u);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 1 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u16_be: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    res = avm_int((int64_t)u);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u16_be expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u16_be expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 46: { // oren_bytes_set_u16_le(bytes|list<int>, idx, val) -> int (0..65535)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFu;
+                uint8_t b0 = (uint8_t)(u & 0xFFu);
+                uint8_t b1 = (uint8_t)((u >> 8) & 0xFFu);
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 1 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u16_le: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    res = avm_int((int64_t)u);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 1 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u16_le: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    res = avm_int((int64_t)u);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u16_le expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u16_le expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 47: { // oren_bytes_set_i16_be(bytes|list<int>, idx, val) -> int (-32768..32767)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFu;
+                uint8_t b0 = (uint8_t)((u >> 8) & 0xFFu);
+                uint8_t b1 = (uint8_t)(u & 0xFFu);
+                int64_t v = (int64_t)u;
+                if (v >= 32768) v -= 65536;
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 1 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i16_be: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    res = avm_int(v);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 1 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i16_be: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    res = avm_int(v);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i16_be expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i16_be expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 48: { // oren_bytes_set_i16_le(bytes|list<int>, idx, val) -> int (-32768..32767)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFu;
+                uint8_t b0 = (uint8_t)(u & 0xFFu);
+                uint8_t b1 = (uint8_t)((u >> 8) & 0xFFu);
+                int64_t v = (int64_t)u;
+                if (v >= 32768) v -= 65536;
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 1 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i16_le: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    res = avm_int(v);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 1 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i16_le: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    res = avm_int(v);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i16_le expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i16_le expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 49: { // oren_bytes_set_u32_be(bytes|list<int>, idx, val) -> int (0..2^32-1)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFFFFFu;
+                uint8_t b0 = (uint8_t)((u >> 24) & 0xFFu);
+                uint8_t b1 = (uint8_t)((u >> 16) & 0xFFu);
+                uint8_t b2 = (uint8_t)((u >> 8) & 0xFFu);
+                uint8_t b3 = (uint8_t)(u & 0xFFu);
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 3 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u32_be: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    b->data[(int)idx + 2] = b2;
+                    b->data[(int)idx + 3] = b3;
+                    res = avm_int((int64_t)u);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 3 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u32_be: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    list->items[(int)idx + 2] = avm_int((int64_t)b2);
+                    list->items[(int)idx + 3] = avm_int((int64_t)b3);
+                    res = avm_int((int64_t)u);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u32_be expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u32_be expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 50: { // oren_bytes_set_u32_le(bytes|list<int>, idx, val) -> int (0..2^32-1)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFFFFFu;
+                uint8_t b0 = (uint8_t)(u & 0xFFu);
+                uint8_t b1 = (uint8_t)((u >> 8) & 0xFFu);
+                uint8_t b2 = (uint8_t)((u >> 16) & 0xFFu);
+                uint8_t b3 = (uint8_t)((u >> 24) & 0xFFu);
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 3 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u32_le: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    b->data[(int)idx + 2] = b2;
+                    b->data[(int)idx + 3] = b3;
+                    res = avm_int((int64_t)u);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 3 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u32_le: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    list->items[(int)idx + 2] = avm_int((int64_t)b2);
+                    list->items[(int)idx + 3] = avm_int((int64_t)b3);
+                    res = avm_int((int64_t)u);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u32_le expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u32_le expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 51: { // oren_bytes_set_i32_be(bytes|list<int>, idx, val) -> int (-2^31..2^31-1)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFFFFFu;
+                uint8_t b0 = (uint8_t)((u >> 24) & 0xFFu);
+                uint8_t b1 = (uint8_t)((u >> 16) & 0xFFu);
+                uint8_t b2 = (uint8_t)((u >> 8) & 0xFFu);
+                uint8_t b3 = (uint8_t)(u & 0xFFu);
+                int64_t v = (int64_t)u;
+                if (v >= 2147483648LL) v -= 4294967296LL;
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 3 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i32_be: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    b->data[(int)idx + 2] = b2;
+                    b->data[(int)idx + 3] = b3;
+                    res = avm_int(v);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 3 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i32_be: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    list->items[(int)idx + 2] = avm_int((int64_t)b2);
+                    list->items[(int)idx + 3] = avm_int((int64_t)b3);
+                    res = avm_int(v);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i32_be expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i32_be expects (bytes|list<int>, int, int)");
+            }
+            break;
+        }
+        case 52: { // oren_bytes_set_i32_le(bytes|list<int>, idx, val) -> int (-2^31..2^31-1)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i & 0xFFFFFFFFu;
+                uint8_t b0 = (uint8_t)(u & 0xFFu);
+                uint8_t b1 = (uint8_t)((u >> 8) & 0xFFu);
+                uint8_t b2 = (uint8_t)((u >> 16) & 0xFFu);
+                uint8_t b3 = (uint8_t)((u >> 24) & 0xFFu);
+                int64_t v = (int64_t)u;
+                if (v >= 2147483648LL) v -= 4294967296LL;
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx + 3 >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i32_le: index out of bounds"); break; }
+                    b->data[(int)idx] = b0;
+                    b->data[(int)idx + 1] = b1;
+                    b->data[(int)idx + 2] = b2;
+                    b->data[(int)idx + 3] = b3;
+                    res = avm_int(v);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx + 3 >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_i32_le: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int((int64_t)b0);
+                    list->items[(int)idx + 1] = avm_int((int64_t)b1);
+                    list->items[(int)idx + 2] = avm_int((int64_t)b2);
+                    list->items[(int)idx + 3] = avm_int((int64_t)b3);
+                    res = avm_int(v);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i32_le expects (bytes|list<int>, int, int)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_i32_le expects (bytes|list<int>, int, int)");
             }
             break;
         }

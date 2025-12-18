@@ -1,0 +1,46 @@
+@myorg.tag(name="avm-bytes-set-endian")
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn main() {
+    // list<int> path
+    var l16 = [0, 0]
+    assert_eq(oren_bytes_set_u16_be(l16, 0, 4660), 4660)
+    assert_eq(l16[0], 18)
+    assert_eq(l16[1], 52)
+
+    var l16n = [0, 0]
+    assert_eq(oren_bytes_set_i16_be(l16n, 0, -2), -2)
+    assert_eq(l16n[0], 255)
+    assert_eq(l16n[1], 254)
+
+    var l32 = [0, 0, 0, 0]
+    assert_eq(oren_bytes_set_u32_be(l32, 0, 16909060), 16909060)
+    assert_eq(l32[0], 1)
+    assert_eq(l32[3], 4)
+
+    var l32n = [0, 0, 0, 0]
+    assert_eq(oren_bytes_set_i32_be(l32n, 0, -2), -2)
+    assert_eq(l32n[0], 255)
+    assert_eq(l32n[3], 254)
+
+    // bytes path
+    var b = oren_bytes_from_hex("0000")
+    if oren_is_err(b) { fail() }
+    assert_eq(oren_bytes_set_u16_be(b, 0, 4660), 4660)
+    assert_eq(oren_bytes_get_u8(b, 0), 18)
+    assert_eq(oren_bytes_get_u8(b, 1), 52)
+
+    print("avm bytes_set_endian OK")
+}
+
+main()

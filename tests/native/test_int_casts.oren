@@ -1,0 +1,34 @@
+import ints "../../lib/std/ints.oren"
+
+fn fail(code) {
+    print("native int_casts FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn main() {
+    // u8/i8
+    assert_eq(ints.u8(256 + 5), 5, 10)
+    assert_eq(ints.u8(-1), 255, 11)
+    assert_eq(ints.i8(255), -1, 12)
+    assert_eq(ints.i8(128), -128, 13)
+
+    // u16/i16
+    assert_eq(ints.u16(65536 + 7), 7, 20)
+    assert_eq(ints.u16(-1), 65535, 21)
+    assert_eq(ints.i16(65535), -1, 22)
+    assert_eq(ints.i16(32768), -32768, 23)
+
+    // u32/i32
+    assert_eq(ints.u32(4294967296 + 9), 9, 30)
+    assert_eq(ints.u32(-1), 4294967295, 31)
+    assert_eq(ints.i32(4294967295), -1, 32)
+    assert_eq(ints.i32(2147483648), -2147483648, 33)
+
+    print("native int_casts OK")
+    exit(0)
+}

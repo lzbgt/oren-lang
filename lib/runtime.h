@@ -193,6 +193,15 @@ OrenValue oren_bytes_get_u32_be(OrenValue bytes, OrenValue index);
 OrenValue oren_bytes_get_u32_le(OrenValue bytes, OrenValue index);
 OrenValue oren_bytes_get_i32_be(OrenValue bytes, OrenValue index);
 OrenValue oren_bytes_get_i32_le(OrenValue bytes, OrenValue index);
+// Endian-aware writes to list<int 0..255> (network serialization helpers).
+OrenValue oren_bytes_set_u16_be(OrenValue bytes, OrenValue index, OrenValue value);
+OrenValue oren_bytes_set_u16_le(OrenValue bytes, OrenValue index, OrenValue value);
+OrenValue oren_bytes_set_i16_be(OrenValue bytes, OrenValue index, OrenValue value);
+OrenValue oren_bytes_set_i16_le(OrenValue bytes, OrenValue index, OrenValue value);
+OrenValue oren_bytes_set_u32_be(OrenValue bytes, OrenValue index, OrenValue value);
+OrenValue oren_bytes_set_u32_le(OrenValue bytes, OrenValue index, OrenValue value);
+OrenValue oren_bytes_set_i32_be(OrenValue bytes, OrenValue index, OrenValue value);
+OrenValue oren_bytes_set_i32_le(OrenValue bytes, OrenValue index, OrenValue value);
 OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length);
 OrenValue oren_env(OrenValue name);
 OrenValue oren_net_get(OrenValue url);

@@ -1,0 +1,37 @@
+// Fixed-width integer cast helpers (v0, rolling).
+//
+// Oren v0 uses a single machine-sized `int` for arithmetic.
+// For network/protocol/scientific code, you often need explicit width semantics.
+//
+// These are pure functions (deterministic) and work across backends.
+// Semantics are "wrap/truncate" (two's complement) rather than checked.
+
+fn u8(x) {
+    return x & 255
+}
+
+fn i8(x) {
+    var u = x & 255
+    if u >= 128 { return u - 256 }
+    return u
+}
+
+fn u16(x) {
+    return x & 65535
+}
+
+fn i16(x) {
+    var u = x & 65535
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+
+fn u32(x) {
+    return x & 4294967295
+}
+
+fn i32(x) {
+    var u = x & 4294967295
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}

@@ -17,6 +17,9 @@ fn test_strings() {
     assert(s.index_of("hello", "ell") == 1, "index_of")
     assert(s.index_of("hello", "xyz") == -1, "index_of missing")
     assert(s.trim("  hi\t") == "hi", "trim")
+    // C runtime: oren_string_char_at must return a 1-byte string.
+    assert(oren_string_char_at("abc", 0) == "a", "char_at 0")
+    assert(oren_string_char_at("abc", 2) == "c", "char_at 2")
 }
 
 test_strings()

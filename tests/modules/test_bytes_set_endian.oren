@@ -1,0 +1,24 @@
+// Module/C backend regression: endian-aware writes to list<int> must exist.
+
+var b16 = [0, 0]
+if oren_bytes_set_u16_be(b16, 0, 4660) != 4660 { exit(1) }
+if b16[0] != 18 || b16[1] != 52 { exit(2) }
+if oren_bytes_get_u16_be(b16, 0) != 4660 { exit(3) }
+
+var b16n = [0, 0]
+if oren_bytes_set_i16_be(b16n, 0, -2) != -2 { exit(4) }
+if b16n[0] != 255 || b16n[1] != 254 { exit(5) }
+if oren_bytes_get_i16_be(b16n, 0) != -2 { exit(6) }
+
+var b32 = [0, 0, 0, 0]
+if oren_bytes_set_u32_be(b32, 0, 16909060) != 16909060 { exit(7) }
+if b32[0] != 1 || b32[1] != 2 || b32[2] != 3 || b32[3] != 4 { exit(8) }
+if oren_bytes_get_u32_be(b32, 0) != 16909060 { exit(9) }
+
+var b32n = [0, 0, 0, 0]
+if oren_bytes_set_i32_be(b32n, 0, -2) != -2 { exit(10) }
+if b32n[0] != 255 || b32n[3] != 254 { exit(11) }
+if oren_bytes_get_i32_be(b32n, 0) != -2 { exit(12) }
+
+print("module bytes_set_endian OK")
+exit(0)

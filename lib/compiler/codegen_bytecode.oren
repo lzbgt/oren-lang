@@ -860,6 +860,14 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_bytes_len" { native_id = 32 }
         if name == "oren_bytes_get_u8" { native_id = 33 }
         if name == "oren_bytes_set_u8" { native_id = 34 }
+        if name == "oren_bytes_set_u16_be" { native_id = 45 }
+        if name == "oren_bytes_set_u16_le" { native_id = 46 }
+        if name == "oren_bytes_set_i16_be" { native_id = 47 }
+        if name == "oren_bytes_set_i16_le" { native_id = 48 }
+        if name == "oren_bytes_set_u32_be" { native_id = 49 }
+        if name == "oren_bytes_set_u32_le" { native_id = 50 }
+        if name == "oren_bytes_set_i32_be" { native_id = 51 }
+        if name == "oren_bytes_set_i32_le" { native_id = 52 }
         if name == "oren_bytes_from_hex" { native_id = 35 }
         if name == "oren_bytes_to_hex" { native_id = 36 }
         if name == "oren_avm_record_to_bytes" { native_id = 40 }

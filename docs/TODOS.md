@@ -13,29 +13,31 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 
 ## Next (Highest Priority First)
 
-1) **Packed struct “view over bytes” PV3 (packet serialization without allocation)**
-   - Support `pack_view("Type", bytes, off).field = value` (compile-time lowering).
-   - Lower to `oren_bytes_set_u8` sequences with shifts/masks (endian-safe, no allocation).
-   - Add smoke tests that build a header by writing fields then reading back.
-
-2) **Syscall-first OS substrate hardening (native backend)**
+1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
-   - Capability enrollment model: allow mapping virtual resources to host resources intentionally.
-   - Expand curated smoke coverage as these evolve.
+   - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
 
-3) **Fixed-width scalars + floats + explicit casts (for network + scientific code)**
-   - Add `i8/i16/i32/i64/u8/u16/u32/u64` (+ `u128` later) and `f32/f64`.
-   - Endian-aware casts for packet parsing (`be/le`) and explicit bit/byte casts.
-   - Varargs + function values/lambda ergonomics (spawn-safe closures) as needed by stdlib.
+2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
+   - Define cast semantics (truncate vs checked).
+   - Extend casts to cover `i64/u64` (and checked variants) and `f32/f64` story.
+   - Keep endian-aware helpers for packet parsing/serialization (`be/le`) and explicit bit/byte casts.
 
-4) **Language core correctness + robustness**
-   - Harden AST/parser/codegen invariants (scope, stack/heap, argument passing).
+3) **P1 [correctness] Language core robustness**
+   - Harden parser/codegen invariants (scope, stack/heap, argument passing).
    - Fix nested control-flow edge cases (e.g. nested `for` break depth).
-   - Keep deterministic map iteration by spec.
+   - Ensure deterministic container behavior matches spec across all backends.
 
-5) **AVM deterministic cooperative concurrency MVP (single-threaded)**
+4) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - Deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
 
-6) **Tooling + maintainability**
+5) **P2 [ux] Tooling**
    - `.obc` disassembler (“otool-like”) + metadata extractor (reads embedded `OREN_META\n1\n` BYTES convention).
-   - Refactor large modules (e.g. `avm.c` / codegen) when they exceed readability thresholds, without semantic churn.
+
+6) **P2 [maint] Refactors without semantic churn**
+   - Split oversized modules (e.g. AVM/codegen) once behavior is covered by tests.
+
+## Recently Completed
+
+- Packed struct views PV2/PV3: `pack_view("Type", bytes, off).field` reads and writes lower to byte ops (no allocation).
+- Endian-aware byte writes: `oren_bytes_set_{u16,i16,u32,i32}_{be,le}` added across backends with tests.
+- Fixed-width integer cast APIs (wrap/truncate): `lib/std/ints.oren` with native/module/avm tests.

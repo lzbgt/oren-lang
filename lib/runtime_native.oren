@@ -1930,6 +1930,39 @@ fn oren_bytes_get_i16_le(bytes, idx) {
     return u
 }
 
+// Endian-aware writes (masking / truncating semantics; no allocation).
+// These write the low N bits of `v` into `bytes` and return the canonical value.
+
+fn oren_bytes_set_u16_be(bytes, idx, v) {
+    var u = v & 65535
+    oren_bytes_set_u8(bytes, idx, (u >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 1, u & 255)
+    return u
+}
+
+fn oren_bytes_set_u16_le(bytes, idx, v) {
+    var u = v & 65535
+    oren_bytes_set_u8(bytes, idx, u & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
+    return u
+}
+
+fn oren_bytes_set_i16_be(bytes, idx, v) {
+    var u = v & 65535
+    oren_bytes_set_u8(bytes, idx, (u >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 1, u & 255)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+
+fn oren_bytes_set_i16_le(bytes, idx, v) {
+    var u = v & 65535
+    oren_bytes_set_u8(bytes, idx, u & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+
 fn oren_bytes_put_u16_be(bytes, idx, v) {
     if v < 0 || v > 65535 { oren_panic("u16 out of range") }
     oren_bytes_set_u8(bytes, idx, (v >> 8) & 255)
@@ -1968,6 +2001,44 @@ fn oren_bytes_get_i32_be(bytes, idx) {
 
 fn oren_bytes_get_i32_le(bytes, idx) {
     var u = oren_bytes_get_u32_le(bytes, idx)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_bytes_set_u32_be(bytes, idx, v) {
+    var u = v & 4294967295
+    oren_bytes_set_u8(bytes, idx, (u >> 24) & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (u >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (u >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, u & 255)
+    return u
+}
+
+fn oren_bytes_set_u32_le(bytes, idx, v) {
+    var u = v & 4294967295
+    oren_bytes_set_u8(bytes, idx, u & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (u >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, (u >> 24) & 255)
+    return u
+}
+
+fn oren_bytes_set_i32_be(bytes, idx, v) {
+    var u = v & 4294967295
+    oren_bytes_set_u8(bytes, idx, (u >> 24) & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (u >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (u >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, u & 255)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_bytes_set_i32_le(bytes, idx, v) {
+    var u = v & 4294967295
+    oren_bytes_set_u8(bytes, idx, u & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (u >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (u >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, (u >> 24) & 255)
     if u >= 2147483648 { return u - 4294967296 }
     return u
 }

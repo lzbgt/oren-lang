@@ -1,0 +1,35 @@
+@myorg.tag(name="avm-int-casts")
+
+import ints "../../lib/std/ints.oren"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn main() {
+    assert_eq(ints.u8(256 + 5), 5)
+    assert_eq(ints.u8(-1), 255)
+    assert_eq(ints.i8(255), -1)
+    assert_eq(ints.i8(128), -128)
+
+    assert_eq(ints.u16(65536 + 7), 7)
+    assert_eq(ints.u16(-1), 65535)
+    assert_eq(ints.i16(65535), -1)
+    assert_eq(ints.i16(32768), -32768)
+
+    assert_eq(ints.u32(4294967296 + 9), 9)
+    assert_eq(ints.u32(-1), 4294967295)
+    assert_eq(ints.i32(4294967295), -1)
+    assert_eq(ints.i32(2147483648), -2147483648)
+
+    print("avm int_casts OK")
+}
+
+main()
