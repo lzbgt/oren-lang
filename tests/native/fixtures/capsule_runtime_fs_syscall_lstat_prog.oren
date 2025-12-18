@@ -1,0 +1,23 @@
+fn main() {
+    // Raw sys_lstat capsule FS test:
+    // - In capsule mode, sys_lstat must be enforced at syscall boundary (no bypass).
+    // - With OREN_FS_MOUNTS_READ=v/=... and allow domains FS, lstat("v/link") should be allowed.
+    // - Validate st_size for the symlink itself (macOS arm64 struct stat: st_size @96, sizeof=144).
+    //   For a symlink created as: ln -s in.txt link, st_size should be len("in.txt") = 6.
+    var st = malloc(144)
+    if st == 0 { exit(3) }
+    var rc = sys_lstat("v/link", st)
+    if rc < 0 { exit(2) }
+
+    var b0 = ptr_get_byte(iadd(st, 96))
+    var b1 = ptr_get_byte(iadd(st, 97))
+    var b2 = ptr_get_byte(iadd(st, 98))
+    var b3 = ptr_get_byte(iadd(st, 99))
+    var b4 = ptr_get_byte(iadd(st, 100))
+    var b5 = ptr_get_byte(iadd(st, 101))
+    var b6 = ptr_get_byte(iadd(st, 102))
+    var b7 = ptr_get_byte(iadd(st, 103))
+    var sz = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24) | (b4 << 32) | (b5 << 40) | (b6 << 48) | (b7 << 56)
+    if sz != 6 { exit(4) }
+    print("ok")
+}

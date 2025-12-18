@@ -741,6 +741,66 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(cap_fs_srd_out))
 
+    // stat:
+    var cap_fs_sst_out = "build/capsule_runtime_fs_syscall_stat_prog"
+    var cap_fs_sst_log = "build/logs/capsule_runtime_fs_syscall_stat_prog_build.log"
+    var cap_fs_sst_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_stat_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_sst_out) + gc_arg
+    var cap_fs_sst_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_sst_cmd, cap_fs_sst_log)
+    if cap_fs_sst_rc != 0 || file_exists(cap_fs_sst_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_stat_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_sst_log))
+        oren_exit(1)
+    }
+    oren_system("printf ABC > build/mnt_host/in.txt")
+    var cap_fs_sst_deny_log = "build/logs/capsule_runtime_fs_syscall_stat_prog_run_deny.log"
+    var cap_fs_sst_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_sst_out
+    var cap_fs_sst_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sst_deny_cmd, cap_fs_sst_deny_log)
+    if cap_fs_sst_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_stat_prog (expected runtime capsule deny: sys_stat)")
+        oren_system("cat " + shell_quote(cap_fs_sst_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_sst_ok_log = "build/logs/capsule_runtime_fs_syscall_stat_prog_run_allow.log"
+    var cap_fs_sst_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_fs_sst_out
+    var cap_fs_sst_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sst_ok_cmd, cap_fs_sst_ok_log)
+    if cap_fs_sst_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_stat_prog (expected runtime capsule allow: read mount)")
+        oren_system("cat " + shell_quote(cap_fs_sst_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_sst_out) + " build/mnt_host/in.txt")
+
+    // lstat:
+    var cap_fs_slst_out = "build/capsule_runtime_fs_syscall_lstat_prog"
+    var cap_fs_slst_log = "build/logs/capsule_runtime_fs_syscall_lstat_prog_build.log"
+    var cap_fs_slst_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_lstat_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_slst_out) + gc_arg
+    var cap_fs_slst_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_slst_cmd, cap_fs_slst_log)
+    if cap_fs_slst_rc != 0 || file_exists(cap_fs_slst_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_lstat_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_slst_log))
+        oren_exit(1)
+    }
+    oren_system("printf ABC > build/mnt_host/in.txt")
+    oren_system("rm -f build/mnt_host/link")
+    oren_system("ln -s in.txt build/mnt_host/link")
+    var cap_fs_slst_deny_log = "build/logs/capsule_runtime_fs_syscall_lstat_prog_run_deny.log"
+    var cap_fs_slst_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_slst_out
+    var cap_fs_slst_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_slst_deny_cmd, cap_fs_slst_deny_log)
+    if cap_fs_slst_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_lstat_prog (expected runtime capsule deny: sys_lstat)")
+        oren_system("cat " + shell_quote(cap_fs_slst_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_slst_ok_log = "build/logs/capsule_runtime_fs_syscall_lstat_prog_run_allow.log"
+    var cap_fs_slst_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_fs_slst_out
+    var cap_fs_slst_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_slst_ok_cmd, cap_fs_slst_ok_log)
+    if cap_fs_slst_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_lstat_prog (expected runtime capsule allow: read mount)")
+        oren_system("cat " + shell_quote(cap_fs_slst_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_slst_out) + " build/mnt_host/in.txt build/mnt_host/link")
+
     // Capsule NET allowlist (native runtime): deny-by-default endpoint enrollment.
     // Connect:
     // - no enrollment -> deny

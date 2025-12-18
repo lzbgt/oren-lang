@@ -32,6 +32,12 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
     - supported form: `http://<ipv4>[:port][/path]`
     - no TLS/HTTPS, no DNS, no chunked decoding (v0).
 
+## Syscall Notes (macOS arm64)
+
+- The native backend emits syscalls as **inline `svc`** instructions (Darwin arm64 uses `X16` as the syscall register) and does **not** call libc’s `syscall(2)` wrapper.
+- Syscall numbers are taken from Darwin/XNU references (see `docs/refs/darwin_xnu_syscalls.master`).
+- `sys_stat(path, st_ptr)` on macOS uses **`stat64` (syscall 338)** for correct 64-bit `struct stat` behavior on arm64.
+- `sys_lstat(path, st_ptr)` on macOS uses **`lstat64` (syscall 340)** (no-follow symlink metadata).
 ## Notes / Limitations
 - **String concatenation:** `+` is integer-only on the native backend; use `string_concat(a, b)` for strings.
 - **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).

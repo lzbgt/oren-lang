@@ -45,6 +45,8 @@ fn sys_pipe(ptr) { return 0 }
 fn sys_open(path, flags, mode) { return 0 }
 fn sys_close(fd) { return 0 }
 fn sys_access(path, mode) { return 0 }
+fn sys_stat(path, st_ptr) { return 0 }
+fn sys_lstat(path, st_ptr) { return 0 }
 fn sys_unlink(path) { return 0 }
 fn sys_rename(from, to) { return 0 }
 fn sys_mkdir(path, mode) { return 0 }
@@ -1078,6 +1080,24 @@ fn native_capsule_sys_access_pre(path) {
 }
 
 fn native_capsule_sys_access_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_stat_pre(path) {
+    // stat is a read op.
+    return native_capsule_fs_path_resolve_pair(path, 0)
+}
+
+fn native_capsule_sys_stat_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_lstat_pre(path) {
+    // lstat is a read op.
+    return native_capsule_fs_path_resolve_pair(path, 0)
+}
+
+fn native_capsule_sys_lstat_post(pair, rc) {
     return native_capsule_sys_open_post(pair, rc)
 }
 

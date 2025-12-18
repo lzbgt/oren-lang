@@ -27,6 +27,10 @@ This is aligned with the “correct architecture first” constraint: **no tempo
 - TIME is now syscall-first (no libc): `sys_nanosleep(ns)` is implemented as a native-backend intrinsic:
   - macOS: sleeps via `kqueue + kevent(timeout)`
   - Linux: sleeps via `__NR_nanosleep`
+
+- FS is now progressively syscall-first with capsule enforcement at the raw `sys_*` boundary (no bypass):
+  - `sys_open`, `sys_unlink`, `sys_rename`, `sys_mkdir`, `sys_access`, `sys_rmdir`, `sys_stat`, `sys_lstat`
+  - **macOS arm64 note:** `sys_stat` uses `stat64` (338). The legacy `stat` syscall number (188) can return success but not populate the expected 64-bit fields in our usage; the curated test suite locks this down.
 - `spawn`/`oren_join` on macOS is currently implemented as **fork + pipe** (process-based) for v0 correctness.
   - This avoids the Darwin `bsdthread_register/bsdthread_create` ABI surface until a robust syscall-first thread design is implemented.
 - Darwin fork ABI nuance is now accounted for:
