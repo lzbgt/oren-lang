@@ -1633,7 +1633,7 @@ fn native_compile_expr(ctx, expr) {
 
             // Slow path: mmap a fresh chunk (max(size, 64KB))
             var slow_target = oren_list_len(ctx["code"])
-            var sys_mmap = 197
+            var sys_mmap = abi.darwin_sys_mmap()
             var mmap_flags = 4098 // 0x1002
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()

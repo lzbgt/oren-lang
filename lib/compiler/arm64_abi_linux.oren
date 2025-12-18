@@ -10,6 +10,11 @@
 
 // --- Syscall numbers (arm64, Linux) ---
 // NOTE: Numbers below are from `docs/refs/linux_asm_generic_unistd.h`.
+fn linux_sys_getcwd() { return 17 }
+fn linux_sys_mkdirat() { return 34 }
+fn linux_sys_unlinkat() { return 35 }
+fn linux_sys_renameat() { return 38 }
+fn linux_sys_faccessat() { return 48 }
 fn linux_sys_openat() { return 56 }
 fn linux_sys_close() { return 57 }
 fn linux_sys_pipe2() { return 59 }
@@ -18,7 +23,11 @@ fn linux_sys_read() { return 63 }
 fn linux_sys_write() { return 64 }
 fn linux_sys_newfstatat() { return 79 }
 fn linux_sys_fstat() { return 80 }
+fn linux_sys_nanosleep() { return 101 }
+fn linux_sys_clone() { return 220 }
+fn linux_sys_gettid() { return 178 }
 fn linux_sys_exit() { return 93 }
+fn linux_sys_exit_group() { return 94 }
 fn linux_sys_mmap() { return 222 }
 
 // --- Syscall instruction ABI (arm64, Linux) ---

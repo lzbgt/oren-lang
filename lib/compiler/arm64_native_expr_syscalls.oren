@@ -119,16 +119,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_read = abi.darwin_sys_read()
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 sys_read = labi.linux_sys_read()
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_read))
             push_u32_le(ctx["code"], insn_svc(svc_imm))
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
                 // Normalize to X0 = -errno for syscall-first code that checks for negative errno.
                 var br_ok = oren_list_len(ctx["code"])
@@ -174,16 +172,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_write = abi.darwin_sys_write()
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 sys_write = labi.linux_sys_write()
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
             push_u32_le(ctx["code"], insn_svc(svc_imm))
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error (carry set, X0=errno) to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -240,14 +236,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Already arranged for macOS: X0=path, X1=flags, X2=mode
 
                 var sys_open = abi.darwin_sys_open()
@@ -255,7 +249,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 // Normalize macOS syscall error (X0=errno) to X0=-errno.
                 var br_ok = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0) // B.CS ok
+                push_u32_le(ctx["code"], 0) // B.CC ok
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = 0 - X0 = -errno
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
@@ -315,17 +309,15 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // X0 = path
                 push_u32_le(ctx["code"], insn_mov_reg(0, 1))
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 10))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_unlink()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 // Normalize macOS syscall error to X0=-errno.
                 var br_ok = oren_list_len(ctx["code"])
@@ -338,7 +330,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(1, 1)) // X1 = path
                 push_u32_le(ctx["code"], insn_movz(2, 0))    // flags=0
                 push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 35))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_unlinkat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
 
@@ -388,15 +380,13 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 136))
+            if ctx["platform"]["os"] != "linux" {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_mkdir()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
@@ -408,7 +398,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2=mode
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
                 push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 34))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_mkdirat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
 
@@ -460,15 +450,13 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 128))
+            if ctx["platform"]["os"] != "linux" {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_rename()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
@@ -483,7 +471,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=from
                 push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
                 push_u32_le(ctx["code"], insn_movn(2, 99))   // X2=-100
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 38))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_renameat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
 
@@ -535,15 +523,13 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 33))
+            if ctx["platform"]["os"] != "linux" {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_access()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
@@ -556,7 +542,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
                 push_u32_le(ctx["code"], insn_movz(3, 0))    // flags=0
                 push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 48))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_faccessat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
 
@@ -608,14 +594,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_stat64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
@@ -681,14 +665,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_lstat64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
@@ -748,14 +730,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_fstat64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
@@ -796,23 +776,21 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
             // X0=buf, X1=size
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Not supported as a syscall on macOS in this backend.
                 // Return -ENOSYS (38).
                 push_u32_le(ctx["code"], insn_movn(0, 37)) // -38
             } else {
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 17))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_getcwd()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
 
@@ -862,14 +840,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_getdirentries64()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
@@ -923,16 +899,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_mov_reg(0, 1))
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 137))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_rmdir()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
@@ -944,7 +918,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(1, 1)) // X1=path
                 push_u32_le(ctx["code"], insn_movz(2, 512))  // AT_REMOVEDIR
                 push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
-                push_u32_le(ctx["code"], insn_movz(sys_reg, 35))
+                push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_unlinkat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
 
@@ -975,12 +949,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_close = abi.darwin_sys_close()
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 sys_close = labi.linux_sys_close()
                 svc_imm = labi.linux_svc_imm()
                 sys_reg = labi.linux_syscall_reg()
-                is_macos = false
             }
             // Preserve callee-saved registers across syscall.
             // While the native backend is still rolling, do not assume the kernel preserves X19-X28.
@@ -1018,7 +990,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(20, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 80
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1067,13 +1039,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 92 // Darwin SYS_fcntl
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_fcntl = 25
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 25
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1085,7 +1055,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1132,13 +1102,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 97 // Darwin SYS_socket
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_socket = 198
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 198
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1150,7 +1118,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1208,13 +1176,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 98 // Darwin SYS_connect
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_connect = 203
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 203
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1226,7 +1192,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1284,13 +1250,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 104 // Darwin SYS_bind
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_bind = 200
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 200
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1302,7 +1266,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1353,13 +1317,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 106 // Darwin SYS_listen
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_listen = 201
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 201
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1371,7 +1333,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1427,13 +1389,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 30 // Darwin SYS_accept
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_accept = 202
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 202
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1445,7 +1405,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1498,7 +1458,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 31 // Darwin SYS_getpeername
-            var is_macos = true
             if fn_name == "sys_getsockname" { sysno = 32 } // Darwin SYS_getsockname
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_getsockname = 204, __NR_getpeername = 205
@@ -1506,7 +1465,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 svc_imm = labi.linux_svc_imm()
                 sysno = 205
                 if fn_name == "sys_getsockname" { sysno = 204 }
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1518,7 +1476,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1577,7 +1535,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 118 // Darwin SYS_getsockopt
-            var is_macos = true
             if fn_name == "sys_setsockopt" { sysno = 105 } // Darwin SYS_setsockopt
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_setsockopt = 208, __NR_getsockopt = 209
@@ -1585,7 +1542,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 svc_imm = labi.linux_svc_imm()
                 sysno = 209
                 if fn_name == "sys_setsockopt" { sysno = 208 }
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1597,7 +1553,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1626,13 +1582,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 134 // Darwin SYS_shutdown
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_shutdown = 210
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 210
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1644,7 +1598,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1717,7 +1671,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 363 // Darwin SYS_kevent
-            var is_macos = true
             if fn_name == "sys_sendto" { sysno = 133 } // Darwin SYS_sendto
             if fn_name == "sys_recvfrom" { sysno = 29 } // Darwin SYS_recvfrom
             if ctx["platform"]["os"] == "linux" {
@@ -1731,7 +1684,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 svc_imm = labi.linux_svc_imm()
                 sysno = 207
                 if fn_name == "sys_sendto" { sysno = 206 }
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1743,7 +1695,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1803,12 +1755,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 116 // Darwin SYS_gettimeofday
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 169
-                is_macos = false
                 // Linux ignores abs_ptr; clear X2 for safety.
                 push_u32_le(ctx["code"], insn_movz(2, 0))
             }
@@ -1825,7 +1775,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1893,8 +1843,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // X0 = req = SP, X1 = rem = NULL
                 push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
                 push_u32_le(ctx["code"], insn_movz(1, 0))
-                push_u32_le(ctx["code"], insn_movz(8, 101))
-                push_u32_le(ctx["code"], insn_svc(0))
+                push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_nanosleep()))
+                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
                 // Pop timespec
                 push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1916,8 +1866,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + 16
 
                 // kqueue() => fd
-                push_u32_le(ctx["code"], insn_movz(16, 362))
-                push_u32_le(ctx["code"], insn_svc(128))
+                push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_kqueue()))
+                push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
                 // Normalize macOS syscall error to X0 = -errno and clean up the slot.
                 var br_kq_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1969,8 +1919,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_add_imm(3, 31, 0)) // X3=evbuf (SP)
                 push_u32_le(ctx["code"], insn_movz(4, 1))        // nevents=1
                 push_u32_le(ctx["code"], insn_add_imm(5, 31, 32)) // X5=timeout_ptr (SP+32)
-                push_u32_le(ctx["code"], insn_movz(16, 363)) // SYS_kevent
-                push_u32_le(ctx["code"], insn_svc(128))
+                push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_kevent())) // SYS_kevent
+                push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
                 // Normalize error to X0 = -errno.
                 var br_ke_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -1983,8 +1933,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
                 // close(kqfd) best-effort
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 56))
-                push_u32_le(ctx["code"], insn_movz(16, 6)) // SYS_close
-                push_u32_le(ctx["code"], insn_svc(128))
+                push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_close())) // SYS_close
+                push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 
                 // Restore result into X0
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48))
@@ -2077,7 +2027,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 29 // Darwin SYS_recvfrom (used for recv)
-            var is_macos = true
             if fn_name == "sys_send" { sysno = 133 } // Darwin SYS_sendto (used for send)
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_sendto = 206, __NR_recvfrom = 207
@@ -2085,7 +2034,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 svc_imm = labi.linux_svc_imm()
                 sysno = 207
                 if fn_name == "sys_send" { sysno = 206 }
-                is_macos = false
             }
 
             push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -2099,7 +2047,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2126,8 +2074,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
-            push_u32_le(ctx["code"], insn_movz(16, 362))
-            push_u32_le(ctx["code"], insn_svc(128))
+            push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_kqueue()))
+            push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2187,8 +2135,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(3, 0))
                 push_u32_le(ctx["code"], insn_movz(4, 0))
 
-	                push_u32_le(ctx["code"], insn_movz(8, 220)) // __NR_clone
-	                push_u32_le(ctx["code"], insn_svc(0))
+				        push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone())) // __NR_clone
+	                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
 	                // Restore X19-X28
 	                push_u32_le(ctx["code"], insn_ldr_reg_sp(19, 0))
@@ -2224,8 +2172,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 80
-            push_u32_le(ctx["code"], insn_movz(16, 2))
-            push_u32_le(ctx["code"], insn_svc(128))
+            push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_fork()))
+            push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
             // Restore X19-X28
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
@@ -2305,16 +2253,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 59 // Darwin SYS_execve
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_execve = 221
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 221
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 // Normalize error to -1 (success never returns).
                 var br_ok = oren_list_len(ctx["code"])
@@ -2373,17 +2319,15 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 7 // Darwin SYS_wait4
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_wait4 = 260
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 260
-                is_macos = false
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
             push_u32_le(ctx["code"], insn_svc(svc_imm))
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize error to -1.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2432,12 +2376,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 37 // Darwin SYS_kill
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 sysno = 129
-                is_macos = false
             } else {
                 // posix=1 (third argument)
                 push_u32_le(ctx["code"], insn_movz(2, 1))
@@ -2455,7 +2397,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
 
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2512,16 +2454,15 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             // Note: this is macOS-specific; Linux should implement futex instead.
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 // Not implemented for native linux yet (syscall-first plan: futex).
                 // Return -1.
                 push_u32_le(ctx["code"], insn_movn(0, 0))
                 return true
             }
-            push_u32_le(ctx["code"], insn_movz(sys_reg, 515))
+            push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_ulock_wait()))
             push_u32_le(ctx["code"], insn_svc(svc_imm))
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error (carry set, X0=errno) to X0=-1.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2559,14 +2500,13 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 push_u32_le(ctx["code"], insn_movn(0, 0))
                 return true
             }
-            push_u32_le(ctx["code"], insn_movz(sys_reg, 516))
+            push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_ulock_wake()))
             push_u32_le(ctx["code"], insn_svc(svc_imm))
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0=-1.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2650,8 +2590,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 return true
             }
 
-            push_u32_le(ctx["code"], insn_movz(16, 366))
-            push_u32_le(ctx["code"], insn_svc(128))
+            push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_bsdthread_register()))
+            push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 
             // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno (so callers can debug).
             var br_ok = oren_list_len(ctx["code"])
@@ -2666,18 +2606,16 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             compile_expr(ctx, args[0]) // ptr to int[2] -> X0
             
             var sys_pipe = abi.darwin_sys_pipe()
-            var sys_pipe2 = 59
+            var sys_pipe2 = labi.linux_sys_pipe2()
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 sys_pipe = labi.linux_sys_pipe2()
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                is_macos = false
             }
             
-            if is_macos {
+            if ctx["platform"]["os"] != "linux" {
                 // Save ptr (X0) to stack
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -2733,8 +2671,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_movz(4, 0))
             
             if ctx["platform"]["os"] == "linux" {
-                push_u32_le(ctx["code"], insn_movz(8, 220)) // sys_clone
-                push_u32_le(ctx["code"], insn_svc(0))
+                push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone())) // sys_clone
+                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
             } else {
                 push_u32_le(ctx["code"], insn_movn(0, 0)) // -1
             }
@@ -2784,18 +2722,13 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         if fn_name == "sys_gettid" {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sys_num = 372
-            var is_macos = true
+            var sys_num = abi.darwin_sys_thread_selfid()
             if ctx["platform"]["os"] == "linux" {
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sys_num = 178
-                is_macos = false
+                sys_num = labi.linux_sys_gettid()
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_num))
-            if is_macos {
-                push_u32_le(ctx["code"], insn_movk(sys_reg, 512, 1))
-            }
             push_u32_le(ctx["code"], insn_svc(svc_imm))
             return true
         }

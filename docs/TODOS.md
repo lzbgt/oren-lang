@@ -50,3 +50,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native backend string comparisons: fixed false-floaty Index classification that broke `names[i] == "lit"` for lists produced by helpers like `oren_readdir`.
 - Native backend syscall ABI: moved Darwin syscall reg/imm + base syscalls into `lib/compiler/arm64_abi_macos.oren`, removed entry-stub magic SVC encodings, and fixed Linux arm64 `pipe2` syscall number to 59 (from `docs/refs/linux_asm_generic_unistd.h`).
 - Linux arm64 syscall ABI: introduced repo-owned constants (`lib/compiler/arm64_abi_linux.oren`) and removed hardcoded `x8`/`svc #0` + core syscall numbers from codegen hot spots.
+- ABI tables expanded to cover commonly used FS syscalls (unlink/mkdir/rename/access/getcwd) + Darwin sync/thread syscalls (ulock/thread_selfid) + mmap, eliminating more numeric literals from codegen.
+- Darwin arm64 syscall encoding audit: verified `x16=<raw n>; svc #0x80` ABI and removed unnecessary `0x2000000|n` encoding from codegen; documented in `docs/refs/darwin_arm64_abi.md` (+ repro in `tools/audit/`).
+- ABI tables expanded again: added kqueue/kevent/fork/bsdthread_register (Darwin) and nanosleep/clone (Linux) and removed remaining hardcoded `svc #0`/`svc #0x80` sites in syscall lowering.

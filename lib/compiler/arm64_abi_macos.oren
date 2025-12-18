@@ -15,8 +15,24 @@ fn darwin_sys_read() { return 3 }
 fn darwin_sys_write() { return 4 }
 fn darwin_sys_open() { return 5 }
 fn darwin_sys_close() { return 6 }
+fn darwin_sys_fork() { return 2 }
+fn darwin_sys_kqueue() { return 362 }
+fn darwin_sys_kevent() { return 363 }
+fn darwin_sys_bsdthread_register() { return 366 }
+fn darwin_sys_unlink() { return 10 }
+fn darwin_sys_access() { return 33 }
+fn darwin_sys_rename() { return 128 }
+fn darwin_sys_mkdir() { return 136 }
+fn darwin_sys_rmdir() { return 137 }
+fn darwin_sys_mmap() { return 197 }
 fn darwin_sys_pipe() { return 42 }
 
+// Threading / sync (Darwin-specific)
+fn darwin_sys_thread_selfid() { return 372 }
+fn darwin_sys_ulock_wait() { return 515 }
+fn darwin_sys_ulock_wake() { return 516 }
+
+// FS stat family
 fn darwin_sys_stat64() { return 338 }
 fn darwin_sys_fstat64() { return 339 }
 fn darwin_sys_lstat64() { return 340 }

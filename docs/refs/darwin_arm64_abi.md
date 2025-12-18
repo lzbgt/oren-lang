@@ -22,6 +22,21 @@ Code location:
 - `lib/compiler/arm64_abi_macos.oren`
 - `lib/compiler/arm64_native_expr_syscalls.oren`
 
+## Syscall ABI (arm64 Darwin)
+
+- Instruction: `svc #0x80`
+- Syscall number register: **X16**
+- Syscall number value: the kernel accepts the **raw syscall number** (e.g. `getpid` = 20)
+
+Note on encoding:
+- Some platforms (notably x86_64 macOS) use `0x2000000 | n` encoding.
+- On arm64 macOS, **both** raw `n` and encoded `0x2000000 | n` appear to work (kernel masks/ignores upper bits).
+- For simplicity + fewer instructions, the native backend standardizes on **raw `n`**.
+
+Verification (on-machine audit, not a runtime dependency):
+- Disassembly: `/usr/lib/system/libsystem_kernel.dylib` shows `mov x16, #<n>; svc #0x80` style stubs.
+- Repro program: `tools/audit/darwin_arm64_syscall_encoding.{c,S}` (builds `build/_audit_darwin_syscall_encoding`).
+
 ## fcntl constants
 
 Used by `oren_getcwd()` in **host mode** (native runtime):
