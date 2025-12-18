@@ -1,0 +1,15 @@
+fn main() {
+    var a = oren_realpath("v/dir/../dir//in.txt")
+    if oren_string_eq(a, "v/dir/in.txt") != true { exit(2) }
+
+    var b = oren_realpath("/a/./b/../c")
+    if oren_string_eq(b, "/a/c") != true { exit(3) }
+
+    var c = oren_realpath("..//x/.")
+    if oren_string_eq(c, "../x") != true { exit(4) }
+
+    var d = oren_realpath(".")
+    if oren_string_eq(d, ".") != true { exit(5) }
+
+    print("ok")
+}

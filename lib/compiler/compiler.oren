@@ -891,6 +891,26 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_fs_rd_out) + " build/mnt_host/dir/in.txt")
 
+    // realpath (runtime lexical normalization):
+    var rp_out = "build/runtime_realpath_prog"
+    var rp_log = "build/logs/runtime_realpath_prog_build.log"
+    var rp_cmd = "./oren build " + shell_quote("tests/native/fixtures/runtime_realpath_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(rp_out) + gc_arg
+    var rp_rc = run_shell_capture(timeout_bin, build_timeout, rp_cmd, rp_log)
+    if rp_rc != 0 || file_exists(rp_out) != true {
+        print("native failed: runtime_realpath_prog (build)")
+        oren_system("cat " + shell_quote(rp_log))
+        oren_exit(1)
+    }
+    var rp_run_log = "build/logs/runtime_realpath_prog_run.log"
+    var rp_run_cmd = "./" + rp_out
+    var rp_run_rc = run_shell_capture(timeout_bin, run_timeout, rp_run_cmd, rp_run_log)
+    if rp_run_rc != 0 {
+        print("native failed: runtime_realpath_prog (run)")
+        oren_system("cat " + shell_quote(rp_run_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(rp_out))
+
     // Capsule NET allowlist (native runtime): deny-by-default endpoint enrollment.
     // Connect:
     // - no enrollment -> deny

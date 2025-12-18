@@ -3687,6 +3687,20 @@ fn oren_iter_next(container, idx) {
 }
 
 // Return a freshly allocated byte buffer (list) from a string literal pointer.
+fn oren_string_eq(a, b) {
+    if a == 0 { return false }
+    if b == 0 { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if ptr_get_byte(a + i) != ptr_get_byte(b + i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn oren_bytes_from_string_ptr(s_ptr) {
     var len = oren_string_len(s_ptr)
     var lst = oren_new_list(len)
@@ -4066,6 +4080,146 @@ fn oren_args() {
         oren_list_push(out, s)
         i = i + 1
     }
+    return out
+}
+
+// --- Path helpers (pure, deterministic) ---
+// NOTE: v0 `oren_realpath()` is purely lexical normalization:
+// - collapses repeated '/'
+// - removes '.' segments
+// - resolves '..' segments without touching the filesystem
+// - does NOT check existence and does NOT consult the host
+fn oren_realpath(path) {
+    if path == 0 { return 0 }
+
+    var n = oren_string_len(path)
+    var is_abs = false
+    if n > 0 {
+        if ptr_get_byte(path) == 47 { is_abs = true } // '/'
+    }
+
+    // Stack of segments encoded as (start<<32)|len.
+    var segs = oren_new_list(0)
+
+    var i = 0
+    while i <= n {
+        // Skip separators
+        while i < n {
+            if ptr_get_byte(path + i) != 47 { break }
+            i = i + 1
+        }
+        if i >= n { break }
+
+        var start = i
+        while i < n {
+            if ptr_get_byte(path + i) == 47 { break }
+            i = i + 1
+        }
+        var end = i
+        var seg_len = end - start
+
+        // '.'
+        if seg_len == 1 {
+            if ptr_get_byte(path + start) == 46 {
+                // skip
+                continue
+            }
+        }
+
+        // '..'
+        if seg_len == 2 {
+            if ptr_get_byte(path + start) == 46 {
+                if ptr_get_byte(path + start + 1) == 46 {
+                    var cnt = oren_list_len(segs)
+                    if cnt > 0 {
+                        // Pop if last is not '..' (for relative) OR always for absolute.
+                        var last = oren_list_get(segs, cnt - 1)
+                        var last_len = last & 4294967295
+                        var last_start = last >> 32
+                        var last_is_dd = false
+                        if last_len == 2 {
+                            if ptr_get_byte(path + last_start) == 46 {
+                                if ptr_get_byte(path + last_start + 1) == 46 { last_is_dd = true }
+                            }
+                        }
+                        if is_abs || last_is_dd != true {
+                            ptr_set(segs, cnt - 1) // shrink list (pop)
+                            continue
+                        }
+                    }
+                    if is_abs != true {
+                        // Preserve leading '..' for relative paths.
+                        oren_list_push(segs, (start << 32) | seg_len)
+                    }
+                    continue
+                }
+            }
+        }
+
+        oren_list_push(segs, (start << 32) | seg_len)
+    }
+
+    var cnt2 = oren_list_len(segs)
+    if is_abs {
+        if cnt2 == 0 {
+            var out0 = malloc(2)
+            if out0 == 0 { exit(277) }
+            ptr_set_byte(out0, 47)
+            ptr_set_byte(out0 + 1, 0)
+            oren_track_alloc(out0, 2, 1)
+            return out0
+        }
+    } else {
+        if cnt2 == 0 {
+            var out1 = malloc(2)
+            if out1 == 0 { exit(278) }
+            ptr_set_byte(out1, 46)
+            ptr_set_byte(out1 + 1, 0)
+            oren_track_alloc(out1, 2, 1)
+            return out1
+        }
+    }
+
+    var total = 0
+    if is_abs { total = 1 }
+    var j = 0
+    while j < cnt2 {
+        var seg = oren_list_get(segs, j)
+        var seg_len2 = seg & 4294967295
+        total = total + seg_len2
+        if j + 1 < cnt2 { total = total + 1 }
+        j = j + 1
+    }
+
+    var out = malloc(total + 1)
+    if out == 0 { exit(279) }
+
+    var off = 0
+    if is_abs {
+        ptr_set_byte(out, 47)
+        off = 1
+    }
+
+    var k = 0
+    while k < cnt2 {
+        var seg2 = oren_list_get(segs, k)
+        var seg_len3 = seg2 & 4294967295
+        var seg_start3 = seg2 >> 32
+        var t = 0
+        while t < seg_len3 {
+            ptr_set_byte(out + off + t, ptr_get_byte(path + seg_start3 + t))
+            t = t + 1
+        }
+        off = off + seg_len3
+        if k + 1 < cnt2 {
+            ptr_set_byte(out + off, 47)
+            off = off + 1
+        }
+        k = k + 1
+    }
+
+    ptr_set_byte(out + total, 0)
+    oren_track_alloc(out, total + 1, 1)
     return out
 }
 
