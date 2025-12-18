@@ -1,0 +1,9 @@
+fn main() {
+    // Runtime capsule PROC test (exec allowlist):
+    // - In capsule mode, PROC must be explicitly enrolled at the resource level.
+    // - This should only succeed when the exec prefix allowlist includes "/usr/bin/".
+    var st = oren_proc_spawn("/usr/bin/true", [], 1000000)
+    if st != 0 { exit(1) }
+    print("ok")
+}
+

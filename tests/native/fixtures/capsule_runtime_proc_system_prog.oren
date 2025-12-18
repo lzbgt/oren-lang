@@ -1,0 +1,9 @@
+fn main() {
+    // Runtime capsule PROC test (system):
+    // - oren_system_timeout executes a shell (/bin/sh -c).
+    // - In capsule mode it must be explicitly enabled via OREN_PROC_ALLOW_SYSTEM=1.
+    var st = oren_system_timeout("true", 1000000)
+    if st != 0 { exit(1) }
+    print("ok")
+}
+

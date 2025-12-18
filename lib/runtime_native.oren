@@ -157,6 +157,8 @@ fn oren_pipe() {
 //   120:net_allow_loopback (0|1) (rolling)
 //   128:net_allow_tcp_connect_ptr (cstr: CSV endpoints) (rolling)
 //   136:net_allow_tcp_listen_ptr (cstr: CSV endpoints) (rolling)
+//   144:proc_allow_system (0|1) (rolling)
+//   152:proc_allow_exec_prefixes_ptr (cstr: CSV prefixes) (rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -186,9 +188,11 @@ var GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR = 112
 var GLOBAL_OFF_NET_ALLOW_LOOPBACK = 120
 var GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 128
 var GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
+var GLOBAL_OFF_PROC_ALLOW_SYSTEM = 144
+var GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 152
 
 // Reserve extra room for rolling ABI growth.
-var GLOBAL_SLOTS_RESERVED = 24
+var GLOBAL_SLOTS_RESERVED = 32
 
 fn global_get_allocs() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ALLOCS)) }
 fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ALLOCS), v) }
@@ -243,6 +247,12 @@ fn global_set_net_allow_tcp_connect_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL
 
 fn global_get_net_allow_tcp_listen_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR)) }
 fn global_set_net_allow_tcp_listen_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR), v) }
+
+fn global_get_proc_allow_system() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM)) }
+fn global_set_proc_allow_system(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM), v) }
+
+fn global_get_proc_allow_exec_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR)) }
+fn global_set_proc_allow_exec_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR), v) }
 
 // Capsule/capability mask bits (rolling; native backend only).
 var CAP_FS = 1
@@ -302,7 +312,9 @@ fn native_runtime_init() {
     GLOBAL_OFF_NET_ALLOW_LOOPBACK = 120
     GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 128
     GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
-    GLOBAL_SLOTS_RESERVED = 24
+    GLOBAL_OFF_PROC_ALLOW_SYSTEM = 144
+    GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 152
+    GLOBAL_SLOTS_RESERVED = 32
 
     // IMPORTANT: do not rely on global initializers for these constants.
     // Capability mask bits (used by capsule runtime enforcement).
@@ -550,6 +562,32 @@ fn native_runtime_capsule_init() {
     global_set_net_allow_loopback(loop)
     global_set_net_allow_tcp_connect_ptr(native_envp_get_value_ptr("OREN_NET_ALLOW_TCP_CONNECT"))
     global_set_net_allow_tcp_listen_ptr(native_envp_get_value_ptr("OREN_NET_ALLOW_TCP_LISTEN"))
+
+    // PROC enrollment (rolling; native backend):
+    //
+    // We intentionally do NOT rely on a host shell or PATH lookups:
+    // - When you need processes in capsule mode, use explicit exec paths.
+    // - `oren_system` is considered a convenience API and must be explicitly enabled.
+    //
+    // Env:
+    // - OREN_PROC_ALLOW_EXEC_PREFIXES="/usr/bin/,/bin/" (CSV path prefixes)
+    // - OREN_PROC_ALLOW_SYSTEM=1 (enables /bin/sh only; convenience for bootstrapping)
+    var v_proc_exec = native_envp_get_value_ptr("OREN_PROC_ALLOW_EXEC_PREFIXES")
+    var v_allow_system = native_envp_get_value_ptr("OREN_PROC_ALLOW_SYSTEM")
+    var allow_system = 0
+    if v_allow_system != 0 {
+        if ptr_get_byte(v_allow_system) != 0 {
+            if ptr_get_byte(v_allow_system) != 48 { allow_system = 1 } // not '0'
+        }
+    }
+    global_set_proc_allow_system(allow_system)
+    if v_proc_exec == 0 {
+        if allow_system == 1 {
+            // Allow just the shell path for oren_system_timeout().
+            v_proc_exec = "/bin/sh"
+        }
+    }
+    global_set_proc_allow_exec_prefixes_ptr(v_proc_exec)
     return 0
 }
 
@@ -779,6 +817,28 @@ fn native_capsule_require_net_listen(ip, port) {
     if native_capsule_net_endpoint_allowed(ip, port, prefs) { return 0 }
     print("CAPSULE DENY: NET_LISTEN")
     exit(79)
+    return 0
+}
+
+fn native_capsule_require_proc_system() {
+    // `oren_system(_timeout)` is considered a convenience API and is intentionally
+    // blocked in capsule mode unless explicitly enabled (it executes a shell).
+    native_capsule_require(CAP_PROC, "PROC")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if global_get_proc_allow_system() == 1 { return 0 }
+    print("CAPSULE DENY: PROC_SYSTEM")
+    exit(81)
+    return 0
+}
+
+fn native_capsule_require_proc_exec(path) {
+    // Deny-by-default subprocess exec in capsule mode unless an explicit exec prefix allowlist is provided.
+    native_capsule_require(CAP_PROC, "PROC")
+    if global_get_capsule_mode() != 1 { return 0 }
+    var prefs = global_get_proc_allow_exec_prefixes_ptr()
+    if native_capsule_fs_path_allowed(path, prefs) { return 0 }
+    print("CAPSULE DENY: PROC_EXEC")
+    exit(80)
     return 0
 }
 
@@ -3029,55 +3089,85 @@ fn oren_system(cmd) {
     return oren_system_timeout(cmd, -1)
 }
 
-fn oren_system_timeout(cmd, timeout_ms) {
-    // Syscall-first `system(3)` equivalent with an optional timeout.
-    // - timeout_ms < 0: wait forever (system-like)
-    // - timeout_ms >= 0: poll wait4(WNOHANG) and kill child on timeout
-    //
-    // Returns wait status (raw), or negative on internal failure, or -60 on timeout.
-    if cmd == 0 { return -1 }
-
-    var pid = oren_fork()
-    if pid < 0 { return -1 }
-
-    if pid == 0 {
-        // Child: execve /bin/sh -c <cmd>
-        var sh = "/bin/sh"
-        var arg0 = "sh"
-        var arg1 = "-c"
-
-        var child_argv = malloc(32) // 4 pointers
-        if child_argv == 0 { exit(127) }
-        ptr_set(child_argv + 0, arg0)
-        ptr_set(child_argv + 8, arg1)
-        ptr_set(child_argv + 16, cmd)
-        ptr_set(child_argv + 24, 0)
-
-        // Preserve parent environment without libc.
-        // Prefer the envp captured at process entry; fallback to deriving envp from argv/argc.
-        var envp = global_get_envp()
-        if envp == 0 {
-            var argc = global_get_argc()
-            var parent_argv = global_get_argv()
-            if parent_argv != 0 {
-                // Cap derived pointer math so a corrupted argc can't walk arbitrarily.
-                if argc >= 0 && argc <= 1048576 {
-                    envp = iadd(parent_argv, (iadd(argc, 1)) * 8)
-                }
+fn native_runtime_get_envp_ptr() {
+    // Preserve parent environment without libc.
+    // Prefer the envp captured at process entry; fallback to deriving envp from argv/argc.
+    var envp = global_get_envp()
+    if envp == 0 {
+        var argc = global_get_argc()
+        var parent_argv = global_get_argv()
+        if parent_argv != 0 {
+            // Cap derived pointer math so a corrupted argc can't walk arbitrarily.
+            if argc >= 0 && argc <= 1048576 {
+                envp = iadd(parent_argv, (iadd(argc, 1)) * 8)
             }
         }
-        if envp == 0 {
-            envp = malloc(8) // 1 pointer (NULL-terminated)
-            if envp == 0 { exit(127) }
-            ptr_set(envp, 0)
-        }
+    }
+    if envp == 0 {
+        envp = malloc(8) // 1 pointer (NULL-terminated)
+        if envp == 0 { return 0 }
+        ptr_set(envp, 0)
+    }
+    return envp
+}
 
-        sys_execve(sh, child_argv, envp)
-        // If execve returns, it failed.
+@cap.requires(domain="PROC")
+fn oren_proc_spawn(path, argv, timeout_ms) {
+    // Syscall-first subprocess spawn (no libc, no PATH search).
+    //
+    // - path: explicit exec path (e.g. "/usr/bin/true")
+    // - argv: list of argv entries (including argv0), or [] for default argv0=path
+    // - timeout_ms < 0: wait forever
+    // - timeout_ms >= 0: poll wait4(WNOHANG) up to timeout_ms iterations (rolling: not wall-clock)
+    //
+    // Returns wait status (raw), or negative on internal failure, or -60 on timeout.
+    native_capsule_require_proc_exec(path)
+    if path == 0 { return -1 }
+
+    var argc = 0
+    if argv != 0 { argc = oren_list_len(argv) }
+
+    // Ensure argv0 exists.
+    var out_argc = argc
+    if out_argc < 1 { out_argc = 1 }
+
+    var child_argv = malloc((out_argc + 1) * 8) // argv pointers + NULL
+    if child_argv == 0 { return -1 }
+
+    var i = 0
+    while i < out_argc {
+        var a = 0
+        if argc == 0 {
+            if i == 0 { a = path }
+        } else {
+            a = argv[i]
+            if i == 0 && a == 0 { a = path }
+        }
+        // Best-effort validation: require a NUL-terminated string within a cap.
+        if native_cstr_len(a) >= 4096 {
+            free(child_argv)
+            return -1
+        }
+        ptr_set(child_argv + (i * 8), a)
+        i = i + 1
+    }
+    ptr_set(child_argv + (out_argc * 8), 0)
+
+    var pid = oren_fork()
+    if pid < 0 {
+        free(child_argv)
+        return -1
+    }
+
+    if pid == 0 {
+        var envp = native_runtime_get_envp_ptr()
+        if envp == 0 { exit(127) }
+        sys_execve(path, child_argv, envp)
         exit(127)
     }
 
     // Parent: wait4(pid, &status, options, 0)
+    free(child_argv)
     var status_ptr = malloc(8)
     if status_ptr == 0 { return -1 }
     ptr_set(status_ptr, 0)
@@ -3093,7 +3183,7 @@ fn oren_system_timeout(cmd, timeout_ms) {
         return status
     }
 
-    // Poll: wait4(..., WNOHANG=1) + sleep(1ms) until timeout.
+    // Poll: wait4(..., WNOHANG=1) until budget exhausted (deterministic; no TIME domain required).
     var remaining = timeout_ms
     while remaining > 0 {
         var wpid2 = sys_wait4(pid, status_ptr, 1, 0) // WNOHANG
@@ -3106,8 +3196,6 @@ fn oren_system_timeout(cmd, timeout_ms) {
             free(status_ptr)
             return -1
         }
-        // wpid2 == 0 => child still running
-        oren_sleep_ms(1)
         remaining = remaining - 1
     }
 
@@ -3116,6 +3204,18 @@ fn oren_system_timeout(cmd, timeout_ms) {
     sys_wait4(pid, status_ptr, 0, 0) // best-effort reap
     free(status_ptr)
     return 0 - 60 // ETIMEDOUT (BSD)
+}
+
+fn oren_system_timeout(cmd, timeout_ms) {
+    // Syscall-first `system(3)` equivalent with an optional timeout.
+    //
+    // In capsule mode this is intentionally blocked unless explicitly enabled:
+    // it executes a shell (/bin/sh -c), which is too powerful to allow by default.
+    native_capsule_require_proc_system()
+
+    if cmd == 0 { return -1 }
+    var args = ["sh", "-c", cmd]
+    return oren_proc_spawn("/bin/sh", args, timeout_ms)
 }
 
 fn oren_net_get(url) {
