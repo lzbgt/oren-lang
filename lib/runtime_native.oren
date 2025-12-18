@@ -3204,6 +3204,13 @@ fn oren_free_struct(ptr) {
 }
 
 fn strcmp(s1, s2) {
+    // Nil-safe lexicographic compare for NUL-terminated strings.
+    // This is intentionally defensive: native codegen may still compare against 0 in rolling mode.
+    if s1 == 0 {
+        if s2 == 0 { return 0 }
+        return -1
+    }
+    if s2 == 0 { return 1 }
     var i = 0
     while 1 {
         var b1 = ptr_get_byte(s1 + i)

@@ -19,7 +19,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Next enrollments (beyond domain bitmask):
       - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
       - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
-      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir/access/rmdir/stat/lstat/fstat/getdirentries64 + runtime readdir/realpath/getcwd/exists/realpath_checked; next: AVM mirror + string == unification), then mounts UX polish + virtual mount mirroring (native/AVM)
+      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir/access/rmdir/stat/lstat/fstat/getdirentries64 + runtime readdir/realpath/getcwd/exists/realpath_checked; next: AVM mirror + enforce string == semantics (native/C/AVM)), then mounts UX polish + virtual mount mirroring (native/AVM)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.

@@ -195,8 +195,16 @@ fn native_expr_is_stringy(ctx, expr) {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
             var nm = fnn["value"]
+            // Known string-producing helpers in the injected runtime / stdlib.
             if nm == "oren_int_to_string" { return true }
             if nm == "oren_float_to_string" { return true }
+            if nm == "oren_string_char_at" { return true }
+            if nm == "oren_string_slice" { return true }
+            if nm == "oren_string_from_bytes" { return true }
+            if nm == "oren_realpath" { return true }
+            if nm == "oren_realpath_checked" { return true }
+            if nm == "oren_getcwd" { return true }
+            if nm == "string_concat" { return true }
         }
         return false
     }
@@ -1019,8 +1027,9 @@ fn native_compile_expr(ctx, expr) {
                 return nil
             }
 
-            // String comparisons (rolling): if either side is known-stringy, use strcmp.
-            if native_expr_is_stringy(ctx, expr["left"]) || native_expr_is_stringy(ctx, expr["right"]) {
+            // String comparisons (rolling): only when BOTH sides are known-stringy.
+            // This avoids treating checks like `s == nil` as strcmp(s, 0), which would crash.
+            if native_expr_is_stringy(ctx, expr["left"]) && native_expr_is_stringy(ctx, expr["right"]) {
                 // Want strcmp(left, right): X0=left, X1=right. Currently X1=left, X0=right.
                 push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // right -> X2
                 push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // left  -> X0

@@ -10,6 +10,11 @@ fn main() {
     if "ab" > "b" { exit(6) }
     if "ab" >= "b" { exit(7) }
 
+    // Cover common runtime string-producing calls (must compare by content in native backend).
+    if oren_string_char_at("abc", 0) != "a" { exit(8) }
+    if string_concat("a", "b") != "ab" { exit(9) }
+    if oren_realpath("x/./y") != "x/y" { exit(10) }
+
     print("native string_eq OK")
     exit(0)
 }
