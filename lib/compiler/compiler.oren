@@ -8,6 +8,7 @@ import lexer "lexer.oren"
 import parser "parser.oren"
 import ast "ast.oren"
 import metadata "metadata.oren"
+import packview "packview.oren"
 import argparse "../std/argparse.oren"
 
 fn cli_spec() {
@@ -190,8 +191,10 @@ fn run_repo_tests(target, no_gc) {
         "tests/native/test_env_execve_getenv.oren",
         "tests/native/test_syscall_errno.oren",
         "tests/native/test_read_bytes.oren",
+        "tests/native/test_pack_view.oren",
         "tests/native/test_system_timeout.oren",
         "tests/native/test_spawn_join_timeout.oren",
+        "tests/native/test_native_mem_stats_gc.oren",
         // Expected-failure regression: panic must produce a readable stack trace.
         "tests/native/test_debug_panic.oren"
     ]
@@ -205,6 +208,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/modules/test_lambda_closure.oren",
         "tests/modules/test_lambda_multiline.oren",
         "tests/modules/test_endian_casts.oren",
+        "tests/modules/test_pack_view.oren",
         "tests/modules/test_gc_threads.oren",
         "tests/modules/test_gc_stack_roots.oren",
         "tests/modules/test_result.oren",
@@ -218,10 +222,12 @@ fn run_repo_tests(target, no_gc) {
 
     var avm_tests = [
         "tests/avm/test_smoke_suite.oren",
+        "tests/avm/test_pack_view.oren",
         "tests/avm/test_closure_fn_values.oren",
         "tests/avm/test_policy_scan.oren",
         "tests/avm/test_job_scan.oren",
         "tests/avm/test_snapshot_resume.oren",
+        "tests/avm/test_multiverse_invalid_obc.oren",
         "tests/avm/test_time_rng_deterministic.oren",
         "tests/avm/test_time_rng_record_replay_mem.oren",
         "tests/avm/test_budget_gas.oren",
@@ -807,7 +813,12 @@ fn link_program(entry_path, root_prog) {
         i = i + 1
     }
     
-    return {"statements": merged_stmts, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets}
+    var linked = {"statements": merged_stmts, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets}
+
+    // Compile-time lowering: packed struct views over bytes.
+    packview.lower_linked_program_in_place(linked)
+
+    return linked
 }
 
 fn compiler_main() {

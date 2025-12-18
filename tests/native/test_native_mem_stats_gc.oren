@@ -1,0 +1,53 @@
+fn fail(code) {
+    print("native mem stats: FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn alloc_garbage() {
+    // Allocate some garbage (list header + buffer + a couple strings).
+    // Keep it in a nested frame so stack scanning doesn't conservatively retain it.
+    var xs = []
+    oren_list_push(xs, 1)
+    oren_list_push(xs, 2)
+    var s = "a" + "b" + "c"
+    // Drop locals explicitly (not strictly required).
+    xs = 0
+    s = 0
+    return 0
+}
+
+fn main() {
+    // Baseline: whatever the runtime needs for its own globals/caches.
+    var live0 = native_mem_live_count()
+    var free0 = native_mem_free_blocks_count()
+
+    alloc_garbage()
+    native_gc_collect()
+
+    // Conservatively scanned stacks can keep some garbage "alive" even after it becomes
+    // unreachable. So instead of requiring `live1 == live0`, we require the *growth*
+    // to stabilize across repeated allocate+collect cycles.
+    var live1 = native_mem_live_count()
+    var free1 = native_mem_free_blocks_count()
+
+    alloc_garbage()
+    native_gc_collect()
+    var live2 = native_mem_live_count()
+    var free2 = native_mem_free_blocks_count()
+
+    // No monotonic live-allocation growth after GC across cycles.
+    if live2 != live1 {
+        print("live0=" + oren_int_to_string(live0))
+        print("live1=" + oren_int_to_string(live1))
+        print("live2=" + oren_int_to_string(live2))
+        fail(10)
+    }
+    // Free blocks are kept for reuse, so they should not shrink across cycles.
+    if free1 < free0 { fail(11) }
+    if free2 < free1 { fail(12) }
+
+    print("native mem stats: OK")
+    exit(0)
+}
+
+main()

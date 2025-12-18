@@ -1,0 +1,62 @@
+@myorg.tag(name="avm-pack-view")
+
+@oren.packed
+struct H {
+    @oren.u8 v,
+    @oren.u8 t,
+    @oren.u16be len,
+    @oren.u32be src,
+    @oren.u32be dst
+}
+
+@oren.packed
+struct S16 {
+    @oren.i16be x
+}
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_pack_view_reads() {
+    var b = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("H", b, 0).v, 69)
+    assert_eq(pack_view("H", b, 0).len, 84)
+    assert_eq(pack_view("H", b, 0).src, 3232235521)
+    assert_eq(pack_view("H", b, 0).dst, 134744072)
+
+    var b2 = [0, 69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("H", b2, 1).dst, 134744072)
+
+    var bn = [255, 254]
+    assert_eq(pack_view("S16", bn, 0).x, -2)
+}
+
+fn test_pack_view_writes() {
+    var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    pack_view("H", out, 0).v = 69
+    pack_view("H", out, 0).t = 0
+    pack_view("H", out, 0).len = 84
+    pack_view("H", out, 0).src = 3232235521
+    pack_view("H", out, 0).dst = 134744072
+    assert_eq(pack_view("H", out, 0).dst, 134744072)
+
+    var outn = [0, 0]
+    pack_view("S16", outn, 0).x = -2
+    assert_eq(pack_view("S16", outn, 0).x, -2)
+}
+
+fn main() {
+    test_pack_view_reads()
+    test_pack_view_writes()
+    print("avm pack_view OK")
+}
+
+main()

@@ -1,0 +1,32 @@
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn main() {
+    // Regression: nested-universe `.obc` parse failures must not leak allocations.
+    // `avm_free()` is leak-fatal, so any leak would abort the host AVM process and fail this test.
+    //
+    // Feed clearly-invalid `.obc` bytes to the AVM domain call.
+    var bad = oren_bytes_from_hex("00ff0102")
+    assert_true(oren_is_err(bad) == 0)
+
+    var cfg = {"deterministic": true, "gas_limit": 100000}
+    var r = oren_avm_run_obc_bytes(bad, cfg)
+    assert_true(oren_is_err(r) != 0)
+
+    var msg = oren_err_msg(r)
+    assert_true(msg != nil)
+
+    print("multiverse invalid obc: OK")
+}
+
+main()
+

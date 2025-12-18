@@ -874,6 +874,94 @@ fn native_gc_collect() {
     return 0
 }
 
+// --- Memory diagnostics (native backend; failure-only surfaces) ---
+//
+// These helpers intentionally return plain integers and do not allocate, so they can be used
+// inside tests and long-running processes without perturbing the heap significantly.
+//
+// NOTE:
+// - `global_get_allocs()` includes live allocations (tracked nodes).
+// - `global_get_free_blocks()` includes freed blocks kept for reuse (not returned to OS).
+// - These diagnostics are about "leaks / runaway growth" in the runtime sense, not RSS.
+
+fn native_mem_live_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_allocs()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
+fn native_mem_live_bytes() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var sum = 0
+    var cur = global_get_allocs()
+    while cur != 0 {
+        sum = sum + ptr_get(iadd(cur, 8))
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return sum
+}
+
+fn native_mem_free_blocks_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
+fn native_mem_free_blocks_bytes() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var sum = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        sum = sum + ptr_get(iadd(cur, 8))
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return sum
+}
+
+fn native_mem_roots_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_roots()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
+fn native_mem_free_nodes_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_free_nodes()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
 fn native_gc_shutdown() {
     return 0
 }

@@ -137,6 +137,15 @@ void avm_free(AvmVM* vm) {
     // Release any remaining unreachable heap allocations (leak-free teardown).
     avm_release_unreachable_allocs(vm);
 
+    // Leak guard (must never fire): after teardown, no heap allocations should remain.
+    // This is failure-only (no output on success) and intentionally fatal so leak
+    // regressions cannot slip by silently during rolling development.
+    if (vm->heap_allocs_head != NULL || vm->heap_used_bytes != 0) {
+        fprintf(stderr, "AVM LEAK: heap_allocs_head=%p heap_used_bytes=%llu\n",
+            vm->heap_allocs_head, (unsigned long long)vm->heap_used_bytes);
+        abort();
+    }
+
     if (vm->stack) free(vm->stack);
     if (vm->break_pcs) free(vm->break_pcs);
     if (vm->fs_allow_prefixes) {

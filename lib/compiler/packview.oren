@@ -1,0 +1,705 @@
+import ast "ast.oren"
+
+
+fn starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+// Packed struct "view over bytes" lowering.
+//
+// Design goals:
+// - compile-time only: no runtime reflection
+// - no allocation: reads lower to byte loads + shifts
+// - portable across backends: rely only on `oren_bytes_get_u8(bytes, idx)`
+//
+// Supported field attrs (v0):
+// - @oren.u8, @oren.i8
+// - @oren.u16be, @oren.u16le, @oren.i16be, @oren.i16le
+// - @oren.u32be, @oren.u32le, @oren.i32be, @oren.i32le
+//
+// Reserved type attr:
+// - @oren.packed
+
+fn has_attr(node, name) {
+    if node == nil { return false }
+    var attrs = node["attrs"]
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        if attrs[i] != nil && attrs[i]["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn field_kind(fid) {
+    if fid == nil { return nil }
+    var attrs = fid["attrs"]
+    if attrs == nil { return nil }
+
+    var kind = nil
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil { i = i + 1; continue }
+        var n = a["name"]
+        if n == nil { i = i + 1; continue }
+        if !starts_with(n, "oren.") { i = i + 1; continue }
+
+        // The kind attrs are exactly these names.
+        var is_kind = false
+        if n == "oren.u8" || n == "oren.i8" { is_kind = true }
+        if n == "oren.u16be" || n == "oren.u16le" || n == "oren.i16be" || n == "oren.i16le" { is_kind = true }
+        if n == "oren.u32be" || n == "oren.u32le" || n == "oren.i32be" || n == "oren.i32le" { is_kind = true }
+
+        if is_kind {
+            if kind != nil && kind != n { return "__MULTIPLE__" }
+            kind = n
+        }
+        i = i + 1
+    }
+    return kind
+}
+
+fn kind_size(kind) {
+    if kind == "oren.u8" || kind == "oren.i8" { return 1 }
+    if kind == "oren.u16be" || kind == "oren.u16le" || kind == "oren.i16be" || kind == "oren.i16le" { return 2 }
+    if kind == "oren.u32be" || kind == "oren.u32le" || kind == "oren.i32be" || kind == "oren.i32le" { return 4 }
+    return 0
+}
+
+fn int_lit(v) {
+    return {"type": "Integer", "token": nil, "value": v}
+}
+
+fn ident(name) {
+    return {"type": "Identifier", "token": nil, "value": name}
+}
+
+fn call0(name, args) {
+    return ast.new_call(nil, ident(name), args)
+}
+
+fn add_expr(a, b) {
+    return ast.new_infix(nil, a, "+", b)
+}
+
+fn shl_expr(a, bits) {
+    return ast.new_infix(nil, a, "<<", int_lit(oren_int_to_string(bits)))
+}
+
+fn bor_expr(a, b) {
+    return ast.new_infix(nil, a, "|", b)
+}
+
+fn bxor_expr(a, imm) {
+    return ast.new_infix(nil, a, "^", int_lit(imm))
+}
+
+fn sub_expr(a, imm) {
+    return ast.new_infix(nil, a, "-", int_lit(imm))
+}
+
+fn bytes_get_u8(bytes_expr, idx_expr) {
+    return call0("oren_bytes_get_u8", [bytes_expr, idx_expr])
+}
+
+fn u8_at(bytes_expr, base_idx, delta) {
+    if delta == 0 {
+        return bytes_get_u8(bytes_expr, base_idx)
+    }
+    return bytes_get_u8(bytes_expr, add_expr(base_idx, int_lit(oren_int_to_string(delta))))
+}
+
+fn build_read_expr(kind, bytes_expr, base_idx) {
+    // Build expression trees in terms of u8 reads + shifts.
+    if kind == "oren.u8" {
+        return u8_at(bytes_expr, base_idx, 0)
+    }
+    if kind == "oren.i8" {
+        // sign-extend via ((u8 ^ 128) - 128)
+        return sub_expr(bxor_expr(u8_at(bytes_expr, base_idx, 0), "128"), "128")
+    }
+
+    if kind == "oren.u16be" || kind == "oren.i16be" {
+        var b0 = u8_at(bytes_expr, base_idx, 0)
+        var b1 = u8_at(bytes_expr, base_idx, 1)
+        var u = bor_expr(shl_expr(b0, 8), b1)
+        if kind == "oren.u16be" { return u }
+        // sign-extend via ((u ^ 32768) - 32768)
+        return sub_expr(bxor_expr(u, "32768"), "32768")
+    }
+    if kind == "oren.u16le" || kind == "oren.i16le" {
+        var b0 = u8_at(bytes_expr, base_idx, 0)
+        var b1 = u8_at(bytes_expr, base_idx, 1)
+        var u2 = bor_expr(shl_expr(b1, 8), b0)
+        if kind == "oren.u16le" { return u2 }
+        return sub_expr(bxor_expr(u2, "32768"), "32768")
+    }
+
+    if kind == "oren.u32be" || kind == "oren.i32be" {
+        var c0 = u8_at(bytes_expr, base_idx, 0)
+        var c1 = u8_at(bytes_expr, base_idx, 1)
+        var c2 = u8_at(bytes_expr, base_idx, 2)
+        var c3 = u8_at(bytes_expr, base_idx, 3)
+        var u3 = bor_expr(
+            bor_expr(shl_expr(c0, 24), shl_expr(c1, 16)),
+            bor_expr(shl_expr(c2, 8), c3)
+        )
+        if kind == "oren.u32be" { return u3 }
+        return sub_expr(bxor_expr(u3, "2147483648"), "2147483648")
+    }
+
+    if kind == "oren.u32le" || kind == "oren.i32le" {
+        var d0 = u8_at(bytes_expr, base_idx, 0)
+        var d1 = u8_at(bytes_expr, base_idx, 1)
+        var d2 = u8_at(bytes_expr, base_idx, 2)
+        var d3 = u8_at(bytes_expr, base_idx, 3)
+        var u4 = bor_expr(
+            bor_expr(shl_expr(d3, 24), shl_expr(d2, 16)),
+            bor_expr(shl_expr(d1, 8), d0)
+        )
+        if kind == "oren.u32le" { return u4 }
+        return sub_expr(bxor_expr(u4, "2147483648"), "2147483648")
+    }
+
+    return nil
+}
+
+var PV_GENSYM = 0
+
+fn pv_gensym(prefix) {
+    PV_GENSYM = PV_GENSYM + 1
+    return prefix + oren_int_to_string(PV_GENSYM)
+}
+
+fn and_expr(a, b) {
+    return ast.new_infix(nil, a, "&", b)
+}
+
+fn shr_expr(a, bits) {
+    return ast.new_infix(nil, a, ">>", int_lit(oren_int_to_string(bits)))
+}
+
+fn mask_u8(e) {
+    return and_expr(e, int_lit("255"))
+}
+
+fn bytes_set_u8(bytes_expr, idx_expr, val_expr) {
+    return call0("oren_bytes_set_u8", [bytes_expr, idx_expr, val_expr])
+}
+
+fn build_write_calls(kind, bytes_expr, base_idx, val_expr) {
+    var out = []
+    var sz = kind_size(kind)
+    if sz <= 0 { return out }
+
+    // For all integer widths (signed/unsigned), write the low `sz` bytes of `val_expr`.
+    // This works for negatives too because shifts are defined via u64 semantics in v0.
+    var i = 0
+    while i < sz {
+        var shift = 0
+        if kind == "oren.u16be" || kind == "oren.i16be" || kind == "oren.u32be" || kind == "oren.i32be" {
+            shift = (sz - 1 - i) * 8
+        } else {
+            // le + 8-bit
+            shift = i * 8
+        }
+
+        var b = mask_u8(shr_expr(val_expr, shift))
+        var idx2 = base_idx
+        if i != 0 {
+            idx2 = add_expr(base_idx, int_lit(oren_int_to_string(i)))
+        }
+        var call = bytes_set_u8(bytes_expr, idx2, b)
+        oren_list_push(out, ast.new_expr_stmt(nil, call))
+        i = i + 1
+    }
+
+    return out
+}
+
+fn is_pack_view_call(expr) {
+    if expr == nil { return false }
+    if expr["type"] != "Call" { return false }
+    var fn_expr = expr["fn"]
+    if fn_expr == nil || fn_expr["type"] != "Identifier" { return false }
+    if fn_expr["value"] != "pack_view" { return false }
+    return true
+}
+
+fn schema_from_linked(linked) {
+    var schemas = {}
+    var stmts = linked["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st != nil && st["type"] == "Type" {
+            if has_attr(st, "oren.packed") {
+                var tname = st["name"]["value"]
+                var fields = st["fields"]
+                var field_map = {}
+                var total = 0
+
+                var fi = 0
+                while fi < oren_list_len(fields) {
+                    var fid = fields[fi]
+                    var fname = fid["value"]
+                    var k = field_kind(fid)
+                    if k == "__MULTIPLE__" {
+                        print("Packed struct field has multiple kind attrs: " + tname + "." + fname)
+                        oren_exit(1)
+                    }
+                    if k == nil {
+                        print("Packed struct field missing kind attr (e.g. @oren.u16be): " + tname + "." + fname)
+                        oren_exit(1)
+                    }
+                    var sz = kind_size(k)
+                    if sz <= 0 {
+                        print("Unsupported packed field kind: " + k + " at " + tname + "." + fname)
+                        oren_exit(1)
+                    }
+                    field_map[fname] = {"kind": k, "offset": total, "size": sz}
+                    total = total + sz
+                    fi = fi + 1
+                }
+
+                schemas[tname] = {"fields": field_map, "size": total}
+            }
+        }
+        i = i + 1
+    }
+    return schemas
+}
+
+fn lower_expr(expr, schemas) {
+    if expr == nil { return nil }
+
+    var t = expr["type"]
+    if t == "Call" {
+        // `pack_view(...)` is compile-time only; we validate after lowering that
+        // no raw calls remain (they must be consumed by `.field`).
+        expr["fn"] = lower_expr(expr["fn"], schemas)
+        var args = expr["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            args[i] = lower_expr(args[i], schemas)
+            i = i + 1
+        }
+        return expr
+    }
+
+    if t == "Infix" {
+        expr["left"] = lower_expr(expr["left"], schemas)
+        expr["right"] = lower_expr(expr["right"], schemas)
+        return expr
+    }
+
+    if t == "Prefix" {
+        expr["right"] = lower_expr(expr["right"], schemas)
+        return expr
+    }
+
+    if t == "Function" {
+        // Functions are expressions in v0; descend into the body.
+        lower_stmt(expr["body"], schemas)
+        return expr
+    }
+
+    if t == "SpawnExpr" {
+        expr["call"] = lower_expr(expr["call"], schemas)
+        return expr
+    }
+
+    if t == "Member" {
+        expr["left"] = lower_expr(expr["left"], schemas)
+
+        var left = expr["left"]
+        if is_pack_view_call(left) {
+            var args2 = left["args"]
+            if args2 == nil || oren_list_len(args2) != 3 {
+                print("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
+                oren_exit(1)
+            }
+            var tname_node = args2[0]
+            if tname_node == nil || tname_node["type"] != "String" {
+                print("pack_view arg0 must be a string literal type name")
+                oren_exit(1)
+            }
+            var type_name = tname_node["value"]
+            var schema = schemas[type_name]
+            if schema == nil {
+                print("Unknown packed type in pack_view: " + type_name)
+                oren_exit(1)
+            }
+
+            var bytes_expr = lower_expr(args2[1], schemas)
+            var base_off = lower_expr(args2[2], schemas)
+
+            var prop = expr["prop"]
+            if prop == nil || prop["type"] != "Identifier" {
+                print("pack_view(...).<field> expects an identifier field")
+                oren_exit(1)
+            }
+            var field_name = prop["value"]
+            var f = schema["fields"][field_name]
+            if f == nil {
+                print("Unknown packed field: " + type_name + "." + field_name)
+                oren_exit(1)
+            }
+
+            var off = f["offset"]
+            var base_idx = base_off
+            if off != 0 {
+                base_idx = add_expr(base_off, int_lit(oren_int_to_string(off)))
+            }
+
+            var out = build_read_expr(f["kind"], bytes_expr, base_idx)
+            if out == nil {
+                print("Unsupported packed field kind: " + f["kind"])
+                oren_exit(1)
+            }
+            return out
+        }
+
+        return expr
+    }
+
+    if t == "Index" {
+        expr["left"] = lower_expr(expr["left"], schemas)
+        expr["index"] = lower_expr(expr["index"], schemas)
+        return expr
+    }
+
+    if t == "Array" {
+        var els = expr["elements"]
+        var i2 = 0
+        while i2 < oren_list_len(els) {
+            els[i2] = lower_expr(els[i2], schemas)
+            i2 = i2 + 1
+        }
+        return expr
+    }
+
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var i3 = 0
+        while i3 < oren_list_len(pairs) {
+            pairs[i3]["key"] = lower_expr(pairs[i3]["key"], schemas)
+            pairs[i3]["value"] = lower_expr(pairs[i3]["value"], schemas)
+            i3 = i3 + 1
+        }
+        return expr
+    }
+
+    if t == "If" {
+        expr["cond"] = lower_expr(expr["cond"], schemas)
+        lower_stmt(expr["consq"], schemas)
+        lower_stmt(expr["alt"], schemas)
+        return expr
+    }
+
+    // literals / identifiers
+    return expr
+}
+
+fn lower_stmt(stmt, schemas) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+
+    if t == "Var" {
+        stmt["value"] = lower_expr(stmt["value"], schemas)
+        return nil
+    }
+    if t == "Assign" {
+        stmt["value"] = lower_expr(stmt["value"], schemas)
+        return nil
+    }
+
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Member" {
+            var mleft = left["left"]
+            if is_pack_view_call(mleft) {
+                // PV3: pack_view("Type", bytes, off).field = value
+                var args2 = mleft["args"]
+                if args2 == nil || oren_list_len(args2) != 3 {
+                    print("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
+                    oren_exit(1)
+                }
+                var tname_node = args2[0]
+                if tname_node == nil || tname_node["type"] != "String" {
+                    print("pack_view arg0 must be a string literal type name")
+                    oren_exit(1)
+                }
+                var type_name = tname_node["value"]
+                var schema = schemas[type_name]
+                if schema == nil {
+                    print("Unknown packed type in pack_view: " + type_name)
+                    oren_exit(1)
+                }
+
+                var prop = left["prop"]
+                if prop == nil || prop["type"] != "Identifier" {
+                    print("pack_view(...).<field> expects an identifier field")
+                    oren_exit(1)
+                }
+                var field_name = prop["value"]
+                var f = schema["fields"][field_name]
+                if f == nil {
+                    print("Unknown packed field: " + type_name + "." + field_name)
+                    oren_exit(1)
+                }
+
+                // Lower subexpressions once (avoid multiple evaluation).
+                var bytes_expr = lower_expr(args2[1], schemas)
+                var base_off = lower_expr(args2[2], schemas)
+                var vexpr = lower_expr(stmt["value"], schemas)
+
+                var tmp_bytes = pv_gensym("@pv_bytes_")
+                var tmp_off = pv_gensym("@pv_off_")
+                var tmp_val = pv_gensym("@pv_val_")
+
+                var id_bytes = {"type": "Identifier", "token": nil, "value": tmp_bytes}
+                var id_off = {"type": "Identifier", "token": nil, "value": tmp_off}
+                var id_val = {"type": "Identifier", "token": nil, "value": tmp_val}
+
+                var block = ast.new_block(nil)
+                oren_list_push(block["stmts"], ast.new_var(nil, id_bytes, bytes_expr))
+                oren_list_push(block["stmts"], ast.new_var(nil, id_off, base_off))
+                oren_list_push(block["stmts"], ast.new_var(nil, id_val, vexpr))
+
+                var off = f["offset"]
+                var base_idx = id_off
+                if off != 0 {
+                    base_idx = add_expr(id_off, int_lit(oren_int_to_string(off)))
+                }
+
+                var calls = build_write_calls(f["kind"], id_bytes, base_idx, id_val)
+                var ci = 0
+                while ci < oren_list_len(calls) {
+                    oren_list_push(block["stmts"], calls[ci])
+                    ci = ci + 1
+                }
+
+                // Mutate this statement into the lowered block.
+                stmt["type"] = "Block"
+                stmt["token"] = nil
+                stmt["stmts"] = block["stmts"]
+                return nil
+            }
+        }
+
+        // Default Set lowering.
+        stmt["left"] = lower_expr(stmt["left"], schemas)
+        stmt["value"] = lower_expr(stmt["value"], schemas)
+        return nil
+    }
+    if t == "Spawn" {
+        stmt["call"] = lower_expr(stmt["call"], schemas)
+        return nil
+    }
+    if t == "Return" {
+        stmt["value"] = lower_expr(stmt["value"], schemas)
+        return nil
+    }
+    if t == "ExprStmt" {
+        stmt["expr"] = lower_expr(stmt["expr"], schemas)
+        return nil
+    }
+    if t == "Function" {
+        lower_stmt(stmt["body"], schemas)
+        return nil
+    }
+    if t == "Block" {
+        var stmts = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(stmts) {
+            lower_stmt(stmts[i], schemas)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "If" {
+        stmt["cond"] = lower_expr(stmt["cond"], schemas)
+        lower_stmt(stmt["consq"], schemas)
+        lower_stmt(stmt["alt"], schemas)
+        return nil
+    }
+    if t == "While" {
+        stmt["cond"] = lower_expr(stmt["cond"], schemas)
+        lower_stmt(stmt["body"], schemas)
+        return nil
+    }
+    if t == "For" {
+        lower_stmt(stmt["init"], schemas)
+        stmt["cond"] = lower_expr(stmt["cond"], schemas)
+        lower_stmt(stmt["post"], schemas)
+        lower_stmt(stmt["body"], schemas)
+        return nil
+    }
+
+    // Type/Import/FFI/Test/Spawn/etc: nothing to do.
+    if stmt["value"] != nil {
+        stmt["value"] = lower_expr(stmt["value"], schemas)
+    }
+    if stmt["expr"] != nil {
+        stmt["expr"] = lower_expr(stmt["expr"], schemas)
+    }
+    return nil
+}
+
+fn validate_expr_no_pack_view(expr) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Call" {
+        if is_pack_view_call(expr) {
+            print("pack_view(...) must be used as pack_view(\"Type\", bytes, offset).field")
+            oren_exit(1)
+        }
+        validate_expr_no_pack_view(expr["fn"])
+        var args = expr["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            validate_expr_no_pack_view(args[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Infix" {
+        validate_expr_no_pack_view(expr["left"])
+        validate_expr_no_pack_view(expr["right"])
+        return nil
+    }
+    if t == "Prefix" {
+        validate_expr_no_pack_view(expr["right"])
+        return nil
+    }
+    if t == "Member" {
+        validate_expr_no_pack_view(expr["left"])
+        return nil
+    }
+    if t == "Index" {
+        validate_expr_no_pack_view(expr["left"])
+        validate_expr_no_pack_view(expr["index"])
+        return nil
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        var j = 0
+        while j < oren_list_len(els) {
+            validate_expr_no_pack_view(els[j])
+            j = j + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var k = 0
+        while k < oren_list_len(pairs) {
+            validate_expr_no_pack_view(pairs[k]["key"])
+            validate_expr_no_pack_view(pairs[k]["value"])
+            k = k + 1
+        }
+        return nil
+    }
+    if t == "If" {
+        validate_expr_no_pack_view(expr["cond"])
+        validate_stmt_no_pack_view(expr["consq"])
+        validate_stmt_no_pack_view(expr["alt"])
+        return nil
+    }
+    if t == "Function" {
+        validate_stmt_no_pack_view(expr["body"])
+        return nil
+    }
+    if t == "SpawnExpr" {
+        validate_expr_no_pack_view(expr["call"])
+        return nil
+    }
+    return nil
+}
+
+fn validate_stmt_no_pack_view(stmt) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" || t == "Assign" || t == "Return" {
+        validate_expr_no_pack_view(stmt["value"])
+        return nil
+    }
+    if t == "Set" {
+        validate_expr_no_pack_view(stmt["left"])
+        validate_expr_no_pack_view(stmt["value"])
+        return nil
+    }
+    if t == "ExprStmt" {
+        validate_expr_no_pack_view(stmt["expr"])
+        return nil
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            validate_stmt_no_pack_view(ss[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "If" {
+        validate_expr_no_pack_view(stmt["cond"])
+        validate_stmt_no_pack_view(stmt["consq"])
+        validate_stmt_no_pack_view(stmt["alt"])
+        return nil
+    }
+    if t == "While" {
+        validate_expr_no_pack_view(stmt["cond"])
+        validate_stmt_no_pack_view(stmt["body"])
+        return nil
+    }
+    if t == "For" {
+        validate_stmt_no_pack_view(stmt["init"])
+        validate_expr_no_pack_view(stmt["cond"])
+        validate_stmt_no_pack_view(stmt["post"])
+        validate_stmt_no_pack_view(stmt["body"])
+        return nil
+    }
+    if t == "Function" {
+        validate_stmt_no_pack_view(stmt["body"])
+        return nil
+    }
+    if t == "Spawn" {
+        validate_expr_no_pack_view(stmt["call"])
+        return nil
+    }
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    var schemas = schema_from_linked(linked)
+    if schemas == nil { return nil }
+
+    var stmts = linked["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        lower_stmt(stmts[i], schemas)
+        i = i + 1
+    }
+    // Validate: no raw pack_view calls remain after lowering.
+    var stmts2 = linked["statements"]
+    var vi = 0
+    while vi < oren_list_len(stmts2) {
+        validate_stmt_no_pack_view(stmts2[vi])
+        vi = vi + 1
+    }
+
+    return nil
+}

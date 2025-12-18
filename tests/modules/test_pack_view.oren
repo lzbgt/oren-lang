@@ -1,0 +1,45 @@
+// Module/C backend regression: packed views are compile-time lowered and must
+// work with the portable v0 bytes representation (list<int 0..255>).
+
+@oren.packed
+struct H {
+    @oren.u8 v,
+    @oren.u8 t,
+    @oren.u16be len,
+    @oren.u32be src,
+    @oren.u32be dst
+}
+
+@oren.packed
+struct S16 {
+    @oren.i16be x
+}
+
+// PV2 reads
+var b = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+if pack_view("H", b, 0).v != 69 { exit(1) }
+if pack_view("H", b, 0).len != 84 { exit(2) }
+if pack_view("H", b, 0).src != 3232235521 { exit(3) }
+if pack_view("H", b, 0).dst != 134744072 { exit(4) }
+
+var b2 = [0, 69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+if pack_view("H", b2, 1).dst != 134744072 { exit(5) }
+
+var bn = [255, 254]
+if pack_view("S16", bn, 0).x != -2 { exit(6) }
+
+// PV3 writes
+var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+pack_view("H", out, 0).v = 69
+pack_view("H", out, 0).t = 0
+pack_view("H", out, 0).len = 84
+pack_view("H", out, 0).src = 3232235521
+pack_view("H", out, 0).dst = 134744072
+if pack_view("H", out, 0).dst != 134744072 { exit(7) }
+
+var outn = [0, 0]
+pack_view("S16", outn, 0).x = -2
+if pack_view("S16", outn, 0).x != -2 { exit(8) }
+
+print("module pack_view OK")
+exit(0)

@@ -574,27 +574,48 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             break;
         }
         case 33: { // oren_bytes_get_u8(bytes, idx) -> int
-            if (nargs > 1 && args[0].type == AVM_VAL_BYTES && args[1].type == AVM_VAL_INT) {
-                AvmBytes* b = args[0].as.b;
+            if (nargs > 1 && args[1].type == AVM_VAL_INT) {
                 int64_t idx = args[1].as.i;
-                if (!b || idx < 0 || idx >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_get_u8: index out of bounds"); break; }
-                res = avm_int((int64_t)b->data[(int)idx]);
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_get_u8: index out of bounds"); break; }
+                    res = avm_int((int64_t)b->data[(int)idx]);
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_get_u8: index out of bounds"); break; }
+                    AvmValue v = list->items[(int)idx];
+                    if (v.type != AVM_VAL_INT) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_get_u8: expected list<int 0..255>"); break; }
+                    if (v.as.i < 0 || v.as.i > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_get_u8: byte out of range"); break; }
+                    res = avm_int(v.as.i);
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_get_u8 expects (bytes|list<int>, int)");
+                }
             } else {
-                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_get_u8 expects (bytes, int)");
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_get_u8 expects (bytes|list<int>, int)");
             }
             break;
         }
         case 34: { // oren_bytes_set_u8(bytes, idx, val) -> bytes
-            if (nargs > 2 && args[0].type == AVM_VAL_BYTES && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
-                AvmBytes* b = args[0].as.b;
+            if (nargs > 2 && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
                 int64_t idx = args[1].as.i;
                 int64_t val = args[2].as.i;
-                if (!b || idx < 0 || idx >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u8: index out of bounds"); break; }
                 if (val < 0 || val > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u8: expected 0..255"); break; }
-                b->data[(int)idx] = (uint8_t)val;
-                res = args[0];
+
+                if (args[0].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[0].as.b;
+                    if (!b || idx < 0 || idx >= b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u8: index out of bounds"); break; }
+                    b->data[(int)idx] = (uint8_t)val;
+                    res = args[0];
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    AvmList* list = args[0].as.l;
+                    if (!list || idx < 0 || idx >= list->count) { res = avm_err(AVM_ERR_INVALID_ARG, "bytes_set_u8: index out of bounds"); break; }
+                    list->items[(int)idx] = avm_int(val);
+                    res = args[0];
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u8 expects (bytes|list<int>, int, int)");
+                }
             } else {
-                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u8 expects (bytes, int, int)");
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bytes_set_u8 expects (bytes|list<int>, int, int)");
             }
             break;
         }
@@ -949,6 +970,12 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
     const uint8_t* data = obc->data;
     size_t len = (size_t)obc->len;
 
+    // Always initialize output so callers can safely call cleanup on failure.
+    out->code = NULL;
+    out->code_len = 0;
+    out->constants = NULL;
+    out->const_count = 0;
+
     // Header: CD 0E
     if (len < 2 || data[0] != 0xCD || data[1] != 0x0E) return 0;
 
@@ -963,14 +990,14 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
     for (uint16_t i = 0; i < n_consts; i++) consts[i].type = AVM_VAL_NIL;
 
     for (uint16_t i = 0; i < n_consts; i++) {
-        if (pos >= len) return 0;
+        if (pos >= len) goto fail;
         uint8_t type = data[pos++];
         if (type == 0) { // NIL
             consts[i].type = AVM_VAL_NIL;
             continue;
         }
         if (type == 1) { // INT
-            if (pos + 8 > len) return 0;
+            if (pos + 8 > len) goto fail;
             int64_t val = 0;
             for (int k = 0; k < 8; k++) {
                 val |= (int64_t)data[pos++] << (k * 8);
@@ -980,19 +1007,19 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
             continue;
         }
         if (type == 2) { // BOOL (u8 0|1)
-            if (pos + 1 > len) return 0;
+            if (pos + 1 > len) goto fail;
             uint8_t b = data[pos++];
             consts[i].type = AVM_VAL_BOOL;
             consts[i].as.i = b ? 1 : 0;
             continue;
         }
         if (type == 4) { // STRING
-            if (pos + 2 > len) return 0;
+            if (pos + 2 > len) goto fail;
             uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
             pos += 2;
-            if (pos + slen > len) return 0;
+            if (pos + slen > len) goto fail;
             char* s = (char*)malloc((size_t)slen + 1);
-            if (!s) return 0;
+            if (!s) goto fail;
             if (slen > 0) memcpy(s, data + pos, slen);
             s[slen] = 0;
             pos += slen;
@@ -1001,21 +1028,21 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
             continue;
         }
         if (type == 8) { // BYTES (rolling): u32 len + raw bytes
-            if (pos + 4 > len) return 0;
+            if (pos + 4 > len) goto fail;
             uint32_t blen = (uint32_t)data[pos] |
                 ((uint32_t)data[pos + 1] << 8) |
                 ((uint32_t)data[pos + 2] << 16) |
                 ((uint32_t)data[pos + 3] << 24);
             pos += 4;
-            if (pos + blen > len) return 0;
+            if (pos + blen > len) goto fail;
             AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
-            if (!b) return 0;
+            if (!b) goto fail;
             b->len = (int)blen;
             b->capacity = (int)blen;
             b->data = NULL;
             if (blen > 0) {
                 b->data = (uint8_t*)malloc((size_t)blen);
-                if (!b->data) { free(b); return 0; }
+                if (!b->data) { free(b); goto fail; }
                 memcpy(b->data, data + pos, blen);
             }
             pos += blen;
@@ -1023,15 +1050,34 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
             consts[i].as.b = b;
             continue;
         }
-        return 0;
+        goto fail;
     }
 
-    if (pos > len) return 0;
+    if (pos > len) goto fail;
     out->code = (uint8_t*)(data + pos);
     out->code_len = len - pos;
     out->constants = consts;
     out->const_count = n_consts;
     return 1;
+
+fail:
+    if (consts) {
+        for (uint16_t i = 0; i < n_consts; i++) {
+            if (consts[i].type == AVM_VAL_STRING && consts[i].as.p) {
+                free(consts[i].as.p);
+            } else if (consts[i].type == AVM_VAL_BYTES && consts[i].as.b) {
+                if (consts[i].as.b->data) free(consts[i].as.b->data);
+                free(consts[i].as.b);
+            }
+            consts[i].type = AVM_VAL_NIL;
+        }
+        free(consts);
+    }
+    out->code = NULL;
+    out->code_len = 0;
+    out->constants = NULL;
+    out->const_count = 0;
+    return 0;
 }
 
 typedef struct {
@@ -1568,6 +1614,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 AvmProgram* prog = (AvmProgram*)malloc(sizeof(AvmProgram));
                 if (!prog) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 if (!avm_parse_obc_from_bytes(args[0].as.b, prog)) {
+                    free(prog);
                     return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid obc bytes", domain, op);
                 }
 
@@ -1790,6 +1837,8 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
 
                 AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
                 avm_free(child);
+                // `prog->constants` may include malloc-allocated STRING/BYTES values; those were
+                // freed by `avm_free(child)` via `avm_release_heap_all` (constants are roots).
                 if (prog->constants) free(prog->constants);
                 free(prog);
                 return ret;

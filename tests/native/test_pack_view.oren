@@ -1,0 +1,60 @@
+@oren.packed
+struct H {
+    @oren.u8 v,
+    @oren.u8 t,
+    @oren.u16be len,
+    @oren.u32be src,
+    @oren.u32be dst
+}
+
+@oren.packed
+struct S16 {
+    @oren.i16be x
+}
+
+fn fail(code) {
+    print("native pack_view FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn main() {
+    // IPv4-like header prefix (not complete); byte list is the portable v0 bytes story.
+    var b = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+
+    // PV2 reads
+    assert_eq(pack_view("H", b, 0).v, 69, 10)
+    assert_eq(pack_view("H", b, 0).t, 0, 11)
+    assert_eq(pack_view("H", b, 0).len, 84, 12)
+    assert_eq(pack_view("H", b, 0).src, 3232235521, 13) // 192.168.0.1
+    assert_eq(pack_view("H", b, 0).dst, 134744072, 14)   // 8.8.8.8
+
+    // Non-zero base offset.
+    var b2 = [0, 69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("H", b2, 1).len, 84, 20)
+    assert_eq(pack_view("H", b2, 1).dst, 134744072, 21)
+
+    // Signed reads (i16be).
+    var bn = [255, 254]
+    assert_eq(pack_view("S16", bn, 0).x, -2, 30)
+
+    // PV3 writes (packet construction without allocation)
+    var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    pack_view("H", out, 0).v = 69
+    pack_view("H", out, 0).t = 0
+    pack_view("H", out, 0).len = 84
+    pack_view("H", out, 0).src = 3232235521
+    pack_view("H", out, 0).dst = 134744072
+    assert_eq(pack_view("H", out, 0).dst, 134744072, 40)
+
+    var outn = [0, 0]
+    pack_view("S16", outn, 0).x = -2
+    assert_eq(pack_view("S16", outn, 0).x, -2, 41)
+
+    print("native pack_view OK")
+    exit(0)
+}

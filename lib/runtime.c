@@ -1386,6 +1386,33 @@ static int bytes_get_u8_checked(OrenValue bytes, int idx, uint8_t* out) {
     return 1;
 }
 
+
+OrenValue oren_bytes_get_u8(OrenValue bytes, OrenValue index) {
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u8 expects (bytes:list<int>, idx:int)"));
+    int idx = (int)index.as.int_val;
+    uint8_t b0;
+    lock_collections();
+    int ok = bytes_get_u8_checked(bytes, idx, &b0);
+    unlock_collections();
+    if (!ok) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u8: index out of bounds or byte out of range"));
+    return oren_int((int64_t)b0);
+}
+
+OrenValue oren_bytes_set_u8(OrenValue bytes, OrenValue index, OrenValue value) {
+    if (bytes.type != OREN_TYPE_LIST) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>, idx:int, value:int 0..255)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>, idx:int, value:int 0..255)"));
+    if (value.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>, idx:int, value:int 0..255)"));
+    int idx = (int)index.as.int_val;
+    int64_t v = value.as.int_val;
+    if (v < 0 || v > 255) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8: value out of range"));
+    lock_collections();
+    int ok = (idx >= 0 && idx < bytes.as.list_val->count);
+    if (ok) bytes.as.list_val->items[idx] = oren_int(v);
+    unlock_collections();
+    if (!ok) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8: index out of bounds"));
+    return oren_int(v);
+}
+
 OrenValue oren_bytes_get_u16_be(OrenValue bytes, OrenValue index) {
     if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u16_be expects (bytes:list<int>, idx:int)"));
     int idx = (int)index.as.int_val;

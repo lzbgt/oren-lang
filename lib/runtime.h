@@ -181,6 +181,9 @@ OrenValue oren_read_bytes(OrenValue path);
 OrenValue oren_bytes_from_string(OrenValue s);
 // Build a string from list<int 0..255> (inverse of bytes_from_string).
 OrenValue oren_string_from_bytes(OrenValue bytes);
+// Byte-level reads/writes (list<int 0..255>) helpers.
+OrenValue oren_bytes_get_u8(OrenValue bytes, OrenValue index);
+OrenValue oren_bytes_set_u8(OrenValue bytes, OrenValue index, OrenValue value);
 // Endian-aware reads from list<int 0..255> (network parsing helpers).
 OrenValue oren_bytes_get_u16_be(OrenValue bytes, OrenValue index);
 OrenValue oren_bytes_get_u16_le(OrenValue bytes, OrenValue index);
