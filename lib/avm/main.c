@@ -1122,6 +1122,66 @@ static uint64_t parse_domain_mask(const char* s) {
     return mask;
 }
 
+static int env_truthy(const char* s) {
+    if (!s || !s[0]) return 0;
+    if (s[0] == '0' && !s[1]) return 0;
+    return 1;
+}
+
+static int parse_oren_domains_mask(const char* s, uint64_t* out_mask) {
+    // Parse Oren-style capability domain names into an AVM domain bitmask.
+    //
+    // Accepts CSV tokens (case-insensitive):
+    //   CORE, FS, TIME, RNG, NET, PROC, EXIT, ENV, AVM, ALL
+    //
+    // Used to bridge Oren native capsule env into AVM when running `avm` as a child process.
+    if (!out_mask) return 0;
+    *out_mask = 0;
+    if (!s || !s[0]) return 1;
+
+    uint64_t mask = 0;
+    int saw_any = 0;
+    const char* cur = s;
+    while (*cur) {
+        while (*cur == ' ' || *cur == ',') cur++;
+        if (!*cur) break;
+
+        const char* start = cur;
+        while (*cur && *cur != ',') cur++;
+        const char* end = cur;
+        while (end > start && end[-1] == ' ') end--;
+        if (end <= start) continue;
+
+        saw_any = 1;
+        size_t len = (size_t)(end - start);
+        // fold to uppercase into a small temp buffer
+        char t[16];
+        if (len >= sizeof(t)) return 0;
+        for (size_t i = 0; i < len; i++) {
+            char c = start[i];
+            if (c >= 'a' && c <= 'z') c = (char)(c - 32);
+            t[i] = c;
+        }
+        t[len] = 0;
+
+        if (strcmp(t, "ALL") == 0) { mask = ~0ULL; continue; }
+        if (strcmp(t, "CORE") == 0) { mask |= (1ULL << 0); continue; }
+        if (strcmp(t, "FS") == 0) { mask |= (1ULL << 1); continue; }
+        if (strcmp(t, "TIME") == 0) { mask |= (1ULL << 2); continue; }
+        if (strcmp(t, "RNG") == 0) { mask |= (1ULL << 3); continue; }
+        if (strcmp(t, "NET") == 0) { mask |= (1ULL << 4); continue; }
+        if (strcmp(t, "PROC") == 0) { mask |= (1ULL << 5); continue; }
+        if (strcmp(t, "EXIT") == 0) { mask |= (1ULL << 6); continue; }
+        if (strcmp(t, "ENV") == 0) { mask |= (1ULL << 7); continue; }
+        if (strcmp(t, "AVM") == 0) { mask |= (1ULL << 8); continue; }
+        return 0;
+    }
+
+    if (!saw_any) return 0;
+    *out_mask = mask;
+    return 1;
+}
+
 static int parse_domain_mask_strict(const char* s, uint64_t* out_mask) {
     if (!out_mask) return 0;
     *out_mask = 0;
@@ -1925,7 +1985,8 @@ int main(int argc, char** argv) {
     // Capsule mode (rolling): safe defaults for running untrusted `.obc`.
     // Enable with `--capsule` / `--untrusted` or `AVM_CAPSULE=1`.
     const char* capsule_env = getenv("AVM_CAPSULE");
-    if (capsule_env && capsule_env[0] && capsule_env[0] != '0') capsule = 1;
+    const char* capsule_env_oren = getenv("OREN_CAPSULE");
+    if (env_truthy(capsule_env) || env_truthy(capsule_env_oren)) capsule = 1;
     if (capsule) {
         verify_strict = 1;
         deny_by_default = 1;
@@ -2362,7 +2423,29 @@ int main(int argc, char** argv) {
                     // If deny-by-default is enabled and allowlist is absent, default to CORE+EXIT.
                     const char* domains_s = allow_domains_cli ? allow_domains_cli : getenv("AVM_ALLOW_DOMAINS");
                     uint64_t parsed_mask = 0;
-                    if (!parse_domain_mask_strict(domains_s, &parsed_mask)) {
+                    const char* oren_domains_s = NULL;
+                    if ((!domains_s || !domains_s[0]) && capsule) {
+                        // Bridge Oren native capsule env into AVM when `avm` is spawned as a subprocess.
+                        // Oren uses names; AVM uses numeric domains.
+                        oren_domains_s = getenv("OREN_CAP_ALLOW_DOMAINS");
+                    }
+
+                    int has_allow = (domains_s && domains_s[0]) ? 1 : 0;
+                    if (!has_allow && oren_domains_s && oren_domains_s[0]) has_allow = 1;
+
+                    int ok = 1;
+                    if (domains_s && domains_s[0]) {
+                        ok = parse_domain_mask_strict(domains_s, &parsed_mask);
+                    } else if (oren_domains_s && oren_domains_s[0]) {
+                        ok = parse_oren_domains_mask(oren_domains_s, &parsed_mask);
+                        // Always include CORE+EXIT for bootstrap usability and safety.
+                        parsed_mask |= (1ULL << 0) | (1ULL << 6);
+                    } else {
+                        // no allowlist string => parsed_mask=0 (caller decides semantics)
+                        parsed_mask = 0;
+                    }
+
+                    if (!ok) {
                         fprintf(stderr, "Invalid allow domains list\n");
                         free(ops);
                         free_constant_pool(consts, n_consts);
@@ -2371,10 +2454,16 @@ int main(int argc, char** argv) {
                         free(break_pcs);
                         return 1;
                     }
-                    if (deny_by_default && (!domains_s || !domains_s[0])) ectx.allow_domains_mask = (1ULL << 0) | (1ULL << 6);
+
+                    if (deny_by_default && !has_allow) ectx.allow_domains_mask = (1ULL << 0) | (1ULL << 6);
                     else ectx.allow_domains_mask = parsed_mask;
 
                     const char* fs_allow_s = fs_allow_prefixes_cli ? fs_allow_prefixes_cli : getenv("AVM_FS_ALLOW_PREFIXES");
+                    if ((!fs_allow_s || !fs_allow_s[0]) && capsule) {
+                        fs_allow_s = getenv("OREN_FS_ALLOW_PREFIXES");
+                        if (!fs_allow_s || !fs_allow_s[0]) fs_allow_s = getenv("OREN_FS_ALLOW_READ_PREFIXES");
+                        if (!fs_allow_s || !fs_allow_s[0]) fs_allow_s = getenv("OREN_FS_ALLOW_WRITE_PREFIXES");
+                    }
                     uint8_t ctx_hash[32];
                     char ctx_hex[65];
                     ctx_hash_sha256_v7(&ectx, fs_allow_s, ctx_hash);
@@ -2835,7 +2924,23 @@ int main(int argc, char** argv) {
         // - AVM_FS_ALLOW_PREFIXES: comma-separated path prefixes; if set, FS paths must start with an allowed prefix.
         const char* domains_s = allow_domains_cli ? allow_domains_cli : getenv("AVM_ALLOW_DOMAINS");
         uint64_t parsed_mask = 0;
-        if (!parse_domain_mask_strict(domains_s, &parsed_mask)) {
+        const char* oren_domains_s = NULL;
+        if ((!domains_s || !domains_s[0]) && capsule) {
+            oren_domains_s = getenv("OREN_CAP_ALLOW_DOMAINS");
+        }
+        int has_allow = (domains_s && domains_s[0]) ? 1 : 0;
+        if (!has_allow && oren_domains_s && oren_domains_s[0]) has_allow = 1;
+
+        int ok = 1;
+        if (domains_s && domains_s[0]) {
+            ok = parse_domain_mask_strict(domains_s, &parsed_mask);
+        } else if (oren_domains_s && oren_domains_s[0]) {
+            ok = parse_oren_domains_mask(oren_domains_s, &parsed_mask);
+            parsed_mask |= (1ULL << 0) | (1ULL << 6);
+        } else {
+            parsed_mask = 0;
+        }
+        if (!ok) {
             fprintf(stderr, "Invalid allow domains list\n");
             avm_free(vm);
             free_constant_pool(consts, n_consts);
@@ -2844,13 +2949,20 @@ int main(int argc, char** argv) {
             free(break_pcs);
             return 1;
         }
-        if (deny_by_default && (!domains_s || !domains_s[0])) {
+
+        if (deny_by_default && !has_allow) {
             // Minimal safe set: CORE (0) + EXIT (6).
             vm->allowed_native_domains = (1ULL << 0) | (1ULL << 6);
         } else {
             vm->allowed_native_domains = parsed_mask;
         }
+
         const char* fs_allow_s = fs_allow_prefixes_cli ? fs_allow_prefixes_cli : getenv("AVM_FS_ALLOW_PREFIXES");
+        if ((!fs_allow_s || !fs_allow_s[0]) && capsule) {
+            fs_allow_s = getenv("OREN_FS_ALLOW_PREFIXES");
+            if (!fs_allow_s || !fs_allow_s[0]) fs_allow_s = getenv("OREN_FS_ALLOW_READ_PREFIXES");
+            if (!fs_allow_s || !fs_allow_s[0]) fs_allow_s = getenv("OREN_FS_ALLOW_WRITE_PREFIXES");
+        }
         parse_fs_allow_prefixes(vm, fs_allow_s);
 
         const char* fs_backend_s = fs_backend_cli ? fs_backend_cli : getenv("AVM_FS_BACKEND");

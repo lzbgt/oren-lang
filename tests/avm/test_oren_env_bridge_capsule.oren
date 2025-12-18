@@ -1,0 +1,14 @@
+fn main() {
+    // Ensure AVM honors Oren native capsule env when `avm` is spawned as a subprocess:
+    // - OREN_CAPSULE=1 should behave like AVM_CAPSULE=1
+    // - FS must be denied by default (CORE + EXIT only)
+    //
+    // Repo-runner additionally asserts the host file is not created.
+    var w = oren_write_file("build/avm_oren_bridge_should_not_write.txt", "x")
+    if !oren_is_err(w) { oren_exit(1) }
+    if oren_err_code(w) != 1 { oren_exit(2) } // PERM
+    oren_exit(0)
+}
+
+main()
+

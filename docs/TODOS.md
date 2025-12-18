@@ -58,3 +58,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - Capsule mode (native runtime, PROC): subprocess spawning now supports `OREN_PROC_ALLOW_EXEC_PREFIXES`, env key allowlist `OREN_PROC_ALLOW_ENV_KEYS`, and shell gating via `OREN_PROC_ALLOW_SYSTEM` with repo-runner fixtures.
 - Capsule mode (native runtime, PROC): `oren_proc_spawn` now forces propagation of OREN capsule controls to child Oren programs (prevents “env-filter escape”), with repo-runner fixtures.
 - Capsule mode (native runtime, PROC): subprocess argv allowlist is now deny-by-default in capsule mode via `OREN_PROC_ALLOW_ARGV` specs.
+- AVM runner now honors `OREN_CAPSULE` / `OREN_CAP_ALLOW_DOMAINS` and `OREN_FS_ALLOW_*` when AVM env vars are unset (subprocess propagation safety).
