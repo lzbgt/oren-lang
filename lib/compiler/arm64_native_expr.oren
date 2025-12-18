@@ -162,6 +162,46 @@ fn native_expr_is_floaty(ctx, expr) {
     }
     return false
 }
+
+fn native_expr_is_stringy(ctx, expr) {
+    // Heuristic "string propagation" for the native backend.
+    //
+    // Native values are raw pointers; without a tagged value type we cannot decide at runtime,
+    // so comparisons are lowered based on compile-time evidence.
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "String" { return true }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_stringy"] != nil {
+                if ctx["locals_stringy"][name] == true { return true }
+            }
+            if ctx["globals_stringy"] != nil {
+                if ctx["globals_stringy"][name] == true { return true }
+            }
+        }
+        return false
+    }
+    if et == "Infix" {
+        // String concat is `+` only, and runtime only concatenates when both are strings.
+        if expr["op"] == "+" {
+            if native_expr_is_stringy(ctx, expr["left"]) { return true }
+            if native_expr_is_stringy(ctx, expr["right"]) { return true }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "oren_int_to_string" { return true }
+            if nm == "oren_float_to_string" { return true }
+        }
+        return false
+    }
+    return false
+}
 fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_ldadd(rs, rt, rn) { return core.insn_ldadd(rs, rt, rn) }
@@ -976,6 +1016,28 @@ fn native_compile_expr(ctx, expr) {
                 if op == "<=" { fcond = 13 }
                 if op == ">=" { fcond = 10 }
                 push_u32_le(ctx["code"], insn_cset(0, fcond))
+                return nil
+            }
+
+            // String comparisons (rolling): if either side is known-stringy, use strcmp.
+            if native_expr_is_stringy(ctx, expr["left"]) || native_expr_is_stringy(ctx, expr["right"]) {
+                // Want strcmp(left, right): X0=left, X1=right. Currently X1=left, X0=right.
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // right -> X2
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // left  -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // right -> X1
+                var bl_pos_s = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_s, "name": "strcmp"})
+                // strcmp returns -1/0/1 in X0. Compare against 0.
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+                var scond = cond_code
+                if op == "==" { scond = 0 }
+                if op == "!=" { scond = 1 }
+                if op == "<"  { scond = 11 }
+                if op == ">"  { scond = 12 }
+                if op == "<=" { scond = 13 }
+                if op == ">=" { scond = 10 }
+                push_u32_le(ctx["code"], insn_cset(0, scond))
                 return nil
             }
             

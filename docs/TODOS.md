@@ -31,7 +31,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Harden parser/codegen invariants (scope, stack/heap, argument passing).
    - Fix nested control-flow edge cases (e.g. nested `for` break depth).
    - Ensure deterministic container behavior matches spec across all backends.
-   - Define and enforce string equality semantics across backends (native still has pointer-identity behavior in some paths).
+   - Define and enforce string equality semantics across backends (native now does content-compare for "stringy" expressions; extend coverage as needed).
 
 4) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - Deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.

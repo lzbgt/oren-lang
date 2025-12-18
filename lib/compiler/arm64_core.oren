@@ -17,7 +17,7 @@ fn bytes_extend(b, other) {
 //
 // We implement lexical scopes with an undo log:
 // - scope_enter_codegen(): push a scope frame
-// - scope_mark_declared_codegen(name, prev_off): record previous binding
+// - scope_mark_declared_codegen(name, prev_off, prev_floaty, prev_stringy): record previous binding
 // - scope_exit_codegen(): restore previous bindings
 //
 fn scope_enter_codegen(ctx) {
@@ -29,14 +29,14 @@ fn scope_current_codegen(ctx) {
     return ctx["scope"]
 }
 
-fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty) {
+fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy) {
     var scope = scope_current_codegen(ctx)
     if scope == nil {
         scope_enter_codegen(ctx)
         scope = scope_current_codegen(ctx)
     }
     scope["names"][name] = 1
-    oren_list_push(scope["undo"], {"name": name, "prev": prev_off, "prev_floaty": prev_floaty})
+    oren_list_push(scope["undo"], {"name": name, "prev": prev_off, "prev_floaty": prev_floaty, "prev_stringy": prev_stringy})
 }
 
 fn scope_exit_codegen(ctx) {
@@ -62,6 +62,14 @@ fn scope_exit_codegen(ctx) {
                 ctx["locals_floaty"][name] = nil
             } else {
                 ctx["locals_floaty"][name] = pf
+            }
+        }
+        if ctx["locals_stringy"] != nil {
+            var ps = u["prev_stringy"]
+            if ps == nil {
+                ctx["locals_stringy"][name] = nil
+            } else {
+                ctx["locals_stringy"][name] = ps
             }
         }
         i = i - 1

@@ -197,6 +197,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/native/test_int_casts.oren",
         "tests/native/test_int_casts_checked.oren",
         "tests/native/test_float_ops.oren",
+        "tests/native/test_string_eq.oren",
         "tests/native/test_pack_view.oren",
         "tests/native/test_system_timeout.oren",
         "tests/native/test_spawn_join_timeout.oren",

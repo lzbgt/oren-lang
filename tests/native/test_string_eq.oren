@@ -1,0 +1,18 @@
+fn main() {
+    // String comparisons must be lexical by content (not pointer identity),
+    // at least for obvious stringy expressions in the native backend.
+
+    if "a" == "b" { exit(1) }
+    if "a" != "a" { exit(2) }
+    if ("a" + "b") != "ab" { exit(3) }
+    if "ab" < "aa" { exit(4) }
+    if "ab" <= "aa" { exit(5) }
+    if "ab" > "b" { exit(6) }
+    if "ab" >= "b" { exit(7) }
+
+    print("native string_eq OK")
+    exit(0)
+}
+
+main()
+
