@@ -13,7 +13,7 @@ fn contains_curly_braces(s) { return core.contains_curly_braces(s) }
 
 fn scope_enter_codegen(ctx) { return core.scope_enter_codegen(ctx) }
 fn scope_current_codegen(ctx) { return core.scope_current_codegen(ctx) }
-fn scope_mark_declared_codegen(ctx, name, prev_off) { return core.scope_mark_declared_codegen(ctx, name, prev_off) }
+fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty) { return core.scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty) }
 fn scope_exit_codegen(ctx) { return core.scope_exit_codegen(ctx) }
 
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
@@ -220,12 +220,14 @@ fn native_compile_stmt(ctx, stmt) {
 
     if stmt["type"] == "Assign" {
         native_compile_expr(ctx, stmt["value"])
+        var is_floaty = exprm.native_expr_is_floaty(ctx, stmt["value"])
         
         var name = stmt["name"]["value"]
         var off = ctx["locals"][name]
         if off != nil {
             var current_sp_off = ctx["stack_size"] - off - 16
             emit_str_reg_sp_any(ctx, 0, current_sp_off)
+            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty }
             return nil
         }
         
@@ -245,6 +247,7 @@ fn native_compile_stmt(ctx, stmt) {
             ctx["stack_size"] = ctx["stack_size"] - 16
             
             push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+            if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty }
             return nil
         }
         
@@ -254,6 +257,7 @@ fn native_compile_stmt(ctx, stmt) {
 
     if stmt["type"] == "Var" {
         native_compile_expr(ctx, stmt["value"])
+        var is_floaty2 = exprm.native_expr_is_floaty(ctx, stmt["value"])
 
         var name = stmt["name"]["value"]
         
@@ -268,6 +272,7 @@ fn native_compile_stmt(ctx, stmt) {
                     if existing_off != nil {
                         var current_sp_off_existing = ctx["stack_size"] - existing_off - 16
                         emit_str_reg_sp_any(ctx, 0, current_sp_off_existing)
+                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
                         return nil
                     }
                 }
@@ -278,15 +283,19 @@ fn native_compile_stmt(ctx, stmt) {
 
             // Record previous binding so it can be restored when leaving the scope.
             var prev_off = ctx["locals"][name]
-            scope_mark_declared_codegen(ctx, name, prev_off)
+            var prev_floaty = nil
+            if ctx["locals_floaty"] != nil { prev_floaty = ctx["locals_floaty"][name] }
+            scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty)
 
             ctx["locals"][name] = ctx["stack_size"]
+            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
             ctx["stack_size"] = ctx["stack_size"] + 16
         } else {
             var data_off = oren_list_len(ctx["data"])
             var k = 0
             while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
             ctx["globals"][name] = data_off
+            if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty2 }
             
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))

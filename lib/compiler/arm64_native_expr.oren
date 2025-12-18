@@ -118,6 +118,50 @@ fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
 fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
+
+fn native_expr_is_floaty(ctx, expr) {
+    // Heuristic, rolling "float propagation" for the native backend.
+    //
+    // Native float values are raw IEEE-754 f64 bits in a 64-bit register.
+    // Without a tagged dynamic value, we cannot decide "float vs int" at runtime,
+    // so we conservatively decide based on AST + local assignment tracking.
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "Float" { return true }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_floaty"] != nil {
+                if ctx["locals_floaty"][name] == true { return true }
+            }
+            if ctx["globals_floaty"] != nil {
+                if ctx["globals_floaty"][name] == true { return true }
+            }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "fadd" || nm == "fsub" || nm == "fmul" || nm == "fdiv" { return true }
+        }
+        return false
+    }
+    if et == "Prefix" {
+        if expr["op"] == "-" { return native_expr_is_floaty(ctx, expr["right"]) }
+        return false
+    }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "+" || op == "-" || op == "*" || op == "/" {
+            if native_expr_is_floaty(ctx, expr["left"]) { return true }
+            if native_expr_is_floaty(ctx, expr["right"]) { return true }
+        }
+        return false
+    }
+    return false
+}
 fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_ldadd(rs, rt, rn) { return core.insn_ldadd(rs, rt, rn) }
@@ -795,6 +839,14 @@ fn native_compile_expr(ctx, expr) {
     }
     if expr["type"] == "Prefix" {
         if expr["op"] == "-" {
+            if native_expr_is_floaty(ctx, expr["right"]) {
+                // Float negation: flip IEEE-754 sign bit.
+                native_compile_expr(ctx, expr["right"])
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_movk(1, 32768, 3)) // 0x8000 << 48
+                push_u32_le(ctx["code"], insn_eor_reg(0, 0, 1))
+                return nil
+            }
             native_compile_expr(ctx, expr["right"])
             push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // SUB X0, XZR, X0
             return nil
@@ -835,6 +887,30 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Float arithmetic (rolling): if either side is known-floaty, lower to FP ops.
+            // This is required to avoid silently treating float bit-patterns as ints/pointers.
+            if op == "+" || op == "-" || op == "*" || op == "/" {
+                if native_expr_is_floaty(ctx, expr["left"]) || native_expr_is_floaty(ctx, expr["right"]) {
+                    // Left: X1, Right: X0
+                    if native_expr_is_floaty(ctx, expr["left"]) {
+                        push_u32_le(ctx["code"], insn_fmov_d_x(0, 1))
+                    } else {
+                        push_u32_le(ctx["code"], insn_scvtf(0, 1))
+                    }
+                    if native_expr_is_floaty(ctx, expr["right"]) {
+                        push_u32_le(ctx["code"], insn_fmov_d_x(1, 0))
+                    } else {
+                        push_u32_le(ctx["code"], insn_scvtf(1, 0))
+                    }
+                    if op == "+" { push_u32_le(ctx["code"], insn_fadd(0, 0, 1)) }
+                    if op == "-" { push_u32_le(ctx["code"], insn_fsub(0, 0, 1)) }
+                    if op == "*" { push_u32_le(ctx["code"], insn_fmul(0, 0, 1)) }
+                    if op == "/" { push_u32_le(ctx["code"], insn_fdiv(0, 0, 1)) }
+                    push_u32_le(ctx["code"], insn_umov_x_d(0, 0))
+                    return nil
+                }
+            }
             
             if op == "+" { 
                 // Swap X0/X1 so X0=Left, X1=Right for oren_add call
@@ -882,6 +958,26 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Float comparisons (rolling): if either side is known-floaty, use FCMP.
+            if native_expr_is_floaty(ctx, expr["left"]) || native_expr_is_floaty(ctx, expr["right"]) {
+                if native_expr_is_floaty(ctx, expr["left"]) { push_u32_le(ctx["code"], insn_fmov_d_x(0, 1)) }
+                else { push_u32_le(ctx["code"], insn_scvtf(0, 1)) }
+
+                if native_expr_is_floaty(ctx, expr["right"]) { push_u32_le(ctx["code"], insn_fmov_d_x(1, 0)) }
+                else { push_u32_le(ctx["code"], insn_scvtf(1, 0)) }
+
+                push_u32_le(ctx["code"], insn_fcmp(0, 1))
+                // Reuse AArch64 cond codes:
+                // EQ=0, NE=1, MI(<)=4, GE=10, GT=12, LE=13
+                var fcond = cond_code
+                if op == "<"  { fcond = 4 }
+                if op == ">"  { fcond = 12 }
+                if op == "<=" { fcond = 13 }
+                if op == ">=" { fcond = 10 }
+                push_u32_le(ctx["code"], insn_cset(0, fcond))
+                return nil
+            }
             
             // CMP X1, X0
             push_u32_le(ctx["code"], insn_cmp_reg(1, 0))

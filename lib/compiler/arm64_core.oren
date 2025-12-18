@@ -29,14 +29,14 @@ fn scope_current_codegen(ctx) {
     return ctx["scope"]
 }
 
-fn scope_mark_declared_codegen(ctx, name, prev_off) {
+fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty) {
     var scope = scope_current_codegen(ctx)
     if scope == nil {
         scope_enter_codegen(ctx)
         scope = scope_current_codegen(ctx)
     }
     scope["names"][name] = 1
-    oren_list_push(scope["undo"], {"name": name, "prev": prev_off})
+    oren_list_push(scope["undo"], {"name": name, "prev": prev_off, "prev_floaty": prev_floaty})
 }
 
 fn scope_exit_codegen(ctx) {
@@ -53,6 +53,16 @@ fn scope_exit_codegen(ctx) {
             ctx["locals"][name] = nil
         } else {
             ctx["locals"][name] = prev
+        }
+        // Best-effort: restore floatiness metadata if present.
+        // This enables "float operator parity" in the native backend without a full type system.
+        if ctx["locals_floaty"] != nil {
+            var pf = u["prev_floaty"]
+            if pf == nil {
+                ctx["locals_floaty"][name] = nil
+            } else {
+                ctx["locals_floaty"][name] = pf
+            }
         }
         i = i - 1
     }
@@ -483,13 +493,13 @@ fn insn_fdiv(rd, rn, rm) {
 }
 
 fn insn_scvtf(rd, rn) {
-    // SCVTF Dd, Xn: 0x9E620000 = 2657189888
-    return 2657189888 + (rn * 32) + rd
+    // SCVTF Dd, Xn: 0x9E620000
+    return 2657222656 + (rn * 32) + rd
 }
 
 fn insn_fcvtzs(rd, rn) {
-    // FCVTZS Xd, Dn: 0x9E780000 = 2658631680
-    return 2658631680 + (rn * 32) + rd
+    // FCVTZS Xd, Dn: 0x9E780000
+    return 2658664448 + (rn * 32) + rd
 }
 
 fn insn_mul_4s(vd, vn, vm) {

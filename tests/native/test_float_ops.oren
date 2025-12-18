@@ -1,0 +1,49 @@
+fn fail(code) {
+    print("native float_ops FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn main() {
+    // Float operator parity (native backend):
+    // - float literals are f64 bit-patterns
+    // - + - * / on floaty expressions must lower to FP ops (not integer ops)
+    var a = 1.5
+    var b = 2.5
+
+    assert_eq(a + b, 4.0, 10)
+    assert_eq(b - a, 1.0, 11)
+    assert_eq(a * 2.0, 3.0, 12)
+    assert_eq(3.0 / a, 2.0, 13)
+
+    // Unary minus on floats.
+    assert_eq(-a, -1.5, 20)
+
+    // Mixed numeric comparisons (int/float).
+    assert_true(2 < 2.5, 30)
+    assert_true(2 <= 2.0, 31)
+    assert_true(3.0 > 2, 32)
+    assert_true(3.0 >= 3, 33)
+
+    // String concat remains supported (via oren_add string path).
+    // Native backend string equality is still rolling, so validate via helpers.
+    var s = "a" + "b"
+    assert_eq(oren_string_len(s), 2, 40)
+    assert_eq(ptr_get_byte(s + 0), 97, 41) // 'a'
+    assert_eq(ptr_get_byte(s + 1), 98, 42) // 'b'
+    assert_eq(ptr_get_byte(s + 2), 0, 43)  // NUL
+
+    print("native float_ops OK")
+    exit(0)
+}
+
+main()

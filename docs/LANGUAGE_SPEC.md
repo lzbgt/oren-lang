@@ -262,7 +262,11 @@ Implementation reality today:
 
 Important rolling note:
 
-- Operator-level float arithmetic is not yet consistent across all backends. The native backend currently treats `+ - * /` as integer ops (and `+` also supports string concat); float math is performed via explicit intrinsics (`fadd/fsub/fmul/fdiv`). AVM and C backend currently support float operators directly.
+- Operator-level float arithmetic is rolling and was historically inconsistent across backends:
+  - **C backend / AVM:** `+ - * /` on floats works directly.
+  - **Native backend (ARM64):** `+ - * /` now lowers to FP ops when the compiler can prove the expression is “floaty” (float literals, float intrinsics, and locals/globals assigned from floaty expressions). Otherwise it remains integer/pointer arithmetic.
+
+  This is a pragmatic v0 bridge until Oren has a stronger type story for numeric operators.
 
 If you need **float32** in v0, the recommended path is **typed buffers** (`F32_BUF`) rather than introducing a second scalar float tag immediately (see “Planned” below). This avoids a large cross-backend rewrite of the dynamic value representation.
 

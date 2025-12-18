@@ -25,12 +25,13 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.
    - Extend casts to cover `f32/f64` story (including parsing + bit-casts) and endian-aware helpers (`be/le`).
    - Tighten `i64/u64` semantics for v0 (u64 currently limited to `0..MAX_I64` until big-int/u128 story exists).
-   - Decide and document float operator parity across backends (native currently uses `fadd/fsub/fmul/fdiv` intrinsics).
+   - DONE: native float operator parity for floaty expressions (compile-time tracked), plus canonical tests.
 
 3) **P1 [correctness] Language core robustness**
    - Harden parser/codegen invariants (scope, stack/heap, argument passing).
    - Fix nested control-flow edge cases (e.g. nested `for` break depth).
    - Ensure deterministic container behavior matches spec across all backends.
+   - Define and enforce string equality semantics across backends (native still has pointer-identity behavior in some paths).
 
 4) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - Deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
@@ -47,3 +48,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - AVM host FS mounts: `--fs-mounts[-read|-write]` maps virtual paths to enrolled host prefixes (determinism-friendly).
 - AVM float64: `.obc` FLOAT consts + `* /` ops, mixed numeric comparisons, canonical float ops test.
 - PROC argv allowlist: add `<prefix>*` suffix-wildcard matcher for safer ergonomic enrollment.
+- Native backend: float operator parity for floaty expressions + fixed SCVTF/FCVTZS instruction encodings.

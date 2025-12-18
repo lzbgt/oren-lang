@@ -543,6 +543,7 @@ fn native_compile_program_arm64(linked, platform) {
         "fixups": [],
         "locals": {},
         "globals": {},
+        "globals_floaty": {},
         "functions": {},
         "function_names": [],
         // Named function declarations (name -> arity) collected before codegen.
@@ -559,6 +560,7 @@ fn native_compile_program_arm64(linked, platform) {
         "in_function": false,
         "loop_ctx": nil,
         "scope": nil,
+        "locals_floaty": {},
         "platform": platform,
         "aliases": linked["aliases"],
         "type_ns": linked["type_ns"],
