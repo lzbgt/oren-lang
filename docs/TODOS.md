@@ -17,9 +17,9 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
    - Next enrollments (beyond domain bitmask):
-     - **NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
-     - **PROC:** argv policy sugar + per-proc capability sets
-     - **FS:** host mounts UX polish (docs + examples), then virtual FS mount mirroring (native/AVM)
+     - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
+     - **PROC:** enforce caps at raw `sys_*` boundary (no bypass), then per-proc capability sets (argv/env/fd inheritance)
+     - **FS:** enforce caps at raw `sys_*` boundary (no bypass), then mounts UX polish + virtual mount mirroring (native/AVM)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.
