@@ -4,6 +4,8 @@ import parser "parser.oren"
 import lexer "lexer.oren"
 import token "token.oren"
 import capsule "capsule.oren"
+import abi "arm64_abi_macos.oren"
+import labi "arm64_abi_linux.oren"
 
 // Re-export core helpers locally so the native program compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -576,13 +578,13 @@ fn native_compile_program_arm64(linked, platform) {
     }
     
     // Entry stub: calls main and exits with its result
-    var sys_exit = 1
-    var svc_imm = 128
-    var sys_reg = 16
+    var sys_exit = abi.darwin_sys_exit()
+    var svc_imm = abi.darwin_svc_imm()
+    var sys_reg = abi.darwin_syscall_reg()
     if ctx["platform"]["os"] == "linux" {
-        sys_exit = 93
-        svc_imm = 0
-        sys_reg = 8
+        sys_exit = labi.linux_sys_exit()
+        svc_imm = labi.linux_svc_imm()
+        sys_reg = labi.linux_syscall_reg()
     }
 
     // Capture argc/argv/envp before any calls clobber argument registers.
@@ -838,13 +840,8 @@ fn native_compile_program_arm64(linked, platform) {
     
     // Implicit exit(0)
     push_u32_le(ctx["code"], insn_movz(0, 0))
-    if ctx["platform"]["os"] == "linux" {
-        push_u32_le(ctx["code"], insn_movz(8, 93))
-        push_u32_le(ctx["code"], 3556769793) // SVC #0
-    } else {
-        push_u32_le(ctx["code"], insn_movz(16, 1))
-        push_u32_le(ctx["code"], 3556769921) // SVC #128
-    }
+    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
+    push_u32_le(ctx["code"], insn_svc(svc_imm))
     
     // Generate resolve_symbol function
     // NOTE: resolve_symbol is used by the native runtime's non-debug stack trace.

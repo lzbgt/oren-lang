@@ -21,7 +21,8 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
    - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
    - Treat system headers as audit-only.
-   - macOS arm64 is partially done via `lib/compiler/arm64_abi_macos.oren` + `docs/refs/darwin_arm64_abi.md`.
+   - macOS arm64 is largely done via `lib/compiler/arm64_abi_macos.oren` + `docs/refs/darwin_arm64_abi.md` (syscall reg/imm + core syscalls).
+   - Linux arm64 baseline table added via `lib/compiler/arm64_abi_linux.oren` (syscall reg/imm + core syscalls).
    - Next: Linux arm64 parity tables + a single shared ABI layer used by native codegen.
 
 3) **P1 [correctness] Unify language-level `==` / `!=` semantics for strings across backends**
@@ -47,3 +48,5 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - AVM FS-domain helpers: `oren_exists` + `oren_readdir` (VFS + host mounts), plus CORE `oren_realpath` (pure lexical).
 - macOS arm64 ABI constants moved into repo-owned module: `lib/compiler/arm64_abi_macos.oren` (+ refs in `docs/refs/darwin_arm64_abi.md`).
 - Native backend string comparisons: fixed false-floaty Index classification that broke `names[i] == "lit"` for lists produced by helpers like `oren_readdir`.
+- Native backend syscall ABI: moved Darwin syscall reg/imm + base syscalls into `lib/compiler/arm64_abi_macos.oren`, removed entry-stub magic SVC encodings, and fixed Linux arm64 `pipe2` syscall number to 59 (from `docs/refs/linux_asm_generic_unistd.h`).
+- Linux arm64 syscall ABI: introduced repo-owned constants (`lib/compiler/arm64_abi_linux.oren`) and removed hardcoded `x8`/`svc #0` + core syscall numbers from codegen hot spots.

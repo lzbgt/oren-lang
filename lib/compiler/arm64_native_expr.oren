@@ -1,5 +1,7 @@
 import core "arm64_core.oren"
 import sysm "arm64_native_expr_syscalls.oren"
+import abi "arm64_abi_macos.oren"
+import labi "arm64_abi_linux.oren"
 
 // Re-export core helpers locally so the native expr compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -1633,14 +1635,14 @@ fn native_compile_expr(ctx, expr) {
             var slow_target = oren_list_len(ctx["code"])
             var sys_mmap = 197
             var mmap_flags = 4098 // 0x1002
-            var sys_reg = 16
-            var svc_imm = 128
+            var sys_reg = abi.darwin_syscall_reg()
+            var svc_imm = abi.darwin_svc_imm()
             var is_macos = true
             if ctx["platform"]["os"] == "linux" {
-                sys_mmap = 222
+                sys_mmap = labi.linux_sys_mmap()
                 mmap_flags = 34 // 0x22
-                sys_reg = 8
-                svc_imm = 0
+                sys_reg = labi.linux_syscall_reg()
+                svc_imm = labi.linux_svc_imm()
                 is_macos = false
             }
 
@@ -1661,8 +1663,8 @@ fn native_compile_expr(ctx, expr) {
             var choose_target = oren_list_len(ctx["code"])
             set_u32_le(ctx["code"], jump_choose_end, insn_b((choose_target - jump_choose_end) / 4))
 
-            var sys_exit = 1
-            if ctx["platform"]["os"] == "linux" { sys_exit = 93 }
+            var sys_exit = abi.darwin_sys_exit()
+            if ctx["platform"]["os"] == "linux" { sys_exit = labi.linux_sys_exit() }
 
             // mmap(0, chunk, PROT=3, flags, -1, 0)
             push_u32_le(ctx["code"], insn_add_imm(1, 3, 0)) // X1 = chunk

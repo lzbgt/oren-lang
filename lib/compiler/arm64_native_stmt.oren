@@ -1,5 +1,7 @@
 import core "arm64_core.oren"
 import exprm "arm64_native_expr.oren"
+import abi "arm64_abi_macos.oren"
+import labi "arm64_abi_linux.oren"
 
 // Re-export core helpers locally so the native stmt compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -725,18 +727,16 @@ fn native_compile_stmt(ctx, stmt) {
         if exp["type"] == "Call" {
             var fn_name = exp["fn"]["value"]
             
-            var sys_write = 4
-            var sys_exit = 1
-            var svc_imm = 128
-            var sys_reg = 16
-            var is_macos = true
+            var sys_write = abi.darwin_sys_write()
+            var sys_exit = abi.darwin_sys_exit()
+            var svc_imm = abi.darwin_svc_imm()
+            var sys_reg = abi.darwin_syscall_reg()
             
             if ctx["platform"]["os"] == "linux" {
-                sys_write = 64
-                sys_exit = 93
-                svc_imm = 0
-                sys_reg = 8
-                is_macos = false
+                sys_write = labi.linux_sys_write()
+                sys_exit = labi.linux_sys_exit()
+                svc_imm = labi.linux_svc_imm()
+                sys_reg = labi.linux_syscall_reg()
             }
 
             if fn_name == "sys_write" {

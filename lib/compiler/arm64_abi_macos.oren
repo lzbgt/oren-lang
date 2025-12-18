@@ -9,10 +9,25 @@
 // - `docs/refs/darwin_arm64_abi.md` (curated subset + offset notes)
 
 // --- Syscall numbers (arm64, macOS / Darwin) ---
+// Verified against `docs/refs/darwin_xnu_syscalls.master`.
+fn darwin_sys_exit() { return 1 }
+fn darwin_sys_read() { return 3 }
+fn darwin_sys_write() { return 4 }
+fn darwin_sys_open() { return 5 }
+fn darwin_sys_close() { return 6 }
+fn darwin_sys_pipe() { return 42 }
+
 fn darwin_sys_stat64() { return 338 }
 fn darwin_sys_fstat64() { return 339 }
 fn darwin_sys_lstat64() { return 340 }
 fn darwin_sys_getdirentries64() { return 344 }
+
+// --- Syscall instruction ABI (arm64, Darwin) ---
+// Darwin AArch64 syscall convention:
+// - syscall number in X16
+// - `svc #0x80`
+fn darwin_syscall_reg() { return 16 }
+fn darwin_svc_imm() { return 128 }
 
 // --- libc-independent fcntl constants (used by host-mode convenience helpers) ---
 // NOTE: `F_GETPATH` is a Darwin fcntl command that writes the file path for an fd.
