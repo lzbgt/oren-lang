@@ -554,6 +554,40 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_proc_sys_out))
 
+    // Env filtering:
+    // - Parent sets OREN_TEST_SECRET.
+    // - Default in capsule mode: env is empty (unless explicitly inherited/allowlisted).
+    // - Allowlist just that key => child sees it.
+    var cap_proc_env_out = "build/capsule_runtime_proc_env_prog"
+    var cap_proc_env_log = "build/logs/capsule_runtime_proc_env_prog_build.log"
+    var cap_proc_env_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_proc_env_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_proc_env_out) + gc_arg
+    var cap_proc_env_rc = run_shell_capture(timeout_bin, build_timeout, cap_proc_env_cmd, cap_proc_env_log)
+    if cap_proc_env_rc != 0 || file_exists(cap_proc_env_out) != true {
+        print("native failed: capsule_runtime_proc_env_prog (build)")
+        oren_system("cat " + shell_quote(cap_proc_env_log))
+        oren_exit(1)
+    }
+
+    var cap_proc_env_deny_log = "build/logs/capsule_runtime_proc_env_prog_run_deny.log"
+    var cap_proc_env_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_TEST_SECRET=shh ./" + cap_proc_env_out
+    var cap_proc_env_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_env_deny_cmd, cap_proc_env_deny_log)
+    if cap_proc_env_deny_rc == 0 {
+        print("native failed: capsule_runtime_proc_env_prog (expected env to be filtered by default)")
+        oren_system("cat " + shell_quote(cap_proc_env_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_proc_env_ok_log = "build/logs/capsule_runtime_proc_env_prog_run_allow.log"
+    var cap_proc_env_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ENV_KEYS=OREN_TEST_SECRET OREN_TEST_SECRET=shh ./" + cap_proc_env_out
+    var cap_proc_env_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_env_ok_cmd, cap_proc_env_ok_log)
+    if cap_proc_env_ok_rc != 0 {
+        print("native failed: capsule_runtime_proc_env_prog (expected env allowlist to pass)")
+        oren_system("cat " + shell_quote(cap_proc_env_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_proc_env_out))
+
     // --- Native tests ---
     var n_pass = 0
     var n_total = oren_list_len(native_tests)

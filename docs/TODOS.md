@@ -19,7 +19,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Next: implement resource-level enrollments (beyond domain bitmask):
      - FS: allowlisted prefixes/mounts (DONE: split read/write prefixes; NEXT: mounts + read/write separation for mount rules)
      - NET: endpoint enrollment (DONE: loopback flag + connect/listen allowlists; NEXT: vnet mapping + per-socket capabilities)
-     - PROC: subprocess allowlist (DONE: exec-prefix allowlist + system gating; NEXT: argv/env allowlist + per-proc capability propagation)
+     - PROC: subprocess allowlist (DONE: exec-prefix allowlist + system gating + env key allowlist; NEXT: argv allowlist + per-proc capability propagation)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked).
@@ -54,4 +54,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - Capsule mode (native runtime): `OREN_CAPSULE=1` deny-by-default enforcement + `OREN_CAP_ALLOW_DOMAINS=...` enrollment (defense-in-depth), with repo-runner fixtures.
 - Capsule mode (native runtime, FS): path allowlists now support `OREN_FS_ALLOW_READ_PREFIXES` / `OREN_FS_ALLOW_WRITE_PREFIXES` (fallback: `OREN_FS_ALLOW_PREFIXES`).
 - Capsule mode (native runtime, NET): endpoint enrollment now supports `OREN_NET_ALLOW_LOOPBACK`, `OREN_NET_ALLOW_TCP_CONNECT`, `OREN_NET_ALLOW_TCP_LISTEN` with repo-runner fixtures.
-- Capsule mode (native runtime, PROC): subprocess spawning now supports `OREN_PROC_ALLOW_EXEC_PREFIXES` and shell gating via `OREN_PROC_ALLOW_SYSTEM` with repo-runner fixtures.
+- Capsule mode (native runtime, PROC): subprocess spawning now supports `OREN_PROC_ALLOW_EXEC_PREFIXES`, env key allowlist `OREN_PROC_ALLOW_ENV_KEYS`, and shell gating via `OREN_PROC_ALLOW_SYSTEM` with repo-runner fixtures.

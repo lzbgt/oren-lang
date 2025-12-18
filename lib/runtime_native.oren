@@ -159,6 +159,8 @@ fn oren_pipe() {
 //   136:net_allow_tcp_listen_ptr (cstr: CSV endpoints) (rolling)
 //   144:proc_allow_system (0|1) (rolling)
 //   152:proc_allow_exec_prefixes_ptr (cstr: CSV prefixes) (rolling)
+//   160:proc_inherit_env (0|1) (rolling)
+//   168:proc_allow_env_keys_ptr (cstr: CSV keys) (rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -190,6 +192,8 @@ var GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 128
 var GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
 var GLOBAL_OFF_PROC_ALLOW_SYSTEM = 144
 var GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 152
+var GLOBAL_OFF_PROC_INHERIT_ENV = 160
+var GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 168
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 32
@@ -254,6 +258,12 @@ fn global_set_proc_allow_system(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PRO
 fn global_get_proc_allow_exec_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR)) }
 fn global_set_proc_allow_exec_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR), v) }
 
+fn global_get_proc_inherit_env() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_INHERIT_ENV)) }
+fn global_set_proc_inherit_env(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_INHERIT_ENV), v) }
+
+fn global_get_proc_allow_env_keys_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR)) }
+fn global_set_proc_allow_env_keys_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR), v) }
+
 // Capsule/capability mask bits (rolling; native backend only).
 var CAP_FS = 1
 var CAP_NET = 2
@@ -314,6 +324,8 @@ fn native_runtime_init() {
     GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
     GLOBAL_OFF_PROC_ALLOW_SYSTEM = 144
     GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 152
+    GLOBAL_OFF_PROC_INHERIT_ENV = 160
+    GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 168
     GLOBAL_SLOTS_RESERVED = 32
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -572,6 +584,8 @@ fn native_runtime_capsule_init() {
     // Env:
     // - OREN_PROC_ALLOW_EXEC_PREFIXES="/usr/bin/,/bin/" (CSV path prefixes)
     // - OREN_PROC_ALLOW_SYSTEM=1 (enables /bin/sh only; convenience for bootstrapping)
+    // - OREN_PROC_INHERIT_ENV=1 (dangerous: inherit all parent env vars)
+    // - OREN_PROC_ALLOW_ENV_KEYS="PATH,HOME" (CSV keys; only these are inherited)
     var v_proc_exec = native_envp_get_value_ptr("OREN_PROC_ALLOW_EXEC_PREFIXES")
     var v_allow_system = native_envp_get_value_ptr("OREN_PROC_ALLOW_SYSTEM")
     var allow_system = 0
@@ -588,6 +602,16 @@ fn native_runtime_capsule_init() {
         }
     }
     global_set_proc_allow_exec_prefixes_ptr(v_proc_exec)
+
+    var v_inherit = native_envp_get_value_ptr("OREN_PROC_INHERIT_ENV")
+    var inherit = 0
+    if v_inherit != 0 {
+        if ptr_get_byte(v_inherit) != 0 {
+            if ptr_get_byte(v_inherit) != 48 { inherit = 1 } // not '0'
+        }
+    }
+    global_set_proc_inherit_env(inherit)
+    global_set_proc_allow_env_keys_ptr(native_envp_get_value_ptr("OREN_PROC_ALLOW_ENV_KEYS"))
     return 0
 }
 
@@ -3111,6 +3135,124 @@ fn native_runtime_get_envp_ptr() {
     return envp
 }
 
+fn native_csv_has_key(csv_cstr, key_ptr, key_len) {
+    if csv_cstr == 0 { return false }
+    if key_ptr == 0 { return false }
+    if key_len <= 0 { return false }
+
+    var n = native_cstr_len(csv_cstr)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(csv_cstr, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(csv_cstr, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(csv_cstr, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            if tok_end - tok_start == key_len {
+                var j = 0
+                var ok = true
+                while j < key_len {
+                    if ptr_get_byte(iadd(csv_cstr, tok_start + j)) != ptr_get_byte(iadd(key_ptr, j)) {
+                        ok = false
+                        j = key_len
+                    } else {
+                        j = j + 1
+                    }
+                }
+                if ok { return true }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_runtime_get_envp_for_proc_child() {
+    // Determine envp for subprocess exec in the child (after fork, before execve).
+    //
+    // Policy (capsule mode):
+    // - If OREN_PROC_INHERIT_ENV=1 => inherit all env.
+    // - Else if OREN_PROC_ALLOW_ENV_KEYS is set => inherit only those keys.
+    // - Else => empty env.
+    //
+    // Non-capsule: inherit all env.
+    var parent_envp = native_runtime_get_envp_ptr()
+    if global_get_capsule_mode() != 1 { return parent_envp }
+
+    if global_get_proc_inherit_env() == 1 { return parent_envp }
+
+    var keys = global_get_proc_allow_env_keys_ptr()
+    if keys == 0 {
+        var empty = malloc(8)
+        if empty == 0 { return 0 }
+        ptr_set(empty, 0)
+        return empty
+    }
+
+    // Count matches first (bounded).
+    var count = 0
+    var i = 0
+    while i < 4096 {
+        var ent = ptr_get(iadd(parent_envp, i * 8))
+        if ent == 0 { break }
+
+        // key_len up to '='
+        var key_len = 0
+        while key_len < 256 {
+            var ch = ptr_get_byte(iadd(ent, key_len))
+            if ch == 0 { key_len = 0; break }
+            if ch == 61 { break } // '='
+            key_len = key_len + 1
+        }
+
+        if key_len > 0 && key_len < 256 {
+            if native_csv_has_key(keys, ent, key_len) { count = count + 1 }
+        }
+
+        i = i + 1
+        if count > 1024 { break }
+    }
+
+    var out = malloc((count + 1) * 8)
+    if out == 0 { return 0 }
+    var oi = 0
+    i = 0
+    while i < 4096 && oi < count {
+        var ent2 = ptr_get(iadd(parent_envp, i * 8))
+        if ent2 == 0 { break }
+
+        var key_len2 = 0
+        while key_len2 < 256 {
+            var ch2 = ptr_get_byte(iadd(ent2, key_len2))
+            if ch2 == 0 { key_len2 = 0; break }
+            if ch2 == 61 { break }
+            key_len2 = key_len2 + 1
+        }
+
+        if key_len2 > 0 && key_len2 < 256 {
+            if native_csv_has_key(keys, ent2, key_len2) {
+                ptr_set(out + (oi * 8), ent2)
+                oi = oi + 1
+            }
+        }
+
+        i = i + 1
+    }
+    ptr_set(out + (oi * 8), 0)
+    return out
+}
+
 @cap.requires(domain="PROC")
 fn oren_proc_spawn(path, argv, timeout_ms) {
     // Syscall-first subprocess spawn (no libc, no PATH search).
@@ -3160,7 +3302,7 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
     }
 
     if pid == 0 {
-        var envp = native_runtime_get_envp_ptr()
+        var envp = native_runtime_get_envp_for_proc_child()
         if envp == 0 { exit(127) }
         sys_execve(path, child_argv, envp)
         exit(127)

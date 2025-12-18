@@ -1,0 +1,15 @@
+fn main() {
+    // Runtime capsule PROC test (env allowlist):
+    // - Parent process sets OREN_TEST_SECRET.
+    // - Child should only see it if OREN_PROC_INHERIT_ENV=1 OR
+    //   OREN_PROC_ALLOW_ENV_KEYS includes "OREN_TEST_SECRET".
+    //
+    // Use /usr/bin/printenv <KEY> because it returns non-zero when missing.
+    var st = oren_proc_spawn("/usr/bin/printenv", ["printenv", "OREN_TEST_SECRET"], 1000000)
+    if st == 0 {
+        print("ok")
+        exit(0)
+    }
+    exit(2)
+}
+
