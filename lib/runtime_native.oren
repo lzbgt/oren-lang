@@ -154,6 +154,9 @@ fn oren_pipe() {
 //   96:fs_allow_prefixes_ptr (cstr: CSV prefixes) (rolling)
 //   104:fs_allow_read_prefixes_ptr (cstr: CSV prefixes) (rolling)
 //   112:fs_allow_write_prefixes_ptr (cstr: CSV prefixes) (rolling)
+//   120:net_allow_loopback (0|1) (rolling)
+//   128:net_allow_tcp_connect_ptr (cstr: CSV endpoints) (rolling)
+//   136:net_allow_tcp_listen_ptr (cstr: CSV endpoints) (rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -180,9 +183,12 @@ var GLOBAL_OFF_CAP_ALLOW_MASK = 88
 var GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
 var GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR = 104
 var GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR = 112
+var GLOBAL_OFF_NET_ALLOW_LOOPBACK = 120
+var GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 128
+var GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
 
-// Reserve extra room for rolling ABI growth (must be >= 9 slots today).
-var GLOBAL_SLOTS_RESERVED = 16
+// Reserve extra room for rolling ABI growth.
+var GLOBAL_SLOTS_RESERVED = 24
 
 fn global_get_allocs() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ALLOCS)) }
 fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ALLOCS), v) }
@@ -228,6 +234,15 @@ fn global_set_fs_allow_read_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBA
 
 fn global_get_fs_allow_write_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR)) }
 fn global_set_fs_allow_write_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR), v) }
+
+fn global_get_net_allow_loopback() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK)) }
+fn global_set_net_allow_loopback(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK), v) }
+
+fn global_get_net_allow_tcp_connect_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR)) }
+fn global_set_net_allow_tcp_connect_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR), v) }
+
+fn global_get_net_allow_tcp_listen_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR)) }
+fn global_set_net_allow_tcp_listen_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR), v) }
 
 // Capsule/capability mask bits (rolling; native backend only).
 var CAP_FS = 1
@@ -284,7 +299,10 @@ fn native_runtime_init() {
     GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
     GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR = 104
     GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR = 112
-    GLOBAL_SLOTS_RESERVED = 16
+    GLOBAL_OFF_NET_ALLOW_LOOPBACK = 120
+    GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 128
+    GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
+    GLOBAL_SLOTS_RESERVED = 24
 
     // IMPORTANT: do not rely on global initializers for these constants.
     // Capability mask bits (used by capsule runtime enforcement).
@@ -509,6 +527,29 @@ fn native_runtime_capsule_init() {
     if v_w == 0 { v_w = v_fs }
     global_set_fs_allow_read_prefixes_ptr(v_r)
     global_set_fs_allow_write_prefixes_ptr(v_w)
+
+    // NET enrollment (rolling; native backend):
+    // - Default: deny all NET endpoints in capsule mode unless explicitly enrolled.
+    // - Allow loopback endpoints via OREN_NET_ALLOW_LOOPBACK=1.
+    // - Optional explicit endpoint allowlists:
+    //     OREN_NET_ALLOW_TCP_CONNECT="127.0.0.1:8080,10.0.0.1:*"
+    //     OREN_NET_ALLOW_TCP_LISTEN="127.0.0.1:*"
+    // Tokens:
+    // - "<ipv4>" allows any port for that ip
+    // - "<ipv4>:<port>" allows a single port
+    // - "<ipv4>:*" allows any port
+    // - "*:<port>" allows that port to any ip
+    // - "*" allows any ip/port (dangerous; only honored if explicitly set)
+    var v_loop = native_envp_get_value_ptr("OREN_NET_ALLOW_LOOPBACK")
+    var loop = 0
+    if v_loop != 0 {
+        if ptr_get_byte(v_loop) != 0 {
+            if ptr_get_byte(v_loop) != 48 { loop = 1 } // not '0'
+        }
+    }
+    global_set_net_allow_loopback(loop)
+    global_set_net_allow_tcp_connect_ptr(native_envp_get_value_ptr("OREN_NET_ALLOW_TCP_CONNECT"))
+    global_set_net_allow_tcp_listen_ptr(native_envp_get_value_ptr("OREN_NET_ALLOW_TCP_LISTEN"))
     return 0
 }
 
@@ -577,6 +618,167 @@ fn native_capsule_require_fs_path(path, op_kind) {
     if native_capsule_fs_path_allowed(path, prefs) { return 0 }
     print("CAPSULE DENY: FS_PATH")
     exit(78)
+    return 0
+}
+
+fn native_ipv4_is_loopback(ip) {
+    // Accept 127.0.0.0/8 as loopback.
+    // ip==0 is treated as loopback because oren_tcp_sockaddr_in defaults to 127.0.0.1.
+    if ip == 0 { return true }
+
+    var acc = 0
+    var digits = 0
+    var i = 0
+    while 1 {
+        var ch = ptr_get_byte(ip + i)
+        if ch == 0 { return false }
+        if ch >= 48 && ch <= 57 {
+            acc = acc * 10 + (ch - 48)
+            if acc > 255 { return false }
+            digits = digits + 1
+        } else {
+            if ch == 46 { // '.'
+                if digits == 0 { return false }
+                if acc == 127 { return true }
+                return false
+            }
+            return false
+        }
+        i = i + 1
+        if i > 64 { return false }
+    }
+}
+
+fn native_capsule_net_endpoint_allowed(ip, port, prefs) {
+    // prefs: CSV cstr containing endpoint tokens.
+    // ip: oren string (cstr), may be 0.
+    if prefs == 0 { return false }
+    if port < 0 { return false }
+
+    var n = native_cstr_len(prefs)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(prefs, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(prefs, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(prefs, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            var tok_len = tok_end - tok_start
+            if tok_len > 0 {
+                // Find ':' in token
+                var colon = -1
+                var j = tok_start
+                while j < tok_end {
+                    if ptr_get_byte(iadd(prefs, j)) == 58 { colon = j; break } // ':'
+                    j = j + 1
+                }
+
+                var ip_start = tok_start
+                var ip_end = tok_end
+                var port_start = -1
+                var port_end = -1
+                if colon != -1 {
+                    ip_end = colon
+                    port_start = colon + 1
+                    port_end = tok_end
+                }
+
+                // Match ip (supports '*' wildcard).
+                var ip_ok = true
+                if ip_end - ip_start == 1 && ptr_get_byte(iadd(prefs, ip_start)) == 42 { // '*'
+                    ip_ok = true
+                } else {
+                    if ip == 0 { ip_ok = false }
+                    else {
+                        var k = 0
+                        while 1 {
+                            if ip_start + k >= ip_end {
+                                // Token ended; ip must also end here.
+                                if ptr_get_byte(ip + k) != 0 { ip_ok = false }
+                                break
+                            }
+                            var ic = ptr_get_byte(ip + k)
+                            if ic == 0 { ip_ok = false; break }
+                            var tc = ptr_get_byte(iadd(prefs, ip_start + k))
+                            if ic != tc { ip_ok = false; break }
+                            k = k + 1
+                            if k > 256 { ip_ok = false; break }
+                        }
+                    }
+                }
+
+                if ip_ok {
+                    // Match port (optional, supports '*').
+                    var port_ok = true
+                    if port_start != -1 {
+                        while port_start < port_end && ptr_get_byte(iadd(prefs, port_start)) == 32 { port_start = port_start + 1 }
+                        while port_end > port_start && ptr_get_byte(iadd(prefs, port_end - 1)) == 32 { port_end = port_end - 1 }
+
+                        if port_end - port_start == 1 && ptr_get_byte(iadd(prefs, port_start)) == 42 { // '*'
+                            port_ok = true
+                        } else {
+                            var pv = 0
+                            var pd = 0
+                            var pi = port_start
+                            while pi < port_end {
+                                var pc = ptr_get_byte(iadd(prefs, pi))
+                                if pc < 48 || pc > 57 { port_ok = false; pi = port_end }
+                                else {
+                                    pv = pv * 10 + (pc - 48)
+                                    if pv > 65535 { port_ok = false; pi = port_end }
+                                    else { pd = pd + 1; pi = pi + 1 }
+                                }
+                            }
+                            if port_ok {
+                                if pd == 0 { port_ok = false }
+                                else { if pv != port { port_ok = false } }
+                            }
+                        }
+                    }
+
+                    if port_ok { return true }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_capsule_require_net_connect(ip, port) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if global_get_net_allow_loopback() == 1 {
+        if native_ipv4_is_loopback(ip) { return 0 }
+    }
+    var prefs = global_get_net_allow_tcp_connect_ptr()
+    if native_capsule_net_endpoint_allowed(ip, port, prefs) { return 0 }
+    print("CAPSULE DENY: NET_CONNECT")
+    exit(79)
+    return 0
+}
+
+fn native_capsule_require_net_listen(ip, port) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if global_get_net_allow_loopback() == 1 {
+        if native_ipv4_is_loopback(ip) { return 0 }
+    }
+    var prefs = global_get_net_allow_tcp_listen_ptr()
+    if native_capsule_net_endpoint_allowed(ip, port, prefs) { return 0 }
+    print("CAPSULE DENY: NET_LISTEN")
+    exit(79)
     return 0
 }
 
@@ -2670,7 +2872,7 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
-    native_capsule_require(CAP_NET, "NET")
+    native_capsule_require_net_connect(ip, port)
     var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
     if fd < 0 { return fd }
 
@@ -2735,6 +2937,7 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_listen_local(port) {
+    native_capsule_require_net_listen(0, port)
     var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
     if fd < 0 { return fd }
 

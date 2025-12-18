@@ -1,0 +1,12 @@
+fn main() {
+    // Runtime capsule NET test (connect):
+    // - In capsule mode, NET must be explicitly enrolled at the resource level.
+    // - This program should only succeed (reach "ok") when loopback or an explicit allowlist is enabled.
+    //
+    // We intentionally connect to a likely-closed port. We only care about "deny vs allowed to attempt".
+    var fd = oren_tcp_connect("127.0.0.1", 1, 50)
+    if fd >= 0 {
+        oren_tcp_close(fd)
+    }
+    print("ok")
+}

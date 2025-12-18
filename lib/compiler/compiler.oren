@@ -420,6 +420,73 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_rt_r_out) + " build/capsule_runtime_fs_read.txt")
 
+    // Capsule NET allowlist (native runtime): deny-by-default endpoint enrollment.
+    // Connect:
+    // - no enrollment -> deny
+    // - loopback enrollment -> allow attempt (program prints "ok")
+    var cap_net_c_out = "build/capsule_runtime_net_connect_prog"
+    var cap_net_c_log = "build/logs/capsule_runtime_net_connect_prog_build.log"
+    var cap_net_c_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_net_connect_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_net_c_out) + gc_arg
+    var cap_net_c_rc = run_shell_capture(timeout_bin, build_timeout, cap_net_c_cmd, cap_net_c_log)
+    if cap_net_c_rc != 0 || file_exists(cap_net_c_out) != true {
+        print("native failed: capsule_runtime_net_connect_prog (build)")
+        oren_system("cat " + shell_quote(cap_net_c_log))
+        oren_exit(1)
+    }
+
+    var cap_net_c_deny_log = "build/logs/capsule_runtime_net_connect_prog_run_deny.log"
+    var cap_net_c_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET ./" + cap_net_c_out
+    var cap_net_c_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_c_deny_cmd, cap_net_c_deny_log)
+    if cap_net_c_deny_rc == 0 {
+        print("native failed: capsule_runtime_net_connect_prog (expected runtime capsule deny: NET_CONNECT)")
+        oren_system("cat " + shell_quote(cap_net_c_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_net_c_ok_log = "build/logs/capsule_runtime_net_connect_prog_run_allow.log"
+    var cap_net_c_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET OREN_NET_ALLOW_LOOPBACK=1 ./" + cap_net_c_out
+    var cap_net_c_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_c_ok_cmd, cap_net_c_ok_log)
+    if cap_net_c_ok_rc != 0 {
+        print("native failed: capsule_runtime_net_connect_prog (expected runtime capsule allow: loopback)")
+        oren_system("cat " + shell_quote(cap_net_c_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_net_c_out))
+
+    // Listen:
+    // - no enrollment -> deny
+    // - loopback enrollment -> allow bind/listen to 127.0.0.1:0
+    var cap_net_l_out = "build/capsule_runtime_net_listen_prog"
+    var cap_net_l_log = "build/logs/capsule_runtime_net_listen_prog_build.log"
+    var cap_net_l_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_net_listen_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_net_l_out) + gc_arg
+    var cap_net_l_rc = run_shell_capture(timeout_bin, build_timeout, cap_net_l_cmd, cap_net_l_log)
+    if cap_net_l_rc != 0 || file_exists(cap_net_l_out) != true {
+        print("native failed: capsule_runtime_net_listen_prog (build)")
+        oren_system("cat " + shell_quote(cap_net_l_log))
+        oren_exit(1)
+    }
+
+    var cap_net_l_deny_log = "build/logs/capsule_runtime_net_listen_prog_run_deny.log"
+    var cap_net_l_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET ./" + cap_net_l_out
+    var cap_net_l_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_l_deny_cmd, cap_net_l_deny_log)
+    if cap_net_l_deny_rc == 0 {
+        print("native failed: capsule_runtime_net_listen_prog (expected runtime capsule deny: NET_LISTEN)")
+        oren_system("cat " + shell_quote(cap_net_l_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_net_l_ok_log = "build/logs/capsule_runtime_net_listen_prog_run_allow.log"
+    var cap_net_l_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET OREN_NET_ALLOW_LOOPBACK=1 ./" + cap_net_l_out
+    var cap_net_l_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_l_ok_cmd, cap_net_l_ok_log)
+    if cap_net_l_ok_rc != 0 {
+        print("native failed: capsule_runtime_net_listen_prog (expected runtime capsule allow: loopback)")
+        oren_system("cat " + shell_quote(cap_net_l_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_net_l_out))
+
     // --- Native tests ---
     var n_pass = 0
     var n_total = oren_list_len(native_tests)
