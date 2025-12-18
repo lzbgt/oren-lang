@@ -1,0 +1,17 @@
+fn main() {
+    // Raw sys_open capsule FS test (read via mount mapping):
+    // - In capsule mode, sys_open must be enforced at syscall boundary (no bypass).
+    // - With OREN_FS_MOUNTS_READ=v/=... and allow domains FS, opening "v/in.txt" should be allowed.
+    // - Without mounts/prefix enrollment, it should be denied.
+    var fd = sys_open("v/in.txt", 0, 0) // O_RDONLY
+    if fd < 0 { exit(2) }
+    var buf = malloc(8)
+    if buf == 0 { exit(3) }
+    ptr_set_byte(buf + 0, 0)
+    var n = sys_read(fd, buf, 1)
+    sys_close(fd)
+    if n != 1 { exit(4) }
+    if ptr_get_byte(buf + 0) != 88 { exit(5) } // 'X'
+    print("ok")
+}
+

@@ -949,6 +949,64 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
     }
 
     if mounts != 0 {
+        // Fast path: if caller already provides a host path, allow it if it is within
+        // any enrolled host_prefix in mounts.
+        //
+        // This is important because higher-level helpers may pre-resolve paths; mounts
+        // are still the enrollment mechanism, regardless of whether the caller uses
+        // virtual or host paths.
+        var n2 = native_cstr_len(mounts)
+        var ii = 0
+        var start2 = 0
+        while ii <= n2 {
+            var ch2 = 0
+            if ii < n2 { ch2 = ptr_get_byte(iadd(mounts, ii)) }
+            var is_sep2 = false
+            if ii == n2 { is_sep2 = true }
+            if ch2 == 44 { is_sep2 = true } // ','
+
+            if is_sep2 {
+                var tok_start = start2
+                var tok_end = ii
+                while tok_start < tok_end && ptr_get_byte(iadd(mounts, tok_start)) == 32 { tok_start = tok_start + 1 }
+                while tok_end > tok_start && ptr_get_byte(iadd(mounts, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+                // Find '='
+                var eq = -1
+                var j2 = tok_start
+                while j2 < tok_end {
+                    if ptr_get_byte(iadd(mounts, j2)) == 61 { eq = j2; break } // '='
+                    j2 = j2 + 1
+                }
+
+                if eq != -1 {
+                    var host_start = eq + 1
+                    var host_end = tok_end
+                    while host_start < host_end && ptr_get_byte(iadd(mounts, host_start)) == 32 { host_start = host_start + 1 }
+                    while host_end > host_start && ptr_get_byte(iadd(mounts, host_end - 1)) == 32 { host_end = host_end - 1 }
+                    var host_len = host_end - host_start
+                    if host_len > 0 {
+                        var k = 0
+                        var ok = true
+                        while k < host_len {
+                            var pc = ptr_get_byte(iadd(path, k))
+                            if pc == 0 { ok = false; break }
+                            if pc != ptr_get_byte(iadd(mounts, host_start + k)) { ok = false; break }
+                            k = k + 1
+                        }
+                        if ok {
+                            // Path already starts with enrolled host prefix; allow as-is.
+                            return pair
+                        }
+                    }
+                }
+
+                start2 = ii + 1
+            }
+            ii = ii + 1
+        }
+
+        // Otherwise treat the path as virtual and try to resolve it.
         var host_path = native_capsule_fs_mount_resolve(path, mounts)
         if host_path == 0 {
             free(pair)
@@ -971,6 +1029,33 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
     print("CAPSULE DENY: FS_PATH")
     exit(78)
     return 0
+}
+
+fn native_capsule_sys_open_pre(path, flags) {
+    // Enforce FS enrollment at raw sys_open boundary (no bypass).
+    //
+    // Returns a pair [path_ptr, owned(0|1)] to use for the syscall.
+    // owned=1 => path_ptr must be free()'d after the syscall.
+    //
+    // op_kind: 0=read, 1=write
+    var op_kind = 0
+    // POSIX: O_RDONLY=0, O_WRONLY=1, O_RDWR=2.
+    // Any non-zero access bits imply write capability.
+    if (flags & 3) != 0 { op_kind = 1 }
+    return native_capsule_fs_path_resolve_pair(path, op_kind)
+}
+
+fn native_capsule_sys_open_post(pair, rc) {
+    // Free any allocated mount-resolved host path and the pair itself.
+    if pair != 0 {
+        var owns = ptr_get(pair + 8)
+        if owns != 0 {
+            var p = ptr_get(pair + 0)
+            if p != 0 { free(p) }
+        }
+        free(pair)
+    }
+    return rc
 }
 
 fn native_ipv4_is_loopback(ip) {

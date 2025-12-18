@@ -17,9 +17,9 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
    - Next enrollments (beyond domain bitmask):
-     - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
-     - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
-     - **FS:** enforce caps at raw `sys_*` boundary (no bypass), then mounts UX polish + virtual mount mirroring (native/AVM)
+      - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
+      - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
+      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (unlink/rename/mkdir/etc), then mounts UX polish + virtual mount mirroring (native/AVM)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.
@@ -51,3 +51,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - Native backend: float operator parity for floaty expressions + fixed SCVTF/FCVTZS instruction encodings.
 - Native capsule NET: enforce capability checks at raw `sys_*` NET boundary (no bypass), add `OREN_NET_TCP_*_MAP`, add per-fd NET capability tags.
 - Native capsule PROC: enforce capability checks at raw `sys_*` PROC boundary (no bypass), force capsule envp on execve, restrict wait/kill to owned child pids.
+- Native capsule FS: enforce syscall-boundary checks for `sys_open` (no bypass), including mount-enrolled host path allow and virtual->host resolution.
