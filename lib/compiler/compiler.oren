@@ -420,6 +420,72 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_rt_r_out) + " build/capsule_runtime_fs_read.txt")
 
+    // Capsule FS mounts: map virtual path prefixes to host prefixes.
+    // Mounts are intended as the explicit enrollment mechanism for nested universes:
+    // the program uses virtual paths; the host mapping is configured externally.
+    //
+    // Prepare host mount root:
+    oren_system("rm -rf build/mnt_host && mkdir -p build/mnt_host")
+    oren_system("printf \"ok\" > build/mnt_host/in.txt")
+
+    var cap_mr_out = "build/capsule_runtime_fs_mount_read_prog"
+    var cap_mr_log = "build/logs/capsule_runtime_fs_mount_read_prog_build.log"
+    var cap_mr_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_mount_read_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_mr_out) + gc_arg
+    var cap_mr_rc = run_shell_capture(timeout_bin, build_timeout, cap_mr_cmd, cap_mr_log)
+    if cap_mr_rc != 0 || file_exists(cap_mr_out) != true {
+        print("native failed: capsule_runtime_fs_mount_read_prog (build)")
+        oren_system("cat " + shell_quote(cap_mr_log))
+        oren_exit(1)
+    }
+
+    // Read mount configured => should succeed even without OREN_FS_ALLOW_READ_PREFIXES.
+    var cap_mr_ok_log = "build/logs/capsule_runtime_fs_mount_read_prog_run_allow.log"
+    var cap_mr_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_mr_out
+    var cap_mr_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_mr_ok_cmd, cap_mr_ok_log)
+    if cap_mr_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_mount_read_prog (expected runtime capsule allow: mount read)")
+        oren_system("cat " + shell_quote(cap_mr_ok_log))
+        oren_exit(1)
+    }
+
+    // Missing WRITE mount => write should fail (read mount must not imply write).
+    var cap_mw_out = "build/capsule_runtime_fs_mount_write_prog"
+    var cap_mw_log = "build/logs/capsule_runtime_fs_mount_write_prog_build.log"
+    var cap_mw_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_mount_write_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_mw_out) + gc_arg
+    var cap_mw_rc = run_shell_capture(timeout_bin, build_timeout, cap_mw_cmd, cap_mw_log)
+    if cap_mw_rc != 0 || file_exists(cap_mw_out) != true {
+        print("native failed: capsule_runtime_fs_mount_write_prog (build)")
+        oren_system("cat " + shell_quote(cap_mw_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f build/mnt_host/out.bin")
+    var cap_mw_deny_log = "build/logs/capsule_runtime_fs_mount_write_prog_run_deny.log"
+    var cap_mw_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_mw_out
+    var cap_mw_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_mw_deny_cmd, cap_mw_deny_log)
+    if cap_mw_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_mount_write_prog (expected runtime capsule deny: write mount missing)")
+        oren_system("cat " + shell_quote(cap_mw_deny_log))
+        oren_exit(1)
+    }
+
+    // Provide WRITE mount => write should succeed and create the host file.
+    var cap_mw_ok_log = "build/logs/capsule_runtime_fs_mount_write_prog_run_allow.log"
+    var cap_mw_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_WRITE=v/=build/mnt_host/ ./" + cap_mw_out
+    var cap_mw_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_mw_ok_cmd, cap_mw_ok_log)
+    if cap_mw_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_mount_write_prog (expected runtime capsule allow: mount write)")
+        oren_system("cat " + shell_quote(cap_mw_ok_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -f " + shell_quote("build/mnt_host/out.bin")) != true {
+        print("native failed: capsule_runtime_fs_mount_write_prog (allow mode did not write host file)")
+        oren_system("cat " + shell_quote(cap_mw_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_mr_out) + " " + shell_quote(cap_mw_out) + " build/mnt_host/in.txt build/mnt_host/out.bin")
+
     // Capsule NET allowlist (native runtime): deny-by-default endpoint enrollment.
     // Connect:
     // - no enrollment -> deny

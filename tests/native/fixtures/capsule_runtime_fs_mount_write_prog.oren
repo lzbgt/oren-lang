@@ -1,0 +1,9 @@
+fn main() {
+    // Runtime capsule FS test (mount write):
+    // - Under capsule mode, FS mounts can map a virtual path prefix to a host directory.
+    // - This program writes via the virtual prefix "v/".
+    var bytes = [1, 2, 3, 4]
+    oren_write_bytes("v/out.bin", bytes)
+    print("ok")
+}
+

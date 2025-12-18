@@ -154,13 +154,16 @@ fn oren_pipe() {
 //   96:fs_allow_prefixes_ptr (cstr: CSV prefixes) (rolling)
 //   104:fs_allow_read_prefixes_ptr (cstr: CSV prefixes) (rolling)
 //   112:fs_allow_write_prefixes_ptr (cstr: CSV prefixes) (rolling)
-//   120:net_allow_loopback (0|1) (rolling)
-//   128:net_allow_tcp_connect_ptr (cstr: CSV endpoints) (rolling)
-//   136:net_allow_tcp_listen_ptr (cstr: CSV endpoints) (rolling)
-//   144:proc_allow_system (0|1) (rolling)
-//   152:proc_allow_exec_prefixes_ptr (cstr: CSV prefixes) (rolling)
-//   160:proc_inherit_env (0|1) (rolling)
-//   168:proc_allow_env_keys_ptr (cstr: CSV keys) (rolling)
+//   120:fs_mounts_ptr (cstr: CSV mounts; legacy applies to both) (rolling)
+//   128:fs_mounts_read_ptr (cstr: CSV mounts) (rolling)
+//   136:fs_mounts_write_ptr (cstr: CSV mounts) (rolling)
+//   144:net_allow_loopback (0|1) (rolling)
+//   152:net_allow_tcp_connect_ptr (cstr: CSV endpoints) (rolling)
+//   160:net_allow_tcp_listen_ptr (cstr: CSV endpoints) (rolling)
+//   168:proc_allow_system (0|1) (rolling)
+//   176:proc_allow_exec_prefixes_ptr (cstr: CSV prefixes) (rolling)
+//   184:proc_inherit_env (0|1) (rolling)
+//   192:proc_allow_env_keys_ptr (cstr: CSV keys) (rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -187,16 +190,19 @@ var GLOBAL_OFF_CAP_ALLOW_MASK = 88
 var GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
 var GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR = 104
 var GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR = 112
-var GLOBAL_OFF_NET_ALLOW_LOOPBACK = 120
-var GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 128
-var GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
-var GLOBAL_OFF_PROC_ALLOW_SYSTEM = 144
-var GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 152
-var GLOBAL_OFF_PROC_INHERIT_ENV = 160
-var GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 168
+var GLOBAL_OFF_FS_MOUNTS_PTR = 120
+var GLOBAL_OFF_FS_MOUNTS_READ_PTR = 128
+var GLOBAL_OFF_FS_MOUNTS_WRITE_PTR = 136
+var GLOBAL_OFF_NET_ALLOW_LOOPBACK = 144
+var GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 152
+var GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 160
+var GLOBAL_OFF_PROC_ALLOW_SYSTEM = 168
+var GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 176
+var GLOBAL_OFF_PROC_INHERIT_ENV = 184
+var GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 192
 
 // Reserve extra room for rolling ABI growth.
-var GLOBAL_SLOTS_RESERVED = 32
+var GLOBAL_SLOTS_RESERVED = 48
 
 fn global_get_allocs() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ALLOCS)) }
 fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ALLOCS), v) }
@@ -242,6 +248,15 @@ fn global_set_fs_allow_read_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBA
 
 fn global_get_fs_allow_write_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR)) }
 fn global_set_fs_allow_write_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR), v) }
+
+fn global_get_fs_mounts_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_PTR)) }
+fn global_set_fs_mounts_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_PTR), v) }
+
+fn global_get_fs_mounts_read_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_READ_PTR)) }
+fn global_set_fs_mounts_read_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_READ_PTR), v) }
+
+fn global_get_fs_mounts_write_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_WRITE_PTR)) }
+fn global_set_fs_mounts_write_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_WRITE_PTR), v) }
 
 fn global_get_net_allow_loopback() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK)) }
 fn global_set_net_allow_loopback(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK), v) }
@@ -319,14 +334,17 @@ fn native_runtime_init() {
     GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
     GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR = 104
     GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR = 112
-    GLOBAL_OFF_NET_ALLOW_LOOPBACK = 120
-    GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 128
-    GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 136
-    GLOBAL_OFF_PROC_ALLOW_SYSTEM = 144
-    GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 152
-    GLOBAL_OFF_PROC_INHERIT_ENV = 160
-    GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 168
-    GLOBAL_SLOTS_RESERVED = 32
+    GLOBAL_OFF_FS_MOUNTS_PTR = 120
+    GLOBAL_OFF_FS_MOUNTS_READ_PTR = 128
+    GLOBAL_OFF_FS_MOUNTS_WRITE_PTR = 136
+    GLOBAL_OFF_NET_ALLOW_LOOPBACK = 144
+    GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 152
+    GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 160
+    GLOBAL_OFF_PROC_ALLOW_SYSTEM = 168
+    GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 176
+    GLOBAL_OFF_PROC_INHERIT_ENV = 184
+    GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 192
+    GLOBAL_SLOTS_RESERVED = 48
 
     // IMPORTANT: do not rely on global initializers for these constants.
     // Capability mask bits (used by capsule runtime enforcement).
@@ -552,6 +570,28 @@ fn native_runtime_capsule_init() {
     global_set_fs_allow_read_prefixes_ptr(v_r)
     global_set_fs_allow_write_prefixes_ptr(v_w)
 
+    // FS mounts (preferred over prefixes when set):
+    // - In capsule mode, mounts provide an explicit virtual->host mapping and are sufficient by themselves.
+    // - When mounts are configured for an operation (read/write), direct host paths are denied unless they match a mount.
+    //
+    // Env:
+    // - OREN_FS_MOUNTS="v/=build/mnt/" (legacy applies to both)
+    // - OREN_FS_MOUNTS_READ=...
+    // - OREN_FS_MOUNTS_WRITE=...
+    //
+    // Notes:
+    // - Tokens are CSV.
+    // - Each token is "<virt_prefix>=<host_prefix>".
+    // - Use trailing '/' in virt_prefix to avoid accidental prefix matches.
+    var v_m = native_envp_get_value_ptr("OREN_FS_MOUNTS")
+    var v_mr = native_envp_get_value_ptr("OREN_FS_MOUNTS_READ")
+    var v_mw = native_envp_get_value_ptr("OREN_FS_MOUNTS_WRITE")
+    if v_mr == 0 { v_mr = v_m }
+    if v_mw == 0 { v_mw = v_m }
+    global_set_fs_mounts_ptr(v_m)
+    global_set_fs_mounts_read_ptr(v_mr)
+    global_set_fs_mounts_write_ptr(v_mw)
+
     // NET enrollment (rolling; native backend):
     // - Default: deny all NET endpoints in capsule mode unless explicitly enrolled.
     // - Allow loopback endpoints via OREN_NET_ALLOW_LOOPBACK=1.
@@ -669,15 +709,138 @@ fn native_capsule_fs_path_allowed(path, prefs) {
     return false
 }
 
-fn native_capsule_require_fs_path(path, op_kind) {
+fn native_capsule_fs_mount_resolve(path, mounts_csv) {
+    // mounts_csv: CSV of "<virt_prefix>=<host_prefix>" tokens.
+    // Returns newly allocated host path string on match, or 0 if no match.
+    if path == 0 { return 0 }
+    if mounts_csv == 0 { return 0 }
+    if ptr_get_byte(mounts_csv) == 0 { return 0 }
+
+    var n = native_cstr_len(mounts_csv)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(mounts_csv, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(mounts_csv, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(mounts_csv, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            // Find '=' inside token
+            var eq = -1
+            var j = tok_start
+            while j < tok_end {
+                if ptr_get_byte(iadd(mounts_csv, j)) == 61 { eq = j; break } // '='
+                j = j + 1
+            }
+
+            if eq != -1 {
+                var virt_start = tok_start
+                var virt_end = eq
+                var host_start = eq + 1
+                var host_end = tok_end
+
+                while virt_start < virt_end && ptr_get_byte(iadd(mounts_csv, virt_start)) == 32 { virt_start = virt_start + 1 }
+                while virt_end > virt_start && ptr_get_byte(iadd(mounts_csv, virt_end - 1)) == 32 { virt_end = virt_end - 1 }
+                while host_start < host_end && ptr_get_byte(iadd(mounts_csv, host_start)) == 32 { host_start = host_start + 1 }
+                while host_end > host_start && ptr_get_byte(iadd(mounts_csv, host_end - 1)) == 32 { host_end = host_end - 1 }
+
+                var virt_len = virt_end - virt_start
+                var host_len = host_end - host_start
+                if virt_len > 0 && host_len > 0 {
+                    // Prefix match of virt_prefix against path.
+                    var k = 0
+                    var match = true
+                    while k < virt_len {
+                        var pc = ptr_get_byte(path + k)
+                        if pc == 0 { match = false; k = virt_len }
+                        else {
+                            var vc = ptr_get_byte(iadd(mounts_csv, virt_start + k))
+                            if pc != vc { match = false; k = virt_len }
+                            else { k = k + 1 }
+                        }
+                    }
+
+                    if match {
+                        var path_len = oren_string_len(path)
+                        if path_len < virt_len { match = false }
+                        else {
+                            var rem_len = path_len - virt_len
+                            var out = malloc(host_len + rem_len + 1)
+                            if out == 0 { exit(301) }
+                            // host prefix
+                            var a = 0
+                            while a < host_len {
+                                ptr_set_byte(out + a, ptr_get_byte(iadd(mounts_csv, host_start + a)))
+                                a = a + 1
+                            }
+                            // remainder
+                            var b = 0
+                            while b < rem_len {
+                                ptr_set_byte(out + host_len + b, ptr_get_byte(path + virt_len + b))
+                                b = b + 1
+                            }
+                            ptr_set_byte(out + host_len + rem_len, 0)
+                            oren_track_alloc(out, host_len + rem_len + 1, 1) // STRING
+                            return out
+                        }
+                    }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_capsule_fs_path_resolve_pair(path, op_kind) {
+    // Returns pointer to [resolved_path_ptr, owned(0|1)] (16 bytes).
+    // owned=1 means resolved_path_ptr must be free()'d by the caller.
+    var pair = malloc(16)
+    if pair == 0 { exit(301) }
+    ptr_set(pair + 0, path)
+    ptr_set(pair + 8, 0)
+
     native_capsule_require(CAP_FS, "FS")
-    if global_get_capsule_mode() != 1 { return 0 }
+    if global_get_capsule_mode() != 1 { return pair }
+
+    // Prefer mounts if configured for this operation.
+    var mounts = global_get_fs_mounts_ptr()
+    if op_kind == 0 { mounts = global_get_fs_mounts_read_ptr() }
+    if op_kind == 1 { mounts = global_get_fs_mounts_write_ptr() }
+    if mounts != 0 {
+        if ptr_get_byte(mounts) == 0 { mounts = 0 }
+    }
+
+    if mounts != 0 {
+        var host_path = native_capsule_fs_mount_resolve(path, mounts)
+        if host_path == 0 {
+            free(pair)
+            print("CAPSULE DENY: FS_MOUNT")
+            exit(78)
+        }
+        ptr_set(pair + 0, host_path)
+        ptr_set(pair + 8, 1)
+        return pair
+    }
+
+    // Fallback: path prefix allowlists (legacy).
     var prefs = global_get_fs_allow_prefixes_ptr()
     // Prefer split read/write allowlists when present.
     // op_kind: 0=read, 1=write (avoid string pointer equality issues).
     if op_kind == 0 { prefs = global_get_fs_allow_read_prefixes_ptr() }
     if op_kind == 1 { prefs = global_get_fs_allow_write_prefixes_ptr() }
-    if native_capsule_fs_path_allowed(path, prefs) { return 0 }
+    if native_capsule_fs_path_allowed(path, prefs) { return pair }
+    free(pair)
     print("CAPSULE DENY: FS_PATH")
     exit(78)
     return 0
@@ -2736,8 +2899,12 @@ fn oren_args() {
 
 @cap.requires(domain="FS")
 fn oren_write_bytes(path, bytes) {
-    native_capsule_require_fs_path(path, 1)
-    var fd = sys_open(path, 1537, 420) // O_WRONLY|O_CREAT|O_TRUNC, 0644
+    var pair = native_capsule_fs_path_resolve_pair(path, 1)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var fd = sys_open(rpath, 1537, 420) // O_WRONLY|O_CREAT|O_TRUNC, 0644
     if fd < 0 { exit(260) }
 
     var n = oren_list_len(bytes)
@@ -2766,13 +2933,18 @@ fn oren_write_bytes(path, bytes) {
 
     var crc = sys_close(fd)
     if crc < 0 { exit(268) }
+    if owned == 1 { free(rpath) }
     return 0
 }
 
 @cap.requires(domain="FS")
 fn oren_read_bytes(path) {
-    native_capsule_require_fs_path(path, 0)
-    var fd = sys_open(path, 0, 0) // O_RDONLY
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var fd = sys_open(rpath, 0, 0) // O_RDONLY
     if fd < 0 { exit(262) }
 
     var out = oren_new_list(0)
@@ -2793,6 +2965,7 @@ fn oren_read_bytes(path) {
     free(buf)
     var crc = sys_close(fd)
     if crc < 0 { exit(270) }
+    if owned == 1 { free(rpath) }
     return out
 }
 
