@@ -47,6 +47,7 @@ fn sys_close(fd) { return 0 }
 fn sys_access(path, mode) { return 0 }
 fn sys_stat(path, st_ptr) { return 0 }
 fn sys_lstat(path, st_ptr) { return 0 }
+fn sys_fstat(fd, st_ptr) { return 0 }
 fn sys_unlink(path) { return 0 }
 fn sys_rename(from, to) { return 0 }
 fn sys_mkdir(path, mode) { return 0 }
@@ -1099,6 +1100,17 @@ fn native_capsule_sys_lstat_pre(path) {
 
 fn native_capsule_sys_lstat_post(pair, rc) {
     return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_fstat_pre(fd) {
+    // fstat is a read op on an existing fd. The path enrollment is enforced at open-time;
+    // here we just require FS domain in capsule mode.
+    native_capsule_require(CAP_FS, "FS")
+    return fd
+}
+
+fn native_capsule_sys_fstat_post(rc) {
+    return rc
 }
 
 fn native_capsule_sys_mkdir_pre(path) {

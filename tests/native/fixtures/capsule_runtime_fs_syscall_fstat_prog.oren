@@ -1,0 +1,10 @@
+fn main() {
+    // Raw sys_fstat capsule FS test:
+    // - In capsule mode, sys_fstat must require FS domain at syscall boundary (no bypass).
+    // - Use fd=1 (stdout) so we don't depend on any mount/path enrollment.
+    var st = malloc(144)
+    if st == 0 { exit(3) }
+    var rc = sys_fstat(1, st)
+    if rc < 0 { exit(2) }
+    print("ok")
+}

@@ -719,6 +719,65 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             return true
         }
 
+        if fn_name == "sys_fstat" {
+            // sys_fstat(fd, st_ptr) -> 0 or negative errno
+            // macOS: use fstat64(fd, buf) (339)
+            // Linux: fstat(fd, buf) (__NR_fstat=80 on aarch64)
+            //
+            // Capsule hardening: enforce FS domain at syscall boundary (no bypass).
+            compile_expr(ctx, args[0]) // fd -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // st_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_fstat_pre(fd) -> fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            var bl_pre_fst = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_fst, "name": "native_capsule_sys_fstat_pre"})
+
+            // X0 = fd, X1 = st_ptr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // st_ptr
+
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+
+            if is_macos {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 339))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3))
+            } else {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 80))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+            }
+
+            // post: native_capsule_sys_fstat_post(rc) -> rc
+            var bl_post_fst = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_fst, "name": "native_capsule_sys_fstat_post"})
+
+            // Pop st_ptr + fd
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 32
+            return true
+        }
+
         if fn_name == "sys_rmdir" {
             // sys_rmdir(path) -> 0 or negative errno
             // macOS: rmdir(path) (137)
