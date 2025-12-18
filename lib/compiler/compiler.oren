@@ -891,6 +891,40 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_fs_rd_out) + " build/mnt_host/dir/in.txt")
 
+    // exists + realpath_checked (runtime helper built on sys_stat):
+    var cap_fs_ex_out = "build/capsule_runtime_fs_exists_prog"
+    var cap_fs_ex_log = "build/logs/capsule_runtime_fs_exists_prog_build.log"
+    var cap_fs_ex_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_exists_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_ex_out) + gc_arg
+    var cap_fs_ex_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_ex_cmd, cap_fs_ex_log)
+    if cap_fs_ex_rc != 0 || file_exists(cap_fs_ex_out) != true {
+        print("native failed: capsule_runtime_fs_exists_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_ex_log))
+        oren_exit(1)
+    }
+
+    oren_system("mkdir -p build/mnt_host/dir")
+    oren_system("printf ABC > build/mnt_host/dir/in.txt")
+
+    var cap_fs_ex_deny_log = "build/logs/capsule_runtime_fs_exists_prog_run_deny.log"
+    var cap_fs_ex_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_ex_out
+    var cap_fs_ex_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_ex_deny_cmd, cap_fs_ex_deny_log)
+    if cap_fs_ex_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_exists_prog (expected runtime capsule deny: missing read mount)")
+        oren_system("cat " + shell_quote(cap_fs_ex_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_fs_ex_ok_log = "build/logs/capsule_runtime_fs_exists_prog_run_allow.log"
+    var cap_fs_ex_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_fs_ex_out
+    var cap_fs_ex_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_ex_ok_cmd, cap_fs_ex_ok_log)
+    if cap_fs_ex_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_exists_prog (expected runtime capsule allow: read mount)")
+        oren_system("cat " + shell_quote(cap_fs_ex_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_fs_ex_out) + " build/mnt_host/dir/in.txt")
+
     // realpath (runtime lexical normalization):
     var rp_out = "build/runtime_realpath_prog"
     var rp_log = "build/logs/runtime_realpath_prog_build.log"

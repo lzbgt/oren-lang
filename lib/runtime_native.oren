@@ -4225,6 +4225,41 @@ fn oren_realpath(path) {
 }
 
 @cap.requires(domain="FS")
+fn oren_exists(path) {
+    // Returns true if the path exists (stat succeeds), false if it does not.
+    // Capsule-safe: path resolution and FS capability checks are enforced.
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    // Darwin: stat64 syscall; Linux: newfstatat.
+    // We only use the return code here (no struct layout dependency).
+    var st = malloc(144)
+    if st == 0 { exit(285) }
+    var rc = sys_stat(rpath, st)
+    free(st)
+
+    if owned == 1 { free(rpath) }
+    if rc < 0 { return false }
+    return true
+}
+
+@cap.requires(domain="FS")
+fn oren_realpath_checked(path) {
+    // Deterministic helper: lexical normalize (oren_realpath) and then check existence.
+    // In capsule mode, existence is checked only within enrolled mounts/prefixes.
+    var rp = oren_realpath(path)
+    if rp == 0 { return 0 }
+    if oren_exists(rp) != true {
+        // Keep failure explicit and non-silent in v0.
+        print("FS NOT FOUND")
+        exit(78)
+    }
+    return rp
+}
+
+@cap.requires(domain="FS")
 fn oren_getcwd() {
     // Returns the current working directory.
     //

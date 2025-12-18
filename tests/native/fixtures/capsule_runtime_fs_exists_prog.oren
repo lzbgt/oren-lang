@@ -1,0 +1,12 @@
+fn main() {
+    // Capsule FS exists/realpath_checked test:
+    // - `oren_exists` must be capsule-safe and not leak host paths.
+    // - `oren_realpath_checked` must lexical-normalize then enforce existence.
+    if oren_exists("v/dir/in.txt") != true { exit(2) }
+    if oren_exists("v/dir/nope") == true { exit(3) }
+
+    var p = oren_realpath_checked("v/dir/../dir//in.txt")
+    if oren_string_eq(p, "v/dir/in.txt") != true { exit(4) }
+
+    print("ok")
+}
