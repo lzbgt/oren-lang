@@ -140,6 +140,28 @@ fn file_exists(path) {
     return cmd_ok("test -f " + shell_quote(path))
 }
 
+fn string_contains(hay, needle) {
+    if hay == nil || needle == nil { return false }
+    var hl = oren_string_len(hay)
+    var nl = oren_string_len(needle)
+    if nl == 0 { return true }
+    if hl < nl { return false }
+    var i = 0
+    while i <= hl - nl {
+        var j = 0
+        while j < nl {
+            if oren_string_char_at(hay, i + j) != oren_string_char_at(needle, j) {
+                j = -1
+                break
+            }
+            j = j + 1
+        }
+        if j == nl { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn run_repo_tests(target, no_gc) {
     // Repo-wide curated runner:
     // - native tests compiled+run with native backend
@@ -168,12 +190,16 @@ fn run_repo_tests(target, no_gc) {
         "tests/native/test_env_execve_getenv.oren",
         "tests/native/test_syscall_errno.oren",
         "tests/native/test_read_bytes.oren",
-        "tests/native/test_system_timeout.oren"
+        "tests/native/test_system_timeout.oren",
+        "tests/native/test_spawn_join_timeout.oren",
+        // Expected-failure regression: panic must produce a readable stack trace.
+        "tests/native/test_debug_panic.oren"
     ]
 
     var module_tests = [
         "tests/modules/test_shapes.oren",
         "tests/modules/test_spawn.oren",
+        "tests/modules/test_spawn_join_timeout.oren",
         "tests/modules/test_read_bytes.oren",
         "tests/modules/test_function_values.oren",
         "tests/modules/test_lambda_closure.oren",
@@ -273,6 +299,56 @@ fn run_repo_tests(target, no_gc) {
 
         var run_cmd = "./" + out
         var run_rc = run_shell_capture(timeout_bin, run_timeout, run_cmd, log)
+        if name == "test_debug_panic" {
+            // Expected: non-zero exit (panic). Unexpected: success or external wall-time timeout.
+            if run_rc == 0 || run_rc == 124 {
+                oren_list_push(n_failed, {"name": file, "log": log})
+                oren_system("rm -f " + shell_quote(out))
+                i = i + 1
+                continue
+            }
+
+            var out_s = oren_read_file(log)
+            if oren_is_err(out_s) {
+                oren_list_push(n_failed, {"name": file, "log": log})
+                oren_system("rm -f " + shell_quote(out))
+                i = i + 1
+                continue
+            }
+
+            // Minimal readability signals (rolling): panic header + program frames.
+            if string_contains(out_s, "Runtime Panic") != true {
+                oren_list_push(n_failed, {"name": file, "log": log})
+                oren_system("rm -f " + shell_quote(out))
+                i = i + 1
+                continue
+            }
+            if string_contains(out_s, "__top_level__") != true {
+                oren_list_push(n_failed, {"name": file, "log": log})
+                oren_system("rm -f " + shell_quote(out))
+                i = i + 1
+                continue
+            }
+            if string_contains(out_s, "crash_me") != true {
+                oren_list_push(n_failed, {"name": file, "log": log})
+                oren_system("rm -f " + shell_quote(out))
+                i = i + 1
+                continue
+            }
+            // Reject a common failure mode: host wrapper symbol mis-labeled as a program frame.
+            if string_contains(out_s, "__oren_fnwrap_crash_me") == true {
+                oren_list_push(n_failed, {"name": file, "log": log})
+                oren_system("rm -f " + shell_quote(out))
+                i = i + 1
+                continue
+            }
+
+            // Treat expected panic as pass.
+            n_pass = n_pass + 1
+            oren_system("rm -f " + shell_quote(out))
+            i = i + 1
+            continue
+        }
         oren_system("rm -f " + shell_quote(out))
         if run_rc != 0 {
             oren_list_push(n_failed, {"name": file, "log": log})

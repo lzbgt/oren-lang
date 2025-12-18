@@ -1,0 +1,12 @@
+fn worker() {
+    // In the C backend, use a host syscall to make the worker block long enough.
+    // The main thread must be able to time out without hanging the whole process.
+    oren_system("sleep 5")
+    return 123
+}
+
+var h = spawn worker()
+var r = oren_join_timeout(h, 20)
+if r != 0 - 60 { exit(900) } // ETIMEDOUT (BSD)
+print("spawn join timeout OK")
+exit(0)

@@ -175,6 +175,7 @@ tests/native/test_plus_string.oren \
 tests/native/test_read_bytes.oren \
 tests/native/test_simple.oren \
 tests/native/test_system_timeout.oren \
+tests/native/test_spawn_join_timeout.oren \
 tests/native/test_time_suite.oren \
 tests/native/test_tid.oren \
 tests/native/test_write_string.oren \
@@ -236,7 +237,7 @@ tests/native/while.oren \
 	@# Module Tests (C Backend)
 	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing Module System..."; fi
 	@pass=0; total=0; failed=""; \
-		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren tests/modules/test_argparse.oren tests/modules/test_metadata_attrs.oren tests/modules/test_strings.oren tests/modules/test_string_from_bytes.oren tests/modules/test_json.oren tests/modules/test_switch.oren; do \
+		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_spawn_join_timeout.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren tests/modules/test_argparse.oren tests/modules/test_metadata_attrs.oren tests/modules/test_strings.oren tests/modules/test_string_from_bytes.oren tests/modules/test_json.oren tests/modules/test_switch.oren; do \
 			total=$$((total+1)); \
 			name=$$(basename $$t .oren); \
 			log=build/logs/mod_$$name.log; \

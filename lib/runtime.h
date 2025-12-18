@@ -102,6 +102,11 @@ OrenValue oren_spawn0(OrenFn0 fn);
 // This is the preferred API for supporting first-class functions and closures.
 OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list);
 OrenValue oren_join(OrenValue thread);
+// Join with a wall-time timeout in milliseconds.
+// - timeout_ms < 0: wait forever (equivalent to oren_join)
+// - timeout_ms >= 0: wait up to timeout; on timeout returns INT(-60) (BSD ETIMEDOUT)
+//   and detaches the thread so it can clean up without blocking the caller.
+OrenValue oren_join_timeout(OrenValue thread, OrenValue timeout_ms);
 OrenValue oren_detach(OrenValue thread);
 OrenValue oren_is_done(OrenValue thread);
 OrenValue oren_join_all();

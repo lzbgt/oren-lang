@@ -1117,13 +1117,29 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_str_reg_sp(4, 0))  // tv_sec
                 push_u32_le(ctx["code"], insn_str_reg_sp(6, 8))  // tv_nsec
 
-                // kevent(kq,0,0,0,0, &ts)
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 24)) // X0=kqfd (slot[8])
-                push_u32_le(ctx["code"], insn_movz(1, 0))
-                push_u32_le(ctx["code"], insn_movz(2, 0))
-                push_u32_le(ctx["code"], insn_movz(3, 0))
-                push_u32_le(ctx["code"], insn_movz(4, 0))
-                push_u32_le(ctx["code"], insn_add_imm(5, 31, 0)) // X5=timeout_ptr (SP)
+                // kevent() used as a sleep primitive:
+                //
+                // IMPORTANT: On Darwin, calling kevent() with `nevents=0` can return
+                // immediately regardless of the timeout. To guarantee blocking-until-timeout,
+                // provide a 1-entry event buffer and set `nevents=1`.
+                //
+                // Allocate event buffer (32 bytes) on stack, then call:
+                //   kevent(kq, NULL, 0, evbuf, 1, &ts)
+                //
+                // After this allocation, stack layout becomes:
+                //   [SP+0]  evbuf (32)
+                //   [SP+32] timespec (16)
+                //   [SP+48] slot (16): [0]=ns, [8]=kqfd
+                push_u32_le(ctx["code"], insn_sub_sp(32))
+                ctx["stack_size"] = ctx["stack_size"] + 32
+
+                // kevent(kq,0,0, evbuf,1, &ts)
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 56)) // X0=kqfd (slot[8])
+                push_u32_le(ctx["code"], insn_movz(1, 0))        // changelist=NULL
+                push_u32_le(ctx["code"], insn_movz(2, 0))        // nchanges=0
+                push_u32_le(ctx["code"], insn_add_imm(3, 31, 0)) // X3=evbuf (SP)
+                push_u32_le(ctx["code"], insn_movz(4, 1))        // nevents=1
+                push_u32_le(ctx["code"], insn_add_imm(5, 31, 32)) // X5=timeout_ptr (SP+32)
                 push_u32_le(ctx["code"], insn_movz(16, 363)) // SYS_kevent
                 push_u32_le(ctx["code"], insn_svc(128))
                 // Normalize error to X0 = -errno.
@@ -1133,16 +1149,20 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ke_ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ke_ok, insn_b_cond((ke_ok_pos - br_ke_ok) / 4, 3)) // CC
 
-                // Save result into slot[0] (SP+16)
-                push_u32_le(ctx["code"], insn_str_reg_sp(0, 16))
+                // Save result into slot[0] (SP+48)
+                push_u32_le(ctx["code"], insn_str_reg_sp(0, 48))
 
                 // close(kqfd) best-effort
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 24))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 56))
                 push_u32_le(ctx["code"], insn_movz(16, 6)) // SYS_close
                 push_u32_le(ctx["code"], insn_svc(128))
 
                 // Restore result into X0
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48))
+
+                // Pop event buffer
+                push_u32_le(ctx["code"], insn_add_sp(32))
+                ctx["stack_size"] = ctx["stack_size"] - 32
 
                 // Pop timespec
                 push_u32_le(ctx["code"], insn_add_sp(16))

@@ -9,11 +9,11 @@ fn assert(cond, msg) {
 
 fn test_decode_encode() {
     // Input JSON contains an escaped newline (`\\n`) and an escaped quote (`\\\"`).
-    var r = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\n\\\"y\"}")
+    var r = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\\\n\\\"y\"}")
     assert(r["ok"] == 1, "decode ok")
     var out = json.encode(r["v"])
     // keys are stored/iterated deterministically; encoder emits without spaces.
-    assert(out == "{\"a\":1,\"b\":2,\"s\":\"x\\n\\\"y\"}", "encode deterministic + escapes")
+    assert(out == "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}", "encode deterministic + escapes")
 }
 
 fn test_int_zero_not_null() {

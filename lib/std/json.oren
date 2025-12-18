@@ -23,6 +23,21 @@ fn _is_ws(b) {
     return b == 32 || b == 9 || b == 10 || b == 13
 }
 
+fn _streq(a, b) {
+    if a == nil || b == nil { return false }
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    var al = oren_list_len(ab)
+    var bl = oren_list_len(bb)
+    if al != bl { return false }
+    var i = 0
+    while i < al {
+        if ab[i] != bb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn _skip_ws(bs, pos) {
     var n = oren_list_len(bs)
     var i = pos
@@ -292,18 +307,18 @@ fn _escape_string(s) {
 
 fn encode(jv) {
     var t = jv["t"]
-    if t == "null" { return "null" }
-    if t == "bool" {
+    if _streq(t, "null") { return "null" }
+    if _streq(t, "bool") {
         if jv["b"] != 0 { return "true" }
         return "false"
     }
-    if t == "int" {
+    if _streq(t, "int") {
         return oren_int_to_string(jv["i"])
     }
-    if t == "string" {
+    if _streq(t, "string") {
         return "\"" + _escape_string(jv["s"]) + "\""
     }
-    if t == "array" {
+    if _streq(t, "array") {
         var a = jv["a"]
         var out = "["
         var i = 0
@@ -315,7 +330,7 @@ fn encode(jv) {
         out = out + "]"
         return out
     }
-    if t == "object" {
+    if _streq(t, "object") {
         var o = jv["o"]
         var out2 = "{"
         var first = 1

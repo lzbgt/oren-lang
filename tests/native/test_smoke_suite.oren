@@ -1,3 +1,5 @@
+import json "../../lib/std/json.oren"
+
 fn fail(code) {
     print("native smoke suite FAIL " + oren_int_to_string(code))
     exit(code)
@@ -63,6 +65,19 @@ fn main() {
     assert_eq(oren_list_len(ks), 2, 40)
     assert_streq(ks[0], "a", 41)
     assert_streq(ks[1], "b", 42)
+
+    // --- std/json (portable, explicit JsonValue) ---
+    var jr = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\\\n\\\"y\"}")
+    assert_eq(jr["ok"], 1, 45)
+    var jout = json.encode(jr["v"])
+    // Debug-on-fail (native backend has no robust string concat with literals yet).
+    if strcmp(jout, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}") != 0 {
+        print("json encode mismatch; got:")
+        print(jout)
+        print("expected:")
+        print("{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}")
+        fail(46)
+    }
 
     // --- function values + lambdas + capture-by-value ---
     var f = add

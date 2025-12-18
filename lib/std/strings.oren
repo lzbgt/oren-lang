@@ -1,45 +1,73 @@
 fn starts_with(s, prefix) {
     if s == nil || prefix == nil { return false }
-    var sl = oren_string_len(s)
-    var pl = oren_string_len(prefix)
+    var sb = oren_bytes_from_string(s)
+    var pb = oren_bytes_from_string(prefix)
+    var sl = oren_list_len(sb)
+    var pl = oren_list_len(pb)
     if sl < pl { return false }
-    return oren_string_slice(s, 0, pl) == prefix
+    var i = 0
+    while i < pl {
+        if sb[i] != pb[i] { return false }
+        i = i + 1
+    }
+    return true
 }
 
 fn ends_with(s, suffix) {
     if s == nil || suffix == nil { return false }
-    var sl = oren_string_len(s)
-    var pl = oren_string_len(suffix)
+    var sb = oren_bytes_from_string(s)
+    var pb = oren_bytes_from_string(suffix)
+    var sl = oren_list_len(sb)
+    var pl = oren_list_len(pb)
     if sl < pl { return false }
-    return oren_string_slice(s, sl - pl, sl) == suffix
+    var i = 0
+    while i < pl {
+        if sb[(sl - pl) + i] != pb[i] { return false }
+        i = i + 1
+    }
+    return true
 }
 
 fn contains(s, sub) {
     if s == nil || sub == nil { return false }
-    var sl = oren_string_len(s)
-    var pl = oren_string_len(sub)
-    if pl == 0 { return true }
-    if sl < pl { return false }
-    var i = 0
-    while i + pl <= sl {
-        if oren_string_slice(s, i, i + pl) == sub { return true }
-        i = i + 1
-    }
-    return false
+    return index_of(s, sub) != -1
 }
 
 fn index_of(s, sub) {
     if s == nil || sub == nil { return -1 }
-    var sl = oren_string_len(s)
-    var pl = oren_string_len(sub)
+    var sb = oren_bytes_from_string(s)
+    var pb = oren_bytes_from_string(sub)
+    var sl = oren_list_len(sb)
+    var pl = oren_list_len(pb)
     if pl == 0 { return 0 }
     if sl < pl { return -1 }
     var i = 0
     while i + pl <= sl {
-        if oren_string_slice(s, i, i + pl) == sub { return i }
+        var j = 0
+        var ok = 1
+        while j < pl {
+            if sb[i + j] != pb[j] { ok = 0; break }
+            j = j + 1
+        }
+        if ok == 1 { return i }
         i = i + 1
     }
     return -1
+}
+
+fn streq(a, b) {
+    if a == nil || b == nil { return false }
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    var al = oren_list_len(ab)
+    var bl = oren_list_len(bb)
+    if al != bl { return false }
+    var i = 0
+    while i < al {
+        if ab[i] != bb[i] { return false }
+        i = i + 1
+    }
+    return true
 }
 
 fn trim(s) {

@@ -1661,6 +1661,12 @@ fn oren_bytes_from_string_ptr(s_ptr) {
     return lst
 }
 
+// Public wrapper (portable name used by stdlib/compiler):
+// Build a byte list from a string pointer.
+fn oren_bytes_from_string(s) {
+    return oren_bytes_from_string_ptr(s)
+}
+
 // Build a string (NUL-terminated) from a list<int 0..255>.
 // This is the inverse of `oren_bytes_from_string(...)` in other backends.
 fn oren_string_from_bytes(bytes) {
@@ -2582,7 +2588,7 @@ fn free(ptr) {
     return 0
 }
 
-fn oren_join(handle) {
+fn oren_join_timeout(handle, timeout_ms) {
     if handle == 0 { return 0 }
 
     // Spawn handle layout (native backend, macOS v0 fork+pipe):
@@ -2596,18 +2602,71 @@ fn oren_join(handle) {
     if buf == 0 { exit(270) }
     ptr_set(buf, 0)
 
-    var n = sys_read(fd, buf, 8)
+    // Read exactly 8 bytes (result value) with an optional wall-time timeout.
+    var got = 0
+
+    var deadline_ns = 0
+    if timeout_ms >= 0 {
+        // NOTE: `oren_time_mono_raw()` is not guaranteed to be nanoseconds on macOS
+        // (it can be mach_absolute_time units). For timeout math, use unix-ns.
+        var start_ns = oren_time_unix_ns()
+        deadline_ns = start_ns + (timeout_ms * 1000000)
+    }
+
+    while got < 8 {
+        if timeout_ms >= 0 {
+            var now = oren_time_unix_ns()
+            var rem_ns = deadline_ns - now
+            if rem_ns <= 0 {
+                // Timeout: kill child and reap to avoid zombies.
+                oren_kill(pid, 9) // SIGKILL
+                sys_wait4(pid, 0, 0, 0) // best-effort reap
+                sys_close(fd)
+                free(handle)
+                return 0 - 60 // ETIMEDOUT (BSD)
+            }
+            var wait_ms = rem_ns / 1000000
+            if wait_ms < 1 { wait_ms = 1 }
+            var ready = oren_tcp_wait_kqueue(fd, -1, wait_ms) // EVFILT_READ
+            if ready == 0 {
+                // Continue loop: re-check deadline and try again.
+                continue
+            }
+            if ready < 0 {
+                sys_close(fd)
+                // Reap child (best-effort).
+                sys_wait4(pid, 0, 0, 0)
+                free(handle)
+                return ready
+            }
+        }
+
+        var n = sys_read(fd, buf + got, 8 - got)
+        if n == 0 { break } // EOF
+        if n < 0 {
+            sys_close(fd)
+            sys_wait4(pid, 0, 0, 0)
+            free(handle)
+            return n
+        }
+        got = got + n
+    }
+
     sys_close(fd)
-    if n < 0 { exit(271) }
 
     // Reap child (best-effort).
-    var st = malloc(8)
-    if st != 0 {
-        ptr_set(st, 0)
-        sys_wait4(pid, st, 0, 0)
+    sys_wait4(pid, 0, 0, 0)
+
+    if got != 8 {
+        free(handle)
+        return -1
     }
 
     var ret_val = ptr_get(buf)
     free(handle)
     return ret_val
+}
+
+fn oren_join(handle) {
+    return oren_join_timeout(handle, -1)
 }

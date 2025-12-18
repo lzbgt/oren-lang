@@ -1,0 +1,19 @@
+fn worker() {
+    // This intentionally runs longer than the join timeout.
+    oren_sleep_ms(5000)
+    return 123
+}
+
+fn main() {
+    var h = spawn worker()
+    var r = oren_join_timeout(h, 20)
+    if r != 0 - 60 {
+        print("spawn join timeout mismatch; got:")
+        print(r)
+        exit(900)
+    } // ETIMEDOUT (BSD)
+    print("spawn join timeout OK")
+    exit(0)
+}
+
+main()

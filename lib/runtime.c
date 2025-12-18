@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <setjmp.h>
 #include <execinfo.h>
+#include <time.h>
 
 OrenValue OREN_NIL;
 OrenValue OREN_TRUE;
@@ -43,6 +44,8 @@ typedef struct OrenThreadNode {
     int detached;
     int joined;
     int done;
+    pthread_mutex_t mu;
+    pthread_cond_t cv;
     OrenValue result;
     char* error;
     // Spawned-call state (for closure-safe spawning). When using `oren_spawn0`, these remain NIL.
@@ -51,6 +54,8 @@ typedef struct OrenThreadNode {
     struct OrenThreadNode* next;
 } OrenThreadNode;
 static OrenThreadNode* g_threads = NULL;
+
+static void thread_node_destroy(OrenThreadNode* n);
 
 static void lock_collections() { pthread_mutex_lock(&g_collection_mutex); }
 static void unlock_collections() { pthread_mutex_unlock(&g_collection_mutex); }
@@ -471,28 +476,35 @@ static void* oren_spawn0_entry(void* p) {
         OrenValue res = a->fn();
         st->has_panic_buf = 0;
         if (a->node) {
-            lock_collections();
+            pthread_mutex_lock(&a->node->mu);
             a->node->done = 1;
             a->node->result = res;
+            pthread_cond_broadcast(&a->node->cv);
+            pthread_mutex_unlock(&a->node->mu);
+
+            lock_collections();
             int should_free = (a->node->detached && !a->node->joined);
             unlock_collections();
             if (should_free) {
-                free(a->node);
+                thread_node_destroy(a->node);
             }
         }
     } else {
         st->has_panic_buf = 0;
         // Panic caught
         if (a->node) {
-            lock_collections();
+            pthread_mutex_lock(&a->node->mu);
             a->node->done = 1;
             a->node->result = OREN_NIL;
             a->node->error = strdup("Thread Panicked"); // Generic msg for now
+            pthread_cond_broadcast(&a->node->cv);
+            pthread_mutex_unlock(&a->node->mu);
+
+            lock_collections();
             int should_free = (a->node->detached && !a->node->joined);
             unlock_collections();
             if (should_free) {
-                if (a->node->error) free(a->node->error);
-                free(a->node);
+                thread_node_destroy(a->node);
             }
         }
     }
@@ -514,6 +526,8 @@ OrenValue oren_spawn0(OrenFn0 fn) {
     n->detached = 0;
     n->joined = 0;
     n->done = 0;
+    pthread_mutex_init(&n->mu, NULL);
+    pthread_cond_init(&n->cv, NULL);
     n->result = OREN_NIL;
     n->error = NULL;
     n->fn = OREN_NIL;
@@ -522,7 +536,7 @@ OrenValue oren_spawn0(OrenFn0 fn) {
 
     OrenSpawn0Args* args = (OrenSpawn0Args*)malloc(sizeof(OrenSpawn0Args));
     if (!args) {
-        free(n);
+        thread_node_destroy(n);
         fprintf(stderr, "spawn alloc failed\n");
         exit(1);
     }
@@ -532,7 +546,7 @@ OrenValue oren_spawn0(OrenFn0 fn) {
     int rc = pthread_create(&t, NULL, oren_spawn0_entry, args);
     if (rc != 0) {
         free(args);
-        free(n);
+        thread_node_destroy(n);
         char buf[256];
         snprintf(buf, sizeof(buf), "pthread_create failed: %s", strerror(rc));
         oren_panic(buf);
@@ -562,35 +576,38 @@ static void* oren_spawn_call_entry(void* p) {
         OrenValue res = oren_call_obj_list(a->fn, a->args_list);
         st->has_panic_buf = 0;
         if (a->node) {
-            lock_collections();
+            pthread_mutex_lock(&a->node->mu);
             a->node->done = 1;
             a->node->result = res;
             a->node->fn = OREN_NIL;
             a->node->args_list = OREN_NIL;
+            pthread_cond_broadcast(&a->node->cv);
+            pthread_mutex_unlock(&a->node->mu);
+
+            lock_collections();
             int should_free = (a->node->detached && !a->node->joined);
             unlock_collections();
             if (should_free) {
-                oren_unregister_root(&a->node->fn);
-                oren_unregister_root(&a->node->args_list);
-                free(a->node);
+                thread_node_destroy(a->node);
             }
         }
     } else {
         st->has_panic_buf = 0;
         if (a->node) {
-            lock_collections();
+            pthread_mutex_lock(&a->node->mu);
             a->node->done = 1;
             a->node->result = OREN_NIL;
             a->node->fn = OREN_NIL;
             a->node->args_list = OREN_NIL;
             a->node->error = strdup("Thread Panicked");
+            pthread_cond_broadcast(&a->node->cv);
+            pthread_mutex_unlock(&a->node->mu);
+
+            lock_collections();
             int should_free = (a->node->detached && !a->node->joined);
             unlock_collections();
             if (should_free) {
-                oren_unregister_root(&a->node->fn);
-                oren_unregister_root(&a->node->args_list);
-                if (a->node->error) free(a->node->error);
-                free(a->node);
+                thread_node_destroy(a->node);
             }
         }
     }
@@ -616,6 +633,8 @@ OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list) {
     n->detached = 0;
     n->joined = 0;
     n->done = 0;
+    pthread_mutex_init(&n->mu, NULL);
+    pthread_cond_init(&n->cv, NULL);
     n->result = OREN_NIL;
     n->error = NULL;
     n->fn = fn;
@@ -629,7 +648,7 @@ OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list) {
 
     OrenSpawnCallArgs* args = (OrenSpawnCallArgs*)malloc(sizeof(OrenSpawnCallArgs));
     if (!args) {
-        free(n);
+        thread_node_destroy(n);
         fprintf(stderr, "spawn alloc failed\n");
         exit(1);
     }
@@ -640,7 +659,7 @@ OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list) {
     int rc = pthread_create(&t, NULL, oren_spawn_call_entry, args);
     if (rc != 0) {
         free(args);
-        free(n);
+        thread_node_destroy(n);
         char buf[256];
         snprintf(buf, sizeof(buf), "pthread_create failed: %s", strerror(rc));
         oren_panic(buf);
@@ -658,6 +677,17 @@ static OrenThreadNode* thread_from_value(OrenValue v) {
     if (v.type != OREN_TYPE_INT) return NULL;
     if (v.as.int_val == 0) return NULL;
     return (OrenThreadNode*)(intptr_t)v.as.int_val;
+}
+
+static void thread_node_destroy(OrenThreadNode* n) {
+    if (!n) return;
+    // Roots are safe to unregister even if they were never registered.
+    oren_unregister_root(&n->fn);
+    oren_unregister_root(&n->args_list);
+    if (n->error) free(n->error);
+    pthread_cond_destroy(&n->cv);
+    pthread_mutex_destroy(&n->mu);
+    free(n);
 }
 
 OrenValue oren_join(OrenValue thread) {
@@ -678,16 +708,82 @@ OrenValue oren_join(OrenValue thread) {
     pthread_join(n->t, NULL);
     
     OrenValue res = n->result;
-    oren_unregister_root(&n->fn);
-    oren_unregister_root(&n->args_list);
     if (n->error) {
         char buf[256];
         snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
-        free(n->error);
-        free(n);
+        thread_node_destroy(n);
         oren_panic(buf);
     }
-    free(n);
+    thread_node_destroy(n);
+    return res;
+}
+
+OrenValue oren_join_timeout(OrenValue thread, OrenValue timeout_ms) {
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_NIL;
+
+    long long ms = -1;
+    if (timeout_ms.type == OREN_TYPE_INT) ms = timeout_ms.as.int_val;
+
+    lock_collections();
+    if (n->joined) { unlock_collections(); return OREN_NIL; }
+    if (n->detached) { unlock_collections(); return OREN_NIL; }
+    thread_list_remove(n);
+    unlock_collections();
+
+    if (ms < 0) {
+        lock_collections();
+        n->joined = 1;
+        unlock_collections();
+        pthread_join(n->t, NULL);
+        OrenValue res = n->result;
+        if (n->error) {
+            char buf[256];
+            snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
+            thread_node_destroy(n);
+            oren_panic(buf);
+        }
+        thread_node_destroy(n);
+        return res;
+    }
+
+    int done = 0;
+    pthread_mutex_lock(&n->mu);
+    done = n->done;
+    if (!done) {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        long long ns = (long long)ts.tv_nsec + (ms * 1000000LL);
+        ts.tv_sec += (time_t)(ns / 1000000000LL);
+        ts.tv_nsec = (long)(ns % 1000000000LL);
+        while (!n->done) {
+            int rc = pthread_cond_timedwait(&n->cv, &n->mu, &ts);
+            if (rc == ETIMEDOUT) break;
+        }
+        done = n->done;
+    }
+    pthread_mutex_unlock(&n->mu);
+
+    if (!done) {
+        lock_collections();
+        n->detached = 1;
+        unlock_collections();
+        pthread_detach(n->t);
+        return oren_int(-60); // BSD ETIMEDOUT
+    }
+
+    lock_collections();
+    n->joined = 1;
+    unlock_collections();
+    pthread_join(n->t, NULL);
+    OrenValue res = n->result;
+    if (n->error) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
+        thread_node_destroy(n);
+        oren_panic(buf);
+    }
+    thread_node_destroy(n);
     return res;
 }
 
@@ -705,14 +801,13 @@ OrenValue oren_detach(OrenValue thread) {
     }
     thread_list_remove(n);
     n->detached = 1;
-    int done = n->done;
     unlock_collections();
     pthread_detach(n->t);
+    pthread_mutex_lock(&n->mu);
+    int done = n->done;
+    pthread_mutex_unlock(&n->mu);
     if (done) {
-        oren_unregister_root(&n->fn);
-        oren_unregister_root(&n->args_list);
-        if (n->error) free(n->error);
-        free(n);
+        thread_node_destroy(n);
     }
     return OREN_NIL;
 }
@@ -720,9 +815,9 @@ OrenValue oren_detach(OrenValue thread) {
 OrenValue oren_is_done(OrenValue thread) {
     OrenThreadNode* n = thread_from_value(thread);
     if (!n) return OREN_FALSE;
-    lock_collections();
+    pthread_mutex_lock(&n->mu);
     int d = n->done;
-    unlock_collections();
+    pthread_mutex_unlock(&n->mu);
     return oren_bool(d);
 }
 
@@ -738,10 +833,7 @@ OrenValue oren_join_all() {
         g_threads = n->next;
         unlock_collections();
         pthread_join(n->t, NULL);
-        oren_unregister_root(&n->fn);
-        oren_unregister_root(&n->args_list);
-        if (n->error) free(n->error);
-        free(n);
+        thread_node_destroy(n);
     }
     return OREN_NIL;
 }
