@@ -577,7 +577,8 @@ fn run_repo_tests(target, no_gc) {
     }
 
     var cap_proc_s_ok_log = "build/logs/capsule_runtime_proc_spawn_prog_run_allow.log"
-    var cap_proc_s_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ ./" + cap_proc_s_out
+    // NOTE: run_shell_capture wraps the whole command in single quotes, so avoid single quotes inside.
+    var cap_proc_s_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ARGV=\"/usr/bin/true|/usr/bin/true\" ./" + cap_proc_s_out
     var cap_proc_s_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_s_ok_cmd, cap_proc_s_ok_log)
     if cap_proc_s_ok_rc != 0 {
         print("native failed: capsule_runtime_proc_spawn_prog (expected runtime capsule allow: exec prefixes)")
@@ -610,7 +611,7 @@ fn run_repo_tests(target, no_gc) {
     }
 
     var cap_proc_sys_ok_log = "build/logs/capsule_runtime_proc_system_prog_run_allow.log"
-    var cap_proc_sys_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_SYSTEM=1 ./" + cap_proc_sys_out
+    var cap_proc_sys_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_SYSTEM=1 OREN_PROC_ALLOW_ARGV=\"/bin/sh|sh|-c|*\" ./" + cap_proc_sys_out
     var cap_proc_sys_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_sys_ok_cmd, cap_proc_sys_ok_log)
     if cap_proc_sys_ok_rc != 0 {
         print("native failed: capsule_runtime_proc_system_prog (expected runtime capsule allow: system)")
@@ -635,7 +636,8 @@ fn run_repo_tests(target, no_gc) {
     }
 
     var cap_proc_env_deny_log = "build/logs/capsule_runtime_proc_env_prog_run_deny.log"
-    var cap_proc_env_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_TEST_SECRET=shh ./" + cap_proc_env_out
+    // NOTE: OREN_PROC_ALLOW_ARGV is intentionally set even for the deny case to isolate "env is filtered by default".
+    var cap_proc_env_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ARGV=\"/usr/bin/printenv|printenv|OREN_TEST_SECRET\" OREN_TEST_SECRET=shh ./" + cap_proc_env_out
     var cap_proc_env_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_env_deny_cmd, cap_proc_env_deny_log)
     if cap_proc_env_deny_rc == 0 {
         print("native failed: capsule_runtime_proc_env_prog (expected env to be filtered by default)")
@@ -644,7 +646,7 @@ fn run_repo_tests(target, no_gc) {
     }
 
     var cap_proc_env_ok_log = "build/logs/capsule_runtime_proc_env_prog_run_allow.log"
-    var cap_proc_env_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ENV_KEYS=OREN_TEST_SECRET OREN_TEST_SECRET=shh ./" + cap_proc_env_out
+    var cap_proc_env_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ENV_KEYS=OREN_TEST_SECRET OREN_PROC_ALLOW_ARGV=\"/usr/bin/printenv|printenv|OREN_TEST_SECRET\" OREN_TEST_SECRET=shh ./" + cap_proc_env_out
     var cap_proc_env_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_env_ok_cmd, cap_proc_env_ok_log)
     if cap_proc_env_ok_rc != 0 {
         print("native failed: capsule_runtime_proc_env_prog (expected env allowlist to pass)")
@@ -680,7 +682,7 @@ fn run_repo_tests(target, no_gc) {
     }
 
     var cap_parent_run_log = "build/logs/capsule_spawn_parent_run.log"
-    var cap_parent_run_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=build/ ./" + cap_parent_out
+    var cap_parent_run_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=build/ OREN_PROC_ALLOW_ARGV=\"build/capsule_spawn_child|capsule_spawn_child\" ./" + cap_parent_out
     var cap_parent_run_rc = run_shell_capture(timeout_bin, run_timeout, cap_parent_run_cmd, cap_parent_run_log)
     if cap_parent_run_rc != 0 {
         print("native failed: capsule_spawn_parent (run)")

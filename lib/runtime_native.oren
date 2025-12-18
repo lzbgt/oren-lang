@@ -164,6 +164,7 @@ fn oren_pipe() {
 //   176:proc_allow_exec_prefixes_ptr (cstr: CSV prefixes) (rolling)
 //   184:proc_inherit_env (0|1) (rolling)
 //   192:proc_allow_env_keys_ptr (cstr: CSV keys) (rolling)
+//   200:proc_allow_argv_ptr (cstr: CSV command specs) (rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -200,9 +201,10 @@ var GLOBAL_OFF_PROC_ALLOW_SYSTEM = 168
 var GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 176
 var GLOBAL_OFF_PROC_INHERIT_ENV = 184
 var GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 192
+var GLOBAL_OFF_PROC_ALLOW_ARGV_PTR = 200
 
 // Reserve extra room for rolling ABI growth.
-var GLOBAL_SLOTS_RESERVED = 48
+var GLOBAL_SLOTS_RESERVED = 56
 
 fn global_get_allocs() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ALLOCS)) }
 fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ALLOCS), v) }
@@ -279,6 +281,9 @@ fn global_set_proc_inherit_env(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC
 fn global_get_proc_allow_env_keys_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR)) }
 fn global_set_proc_allow_env_keys_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR), v) }
 
+fn global_get_proc_allow_argv_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ARGV_PTR)) }
+fn global_set_proc_allow_argv_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ARGV_PTR), v) }
+
 // Capsule/capability mask bits (rolling; native backend only).
 var CAP_FS = 1
 var CAP_NET = 2
@@ -344,7 +349,8 @@ fn native_runtime_init() {
     GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 176
     GLOBAL_OFF_PROC_INHERIT_ENV = 184
     GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 192
-    GLOBAL_SLOTS_RESERVED = 48
+    GLOBAL_OFF_PROC_ALLOW_ARGV_PTR = 200
+    GLOBAL_SLOTS_RESERVED = 56
 
     // IMPORTANT: do not rely on global initializers for these constants.
     // Capability mask bits (used by capsule runtime enforcement).
@@ -662,6 +668,7 @@ fn native_runtime_capsule_init() {
     // - OREN_PROC_ALLOW_SYSTEM=1 (enables /bin/sh only; convenience for bootstrapping)
     // - OREN_PROC_INHERIT_ENV=1 (dangerous: inherit all parent env vars)
     // - OREN_PROC_ALLOW_ENV_KEYS="PATH,HOME" (CSV keys; only these are inherited)
+    // - OREN_PROC_ALLOW_ARGV="/usr/bin/true|/usr/bin/true,/usr/bin/printenv|printenv|X,/bin/sh|sh|-c|*" (CSV specs; '|' delims argv)
     var v_proc_exec = native_envp_get_value_ptr("OREN_PROC_ALLOW_EXEC_PREFIXES")
     var v_allow_system = native_envp_get_value_ptr("OREN_PROC_ALLOW_SYSTEM")
     var allow_system = 0
@@ -688,6 +695,7 @@ fn native_runtime_capsule_init() {
     }
     global_set_proc_inherit_env(inherit)
     global_set_proc_allow_env_keys_ptr(native_envp_get_value_ptr("OREN_PROC_ALLOW_ENV_KEYS"))
+    global_set_proc_allow_argv_ptr(native_envp_get_value_ptr("OREN_PROC_ALLOW_ARGV"))
     return 0
 }
 
@@ -1062,6 +1070,147 @@ fn native_capsule_require_proc_exec(path) {
     if native_capsule_fs_path_allowed(path, prefs) { return 0 }
     print("CAPSULE DENY: PROC_EXEC")
     exit(80)
+    return 0
+}
+
+fn native_capsule_proc_match_token(arg, tok_ptr, tok_len) {
+    // Supports:
+    // - "*" wildcard token (matches any string, including empty)
+    if tok_len == 1 {
+        if ptr_get_byte(tok_ptr) == 42 { return true } // '*'
+    }
+
+    if arg == 0 { return false }
+    var i = 0
+    while i < tok_len {
+        var ac = ptr_get_byte(arg + i)
+        if ac == 0 { return false }
+        if ac != ptr_get_byte(tok_ptr + i) { return false }
+        i = i + 1
+        if i > 4096 { return false }
+    }
+    // Must end exactly here.
+    if ptr_get_byte(arg + tok_len) != 0 { return false }
+    return true
+}
+
+fn native_capsule_require_proc_argv(exec_path, argv_ptrs, argc) {
+    // argv allowlist (capsule mode):
+    // - Deny-by-default when PROC is enabled in capsule mode.
+    // - Allowlist is configured via OREN_PROC_ALLOW_ARGV.
+    //
+    // Format:
+    //   OREN_PROC_ALLOW_ARGV="<path>|<argv0>[|<arg1>...],<path>|...,..."
+    //
+    // Matching:
+    // - First field must match exec_path exactly.
+    // - Remaining fields match argv[0..] exactly.
+    // - A trailing "*" token matches any remaining argv items (including none).
+    native_capsule_require(CAP_PROC, "PROC")
+    if global_get_capsule_mode() != 1 { return 0 }
+
+    var allow = global_get_proc_allow_argv_ptr()
+    if allow == 0 {
+        print("CAPSULE DENY: PROC_ARGV (missing OREN_PROC_ALLOW_ARGV)")
+        exit(82)
+        return 0
+    }
+    if ptr_get_byte(allow) == 0 {
+        print("CAPSULE DENY: PROC_ARGV (empty OREN_PROC_ALLOW_ARGV)")
+        exit(82)
+        return 0
+    }
+
+    var n = native_cstr_len(allow)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(allow + i) }
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var spec_start = start
+            var spec_end = i
+            while spec_start < spec_end && ptr_get_byte(allow + spec_start) == 32 { spec_start = spec_start + 1 }
+            while spec_end > spec_start && ptr_get_byte(allow + spec_end - 1) == 32 { spec_end = spec_end - 1 }
+
+            if spec_end > spec_start {
+                // Parse exec_path token (up to first '|')
+                var bar = -1
+                var j = spec_start
+                while j < spec_end {
+                    if ptr_get_byte(allow + j) == 124 { bar = j; break } // '|'
+                    j = j + 1
+                }
+
+                if bar != -1 {
+                    var p0 = spec_start
+                    var p1 = bar
+                    while p0 < p1 && ptr_get_byte(allow + p0) == 32 { p0 = p0 + 1 }
+                    while p1 > p0 && ptr_get_byte(allow + p1 - 1) == 32 { p1 = p1 - 1 }
+                    var plen = p1 - p0
+                    if plen > 0 {
+                        // Compare exec_path
+                        var match_path = native_capsule_proc_match_token(exec_path, allow + p0, plen)
+                        if match_path {
+                            // Parse argv tokens and compare.
+                            var ok = true
+                            var argi = 0
+                            var tstart = bar + 1
+                            var saw_trailing_star = false
+                            while tstart <= spec_end {
+                                var tend = tstart
+                                while tend < spec_end && ptr_get_byte(allow + tend) != 124 { tend = tend + 1 }
+
+                                // Trim token
+                                var a0 = tstart
+                                var a1 = tend
+                                while a0 < a1 && ptr_get_byte(allow + a0) == 32 { a0 = a0 + 1 }
+                                while a1 > a0 && ptr_get_byte(allow + a1 - 1) == 32 { a1 = a1 - 1 }
+                                var alen = a1 - a0
+                                if alen <= 0 { ok = false }
+                                else {
+                                    // Trailing "*" matches rest.
+                                    if alen == 1 && ptr_get_byte(allow + a0) == 42 {
+                                        // '*' token
+                                        if tend == spec_end {
+                                            saw_trailing_star = true
+                                            break
+                                        }
+                                    }
+
+                                    if argi >= argc { ok = false }
+                                    else {
+                                        var arg = ptr_get(argv_ptrs + (argi * 8))
+                                        if native_capsule_proc_match_token(arg, allow + a0, alen) != true { ok = false }
+                                    }
+                                }
+
+                                if ok != true { break }
+                                argi = argi + 1
+                                if tend == spec_end { break }
+                                tstart = tend + 1
+                            }
+
+                            if ok {
+                                if saw_trailing_star { return 0 }
+                                if argi == argc { return 0 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+
+    print("CAPSULE DENY: PROC_ARGV")
+    exit(82)
     return 0
 }
 
@@ -3449,6 +3598,7 @@ fn native_runtime_get_envp_for_proc_child() {
     oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_SYSTEM"))
     oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_INHERIT_ENV"))
     oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_ENV_KEYS"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_ARGV"))
 
     // --- Optional allowlisted parent env keys ---
     if keys != 0 {
@@ -3519,6 +3669,9 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
         i = i + 1
     }
     ptr_set(child_argv + (out_argc * 8), 0)
+
+    // In capsule mode, enforce argv allowlist before forking.
+    native_capsule_require_proc_argv(path, child_argv, out_argc)
 
     var pid = oren_fork()
     if pid < 0 {
