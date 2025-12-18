@@ -658,6 +658,66 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_proc_s_out))
 
+    // Raw sys_* PROC bypass checks (execve):
+    // - sys_execve must be enforced in capsule mode (no bypass).
+    // - capsule envp must be preserved even if caller-provided envp omits OREN_CAPSULE.
+    var cap_proc_se_true_out = "build/capsule_runtime_proc_syscall_execve_true_prog"
+    var cap_proc_se_true_log = "build/logs/capsule_runtime_proc_syscall_execve_true_prog_build.log"
+    var cap_proc_se_true_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_proc_syscall_execve_true_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_proc_se_true_out) + gc_arg
+    var cap_proc_se_true_rc = run_shell_capture(timeout_bin, build_timeout, cap_proc_se_true_cmd, cap_proc_se_true_log)
+    if cap_proc_se_true_rc != 0 || file_exists(cap_proc_se_true_out) != true {
+        print("native failed: capsule_runtime_proc_syscall_execve_true_prog (build)")
+        oren_system("cat " + shell_quote(cap_proc_se_true_log))
+        oren_exit(1)
+    }
+
+    var cap_proc_se_true_deny_log = "build/logs/capsule_runtime_proc_syscall_execve_true_prog_run_deny.log"
+    var cap_proc_se_true_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC ./" + cap_proc_se_true_out
+    var cap_proc_se_true_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_se_true_deny_cmd, cap_proc_se_true_deny_log)
+    if cap_proc_se_true_deny_rc == 0 {
+        print("native failed: capsule_runtime_proc_syscall_execve_true_prog (expected runtime capsule deny: sys_execve)")
+        oren_system("cat " + shell_quote(cap_proc_se_true_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_proc_se_true_ok_log = "build/logs/capsule_runtime_proc_syscall_execve_true_prog_run_allow.log"
+    var cap_proc_se_true_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ARGV=\"/usr/bin/true|/usr/bin/true\" ./" + cap_proc_se_true_out
+    var cap_proc_se_true_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_se_true_ok_cmd, cap_proc_se_true_ok_log)
+    if cap_proc_se_true_ok_rc != 0 {
+        print("native failed: capsule_runtime_proc_syscall_execve_true_prog (expected runtime capsule allow: sys_execve)")
+        oren_system("cat " + shell_quote(cap_proc_se_true_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_proc_se_true_out))
+
+    // Envp enforcement (sys_execve):
+    // - Caller-provided envp does not contain OREN_CAPSULE.
+    // - Runtime must inject it so /usr/bin/printenv OREN_CAPSULE prints "1".
+    var cap_proc_se_env_out = "build/capsule_runtime_proc_syscall_execve_envp_prog"
+    var cap_proc_se_env_log = "build/logs/capsule_runtime_proc_syscall_execve_envp_prog_build.log"
+    var cap_proc_se_env_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_proc_syscall_execve_envp_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_proc_se_env_out) + gc_arg
+    var cap_proc_se_env_rc = run_shell_capture(timeout_bin, build_timeout, cap_proc_se_env_cmd, cap_proc_se_env_log)
+    if cap_proc_se_env_rc != 0 || file_exists(cap_proc_se_env_out) != true {
+        print("native failed: capsule_runtime_proc_syscall_execve_envp_prog (build)")
+        oren_system("cat " + shell_quote(cap_proc_se_env_log))
+        oren_exit(1)
+    }
+
+    var cap_proc_se_env_ok_log = "build/logs/capsule_runtime_proc_syscall_execve_envp_prog_run_allow.log"
+    var cap_proc_se_env_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=/usr/bin/ OREN_PROC_ALLOW_ARGV=\"/usr/bin/printenv|/usr/bin/printenv|OREN_CAPSULE\" ./" + cap_proc_se_env_out
+    var cap_proc_se_env_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_se_env_ok_cmd, cap_proc_se_env_ok_log)
+    if cap_proc_se_env_ok_rc != 0 {
+        print("native failed: capsule_runtime_proc_syscall_execve_envp_prog (expected runtime capsule allow: envp injection)")
+        oren_system("cat " + shell_quote(cap_proc_se_env_ok_log))
+        oren_exit(1)
+    }
+    if cmd_ok("grep -q '^1$' " + shell_quote(cap_proc_se_env_ok_log)) != true {
+        print("native failed: capsule_runtime_proc_syscall_execve_envp_prog (expected printenv to output 1)")
+        oren_system("cat " + shell_quote(cap_proc_se_env_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_proc_se_env_out))
+
     // System (shell):
     // - PROC enrolled but shell not enabled -> deny
     // - enable shell -> allow

@@ -18,7 +18,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
    - Next enrollments (beyond domain bitmask):
      - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
-     - **PROC:** enforce caps at raw `sys_*` boundary (no bypass), then per-proc capability sets (argv/env/fd inheritance)
+     - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
      - **FS:** enforce caps at raw `sys_*` boundary (no bypass), then mounts UX polish + virtual mount mirroring (native/AVM)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
@@ -50,3 +50,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - PROC argv allowlist: add `<prefix>*` suffix-wildcard matcher for safer ergonomic enrollment.
 - Native backend: float operator parity for floaty expressions + fixed SCVTF/FCVTZS instruction encodings.
 - Native capsule NET: enforce capability checks at raw `sys_*` NET boundary (no bypass), add `OREN_NET_TCP_*_MAP`, add per-fd NET capability tags.
+- Native capsule PROC: enforce capability checks at raw `sys_*` PROC boundary (no bypass), force capsule envp on execve, restrict wait/kill to owned child pids.

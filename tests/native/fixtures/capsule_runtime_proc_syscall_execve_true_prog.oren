@@ -1,0 +1,23 @@
+fn main() {
+    // Raw sys_execve capsule test:
+    // - In capsule mode, sys_execve must be enforced at the syscall boundary (no bypass).
+    // - In allow mode, this should exec /usr/bin/true and exit 0.
+    // - In deny mode, runtime should print CAPSULE DENY and exit non-zero.
+
+    var argv = malloc(16)
+    if argv == 0 { exit(127) }
+    ptr_set(argv + 0, "/usr/bin/true")
+    ptr_set(argv + 8, 0)
+
+    // Intentionally pass a caller-provided envp that does NOT contain OREN_CAPSULE.
+    // Capsule enforcement should replace envp anyway.
+    var envp = malloc(16)
+    if envp == 0 { exit(127) }
+    ptr_set(envp + 0, "FOO=1")
+    ptr_set(envp + 8, 0)
+
+    sys_execve("/usr/bin/true", argv, envp)
+    // Success never returns.
+    exit(127)
+}
+
