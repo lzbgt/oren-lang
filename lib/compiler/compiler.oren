@@ -369,7 +369,7 @@ fn run_repo_tests(target, no_gc) {
 
     // Run under capsule with FS enrolled: should succeed and create the file.
     var cap_rt_run_ok_log = "build/logs/capsule_runtime_fs_prog_run_allow.log"
-    var cap_rt_run_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_rt_out
+    var cap_rt_run_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_ALLOW_PREFIXES=build/ ./" + cap_rt_out
     var cap_rt_run_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_rt_run_ok_cmd, cap_rt_run_ok_log)
     if cap_rt_run_ok_rc != 0 {
         print("native failed: capsule_runtime_fs_prog (expected runtime capsule allow)")

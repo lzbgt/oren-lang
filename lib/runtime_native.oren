@@ -151,6 +151,7 @@ fn oren_pipe() {
 //   72:free_blocks
 //   80:capsule_mode (0|1) (rolling: deny-by-default capability enforcement)
 //   88:cap_allow_mask (bitmask; rolling)
+//   96:fs_allow_prefixes_ptr (cstr: CSV prefixes) (rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -174,6 +175,7 @@ var GLOBAL_OFF_ENVP = 64
 var GLOBAL_OFF_FREE_BLOCKS = 72
 var GLOBAL_OFF_CAPSULE_MODE = 80
 var GLOBAL_OFF_CAP_ALLOW_MASK = 88
+var GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
 
 // Reserve extra room for rolling ABI growth (must be >= 9 slots today).
 var GLOBAL_SLOTS_RESERVED = 16
@@ -213,6 +215,9 @@ fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_
 
 fn global_get_cap_allow_mask() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK)) }
 fn global_set_cap_allow_mask(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK), v) }
+
+fn global_get_fs_allow_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR)) }
+fn global_set_fs_allow_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR), v) }
 
 // Capsule/capability mask bits (rolling; native backend only).
 var CAP_FS = 1
@@ -266,6 +271,7 @@ fn native_runtime_init() {
     GLOBAL_OFF_FREE_BLOCKS = 72
     GLOBAL_OFF_CAPSULE_MODE = 80
     GLOBAL_OFF_CAP_ALLOW_MASK = 88
+    GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
     GLOBAL_SLOTS_RESERVED = 16
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -475,6 +481,11 @@ fn native_runtime_capsule_init() {
     }
     var mask = native_parse_cap_allow_mask(v_allow)
     global_set_cap_allow_mask(mask)
+
+    // FS path prefix allowlist (rolling):
+    // Env: OREN_FS_ALLOW_PREFIXES="build/,tmp/" (CSV)
+    var v_fs = native_envp_get_value_ptr("OREN_FS_ALLOW_PREFIXES")
+    global_set_fs_allow_prefixes_ptr(v_fs)
     return 0
 }
 
@@ -484,6 +495,60 @@ fn native_capsule_require(mask_bit, name) {
     if (allow & mask_bit) != 0 { return 0 }
     print("CAPSULE DENY: " + name)
     exit(77)
+    return 0
+}
+
+fn native_capsule_fs_path_allowed(path) {
+    if path == 0 { return false }
+    var prefs = global_get_fs_allow_prefixes_ptr()
+    if prefs == 0 { return false }
+
+    var i = 0
+    var start = 0
+    var n = native_cstr_len(prefs)
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(prefs, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(prefs, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(prefs, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            var tok_len = tok_end - tok_start
+            if tok_len > 0 {
+                var j = 0
+                var ok = true
+                while j < tok_len {
+                    var pc = ptr_get_byte(iadd(path, j))
+                    if pc == 0 { ok = false; j = tok_len }
+                    else {
+                        var tc = ptr_get_byte(iadd(prefs, tok_start + j))
+                        if pc != tc { ok = false; j = tok_len }
+                        else { j = j + 1 }
+                    }
+                }
+                if ok { return true }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_capsule_require_fs_path(path, op) {
+    native_capsule_require(CAP_FS, "FS")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if native_capsule_fs_path_allowed(path) { return 0 }
+    print("CAPSULE DENY: FS_PATH " + op)
+    exit(78)
     return 0
 }
 
@@ -2357,7 +2422,7 @@ fn oren_args() {
 
 @cap.requires(domain="FS")
 fn oren_write_bytes(path, bytes) {
-    native_capsule_require(CAP_FS, "FS")
+    native_capsule_require_fs_path(path, "write_bytes")
     var fd = sys_open(path, 1537, 420) // O_WRONLY|O_CREAT|O_TRUNC, 0644
     if fd < 0 { exit(260) }
 
@@ -2392,7 +2457,7 @@ fn oren_write_bytes(path, bytes) {
 
 @cap.requires(domain="FS")
 fn oren_read_bytes(path) {
-    native_capsule_require(CAP_FS, "FS")
+    native_capsule_require_fs_path(path, "read_bytes")
     var fd = sys_open(path, 0, 0) // O_RDONLY
     if fd < 0 { exit(262) }
 
