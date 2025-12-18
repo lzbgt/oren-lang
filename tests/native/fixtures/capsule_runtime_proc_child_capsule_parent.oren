@@ -1,0 +1,15 @@
+fn main() {
+    // Parent Oren program used by repo-runner to validate per-proc capability propagation.
+    // It executes another Oren native binary via `oren_proc_spawn`.
+    //
+    // Expectation under capsule mode (PROC-only):
+    // - child inherits capsule env settings
+    // - child is denied FS and must not create build/capsule_spawn_child.bin
+    var st = oren_proc_spawn("build/capsule_spawn_child", ["capsule_spawn_child"], 1000000)
+    if st == 0 {
+        // child unexpectedly succeeded
+        exit(1)
+    }
+    print("ok")
+}
+

@@ -654,6 +654,47 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_proc_env_out))
 
+    // Capsule propagation to child Oren programs:
+    // - Parent is capsule PROC-only; it spawns a child Oren binary that attempts FS write.
+    // - The child must inherit capsule env settings and be denied FS (file must not be created).
+    oren_system("rm -f build/capsule_spawn_child.bin")
+
+    var cap_child_out = "build/capsule_spawn_child"
+    var cap_child_log = "build/logs/capsule_spawn_child_build.log"
+    var cap_child_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_proc_child_capsule_child.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_child_out) + gc_arg
+    var cap_child_rc = run_shell_capture(timeout_bin, build_timeout, cap_child_cmd, cap_child_log)
+    if cap_child_rc != 0 || file_exists(cap_child_out) != true {
+        print("native failed: capsule_spawn_child (build)")
+        oren_system("cat " + shell_quote(cap_child_log))
+        oren_exit(1)
+    }
+
+    var cap_parent_out = "build/capsule_spawn_parent"
+    var cap_parent_log = "build/logs/capsule_spawn_parent_build.log"
+    var cap_parent_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_proc_child_capsule_parent.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_parent_out) + gc_arg
+    var cap_parent_rc = run_shell_capture(timeout_bin, build_timeout, cap_parent_cmd, cap_parent_log)
+    if cap_parent_rc != 0 || file_exists(cap_parent_out) != true {
+        print("native failed: capsule_spawn_parent (build)")
+        oren_system("cat " + shell_quote(cap_parent_log))
+        oren_exit(1)
+    }
+
+    var cap_parent_run_log = "build/logs/capsule_spawn_parent_run.log"
+    var cap_parent_run_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC OREN_PROC_ALLOW_EXEC_PREFIXES=build/ ./" + cap_parent_out
+    var cap_parent_run_rc = run_shell_capture(timeout_bin, run_timeout, cap_parent_run_cmd, cap_parent_run_log)
+    if cap_parent_run_rc != 0 {
+        print("native failed: capsule_spawn_parent (run)")
+        oren_system("cat " + shell_quote(cap_parent_run_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -f " + shell_quote("build/capsule_spawn_child.bin")) {
+        print("native failed: capsule_spawn_child (child escaped capsule; wrote file)")
+        oren_system("cat " + shell_quote(cap_parent_run_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_child_out) + " " + shell_quote(cap_parent_out) + " build/capsule_spawn_child.bin")
+
     // --- Native tests ---
     var n_pass = 0
     var n_total = oren_list_len(native_tests)

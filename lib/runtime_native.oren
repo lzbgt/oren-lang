@@ -457,6 +457,42 @@ fn native_envp_get_value_ptr(key_cstr) {
     return 0
 }
 
+fn native_envp_get_entry_ptr(key_cstr) {
+    // Returns pointer to the full "KEY=VALUE" entry in envp, or 0 if not found.
+    if key_cstr == 0 { return 0 }
+
+    var envp = global_get_envp()
+    if envp == 0 { return 0 }
+
+    var key_len = native_cstr_len(key_cstr)
+    if key_len <= 0 { return 0 }
+    if key_len >= 4096 { return 0 }
+
+    var i = 0
+    while i < 4096 {
+        var ent = ptr_get(iadd(envp, i * 8))
+        if ent == 0 { return 0 }
+
+        var j = 0
+        while j < key_len {
+            if ptr_get_byte(iadd(ent, j)) != ptr_get_byte(iadd(key_cstr, j)) {
+                j = -1
+                break
+            }
+            j = j + 1
+        }
+
+        if j != -1 {
+            if ptr_get_byte(iadd(ent, key_len)) == 61 { // '='
+                return ent
+            }
+        }
+
+        i = i + 1
+    }
+    return 0
+}
+
 fn native_parse_cap_allow_mask(csv_cstr) {
     if csv_cstr == 0 { return 0 }
 
@@ -3351,13 +3387,26 @@ fn native_csv_has_key(csv_cstr, key_ptr, key_len) {
     return false
 }
 
+fn native_envp_push_unique(out, oi, max_out, ptr) {
+    if ptr == 0 { return oi }
+    var j = 0
+    while j < oi {
+        if ptr_get(out + (j * 8)) == ptr { return oi }
+        j = j + 1
+    }
+    if oi >= max_out { return oi }
+    ptr_set(out + (oi * 8), ptr)
+    return oi + 1
+}
+
 fn native_runtime_get_envp_for_proc_child() {
     // Determine envp for subprocess exec in the child (after fork, before execve).
     //
     // Policy (capsule mode):
     // - If OREN_PROC_INHERIT_ENV=1 => inherit all env.
-    // - Else if OREN_PROC_ALLOW_ENV_KEYS is set => inherit only those keys.
-    // - Else => empty env.
+    // - Else build a filtered env consisting of:
+    //     - Mandatory OREN_* capsule controls (so the child cannot "escape capsule" by env filtering)
+    //     - Plus keys allowlisted by OREN_PROC_ALLOW_ENV_KEYS (if set).
     //
     // Non-capsule: inherit all env.
     var parent_envp = native_runtime_get_envp_ptr()
@@ -3366,62 +3415,65 @@ fn native_runtime_get_envp_for_proc_child() {
     if global_get_proc_inherit_env() == 1 { return parent_envp }
 
     var keys = global_get_proc_allow_env_keys_ptr()
-    if keys == 0 {
-        var empty = malloc(8)
-        if empty == 0 { return 0 }
-        ptr_set(empty, 0)
-        return empty
-    }
 
-    // Count matches first (bounded).
-    var count = 0
-    var i = 0
-    while i < 4096 {
-        var ent = ptr_get(iadd(parent_envp, i * 8))
-        if ent == 0 { break }
-
-        // key_len up to '='
-        var key_len = 0
-        while key_len < 256 {
-            var ch = ptr_get_byte(iadd(ent, key_len))
-            if ch == 0 { key_len = 0; break }
-            if ch == 61 { break } // '='
-            key_len = key_len + 1
-        }
-
-        if key_len > 0 && key_len < 256 {
-            if native_csv_has_key(keys, ent, key_len) { count = count + 1 }
-        }
-
-        i = i + 1
-        if count > 1024 { break }
-    }
-
-    var out = malloc((count + 1) * 8)
+    // Conservative cap; we don't want huge env arrays during bootstrap.
+    var max_out = 256
+    var out = malloc((max_out + 1) * 8)
     if out == 0 { return 0 }
     var oi = 0
-    i = 0
-    while i < 4096 && oi < count {
-        var ent2 = ptr_get(iadd(parent_envp, i * 8))
-        if ent2 == 0 { break }
 
-        var key_len2 = 0
-        while key_len2 < 256 {
-            var ch2 = ptr_get_byte(iadd(ent2, key_len2))
-            if ch2 == 0 { key_len2 = 0; break }
-            if ch2 == 61 { break }
-            key_len2 = key_len2 + 1
-        }
-
-        if key_len2 > 0 && key_len2 < 256 {
-            if native_csv_has_key(keys, ent2, key_len2) {
-                ptr_set(out + (oi * 8), ent2)
-                oi = oi + 1
-            }
-        }
-
-        i = i + 1
+    // --- Mandatory capsule env entries (best-effort) ---
+    // Keep this list small and focused: only OREN_* capability and resource enrollment vars.
+    // These are NOT secrets; they are the mechanism that prevents child escape.
+    var must_capsule = native_envp_get_entry_ptr("OREN_CAPSULE")
+    if must_capsule != 0 {
+        oi = native_envp_push_unique(out, oi, max_out, must_capsule)
+    } else {
+        // The parent is in capsule mode, so this should exist, but be robust anyway.
+        oi = native_envp_push_unique(out, oi, max_out, "OREN_CAPSULE=1")
     }
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_CAP_ALLOW_DOMAINS"))
+    // FS enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_READ_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_WRITE_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS_READ"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS_WRITE"))
+    // NET enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_LOOPBACK"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_TCP_CONNECT"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_TCP_LISTEN"))
+    // PROC enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_EXEC_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_SYSTEM"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_INHERIT_ENV"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_ENV_KEYS"))
+
+    // --- Optional allowlisted parent env keys ---
+    if keys != 0 {
+        var i = 0
+        while i < 4096 && oi < max_out {
+            var ent = ptr_get(iadd(parent_envp, i * 8))
+            if ent == 0 { break }
+
+            var key_len = 0
+            while key_len < 256 {
+                var ch = ptr_get_byte(iadd(ent, key_len))
+                if ch == 0 { key_len = 0; break }
+                if ch == 61 { break } // '='
+                key_len = key_len + 1
+            }
+
+            if key_len > 0 && key_len < 256 {
+                if native_csv_has_key(keys, ent, key_len) {
+                    oi = native_envp_push_unique(out, oi, max_out, ent)
+                }
+            }
+            i = i + 1
+        }
+    }
+
     ptr_set(out + (oi * 8), 0)
     return out
 }

@@ -1,0 +1,10 @@
+fn main() {
+    // Child Oren program used by repo-runner to validate that capsule settings
+    // propagate across `oren_proc_spawn` to other Oren native programs.
+    //
+    // This program attempts a host FS write. It should be denied when executed
+    // under capsule mode without FS enrollment.
+    oren_write_bytes("build/capsule_spawn_child.bin", [1, 2, 3])
+    print("child_ok")
+}
+
