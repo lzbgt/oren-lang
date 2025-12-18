@@ -52,6 +52,7 @@ fn sys_unlink(path) { return 0 }
 fn sys_rename(from, to) { return 0 }
 fn sys_mkdir(path, mode) { return 0 }
 fn sys_rmdir(path) { return 0 }
+fn sys_getdirentries64(fd, buf, bufsize, pos_ptr) { return 0 }
 fn sys_fork() { return 0 }
 fn sys_execve(path, argv, envp) { return 0 }
 fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
@@ -1163,6 +1164,17 @@ fn native_capsule_sys_rmdir_pre(path) {
 
 fn native_capsule_sys_rmdir_post(pair, rc) {
     return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_getdirentries64_pre(fd) {
+    // getdirentries is a read op on an existing directory fd. Enrollment is enforced at open-time;
+    // here we require FS domain in capsule mode to prevent bypass via inherited fds.
+    native_capsule_require(CAP_FS, "FS")
+    return fd
+}
+
+fn native_capsule_sys_getdirentries64_post(rc) {
+    return rc
 }
 
 fn native_ipv4_is_loopback(ip) {

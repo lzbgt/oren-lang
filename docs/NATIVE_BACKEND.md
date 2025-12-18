@@ -39,6 +39,7 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 - `sys_stat(path, st_ptr)` on macOS uses **`stat64` (syscall 338)** for correct 64-bit `struct stat` behavior on arm64.
 - `sys_lstat(path, st_ptr)` on macOS uses **`lstat64` (syscall 340)** (no-follow symlink metadata).
 - `sys_fstat(fd, st_ptr)` on macOS uses **`fstat64` (syscall 339)**.
+- `sys_getdirentries64(fd, buf, bufsize, pos_ptr)` on macOS uses **`getdirentries64` (syscall 344)**; on Linux it maps to `getdents64` (61) and ignores `pos_ptr` (v0).
 ## Notes / Limitations
 - **String concatenation:** `+` is integer-only on the native backend; use `string_concat(a, b)` for strings.
 - **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).

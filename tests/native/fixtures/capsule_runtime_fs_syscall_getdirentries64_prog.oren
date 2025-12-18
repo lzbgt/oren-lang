@@ -1,0 +1,44 @@
+fn mem_contains(hay, hay_len, needle, needle_len) {
+    if needle_len <= 0 { return true }
+    if hay_len < needle_len { return false }
+
+    var i = 0
+    while i <= hay_len - needle_len {
+        var ok = true
+        var j = 0
+        while j < needle_len {
+            if ptr_get_byte(iadd(hay, i + j)) != ptr_get_byte(iadd(needle, j)) {
+                ok = false
+                break
+            }
+            j = j + 1
+        }
+        if ok { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn main() {
+    // Raw sys_getdirentries64 capsule FS test:
+    // - In capsule mode + FS domain + read mount, open("v/dir") should succeed and getdirentries64 should return entries.
+    // - Validate the returned buffer contains the known filename "in.txt".
+
+    var fd = sys_open("v/dir", 0, 0)
+    if fd < 0 { exit(2) }
+
+    var buf = malloc(4096)
+    if buf == 0 { exit(3) }
+
+    var pos = malloc(8)
+    if pos == 0 { exit(4) }
+    ptr_set(pos, 0)
+
+    var n = sys_getdirentries64(fd, buf, 4096, pos)
+    if n <= 0 { exit(5) }
+
+    if mem_contains(buf, n, "in.txt", 6) != true { exit(6) }
+
+    sys_close(fd)
+    print("ok")
+}

@@ -778,6 +778,79 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             return true
         }
 
+        if fn_name == "sys_getdirentries64" {
+            // sys_getdirentries64(fd, buf, bufsize, pos_ptr) -> nbytes or negative errno
+            // macOS: getdirentries64(fd, buf, bufsize, position_ptr) (344)
+            // Linux: getdents64(fd, buf, bufsize) (__NR_getdents64=61 on aarch64); pos_ptr ignored.
+            //
+            // Capsule hardening: enforce FS domain at syscall boundary (no bypass).
+            compile_expr(ctx, args[0]) // fd -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // buf -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[2]) // bufsize -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[3]) // pos_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_getdirentries64_pre(fd) -> fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48)) // fd
+            var bl_pre_gde = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_gde, "name": "native_capsule_sys_getdirentries64_pre"})
+
+            // X0=fd, X1=buf, X2=bufsize, X3=pos_ptr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // buf
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // bufsize
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // pos_ptr
+
+            var svc_imm = 128
+            var sys_reg = 16
+            var is_macos = true
+            if ctx["platform"]["os"] == "linux" {
+                svc_imm = 0
+                sys_reg = 8
+                is_macos = false
+            }
+
+            if is_macos {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 344))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3))
+            } else {
+                push_u32_le(ctx["code"], insn_movz(sys_reg, 61))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+            }
+
+            // post: native_capsule_sys_getdirentries64_post(rc) -> rc
+            var bl_post_gde = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_gde, "name": "native_capsule_sys_getdirentries64_post"})
+
+            // Pop pos_ptr + bufsize + buf + fd
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 64
+            return true
+        }
+
         if fn_name == "sys_rmdir" {
             // sys_rmdir(path) -> 0 or negative errno
             // macOS: rmdir(path) (137)
