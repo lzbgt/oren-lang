@@ -527,6 +527,69 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_net_c_out))
 
+    // Raw sys_* bypass check (connect):
+    // - sys_socket/sys_connect must be enforced in capsule mode (no bypass).
+    var cap_net_sc_out = "build/capsule_runtime_net_syscall_connect_prog"
+    var cap_net_sc_log = "build/logs/capsule_runtime_net_syscall_connect_prog_build.log"
+    var cap_net_sc_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_net_syscall_connect_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_net_sc_out) + gc_arg
+    var cap_net_sc_rc = run_shell_capture(timeout_bin, build_timeout, cap_net_sc_cmd, cap_net_sc_log)
+    if cap_net_sc_rc != 0 || file_exists(cap_net_sc_out) != true {
+        print("native failed: capsule_runtime_net_syscall_connect_prog (build)")
+        oren_system("cat " + shell_quote(cap_net_sc_log))
+        oren_exit(1)
+    }
+
+    var cap_net_sc_deny_log = "build/logs/capsule_runtime_net_syscall_connect_prog_run_deny.log"
+    var cap_net_sc_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET ./" + cap_net_sc_out
+    var cap_net_sc_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_sc_deny_cmd, cap_net_sc_deny_log)
+    if cap_net_sc_deny_rc == 0 {
+        print("native failed: capsule_runtime_net_syscall_connect_prog (expected runtime capsule deny: NET_CONNECT via sys_connect)")
+        oren_system("cat " + shell_quote(cap_net_sc_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_net_sc_ok_log = "build/logs/capsule_runtime_net_syscall_connect_prog_run_allow.log"
+    var cap_net_sc_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET OREN_NET_ALLOW_LOOPBACK=1 ./" + cap_net_sc_out
+    var cap_net_sc_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_sc_ok_cmd, cap_net_sc_ok_log)
+    if cap_net_sc_ok_rc != 0 {
+        print("native failed: capsule_runtime_net_syscall_connect_prog (expected runtime capsule allow: loopback via sys_connect)")
+        oren_system("cat " + shell_quote(cap_net_sc_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_net_sc_out))
+
+    // vnet-style endpoint mapping (connect):
+    // - no enrollment -> deny
+    // - explicit mapping -> allow attempt (no loopback allowlist needed)
+    var cap_net_map_out = "build/capsule_runtime_net_syscall_map_prog"
+    var cap_net_map_log = "build/logs/capsule_runtime_net_syscall_map_prog_build.log"
+    var cap_net_map_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_net_syscall_map_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_net_map_out) + gc_arg
+    var cap_net_map_rc = run_shell_capture(timeout_bin, build_timeout, cap_net_map_cmd, cap_net_map_log)
+    if cap_net_map_rc != 0 || file_exists(cap_net_map_out) != true {
+        print("native failed: capsule_runtime_net_syscall_map_prog (build)")
+        oren_system("cat " + shell_quote(cap_net_map_log))
+        oren_exit(1)
+    }
+
+    var cap_net_map_deny_log = "build/logs/capsule_runtime_net_syscall_map_prog_run_deny.log"
+    var cap_net_map_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET ./" + cap_net_map_out
+    var cap_net_map_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_map_deny_cmd, cap_net_map_deny_log)
+    if cap_net_map_deny_rc == 0 {
+        print("native failed: capsule_runtime_net_syscall_map_prog (expected runtime capsule deny: NET_CONNECT without mapping)")
+        oren_system("cat " + shell_quote(cap_net_map_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_net_map_ok_log = "build/logs/capsule_runtime_net_syscall_map_prog_run_allow.log"
+    var cap_net_map_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET OREN_NET_TCP_CONNECT_MAP=\"1.2.3.4:1=127.0.0.1:1\" ./" + cap_net_map_out
+    var cap_net_map_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_map_ok_cmd, cap_net_map_ok_log)
+    if cap_net_map_ok_rc != 0 {
+        print("native failed: capsule_runtime_net_syscall_map_prog (expected runtime capsule allow: explicit mapping)")
+        oren_system("cat " + shell_quote(cap_net_map_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_net_map_out))
+
     // Listen:
     // - no enrollment -> deny
     // - loopback enrollment -> allow bind/listen to 127.0.0.1:0

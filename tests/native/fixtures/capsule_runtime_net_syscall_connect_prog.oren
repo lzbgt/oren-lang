@@ -1,0 +1,19 @@
+fn main() {
+    // Runtime capsule NET test (raw sys_* path):
+    // Ensure capsule enforcement happens at the syscall boundary (no bypass).
+    //
+    // This program should:
+    // - be denied in capsule mode unless loopback or explicit allowlist enrollment is enabled
+    // - be allowed to attempt when loopback is enabled (even if connect fails)
+    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    if fd >= 0 {
+        var sa = oren_tcp_sockaddr_in("127.0.0.1", 1)
+        if sa != 0 {
+            sys_connect(fd, sa, 16)
+            free(sa)
+        }
+        sys_close(fd)
+    }
+    print("ok")
+}
+

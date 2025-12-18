@@ -1,0 +1,17 @@
+fn main() {
+    // Runtime capsule NET test (vnet-style endpoint mapping):
+    // - Connect to a virtual endpoint that is NOT loopback.
+    // - In capsule mode, this should be allowed ONLY when an explicit mapping is provided
+    //   via OREN_NET_TCP_CONNECT_MAP.
+    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    if fd >= 0 {
+        var sa = oren_tcp_sockaddr_in("1.2.3.4", 1)
+        if sa != 0 {
+            sys_connect(fd, sa, 16)
+            free(sa)
+        }
+        sys_close(fd)
+    }
+    print("ok")
+}
+

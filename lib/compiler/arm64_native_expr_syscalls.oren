@@ -264,6 +264,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         if fn_name == "sys_close" {
             // sys_close(fd)
             compile_expr(ctx, args[0]) // fd -> X0
+            // Save fd so we can run a capsule post-hook that clears per-fd NET tags.
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            // Reload fd into X0 for the syscall (post-hook call may clobber X0 later).
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
 
             var sys_close = 6
             var svc_imm = 128
@@ -319,6 +325,16 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // post: native_capsule_sys_close_post(rc, fd) -> rc
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // fd
+            var bl_post_close = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_close, "name": "native_capsule_sys_close_post"})
+
+            // Pop saved fd slot.
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
             return true
         }
 
@@ -381,6 +397,9 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
         if fn_name == "sys_socket" {
             // sys_socket(domain, type, protocol) (Darwin)
+            // Keep args on stack so we can:
+            // - call capsule enforcement helpers without losing values
+            // - tag returned fd with a per-socket capability kind
             compile_expr(ctx, args[0]) // domain -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -392,17 +411,22 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[2]) // protocol -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = protocol
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop type -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_socket_pre(domain, type, protocol)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // domain
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // type
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // protocol
+            var bl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_socket_pre"})
 
-            // Pop domain -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // domain
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // type
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // protocol
 
             var sys_reg = 16
             var svc_imm = 128
@@ -433,6 +457,20 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // post: native_capsule_sys_socket_post(fd, domain, type, protocol) -> fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // domain
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // type
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // protocol
+            var bl_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post, "name": "native_capsule_sys_socket_post"})
+
+            // Pop args (3 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
             return true
         }
 
@@ -449,17 +487,22 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[2]) // addrlen -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = addrlen
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop addr -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_connect_pre(fd, addr, addrlen)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen
+            var bl_pre2 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre2, "name": "native_capsule_sys_connect_pre"})
 
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen
 
             var sys_reg = 16
             var svc_imm = 128
@@ -490,6 +533,20 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // post: native_capsule_sys_connect_post(rc, fd, addr, addrlen) -> rc
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // addrlen
+            var bl_post2 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post2, "name": "native_capsule_sys_connect_post"})
+
+            // Pop args (3 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
             return true
         }
 
@@ -506,17 +563,22 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[2]) // addrlen -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = addrlen
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop addr -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_bind_pre(fd, addr, addrlen)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen
+            var bl_pre3 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre3, "name": "native_capsule_sys_bind_pre"})
 
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen
 
             var sys_reg = 16
             var svc_imm = 128
@@ -547,6 +609,20 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // post: native_capsule_sys_bind_post(rc, fd, addr, addrlen) -> rc
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // addrlen
+            var bl_post3 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post3, "name": "native_capsule_sys_bind_post"})
+
+            // Pop args (3 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
             return true
         }
 
@@ -558,12 +634,20 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[1]) // backlog -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = backlog
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_listen_pre(fd, backlog)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // backlog
+            var bl_pre4 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre4, "name": "native_capsule_sys_listen_pre"})
+
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // backlog
 
             var sys_reg = 16
             var svc_imm = 128
@@ -594,6 +678,18 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // post: native_capsule_sys_listen_post(rc, fd, backlog) -> rc
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // backlog
+            var bl_post4 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post4, "name": "native_capsule_sys_listen_post"})
+
+            // Pop args (2 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 32
             return true
         }
 
@@ -610,17 +706,22 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[2]) // addrlen_ptr -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = addrlen_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop addr -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_accept_pre(fd, addr, addrlen_ptr)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen_ptr
+            var bl_pre5 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre5, "name": "native_capsule_sys_accept_pre"})
 
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen_ptr
 
             var sys_reg = 16
             var svc_imm = 128
@@ -651,6 +752,20 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // post: native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) -> newfd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // listen_fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // addrlen_ptr
+            var bl_post5 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post5, "name": "native_capsule_sys_accept_post"})
+
+            // Pop args (3 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
             return true
         }
 
@@ -841,6 +956,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
         if fn_name == "sys_sendto" || fn_name == "sys_recvfrom" || fn_name == "sys_kevent" {
             // sys_{sendto,recvfrom,kevent}(a0,a1,a2,a3,a4,a5) (Darwin)
+            // Keep args on stack so we can call capsule enforcement helpers without losing values.
             compile_expr(ctx, args[0]) // a0 -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -867,32 +983,35 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[5]) // a5 -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(5, 0)) // X5 = a5
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop a4 -> X4
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: enforce NET send/recv in capsule mode (kevent is not a NET op)
+            if fn_name == "sys_sendto" || fn_name == "sys_recvfrom" {
+                // Stack layout: a5@0, a4@16, a3@32, a2@48, a1@64, a0@80
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 80))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 64))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 48))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 32))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 16))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
+                var bl_pre6 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                if fn_name == "sys_sendto" {
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre6, "name": "native_capsule_sys_sendto_pre"})
+                } else {
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre6, "name": "native_capsule_sys_recvfrom_pre"})
+                }
+            }
 
-            // Pop a3 -> X3
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop a2 -> X2
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop a1 -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop a0 -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall: a0..a5 in X0..X5.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 80))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 64))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 48))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 32))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
 
             var sys_reg = 16
             var svc_imm = 128
@@ -931,6 +1050,15 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // Pop args (6 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 96
             return true
         }
 
@@ -1199,6 +1327,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             // sendto(fd, buf, len, flags, to=NULL, tolen=0)
             // recvfrom(fd, buf, len, flags, from=NULL, fromlen=NULL)
 
+            // Keep args on stack so we can call capsule enforcement helpers without losing values.
             compile_expr(ctx, args[0]) // fd -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1215,23 +1344,31 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[3]) // flags -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = flags
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop len -> X2
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_{sendto,recvfrom}_pre(fd, buf, len, flags, NULL, 0)
+            // Stack layout: flags@0, len@16, buf@32, fd@48
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // buf
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // len
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // flags
+            push_u32_le(ctx["code"], insn_movz(4, 0))
+            push_u32_le(ctx["code"], insn_movz(5, 0))
+            var bl_pre_send = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            if fn_name == "sys_send" {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_sendto_pre"})
+            } else {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_recvfrom_pre"})
+            }
 
-            // Pop buf -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // buf
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // len
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // flags
             // X4/X5 are NULL/0
             push_u32_le(ctx["code"], insn_movz(4, 0))
             push_u32_le(ctx["code"], insn_movz(5, 0))
@@ -1269,6 +1406,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+            // Pop args (4 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 64
             return true
         }
 

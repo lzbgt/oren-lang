@@ -17,7 +17,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
    - Next enrollments (beyond domain bitmask):
-     - **NET:** vnet mapping + per-socket capabilities
+     - **NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
      - **PROC:** argv policy sugar + per-proc capability sets
      - **FS:** host mounts UX polish (docs + examples), then virtual FS mount mirroring (native/AVM)
 
@@ -49,3 +49,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - AVM float64: `.obc` FLOAT consts + `* /` ops, mixed numeric comparisons, canonical float ops test.
 - PROC argv allowlist: add `<prefix>*` suffix-wildcard matcher for safer ergonomic enrollment.
 - Native backend: float operator parity for floaty expressions + fixed SCVTF/FCVTZS instruction encodings.
+- Native capsule NET: enforce capability checks at raw `sys_*` NET boundary (no bypass), add `OREN_NET_TCP_*_MAP`, add per-fd NET capability tags.
