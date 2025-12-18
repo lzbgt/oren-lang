@@ -17,7 +17,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Define/implement a capability enrollment model (explicit mapping virtual -> host resources).
    - Next: implement resource-level enrollments (beyond domain bitmask):
-     - FS: allowlisted prefixes/mounts (DONE: prefixes via OREN_FS_ALLOW_PREFIXES; NEXT: split read vs write, add mounts)
+     - FS: allowlisted prefixes/mounts (DONE: split read/write prefixes; NEXT: mounts + read/write separation for mount rules)
      - NET: loopback vs explicit allowlist, future vnet mapping
      - PROC: explicit subprocess allowlist (argv + env), cancellation
 
@@ -52,4 +52,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - Native backend string `oren_string_char_at` semantics aligned with C/AVM (returns 1-byte string + bounds checks), and internal callers updated to use raw byte reads where appropriate.
 - Capsule mode (native backend): `--capsule` compile-time capability gating using `@cap.requires(domain="...")` annotations (FS/NET/PROC/ENV/TIME) plus compile-fail fixtures.
 - Capsule mode (native runtime): `OREN_CAPSULE=1` deny-by-default enforcement + `OREN_CAP_ALLOW_DOMAINS=...` enrollment (defense-in-depth), with repo-runner fixtures.
-- Capsule mode (native runtime, FS): `OREN_FS_ALLOW_PREFIXES=...` required when capsule is enabled (defense-in-depth).
+- Capsule mode (native runtime, FS): path allowlists now support `OREN_FS_ALLOW_READ_PREFIXES` / `OREN_FS_ALLOW_WRITE_PREFIXES` (fallback: `OREN_FS_ALLOW_PREFIXES`).

@@ -369,7 +369,7 @@ fn run_repo_tests(target, no_gc) {
 
     // Run under capsule with FS enrolled: should succeed and create the file.
     var cap_rt_run_ok_log = "build/logs/capsule_runtime_fs_prog_run_allow.log"
-    var cap_rt_run_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_ALLOW_PREFIXES=build/ ./" + cap_rt_out
+    var cap_rt_run_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_ALLOW_WRITE_PREFIXES=build/ ./" + cap_rt_out
     var cap_rt_run_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_rt_run_ok_cmd, cap_rt_run_ok_log)
     if cap_rt_run_ok_rc != 0 {
         print("native failed: capsule_runtime_fs_prog (expected runtime capsule allow)")
@@ -383,6 +383,42 @@ fn run_repo_tests(target, no_gc) {
     }
 
     oren_system("rm -f " + shell_quote(cap_rt_out))
+
+    // Capsule FS read allowlist: split read vs write prefixes (defense-in-depth).
+    // Prepare a deterministic file to read (created by the repo runner, not by the program).
+    oren_system("printf \"ok\" > build/capsule_runtime_fs_read.txt")
+
+    var cap_rt_r_out = "build/capsule_runtime_fs_read_prog"
+    var cap_rt_r_log = "build/logs/capsule_runtime_fs_read_prog_build.log"
+    var cap_rt_r_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_read_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_rt_r_out) + gc_arg
+    var cap_rt_r_rc = run_shell_capture(timeout_bin, build_timeout, cap_rt_r_cmd, cap_rt_r_log)
+    if cap_rt_r_rc != 0 || file_exists(cap_rt_r_out) != true {
+        print("native failed: capsule_runtime_fs_read_prog (build)")
+        oren_system("cat " + shell_quote(cap_rt_r_log))
+        oren_exit(1)
+    }
+
+    // 1) FS domain enrolled but READ prefix missing -> must fail.
+    var cap_rt_r_deny_log = "build/logs/capsule_runtime_fs_read_prog_run_deny.log"
+    var cap_rt_r_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_ALLOW_WRITE_PREFIXES=build/ ./" + cap_rt_r_out
+    var cap_rt_r_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_rt_r_deny_cmd, cap_rt_r_deny_log)
+    if cap_rt_r_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_read_prog (expected runtime capsule deny: read prefix)")
+        oren_system("cat " + shell_quote(cap_rt_r_deny_log))
+        oren_exit(1)
+    }
+
+    // 2) Provide READ prefix -> should succeed.
+    var cap_rt_r_ok_log = "build/logs/capsule_runtime_fs_read_prog_run_allow.log"
+    var cap_rt_r_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_ALLOW_READ_PREFIXES=build/ ./" + cap_rt_r_out
+    var cap_rt_r_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_rt_r_ok_cmd, cap_rt_r_ok_log)
+    if cap_rt_r_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_read_prog (expected runtime capsule allow: read prefix)")
+        oren_system("cat " + shell_quote(cap_rt_r_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_rt_r_out) + " build/capsule_runtime_fs_read.txt")
 
     // --- Native tests ---
     var n_pass = 0

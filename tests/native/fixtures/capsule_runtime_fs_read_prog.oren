@@ -1,0 +1,5 @@
+fn main() {
+    // Runtime capsule FS test (read): reading should require an explicit READ allowlist.
+    var b = oren_read_bytes("build/capsule_runtime_fs_read.txt")
+    print(oren_int_to_string(oren_list_len(b)))
+}
