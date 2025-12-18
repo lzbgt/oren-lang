@@ -149,6 +149,8 @@ fn oren_pipe() {
 //   56:lock_recurse_count
 //   64:envp
 //   72:free_blocks
+//   80:capsule_mode (0|1) (rolling: deny-by-default capability enforcement)
+//   88:cap_allow_mask (bitmask; rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -170,6 +172,8 @@ var GLOBAL_OFF_ARGV = 48
 var GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
 var GLOBAL_OFF_ENVP = 64
 var GLOBAL_OFF_FREE_BLOCKS = 72
+var GLOBAL_OFF_CAPSULE_MODE = 80
+var GLOBAL_OFF_CAP_ALLOW_MASK = 88
 
 // Reserve extra room for rolling ABI growth (must be >= 9 slots today).
 var GLOBAL_SLOTS_RESERVED = 16
@@ -203,6 +207,19 @@ fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECUR
 
 fn global_get_envp() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENVP)) }
 fn global_set_envp(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENVP), v) }
+
+fn global_get_capsule_mode() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE)) }
+fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE), v) }
+
+fn global_get_cap_allow_mask() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK)) }
+fn global_set_cap_allow_mask(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK), v) }
+
+// Capsule/capability mask bits (rolling; native backend only).
+var CAP_FS = 1
+var CAP_NET = 2
+var CAP_PROC = 4
+var CAP_ENV = 8
+var CAP_TIME = 16
 
 // --- Fork hygiene (rolling; syscall-first) ---
 // After fork(), the child process inherits any in-memory locks held at the moment of fork.
@@ -247,7 +264,17 @@ fn native_runtime_init() {
     GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
     GLOBAL_OFF_ENVP = 64
     GLOBAL_OFF_FREE_BLOCKS = 72
+    GLOBAL_OFF_CAPSULE_MODE = 80
+    GLOBAL_OFF_CAP_ALLOW_MASK = 88
     GLOBAL_SLOTS_RESERVED = 16
+
+    // IMPORTANT: do not rely on global initializers for these constants.
+    // Capability mask bits (used by capsule runtime enforcement).
+    CAP_FS = 1
+    CAP_NET = 2
+    CAP_PROC = 4
+    CAP_ENV = 8
+    CAP_TIME = 16
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //
@@ -305,12 +332,168 @@ fn native_runtime_set_envp(envp) {
     return 0
 }
 
+fn native_cstr_len(s) {
+    if s == 0 { return 0 }
+    var n = 0
+    while n < 65536 {
+        if ptr_get_byte(iadd(s, n)) == 0 { return n }
+        n = n + 1
+    }
+    return 65536
+}
+
+fn native_envp_get_value_ptr(key_cstr) {
+    // Low-level envp scanner for early init and capsule enforcement.
+    // Returns pointer to value substring for KEY in envp ("KEY=VALUE"), or 0 if not found.
+    if key_cstr == 0 { return 0 }
+
+    var envp = global_get_envp()
+    if envp == 0 { return 0 }
+
+    var key_len = native_cstr_len(key_cstr)
+    if key_len <= 0 { return 0 }
+    if key_len >= 4096 { return 0 }
+
+    var i = 0
+    while i < 4096 {
+        var ent = ptr_get(iadd(envp, i * 8))
+        if ent == 0 { return 0 }
+
+        // Check prefix match "KEY="
+        var j = 0
+        while j < key_len {
+            if ptr_get_byte(iadd(ent, j)) != ptr_get_byte(iadd(key_cstr, j)) {
+                j = -1
+                break
+            }
+            j = j + 1
+        }
+
+        if j != -1 {
+            if ptr_get_byte(iadd(ent, key_len)) == 61 { // '='
+                return iadd(ent, key_len + 1)
+            }
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_parse_cap_allow_mask(csv_cstr) {
+    if csv_cstr == 0 { return 0 }
+
+    var mask = 0
+    var i = 0
+    var start = 0
+    var n = native_cstr_len(csv_cstr)
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(csv_cstr, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            // Trim spaces
+            while tok_start < tok_end && ptr_get_byte(iadd(csv_cstr, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(csv_cstr, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            var tok_len = tok_end - tok_start
+            if tok_len > 0 {
+                // ASCII fold to uppercase for matching (a-z -> A-Z).
+                var b0 = ptr_get_byte(iadd(csv_cstr, tok_start + 0))
+                if b0 >= 97 && b0 <= 122 { b0 = b0 - 32 }
+
+                if tok_len == 2 {
+                    var b1 = ptr_get_byte(iadd(csv_cstr, tok_start + 1))
+                    if b1 >= 97 && b1 <= 122 { b1 = b1 - 32 }
+                    // FS
+                    if b0 == 70 && b1 == 83 { mask = mask | CAP_FS }
+                } else {
+                    if tok_len == 3 {
+                        var b1a = ptr_get_byte(iadd(csv_cstr, tok_start + 1))
+                        var b2a = ptr_get_byte(iadd(csv_cstr, tok_start + 2))
+                        if b1a >= 97 && b1a <= 122 { b1a = b1a - 32 }
+                        if b2a >= 97 && b2a <= 122 { b2a = b2a - 32 }
+                        // NET / ENV
+                        if b0 == 78 && b1a == 69 && b2a == 84 {
+                            mask = mask | CAP_NET
+                        } else {
+                            if b0 == 69 && b1a == 78 && b2a == 86 { mask = mask | CAP_ENV }
+                        }
+                    } else {
+                        if tok_len == 4 {
+                            var b1b = ptr_get_byte(iadd(csv_cstr, tok_start + 1))
+                            var b2b = ptr_get_byte(iadd(csv_cstr, tok_start + 2))
+                            var b3b = ptr_get_byte(iadd(csv_cstr, tok_start + 3))
+                            if b1b >= 97 && b1b <= 122 { b1b = b1b - 32 }
+                            if b2b >= 97 && b2b <= 122 { b2b = b2b - 32 }
+                            if b3b >= 97 && b3b <= 122 { b3b = b3b - 32 }
+                            // PROC / TIME
+                            if b0 == 80 && b1b == 82 && b2b == 79 && b3b == 67 {
+                                mask = mask | CAP_PROC
+                            } else {
+                                if b0 == 84 && b1b == 73 && b2b == 77 && b3b == 69 { mask = mask | CAP_TIME }
+                            }
+                        }
+                    }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return mask
+}
+
+fn native_runtime_capsule_init() {
+    // Initialize runtime capsule enforcement from env:
+    // - OREN_CAPSULE=1 enables deny-by-default enforcement for host-effectful APIs.
+    // - OREN_CAP_ALLOW_DOMAINS="FS,NET,PROC,ENV,TIME" enrolls domains.
+    //
+    // Defaults (non-capsule): allow everything (mask ignored).
+    global_set_capsule_mode(0)
+    global_set_cap_allow_mask(0)
+
+    var k_capsule = "OREN_CAPSULE"
+    var v_capsule = native_envp_get_value_ptr(k_capsule)
+    if v_capsule == 0 { return 0 }
+    if ptr_get_byte(v_capsule) == 0 { return 0 }
+    if ptr_get_byte(v_capsule) == 48 { return 0 } // '0'
+
+    global_set_capsule_mode(1)
+
+    var k_allow = "OREN_CAP_ALLOW_DOMAINS"
+    var v_allow = native_envp_get_value_ptr(k_allow)
+    if v_allow == 0 {
+        global_set_cap_allow_mask(0)
+        return 0
+    }
+    var mask = native_parse_cap_allow_mask(v_allow)
+    global_set_cap_allow_mask(mask)
+    return 0
+}
+
+fn native_capsule_require(mask_bit, name) {
+    if global_get_capsule_mode() != 1 { return 0 }
+    var allow = global_get_cap_allow_mask()
+    if (allow & mask_bit) != 0 { return 0 }
+    print("CAPSULE DENY: " + name)
+    exit(77)
+    return 0
+}
+
 // --- ENV (syscall-free; reads process initial envp block) ---
 //
 // Returns pointer to value substring for KEY in envp ("KEY=VALUE"), or 0 if not found.
 // NOTE: This returns a pointer into the process environment strings (not a copy).
 @cap.requires(domain="ENV")
 fn oren_getenv(key) {
+    native_capsule_require(CAP_ENV, "ENV")
     // Keep this leaf-like (no calls) to avoid any cross-call local slot issues
     // while the native backend ABI is still rolling.
     if key == 0 { return 0 }
@@ -376,12 +559,14 @@ fn oren_getenv(key) {
 // Returns 0 on success, or -errno.
 @cap.requires(domain="TIME")
 fn oren_sleep_ns(ns) {
+    native_capsule_require(CAP_TIME, "TIME")
     if ns <= 0 { return 0 }
     return sys_nanosleep(ns)
 }
 
 @cap.requires(domain="TIME")
 fn oren_sleep_ms(ms) {
+    native_capsule_require(CAP_TIME, "TIME")
     if ms <= 0 { return 0 }
     // ms -> ns
     return sys_nanosleep(ms * 1000000)
@@ -472,8 +657,10 @@ fn native_runtime_init_gc_mode(default_enabled) {
 
     // Runtime override: allow disabling GC via environment variable.
     // Any non-empty value disables scanning/collection.
-    var v = oren_getenv("OREN_NO_GC")
-    if v != 0 { g_gc_enabled = 0 }
+    var v = native_envp_get_value_ptr("OREN_NO_GC")
+    if v != 0 {
+        if ptr_get_byte(v) != 0 { g_gc_enabled = 0 }
+    }
     return 0
 }
 
@@ -2170,6 +2357,7 @@ fn oren_args() {
 
 @cap.requires(domain="FS")
 fn oren_write_bytes(path, bytes) {
+    native_capsule_require(CAP_FS, "FS")
     var fd = sys_open(path, 1537, 420) // O_WRONLY|O_CREAT|O_TRUNC, 0644
     if fd < 0 { exit(260) }
 
@@ -2204,6 +2392,7 @@ fn oren_write_bytes(path, bytes) {
 
 @cap.requires(domain="FS")
 fn oren_read_bytes(path) {
+    native_capsule_require(CAP_FS, "FS")
     var fd = sys_open(path, 0, 0) // O_RDONLY
     if fd < 0 { exit(262) }
 
@@ -2321,6 +2510,7 @@ fn oren_tcp_sockaddr_in(ip, port) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_set_nonblock(fd) {
+    native_capsule_require(CAP_NET, "NET")
     var flags = sys_fcntl(fd, 3, 0) // F_GETFL
     if flags < 0 { return flags }
     var r = sys_fcntl(fd, 4, flags | 4) // F_SETFL, O_NONBLOCK
@@ -2329,6 +2519,7 @@ fn oren_tcp_set_nonblock(fd) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
     // Returns 1 if ready, 0 if timed out, or negative errno.
     if timeout_ms < 0 { timeout_ms = 0 }
     var kq = sys_kqueue()
@@ -2386,6 +2577,7 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
     var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
     if fd < 0 { return fd }
 
@@ -2495,6 +2687,7 @@ fn oren_tcp_listen_local(port) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_accept(listen_fd, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
     var n = oren_tcp_wait_kqueue(listen_fd, -1, timeout_ms) // EVFILT_READ
     if n == 0 { return 0 - 60 } // ETIMEDOUT
     if n < 0 { return n }
@@ -2503,6 +2696,7 @@ fn oren_tcp_accept(listen_fd, timeout_ms) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
     var n = oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
     if n == 0 { return 0 - 60 } // ETIMEDOUT
@@ -2514,6 +2708,7 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
     var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
     if n == 0 { return 0 - 60 } // ETIMEDOUT
@@ -2523,6 +2718,7 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
 
 @cap.requires(domain="NET")
 fn oren_tcp_close(fd) {
+    native_capsule_require(CAP_NET, "NET")
     if fd < 0 { return 0 }
     // best-effort shutdown; ignore errors
     sys_shutdown(fd, 2) // SHUT_RDWR
@@ -2533,6 +2729,7 @@ fn oren_tcp_close(fd) {
 // --- Threads ---
 @cap.requires(domain="PROC")
 fn oren_system(cmd) {
+    native_capsule_require(CAP_PROC, "PROC")
     return oren_system_timeout(cmd, -1)
 }
 

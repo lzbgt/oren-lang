@@ -339,6 +339,51 @@ fn run_repo_tests(target, no_gc) {
         oren_exit(1)
     }
 
+    // Capsule mode (native runtime): defense-in-depth enforcement should deny host effects
+    // at runtime when OREN_CAPSULE=1, even if the program was compiled without --capsule.
+    var cap_rt_out = "build/capsule_runtime_fs_prog"
+    var cap_rt_log = "build/logs/capsule_runtime_fs_prog_build.log"
+    var cap_rt_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_rt_out) + gc_arg
+    var cap_rt_rc = run_shell_capture(timeout_bin, build_timeout, cap_rt_cmd, cap_rt_log)
+    if cap_rt_rc != 0 || file_exists(cap_rt_out) != true {
+        print("native failed: capsule_runtime_fs_prog (build)")
+        oren_system("cat " + shell_quote(cap_rt_log))
+        oren_exit(1)
+    }
+
+    // Run under capsule without FS: must fail and must not create the file.
+    oren_system("rm -f build/capsule_runtime_fs_prog.bin")
+    var cap_rt_run_log = "build/logs/capsule_runtime_fs_prog_run_deny.log"
+    var cap_rt_run_cmd = "OREN_CAPSULE=1 ./" + cap_rt_out
+    var cap_rt_run_rc = run_shell_capture(timeout_bin, run_timeout, cap_rt_run_cmd, cap_rt_run_log)
+    if cap_rt_run_rc == 0 {
+        print("native failed: capsule_runtime_fs_prog (expected runtime capsule deny)")
+        oren_system("cat " + shell_quote(cap_rt_run_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -f " + shell_quote("build/capsule_runtime_fs_prog.bin")) {
+        print("native failed: capsule_runtime_fs_prog (deny mode wrote file unexpectedly)")
+        oren_system("cat " + shell_quote(cap_rt_run_log))
+        oren_exit(1)
+    }
+
+    // Run under capsule with FS enrolled: should succeed and create the file.
+    var cap_rt_run_ok_log = "build/logs/capsule_runtime_fs_prog_run_allow.log"
+    var cap_rt_run_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_rt_out
+    var cap_rt_run_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_rt_run_ok_cmd, cap_rt_run_ok_log)
+    if cap_rt_run_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_prog (expected runtime capsule allow)")
+        oren_system("cat " + shell_quote(cap_rt_run_ok_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -f " + shell_quote("build/capsule_runtime_fs_prog.bin")) != true {
+        print("native failed: capsule_runtime_fs_prog (allow mode did not write file)")
+        oren_system("cat " + shell_quote(cap_rt_run_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_rt_out))
+
     // --- Native tests ---
     var n_pass = 0
     var n_total = oren_list_len(native_tests)

@@ -1,0 +1,6 @@
+fn main() {
+    // Used by the repo test runner to verify runtime capsule enforcement.
+    // Running with OREN_CAPSULE=1 must deny FS unless explicitly enrolled.
+    oren_write_bytes("build/capsule_runtime_fs_prog.bin", [1, 2, 3])
+    print("wrote")
+}

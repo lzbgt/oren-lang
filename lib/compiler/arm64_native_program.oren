@@ -659,6 +659,12 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
 
+    // Initialize runtime capsule mode (defense-in-depth; runtime-side deny-by-default).
+    // This reads envp and sets global capsule flags/mask before user code runs.
+    var bl_capsule = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
+
     // Initialize GC mode for the native runtime (two-mode GC):
     // - default enabled unless compiled with `--no-gc`
     // - runtime env override: OREN_NO_GC=1 disables scanning
