@@ -562,6 +562,117 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_mr_out) + " " + shell_quote(cap_mw_out) + " build/mnt_host/in.txt build/mnt_host/out.bin")
 
+    // Additional raw sys_* FS bypass checks: mkdir/rename/unlink.
+    //
+    // mkdir:
+    var cap_fs_sm_out = "build/capsule_runtime_fs_syscall_mkdir_prog"
+    var cap_fs_sm_log = "build/logs/capsule_runtime_fs_syscall_mkdir_prog_build.log"
+    var cap_fs_sm_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_mkdir_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_sm_out) + gc_arg
+    var cap_fs_sm_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_sm_cmd, cap_fs_sm_log)
+    if cap_fs_sm_rc != 0 || file_exists(cap_fs_sm_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_mkdir_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_sm_log))
+        oren_exit(1)
+    }
+    oren_system("rm -rf build/mnt_host/subdir")
+    var cap_fs_sm_deny_log = "build/logs/capsule_runtime_fs_syscall_mkdir_prog_run_deny.log"
+    var cap_fs_sm_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_fs_sm_out
+    var cap_fs_sm_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sm_deny_cmd, cap_fs_sm_deny_log)
+    if cap_fs_sm_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_mkdir_prog (expected runtime capsule deny: write mount missing)")
+        oren_system("cat " + shell_quote(cap_fs_sm_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_sm_ok_log = "build/logs/capsule_runtime_fs_syscall_mkdir_prog_run_allow.log"
+    var cap_fs_sm_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_WRITE=v/=build/mnt_host/ ./" + cap_fs_sm_out
+    var cap_fs_sm_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sm_ok_cmd, cap_fs_sm_ok_log)
+    if cap_fs_sm_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_mkdir_prog (expected runtime capsule allow: write mount)")
+        oren_system("cat " + shell_quote(cap_fs_sm_ok_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -d " + shell_quote("build/mnt_host/subdir")) != true {
+        print("native failed: capsule_runtime_fs_syscall_mkdir_prog (expected host dir created)")
+        oren_system("cat " + shell_quote(cap_fs_sm_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_sm_out))
+    oren_system("rm -rf build/mnt_host/subdir")
+
+    // rename:
+    var cap_fs_sr_out = "build/capsule_runtime_fs_syscall_rename_prog"
+    var cap_fs_sr_log = "build/logs/capsule_runtime_fs_syscall_rename_prog_build.log"
+    var cap_fs_sr_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_rename_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_sr_out) + gc_arg
+    var cap_fs_sr_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_sr_cmd, cap_fs_sr_log)
+    if cap_fs_sr_rc != 0 || file_exists(cap_fs_sr_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_rename_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_sr_log))
+        oren_exit(1)
+    }
+    oren_system("printf A > build/mnt_host/a.txt")
+    oren_system("rm -f build/mnt_host/b.txt")
+    var cap_fs_sr_deny_log = "build/logs/capsule_runtime_fs_syscall_rename_prog_run_deny.log"
+    var cap_fs_sr_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_fs_sr_out
+    var cap_fs_sr_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sr_deny_cmd, cap_fs_sr_deny_log)
+    if cap_fs_sr_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_rename_prog (expected runtime capsule deny: write mount missing)")
+        oren_system("cat " + shell_quote(cap_fs_sr_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_sr_ok_log = "build/logs/capsule_runtime_fs_syscall_rename_prog_run_allow.log"
+    var cap_fs_sr_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_WRITE=v/=build/mnt_host/ ./" + cap_fs_sr_out
+    var cap_fs_sr_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sr_ok_cmd, cap_fs_sr_ok_log)
+    if cap_fs_sr_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_rename_prog (expected runtime capsule allow: write mount)")
+        oren_system("cat " + shell_quote(cap_fs_sr_ok_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -f " + shell_quote("build/mnt_host/b.txt")) != true {
+        print("native failed: capsule_runtime_fs_syscall_rename_prog (expected host file renamed)")
+        oren_system("cat " + shell_quote(cap_fs_sr_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_sr_out) + " build/mnt_host/a.txt build/mnt_host/b.txt")
+
+    // unlink:
+    var cap_fs_su_out = "build/capsule_runtime_fs_syscall_unlink_prog"
+    var cap_fs_su_log = "build/logs/capsule_runtime_fs_syscall_unlink_prog_build.log"
+    var cap_fs_su_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_unlink_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_su_out) + gc_arg
+    var cap_fs_su_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_su_cmd, cap_fs_su_log)
+    if cap_fs_su_rc != 0 || file_exists(cap_fs_su_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_unlink_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_su_log))
+        oren_exit(1)
+    }
+    oren_system("printf D > build/mnt_host/del.txt")
+    var cap_fs_su_deny_log = "build/logs/capsule_runtime_fs_syscall_unlink_prog_run_deny.log"
+    var cap_fs_su_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/ ./" + cap_fs_su_out
+    var cap_fs_su_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_su_deny_cmd, cap_fs_su_deny_log)
+    if cap_fs_su_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_unlink_prog (expected runtime capsule deny: write mount missing)")
+        oren_system("cat " + shell_quote(cap_fs_su_deny_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -f " + shell_quote("build/mnt_host/del.txt")) != true {
+        print("native failed: capsule_runtime_fs_syscall_unlink_prog (deny mode unexpectedly removed host file)")
+        oren_system("cat " + shell_quote(cap_fs_su_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_su_ok_log = "build/logs/capsule_runtime_fs_syscall_unlink_prog_run_allow.log"
+    var cap_fs_su_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_WRITE=v/=build/mnt_host/ ./" + cap_fs_su_out
+    var cap_fs_su_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_su_ok_cmd, cap_fs_su_ok_log)
+    if cap_fs_su_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_unlink_prog (expected runtime capsule allow: write mount)")
+        oren_system("cat " + shell_quote(cap_fs_su_ok_log))
+        oren_exit(1)
+    }
+    if cmd_ok("test -f " + shell_quote("build/mnt_host/del.txt")) == true {
+        print("native failed: capsule_runtime_fs_syscall_unlink_prog (expected host file removed)")
+        oren_system("cat " + shell_quote(cap_fs_su_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_su_out) + " build/mnt_host/del.txt")
+
     // Capsule NET allowlist (native runtime): deny-by-default endpoint enrollment.
     // Connect:
     // - no enrollment -> deny

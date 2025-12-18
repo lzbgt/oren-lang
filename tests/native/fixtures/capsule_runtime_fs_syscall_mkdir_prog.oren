@@ -1,0 +1,9 @@
+fn main() {
+    // Raw sys_mkdir capsule FS test:
+    // - In capsule mode, sys_mkdir must be enforced at syscall boundary (no bypass).
+    // - With OREN_FS_MOUNTS_WRITE=v/=... and allow domains FS, mkdir("v/subdir") should be allowed.
+    var rc = sys_mkdir("v/subdir", 493) // 0755
+    if rc < 0 { exit(2) }
+    print("ok")
+}
+

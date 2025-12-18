@@ -19,7 +19,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Next enrollments (beyond domain bitmask):
       - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
       - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
-      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (unlink/rename/mkdir/etc), then mounts UX polish + virtual mount mirroring (native/AVM)
+      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir; next: rmdir/stat/readdir/etc), then mounts UX polish + virtual mount mirroring (native/AVM)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.
@@ -52,3 +52,4 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 - Native capsule NET: enforce capability checks at raw `sys_*` NET boundary (no bypass), add `OREN_NET_TCP_*_MAP`, add per-fd NET capability tags.
 - Native capsule PROC: enforce capability checks at raw `sys_*` PROC boundary (no bypass), force capsule envp on execve, restrict wait/kill to owned child pids.
 - Native capsule FS: enforce syscall-boundary checks for `sys_open` (no bypass), including mount-enrolled host path allow and virtual->host resolution.
+- Native capsule FS: add syscall-boundary checks for `sys_unlink/sys_rename/sys_mkdir` (no bypass) + canonical tests.

@@ -1,0 +1,9 @@
+fn main() {
+    // Raw sys_unlink capsule FS test:
+    // - In capsule mode, sys_unlink must be enforced at syscall boundary (no bypass).
+    // - With OREN_FS_MOUNTS_WRITE=v/=... and allow domains FS, unlinking "v/del.txt" should be allowed.
+    var rc = sys_unlink("v/del.txt")
+    if rc < 0 { exit(2) }
+    print("ok")
+}
+
