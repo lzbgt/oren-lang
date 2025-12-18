@@ -1,0 +1,33 @@
+fn string_eq(a, b) {
+    if a == 0 { return false }
+    if b == 0 { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if ptr_get_byte(a + i) != ptr_get_byte(b + i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn list_contains(list, s) {
+    var n = oren_list_len(list)
+    var i = 0
+    while i < n {
+        if string_eq(oren_list_get(list, i), s) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn main() {
+    // Runtime-level readdir test (built on sys_getdirentries64):
+    // - must be capsule-safe (path resolution + syscalls).
+    // - must return names including "in.txt".
+    var names = oren_readdir("v/dir")
+    if names == 0 { exit(2) }
+    if list_contains(names, "in.txt") != true { exit(3) }
+    print("ok")
+}

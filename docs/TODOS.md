@@ -19,7 +19,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
    - Next enrollments (beyond domain bitmask):
       - **DONE NET:** enforce caps at raw `sys_*` boundary (no bypass), add vnet-style endpoint mapping, add per-socket fd capabilities
       - **DONE PROC:** enforce caps at raw `sys_*` boundary (no bypass); force capsule envp on execve; restrict wait/kill to owned child pids
-      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir/access/rmdir/stat/lstat/fstat/getdirentries64; next: readdir/getcwd/realpath/etc), then mounts UX polish + virtual mount mirroring (native/AVM)
+      - **FS:** finish syscall-boundary enforcement beyond `sys_open` (DONE: unlink/rename/mkdir/access/rmdir/stat/lstat/fstat/getdirentries64 + runtime readdir; next: getcwd/realpath/etc), then mounts UX polish + virtual mount mirroring (native/AVM)
 
 2) **P0 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
    - Define cast semantics (truncate vs checked) and ensure consistent behavior across native/C/AVM.
@@ -46,6 +46,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (≈5–1
 
 - Native capsule OS boundary: enforce NET/PROC/FS at raw `sys_*` (no bypass), with enrollment mapping + curated tests.
   - FS coverage includes `sys_open`, `sys_unlink`, `sys_rename`, `sys_mkdir`, `sys_access`, `sys_rmdir`, `sys_stat`, `sys_lstat`, `sys_fstat`, `sys_getdirentries64` (macOS uses `stat64`=338).
+  - Added runtime `oren_readdir(path)` built on `sys_getdirentries64` (portable parsing heuristics).
 - AVM multiverse: nested universes inherit VirtualFS and host FS restrictions.
 - AVM host FS mounts: `--fs-mounts[-read|-write]` maps virtual paths to enrolled host prefixes.
 - AVM float64: `.obc` FLOAT consts + `* /` ops, mixed numeric comparisons, canonical float ops test.
