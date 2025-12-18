@@ -168,6 +168,7 @@ tests/native/test_list_append_grow.oren \
 tests/native/test_nested_containers.oren \
 tests/native/test_net_suite.oren \
 tests/native/test_smoke_suite.oren \
+tests/native/test_syscall_errno.oren \
 tests/native/test_no_gc_mode.oren \
 tests/native/test_pipe_direct.oren \
 tests/native/test_plus_string.oren \

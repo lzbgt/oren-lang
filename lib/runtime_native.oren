@@ -1968,13 +1968,25 @@ fn oren_write_bytes(path, bytes) {
         var i = 0
         while i < n {
             // bytes[i] is an int 0..255
-            ptr_set_byte(buf + i, bytes[i])
+            var v = bytes[i]
+            if v < 0 { sys_close(fd); exit(264) }
+            if v > 255 { sys_close(fd); exit(265) }
+            ptr_set_byte(buf + i, v)
             i = i + 1
         }
-        sys_write(fd, buf, n)
+        // Handle short writes and propagate errno deterministically.
+        var off = 0
+        while off < n {
+            var wn = sys_write(fd, buf + off, n - off)
+            if wn < 0 { sys_close(fd); exit(266) }
+            if wn == 0 { sys_close(fd); exit(267) } // can't make progress
+            off = off + wn
+        }
+        free(buf)
     }
 
-    sys_close(fd)
+    var crc = sys_close(fd)
+    if crc < 0 { exit(268) }
     return 0
 }
 
@@ -1986,19 +1998,20 @@ fn oren_read_bytes(path) {
     var buf = malloc(4096)
     if buf == 0 { exit(263) }
 
-    var n = 1
-    while n > 0 {
-        n = sys_read(fd, buf, 4096)
-        if n > 0 {
-            var i = 0
-            while i < n {
-                oren_list_push(out, ptr_get_byte(buf + i))
-                i = i + 1
-            }
+    while 1 {
+        var rn = sys_read(fd, buf, 4096)
+        if rn == 0 { break } // EOF
+        if rn < 0 { sys_close(fd); exit(269) } // errno propagated by syscall lowering
+        var i = 0
+        while i < rn {
+            oren_list_push(out, ptr_get_byte(buf + i))
+            i = i + 1
         }
     }
 
-    sys_close(fd)
+    free(buf)
+    var crc = sys_close(fd)
+    if crc < 0 { exit(270) }
     return out
 }
 

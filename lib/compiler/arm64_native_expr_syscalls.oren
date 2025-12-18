@@ -128,10 +128,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_svc(svc_imm))
             if is_macos {
                 // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
-                // Normalize to X0 = -1 for runtime logic that checks `< 0` / `<= 0`.
+                // Normalize to X0 = -errno for syscall-first code that checks for negative errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
-                push_u32_le(ctx["code"], insn_movn(0, 0)) // X0 = -1
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = 0 - errno = -errno
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
@@ -182,10 +182,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
             push_u32_le(ctx["code"], insn_svc(svc_imm))
             if is_macos {
-                // Normalize macOS syscall error (carry set, X0=errno) to X0 = -1.
+                // Normalize macOS syscall error (carry set, X0=errno) to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
-                push_u32_le(ctx["code"], insn_movn(0, 0)) // X0 = -1
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
@@ -312,10 +312,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 80
             if is_macos {
-                // Normalize macOS syscall error to X0 = -1.
+                // Normalize macOS syscall error to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
-                push_u32_le(ctx["code"], insn_movn(0, 0)) // X0 = -1
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }

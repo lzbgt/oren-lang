@@ -1,0 +1,35 @@
+fn fail(code) {
+    print("syscall errno: FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn main() {
+    // Regression: syscall-first error convention should be consistent:
+    // - on macOS, sys_* intrinsics must normalize kernel errors to negative errno
+    //   (not just -1), because the runtime and stdlib use negative errno as data.
+    //
+    // We trigger EBADF by reading/writing/closing an invalid fd.
+    // EBADF is errno 9 on macOS and Linux.
+
+    var buf = malloc(8)
+    if buf == 0 { fail(10) }
+    ptr_set(buf, 0)
+
+    // sys_read on invalid fd => -EBADF
+    var r = sys_read(-1, buf, 1)
+    if r != 0 - 9 { fail(20) }
+
+    // sys_write on invalid fd => -EBADF
+    var w = sys_write(-1, buf, 1)
+    if w != 0 - 9 { fail(30) }
+
+    // sys_close on invalid fd => -EBADF
+    var c = sys_close(-1)
+    if c != 0 - 9 { fail(40) }
+
+    print("syscall errno OK")
+    exit(0)
+}
+
+main()
+

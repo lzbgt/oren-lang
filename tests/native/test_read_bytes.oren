@@ -5,7 +5,17 @@ fn fail(code) {
 
 fn main() {
     var path = "build/native_test_read_bytes.bin"
-    var bytes = [0, 1, 0, 2, 255, 128, 64, 0, 10]
+    // Use a slightly larger payload to exercise chunked sys_read loops.
+    // Include 0x00 and 0xFF to ensure binary-safe roundtrip.
+    var bytes = []
+    var i = 0
+    while i < 10000 {
+        var v = i & 255
+        if i == 123 { v = 0 }
+        if i == 456 { v = 255 }
+        oren_list_push(bytes, v)
+        i = i + 1
+    }
     oren_write_bytes(path, bytes)
 
     var out = oren_read_bytes(path)
@@ -18,6 +28,7 @@ fn main() {
     }
 
     print("native read_bytes OK")
+    exit(0)
 }
 
 main()

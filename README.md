@@ -63,7 +63,8 @@ Authoritative specs/strategy docs:
 ```bash
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler (default target)
-make test       # native + module + AVM bytecode tests
+make test       # curated native + module + AVM bytecode tests (wrapper over `./oren test`)
+make test-legacy # broader Makefile-driven suite (slower)
 make verify     # clean + stage2 self-hosting verification
 ```
 
