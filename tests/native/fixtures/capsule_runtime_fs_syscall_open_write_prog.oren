@@ -3,7 +3,8 @@ fn main() {
     // - In capsule mode, sys_open must be enforced at syscall boundary (no bypass).
     // - With OREN_FS_MOUNTS_WRITE=v/=... and allow domains FS, opening "v/out.bin" for write should be allowed.
     // - Without write mount enrollment, it should be denied.
-    var fd = sys_open("v/out.bin", 769, 420) // WRONLY|CREAT|TRUNC (Oren-level flags), 0644
+    var flags = 1 | OREN_O_CREAT | OREN_O_TRUNC // WRONLY|CREAT|TRUNC (Oren-level flags)
+    var fd = sys_open("v/out.bin", flags, 420) // 0644
     if fd < 0 { exit(2) }
     var buf = malloc(1)
     if buf == 0 { exit(3) }
