@@ -15,6 +15,16 @@ struct S16 {
     x: i16be
 }
 
+@oren.packed
+struct U64 {
+    x: u64be
+}
+
+@oren.packed
+struct S64 {
+    x: i64be
+}
+
 // PV2 reads
 var b = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
 if pack_view("H", b, 0).v != 69 { exit(1) }
@@ -28,6 +38,12 @@ if pack_view("H", b2, 1).dst != 134744072 { exit(5) }
 var bn = [255, 254]
 if pack_view("S16", bn, 0).x != -2 { exit(6) }
 
+var bu64 = [0, 0, 0, 0, 0, 0, 0, 5]
+if pack_view("U64", bu64, 0).x != 5 { exit(61) }
+
+var bi64 = [255, 255, 255, 255, 255, 255, 255, 254]
+if pack_view("S64", bi64, 0).x != -2 { exit(62) }
+
 // PV3 writes
 var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 pack_view("H", out, 0).v = 69
@@ -40,6 +56,14 @@ if pack_view("H", out, 0).dst != 134744072 { exit(7) }
 var outn = [0, 0]
 pack_view("S16", outn, 0).x = -2
 if pack_view("S16", outn, 0).x != -2 { exit(8) }
+
+var outu64 = [0, 0, 0, 0, 0, 0, 0, 0]
+pack_view("U64", outu64, 0).x = 5
+if pack_view("U64", outu64, 0).x != 5 { exit(81) }
+
+var outi64 = [0, 0, 0, 0, 0, 0, 0, 0]
+pack_view("S64", outi64, 0).x = -2
+if pack_view("S64", outi64, 0).x != -2 { exit(82) }
 
 print("module pack_view OK")
 exit(0)

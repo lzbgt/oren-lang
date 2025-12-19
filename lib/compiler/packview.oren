@@ -25,6 +25,7 @@ fn starts_with(s, prefix) {
 // - u8, i8
 // - u16be, u16le, i16be, i16le
 // - u32be, u32le, i32be, i32le
+// - u64be, u64le, i64be, i64le
 //
 // Reserved type attr:
 // - @oren.packed
@@ -65,6 +66,7 @@ fn field_kind(fid) {
         if n == "oren.u8" || n == "oren.i8" { is_kind = true }
         if n == "oren.u16be" || n == "oren.u16le" || n == "oren.i16be" || n == "oren.i16le" { is_kind = true }
         if n == "oren.u32be" || n == "oren.u32le" || n == "oren.i32be" || n == "oren.i32le" { is_kind = true }
+        if n == "oren.u64be" || n == "oren.u64le" || n == "oren.i64be" || n == "oren.i64le" { is_kind = true }
 
         if is_kind {
             if kind != nil && kind != n { return "__MULTIPLE__" }
@@ -80,6 +82,7 @@ fn kind_size(kind) {
     if kind == "u8" || kind == "i8" { return 1 }
     if kind == "u16be" || kind == "u16le" || kind == "i16be" || kind == "i16le" { return 2 }
     if kind == "u32be" || kind == "u32le" || kind == "i32be" || kind == "i32le" { return 4 }
+    if kind == "u64be" || kind == "u64le" || kind == "i64be" || kind == "i64le" { return 8 }
     return 0
 }
 
@@ -178,6 +181,53 @@ fn build_read_expr(kind, bytes_expr, base_idx) {
         return sub_expr(bxor_expr(u4, "2147483648"), "2147483648")
     }
 
+    if kind == "u64be" || kind == "i64be" {
+        var e0 = u8_at(bytes_expr, base_idx, 0)
+        var e1 = u8_at(bytes_expr, base_idx, 1)
+        var e2 = u8_at(bytes_expr, base_idx, 2)
+        var e3 = u8_at(bytes_expr, base_idx, 3)
+        var e4 = u8_at(bytes_expr, base_idx, 4)
+        var e5 = u8_at(bytes_expr, base_idx, 5)
+        var e6 = u8_at(bytes_expr, base_idx, 6)
+        var e7 = u8_at(bytes_expr, base_idx, 7)
+        var u5 = bor_expr(
+            bor_expr(
+                bor_expr(shl_expr(e0, 56), shl_expr(e1, 48)),
+                bor_expr(shl_expr(e2, 40), shl_expr(e3, 32))
+            ),
+            bor_expr(
+                bor_expr(shl_expr(e4, 24), shl_expr(e5, 16)),
+                bor_expr(shl_expr(e6, 8), e7)
+            )
+        )
+        if kind == "u64be" { return u5 }
+        // sign-extend via ((u ^ MIN_I64) - MIN_I64) where MIN_I64 = -9223372036854775808
+        return sub_expr(bxor_expr(u5, "-9223372036854775808"), "-9223372036854775808")
+    }
+
+    if kind == "u64le" || kind == "i64le" {
+        var f0 = u8_at(bytes_expr, base_idx, 0)
+        var f1 = u8_at(bytes_expr, base_idx, 1)
+        var f2 = u8_at(bytes_expr, base_idx, 2)
+        var f3 = u8_at(bytes_expr, base_idx, 3)
+        var f4 = u8_at(bytes_expr, base_idx, 4)
+        var f5 = u8_at(bytes_expr, base_idx, 5)
+        var f6 = u8_at(bytes_expr, base_idx, 6)
+        var f7 = u8_at(bytes_expr, base_idx, 7)
+        var u6 = bor_expr(
+            bor_expr(
+                bor_expr(shl_expr(f7, 56), shl_expr(f6, 48)),
+                bor_expr(shl_expr(f5, 40), shl_expr(f4, 32))
+            ),
+            bor_expr(
+                bor_expr(shl_expr(f3, 24), shl_expr(f2, 16)),
+                bor_expr(shl_expr(f1, 8), f0)
+            )
+        )
+        if kind == "u64le" { return u6 }
+        return sub_expr(bxor_expr(u6, "-9223372036854775808"), "-9223372036854775808")
+    }
+
     return nil
 }
 
@@ -214,7 +264,7 @@ fn build_write_calls(kind, bytes_expr, base_idx, val_expr) {
     var i = 0
     while i < sz {
         var shift = 0
-        if kind == "u16be" || kind == "i16be" || kind == "u32be" || kind == "i32be" {
+        if kind == "u16be" || kind == "i16be" || kind == "u32be" || kind == "i32be" || kind == "u64be" || kind == "i64be" {
             shift = (sz - 1 - i) * 8
         } else {
             // le + 8-bit

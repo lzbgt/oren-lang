@@ -93,3 +93,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM: added `AVM_ENABLE_SIMD=1` runtime opt-in + NEON implementations for `f32` elementwise `_into` kernels; validated via `oretest` running smoke+snapshot-resume in both scalar and SIMD modes on arm64.
 - AVM: added determinism-safe NEON reductions for `f32` (`dot`/`reduce_sum`), preserving the scalar “compute in f64, accumulate in fixed order” semantics; smoke suite includes a len=8 SIMD coverage block.
 - Compiler: promoted fixed-width type names (`u8/i32/f64/u16be/...`) to dedicated lexer tokens while keeping them identifier-like in expressions/dotted names; parser supports `name: Type` for vars/params/fields/for-in and `fn f(...): Ret {}` for return annotations.
+- Compiler: extended `@oren.packed` `pack_view` lowering to support 64-bit endian-aware fields (`u64be/u64le/i64be/i64le`) with PV2 reads and PV3 writes covered by the module pack_view regression.
