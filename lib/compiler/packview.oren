@@ -19,7 +19,7 @@ fn starts_with(s, prefix) {
 // Design goals:
 // - compile-time only: no runtime reflection
 // - no allocation: reads lower to byte loads + shifts
-// - portable across backends: rely only on `oren_bytes_get_u8(bytes, idx)`
+// - portable across backends: rely only on stable `oren_bytes_get_*` / `oren_bytes_set_*` helpers
 //
 // Supported field type annotations (v0, compile-time only):
 // - u8, i8
@@ -122,6 +122,19 @@ fn bytes_get_u8(bytes_expr, idx_expr) {
     return call0("oren_bytes_get_u8", [bytes_expr, idx_expr])
 }
 
+fn bytes_get_u16_be(bytes_expr, idx_expr) { return call0("oren_bytes_get_u16_be", [bytes_expr, idx_expr]) }
+fn bytes_get_u16_le(bytes_expr, idx_expr) { return call0("oren_bytes_get_u16_le", [bytes_expr, idx_expr]) }
+fn bytes_get_i16_be(bytes_expr, idx_expr) { return call0("oren_bytes_get_i16_be", [bytes_expr, idx_expr]) }
+fn bytes_get_i16_le(bytes_expr, idx_expr) { return call0("oren_bytes_get_i16_le", [bytes_expr, idx_expr]) }
+fn bytes_get_u32_be(bytes_expr, idx_expr) { return call0("oren_bytes_get_u32_be", [bytes_expr, idx_expr]) }
+fn bytes_get_u32_le(bytes_expr, idx_expr) { return call0("oren_bytes_get_u32_le", [bytes_expr, idx_expr]) }
+fn bytes_get_i32_be(bytes_expr, idx_expr) { return call0("oren_bytes_get_i32_be", [bytes_expr, idx_expr]) }
+fn bytes_get_i32_le(bytes_expr, idx_expr) { return call0("oren_bytes_get_i32_le", [bytes_expr, idx_expr]) }
+fn bytes_get_u64_be(bytes_expr, idx_expr) { return call0("oren_bytes_get_u64_be", [bytes_expr, idx_expr]) }
+fn bytes_get_u64_le(bytes_expr, idx_expr) { return call0("oren_bytes_get_u64_le", [bytes_expr, idx_expr]) }
+fn bytes_get_i64_be(bytes_expr, idx_expr) { return call0("oren_bytes_get_i64_be", [bytes_expr, idx_expr]) }
+fn bytes_get_i64_le(bytes_expr, idx_expr) { return call0("oren_bytes_get_i64_le", [bytes_expr, idx_expr]) }
+
 fn u8_at(bytes_expr, base_idx, delta) {
     if delta == 0 {
         return bytes_get_u8(bytes_expr, base_idx)
@@ -130,7 +143,8 @@ fn u8_at(bytes_expr, base_idx, delta) {
 }
 
 fn build_read_expr(kind, bytes_expr, base_idx) {
-    // Build expression trees in terms of u8 reads + shifts.
+    // Prefer the stable endian helpers (fewer runtime calls + smaller AST),
+    // and fall back to u8 reads + shifts for widths without helpers.
     if kind == "u8" {
         return u8_at(bytes_expr, base_idx, 0)
     }
@@ -139,94 +153,20 @@ fn build_read_expr(kind, bytes_expr, base_idx) {
         return sub_expr(bxor_expr(u8_at(bytes_expr, base_idx, 0), "128"), "128")
     }
 
-    if kind == "u16be" || kind == "i16be" {
-        var b0 = u8_at(bytes_expr, base_idx, 0)
-        var b1 = u8_at(bytes_expr, base_idx, 1)
-        var u = bor_expr(shl_expr(b0, 8), b1)
-        if kind == "u16be" { return u }
-        // sign-extend via ((u ^ 32768) - 32768)
-        return sub_expr(bxor_expr(u, "32768"), "32768")
-    }
-    if kind == "u16le" || kind == "i16le" {
-        var b0 = u8_at(bytes_expr, base_idx, 0)
-        var b1 = u8_at(bytes_expr, base_idx, 1)
-        var u2 = bor_expr(shl_expr(b1, 8), b0)
-        if kind == "u16le" { return u2 }
-        return sub_expr(bxor_expr(u2, "32768"), "32768")
-    }
+    if kind == "u16be" { return bytes_get_u16_be(bytes_expr, base_idx) }
+    if kind == "u16le" { return bytes_get_u16_le(bytes_expr, base_idx) }
+    if kind == "i16be" { return bytes_get_i16_be(bytes_expr, base_idx) }
+    if kind == "i16le" { return bytes_get_i16_le(bytes_expr, base_idx) }
 
-    if kind == "u32be" || kind == "i32be" {
-        var c0 = u8_at(bytes_expr, base_idx, 0)
-        var c1 = u8_at(bytes_expr, base_idx, 1)
-        var c2 = u8_at(bytes_expr, base_idx, 2)
-        var c3 = u8_at(bytes_expr, base_idx, 3)
-        var u3 = bor_expr(
-            bor_expr(shl_expr(c0, 24), shl_expr(c1, 16)),
-            bor_expr(shl_expr(c2, 8), c3)
-        )
-        if kind == "u32be" { return u3 }
-        return sub_expr(bxor_expr(u3, "2147483648"), "2147483648")
-    }
+    if kind == "u32be" { return bytes_get_u32_be(bytes_expr, base_idx) }
+    if kind == "u32le" { return bytes_get_u32_le(bytes_expr, base_idx) }
+    if kind == "i32be" { return bytes_get_i32_be(bytes_expr, base_idx) }
+    if kind == "i32le" { return bytes_get_i32_le(bytes_expr, base_idx) }
 
-    if kind == "u32le" || kind == "i32le" {
-        var d0 = u8_at(bytes_expr, base_idx, 0)
-        var d1 = u8_at(bytes_expr, base_idx, 1)
-        var d2 = u8_at(bytes_expr, base_idx, 2)
-        var d3 = u8_at(bytes_expr, base_idx, 3)
-        var u4 = bor_expr(
-            bor_expr(shl_expr(d3, 24), shl_expr(d2, 16)),
-            bor_expr(shl_expr(d1, 8), d0)
-        )
-        if kind == "u32le" { return u4 }
-        return sub_expr(bxor_expr(u4, "2147483648"), "2147483648")
-    }
-
-    if kind == "u64be" || kind == "i64be" {
-        var e0 = u8_at(bytes_expr, base_idx, 0)
-        var e1 = u8_at(bytes_expr, base_idx, 1)
-        var e2 = u8_at(bytes_expr, base_idx, 2)
-        var e3 = u8_at(bytes_expr, base_idx, 3)
-        var e4 = u8_at(bytes_expr, base_idx, 4)
-        var e5 = u8_at(bytes_expr, base_idx, 5)
-        var e6 = u8_at(bytes_expr, base_idx, 6)
-        var e7 = u8_at(bytes_expr, base_idx, 7)
-        var u5 = bor_expr(
-            bor_expr(
-                bor_expr(shl_expr(e0, 56), shl_expr(e1, 48)),
-                bor_expr(shl_expr(e2, 40), shl_expr(e3, 32))
-            ),
-            bor_expr(
-                bor_expr(shl_expr(e4, 24), shl_expr(e5, 16)),
-                bor_expr(shl_expr(e6, 8), e7)
-            )
-        )
-        if kind == "u64be" { return u5 }
-        // sign-extend via ((u ^ MIN_I64) - MIN_I64) where MIN_I64 = -9223372036854775808
-        return sub_expr(bxor_expr(u5, "-9223372036854775808"), "-9223372036854775808")
-    }
-
-    if kind == "u64le" || kind == "i64le" {
-        var f0 = u8_at(bytes_expr, base_idx, 0)
-        var f1 = u8_at(bytes_expr, base_idx, 1)
-        var f2 = u8_at(bytes_expr, base_idx, 2)
-        var f3 = u8_at(bytes_expr, base_idx, 3)
-        var f4 = u8_at(bytes_expr, base_idx, 4)
-        var f5 = u8_at(bytes_expr, base_idx, 5)
-        var f6 = u8_at(bytes_expr, base_idx, 6)
-        var f7 = u8_at(bytes_expr, base_idx, 7)
-        var u6 = bor_expr(
-            bor_expr(
-                bor_expr(shl_expr(f7, 56), shl_expr(f6, 48)),
-                bor_expr(shl_expr(f5, 40), shl_expr(f4, 32))
-            ),
-            bor_expr(
-                bor_expr(shl_expr(f3, 24), shl_expr(f2, 16)),
-                bor_expr(shl_expr(f1, 8), f0)
-            )
-        )
-        if kind == "u64le" { return u6 }
-        return sub_expr(bxor_expr(u6, "-9223372036854775808"), "-9223372036854775808")
-    }
+    if kind == "u64be" { return bytes_get_u64_be(bytes_expr, base_idx) }
+    if kind == "u64le" { return bytes_get_u64_le(bytes_expr, base_idx) }
+    if kind == "i64be" { return bytes_get_i64_be(bytes_expr, base_idx) }
+    if kind == "i64le" { return bytes_get_i64_le(bytes_expr, base_idx) }
 
     return nil
 }
@@ -254,10 +194,37 @@ fn bytes_set_u8(bytes_expr, idx_expr, val_expr) {
     return call0("oren_bytes_set_u8", [bytes_expr, idx_expr, val_expr])
 }
 
+fn bytes_set_u16_be(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_u16_be", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_u16_le(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_u16_le", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_i16_be(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_i16_be", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_i16_le(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_i16_le", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_u32_be(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_u32_be", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_u32_le(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_u32_le", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_i32_be(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_i32_be", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_i32_le(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_i32_le", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_u64_be(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_u64_be", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_u64_le(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_u64_le", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_i64_be(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_i64_be", [bytes_expr, idx_expr, val_expr]) }
+fn bytes_set_i64_le(bytes_expr, idx_expr, val_expr) { return call0("oren_bytes_set_i64_le", [bytes_expr, idx_expr, val_expr]) }
+
 fn build_write_calls(kind, bytes_expr, base_idx, val_expr) {
     var out = []
     var sz = kind_size(kind)
     if sz <= 0 { return out }
+
+    // Prefer a single stable helper call for multi-byte writes (smaller AST, fewer runtime calls).
+    if kind == "u16be" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_u16_be(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "u16le" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_u16_le(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "i16be" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_i16_be(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "i16le" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_i16_le(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "u32be" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_u32_be(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "u32le" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_u32_le(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "i32be" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_i32_be(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "i32le" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_i32_le(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "u64be" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_u64_be(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "u64le" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_u64_le(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "i64be" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_i64_be(bytes_expr, base_idx, val_expr))); return out }
+    if kind == "i64le" { oren_list_push(out, ast.new_expr_stmt(nil, bytes_set_i64_le(bytes_expr, base_idx, val_expr))); return out }
 
     // For all integer widths (signed/unsigned), write the low `sz` bytes of `val_expr`.
     // This works for negatives too because shifts are defined via u64 semantics in v0.
