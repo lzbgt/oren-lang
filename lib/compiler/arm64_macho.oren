@@ -8,6 +8,85 @@ import abi "arm64_abi_macos.oren"
 //
 // This is intentionally separated from the core arm64 codegen to keep modules SOLID.
 
+// ---- Mach-O constants (repo-owned; no SDK headers) ----
+//
+// Keep numeric constants fact-based and centralized so we don't depend on:
+// - Xcode SDK headers (build dependency)
+// - system-provided Mach-O headers (may change / may not exist in sandboxed environments)
+//
+// See also: docs/refs/* and docs/NATIVE_BACKEND.md
+fn macho_magic_64() { return 4277009103 } // 0xFEEDFACF
+fn macho_cpu_type_arm64() { return 16777228 } // 0x0100000C
+
+fn macho_filetype_execute() { return 2 } // MH_EXECUTE
+fn macho_filetype_dylib() { return 6 } // MH_DYLIB
+
+fn macho_header_flags_pie() { return 2097285 } // MH_NOUNDEFS|MH_DYLDLINK|MH_TWOLEVEL|MH_PIE
+
+fn lc_segment_64() { return 25 } // LC_SEGMENT_64
+fn lc_symtab() { return 2 } // LC_SYMTAB
+fn lc_dyld_info_only() { return 2147483682 } // 0x80000022
+fn lc_load_dylinker() { return 14 } // LC_LOAD_DYLINKER
+fn lc_load_dylib() { return 12 } // LC_LOAD_DYLIB
+fn lc_build_version() { return 50 } // LC_BUILD_VERSION
+fn lc_uuid() { return 27 } // LC_UUID
+fn lc_id_dylib() { return 13 } // LC_ID_DYLIB
+fn lc_main() { return 2147483688 } // 0x80000028
+fn lc_code_signature() { return 29 } // LC_CODE_SIGNATURE
+
+fn cmdsize_segment_64() { return 72 } // sizeof(segment_command_64)
+fn cmdsize_segment_64_one_section() { return 152 } // segment_command_64 + 1 section_64 (72 + 80)
+fn cmdsize_uuid() { return 24 } // sizeof(uuid_command)
+fn cmdsize_symtab() { return 24 } // sizeof(symtab_command)
+fn cmdsize_dyld_info_only() { return 48 } // sizeof(dyld_info_command)
+fn cmdsize_build_version() { return 24 } // sizeof(build_version_command), no tools
+fn cmdsize_main() { return 24 } // sizeof(entry_point_command)
+fn cmdsize_code_signature() { return 16 } // sizeof(linkedit_data_command)
+
+fn vmaddr_text_base() { return 4294967296 } // 0x100000000 (Mach-O arm64 default)
+fn pagezero_vmsize() { return 4294967296 } // 4GB
+fn u64_2_32() { return 4294967296 } // 2^32, used for MOVK lane extraction
+fn u64_2_48() { return 281474976710656 } // 2^48, used for MOVK lane extraction
+fn macho_header_size_default() { return 2048 }
+fn macho_header_size_exit_stub() { return 632 } // minimal header for `macho_emit_exit_arm64` layout
+fn macho_segment_align() { return 16384 } // 0x4000 (standard Mach-O page/segment alignment)
+fn codesign_page_size() { return 4096 }
+fn codesign_page_shift() { return 12 } // log2(4096)
+fn codesign_code_limit_extra_bytes() { return 176 }
+fn sect_flags_text() { return 2147484672 } // 0x80000400
+fn prot_r() { return 1 }
+fn prot_rw() { return 3 }
+fn prot_rx() { return 5 }
+fn sect_align_text_log2() { return 4 } // 2^4 = 16-byte alignment
+fn sect_align_data_log2() { return 3 } // 2^3 = 8-byte alignment
+fn dylinker_name_offset() { return 12 } // in LC_LOAD_DYLINKER command
+fn dylib_name_offset() { return 24 } // in LC_LOAD_DYLIB / LC_ID_DYLIB commands
+fn symtab_nlist_64_size() { return 16 } // sizeof(nlist_64)
+fn u32_size() { return 4 }
+
+fn version_pack(major, minor, patch) {
+    // Mach-O packed version: (major << 16) | (minor << 8) | patch
+    return major * 65536 + minor * 256 + patch
+}
+
+fn build_version_platform_macos() { return 1 }
+fn build_version_minos_default() { return version_pack(12, 0, 0) } // macOS 12.0.0
+fn build_version_sdk_default() { return version_pack(12, 0, 0) } // macOS 12.0.0
+
+fn codesign_blob_header_len() { return 12 }
+fn codesign_blob_index_len() { return 8 }
+fn codesign_superblob_first_blob_off() { return codesign_blob_header_len() + codesign_blob_index_len() } // 20
+fn codesign_codedir_fixed_len() { return 44 }
+fn codesign_ident_cstr_len() { return 5 } // "oren" + NUL
+fn sha256_len() { return 32 }
+
+fn bind_set_dylib_flat_lookup() { return 62 } // 0x30|14 (BIND_OPCODE_SET_DYLIB_SPECIAL_IMM + flat lookup)
+fn bind_set_type_pointer() { return 81 } // 0x50|1 (BIND_OPCODE_SET_TYPE_IMM + BIND_TYPE_POINTER)
+fn bind_set_segment_data() { return 114 } // 0x70|2 (BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB, seg=__DATA)
+fn bind_set_symbol_flags_0() { return 64 } // 0x40|0 (BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM)
+fn bind_do_bind() { return 144 } // 0x90 (BIND_OPCODE_DO_BIND)
+fn bind_done() { return 0 } // BIND_OPCODE_DONE
+
 // ---- Thin wrappers into core codegen module (minimize churn) ----
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
@@ -28,6 +107,8 @@ fn insn_bl(off) { return codegen.insn_bl(off) }
 fn insn_adr(reg, imm) { return codegen.insn_adr(reg, imm) }
 fn insn_ret() { return codegen.insn_ret() }
 fn insn_svc(imm) { return core.insn_svc(imm) }
+fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+fn insn_br(rn) { return core.insn_br(rn) }
 
 fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }
 
@@ -35,6 +116,18 @@ fn native_compile_program_arm64(linked, platform) { return codegen.native_compil
 fn push_u16_le(buf, n) {
     bytes_push(buf, int_mod(n, 256))
     bytes_push(buf, int_mod(n / 256, 256))
+}
+
+fn push_str_fixed16(buf, s) {
+    // Write a Mach-O fixed-size 16-byte ASCII field (segname/sectname), NUL-padded.
+    var b = oren_bytes_from_string(s)
+    var i = 0
+    while i < 16 {
+        if i < oren_list_len(b) { bytes_push(buf, b[i]) }
+        else { bytes_push(buf, 0) }
+        i = i + 1
+    }
+    return nil
 }
 
 fn push_uleb128(buf, val) {
@@ -61,13 +154,13 @@ fn macho_build_bind_opcodes(imports, got_offset) {
     if count == 0 { return p }
     
     // BIND_OPCODE_SET_DYLIB_SPECIAL_IMM (0x30) | 14 (-2 Flat Lookup)
-    bytes_push(p, 62) 
+    bytes_push(p, bind_set_dylib_flat_lookup())
     
     // BIND_OPCODE_SET_TYPE_IMM (0x50) | 1 (BIND_TYPE_POINTER)
-    bytes_push(p, 81)
+    bytes_push(p, bind_set_type_pointer())
 
     // BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB (0x70) | 2 (__DATA is seg 2)
-    bytes_push(p, 114)
+    bytes_push(p, bind_set_segment_data())
     push_uleb128(p, got_offset)
     
     var i = 0
@@ -75,7 +168,7 @@ fn macho_build_bind_opcodes(imports, got_offset) {
         var name = imports[i]
         
         // BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM (0x40) | 0
-        bytes_push(p, 64)
+        bytes_push(p, bind_set_symbol_flags_0())
         
         // Symbol name (C-string) + '_' prefix if typical C
         bytes_push(p, 95) // '_'
@@ -88,7 +181,7 @@ fn macho_build_bind_opcodes(imports, got_offset) {
         bytes_push(p, 0)
         
         // BIND_OPCODE_DO_BIND (0x90)
-        bytes_push(p, 144)
+        bytes_push(p, bind_do_bind())
         
         // Implicitly advances address by 8 (pointer size)
         
@@ -96,7 +189,7 @@ fn macho_build_bind_opcodes(imports, got_offset) {
     }
     
     // BIND_OPCODE_DONE (0x00)
-    bytes_push(p, 0)
+    bytes_push(p, bind_done())
     
     // Pad to 8 bytes? Not strictly required but good for alignment.
     while int_mod(oren_list_len(p), 8) != 0 {
@@ -110,16 +203,16 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     var p = bytes_new()
     var dyld_path = "/usr/lib/dyld"
     var dyld_cmdsize = align_up(12 + oren_string_len(dyld_path) + 1, 8)
-    var dyld_info_cmdsize = 48
+    var dyld_info_cmdsize = cmdsize_dyld_info_only()
     
     // Header (Mach-O 64)
-    push_u32_le(p, 4277009103) // Magic (FEEDFACF)
-    push_u32_le(p, 16777228)   // CPU Type (ARM64)
+    push_u32_le(p, macho_magic_64())
+    push_u32_le(p, macho_cpu_type_arm64())
     push_u32_le(p, 0)          // Subtype
     if is_shared {
-        push_u32_le(p, 6)      // File Type (DYLIB)
+        push_u32_le(p, macho_filetype_dylib())
     } else {
-        push_u32_le(p, 2)      // File Type (Execute)
+        push_u32_le(p, macho_filetype_execute())
     }
     
     // Commands (baseline): PAGEZERO, TEXT, DATA, LINKEDIT, DYLD_INFO_ONLY, LOAD_DYLINKER, (optional) LOAD_DYLIB(libSystem),
@@ -155,8 +248,8 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     var entry_cmd_size = 24 // LC_MAIN
     if is_shared { entry_cmd_size = id_dylib_cmdsize } // LC_ID_DYLIB
 
-    var uuid_cmd_size = 24
-    var sizeof_cmds_base = 72 + 152 + 152 + 72 + dyld_info_cmdsize + dyld_cmdsize + libsys_cmdsize + 24 + entry_cmd_size + extra_libs_size + uuid_cmd_size
+    var uuid_cmd_size = cmdsize_uuid()
+    var sizeof_cmds_base = cmdsize_segment_64() + cmdsize_segment_64_one_section() + cmdsize_segment_64_one_section() + cmdsize_segment_64() + dyld_info_cmdsize + dyld_cmdsize + libsys_cmdsize + cmdsize_build_version() + entry_cmd_size + extra_libs_size + uuid_cmd_size
     // Baseline commands count without symtab/codesig:
     // PAGEZERO, TEXT, DATA, LINKEDIT, DYLD_INFO, LOAD_DYLINKER, (optional LOAD_DYLIB libSystem), BUILD_VERSION, MAIN/ID_DYLIB, UUID
     var ncmds_base = 9 + oren_list_len(libs) + 1 // includes libSystem
@@ -165,28 +258,28 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     }
     
     if symtab_size > 0 {
-        sizeof_cmds_base = sizeof_cmds_base + 24 // LC_SYMTAB
+        sizeof_cmds_base = sizeof_cmds_base + cmdsize_symtab() // LC_SYMTAB
         ncmds_base = ncmds_base + 1
     }
 
     var sizeof_cmds = sizeof_cmds_base
     var ncmds = ncmds_base
     if sig_size > 0 {
-        sizeof_cmds = sizeof_cmds + 16 // LC_CODE_SIGNATURE
+        sizeof_cmds = sizeof_cmds + cmdsize_code_signature() // LC_CODE_SIGNATURE
         ncmds = ncmds + 1
     }
     push_u32_le(p, ncmds) // ncmds
     push_u32_le(p, sizeof_cmds) // sizeofcmds
-    push_u32_le(p, 2097285) // flags (MH_NOUNDEFS | MH_DYLDLINK | MH_TWOLEVEL | MH_PIE)
+    push_u32_le(p, macho_header_flags_pie())
     push_u32_le(p, 0) // reserved
     
     // 1. LC_SEGMENT_64 (__PAGEZERO)
-    push_u32_le(p, 25)
-    push_u32_le(p, 72)
+    push_u32_le(p, lc_segment_64())
+    push_u32_le(p, cmdsize_segment_64())
     var i = 0
     while i < 16 { bytes_push(p, 0); i = i + 1 }
     push_u64_le(p, 0) // vmaddr
-    push_u64_le(p, 4294967296) // vmsize (4GB)
+    push_u64_le(p, pagezero_vmsize())
     push_u64_le(p, 0) // fileoff
     push_u64_le(p, 0) // filesize
     push_u32_le(p, 0) // maxprot
@@ -195,60 +288,54 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     push_u32_le(p, 0) // flags
     
     // 2. LC_SEGMENT_64 (__TEXT)
-    push_u32_le(p, 25)
-    push_u32_le(p, 152) // 72 + 80
+    push_u32_le(p, lc_segment_64())
+    push_u32_le(p, cmdsize_segment_64_one_section())
     // segname "__TEXT"
-    bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 84); bytes_push(p, 69); bytes_push(p, 88); bytes_push(p, 84);
-    i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-    push_u64_le(p, 4294967296) // vmaddr (0x100000000)
+    push_str_fixed16(p, "__TEXT")
+    push_u64_le(p, vmaddr_text_base())
     push_u64_le(p, text_size) // vmsize
     push_u64_le(p, 0) // fileoff
     push_u64_le(p, text_size) // filesize
-    push_u32_le(p, 5) // maxprot (RX)
-    push_u32_le(p, 5) // initprot (RX)
+    push_u32_le(p, prot_rx()) // maxprot (RX)
+    push_u32_le(p, prot_rx()) // initprot (RX)
     push_u32_le(p, 1) // nsects
     push_u32_le(p, 0) // flags
     
         // Section (__text)
-        bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 116); bytes_push(p, 101); bytes_push(p, 120); bytes_push(p, 116);
-        i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-        bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 84); bytes_push(p, 69); bytes_push(p, 88); bytes_push(p, 84);
-        i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-        push_u64_le(p, 4294967296 + header_size) // addr (start of code)
+        push_str_fixed16(p, "__text")
+        push_str_fixed16(p, "__TEXT")
+        push_u64_le(p, vmaddr_text_base() + header_size) // addr (start of code)
         push_u64_le(p, text_size - header_size) // size (code + padding)
         push_u32_le(p, header_size) // offset
-        push_u32_le(p, 4) // align
+        push_u32_le(p, sect_align_text_log2())
         push_u32_le(p, 0) // reloff
         push_u32_le(p, 0) // nreloc
-        push_u32_le(p, 2147484672) // flags
+        push_u32_le(p, sect_flags_text())
         push_u32_le(p, 0) // reserved1
         push_u32_le(p, 0) // reserved2
         push_u32_le(p, 0) // reserved3
 
     // 3. LC_SEGMENT_64 (__DATA)
-    push_u32_le(p, 25)
-    push_u32_le(p, 152) // 72 + 80
+    push_u32_le(p, lc_segment_64())
+    push_u32_le(p, cmdsize_segment_64_one_section())
     // segname "__DATA"
-    bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 68); bytes_push(p, 65); bytes_push(p, 84); bytes_push(p, 65);
-    i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-    push_u64_le(p, 4294967296 + text_size) // vmaddr
+    push_str_fixed16(p, "__DATA")
+    push_u64_le(p, vmaddr_text_base() + text_size) // vmaddr
     push_u64_le(p, data_size) // vmsize
     push_u64_le(p, text_size) // fileoff
     push_u64_le(p, data_size) // filesize
-    push_u32_le(p, 3) // maxprot (RW)
-    push_u32_le(p, 3) // initprot (RW)
+    push_u32_le(p, prot_rw()) // maxprot (RW)
+    push_u32_le(p, prot_rw()) // initprot (RW)
     push_u32_le(p, 1) // nsects
     push_u32_le(p, 0) // flags
     
         // Section (__data)
-        bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 100); bytes_push(p, 97); bytes_push(p, 116); bytes_push(p, 97);
-        i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-        bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 68); bytes_push(p, 65); bytes_push(p, 84); bytes_push(p, 65);
-        i = 0; while i < 10 { bytes_push(p, 0); i = i + 1 }
-        push_u64_le(p, 4294967296 + text_size) // addr
+        push_str_fixed16(p, "__data")
+        push_str_fixed16(p, "__DATA")
+        push_u64_le(p, vmaddr_text_base() + text_size) // addr
         push_u64_le(p, data_len) // size (actual data size)
         push_u32_le(p, text_size) // offset
-        push_u32_le(p, 3) // align (2^3=8)
+        push_u32_le(p, sect_align_data_log2())
         push_u32_le(p, 0) // reloff
         push_u32_le(p, 0) // nreloc
         push_u32_le(p, 0) // flags
@@ -257,32 +344,31 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
         push_u32_le(p, 0) // reserved3
         
     // 4. LC_SEGMENT_64 (__LINKEDIT)
-    push_u32_le(p, 25)
-    push_u32_le(p, 72)
-    bytes_push(p, 95); bytes_push(p, 95); bytes_push(p, 76); bytes_push(p, 73); bytes_push(p, 78); bytes_push(p, 75); bytes_push(p, 69); bytes_push(p, 68); bytes_push(p, 73); bytes_push(p, 84);
-    i = 0; while i < 6 { bytes_push(p, 0); i = i + 1 }
-    push_u64_le(p, 4294967296 + text_size + data_size) // vmaddr
-    var linkedit_size = bind_size + sig_size + symtab_size + (imports_len * 4) + strtab_size
+    push_u32_le(p, lc_segment_64())
+    push_u32_le(p, cmdsize_segment_64())
+    push_str_fixed16(p, "__LINKEDIT")
+    push_u64_le(p, vmaddr_text_base() + text_size + data_size) // vmaddr
+    var linkedit_size = bind_size + sig_size + symtab_size + (imports_len * u32_size()) + strtab_size
     push_u64_le(p, linkedit_size) // vmsize (aligned)
     push_u64_le(p, text_size + data_size) // fileoff
     push_u64_le(p, linkedit_size) // filesize
-    push_u32_le(p, 1) // maxprot (R)
-    push_u32_le(p, 1) // initprot (R)
+    push_u32_le(p, prot_r()) // maxprot (R)
+    push_u32_le(p, prot_r()) // initprot (R)
     push_u32_le(p, 0) // nsects
     push_u32_le(p, 0) // flags
     
     // LC_SYMTAB (if needed)
     if symtab_size > 0 {
-        push_u32_le(p, 2) // LC_SYMTAB
-        push_u32_le(p, 24) // cmdsize
+        push_u32_le(p, lc_symtab())
+        push_u32_le(p, cmdsize_symtab())
         push_u32_le(p, text_size + data_size + bind_size) // symoff
-        push_u32_le(p, symtab_size / 16) // nsyms
-        push_u32_le(p, text_size + data_size + bind_size + symtab_size + (imports_len * 4)) // stroff
+        push_u32_le(p, symtab_size / symtab_nlist_64_size()) // nsyms
+        push_u32_le(p, text_size + data_size + bind_size + symtab_size + (imports_len * u32_size())) // stroff
         push_u32_le(p, strtab_size) // strsize
     }
     
     // 5. LC_DYLD_INFO_ONLY
-    push_u32_le(p, 2147483682)
+    push_u32_le(p, lc_dyld_info_only())
     push_u32_le(p, dyld_info_cmdsize)
     push_u32_le(p, 0) // rebase_off
     push_u32_le(p, 0) // rebase_size
@@ -298,9 +384,9 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     // 6. LC_LOAD_DYLINKER
     var dyld_bytes = oren_bytes_from_string(dyld_path)
     var cmd_start = oren_list_len(p)
-    push_u32_le(p, 14)
+    push_u32_le(p, lc_load_dylinker())
     push_u32_le(p, dyld_cmdsize)
-    push_u32_le(p, 12)
+    push_u32_le(p, dylinker_name_offset())
     i = 0
     while i < oren_list_len(dyld_bytes) {
         bytes_push(p, dyld_bytes[i])
@@ -314,9 +400,9 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     // 7. LC_LOAD_DYLIB (libSystem) - optional for syscall-only binaries
     if need_libsystem {
         var cmd_start_lib = oren_list_len(p)
-        push_u32_le(p, 12) // LC_LOAD_DYLIB
+        push_u32_le(p, lc_load_dylib())
         push_u32_le(p, libsys_cmdsize)
-        push_u32_le(p, 24) // offset to name
+        push_u32_le(p, dylib_name_offset())
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current version
         push_u32_le(p, 0) // compatibility version
@@ -338,9 +424,9 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
         var lib_path2 = libs[k_lib]
         var cmd_start_lib2 = oren_list_len(p)
         var lib_cmdsize2 = align_up(24 + oren_string_len(lib_path2) + 1, 8)
-        push_u32_le(p, 12) // LC_LOAD_DYLIB
+        push_u32_le(p, lc_load_dylib())
         push_u32_le(p, lib_cmdsize2)
-        push_u32_le(p, 24) // offset to name
+        push_u32_le(p, dylib_name_offset())
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current version
         push_u32_le(p, 0) // compatibility version
@@ -358,16 +444,16 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
     }
 
     // 8. LC_BUILD_VERSION
-    push_u32_le(p, 50)
-    push_u32_le(p, 24)
-    push_u32_le(p, 1)
-    push_u32_le(p, 786432)
-    push_u32_le(p, 786432)
+    push_u32_le(p, lc_build_version())
+    push_u32_le(p, cmdsize_build_version())
+    push_u32_le(p, build_version_platform_macos())
+    push_u32_le(p, build_version_minos_default())
+    push_u32_le(p, build_version_sdk_default())
     push_u32_le(p, 0)
     
     // LC_UUID
-    push_u32_le(p, 27) // LC_UUID
-    push_u32_le(p, 24)
+    push_u32_le(p, lc_uuid())
+    push_u32_le(p, cmdsize_uuid())
     var k_uuid = 0
     while k_uuid < 4 { push_u32_le(p, 0); k_uuid = k_uuid + 1 }
     
@@ -376,9 +462,9 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
         var id_start = oren_list_len(p)
         var id_name = lib_name
         var id_size = align_up(24 + oren_string_len(id_name) + 1, 8)
-        push_u32_le(p, 13) // LC_ID_DYLIB
+        push_u32_le(p, lc_id_dylib())
         push_u32_le(p, id_size)
-        push_u32_le(p, 24) // offset to name
+        push_u32_le(p, dylib_name_offset())
         push_u32_le(p, 0) // timestamp
         push_u32_le(p, 0) // current ver
         push_u32_le(p, 0) // compat ver
@@ -391,16 +477,16 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
         bytes_push(p, 0)
         while oren_list_len(p) < id_start + id_size { bytes_push(p, 0) }
     } else {
-        push_u32_le(p, 2147483688)
-        push_u32_le(p, 24)
+        push_u32_le(p, lc_main())
+        push_u32_le(p, cmdsize_main())
         push_u64_le(p, header_size + entry_idx) // entryoff
         push_u64_le(p, 0) // stacksize
     }
                 
     if sig_size > 0 {
         // 9. LC_CODE_SIGNATURE
-        push_u32_le(p, 29)
-        push_u32_le(p, 16)
+        push_u32_le(p, lc_code_signature())
+        push_u32_le(p, cmdsize_code_signature())
         push_u32_le(p, text_size + data_size) // dataoff
         push_u32_le(p, sig_size) // datasize
     }
@@ -423,7 +509,7 @@ fn macho_exit_code_bytes(code) {
     return b
 }
 
-fn emit_debug_info(ctx) {
+fn emit_debug_info(ctx, text_base, header_size) {
     var p = bytes_new()
     var funcs = ctx["debug_info"]["funcs"]
     var count = oren_list_len(funcs)
@@ -432,9 +518,11 @@ fn emit_debug_info(ctx) {
     var i = 0
     while i < count {
         var f = funcs[i]
-        // Base 4294967296 + 2048 = 4294969344
-        push_u64_le(p, 4294969344 + f["start"]) 
-        push_u64_le(p, 4294969344 + f["end"])
+        // Absolute __TEXT addresses (for debug tooling) are based on the final load address.
+        // Keep this derived from the current layout (no magic constants).
+        var base = text_base + header_size
+        push_u64_le(p, base + f["start"])
+        push_u64_le(p, base + f["end"])
         
         var name_bytes = oren_bytes_from_string(f["name"])
         push_u64_le(p, oren_list_len(name_bytes))
@@ -460,18 +548,19 @@ fn emit_debug_info(ctx) {
 
 fn macho_emit_exit_arm64(out_path, exit_code) {
     var code = macho_exit_code_bytes(exit_code)
-    var text_size = align_up(632 + oren_list_len(code), 16384)
+    var header_size = macho_header_size_exit_stub()
+    var text_size = align_up(header_size + oren_list_len(code), macho_segment_align())
 
-    // Signature size depends on codeLimit (= text_size + 176).
-    var code_limit = text_size + 176
-    var n_code_slots = ceil_div(code_limit, 4096)
-    var code_dir_len = (44 + 5) + (32 * n_code_slots) // ident="oren" + NUL
-    var super_len = 12 + 8 + code_dir_len
+    // Signature size depends on codeLimit (= text_size + extra).
+    var code_limit = text_size + codesign_code_limit_extra_bytes()
+    var n_code_slots = ceil_div(code_limit, codesign_page_size())
+    var code_dir_len = (codesign_codedir_fixed_len() + codesign_ident_cstr_len()) + (sha256_len() * n_code_slots)
+    var super_len = codesign_blob_header_len() + codesign_blob_index_len() + code_dir_len
     var sig_size = align_up(super_len, 8)
     
     sig_size = 0
-
-    var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, 632, 0, 0, 0, 0, 0, [], false, "")
+    
+    var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, header_size, 0, 0, 0, 0, 0, [], false, "")
     bytes_extend(prefix, code)
     if sig_size > 0 {
         var sig = codesign_adhoc_superblob(prefix, "oren", oren_list_len(code))
@@ -531,8 +620,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         
         // Stub: ADR X16, <got>; LDR X16, [X16]; BR X16
         push_u32_le(code, 0) // Placeholder for ADR
-        push_u32_le(code, 4181721616) // LDR X16, [X16]
-        push_u32_le(code, 3592356352) // BR X16
+        push_u32_le(code, insn_ldr_ptr(16, 16))
+        push_u32_le(code, insn_br(16))
         
         oren_list_push(fixups, {"type": "got_load", "pos": stub_pos, "got_index": i_imp})
         
@@ -579,7 +668,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             bytes_push(symtab, 15) // N_SECT | N_EXT
             bytes_push(symtab, 1)
             push_u16_le(symtab, 0)
-            push_u64_le(symtab, 4294967296 + 2048 + f_addr)
+            push_u64_le(symtab, vmaddr_text_base() + macho_header_size_default() + f_addr)
             
             i_exp = i_exp + 1
         }
@@ -602,14 +691,14 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         }
     }
     
-    var header_size = 2048
-    var text_base = 4294967296
+    var header_size = macho_header_size_default()
+    var text_base = vmaddr_text_base()
     var code_len = oren_list_len(code)
-    var text_size = align_up(header_size + code_len, 16384)
+    var text_size = align_up(header_size + code_len, macho_segment_align())
     
     // Append debug info
     if debug_mode {
-        var debug_blob = emit_debug_info(ctx)
+        var debug_blob = emit_debug_info(ctx, text_base, header_size)
         while int_mod(oren_list_len(data), 8) != 0 { bytes_push(data, 0) }
         var debug_off = oren_list_len(data)
         var bi = 0
@@ -624,13 +713,13 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var p = ctx["debug_static_addr_pos"]
             set_u32_le(code, p, insn_movz(1, int_mod(sa, 65536)))
             set_u32_le(code, p+4, insn_movk(1, int_mod(sa / 65536, 65536), 1))
-            set_u32_le(code, p+8, insn_movk(1, int_mod(sa / 4294967296, 65536), 2))
-            set_u32_le(code, p+12, insn_movk(1, int_mod(sa / 281474976710656, 65536), 3))
+            set_u32_le(code, p+8, insn_movk(1, int_mod(sa / u64_2_32(), 65536), 2))
+            set_u32_le(code, p+12, insn_movk(1, int_mod(sa / u64_2_48(), 65536), 3))
         }
     }
 
     var data_len = oren_list_len(data)
-    var data_size = align_up(data_len, 16384)
+    var data_size = align_up(data_len, macho_segment_align())
     var data_vmaddr = text_base + text_size
     
     // Apply fixups
@@ -739,7 +828,7 @@ fn push_u8(buf, n) {
 
 fn codesign_adhoc_superblob(code_bytes, ident, exec_seg_limit) {
     var code_limit = oren_list_len(code_bytes)
-    var page_size = 4096
+    var page_size = codesign_page_size()
     var n_code_slots = ceil_div(code_limit, page_size)
 
     var ident_bytes = oren_bytes_from_string(ident)
@@ -752,7 +841,7 @@ fn codesign_adhoc_superblob(code_bytes, ident, exec_seg_limit) {
     var code_dir_len = hash_offset + hash_size * n_code_slots
 
     // SuperBlob length excludes padding; file region is padded to 8 bytes.
-    var super_len = 12 + 8 + code_dir_len
+    var super_len = codesign_blob_header_len() + codesign_blob_index_len() + code_dir_len
     var sig_size = align_up(super_len, 8)
 
     // Hash pages of the "code" region [0..code_limit).
@@ -783,7 +872,7 @@ fn codesign_adhoc_superblob(code_bytes, ident, exec_seg_limit) {
     push_u8(cd, 32) // hashSize (SHA-256)
     push_u8(cd, 2) // hashType (SHA-256)
     push_u8(cd, 0) // platform
-    push_u8(cd, 12) // pageSize (log2 4096 = 12)
+    push_u8(cd, codesign_page_shift()) // pageSize (log2(page_size))
     push_u32_be(cd, 0) // spare2
     
     // Ident
@@ -799,7 +888,7 @@ fn codesign_adhoc_superblob(code_bytes, ident, exec_seg_limit) {
     push_u32_be(sb, sig_size) // length (aligned)
     push_u32_be(sb, 1) // count
     push_u32_be(sb, 0) // type (0 = CodeDirectory)
-    push_u32_be(sb, 20) // offset (sizeof header 12 + 8 = 20)
+    push_u32_be(sb, codesign_superblob_first_blob_off())
     bytes_extend(sb, cd)
     
     // Pad to sig_size (8 byte alignment)

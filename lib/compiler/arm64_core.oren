@@ -605,4 +605,10 @@ fn insn_adr(reg, imm) {
     return 268435456 + (lo * 536870912) + (hi * 32) + reg
 }
 
+fn insn_br(rn) {
+    // BR Xn
+    // Encoding: 0xD61F0000 | (rn << 5)
+    return 3592355840 + (rn * 32)
+}
+
 // --- Native Compiler ---

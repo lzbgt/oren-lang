@@ -43,7 +43,10 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 - `sys_fstat(fd, st_ptr)` on macOS uses **`fstat64` (syscall 339)**.
 - `sys_getdirentries64(fd, buf, bufsize, pos_ptr)` on macOS uses **`getdirentries64` (syscall 344)**; on Linux it maps to `getdents64` (61) and ignores `pos_ptr` (v0).
 ## Notes / Limitations
-- **String concatenation:** `+` is integer-only on the native backend; use `string_concat(a, b)` for strings.
+- **String concatenation:** on the native backend, `+` lowers to the runtime helper `oren_add` and supports:
+  - integer addition
+  - string concatenation when *both* operands are strings (content-based), matching native `strcmp` semantics for comparisons.
+  Use `string_concat(a, b)` when you want explicit string concatenation semantics (useful while the type system is still rolling).
 - **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).
 
 ## CLI Usage

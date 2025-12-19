@@ -21,6 +21,8 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
    - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
    - Treat system headers as audit-only.
+   - Keep Mach-O / dyld constants repo-owned as well (prefer named constants over scattered numeric literals).
+   - Periodically refresh `docs/refs/*` from authoritative upstream sources and record the exact upstream tag/commit used (audit-only; not a build dep).
    - macOS arm64 is largely done via `lib/compiler/arm64_abi_macos.oren` + `docs/refs/darwin_arm64_abi.md` (syscall reg/imm + core syscalls).
    - Linux arm64 baseline table added via `lib/compiler/arm64_abi_linux.oren` (syscall reg/imm + core syscalls).
    - Next: Linux arm64 parity tables + a single shared ABI layer used by native codegen.
@@ -54,3 +56,8 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - ABI constants: moved remaining Darwin `kevent` syscall number and Linux `AT_*` syscall-arg flags (AT_SYMLINK_NOFOLLOW/AT_REMOVEDIR) into repo-owned ABI tables; removed the last hardcoded `sysno=363` from syscall lowering.
 - ABI constants: centralized Linux `AT_FDCWD=-100` into `arm64_abi_linux.oren` and added a signed-immediate loader helper (removes remaining `MOVN imm=99` magic from syscall lowering).
 - Native string comparisons: added regression coverage for `string == nil` / `nil == string` (must not lower to `strcmp`).
+- Mach-O emitter: replaced key numeric header/load-command/bind-opcode literals with repo-owned named constants (keeps ABI knowledge local without SDK headers).
+- Mach-O emitter: removed remaining layout magic numbers (segment alignment, codesign page size, exit-stub header sizing, section flags) by centralizing them as named constants.
+- Mach-O emitter: replaced raw segname/sectname byte sequences with a fixed-16 string helper (less brittle, clearer).
+- Mach-O emitter: centralized remaining structural constants (prot flags, build-version packing, codesign lengths) and removed more remaining magic numbers.
+- Native backend docs: corrected `+` string concatenation note to match native lowering (`oren_add`) and current test coverage.
