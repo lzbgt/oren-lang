@@ -397,6 +397,12 @@ var FD_KIND_KQUEUE = 20
 // -  1: has kqueue backend
 var g_net_has_kqueue = -1
 
+// Native target OS (rolling):
+// - 0: unknown (should not happen after runtime init)
+// - 1: macOS
+// - 2: Linux
+var g_target_os = 0
+
 // fcntl(2) commands used for fd duplication (stable across Darwin/Linux).
 // Verified via Apple SDK headers for macOS (audit only; not a build dependency).
 var FCNTL_F_DUPFD = 0
@@ -427,13 +433,23 @@ fn oren_fork() {
     return pid
 }
 
-fn native_runtime_init() {
+fn native_runtime_init(target_os) {
     // The native backend is still rolling and does not reliably run global initializers
     // before entering the runtime. Ensure globals used by early allocation are safe.
     g_storage = 0
 
     // NET wait backend probe state (must not rely on global initializers).
-    g_net_has_kqueue = -1
+    g_target_os = target_os
+    // Prefer target knowledge from codegen over probing syscalls at runtime.
+    // This avoids unnecessary OS feature probes in tight paths and keeps behavior
+    // deterministic across nested execution.
+    if target_os == 1 {
+        // macOS: kqueue exists
+        g_net_has_kqueue = 1
+    } else {
+        // Linux (and any other non-macOS target): treat as no kqueue
+        g_net_has_kqueue = 0
+    }
 
     // IMPORTANT: today the native backend does not reliably run global initializers
     // before entering the runtime. Treat these as "constants" that must be set here.
@@ -5127,14 +5143,13 @@ fn oren_tcp_sockaddr_in(ip, port) {
     }
 
     // Ensure we know whether this target has kqueue.
+    // In rolling mode, native codegen should pass target_os into native_runtime_init,
+    // which sets g_net_has_kqueue deterministically. Keep this probe as a last-resort
+    // fallback for older binaries.
     if g_net_has_kqueue == -1 {
         var kq0 = sys_kqueue()
-        if kq0 < 0 {
-            g_net_has_kqueue = 0
-        } else {
-            g_net_has_kqueue = 1
-            sys_close(kq0)
-        }
+        if kq0 < 0 { g_net_has_kqueue = 0 }
+        else { g_net_has_kqueue = 1; sys_close(kq0) }
     }
 
     if g_net_has_kqueue == 1 {

@@ -630,6 +630,15 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], insn_movz(27, 0))
     
     // Init Runtime
+    // The runtime needs to know which OS ABI this binary targets. Do not probe host
+    // syscalls at runtime; the native backend already knows the `--target`.
+    //
+    // Convention (rolling):
+    // - 1: macos
+    // - 2: linux
+    var target_os_id = 1
+    if ctx["platform"]["os"] == "linux" { target_os_id = 2 }
+    push_u32_le(ctx["code"], insn_movz(0, target_os_id))
     var bl_init = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
