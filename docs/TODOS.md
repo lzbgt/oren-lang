@@ -44,10 +44,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
-   - Next deliverable: scheduling + determinism tightening:
-     - time-sliced cooperative tasks (gas quantum; deterministic)
-     - `join_timeout` semantics in deterministic TIME
-     - `select` fairness rules + send cases (not only recv)
+   - Next deliverable: scheduling + determinism tightening (finish select semantics):
+     - `select` must support **send and recv** cases (not only recv)
+     - deterministic fairness rules for `select` across both send/recv cases
+     - document the concurrency semantics in `docs/AVM_SPEC_V1.md` (one crisp section, no drift)
 
 2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
@@ -69,16 +69,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Recently Completed (high signal)
 
-- `make test` is curated + timeout-safe via `./oretest` (parallel module/AVM runs, prints logs only on failures).
-- Call-site spread `...` implemented across C/native/bytecode (for variadic builtins + apply-style calls, without committing to a stable varargs ABI).
-- Rolling type-annotation sugar: universal `name: Type` metadata (`u8/u16be/f64/...`) + packed-struct views via `pack_view`.
-- `enum` + `match` sugar implemented; `match` stays contextual (identifiers named `match` are valid).
-- `docs/OBJECT_MODEL.md` clarified: primitives can implement traits; static-first deterministic dispatch.
-- Linux: AVM builds cleanly in docker (fixed `fread` result handling + `int64_t` formatting warning).
-- Language: `trait` and `impl Trait for Type { ... }` syntax accepted by parser; impl methods lower deterministically into plain `fn`s (bootstrap-friendly).
-- Language: method-call sugar resolver:
-  - `x.method(a, b)` resolves (with `x: Type` in scope) to the lowered impl function `__oren_impl__...__method(x, a, b)`
-  - `Type.method(a, b)` resolves to the lowered impl function `__oren_impl__...__method(a, b)`
-- AVM bytecode backend: cooperative concurrency MVP:
-  - `spawn`/`oren_join` supported (VM-internal tasks; deterministic; no host syscalls)
-  - `oren_new_channel` / `oren_chan_send` / `oren_chan_recv` / `oren_select_recv` supported
+- `make test` uses `./oretest` and is timeout-safe without accidentally killing the suite early (Makefile wraps `./oretest` in the suite timeout, not the build timeout).
+- `oretest` defaults to `runtime.NumCPU()` jobs for module+AVM tests (still clamped to 32).
+- AVM: deterministic time-sliced cooperative scheduling (task quantum) + `JOIN_TIMEOUT` opcode (`0x4C`) + deterministic join-timeout test.
+- Bytecode backend: `oren_join_timeout(handle, timeout_ms)` lowers to `JOIN_TIMEOUT`.
+- Smoke suite: non-blocking `oren_join_timeout(h, 0)` regression (ensures opcode+verifier+runtime stay wired).

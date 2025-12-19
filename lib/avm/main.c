@@ -478,6 +478,10 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 0;
             push = 0;
+        } else if (op == 0x4C) { // JOIN_TIMEOUT
+            len = 1;
+            pop = 2;  // handle + timeout_ms
+            push = 1; // ret or ETIMEDOUT
         } else {
             free(depth_at); free(queue); free(qdepth);
             return err_result("verify: unknown opcode");
@@ -854,6 +858,7 @@ typedef struct {
     uint64_t time_start_ns;
     uint64_t time_step_ns;
     uint64_t rng_seed;
+    uint64_t task_quantum_steps;
     // execution mode flags
     int capsule;
     int verify_strict;
@@ -1055,6 +1060,7 @@ static void ctx_hash_sha256_v8(
     sha_u64_le(&h, ctx ? ctx->time_start_ns : 0);
     sha_u64_le(&h, ctx ? ctx->time_step_ns : 0);
     sha_u64_le(&h, ctx ? ctx->rng_seed : 0);
+    sha_u64_le(&h, ctx ? ctx->task_quantum_steps : 0);
 
     avm_sha256_final(&h, out);
 }
@@ -1883,6 +1889,7 @@ int main(int argc, char** argv) {
     const char* net_fixtures_hex_cli = NULL;
     const char* timeout_ms_cli = NULL;
     const char* call_depth_max_cli = NULL;
+    const char* task_quantum_cli = NULL;
     int prog_args_start = -1;
     int prog_argc = 0;
     char** prog_argv = NULL;
@@ -1950,6 +1957,12 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--call-depth-max") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --call-depth-max\n"); return 1; }
             call_depth_max_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--task-quantum") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --task-quantum\n"); return 1; }
+            task_quantum_cli = argv[i + 1];
             i += 2;
             continue;
         }
@@ -2563,6 +2576,13 @@ int main(int argc, char** argv) {
                     if (step_env && step_env[0]) ectx.time_step_ns = strtoull(step_env, NULL, 10);
                     const char* seed_env = getenv("AVM_RNG_SEED");
                     if (seed_env && seed_env[0]) ectx.rng_seed = strtoull(seed_env, NULL, 10);
+                    const char* tq_env = task_quantum_cli ? task_quantum_cli : getenv("AVM_TASK_QUANTUM");
+                    if (!tq_env || !tq_env[0]) tq_env = getenv("AVM_TASK_QUANTUM_STEPS");
+                    uint64_t tq = 0;
+                    if (tq_env && tq_env[0]) tq = strtoull(tq_env, NULL, 10);
+                    if (tq == 0) tq = 1000ull; // default semantics
+                    if (tq > 1000000000ull) tq = 1000000000ull; // sanity cap
+                    ectx.task_quantum_steps = tq;
 
                     // budgets (effective): capsule applies defaults only if env is unset.
                     const char* gas_env = getenv("AVM_GAS");
@@ -3164,6 +3184,13 @@ int main(int argc, char** argv) {
         if (step_env && step_env[0]) vm->virtual_step_ns = strtoull(step_env, NULL, 10);
         const char* seed_env = getenv("AVM_RNG_SEED");
         if (seed_env && seed_env[0]) vm->rng_state = strtoull(seed_env, NULL, 10);
+        const char* tq_env = task_quantum_cli ? task_quantum_cli : getenv("AVM_TASK_QUANTUM");
+        if (!tq_env || !tq_env[0]) tq_env = getenv("AVM_TASK_QUANTUM_STEPS");
+        uint64_t tq = 0;
+        if (tq_env && tq_env[0]) tq = strtoull(tq_env, NULL, 10);
+        if (tq == 0) tq = 1000ull;
+        if (tq > 1000000000ull) tq = 1000000000ull;
+        vm->task_quantum_steps = (uint32_t)tq;
 
         // Budgets/timeouts (macOS-first, rolling ABI):
     // - AVM_GAS: maximum instruction steps (0/unset = unlimited)

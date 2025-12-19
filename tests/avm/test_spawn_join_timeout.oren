@@ -1,0 +1,24 @@
+// AVM regression: join timeout must not hang and must be deterministic when TIME is deterministic.
+//
+// Harness config (oretest special-case):
+// - AVM_DETERMINISTIC=1
+// - AVM_TIME_STEP_NS=1_000_000 (1ms per gas step)
+//
+// The worker yields forever; main must time out and exit quickly without host sleep.
+
+fn worker_forever() {
+    while true {
+        oren_yield()
+    }
+    return 123
+}
+
+fn main() {
+    var h = spawn worker_forever()
+    var r = oren_join_timeout(h, 3)
+    if r != 0 - 60 { oren_exit(900) } // ETIMEDOUT (BSD)
+    print("avm spawn join timeout OK")
+    oren_exit(0)
+}
+
+main()

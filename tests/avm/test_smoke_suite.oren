@@ -300,6 +300,17 @@ fn test_concurrency_spawn_chan_select() {
     assert_eq(oren_join(h2), 8)
 }
 
+fn worker_forever() {
+    while true { oren_yield() }
+    return 0
+}
+
+fn test_join_timeout_nonblocking() {
+    // JOIN_TIMEOUT with timeout_ms=0 is a non-blocking probe.
+    var h = spawn worker_forever()
+    assert_eq(oren_join_timeout(h, 0), 0 - 60) // ETIMEDOUT (BSD)
+}
+
 fn main() {
     test_calls()
     test_recursion()
@@ -314,6 +325,7 @@ fn main() {
     test_closures()
     test_switch()
     test_concurrency_spawn_chan_select()
+    test_join_timeout_nonblocking()
 
     print("avm smoke suite OK")
 }

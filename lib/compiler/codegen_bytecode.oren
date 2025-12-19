@@ -38,6 +38,7 @@ var AVM_CHAN_SEND = 72             // 0x48
 var AVM_CHAN_RECV = 73             // 0x49
 var AVM_SELECT_RECV = 74           // 0x4A
 var AVM_YIELD = 75                 // 0x4B
+var AVM_JOIN_TIMEOUT = 76          // 0x4C
 
 var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1
@@ -908,6 +909,16 @@ fn bytecode_compile_expr(ctx, expr) {
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_JOIN)
+            return nil
+        }
+        if name == "oren_join_timeout" {
+            if oren_list_len(expr["args"]) != 2 {
+                print("bytecode backend: oren_join_timeout expects (handle, timeout_ms)")
+                oren_exit(1)
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            emit_byte(ctx, AVM_JOIN_TIMEOUT)
             return nil
         }
         if name == "oren_yield" {

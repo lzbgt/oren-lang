@@ -34,7 +34,7 @@ static size_t trace_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     if (op == 0x3F) return 2;                 // LOAD_ENV u8
     if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
     if (op == 0x44) return 2;                 // CALL_INDIRECT_SPREAD u8
-    if (op >= 0x45 && op <= 0x4B) return 1;   // cooperative tasks/channels opcodes
+    if (op >= 0x45 && op <= 0x4C) return 1;   // cooperative tasks/channels opcodes
     return 1;
 }
 

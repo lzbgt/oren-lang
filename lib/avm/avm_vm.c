@@ -26,6 +26,7 @@ enum {
     AVM_OP_CHAN_RECV       = 0x49,  // stack: [... ch] -> [... val] (blocks if empty)
     AVM_OP_SELECT_RECV     = 0x4A,  // stack: [... list<ch>] -> [... [idx,val]] (blocks if none ready)
     AVM_OP_YIELD           = 0x4B   // stack: [...] -> [...] (yield to another runnable task)
+    ,AVM_OP_JOIN_TIMEOUT   = 0x4C   // stack: [... handle timeout_ms] -> [... ret_or_timeout]
 };
 
 typedef struct {
@@ -33,13 +34,24 @@ typedef struct {
     int done;
     int blocked;
 
-    int wait_kind;      // 0 none, 1 join, 2 recv, 3 select
+    int wait_kind;      // 0 none, 1 join, 2 recv, 3 select, 4 join_timeout
     int wait_id;        // join target task id
     int wait_chan;      // recv channel id
     AvmValue wait_list; // select list value (list of channel handles)
 
+    // join_timeout deadline (absolute ns). Only meaningful when wait_kind==4.
+    uint64_t join_deadline_ns;
+
     int wake_pending;
     AvmValue wake_value;
+
+    // Deterministic cooperative scheduling:
+    // - slice_remaining is decremented per opcode dispatch
+    // - when it reaches 0 and another task is runnable, we yield deterministically
+    int slice_remaining;
+
+    // Deterministic select fairness: round-robin cursor for select_recv over a list of channels.
+    int select_cursor;
 
     int pc;
     int sp;
@@ -78,6 +90,9 @@ typedef struct {
     int* ready;
     int ready_len;
     int ready_cap;
+
+    // Deterministic scheduling quantum (in semantic steps/gas).
+    int quantum_steps;
 
     int* select_waiters;
     int select_len;
@@ -175,6 +190,27 @@ static AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b) {
     return v;
 }
 
+static uint64_t avm_vm_now_ns(AvmVM* vm) {
+    if (!vm) return 0;
+    if (vm->deterministic) {
+        // Deterministic monotonic clock derived from semantic work and explicit sleep.
+        return vm->virtual_now_ns + vm->virtual_sleep_ns + vm->gas_executed * vm->virtual_step_ns;
+    }
+    return avm_now_ns();
+}
+
+static void sched_switch(AvmVM* vm, AvmSched* s, int next_tid) {
+    if (!vm || !s) return;
+    int cur = s->current_tid;
+    if (cur >= 0 && cur < s->task_cap && s->tasks[cur].used) {
+        task_save_from_vm(vm, &s->tasks[cur]);
+    }
+    s->current_tid = next_tid;
+    if (next_tid >= 0 && next_tid < s->task_cap && s->tasks[next_tid].used) {
+        task_load_into_vm(vm, &s->tasks[next_tid]);
+    }
+}
+
 static AvmSched* avm_sched_ensure(AvmVM* vm) {
     if (!vm) return NULL;
     AvmSched* s = (AvmSched*)vm->sched;
@@ -184,6 +220,7 @@ static AvmSched* avm_sched_ensure(AvmVM* vm) {
     if (!s) return NULL;
     s->init = 1;
     s->current_tid = 0;
+    s->quantum_steps = (vm && vm->task_quantum_steps > 0) ? (int)vm->task_quantum_steps : 1000;
     s->task_cap = 8;
     s->tasks = (AvmTask*)calloc((size_t)s->task_cap, sizeof(AvmTask));
     if (!s->tasks) { free(s); return NULL; }
@@ -203,6 +240,8 @@ static AvmSched* avm_sched_ensure(AvmVM* vm) {
     s->tasks[0].done = 0;
     s->tasks[0].blocked = 0;
     s->tasks[0].stack = vm->stack_base;
+    s->tasks[0].slice_remaining = s->quantum_steps;
+    s->tasks[0].select_cursor = 0;
     s->tasks[0].frames = (AvmFrame*)malloc(sizeof(AvmFrame) * (size_t)MAX_FRAMES);
     if (!s->tasks[0].frames) {
         free(s->chans);
@@ -245,6 +284,8 @@ static int sched_new_task(AvmVM* vm, AvmSched* s, AvmValue fn, AvmValue args_lis
     t->wait_kind = 0;
     t->wake_pending = 0;
     t->wake_value = avm_nil();
+    t->slice_remaining = s->quantum_steps;
+    t->select_cursor = 0;
 
     t->stack = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)AVM_STACK_SIZE);
     if (!t->stack) { memset(t, 0, sizeof(*t)); return -1; }
@@ -379,7 +420,15 @@ static void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
 
         AvmList* lst = t->wait_list.as.l;
         int woke = 0;
-        for (int k = 0; k < lst->count; k++) {
+        int cnt = lst->count;
+        if (cnt <= 0) cnt = 0;
+        int start = 0;
+        if (cnt > 0) {
+            start = t->select_cursor % cnt;
+            if (start < 0) start = 0;
+        }
+        for (int off = 0; off < cnt; off++) {
+            int k = (start + off) % cnt;
             AvmValue hv = lst->items[k];
             if (hv.type != AVM_VAL_INT) continue;
             AvmChan* ch = sched_chan_get(s, hv.as.i);
@@ -393,6 +442,7 @@ static void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
                 t->wait_list = avm_nil();
                 t->wake_pending = 1;
                 t->wake_value = pair;
+                if (cnt > 0) t->select_cursor = (k + 1) % cnt;
                 (void)sched_ready_push(s, tid);
                 // Remove from select_waiters.
                 for (int j = i + 1; j < s->select_len; j++) s->select_waiters[j - 1] = s->select_waiters[j];
@@ -456,6 +506,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x49: return "CHAN_RECV";
         case 0x4A: return "SELECT_RECV";
         case 0x4B: return "YIELD";
+        case 0x4C: return "JOIN_TIMEOUT";
         default: return "OP?";
     }
 }
@@ -537,6 +588,7 @@ AvmVM* avm_new() {
     vm->virtual_sleep_ns = 0;
     vm->rng_state = 0x123456789abcdef0ull;
     vm->gas_executed = 0;
+    vm->task_quantum_steps = 1000;
     vm->alloc_next_id = 1;
     vm->pause_after_steps = 0;
     vm->paused = 0;
@@ -760,9 +812,10 @@ void avm_run(AvmVM* vm) {
                     for (int wi = 0; wi < sched->task_cap; wi++) {
                         AvmTask* w = &sched->tasks[wi];
                         if (!w->used || !w->blocked) continue;
-                        if (w->wait_kind == 1 && w->wait_id == tid) {
+                        if ((w->wait_kind == 1 || w->wait_kind == 4) && w->wait_id == tid) {
                             w->blocked = 0;
                             w->wait_kind = 0;
+                            w->join_deadline_ns = 0;
                             w->wake_pending = 1;
                             w->wake_value = t->ret;
                             (void)sched_ready_push(sched, wi);
@@ -772,13 +825,11 @@ void avm_run(AvmVM* vm) {
                     // Switch to next runnable task.
                     int next = -1;
                     if (sched_ready_pop(sched, &next)) {
-                        sched->current_tid = next;
-                        task_load_into_vm(vm, &sched->tasks[next]);
+                        sched_switch(vm, sched, next);
                         continue;
                     }
                     // No runnable tasks: if main task is still running, resume it; else stop.
-                    sched->current_tid = 0;
-                    task_load_into_vm(vm, &sched->tasks[0]);
+                    sched_switch(vm, sched, 0);
                     continue;
                 }
                 vm->running = 0;
@@ -1130,9 +1181,10 @@ void avm_run(AvmVM* vm) {
                         for (int wi = 0; wi < sched->task_cap; wi++) {
                             AvmTask* w = &sched->tasks[wi];
                             if (!w->used || !w->blocked) continue;
-                            if (w->wait_kind == 1 && w->wait_id == tid) {
+                            if ((w->wait_kind == 1 || w->wait_kind == 4) && w->wait_id == tid) {
                                 w->blocked = 0;
                                 w->wait_kind = 0;
+                                w->join_deadline_ns = 0;
                                 w->wake_pending = 1;
                                 w->wake_value = ret;
                                 (void)sched_ready_push(sched, wi);
@@ -1141,13 +1193,11 @@ void avm_run(AvmVM* vm) {
 
                         int next = -1;
                         if (sched_ready_pop(sched, &next)) {
-                            sched->current_tid = next;
-                            task_load_into_vm(vm, &sched->tasks[next]);
+                            sched_switch(vm, sched, next);
                             continue;
                         }
                         // No runnable tasks: resume main.
-                        sched->current_tid = 0;
-                        task_load_into_vm(vm, &sched->tasks[0]);
+                        sched_switch(vm, sched, 0);
                         continue;
                     }
 
@@ -1306,6 +1356,7 @@ void avm_run(AvmVM* vm) {
                 ct->blocked = 1;
                 ct->wait_kind = 1;
                 ct->wait_id = tid;
+                ct->join_deadline_ns = 0;
                 task_save_from_vm(vm, ct);
 
                 int next = -1;
@@ -1313,8 +1364,88 @@ void avm_run(AvmVM* vm) {
                     avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
                     break;
                 }
-                sched->current_tid = next;
-                task_load_into_vm(vm, &sched->tasks[next]);
+                sched_switch(vm, sched, next);
+                continue;
+            }
+            case AVM_OP_JOIN_TIMEOUT: { // JOIN_TIMEOUT
+                // stack: [... handle timeout_ms] -> [... ret_or_timeout]
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->sp < 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on JOIN_TIMEOUT")); break; }
+                AvmValue tv = vm->stack[--vm->sp];
+                AvmValue hv = vm->stack[--vm->sp];
+                if (hv.type != AVM_VAL_INT || tv.type != AVM_VAL_INT) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN_TIMEOUT expects (int handle, int timeout_ms)"));
+                    break;
+                }
+                int tid = (int)hv.as.i - 1;
+                int64_t timeout_ms = tv.as.i;
+                if (tid < 0 || tid >= sched->task_cap || !sched->tasks[tid].used) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN_TIMEOUT invalid handle"));
+                    break;
+                }
+                if (tid == sched->current_tid) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN_TIMEOUT self")); break; }
+
+                AvmTask* tgt = &sched->tasks[tid];
+                if (tgt->done) {
+                    vm->stack[vm->sp++] = tgt->has_ret ? tgt->ret : avm_nil();
+                    break;
+                }
+
+                if (timeout_ms < 0) {
+                    // Equivalent to JOIN (block).
+                    int cur = sched->current_tid;
+                    AvmTask* ct = &sched->tasks[cur];
+                    ct->blocked = 1;
+                    ct->wait_kind = 1;
+                    ct->wait_id = tid;
+                    ct->join_deadline_ns = 0;
+                    task_save_from_vm(vm, ct);
+
+                    int next = -1;
+                    if (!sched_ready_pop(sched, &next)) {
+                        avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
+                        break;
+                    }
+                    sched_switch(vm, sched, next);
+                    continue;
+                }
+
+                if (timeout_ms == 0) {
+                    // Fast-path: non-blocking join probe.
+                    vm->stack[vm->sp++] = avm_int(-60); // ETIMEDOUT (BSD)
+                    break;
+                }
+
+                // If there are no runnable tasks besides us, joining can never make progress; treat as timeout.
+                if (sched->ready_len <= 0) {
+                    vm->stack[vm->sp++] = avm_int(-60); // ETIMEDOUT (BSD)
+                    break;
+                }
+
+                // Block current task with an absolute deadline in deterministic virtual time.
+                uint64_t now = avm_vm_now_ns(vm);
+                uint64_t dl = now + (uint64_t)timeout_ms * 1000000ull;
+
+                int cur = sched->current_tid;
+                AvmTask* ct = &sched->tasks[cur];
+                ct->blocked = 1;
+                ct->wait_kind = 4; // join_timeout
+                ct->wait_id = tid;
+                ct->join_deadline_ns = dl;
+                ct->wake_pending = 0;
+                ct->wake_value = avm_nil();
+                task_save_from_vm(vm, ct);
+
+                int next = -1;
+                if (!sched_ready_pop(sched, &next)) {
+                    // No runnable tasks => immediate timeout (must not hang).
+                    ct->blocked = 0;
+                    ct->wait_kind = 0;
+                    ct->join_deadline_ns = 0;
+                    vm->stack[vm->sp++] = avm_int(-60);
+                    break;
+                }
+                sched_switch(vm, sched, next);
                 continue;
             }
             case AVM_OP_CHAN_NEW: { // CHAN_NEW
@@ -1385,8 +1516,7 @@ void avm_run(AvmVM* vm) {
                     avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
                     break;
                 }
-                sched->current_tid = next;
-                task_load_into_vm(vm, &sched->tasks[next]);
+                sched_switch(vm, sched, next);
                 continue;
             }
             case AVM_OP_SELECT_RECV: { // SELECT_RECV
@@ -1396,7 +1526,15 @@ void avm_run(AvmVM* vm) {
                 if (lv.type != AVM_VAL_LIST || !lv.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SELECT_RECV expects list")); break; }
 
                 AvmList* lst = lv.as.l;
-                for (int i = 0; i < lst->count; i++) {
+                int cnt = lst->count;
+                int cur = sched->current_tid;
+                int start = 0;
+                if (cnt > 0) {
+                    start = sched->tasks[cur].select_cursor % cnt;
+                    if (start < 0) start = 0;
+                }
+                for (int off = 0; off < cnt; off++) {
+                    int i = (start + off) % cnt;
                     AvmValue hv = lst->items[i];
                     if (hv.type != AVM_VAL_INT) continue;
                     AvmChan* ch = sched_chan_get(sched, hv.as.i);
@@ -1405,6 +1543,7 @@ void avm_run(AvmVM* vm) {
                     if (chan_queue_pop(ch, &msg)) {
                         AvmValue pair = make_pair_list(vm, avm_int((int64_t)i), msg);
                         if (avm_is_err_val(pair)) { avm_abort(vm, pair); break; }
+                        if (cnt > 0) sched->tasks[cur].select_cursor = (i + 1) % cnt;
                         vm->stack[vm->sp++] = pair;
                         goto select_done;
                     }
@@ -1425,8 +1564,7 @@ void avm_run(AvmVM* vm) {
                         avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
                         break;
                     }
-                    sched->current_tid = next;
-                    task_load_into_vm(vm, &sched->tasks[next]);
+                    sched_switch(vm, sched, next);
                     continue;
                 }
 
@@ -1443,8 +1581,7 @@ select_done:
                 (void)sched_ready_push(sched, cur);
                 int next = -1;
                 if (sched_ready_pop(sched, &next)) {
-                    sched->current_tid = next;
-                    task_load_into_vm(vm, &sched->tasks[next]);
+                    sched_switch(vm, sched, next);
                     continue;
                 }
                 break;
@@ -1647,6 +1784,46 @@ select_done:
             default:
                 avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "unknown opcode"));
                 break;
+        }
+
+        // Deterministic time-sliced scheduling (gas quantum):
+        // If there is another runnable task, decrement current slice and yield when it reaches 0.
+        if (sched && sched->ready_len > 0) {
+            int cur = sched->current_tid;
+            if (cur >= 0 && cur < sched->task_cap && sched->tasks[cur].used && !sched->tasks[cur].done && !sched->tasks[cur].blocked) {
+                AvmTask* ct = &sched->tasks[cur];
+                ct->slice_remaining--;
+                if (ct->slice_remaining <= 0) {
+                    ct->slice_remaining = sched->quantum_steps;
+                    task_save_from_vm(vm, ct);
+                    (void)sched_ready_push(sched, cur);
+                    int next = -1;
+                    if (sched_ready_pop(sched, &next)) {
+                        sched_switch(vm, sched, next);
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // JOIN_TIMEOUT deadlines: if any join-timeout waiters are blocked and expired, wake them with ETIMEDOUT.
+        // This scan is O(tasks) and runs periodically (amortized). Keep it cheap.
+        if (sched && ((steps & 255ull) == 0)) {
+            uint64_t now = avm_vm_now_ns(vm);
+            for (int i = 0; i < sched->task_cap; i++) {
+                AvmTask* t = &sched->tasks[i];
+                if (!t->used || !t->blocked) continue;
+                if (t->wait_kind != 4) continue; // join_timeout
+                if (t->join_deadline_ns == 0) continue;
+                if (now >= t->join_deadline_ns) {
+                    t->blocked = 0;
+                    t->wait_kind = 0;
+                    t->join_deadline_ns = 0;
+                    t->wake_pending = 1;
+                    t->wake_value = avm_int(-60); // ETIMEDOUT (BSD)
+                    (void)sched_ready_push(sched, i);
+                }
+            }
         }
     }
 

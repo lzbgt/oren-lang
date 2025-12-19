@@ -133,7 +133,8 @@ test-inner: oren avm oretest
 	@# - timeout-protected
 	@# - failure-only output
 	@# - curated lists are in sync with repo evolution
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oretest --target $(OREN_TEST_TARGET) $(GC_ARG)
+	@# IMPORTANT: `./oretest` runs the full suite; it must not be constrained by BUILD_TIMEOUT_SECS.
+	@$(RUN_SUITE_WITH_TIMEOUT) ./oretest --target $(OREN_TEST_TARGET) $(GC_ARG)
 
 # Legacy suite: historical Makefile-driven runner.
 # Keep it for “extra coverage” during rolling refactors, but do not make it the default.

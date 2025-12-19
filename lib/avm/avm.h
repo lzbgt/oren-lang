@@ -224,6 +224,11 @@ typedef struct {
     // Today (bootstrap), it increments by the semantic `gas_cost(op)` per executed opcode dispatch (currently 1 for all ops).
     uint64_t gas_executed;
 
+    // Cooperative task scheduling quantum (rolling): number of semantic steps a task may run
+    // before yielding to another runnable task (if any). This affects determinism and must be
+    // included in job hashing when consensus mode is used.
+    uint32_t task_quantum_steps;
+
     // Allocation id counter (rolling): used only for diagnostics/profiling output surfaces.
     // This must not affect program semantics; it is not included in state/result hashes.
     uint32_t alloc_next_id;
