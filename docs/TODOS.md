@@ -16,7 +16,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Capability enrollment model: explicit mapping virtual -> host resources; deny-by-default with capability checks at the raw `sys_*` boundary (no bypass).
-   - Next: mounts UX polish + virtual mount mirroring (native/AVM) + more FS syscalls as needed.
+   - Next: mounts UX polish + virtual mount mirroring (native/AVM) + remaining ambiguous fd syscalls (e.g. dup/dup2/dup3, ioctl) gated + fd-kind propagation.
 
 2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
    - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
