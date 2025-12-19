@@ -165,6 +165,126 @@ fn string_contains(hay, needle) {
     return false
 }
 
+// --- Syscall-first hardening (compile-time guard) ---
+//
+// Prevent accidental re-introduction of syscall bypasses in the native backend:
+// - All OS syscalls (except allocator mmap/exit and the entry stub exit) must be emitted by
+//   `arm64_native_expr_syscalls.oren` so capsule pre/post hooks remain authoritative.
+//
+// We enforce this by scanning compiler source files for direct `darwin_sys_*` / `linux_sys_*`
+// references, and allowing only a minimal set in the few files that intentionally emit
+// those syscalls.
+fn streq(a, b) {
+    if a == nil || b == nil { return false }
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    var al = oren_list_len(ab)
+    var bl = oren_list_len(bb)
+    if al != bl { return false }
+    var i = 0
+    while i < al {
+        if ab[i] != bb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn scan_syscalls_in_src(src, prefix) {
+    var out = []
+    var sb = oren_bytes_from_string(src)
+    var pb = oren_bytes_from_string(prefix)
+    var n = oren_list_len(sb)
+    var p_len = oren_list_len(pb)
+    var i = 0
+    while i + p_len <= n {
+        var match = true
+        var j = 0
+        while j < p_len {
+            if sb[i + j] != pb[j] { match = false; break }
+            j = j + 1
+        }
+        if match {
+            var start = i + p_len
+            // Read identifier [a-zA-Z0-9_]+
+            var k = start
+            while k < n {
+                var ch = sb[k]
+                var ok = false
+                if ch >= 48 && ch <= 57 { ok = true }
+                if ch >= 65 && ch <= 90 { ok = true }
+                if ch >= 97 && ch <= 122 { ok = true }
+                if ch == 95 { ok = true }
+                if ok != true { break }
+                k = k + 1
+            }
+            var name = oren_string_slice(src, start, k)
+            if name != nil {
+                // De-dup
+                var seen = false
+                var si = 0
+                while si < oren_list_len(out) {
+                    if streq(out[si], name) { seen = true; break }
+                    si = si + 1
+                }
+                if seen != true { oren_list_push(out, name) }
+            }
+            i = k
+            continue
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn syscall_allow(list, name) {
+    var i = 0
+    while i < oren_list_len(list) {
+        if streq(list[i], name) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
+    var src = oren_read_file(file)
+    if oren_is_err(src) {
+        print("ERROR: failed to read for syscall-policy check: " + file)
+        var msg = oren_err_msg(src)
+        if msg != nil { print(msg) }
+        oren_exit(2)
+    }
+    var dar = scan_syscalls_in_src(src, "darwin_sys_")
+    var lin = scan_syscalls_in_src(src, "linux_sys_")
+
+    var bad = []
+    var i = 0
+    while i < oren_list_len(dar) {
+        if syscall_allow(allowed_darwin, dar[i]) != true {
+            oren_list_push(bad, "darwin_sys_" + dar[i])
+        }
+        i = i + 1
+    }
+    i = 0
+    while i < oren_list_len(lin) {
+        if syscall_allow(allowed_linux, lin[i]) != true {
+            oren_list_push(bad, "linux_sys_" + lin[i])
+        }
+        i = i + 1
+    }
+
+    if oren_list_len(bad) != 0 {
+        print("FAIL: syscall-first policy violation in " + file)
+        print("Disallowed direct syscall identifiers (should be centralized in arm64_native_expr_syscalls.oren):")
+        var bi = 0
+        while bi < oren_list_len(bad) {
+            print("  - " + bad[bi])
+            bi = bi + 1
+        }
+        oren_exit(1)
+    }
+    return 0
+}
+
 fn run_repo_tests(target, no_gc) {
     // Repo-wide curated runner:
     // - native tests compiled+run with native backend
@@ -184,6 +304,14 @@ fn run_repo_tests(target, no_gc) {
     // Timeouts: keep short by default for iteration velocity.
     var build_timeout = 60
     var run_timeout = 10
+
+    // Allowed direct syscall identifiers by file:
+    // - arm64_native_expr_syscalls.oren: central syscall lowering (allow all)
+    // - arm64_native_expr.oren: allocator uses mmap + exit only
+    // - arm64_native_program.oren: entry stub uses exit only
+    enforce_syscall_policy("lib/compiler/arm64_native_stmt.oren", [], [])
+    enforce_syscall_policy("lib/compiler/arm64_native_program.oren", ["exit"], ["exit"])
+    enforce_syscall_policy("lib/compiler/arm64_native_expr.oren", ["mmap", "exit"], ["mmap", "exit"])
 
     // Curated lists (canonical; keep Makefile as a thin wrapper if still present).
     var native_tests = [

@@ -16,7 +16,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Capability enrollment model: explicit mapping virtual -> host resources; deny-by-default with capability checks at the raw `sys_*` boundary (no bypass).
-   - Next: scan for remaining direct-syscall bypasses in codegen and close them; keep mount deny diagnostics consistent (native/AVM).
+   - Next: keep `oren test` enforcing “no direct syscall bypass” in codegen; extend to cover new syscalls as they are added.
 
 2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
    - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
@@ -51,4 +51,5 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native codegen ABI: preserve X19–X26 across function calls; treat X27/X28 as reserved global heap registers (do not save/restore in prologue/epilogue).
 - Native runtime: fixed map layout to be list-like (`[count][cap][entries_ptr][magic]`) and implemented growth; fixes `{}` OOB corruption and unblocks `std/json` + smoke suite.
 - Native syscall lowering: preserve heap regs around every `svc` (defense-in-depth; rolling ABI stability).
+- Repo test runner: added syscall-first policy guard that forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved compiler modules.
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.
