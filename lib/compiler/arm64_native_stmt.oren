@@ -694,7 +694,7 @@ fn native_compile_stmt(ctx, stmt) {
             // to caller arguments would be wrong.
             push_u32_le(ctx["code"], insn_add_imm(9, 31, 0)) // X9 = SP
 
-            // Save callee-saved registers (AAPCS X19-X28) at fixed offsets from FP.
+            // Save callee-saved registers (native ABI: X19-X26) at fixed offsets from FP.
             //
             // NOTE:
             // - We preserve X19-X26 as callee-saved to stabilize calls between generated functions.
