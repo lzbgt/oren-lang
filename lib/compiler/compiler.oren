@@ -1640,7 +1640,7 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(rp_out))
 
-    // getcwd (runtime; host-mode only):
+    // getcwd (runtime): host mode returns host path; capsule mode returns "/" (virtual root).
     var cwd_out = "build/runtime_getcwd_prog"
     var cwd_log = "build/logs/runtime_getcwd_prog_build.log"
     var cwd_cmd = "./oren build " + shell_quote("tests/native/fixtures/runtime_getcwd_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cwd_out) + gc_arg
@@ -1656,6 +1656,17 @@ fn run_repo_tests(target, no_gc) {
     if cwd_run_rc != 0 {
         print("native failed: runtime_getcwd_prog (run)")
         oren_system("cat " + shell_quote(cwd_run_log))
+        oren_exit(1)
+    }
+
+    // getcwd in capsule mode must not leak host paths; it should return "/".
+    // This keeps libraries using getcwd safe under syscall-first capability enforcement.
+    var cwd_cap_run_log = "build/logs/runtime_getcwd_prog_run_capsule.log"
+    var cwd_cap_run_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cwd_out
+    var cwd_cap_run_rc = run_shell_capture(timeout_bin, run_timeout, cwd_cap_run_cmd, cwd_cap_run_log)
+    if cwd_cap_run_rc != 0 {
+        print("native failed: runtime_getcwd_prog (run capsule)")
+        oren_system("cat " + shell_quote(cwd_cap_run_log))
         oren_exit(1)
     }
     oren_system("rm -f " + shell_quote(cwd_out))

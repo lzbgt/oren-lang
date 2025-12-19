@@ -55,5 +55,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Repo test runner: added syscall-first policy guard that forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved compiler modules.
 - Repo test runner: extended syscall-first policy guard to also bound direct `svc` emission (`insn_svc`) to the minimal approved files (entry stub + allocator slow path).
 - Repo test runner: syscall-first policy guard now ignores `//` comments when scanning (reduces brittleness; avoids false positives from doc strings).
+- Native runtime: `oren_getcwd()` now returns `"/"` in capsule mode (avoids leaking host paths; keeps path-normalization libs safe).
 - ABI tables: added repo-owned `mmap` PROT/FLAGS constants (Darwin/Linux) and removed numeric literals from native allocator codegen.
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

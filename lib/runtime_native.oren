@@ -365,6 +365,9 @@ var FD_KIND_KQUEUE = 20
 // Verified via Apple SDK headers for macOS (audit only; not a build dependency).
 var FCNTL_F_DUPFD = 0
 var FCNTL_F_DUPFD_CLOEXEC = 67
+// Darwin-specific: fcntl(F_GETPATH) to resolve fd -> path (macOS).
+// Repo-owned constant (audit-only reference: Apple SDK headers).
+var DARWIN_FCNTL_F_GETPATH = 50
 
 // --- Fork hygiene (rolling; syscall-first) ---
 // After fork(), the child process inherits any in-memory locks held at the moment of fork.
@@ -452,6 +455,7 @@ fn native_runtime_init() {
 
     FCNTL_F_DUPFD = 0
     FCNTL_F_DUPFD_CLOEXEC = 67
+    DARWIN_FCNTL_F_GETPATH = 50
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //
@@ -4697,14 +4701,21 @@ fn oren_getcwd() {
     // Returns the current working directory.
     //
     // Security/determinism note:
-    // - In capsule mode we deny by default to avoid leaking host paths.
+    // - In capsule mode we must not leak host paths. Return "/" (virtual root).
     // - In host mode (non-capsule) on macOS we use fcntl(F_GETPATH).
     // - On Linux we will use sys_getcwd when running natively.
 
     native_capsule_require(CAP_FS, "FS")
     if global_get_capsule_mode() == 1 {
-        print("CAPSULE DENY: GETCWD")
-        exit(78)
+        // VirtualFS has no host cwd. Returning "/" is deterministic and avoids
+        // leaking host paths. This also makes it safe for libraries that use
+        // getcwd as part of path normalization.
+        var out = malloc(2)
+        if out == 0 { exit(280) }
+        ptr_set_byte(out + 0, 47) // '/'
+        ptr_set_byte(out + 1, 0)
+        oren_track_alloc(out, 2, 1) // STRING
+        return out
     }
 
     // macOS implementation: open(".") + fcntl(F_GETPATH=50)
@@ -4715,7 +4726,7 @@ fn oren_getcwd() {
     var buf = malloc(4096)
     if buf == 0 { sys_close(fd); exit(282) }
 
-    var rc = sys_fcntl(fd, 50, buf)
+    var rc = sys_fcntl(fd, DARWIN_FCNTL_F_GETPATH, buf)
     if rc < 0 { sys_close(fd); exit(283) }
 
     var cc = sys_close(fd)
