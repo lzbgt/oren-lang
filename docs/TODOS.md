@@ -40,15 +40,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
-   - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
-     - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
-     - deterministic TIME/RNG, snapshot/resume, multiverse
-   - Next deliverable: NEON reductions (still scalar fallback available) `[perf]`:
-     - implement NEON for `f32` reductions (`dot`, `reduce_sum`) with a fixed reduction order (consensus-safe)
-     - extend smoke coverage for reduction kernels under `AVM_ENABLE_SIMD=1`
-
-2) **P1 [lang] Explicit fixed-width numeric types + type annotations** `[perf]`
+1) **P0 [lang] Explicit fixed-width numeric types + type annotations** `[perf]`
    - DoD: Oren can express deterministic, hardware-level layouts without abusing attributes:
      - built-in type tokens: `u8/i8/u16/i16/u32/i32/u64/i64/u128/i128/f32/f64/bool`
      - type annotation syntax works for locals, params, returns, and struct fields
@@ -57,21 +49,32 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - codegen: exact-size memory layout for those types (esp. `packed` structs and endian casts)
      - keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system
 
-3) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
+2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
+   - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
+   - Next deliverables (in order):
+     - add a determinism guard test that runs the same `.obc` with SIMD off/on and compares output + trace hash
+     - (optional) add i32 elementwise NEON kernels if profiling shows it matters
+
+3) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
+   - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
+     - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
+     - deterministic TIME/RNG, snapshot/resume, multiverse
+
+4) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
    - Next deliverables (in order):
      - compile-time ambiguity diagnostics for multiple impls of the same `Type.method`
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
-4) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
+5) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
    - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
    - Next deliverable: define the minimal “AVM-in-Oren” surface area (hosted by C AVM first).
 
-5) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
+6) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
    - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
    - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
 
-6) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+7) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
    - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
@@ -89,3 +92,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM: completed ABI-nucleus `_into` kernels for scale (`f32/i32`) and added a concrete NEON mapping plan (`docs/AVM_NEON_MAPPING_PLAN.md`).
 - AVM: added allocation-free reduction `_into` kernels (`dot/reduce_sum` writing to `f64_buf/i64_buf`), wired through compiler lowering; covered by smoke suite.
 - AVM: added `AVM_ENABLE_SIMD=1` runtime opt-in + NEON implementations for `f32` elementwise `_into` kernels; validated via `oretest` running smoke+snapshot-resume in both scalar and SIMD modes on arm64.
+- AVM: added determinism-safe NEON reductions for `f32` (`dot`/`reduce_sum`), preserving the scalar “compute in f64, accumulate in fixed order” semantics; smoke suite includes a len=8 SIMD coverage block.

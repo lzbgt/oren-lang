@@ -98,6 +98,11 @@ Strategy for `f32` reductions:
 
 This yields a deterministic order that is stable across compilers and platforms *as long as* fast-math and FP contraction are disabled.
 
+Implementation note (current repo):
+
+- The NEON reductions preserve the scalar semantics by converting `f32 -> f64` and accumulating into a scalar `double` in a fixed element order.
+- We intentionally avoid fused multiply-add intrinsics for reductions (no `vmlaq_f64`) to prevent FMA drift.
+
 ## 6) Feature gating: runtime + build-time
 
 Runtime:

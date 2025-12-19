@@ -1568,22 +1568,76 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 // - Accumulate in double (fixed loop order) to reduce platform drift.
                 // - FP contraction is disabled at TU level in avm_native.c.
                 double acc = 0.0;
-                for (uint32_t i = 0; i < a->len; i++) {
-                    uint32_t off = i * 4u;
-                    uint32_t ua = (uint32_t)a->data[off]
-                                | ((uint32_t)a->data[off + 1] << 8)
-                                | ((uint32_t)a->data[off + 2] << 16)
-                                | ((uint32_t)a->data[off + 3] << 24);
-                    uint32_t ub = (uint32_t)b->data[off]
-                                | ((uint32_t)b->data[off + 1] << 8)
-                                | ((uint32_t)b->data[off + 2] << 16)
-                                | ((uint32_t)b->data[off + 3] << 24);
-                    float fa = 0.0f;
-                    float fb = 0.0f;
-                    memcpy(&fa, &ua, sizeof(fa));
-                    memcpy(&fb, &ub, sizeof(fb));
-                    double prod = (double)fa * (double)fb;
-                    acc = acc + prod;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    uint32_t i = 0;
+                    for (; i + 4u <= a->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        uint32_t wa[4], wb[4];
+                        memcpy(wa, a->data + off, 16);
+                        memcpy(wb, b->data + off, 16);
+                        uint32x4_t va_u = vld1q_u32(wa);
+                        uint32x4_t vb_u = vld1q_u32(wb);
+                        float32x4_t va_f = vreinterpretq_f32_u32(va_u);
+                        float32x4_t vb_f = vreinterpretq_f32_u32(vb_u);
+
+                        // Preserve scalar semantics:
+                        // - compute products in f64 (not f32), and accumulate into a f64 scalar in fixed element order.
+                        float32x2_t va_lo = vget_low_f32(va_f);
+                        float32x2_t va_hi = vget_high_f32(va_f);
+                        float32x2_t vb_lo = vget_low_f32(vb_f);
+                        float32x2_t vb_hi = vget_high_f32(vb_f);
+
+                        float64x2_t da0 = vcvt_f64_f32(va_lo);
+                        float64x2_t da1 = vcvt_f64_f32(va_hi);
+                        float64x2_t db0 = vcvt_f64_f32(vb_lo);
+                        float64x2_t db1 = vcvt_f64_f32(vb_hi);
+
+                        float64x2_t p0 = vmulq_f64(da0, db0);
+                        float64x2_t p1 = vmulq_f64(da1, db1);
+
+                        acc = acc + vgetq_lane_f64(p0, 0);
+                        acc = acc + vgetq_lane_f64(p0, 1);
+                        acc = acc + vgetq_lane_f64(p1, 0);
+                        acc = acc + vgetq_lane_f64(p1, 1);
+                    }
+                    for (; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        float fa = 0.0f;
+                        float fb = 0.0f;
+                        memcpy(&fa, &ua, sizeof(fa));
+                        memcpy(&fb, &ub, sizeof(fb));
+                        double prod = (double)fa * (double)fb;
+                        acc = acc + prod;
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        float fa = 0.0f;
+                        float fb = 0.0f;
+                        memcpy(&fa, &ua, sizeof(fa));
+                        memcpy(&fb, &ub, sizeof(fb));
+                        double prod = (double)fa * (double)fb;
+                        acc = acc + prod;
+                    }
                 }
                 res.type = AVM_VAL_FLOAT;
                 res.as.f = acc;
@@ -1731,15 +1785,51 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 AvmBuf* b = args[0].as.buf;
                 if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_f32: invalid buffer"); break; }
                 double acc = 0.0;
-                for (uint32_t i = 0; i < b->len; i++) {
-                    uint32_t off = i * 4u;
-                    uint32_t u = (uint32_t)b->data[off]
-                               | ((uint32_t)b->data[off + 1] << 8)
-                               | ((uint32_t)b->data[off + 2] << 16)
-                               | ((uint32_t)b->data[off + 3] << 24);
-                    float v = 0.0f;
-                    memcpy(&v, &u, sizeof(v));
-                    acc += (double)v;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    uint32_t i = 0;
+                    for (; i + 4u <= b->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        uint32_t w[4];
+                        memcpy(w, b->data + off, 16);
+                        uint32x4_t vu_u = vld1q_u32(w);
+                        float32x4_t vf = vreinterpretq_f32_u32(vu_u);
+
+                        // Preserve scalar semantics:
+                        // - convert to f64 and add to scalar acc in fixed order.
+                        float32x2_t v_lo = vget_low_f32(vf);
+                        float32x2_t v_hi = vget_high_f32(vf);
+                        float64x2_t d0 = vcvt_f64_f32(v_lo);
+                        float64x2_t d1 = vcvt_f64_f32(v_hi);
+
+                        acc = acc + vgetq_lane_f64(d0, 0);
+                        acc = acc + vgetq_lane_f64(d0, 1);
+                        acc = acc + vgetq_lane_f64(d1, 0);
+                        acc = acc + vgetq_lane_f64(d1, 1);
+                    }
+                    for (; i < b->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t u = (uint32_t)b->data[off]
+                                   | ((uint32_t)b->data[off + 1] << 8)
+                                   | ((uint32_t)b->data[off + 2] << 16)
+                                   | ((uint32_t)b->data[off + 3] << 24);
+                        float v = 0.0f;
+                        memcpy(&v, &u, sizeof(v));
+                        acc += (double)v;
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < b->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t u = (uint32_t)b->data[off]
+                                   | ((uint32_t)b->data[off + 1] << 8)
+                                   | ((uint32_t)b->data[off + 2] << 16)
+                                   | ((uint32_t)b->data[off + 3] << 24);
+                        float v = 0.0f;
+                        memcpy(&v, &u, sizeof(v));
+                        acc += (double)v;
+                    }
                 }
                 res.type = AVM_VAL_FLOAT;
                 res.as.f = acc;
@@ -2036,21 +2126,72 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_into: out data is null"); break; }
                 if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_into: length mismatch"); break; }
                 double acc = 0.0;
-                for (uint32_t i = 0; i < a->len; i++) {
-                    uint32_t off = i * 4u;
-                    uint32_t ua = (uint32_t)a->data[off]
-                                | ((uint32_t)a->data[off + 1] << 8)
-                                | ((uint32_t)a->data[off + 2] << 16)
-                                | ((uint32_t)a->data[off + 3] << 24);
-                    uint32_t ub = (uint32_t)b->data[off]
-                                | ((uint32_t)b->data[off + 1] << 8)
-                                | ((uint32_t)b->data[off + 2] << 16)
-                                | ((uint32_t)b->data[off + 3] << 24);
-                    float fa = 0.0f;
-                    float fb = 0.0f;
-                    memcpy(&fa, &ua, sizeof(fa));
-                    memcpy(&fb, &ub, sizeof(fb));
-                    acc = acc + ((double)fa * (double)fb);
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    uint32_t i = 0;
+                    for (; i + 4u <= a->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        uint32_t wa[4], wb[4];
+                        memcpy(wa, a->data + off, 16);
+                        memcpy(wb, b->data + off, 16);
+                        uint32x4_t va_u = vld1q_u32(wa);
+                        uint32x4_t vb_u = vld1q_u32(wb);
+                        float32x4_t va_f = vreinterpretq_f32_u32(va_u);
+                        float32x4_t vb_f = vreinterpretq_f32_u32(vb_u);
+
+                        float32x2_t va_lo = vget_low_f32(va_f);
+                        float32x2_t va_hi = vget_high_f32(va_f);
+                        float32x2_t vb_lo = vget_low_f32(vb_f);
+                        float32x2_t vb_hi = vget_high_f32(vb_f);
+
+                        float64x2_t da0 = vcvt_f64_f32(va_lo);
+                        float64x2_t da1 = vcvt_f64_f32(va_hi);
+                        float64x2_t db0 = vcvt_f64_f32(vb_lo);
+                        float64x2_t db1 = vcvt_f64_f32(vb_hi);
+
+                        float64x2_t p0 = vmulq_f64(da0, db0);
+                        float64x2_t p1 = vmulq_f64(da1, db1);
+
+                        acc = acc + vgetq_lane_f64(p0, 0);
+                        acc = acc + vgetq_lane_f64(p0, 1);
+                        acc = acc + vgetq_lane_f64(p1, 0);
+                        acc = acc + vgetq_lane_f64(p1, 1);
+                    }
+                    for (; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        float fa = 0.0f;
+                        float fb = 0.0f;
+                        memcpy(&fa, &ua, sizeof(fa));
+                        memcpy(&fb, &ub, sizeof(fb));
+                        acc = acc + ((double)fa * (double)fb);
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        float fa = 0.0f;
+                        float fb = 0.0f;
+                        memcpy(&fa, &ua, sizeof(fa));
+                        memcpy(&fb, &ub, sizeof(fb));
+                        acc = acc + ((double)fa * (double)fb);
+                    }
                 }
                 uint64_t u = 0;
                 memcpy(&u, &acc, sizeof(u));
@@ -2076,15 +2217,47 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 if (out->len < 1u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_f32_into: out len must be >= 1"); break; }
                 if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_f32_into: out data is null"); break; }
                 double acc = 0.0;
-                for (uint32_t i = 0; i < a->len; i++) {
-                    uint32_t off = i * 4u;
-                    uint32_t u = (uint32_t)a->data[off]
-                               | ((uint32_t)a->data[off + 1] << 8)
-                               | ((uint32_t)a->data[off + 2] << 16)
-                               | ((uint32_t)a->data[off + 3] << 24);
-                    float v = 0.0f;
-                    memcpy(&v, &u, sizeof(v));
-                    acc += (double)v;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    uint32_t i = 0;
+                    for (; i + 4u <= a->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        uint32_t w[4];
+                        memcpy(w, a->data + off, 16);
+                        uint32x4_t vu_u = vld1q_u32(w);
+                        float32x4_t vf = vreinterpretq_f32_u32(vu_u);
+                        float32x2_t v_lo = vget_low_f32(vf);
+                        float32x2_t v_hi = vget_high_f32(vf);
+                        float64x2_t d0 = vcvt_f64_f32(v_lo);
+                        float64x2_t d1 = vcvt_f64_f32(v_hi);
+                        acc = acc + vgetq_lane_f64(d0, 0);
+                        acc = acc + vgetq_lane_f64(d0, 1);
+                        acc = acc + vgetq_lane_f64(d1, 0);
+                        acc = acc + vgetq_lane_f64(d1, 1);
+                    }
+                    for (; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t u = (uint32_t)a->data[off]
+                                   | ((uint32_t)a->data[off + 1] << 8)
+                                   | ((uint32_t)a->data[off + 2] << 16)
+                                   | ((uint32_t)a->data[off + 3] << 24);
+                        float v = 0.0f;
+                        memcpy(&v, &u, sizeof(v));
+                        acc += (double)v;
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t u = (uint32_t)a->data[off]
+                                   | ((uint32_t)a->data[off + 1] << 8)
+                                   | ((uint32_t)a->data[off + 2] << 16)
+                                   | ((uint32_t)a->data[off + 3] << 24);
+                        float v = 0.0f;
+                        memcpy(&v, &u, sizeof(v));
+                        acc += (double)v;
+                    }
                 }
                 uint64_t u = 0;
                 memcpy(&u, &acc, sizeof(u));

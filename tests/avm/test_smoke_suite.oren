@@ -307,6 +307,24 @@ fn test_typed_buffers() {
     oren_buf_reduce_sum_f32_into(sum_f32_out, tmpf)
     assert_eq(oren_buf_load_f64(sum_f32_out, 0), 21.0)
 
+    // SIMD smoke (arm64, AVM_ENABLE_SIMD=1): use len=8 so vector loops execute.
+    // These values are exactly representable (avoid float drift in tests).
+    var fa8 = oren_f32_buf_new(8)
+    var fb8 = oren_f32_buf_new(8)
+    oren_buf_fill_f32(fa8, 1.5)
+    oren_buf_fill_f32(fb8, 2.0)
+    assert_eq(oren_buf_dot_f32(fa8, fb8), 24.0) // 8 * (1.5*2.0) = 24
+    var dot_f32_out8 = oren_f64_buf_new(1)
+    oren_buf_dot_f32_into(dot_f32_out8, fa8, fb8)
+    assert_eq(oren_buf_load_f64(dot_f32_out8, 0), 24.0)
+
+    var tmpf8 = oren_f32_buf_new(8)
+    oren_buf_add_f32_into(tmpf8, fa8, fb8) // 3.5 each
+    assert_eq(oren_buf_reduce_sum_f32(tmpf8), 28.0) // 8 * 3.5
+    var sum_f32_out8 = oren_f64_buf_new(1)
+    oren_buf_reduce_sum_f32_into(sum_f32_out8, tmpf8)
+    assert_eq(oren_buf_load_f64(sum_f32_out8, 0), 28.0)
+
     // mul kernels
     var mdst = oren_f32_buf_new(3)
     oren_buf_mul_f32_into(mdst, fa, fb) // 1.5 * 2.0 = 3.0
