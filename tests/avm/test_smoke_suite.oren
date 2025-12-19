@@ -278,6 +278,9 @@ fn test_typed_buffers() {
     var c = oren_buf_add_i32(a, b)
     assert_eq(oren_buf_load_i32(c, 0), 7)
     assert_eq(oren_buf_dot_i32(a, b), 30) // 3 * (2*5)
+    var dot_i32_out = oren_i64_buf_new(1)
+    oren_buf_dot_i32_into(dot_i32_out, a, b)
+    assert_eq(oren_buf_load_i64(dot_i32_out, 0), 30)
 
     var fa = oren_f32_buf_new(3)
     var fb = oren_f32_buf_new(3)
@@ -286,6 +289,9 @@ fn test_typed_buffers() {
     var fc = oren_buf_add_f32(fa, fb)
     assert_eq(oren_buf_load_f32(fc, 0), 3.5)
     assert_eq(oren_buf_dot_f32(fa, fb), 9.0) // 3 * (1.5*2.0)
+    var dot_f32_out = oren_f64_buf_new(1)
+    oren_buf_dot_f32_into(dot_f32_out, fa, fb)
+    assert_eq(oren_buf_load_f64(dot_f32_out, 0), 9.0)
 
     var tmpi = oren_i32_buf_new(3)
     oren_buf_add_i32_into(tmpi, a, b)
@@ -297,6 +303,9 @@ fn test_typed_buffers() {
 
     oren_buf_scale_f32(tmpf, 2.0)
     assert_eq(oren_buf_reduce_sum_f32(tmpf), 21.0) // 3 * 7.0
+    var sum_f32_out = oren_f64_buf_new(1)
+    oren_buf_reduce_sum_f32_into(sum_f32_out, tmpf)
+    assert_eq(oren_buf_load_f64(sum_f32_out, 0), 21.0)
 
     // mul kernels
     var mdst = oren_f32_buf_new(3)
@@ -312,6 +321,9 @@ fn test_typed_buffers() {
     oren_buf_mul_i32_into(idst, a, b) // 2 * 5 = 10
     assert_eq(oren_buf_load_i32(idst, 0), 10)
     assert_eq(oren_buf_reduce_sum_i32(idst), 30)
+    var sum_i32_out = oren_i64_buf_new(1)
+    oren_buf_reduce_sum_i32_into(sum_i32_out, idst)
+    assert_eq(oren_buf_load_i64(sum_i32_out, 0), 30)
 
     var iout = oren_buf_mul_i32(a, b)
     assert_eq(oren_buf_load_i32(iout, 2), 10)

@@ -122,9 +122,11 @@ Bootstrap status (rolling, implemented in `lib/avm`):
 - Minimal bootstrap “kernel ops” (CORE domain legacy ids; scalar fallback; deterministic encoding):
   - fills: `oren_buf_fill_{i32,i64,f32,f64}(buf, scalar)`
   - elementwise: `oren_buf_add_{i32,f32}(a, b) -> new_buf`
-  - dot: `oren_buf_dot_{i32,f32}(a, b) -> scalar`
+  - dot (convenience scalar return): `oren_buf_dot_{i32,f32}(a, b) -> scalar`
+  - dot (allocation-free pipeline): `oren_buf_dot_i32_into(out:i64_buf, a:i32_buf, b:i32_buf) -> out`, `oren_buf_dot_f32_into(out:f64_buf, a:f32_buf, b:f32_buf) -> out` (stores result at `out[0]`)
   - in-place: `oren_buf_add_{i32,f32}_into(dst, a, b) -> dst`
-  - scale/reduce: `oren_buf_scale_f32(buf, scalar)`, `oren_buf_reduce_sum_f32(buf) -> scalar`
+  - scale/reduce (convenience scalar return): `oren_buf_scale_f32(buf, scalar)`, `oren_buf_reduce_sum_f32(buf) -> scalar`
+  - reduce (allocation-free pipeline): `oren_buf_reduce_sum_f32_into(out:f64_buf, a:f32_buf) -> out`, `oren_buf_reduce_sum_i32_into(out:i64_buf, a:i32_buf) -> out` (stores result at `out[0]`)
   - mul: `oren_buf_mul_f32_into(dst, a, b) -> dst`, `oren_buf_mul_f32(a, b) -> new_buf`
   - integer mul/reduce: `oren_buf_mul_i32_into(dst, a, b) -> dst`, `oren_buf_mul_i32(a, b) -> new_buf`, `oren_buf_reduce_sum_i32(buf) -> int`
   - scale into: `oren_buf_scale_f32_into(dst, a, scalar) -> dst`, `oren_buf_scale_i32_into(dst, a, scalar) -> dst`

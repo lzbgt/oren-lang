@@ -1905,6 +1905,152 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 86: { // oren_buf_dot_f32_into(out:f64_buf, a:f32_buf, b:f32_buf) -> f64_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_F32_BUF && args[2].type == AVM_VAL_F32_BUF) {
+                AvmBuf* out = args[0].as.buf;
+                AvmBuf* a = args[1].as.buf;
+                AvmBuf* b = args[2].as.buf;
+                if (!out || !a || !b || out->elem_size != 8u || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_into: invalid buffers"); break; }
+                if (out->len < 1u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_into: out len must be >= 1"); break; }
+                if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_into: out data is null"); break; }
+                if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_into: length mismatch"); break; }
+                double acc = 0.0;
+                for (uint32_t i = 0; i < a->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ua = (uint32_t)a->data[off]
+                                | ((uint32_t)a->data[off + 1] << 8)
+                                | ((uint32_t)a->data[off + 2] << 16)
+                                | ((uint32_t)a->data[off + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[off]
+                                | ((uint32_t)b->data[off + 1] << 8)
+                                | ((uint32_t)b->data[off + 2] << 16)
+                                | ((uint32_t)b->data[off + 3] << 24);
+                    float fa = 0.0f;
+                    float fb = 0.0f;
+                    memcpy(&fa, &ua, sizeof(fa));
+                    memcpy(&fb, &ub, sizeof(fb));
+                    acc = acc + ((double)fa * (double)fb);
+                }
+                uint64_t u = 0;
+                memcpy(&u, &acc, sizeof(u));
+                out->data[0] = (uint8_t)(u & 0xFFu);
+                out->data[1] = (uint8_t)((u >> 8) & 0xFFu);
+                out->data[2] = (uint8_t)((u >> 16) & 0xFFu);
+                out->data[3] = (uint8_t)((u >> 24) & 0xFFu);
+                out->data[4] = (uint8_t)((u >> 32) & 0xFFu);
+                out->data[5] = (uint8_t)((u >> 40) & 0xFFu);
+                out->data[6] = (uint8_t)((u >> 48) & 0xFFu);
+                out->data[7] = (uint8_t)((u >> 56) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_f32_into expects (f64_buf, f32_buf, f32_buf)");
+            }
+            break;
+        }
+        case 87: { // oren_buf_reduce_sum_f32_into(out:f64_buf, a:f32_buf) -> f64_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_F32_BUF) {
+                AvmBuf* out = args[0].as.buf;
+                AvmBuf* a = args[1].as.buf;
+                if (!out || !a || out->elem_size != 8u || a->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_f32_into: invalid buffers"); break; }
+                if (out->len < 1u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_f32_into: out len must be >= 1"); break; }
+                if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_f32_into: out data is null"); break; }
+                double acc = 0.0;
+                for (uint32_t i = 0; i < a->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t u = (uint32_t)a->data[off]
+                               | ((uint32_t)a->data[off + 1] << 8)
+                               | ((uint32_t)a->data[off + 2] << 16)
+                               | ((uint32_t)a->data[off + 3] << 24);
+                    float v = 0.0f;
+                    memcpy(&v, &u, sizeof(v));
+                    acc += (double)v;
+                }
+                uint64_t u = 0;
+                memcpy(&u, &acc, sizeof(u));
+                out->data[0] = (uint8_t)(u & 0xFFu);
+                out->data[1] = (uint8_t)((u >> 8) & 0xFFu);
+                out->data[2] = (uint8_t)((u >> 16) & 0xFFu);
+                out->data[3] = (uint8_t)((u >> 24) & 0xFFu);
+                out->data[4] = (uint8_t)((u >> 32) & 0xFFu);
+                out->data[5] = (uint8_t)((u >> 40) & 0xFFu);
+                out->data[6] = (uint8_t)((u >> 48) & 0xFFu);
+                out->data[7] = (uint8_t)((u >> 56) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_reduce_sum_f32_into expects (f64_buf, f32_buf)");
+            }
+            break;
+        }
+        case 88: { // oren_buf_dot_i32_into(out:i64_buf, a:i32_buf, b:i32_buf) -> i64_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_I64_BUF && args[1].type == AVM_VAL_I32_BUF && args[2].type == AVM_VAL_I32_BUF) {
+                AvmBuf* out = args[0].as.buf;
+                AvmBuf* a = args[1].as.buf;
+                AvmBuf* b = args[2].as.buf;
+                if (!out || !a || !b || out->elem_size != 8u || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_into: invalid buffers"); break; }
+                if (out->len < 1u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_into: out len must be >= 1"); break; }
+                if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_into: out data is null"); break; }
+                if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_into: length mismatch"); break; }
+                int64_t acc = 0;
+                for (uint32_t i = 0; i < a->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ua = (uint32_t)a->data[off]
+                                | ((uint32_t)a->data[off + 1] << 8)
+                                | ((uint32_t)a->data[off + 2] << 16)
+                                | ((uint32_t)a->data[off + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[off]
+                                | ((uint32_t)b->data[off + 1] << 8)
+                                | ((uint32_t)b->data[off + 2] << 16)
+                                | ((uint32_t)b->data[off + 3] << 24);
+                    int64_t va = (int64_t)(int32_t)ua;
+                    int64_t vb = (int64_t)(int32_t)ub;
+                    acc += va * vb;
+                }
+                uint64_t u = (uint64_t)acc;
+                out->data[0] = (uint8_t)(u & 0xFFu);
+                out->data[1] = (uint8_t)((u >> 8) & 0xFFu);
+                out->data[2] = (uint8_t)((u >> 16) & 0xFFu);
+                out->data[3] = (uint8_t)((u >> 24) & 0xFFu);
+                out->data[4] = (uint8_t)((u >> 32) & 0xFFu);
+                out->data[5] = (uint8_t)((u >> 40) & 0xFFu);
+                out->data[6] = (uint8_t)((u >> 48) & 0xFFu);
+                out->data[7] = (uint8_t)((u >> 56) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_i32_into expects (i64_buf, i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 89: { // oren_buf_reduce_sum_i32_into(out:i64_buf, a:i32_buf) -> i64_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_I64_BUF && args[1].type == AVM_VAL_I32_BUF) {
+                AvmBuf* out = args[0].as.buf;
+                AvmBuf* a = args[1].as.buf;
+                if (!out || !a || out->elem_size != 8u || a->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_i32_into: invalid buffers"); break; }
+                if (out->len < 1u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_i32_into: out len must be >= 1"); break; }
+                if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_i32_into: out data is null"); break; }
+                int64_t acc = 0;
+                for (uint32_t i = 0; i < a->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t u = (uint32_t)a->data[off]
+                               | ((uint32_t)a->data[off + 1] << 8)
+                               | ((uint32_t)a->data[off + 2] << 16)
+                               | ((uint32_t)a->data[off + 3] << 24);
+                    acc += (int64_t)(int32_t)u;
+                }
+                uint64_t u = (uint64_t)acc;
+                out->data[0] = (uint8_t)(u & 0xFFu);
+                out->data[1] = (uint8_t)((u >> 8) & 0xFFu);
+                out->data[2] = (uint8_t)((u >> 16) & 0xFFu);
+                out->data[3] = (uint8_t)((u >> 24) & 0xFFu);
+                out->data[4] = (uint8_t)((u >> 32) & 0xFFu);
+                out->data[5] = (uint8_t)((u >> 40) & 0xFFu);
+                out->data[6] = (uint8_t)((u >> 48) & 0xFFu);
+                out->data[7] = (uint8_t)((u >> 56) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_reduce_sum_i32_into expects (i64_buf, i32_buf)");
+            }
+            break;
+        }
         default:
             printf("Unknown native id: %d\n", id);
             break;

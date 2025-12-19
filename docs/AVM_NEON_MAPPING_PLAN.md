@@ -37,6 +37,13 @@ Scalar reductions are *not* `_into`:
 - `oren_buf_dot_f32(a, b) -> float`
 - `oren_buf_reduce_sum_f32(a) -> float`
 
+We also provide allocation-free reduction forms (for pipeline style code and for SIMD kernels that want a “dst first” convention):
+
+- `oren_buf_dot_f32_into(out:f64_buf, a:f32_buf, b:f32_buf) -> out` (stores at `out[0]`)
+- `oren_buf_reduce_sum_f32_into(out:f64_buf, a:f32_buf) -> out` (stores at `out[0]`)
+- `oren_buf_dot_i32_into(out:i64_buf, a:i32_buf, b:i32_buf) -> out` (stores at `out[0]`)
+- `oren_buf_reduce_sum_i32_into(out:i64_buf, a:i32_buf) -> out` (stores at `out[0]`)
+
 ## 3) Data layout and loads/stores (must not change)
 
 - Typed buffers are byte arrays with canonical little-endian element encoding:
@@ -120,4 +127,3 @@ Build-time:
 3) Validate:
    - macOS arm64 first
    - linux/arm64 in docker/qemu later
-
