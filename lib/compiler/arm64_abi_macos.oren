@@ -74,10 +74,11 @@ fn darwin_svc_imm() { return 128 }
 // --- libc-independent fcntl constants (used by host-mode convenience helpers) ---
 // NOTE: `F_GETPATH` is a Darwin fcntl command that writes the file path for an fd.
 // It is used by `oren_getcwd()` in host-mode to avoid `getcwd(3)` (libc).
+// Verified against `docs/refs/darwin_sys_fcntl.h` (vendored from Xcode macOS SDK; audit-only).
 fn darwin_fcntl_f_getpath() { return 50 }
 
 // --- socket(2) / getsockopt(2) / setsockopt(2) constants (Darwin) ---
-// Repo-owned values (verified via Apple SDK headers; audit-only; not a build dependency).
+// Repo-owned values (verified against `docs/refs/darwin_sys_socket.h`; audit-only; not a build dependency).
 fn darwin_sol_socket() { return 65535 } // SOL_SOCKET = 0xffff
 fn darwin_so_reuseaddr() { return 4 }
 fn darwin_so_error() { return 4103 } // SO_ERROR = 0x1007

@@ -16,6 +16,19 @@ Fetched on **2025-12-19**.
 - Path: `bsd/kern/syscalls.master`
 - Vendored as: `docs/refs/darwin_xnu_syscalls.master`
 
+## Darwin / Xcode SDK headers (audit)
+
+Some Darwin ABI constants are easiest to verify from the shipped macOS SDK headers.
+These are **audit-only** (we do not include them as build dependencies).
+
+Environment at fetch time:
+- Xcode: `Xcode 26.2 (Build version 17C52)`
+- SDK path: `MacOSX26.2.sdk` (`/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk`)
+
+Vendored:
+- `usr/include/sys/socket.h` → `docs/refs/darwin_sys_socket.h`
+- `usr/include/sys/fcntl.h` → `docs/refs/darwin_sys_fcntl.h`
+
 ## Linux syscall numbers (audit)
 
 Note: We intentionally vendor the canonical UAPI headers rather than relying on system headers.
@@ -40,4 +53,3 @@ Fetch method:
 ## Mach-O headers
 
 See `docs/refs/macho/SOURCES.md` (pinned from Apple OSS `cctools`).
-

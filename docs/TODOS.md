@@ -51,6 +51,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
 - Native runtime: fixed map layout + growth (`{}` no longer corrupts memory) and GC marks map entries.
 - Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` outside `arm64_native_expr_syscalls.oren`, and bounds direct `insn_svc` emission.
-- OS ABI tables: repo-owned constants for `open` flags, `fcntl` cmds, `mmap` prot/flags (Darwin/Linux), with audit refs in `docs/refs/*`.
+- OS ABI tables: repo-owned constants for `open` flags, `fcntl` cmds, `mmap` prot/flags (Darwin/Linux), with audit refs in `docs/refs/*` (incl. `darwin_sys_socket.h`, `darwin_sys_fcntl.h`).
 - NET: replaced raw `AF_INET/SOCK_STREAM/IPPROTO_TCP` literals with Oren-level constants, and translated Oren-level `getsockopt/setsockopt` IDs to OS ABI values safely (no cascading translation).
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.
