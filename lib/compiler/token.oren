@@ -89,6 +89,10 @@ var TOK_U32BE = "U32BE"
 var TOK_U32LE = "U32LE"
 var TOK_I32BE = "I32BE"
 var TOK_I32LE = "I32LE"
+var TOK_U64BE = "U64BE"
+var TOK_U64LE = "U64LE"
+var TOK_I64BE = "I64BE"
+var TOK_I64LE = "I64LE"
 
 // Character constants
 var CH_TAB = oren_char(9)
@@ -175,6 +179,10 @@ fn lookup_ident(ident) {
     if ident == "u32le" { return TOK_U32LE }
     if ident == "i32be" { return TOK_I32BE }
     if ident == "i32le" { return TOK_I32LE }
+    if ident == "u64be" { return TOK_U64BE }
+    if ident == "u64le" { return TOK_U64LE }
+    if ident == "i64be" { return TOK_I64BE }
+    if ident == "i64le" { return TOK_I64LE }
 
     return TOK_IDENT
 }
@@ -202,6 +210,10 @@ fn is_builtin_type_token(tt) {
     if tt == TOK_U32LE { return true }
     if tt == TOK_I32BE { return true }
     if tt == TOK_I32LE { return true }
+    if tt == TOK_U64BE { return true }
+    if tt == TOK_U64LE { return true }
+    if tt == TOK_I64BE { return true }
+    if tt == TOK_I64LE { return true }
 
     return false
 }

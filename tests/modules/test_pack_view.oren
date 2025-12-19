@@ -25,6 +25,16 @@ struct S64 {
     x: i64be
 }
 
+@oren.packed
+struct U64LE {
+    x: u64le
+}
+
+@oren.packed
+struct S64LE {
+    x: i64le
+}
+
 // PV2 reads
 var b = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
 if pack_view("H", b, 0).v != 69 { exit(1) }
@@ -43,6 +53,12 @@ if pack_view("U64", bu64, 0).x != 5 { exit(61) }
 
 var bi64 = [255, 255, 255, 255, 255, 255, 255, 254]
 if pack_view("S64", bi64, 0).x != -2 { exit(62) }
+
+var bu64le = [5, 0, 0, 0, 0, 0, 0, 0]
+if pack_view("U64LE", bu64le, 0).x != 5 { exit(63) }
+
+var bi64le = [254, 255, 255, 255, 255, 255, 255, 255]
+if pack_view("S64LE", bi64le, 0).x != -2 { exit(64) }
 
 // PV3 writes
 var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -64,6 +80,14 @@ if pack_view("U64", outu64, 0).x != 5 { exit(81) }
 var outi64 = [0, 0, 0, 0, 0, 0, 0, 0]
 pack_view("S64", outi64, 0).x = -2
 if pack_view("S64", outi64, 0).x != -2 { exit(82) }
+
+var outu64le = [0, 0, 0, 0, 0, 0, 0, 0]
+pack_view("U64LE", outu64le, 0).x = 5
+if pack_view("U64LE", outu64le, 0).x != 5 { exit(83) }
+
+var outi64le = [0, 0, 0, 0, 0, 0, 0, 0]
+pack_view("S64LE", outi64le, 0).x = -2
+if pack_view("S64LE", outi64le, 0).x != -2 { exit(84) }
 
 print("module pack_view OK")
 exit(0)
