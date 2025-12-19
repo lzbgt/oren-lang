@@ -361,6 +361,11 @@ var FD_KIND_UDP_DGRAM = 3
 var FD_KIND_PROC_PIPE = 10
 var FD_KIND_KQUEUE = 20
 
+// fcntl(2) commands used for fd duplication (stable across Darwin/Linux).
+// Verified via Apple SDK headers for macOS (audit only; not a build dependency).
+var FCNTL_F_DUPFD = 0
+var FCNTL_F_DUPFD_CLOEXEC = 67
+
 // --- Fork hygiene (rolling; syscall-first) ---
 // After fork(), the child process inherits any in-memory locks held at the moment of fork.
 // Our native runtime allocator uses an in-memory lock keyed by a thread-id token.
@@ -444,6 +449,9 @@ fn native_runtime_init() {
     FD_KIND_UDP_DGRAM = 3
     FD_KIND_PROC_PIPE = 10
     FD_KIND_KQUEUE = 20
+
+    FCNTL_F_DUPFD = 0
+    FCNTL_F_DUPFD_CLOEXEC = 67
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //
@@ -1324,6 +1332,24 @@ fn native_capsule_sys_fcntl_pre(fd, cmd, arg) {
     // fcntl can mutate fd state and is used for FS (e.g. F_GETPATH) and NET (socket flags).
     native_capsule_require_fd_domain(fd)
     return 0
+}
+
+fn native_capsule_sys_fcntl_post(rc, fd, cmd, arg) {
+    // Post-hook for sys_fcntl to propagate fd kind tags for commands that produce a new fd.
+    //
+    // Without this, a tagged socket fd can be duplicated via fcntl(F_DUPFD) into an untagged fd,
+    // which then breaks downstream syscall gating that relies on fd kind tags (sys_read/sys_write/etc).
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc < 0 { return rc }
+    if cmd != FCNTL_F_DUPFD && cmd != FCNTL_F_DUPFD_CLOEXEC { return rc }
+    var newfd = rc
+    if newfd < 0 { return rc }
+    var k = native_capsule_net_fd_kind_get(fd)
+    native_capsule_net_fd_kind_clear(newfd)
+    if k != 0 {
+        native_capsule_net_fd_kind_set(newfd, k)
+    }
+    return rc
 }
 
 fn native_capsule_sys_mkdir_pre(path) {

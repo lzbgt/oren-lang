@@ -1,0 +1,19 @@
+fn main() {
+    // Runtime capsule NET test (fcntl(F_DUPFD) tag propagation):
+    //
+    // Ensure fcntl duplication preserves fd kind tags. Without propagation, the duplicated fd
+    // would be untagged and sys_write would be FS-gated instead of NET-gated.
+    //
+    // Setup:
+    // - Create a listening socket (FD_KIND_TCP_LISTEN).
+    // - Duplicate it via sys_fcntl(fd, F_DUPFD, 0).
+    // - Call sys_write() on the duplicated fd; must deny NET_SEND_LISTEN.
+    var fd = oren_tcp_listen_local(0)
+    if fd < 0 { exit(1) }
+
+    var d = sys_fcntl(fd, 0, 0) // F_DUPFD = 0
+    if d < 0 { exit(2) }
+
+    sys_write(d, "X", 1)
+    exit(0)
+}

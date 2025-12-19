@@ -1090,6 +1090,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
 
+            // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // cmd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // arg
+            var bl_fcntl_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_post, "name": "native_capsule_sys_fcntl_post"})
+
             // Pop arg/cmd/fd slots.
             push_u32_le(ctx["code"], insn_add_sp(16))
             push_u32_le(ctx["code"], insn_add_sp(16))
