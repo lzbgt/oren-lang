@@ -579,19 +579,19 @@ fn native_compile_stmt(ctx, stmt) {
     }
 
     if stmt["type"] == "ExprStmt" {
-        var exp = stmt["expr"]
+        var expr = stmt["expr"]
         
-        if exp["type"] == "If" {
+        if expr["type"] == "If" {
             var base_stack = ctx["stack_size"]
             
-            native_compile_expr(ctx, exp["cond"])
+            native_compile_expr(ctx, expr["cond"])
             
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             
             var jump_else_pos = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0) 
             
-            native_compile_stmt(ctx, exp["consq"])
+            native_compile_stmt(ctx, expr["consq"])
 
             var cons_delta = ctx["stack_size"] - base_stack
             if cons_delta > 0 {
@@ -606,8 +606,8 @@ fn native_compile_stmt(ctx, stmt) {
             var else_off = (else_target - jump_else_pos) / 4
             set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, 0)) 
             
-            if exp["alt"] != nil {
-                native_compile_stmt(ctx, exp["alt"])
+            if expr["alt"] != nil {
+                native_compile_stmt(ctx, expr["alt"])
             }
 
             var alt_delta = ctx["stack_size"] - base_stack
@@ -623,8 +623,8 @@ fn native_compile_stmt(ctx, stmt) {
             return nil
         }
         
-        if exp["type"] == "Function" {
-            var fn_name = exp["name"]
+        if expr["type"] == "Function" {
+            var fn_name = expr["name"]
             
             while int_mod(oren_list_len(ctx["code"]), 4) != 0 {
                 bytes_push(ctx["code"], 0)
@@ -666,7 +666,7 @@ fn native_compile_stmt(ctx, stmt) {
             
             var fn_scope = scope_current_codegen(ctx)
             var params_info = []
-            var params = exp["params"]
+            var params = expr["params"]
             var n_params = oren_list_len(params)
             var i = 0
             while i < n_params {
@@ -692,7 +692,7 @@ fn native_compile_stmt(ctx, stmt) {
                 i = i + 1
             }
             
-            native_compile_stmt(ctx, exp["body"])
+            native_compile_stmt(ctx, expr["body"])
             
             push_u32_le(ctx["code"], insn_movz(0, 0))
             push_u32_le(ctx["code"], insn_mov_sp_fp())
@@ -724,14 +724,17 @@ fn native_compile_stmt(ctx, stmt) {
             return nil
         }
         
-        if exp["type"] == "Call" {
-            var fn_name = exp["fn"]["value"]
-            
+        if expr["type"] == "Call" {
+            var fn_name = expr["fn"]["value"]
+
+            // NOTE: keep print/exit fast paths, but do NOT special-case syscalls like sys_write here.
+            // sys_* must go through the syscall lowering pipeline so capsule enforcement runs.
+
             var sys_write = abi.darwin_sys_write()
             var sys_exit = abi.darwin_sys_exit()
             var svc_imm = abi.darwin_svc_imm()
             var sys_reg = abi.darwin_syscall_reg()
-            
+
             if ctx["platform"]["os"] == "linux" {
                 sys_write = labi.linux_sys_write()
                 sys_exit = labi.linux_sys_exit()
@@ -739,35 +742,8 @@ fn native_compile_stmt(ctx, stmt) {
                 sys_reg = labi.linux_syscall_reg()
             }
 
-            if fn_name == "sys_write" {
-                native_compile_expr(ctx, exp["args"][0]) // fd
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
-                
-                native_compile_expr(ctx, exp["args"][1]) // ptr
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
-                
-                native_compile_expr(ctx, exp["args"][2]) // len
-                
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // ptr
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
-                
-                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // len -> X2
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // fd -> X0
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
-                
-                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
-                return nil
-            }
-
             if fn_name == "print" {
-                var args = exp["args"]
+                var args = expr["args"]
                 var argc = oren_list_len(args)
                 var arg0 = args[0]
                 
@@ -858,17 +834,31 @@ fn native_compile_stmt(ctx, stmt) {
             }
             
             if fn_name == "exit" {
-                native_compile_expr(ctx, exp["args"][0])
+                native_compile_expr(ctx, expr["args"][0])
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
                 return nil
             }
-            
-            native_compile_expr(ctx, exp)
+
+            // General call expression statement: evaluate for side effects and discard value.
+            var base_stack = ctx["stack_size"]
+            native_compile_expr(ctx, expr)
+            var delta = ctx["stack_size"] - base_stack
+            if delta > 0 {
+                push_u32_le(ctx["code"], insn_add_sp(delta))
+                ctx["stack_size"] = base_stack
+            }
             return nil
         }
-        
-        native_compile_expr(ctx, exp)
+
+        // General expression statement:
+        // Evaluate the expression for side effects and discard its value.
+        var base_stack = ctx["stack_size"]
+        native_compile_expr(ctx, expr)
+        var delta = ctx["stack_size"] - base_stack
+        if delta > 0 {
+            push_u32_le(ctx["code"], insn_add_sp(delta))
+            ctx["stack_size"] = base_stack
+        }
         return nil
     }
-}

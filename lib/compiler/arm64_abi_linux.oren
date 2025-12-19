@@ -22,6 +22,8 @@ fn linux_sys_getdents64() { return 61 }
 fn linux_sys_read() { return 63 }
 fn linux_sys_write() { return 64 }
 fn linux_sys_fcntl() { return 25 }
+fn linux_sys_dup() { return 23 }
+fn linux_sys_dup3() { return 24 }
 fn linux_sys_kill() { return 129 }
 fn linux_sys_gettimeofday() { return 169 }
 fn linux_sys_getsockname() { return 204 }

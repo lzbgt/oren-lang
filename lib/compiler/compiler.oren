@@ -1113,6 +1113,33 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(cap_net_rd_out))
 
+    // sys_dup propagation: duplicating a listening socket must preserve its per-fd kind tag,
+    // so sys_write on the dup'ed fd still denies NET_SEND_LISTEN.
+    var cap_net_dup_out = "build/capsule_runtime_net_syscall_dup_listen_prog"
+    var cap_net_dup_log = "build/logs/capsule_runtime_net_syscall_dup_listen_prog_build.log"
+    var cap_net_dup_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_net_syscall_dup_listen_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_net_dup_out) + gc_arg
+    var cap_net_dup_rc = run_shell_capture(timeout_bin, build_timeout, cap_net_dup_cmd, cap_net_dup_log)
+    if cap_net_dup_rc != 0 || file_exists(cap_net_dup_out) != true {
+        print("native failed: capsule_runtime_net_syscall_dup_listen_prog (build)")
+        oren_system("cat " + shell_quote(cap_net_dup_log))
+        oren_exit(1)
+    }
+
+    var cap_net_dup_run_log = "build/logs/capsule_runtime_net_syscall_dup_listen_prog_run.log"
+    var cap_net_dup_run_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET OREN_NET_ALLOW_LOOPBACK=1 ./" + cap_net_dup_out
+    var cap_net_dup_run_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_dup_run_cmd, cap_net_dup_run_log)
+    if cap_net_dup_run_rc == 0 {
+        print("native failed: capsule_runtime_net_syscall_dup_listen_prog (expected runtime capsule deny: NET_SEND_LISTEN)")
+        oren_system("cat " + shell_quote(cap_net_dup_run_log))
+        oren_exit(1)
+    }
+    if cmd_ok("grep -q 'NET_SEND_LISTEN' " + shell_quote(cap_net_dup_run_log)) != true {
+        print("native failed: capsule_runtime_net_syscall_dup_listen_prog (expected deny reason: NET_SEND_LISTEN)")
+        oren_system("cat " + shell_quote(cap_net_dup_run_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_net_dup_out))
+
     // Additional raw sys_* NET bypass checks: getsockopt/setsockopt/getsockname/getpeername/shutdown.
     // This is a capability boundary test only; the syscalls may return -errno and that is OK.
     var cap_net_misc_out = "build/capsule_runtime_net_syscall_misc_prog"

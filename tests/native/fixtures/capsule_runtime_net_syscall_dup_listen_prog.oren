@@ -1,0 +1,20 @@
+fn main() {
+    // Runtime capsule NET test (dup/listen tag propagation):
+    //
+    // We intentionally try to sys_write() on a *listening* socket, which must be denied
+    // by capsule runtime enforcement (NET_SEND_LISTEN).
+    //
+    // This test specifically validates that:
+    // - sys_dup() propagates per-fd kind tags, so the duplicated fd is still "TCP_LISTEN".
+    // - Without propagation, sys_write would treat the dup'ed fd as FS and bypass the NET_SEND_LISTEN check.
+
+    var fd = oren_tcp_listen_local(0)
+    if fd < 0 { exit(1) }
+
+    var d = sys_dup(fd)
+    if d < 0 { exit(2) }
+
+    // Should be denied by capsule runtime (exit 79) when NET is enabled.
+    sys_write(d, "X", 1)
+    exit(0)
+}

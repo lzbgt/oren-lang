@@ -25,6 +25,8 @@ fn darwin_sys_getsockname() { return 32 }
 fn darwin_sys_setsockopt() { return 105 }
 fn darwin_sys_getsockopt() { return 118 }
 fn darwin_sys_shutdown() { return 134 }
+fn darwin_sys_dup() { return 41 }
+fn darwin_sys_dup2() { return 90 }
 fn darwin_sys_socket() { return 97 }
 fn darwin_sys_connect() { return 98 }
 fn darwin_sys_accept() { return 30 }

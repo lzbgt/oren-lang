@@ -55,5 +55,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Capsule hardening: enforced enrollment at raw `sys_kqueue` / `sys_kevent` boundaries (no bypass); event-loop syscalls require at least one of NET/PROC/TIME.
 - Capsule hardening: enforced fd-domain gating at raw `sys_close` / `sys_fcntl` boundaries (no bypass), including tagging `sys_kqueue` return fds so TIME-only event-loop tests do not require FS.
 - Capsule hardening: enforced NET enrollment at raw `sys_getsockopt` / `sys_setsockopt` / `sys_getsockname` / `sys_getpeername` / `sys_shutdown` boundaries (no bypass).
+- Capsule hardening: added `sys_dup` / `sys_dup2` (and Linux `sys_dup3`) with fd-kind propagation to prevent tag-bypass via fd duplication.
+- Native stmt codegen: fixed `ExprStmt` to always evaluate expressions (calls are side-effectful) and removed a syscall fast-path that bypassed capsule gating for statement-position `sys_write`.
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).

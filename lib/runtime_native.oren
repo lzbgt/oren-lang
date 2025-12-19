@@ -67,6 +67,9 @@ fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
 fn sys_gettid() { return 0 }
 fn sys_fcntl(fd, cmd, arg) { return 0 }
+fn sys_dup(fd) { return 0 }
+fn sys_dup2(from, to) { return 0 }
+fn sys_dup3(from, to, flags) { return 0 }
 fn sys_kill(pid, signum) { return 0 }
 fn sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) { return 0 }
 fn sys_getcwd(buf, size) { return 0 }
@@ -2071,6 +2074,47 @@ fn native_capsule_sys_shutdown_pre(fd, how) {
     // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
     native_capsule_require(CAP_NET, "NET")
     return 0
+}
+
+fn native_capsule_sys_dup_pre(fd) {
+    // Enforce domain for raw sys_dup boundary (no bypass).
+    native_capsule_require_fd_domain(fd)
+    return fd
+}
+
+fn native_capsule_sys_dup_post(newfd, oldfd) {
+    // Propagate fd kind tags across duplication so later fd-based gating (read/write/close/fcntl)
+    // cannot be bypassed by dup'ing a tagged fd into an untagged slot.
+    if global_get_capsule_mode() != 1 { return newfd }
+    if newfd < 0 { return newfd }
+    if oldfd < 0 { return newfd }
+    var k = native_capsule_net_fd_kind_get(oldfd)
+    native_capsule_net_fd_kind_clear(newfd)
+    if k != 0 {
+        native_capsule_net_fd_kind_set(newfd, k)
+    }
+    return newfd
+}
+
+fn native_capsule_sys_dup2_pre(oldfd, newfd) {
+    // Enforce domain for raw sys_dup2 boundary (no bypass).
+    native_capsule_require_fd_domain(oldfd)
+    return 0
+}
+
+fn native_capsule_sys_dup2_post(rc, oldfd, newfd) {
+    // dup2/dup3 returns newfd on success.
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc < 0 { return rc }
+    var k = 0
+    if oldfd >= 0 { k = native_capsule_net_fd_kind_get(oldfd) }
+    if newfd >= 0 {
+        native_capsule_net_fd_kind_clear(newfd)
+        if k != 0 {
+            native_capsule_net_fd_kind_set(newfd, k)
+        }
+    }
+    return rc
 }
 
 fn native_capsule_sys_sendto_pre(fd, buf, len, flags, to, tolen) {
