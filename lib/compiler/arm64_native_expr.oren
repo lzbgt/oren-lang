@@ -108,6 +108,8 @@ fn insn_orr_16b(vd, vn, vm) { return core.insn_orr_16b(vd, vn, vm) }
 fn insn_eor_16b(vd, vn, vm) { return core.insn_eor_16b(vd, vn, vm) }
 fn insn_umov_d0(rd, vn) { return core.insn_umov_d0(rd, vn) }
 fn insn_fmov_d_x(rd, rn) { return core.insn_fmov_d_x(rd, rn) }
+fn insn_fmov_s_w(sd, rn) { return core.insn_fmov_s_w(sd, rn) }
+fn insn_fmov_w_s(rd, sn) { return core.insn_fmov_w_s(rd, sn) }
 fn insn_fcvt_s_from_d(sd, dn) { return core.insn_fcvt_s_from_d(sd, dn) }
 fn insn_fcvt_d_from_s(dd, sn) { return core.insn_fcvt_d_from_s(dd, sn) }
 fn insn_umov_x_d(rd, rn) { return core.insn_umov_x_d(rd, rn) }
@@ -149,6 +151,13 @@ fn native_expr_is_floaty(ctx, expr) {
         if fnn != nil && fnn["type"] == "Identifier" {
             var nm = fnn["value"]
             if nm == "fadd" || nm == "fsub" || nm == "fmul" || nm == "fdiv" { return true }
+            // Native runtime/library functions that are known to return float bits.
+            if nm == "oren_f32_round" { return true }
+            if nm == "oren_u32_bits_to_f32" { return true }
+            if nm == "oren_buf_load_f32" { return true }
+            if nm == "oren_buf_load_f64" { return true }
+            if nm == "oren_buf_dot_f32" { return true }
+            if nm == "oren_buf_reduce_sum_f32" { return true }
         }
         return false
     }
@@ -1269,6 +1278,38 @@ fn native_compile_expr(ctx, expr) {
             native_compile_expr(ctx, args[0]) // X0 = f64 bits
             push_u32_le(ctx["code"], insn_fmov_d_x(0, 0)) // D0 = X0 bits
             push_u32_le(ctx["code"], insn_fcvt_s_from_d(0, 0)) // S0 = (float)D0
+            push_u32_le(ctx["code"], insn_fcvt_d_from_s(0, 0)) // D0 = (double)S0
+            push_u32_le(ctx["code"], insn_umov_x_d(0, 0)) // X0 = bits
+            return nil
+        }
+
+        if fn_name == "oren_f32_to_u32_bits" {
+            // Intrinsic: convert float64 bits (X0) to IEEE-754 float32 bits (u32 in W0).
+            var args = expr["args"]
+            if args == nil || oren_list_len(args) != 1 {
+                print("native backend: oren_f32_to_u32_bits expects 1 argument")
+                oren_exit(1)
+            }
+            if !native_expr_is_floaty(ctx, args[0]) {
+                print("native backend: oren_f32_to_u32_bits expects float argument")
+                oren_exit(1)
+            }
+            native_compile_expr(ctx, args[0]) // X0 = f64 bits
+            push_u32_le(ctx["code"], insn_fmov_d_x(0, 0)) // D0 = X0 bits
+            push_u32_le(ctx["code"], insn_fcvt_s_from_d(0, 0)) // S0 = (float)D0
+            push_u32_le(ctx["code"], insn_fmov_w_s(0, 0)) // W0 = S0 bits
+            return nil
+        }
+
+        if fn_name == "oren_u32_bits_to_f32" {
+            // Intrinsic: convert IEEE-754 float32 bits (u32 in W0) to float64 bits (X0).
+            var args = expr["args"]
+            if args == nil || oren_list_len(args) != 1 {
+                print("native backend: oren_u32_bits_to_f32 expects 1 argument")
+                oren_exit(1)
+            }
+            native_compile_expr(ctx, args[0]) // X0 = bits (low 32)
+            push_u32_le(ctx["code"], insn_fmov_s_w(0, 0)) // S0 = W0 bits
             push_u32_le(ctx["code"], insn_fcvt_d_from_s(0, 0)) // D0 = (double)S0
             push_u32_le(ctx["code"], insn_umov_x_d(0, 0)) // X0 = bits
             return nil

@@ -357,6 +357,51 @@ fn test_float_ops() {
     assert_eq(b32.x, 16777216.0, 414)
 }
 
+fn test_typed_buffers_native() {
+    // Native backend must support the typed buffer surface (AVM parity):
+    // - deterministic little-endian payload encoding
+    // - f32 rounding boundary semantics
+    //
+    // Keep this as one integration-style test to avoid growing the native suite.
+
+    var a = oren_i32_buf_new(3)
+    assert_true(oren_is_err(a) == 0, 450)
+    oren_buf_fill_i32(a, 2)
+    assert_eq(oren_buf_load_i32(a, 1), 2, 451)
+
+    var b = oren_i32_buf_new(3)
+    assert_true(oren_is_err(b) == 0, 452)
+    oren_buf_fill_i32(b, 5)
+
+    var c = oren_buf_add_i32(a, b)
+    assert_true(oren_is_err(c) == 0, 453)
+    assert_eq(oren_buf_load_i32(c, 2), 7, 454)
+
+    assert_eq(oren_buf_dot_i32(a, b), 30, 455) // 3 * (2*5)
+    var dot_out = oren_i64_buf_new(1)
+    assert_true(oren_is_err(dot_out) == 0, 456)
+    oren_buf_dot_i32_into(dot_out, a, b)
+    assert_eq(oren_buf_load_i64(dot_out, 0), 30, 457)
+
+    var fa = oren_f32_buf_new(3)
+    var fb = oren_f32_buf_new(3)
+    assert_true(oren_is_err(fa) == 0, 460)
+    assert_true(oren_is_err(fb) == 0, 461)
+    oren_buf_fill_f32(fa, 1.5)
+    oren_buf_fill_f32(fb, 2.0)
+
+    var fc = oren_buf_add_f32(fa, fb)
+    assert_true(oren_is_err(fc) == 0, 462)
+    assert_eq(oren_buf_load_f32(fc, 0), 3.5, 463)
+    assert_eq(oren_buf_dot_f32(fa, fb), 9.0, 464)
+
+    // f32 rounding boundary: 16777217 (2^24+1) rounds to 16777216 in float32.
+    var fr = oren_f32_buf_new(1)
+    assert_true(oren_is_err(fr) == 0, 465)
+    oren_buf_store_f32(fr, 0, 16777217.0)
+    assert_eq(oren_buf_load_f32(fr, 0), 16777216.0, 466)
+}
+
 fn test_string_eq_semantics() {
     // String comparisons must be lexical by content.
     if "a" == "b" { fail(500) }
@@ -566,6 +611,7 @@ fn main() {
     test_bytes_endian_and_pack_view()
     test_numeric_casts()
     test_float_ops()
+    test_typed_buffers_native()
     test_string_eq_semantics()
     test_read_bytes_roundtrip()
     test_gc_mem_stats()

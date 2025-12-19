@@ -53,7 +53,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Next deliverables (finishable slices):
      - apply deterministic wrap/truncate casts for annotated struct/class fields at construction time (cross-backend) ✅
      - add explicit float32 rounding semantics (cross-backend, deterministic boundary) ✅
-     - define layout-stable “typed buffers” + typed pointers for FFI (no libc, syscall-first)
+     - implement native typed buffers parity (`*_buf_new`, load/store, bulk ops; f32 rounding) ✅
+     - define “typed pointers” for FFI/syscalls (no libc, syscall-first)
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -92,5 +93,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Packed views: `pack_view` lowering now uses the endian helpers (fewer runtime calls, smaller AST) instead of per-byte shifts for 16/32/64-bit fields.
 - Bytecode backend: `TypeName(...)` constructor calls now compile to `NEW_LIST` (portable struct representation), removing the need for implicit runtime functions for types.
 - f32 semantics: deterministic float32 rounding boundary implemented as `oren_f32_round(x)` across backends (C runtime helper, AVM native id `106`, arm64 native intrinsic).
+- Native runtime: typed buffers implemented for the syscall-first native backend (i32/i64/f32/f64) including scalar bulk ops; f32 load/store uses `oren_f32_to_u32_bits` / `oren_u32_bits_to_f32` intrinsics.
 - Native runtime safety: made `oren_is_err(v)` safe for large ints by probing only tracked heap pointers (prevents accidental segfaults when checking `oren_is_err(16909060)` etc).
 - Native runtime safety: hardened `oren_bytes_get_u8/oren_bytes_set_u8` to avoid unsafe pointer probes on non-pointers; added regression in `test_integration_suite`.

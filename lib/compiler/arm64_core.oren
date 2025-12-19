@@ -504,6 +504,20 @@ fn insn_fmov_d_x(rd, rn) {
     return 2657550336 + (rn * 32) + rd
 }
 
+fn insn_fmov_s_w(sd, rn) {
+    // FMOV Sd, Wn (Move 32-bit general-purpose register to SIMD/FP register)
+    // Verified via clang:
+    //   fmov s0, w0 => 0x1E270000 = 505872384
+    return 505872384 + (rn * 32) + sd
+}
+
+fn insn_fmov_w_s(rd, sn) {
+    // FMOV Wd, Sn (Move SIMD/FP register to 32-bit general-purpose register)
+    // Verified via clang:
+    //   fmov w0, s0 => 0x1E260000 = 505806848
+    return 505806848 + (sn * 32) + rd
+}
+
 fn insn_umov_x_d(rd, rn) {
     // UMOV Xd, Vn.D[0] (Move SIMD/FP register to general-purpose register)
     // Opcode: 0x4E083C00 = 1309162496

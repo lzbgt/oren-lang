@@ -3217,6 +3217,12 @@ fn oren_mark_value(val) {
                 var env = ptr_get(iadd(val, 8))
                 oren_mark_value(env)
             }
+            if kind == 7 { // BUF (typed buffers)
+                // Buffer header holds an owned payload pointer at +16.
+                // Keep the payload alive while the header is reachable.
+                var buf = ptr_get(iadd(val, 16))
+                oren_mark_value(buf)
+            }
         }
     }
     return 0
@@ -4903,6 +4909,532 @@ fn oren_index_set(container, index, value) {
     }
     // Fallback: behave like map set
     return oren_map_set(container, index, value)
+}
+
+// --- Typed numeric buffers (native backend, libc-free) ---
+//
+// Design:
+// - Typed buffers are heap objects with a small header + a raw byte payload.
+// - Payload bytes are canonical little-endian element encodings to match AVM semantics.
+// - These APIs mirror the AVM typed buffer surface so higher-level code can be backend-agnostic.
+//
+// Header layout (40 bytes):
+//   [0]  len (element count)
+//   [8]  elem_size (4 or 8)
+//   [16] data_ptr (raw bytes)
+//   [24] magic ('BUF\\0')
+//   [32] type_tag (1=i32, 2=i64, 3=f32, 4=f64)
+
+fn buf_magic() { return 4609346 } // 'BUF\0'
+var BUF_TAG_I32 = 1
+var BUF_TAG_I64 = 2
+var BUF_TAG_F32 = 3
+var BUF_TAG_F64 = 4
+
+fn native_buf_as_node(buf) {
+    if buf == 0 { return 0 }
+    if buf < 4096 { return 0 }
+    var node = oren_find_node(buf)
+    if node == 0 { return 0 }
+    if ptr_get(iadd(node, 16)) != 7 { return 0 } // kind=7 => BUF
+    if ptr_get(buf + 24) != buf_magic() { return 0 }
+    return node
+}
+
+fn native_buf_check(buf, tag, elem_size) {
+    if buf == 0 { return oren_err(4, "buf: nil") }
+    if native_buf_as_node(buf) == 0 { return oren_err(4, "buf: invalid buffer") }
+    if ptr_get(buf + 32) != tag { return oren_err(4, "buf: wrong buffer type") }
+    if ptr_get(buf + 8) != elem_size { return oren_err(4, "buf: wrong element size") }
+    var data = ptr_get(buf + 16)
+    if data == 0 && ptr_get(buf + 0) != 0 { return oren_err(4, "buf: payload is nil") }
+    return 0
+}
+
+fn native_buf_new(len, elem_size, tag) {
+    if len < 0 { return oren_err(4, "buf_new: negative length") }
+    if len > 2147483647 { return oren_err(4, "buf_new: length too large") }
+    if elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new: invalid elem_size") }
+
+    var header = malloc(40)
+    if header == 0 || header == -1 { return oren_err(8, "buf_new: alloc failed") }
+    oren_track_alloc(header, 40, 0)
+    // Mark header kind=7 (BUF) so GC can keep payload alive.
+    var node = oren_find_node(header)
+    if node != 0 { ptr_set(iadd(node, 16), 7) }
+
+    var bytes_len = len * elem_size
+    var data = 0
+    if bytes_len > 0 {
+        data = malloc(bytes_len)
+        if data == 0 || data == -1 { return oren_err(8, "buf_new: payload alloc failed") }
+        oren_track_alloc(data, bytes_len, 0)
+        // Zero-fill (malloc does not promise zeroed memory).
+        var i = 0
+        while i < bytes_len {
+            ptr_set_byte(data + i, 0)
+            i = i + 1
+        }
+    }
+
+    ptr_set(header + 0, len)
+    ptr_set(header + 8, elem_size)
+    ptr_set(header + 16, data)
+    ptr_set(header + 24, buf_magic())
+    ptr_set(header + 32, tag)
+    return header
+}
+
+fn oren_i32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_I32) }
+fn oren_i64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_I64) }
+fn oren_f32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_F32) }
+fn oren_f64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_F64) }
+
+fn oren_buf_len(buf) {
+    if native_buf_as_node(buf) == 0 { return oren_err(4, "buf_len expects (buf)") }
+    return ptr_get(buf + 0)
+}
+
+fn oren_buf_load_i32(buf, idx) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_i32: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 4
+    var b0 = ptr_get_byte(data + off + 0)
+    var b1 = ptr_get_byte(data + off + 1)
+    var b2 = ptr_get_byte(data + off + 2)
+    var b3 = ptr_get_byte(data + off + 3)
+    var u = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_buf_store_i32(buf, idx, v) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_i32: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 4
+    var u = v & 4294967295
+    ptr_set_byte(data + off + 0, u & 255)
+    ptr_set_byte(data + off + 1, (u >> 8) & 255)
+    ptr_set_byte(data + off + 2, (u >> 16) & 255)
+    ptr_set_byte(data + off + 3, (u >> 24) & 255)
+    return buf
+}
+
+fn oren_buf_load_i64(buf, idx) {
+    var err = native_buf_check(buf, BUF_TAG_I64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_i64: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 8
+    var u = 0
+    var i = 0
+    while i < 8 {
+        var b = ptr_get_byte(data + off + i)
+        u = u | (b << (i * 8))
+        i = i + 1
+    }
+    return u
+}
+
+fn oren_buf_store_i64(buf, idx, v) {
+    var err = native_buf_check(buf, BUF_TAG_I64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_i64: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 8
+    var i = 0
+    while i < 8 {
+        ptr_set_byte(data + off + i, (v >> (i * 8)) & 255)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_load_f64(buf, idx): f64 {
+    // Returns f64 as raw bits (native backend float container).
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_f64: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 8
+    var bits = 0
+    var i = 0
+    while i < 8 {
+        var b = ptr_get_byte(data + off + i)
+        bits = bits | (b << (i * 8))
+        i = i + 1
+    }
+    return bits
+}
+
+fn oren_buf_store_f64(buf, idx, v: f64) {
+    // `v` is f64 bits (native backend float container).
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_f64: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 8
+    var i = 0
+    while i < 8 {
+        ptr_set_byte(data + off + i, (v >> (i * 8)) & 255)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_load_f32(buf, idx): f64 {
+    // Load f32 bits from payload and widen to f64 bits (native float container).
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_f32: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 4
+    var b0 = ptr_get_byte(data + off + 0)
+    var b1 = ptr_get_byte(data + off + 1)
+    var b2 = ptr_get_byte(data + off + 2)
+    var b3 = ptr_get_byte(data + off + 3)
+    var bits = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+    return oren_u32_bits_to_f32(bits)
+}
+
+fn oren_buf_store_f32(buf, idx, v: f64) {
+    // Store f32 bits (rounded) into payload.
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_f32: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    var off = idx * 4
+    var bits = oren_f32_to_u32_bits(v)
+    ptr_set_byte(data + off + 0, bits & 255)
+    ptr_set_byte(data + off + 1, (bits >> 8) & 255)
+    ptr_set_byte(data + off + 2, (bits >> 16) & 255)
+    ptr_set_byte(data + off + 3, (bits >> 24) & 255)
+    return buf
+}
+
+// Bulk helpers (scalar baseline; SIMD can replace later).
+fn oren_buf_fill_i32(buf, v) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_fill_i64(buf, v) {
+    var err = native_buf_check(buf, BUF_TAG_I64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_i64(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_fill_f32(buf, v: f64) {
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_fill_f64(buf, v: f64) {
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_f64(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_add_i32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_add_i32: length mismatch") }
+    var out = oren_i32_buf_new(n)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < n {
+        var x = oren_buf_load_i32(a, i)
+        var y = oren_buf_load_i32(b, i)
+        oren_buf_store_i32(out, i, x + y)
+        i = i + 1
+    }
+    return out
+}
+
+fn oren_buf_add_f32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_add_f32: length mismatch") }
+    var out = oren_f32_buf_new(n)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < n {
+        var x = oren_buf_load_f32(a, i)
+        var y = oren_buf_load_f32(b, i)
+        oren_buf_store_f32(out, i, x + y)
+        i = i + 1
+    }
+    return out
+}
+
+fn oren_buf_add_i32_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_I32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_add_i32_into: length mismatch") }
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) + oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_add_f32_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_F32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_add_f32_into: length mismatch") }
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(dst, i, oren_buf_load_f32(a, i) + oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_dot_i32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_dot_i32: length mismatch") }
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_f32(a, b): f64 {
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_dot_f32: length mismatch") }
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_i32_into(out, a, b) {
+    var eo = native_buf_check(out, BUF_TAG_I64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_dot_i32(a, b)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_i64(out, 0, sum)
+    return out
+}
+
+fn oren_buf_dot_f32_into(out, a, b) {
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_dot_f32(a, b)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_f64(out, 0, sum)
+    return out
+}
+
+fn oren_buf_mul_f32_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_F32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_mul_f32_into: length mismatch") }
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(dst, i, oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_mul_f32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    var out = oren_f32_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_mul_f32_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
+fn oren_buf_mul_i32_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_I32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_mul_i32_into: length mismatch") }
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_mul_i32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    var out = oren_i32_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_mul_i32_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
+fn oren_buf_scale_f32(buf, scalar: f64) {
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(buf, i, oren_buf_load_f32(buf, i) * scalar)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_scale_f32_into(dst, a, scalar: f64) {
+    var ed = native_buf_check(dst, BUF_TAG_F32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(dst + 0) { return oren_err(4, "buf_scale_f32_into: length mismatch") }
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(dst, i, oren_buf_load_f32(a, i) * scalar)
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_scale_i32_into(dst, a, scalar) {
+    var ed = native_buf_check(dst, BUF_TAG_I32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(dst + 0) { return oren_err(4, "buf_scale_i32_into: length mismatch") }
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) * scalar)
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_reduce_sum_f32(buf): f64 {
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + oren_buf_load_f32(buf, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_reduce_sum_f32_into(out, buf) {
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_reduce_sum_f32(buf)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_f64(out, 0, sum)
+    return out
+}
+
+fn oren_buf_reduce_sum_i32(buf) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + oren_buf_load_i32(buf, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_reduce_sum_i32_into(out, buf) {
+    var eo = native_buf_check(out, BUF_TAG_I64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_reduce_sum_i32(buf)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_i64(out, 0, sum)
+    return out
 }
 
 // --- Args ---
