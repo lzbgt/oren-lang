@@ -192,6 +192,7 @@ fn run_repo_tests(target, no_gc) {
         "tests/native/test_net_suite.oren",
         "tests/native/test_env_execve_getenv.oren",
         "tests/native/test_syscall_errno.oren",
+        "tests/native/test_malloc_bump.oren",
         "tests/native/test_read_bytes.oren",
         "tests/native/test_bytes_set_endian.oren",
         "tests/native/test_int_casts.oren",

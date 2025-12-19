@@ -87,6 +87,24 @@ fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
 fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
 
+// Rolling ABI hygiene:
+// - The native backend reserves X28 (heap_ptr) and X27 (heap_limit) as "global heap registers".
+// - Kernels may clobber registers across syscalls.
+// - Preserve X27/X28 around each `svc` to keep bump allocation stable.
+fn emit_svc_preserve_heap(ctx, svc_imm) {
+    // Use a transient 16-byte scratch slot. Avoid touching ctx["stack_size"] because
+    // the adjustment is fully balanced and no stack-relative locals are accessed
+    // between save and restore.
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
+    push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+    push_u32_le(ctx["code"], insn_svc(svc_imm))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    return nil
+}
+
 
 fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         if fn_name == "sys_read" {
@@ -132,7 +150,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 sys_reg = labi.linux_syscall_reg()
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_read))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             if ctx["platform"]["os"] != "linux" {
                 // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
                 // Normalize to X0 = -errno for syscall-first code that checks for negative errno.
@@ -191,7 +209,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 sys_reg = labi.linux_syscall_reg()
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error (carry set, X0=errno) to X0 = -errno.
                 var br_ok = oren_list_len(ctx["code"])
@@ -224,7 +242,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         }
 
         push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
-        push_u32_le(ctx["code"], insn_svc(svc_imm))
+        emit_svc_preserve_heap(ctx, svc_imm)
         return true
     }
 
@@ -284,7 +302,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
                 var sys_open = abi.darwin_sys_open()
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_open))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 // Normalize macOS syscall error (X0=errno) to X0=-errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -301,7 +319,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
                 var sys_openat = labi.linux_sys_openat()
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_openat))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_open_post(pair, rc) -> rc
@@ -356,7 +374,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // X0 = path
                 push_u32_le(ctx["code"], insn_mov_reg(0, 1))
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_unlink()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 // Normalize macOS syscall error to X0=-errno.
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -369,7 +387,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(2, 0))    // flags=0
                 emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_unlinkat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_unlink_post(pair, rc) -> rc
@@ -425,7 +443,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_mkdir()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -437,7 +455,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
                 emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_mkdirat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_mkdir_post(pair, rc) -> rc
@@ -495,7 +513,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_rename()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -510,7 +528,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 emit_load_i64_imm(ctx, 2, labi.linux_at_fdcwd()) // X2 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_renameat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_rename_post(bundle, rc) -> rc
@@ -568,7 +586,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_access()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -581,7 +599,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(3, 0))    // flags=0
                 emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_faccessat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_access_post(pair, rc) -> rc
@@ -639,7 +657,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_stat64()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -652,7 +670,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(3, 0))    // flags=0
                 emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_newfstatat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_stat_post(pair, rc) -> rc
@@ -710,7 +728,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_lstat64()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -723,7 +741,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(3, labi.linux_at_symlink_nofollow()))  // AT_SYMLINK_NOFOLLOW
                 emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_newfstatat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_lstat_post(pair, rc) -> rc
@@ -775,7 +793,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_fstat64()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -783,7 +801,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3))
             } else {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_fstat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_fstat_post(rc) -> rc
@@ -829,7 +847,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movn(0, 37)) // -38
             } else {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_getcwd()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // Pop size + buf
@@ -885,7 +903,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_getdirentries64()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -893,7 +911,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3))
             } else {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_getdents64()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_getdirentries64_post(rc) -> rc
@@ -945,7 +963,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             if ctx["platform"]["os"] != "linux" {
                 push_u32_le(ctx["code"], insn_mov_reg(0, 1))
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_rmdir()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
@@ -957,7 +975,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(2, labi.linux_at_removedir()))  // AT_REMOVEDIR
                 emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_unlinkat()))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
 
             // post: native_capsule_sys_rmdir_post(pair, rc) -> rc
@@ -1017,7 +1035,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 80
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_close))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1101,7 +1119,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1159,7 +1177,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1224,7 +1242,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1298,7 +1316,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_dup3()))
-            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
+            emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1365,7 +1383,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1434,7 +1452,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1508,7 +1526,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1582,7 +1600,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1649,7 +1667,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1721,7 +1739,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1803,7 +1821,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1889,7 +1907,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -1951,7 +1969,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2060,7 +2078,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2146,7 +2164,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2232,7 +2250,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
                 push_u32_le(ctx["code"], insn_movz(1, 0))
                 push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_nanosleep()))
-                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
+                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
 
                 // Pop timespec
                 push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2255,7 +2273,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
                 // kqueue() => fd
                 push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_kqueue()))
-                push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
+                emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
                 // Normalize macOS syscall error to X0 = -errno and clean up the slot.
                 var br_kq_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2308,7 +2326,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(4, 1))        // nevents=1
                 push_u32_le(ctx["code"], insn_add_imm(5, 31, 32)) // X5=timeout_ptr (SP+32)
                 push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_kevent())) // SYS_kevent
-                push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
+                emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
                 // Normalize error to X0 = -errno.
                 var br_ke_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2322,7 +2340,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // close(kqfd) best-effort
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 56))
                 push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_close())) // SYS_close
-                push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
+                emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
 
                 // Restore result into X0
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48))
@@ -2429,7 +2447,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2467,7 +2485,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_kqueue()))
-            push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
+            emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2533,7 +2551,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(4, 0))
 
 				        push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone())) // __NR_clone
-	                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
+	                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
 
 	                // Restore X19-X28
 	                push_u32_le(ctx["code"], insn_ldr_reg_sp(19, 0))
@@ -2575,7 +2593,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 80
             push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_fork()))
-            push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
+            emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
             // Restore X19-X28
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
@@ -2669,7 +2687,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
             if ctx["platform"]["os"] != "linux" {
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
                 // Normalize error to -1 (success never returns).
                 var br_ok = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
@@ -2677,7 +2695,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             } else {
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
             }
             // Pop args (3 slots).
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2734,7 +2752,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 sysno = labi.linux_sys_wait4()
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             if ctx["platform"]["os"] != "linux" {
                 // Normalize error to -1.
                 var br_ok = oren_list_len(ctx["code"])
@@ -2799,7 +2817,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
             ctx["stack_size"] = ctx["stack_size"] + 16
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
             push_u32_le(ctx["code"], insn_add_sp(16))
@@ -2869,7 +2887,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 return true
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_ulock_wait()))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error (carry set, X0=errno) to X0=-1.
                 var br_ok = oren_list_len(ctx["code"])
@@ -2913,7 +2931,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 return true
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_ulock_wake()))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             if ctx["platform"]["os"] != "linux" {
                 // Normalize macOS syscall error to X0=-1.
                 var br_ok = oren_list_len(ctx["code"])
@@ -2999,7 +3017,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             }
 
             push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_bsdthread_register()))
-            push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
+            emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
 
             // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno (so callers can debug).
             var br_ok = oren_list_len(ctx["code"])
@@ -3035,7 +3053,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + 16
                 
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
 
                 // Restore ptr -> X2, keep a stable copy in X3 for post-hook.
                 // IMPORTANT: pop stack unconditionally so compile-time stack tracking stays correct.
@@ -3089,7 +3107,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 emit_add_sp_offset_to_reg(ctx, 0, 0) // X0 = SP (tmp int[2])
                 push_u32_le(ctx["code"], insn_movz(1, 0)) // flags = 0
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                emit_svc_preserve_heap(ctx, svc_imm)
 
                 push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = rc
 
@@ -3150,7 +3168,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             
             if ctx["platform"]["os"] == "linux" {
                 push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone())) // sys_clone
-                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
+                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
             } else {
                 push_u32_le(ctx["code"], insn_movn(0, 0)) // -1
             }
@@ -3207,7 +3225,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 sys_num = labi.linux_sys_gettid()
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sys_num))
-            push_u32_le(ctx["code"], insn_svc(svc_imm))
+            emit_svc_preserve_heap(ctx, svc_imm)
             return true
         }
 

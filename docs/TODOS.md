@@ -47,22 +47,8 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 
 ## Recently Completed (high signal)
 
-- Capsule runtime: improved deny diagnostics (capability domain + FS prefix/mount enrollment hints) and clarified that `sys_*` are native-backend intrinsics (stubs should not execute in correctly built native binaries).
-- Capsule hardening: enforced FS domain at raw `sys_read` / `sys_pipe` boundaries (no bypass) and added deterministic tests (stdin redirected to `/dev/null` to guarantee no hangs).
-- Capsule hardening: prevented NET bypass by enforcing NET domain when `sys_read`/`sys_write` operate on NET-tagged fds (sockets); also reclassified `sys_pipe` under PROC as IPC for spawn/join.
-- Capsule hardening: tagged pipe fds (PROC IPC kind) so `sys_read`/`sys_write` treat them as PROC IPC; fixed Darwin `sys_pipe` to return `-errno` on failure and added a PROC-only spawn/join regression.
-- Capsule hardening: enforced TIME domain at raw `sys_gettimeofday` / `sys_nanosleep` boundaries (no bypass) with deterministic fixtures.
-- Capsule hardening: enforced enrollment at raw `sys_kqueue` / `sys_kevent` boundaries (no bypass); event-loop syscalls require at least one of NET/PROC/TIME.
-- Capsule hardening: enforced fd-domain gating at raw `sys_close` / `sys_fcntl` boundaries (no bypass), including tagging `sys_kqueue` return fds so TIME-only event-loop tests do not require FS.
-- Capsule hardening: enforced NET enrollment at raw `sys_getsockopt` / `sys_setsockopt` / `sys_getsockname` / `sys_getpeername` / `sys_shutdown` boundaries (no bypass).
-- Capsule hardening: added `sys_dup` / `sys_dup2` (and Linux `sys_dup3`) with fd-kind propagation to prevent tag-bypass via fd duplication.
-- Capsule hardening: `dup2/dup3` now also enforces domain when clobbering an already-tagged `newfd` (prevents closing NET/PROC/TIME fds without enrollment).
-- Capsule hardening: sys_fcntl post-hook propagates fd kind tags for `F_DUPFD` / `F_DUPFD_CLOEXEC` to prevent tag-bypass via fcntl-based fd duplication.
-- Capsule hardening: added `sys_ioctl` with fd-domain gating (FS/NET/PROC by fd kind) and tests for FS + NET-only enrollment.
-- Native stmt codegen: fixed `ExprStmt` to always evaluate expressions (calls are side-effectful) and removed a syscall fast-path that bypassed capsule gating for statement-position `sys_write`.
-- Native stmt codegen: removed direct `sys_write` emission for `print("literal")`; print now flows through runtime `oren_print` so syscall gating applies. Stdout/stderr writes are treated as a diagnostic channel (allowed even without FS enrollment).
-- Native expr codegen: removed unreachable legacy spawn lowering that embedded raw syscalls (runtime spawn uses `oren_spawn_call_list` instead).
-- AVM host FS: improved mount deny diagnostics to include op + path + env hint (keeps behavior aligned with native capsule UX).
-- Native stmt codegen: centralized `exit()` syscall lowering in `arm64_native_expr_syscalls.oren` to avoid scattered ABI constants.
-- Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
-- Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).
+- Native allocator: fixed macOS `mmap` errno normalization and corrected heap_ptr/heap_limit update so malloc bump-allocates after the first mmap; added `tests/native/test_malloc_bump.oren`.
+- Native codegen ABI: preserve X19–X26 across function calls; treat X27/X28 as reserved global heap registers (do not save/restore in prologue/epilogue).
+- Native runtime: fixed map layout to be list-like (`[count][cap][entries_ptr][magic]`) and implemented growth; fixes `{}` OOB corruption and unblocks `std/json` + smoke suite.
+- Native syscall lowering: preserve heap regs around every `svc` (defense-in-depth; rolling ABI stability).
+- Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

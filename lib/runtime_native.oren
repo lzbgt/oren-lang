@@ -3111,16 +3111,18 @@ fn oren_mark_value(val) {
                 }
             }
             if kind == 3 { // MAP
-                var count = ptr_get(iadd(val, 8))
-                var base = iadd(val, 16)
+                var count = ptr_get(iadd(val, 0))
+                var buf = ptr_get(iadd(val, 16))
                 var i = 0
                 while i < count {
-                    var k = ptr_get(iadd(base, i * 16))
-                    var v = ptr_get(iadd(base, i * 16 + 8))
+                    var k = ptr_get(iadd(buf, i * 16))
+                    var v = ptr_get(iadd(buf, i * 16 + 8))
                     oren_mark_value(k)
                     oren_mark_value(v)
                     i = i + 1
                 }
+                // Keep the entries buffer alive (tracked allocation).
+                oren_mark_value(buf)
             }
             if kind == 6 { // FUNC (closure env)
                 var env = ptr_get(iadd(val, 8))
@@ -3804,30 +3806,41 @@ fn list_magic() { return 1279870019 } // 'LIST'
 fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
 
 fn oren_new_map(cap) {
-    // Layout:
-    //   [cap][count][magic][reserved] then entries:
-    //   entry i: [key_ptr][value]
-    // This gives the native runtime a reliable discriminator between map pointers and
-    // string pointers (which are otherwise both raw addresses).
-    var size = 32 + cap * 16
-    var m = malloc(size)
-    if m == 0 {
-        print("MALLOC ZERO")
-        exit(1)
+    // Map layout mirrors list layout for safety and future growth:
+    //   [count][cap][entries_ptr][magic]
+    // Where entries_ptr points to an array of `[key_ptr][value]` pairs (16 bytes each).
+    //
+    // Rationale:
+    // - The previous v0 layout stored entries inline after the header and attempted to
+    //   "grow" by mutating cap without resizing the allocation. That caused OOB writes
+    //   for maps created with cap=0 (e.g. `{}`) and corrupted the allocator metadata.
+    // - By using an indirection (entries_ptr) we can grow like lists, without needing
+    //   to update every reference to the map pointer.
+    if cap < 0 { cap = 0 }
+    if cap > 0 && cap < 4 { cap = 4 }
+
+    var header = malloc(32)
+    if header == 0 { exit(1) }
+    if header == -1 { exit(1) }
+    oren_track_alloc(header, 32, 0)
+
+    var buf = 0
+    if cap > 0 {
+        buf = malloc(cap * 16)
+        if buf == 0 { exit(1) }
+        if buf == -1 { exit(1) }
+        oren_track_alloc(buf, cap * 16, 0)
     }
-    if m == -1 {
-        print("MALLOC FAILED")
-        exit(1)
-    }
-    ptr_set(m, cap)
-    ptr_set(m + 8, 0)
-    ptr_set(m + 16, map_magic())
-    ptr_set(m + 24, 0)
-    oren_track_alloc(m, size, 0)
+
+    ptr_set(header + 0, 0)       // count
+    ptr_set(header + 8, cap)     // cap
+    ptr_set(header + 16, buf)    // entries_ptr
+    ptr_set(header + 24, map_magic())
+
     // Mark map header kind for GC traversal (kind=3 => MAP).
-    var node = oren_find_node(m)
+    var node = oren_find_node(header)
     if node != 0 { ptr_set(iadd(node, 16), 3) }
-    return m
+    return header
 }
 
 fn oren_map_set(m, k, v) {
@@ -3836,42 +3849,52 @@ fn oren_map_set(m, k, v) {
     if m < 4096 { exit(111) }
     if k == 0 { exit(112) }
     // if m > 4096 { exit(12) } 
-    if ptr_get(m + 16) != map_magic() { exit(113) }
+    if ptr_get(m + 24) != map_magic() { exit(113) }
     
-    var cap = ptr_get(m)
-    var count = ptr_get(m + 8)
-    if cap <= 0 {
-        cap = 1024
-        ptr_set(m, cap)
-    }
-    if count < 0 {
-        count = 0
-        ptr_set(m + 8, 0)
-    }
-    if count > cap {
-        count = cap
-        ptr_set(m + 8, cap)
-    }
+    var count = ptr_get(m + 0)
+    var cap = ptr_get(m + 8)
+    if count < 0 { count = 0; ptr_set(m + 0, 0) }
+    if cap < 0 { cap = 0; ptr_set(m + 8, 0) }
+
+    var buf = ptr_get(m + 16)
+    if buf == 0 && cap > 0 { exit(114) }
+    if cap == 0 && buf != 0 { exit(114) }
+
     var i = 0
-    var base = m + 32
-    if base < 4096 { exit(115) }
     while i < count {
-        var kp = ptr_get(base + i * 16)
+        var kp = ptr_get(buf + i * 16)
         if strcmp(kp, k) == 0 {
-            ptr_set(base + i * 16 + 8, v)
+            ptr_set(buf + i * 16 + 8, v)
             return m
         }
         i = i + 1
     }
+
+    // Grow if needed (like lists).
     if count >= cap {
-        exit(99)
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var new_buf = malloc(new_cap * 16)
+        if new_buf == 0 { exit(99) }
+        if new_buf == -1 { exit(99) }
+        oren_track_alloc(new_buf, new_cap * 16, 0)
+        var ci = 0
+        while ci < count {
+            ptr_set(new_buf + ci * 16 + 0, ptr_get(buf + ci * 16 + 0))
+            ptr_set(new_buf + ci * 16 + 8, ptr_get(buf + ci * 16 + 8))
+            ci = ci + 1
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(m + 8, cap)
+        ptr_set(m + 16, buf)
     }
 
     // Deterministic ordered maps (rolling): keep keys sorted by strcmp (ascending).
     // Keys are assumed to be string pointers; do not use non-string keys in v0.
     var insert_at = 0
     while insert_at < count {
-        var ek = ptr_get(base + insert_at * 16)
+        var ek = ptr_get(buf + insert_at * 16)
         if strcmp(ek, k) > 0 { break }
         insert_at = insert_at + 1
     }
@@ -3879,29 +3902,29 @@ fn oren_map_set(m, k, v) {
     // Shift entries right to make space.
     var j = count
     while j > insert_at {
-        var from = base + (j - 1) * 16
-        var to = base + j * 16
+        var from = buf + (j - 1) * 16
+        var to = buf + j * 16
         ptr_set(to + 0, ptr_get(from + 0))
         ptr_set(to + 8, ptr_get(from + 8))
         j = j - 1
     }
 
-    ptr_set(base + insert_at * 16, k)
-    ptr_set(base + insert_at * 16 + 8, v)
-    ptr_set(m + 8, count + 1)
+    ptr_set(buf + insert_at * 16, k)
+    ptr_set(buf + insert_at * 16 + 8, v)
+    ptr_set(m + 0, count + 1)
     return m
 }
 
 fn oren_map_get(m, k) {
     if m == 0 { return 0 }
-    if ptr_get(m + 16) != map_magic() { return 0 }
-    var count = ptr_get(m + 8)
+    if ptr_get(m + 24) != map_magic() { return 0 }
+    var count = ptr_get(m + 0)
+    var buf = ptr_get(m + 16)
     var i = 0
-    var base = m + 32
     while i < count {
-        var kp = ptr_get(base + i * 16)
+        var kp = ptr_get(buf + i * 16)
         if strcmp(kp, k) == 0 {
-            return ptr_get(base + i * 16 + 8)
+            return ptr_get(buf + i * 16 + 8)
         }
         i = i + 1
     }
@@ -3910,18 +3933,18 @@ fn oren_map_get(m, k) {
 
 fn oren_map_len(m) {
     if m == 0 { return 0 }
-    if ptr_get(m + 16) != map_magic() { return 0 }
-    return ptr_get(m + 8)
+    if ptr_get(m + 24) != map_magic() { return 0 }
+    return ptr_get(m + 0)
 }
 
 fn oren_map_key_at(m, idx) {
     if m == 0 { return 0 }
-    if ptr_get(m + 16) != map_magic() { return 0 }
-    var count = ptr_get(m + 8)
+    if ptr_get(m + 24) != map_magic() { return 0 }
+    var count = ptr_get(m + 0)
     if idx < 0 { return 0 }
     if idx >= count { return 0 }
-    var base = m + 32
-    return ptr_get(base + idx * 16)
+    var buf = ptr_get(m + 16)
+    return ptr_get(buf + idx * 16)
 }
 
 // --- Structured errors (rolling, portable) ---
@@ -3941,7 +3964,7 @@ fn oren_err(code, msg) {
 fn oren_is_err(v) {
     if v == 0 { return 0 }
     if v < 4096 { return 0 }
-    if ptr_get(v + 16) != map_magic() { return 0 }
+    if ptr_get(v + 24) != map_magic() { return 0 }
     var marker = oren_map_get(v, "__err")
     if marker == 0 { return 0 }
     return 1
@@ -4065,8 +4088,8 @@ fn oren_iter_next(container, idx) {
                 }
             } else {
                 // Map: yield keys in deterministic order (stored sorted).
-                if ptr_get(container + 16) == map_magic() {
-                    var count2 = ptr_get(container + 8)
+                if ptr_get(container + 24) == map_magic() {
+                    var count2 = ptr_get(container + 0)
                     if idx >= 0 {
                         if idx < count2 {
                             ok = 1

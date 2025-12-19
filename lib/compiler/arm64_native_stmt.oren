@@ -30,12 +30,14 @@ fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
 fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
 fn insn_ldp_post() { return core.insn_ldp_post() }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
 fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
 fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_ret() { return core.insn_ret() }
 fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
 fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
@@ -339,6 +341,29 @@ fn native_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Return" {
         native_compile_expr(ctx, stmt["value"])
         push_u32_le(ctx["code"], insn_mov_sp_fp())
+
+        // Rolling ABI hygiene (native backend):
+        // Our generated functions must preserve a stable set of callee-saved registers.
+        //
+        // IMPORTANT:
+        // - The native backend reserves X27/X28 as *global heap registers* (heap_limit/heap_ptr).
+        // - Those registers are part of the native backend's global machine state and MUST NOT be
+        //   saved/restored by function prologues/epilogues, otherwise heap pointer updates done
+        //   inside callees would be rolled back on return (causing overlapping allocations and
+        //   allocator metadata corruption).
+        //
+        // Therefore we preserve X19-X26 here, and treat X27/X28 as reserved globals.
+        //
+        // Saved layout is at fixed offsets from FP (X29):
+        //   [FP-64..FP-8] = X19..X26 (8 regs * 8 bytes)
+        // Restore after MOV SP, FP so locals are discarded but saved area is still readable.
+        var save_base = 0 - 64
+        var rr = 19
+        while rr <= 26 {
+            var off = save_base + (rr - 19) * 8
+            push_u32_le(ctx["code"], insn_ldur_reg(rr, 29, off))
+            rr = rr + 1
+        }
         push_u32_le(ctx["code"], insn_ldp_post())
         push_u32_le(ctx["code"], insn_ret())
         return nil
@@ -661,9 +686,37 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_mov_fp_sp())
             ctx["stack_size"] = ctx["stack_size"] + 16 
 
-            // Save SP after prologue. If the caller passed stack arguments (arg8+),
-            // they are located at [sp + 16 + (i-8)*8] relative to this base.
+            // Save SP after the standard prologue (SP==FP here). If the caller passed stack arguments (arg8+),
+            // they are located at [saved_sp + 16 + (i-8)*8] relative to this base.
+            //
+            // IMPORTANT:
+            // Do this BEFORE allocating our own callee-saved spill area / locals, otherwise the offsets
+            // to caller arguments would be wrong.
             push_u32_le(ctx["code"], insn_add_imm(9, 31, 0)) // X9 = SP
+
+            // Save callee-saved registers (AAPCS X19-X28) at fixed offsets from FP.
+            //
+            // NOTE:
+            // - We preserve X19-X26 as callee-saved to stabilize calls between generated functions.
+            // - X27/X28 are reserved global heap registers and MUST NOT be saved/restored here.
+            //
+            // Frame layout (relative to FP):
+            //   [FP]    = saved X29
+            //   [FP+8]  = saved X30 (LR)
+            //   [FP-64] = saved X19
+            //   ...
+            //   [FP-8]  = saved X26
+            //
+            // We allocate 64 bytes so subsequent locals pushes remain below the save area.
+            push_u32_le(ctx["code"], insn_sub_sp(64))
+            ctx["stack_size"] = ctx["stack_size"] + 64
+            var save_base = 0 - 64
+            var sr = 19
+            while sr <= 26 {
+                var off = save_base + (sr - 19) * 8
+                push_u32_le(ctx["code"], insn_stur_reg(sr, 29, off))
+                sr = sr + 1
+            }
             
             var fn_scope = scope_current_codegen(ctx)
             var params_info = []
@@ -697,6 +750,15 @@ fn native_compile_stmt(ctx, stmt) {
             
             push_u32_le(ctx["code"], insn_movz(0, 0))
             push_u32_le(ctx["code"], insn_mov_sp_fp())
+
+            // Restore callee-saved registers (X19-X26) from fixed FP-relative slots.
+            var restore_base = 0 - 64
+            var rr = 19
+            while rr <= 26 {
+                var off2 = restore_base + (rr - 19) * 8
+                push_u32_le(ctx["code"], insn_ldur_reg(rr, 29, off2))
+                rr = rr + 1
+            }
             push_u32_le(ctx["code"], insn_ldp_post())
             push_u32_le(ctx["code"], insn_ret())
             

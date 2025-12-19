@@ -1,0 +1,17 @@
+// Regression: native malloc should bump-allocate within a chunk after the first mmap.
+//
+// If the allocator incorrectly sets heap_ptr/heap_limit after mmap, it can fall back to
+// mmapping on every allocation (slow) or treat errno as a pointer (unsafe on macOS).
+
+// Use malloc_raw so this test is not affected by allocation tracking nodes
+// (`malloc()` calls `oren_track_alloc`, which itself allocates metadata).
+var p1 = malloc_raw(1)
+if p1 == 0 { exit(10) }
+
+var p2 = malloc_raw(1)
+if p2 == 0 { exit(11) }
+
+// Allocations are 16-byte aligned in the native backend.
+if p2 != p1 + 16 { exit(12) }
+
+exit(0)
