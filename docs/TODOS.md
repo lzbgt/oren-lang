@@ -52,8 +52,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system.
    - Next deliverables (finishable slices):
      - apply deterministic wrap/truncate casts for annotated struct/class fields at construction time (cross-backend) ✅
-     - add explicit float32 rounding semantics (needs a stable representation story)
-     - define/implement layout-stable “typed buffers” and FFI surfaces (no libc, syscall-first)
+     - add explicit float32 rounding semantics (cross-backend, deterministic boundary) ✅
+     - define layout-stable “typed buffers” + typed pointers for FFI (no libc, syscall-first)
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -90,5 +90,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM SIMD determinism guard: `./oretest` now runs `test_smoke_suite` with `--print-result-hash --print-trace-hash` and compares scalar vs `AVM_ENABLE_SIMD=1` hashes (arm64 only).
 - Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.
 - Packed views: `pack_view` lowering now uses the endian helpers (fewer runtime calls, smaller AST) instead of per-byte shifts for 16/32/64-bit fields.
+- Bytecode backend: `TypeName(...)` constructor calls now compile to `NEW_LIST` (portable struct representation), removing the need for implicit runtime functions for types.
+- f32 semantics: deterministic float32 rounding boundary implemented as `oren_f32_round(x)` across backends (C runtime helper, AVM native id `106`, arm64 native intrinsic).
 - Native runtime safety: made `oren_is_err(v)` safe for large ints by probing only tracked heap pointers (prevents accidental segfaults when checking `oren_is_err(16909060)` etc).
 - Native runtime safety: hardened `oren_bytes_get_u8/oren_bytes_set_u8` to avoid unsafe pointer probes on non-pointers; added regression in `test_integration_suite`.

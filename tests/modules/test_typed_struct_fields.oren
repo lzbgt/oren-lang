@@ -34,6 +34,12 @@ if h.e != 9 { exit(5) }
 if h.f != -1 { exit(6) }
 if h.ok != true { exit(7) }
 
+// f32 rounding: 16777217 (2^24+1) is not representable in float32; it rounds to 16777216.
+struct F32Box {
+    x: f32
+}
+var b = F32Box(16777217.0)
+if b.x != 16777216.0 { exit(8) }
+
 print("module typed_struct_fields OK")
 exit(0)
-

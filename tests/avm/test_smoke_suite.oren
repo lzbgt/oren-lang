@@ -186,6 +186,10 @@ fn test_type_annotations_sugar() {
     assert_eq(add(1, 2), 3)
 }
 
+struct F32Box {
+    x: f32
+}
+
 @oren.packed
 struct H {
     v: u8,
@@ -232,6 +236,10 @@ fn test_float_ops() {
     assert_true(3.0 >= 3)
 
     assert_eq("a" + "b", "ab")
+
+    // f32 rounding (via type annotations) must be deterministic.
+    // 16777217 (2^24+1) rounds to 16777216 in IEEE-754 float32.
+    assert_eq(F32Box(16777217.0).x, 16777216.0)
 }
 
 fn test_typed_buffers() {

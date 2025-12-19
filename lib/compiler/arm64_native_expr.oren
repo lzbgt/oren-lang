@@ -108,6 +108,8 @@ fn insn_orr_16b(vd, vn, vm) { return core.insn_orr_16b(vd, vn, vm) }
 fn insn_eor_16b(vd, vn, vm) { return core.insn_eor_16b(vd, vn, vm) }
 fn insn_umov_d0(rd, vn) { return core.insn_umov_d0(rd, vn) }
 fn insn_fmov_d_x(rd, rn) { return core.insn_fmov_d_x(rd, rn) }
+fn insn_fcvt_s_from_d(sd, dn) { return core.insn_fcvt_s_from_d(sd, dn) }
+fn insn_fcvt_d_from_s(dd, sn) { return core.insn_fcvt_d_from_s(dd, sn) }
 fn insn_umov_x_d(rd, rn) { return core.insn_umov_x_d(rd, rn) }
 fn insn_fadd(rd, rn, rm) { return core.insn_fadd(rd, rn, rm) }
 fn insn_fcmp(rn, rm) { return core.insn_fcmp(rn, rm) }
@@ -1244,6 +1246,31 @@ fn native_compile_expr(ctx, expr) {
             // Move result D0 -> X0
             push_u32_le(ctx["code"], insn_umov_d0(0, 0))
             
+            return nil
+        }
+        if fn_name == "oren_f32_round" {
+            // Intrinsic: round a float64 value to float32 and back to float64 bits.
+            // This is the semantic core of `f32` annotations in the native backend.
+            //
+            // Implemented purely in codegen (no runtime dependency):
+            //   X0 (bits) -> D0
+            //   FCVT S0, D0
+            //   FCVT D0, S0
+            //   D0 -> X0 (bits)
+            var args = expr["args"]
+            if args == nil || oren_list_len(args) != 1 {
+                print("native backend: oren_f32_round expects 1 argument")
+                oren_exit(1)
+            }
+            if !native_expr_is_floaty(ctx, args[0]) {
+                print("native backend: oren_f32_round expects float argument")
+                oren_exit(1)
+            }
+            native_compile_expr(ctx, args[0]) // X0 = f64 bits
+            push_u32_le(ctx["code"], insn_fmov_d_x(0, 0)) // D0 = X0 bits
+            push_u32_le(ctx["code"], insn_fcvt_s_from_d(0, 0)) // S0 = (float)D0
+            push_u32_le(ctx["code"], insn_fcvt_d_from_s(0, 0)) // D0 = (double)S0
+            push_u32_le(ctx["code"], insn_umov_x_d(0, 0)) // X0 = bits
             return nil
         }
         

@@ -1163,6 +1163,17 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             res = avm_call_native(vm, 103, args, nargs);
             break;
         }
+        case 106: { // oren_f32_round(x: float) -> float
+            if (nargs > 0 && args[0].type == AVM_VAL_FLOAT) {
+                // Deterministic: round-trip through IEEE-754 float32.
+                float f = (float)args[0].as.f;
+                res.type = AVM_VAL_FLOAT;
+                res.as.f = (double)f;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_f32_round expects (float)");
+            }
+            break;
+        }
         case 35: { // oren_bytes_from_hex(string) -> bytes
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 const char* s = (const char*)args[0].as.p;

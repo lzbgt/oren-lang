@@ -545,6 +545,22 @@ fn insn_fcvtzs(rd, rn) {
     return 2658664448 + (rn * 32) + rd
 }
 
+fn insn_fcvt_s_from_d(sd, dn) {
+    // FCVT Sd, Dn (double -> single)
+    // Verified by assembling:
+    //   fcvt s0, d0  => 0x1E624000
+    //   fcvt s3, d5  => 0x1E6240A3  (base + (dn<<5) + sd)
+    return 509755392 + (dn * 32) + sd // 0x1E624000
+}
+
+fn insn_fcvt_d_from_s(dd, sn) {
+    // FCVT Dd, Sn (single -> double)
+    // Verified by assembling:
+    //   fcvt d0, s0  => 0x1E22C000
+    //   fcvt d7, s9  => 0x1E22C127  (base + (sn<<5) + dd)
+    return 505593856 + (sn * 32) + dd // 0x1E22C000
+}
+
 fn insn_mul_4s(vd, vn, vm) {
     return 1319148544 + (vm * 65536) + (vn * 32) + vd
 }

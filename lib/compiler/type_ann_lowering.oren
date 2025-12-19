@@ -80,13 +80,25 @@ fn cast_expr_for_kind(kind, expr) {
     // bool is normalized to a boolean value.
     if k == "bool" { return neq_zero_expr(expr) }
 
-    // f32/f64: not yet enforced here (needs explicit lowering semantics).
+    if k == "f32" {
+        // Round to float32 precision (deterministic boundary).
+        // Lowered as a call so C/bytecode backends can implement it as a runtime helper.
+        return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_f32_round"}, [expr])
+    }
+    // f64 is the default float precision in v0.
     return expr
 }
 
 fn lower_expr_in_place(expr, type_kinds) {
     if expr == nil { return nil }
     var t = expr["type"]
+
+    if t == "Function" {
+        // Descend into function bodies so annotations on types declared at top-level
+        // apply to constructor calls inside functions.
+        lower_stmt_in_place(expr["body"], type_kinds)
+        return expr
+    }
 
     if t == "Prefix" {
         expr["right"] = lower_expr_in_place(expr["right"], type_kinds)
@@ -255,6 +267,78 @@ fn lower_stmt_in_place(stmt, type_kinds) {
     return stmt
 }
 
+fn collect_type_kinds_in_stmt(stmt, type_kinds) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+
+    if t == "Type" {
+        var tname = stmt["name"]["value"]
+        var fields = stmt["fields"]
+        var kinds = []
+        var j = 0
+        while j < oren_list_len(fields) {
+            var fid = fields[j]
+            if fid != nil && fid["ann_type"] != nil {
+                oren_list_push(kinds, fid["ann_type"])
+            } else {
+                oren_list_push(kinds, nil)
+            }
+            j = j + 1
+        }
+        type_kinds[tname] = kinds
+        return nil
+    }
+
+    if t == "Block" {
+        var xs = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            collect_type_kinds_in_stmt(xs[i], type_kinds)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "StmtList" {
+        var xs2 = stmt["stmts"]
+        var i2 = 0
+        while i2 < oren_list_len(xs2) {
+            collect_type_kinds_in_stmt(xs2[i2], type_kinds)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" {
+            // Type decls inside function bodies (if allowed) should also be collected.
+            collect_type_kinds_in_stmt(e["body"], type_kinds)
+        }
+        return nil
+    }
+    if t == "While" {
+        collect_type_kinds_in_stmt(stmt["body"], type_kinds)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { collect_type_kinds_in_stmt(stmt["init"], type_kinds) }
+        if stmt["post"] != nil { collect_type_kinds_in_stmt(stmt["post"], type_kinds) }
+        collect_type_kinds_in_stmt(stmt["body"], type_kinds)
+        return nil
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            collect_type_kinds_in_stmt(cases[ci]["body"], type_kinds)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { collect_type_kinds_in_stmt(stmt["default"], type_kinds) }
+        return nil
+    }
+
+    return nil
+}
+
 fn lower_linked_program_in_place(linked) {
     if linked == nil { return nil }
 
@@ -263,23 +347,7 @@ fn lower_linked_program_in_place(linked) {
     var stmts = linked["statements"]
     var i = 0
     while i < oren_list_len(stmts) {
-        var st = stmts[i]
-        if st != nil && st["type"] == "Type" {
-            var tname = st["name"]["value"]
-            var fields = st["fields"]
-            var kinds = []
-            var j = 0
-            while j < oren_list_len(fields) {
-                var fid = fields[j]
-                if fid != nil && fid["ann_type"] != nil {
-                    oren_list_push(kinds, fid["ann_type"])
-                } else {
-                    oren_list_push(kinds, nil)
-                }
-                j = j + 1
-            }
-            type_kinds[tname] = kinds
-        }
+        collect_type_kinds_in_stmt(stmts[i], type_kinds)
         i = i + 1
     }
 
@@ -293,4 +361,3 @@ fn lower_linked_program_in_place(linked) {
     linked["type_kinds"] = type_kinds
     return linked
 }
-

@@ -63,6 +63,7 @@ fn new_bytecode_ctx() {
         "in_function": false,
         "functions": {},
         "declared_funcs": {},
+        "types": {},
         "fixups": [],
         "fun_fixups": [],
         "field_offsets": {},
@@ -865,6 +866,33 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "" { indirect = true }
 
+        // Type constructor calls (rolling): represent a type value as a LIST of its
+        // field values, in declared order. Member access uses field offsets (indexing).
+        //
+        // This keeps the VM portable (no implicit runtime functions for types).
+        if indirect == false {
+            var targc = ctx["types"][name]
+            if targc != nil {
+                if expr["spread"] != nil {
+                    print("bytecode backend: type constructor does not support spread args yet: " + name)
+                    oren_exit(1)
+                }
+                var args0 = expr["args"]
+                if oren_list_len(args0) != targc {
+                    print("bytecode backend: type constructor arity mismatch for " + name)
+                    oren_exit(1)
+                }
+                var ai0 = 0
+                while ai0 < oren_list_len(args0) {
+                    bytecode_compile_expr(ctx, args0[ai0])
+                    ai0 = ai0 + 1
+                }
+                emit_byte(ctx, AVM_NEW_LIST)
+                emit_u16(ctx, targc)
+                return nil
+            }
+        }
+
         // VM-internal cooperative concurrency primitives (bytecode backend only).
         // These are opcodes (not host natives), so they remain deterministic and portable.
         if name == "oren_new_channel" {
@@ -1024,6 +1052,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_bytes_set_u64_le" { native_id = 103 }
         if name == "oren_bytes_set_i64_be" { native_id = 104 }
         if name == "oren_bytes_set_i64_le" { native_id = 105 }
+        if name == "oren_f32_round" { native_id = 106 }
         if name == "oren_bytes_from_hex" { native_id = 35 }
         if name == "oren_bytes_to_hex" { native_id = 36 }
         if name == "oren_avm_record_to_bytes" { native_id = 40 }
@@ -1327,7 +1356,9 @@ fn bytecode_compile_stmt(ctx, stmt) {
     }
 
     if stmt["type"] == "Type" {
+        var tname = stmt["name"]["value"]
         var fields = stmt["fields"]
+        ctx["types"][tname] = oren_list_len(fields)
         var i = 0
         while i < oren_list_len(fields) {
             var f = fields[i]["value"]
@@ -1602,6 +1633,17 @@ fn bytecode_compile_program(linked) {
     var pi = 0
     while pi < oren_list_len(stmts) {
         var st = stmts[pi]
+        if st != nil && st["type"] == "Type" {
+            var tname = st["name"]["value"]
+            var fields = st["fields"]
+            ctx["types"][tname] = oren_list_len(fields)
+            var fi = 0
+            while fi < oren_list_len(fields) {
+                var f = fields[fi]["value"]
+                if ctx["field_offsets"][f] == nil { ctx["field_offsets"][f] = fi }
+                fi = fi + 1
+            }
+        }
         if st != nil && st["type"] == "Function" {
             var nm = st["name"]
             if nm != nil && nm != "" { ctx["declared_funcs"][nm] = true }

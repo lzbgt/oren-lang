@@ -71,6 +71,10 @@ struct PV_S16 {
     x: i16be
 }
 
+struct F32Box {
+    x: f32
+}
+
 fn test_core_smoke() {
     // Arithmetic / bool / bit ops.
     assert_eq(2 + 3, 5, 10)
@@ -347,6 +351,10 @@ fn test_float_ops() {
     // Without this, `x: f64` is treated as an int and breaks float arithmetic/comparisons.
     fn addf(x: f64, y: f64): f64 { return x + y }
     assert_eq(addf(1.5, 2.5), 4.0, 413)
+
+    // f32 rounding: 16777217 (2^24+1) is not representable in float32; it rounds to 16777216.
+    var b32 = F32Box(16777217.0)
+    assert_eq(b32.x, 16777216.0, 414)
 }
 
 fn test_string_eq_semantics() {

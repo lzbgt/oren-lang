@@ -174,6 +174,9 @@ OrenValue oren_char(OrenValue code);
 OrenValue oren_int_to_string(OrenValue v);
 OrenValue oren_float_to_string(OrenValue v);
 OrenValue oren_string_to_float_bits(OrenValue s);
+// Round a float value to IEEE-754 float32 precision and return it as a float (f64 container).
+// Used by the compiler as the semantic core of `f32` annotations.
+OrenValue oren_f32_round(OrenValue v);
 
 OrenValue oren_read_file(OrenValue path);
 OrenValue oren_write_file(OrenValue path, OrenValue content);

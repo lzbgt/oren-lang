@@ -2986,6 +2986,15 @@ OrenValue oren_string_to_float_bits(OrenValue s) {
     return oren_int((long long)bits);
 }
 
+OrenValue oren_f32_round(OrenValue v) {
+    if (v.type != OREN_TYPE_FLOAT) {
+        // In rolling mode, avoid UB: return a structured error rather than panicking.
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("f32_round expects float"));
+    }
+    float f = (float)v.as.float_val;
+    return oren_float((double)f);
+}
+
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end) {
     if (s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || end.type != OREN_TYPE_INT) {
         oren_panic("string_slice type mismatch");
