@@ -10,6 +10,7 @@ import ast "ast.oren"
 import metadata "metadata.oren"
 import packview "packview.oren"
 import type_ann "type_ann_lowering.oren"
+import abi_layout "abi_layout_lowering.oren"
 import argparse "../std/argparse.oren"
 
 fn cli_spec() {
@@ -621,6 +622,10 @@ fn link_program(entry_path, root_prog) {
     // Compile-time lowering: apply value-level normalization for annotated struct/class fields.
     // (Rolling step toward exact-size layout semantics.)
     type_ann.lower_linked_program_in_place(linked)
+
+    // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
+    // Opt-in via `@oren.abi` and does not depend on host headers.
+    abi_layout.lower_linked_program_in_place(linked)
 
     return linked
 }

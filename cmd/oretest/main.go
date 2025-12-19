@@ -117,6 +117,7 @@ func main() {
 		"tests/modules/test_float_ops.oren",
 		"tests/modules/test_typed_struct_fields.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",
+		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_function_values.oren",
 		"tests/modules/test_lambda_closure.oren",
 		"tests/modules/test_lambda_multiline.oren",

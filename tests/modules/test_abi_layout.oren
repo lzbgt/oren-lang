@@ -1,0 +1,40 @@
+// ABI layout: compile-time-only constants (no host headers).
+//
+// This test asserts a deterministic C-like layout algorithm for fixed-width primitives.
+
+@oren.abi
+struct ABI1 {
+    a: u8,
+    b: u32,
+    c: u16
+}
+
+// Layout on arm64 (macOS/Linux) for these primitives:
+// - a @0 (align 1)
+// - b @4 (align 4)
+// - c @8 (align 2)
+// - sizeof rounded up to max align => 12
+
+if oren_abi_alignof("ABI1") != 4 { exit(1) }
+if oren_abi_offsetof("ABI1", "a") != 0 { exit(2) }
+if oren_abi_offsetof("ABI1", "b") != 4 { exit(3) }
+if oren_abi_offsetof("ABI1", "c") != 8 { exit(4) }
+if oren_abi_sizeof("ABI1") != 12 { exit(5) }
+
+@oren.abi
+struct ABI2 {
+    x: bool,
+    y: f64,
+    z: u8
+}
+
+// x @0 (align1), y @8 (align8), z @16, sizeof -> 24
+if oren_abi_alignof("ABI2") != 8 { exit(6) }
+if oren_abi_offsetof("ABI2", "x") != 0 { exit(7) }
+if oren_abi_offsetof("ABI2", "y") != 8 { exit(8) }
+if oren_abi_offsetof("ABI2", "z") != 16 { exit(9) }
+if oren_abi_sizeof("ABI2") != 24 { exit(10) }
+
+print("module abi_layout OK")
+exit(0)
+

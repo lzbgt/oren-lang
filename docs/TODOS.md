@@ -53,7 +53,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Next deliverables (finishable slices):
      - v0 value-level semantics for annotated locals/params/returns/fields (cross-backend) ✅
      - syscall-first packet parsing story (native): typed buffers + endian ptr helpers + `u8_buf` bytes APIs ✅
-     - next slice (real layouts): define and implement an exact-size struct layout mode (alignment/padding) suitable for FFI/HPC (beyond `@oren.packed` views).
+     - next slice (real layouts): implement opt-in `@oren.abi` layouts + `oren_abi_{sizeof,alignof,offsetof}` (no host headers) ⏳
+     - next slice (real layouts): make ABI layouts usable end-to-end for FFI structs (allocation + ptr accessors) without changing v0 struct/map semantics.
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.

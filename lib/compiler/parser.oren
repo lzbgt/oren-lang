@@ -96,7 +96,9 @@ fn new_parser(l) {
             // Capability-governed host effects (enforced only when capsule mode is enabled).
             "cap.requires",
             // Packed struct / byte views (compile-time lowering).
-            "oren.packed"
+            "oren.packed",
+            // ABI/FFI layout mode (compile-time meaning; does not use host headers).
+            "oren.abi"
         ]
     }
     parser_next_token(p)
