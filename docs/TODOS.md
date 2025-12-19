@@ -36,27 +36,32 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
+1) **P0 [perf] Test suite speed: integration-first curated tests**
+   - Problem: too many small overlapping tests cause slow compile+run cycles.
+   - DoD: curated suite stays small and high-signal (few binaries) while still covering the real syscall-first substrate.
+   - Approach: prefer integration suites (one binary runs many orthogonal subtests, optionally using `spawn` for safe concurrency) and keep the full per-feature tests available in `make test-legacy`.
+
+2) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
    - DoD: for each raw `sys_*` that can cause host effects (FS/NET/PROC/ENV/TIME), there is a capsule pre hook and tests cover allow+deny paths.
    - Next deliverable: add a single “capability audit test” that enumerates syscall intrinsics used by the native backend and asserts each has a pre hook.
 
-2) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
+3) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
    - DoD: `./oren test --target linux` passes on a Linux arm64 environment (QEMU host or Docker/VM), for the curated native list.
    - Next deliverable: wire a minimal remote runner script (optional) + fix any ABI-table gaps discovered by the tests.
 
-3) **P1 [correctness] String equality semantics + propagation** *(native backend)*
+4) **P1 [correctness] String equality semantics + propagation** *(native backend)*
    - DoD: all string `==` cases in tests/stdlib are safe (including `nil`) and consistent across backends.
 
-4) **P1 [prod] Fixed-width scalars + floats + explicit casts** *(network + scientific code)*
+5) **P1 [prod] Fixed-width scalars + floats + explicit casts** *(network + scientific code)*
    - DoD: defined semantics for casts (truncate vs checked), `f32/f64` support, and endian-aware helpers for packed parsing.
 
-5) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
+6) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - DoD: deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
 
-6) **P2 [ux] Tooling**
+7) **P2 [ux] Tooling**
    - `.obc` disassembler (“otool-like”) + metadata extractor (reads embedded `OREN_META\n1\n` bytes convention).
 
-7) **P2 [maint] Refactors without semantic churn**
+8) **P2 [maint] Refactors without semantic churn**
    - Split oversized modules (AVM/codegen) once behavior is covered by tests.
 
 ## Recently Completed (high signal)

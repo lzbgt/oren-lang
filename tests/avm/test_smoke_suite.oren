@@ -1,5 +1,7 @@
 @myorg.tag(name="avm-smoke-suite")
 
+import ints "../../lib/std/ints.oren"
+
 fn fail() {
     // Force a non-zero VM exit by triggering an index error.
     var a = [1]
@@ -94,12 +96,166 @@ fn test_control_flow() {
     assert_eq(j, 3)
 }
 
+fn test_bytes_set_endian() {
+    // list<int> path
+    var l16 = [0, 0]
+    assert_eq(oren_bytes_set_u16_be(l16, 0, 4660), 4660)
+    assert_eq(l16[0], 18)
+    assert_eq(l16[1], 52)
+
+    var l16n = [0, 0]
+    assert_eq(oren_bytes_set_i16_be(l16n, 0, -2), -2)
+    assert_eq(l16n[0], 255)
+    assert_eq(l16n[1], 254)
+
+    var l32 = [0, 0, 0, 0]
+    assert_eq(oren_bytes_set_u32_be(l32, 0, 16909060), 16909060)
+    assert_eq(l32[0], 1)
+    assert_eq(l32[3], 4)
+
+    // bytes path
+    var b = oren_bytes_from_hex("0000")
+    if oren_is_err(b) { fail() }
+    assert_eq(oren_bytes_set_u16_be(b, 0, 4660), 4660)
+    assert_eq(oren_bytes_get_u8(b, 0), 18)
+    assert_eq(oren_bytes_get_u8(b, 1), 52)
+}
+
+fn test_int_casts() {
+    assert_eq(ints.u8(256 + 5), 5)
+    assert_eq(ints.u8(-1), 255)
+    assert_eq(ints.i8(255), -1)
+    assert_eq(ints.i8(128), -128)
+
+    assert_eq(ints.u16(65536 + 7), 7)
+    assert_eq(ints.u16(-1), 65535)
+    assert_eq(ints.i16(65535), -1)
+    assert_eq(ints.i16(32768), -32768)
+
+    assert_eq(ints.u32(4294967296 + 9), 9)
+    assert_eq(ints.u32(-1), 4294967295)
+    assert_eq(ints.i32(4294967295), -1)
+    assert_eq(ints.i32(2147483648), -2147483648)
+}
+
+fn test_int_casts_checked() {
+    var ok = ints.try_u8(255)
+    assert_true(oren_is_err(ok) == 0)
+    assert_eq(ok, 255)
+
+    var bad = ints.try_u8(256)
+    assert_true(oren_is_err(bad) != 0)
+    assert_eq(oren_err_code(bad), 4)
+
+    var uok = ints.try_u64(ints.MAX_I64)
+    assert_true(oren_is_err(uok) == 0)
+
+    var ubad = ints.try_u64(ints.MAX_I64 + 1)
+    assert_true(oren_is_err(ubad) != 0)
+}
+
+@oren.packed
+struct H {
+    @oren.u8 v,
+    @oren.u8 t,
+    @oren.u16be len,
+    @oren.u32be src,
+    @oren.u32be dst
+}
+
+@oren.packed
+struct S16 {
+    @oren.i16be x
+}
+
+fn test_pack_view() {
+    var b = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("H", b, 0).v, 69)
+    assert_eq(pack_view("H", b, 0).len, 84)
+    assert_eq(pack_view("H", b, 0).src, 3232235521)
+    assert_eq(pack_view("H", b, 0).dst, 134744072)
+
+    var bn = [255, 254]
+    assert_eq(pack_view("S16", bn, 0).x, -2)
+
+    var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    pack_view("H", out, 0).v = 69
+    pack_view("H", out, 0).len = 84
+    pack_view("H", out, 0).dst = 134744072
+    assert_eq(pack_view("H", out, 0).dst, 134744072)
+}
+
+fn test_float_ops() {
+    var a = 1.5
+    var b = 2.5
+    assert_eq(a + b, 4.0)
+    assert_eq(b - a, 1.0)
+    assert_eq(a * 2.0, 3.0)
+    assert_eq(3.0 / a, 2.0)
+    assert_eq(-a, -1.5)
+
+    assert_true(2 < 2.5)
+    assert_true(2 <= 2.0)
+    assert_true(3.0 > 2)
+    assert_true(3.0 >= 3)
+
+    assert_eq("a" + "b", "ab")
+}
+
+fn inc2(x) { return x + 1 }
+
+fn mk_add(x) {
+    // Lambda literal (closure): captures x by value.
+    return |y| { return x + y }
+}
+
+fn test_closures() {
+    // Named function as a first-class value.
+    var f = inc2
+    assert_eq(f(2), 3)
+
+    // Closure capture + indirect call.
+    var add5 = mk_add(5)
+    assert_eq(add5(7), 12)
+
+    // Closures stored in containers + indirect call of Index expression.
+    var fs = []
+    var i = 0
+    while i < 3 {
+        var j = i
+        var g = |z| { return j + z }
+        oren_list_push(fs, g)
+        i = i + 1
+    }
+    assert_eq(fs[0](10), 10)
+    assert_eq(fs[1](10), 11)
+    assert_eq(fs[2](10), 12)
+}
+
+fn test_switch() {
+    var x = 2
+    var y = 0
+    switch x {
+        case 1 { y = 10 }
+        case 2 { y = 20 }
+        default { y = 30 }
+    }
+    assert_eq(y, 20)
+}
+
 fn main() {
     test_calls()
     test_recursion()
     test_bytes()
+    test_bytes_set_endian()
     test_map_order()
     test_control_flow()
+    test_int_casts()
+    test_int_casts_checked()
+    test_pack_view()
+    test_float_ops()
+    test_closures()
+    test_switch()
 
     print("avm smoke suite OK")
 }

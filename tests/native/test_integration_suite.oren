@@ -1,0 +1,514 @@
+import json "../../lib/std/json.oren"
+import ints "../../lib/std/ints.oren"
+
+fn fail(code) {
+    print("native integration suite FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn assert_streq(a, b, code) {
+    if strcmp(a, b) == 0 { return 0 }
+    fail(code)
+}
+
+fn u16be_at(p, off) {
+    var hi = ptr_get_byte(p + off)
+    var lo = ptr_get_byte(p + off + 1)
+    return (hi << 8) | lo
+}
+
+fn add(a, b) { return a + b }
+
+fn sum_rec(n) {
+    if n <= 0 { return 0 }
+    return n + sum_rec(n - 1)
+}
+
+fn integration_spawn_worker_sleep_long() {
+    // Intentionally runs longer than join timeout; join_timeout must cancel/kill it.
+    oren_sleep_ms(5000)
+    return 123
+}
+
+fn integration_alloc_garbage() {
+    var xs = []
+    oren_list_push(xs, 1)
+    oren_list_push(xs, 2)
+    var s = "a" + "b" + "c"
+    xs = 0
+    s = 0
+    return 0
+}
+
+@oren.packed
+struct PV_H {
+    @oren.u8 v,
+    @oren.u8 t,
+    @oren.u16be len,
+    @oren.u32be src,
+    @oren.u32be dst
+}
+
+@oren.packed
+struct PV_S16 {
+    @oren.i16be x
+}
+
+fn test_core_smoke() {
+    // Arithmetic / bool / bit ops.
+    assert_eq(2 + 3, 5, 10)
+    assert_true(true, 11)
+    assert_true(!false, 12)
+    assert_eq((1 | 2), 3, 13)
+    assert_eq((5 ^ 1), 4, 14)
+    assert_eq((1 << 5), 32, 15)
+    assert_eq((32 >> 5), 1, 16)
+
+    // Lists + for-in + break/continue.
+    var xs = [1, 2, 3, 4]
+    xs[1] = 20
+    assert_eq(xs[1], 20, 30)
+    var s = 0
+    for x in xs {
+        if x == 20 { continue }
+        s = s + x
+    }
+    assert_eq(s, 1 + 3 + 4, 31)
+
+    // Deterministic map iteration order (keys).
+    var m = {"b": 1, "a": 2}
+    var ks = []
+    for k in m { oren_list_push(ks, k) }
+    assert_eq(oren_list_len(ks), 2, 40)
+    assert_streq(ks[0], "a", 41)
+    assert_streq(ks[1], "b", 42)
+
+    // String char_at must be portable across backends.
+    assert_streq(oren_string_char_at("abc", 0), "a", 43)
+    assert_streq(oren_string_char_at("abc", 2), "c", 44)
+
+    // std/json (portable, explicit JsonValue).
+    var jr = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\\\n\\\"y\"}")
+    assert_eq(jr["ok"], 1, 45)
+    var jout = json.encode(jr["v"])
+    if strcmp(jout, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}") != 0 {
+        print("json encode mismatch; got:")
+        print(jout)
+        print("expected:")
+        print("{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}")
+        fail(46)
+    }
+
+    // Function values + lambdas + capture-by-value.
+    var f = add
+    assert_eq(f(10, 1), 11, 50)
+
+    var xcap = 10
+    var g = |y| xcap + y
+    xcap = 999 // capture-by-value check (g should still see 10)
+    assert_eq(g(1), 11, 51)
+
+    // spawn a callable stored in a variable
+    var t1 = spawn g(5)
+    var r1 = oren_join(t1)
+    assert_eq(r1, 15, 52)
+
+    // Multi-line lambda body + spawn.
+    var base = 3
+    var h = |n| {
+        var acc = base
+        var i = 0
+        while i < n {
+            acc = acc + i
+            i = i + 1
+        }
+        return acc
+    }
+    base = 100
+    assert_eq(h(4), 9, 60) // 3 + (0+1+2+3)
+    var t2 = spawn h(5)
+    var r2 = oren_join(t2)
+    assert_eq(r2, 13, 61) // 3 + (0+1+2+3+4)
+
+    // sum 1..2000 = 2000*2001/2 = 2001000
+    assert_eq(sum_rec(2000), 2001000, 70)
+}
+
+fn test_malloc_bump() {
+    // Allocations are 16-byte aligned in the native backend.
+    var p1 = malloc_raw(1)
+    if p1 == 0 { fail(100) }
+    var p2 = malloc_raw(1)
+    if p2 == 0 { fail(101) }
+    assert_eq(p2, p1 + 16, 102)
+}
+
+fn test_syscall_errno() {
+    // Trigger EBADF by reading/writing/closing an invalid fd.
+    // EBADF is errno 9 on macOS and Linux.
+    var buf = malloc(8)
+    if buf == 0 { fail(110) }
+    ptr_set(buf, 0)
+    assert_eq(sys_read(-1, buf, 1), 0 - 9, 111)
+    assert_eq(sys_write(-1, buf, 1), 0 - 9, 112)
+    assert_eq(sys_close(-1), 0 - 9, 113)
+}
+
+fn test_time_proc() {
+    // TIME substrate: should return and not hang; monotonic should not go backwards.
+    var r = oren_sleep_ms(1)
+    if r < 0 { fail(120) }
+
+    var t = oren_time_unix_ns()
+    if t <= 0 { fail(121) }
+
+    var a = oren_time_mono_raw()
+    oren_sleep_ms(1)
+    var b = oren_time_mono_raw()
+    if b < a { fail(122) }
+
+    // PROC cancellation: system must be cancellable without hanging.
+    // Expect: returns -ETIMEDOUT (we use BSD's 60 as the v0 convention).
+    var rc = oren_system_timeout("sleep 5", 20)
+    assert_eq(rc, 0 - 60, 123)
+}
+
+fn test_spawn_join_timeout() {
+    var h = spawn integration_spawn_worker_sleep_long()
+    var r = oren_join_timeout(h, 20)
+    assert_eq(r, 0 - 60, 130) // ETIMEDOUT (BSD)
+}
+
+fn test_env_execve_getenv() {
+    // ENV correctness without libc:
+    // - execve envp override works
+    // - oren_getenv matches key
+    // - oren_system inherits envp (child sees $OREN_TEST_ENV)
+    //
+    // NOTE: This test re-execs the current binary once. We gate it with OREN_INTEGRATION_RAN.
+    var ran = oren_getenv("OREN_INTEGRATION_RAN")
+    if ran == 0 {
+        var argvp = global_get_argv()
+        if argvp == 0 { fail(140) }
+        var path = ptr_get(argvp)
+        if path == 0 { fail(141) }
+
+        var env0 = "OREN_TEST_ENV=1"
+        var env1 = "OREN_INTEGRATION_RAN=1"
+        var envp = malloc(24) // 3 pointers
+        if envp == 0 { fail(142) }
+        ptr_set(envp + 0, env0)
+        ptr_set(envp + 8, env1)
+        ptr_set(envp + 16, 0)
+
+        sys_execve(path, argvp, envp)
+        // If we reached here, execve failed.
+        fail(143)
+    }
+
+    var val = oren_getenv("OREN_TEST_ENV")
+    if val == 0 { fail(144) }
+    assert_streq(val, "1", 145)
+    var rc = oren_system("test \"$OREN_TEST_ENV\" = \"1\"")
+    assert_eq(rc, 0, 146)
+}
+
+fn test_bytes_endian_and_pack_view() {
+    // bytes endian helpers (list<int>).
+    var b16 = [0, 0]
+    assert_eq(oren_bytes_set_u16_be(b16, 0, 4660), 4660, 200) // 0x1234
+    assert_eq(oren_bytes_get_u16_be(b16, 0), 4660, 201)
+    assert_eq(b16[0], 18, 202)
+    assert_eq(b16[1], 52, 203)
+
+    var b32 = [0, 0, 0, 0]
+    assert_eq(oren_bytes_set_u32_be(b32, 0, 16909060), 16909060, 204) // 0x01020304
+    assert_eq(b32[0], 1, 205)
+    assert_eq(b32[3], 4, 206)
+
+    var pkt = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("PV_H", pkt, 0).v, 69, 210)
+    assert_eq(pack_view("PV_H", pkt, 0).len, 84, 211)
+    assert_eq(pack_view("PV_H", pkt, 0).src, 3232235521, 212)
+    assert_eq(pack_view("PV_H", pkt, 0).dst, 134744072, 213)
+
+    var bn = [255, 254]
+    assert_eq(pack_view("PV_S16", bn, 0).x, -2, 214)
+
+    var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    pack_view("PV_H", out, 0).v = 69
+    pack_view("PV_H", out, 0).len = 84
+    pack_view("PV_H", out, 0).dst = 134744072
+    assert_eq(pack_view("PV_H", out, 0).dst, 134744072, 215)
+}
+
+fn test_numeric_casts() {
+    // Unchecked casts.
+    assert_eq(ints.u8(256 + 5), 5, 300)
+    assert_eq(ints.u8(-1), 255, 301)
+    assert_eq(ints.i8(255), -1, 302)
+    assert_eq(ints.i8(128), -128, 303)
+
+    assert_eq(ints.u16(65536 + 7), 7, 310)
+    assert_eq(ints.u16(-1), 65535, 311)
+    assert_eq(ints.i16(65535), -1, 312)
+    assert_eq(ints.i16(32768), -32768, 313)
+
+    assert_eq(ints.u32(4294967296 + 9), 9, 320)
+    assert_eq(ints.u32(-1), 4294967295, 321)
+    assert_eq(ints.i32(4294967295), -1, 322)
+    assert_eq(ints.i32(2147483648), -2147483648, 323)
+
+    // Checked casts.
+    var ok = ints.try_u8(255)
+    assert_true(oren_is_err(ok) == 0, 330)
+    assert_eq(ok, 255, 331)
+    var bad = ints.try_u8(256)
+    assert_true(oren_is_err(bad) != 0, 332)
+    assert_eq(oren_err_code(bad), 4, 333)
+
+    var uok = ints.try_u64(ints.MAX_I64)
+    assert_true(oren_is_err(uok) == 0, 334)
+    var ubad = ints.try_u64(ints.MAX_I64 + 1)
+    assert_true(oren_is_err(ubad) != 0, 335)
+}
+
+fn test_float_ops() {
+    var a = 1.5
+    var b = 2.5
+    assert_eq(a + b, 4.0, 400)
+    assert_eq(b - a, 1.0, 401)
+    assert_eq(a * 2.0, 3.0, 402)
+    assert_eq(3.0 / a, 2.0, 403)
+    assert_eq(-a, -1.5, 404)
+    assert_true(2 < 2.5, 405)
+    assert_true(2 <= 2.0, 406)
+    assert_true(3.0 > 2, 407)
+    assert_true(3.0 >= 3, 408)
+
+    var s = "a" + "b"
+    assert_eq(oren_string_len(s), 2, 409)
+    assert_eq(ptr_get_byte(s + 0), 97, 410) // 'a'
+    assert_eq(ptr_get_byte(s + 1), 98, 411) // 'b'
+    assert_eq(ptr_get_byte(s + 2), 0, 412)  // NUL
+}
+
+fn test_string_eq_semantics() {
+    // String comparisons must be lexical by content.
+    if "a" == "b" { fail(500) }
+    if "a" != "a" { fail(501) }
+    if ("a" + "b") != "ab" { fail(502) }
+    if "ab" < "aa" { fail(503) }
+    if "ab" <= "aa" { fail(504) }
+    if "ab" > "b" { fail(505) }
+    if "ab" >= "b" { fail(506) }
+
+    // Common runtime string-producing calls (must compare by content).
+    if oren_string_char_at("abc", 0) != "a" { fail(507) }
+    if string_concat("a", "b") != "ab" { fail(508) }
+    if oren_realpath("x/./y") != "x/y" { fail(509) }
+
+    // Comparing string pointers with nil must be safe (must NOT call strcmp).
+    var s = "abc"
+    if s == nil { fail(510) }
+    if nil == s { fail(511) }
+    var t = nil
+    if t != nil { fail(512) }
+    if t == "abc" { fail(513) }
+    if "abc" == t { fail(514) }
+
+    // List element string equality must be by content.
+    var xs = ["a", "b", "c"]
+    if xs[0] != "a" { fail(515) }
+    if xs[1] == "a" { fail(516) }
+    var y = oren_list_get(xs, 2)
+    if y != "c" { fail(517) }
+}
+
+fn test_read_bytes_roundtrip() {
+    var path = "build/native_test_integration_read_bytes.bin"
+    var bytes = []
+    var i = 0
+    while i < 4096 {
+        var v = i & 255
+        if i == 123 { v = 0 }
+        if i == 456 { v = 255 }
+        oren_list_push(bytes, v)
+        i = i + 1
+    }
+    oren_write_bytes(path, bytes)
+    var out = oren_read_bytes(path)
+    assert_eq(oren_list_len(out), oren_list_len(bytes), 600)
+    var j = 0
+    while j < oren_list_len(bytes) {
+        if out[j] != bytes[j] { fail(601) }
+        j = j + 1
+    }
+}
+
+fn test_gc_mem_stats() {
+    var live0 = native_mem_live_count()
+    var free0 = native_mem_free_blocks_count()
+
+    integration_alloc_garbage()
+    native_gc_collect()
+    var live1 = native_mem_live_count()
+    var free1 = native_mem_free_blocks_count()
+
+    integration_alloc_garbage()
+    native_gc_collect()
+    var live2 = native_mem_live_count()
+    var free2 = native_mem_free_blocks_count()
+
+    if live2 != live1 {
+        print("live0=" + oren_int_to_string(live0))
+        print("live1=" + oren_int_to_string(live1))
+        print("live2=" + oren_int_to_string(live2))
+        fail(700)
+    }
+    if free1 < free0 { fail(701) }
+    if free2 < free1 { fail(702) }
+}
+
+fn test_net_loopback_minimal() {
+    // Minimal loopback-only net integration:
+    // - listen/accept/connect
+    // - read/write via timeout-bounded helpers
+    // - sys_getsockname/sys_getpeername sanity (AF_INET)
+    var ch = oren_pipe()
+    var r = oren_list_get(ch, 0)
+    var w = oren_list_get(ch, 1)
+
+    var pid = sys_fork()
+    if pid < 0 { fail(800) }
+
+    if pid == 0 {
+        sys_close(r)
+
+        // Try a small port range to avoid flakiness (port in use).
+        var port = 40100
+        var lfd = -1
+        var tries = 0
+        while tries < 10 {
+            lfd = oren_tcp_listen_local(port)
+            if lfd >= 0 { break }
+            port = port + 1
+            tries = tries + 1
+        }
+        if lfd < 0 { exit(801) }
+
+        var pbuf = malloc(8)
+        if pbuf == 0 { exit(802) }
+        ptr_set(pbuf, port)
+        var wn0 = sys_write(w, pbuf, 8)
+        if wn0 != 8 { exit(803) }
+        sys_close(w)
+
+        var cfd = oren_tcp_accept(lfd, 2000)
+        if cfd < 0 { exit(804) }
+
+        var inb = malloc(1)
+        if inb == 0 { exit(805) }
+        var rn = oren_tcp_read_into(cfd, inb, 1, 2000)
+        if rn != 1 { exit(806) }
+        if ptr_get_byte(inb) != 65 { exit(807) } // 'A'
+
+        var outb = malloc(1)
+        if outb == 0 { exit(808) }
+        ptr_set_byte(outb, 66) // 'B'
+        var wn = oren_tcp_write_from(cfd, outb, 1, 2000)
+        if wn != 1 { exit(809) }
+
+        oren_tcp_close(cfd)
+        oren_tcp_close(lfd)
+        exit(0)
+    }
+
+    // Parent.
+    sys_close(w)
+    var pbuf2 = malloc(8)
+    if pbuf2 == 0 { fail(810) }
+    var got = 0
+    while got < 8 {
+        var n = sys_read(r, pbuf2 + got, 8 - got)
+        if n <= 0 { fail(811) }
+        got = got + n
+    }
+    var port2 = ptr_get(pbuf2)
+    if port2 < 1 { fail(812) }
+    sys_close(r)
+
+    var cfd2 = oren_tcp_connect("127.0.0.1", port2, 2000)
+    if cfd2 < 0 { fail(813) }
+
+    // getsockname / getpeername sanity: AF_INET + len >= 8.
+    var sa = malloc(32)
+    if sa == 0 { fail(814) }
+    var slen = malloc(8)
+    if slen == 0 { fail(815) }
+    ptr_set(slen, 32)
+    var grc = sys_getsockname(cfd2, sa, slen)
+    if grc < 0 { fail(816) }
+    var nlen = ptr_get(slen)
+    if nlen < 8 { fail(817) }
+    if ptr_get_byte(sa + 1) != OREN_AF_INET { fail(818) }
+
+    ptr_set(slen, 32)
+    var prc = sys_getpeername(cfd2, sa, slen)
+    if prc < 0 { fail(819) }
+    var plen = ptr_get(slen)
+    if plen < 8 { fail(820) }
+    if ptr_get_byte(sa + 1) != OREN_AF_INET { fail(821) }
+
+    var outb2 = malloc(1)
+    if outb2 == 0 { fail(822) }
+    ptr_set_byte(outb2, 65) // 'A'
+    var wn2 = oren_tcp_write_from(cfd2, outb2, 1, 2000)
+    if wn2 != 1 { fail(823) }
+
+    var inb2 = malloc(1)
+    if inb2 == 0 { fail(824) }
+    var rn2 = oren_tcp_read_into(cfd2, inb2, 1, 2000)
+    if rn2 != 1 { fail(825) }
+    if ptr_get_byte(inb2) != 66 { fail(826) } // 'B'
+
+    oren_tcp_close(cfd2)
+
+    var st = malloc(8)
+    if st == 0 { fail(827) }
+    ptr_set(st, 0)
+    sys_wait4(pid, st, 0, 0)
+}
+
+fn main() {
+    // ENV test must run first because it may execve() once.
+    test_env_execve_getenv()
+
+    test_core_smoke()
+    test_malloc_bump()
+    test_syscall_errno()
+    test_time_proc()
+    test_spawn_join_timeout()
+    test_bytes_endian_and_pack_view()
+    test_numeric_casts()
+    test_float_ops()
+    test_string_eq_semantics()
+    test_read_bytes_roundtrip()
+    test_gc_mem_stats()
+    test_net_loopback_minimal()
+
+    print("native integration suite OK")
+    exit(0)
+}
+
+main()
