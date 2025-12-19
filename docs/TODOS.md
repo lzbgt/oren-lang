@@ -53,7 +53,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Next deliverables (finishable slices):
      - v0 value-level semantics for annotated locals/params/returns/fields (cross-backend) ✅
      - syscall-first packet parsing story (native): typed buffers + endian ptr helpers + `u8_buf` bytes APIs ✅
-     - next slice (real layouts): implement opt-in `@oren.abi` layouts + `oren_abi_{sizeof,alignof,offsetof}` (no host headers) ⏳
+     - opt-in `@oren.abi` layouts + `oren_abi_{sizeof,alignof,offsetof}` (no host headers) ✅
      - next slice (real layouts): make ABI layouts usable end-to-end for FFI structs (allocation + ptr accessors) without changing v0 struct/map semantics.
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
@@ -100,3 +100,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Native runtime: made `u8_buf` iterable (`for x in bytes`) and added native bytes hex/pack/unpack coverage.
 - Native runtime: added `oren_u8_buf_wrap_ptr` to wrap malloc buffers as bytes without copying (enables `pack_view` directly over syscall read buffers).
 - Type annotations: `bool` normalization is now explicit (`oren_bool_norm`) so annotated params/locals/returns have consistent numeric semantics across backends.
+- ABI layouts: added opt-in `@oren.abi` + compile-time `oren_abi_{sizeof,alignof,offsetof}` (no host headers) and a module test.
