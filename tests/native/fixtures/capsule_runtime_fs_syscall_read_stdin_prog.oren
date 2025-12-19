@@ -1,0 +1,13 @@
+fn main() {
+    // Raw sys_read capsule FS test:
+    // - In capsule mode, sys_read must be enforced at syscall boundary (no bypass).
+    // - Run this under "< /dev/null" in the test harness to ensure it never blocks.
+    var buf = malloc(8)
+    if buf == 0 { exit(3) }
+    ptr_set_byte(buf + 0, 0)
+    var n = sys_read(0, buf, 1)
+    // With stdin redirected to /dev/null, n should be 0 and this should terminate.
+    if n < 0 { exit(4) }
+    print("ok")
+}
+

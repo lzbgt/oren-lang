@@ -91,6 +91,12 @@ fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
 fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         if fn_name == "sys_read" {
             compile_expr(ctx, args[0]) // fd -> X0
+
+            // pre: native_capsule_sys_read_pre(fd) -> fd
+            var bl_read_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_read_pre, "name": "native_capsule_sys_read_pre"})
+
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
@@ -2605,6 +2611,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         
         if fn_name == "sys_pipe" {
             compile_expr(ctx, args[0]) // ptr to int[2] -> X0
+
+            // pre: native_capsule_sys_pipe_pre(ptr) -> ptr
+            var bl_pipe_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_pre, "name": "native_capsule_sys_pipe_pre"})
             
             var sys_pipe = abi.darwin_sys_pipe()
             var sys_pipe2 = labi.linux_sys_pipe2()

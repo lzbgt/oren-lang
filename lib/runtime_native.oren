@@ -1173,6 +1173,22 @@ fn native_capsule_sys_fstat_post(rc) {
     return rc
 }
 
+fn native_capsule_sys_read_pre(fd) {
+    // sys_read is a read operation on an existing fd.
+    //
+    // Capsule hardening: require FS domain at raw syscall boundary so programs
+    // cannot bypass FS enrollment by reading from inherited fds (including stdin).
+    native_capsule_require(CAP_FS, "FS")
+    return fd
+}
+
+fn native_capsule_sys_pipe_pre(ptr) {
+    // pipe creates two new fds (host effect); treat it as FS-domain in v0.
+    // Capsule hardening: enforce FS at syscall boundary (no bypass).
+    native_capsule_require(CAP_FS, "FS")
+    return ptr
+}
+
 fn native_capsule_sys_mkdir_pre(path) {
     // mkdir is a write op.
     return native_capsule_fs_path_resolve_pair(path, 1)

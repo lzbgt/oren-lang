@@ -910,6 +910,69 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_fs_gde_out) + " build/mnt_host/dir/in.txt")
 
+    // sys_read (stdin): must be FS-gated (no bypass) and must never hang in tests.
+    // Run with stdin redirected to /dev/null so it cannot block.
+    var cap_fs_srs_out = "build/capsule_runtime_fs_syscall_read_stdin_prog"
+    var cap_fs_srs_log = "build/logs/capsule_runtime_fs_syscall_read_stdin_prog_build.log"
+    var cap_fs_srs_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_read_stdin_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_srs_out) + gc_arg
+    var cap_fs_srs_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_srs_cmd, cap_fs_srs_log)
+    if cap_fs_srs_rc != 0 || file_exists(cap_fs_srs_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_read_stdin_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_srs_log))
+        oren_exit(1)
+    }
+
+    var cap_fs_srs_deny_log = "build/logs/capsule_runtime_fs_syscall_read_stdin_prog_run_deny.log"
+    var cap_fs_srs_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS= ./" + cap_fs_srs_out + " < /dev/null"
+    var cap_fs_srs_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_srs_deny_cmd, cap_fs_srs_deny_log)
+    if cap_fs_srs_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_read_stdin_prog (expected runtime capsule deny: sys_read needs FS domain)")
+        oren_system("cat " + shell_quote(cap_fs_srs_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_fs_srs_ok_log = "build/logs/capsule_runtime_fs_syscall_read_stdin_prog_run_allow.log"
+    var cap_fs_srs_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_srs_out + " < /dev/null"
+    var cap_fs_srs_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_srs_ok_cmd, cap_fs_srs_ok_log)
+    if cap_fs_srs_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_read_stdin_prog (expected runtime capsule allow: FS domain)")
+        oren_system("cat " + shell_quote(cap_fs_srs_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_fs_srs_out))
+
+    // sys_pipe: must be FS-gated (no bypass).
+    var cap_fs_sp_out = "build/capsule_runtime_fs_syscall_pipe_prog"
+    var cap_fs_sp_log = "build/logs/capsule_runtime_fs_syscall_pipe_prog_build.log"
+    var cap_fs_sp_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_pipe_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_sp_out) + gc_arg
+    var cap_fs_sp_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_sp_cmd, cap_fs_sp_log)
+    if cap_fs_sp_rc != 0 || file_exists(cap_fs_sp_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_pipe_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_sp_log))
+        oren_exit(1)
+    }
+
+    var cap_fs_sp_deny_log = "build/logs/capsule_runtime_fs_syscall_pipe_prog_run_deny.log"
+    var cap_fs_sp_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS= ./" + cap_fs_sp_out
+    var cap_fs_sp_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sp_deny_cmd, cap_fs_sp_deny_log)
+    if cap_fs_sp_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_pipe_prog (expected runtime capsule deny: sys_pipe needs FS domain)")
+        oren_system("cat " + shell_quote(cap_fs_sp_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_fs_sp_ok_log = "build/logs/capsule_runtime_fs_syscall_pipe_prog_run_allow.log"
+    var cap_fs_sp_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_sp_out
+    var cap_fs_sp_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sp_ok_cmd, cap_fs_sp_ok_log)
+    if cap_fs_sp_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_pipe_prog (expected runtime capsule allow: FS domain)")
+        oren_system("cat " + shell_quote(cap_fs_sp_ok_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_fs_sp_out))
+
     // readdir (runtime helper built on getdirentries64):
     var cap_fs_rd_out = "build/capsule_runtime_fs_readdir_prog"
     var cap_fs_rd_log = "build/logs/capsule_runtime_fs_readdir_prog_build.log"

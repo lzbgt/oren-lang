@@ -1,0 +1,16 @@
+fn main() {
+    // Raw sys_pipe capsule FS test:
+    // - In capsule mode, sys_pipe must be enforced at syscall boundary (no bypass).
+    var buf = malloc(16)
+    if buf == 0 { exit(3) }
+    // NOTE: sys_pipe writes 2 fds into buf (8-byte slots in this runtime ABI).
+    var rc = sys_pipe(buf)
+    if rc != 0 { exit(4) }
+    var r = ptr_get(buf + 0)
+    var w = ptr_get(buf + 8)
+    // Close both ends; ignore errors.
+    sys_close(r)
+    sys_close(w)
+    print("ok")
+}
+

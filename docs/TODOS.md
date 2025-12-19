@@ -48,5 +48,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 ## Recently Completed (high signal)
 
 - Capsule runtime: improved deny diagnostics (capability domain + FS prefix/mount enrollment hints) and clarified that `sys_*` are native-backend intrinsics (stubs should not execute in correctly built native binaries).
+- Capsule hardening: enforced FS domain at raw `sys_read` / `sys_pipe` boundaries (no bypass) and added deterministic tests (stdin redirected to `/dev/null` to guarantee no hangs).
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).
