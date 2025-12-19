@@ -47,19 +47,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 
 ## Recently Completed (high signal)
 
-- Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.
-- Mach-O minimal exit stub (`macho_emit_exit_arm64`): now uses `arm64_abi_macos.oren` syscall ABI constants (no embedded MOVK/SVC magic).
-- FS mounts semantics hardened: longest-prefix + boundary checks in native runtime; AVM host mounts match (incl. host-path allow-as-is under enrolled host prefixes); added overlapping-mount regression tests.
-- FS allow-prefix policy hardened: require boundary when a prefix does not end with `/` (prevents `build` matching `build2`); applied to native capsule + AVM host allow-prefix checks.
-- ABI tables expanded: centralized NET-related syscalls (socket/connect/bind/listen/accept/sendto/recvfrom) and other process/syscall staples (execve/wait4/kill/gettimeofday/fcntl, sockopt/shutdown, peer/sockname) for macOS+Linux; removed more numeric `sysno=` literals from syscall lowering.
-- Native string propagation: fixed `+` stringiness to require both operands, added `oren_list_get` string propagation and array-of-strings list inference; added `tests/native/test_string_list_eq.oren`.
-- ABI constants: moved remaining Darwin `kevent` syscall number and Linux `AT_*` syscall-arg flags (AT_SYMLINK_NOFOLLOW/AT_REMOVEDIR) into repo-owned ABI tables; removed the last hardcoded `sysno=363` from syscall lowering.
-- ABI constants: centralized Linux `AT_FDCWD=-100` into `arm64_abi_linux.oren` and added a signed-immediate loader helper (removes remaining `MOVN imm=99` magic from syscall lowering).
-- Native string comparisons: added regression coverage for `string == nil` / `nil == string` (must not lower to `strcmp`).
-- Mach-O emitter: replaced key numeric header/load-command/bind-opcode literals with repo-owned named constants (keeps ABI knowledge local without SDK headers).
-- Mach-O emitter: removed remaining layout magic numbers (segment alignment, codesign page size, exit-stub header sizing, section flags) by centralizing them as named constants.
-- Mach-O emitter: replaced raw segname/sectname byte sequences with a fixed-16 string helper (less brittle, clearer).
-- Mach-O emitter: centralized remaining structural constants (prot flags, build-version packing, codesign lengths) and removed more remaining magic numbers.
-- Refs: vendored Mach-O headers (`loader.h`, `nlist.h`) into `docs/refs/macho/` pinned to an Apple OSS `cctools` commit for audit-only reference (no build dependency).
-- Refs: refreshed vendored Linux/Darwin syscall references under `docs/refs/` and recorded pinned upstream commits in `docs/refs/SOURCES.md` (audit-only).
-- Native backend docs: corrected `+` string concatenation note to match native lowering (`oren_add`) and current test coverage.
+- Capsule runtime: improved deny diagnostics (capability domain + FS prefix/mount enrollment hints) and clarified that `sys_*` are native-backend intrinsics (stubs should not execute in correctly built native binaries).
+- Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
+- Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).

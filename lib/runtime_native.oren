@@ -38,7 +38,15 @@ fn stack_trace() {
     }
 }
 
-// TODO: implement real syscalls in native runtime (currently stubs in injected runtime)
+// NOTE (native backend): `sys_*` are compiler intrinsics.
+//
+// Their *call sites* are lowered directly to syscalls by the native backend codegen
+// (see `lib/compiler/arm64_native_expr_syscalls.oren`), including calls from this
+// injected runtime itself.
+//
+// These stub bodies exist only so the source parses/links during self-hosting and
+// so the same source can be typechecked/loaded by other backends while the project
+// is still rolling. They should never execute in a correctly built native binary.
 fn sys_write(fd, ptr, len) { return 0 }
 fn sys_read(fd, ptr, len) { return 0 }
 fn sys_pipe(ptr) { return 0 }
@@ -797,6 +805,7 @@ fn native_capsule_require(mask_bit, name) {
     var allow = global_get_cap_allow_mask()
     if (allow & mask_bit) != 0 { return 0 }
     print("CAPSULE DENY: " + name)
+    print("hint: set OREN_CAP_ALLOW_DOMAINS to include " + name + " (or pass --cap-allow-domains)")
     exit(77)
     return 0
 }
@@ -1068,6 +1077,7 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
         if host_path == 0 {
             free(pair)
             print("CAPSULE DENY: FS_MOUNT")
+            print("hint: enroll FS mounts via OREN_FS_MOUNTS / OREN_FS_MOUNTS_READ / OREN_FS_MOUNTS_WRITE")
             exit(78)
         }
         ptr_set(pair + 0, host_path)
@@ -1084,6 +1094,7 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
     if native_capsule_fs_path_allowed(path, prefs) { return pair }
     free(pair)
     print("CAPSULE DENY: FS_PATH")
+    print("hint: allow FS prefixes via OREN_FS_ALLOW_PREFIXES or OREN_FS_ALLOW_READ_PREFIXES / OREN_FS_ALLOW_WRITE_PREFIXES (or use mounts via OREN_FS_MOUNTS[_READ|_WRITE])")
     exit(78)
     return 0
 }
