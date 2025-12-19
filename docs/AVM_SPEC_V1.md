@@ -118,6 +118,70 @@ Lists/maps remain for:
 
 - scripting
 - JSON-like objects
+
+## 3) Cooperative Concurrency (Rolling, Deterministic)
+
+This repo currently implements a **minimal cooperative concurrency** substrate inside the C AVM interpreter:
+
+- single-threaded, deterministic (no host syscalls)
+- tasks are VM-internal (green-thread style), sharing the VM heap and globals
+- blocking ops yield to other runnable tasks
+
+This is a stepping stone toward v1 “agentic execution”: nested universes, deterministic replay, and consensus-friendly scheduling.
+
+### 3.1 Tasks
+
+Core operations (rolling; not yet stabilized as a permanent `.obc` ABI):
+
+- `spawn f(args...) -> handle:int`
+  - spawns a new VM task running `f`
+  - returns an integer handle (`tid+1`, so `0` remains a reserved invalid/nil-ish sentinel)
+- `oren_join(handle) -> value`
+  - blocks until the task completes and returns its return value
+- `oren_join_timeout(handle, timeout_ms) -> value_or_errno`
+  - deterministic timeout based on AVM TIME (virtual time in deterministic mode)
+  - returns `-60` (BSD `ETIMEDOUT`) on timeout
+  - `timeout_ms < 0` behaves like `oren_join` (blocks)
+  - `timeout_ms == 0` is a non-blocking probe (returns `ETIMEDOUT` if not done)
+- `oren_yield()`
+  - yields to another runnable task (no-op if none)
+
+Deterministic scheduling rule (rolling):
+
+- Tasks are time-sliced cooperatively by a **task quantum** (semantic steps / gas units).
+- If another task is runnable, the current task yields when its quantum is exhausted.
+- Quantum is a deterministic VM config value (`AVM_TASK_QUANTUM*`) and is part of the execution-context hash for swarm jobs.
+
+### 3.2 Channels
+
+Minimal in-VM channels exist to support structured concurrency without host effects:
+
+- `oren_new_channel() -> ch:int`
+- `oren_chan_send(ch, val) -> ok:int`
+- `oren_chan_recv(ch) -> val` (blocks if empty)
+
+### 3.3 Select
+
+Two select APIs exist in rolling mode:
+
+1) `oren_select_recv([ch1, ch2, ...]) -> [idx, val]`
+   - recv-only select; blocks until any channel has a queued value
+
+2) `oren_select(cases) -> [idx, payload]`
+   - general select supporting both recv and send cases
+   - `cases` is a list of *case descriptors* (data), encoded as:
+     - recv case: `[0, ch]`
+     - send case: `[1, ch, val]`
+   - return value:
+     - `idx` is the selected case index
+     - `payload` is:
+       - the received value for recv cases
+       - `1` for send cases (rolling “ok” marker)
+
+Determinism + fairness rule (rolling):
+
+- Selection scans cases starting at a per-task **round-robin cursor** and updates the cursor to `(idx+1)%n` after a successful selection.
+- This is deterministic and avoids “always pick case 0” starvation when multiple cases are ready.
 - compiler metadata
 - orchestration logic
 

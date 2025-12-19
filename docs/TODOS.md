@@ -44,10 +44,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
-   - Next deliverable: scheduling + determinism tightening (finish select semantics):
-     - `select` must support **send and recv** cases (not only recv)
-     - deterministic fairness rules for `select` across both send/recv cases
-     - document the concurrency semantics in `docs/AVM_SPEC_V1.md` (one crisp section, no drift)
+   - Next deliverable: numeric compute v1 substrate (typed buffers) `[perf]`:
+     - add `I32_BUF/I64_BUF/F32_BUF/F64_BUF` value types
+     - minimal ops: `BUF_LEN`, `BUF_LOAD_*`, `BUF_STORE_*`
+     - deterministic hashing/serialization rules (for snapshot/resume + child universes)
+     - one integration test per buffer kind (smoke-level, not “a thousand tiny tests”)
 
 2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
@@ -74,3 +75,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM: deterministic time-sliced cooperative scheduling (task quantum) + `JOIN_TIMEOUT` opcode (`0x4C`) + deterministic join-timeout test.
 - Bytecode backend: `oren_join_timeout(handle, timeout_ms)` lowers to `JOIN_TIMEOUT`.
 - Smoke suite: non-blocking `oren_join_timeout(h, 0)` regression (ensures opcode+verifier+runtime stay wired).
+- AVM: `oren_select(cases)` supports deterministic select over **send+recv** cases (round-robin fairness, data-encoded cases); documented in `docs/AVM_SPEC_V1.md`.

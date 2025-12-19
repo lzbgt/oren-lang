@@ -482,6 +482,10 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 2;  // handle + timeout_ms
             push = 1; // ret or ETIMEDOUT
+        } else if (op == 0x4D) { // SELECT
+            len = 1;
+            pop = 1;  // list<case>
+            push = 1; // [idx, payload]
         } else {
             free(depth_at); free(queue); free(qdepth);
             return err_result("verify: unknown opcode");
@@ -1522,6 +1526,15 @@ static const char* op_name(uint8_t op) {
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
         case 0x43: return "SET_INDEX";
+        case 0x45: return "SPAWN_CALL_LIST";
+        case 0x46: return "JOIN";
+        case 0x47: return "CHAN_NEW";
+        case 0x48: return "CHAN_SEND";
+        case 0x49: return "CHAN_RECV";
+        case 0x4A: return "SELECT_RECV";
+        case 0x4B: return "YIELD";
+        case 0x4C: return "JOIN_TIMEOUT";
+        case 0x4D: return "SELECT";
         default: return "OP?";
     }
 }

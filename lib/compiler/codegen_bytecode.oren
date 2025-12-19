@@ -39,6 +39,7 @@ var AVM_CHAN_RECV = 73             // 0x49
 var AVM_SELECT_RECV = 74           // 0x4A
 var AVM_YIELD = 75                 // 0x4B
 var AVM_JOIN_TIMEOUT = 76          // 0x4C
+var AVM_SELECT = 77                // 0x4D
 
 var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1
@@ -900,6 +901,15 @@ fn bytecode_compile_expr(ctx, expr) {
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_SELECT_RECV)
+            return nil
+        }
+        if name == "oren_select" {
+            if oren_list_len(expr["args"]) != 1 {
+                print("bytecode backend: oren_select expects (list<case>)")
+                oren_exit(1)
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_SELECT)
             return nil
         }
         if name == "oren_join" {

@@ -311,6 +311,28 @@ fn test_join_timeout_nonblocking() {
     assert_eq(oren_join_timeout(h, 0), 0 - 60) // ETIMEDOUT (BSD)
 }
 
+fn test_select_send_round_robin() {
+    // General select supports both recv and send cases.
+    // Encoding: recv case [0, ch], send case [1, ch, val].
+    //
+    // Fairness rule (deterministic): round-robin by per-task cursor.
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+
+    // Both send cases are always-ready; ensure we don't always pick index 0.
+    var r1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    assert_eq(r1[0], 0)
+    assert_eq(r1[1], 1)
+
+    var r2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    assert_eq(r2[0], 1)
+    assert_eq(r2[1], 1)
+
+    // Validate the sends actually happened.
+    assert_eq(oren_chan_recv(c1), 11)
+    assert_eq(oren_chan_recv(c2), 44)
+}
+
 fn main() {
     test_calls()
     test_recursion()
@@ -326,6 +348,7 @@ fn main() {
     test_switch()
     test_concurrency_spawn_chan_select()
     test_join_timeout_nonblocking()
+    test_select_send_round_robin()
 
     print("avm smoke suite OK")
 }

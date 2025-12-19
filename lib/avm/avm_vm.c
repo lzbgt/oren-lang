@@ -27,6 +27,7 @@ enum {
     AVM_OP_SELECT_RECV     = 0x4A,  // stack: [... list<ch>] -> [... [idx,val]] (blocks if none ready)
     AVM_OP_YIELD           = 0x4B   // stack: [...] -> [...] (yield to another runnable task)
     ,AVM_OP_JOIN_TIMEOUT   = 0x4C   // stack: [... handle timeout_ms] -> [... ret_or_timeout]
+    ,AVM_OP_SELECT         = 0x4D   // stack: [... list<case>] -> [... [idx,payload]] (recv or send)
 };
 
 typedef struct {
@@ -390,6 +391,31 @@ static int chan_queue_push(AvmChan* ch, AvmValue v) {
     return 1;
 }
 
+static int chan_can_send(AvmChan* ch) {
+    if (!ch) return 0;
+    // Ready if there is a receiver waiting (rendezvous) or if we can enqueue without exceeding the runaway guard.
+    if (ch->recv_count > 0) return 1;
+    if (ch->q_len >= 4096) return 0;
+    return 1;
+}
+
+static int chan_send_value(AvmSched* s, AvmChan* ch, AvmValue v) {
+    if (!s || !ch) return 0;
+    int recv_tid = -1;
+    if (chan_recv_waiter_pop(ch, &recv_tid)) {
+        if (recv_tid >= 0 && recv_tid < s->task_cap && s->tasks[recv_tid].used) {
+            AvmTask* rt = &s->tasks[recv_tid];
+            rt->blocked = 0;
+            rt->wait_kind = 0;
+            rt->wake_pending = 1;
+            rt->wake_value = v;
+            (void)sched_ready_push(s, recv_tid);
+            return 1;
+        }
+    }
+    return chan_queue_push(ch, v);
+}
+
 static int chan_queue_pop(AvmChan* ch, AvmValue* out) {
     if (!ch || ch->q_len <= 0) return 0;
     AvmValue v = ch->q[0];
@@ -397,6 +423,44 @@ static int chan_queue_pop(AvmChan* ch, AvmValue* out) {
     ch->q_len--;
     if (out) *out = v;
     return 1;
+}
+
+static int select_case_parse(AvmValue casev, int* out_kind, int64_t* out_ch, AvmValue* out_send_val) {
+    // Rolling encoding for select cases (as data):
+    // - recv case: [0, ch]
+    // - send case: [1, ch, val]
+    //
+    // Back-compat: if casev is INT, treat as recv channel handle.
+    if (out_kind) *out_kind = -1;
+    if (out_ch) *out_ch = 0;
+    if (out_send_val) *out_send_val = avm_nil();
+
+    if (casev.type == AVM_VAL_INT) {
+        if (out_kind) *out_kind = 0;
+        if (out_ch) *out_ch = casev.as.i;
+        return 1;
+    }
+    if (casev.type != AVM_VAL_LIST || !casev.as.l) return 0;
+    AvmList* l = casev.as.l;
+    if (l->count < 2) return 0;
+    AvmValue k = l->items[0];
+    AvmValue ch = l->items[1];
+    if (k.type != AVM_VAL_INT || ch.type != AVM_VAL_INT) return 0;
+    int kind = (int)k.as.i;
+    if (kind == 0) {
+        if (l->count != 2) return 0;
+        if (out_kind) *out_kind = 0;
+        if (out_ch) *out_ch = ch.as.i;
+        return 1;
+    }
+    if (kind == 1) {
+        if (l->count != 3) return 0;
+        if (out_kind) *out_kind = 1;
+        if (out_ch) *out_ch = ch.as.i;
+        if (out_send_val) *out_send_val = l->items[2];
+        return 1;
+    }
+    return 0;
 }
 
 static void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
@@ -429,13 +493,39 @@ static void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
         }
         for (int off = 0; off < cnt; off++) {
             int k = (start + off) % cnt;
-            AvmValue hv = lst->items[k];
-            if (hv.type != AVM_VAL_INT) continue;
-            AvmChan* ch = sched_chan_get(s, hv.as.i);
+            int kind = -1;
+            int64_t chid = 0;
+            AvmValue sendv = avm_nil();
+            if (!select_case_parse(lst->items[k], &kind, &chid, &sendv)) continue;
+            AvmChan* ch = sched_chan_get(s, chid);
             if (!ch) continue;
-            AvmValue msg;
-            if (chan_queue_pop(ch, &msg)) {
-                AvmValue pair = make_pair_list(vm, avm_int((int64_t)k), msg);
+
+            if (kind == 0) { // recv
+                AvmValue msg;
+                if (chan_queue_pop(ch, &msg)) {
+                    AvmValue pair = make_pair_list(vm, avm_int((int64_t)k), msg);
+                    if (avm_is_err_val(pair)) { avm_abort(vm, pair); return; }
+                    t->blocked = 0;
+                    t->wait_kind = 0;
+                    t->wait_list = avm_nil();
+                    t->wake_pending = 1;
+                    t->wake_value = pair;
+                    if (cnt > 0) t->select_cursor = (k + 1) % cnt;
+                    (void)sched_ready_push(s, tid);
+                    // Remove from select_waiters.
+                    for (int j = i + 1; j < s->select_len; j++) s->select_waiters[j - 1] = s->select_waiters[j];
+                    s->select_len--;
+                    woke = 1;
+                    break;
+                }
+            } else if (kind == 1) { // send
+                if (!chan_can_send(ch)) continue;
+                if (!chan_send_value(s, ch, sendv)) {
+                    avm_abort(vm, avm_err(AVM_ERR_BUDGET, "channel queue overflow"));
+                    return;
+                }
+                // payload: ok=1 (rolling)
+                AvmValue pair = make_pair_list(vm, avm_int((int64_t)k), avm_int(1));
                 if (avm_is_err_val(pair)) { avm_abort(vm, pair); return; }
                 t->blocked = 0;
                 t->wait_kind = 0;
@@ -444,7 +534,6 @@ static void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
                 t->wake_value = pair;
                 if (cnt > 0) t->select_cursor = (k + 1) % cnt;
                 (void)sched_ready_push(s, tid);
-                // Remove from select_waiters.
                 for (int j = i + 1; j < s->select_len; j++) s->select_waiters[j - 1] = s->select_waiters[j];
                 s->select_len--;
                 woke = 1;
@@ -507,6 +596,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x4A: return "SELECT_RECV";
         case 0x4B: return "YIELD";
         case 0x4C: return "JOIN_TIMEOUT";
+        case 0x4D: return "SELECT";
         default: return "OP?";
     }
 }
@@ -1464,21 +1554,9 @@ void avm_run(AvmVM* vm) {
                 AvmChan* ch = sched_chan_get(sched, hv.as.i);
                 if (!ch) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CHAN_SEND invalid channel")); break; }
 
-                int recv_tid = -1;
-                if (chan_recv_waiter_pop(ch, &recv_tid)) {
-                    if (recv_tid >= 0 && recv_tid < sched->task_cap && sched->tasks[recv_tid].used) {
-                        AvmTask* rt = &sched->tasks[recv_tid];
-                        rt->blocked = 0;
-                        rt->wait_kind = 0;
-                        rt->wake_pending = 1;
-                        rt->wake_value = val;
-                        (void)sched_ready_push(sched, recv_tid);
-                    }
-                } else {
-                    if (!chan_queue_push(ch, val)) {
-                        avm_abort(vm, avm_err(AVM_ERR_BUDGET, "channel queue overflow"));
-                        break;
-                    }
+                if (!chan_send_value(sched, ch, val)) {
+                    avm_abort(vm, avm_err(AVM_ERR_BUDGET, "channel queue overflow"));
+                    break;
                 }
 
                 // A send can make a previously-blocked select waiter runnable.
@@ -1569,6 +1647,73 @@ void avm_run(AvmVM* vm) {
                 }
 
 select_done:
+                break;
+            }
+            case AVM_OP_SELECT: { // SELECT
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on SELECT")); break; }
+                AvmValue lv = vm->stack[--vm->sp];
+                if (lv.type != AVM_VAL_LIST || !lv.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SELECT expects list")); break; }
+
+                AvmList* lst = lv.as.l;
+                int cnt = lst->count;
+                int cur = sched->current_tid;
+                int start = 0;
+                if (cnt > 0) {
+                    start = sched->tasks[cur].select_cursor % cnt;
+                    if (start < 0) start = 0;
+                }
+                for (int off = 0; off < cnt; off++) {
+                    int i = (start + off) % cnt;
+                    int kind = -1;
+                    int64_t chid = 0;
+                    AvmValue sendv = avm_nil();
+                    if (!select_case_parse(lst->items[i], &kind, &chid, &sendv)) continue;
+                    AvmChan* ch = sched_chan_get(sched, chid);
+                    if (!ch) continue;
+
+                    if (kind == 0) { // recv
+                        AvmValue msg;
+                        if (chan_queue_pop(ch, &msg)) {
+                            AvmValue pair = make_pair_list(vm, avm_int((int64_t)i), msg);
+                            if (avm_is_err_val(pair)) { avm_abort(vm, pair); break; }
+                            if (cnt > 0) sched->tasks[cur].select_cursor = (i + 1) % cnt;
+                            vm->stack[vm->sp++] = pair;
+                            goto select2_done;
+                        }
+                    } else if (kind == 1) { // send
+                        if (!chan_can_send(ch)) continue;
+                        if (!chan_send_value(sched, ch, sendv)) { avm_abort(vm, avm_err(AVM_ERR_BUDGET, "channel queue overflow")); break; }
+                        AvmValue pair = make_pair_list(vm, avm_int((int64_t)i), avm_int(1));
+                        if (avm_is_err_val(pair)) { avm_abort(vm, pair); break; }
+                        if (cnt > 0) sched->tasks[cur].select_cursor = (i + 1) % cnt;
+                        vm->stack[vm->sp++] = pair;
+                        goto select2_done;
+                    }
+                }
+
+                // Block current task, registering as a select waiter.
+                {
+                    int cur = sched->current_tid;
+                    AvmTask* ct = &sched->tasks[cur];
+                    ct->blocked = 1;
+                    ct->wait_kind = 3;
+                    ct->wait_list = lv;
+                    (void)sched_select_waiter_add(sched, cur);
+                    task_save_from_vm(vm, ct);
+
+                    int next = -1;
+                    if (!sched_ready_pop(sched, &next)) {
+                        avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
+                        break;
+                    }
+                    sched_switch(vm, sched, next);
+                    continue;
+                }
+
+select2_done:
+                // Sending via SELECT can also wake other blocked select waiters.
+                sched_try_wake_select_waiters(vm, sched);
                 break;
             }
             case AVM_OP_YIELD: { // YIELD
