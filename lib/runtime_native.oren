@@ -4317,39 +4317,58 @@ fn oren_iter_next(container, idx) {
     var ok = 0
     var val = 0
 
-    // Prevent accidental deref of small integers/null in rolling native mode.
-    // (This is a safety guard; iterating non-containers is still a logic error.)
-    if container >= 4096 {
-        // List: yield elements.
-        if container != 0 {
-            if ptr_get(container + 24) == list_magic() {
+    if container != 0 && idx >= 0 {
+        // Avoid unsafe probing of arbitrary large integers: only dereference pointers that are
+        // tracked by the native GC list, or use a string-style byte read as a last resort.
+        var node = oren_find_node(container)
+        if node != 0 {
+            var kind = ptr_get(iadd(node, 16))
+
+            // List: yield elements.
+            if kind == 2 {
                 var count = ptr_get(container)
-                if idx >= 0 {
-                    if idx < count {
-                        ok = 1
-                        // Use the well-tested list accessor to avoid relying on raw buffer math here.
-                        val = oren_list_get(container, idx)
-                    }
+                if idx < count {
+                    ok = 1
+                    // Use the well-tested list accessor to avoid relying on raw buffer math here.
+                    val = oren_list_get(container, idx)
                 }
             } else {
                 // Map: yield keys in deterministic order (stored sorted).
-                if ptr_get(container + 24) == map_magic() {
+                if kind == 3 {
                     var count2 = ptr_get(container + 0)
-                    if idx >= 0 {
-                        if idx < count2 {
-                            ok = 1
-                            val = oren_map_key_at(container, idx)
-                        }
+                    if idx < count2 {
+                        ok = 1
+                        val = oren_map_key_at(container, idx)
                     }
                 } else {
-                    // String: yield byte codepoints until NUL terminator.
-                    if idx >= 0 {
+                    // Typed buffers: allow u8_buf to be iterated as bytes (0..255).
+                    if kind == 7 {
+                        if ptr_get(container + 24) == buf_magic() && ptr_get(container + 32) == BUF_TAG_U8 {
+                            var n = ptr_get(container + 0)
+                            if idx < n {
+                                var data = ptr_get(container + 16)
+                                ok = 1
+                                val = ptr_get_byte(data + idx) & 255
+                            }
+                        }
+                    } else {
+                        // String: yield byte codepoints until NUL terminator.
                         var ch = ptr_get_byte(iadd(container, idx))
                         if ch != 0 {
                             ok = 1
                             val = ch
                         }
                     }
+                }
+            }
+        } else {
+            // Fallback: allow iterating a raw pointer as a C string (best-effort).
+            // Keep the old behavior for untracked pointers, but do not attempt this for small ints.
+            if container >= 4096 {
+                var ch2 = ptr_get_byte(iadd(container, idx))
+                if ch2 != 0 {
+                    ok = 1
+                    val = ch2
                 }
             }
         }
@@ -4531,6 +4550,104 @@ fn oren_list_set(list, idx, value) {
     if buf == 0 { oren_panic("list buffer is nil") }
     ptr_set(buf + idx * 8, value)
     return value
+}
+
+// --- Bytes helpers (portable API surface; native runtime implementation) ---
+//
+// In native mode we represent "bytes" as:
+// - `list<int 0..255>` (legacy; still supported)
+// - `u8_buf` (preferred; zero-copy IO + pack_view compatible)
+//
+// These helpers unify the surface so higher-level libraries can be backend-agnostic.
+
+fn oren_bytes_len(bytes) {
+    if bytes == 0 { return oren_err(4, "bytes_len: bytes is nil") }
+    if native_bytes_is_list(bytes) == true { return ptr_get(bytes) }
+    if native_bytes_is_u8_buf(bytes) == true { return ptr_get(bytes + 0) }
+    return oren_err(4, "bytes_len expects list<int> or u8_buf")
+}
+
+fn bytes_hex_nibble(c) {
+    // Return 0..15 or -1.
+    if c >= 48 && c <= 57 { return c - 48 } // '0'..'9'
+    if c >= 97 && c <= 102 { return c - 87 } // 'a'..'f'
+    if c >= 65 && c <= 70 { return c - 55 } // 'A'..'F'
+    return -1
+}
+
+fn oren_bytes_from_hex(s) {
+    if s == 0 { return oren_err(4, "bytes_from_hex: string is nil") }
+    var n = oren_string_len(s)
+    if n < 0 { return oren_err(4, "bytes_from_hex: invalid string") }
+    if (n & 1) != 0 { return oren_err(4, "bytes_from_hex: odd length") }
+    var outn = n / 2
+    var out = oren_u8_buf_new(outn)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < outn {
+        var c0 = ptr_get_byte(s + i * 2 + 0)
+        var c1 = ptr_get_byte(s + i * 2 + 1)
+        var hi = bytes_hex_nibble(c0)
+        var lo = bytes_hex_nibble(c1)
+        if hi < 0 || lo < 0 { return oren_err(4, "bytes_from_hex: invalid hex digit") }
+        oren_buf_store_u8(out, i, (hi << 4) | lo)
+        i = i + 1
+    }
+    return out
+}
+
+fn bytes_hex_char(n) {
+    // n is 0..15
+    if n < 10 { return 48 + n } // '0'..'9'
+    return 87 + n // 'a'..'f'
+}
+
+fn oren_bytes_to_hex(bytes) {
+    var n = oren_bytes_len(bytes)
+    if oren_is_err(n) { return n }
+    var out = malloc(n * 2 + 1)
+    if out == 0 { return oren_err(8, "bytes_to_hex: alloc failed") }
+    var i = 0
+    while i < n {
+        var b = oren_bytes_get_u8(bytes, i)
+        if oren_is_err(b) { return b }
+        ptr_set_byte(out + i * 2 + 0, bytes_hex_char((b >> 4) & 15))
+        ptr_set_byte(out + i * 2 + 1, bytes_hex_char(b & 15))
+        i = i + 1
+    }
+    ptr_set_byte(out + n * 2, 0)
+    oren_track_alloc(out, n * 2 + 1, 1) // STRING
+    return out
+}
+
+fn oren_bytes_unpack(bytes) {
+    var n = oren_bytes_len(bytes)
+    if oren_is_err(n) { return n }
+    var out = oren_new_list(n)
+    var i = 0
+    while i < n {
+        var b = oren_bytes_get_u8(bytes, i)
+        if oren_is_err(b) { return b }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+    return out
+}
+
+fn oren_bytes_pack(xs) {
+    if xs == 0 { return oren_err(4, "bytes_pack: list is nil") }
+    if native_bytes_is_list(xs) != true { return oren_err(4, "bytes_pack expects list<int 0..255>") }
+    var n = ptr_get(xs)
+    var out = oren_u8_buf_new(n)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < n {
+        var v = oren_list_get(xs, i)
+        if v < 0 || v > 255 { return oren_err(4, "bytes_pack: byte out of range") }
+        oren_buf_store_u8(out, i, v)
+        i = i + 1
+    }
+    return out
 }
 
 // --- Byte-order helpers (network parsing / serialization) ---

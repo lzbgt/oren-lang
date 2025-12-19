@@ -317,6 +317,31 @@ fn test_bytes_endian_and_pack_view() {
     assert_eq(pack_view("PV_H", outb, 0).dst, 134744072, 232)
 }
 
+fn test_bytes_hex_pack_unpack_u8_buf() {
+    // Native bytes helpers should operate on u8_buf (preferred) and still provide portable APIs.
+    var b = oren_bytes_from_hex("00ff1020")
+    assert_true(oren_is_err(b) == 0, 240)
+    assert_eq(oren_bytes_len(b), 4, 241)
+
+    var hx = oren_bytes_to_hex(b)
+    assert_streq(hx, "00ff1020", 242)
+
+    var xs = oren_bytes_unpack(b)
+    assert_true(oren_is_err(xs) == 0, 243)
+    assert_eq(oren_list_len(xs), 4, 244)
+    assert_eq(xs[1], 255, 245)
+    xs[2] = 171
+
+    var b2 = oren_bytes_pack(xs)
+    assert_true(oren_is_err(b2) == 0, 246)
+    assert_streq(oren_bytes_to_hex(b2), "00ffab20", 247)
+
+    // `for x in bytes` must work for the preferred u8_buf representation too.
+    var s = 0
+    for x in b2 { s = s + x }
+    assert_eq(s, 0 + 255 + 171 + 32, 248)
+}
+
 fn test_numeric_casts() {
     // Unchecked casts.
     assert_eq(ints.u8(256 + 5), 5, 300)
@@ -686,6 +711,7 @@ fn main() {
     test_spawn_join_timeout()
     test_err_predicate_and_bytes_safety()
     test_bytes_endian_and_pack_view()
+    test_bytes_hex_pack_unpack_u8_buf()
     test_numeric_casts()
     test_float_ops()
     test_typed_buffers_native()
