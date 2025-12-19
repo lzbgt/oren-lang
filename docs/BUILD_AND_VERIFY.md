@@ -67,19 +67,18 @@ This repo runs in **rolling ABI** mode, so the priority is fast iteration and av
 The canonical curated runner is:
 
 ```bash
-./oren test
+./oretest --target macos
 ```
 
-`make test` is a thin wrapper over `./oren test`.
+`make test` is a thin wrapper over `./oretest`.
 The legacy Makefile-driven suite is still available as `make test-legacy` (broader coverage, slower).
 
-`./oren test` follows the same principles (curated, timeout-protected, failure-only logs), but it lives inside the Oren toolchain and is the first step toward an **Oren-native** build/test system. See `docs/TEST_SYSTEM.md` for the evolution plan.
+`./oretest` follows the same principles (curated, timeout-protected, failure-only logs), while keeping repo test orchestration out of the self-hosted compiler sources. See `docs/TEST_SYSTEM.md` for the evolution plan.
 
 Environment knobs:
 
-- `TEST_TIMEOUT_SECS` (default `10`): maximum seconds allowed for executing a built test binary or running `avm`.
-- `BUILD_TIMEOUT_SECS` (default `120`): maximum seconds allowed for compilation steps during tests (notably when the C backend invokes `cc`, `ld`, and codesign).
-- `TIMEOUT_KILL_SECS` (default `2`): grace period before force-kill after the timeout expires.
+- `OREN_TEST_JOBS` (default `4`): parallelism for module + AVM tests.
+- `OREN_NO_GC=1`: disable GC scanning for stress/debug (also available as `./oretest --no-gc`).
 
 If `timeout` is not available, `make test` will fail with a clear message (install coreutils on macOS: `brew install coreutils`).
 

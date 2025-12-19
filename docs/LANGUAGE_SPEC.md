@@ -239,9 +239,21 @@ The runtime is dynamically typed. Values include:
 - `int` (signed 64-bit in the C runtime; two’s complement)
 - `float` (**IEEE-754 binary64 / float64**)
 - `string` (byte string)
-- `list`
-- `map`
+- `list` (ordered, **heterogeneous**)
+- `map` (keyed, deterministic iteration order; see “deterministic maps contract”)
 - `python object` (opaque wrapper used by the optional Python FFI)
+
+#### Lists are heterogeneous (by design)
+
+Oren `list` is a heap container of dynamic values (a `list<OrenValue>` conceptually):
+
+- A list may contain mixed types: `[1, "two", nil, true]`.
+- Indexing (`xs[i]`) returns a dynamic value.
+- `for x in xs { ... }` iterates elements in index order.
+
+If you need **homogeneous memory layout** (HPC/FFI/SIMD kernels), the v0 path is:
+
+- **typed buffers** (planned/partial) rather than forcing `list` to become homogeneous.
 
 #### Numeric model (important for cross-backend correctness)
 
@@ -324,6 +336,23 @@ Design note:
   - function scope
   - block scope (`{ ... }`) where variables may shadow outer names
 
+#### Type-annotation syntax (rolling, metadata-only in v0)
+
+Oren supports a universal type-annotation sugar:
+
+- `var x: u64 = expr`
+- `x: u64 := expr`
+- `for x: T in iterable { ... }`
+- `fn f(x: T, y: U) { ... }`
+
+In **v0**, these annotations are treated as **metadata**:
+
+- they do not change the runtime value model (still dynamically typed)
+- they may be consumed by compiler lowering passes (e.g. packed struct views, explicit casts, typed buffers)
+- they must not introduce nondeterminism (annotations are inert unless a lowering pass uses them in a deterministic way)
+
+Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved identifiers** intended to become true explicit types as the v1 type system is stabilized.
+
 ### Control Flow
 - `if cond { ... } else { ... }` executes a block based on truthiness of `cond`.
   - The grammar treats `if` as an expression, but the C backend only supports it in statement position.
@@ -331,7 +360,10 @@ Design note:
 - `for` has two forms:
   - Condition-only: `for cond { ... }`
   - Three-clause: `for init; cond; post { ... }`
-- `for <name> in <iterable> { ... }` is iterator sugar (rolling):
+- `for <name> in <iterable> { ... }` is iterator sugar (rolling).
+- `for <name>: <Type> in <iterable> { ... }` is the same, with an annotation on the loop binding:
+  - in v0 this does **not** require `<iterable>` to be homogeneous
+  - it is primarily for readability, tooling, and future type-checking
   - It is a source-level desugaring that relies on a runtime hook `oren_iter_next(iterable, idx)`.
   - Iterator hook contract:
     - `oren_iter_next(container, idx:int) -> [ok:int, value]`

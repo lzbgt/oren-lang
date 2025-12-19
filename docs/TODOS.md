@@ -26,7 +26,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - No bypassing capsule capability checks by emitting direct `svc` / OS sysno calls outside the approved lowering modules.
 
 5) **Verify before declaring done** `[quality]`
-   - Canonical curated suite (preferred): `./oren test --target macos`
+   - Canonical curated suite (preferred): `./oretest --target macos`
    - Wrapper (same suite): `make test`
 
 6) **Keep this file actionable** `[maint]`
@@ -36,42 +36,37 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [perf] Test suite speed: integration-first + parallel module tests**
-   - Problem: too many small overlapping tests cause slow compile+run cycles.
-   - DoD: `make test` stays fast; module tests run in parallel; output is failure-only.
-   - Status: `make test` uses `./oretest` (Go runner) and module tests run with `--jobs` / `OREN_TEST_JOBS`.
-   - Follow-up: make AVM tests parallel-safe by removing hardcoded `build/` assumptions (inject per-test base dir).
-
-2) **P0 [lang] Fixed-width scalar tokens + universal type-annotation syntax**
-   - DoD: `name: u8/u16be/...` works for **struct fields, vars, typed `:=`, for-in vars, and fn params** (not `@oren.u16be` field attributes), and the syntax is documented as the network parsing story.
-   - Follow-up: decide whether `u8/i32/f64` become true static types (v1 type system) vs v0 “annotation-only” sugar used by lowering passes.
-
-3) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
+1) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
    - DoD: for each raw `sys_*` that can cause host effects (FS/NET/PROC/ENV/TIME), there is a capsule pre hook and tests cover allow+deny paths.
    - Next deliverable: add a single “capability audit test” that enumerates syscall intrinsics used by the native backend and asserts each has a pre hook.
 
-4) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
-   - DoD: `./oren test --target linux` passes on a Linux arm64 environment (QEMU host or Docker/VM), for the curated native list.
+2) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
+   - DoD: `./oretest --target linux` passes on a Linux arm64 environment (QEMU host or Docker/VM), for the curated native list.
    - Next deliverable: wire a minimal remote runner script (optional) + fix any ABI-table gaps discovered by the tests.
 
-5) **P1 [correctness] String equality semantics + propagation** *(native backend)*
+3) **P1 [lang] Explicit numeric types: v1 semantics + casts**
+   - DoD: decide whether `u8/i32/f64/...` are:
+     - v0 annotation-only (metadata), vs
+     - v1 static types (checked), with a staged rollout that does not block self-hosting.
+   - Next deliverable: define cast semantics (checked vs truncating), and document endian-aware cast syntax for packed/network parsing.
+
+4) **P1 [correctness] String equality semantics + propagation** *(native backend)*
    - DoD: all string `==` cases in tests/stdlib are safe (including `nil`) and consistent across backends.
 
-6) **P1 [prod] Floats + explicit casts** *(network + scientific code)*
-   - DoD: defined semantics for casts (truncate vs checked), `f32/f64` support, and endian-aware helpers for packed parsing.
-
-7) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
+5) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - DoD: deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
 
-8) **P2 [ux] Tooling**
+6) **P2 [ux] Tooling**
    - `.obc` disassembler (“otool-like”) + metadata extractor (reads embedded `OREN_META\n1\n` bytes convention).
 
-9) **P2 [maint] Refactors without semantic churn**
+7) **P2 [maint] Refactors without semantic churn**
    - Split oversized modules (AVM/codegen) once behavior is covered by tests.
 
 ## Recently Completed (high signal)
 
 - Test orchestration SOLID: `make test` now runs through `./oretest` (Go), not `lib/compiler/compiler.oren`.
+- Test speed P0: module + AVM tests run in parallel with isolated per-test workdirs (`OREN_TEST_JOBS`).
+- Fixed-width scalar names + universal `name: Type` annotation sugar is implemented (v0 metadata) and documented (including list heterogeneity).
 - Packed struct views: migrated from `@oren.u16be` field attributes to `field: u16be` annotations (rolling).
 - Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
 - Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved lowering modules, and bounds direct `insn_svc` emission.
