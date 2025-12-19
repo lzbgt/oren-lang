@@ -1,11 +1,11 @@
 # Build outputs
-oren_bootstrap
-oren_boostrap
-oren
-oren_stage*
+/oren_bootstrap
+/oren_boostrap
+/oren
+/oren_stage*
 *.o
 *.dSYM/
-oretest
+/oretest
 
 
 # Generated C

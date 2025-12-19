@@ -12,7 +12,8 @@ set -euo pipefail
 #   OREN_LINUX_DOCKER_IMAGE    : container image (default: ubuntu:24.04)
 #   OREN_LINUX_DOCKER_NAME     : container name (default: oren-linux-oretest)
 #   OREN_LINUX_DOCKER_RESTART  : restart container before running (default: 1)
-#   OREN_LINUX_DOCKER_JOBS     : forwarded to OREN_TEST_JOBS (default: 4)
+#   OREN_LINUX_DOCKER_JOBS     : forwarded to OREN_TEST_JOBS (default: detected via nproc)
+#   OREN_LINUX_DOCKER_CLEAN    : if 1, wipe /work/repo before sync (default: 0)
 #
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,7 +22,8 @@ cd "$ROOT_DIR"
 IMAGE="${OREN_LINUX_DOCKER_IMAGE:-ubuntu:24.04}"
 NAME="${OREN_LINUX_DOCKER_NAME:-oren-linux-oretest}"
 RESTART="${OREN_LINUX_DOCKER_RESTART:-1}"
-JOBS="${OREN_LINUX_DOCKER_JOBS:-4}"
+CLEAN="${OREN_LINUX_DOCKER_CLEAN:-0}"
+JOBS="${OREN_LINUX_DOCKER_JOBS:-}"
 
 # Use `--init` so PID 1 reaps zombies created by fork/spawn tests.
 # NOTE: the container may have been created earlier with a different mountpoint
@@ -48,6 +50,13 @@ fi
 docker start "$NAME" >/dev/null || true
 if [[ "$RESTART" == "1" ]]; then
   docker restart "$NAME" >/dev/null
+fi
+
+if [[ -z "$JOBS" ]]; then
+  JOBS="$(docker exec "$NAME" bash -lc 'nproc 2>/dev/null || echo 4' | tr -d '\r' | tr -d '\n' || true)"
+  if [[ -z "$JOBS" ]]; then
+    JOBS=4
+  fi
 fi
 
 # Install deps only if missing.
@@ -82,7 +91,10 @@ echo "[linux-oretest-docker] running make test (OREN_TEST_JOBS=$JOBS)"
 # containers whose PID 1 does not reap children.
 docker exec "$NAME" tini -s -- bash -lc "
 set -euo pipefail
-rm -rf /work/repo && mkdir -p /work/repo
+mkdir -p /work/repo
+if [[ '$CLEAN' == '1' ]]; then
+  rm -rf /work/repo/*
+fi
 if [[ -d /src ]]; then
   SRC=/src
 else

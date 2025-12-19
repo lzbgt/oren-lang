@@ -33,47 +33,56 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Each P0/P1 item must have a concrete “Definition of Done” (DoD) and be finishable.
    - Avoid “infinite P0s” like “harden everything” without a crisp deliverable.
    - Keep the list 5–10 items total; merge and delete aggressively.
+   - Repo must build from a clean clone: ignore build outputs only (do not accidentally ignore source dirs like `cmd/oren/` or `cmd/oretest/`).
 
 7) **Linux Docker runner is persistent** `[maint]`
    - Use a long-lived linux/arm64 container for smoke tests (avoid `docker run --rm` + repeated installs).
    - Prefer reusing `OREN_DOCKER_NAME=oren-linux-dev` and restarting it when needed to refresh bind mounts.
+   - Do not wipe the container workspace by default; incremental builds must be possible (use an explicit clean flag when required).
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [lang] Explicit fixed-width numeric types + type annotations** `[perf]`
+1) **P0 [quality] Reduce test wall-time (parallel + incremental)** `[perf]`
+   - DoD: `make test` stays curated + fast, and Linux parity runs are not “reinstall/rebuild everything” every time.
+   - Deliverables (in order):
+     - oretest: keep failure-only output; run module+avm suites concurrently while honoring a shared job budget
+     - linux runner: reuse the persistent container + on-container workspace by default (no `rm -rf /work/repo`)
+     - docs: keep “no hangs” and “no rm container” rules explicit
+
+2) **P0 [lang] Exact-size layouts for fixed-width types (beyond packed views)** `[perf]`
+   - Context: type tokens + annotation syntax already exist; now they must meaningfully affect layout/FFI.
    - DoD: Oren can express deterministic, hardware-level layouts without abusing attributes:
      - built-in type tokens: `u8/i8/u16/i16/u32/i32/u64/i64/u128/i128/f32/f64/bool`
      - type annotation syntax works for locals, params, returns, and struct fields
-   - Next deliverables (in order):
-     - codegen: exact-size memory layout for those types (esp. `packed` structs and endian casts)
-     - keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system
+     - codegen honors exact widths when the programmer asks for it (esp. FFI + packet parsing + HPC kernels)
+   - Keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system.
 
-2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
+3) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
    - Next deliverables (in order):
      - add a determinism guard test that runs the same `.obc` with SIMD off/on and compares output + trace hash
      - (optional) add i32 elementwise NEON kernels if profiling shows it matters
 
-3) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
+4) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
 
-4) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
+5) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
    - Next deliverables (in order):
      - compile-time ambiguity diagnostics for multiple impls of the same `Type.method`
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
-5) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
+6) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
    - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
    - Next deliverable: define the minimal “AVM-in-Oren” surface area (hosted by C AVM first).
 
-6) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
+7) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
    - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
    - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
 
-7) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+8) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
    - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
