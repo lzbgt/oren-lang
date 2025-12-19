@@ -93,18 +93,40 @@ fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
 // Rolling ABI hygiene:
 // - The native backend reserves X28 (heap_ptr) and X27 (heap_limit) as "global heap registers".
 // - Kernels may clobber registers across syscalls.
-// - Preserve X27/X28 around each `svc` to keep bump allocation stable.
+// - Preserve our native backend's callee-saved set (X19-X28) around each `svc`
+//   so inlined syscalls behave like normal function calls w.r.t. register liveness.
+//
+// Why this matters (Linux parity):
+// - Inlined syscalls can appear in the middle of generated code where the compiler
+//   may keep important values in X19-X26 across calls.
+// - Treating `svc` as clobbering callee-saved registers makes behavior deterministic
+//   across kernels and avoids subtle miscompiles (e.g. spawn/closure paths).
 fn emit_svc_preserve_heap(ctx, svc_imm) {
-    // Use a transient 16-byte scratch slot. Avoid touching ctx["stack_size"] because
+    // Use a transient scratch slot. Avoid touching ctx["stack_size"] because
     // the adjustment is fully balanced and no stack-relative locals are accessed
-    // between save and restore.
-    push_u32_le(ctx["code"], insn_sub_sp(16))
-    push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
-    push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+    // between save and restore (the only instruction between is `svc`).
+    //
+    // Layout (80 bytes):
+    //   [SP+0..56]  = X19..X26
+    //   [SP+64]     = X27
+    //   [SP+72]     = X28
+    push_u32_le(ctx["code"], insn_sub_sp(80))
+    var r = 19
+    while r <= 26 {
+        push_u32_le(ctx["code"], insn_str_reg_sp(r, (r - 19) * 8))
+        r = r + 1
+    }
+    push_u32_le(ctx["code"], insn_str_reg_sp(27, 64))
+    push_u32_le(ctx["code"], insn_str_reg_sp(28, 72))
     push_u32_le(ctx["code"], insn_svc(svc_imm))
-    push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
-    push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
-    push_u32_le(ctx["code"], insn_add_sp(16))
+    var rr = 19
+    while rr <= 26 {
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(rr, (rr - 19) * 8))
+        rr = rr + 1
+    }
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 64))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 72))
+    push_u32_le(ctx["code"], insn_add_sp(80))
     return nil
 }
 
@@ -3495,19 +3517,45 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // Linux pipe2(ptr, flags)
                 // NOTE: Linux pipe2 expects an `int[2]` (32-bit fds). Our native runtime ABI uses
                 // 8-byte slots (u64) for fds, so we:
-                // - call pipe2 into a temporary stack buffer (8 bytes)
+                // - call pipe2 into a temporary `int[2]` buffer
                 // - widen + store into the caller's 16-byte buffer as u64s.
                 //
-                // ptr in X0.
-                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = out ptr (caller buffer)
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] + 16
-                emit_add_sp_offset_to_reg(ctx, 0, 0) // X0 = SP (tmp int[2])
+                // IMPORTANT:
+                // Do not assume syscall preserves argument temporaries (X0-X5). Keep the temp buffer
+                // inside our own scratch frame so its address is stable at the `svc` boundary.
+                //
+                // Layout (96 bytes):
+                //   [SP+0..56]   saved X19..X26
+                //   [SP+64]      saved X27
+                //   [SP+72]      saved X28
+                //   [SP+80]      saved out ptr (u64) (caller buffer)
+                //
+                // ptr in X0 (after capsule pre-hook).
+                push_u32_le(ctx["code"], insn_sub_sp(96))
+                ctx["stack_size"] = ctx["stack_size"] + 96
+
+                // Save callee-saved regs (so inlined syscalls behave like normal calls).
+                var sr = 19
+                while sr <= 26 {
+                    push_u32_le(ctx["code"], insn_str_reg_sp(sr, (sr - 19) * 8))
+                    sr = sr + 1
+                }
+                push_u32_le(ctx["code"], insn_str_reg_sp(27, 64))
+                push_u32_le(ctx["code"], insn_str_reg_sp(28, 72))
+
+                // Save out ptr (X0). For Linux, we call pipe2 directly with the caller buffer
+                // as `int[2]`, then widen in-place:
+                // - kernel writes 2x32-bit fds into bytes [0..7]
+                // - we load both ints, then store them back as u64 slots at [0] and [8].
+                push_u32_le(ctx["code"], insn_str_reg_sp(0, 80)) // save X0 (ptr)
+
                 push_u32_le(ctx["code"], insn_movz(1, 0)) // flags = 0
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
-                emit_svc_preserve_heap(ctx, svc_imm)
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
 
                 push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = rc
+                // Reload out ptr into X2 (caller buffer).
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 80))
 
                 // If rc==0: widen fds into caller buffer.
                 push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
@@ -3515,9 +3563,21 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var br_skip = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
-                // Load w4/w5 from tmp buffer at SP and store as x4/x5 into caller buffer.
-                push_u32_le(ctx["code"], insn_ldr_w(4, 31, 0))
-                push_u32_le(ctx["code"], insn_ldr_w(5, 31, 4))
+                // Load both 32-bit fds in one 64-bit word, then split:
+                //   packed = *(u64*)ptr  where packed = (wfd<<32) | rfd
+                // This avoids relying on `LDR Wt, [Xn,#imm]` encodings and keeps the lowering robust.
+                //
+                // X6 = packed
+                push_u32_le(ctx["code"], insn_ldr_ptr(6, 2))
+                // X9 = 0xffffffff
+                emit_load_u64_imm(ctx, 9, 4294967295)
+                // X7 = 32
+                emit_load_u64_imm(ctx, 7, 32)
+                // X4 = rfd (low 32)
+                push_u32_le(ctx["code"], insn_and_reg(4, 6, 9))
+                // X5 = wfd (high 32)
+                push_u32_le(ctx["code"], insn_lsrv(5, 6, 7))
+
                 push_u32_le(ctx["code"], insn_str_ptr(4, 2))
                 push_u32_le(ctx["code"], insn_add_imm(6, 2, 8))
                 push_u32_le(ctx["code"], insn_str_ptr(5, 6))
@@ -3525,12 +3585,19 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var skip_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip, insn_b_cond((skip_pos - br_skip) / 4, 1)) // NE
 
-                // Pop tmp buffer.
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
+                // Restore callee-saved regs and pop scratch frame.
+                var rr = 19
+                while rr <= 26 {
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(rr, (rr - 19) * 8))
+                    rr = rr + 1
+                }
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 64))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 72))
+                push_u32_le(ctx["code"], insn_add_sp(96))
+                ctx["stack_size"] = ctx["stack_size"] - 96
 
                 // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
-                push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // X0=ptr
+                push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // X0=ptr (caller buffer)
                 push_u32_le(ctx["code"], insn_mov_reg(1, 3)) // X1=rc
                 var bl_pipe_post2 = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)

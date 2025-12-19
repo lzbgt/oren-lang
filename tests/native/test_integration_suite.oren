@@ -13,11 +13,17 @@ fn assert_true(x, code) {
 
 fn assert_eq(a, b, code) {
     if a == b { return 0 }
+    print("assert_eq failed: code=" + oren_int_to_string(code))
+    print("  got=" + oren_int_to_string(a))
+    print("  expected=" + oren_int_to_string(b))
     fail(code)
 }
 
 fn assert_streq(a, b, code) {
     if strcmp(a, b) == 0 { return 0 }
+    print("assert_streq failed: code=" + oren_int_to_string(code))
+    print("  got=" + a)
+    print("  expected=" + b)
     fail(code)
 }
 
@@ -461,14 +467,23 @@ fn test_net_loopback_minimal() {
     if grc < 0 { fail(816) }
     var nlen = ptr_get(slen)
     if nlen < 8 { fail(817) }
-    if ptr_get_byte(sa + 1) != OREN_AF_INET { fail(818) }
+    // sockaddr_in family layout differs:
+    // - macOS/BSD: sa[1] == AF_INET (sa[0] is sin_len)
+    // - Linux:     sa[0] == AF_INET, sa[1] == 0 (u16 LE)
+    if ptr_get_byte(sa + 1) != OREN_AF_INET {
+        if ptr_get_byte(sa + 0) != OREN_AF_INET { fail(818) }
+        if ptr_get_byte(sa + 1) != 0 { fail(818) }
+    }
 
     ptr_set(slen, 32)
     var prc = sys_getpeername(cfd2, sa, slen)
     if prc < 0 { fail(819) }
     var plen = ptr_get(slen)
     if plen < 8 { fail(820) }
-    if ptr_get_byte(sa + 1) != OREN_AF_INET { fail(821) }
+    if ptr_get_byte(sa + 1) != OREN_AF_INET {
+        if ptr_get_byte(sa + 0) != OREN_AF_INET { fail(821) }
+        if ptr_get_byte(sa + 1) != 0 { fail(821) }
+    }
 
     var outb2 = malloc(1)
     if outb2 == 0 { fail(822) }

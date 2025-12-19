@@ -45,28 +45,21 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Status: added `oretest` static audit that scans syscall lowering and asserts a capsule `*_pre` hook exists for host-effect syscalls (with explicit exemptions for internal runtime primitives).
    - Next deliverable: extend audit to cover any syscall lowering modules beyond `arm64_native_expr_syscalls.oren` if/when new syscall lowering files are introduced.
 
-2) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
-   - DoD: `./oretest --target linux` passes on a Linux arm64 environment (QEMU host or Docker/VM), for the curated native list.
-   - Status: `make test` now auto-selects `--target linux` when run on a Linux host.
-   - Status (Docker): `tools/linux_native_smoke_docker.sh` passes on Docker Desktop linux/arm64 (persistent container).
+2) **P1 [maint] Linux arm64 verification (remote + Docker)**
+   - DoD: `./oretest --target linux` passes on:
+     - Docker Desktop `linux/arm64` (persistent container), and
+     - remote QEMU Linux arm64 (`blu@qemu-blu.local`) when available.
+   - Status (Docker): `tools/oretest_linux_docker.sh` passes (full `make test`).
+   - Status (Docker smoke): `tools/linux_native_smoke_docker.sh` passes (native ELF execution).
    - Next deliverable: run `SSH_DEST=blu@qemu-blu.local ./scripts/oretest_remote_linux_arm64.sh` and fix any ABI-table gaps discovered.
 
-3) **P1 [lang] Explicit numeric types: v1 semantics + casts**
-   - DoD: decide whether `u8/i32/f64/...` are:
-     - v0 annotation-only (metadata), vs
-     - v1 static types (checked), with a staged rollout that does not block self-hosting.
-   - Next deliverable: define cast semantics (checked vs truncating), and document endian-aware cast syntax for packed/network parsing.
-
-4) **P1 [correctness] String equality semantics + propagation** *(native backend)*
-   - DoD: all string `==` cases in tests/stdlib are safe (including `nil`) and consistent across backends.
-
-5) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
+3) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
    - DoD: deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
 
-6) **P2 [ux] Tooling**
+4) **P2 [ux] Tooling**
    - `.obc` disassembler (“otool-like”) + metadata extractor (reads embedded `OREN_META\n1\n` bytes convention).
 
-7) **P2 [maint] Refactors without semantic churn**
+5) **P2 [maint] Refactors without semantic churn**
    - Split oversized modules (AVM/codegen) once behavior is covered by tests.
 
 ## Recently Completed (high signal)
@@ -75,6 +68,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Test speed P0: module + AVM tests run in parallel with isolated per-test workdirs (`OREN_TEST_JOBS`).
 - Fixed-width scalar names + universal `name: Type` annotation sugar is implemented (v0 metadata) and documented (including list heterogeneity).
 - Packed struct views: migrated from `@oren.u16be` field attributes to `field: u16be` annotations (rolling).
+- Linux: oretest now passes `--target` for module builds (prevents accidental codesign on Linux).
+- Linux: TCP runtime uses correct sockaddr_in layout (BSD vs Linux) and non-kqueue fallbacks for connect/accept/read/write.
 - Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
 - Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved lowering modules, and bounds direct `insn_svc` emission.
 - Capsule P0: added a fast static “capsule syscall prehook audit” in `./oretest` to prevent bypass regressions.

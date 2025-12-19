@@ -387,6 +387,16 @@ var FD_KIND_UDP_DGRAM = 3
 var FD_KIND_PROC_PIPE = 10
 var FD_KIND_KQUEUE = 20
 
+// NET wait backend detection (rolling):
+// - macOS: kqueue/kevent is available
+// - Linux: kqueue does not exist
+//
+// Values:
+// - -1: unknown (not detected yet)
+// -  0: no kqueue backend
+// -  1: has kqueue backend
+var g_net_has_kqueue = -1
+
 // fcntl(2) commands used for fd duplication (stable across Darwin/Linux).
 // Verified via Apple SDK headers for macOS (audit only; not a build dependency).
 var FCNTL_F_DUPFD = 0
@@ -421,6 +431,9 @@ fn native_runtime_init() {
     // The native backend is still rolling and does not reliably run global initializers
     // before entering the runtime. Ensure globals used by early allocation are safe.
     g_storage = 0
+
+    // NET wait backend probe state (must not rely on global initializers).
+    g_net_has_kqueue = -1
 
     // IMPORTANT: today the native backend does not reliably run global initializers
     // before entering the runtime. Treat these as "constants" that must be set here.
@@ -3637,22 +3650,64 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     var rfd = ptr_get(pipe_buf)
     var wfd = ptr_get(pipe_buf + 8)
 
-    var pid = sys_fork()
+    // IMPORTANT (fork hygiene):
+    // Use `oren_fork()` (not raw `sys_fork()`) so the child resets any inherited
+    // in-memory locks before doing further allocations/capsule bookkeeping.
+    var pid = oren_fork()
     if pid == 0 {
         // Child
+        var dbg = native_envp_get_value_ptr("OREN_DEBUG_SPAWN")
+        if dbg != 0 {
+            if ptr_get_byte(dbg) != 0 {
+                print("spawn debug (child):")
+                print("  pipe.rfd=" + oren_int_to_string(rfd))
+                print("  pipe.wfd=" + oren_int_to_string(wfd))
+            }
+        }
         sys_close(rfd)
-        var ret = oren_call_obj_list(fn_obj, args_list)
-        var out = malloc(8)
-        if out == 0 { exit(323) }
-        ptr_set(out, ret)
-        sys_write(wfd, out, 8)
+        var ret = 0
+        if dbg != 0 {
+            if ptr_get_byte(dbg) != 0 {
+                print("  fn_obj=" + oren_int_to_string(fn_obj))
+                if fn_obj != 0 {
+                    print("  fn.code_ptr=" + oren_int_to_string(ptr_get(fn_obj)))
+                    print("  fn.env_ptr=" + oren_int_to_string(ptr_get(fn_obj + 8)))
+                }
+                print("  args_list=" + oren_int_to_string(args_list))
+                print("  args_len=" + oren_int_to_string(oren_list_len(args_list)))
+                if oren_list_len(args_list) > 0 {
+                    print("  args[0]=" + oren_int_to_string(oren_list_get(args_list, 0)))
+                }
+            }
+        }
+
+        ret = oren_call_obj_list(fn_obj, args_list)
+        if dbg != 0 {
+            if ptr_get_byte(dbg) != 0 {
+                print("  ret=" + oren_int_to_string(ret))
+            }
+        }
+        // Reuse the pre-fork heap buffer as the 8-byte write buffer.
+        // This avoids taking the allocator lock in the child before user code runs.
+        ptr_set(pipe_buf, ret)
+        sys_write(wfd, pipe_buf, 8)
         sys_close(wfd)
         exit(0)
         return 0
     }
 
-    // Parent
+        // Parent
     sys_close(wfd)
+    var dbg_p = native_envp_get_value_ptr("OREN_DEBUG_SPAWN")
+    if dbg_p != 0 {
+        if ptr_get_byte(dbg_p) != 0 {
+            print("spawn debug (parent):")
+            print("  pid=" + oren_int_to_string(pid))
+            print("  pipe.rfd=" + oren_int_to_string(rfd))
+            print("  pipe.wfd=" + oren_int_to_string(wfd))
+        }
+    }
+    free(pipe_buf)
 
     var handle = malloc(16)
     if handle == 0 { exit(324) }
@@ -5041,12 +5096,24 @@ fn oren_tcp_parse_ipv4_into(ip, out4_ptr) {
 }
 
 fn oren_tcp_sockaddr_in(ip, port) {
-    // struct sockaddr_in (BSD):
-    //   u8  sin_len
-    //   u8  sin_family
-    //   u16 sin_port (big-endian)
-    //   u32 sin_addr (bytes)
-    //   u8  sin_zero[8]
+    // struct sockaddr_in:
+    //
+    // - macOS/BSD layout (16 bytes):
+    //     u8  sin_len
+    //     u8  sin_family
+    //     u16 sin_port (big-endian)
+    //     u32 sin_addr (bytes)
+    //     u8  sin_zero[8]
+    //
+    // - Linux layout (16 bytes):
+    //     u16 sin_family (little-endian)
+    //     u16 sin_port   (big-endian)
+    //     u32 sin_addr   (bytes)
+    //     u8  sin_zero[8]
+    //
+    // Rolling portability rule:
+    // - Do not rely on host SDK headers.
+    // - Select layout by probing kqueue availability once (macOS has it, Linux doesn't).
     var sa = malloc(16)
     if sa == 0 { return 0 }
     if sa == -1 { return 0 }
@@ -5059,8 +5126,27 @@ fn oren_tcp_sockaddr_in(ip, port) {
         zi = zi + 1
     }
 
-    ptr_set_byte(sa + 0, 16) // len
-    ptr_set_byte(sa + 1, OREN_AF_INET) // AF_INET
+    // Ensure we know whether this target has kqueue.
+    if g_net_has_kqueue == -1 {
+        var kq0 = sys_kqueue()
+        if kq0 < 0 {
+            g_net_has_kqueue = 0
+        } else {
+            g_net_has_kqueue = 1
+            sys_close(kq0)
+        }
+    }
+
+    if g_net_has_kqueue == 1 {
+        // macOS/BSD: len + family
+        ptr_set_byte(sa + 0, 16) // len
+        ptr_set_byte(sa + 1, OREN_AF_INET) // AF_INET
+    } else {
+        // Linux: family u16 LE at [0..1]
+        ptr_set_byte(sa + 0, OREN_AF_INET)
+        ptr_set_byte(sa + 1, 0)
+    }
+
     // port in network order
     var hi = (port >> 8) & 255
     var lo = port & 255
@@ -5096,8 +5182,18 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     // Returns 1 if ready, 0 if timed out, or negative errno.
     if timeout_ms < 0 { timeout_ms = 0 }
+    if g_net_has_kqueue == 0 { return -1 }
     var kq = sys_kqueue()
-    if kq < 0 { return kq }
+    if g_net_has_kqueue == -1 {
+        // First-time detection.
+        if kq < 0 {
+            g_net_has_kqueue = 0
+            return -1
+        }
+        g_net_has_kqueue = 1
+    } else {
+        if kq < 0 { return kq }
+    }
 
     var change = malloc(32)
     if change == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
@@ -5171,19 +5267,12 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
     var rc = sys_connect(fd, sa, 16)
     free(sa)
     if rc == 0 { return fd }
-    if rc != 0 - 36 { // EINPROGRESS
+    // EINPROGRESS:
+    // - macOS: 36
+    // - Linux: 115
+    if rc != 0 - 36 && rc != 0 - 115 {
         sys_close(fd)
         return rc
-    }
-
-    var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
-    if n == 0 {
-        sys_close(fd)
-        return 0 - 60 // ETIMEDOUT
-    }
-    if n < 0 {
-        sys_close(fd)
-        return n
     }
 
     // Check SO_ERROR to determine connect result.
@@ -5195,6 +5284,60 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
     if olen == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
     oren_track_alloc(olen, 8, 0)
     ptr_set(olen, 4)
+
+    if g_net_has_kqueue == 1 {
+        // macOS path (kqueue-backed readiness wait).
+        var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
+        if n == 0 {
+            free(soerr_buf)
+            free(olen)
+            sys_close(fd)
+            return 0 - 60 // ETIMEDOUT
+        }
+        if n < 0 {
+            free(soerr_buf)
+            free(olen)
+            sys_close(fd)
+            return n
+        }
+    } else {
+        // Linux fallback: deterministic retry budget (nonblocking connect).
+        // `timeout_ms` is treated as an iteration budget (rolling).
+        var remaining = timeout_ms
+        if remaining < 0 { remaining = 2147483647 }
+        while remaining > 0 {
+            ptr_set(soerr_buf, 0)
+            ptr_set(olen, 4)
+            var grc0 = sys_getsockopt(fd, OREN_SOL_SOCKET, OREN_SO_ERROR, soerr_buf, olen)
+            if grc0 < 0 {
+                free(soerr_buf)
+                free(olen)
+                sys_close(fd)
+                return grc0
+            }
+            var soerr0 = ptr_get(soerr_buf)
+            if soerr0 == 0 {
+                free(soerr_buf)
+                free(olen)
+                return fd
+            }
+            // Still in progress?
+            // - EINPROGRESS: 36 (macOS) / 115 (Linux)
+            // - EALREADY:    37 (macOS) / 114 (Linux)
+            if soerr0 == 36 || soerr0 == 115 || soerr0 == 37 || soerr0 == 114 {
+                remaining = remaining - 1
+                continue
+            }
+            free(soerr_buf)
+            free(olen)
+            sys_close(fd)
+            return 0 - soerr0
+        }
+        free(soerr_buf)
+        free(olen)
+        sys_close(fd)
+        return 0 - 60 // ETIMEDOUT
+    }
 
     var grc = sys_getsockopt(fd, OREN_SOL_SOCKET, OREN_SO_ERROR, soerr_buf, olen)
     if grc < 0 {
@@ -5263,32 +5406,83 @@ fn oren_tcp_listen_local(port) {
 @cap.requires(domain="NET")
 fn oren_tcp_accept(listen_fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
-    var n = oren_tcp_wait_kqueue(listen_fd, -1, timeout_ms) // EVFILT_READ
-    if n == 0 { return 0 - 60 } // ETIMEDOUT
-    if n < 0 { return n }
-    return sys_accept(listen_fd, 0, 0)
+    if g_net_has_kqueue == 1 {
+        var n = oren_tcp_wait_kqueue(listen_fd, -1, timeout_ms) // EVFILT_READ
+        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n < 0 { return n }
+        return sys_accept(listen_fd, 0, 0)
+    }
+
+    // Linux fallback: listen_fd is already nonblocking (see `oren_tcp_listen_local`).
+    var remaining = timeout_ms
+    if remaining < 0 { remaining = 2147483647 }
+    while remaining > 0 {
+        var cfd = sys_accept(listen_fd, 0, 0)
+        if cfd >= 0 { return cfd }
+        // EAGAIN/EWOULDBLOCK:
+        // - macOS: 35
+        // - Linux: 11
+        if cfd == 0 - 35 || cfd == 0 - 11 {
+            remaining = remaining - 1
+            continue
+        }
+        return cfd
+    }
+    return 0 - 60
 }
 
 @cap.requires(domain="NET")
 fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
-    var n = oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
-    if n == 0 { return 0 - 60 } // ETIMEDOUT
-    if n < 0 { return n }
-    var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
-    if r == 0 - 35 { return 0 } // EAGAIN: treat as no data
-    return r
+    if g_net_has_kqueue == 1 {
+        var n = oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
+        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n < 0 { return n }
+        var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
+        if r == 0 - 35 { return 0 } // EAGAIN (macOS)
+        return r
+    }
+
+    // Linux fallback: nonblocking retry budget.
+    var remaining = timeout_ms
+    if remaining < 0 { remaining = 2147483647 }
+    while remaining > 0 {
+        var r2 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+        if r2 >= 0 { return r2 }
+        if r2 == 0 - 35 || r2 == 0 - 11 {
+            remaining = remaining - 1
+            continue
+        }
+        return r2
+    }
+    return 0 - 60
 }
 
 @cap.requires(domain="NET")
 fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
-    var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
-    if n == 0 { return 0 - 60 } // ETIMEDOUT
-    if n < 0 { return n }
-    return sys_sendto(fd, buf, len, 0, 0, 0)
+    if g_net_has_kqueue == 1 {
+        var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
+        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n < 0 { return n }
+        return sys_sendto(fd, buf, len, 0, 0, 0)
+    }
+
+    // Linux fallback: nonblocking retry budget.
+    var remaining = timeout_ms
+    if remaining < 0 { remaining = 2147483647 }
+    while remaining > 0 {
+        var w2 = sys_sendto(fd, buf, len, 0, 0, 0)
+        if w2 >= 0 { return w2 }
+        if w2 == 0 - 35 || w2 == 0 - 11 {
+            remaining = remaining - 1
+            continue
+        }
+        return w2
+    }
+    return 0 - 60
 }
 
 @cap.requires(domain="NET")
@@ -5773,50 +5967,51 @@ fn oren_join_timeout(handle, timeout_ms) {
     if buf == 0 { exit(270) }
     ptr_set(buf, 0)
 
-    // Read exactly 8 bytes (result value) with an optional wall-time timeout.
+    // Read exactly 8 bytes (result value) with an optional timeout budget.
     var got = 0
 
-    var deadline_ns = 0
+    // Timeout semantics (rolling, syscall-first):
+    // - `timeout_ms < 0`: wait forever (blocking read).
+    // - `timeout_ms >= 0`: deterministic poll budget (no kqueue/epoll dependency).
+    //
+    // Rationale:
+    // - Linux does not have kqueue, and we don't want libc poll()/select() shims.
+    // - For spawn/join, we can wait on child termination via wait4(WNOHANG) and only
+    //   attempt to read the pipe once the child has exited.
+    // - This keeps behavior portable and makes tests deterministic.
+    var reaped = 0
     if timeout_ms >= 0 {
-        // NOTE: `oren_time_mono_raw()` is not guaranteed to be nanoseconds on macOS
-        // (it can be mach_absolute_time units). For timeout math, use unix-ns.
-        var start_ns = oren_time_unix_ns()
-        deadline_ns = start_ns + (timeout_ms * 1000000)
+        var remaining = timeout_ms
+        while remaining > 0 {
+            var wpid0 = sys_wait4(pid, 0, 1, 0) // WNOHANG
+            if wpid0 == pid {
+                reaped = 1
+                break
+            }
+            if wpid0 < 0 {
+                sys_close(fd)
+                free(handle)
+                return wpid0
+            }
+            remaining = remaining - 1
+        }
+        if reaped == 0 {
+            // Timeout: kill child and reap to avoid zombies.
+            oren_kill(pid, 9) // SIGKILL
+            sys_wait4(pid, 0, 0, 0) // best-effort reap
+            sys_close(fd)
+            free(handle)
+            return 0 - 60 // ETIMEDOUT (BSD)
+        }
+        // Child is already reaped by the WNOHANG wait4 above; proceed to read pipe.
     }
 
     while got < 8 {
-        if timeout_ms >= 0 {
-            var now = oren_time_unix_ns()
-            var rem_ns = deadline_ns - now
-            if rem_ns <= 0 {
-                // Timeout: kill child and reap to avoid zombies.
-                oren_kill(pid, 9) // SIGKILL
-                sys_wait4(pid, 0, 0, 0) // best-effort reap
-                sys_close(fd)
-                free(handle)
-                return 0 - 60 // ETIMEDOUT (BSD)
-            }
-            var wait_ms = rem_ns / 1000000
-            if wait_ms < 1 { wait_ms = 1 }
-            var ready = oren_tcp_wait_kqueue(fd, -1, wait_ms) // EVFILT_READ
-            if ready == 0 {
-                // Continue loop: re-check deadline and try again.
-                continue
-            }
-            if ready < 0 {
-                sys_close(fd)
-                // Reap child (best-effort).
-                sys_wait4(pid, 0, 0, 0)
-                free(handle)
-                return ready
-            }
-        }
-
         var n = sys_read(fd, buf + got, 8 - got)
         if n == 0 { break } // EOF
         if n < 0 {
             sys_close(fd)
-            sys_wait4(pid, 0, 0, 0)
+            if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
             free(handle)
             return n
         }
@@ -5826,7 +6021,7 @@ fn oren_join_timeout(handle, timeout_ms) {
     sys_close(fd)
 
     // Reap child (best-effort).
-    sys_wait4(pid, 0, 0, 0)
+    if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
 
     if got != 8 {
         free(handle)
