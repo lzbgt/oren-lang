@@ -47,6 +47,11 @@ fn darwin_sys_rmdir() { return 137 }
 fn darwin_sys_mmap() { return 197 }
 fn darwin_sys_pipe() { return 42 }
 
+// Repo-owned open(2) flag constants (Darwin).
+// These are used by the syscall-first native backend; do not pull SDK headers at build time.
+fn darwin_open_flag_creat() { return 512 }  // O_CREAT  = 0x0200
+fn darwin_open_flag_trunc() { return 1024 } // O_TRUNC  = 0x0400
+
 // Threading / sync (Darwin-specific)
 fn darwin_sys_thread_selfid() { return 372 }
 fn darwin_sys_ulock_wait() { return 515 }

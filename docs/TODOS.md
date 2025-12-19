@@ -56,5 +56,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Repo test runner: extended syscall-first policy guard to also bound direct `svc` emission (`insn_svc`) to the minimal approved files (entry stub + allocator slow path).
 - Repo test runner: syscall-first policy guard now ignores `//` comments when scanning (reduces brittleness; avoids false positives from doc strings).
 - Native runtime: `oren_getcwd()` now returns `"/"` in capsule mode (avoids leaking host paths; keeps path-normalization libs safe).
+- Native syscall lowering: introduced Oren-level `sys_open` flags and translated `CREAT/TRUNC` to OS-specific bits in codegen (removes Darwin-specific literals like `1537` from `.oren` sources; unblocks Linux parity).
 - ABI tables: added repo-owned `mmap` PROT/FLAGS constants (Darwin/Linux) and removed numeric literals from native allocator codegen.
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

@@ -50,6 +50,11 @@ fn linux_sys_exit() { return 93 }
 fn linux_sys_exit_group() { return 94 }
 fn linux_sys_mmap() { return 222 }
 
+// Repo-owned open(2) flag constants (Linux).
+// Used by syscall-first native backend; do not rely on glibc headers at build time.
+fn linux_open_flag_creat() { return 64 }   // O_CREAT = 0x0040
+fn linux_open_flag_trunc() { return 512 }  // O_TRUNC = 0x0200
+
 // --- Syscall instruction ABI (arm64, Linux) ---
 // Linux AArch64 syscall convention:
 // - syscall number in X8
