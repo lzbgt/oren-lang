@@ -32,6 +32,7 @@ fn insn_sub_imm(rd, rn, imm) { return core.insn_sub_imm(rd, rn, imm) }
 fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
 fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
 fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
 fn emit_add_sp_offset_to_reg(ctx, reg, offset) { return core.emit_add_sp_offset_to_reg(ctx, reg, offset) }
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
@@ -259,7 +260,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(3, 2)) // X3 = mode
                 push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2 = flags
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = path
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0 = -100 (AT_FDCWD)
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
 
                 var sys_openat = labi.linux_sys_openat()
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_openat))
@@ -329,7 +330,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // unlinkat(AT_FDCWD=-100, path, 0)
                 push_u32_le(ctx["code"], insn_mov_reg(1, 1)) // X1 = path
                 push_u32_le(ctx["code"], insn_movz(2, 0))    // flags=0
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_unlinkat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
@@ -397,7 +398,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // mkdirat(AT_FDCWD=-100, path, mode)
                 push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2=mode
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_mkdirat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
@@ -469,8 +470,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // Move to into X3 before clobbering X0/X1 with AT_FDCWD.
                 push_u32_le(ctx["code"], insn_mov_reg(3, 1)) // X3=to
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=from
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
-                push_u32_le(ctx["code"], insn_movn(2, 99))   // X2=-100
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
+                emit_load_i64_imm(ctx, 2, labi.linux_at_fdcwd()) // X2 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_renameat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
@@ -541,7 +542,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2=mode
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
                 push_u32_le(ctx["code"], insn_movz(3, 0))    // flags=0
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_faccessat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
@@ -612,7 +613,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2=buf
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
                 push_u32_le(ctx["code"], insn_movz(3, 0))    // flags=0
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_newfstatat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
@@ -682,8 +683,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // newfstatat(AT_FDCWD=-100, path, buf, flags=AT_SYMLINK_NOFOLLOW)
                 push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2=buf
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
-                push_u32_le(ctx["code"], insn_movz(3, 256))  // AT_SYMLINK_NOFOLLOW
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                push_u32_le(ctx["code"], insn_movz(3, labi.linux_at_symlink_nofollow()))  // AT_SYMLINK_NOFOLLOW
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_newfstatat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
@@ -916,8 +917,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             } else {
                 // unlinkat(AT_FDCWD=-100, path, AT_REMOVEDIR=0x200)
                 push_u32_le(ctx["code"], insn_mov_reg(1, 1)) // X1=path
-                push_u32_le(ctx["code"], insn_movz(2, 512))  // AT_REMOVEDIR
-                push_u32_le(ctx["code"], insn_movn(0, 99))   // X0=-100
+                push_u32_le(ctx["code"], insn_movz(2, labi.linux_at_removedir()))  // AT_REMOVEDIR
+                emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
                 push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_unlinkat()))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
             }
@@ -1670,7 +1671,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 363 // Darwin SYS_kevent
+            var sysno = abi.darwin_sys_kevent() // Darwin SYS_kevent
             if fn_name == "sys_sendto" { sysno = abi.darwin_sys_sendto() } // Darwin SYS_sendto
             if fn_name == "sys_recvfrom" { sysno = abi.darwin_sys_recvfrom() } // Darwin SYS_recvfrom
             if ctx["platform"]["os"] == "linux" {

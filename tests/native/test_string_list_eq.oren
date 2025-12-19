@@ -1,0 +1,15 @@
+fn main() {
+    // Native backend: list element string equality must be by content.
+    // This covers the "Array" -> runtime list lowering + stringy propagation.
+    var xs = ["a", "b", "c"]
+    if xs[0] != "a" { exit(1) }
+    if xs[1] == "a" { exit(2) }
+
+    // Also ensure oren_list_get propagation works.
+    var y = oren_list_get(xs, 2)
+    if y != "c" { exit(3) }
+
+    exit(0)
+}
+
+main()

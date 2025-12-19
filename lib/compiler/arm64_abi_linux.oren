@@ -53,3 +53,8 @@ fn linux_sys_mmap() { return 222 }
 // - `svc #0`
 fn linux_syscall_reg() { return 8 }
 fn linux_svc_imm() { return 0 }
+
+// --- Linux AT_* constants (syscall args) ---
+fn linux_at_fdcwd() { return -100 } // AT_FDCWD (relative to current working directory)
+fn linux_at_symlink_nofollow() { return 256 } // 0x100
+fn linux_at_removedir() { return 512 } // 0x200

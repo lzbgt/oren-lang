@@ -282,6 +282,33 @@ fn emit_load_u64_imm(ctx, reg, val) {
     }
 }
 
+fn emit_load_i64_imm(ctx, reg, val) {
+    // Load signed immediate into Xreg.
+    //
+    // Used for ABI constants like AT_FDCWD=-100 where we want:
+    // - repo-owned constants (no platform headers)
+    // - no magic MOVN immediates spread through syscall lowering
+    //
+    // Encoding strategy:
+    // - val >= 0: MOVZ/MOVK sequence via emit_load_u64_imm
+    // - -65536 <= val < 0: MOVN reg, (abs(val)-1) (since MOVN yields -imm16-1)
+    // - otherwise: load abs(val) and negate with XZR - abs
+    if val >= 0 {
+        emit_load_u64_imm(ctx, reg, val)
+        return nil
+    }
+
+    var abs = 0 - val
+    if abs <= 65536 {
+        push_u32_le(ctx["code"], insn_movn(reg, abs - 1))
+        return nil
+    }
+
+    emit_load_u64_imm(ctx, reg, abs)
+    push_u32_le(ctx["code"], insn_sub_reg(reg, 31, reg))
+    return nil
+}
+
 fn emit_add_sp_offset_to_reg(ctx, reg, offset) {
     // Emit: Xreg = SP + offset (offset in bytes, may be negative).
     if offset == 0 {

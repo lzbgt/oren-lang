@@ -15,9 +15,18 @@ fn main() {
     if string_concat("a", "b") != "ab" { exit(9) }
     if oren_realpath("x/./y") != "x/y" { exit(10) }
 
+    // Comparing string pointers with nil must be safe (must NOT call strcmp).
+    var s = "abc"
+    if s == nil { exit(11) }
+    if nil == s { exit(12) }
+
+    var t = nil
+    if t != nil { exit(13) }
+    if t == "abc" { exit(14) }
+    if "abc" == t { exit(15) }
+
     print("native string_eq OK")
     exit(0)
 }
 
 main()
-

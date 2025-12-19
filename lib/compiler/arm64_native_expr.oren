@@ -170,6 +170,17 @@ fn native_expr_is_list_stringy(ctx, expr) {
     // This is used to make `xs[i] == "lit"` work when `xs` comes from known APIs like `oren_readdir`.
     if expr == nil { return false }
     var et = expr["type"]
+    if et == "Array" {
+        // Array literal -> runtime list. If all elements are stringy, treat as list-of-strings.
+        var els = expr["elements"]
+        if els == nil { return false }
+        var i = 0
+        while i < oren_list_len(els) {
+            if native_expr_is_stringy(ctx, els[i]) != true { return false }
+            i = i + 1
+        }
+        return true
+    }
     if et == "Identifier" {
         var name = expr["value"]
         if ctx != nil {
@@ -219,10 +230,11 @@ fn native_expr_is_stringy(ctx, expr) {
         return false
     }
     if et == "Infix" {
-        // String concat is `+` only, and runtime only concatenates when both are strings.
+        // String concat uses `+` and only returns STRING when BOTH operands are strings.
+        // This must not propagate stringiness from a single-side string, otherwise
+        // later `==` lowering may call strcmp on non-strings.
         if expr["op"] == "+" {
-            if native_expr_is_stringy(ctx, expr["left"]) { return true }
-            if native_expr_is_stringy(ctx, expr["right"]) { return true }
+            if native_expr_is_stringy(ctx, expr["left"]) && native_expr_is_stringy(ctx, expr["right"]) { return true }
         }
         return false
     }
@@ -242,6 +254,15 @@ fn native_expr_is_stringy(ctx, expr) {
             if nm == "oren_env" { return true }
             if nm == "oren_read_file" { return true }
             if nm == "string_concat" { return true }
+            // Propagate string from list_get when the list is known to contain strings.
+            if nm == "oren_list_get" {
+                var args = expr["args"]
+                if args != nil {
+                    if oren_list_len(args) >= 1 {
+                        if native_expr_is_list_stringy(ctx, args[0]) { return true }
+                    }
+                }
+            }
         }
         return false
     }
@@ -1063,6 +1084,7 @@ fn native_compile_expr(ctx, expr) {
                 push_u32_le(ctx["code"], insn_cset(0, fcond))
                 return nil
             }
+
 
             // String comparisons (rolling): only when BOTH sides are known-stringy.
             // This avoids treating checks like `s == nil` as strcmp(s, 0), which would crash.

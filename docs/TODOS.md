@@ -25,9 +25,9 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
    - Linux arm64 baseline table added via `lib/compiler/arm64_abi_linux.oren` (syscall reg/imm + core syscalls).
    - Next: Linux arm64 parity tables + a single shared ABI layer used by native codegen.
 
-3) **P1 [correctness] Unify language-level `==` / `!=` semantics for strings across backends**
-   - Native backend uses a compile-time "stringy" heuristic + runtime `strcmp`; AVM/C backends do type-tagged `strcmp`.
-   - Keep expanding coverage via tests: strings from FS (`readdir`), ENV, `realpath`, `read_file`, etc.
+3) **P1 [correctness] String equality semantics + propagation (native backend)**
+   - Native backend uses compile-time string propagation + runtime `strcmp` (no libc); AVM/C backends use tagged strings.
+   - Keep expanding coverage via tests: list literals, `oren_list_get`, FS (`readdir`), ENV, `realpath`, `read_file`, etc.
    - Must keep `s == nil` safe (no accidental `strcmp(s, 0)` lowering).
 
 4) **P1 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
@@ -45,15 +45,12 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 
 ## Recently Completed (high signal)
 
-- AVM FS-domain helpers: `oren_exists` + `oren_readdir` (VFS + host mounts), plus CORE `oren_realpath` (pure lexical).
-- macOS arm64 ABI constants moved into repo-owned module: `lib/compiler/arm64_abi_macos.oren` (+ refs in `docs/refs/darwin_arm64_abi.md`).
-- Native backend string comparisons: fixed false-floaty Index classification that broke `names[i] == "lit"` for lists produced by helpers like `oren_readdir`.
-- Native backend syscall ABI: moved Darwin syscall reg/imm + base syscalls into `lib/compiler/arm64_abi_macos.oren`, removed entry-stub magic SVC encodings, and fixed Linux arm64 `pipe2` syscall number to 59 (from `docs/refs/linux_asm_generic_unistd.h`).
-- Linux arm64 syscall ABI: introduced repo-owned constants (`lib/compiler/arm64_abi_linux.oren`) and removed hardcoded `x8`/`svc #0` + core syscall numbers from codegen hot spots.
-- ABI tables expanded to cover commonly used FS syscalls (unlink/mkdir/rename/access/getcwd) + Darwin sync/thread syscalls (ulock/thread_selfid) + mmap, eliminating more numeric literals from codegen.
-- Darwin arm64 syscall encoding audit: verified `x16=<raw n>; svc #0x80` ABI and removed unnecessary `0x2000000|n` encoding from codegen; documented in `docs/refs/darwin_arm64_abi.md` (+ repro in `tools/audit/`).
-- ABI tables expanded again: added kqueue/kevent/fork/bsdthread_register (Darwin) and nanosleep/clone (Linux) and removed remaining hardcoded `svc #0`/`svc #0x80` sites in syscall lowering.
 - Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.
 - Mach-O minimal exit stub (`macho_emit_exit_arm64`): now uses `arm64_abi_macos.oren` syscall ABI constants (no embedded MOVK/SVC magic).
 - FS mounts semantics hardened: longest-prefix + boundary checks in native runtime; AVM host mounts match (incl. host-path allow-as-is under enrolled host prefixes); added overlapping-mount regression tests.
 - FS allow-prefix policy hardened: require boundary when a prefix does not end with `/` (prevents `build` matching `build2`); applied to native capsule + AVM host allow-prefix checks.
+- ABI tables expanded: centralized NET-related syscalls (socket/connect/bind/listen/accept/sendto/recvfrom) and other process/syscall staples (execve/wait4/kill/gettimeofday/fcntl, sockopt/shutdown, peer/sockname) for macOS+Linux; removed more numeric `sysno=` literals from syscall lowering.
+- Native string propagation: fixed `+` stringiness to require both operands, added `oren_list_get` string propagation and array-of-strings list inference; added `tests/native/test_string_list_eq.oren`.
+- ABI constants: moved remaining Darwin `kevent` syscall number and Linux `AT_*` syscall-arg flags (AT_SYMLINK_NOFOLLOW/AT_REMOVEDIR) into repo-owned ABI tables; removed the last hardcoded `sysno=363` from syscall lowering.
+- ABI constants: centralized Linux `AT_FDCWD=-100` into `arm64_abi_linux.oren` and added a signed-immediate loader helper (removes remaining `MOVN imm=99` magic from syscall lowering).
+- Native string comparisons: added regression coverage for `string == nil` / `nil == string` (must not lower to `strcmp`).
