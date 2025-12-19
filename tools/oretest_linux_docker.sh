@@ -86,32 +86,31 @@ fi
 '
 
 echo "[linux-oretest-docker] running make test (OREN_TEST_JOBS=$JOBS)"
+
+# Sync sources into the container.
+#
+# IMPORTANT:
+# - Do NOT copy host-built binaries like `./oretest` or `./oren` into the Linux container,
+#   or `make` may treat them as up-to-date and attempt to execute a macOS binary.
+# - Use tracked files as the source of truth (git index), not `tar .`.
+echo "[linux-oretest-docker] syncing tracked sources into /work/repo"
+git ls-files -z \
+  | xargs -0 tar -czf - \
+  | docker exec -i "$NAME" bash -lc '
+set -euo pipefail
+mkdir -p /work/repo
+if [[ "'"$CLEAN"'" == "1" ]]; then
+  rm -rf /work/repo/*
+fi
+tar -xzf - -C /work/repo
+'
+
 # Use `tini -s` as a child subreaper even if the container was not created with
 # `--init`. This prevents zombie buildup from fork/spawn tests inside long-lived
 # containers whose PID 1 does not reap children.
 docker exec "$NAME" tini -s -- bash -lc "
 set -euo pipefail
 mkdir -p /work/repo
-if [[ '$CLEAN' == '1' ]]; then
-  rm -rf /work/repo/*
-fi
-if [[ -d /src ]]; then
-  SRC=/src
-else
-  SRC=/repo
-fi
-cd \"\$SRC\"
-tar \
-  --exclude .git \
-  --exclude build \
-  --exclude ./oren_bootstrap \
-  --exclude ./oren \
-  --exclude ./oren_stage2 \
-  --exclude ./oren_stage3 \
-  --exclude ./avm \
-  --exclude ./oretest \
-  -czf - . \
-  | tar -xzf - -C /work/repo
 cd /work/repo
 export OREN_TEST_JOBS='$JOBS'
 export GOPROXY='$GOPROXY'
