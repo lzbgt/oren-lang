@@ -54,5 +54,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Capsule hardening: enforced TIME domain at raw `sys_gettimeofday` / `sys_nanosleep` boundaries (no bypass) with deterministic fixtures.
 - Capsule hardening: enforced enrollment at raw `sys_kqueue` / `sys_kevent` boundaries (no bypass); event-loop syscalls require at least one of NET/PROC/TIME.
 - Capsule hardening: enforced fd-domain gating at raw `sys_close` / `sys_fcntl` boundaries (no bypass), including tagging `sys_kqueue` return fds so TIME-only event-loop tests do not require FS.
+- Capsule hardening: enforced NET enrollment at raw `sys_getsockopt` / `sys_setsockopt` / `sys_getsockname` / `sys_getpeername` / `sys_shutdown` boundaries (no bypass).
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).

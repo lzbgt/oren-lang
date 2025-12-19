@@ -1464,6 +1464,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
         if fn_name == "sys_getpeername" || fn_name == "sys_getsockname" {
             // sys_{getpeername,getsockname}(fd, addr, addrlen_ptr) (Darwin)
+            // Keep args on stack so we can enforce capsule rules without losing values
+            // (AArch64 caller-saved regs).
             compile_expr(ctx, args[0]) // fd -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1475,17 +1477,26 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[2]) // addrlen_ptr -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = addrlen_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop addr -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_{getpeername,getsockname}_pre(fd, addr, addrlen_ptr)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen_ptr
+            var bl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            if fn_name == "sys_getsockname" {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_getsockname_pre"})
+            } else {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_getpeername_pre"})
+            }
 
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen_ptr
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
@@ -1516,6 +1527,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // Pop args (3 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
             return true
         }
 
@@ -1542,27 +1559,30 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[4]) // optlen(_ptr) -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(4, 0)) // X4 = optlen(_ptr)
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop optval -> X3
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_{get,set}sockopt_pre(fd, level, optname, optval, optlen)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 64)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 48)) // level
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 32)) // optname
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 16)) // optval
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))  // optlen(_ptr)
+            var bl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            if fn_name == "sys_setsockopt" {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_setsockopt_pre"})
+            } else {
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_getsockopt_pre"})
+            }
 
-            // Pop optname -> X2
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop level -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 64)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 48)) // level
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 32)) // optname
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 16)) // optval
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))  // optlen(_ptr)
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
@@ -1593,23 +1613,40 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // Pop args (5 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 80
             return true
         }
 
         if fn_name == "sys_shutdown" {
             // sys_shutdown(fd, how) (Darwin)
+            // Keep args on stack so we can enforce capsule rules without losing values.
             compile_expr(ctx, args[0]) // fd -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[1]) // how -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = how
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_shutdown_pre(fd, how)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // how
+            var bl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_shutdown_pre"})
+
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // how
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
@@ -1638,6 +1675,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // Pop args (2 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 32
             return true
         }
 

@@ -1,0 +1,29 @@
+fn main() {
+    // Raw sys_* NET bypass test:
+    // Ensure these syscalls are NET-gated at the raw syscall boundary in capsule mode:
+    // - sys_getsockopt / sys_setsockopt
+    // - sys_getsockname / sys_getpeername
+    // - sys_shutdown
+    //
+    // Use fd=1 (stdout) intentionally: it is not a socket, but we ignore syscall results.
+    // The test is purely about capability enforcement (deny without NET; allow with NET).
+
+    var optval = malloc(16)
+    var optlen_ptr = malloc(8)
+    if optval == 0 || optlen_ptr == 0 { exit(3) }
+    ptr_set(optlen_ptr, 16)
+    sys_getsockopt(1, 0, 0, optval, optlen_ptr)
+
+    // setsockopt uses a value length (not a pointer).
+    sys_setsockopt(1, 0, 0, optval, 4)
+
+    var addr = malloc(32)
+    var addrlen_ptr = malloc(8)
+    if addr == 0 || addrlen_ptr == 0 { exit(4) }
+    ptr_set(addrlen_ptr, 32)
+    sys_getsockname(1, addr, addrlen_ptr)
+    sys_getpeername(1, addr, addrlen_ptr)
+
+    sys_shutdown(1, 0)
+    exit(0)
+}

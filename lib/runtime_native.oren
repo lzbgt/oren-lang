@@ -2043,6 +2043,36 @@ fn native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) {
     return newfd
 }
 
+fn native_capsule_sys_getpeername_pre(fd, addr, addrlen_ptr) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_getsockname_pre(fd, addr, addrlen_ptr) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_getsockopt_pre(fd, level, optname, optval, optlen_ptr) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_setsockopt_pre(fd, level, optname, optval, optlen) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_shutdown_pre(fd, how) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
 fn native_capsule_sys_sendto_pre(fd, buf, len, flags, to, tolen) {
     native_capsule_require(CAP_NET, "NET")
     if global_get_capsule_mode() != 1 { return 0 }
