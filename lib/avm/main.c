@@ -14,11 +14,18 @@
 uint8_t* read_file(const char* path, size_t* len) {
     FILE* f = fopen(path, "rb");
     if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    *len = ftell(f);
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return NULL; }
+    long sz = ftell(f);
+    if (sz < 0) { fclose(f); return NULL; }
+    *len = (size_t)sz;
     fseek(f, 0, SEEK_SET);
-    uint8_t* buf = (uint8_t*)malloc(*len);
-    fread(buf, 1, *len, f);
+    uint8_t* buf = NULL;
+    if (*len > 0) {
+        buf = (uint8_t*)malloc(*len);
+        if (!buf) { fclose(f); return NULL; }
+        size_t got = fread(buf, 1, *len, f);
+        if (got != *len) { free(buf); fclose(f); return NULL; }
+    }
     fclose(f);
     return buf;
 }

@@ -42,11 +42,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 1) **P0 [arch] Traits/protocols: minimal object model milestone** `[lang]`
    - Why: unblock ergonomic stdlib design (iterators, stringify/format, JSON codecs) with composition-first APIs.
-   - DoD (first deliverable, rolling):
-     - doc: `docs/OBJECT_MODEL.md` defines traits/protocols + composition (no inheritance)
-     - make `match` remain contextual (must not steal identifiers)
-     - decide whether primitives can implement traits (default: yes; explain determinism/dispatch model)
-     - keep implementation bootstrap-friendly (staged; start with iterator protocol + string conversion hooks)
+   - DoD (next deliverable, rolling):
+     - trait syntax accepted by parser: `trait Name { fn ... }` (no runtime impact yet)
+     - impl blocks accepted: `impl Trait for Type { fn ... }` and lowered deterministically into plain `fn`s
+     - document the deterministic naming + dispatch rules (static-first; trait objects opt-in later)
+     - keep `match` contextual (must not steal identifiers)
 
 2) **P0 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
@@ -62,11 +62,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
    - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
 
-5) **P1 [quality] Fix AVM build warnings (Linux)** `[maint]`
-   - DoD: `make test` in linux docker is clean under `-Wall -Wextra` for AVM sources we touch.
-   - Notes: currently observed warnings include ignored `fread` result and an `int64_t` format mismatch.
-
-6) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+5) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
    - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
@@ -76,3 +72,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Call-site spread `...` implemented across C/native/bytecode (for variadic builtins + apply-style calls, without committing to a stable varargs ABI).
 - Rolling type-annotation sugar: universal `name: Type` metadata (`u8/u16be/f64/...`) + packed-struct views via `pack_view`.
 - `enum` + `match` sugar implemented; `match` stays contextual (identifiers named `match` are valid).
+- `docs/OBJECT_MODEL.md` clarified: primitives can implement traits; static-first deterministic dispatch.
+- Linux: AVM builds cleanly in docker (fixed `fread` result handling + `int64_t` formatting warning).

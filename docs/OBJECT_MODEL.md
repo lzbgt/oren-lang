@@ -45,12 +45,51 @@ trait Reader {
 }
 ```
 
+### Primitives implementing traits (recommended: YES)
+
+Oren should allow **all runtime value kinds**, including primitives, to implement traits:
+
+- integers / floats
+- strings / bytes
+- lists / maps
+- function values / closures
+- user-defined structs/enums
+
+Why this matters:
+
+- it keeps the stdlib clean: `to_string(x)` / `hash(x)` / `iter(x)` are uniform
+- it avoids special-casing primitives in the compiler and tooling
+- it aligns with “protocols + composition” rather than “primitive exceptions”
+
+Determinism note:
+
+- “implements trait” is a **compile-time relation**. It must not depend on host state.
+- method resolution must be deterministic given the program and its imports (no reflection-based late binding by default).
+
+Example direction:
+
+```oren
+trait ToString { fn to_string(self) }
+
+impl ToString for i64 { fn to_string(self) { return oren_int_to_string(self) } }
+impl ToString for string { fn to_string(self) { return self } }
+```
+
 ### Dispatch policy (recommended)
 
 - Default: **static dispatch** (monomorphize / direct call) where types are known.
 - Optional: **dynamic dispatch** via “trait objects” only when needed.
 
 This keeps native performance good and keeps AVM semantics clear.
+
+### Structural vs nominal conformance (rolling decision)
+
+For Oren’s goals (auditable codegen, deterministic replay, self-hosting), prefer:
+
+- **nominal conformance** as the default: `impl Trait for Type` is explicit
+- optional **structural conformance** only as a later, opt-in feature (tooling-heavy; easy to make “too magic”)
+
+Nominal `impl` keeps “what code runs” stable and obvious, which matters for consensus-like workflows.
 
 ## 4) Composition (preferred reuse mechanism)
 
@@ -90,7 +129,21 @@ Design direction:
 
 This prevents “hidden host effects” and composes with nested universes.
 
-## 6) Sum types (ADTs) + pattern matching (planned)
+## 6) Deterministic dispatch + trait objects
+
+Traits must not re-introduce nondeterminism.
+
+Recommended rules:
+
+1) Static dispatch is pure: calling `T.foo(x)` must be the same across machines.
+2) Dynamic dispatch is explicit:
+   - “trait object” must be a distinct runtime representation (e.g. `{ v, vtable_id }`), not implicit reflection.
+3) VTable identity must be stable:
+   - derived from module path + trait name + impl symbol set, not host pointers
+4) Cross-universe safety:
+   - passing trait objects between universes must preserve semantics or be disallowed by policy.
+
+## 7) Sum types (ADTs) + pattern matching (planned)
 
 For agentic workflows, “closed world” state modeling matters more than class hierarchies.
 
@@ -110,7 +163,7 @@ Then:
 - `match state { ... }` ensures explicit handling
 - later, exhaustiveness checking makes self-healing logic safer
 
-## 7) Implementation reality today (bootstrap)
+## 8) Implementation reality today (bootstrap)
 
 Current state in this repo:
 
@@ -120,11 +173,12 @@ Current state in this repo:
 
 So this document is the **direction**: it guides evolution without forcing an immediate rewrite.
 
-## 8) Staged implementation plan (minimal rewrite)
+## 9) Staged implementation plan (minimal rewrite)
 
-1) Add **attributes** (metadata) to declarations, including fields, to support tooling and derive-style expansion later.
-2) Add `trait` declarations as compile-time contracts (no runtime representation initially).
-3) Add `impl Trait for Type` with static dispatch.
-4) Add trait objects (explicit opt-in) for dynamic dispatch.
-5) Add `enum` + `match` and later exhaustiveness checks.
-
+1) Add `trait` declarations as compile-time contracts (doc + parser support first).
+2) Add `impl Trait for Type` with static dispatch for:
+   - core runtime types (string/list/map/int/float) first
+   - then user-defined structs/enums
+3) Add “trait objects” (explicit opt-in) only when needed (plugins / heterogeneous containers).
+4) Add derive-style expansion via attributes (`@oren.derive(...)`) to reduce boilerplate.
+5) Add a stabilized v1 type system pass (optional) once the core bootstrapping story is complete.

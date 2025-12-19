@@ -248,7 +248,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         case 10: { // oren_int_to_string
             if (nargs > 0 && args[0].type == AVM_VAL_INT) {
                 char buf[32];
-                sprintf(buf, "%lld", args[0].as.i);
+                sprintf(buf, "%lld", (long long)args[0].as.i);
                 res.type = AVM_VAL_STRING;
                 res.as.p = my_strdup(buf);
             }
