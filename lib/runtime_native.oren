@@ -2534,6 +2534,24 @@ fn native_argv_ptrs_count(argv_ptrs) {
     return -1
 }
 
+fn native_capsule_sys_getcwd_pre() {
+    // Reading the host cwd leaks host FS state; require FS enrollment in capsule mode.
+    native_capsule_require(CAP_FS, "FS")
+    return 0
+}
+
+fn native_capsule_sys_clone_pre() {
+    // clone is a process/thread creation primitive; require PROC enrollment in capsule mode.
+    native_capsule_require(CAP_PROC, "PROC")
+    return 0
+}
+
+fn native_capsule_sys_bsdthread_register_pre() {
+    // bsdthread_register initializes the OS thread substrate; treat it as PROC-domain in capsule mode.
+    native_capsule_require(CAP_PROC, "PROC")
+    return 0
+}
+
 fn native_capsule_sys_fork_pre() {
     // PROC is required for fork in capsule mode.
     native_capsule_require(CAP_PROC, "PROC")

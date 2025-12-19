@@ -976,6 +976,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 sys_reg = labi.linux_syscall_reg()
             }
 
+            // pre: native_capsule_sys_getcwd_pre()
+            var bl_getcwd_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_getcwd_pre, "name": "native_capsule_sys_getcwd_pre"})
+
             // X0=buf, X1=size
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
@@ -3333,7 +3338,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             // sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset)
             // Darwin syscall: bsdthread_register (366)
             // This is macOS-specific; Linux should implement clone/futex-based threads instead.
-
             compile_expr(ctx, args[0]) // threadstart -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -3363,6 +3367,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_bsdthread_register_pre()
+            var bl_bsdthread_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_bsdthread_pre, "name": "native_capsule_sys_bsdthread_register_pre"})
 
             compile_expr(ctx, args[6]) // tsd_offset -> X0
             push_u32_le(ctx["code"], insn_mov_reg(6, 0)) // save in X6
@@ -3533,19 +3542,25 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
-            
+
             compile_expr(ctx, args[1]) // stack -> X0
-            
-            // Pop flags -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-            
-            // Syscall expects: X0=flags, X1=stack.
-            // We have X0=stack, X1=flags. Swap.
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = stack
-            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = flags
-            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // X1 = stack
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_clone_pre()
+            var bl_clone_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_clone_pre, "name": "native_capsule_sys_clone_pre"})
+
+            // Load args for syscall:
+            // Stack layout: stack@0, flags@16
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // flags
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // stack
+
+            // Pop args (2 slots).
+            push_u32_le(ctx["code"], insn_add_sp(32))
+            ctx["stack_size"] = ctx["stack_size"] - 32
             
             // Clear other args
             push_u32_le(ctx["code"], insn_movz(2, 0))

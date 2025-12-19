@@ -38,7 +38,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 1) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
    - DoD: for each raw `sys_*` that can cause host effects (FS/NET/PROC/ENV/TIME), there is a capsule pre hook and tests cover allow+deny paths.
-   - Next deliverable: add a single “capability audit test” that enumerates syscall intrinsics used by the native backend and asserts each has a pre hook.
+   - Status: added `oretest` static audit that scans syscall lowering and asserts a capsule `*_pre` hook exists for host-effect syscalls (with explicit exemptions for internal runtime primitives).
+   - Next deliverable: extend audit to cover any syscall lowering modules beyond `arm64_native_expr_syscalls.oren` if/when new syscall lowering files are introduced.
 
 2) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
    - DoD: `./oretest --target linux` passes on a Linux arm64 environment (QEMU host or Docker/VM), for the curated native list.
@@ -70,5 +71,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Packed struct views: migrated from `@oren.u16be` field attributes to `field: u16be` annotations (rolling).
 - Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
 - Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved lowering modules, and bounds direct `insn_svc` emission.
+- Capsule P0: added a fast static “capsule syscall prehook audit” in `./oretest` to prevent bypass regressions.
 - OS ABI tables: repo-owned constants for `open` flags, `fcntl` cmds, `mmap` prot/flags (Darwin/Linux), with audit refs in `docs/refs/*` (incl. `darwin_sys_socket.h`, `darwin_sys_fcntl.h`).
 - NET: translated Oren-level `getsockopt/setsockopt` IDs to OS ABI values safely (no cascading translation).
