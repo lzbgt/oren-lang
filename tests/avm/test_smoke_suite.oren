@@ -297,6 +297,15 @@ fn test_typed_buffers() {
 
     oren_buf_scale_f32(tmpf, 2.0)
     assert_eq(oren_buf_reduce_sum_f32(tmpf), 21.0) // 3 * 7.0
+
+    // mul kernels
+    var mdst = oren_f32_buf_new(3)
+    oren_buf_mul_f32_into(mdst, fa, fb) // 1.5 * 2.0 = 3.0
+    assert_eq(oren_buf_load_f32(mdst, 0), 3.0)
+    assert_eq(oren_buf_reduce_sum_f32(mdst), 9.0)
+
+    var mout = oren_buf_mul_f32(fa, fb)
+    assert_eq(oren_buf_load_f32(mout, 2), 3.0)
 }
 
 fn inc2(x) { return x + 1 }

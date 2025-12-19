@@ -125,6 +125,7 @@ Bootstrap status (rolling, implemented in `lib/avm`):
   - dot: `oren_buf_dot_{i32,f32}(a, b) -> scalar`
   - in-place: `oren_buf_add_{i32,f32}_into(dst, a, b) -> dst`
   - scale/reduce: `oren_buf_scale_f32(buf, scalar)`, `oren_buf_reduce_sum_f32(buf) -> scalar`
+  - mul: `oren_buf_mul_f32_into(dst, a, b) -> dst`, `oren_buf_mul_f32(a, b) -> new_buf`
 - Determinism rule: buffer payload is a byte array whose element encoding is **canonical little-endian**:
   - `i32/i64` are two's-complement integers encoded little-endian
   - `f32/f64` are IEEE-754 bit patterns encoded little-endian
