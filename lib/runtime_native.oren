@@ -829,6 +829,16 @@ fn native_capsule_require(mask_bit, name) {
     return 0
 }
 
+fn native_capsule_require_any(mask_bits, name_hint) {
+    if global_get_capsule_mode() != 1 { return 0 }
+    var allow = global_get_cap_allow_mask()
+    if (allow & mask_bits) != 0 { return 0 }
+    print("CAPSULE DENY: " + name_hint)
+    print("hint: set OREN_CAP_ALLOW_DOMAINS to include one of: " + name_hint + " (or pass --cap-allow-domains)")
+    exit(77)
+    return 0
+}
+
 fn native_capsule_fs_path_allowed(path, prefs) {
     if path == 0 { return false }
     // prefs is a CSV cstr
@@ -2320,6 +2330,26 @@ fn native_capsule_sys_nanosleep_pre(ns) {
     if ns <= 0 { return ns }
     native_capsule_require(CAP_TIME, "TIME")
     return ns
+}
+
+fn native_capsule_sys_kqueue_pre() {
+    // Enforce enrollment on raw sys_kqueue (no bypass).
+    //
+    // kqueue/kevent are a general "event loop" primitive used by multiple domains:
+    // - TIME: syscall-first sleep (nanosleep on macOS uses kevent timeout)
+    // - NET: socket readiness waits / connect timeouts
+    // - PROC: cancellable waits / IPC support
+    //
+    // Rolling rule: allow if any of NET/PROC/TIME is enrolled.
+    native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+    return 0
+}
+
+fn native_capsule_sys_kevent_pre() {
+    // Enforce enrollment on raw sys_kevent (no bypass).
+    // Rolling rule: allow if any of NET/PROC/TIME is enrolled.
+    native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+    return 0
 }
 
 fn native_capsule_sys_execve_pre(path, argv_ptrs, envp_ptrs) {

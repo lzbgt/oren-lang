@@ -1119,6 +1119,36 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(cap_time_ns_out))
 
+    // kqueue/kevent:
+    var cap_time_kq_out = "build/capsule_runtime_time_syscall_kqueue_kevent_prog"
+    var cap_time_kq_log = "build/logs/capsule_runtime_time_syscall_kqueue_kevent_prog_build.log"
+    var cap_time_kq_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_time_syscall_kqueue_kevent_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_time_kq_out) + gc_arg
+    var cap_time_kq_rc = run_shell_capture(timeout_bin, build_timeout, cap_time_kq_cmd, cap_time_kq_log)
+    if cap_time_kq_rc != 0 || file_exists(cap_time_kq_out) != true {
+        print("native failed: capsule_runtime_time_syscall_kqueue_kevent_prog (build)")
+        oren_system("cat " + shell_quote(cap_time_kq_log))
+        oren_exit(1)
+    }
+
+    var cap_time_kq_deny_log = "build/logs/capsule_runtime_time_syscall_kqueue_kevent_prog_run_deny.log"
+    var cap_time_kq_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS= ./" + cap_time_kq_out
+    var cap_time_kq_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_time_kq_deny_cmd, cap_time_kq_deny_log)
+    if cap_time_kq_deny_rc == 0 {
+        print("native failed: capsule_runtime_time_syscall_kqueue_kevent_prog (expected runtime capsule deny: sys_kqueue/sys_kevent need TIME domain)")
+        oren_system("cat " + shell_quote(cap_time_kq_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_time_kq_ok_log = "build/logs/capsule_runtime_time_syscall_kqueue_kevent_prog_run_allow.log"
+    var cap_time_kq_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=TIME ./" + cap_time_kq_out
+    var cap_time_kq_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_time_kq_ok_cmd, cap_time_kq_ok_log)
+    if cap_time_kq_ok_rc != 0 {
+        print("native failed: capsule_runtime_time_syscall_kqueue_kevent_prog (expected runtime capsule allow: TIME domain)")
+        oren_system("cat " + shell_quote(cap_time_kq_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_time_kq_out))
+
     // readdir (runtime helper built on getdirentries64):
     var cap_fs_rd_out = "build/capsule_runtime_fs_readdir_prog"
     var cap_fs_rd_log = "build/logs/capsule_runtime_fs_readdir_prog_build.log"

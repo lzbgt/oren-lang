@@ -1655,7 +1655,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // pre: enforce NET send/recv in capsule mode (kevent is not a NET op)
+            // pre: enforce NET send/recv in capsule mode
             if fn_name == "sys_sendto" || fn_name == "sys_recvfrom" {
                 // Stack layout: a5@0, a4@16, a3@32, a2@48, a1@64, a0@80
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 80))
@@ -1671,6 +1671,13 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 } else {
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre6, "name": "native_capsule_sys_recvfrom_pre"})
                 }
+            }
+
+            // pre: enforce TIME for kevent (no bypass)
+            if fn_name == "sys_kevent" {
+                var bl_kevent_pre = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kevent_pre, "name": "native_capsule_sys_kevent_pre"})
             }
 
             // Reload args for syscall: a0..a5 in X0..X5.
@@ -2100,6 +2107,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movn(0, 0))
                 return true
             }
+            // pre: native_capsule_sys_kqueue_pre()
+            var bl_kqueue_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_pre, "name": "native_capsule_sys_kqueue_pre"})
             // SYS_kqueue = 362
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))

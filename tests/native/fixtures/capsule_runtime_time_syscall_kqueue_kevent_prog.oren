@@ -1,0 +1,12 @@
+fn main() {
+    // Raw sys_kqueue/sys_kevent capsule TIME test:
+    // - In capsule mode, sys_kqueue and sys_kevent must be TIME-gated (no bypass).
+    // - With TIME enrolled, calling kevent with NULL lists and NULL timeout should return 0.
+    var kq = sys_kqueue()
+    if kq < 0 { exit(2) }
+    var rc = sys_kevent(kq, 0, 0, 0, 0, 0)
+    sys_close(kq)
+    if rc < 0 { exit(3) }
+    print("ok")
+}
+
