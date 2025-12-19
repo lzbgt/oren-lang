@@ -119,6 +119,10 @@ Bootstrap status (rolling, implemented in `lib/avm`):
   - `oren_i32_buf_new(n)`, `oren_i64_buf_new(n)`, `oren_f32_buf_new(n)`, `oren_f64_buf_new(n)`
   - `oren_buf_len(buf)`
   - `oren_buf_load_i32/oren_buf_store_i32`, `..._i64`, `..._f32`, `..._f64`
+- Minimal bootstrap “kernel ops” (CORE domain legacy ids; scalar fallback; deterministic encoding):
+  - fills: `oren_buf_fill_{i32,i64,f32,f64}(buf, scalar)`
+  - elementwise: `oren_buf_add_{i32,f32}(a, b) -> new_buf`
+  - dot: `oren_buf_dot_{i32,f32}(a, b) -> scalar`
 - Determinism rule: buffer payload is a byte array whose element encoding is **canonical little-endian**:
   - `i32/i64` are two's-complement integers encoded little-endian
   - `f32/f64` are IEEE-754 bit patterns encoded little-endian

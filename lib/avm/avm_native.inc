@@ -1362,6 +1362,233 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 67: { // oren_buf_fill_i32(i32_buf, val:int) -> i32_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t v = args[1].as.i;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_fill_i32: invalid buffer"); break; }
+                if (v < (int64_t)INT32_MIN || v > (int64_t)INT32_MAX) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_fill_i32: out of range"); break; }
+                uint32_t u = (uint32_t)(int32_t)v;
+                for (uint32_t i = 0; i < b->len; i++) {
+                    uint32_t off = i * 4u;
+                    b->data[off] = (uint8_t)(u & 0xFFu);
+                    b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                    b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                    b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_fill_i32 expects (i32_buf, int)");
+            }
+            break;
+        }
+        case 68: { // oren_buf_fill_i64(i64_buf, val:int) -> i64_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_I64_BUF && args[1].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                uint64_t u = (uint64_t)args[1].as.i;
+                if (!b || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_fill_i64: invalid buffer"); break; }
+                for (uint32_t i = 0; i < b->len; i++) {
+                    uint32_t off = i * 8u;
+                    b->data[off] = (uint8_t)(u & 0xFFu);
+                    b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                    b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                    b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                    b->data[off + 4] = (uint8_t)((u >> 32) & 0xFFu);
+                    b->data[off + 5] = (uint8_t)((u >> 40) & 0xFFu);
+                    b->data[off + 6] = (uint8_t)((u >> 48) & 0xFFu);
+                    b->data[off + 7] = (uint8_t)((u >> 56) & 0xFFu);
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_fill_i64 expects (i64_buf, int)");
+            }
+            break;
+        }
+        case 69: { // oren_buf_fill_f32(f32_buf, val:float) -> f32_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_F32_BUF && args[1].type == AVM_VAL_FLOAT) {
+                AvmBuf* b = args[0].as.buf;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_fill_f32: invalid buffer"); break; }
+                float fv = (float)args[1].as.f;
+                uint32_t u = 0;
+                memcpy(&u, &fv, sizeof(u));
+                for (uint32_t i = 0; i < b->len; i++) {
+                    uint32_t off = i * 4u;
+                    b->data[off] = (uint8_t)(u & 0xFFu);
+                    b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                    b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                    b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_fill_f32 expects (f32_buf, float)");
+            }
+            break;
+        }
+        case 70: { // oren_buf_fill_f64(f64_buf, val:float) -> f64_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_FLOAT) {
+                AvmBuf* b = args[0].as.buf;
+                if (!b || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_fill_f64: invalid buffer"); break; }
+                uint64_t u = 0;
+                memcpy(&u, &args[1].as.f, sizeof(u));
+                for (uint32_t i = 0; i < b->len; i++) {
+                    uint32_t off = i * 8u;
+                    b->data[off] = (uint8_t)(u & 0xFFu);
+                    b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                    b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                    b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                    b->data[off + 4] = (uint8_t)((u >> 32) & 0xFFu);
+                    b->data[off + 5] = (uint8_t)((u >> 40) & 0xFFu);
+                    b->data[off + 6] = (uint8_t)((u >> 48) & 0xFFu);
+                    b->data[off + 7] = (uint8_t)((u >> 56) & 0xFFu);
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_fill_f64 expects (f64_buf, float)");
+            }
+            break;
+        }
+        case 71: { // oren_buf_add_i32(a:i32_buf, b:i32_buf) -> i32_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_I32_BUF) {
+                AvmBuf* a = args[0].as.buf;
+                AvmBuf* b = args[1].as.buf;
+                if (!a || !b || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_i32: invalid buffers"); break; }
+                if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_i32: length mismatch"); break; }
+                AvmBuf* out = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                out->len = a->len;
+                out->elem_size = 4u;
+                uint64_t bytes_len = (uint64_t)out->len * 4ull;
+                out->data = NULL;
+                if (bytes_len > 0) {
+                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    if (!out->data) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                }
+                for (uint32_t i = 0; i < out->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ua = (uint32_t)a->data[off]
+                                | ((uint32_t)a->data[off + 1] << 8)
+                                | ((uint32_t)a->data[off + 2] << 16)
+                                | ((uint32_t)a->data[off + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[off]
+                                | ((uint32_t)b->data[off + 1] << 8)
+                                | ((uint32_t)b->data[off + 2] << 16)
+                                | ((uint32_t)b->data[off + 3] << 24);
+                    uint32_t us = ua + ub; // wrap
+                    out->data[off] = (uint8_t)(us & 0xFFu);
+                    out->data[off + 1] = (uint8_t)((us >> 8) & 0xFFu);
+                    out->data[off + 2] = (uint8_t)((us >> 16) & 0xFFu);
+                    out->data[off + 3] = (uint8_t)((us >> 24) & 0xFFu);
+                }
+                res.type = AVM_VAL_I32_BUF;
+                res.as.buf = out;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_add_i32 expects (i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 72: { // oren_buf_add_f32(a:f32_buf, b:f32_buf) -> f32_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_F32_BUF && args[1].type == AVM_VAL_F32_BUF) {
+                AvmBuf* a = args[0].as.buf;
+                AvmBuf* b = args[1].as.buf;
+                if (!a || !b || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_f32: invalid buffers"); break; }
+                if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_f32: length mismatch"); break; }
+                AvmBuf* out = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                out->len = a->len;
+                out->elem_size = 4u;
+                uint64_t bytes_len = (uint64_t)out->len * 4ull;
+                out->data = NULL;
+                if (bytes_len > 0) {
+                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    if (!out->data) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                }
+                for (uint32_t i = 0; i < out->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ua = (uint32_t)a->data[off]
+                                | ((uint32_t)a->data[off + 1] << 8)
+                                | ((uint32_t)a->data[off + 2] << 16)
+                                | ((uint32_t)a->data[off + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[off]
+                                | ((uint32_t)b->data[off + 1] << 8)
+                                | ((uint32_t)b->data[off + 2] << 16)
+                                | ((uint32_t)b->data[off + 3] << 24);
+                    float fa = 0.0f;
+                    float fb = 0.0f;
+                    memcpy(&fa, &ua, sizeof(fa));
+                    memcpy(&fb, &ub, sizeof(fb));
+                    float fs = fa + fb;
+                    uint32_t us = 0;
+                    memcpy(&us, &fs, sizeof(us));
+                    out->data[off] = (uint8_t)(us & 0xFFu);
+                    out->data[off + 1] = (uint8_t)((us >> 8) & 0xFFu);
+                    out->data[off + 2] = (uint8_t)((us >> 16) & 0xFFu);
+                    out->data[off + 3] = (uint8_t)((us >> 24) & 0xFFu);
+                }
+                res.type = AVM_VAL_F32_BUF;
+                res.as.buf = out;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_add_f32 expects (f32_buf, f32_buf)");
+            }
+            break;
+        }
+        case 73: { // oren_buf_dot_i32(a:i32_buf, b:i32_buf) -> int
+            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_I32_BUF) {
+                AvmBuf* a = args[0].as.buf;
+                AvmBuf* b = args[1].as.buf;
+                if (!a || !b || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32: invalid buffers"); break; }
+                if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32: length mismatch"); break; }
+                int64_t acc = 0;
+                for (uint32_t i = 0; i < a->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ua = (uint32_t)a->data[off]
+                                | ((uint32_t)a->data[off + 1] << 8)
+                                | ((uint32_t)a->data[off + 2] << 16)
+                                | ((uint32_t)a->data[off + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[off]
+                                | ((uint32_t)b->data[off + 1] << 8)
+                                | ((uint32_t)b->data[off + 2] << 16)
+                                | ((uint32_t)b->data[off + 3] << 24);
+                    int64_t va = (int64_t)(int32_t)ua;
+                    int64_t vb = (int64_t)(int32_t)ub;
+                    acc += va * vb;
+                }
+                res = avm_int(acc);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_i32 expects (i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 74: { // oren_buf_dot_f32(a:f32_buf, b:f32_buf) -> float
+            if (nargs > 1 && args[0].type == AVM_VAL_F32_BUF && args[1].type == AVM_VAL_F32_BUF) {
+                AvmBuf* a = args[0].as.buf;
+                AvmBuf* b = args[1].as.buf;
+                if (!a || !b || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32: invalid buffers"); break; }
+                if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32: length mismatch"); break; }
+                float acc = 0.0f;
+                for (uint32_t i = 0; i < a->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ua = (uint32_t)a->data[off]
+                                | ((uint32_t)a->data[off + 1] << 8)
+                                | ((uint32_t)a->data[off + 2] << 16)
+                                | ((uint32_t)a->data[off + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[off]
+                                | ((uint32_t)b->data[off + 1] << 8)
+                                | ((uint32_t)b->data[off + 2] << 16)
+                                | ((uint32_t)b->data[off + 3] << 24);
+                    float fa = 0.0f;
+                    float fb = 0.0f;
+                    memcpy(&fa, &ua, sizeof(fa));
+                    memcpy(&fb, &ub, sizeof(fb));
+                    float prod = fa * fb;
+                    acc = acc + prod;
+                }
+                res.type = AVM_VAL_FLOAT;
+                res.as.f = (double)acc;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_f32 expects (f32_buf, f32_buf)");
+            }
+            break;
+        }
         default:
             printf("Unknown native id: %d\n", id);
             break;

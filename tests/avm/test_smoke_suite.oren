@@ -266,6 +266,26 @@ fn test_typed_buffers() {
     oren_buf_store_f64(f64, 1, -0.5)
     assert_eq(oren_buf_load_f64(f64, 0), 2.5)
     assert_eq(oren_buf_load_f64(f64, 1), -0.5)
+
+    // Kernel ops: fill/add/dot (scalar fallback).
+    oren_buf_fill_i32(b32, 3)
+    assert_eq(oren_buf_load_i32(b32, 2), 3)
+
+    var a = oren_i32_buf_new(3)
+    var b = oren_i32_buf_new(3)
+    oren_buf_fill_i32(a, 2)
+    oren_buf_fill_i32(b, 5)
+    var c = oren_buf_add_i32(a, b)
+    assert_eq(oren_buf_load_i32(c, 0), 7)
+    assert_eq(oren_buf_dot_i32(a, b), 30) // 3 * (2*5)
+
+    var fa = oren_f32_buf_new(3)
+    var fb = oren_f32_buf_new(3)
+    oren_buf_fill_f32(fa, 1.5)
+    oren_buf_fill_f32(fb, 2.0)
+    var fc = oren_buf_add_f32(fa, fb)
+    assert_eq(oren_buf_load_f32(fc, 0), 3.5)
+    assert_eq(oren_buf_dot_f32(fa, fb), 9.0) // 3 * (1.5*2.0)
 }
 
 fn inc2(x) { return x + 1 }

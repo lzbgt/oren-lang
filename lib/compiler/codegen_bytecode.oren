@@ -1027,6 +1027,14 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_store_f32" { native_id = 64 }
         if name == "oren_buf_load_f64" { native_id = 65 }
         if name == "oren_buf_store_f64" { native_id = 66 }
+        if name == "oren_buf_fill_i32" { native_id = 67 }
+        if name == "oren_buf_fill_i64" { native_id = 68 }
+        if name == "oren_buf_fill_f32" { native_id = 69 }
+        if name == "oren_buf_fill_f64" { native_id = 70 }
+        if name == "oren_buf_add_i32" { native_id = 71 }
+        if name == "oren_buf_add_f32" { native_id = 72 }
+        if name == "oren_buf_dot_i32" { native_id = 73 }
+        if name == "oren_buf_dot_f32" { native_id = 74 }
 
         // Pure path normalization (portable across backends; implemented natively in each backend).
         if name == "oren_realpath" { native_id = 53 }
