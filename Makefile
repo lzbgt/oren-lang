@@ -80,6 +80,11 @@ oren_bootstrap: $(GO_SRC)
 	@echo "Building Stage 0 (Bootstrap)..."
 	go build -o oren_bootstrap ./cmd/oren
 
+# Go-based repo test runner (keeps test orchestration out of self-hosted compiler sources)
+oretest: $(GO_SRC)
+	@echo "Building oretest..."
+	go build -o oretest ./cmd/oretest
+
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
 oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC)
 	@echo "Building Stage 1 (Oren)..."
@@ -109,12 +114,12 @@ test: oren
 		exit $$rc; \
 	}
 
-test-inner: oren avm
+test-inner: oren avm oretest
 	@# Canonical curated runner lives inside the compiler:
 	@# - timeout-protected
 	@# - failure-only output
 	@# - curated lists are in sync with repo evolution
-	@./oren test --target macos $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oretest --target macos $(GC_ARG)
 
 # Legacy suite: historical Makefile-driven runner.
 # Keep it for “extra coverage” during rolling refactors, but do not make it the default.

@@ -52,16 +52,16 @@ fn integration_alloc_garbage() {
 
 @oren.packed
 struct PV_H {
-    @oren.u8 v,
-    @oren.u8 t,
-    @oren.u16be len,
-    @oren.u32be src,
-    @oren.u32be dst
+    v: u8,
+    t: u8,
+    len: u16be,
+    src: u32be,
+    dst: u32be
 }
 
 @oren.packed
 struct PV_S16 {
-    @oren.i16be x
+    x: i16be
 }
 
 fn test_core_smoke() {

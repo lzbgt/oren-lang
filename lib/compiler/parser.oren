@@ -65,10 +65,7 @@ fn new_parser(l) {
             // Capability-governed host effects (enforced only when capsule mode is enabled).
             "cap.requires",
             // Packed struct / byte views (compile-time lowering).
-            "oren.packed",
-            "oren.u8", "oren.i8",
-            "oren.u16be", "oren.u16le", "oren.i16be", "oren.i16le",
-            "oren.u32be", "oren.u32le", "oren.i32be", "oren.i32le"
+            "oren.packed"
         ]
     }
     parser_next_token(p)
@@ -1106,7 +1103,7 @@ fn parse_type_decl(p) {
         if cur_is(p, token.TOK_RBRACE) { cont = false }
         if cur_is(p, token.TOK_EOF) { cont = false }
         if cont {
-            // field := {attr} ident
+            // field := {attr} ident [ ":" type_ident ]
             var fattrs = parse_attr_list(p)
             if p["cur"]["type"] != token.TOK_IDENT {
                 parser_add_error(p, "expected field name, got " + p["cur"]["type"])
@@ -1114,6 +1111,28 @@ fn parse_type_decl(p) {
             }
             var fid = ast.new_identifier(p["cur"])
             if fattrs != nil && oren_list_len(fattrs) > 0 { fid["attrs"] = fattrs }
+
+            // Optional explicit type annotation (rolling, used by packed-byte views).
+            //
+            // Examples:
+            // - `len: u16be`
+            // - `dst: u32be`
+            //
+            // Type names are parsed as identifiers with optional dotted namespaces:
+            // - `myorg.Type`
+            // - `std.net.IPv4`
+            if peek_is(p, token.TOK_COLON) {
+                parser_next_token(p) // ':'
+                if !expect_peek(p, token.TOK_IDENT) { return nil }
+                var tname = p["cur"]["literal"]
+                while peek_is(p, token.TOK_DOT) {
+                    parser_next_token(p) // '.'
+                    if !expect_peek(p, token.TOK_IDENT) { return nil }
+                    tname = tname + "." + p["cur"]["literal"]
+                }
+                fid["ann_type"] = tname
+            }
+
             oren_list_push(fields, fid)
             if peek_is(p, token.TOK_COMMA) {
                 parser_next_token(p) // ,

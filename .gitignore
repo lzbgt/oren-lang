@@ -5,6 +5,7 @@ oren
 oren_stage*
 *.o
 *.dSYM/
+oretest
 
 
 # Generated C

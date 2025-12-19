@@ -21,10 +21,10 @@ fn starts_with(s, prefix) {
 // - no allocation: reads lower to byte loads + shifts
 // - portable across backends: rely only on `oren_bytes_get_u8(bytes, idx)`
 //
-// Supported field attrs (v0):
-// - @oren.u8, @oren.i8
-// - @oren.u16be, @oren.u16le, @oren.i16be, @oren.i16le
-// - @oren.u32be, @oren.u32le, @oren.i32be, @oren.i32le
+// Supported field type annotations (v0, compile-time only):
+// - u8, i8
+// - u16be, u16le, i16be, i16le
+// - u32be, u32le, i32be, i32le
 //
 // Reserved type attr:
 // - @oren.packed
@@ -43,6 +43,11 @@ fn has_attr(node, name) {
 
 fn field_kind(fid) {
     if fid == nil { return nil }
+    // Preferred syntax: explicit type annotation on the field (language-level token).
+    // Example: `len: u16be`
+    if fid["ann_type"] != nil { return fid["ann_type"] }
+
+    // Back-compat (rolling): allow legacy attribute-based kind tags.
     var attrs = fid["attrs"]
     if attrs == nil { return nil }
 
@@ -55,7 +60,7 @@ fn field_kind(fid) {
         if n == nil { i = i + 1; continue }
         if !starts_with(n, "oren.") { i = i + 1; continue }
 
-        // The kind attrs are exactly these names.
+        // Legacy kind attrs.
         var is_kind = false
         if n == "oren.u8" || n == "oren.i8" { is_kind = true }
         if n == "oren.u16be" || n == "oren.u16le" || n == "oren.i16be" || n == "oren.i16le" { is_kind = true }
@@ -63,7 +68,8 @@ fn field_kind(fid) {
 
         if is_kind {
             if kind != nil && kind != n { return "__MULTIPLE__" }
-            kind = n
+            // Strip the `oren.` prefix for internal uniformity.
+            kind = oren_string_slice(n, 5, oren_string_len(n))
         }
         i = i + 1
     }
@@ -71,9 +77,9 @@ fn field_kind(fid) {
 }
 
 fn kind_size(kind) {
-    if kind == "oren.u8" || kind == "oren.i8" { return 1 }
-    if kind == "oren.u16be" || kind == "oren.u16le" || kind == "oren.i16be" || kind == "oren.i16le" { return 2 }
-    if kind == "oren.u32be" || kind == "oren.u32le" || kind == "oren.i32be" || kind == "oren.i32le" { return 4 }
+    if kind == "u8" || kind == "i8" { return 1 }
+    if kind == "u16be" || kind == "u16le" || kind == "i16be" || kind == "i16le" { return 2 }
+    if kind == "u32be" || kind == "u32le" || kind == "i32be" || kind == "i32le" { return 4 }
     return 0
 }
 
@@ -122,31 +128,31 @@ fn u8_at(bytes_expr, base_idx, delta) {
 
 fn build_read_expr(kind, bytes_expr, base_idx) {
     // Build expression trees in terms of u8 reads + shifts.
-    if kind == "oren.u8" {
+    if kind == "u8" {
         return u8_at(bytes_expr, base_idx, 0)
     }
-    if kind == "oren.i8" {
+    if kind == "i8" {
         // sign-extend via ((u8 ^ 128) - 128)
         return sub_expr(bxor_expr(u8_at(bytes_expr, base_idx, 0), "128"), "128")
     }
 
-    if kind == "oren.u16be" || kind == "oren.i16be" {
+    if kind == "u16be" || kind == "i16be" {
         var b0 = u8_at(bytes_expr, base_idx, 0)
         var b1 = u8_at(bytes_expr, base_idx, 1)
         var u = bor_expr(shl_expr(b0, 8), b1)
-        if kind == "oren.u16be" { return u }
+        if kind == "u16be" { return u }
         // sign-extend via ((u ^ 32768) - 32768)
         return sub_expr(bxor_expr(u, "32768"), "32768")
     }
-    if kind == "oren.u16le" || kind == "oren.i16le" {
+    if kind == "u16le" || kind == "i16le" {
         var b0 = u8_at(bytes_expr, base_idx, 0)
         var b1 = u8_at(bytes_expr, base_idx, 1)
         var u2 = bor_expr(shl_expr(b1, 8), b0)
-        if kind == "oren.u16le" { return u2 }
+        if kind == "u16le" { return u2 }
         return sub_expr(bxor_expr(u2, "32768"), "32768")
     }
 
-    if kind == "oren.u32be" || kind == "oren.i32be" {
+    if kind == "u32be" || kind == "i32be" {
         var c0 = u8_at(bytes_expr, base_idx, 0)
         var c1 = u8_at(bytes_expr, base_idx, 1)
         var c2 = u8_at(bytes_expr, base_idx, 2)
@@ -155,11 +161,11 @@ fn build_read_expr(kind, bytes_expr, base_idx) {
             bor_expr(shl_expr(c0, 24), shl_expr(c1, 16)),
             bor_expr(shl_expr(c2, 8), c3)
         )
-        if kind == "oren.u32be" { return u3 }
+        if kind == "u32be" { return u3 }
         return sub_expr(bxor_expr(u3, "2147483648"), "2147483648")
     }
 
-    if kind == "oren.u32le" || kind == "oren.i32le" {
+    if kind == "u32le" || kind == "i32le" {
         var d0 = u8_at(bytes_expr, base_idx, 0)
         var d1 = u8_at(bytes_expr, base_idx, 1)
         var d2 = u8_at(bytes_expr, base_idx, 2)
@@ -168,7 +174,7 @@ fn build_read_expr(kind, bytes_expr, base_idx) {
             bor_expr(shl_expr(d3, 24), shl_expr(d2, 16)),
             bor_expr(shl_expr(d1, 8), d0)
         )
-        if kind == "oren.u32le" { return u4 }
+        if kind == "u32le" { return u4 }
         return sub_expr(bxor_expr(u4, "2147483648"), "2147483648")
     }
 
@@ -208,7 +214,7 @@ fn build_write_calls(kind, bytes_expr, base_idx, val_expr) {
     var i = 0
     while i < sz {
         var shift = 0
-        if kind == "oren.u16be" || kind == "oren.i16be" || kind == "oren.u32be" || kind == "oren.i32be" {
+        if kind == "u16be" || kind == "i16be" || kind == "u32be" || kind == "i32be" {
             shift = (sz - 1 - i) * 8
         } else {
             // le + 8-bit
@@ -256,11 +262,11 @@ fn schema_from_linked(linked) {
                     var fname = fid["value"]
                     var k = field_kind(fid)
                     if k == "__MULTIPLE__" {
-                        print("Packed struct field has multiple kind attrs: " + tname + "." + fname)
+                        print("Packed struct field has multiple kind annotations: " + tname + "." + fname)
                         oren_exit(1)
                     }
                     if k == nil {
-                        print("Packed struct field missing kind attr (e.g. @oren.u16be): " + tname + "." + fname)
+                        print("Packed struct field missing type annotation (e.g. len: u16be): " + tname + "." + fname)
                         oren_exit(1)
                     }
                     var sz = kind_size(k)
