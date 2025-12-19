@@ -306,6 +306,15 @@ fn test_typed_buffers() {
 
     var mout = oren_buf_mul_f32(fa, fb)
     assert_eq(oren_buf_load_f32(mout, 2), 3.0)
+
+    // i32 mul + reduce
+    var idst = oren_i32_buf_new(3)
+    oren_buf_mul_i32_into(idst, a, b) // 2 * 5 = 10
+    assert_eq(oren_buf_load_i32(idst, 0), 10)
+    assert_eq(oren_buf_reduce_sum_i32(idst), 30)
+
+    var iout = oren_buf_mul_i32(a, b)
+    assert_eq(oren_buf_load_i32(iout, 2), 10)
 }
 
 fn inc2(x) { return x + 1 }

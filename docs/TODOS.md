@@ -77,3 +77,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM: `oren_select(cases)` supports deterministic select over **send+recv** cases (round-robin fairness, data-encoded cases); documented in `docs/AVM_SPEC_V1.md`.
 - AVM: typed numeric buffers (`I32_BUF/I64_BUF/F32_BUF/F64_BUF`) + minimal ops (`BUF_LEN`, typed load/store) wired through snapshot/resume + record/replay + hashing; covered by smoke suite + snapshot/resume test.
 - AVM: minimal typed-buffer compute kernels (scalar fallback): fill/add/dot for `i32` and `f32`; covered by smoke suite.
+- AVM: extended typed-buffer kernels: in-place add/scale/reduce and mul kernels for `f32`, plus mul+reduce for `i32`; covered by smoke suite.

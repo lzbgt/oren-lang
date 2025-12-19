@@ -1041,6 +1041,9 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_reduce_sum_f32" { native_id = 78 }
         if name == "oren_buf_mul_f32_into" { native_id = 79 }
         if name == "oren_buf_mul_f32" { native_id = 80 }
+        if name == "oren_buf_mul_i32_into" { native_id = 81 }
+        if name == "oren_buf_mul_i32" { native_id = 82 }
+        if name == "oren_buf_reduce_sum_i32" { native_id = 83 }
 
         // Pure path normalization (portable across backends; implemented natively in each backend).
         if name == "oren_realpath" { native_id = 53 }

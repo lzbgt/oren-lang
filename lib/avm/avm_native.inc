@@ -1768,6 +1768,85 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 81: { // oren_buf_mul_i32_into(dst:i32_buf, a:i32_buf, b:i32_buf) -> i32_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_I32_BUF && args[2].type == AVM_VAL_I32_BUF) {
+                AvmBuf* dst = args[0].as.buf;
+                AvmBuf* a = args[1].as.buf;
+                AvmBuf* b = args[2].as.buf;
+                if (!dst || !a || !b || dst->elem_size != 4u || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_mul_i32_into: invalid buffers"); break; }
+                if (dst->len != a->len || dst->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_mul_i32_into: length mismatch"); break; }
+                for (uint32_t i = 0; i < dst->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ua = (uint32_t)a->data[off]
+                                | ((uint32_t)a->data[off + 1] << 8)
+                                | ((uint32_t)a->data[off + 2] << 16)
+                                | ((uint32_t)a->data[off + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[off]
+                                | ((uint32_t)b->data[off + 1] << 8)
+                                | ((uint32_t)b->data[off + 2] << 16)
+                                | ((uint32_t)b->data[off + 3] << 24);
+                    int32_t va = (int32_t)ua;
+                    int32_t vb = (int32_t)ub;
+                    int64_t prod = (int64_t)va * (int64_t)vb;
+                    uint32_t up = (uint32_t)(int32_t)prod; // wrap to i32
+                    dst->data[off] = (uint8_t)(up & 0xFFu);
+                    dst->data[off + 1] = (uint8_t)((up >> 8) & 0xFFu);
+                    dst->data[off + 2] = (uint8_t)((up >> 16) & 0xFFu);
+                    dst->data[off + 3] = (uint8_t)((up >> 24) & 0xFFu);
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_mul_i32_into expects (i32_buf, i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 82: { // oren_buf_mul_i32(a:i32_buf, b:i32_buf) -> i32_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_I32_BUF) {
+                AvmBuf* a = args[0].as.buf;
+                AvmBuf* b = args[1].as.buf;
+                if (!a || !b || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_mul_i32: invalid buffers"); break; }
+                if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_mul_i32: length mismatch"); break; }
+                AvmBuf* out = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                out->len = a->len;
+                out->elem_size = 4u;
+                uint64_t bytes_len = (uint64_t)out->len * 4ull;
+                out->data = NULL;
+                if (bytes_len > 0) {
+                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    if (!out->data) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                }
+                AvmValue dstv; dstv.type = AVM_VAL_I32_BUF; dstv.as.buf = out;
+                AvmValue argv[3]; argv[0] = dstv; argv[1] = args[0]; argv[2] = args[1];
+                res = avm_call_native(vm, 81, argv, 3);
+                if (avm_is_err_val(res)) break;
+                res.type = AVM_VAL_I32_BUF;
+                res.as.buf = out;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_mul_i32 expects (i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 83: { // oren_buf_reduce_sum_i32(buf:i32_buf) -> int
+            if (nargs > 0 && args[0].type == AVM_VAL_I32_BUF) {
+                AvmBuf* b = args[0].as.buf;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_i32: invalid buffer"); break; }
+                int64_t acc = 0;
+                for (uint32_t i = 0; i < b->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t u = (uint32_t)b->data[off]
+                               | ((uint32_t)b->data[off + 1] << 8)
+                               | ((uint32_t)b->data[off + 2] << 16)
+                               | ((uint32_t)b->data[off + 3] << 24);
+                    int32_t v = (int32_t)u;
+                    acc += (int64_t)v;
+                }
+                res = avm_int(acc);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_reduce_sum_i32 expects (i32_buf)");
+            }
+            break;
+        }
         default:
             printf("Unknown native id: %d\n", id);
             break;
