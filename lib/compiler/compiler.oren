@@ -973,6 +973,27 @@ fn run_repo_tests(target, no_gc) {
 
     oren_system("rm -f " + shell_quote(cap_proc_sp_out))
 
+    // PROC-only spawn/join (IPC over pipe): must work without FS enrollment.
+    var cap_proc_sj_out = "build/capsule_runtime_proc_spawn_join_prog"
+    var cap_proc_sj_log = "build/logs/capsule_runtime_proc_spawn_join_prog_build.log"
+    var cap_proc_sj_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_proc_spawn_join_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_proc_sj_out) + gc_arg
+    var cap_proc_sj_rc = run_shell_capture(timeout_bin, build_timeout, cap_proc_sj_cmd, cap_proc_sj_log)
+    if cap_proc_sj_rc != 0 || file_exists(cap_proc_sj_out) != true {
+        print("native failed: capsule_runtime_proc_spawn_join_prog (build)")
+        oren_system("cat " + shell_quote(cap_proc_sj_log))
+        oren_exit(1)
+    }
+
+    var cap_proc_sj_run_log = "build/logs/capsule_runtime_proc_spawn_join_prog_run.log"
+    var cap_proc_sj_run_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=PROC ./" + cap_proc_sj_out
+    var cap_proc_sj_run_rc = run_shell_capture(timeout_bin, run_timeout, cap_proc_sj_run_cmd, cap_proc_sj_run_log)
+    if cap_proc_sj_run_rc != 0 {
+        print("native failed: capsule_runtime_proc_spawn_join_prog (expected runtime capsule allow: PROC-only spawn/join)")
+        oren_system("cat " + shell_quote(cap_proc_sj_run_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_proc_sj_out))
+
     // sys_read/sys_write must not bypass NET gating on socket fds.
     // Create a socket and call sys_read/sys_write on it; it should:
     // - be denied under FS-only enrollment

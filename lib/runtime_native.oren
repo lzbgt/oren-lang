@@ -1183,13 +1183,18 @@ fn native_capsule_sys_read_pre(fd) {
     if global_get_capsule_mode() != 1 { return fd }
     var k = native_capsule_net_fd_kind_get(fd)
     if k != 0 {
-        native_capsule_require(CAP_NET, "NET")
-        // Disallow reading from listening sockets (kind=2).
-        if k == 2 {
-            print("CAPSULE DENY: NET_RECV_LISTEN")
-            exit(79)
+        if k == 10 {
+            native_capsule_require(CAP_PROC, "PROC")
+            return fd
+        } else {
+            native_capsule_require(CAP_NET, "NET")
+            // Disallow reading from listening sockets (kind=2).
+            if k == 2 {
+                print("CAPSULE DENY: NET_RECV_LISTEN")
+                exit(79)
+            }
+            return fd
         }
-        return fd
     }
 
     native_capsule_require(CAP_FS, "FS")
@@ -1206,6 +1211,20 @@ fn native_capsule_sys_pipe_pre(ptr) {
     return ptr
 }
 
+fn native_capsule_sys_pipe_post(ptr, rc) {
+    // Tag newly-created pipe fds as PROC-kind so sys_read/sys_write can allow IPC under PROC domain
+    // (without requiring FS and without confusing them as NET fds).
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc != 0 { return rc }
+    if ptr == 0 { return rc }
+    var rfd = ptr_get(ptr + 0)
+    var wfd = ptr_get(ptr + 8)
+    // Reuse the fd-kind table (rolling): kind=10 => PROC pipe.
+    native_capsule_net_fd_kind_set(rfd, 10)
+    native_capsule_net_fd_kind_set(wfd, 10)
+    return rc
+}
+
 fn native_capsule_sys_write_pre(fd) {
     // sys_write is a write operation on an existing fd.
     //
@@ -1215,13 +1234,18 @@ fn native_capsule_sys_write_pre(fd) {
     if global_get_capsule_mode() != 1 { return fd }
     var k = native_capsule_net_fd_kind_get(fd)
     if k != 0 {
-        native_capsule_require(CAP_NET, "NET")
-        // Disallow sending on listening sockets (kind=2).
-        if k == 2 {
-            print("CAPSULE DENY: NET_SEND_LISTEN")
-            exit(79)
+        if k == 10 {
+            native_capsule_require(CAP_PROC, "PROC")
+            return fd
+        } else {
+            native_capsule_require(CAP_NET, "NET")
+            // Disallow sending on listening sockets (kind=2).
+            if k == 2 {
+                print("CAPSULE DENY: NET_SEND_LISTEN")
+                exit(79)
+            }
+            return fd
         }
-        return fd
     }
 
     native_capsule_require(CAP_FS, "FS")
@@ -2257,6 +2281,13 @@ fn native_capsule_sys_fork_pre() {
     // PROC is required for fork in capsule mode.
     native_capsule_require(CAP_PROC, "PROC")
     return 0
+}
+
+fn native_capsule_sys_fork_post(pid) {
+    // Register the returned pid so raw sys_wait4/sys_kill can operate on it in capsule mode.
+    // This is required for syscall-first spawn/join (fork+pipe) to work under PROC-only enrollment.
+    native_capsule_proc_register_pid(pid)
+    return pid
 }
 
 fn native_capsule_sys_execve_pre(path, argv_ptrs, envp_ptrs) {

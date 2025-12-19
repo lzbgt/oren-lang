@@ -2164,6 +2164,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 	                push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 72))
 	                push_u32_le(ctx["code"], insn_add_sp(80))
 	                ctx["stack_size"] = ctx["stack_size"] - 80
+
+                    // post: native_capsule_sys_fork_post(pid) -> pid
+                    var bl_fork_post_linux = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fork_post_linux, "name": "native_capsule_sys_fork_post"})
 	                return true
 	            }
 
@@ -2222,10 +2227,16 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var br_parent = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0) // B.EQ done (parent)
             push_u32_le(ctx["code"], insn_movz(0, 0)) // child => 0
-            var done_pos = oren_list_len(ctx["code"])
-            set_u32_le(ctx["code"], br_parent, insn_b_cond((done_pos - br_parent) / 4, 0)) // EQ
 
-            set_u32_le(ctx["code"], br_end, insn_b((done_pos - br_end) / 4))
+            // Join point (both parent and child).
+            var join_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_parent, insn_b_cond((join_pos - br_parent) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_end, insn_b((join_pos - br_end) / 4))
+
+            // post: native_capsule_sys_fork_post(pid) -> pid
+            var bl_fork_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fork_post, "name": "native_capsule_sys_fork_post"})
             return true
         }
 
@@ -2641,25 +2652,90 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
-                
-                // Restore ptr -> X2
+
+                // Restore ptr -> X2, keep a stable copy in X3 for post-hook.
+                // IMPORTANT: pop stack unconditionally so compile-time stack tracking stays correct.
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+                push_u32_le(ctx["code"], insn_mov_reg(3, 2))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // macOS syscall convention: on error, carry is set and X0 contains errno (positive).
+                // Do not store fds on error. Normalize to X0=-errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+
+                // Error path: X0 = -errno, skip stores + post-hook.
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var br_end = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B end
+
+                // Ok path:
+                var ok_pos = oren_list_len(ctx["code"])
                 
                 // Store X0 -> [X2]
                 push_u32_le(ctx["code"], insn_str_ptr(0, 2))
                 // Store X1 -> [X2 + 8]
                 push_u32_le(ctx["code"], insn_add_imm(2, 2, 8))
                 push_u32_le(ctx["code"], insn_str_ptr(1, 2))
-                
-                push_u32_le(ctx["code"], insn_movz(0, 0)) // Return 0
+
+                // Return 0 and tag pipe fds for capsule mode (PROC IPC).
+                push_u32_le(ctx["code"], insn_movz(0, 0)) // rc=0
+                push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=rc
+                push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // X0=ptr
+                var bl_pipe_post = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post, "name": "native_capsule_sys_pipe_post"})
+                push_u32_le(ctx["code"], insn_movz(0, 0)) // return 0
+
+                var end_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+                set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
             } else {
                 // Linux pipe2(ptr, flags)
+                // NOTE: Linux pipe2 expects an `int[2]` (32-bit fds). Our native runtime ABI uses
+                // 8-byte slots (u64) for fds, so we:
+                // - call pipe2 into a temporary stack buffer (8 bytes)
+                // - widen + store into the caller's 16-byte buffer as u64s.
+                //
                 // ptr in X0.
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = out ptr (caller buffer)
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+                emit_add_sp_offset_to_reg(ctx, 0, 0) // X0 = SP (tmp int[2])
                 push_u32_le(ctx["code"], insn_movz(1, 0)) // flags = 0
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
+
+                push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = rc
+
+                // If rc==0: widen fds into caller buffer.
+                push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
+                // B.NE skip_store
+                var br_skip = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                // Load w4/w5 from tmp buffer at SP and store as x4/x5 into caller buffer.
+                push_u32_le(ctx["code"], insn_ldr_w(4, 31, 0))
+                push_u32_le(ctx["code"], insn_ldr_w(5, 31, 4))
+                push_u32_le(ctx["code"], insn_str_ptr(4, 2))
+                push_u32_le(ctx["code"], insn_add_imm(6, 2, 8))
+                push_u32_le(ctx["code"], insn_str_ptr(5, 6))
+
+                var skip_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_skip, insn_b_cond((skip_pos - br_skip) / 4, 1)) // NE
+
+                // Pop tmp buffer.
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
+                push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // X0=ptr
+                push_u32_le(ctx["code"], insn_mov_reg(1, 3)) // X1=rc
+                var bl_pipe_post2 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post2, "name": "native_capsule_sys_pipe_post"})
+                push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // return rc
             }
             return true
         }

@@ -1,0 +1,14 @@
+fn main() {
+    // Runtime capsule PROC test (spawn/join IPC):
+    // - With only PROC domain enrolled, `oren_spawn_call_list` and `oren_join` must work.
+    //
+    // This requires:
+    // - sys_pipe is PROC-gated
+    // - sys_read/sys_write on pipe fds are treated as PROC IPC (not FS, not NET)
+    var f = || 123
+    var h = oren_spawn_call_list(f, [])
+    var r = oren_join(h)
+    if r != 123 { exit(2) }
+    exit(0)
+}
+
