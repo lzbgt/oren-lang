@@ -44,10 +44,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
-   - Next deliverable: “SIMD-ready” kernel ABI + determinism hardening `[perf]`:
-     - expand kernel set to cover `mul` + `reduce` patterns needed for ML
-     - define/lock float determinism policy for consensus (no fast-math, no FMA drift, fixed reduction order)
-     - plan the mapping for future NEON/SIMD lowering (still scalar fallback today)
+   - Next deliverable: “SIMD-ready” kernel ABI freeze + NEON mapping plan `[perf]`:
+     - freeze naming + arg order for `*_into` kernels (in-place ops) as the stable ABI nucleus
+     - write the mapping plan for NEON (arm64) scalar→SIMD upgrade (still scalar fallback today)
+     - add `*_into` kernels for the remaining core set (`mul`, `scale`, `reduce`) to avoid allocation pressure
 
 2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.

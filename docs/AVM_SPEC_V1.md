@@ -223,6 +223,23 @@ Performance comes from:
 - typed buffer operations
 - vector ops implemented as single opcodes (SIMD in host / optimized interpreter loops)
 
+### 3.4 Float determinism policy (consensus safety)
+
+Consensus requires float behavior to be **repeatable** across:
+
+- macOS + Linux
+- clang + gcc
+- arm64 + x86_64 (later)
+
+Rolling policy (enforced in the repo today):
+
+- **No fast-math**: AVM is compiled without `-ffast-math`.
+- **No FP contraction / no FMA drift**: AVM is compiled with FP contraction disabled (build flags + TU pragmas).
+- **Fixed evaluation order for reductions**: buffer reductions (`dot`, `reduce_sum`) use fixed loop order and accumulate in `double`.
+- **Canonical byte encoding**: typed buffer payload bytes are little-endian canonical encodings (already required for snapshot/hash).
+
+This policy is intentionally conservative. If we later introduce a JIT, it must preserve these semantics (or explicitly switch the VM out of consensus mode).
+
 ### 3.2 Split numeric ops into typed variants
 
 The v0 design has `ADD/SUB` etc. without explicit typing. For ML, we need typed ops to avoid per-op type checks.

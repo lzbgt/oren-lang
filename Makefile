@@ -13,6 +13,12 @@ else
   CODESIGN_ARG :=
 endif
 
+# AVM C build flags (rolling):
+# - Keep AVM deterministic across platforms (no fast-math, no FP contraction/FMA drift).
+# - Keep this narrow: AVM consensus semantics depend on stable float behavior.
+AVM_CFLAGS ?= -O2
+AVM_DETERMINISM_CFLAGS ?= -fno-fast-math -ffp-contract=off
+
 # Test target selection (affects native backend + curated runner).
 # - On macOS hosts, run native backend tests as `--target macos`.
 # - On Linux hosts, run native backend tests as `--target linux`.
@@ -664,7 +670,7 @@ avm: lib/avm/main.c lib/avm/avm.h lib/avm/avm_internal.h lib/avm/sha256.c lib/av
      lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c lib/avm/avm_native.c \
      lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c
 	@echo "Building AVM..."
-	$(CC) -O2 -o avm lib/avm/main.c lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c \
+	$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -o avm lib/avm/main.c lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c \
 		lib/avm/avm_containers.c lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c \
 		lib/avm/avm_native.c lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c lib/avm/sha256.c
 
