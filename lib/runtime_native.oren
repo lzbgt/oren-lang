@@ -344,6 +344,18 @@ var CAP_PROC = 4
 var CAP_ENV = 8
 var CAP_TIME = 16
 
+// Capsule per-fd kind tags (rolling; native backend only).
+// Stored in `net_fd_caps_ptr` (byte-per-fd).
+//
+// NOTE: In rolling mode this table is shared for:
+// - NET sockets (stream/listen/dgram)
+// - PROC IPC fds (pipes used by spawn/join)
+var FD_KIND_NONE = 0
+var FD_KIND_TCP_STREAM = 1
+var FD_KIND_TCP_LISTEN = 2
+var FD_KIND_UDP_DGRAM = 3
+var FD_KIND_PROC_PIPE = 10
+
 // --- Fork hygiene (rolling; syscall-first) ---
 // After fork(), the child process inherits any in-memory locks held at the moment of fork.
 // Our native runtime allocator uses an in-memory lock keyed by a thread-id token.
@@ -419,6 +431,13 @@ fn native_runtime_init() {
     CAP_PROC = 4
     CAP_ENV = 8
     CAP_TIME = 16
+
+    // Per-fd kind tags (capsule hardening).
+    FD_KIND_NONE = 0
+    FD_KIND_TCP_STREAM = 1
+    FD_KIND_TCP_LISTEN = 2
+    FD_KIND_UDP_DGRAM = 3
+    FD_KIND_PROC_PIPE = 10
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //
@@ -1183,13 +1202,13 @@ fn native_capsule_sys_read_pre(fd) {
     if global_get_capsule_mode() != 1 { return fd }
     var k = native_capsule_net_fd_kind_get(fd)
     if k != 0 {
-        if k == 10 {
+        if k == FD_KIND_PROC_PIPE {
             native_capsule_require(CAP_PROC, "PROC")
             return fd
         } else {
             native_capsule_require(CAP_NET, "NET")
             // Disallow reading from listening sockets (kind=2).
-            if k == 2 {
+            if k == FD_KIND_TCP_LISTEN {
                 print("CAPSULE DENY: NET_RECV_LISTEN")
                 exit(79)
             }
@@ -1219,9 +1238,8 @@ fn native_capsule_sys_pipe_post(ptr, rc) {
     if ptr == 0 { return rc }
     var rfd = ptr_get(ptr + 0)
     var wfd = ptr_get(ptr + 8)
-    // Reuse the fd-kind table (rolling): kind=10 => PROC pipe.
-    native_capsule_net_fd_kind_set(rfd, 10)
-    native_capsule_net_fd_kind_set(wfd, 10)
+    native_capsule_net_fd_kind_set(rfd, FD_KIND_PROC_PIPE)
+    native_capsule_net_fd_kind_set(wfd, FD_KIND_PROC_PIPE)
     return rc
 }
 
@@ -1234,13 +1252,13 @@ fn native_capsule_sys_write_pre(fd) {
     if global_get_capsule_mode() != 1 { return fd }
     var k = native_capsule_net_fd_kind_get(fd)
     if k != 0 {
-        if k == 10 {
+        if k == FD_KIND_PROC_PIPE {
             native_capsule_require(CAP_PROC, "PROC")
             return fd
         } else {
             native_capsule_require(CAP_NET, "NET")
             // Disallow sending on listening sockets (kind=2).
-            if k == 2 {
+            if k == FD_KIND_TCP_LISTEN {
                 print("CAPSULE DENY: NET_SEND_LISTEN")
                 exit(79)
             }
@@ -1837,11 +1855,10 @@ fn native_capsule_sys_socket_pre(domain, type, protocol) {
 fn native_capsule_sys_socket_post(fd, domain, type, protocol) {
     if global_get_capsule_mode() != 1 { return fd }
     if fd < 0 { return fd }
-    // Tag fd kind:
-    // 1 = tcp stream, 2 = tcp listen, 3 = udp datagram
+    // Tag fd kind (rolling):
     if domain == 2 {
-        if type == 1 { native_capsule_net_fd_kind_set(fd, 1) }
-        if type == 2 { native_capsule_net_fd_kind_set(fd, 3) }
+        if type == 1 { native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_STREAM) }
+        if type == 2 { native_capsule_net_fd_kind_set(fd, FD_KIND_UDP_DGRAM) }
     }
     return fd
 }
@@ -1889,8 +1906,8 @@ fn native_capsule_sys_connect_post(rc, fd, addr, addrlen) {
     if global_get_capsule_mode() != 1 { return rc }
     if rc == 0 {
         // Mark stream socket as connected (still kind=1).
-        if native_capsule_net_fd_kind_get(fd) == 1 {
-            native_capsule_net_fd_kind_set(fd, 1)
+        if native_capsule_net_fd_kind_get(fd) == FD_KIND_TCP_STREAM {
+            native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_STREAM)
         }
     }
     return rc
@@ -1950,7 +1967,7 @@ fn native_capsule_sys_listen_post(rc, fd, backlog) {
     if global_get_capsule_mode() != 1 { return rc }
     if rc == 0 {
         // Mark as listening (kind=2).
-        native_capsule_net_fd_kind_set(fd, 2)
+        native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_LISTEN)
     }
     return rc
 }
@@ -1958,7 +1975,7 @@ fn native_capsule_sys_listen_post(rc, fd, backlog) {
 fn native_capsule_sys_accept_pre(fd, addr, addrlen_ptr) {
     native_capsule_require(CAP_NET, "NET")
     if global_get_capsule_mode() != 1 { return 0 }
-    if native_capsule_net_fd_kind_get(fd) != 2 {
+    if native_capsule_net_fd_kind_get(fd) != FD_KIND_TCP_LISTEN {
         print("CAPSULE DENY: NET_ACCEPT")
         exit(79)
     }
@@ -1969,7 +1986,7 @@ fn native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) {
     if global_get_capsule_mode() != 1 { return newfd }
     if newfd >= 0 {
         // Inherit "tcp stream" capability (kind=1).
-        native_capsule_net_fd_kind_set(newfd, 1)
+        native_capsule_net_fd_kind_set(newfd, FD_KIND_TCP_STREAM)
     }
     return newfd
 }
@@ -1983,7 +2000,7 @@ fn native_capsule_sys_sendto_pre(fd, buf, len, flags, to, tolen) {
         exit(79)
     }
     // Disallow sending on listening sockets.
-    if k == 2 {
+    if k == FD_KIND_TCP_LISTEN {
         print("CAPSULE DENY: NET_SEND_LISTEN")
         exit(79)
     }
@@ -2020,7 +2037,7 @@ fn native_capsule_sys_recvfrom_pre(fd, buf, len, flags, from, fromlen) {
         print("CAPSULE DENY: NET_FD")
         exit(79)
     }
-    if k == 2 {
+    if k == FD_KIND_TCP_LISTEN {
         print("CAPSULE DENY: NET_RECV_LISTEN")
         exit(79)
     }
