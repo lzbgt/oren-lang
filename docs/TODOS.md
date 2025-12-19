@@ -1,47 +1,60 @@
-# TODOs (Prioritized, Rolling)
+# TODOs (Execution Order, Rolling)
 
-This repo is in **rolling ABI** mode. This file is intentionally short (about 5-10 items): it is the execution order for the next engineering work.
+This repo is in **rolling ABI** mode. This file is intentionally short (about 5–10 items): it is the execution order for the next engineering work.
 
 - Completed / detailed history: `docs/TODOS_ARCHIVE.md`
 - Platform focus right now: **macOS arm64 first** (but avoid designs that block Linux arm64 later).
 
-## How to Verify
+## Rules (Enforced For Every Task)
 
-- Canonical curated suite (preferred): `./oren test --target macos`
-- Wrapper (same suite): `make test`
-- Legacy (larger, slower): `make test-legacy`
+These are “project laws”. If a task can’t follow these, we *change the task design*.
 
-## Next (Highest Priority First)
+1) **No hangs (timeouts everywhere)** `[safety]`
+   - Test/build steps must never block forever.
+   - Any new long-running subprocess must be wrapped in a wall-time timeout.
 
-1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
-   - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
-   - Capability enrollment model: explicit mapping virtual -> host resources; deny-by-default with capability checks at the raw `sys_*` boundary (no bypass).
-   - Next: keep `oren test` enforcing “no direct syscall bypass” in codegen; extend to cover new syscalls as they are added.
+2) **No libc shims / no libc dependency** `[arch]`
+   - Native backend output must not require `libc` facilities like `malloc/free`, `pthread`, `stdio`.
+   - Runtime must be implemented via `sys_*` primitives + `.oren` code.
 
-2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
-   - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
-   - Treat system headers as audit-only.
-   - Keep Mach-O / dyld constants repo-owned as well (prefer named constants over scattered numeric literals).
-   - Periodically refresh `docs/refs/*` from authoritative upstream sources and record the exact upstream tag/commit used (audit-only; not a build dep).
-   - macOS arm64 is largely done via `lib/compiler/arm64_abi_macos.oren` + `docs/refs/darwin_arm64_abi.md` (syscall reg/imm + core syscalls).
-   - Linux arm64 baseline table added via `lib/compiler/arm64_abi_linux.oren` (syscall reg/imm + core syscalls).
-   - Next: Linux arm64 parity tables + a single shared ABI layer used by native codegen.
-   - Keep tightening: remove remaining “magic literals” in native codegen in favor of ABI helpers.
+3) **No build-time dependency on host SDK/system headers** `[arch]`
+   - OS ABI constants live in repo-owned tables (`lib/compiler/*_abi_*.oren`).
+   - System headers are audit-only and may be vendored under `docs/refs/*` for verification.
 
-3) **P1 [correctness] String equality semantics + propagation (native backend)**
-   - Native backend uses compile-time string propagation + runtime `strcmp` (no libc); AVM/C backends use tagged strings.
-   - Keep expanding coverage via tests: list literals, `oren_list_get`, FS (`readdir`), ENV, `realpath`, `read_file`, etc.
-   - Must keep `s == nil` safe (no accidental `strcmp(s, 0)` lowering).
+4) **Syscall-first enforcement is mandatory** `[safety]`
+   - Raw syscalls must be centralized and gated (capsule pre/post hooks stay authoritative).
+   - No bypassing capsule capability checks by emitting direct `svc` / OS sysno calls outside the approved lowering modules.
 
-4) **P1 [prod] Fixed-width scalars + floats + explicit casts (network + scientific code)**
-   - Define cast semantics (truncate vs checked) and enforce consistent behavior across native/C/AVM.
-   - Extend casts to cover `f32/f64` + endian-aware helpers (`be/le`) for packed parsing.
+5) **Verify before declaring done** `[quality]`
+   - Canonical curated suite (preferred): `./oren test --target macos`
+   - Wrapper (same suite): `make test`
+
+6) **Keep this file actionable** `[maint]`
+   - Each P0/P1 item must have a concrete “Definition of Done” (DoD) and be finishable.
+   - Avoid “infinite P0s” like “harden everything” without a crisp deliverable.
+   - Keep the list 5–10 items total; merge and delete aggressively.
+
+## Tasks (Next, Highest Priority First)
+
+1) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
+   - DoD: for each raw `sys_*` that can cause host effects (FS/NET/PROC/ENV/TIME), there is a capsule pre hook and tests cover allow+deny paths.
+   - Next deliverable: add a single “capability audit test” that enumerates syscall intrinsics used by the native backend and asserts each has a pre hook.
+
+2) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
+   - DoD: `./oren test --target linux` passes on a Linux arm64 environment (QEMU host or Docker/VM), for the curated native list.
+   - Next deliverable: wire a minimal remote runner script (optional) + fix any ABI-table gaps discovered by the tests.
+
+3) **P1 [correctness] String equality semantics + propagation** *(native backend)*
+   - DoD: all string `==` cases in tests/stdlib are safe (including `nil`) and consistent across backends.
+
+4) **P1 [prod] Fixed-width scalars + floats + explicit casts** *(network + scientific code)*
+   - DoD: defined semantics for casts (truncate vs checked), `f32/f64` support, and endian-aware helpers for packed parsing.
 
 5) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
-   - Deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
+   - DoD: deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
 
 6) **P2 [ux] Tooling**
-   - `.obc` disassembler ("otool-like") + metadata extractor (reads embedded `OREN_META\n1\n` bytes convention).
+   - `.obc` disassembler (“otool-like”) + metadata extractor (reads embedded `OREN_META\n1\n` bytes convention).
 
 7) **P2 [maint] Refactors without semantic churn**
    - Split oversized modules (AVM/codegen) once behavior is covered by tests.
@@ -49,8 +62,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 ## Recently Completed (high signal)
 
 - Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
-- Native runtime: fixed map layout + growth (`{}` no longer corrupts memory) and GC marks map entries.
-- Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` outside `arm64_native_expr_syscalls.oren`, and bounds direct `insn_svc` emission.
+- Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved lowering modules, and bounds direct `insn_svc` emission.
 - OS ABI tables: repo-owned constants for `open` flags, `fcntl` cmds, `mmap` prot/flags (Darwin/Linux), with audit refs in `docs/refs/*` (incl. `darwin_sys_socket.h`, `darwin_sys_fcntl.h`).
-- NET: replaced raw `AF_INET/SOCK_STREAM/IPPROTO_TCP` literals with Oren-level constants, and translated Oren-level `getsockopt/setsockopt` IDs to OS ABI values safely (no cascading translation).
-- Older completed work is archived in `docs/TODOS_ARCHIVE.md`.
+- NET: translated Oren-level `getsockopt/setsockopt` IDs to OS ABI values safely (no cascading translation).
