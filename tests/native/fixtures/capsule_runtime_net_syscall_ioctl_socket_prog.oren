@@ -1,0 +1,11 @@
+fn main() {
+    // Raw sys_ioctl capsule test (NET-domain):
+    // - Create a socket (NET-tagged by sys_socket post-hook)
+    // - Call sys_ioctl on the socket; in capsule mode this must NOT require FS
+    //   (should be allowed with NET-only enrollment).
+    var fd = sys_socket(2, 1, 0) // AF_INET=2, SOCK_STREAM=1
+    if fd < 0 { exit(2) }
+    sys_ioctl(fd, 0, 0)
+    sys_close(fd)
+    exit(0)
+}

@@ -811,6 +811,34 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(cap_fs_sf_out))
 
+    // sys_ioctl:
+    var cap_fs_si_out = "build/capsule_runtime_fs_syscall_ioctl_prog"
+    var cap_fs_si_log = "build/logs/capsule_runtime_fs_syscall_ioctl_prog_build.log"
+    var cap_fs_si_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_ioctl_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_si_out) + gc_arg
+    var cap_fs_si_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_si_cmd, cap_fs_si_log)
+    if cap_fs_si_rc != 0 || file_exists(cap_fs_si_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_ioctl_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_si_log))
+        oren_exit(1)
+    }
+    var cap_fs_si_deny_log = "build/logs/capsule_runtime_fs_syscall_ioctl_prog_run_deny.log"
+    var cap_fs_si_deny_cmd = "OREN_CAPSULE=1 ./" + cap_fs_si_out
+    var cap_fs_si_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_si_deny_cmd, cap_fs_si_deny_log)
+    if cap_fs_si_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_ioctl_prog (expected runtime capsule deny: sys_ioctl)")
+        oren_system("cat " + shell_quote(cap_fs_si_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_si_ok_log = "build/logs/capsule_runtime_fs_syscall_ioctl_prog_run_allow.log"
+    var cap_fs_si_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_si_out
+    var cap_fs_si_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_si_ok_cmd, cap_fs_si_ok_log)
+    if cap_fs_si_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_ioctl_prog (expected runtime capsule allow: sys_ioctl)")
+        oren_system("cat " + shell_quote(cap_fs_si_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_si_out))
+
     // rmdir:
     var cap_fs_srd_out = "build/capsule_runtime_fs_syscall_rmdir_prog"
     var cap_fs_srd_log = "build/logs/capsule_runtime_fs_syscall_rmdir_prog_build.log"
@@ -1112,6 +1140,26 @@ fn run_repo_tests(target, no_gc) {
         oren_exit(1)
     }
     oren_system("rm -f " + shell_quote(cap_net_rd_out))
+
+    // sys_ioctl on a socket: should work with NET-only enrollment (must not require FS).
+    var cap_net_ioctl_out = "build/capsule_runtime_net_syscall_ioctl_socket_prog"
+    var cap_net_ioctl_log = "build/logs/capsule_runtime_net_syscall_ioctl_socket_prog_build.log"
+    var cap_net_ioctl_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_net_syscall_ioctl_socket_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_net_ioctl_out) + gc_arg
+    var cap_net_ioctl_rc = run_shell_capture(timeout_bin, build_timeout, cap_net_ioctl_cmd, cap_net_ioctl_log)
+    if cap_net_ioctl_rc != 0 || file_exists(cap_net_ioctl_out) != true {
+        print("native failed: capsule_runtime_net_syscall_ioctl_socket_prog (build)")
+        oren_system("cat " + shell_quote(cap_net_ioctl_log))
+        oren_exit(1)
+    }
+    var cap_net_ioctl_run_log = "build/logs/capsule_runtime_net_syscall_ioctl_socket_prog_run_allow.log"
+    var cap_net_ioctl_run_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=NET ./" + cap_net_ioctl_out
+    var cap_net_ioctl_run_rc = run_shell_capture(timeout_bin, run_timeout, cap_net_ioctl_run_cmd, cap_net_ioctl_run_log)
+    if cap_net_ioctl_run_rc != 0 {
+        print("native failed: capsule_runtime_net_syscall_ioctl_socket_prog (expected runtime capsule allow: NET domain)")
+        oren_system("cat " + shell_quote(cap_net_ioctl_run_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_net_ioctl_out))
 
     // sys_dup propagation: duplicating a listening socket must preserve its per-fd kind tag,
     // so sys_write on the dup'ed fd still denies NET_SEND_LISTEN.

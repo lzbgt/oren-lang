@@ -1,0 +1,8 @@
+fn main() {
+    // Raw sys_ioctl capsule test (FS-domain):
+    // - In capsule mode, sys_ioctl must be enforced at syscall boundary (no bypass).
+    // - On a non-tagged fd like stdout (fd=1), fd-domain gating classifies this as FS.
+    // - We ignore syscall rc (may be -errno like ENOTTY).
+    sys_ioctl(1, 0, 0)
+    exit(0)
+}

@@ -70,6 +70,7 @@ fn sys_fcntl(fd, cmd, arg) { return 0 }
 fn sys_dup(fd) { return 0 }
 fn sys_dup2(from, to) { return 0 }
 fn sys_dup3(from, to, flags) { return 0 }
+fn sys_ioctl(fd, req, argp) { return 0 }
 fn sys_kill(pid, signum) { return 0 }
 fn sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) { return 0 }
 fn sys_getcwd(buf, size) { return 0 }
@@ -2115,6 +2116,19 @@ fn native_capsule_sys_dup2_post(rc, oldfd, newfd) {
         }
     }
     return rc
+}
+
+fn native_capsule_sys_ioctl_pre(fd, req, argp) {
+    // Enforce domain for raw sys_ioctl boundary (no bypass).
+    //
+    // ioctl is extremely powerful: it can mutate kernel-visible state associated with an fd,
+    // including socket flags, tty/pty settings, and various device controls.
+    // In capsule mode, we gate it based on fd kind:
+    // - NET-tagged fds require NET
+    // - PROC pipes require PROC
+    // - other fds require FS
+    native_capsule_require_fd_domain(fd)
+    return 0
 }
 
 fn native_capsule_sys_sendto_pre(fd, buf, len, flags, to, tolen) {
