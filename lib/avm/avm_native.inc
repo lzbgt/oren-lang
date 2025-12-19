@@ -1614,6 +1614,61 @@ static char* avm_fs_map_path(const AvmVM* vm, const char* vpath, int is_write, i
     return out;
 }
 
+static const char* avm_fs_op_name(uint16_t op) {
+    switch (op) {
+        case 0: return "read_file";
+        case 1: return "write_file";
+        case 2: return "write_bytes";
+        case 3: return "read_bytes";
+        case 4: return "exists";
+        case 5: return "readdir";
+        default: return "fs_op";
+    }
+}
+
+static void avm_format_path_short(char* out, size_t outn, const char* path) {
+    if (!out || outn == 0) return;
+    if (!path) {
+        snprintf(out, outn, "<null>");
+        return;
+    }
+    size_t n = strlen(path);
+    if (n <= 160) {
+        snprintf(out, outn, "'%s'", path);
+        return;
+    }
+    // Keep a deterministic short prefix/suffix for diagnostics (avoid huge error strings).
+    // Format: 'prefix...suffix'
+    char pfx[81];
+    char sfx[61];
+    memcpy(pfx, path, 80);
+    pfx[80] = 0;
+    memcpy(sfx, path + (n - 60), 60);
+    sfx[60] = 0;
+    snprintf(out, outn, "'%s...%s'", pfx, sfx);
+}
+
+static AvmValue avm_err_fs_mount_denied(uint8_t domain, uint16_t op, const char* path, int is_write) {
+    char pbuf[220];
+    avm_format_path_short(pbuf, sizeof(pbuf), path);
+
+    const char* opname = avm_fs_op_name(op);
+    const char* rw = is_write ? "write" : "read";
+
+    // Keep message concise but actionable. Mention both AVM_* and OREN_* env vars because
+    // ./avm can be used as a runner for programs compiled from the same sources as native.
+    char msg[600];
+    snprintf(
+        msg,
+        sizeof(msg),
+        "fs mount denied (%s/%s): path=%s; hint: set AVM_FS_MOUNTS[_READ|_WRITE] (or OREN_FS_MOUNTS[_READ|_WRITE])",
+        opname,
+        rw,
+        pbuf
+    );
+    return avm_err_domop(AVM_ERR_PERM, msg, (int)domain, (int)op);
+}
+
 static int cmp_avm_value_string(const void* a, const void* b) {
     const AvmValue* va = (const AvmValue*)a;
     const AvmValue* vb = (const AvmValue*)b;
@@ -2016,7 +2071,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
                     int matched = 0;
                     mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
-                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
                     if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                     tmp_args[0] = args[0];
                     tmp_args[0].as.p = mapped;
@@ -2036,7 +2091,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
                     int matched = 0;
                     mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
-                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
                     if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                     tmp_args[0] = args[0];
                     tmp_args[0].as.p = mapped;
@@ -2056,7 +2111,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
                     int matched = 0;
                     mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
-                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
                     if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                     tmp_args[0] = args[0];
                     tmp_args[0].as.p = mapped;
@@ -2076,7 +2131,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 if (vm && vm->fs_backend_kind == 0 && mounts_mode && nargs > 0 && args && args[0].type == AVM_VAL_STRING) {
                     int matched = 0;
                     mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
-                    if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                    if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
                     if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                     tmp_args[0] = args[0];
                     tmp_args[0].as.p = mapped;
@@ -2097,7 +2152,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     if (vm && vm->fs_backend_kind == 0 && mounts_mode && args[0].as.p) {
                         int matched = 0;
                         mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
-                        if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                        if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
                         if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                         tmp_args[0] = args[0];
                         tmp_args[0].as.p = mapped;
@@ -2133,7 +2188,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     if (vm && vm->fs_backend_kind == 0 && mounts_mode && args[0].as.p) {
                         int matched = 0;
                         mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
-                        if (!matched) return avm_err_domop(AVM_ERR_PERM, "fs mount denied", domain, op);
+                        if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
                         if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                         tmp_args[0] = args[0];
                         tmp_args[0].as.p = mapped;

@@ -9,6 +9,20 @@ fn assert_true(x, msg) {
     fail(msg)
 }
 
+fn string_contains(hay, needle) {
+    if hay == nil || needle == nil { return false }
+    var hl = oren_string_len(hay)
+    var nl = oren_string_len(needle)
+    if nl == 0 { return true }
+    if hl < nl { return false }
+    var i = 0
+    while i <= hl - nl {
+        if oren_string_slice(hay, i, i + nl) == needle { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn main() {
     // This test is intended to run with:
     //   --fs-backend host
@@ -51,8 +65,13 @@ fn main() {
     var w2 = oren_write_file(deny_path, "nope")
     assert_true(oren_is_err(w2), "expected mount deny for non-mounted path")
 
+    // Deny diagnostics should be actionable (include the path and mention mounts).
+    var msg = oren_err_msg(w2)
+    assert_true(string_contains(msg, "mount denied"), "expected deny msg contains 'mount denied'")
+    assert_true(string_contains(msg, deny_path), "expected deny msg contains denied path; msg=" + msg)
+    assert_true(string_contains(msg, "AVM_FS_MOUNTS"), "expected deny msg contains env hint; msg=" + msg)
+
     oren_exit(0)
 }
 
 main()
-

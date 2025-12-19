@@ -16,7 +16,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Capability enrollment model: explicit mapping virtual -> host resources; deny-by-default with capability checks at the raw `sys_*` boundary (no bypass).
-   - Next: mounts UX polish + virtual mount mirroring (native/AVM) + scan for remaining direct-syscall bypasses in codegen and close them.
+   - Next: scan for remaining direct-syscall bypasses in codegen and close them; keep mount deny diagnostics consistent (native/AVM).
 
 2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
    - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
@@ -62,5 +62,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native stmt codegen: fixed `ExprStmt` to always evaluate expressions (calls are side-effectful) and removed a syscall fast-path that bypassed capsule gating for statement-position `sys_write`.
 - Native stmt codegen: removed direct `sys_write` emission for `print("literal")`; print now flows through runtime `oren_print` so syscall gating applies. Stdout/stderr writes are treated as a diagnostic channel (allowed even without FS enrollment).
 - Native expr codegen: removed unreachable legacy spawn lowering that embedded raw syscalls (runtime spawn uses `oren_spawn_call_list` instead).
+- AVM host FS: improved mount deny diagnostics to include op + path + env hint (keeps behavior aligned with native capsule UX).
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).
