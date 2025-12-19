@@ -49,21 +49,30 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - implement NEON for `f32` elementwise kernels (`*_add_*_into`, `*_mul_*_into`, `*_scale_*_into`)
      - validate determinism invariants (smoke suite + snapshot/resume hash stability) with SIMD on/off
 
-2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
+2) **P1 [lang] Explicit fixed-width numeric types + type annotations** `[perf]`
+   - DoD: Oren can express deterministic, hardware-level layouts without abusing attributes:
+     - built-in type tokens: `u8/i8/u16/i16/u32/i32/u64/i64/u128/i128/f32/f64/bool`
+     - type annotation syntax works for locals, params, returns, and struct fields
+   - Next deliverables (in order):
+     - parser+AST: `name: Type` and `Type` tokens for the fixed-width set
+     - codegen: exact-size memory layout for those types (esp. `packed` structs and endian casts)
+     - keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system
+
+3) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
    - Next deliverables (in order):
      - compile-time ambiguity diagnostics for multiple impls of the same `Type.method`
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
-3) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
+4) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
    - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
    - Next deliverable: define the minimal “AVM-in-Oren” surface area (hosted by C AVM first).
 
-4) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
+5) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
    - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
    - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
 
-5) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+6) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
    - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
