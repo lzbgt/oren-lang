@@ -53,5 +53,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native runtime: fixed map layout to be list-like (`[count][cap][entries_ptr][magic]`) and implemented growth; fixes `{}` OOB corruption and unblocks `std/json` + smoke suite.
 - Native syscall lowering: preserve heap regs around every `svc` (defense-in-depth; rolling ABI stability).
 - Repo test runner: added syscall-first policy guard that forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved compiler modules.
+- Repo test runner: extended syscall-first policy guard to also bound direct `svc` emission (`insn_svc`) to the minimal approved files (entry stub + allocator slow path).
 - ABI tables: added repo-owned `mmap` PROT/FLAGS constants (Darwin/Linux) and removed numeric literals from native allocator codegen.
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

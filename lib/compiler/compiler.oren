@@ -285,6 +285,58 @@ fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
     return 0
 }
 
+fn count_substring_in_src(src, needle) {
+    if src == nil || needle == nil { return 0 }
+    var sb = oren_bytes_from_string(src)
+    var nb = oren_bytes_from_string(needle)
+    var sl = oren_list_len(sb)
+    var nl = oren_list_len(nb)
+    if nl == 0 { return 0 }
+    if sl < nl { return 0 }
+
+    var count = 0
+    var i = 0
+    while i + nl <= sl {
+        var ok = true
+        var j = 0
+        while j < nl {
+            if sb[i + j] != nb[j] { ok = false; break }
+            j = j + 1
+        }
+        if ok {
+            count = count + 1
+            i = i + nl
+        } else {
+            i = i + 1
+        }
+    }
+    return count
+}
+
+fn enforce_svc_emit_policy(file, allowed_svc_emits) {
+    var src = oren_read_file(file)
+    if oren_is_err(src) {
+        print("ERROR: failed to read for svc-policy check: " + file)
+        var msg = oren_err_msg(src)
+        if msg != nil { print(msg) }
+        oren_exit(2)
+    }
+
+    // Only count actual instruction emission, not function definitions.
+    var pattern = "push_u32_le(ctx[\"code\"], insn_svc("
+    var n = count_substring_in_src(src, pattern)
+    if n != allowed_svc_emits {
+        print("FAIL: syscall-first policy violation in " + file)
+        print("Unexpected number of direct `insn_svc` emissions.")
+        print("  expected: " + oren_int_to_string(allowed_svc_emits))
+        print("  found:    " + oren_int_to_string(n))
+        print("Rule: only arm64_native_expr_syscalls.oren should emit syscalls for OS ops;")
+        print("      other files may only emit svc for allocator/entry-stub special cases.")
+        oren_exit(1)
+    }
+    return 0
+}
+
 fn run_repo_tests(target, no_gc) {
     // Repo-wide curated runner:
     // - native tests compiled+run with native backend
@@ -312,6 +364,14 @@ fn run_repo_tests(target, no_gc) {
     enforce_syscall_policy("lib/compiler/arm64_native_stmt.oren", [], [])
     enforce_syscall_policy("lib/compiler/arm64_native_program.oren", ["exit"], ["exit"])
     enforce_syscall_policy("lib/compiler/arm64_native_expr.oren", ["mmap", "exit"], ["mmap", "exit"])
+
+    // Also enforce direct `svc` emission is limited to the few approved files.
+    //
+    // NOTE: we intentionally do not try to audit arm64_native_expr_syscalls.oren here
+    // because it is the central syscall lowering module and legitimately emits many svc.
+    enforce_svc_emit_policy("lib/compiler/arm64_native_stmt.oren", 0)
+    enforce_svc_emit_policy("lib/compiler/arm64_native_program.oren", 2)
+    enforce_svc_emit_policy("lib/compiler/arm64_native_expr.oren", 2)
 
     // Curated lists (canonical; keep Makefile as a thin wrapper if still present).
     var native_tests = [
