@@ -18,8 +18,11 @@ cd "$ROOT_DIR"
 
 IMAGE="${OREN_DOCKER_IMAGE:-ubuntu:24.04}"
 TIMEOUT_SECS="${OREN_DOCKER_TIMEOUT_SECS:-15}"
-KEEP="${OREN_DOCKER_KEEP:-0}"
-NAME="${OREN_DOCKER_NAME:-oren-linux-smoke}"
+# Default to a persistent container so we can reuse installed tools and avoid
+# repeated apt installs / cold starts.
+KEEP="${OREN_DOCKER_KEEP:-1}"
+NAME="${OREN_DOCKER_NAME:-oren-linux-dev}"
+RESTART="${OREN_DOCKER_RESTART:-1}"
 
 echo "[linux-docker-smoke] image=$IMAGE timeout=${TIMEOUT_SECS}s"
 
@@ -63,7 +66,13 @@ if [[ "$KEEP" == "1" ]]; then
   if ! docker inspect "$NAME" >/dev/null 2>&1; then
     docker create --name "$NAME" "${DOCKER_RUN_ARGS[@]}" "$IMAGE" bash -lc "sleep infinity" >/dev/null
   fi
-  docker start "$NAME" >/dev/null
+  docker start "$NAME" >/dev/null || true
+  if [[ "$RESTART" == "1" ]]; then
+    # On Docker Desktop's bind mounts, updating a file in-place on the host can
+    # sometimes be observed late inside a long-lived container. A cheap restart
+    # makes the test runner deterministic.
+    docker restart "$NAME" >/dev/null
+  fi
   docker exec "$NAME" bash -lc "
 set -euo pipefail
 cd /smoke

@@ -528,6 +528,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
         push_u64_le(p, oren_list_len(name_bytes))
         var k = 0
         while k < oren_list_len(name_bytes) { bytes_push(p, name_bytes[k]); k = k + 1 }
+        while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
         
         var params = f["params"]
         push_u64_le(p, oren_list_len(params))
@@ -538,6 +539,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
             push_u64_le(p, oren_list_len(pname_bytes))
             var m = 0
             while m < oren_list_len(pname_bytes) { bytes_push(p, pname_bytes[m]); m = m + 1 }
+            while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
             push_u64_le(p, param["offset"])
             j = j + 1
         }
@@ -700,12 +702,12 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     if debug_mode {
         var debug_blob = emit_debug_info(ctx, text_base, header_size)
         while int_mod(oren_list_len(data), 8) != 0 { bytes_push(data, 0) }
-        var debug_off = oren_list_len(data)
         var bi = 0
         while bi < oren_list_len(debug_blob) {
             bytes_push(data, debug_blob[bi])
             bi = bi + 1
         }
+        var debug_off = oren_list_len(data) - oren_list_len(debug_blob)
         if ctx["debug_fixup_pos"] != nil {
             oren_list_push(fixups, {"type": "adr_data", "pos": ctx["debug_fixup_pos"], "data_off": debug_off})
             

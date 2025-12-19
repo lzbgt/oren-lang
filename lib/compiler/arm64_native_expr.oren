@@ -272,6 +272,9 @@ fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_ldadd(rs, rt, rn) { return core.insn_ldadd(rs, rt, rn) }
 fn insn_cas(rs, rt, rn) { return core.insn_cas(rs, rt, rn) }
+fn insn_ldaxr(rt, rn) { return core.insn_ldaxr(rt, rn) }
+fn insn_stlxr(rs, rt, rn) { return core.insn_stlxr(rs, rt, rn) }
+fn insn_clrex() { return core.insn_clrex() }
 fn insn_ldrb(rt, rn) { return core.insn_ldrb(rt, rn) }
 fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
 fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
@@ -1501,18 +1504,39 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 16
             
-            // CAS X1 (expected), X0 (new), [X2]
-            // CAS Xs, Xt, [Xn] : reads [Xn], compares with Xs. if eq, write Xt.
-            // Old value loaded to Xs.
-            // We need result in X0.
-            // CAS X1, X0, [X2] updates X1 with old value.
-            // We want boolean success? Or just old value?
-            // Usually returns old value.
-            
-            push_u32_le(ctx["code"], insn_cas(1, 0, 2))
-            
-            // Result in X1. Move to X0.
-            push_u32_le(ctx["code"], insn_add_imm(0, 1, 0))
+            // atomic_cas returns the old value.
+            //
+            // Implement CAS via LL/SC so generated binaries run on baseline arm64
+            // CPUs that do not expose LSE atomics (CAS/LDADD).
+            //
+            // Inputs:
+            // - X2 = ptr
+            // - X1 = expected
+            // - X0 = new
+            //
+            // Output:
+            // - X0 = old value
+            var loop_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], insn_ldaxr(3, 2))       // X3 = *ptr (acquire)
+            push_u32_le(ctx["code"], insn_cmp_reg(3, 1))     // old ?= expected
+            var br_fail = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)                      // B.NE fail
+            push_u32_le(ctx["code"], insn_stlxr(4, 0, 2))    // W4 = status, *ptr = new (release)
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 31))    // status ?= 0
+            var br_retry = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)                      // B.NE loop
+            var br_done = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)                      // B done
+
+            var fail_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], insn_clrex())           // drop exclusivity when abandoning store
+
+            var done_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_fail, insn_b_cond((fail_pos - br_fail) / 4, 1))     // NE
+            set_u32_le(ctx["code"], br_retry, insn_b_cond((loop_pos - br_retry) / 4, 1))   // NE
+            set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+
+            push_u32_le(ctx["code"], insn_add_imm(0, 3, 0))  // return old value
             return nil
         }
         

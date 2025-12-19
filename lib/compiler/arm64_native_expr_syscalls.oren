@@ -81,6 +81,9 @@ fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_ldadd(rs, rt, rn) { return core.insn_ldadd(rs, rt, rn) }
 fn insn_cas(rs, rt, rn) { return core.insn_cas(rs, rt, rn) }
+fn insn_ldaxr(rt, rn) { return core.insn_ldaxr(rt, rn) }
+fn insn_stlxr(rs, rt, rn) { return core.insn_stlxr(rs, rt, rn) }
+fn insn_clrex() { return core.insn_clrex() }
 fn insn_ldrb(rt, rn) { return core.insn_ldrb(rt, rn) }
 fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
 fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
@@ -3610,9 +3613,26 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             // Current X0 is val.
             // Move val to X1.
             push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
-            
-            // LDADD X1, X0, [X2]
-            push_u32_le(ctx["code"], insn_ldadd(1, 0, 2))
+
+            // atomic_add returns the old value. Implement via LL/SC so Linux arm64
+            // binaries can run on CPUs/environments without LSE atomics (LDADD).
+            //
+            // Inputs:
+            // - X2 = ptr
+            // - X1 = addend
+            //
+            // Output:
+            // - X0 = old value
+            var loop_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], insn_ldaxr(3, 2))        // X3 = *ptr (acquire)
+            push_u32_le(ctx["code"], insn_add_reg(5, 3, 1))   // X5 = old + addend
+            push_u32_le(ctx["code"], insn_stlxr(4, 5, 2))     // W4 = status, *ptr = new (release)
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 31))     // status ?= 0
+            var br_retry = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)                       // B.NE loop
+            set_u32_le(ctx["code"], br_retry, insn_b_cond((loop_pos - br_retry) / 4, 1)) // NE
+
+            push_u32_le(ctx["code"], insn_add_imm(0, 3, 0))   // return old value
             return true
         }
         

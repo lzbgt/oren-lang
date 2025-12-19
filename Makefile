@@ -13,6 +13,20 @@ else
   CODESIGN_ARG :=
 endif
 
+# Test target selection (affects native backend + curated runner).
+# - On macOS hosts, run native backend tests as `--target macos`.
+# - On Linux hosts, run native backend tests as `--target linux`.
+OREN_TEST_TARGET ?=
+ifeq ($(strip $(OREN_TEST_TARGET)),)
+  ifeq ($(UNAME_S),Darwin)
+    OREN_TEST_TARGET := macos
+  else ifeq ($(UNAME_S),Linux)
+    OREN_TEST_TARGET := linux
+  else
+    OREN_TEST_TARGET := macos
+  endif
+endif
+
 # Test runner settings
 TEST_TIMEOUT_SECS ?= 10
 # Build steps can legitimately take longer than executing tests, especially when
@@ -119,7 +133,7 @@ test-inner: oren avm oretest
 	@# - timeout-protected
 	@# - failure-only output
 	@# - curated lists are in sync with repo evolution
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oretest --target macos $(GC_ARG)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oretest --target $(OREN_TEST_TARGET) $(GC_ARG)
 
 # Legacy suite: historical Makefile-driven runner.
 # Keep it for “extra coverage” during rolling refactors, but do not make it the default.

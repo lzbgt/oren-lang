@@ -155,7 +155,7 @@ If you are developing on macOS and need to verify the Linux ARM64 binaries gener
 
 Trusted validation host (repo convention):
 
-- SSH: `blu@qemu-blu.localc`
+- SSH: `blu@qemu-blu.local` (or `blu@192.168.66.212`)
 
 Workflow:
 
@@ -174,10 +174,22 @@ scp build/linux_hello blu@qemu-blu.localc:/home/blu/
 3) Run it:
 
 ```bash
-ssh blu@qemu-blu.localc "chmod +x linux_hello && ./linux_hello"
+ssh blu@qemu-blu.local "chmod +x linux_hello && ./linux_hello"
 ```
 
 This avoids maintaining local VM images, and it matches the project direction: **Linux parity early** without slowing down macOS iteration.
+
+#### Running the full curated suite on the remote host
+
+For Linux parity work, it’s more useful to run the curated suite (`./oretest --target linux`) on the Linux ARM64 host.
+
+This repo provides a helper script:
+
+```bash
+SSH_DEST=blu@qemu-blu.local ./scripts/oretest_remote_linux_arm64.sh
+```
+
+This script does not store credentials; it relies on your SSH config/key and copies the current repo state to the remote host under `/tmp/`.
 
 ### Option B (optional): local QEMU VM on macOS
 

@@ -3344,6 +3344,11 @@ var g_slide = 0
 var g_prog_pc_min = 0
 var g_prog_pc_max = 0
 
+fn align_ptr8(ptr) {
+    while (ptr & 7) != 0 { ptr = ptr + 1 }
+    return ptr
+}
+
 fn compute_program_pc_bounds() {
     // Best-effort: compute min/max static PC covered by debug function ranges.
     // This is used to avoid mis-labeling host/shared-library PCs via resolve_symbol().
@@ -3364,12 +3369,15 @@ fn compute_program_pc_bounds() {
 
         var name_len = ptr_get_u64(ptr)
         ptr = ptr + 8 + name_len
+        ptr = align_ptr8(ptr)
         var p_count = ptr_get_u64(ptr)
         ptr = ptr + 8
         var j = 0
         while j < p_count {
             var pname_len = ptr_get_u64(ptr)
-            ptr = ptr + 8 + pname_len + 8 // +8 for offset
+            ptr = ptr + 8 + pname_len
+            ptr = align_ptr8(ptr)
+            ptr = ptr + 8 // offset
             j = j + 1
         }
         i = i + 1
@@ -3424,12 +3432,15 @@ fn find_func_info(pc) {
         
         var name_len = ptr_get_u64(ptr)
         ptr = ptr + 8 + name_len
+        ptr = align_ptr8(ptr)
         var p_count = ptr_get_u64(ptr)
         ptr = ptr + 8
         var j = 0
         while j < p_count {
             var pname_len = ptr_get_u64(ptr)
-            ptr = ptr + 8 + pname_len + 8 // +8 for offset
+            ptr = ptr + 8 + pname_len
+            ptr = align_ptr8(ptr)
+            ptr = ptr + 8 // offset
             j = j + 1
         }
         i = i + 1
@@ -3510,6 +3521,7 @@ fn stack_trace_debug() {
             print(string_concat(s4, ")"))
             
             var ptr = info_ptr + 8 + name_len
+            ptr = align_ptr8(ptr)
             var p_count = ptr_get_u64(ptr)
             ptr = ptr + 8
             var j = 0
@@ -3517,6 +3529,7 @@ fn stack_trace_debug() {
                 var pname_len = ptr_get_u64(ptr)
                 var pname = read_string_at(ptr + 8, pname_len)
                 ptr = ptr + 8 + pname_len
+                ptr = align_ptr8(ptr)
                 var offset = ptr_get_u64(ptr)
                 ptr = ptr + 8
 

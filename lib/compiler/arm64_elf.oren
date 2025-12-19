@@ -17,15 +17,58 @@ fn align_up(n, align) { return codegen.align_up(n, align) }
 fn int_mod(a, b) { return codegen.int_mod(a, b) }
 
 fn insn_movz(reg, imm16) { return codegen.insn_movz(reg, imm16) }
+fn insn_movk(reg, imm16, shift_idx) { return codegen.insn_movk(reg, imm16, shift_idx) }
 fn insn_ret() { return codegen.insn_ret() }
 fn insn_bl(off) { return codegen.insn_bl(off) }
 fn insn_adr(reg, imm) { return codegen.insn_adr(reg, imm) }
 
 fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }
 
+fn u64_2_32() { return 4294967296 } // 2^32, used for MOVK lane extraction
+fn u64_2_48() { return 281474976710656 } // 2^48, used for MOVK lane extraction
+
 fn push_u16_le(buf, n) {
     bytes_push(buf, int_mod(n, 256))
     bytes_push(buf, int_mod(n / 256, 256))
+}
+
+fn emit_debug_info(ctx, text_base, header_size) {
+    var p = bytes_new()
+    var funcs = ctx["debug_info"]["funcs"]
+    var count = oren_list_len(funcs)
+    push_u64_le(p, count)
+    
+    var i = 0
+    while i < count {
+        var f = funcs[i]
+        // Absolute __TEXT addresses (for debug tooling) are based on the final load address.
+        // Keep this derived from the current layout (no magic constants).
+        var base = text_base + header_size
+        push_u64_le(p, base + f["start"])
+        push_u64_le(p, base + f["end"])
+        
+        var name_bytes = oren_bytes_from_string(f["name"])
+        push_u64_le(p, oren_list_len(name_bytes))
+        var k = 0
+        while k < oren_list_len(name_bytes) { bytes_push(p, name_bytes[k]); k = k + 1 }
+        while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+        
+        var params = f["params"]
+        push_u64_le(p, oren_list_len(params))
+        var j = 0
+        while j < oren_list_len(params) {
+            var param = params[j]
+            var pname_bytes = oren_bytes_from_string(param["name"])
+            push_u64_le(p, oren_list_len(pname_bytes))
+            var m = 0
+            while m < oren_list_len(pname_bytes) { bytes_push(p, pname_bytes[m]); m = m + 1 }
+            while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+            push_u64_le(p, param["offset"])
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return p
 }
 
 fn elf_build_prefix_arm64(text_size, code, entry_idx) {
@@ -90,8 +133,41 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         
         i_imp = i_imp + 1
     }
-    
+
+    // Keep data 8-byte aligned in the final image.
+    // The native runtime does `ptr_get_u64` reads from tables in `.data` (debug info,
+    // container headers, etc), which must be aligned for `LDR Xn, [Xm]` on some kernels.
+    while int_mod(oren_list_len(code), 8) != 0 { bytes_push(code, 0) }
     var code_len_before_data = oren_list_len(code)
+    
+    // Append debug info (Linux ELF).
+    //
+    // Without this, linux `--debug` builds leave an unpatched 0-word placeholder
+    // at ctx["debug_fixup_pos"], which becomes an illegal instruction (UDF #0)
+    // at runtime.
+    if debug_mode {
+        var text_base = 4194304 // 0x400000
+        var header_size = 120   // Ehdr + Phdr size
+        var debug_blob = emit_debug_info(ctx, text_base, header_size)
+        while int_mod(oren_list_len(data), 8) != 0 { bytes_push(data, 0) }
+        var bi = 0
+        while bi < oren_list_len(debug_blob) {
+            bytes_push(data, debug_blob[bi])
+            bi = bi + 1
+        }
+        var debug_off = oren_list_len(data) - oren_list_len(debug_blob)
+        if ctx["debug_fixup_pos"] != nil {
+            oren_list_push(fixups, {"type": "adr_data", "pos": ctx["debug_fixup_pos"], "data_off": debug_off})
+            
+            var sa = text_base + header_size + code_len_before_data + debug_off
+            var p = ctx["debug_static_addr_pos"]
+            set_u32_le(code, p, insn_movz(1, int_mod(sa, 65536)))
+            set_u32_le(code, p+4, insn_movk(1, int_mod(sa / 65536, 65536), 1))
+            set_u32_le(code, p+8, insn_movk(1, int_mod(sa / u64_2_32(), 65536), 2))
+            set_u32_le(code, p+12, insn_movk(1, int_mod(sa / u64_2_48(), 65536), 3))
+        }
+    }
+    
     bytes_extend(code, data)
     
     if functions["main"] == nil {

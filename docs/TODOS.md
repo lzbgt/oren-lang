@@ -34,6 +34,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Avoid “infinite P0s” like “harden everything” without a crisp deliverable.
    - Keep the list 5–10 items total; merge and delete aggressively.
 
+7) **Linux Docker runner is persistent** `[maint]`
+   - Use a long-lived linux/arm64 container for smoke tests (avoid `docker run --rm` + repeated installs).
+   - Prefer reusing `OREN_DOCKER_NAME=oren-linux-dev` and restarting it when needed to refresh bind mounts.
+
 ## Tasks (Next, Highest Priority First)
 
 1) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
@@ -43,7 +47,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 2) **P0 [maint] Linux arm64 syscall parity for the curated native suite**
    - DoD: `./oretest --target linux` passes on a Linux arm64 environment (QEMU host or Docker/VM), for the curated native list.
-   - Next deliverable: wire a minimal remote runner script (optional) + fix any ABI-table gaps discovered by the tests.
+   - Status: `make test` now auto-selects `--target linux` when run on a Linux host.
+   - Status (Docker): `tools/linux_native_smoke_docker.sh` passes on Docker Desktop linux/arm64 (persistent container).
+   - Next deliverable: run `SSH_DEST=blu@qemu-blu.local ./scripts/oretest_remote_linux_arm64.sh` and fix any ABI-table gaps discovered.
 
 3) **P1 [lang] Explicit numeric types: v1 semantics + casts**
    - DoD: decide whether `u8/i32/f64/...` are:
@@ -74,3 +80,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Capsule P0: added a fast static “capsule syscall prehook audit” in `./oretest` to prevent bypass regressions.
 - OS ABI tables: repo-owned constants for `open` flags, `fcntl` cmds, `mmap` prot/flags (Darwin/Linux), with audit refs in `docs/refs/*` (incl. `darwin_sys_socket.h`, `darwin_sys_fcntl.h`).
 - NET: translated Oren-level `getsockopt/setsockopt` IDs to OS ABI values safely (no cascading translation).
+- Linux arm64 execution baseline: removed dependence on LSE atomics (CAS/LDADD) by lowering `atomic_add/atomic_cas` via LL/SC loops (LDAXR/STLXR).
+- Linux ELF debug builds: emit + patch debug info so `--debug` linux binaries no longer crash (ELF `adr_data` fixup + 8-byte aligned debug blob parsing).

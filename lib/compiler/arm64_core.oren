@@ -579,6 +579,24 @@ fn insn_cas(rs, rt, rn) {
     return 3365993472 + (rs * 65536) + (rn * 32) + rt
 }
 
+fn insn_ldaxr(rt, rn) {
+    // LDAXR Xt, [Xn]
+    // Encoding (arm64): 0xC85FFC00 | (rn << 5) | rt
+    return 3361733632 + (rn * 32) + rt
+}
+
+fn insn_stlxr(rs, rt, rn) {
+    // STLXR Ws, Xt, [Xn]
+    // Encoding (arm64): 0xC800FC00 | (rs << 16) | (rn << 5) | rt
+    // Note: status register is a W-reg (lower 32 bits of Xrs).
+    return 3355507712 + (rs * 65536) + (rn * 32) + rt
+}
+
+fn insn_clrex() {
+    // CLREX
+    return 3573759839
+}
+
 fn insn_ldrb(rt, rn) {
     return 960495616 + (rn * 32) + rt
 }
