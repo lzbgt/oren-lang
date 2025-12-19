@@ -2307,6 +2307,21 @@ fn native_capsule_sys_fork_post(pid) {
     return pid
 }
 
+fn native_capsule_sys_gettimeofday_pre(tv_ptr, tz_ptr, abs_ptr) {
+    // Enforce TIME enrollment at raw sys_gettimeofday boundary (no bypass).
+    native_capsule_require(CAP_TIME, "TIME")
+    return 0
+}
+
+fn native_capsule_sys_nanosleep_pre(ns) {
+    // Enforce TIME enrollment at raw sys_nanosleep boundary (no bypass).
+    //
+    // Optimization: ns<=0 is a no-op; allow it without TIME to avoid surprising callers.
+    if ns <= 0 { return ns }
+    native_capsule_require(CAP_TIME, "TIME")
+    return ns
+}
+
 fn native_capsule_sys_execve_pre(path, argv_ptrs, envp_ptrs) {
     // Enforce PROC enrollment on raw sys_execve (no bypass).
     //

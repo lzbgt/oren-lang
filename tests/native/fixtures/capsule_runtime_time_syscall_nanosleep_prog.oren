@@ -1,0 +1,9 @@
+fn main() {
+    // Raw sys_nanosleep capsule TIME test:
+    // - In capsule mode, sys_nanosleep(ns>0) must be enforced at syscall boundary (no bypass).
+    // Keep this tiny to avoid slowing the test suite.
+    var rc = sys_nanosleep(1000000) // 1ms
+    if rc < 0 { exit(2) }
+    print("ok")
+}
+

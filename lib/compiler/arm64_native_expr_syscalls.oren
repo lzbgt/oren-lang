@@ -1742,6 +1742,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             // We standardize the Oren-side signature to always accept 3 args.
             // On Linux we ignore the 3rd arg.
 
+            // Keep args on stack so we can call capsule enforcement helpers without losing values.
             compile_expr(ctx, args[0]) // tv_ptr -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1753,17 +1754,23 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[2]) // abs_ptr -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = abs_ptr (macOS only)
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop tz_ptr -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
+            // NOTE: on Linux abs is ignored, but capsule TIME policy still applies.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // tv
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // tz
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // abs
+            var bl_gtod_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_gtod_pre, "name": "native_capsule_sys_gettimeofday_pre"})
 
-            // Pop tv_ptr -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall (pre-hook may clobber regs).
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // tv
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // tz
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // abs (macOS only; cleared for Linux below)
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
@@ -1796,6 +1803,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // Pop abs + tz + tv
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
             return true
         }
 
@@ -1810,6 +1823,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             // cancellable PROC/NET ops and for native scheduler readiness.
 
             compile_expr(ctx, args[0]) // ns -> X0
+
+            // pre: native_capsule_sys_nanosleep_pre(ns) -> ns (may return <=0 to skip sleep)
+            var bl_ns_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_ns_pre, "name": "native_capsule_sys_nanosleep_pre"})
 
             // Preserve heap globals across syscalls (rolling ABI hygiene).
             push_u32_le(ctx["code"], insn_sub_sp(16))

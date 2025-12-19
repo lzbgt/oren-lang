@@ -1,0 +1,12 @@
+fn main() {
+    // Raw sys_gettimeofday capsule TIME test:
+    // - In capsule mode, sys_gettimeofday must be enforced at syscall boundary (no bypass).
+    var tv = malloc(16)
+    if tv == 0 { exit(3) }
+    ptr_set(tv + 0, 0)
+    ptr_set(tv + 8, 0)
+    var rc = sys_gettimeofday(tv, 0, 0)
+    if rc < 0 { exit(4) }
+    print("ok")
+}
+

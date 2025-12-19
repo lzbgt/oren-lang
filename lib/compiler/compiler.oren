@@ -1057,6 +1057,68 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(cap_net_rd_out))
 
+    // Raw sys_* TIME bypass checks: sys_gettimeofday + sys_nanosleep.
+    //
+    // gettimeofday:
+    var cap_time_gtod_out = "build/capsule_runtime_time_syscall_gettimeofday_prog"
+    var cap_time_gtod_log = "build/logs/capsule_runtime_time_syscall_gettimeofday_prog_build.log"
+    var cap_time_gtod_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_time_syscall_gettimeofday_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_time_gtod_out) + gc_arg
+    var cap_time_gtod_rc = run_shell_capture(timeout_bin, build_timeout, cap_time_gtod_cmd, cap_time_gtod_log)
+    if cap_time_gtod_rc != 0 || file_exists(cap_time_gtod_out) != true {
+        print("native failed: capsule_runtime_time_syscall_gettimeofday_prog (build)")
+        oren_system("cat " + shell_quote(cap_time_gtod_log))
+        oren_exit(1)
+    }
+
+    var cap_time_gtod_deny_log = "build/logs/capsule_runtime_time_syscall_gettimeofday_prog_run_deny.log"
+    var cap_time_gtod_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS= ./" + cap_time_gtod_out
+    var cap_time_gtod_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_time_gtod_deny_cmd, cap_time_gtod_deny_log)
+    if cap_time_gtod_deny_rc == 0 {
+        print("native failed: capsule_runtime_time_syscall_gettimeofday_prog (expected runtime capsule deny: sys_gettimeofday needs TIME domain)")
+        oren_system("cat " + shell_quote(cap_time_gtod_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_time_gtod_ok_log = "build/logs/capsule_runtime_time_syscall_gettimeofday_prog_run_allow.log"
+    var cap_time_gtod_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=TIME ./" + cap_time_gtod_out
+    var cap_time_gtod_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_time_gtod_ok_cmd, cap_time_gtod_ok_log)
+    if cap_time_gtod_ok_rc != 0 {
+        print("native failed: capsule_runtime_time_syscall_gettimeofday_prog (expected runtime capsule allow: TIME domain)")
+        oren_system("cat " + shell_quote(cap_time_gtod_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_time_gtod_out))
+
+    // nanosleep:
+    var cap_time_ns_out = "build/capsule_runtime_time_syscall_nanosleep_prog"
+    var cap_time_ns_log = "build/logs/capsule_runtime_time_syscall_nanosleep_prog_build.log"
+    var cap_time_ns_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_time_syscall_nanosleep_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_time_ns_out) + gc_arg
+    var cap_time_ns_rc = run_shell_capture(timeout_bin, build_timeout, cap_time_ns_cmd, cap_time_ns_log)
+    if cap_time_ns_rc != 0 || file_exists(cap_time_ns_out) != true {
+        print("native failed: capsule_runtime_time_syscall_nanosleep_prog (build)")
+        oren_system("cat " + shell_quote(cap_time_ns_log))
+        oren_exit(1)
+    }
+
+    var cap_time_ns_deny_log = "build/logs/capsule_runtime_time_syscall_nanosleep_prog_run_deny.log"
+    var cap_time_ns_deny_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS= ./" + cap_time_ns_out
+    var cap_time_ns_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_time_ns_deny_cmd, cap_time_ns_deny_log)
+    if cap_time_ns_deny_rc == 0 {
+        print("native failed: capsule_runtime_time_syscall_nanosleep_prog (expected runtime capsule deny: sys_nanosleep needs TIME domain)")
+        oren_system("cat " + shell_quote(cap_time_ns_deny_log))
+        oren_exit(1)
+    }
+
+    var cap_time_ns_ok_log = "build/logs/capsule_runtime_time_syscall_nanosleep_prog_run_allow.log"
+    var cap_time_ns_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=TIME ./" + cap_time_ns_out
+    var cap_time_ns_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_time_ns_ok_cmd, cap_time_ns_ok_log)
+    if cap_time_ns_ok_rc != 0 {
+        print("native failed: capsule_runtime_time_syscall_nanosleep_prog (expected runtime capsule allow: TIME domain)")
+        oren_system("cat " + shell_quote(cap_time_ns_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_time_ns_out))
+
     // readdir (runtime helper built on getdirentries64):
     var cap_fs_rd_out = "build/capsule_runtime_fs_readdir_prog"
     var cap_fs_rd_log = "build/logs/capsule_runtime_fs_readdir_prog_build.log"

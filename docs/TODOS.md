@@ -51,5 +51,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Capsule hardening: enforced FS domain at raw `sys_read` / `sys_pipe` boundaries (no bypass) and added deterministic tests (stdin redirected to `/dev/null` to guarantee no hangs).
 - Capsule hardening: prevented NET bypass by enforcing NET domain when `sys_read`/`sys_write` operate on NET-tagged fds (sockets); also reclassified `sys_pipe` under PROC as IPC for spawn/join.
 - Capsule hardening: tagged pipe fds (PROC IPC kind) so `sys_read`/`sys_write` treat them as PROC IPC; fixed Darwin `sys_pipe` to return `-errno` on failure and added a PROC-only spawn/join regression.
+- Capsule hardening: enforced TIME domain at raw `sys_gettimeofday` / `sys_nanosleep` boundaries (no bypass) with deterministic fixtures.
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).
