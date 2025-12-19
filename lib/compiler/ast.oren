@@ -31,3 +31,4 @@ fn new_import(tok, name, path) { return {"type": "Import", "token": tok, "name":
 fn new_type(tok, name, fields) { return {"type": "Type", "token": tok, "name": name, "fields": fields} }
 fn new_spawn(tok, call) { return {"type": "Spawn", "token": tok, "call": call} }
 fn new_spawn_expr(tok, call) { return {"type": "SpawnExpr", "token": tok, "call": call} }
+fn new_stmt_list(stmts) { return {"type": "StmtList", "stmts": stmts} }

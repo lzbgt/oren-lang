@@ -51,6 +51,14 @@ fn new_parser(l) {
         "peek": token.new_token(token.TOK_ILLEGAL, ""),
         "gensym": 0,
 
+        // Rolling symbol tables (parser-local):
+        // - enums: { "Option": true }
+        // - enum_variants: { "Option": { "None": 0, "Some": 1 } }
+        //
+        // Used for syntax sugar like `Option.Some(1)` and `Option.None`.
+        "enums": {},
+        "enum_variants": {},
+
         // Attribute validation knobs (set by the compiler front-end).
         // Defaults are permissive (rolling mode).
         "strict_attrs": false,
@@ -172,8 +180,19 @@ fn parse_program(p) {
         var attrs = parse_attr_list(p)
         var stmt = parse_statement(p)
         if stmt != nil {
-            attach_attrs_to_stmt(p, stmt, attrs)
-            oren_list_push(prog["statements"], stmt)
+            if stmt["type"] == "StmtList" {
+                if attrs != nil && oren_list_len(attrs) != 0 {
+                    parser_add_error(p, "attributes may not precede enum sugar expansion")
+                }
+                var si = 0
+                while si < oren_list_len(stmt["stmts"]) {
+                    oren_list_push(prog["statements"], stmt["stmts"][si])
+                    si = si + 1
+                }
+            } else {
+                attach_attrs_to_stmt(p, stmt, attrs)
+                oren_list_push(prog["statements"], stmt)
+            }
         }
         parser_next_token(p)
     }
@@ -295,16 +314,290 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_IMPORT) { return parse_import(p) }
     if cur_is(p, token.TOK_STRUCT) { return parse_type_decl(p) }
     if cur_is(p, token.TOK_CLASS) { return parse_type_decl(p) }
+    if cur_is(p, token.TOK_ENUM) { return parse_enum_decl(p) }
     if cur_is(p, token.TOK_FFI) { return parse_ffi(p) }
     if cur_is(p, token.TOK_TEST) { return parse_test(p) }
     if cur_is(p, token.TOK_SPAWN) { return parse_spawn(p) }
     if cur_is(p, token.TOK_LBRACE) { return parse_block(p) }
     if cur_is(p, token.TOK_IDENT) {
+        // Contextual keyword: `match` is only treated as a statement when it is not
+        // being used as an identifier (var name, call, member, indexing, etc.).
+        if p["cur"]["literal"] == "match" {
+            var pt = p["peek"]["type"]
+            if pt != token.TOK_DECLARE && pt != token.TOK_ASSIGN && pt != token.TOK_COLON &&
+               pt != token.TOK_DOT && pt != token.TOK_LPAREN && pt != token.TOK_LBRACKET &&
+               pt != token.TOK_SEMICOLON && pt != token.TOK_RBRACE && pt != token.TOK_EOF {
+                return parse_match(p)
+            }
+        }
         if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
         if peek_is(p, token.TOK_COLON) { return parse_typed_short_var(p) }
         return parse_assign_or_expr_stmt(p)
     }
     return parse_expr_stmt(p)
+}
+
+fn parse_match(p) {
+    // match <expr> {
+    //   case Enum.Variant(x,y) { ... }
+    //   case Enum.Other { ... }
+    //   default { ... }
+    // }
+    //
+    // Rolling implementation:
+    // - Works with the current `enum` sugar encoding:
+    //     { "tag": "Enum.Variant", "_0": x, "_1": y, ... }
+    // - Desugars into:
+    //     { var tmp = <expr>; var tag = tmp.tag; if tag == "Enum.Variant" { var x = tmp._0; ... } else ... }
+    var tok = p["cur"]
+    parser_next_token(p)
+    var m_expr = parse_expression(p, LOWEST)
+    if m_expr == nil { return nil }
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+
+    var tmp_name = parser_gensym(p, "@match_")
+    var tmp_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tmp_name), "value": tmp_name}
+    var init_tmp = ast.new_var(token.new_token(token.TOK_LET, "var"), tmp_ident, m_expr)
+
+    var tag_name = parser_gensym(p, "@match_tag_")
+    var tag_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tag_name), "value": tag_name}
+    var mem_tag = ast.new_member(token.new_token(token.TOK_DOT, "."), tmp_ident, ast.new_identifier(token.new_token(token.TOK_IDENT, "tag")))
+    var init_tag = ast.new_var(token.new_token(token.TOK_LET, "var"), tag_ident, mem_tag)
+
+    var cases = []
+    var default_block = nil
+
+    // Enter match body.
+    parser_next_token(p)
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_CASE) {
+            // case Pattern { ... }
+            parser_next_token(p) // first token of pattern
+
+            // Parse Enum.Variant (dotted identifiers) and optional payload binding list.
+            if p["cur"]["type"] != token.TOK_IDENT {
+                parser_add_error(p, "match case expects a pattern starting with an identifier")
+                return nil
+            }
+            var pat = p["cur"]["literal"]
+            while peek_is(p, token.TOK_DOT) {
+                parser_next_token(p) // '.'
+                if !expect_peek(p, token.TOK_IDENT) { return nil }
+                pat = pat + "." + p["cur"]["literal"]
+            }
+
+            var binds = []
+            if peek_is(p, token.TOK_LPAREN) {
+                parser_next_token(p) // '('
+                if peek_is(p, token.TOK_RPAREN) {
+                    parser_next_token(p) // ')'
+                } else {
+                    parser_next_token(p) // first bind name
+                    if p["cur"]["type"] != token.TOK_IDENT {
+                        parser_add_error(p, "match payload binding expects identifiers")
+                        return nil
+                    }
+                    oren_list_push(binds, p["cur"]["literal"])
+                    while peek_is(p, token.TOK_COMMA) {
+                        parser_next_token(p) // ','
+                        parser_next_token(p)
+                        if p["cur"]["type"] != token.TOK_IDENT {
+                            parser_add_error(p, "match payload binding expects identifiers")
+                            return nil
+                        }
+                        oren_list_push(binds, p["cur"]["literal"])
+                    }
+                    if !expect_peek(p, token.TOK_RPAREN) { return nil }
+                }
+            }
+
+            if peek_is(p, token.TOK_COLON) { parser_next_token(p) }
+            if !expect_peek(p, token.TOK_LBRACE) { return nil }
+            var body = parse_block(p)
+
+            // Prepend bindings as var declarations.
+            if binds != nil && oren_list_len(binds) > 0 {
+                var nb = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+                var bi = 0
+                while bi < oren_list_len(binds) {
+                    var bn = binds[bi]
+                    var bident = ast.new_identifier(token.new_token(token.TOK_IDENT, bn))
+                    var mem = ast.new_member(token.new_token(token.TOK_DOT, "."), tmp_ident, ast.new_identifier(token.new_token(token.TOK_IDENT, "_" + oren_int_to_string(bi))))
+                    oren_list_push(nb["stmts"], ast.new_var(token.new_token(token.TOK_LET, "var"), bident, mem))
+                    bi = bi + 1
+                }
+                // Append original body statements.
+                bi = 0
+                while bi < oren_list_len(body["stmts"]) {
+                    oren_list_push(nb["stmts"], body["stmts"][bi])
+                    bi = bi + 1
+                }
+                body = nb
+            }
+
+            oren_list_push(cases, {"tag": pat, "body": body})
+
+            parser_next_token(p)
+            continue
+        }
+
+        if cur_is(p, token.TOK_DEFAULT) {
+            if default_block != nil {
+                parser_add_error(p, "duplicate default in match")
+                return nil
+            }
+            if peek_is(p, token.TOK_COLON) { parser_next_token(p) }
+            if !expect_peek(p, token.TOK_LBRACE) { return nil }
+            default_block = parse_block(p)
+            parser_next_token(p)
+            continue
+        }
+
+        parser_add_error(p, "expected 'case' or 'default' in match")
+        return nil
+    }
+
+    // Build nested if/else chain on tag_ident == "<Enum.Variant>".
+    var if_expr = nil
+    var i = oren_list_len(cases) - 1
+    while i >= 0 {
+        var c = cases[i]
+        var cond = ast.new_infix(token.new_token(token.TOK_EQ, "=="), tag_ident, "==", ast.new_string(token.new_token(token.TOK_STRING, c["tag"])))
+        var consq = c["body"]
+
+        var alt = default_block
+        if if_expr != nil {
+            alt = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+            oren_list_push(alt["stmts"], ast.new_expr_stmt(token.new_token(token.TOK_IF, "if"), if_expr))
+        }
+        if_expr = ast.new_if(token.new_token(token.TOK_IF, "if"), cond, consq, alt)
+        i = i - 1
+    }
+
+    var out = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+    oren_list_push(out["stmts"], init_tmp)
+    oren_list_push(out["stmts"], init_tag)
+    if if_expr != nil {
+        oren_list_push(out["stmts"], ast.new_expr_stmt(tok, if_expr))
+    } else {
+        if default_block != nil {
+            var oi = 0
+            while oi < oren_list_len(default_block["stmts"]) {
+                oren_list_push(out["stmts"], default_block["stmts"][oi])
+                oi = oi + 1
+            }
+        }
+    }
+    return out
+}
+
+fn parse_enum_decl(p) {
+    // enum Name { Variant, Variant2(x,y), ... }
+    //
+    // Rolling implementation:
+    // - Syntax sugar expanding to constructor functions that return tagged maps.
+    //
+    // Example:
+    //   enum Option { None, Some(x) }
+    // becomes:
+    //   fn Option_None() { return { tag: "Option.None" } }
+    //   fn Option_Some(x) { return { tag: "Option.Some", _0: x } }
+    //
+    // Notes:
+    // - Enum values are plain maps (deterministic order is handled by map implementation).
+    // - `match` / exhaustiveness checking is a later milestone.
+    var tok = p["cur"]
+    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    var enum_name = p["cur"]["literal"]
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+
+    var out = []
+
+    // Record enum shape for later syntax sugar like `Option.Some(1)` and `Option.None`.
+    p["enums"][enum_name] = true
+    if p["enum_variants"][enum_name] == nil { p["enum_variants"][enum_name] = {} }
+
+    // Enter body.
+    parser_next_token(p)
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_COMMA) {
+            parser_next_token(p)
+            continue
+        }
+        if p["cur"]["type"] != token.TOK_IDENT {
+            parser_add_error(p, "enum expects variant name, got " + p["cur"]["type"])
+            return ast.new_stmt_list(out)
+        }
+        var vname = p["cur"]["literal"]
+
+        // Optional payload names: (a,b,c)
+        var payload_names = []
+        if peek_is(p, token.TOK_LPAREN) {
+            parser_next_token(p) // '('
+            if peek_is(p, token.TOK_RPAREN) {
+                parser_next_token(p) // ')'
+            } else {
+                parser_next_token(p) // first payload name
+                if p["cur"]["type"] != token.TOK_IDENT {
+                    parser_add_error(p, "enum payload expects identifier field names")
+                    return ast.new_stmt_list(out)
+                }
+                oren_list_push(payload_names, p["cur"]["literal"])
+                while peek_is(p, token.TOK_COMMA) {
+                    parser_next_token(p) // ','
+                    parser_next_token(p) // name
+                    if p["cur"]["type"] != token.TOK_IDENT {
+                        parser_add_error(p, "enum payload expects identifier field names")
+                        return ast.new_stmt_list(out)
+                    }
+                    oren_list_push(payload_names, p["cur"]["literal"])
+                }
+                if !expect_peek(p, token.TOK_RPAREN) { return ast.new_stmt_list(out) }
+            }
+        }
+
+        // Record variant arity for dot-variant sugar.
+        p["enum_variants"][enum_name][vname] = oren_list_len(payload_names)
+
+        // Build constructor fn: Enum_Variant(...)
+        var fn_tok = token.new_token(token.TOK_FUNCTION, "fn")
+        var fn_name = enum_name + "_" + vname
+        var params = []
+        var pi = 0
+        while pi < oren_list_len(payload_names) {
+            var pn = payload_names[pi]
+            oren_list_push(params, ast.new_identifier(token.new_token(token.TOK_IDENT, pn)))
+            pi = pi + 1
+        }
+
+        // return { tag: "Enum.Variant", _0: a, _1: b, ... }
+        var b = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+        var pairs = []
+        oren_list_push(pairs, {
+            "key": ast.new_string(token.new_token(token.TOK_STRING, "tag")),
+            "value": ast.new_string(token.new_token(token.TOK_STRING, enum_name + "." + vname))
+        })
+
+        pi = 0
+        while pi < oren_list_len(payload_names) {
+            var k = ast.new_string(token.new_token(token.TOK_STRING, "_" + oren_int_to_string(pi)))
+            var v = ast.new_identifier(token.new_token(token.TOK_IDENT, payload_names[pi]))
+            oren_list_push(pairs, {"key": k, "value": v})
+            pi = pi + 1
+        }
+
+        var h = ast.new_hash(token.new_token(token.TOK_LBRACE, "{"), pairs)
+        oren_list_push(b["stmts"], ast.new_return(token.new_token(token.TOK_RETURN, "return"), h))
+        // Keep function declarations in the normal surface form used by the rest
+        // of the compiler pipeline: `ExprStmt(Function)`.
+        oren_list_push(out, ast.new_expr_stmt(fn_tok, ast.new_function(fn_tok, fn_name, params, b)))
+
+        // Next token after variant (',' or '}')
+        parser_next_token(p)
+    }
+
+    // We leave p["cur"] as '}' (handled by parse_program/parse_block stepping).
+    return ast.new_stmt_list(out)
 }
 
 fn parse_spawn(p) {
@@ -773,7 +1066,17 @@ fn parse_block(p) {
         if cur_is(p, token.TOK_EOF) { cont = false }
         if cont {
             var stmt = parse_statement(p)
-            if stmt != nil { oren_list_push(block["stmts"], stmt) }
+            if stmt != nil {
+                if stmt["type"] == "StmtList" {
+                    var si = 0
+                    while si < oren_list_len(stmt["stmts"]) {
+                        oren_list_push(block["stmts"], stmt["stmts"][si])
+                        si = si + 1
+                    }
+                } else {
+                    oren_list_push(block["stmts"], stmt)
+                }
+            }
             parser_next_token(p)
         }
     }
@@ -878,6 +1181,41 @@ fn parse_member(p, left) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var prop = ast.new_identifier(p["cur"])
+
+    // Enum dot-variant sugar:
+    //
+    //   enum Option { None, Some(x) }
+    //   Option.None      -> Option_None()          (value)
+    //   Option.None()    -> Option_None()          (explicit call also ok)
+    //   Option.Some      -> Option_Some            (function value)
+    //   Option.Some(123) -> Option_Some(123)
+    //
+    // This is intentionally shallow and parser-local: it does not add new AST nodes
+    // and keeps backends unchanged (it rewrites to existing constructor fns).
+    if left != nil && left["type"] == "Identifier" {
+        var enum_name = left["value"]
+        var variants = p["enum_variants"][enum_name]
+        if variants != nil {
+            var vname = prop["value"]
+            var arity = variants[vname]
+            if arity != nil {
+                var fn_name = enum_name + "_" + vname
+                var fn_ident = ast.new_identifier(token.new_token(token.TOK_IDENT, fn_name))
+                if arity == 0 {
+                    if peek_is(p, token.TOK_LPAREN) {
+                        // Allow explicit `Option.None()` to parse as a normal call.
+                        return fn_ident
+                    }
+                    // Bare `Option.None` means "construct the value".
+                    return ast.new_call(token.new_token(token.TOK_LPAREN, "("), fn_ident, [])
+                }
+                // For payload variants, `Option.Some` is a function value, and the
+                // normal call parsing handles `Option.Some(...)`.
+                return fn_ident
+            }
+        }
+    }
+
     return ast.new_member(tok, left, prop)
 }
 

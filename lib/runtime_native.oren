@@ -1086,28 +1086,28 @@ fn native_capsule_fs_mount_resolve(path, mounts_csv) {
                     // Prefix match of virt_prefix against path.
                     if path_len >= virt_len {
                         var k = 0
-                        var match = true
+                        var is_match = true
                         while k < virt_len {
                             var pc = ptr_get_byte(path + k)
-                            if pc == 0 { match = false; k = virt_len }
+                            if pc == 0 { is_match = false; k = virt_len }
                             else {
                                 var vc = ptr_get_byte(iadd(mounts_csv, virt_start + k))
-                                if pc != vc { match = false; k = virt_len }
+                                if pc != vc { is_match = false; k = virt_len }
                                 else { k = k + 1 }
                             }
                         }
 
-                        if match {
+                        if is_match {
                             // Boundary check when virt_prefix does not end with '/'.
                             var last = ptr_get_byte(iadd(mounts_csv, virt_start + virt_len - 1))
                             if last != 47 {
                                 var nextc = 0
                                 if path_len > virt_len { nextc = ptr_get_byte(path + virt_len) }
-                                if nextc != 0 && nextc != 47 { match = false }
+                                if nextc != 0 && nextc != 47 { is_match = false }
                             }
                         }
 
-                        if match {
+                        if is_match {
                             if virt_len > best_virt_len {
                                 best_virt_len = virt_len
                                 best_host_start = host_start

@@ -40,42 +40,46 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*
-   - DoD: for each raw `sys_*` that can cause host effects (FS/NET/PROC/ENV/TIME), there is a capsule pre hook and tests cover allow+deny paths.
-   - Status: added `oretest` static audit that scans syscall lowering and asserts a capsule `*_pre` hook exists for host-effect syscalls (with explicit exemptions for internal runtime primitives).
-   - Next deliverable: extend audit to cover any syscall lowering modules beyond `arm64_native_expr_syscalls.oren` if/when new syscall lowering files are introduced.
+1) **P0 [ux] Call-site spread `...` for variadics (bootstrap-friendly)** `[lang]`
+   - Why: unlock ergonomic variadic builtins (`print`, future logging/format) without committing to a stable user-defined varargs ABI yet.
+   - DoD:
+     - syntax: `f(xs...)` where `xs` is a list
+     - lowering: expand at call-site in a deterministic way (no hidden host effects)
+     - backends: C/native/bytecode all agree on semantics
+     - tests: one integration test covers `print(xs...)`, `print()` and mixed args.
 
-2) **P1 [maint] Linux arm64 verification (remote + Docker)**
-   - DoD: `./oretest --target linux` passes on:
-     - Docker Desktop `linux/arm64` (persistent container), and
-     - remote QEMU Linux arm64 (`blu@qemu-blu.local`) when available.
-   - Status (Docker): `tools/oretest_linux_docker.sh` passes (full `make test`).
-   - Status (Docker smoke): `tools/linux_native_smoke_docker.sh` passes (native ELF execution).
-   - Next deliverable: run `SSH_DEST=blu@qemu-blu.local ./scripts/oretest_remote_linux_arm64.sh` and fix any ABI-table gaps discovered.
+2) **P0 [arch] Traits/protocols: minimal object model milestone** `[lang]`
+   - Why: unblock ergonomic stdlib design (iterators, stringify/format, JSON codecs) with composition-first APIs.
+   - DoD (first deliverable, rolling):
+     - doc: `docs/OBJECT_MODEL.md` defines traits/protocols + composition (no inheritance)
+     - make `match` remain contextual (must not steal identifiers)
+     - decide whether primitives can implement traits (default: yes; explain determinism/dispatch model)
+     - keep implementation bootstrap-friendly (staged; start with iterator protocol + string conversion hooks)
 
-3) **P1 [determinism] AVM cooperative concurrency MVP (single-threaded)**
-   - DoD: deterministic `spawn/join`, channels, deterministic `select`, integrated with TIME + gas + snapshot/resume.
+3) **P0 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
+   - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
+     - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
+     - deterministic TIME/RNG, snapshot/resume, multiverse
+   - Next deliverable: cooperative concurrency MVP (single-threaded) with deterministic `spawn/join` + channels + `select`.
 
-4) **P2 [ux] Tooling**
-   - `.obc` disassembler (“otool-like”) + metadata extractor (reads embedded `OREN_META\n1\n` bytes convention).
+4) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
+   - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
+   - Next deliverable: define the minimal “AVM-in-Oren” surface area (hosted by C AVM first).
 
-5) **P2 [maint] Refactors without semantic churn**
-   - Split oversized modules (AVM/codegen) once behavior is covered by tests.
+5) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
+   - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
+   - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
+
+6) **P1 [quality] Fix AVM build warnings (Linux)** `[maint]`
+   - DoD: `make test` in linux docker is clean under `-Wall -Wextra` for AVM sources we touch.
+   - Notes: currently observed warnings include ignored `fread` result and an `int64_t` format mismatch.
+
+7) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+   - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
+   - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
 ## Recently Completed (high signal)
 
-- Test orchestration SOLID: `make test` now runs through `./oretest` (Go), not `lib/compiler/compiler.oren`.
-- Test speed P0: module + AVM tests run in parallel with isolated per-test workdirs (`OREN_TEST_JOBS`).
-- Fixed-width scalar names + universal `name: Type` annotation sugar is implemented (v0 metadata) and documented (including list heterogeneity).
-- Packed struct views: migrated from `@oren.u16be` field attributes to `field: u16be` annotations (rolling).
-- Linux: oretest now passes `--target` for module builds (prevents accidental codesign on Linux).
-- Linux: TCP runtime uses correct sockaddr_in layout (BSD vs Linux) and non-kqueue fallbacks for connect/accept/read/write.
-- Runtime: native backend now passes target OS into `native_runtime_init(target_os)` (no syscall probing for OS feature detection).
-- Capsule P0: added a fast “no direct svc/sysno” audit in `./oretest` so new syscall emissions must go through the syscall lowering module.
-- Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
-- Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved lowering modules, and bounds direct `insn_svc` emission.
-- Capsule P0: added a fast static “capsule syscall prehook audit” in `./oretest` to prevent bypass regressions.
-- OS ABI tables: repo-owned constants for `open` flags, `fcntl` cmds, `mmap` prot/flags (Darwin/Linux), with audit refs in `docs/refs/*` (incl. `darwin_sys_socket.h`, `darwin_sys_fcntl.h`).
-- NET: translated Oren-level `getsockopt/setsockopt` IDs to OS ABI values safely (no cascading translation).
-- Linux arm64 execution baseline: removed dependence on LSE atomics (CAS/LDADD) by lowering `atomic_add/atomic_cas` via LL/SC loops (LDAXR/STLXR).
-- Linux ELF debug builds: emit + patch debug info so `--debug` linux binaries no longer crash (ELF `adr_data` fixup + 8-byte aligned debug blob parsing).
+- `make test` is curated + timeout-safe via `./oretest` (parallel module/AVM runs, prints logs only on failures).
+- Rolling type-annotation sugar: universal `name: Type` metadata (`u8/u16be/f64/...`) + packed-struct views via `pack_view`.
+- `enum` + `match` sugar implemented; `match` stays contextual (identifiers named `match` are valid).

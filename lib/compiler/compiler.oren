@@ -205,13 +205,13 @@ fn scan_syscalls_in_src(src, prefix) {
             }
         }
 
-        var match = true
+        var is_match = true
         var j = 0
         while j < p_len {
-            if sb[i + j] != pb[j] { match = false; break }
+            if sb[i + j] != pb[j] { is_match = false; break }
             j = j + 1
         }
-        if match {
+        if is_match {
             var start = i + p_len
             // Read identifier [a-zA-Z0-9_]+
             var k = start

@@ -559,6 +559,33 @@ Planned evolution (minimal rewrite):
 3) Add optional dynamic dispatch via “trait objects” only where needed (plugin systems).
 4) Add `enum` + `match` for sum types and exhaustiveness checking (later milestone).
 
+**Status update (rolling):** `enum` and `match` are now implemented as **syntax sugar** (no static type checker yet).
+- The parser expands `enum` declarations into a set of constructor `fn`s that return tagged maps.
+- `match` expands into a tag-switching `if/else` chain and optional payload bindings.
+- Exhaustiveness checking remains a later milestone.
+
+`match` is a **contextual keyword**: it may still be used as an identifier (e.g. `var match = 1`) unless the parser sees the statement form `match <expr> { ... }`.
+
+Example:
+```oren
+enum Option { None, Some(x) }
+var a = Option.None
+var b = Option.Some(123)
+print(a.tag)      // "Option.None"
+print(b.tag)      // "Option.Some"
+print(b._0)       // 123
+```
+
+`match` example:
+```oren
+var v = Option.Some(7)
+match v {
+    case Option.None { print("none") }
+    case Option.Some(x) { print("some=" + oren_int_to_string(x)) }
+    default { print("other") }
+}
+```
+
 ### Modules and Imports
 - `import math "path/to/math.oren"` compiles the referenced file as a module and binds it to the identifier `math` as a **namespace**.
 - Accessing module members uses member syntax:

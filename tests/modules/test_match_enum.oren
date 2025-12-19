@@ -1,0 +1,30 @@
+// match-on-enum sugar test (C backend)
+
+enum Option { None, Some(x) }
+
+var v0 = Option.None
+var v1 = Option.Some(7)
+
+// `match` must remain usable as an identifier name (contextual keyword).
+var match = 123
+if match != 123 { exit(10) }
+
+// match must bind payload values deterministically.
+var r0 = 0
+match v0 {
+    case Option.None { r0 = 1 }
+    case Option.Some(x) { r0 = x + 100 }
+    default { r0 = 999 }
+}
+if r0 != 1 { exit(1) }
+
+var r1 = 0
+match v1 {
+    case Option.None { r1 = 1 }
+    case Option.Some(x) { r1 = x + 100 }
+    default { r1 = 999 }
+}
+if r1 != 107 { exit(2) }
+
+print("ok")
+exit(0)

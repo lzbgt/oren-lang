@@ -1,0 +1,25 @@
+// Enum sugar smoke test (C backend):
+// - enum expands to constructor functions
+// - enum values are tagged maps
+// - payload fields are accessible as ._0, ._1, ...
+
+enum Option {
+    None,
+    Some(x),
+    Pair(a, b),
+}
+
+var a = Option.None
+if a.tag != "Option.None" { exit(1) }
+
+var b = Option.Some(123)
+if b.tag != "Option.Some" { exit(2) }
+if b._0 != 123 { exit(3) }
+
+var c = Option.Pair(7, 9)
+if c.tag != "Option.Pair" { exit(4) }
+if c._0 != 7 { exit(5) }
+if c._1 != 9 { exit(6) }
+
+print("ok")
+exit(0)

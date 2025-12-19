@@ -70,10 +70,17 @@ if ! command -v cc >/dev/null 2>&1; then
   apt-get update -qq
   apt-get install -y -qq build-essential >/dev/null
 fi
+if ! command -v tini >/dev/null 2>&1; then
+  apt-get update -qq
+  apt-get install -y -qq tini >/dev/null
+fi
 '
 
 echo "[linux-oretest-docker] running make test (OREN_TEST_JOBS=$JOBS)"
-docker exec "$NAME" bash -lc "
+# Use `tini -s` as a child subreaper even if the container was not created with
+# `--init`. This prevents zombie buildup from fork/spawn tests inside long-lived
+# containers whose PID 1 does not reap children.
+docker exec "$NAME" tini -s -- bash -lc "
 set -euo pipefail
 rm -rf /work/repo && mkdir -p /work/repo
 if [[ -d /src ]]; then
