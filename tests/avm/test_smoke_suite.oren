@@ -315,6 +315,15 @@ fn test_typed_buffers() {
 
     var iout = oren_buf_mul_i32(a, b)
     assert_eq(oren_buf_load_i32(iout, 2), 10)
+
+    // scale_into kernels (non-allocating, SIMD-friendly ABI nucleus)
+    var sdst = oren_f32_buf_new(3)
+    oren_buf_scale_f32_into(sdst, fa, 2.0) // 1.5 * 2.0 = 3.0
+    assert_eq(oren_buf_load_f32(sdst, 1), 3.0)
+
+    var isdst = oren_i32_buf_new(3)
+    oren_buf_scale_i32_into(isdst, a, 3) // 2 * 3 = 6
+    assert_eq(oren_buf_load_i32(isdst, 0), 6)
 }
 
 fn inc2(x) { return x + 1 }

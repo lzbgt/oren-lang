@@ -46,7 +46,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - deterministic TIME/RNG, snapshot/resume, multiverse
    - Next deliverable: “SIMD-ready” kernel ABI freeze + NEON mapping plan `[perf]`:
      - freeze naming + arg order for `*_into` kernels (in-place ops) as the stable ABI nucleus
-     - write the mapping plan for NEON (arm64) scalar→SIMD upgrade (still scalar fallback today)
+     - write the mapping plan for NEON (arm64) scalar→SIMD upgrade (still scalar fallback today) (`docs/AVM_NEON_MAPPING_PLAN.md`)
      - add `*_into` kernels for the remaining core set (`mul`, `scale`, `reduce`) to avoid allocation pressure
 
 2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
@@ -78,3 +78,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM: typed numeric buffers (`I32_BUF/I64_BUF/F32_BUF/F64_BUF`) + minimal ops (`BUF_LEN`, typed load/store) wired through snapshot/resume + record/replay + hashing; covered by smoke suite + snapshot/resume test.
 - AVM: minimal typed-buffer compute kernels (scalar fallback): fill/add/dot for `i32` and `f32`; covered by smoke suite.
 - AVM: extended typed-buffer kernels: in-place add/scale/reduce and mul kernels for `f32`, plus mul+reduce for `i32`; covered by smoke suite.
+- AVM: completed ABI-nucleus `_into` kernels for scale (`f32/i32`) and added a concrete NEON mapping plan (`docs/AVM_NEON_MAPPING_PLAN.md`).
