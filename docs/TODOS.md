@@ -57,6 +57,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - define “typed pointers” for FFI/syscalls (no libc, syscall-first)
        - next slice: endian-aware pointer reads/writes for packet parsing (BE/LE) ✅
        - next slice: `u8_buf` + `sys_read_u8_buf/sys_write_u8_buf` for zero-copy IO ✅
+       - next slice: allow `u8_buf` as a byte container for `pack_view` / `oren_bytes_get_u8` ✅
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.

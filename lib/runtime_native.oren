@@ -4731,30 +4731,62 @@ fn native_bytes_is_list(bytes) {
     return true
 }
 
+fn native_bytes_is_u8_buf(bytes) {
+    // Treat u8 typed buffers as a byte container for packet parsing + pack_view.
+    if bytes == 0 { return false }
+    if bytes < 4096 { return false }
+    var node = oren_find_node(bytes)
+    if node == 0 { return false }
+    if ptr_get(iadd(node, 16)) != 7 { return false } // BUF
+    if ptr_get(bytes + 24) != buf_magic() { return false }
+    if ptr_get(bytes + 32) != BUF_TAG_U8 { return false }
+    if ptr_get(bytes + 8) != 1 { return false }
+    return true
+}
+
 fn oren_bytes_get_u8(bytes, idx) {
     // Return structured errors (not panic) so protocol parsing can be safe and
     // deterministic across backends (matches C/AVM conventions).
     if bytes == 0 { return oren_err(4, "bytes_get_u8: bytes is nil") }
-    if native_bytes_is_list(bytes) != true { return oren_err(4, "bytes_get_u8 expects list<int 0..255>") }
-    var count = ptr_get(bytes)
-    if idx < 0 || idx >= count { return oren_err(4, "bytes_get_u8: index out of bounds") }
-    var buf = ptr_get(bytes + 16)
-    if buf == 0 { return oren_err(4, "bytes_get_u8: list buffer is nil") }
-    var v = ptr_get(buf + idx * 8)
-    if v < 0 || v > 255 { return oren_err(4, "bytes_get_u8: byte out of range") }
-    return v
+    if native_bytes_is_list(bytes) == true {
+        var count = ptr_get(bytes)
+        if idx < 0 || idx >= count { return oren_err(4, "bytes_get_u8: index out of bounds") }
+        var buf = ptr_get(bytes + 16)
+        if buf == 0 { return oren_err(4, "bytes_get_u8: list buffer is nil") }
+        var v = ptr_get(buf + idx * 8)
+        if v < 0 || v > 255 { return oren_err(4, "bytes_get_u8: byte out of range") }
+        return v
+    }
+    if native_bytes_is_u8_buf(bytes) == true {
+        var count2 = ptr_get(bytes + 0)
+        if idx < 0 || idx >= count2 { return oren_err(4, "bytes_get_u8: index out of bounds") }
+        var data = ptr_get(bytes + 16)
+        if data == 0 { return oren_err(4, "bytes_get_u8: buf payload is nil") }
+        return ptr_get_byte(data + idx) & 255
+    }
+    return oren_err(4, "bytes_get_u8 expects list<int 0..255> or u8_buf")
 }
 
 fn oren_bytes_set_u8(bytes, idx, v) {
     if bytes == 0 { return oren_err(4, "bytes_set_u8: bytes is nil") }
-    if native_bytes_is_list(bytes) != true { return oren_err(4, "bytes_set_u8 expects list<int 0..255>") }
-    var count = ptr_get(bytes)
-    if idx < 0 || idx >= count { return oren_err(4, "bytes_set_u8: index out of bounds") }
     if v < 0 || v > 255 { return oren_err(4, "bytes_set_u8: byte out of range") }
-    var buf = ptr_get(bytes + 16)
-    if buf == 0 { return oren_err(4, "bytes_set_u8: list buffer is nil") }
-    ptr_set(buf + idx * 8, v)
-    return v
+    if native_bytes_is_list(bytes) == true {
+        var count = ptr_get(bytes)
+        if idx < 0 || idx >= count { return oren_err(4, "bytes_set_u8: index out of bounds") }
+        var buf = ptr_get(bytes + 16)
+        if buf == 0 { return oren_err(4, "bytes_set_u8: list buffer is nil") }
+        ptr_set(buf + idx * 8, v)
+        return v
+    }
+    if native_bytes_is_u8_buf(bytes) == true {
+        var count2 = ptr_get(bytes + 0)
+        if idx < 0 || idx >= count2 { return oren_err(4, "bytes_set_u8: index out of bounds") }
+        var data = ptr_get(bytes + 16)
+        if data == 0 { return oren_err(4, "bytes_set_u8: buf payload is nil") }
+        ptr_set_byte(data + idx, v)
+        return v
+    }
+    return oren_err(4, "bytes_set_u8 expects list<int 0..255> or u8_buf")
 }
 
 fn oren_bytes_get_u16_be(bytes, idx) {

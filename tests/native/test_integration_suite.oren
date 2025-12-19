@@ -287,6 +287,19 @@ fn test_bytes_endian_and_pack_view() {
     assert_eq(pack_view("PV_H", pkt, 0).src, 3232235521, 222)
     assert_eq(pack_view("PV_H", pkt, 0).dst, 134744072, 223)
 
+    // Zero-copy path: u8_buf should also act as a byte container for pack_view and endian helpers.
+    var pktb = oren_u8_buf_new(12)
+    assert_true(oren_is_err(pktb) == 0, 226)
+    var i = 0
+    while i < 12 {
+        oren_buf_store_u8(pktb, i, pkt[i])
+        i = i + 1
+    }
+    assert_eq(pack_view("PV_H", pktb, 0).v, 69, 227)
+    assert_eq(pack_view("PV_H", pktb, 0).len, 84, 228)
+    assert_eq(pack_view("PV_H", pktb, 0).src, 3232235521, 229)
+    assert_eq(pack_view("PV_H", pktb, 0).dst, 134744072, 230)
+
     var bn = [255, 254]
     assert_eq(pack_view("PV_S16", bn, 0).x, -2, 224)
 
@@ -295,6 +308,13 @@ fn test_bytes_endian_and_pack_view() {
     pack_view("PV_H", out, 0).len = 84
     pack_view("PV_H", out, 0).dst = 134744072
     assert_eq(pack_view("PV_H", out, 0).dst, 134744072, 225)
+
+    var outb = oren_u8_buf_new(12)
+    assert_true(oren_is_err(outb) == 0, 231)
+    pack_view("PV_H", outb, 0).v = 69
+    pack_view("PV_H", outb, 0).len = 84
+    pack_view("PV_H", outb, 0).dst = 134744072
+    assert_eq(pack_view("PV_H", outb, 0).dst, 134744072, 232)
 }
 
 fn test_numeric_casts() {
