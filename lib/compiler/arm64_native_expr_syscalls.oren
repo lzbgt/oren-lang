@@ -148,6 +148,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         if fn_name == "sys_write" {
             // sys_write(fd, ptr, len)
             compile_expr(ctx, args[0]) // fd -> X0
+
+            // pre: native_capsule_sys_write_pre(fd) -> fd
+            var bl_write_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_write_pre, "name": "native_capsule_sys_write_pre"})
+
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16

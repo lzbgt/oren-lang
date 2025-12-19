@@ -1,0 +1,19 @@
+fn main() {
+    // Raw sys_read capsule NET bypass test:
+    // - socket fds are NET-tagged by sys_socket post-hook
+    // - sys_read on a NET-tagged fd must require NET domain (no bypass)
+    //
+    // This test does not require an actual connection; the syscall may return an error.
+    var fd = sys_socket(2, 1, 0) // AF_INET=2, SOCK_STREAM=1
+    if fd < 0 { exit(2) }
+
+    var buf = malloc(8)
+    if buf == 0 { exit(3) }
+    ptr_set_byte(buf + 0, 0)
+
+    var rc = sys_read(fd, buf, 1)
+    // rc may be -errno (e.g. ENOTCONN); that's acceptable.
+    sys_close(fd)
+    exit(0)
+}
+

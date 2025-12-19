@@ -1176,17 +1176,56 @@ fn native_capsule_sys_fstat_post(rc) {
 fn native_capsule_sys_read_pre(fd) {
     // sys_read is a read operation on an existing fd.
     //
-    // Capsule hardening: require FS domain at raw syscall boundary so programs
-    // cannot bypass FS enrollment by reading from inherited fds (including stdin).
+    // Capsule hardening:
+    // - If the fd is a NET-tagged fd (socket), require NET domain so programs cannot bypass
+    //   NET enrollment by calling sys_read/sys_write directly.
+    // - Otherwise treat it as FS/stdio and require FS domain (prevents bypass via inherited fds, incl stdin).
+    if global_get_capsule_mode() != 1 { return fd }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k != 0 {
+        native_capsule_require(CAP_NET, "NET")
+        // Disallow reading from listening sockets (kind=2).
+        if k == 2 {
+            print("CAPSULE DENY: NET_RECV_LISTEN")
+            exit(79)
+        }
+        return fd
+    }
+
     native_capsule_require(CAP_FS, "FS")
     return fd
 }
 
 fn native_capsule_sys_pipe_pre(ptr) {
-    // pipe creates two new fds (host effect); treat it as FS-domain in v0.
+    // pipe creates two new fds (host effect).
+    //
+    // For v0 capsule domains, classify it under PROC because it is primarily used for IPC
+    // (spawn/join, subprocess pipes) rather than path-based filesystem access.
     // Capsule hardening: enforce FS at syscall boundary (no bypass).
-    native_capsule_require(CAP_FS, "FS")
+    native_capsule_require(CAP_PROC, "PROC")
     return ptr
+}
+
+fn native_capsule_sys_write_pre(fd) {
+    // sys_write is a write operation on an existing fd.
+    //
+    // Capsule hardening:
+    // - If the fd is NET-tagged (socket), require NET domain to prevent NET bypass.
+    // - Otherwise treat it as FS/stdio and require FS domain.
+    if global_get_capsule_mode() != 1 { return fd }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k != 0 {
+        native_capsule_require(CAP_NET, "NET")
+        // Disallow sending on listening sockets (kind=2).
+        if k == 2 {
+            print("CAPSULE DENY: NET_SEND_LISTEN")
+            exit(79)
+        }
+        return fd
+    }
+
+    native_capsule_require(CAP_FS, "FS")
+    return fd
 }
 
 fn native_capsule_sys_mkdir_pre(path) {

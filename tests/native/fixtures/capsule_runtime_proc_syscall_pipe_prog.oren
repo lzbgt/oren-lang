@@ -1,6 +1,8 @@
 fn main() {
-    // Raw sys_pipe capsule FS test:
+    // Raw sys_pipe capsule PROC test:
     // - In capsule mode, sys_pipe must be enforced at syscall boundary (no bypass).
+    //
+    // For v0, pipe is classified under PROC because it is IPC used for spawn/join.
     var buf = malloc(16)
     if buf == 0 { exit(3) }
     // NOTE: sys_pipe writes 2 fds into buf (8-byte slots in this runtime ABI).
