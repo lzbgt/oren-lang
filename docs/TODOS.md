@@ -71,6 +71,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Linux: oretest now passes `--target` for module builds (prevents accidental codesign on Linux).
 - Linux: TCP runtime uses correct sockaddr_in layout (BSD vs Linux) and non-kqueue fallbacks for connect/accept/read/write.
 - Runtime: native backend now passes target OS into `native_runtime_init(target_os)` (no syscall probing for OS feature detection).
+- Capsule P0: added a fast “no direct svc/sysno” audit in `./oretest` so new syscall emissions must go through the syscall lowering module.
 - Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
 - Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved lowering modules, and bounds direct `insn_svc` emission.
 - Capsule P0: added a fast static “capsule syscall prehook audit” in `./oretest` to prevent bypass regressions.
