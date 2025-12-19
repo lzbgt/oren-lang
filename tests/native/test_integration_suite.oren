@@ -433,6 +433,32 @@ fn test_ptr_endian_helpers_native() {
     assert_eq(oren_ptr_get_u64_le(p + 16), 578437695752307201, 914) // byte-swapped
 }
 
+fn test_u8_buf_syscall_io() {
+    // Syscall-first IO should be able to read/write directly into a u8 typed buffer.
+    // This is the nucleus for packet parsing pipelines without intermediate list copies.
+    var ch = oren_pipe()
+    var r = oren_list_get(ch, 0)
+    var w = oren_list_get(ch, 1)
+
+    var out = oren_u8_buf_new(2)
+    assert_true(oren_is_err(out) == 0, 940)
+    assert_true(oren_is_err(oren_buf_store_u8(out, 0, 65)) == 0, 941) // 'A'
+    assert_true(oren_is_err(oren_buf_store_u8(out, 1, 66)) == 0, 942) // 'B'
+
+    var wn = sys_write_u8_buf(w, out, 0, 2)
+    assert_eq(wn, 2, 943)
+    sys_close(w)
+
+    var inp = oren_u8_buf_new(2)
+    assert_true(oren_is_err(inp) == 0, 944)
+    var rn = sys_read_u8_buf(r, inp, 0, 2)
+    assert_eq(rn, 2, 945)
+    sys_close(r)
+
+    assert_eq(oren_buf_load_u8(inp, 0), 65, 946)
+    assert_eq(oren_buf_load_u8(inp, 1), 66, 947)
+}
+
 fn test_string_eq_semantics() {
     // String comparisons must be lexical by content.
     if "a" == "b" { fail(500) }
@@ -644,6 +670,7 @@ fn main() {
     test_float_ops()
     test_typed_buffers_native()
     test_ptr_endian_helpers_native()
+    test_u8_buf_syscall_io()
     test_string_eq_semantics()
     test_read_bytes_roundtrip()
     test_gc_mem_stats()

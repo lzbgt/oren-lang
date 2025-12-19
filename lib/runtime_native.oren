@@ -5096,16 +5096,17 @@ fn oren_index_set(container, index, value) {
 //
 // Header layout (40 bytes):
 //   [0]  len (element count)
-//   [8]  elem_size (4 or 8)
+//   [8]  elem_size (1/4/8)
 //   [16] data_ptr (raw bytes)
 //   [24] magic ('BUF\\0')
-//   [32] type_tag (1=i32, 2=i64, 3=f32, 4=f64)
+//   [32] type_tag (1=i32, 2=i64, 3=f32, 4=f64, 5=u8)
 
 fn buf_magic() { return 4609346 } // 'BUF\0'
 var BUF_TAG_I32 = 1
 var BUF_TAG_I64 = 2
 var BUF_TAG_F32 = 3
 var BUF_TAG_F64 = 4
+var BUF_TAG_U8 = 5
 
 fn native_buf_as_node(buf) {
     if buf == 0 { return 0 }
@@ -5130,7 +5131,7 @@ fn native_buf_check(buf, tag, elem_size) {
 fn native_buf_new(len, elem_size, tag) {
     if len < 0 { return oren_err(4, "buf_new: negative length") }
     if len > 2147483647 { return oren_err(4, "buf_new: length too large") }
-    if elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new: invalid elem_size") }
+    if elem_size != 1 && elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new: invalid elem_size") }
 
     var header = malloc(40)
     if header == 0 || header == -1 { return oren_err(8, "buf_new: alloc failed") }
@@ -5165,6 +5166,7 @@ fn oren_i32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_I32) }
 fn oren_i64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_I64) }
 fn oren_f32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_F32) }
 fn oren_f64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_F64) }
+fn oren_u8_buf_new(len) { return native_buf_new(len, 1, BUF_TAG_U8) }
 
 fn oren_buf_len(buf) {
     if native_buf_as_node(buf) == 0 { return oren_err(4, "buf_len expects (buf)") }
@@ -5187,6 +5189,15 @@ fn oren_buf_load_i32(buf, idx) {
     return u
 }
 
+fn oren_buf_load_u8(buf, idx) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_u8: index out of bounds") }
+    var data = ptr_get(buf + 16)
+    return ptr_get_byte(data + idx) & 255
+}
+
 fn oren_buf_store_i32(buf, idx, v) {
     var err = native_buf_check(buf, BUF_TAG_I32, 4)
     if oren_is_err(err) { return err }
@@ -5199,6 +5210,17 @@ fn oren_buf_store_i32(buf, idx, v) {
     ptr_set_byte(data + off + 1, (u >> 8) & 255)
     ptr_set_byte(data + off + 2, (u >> 16) & 255)
     ptr_set_byte(data + off + 3, (u >> 24) & 255)
+    return buf
+}
+
+fn oren_buf_store_u8(buf, idx, v) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_u8: index out of bounds") }
+    if v < 0 || v > 255 { return oren_err(4, "buf_store_u8: byte out of range") }
+    var data = ptr_get(buf + 16)
+    ptr_set_byte(data + idx, v)
     return buf
 }
 
@@ -5298,6 +5320,42 @@ fn oren_buf_store_f32(buf, idx, v: f64) {
     ptr_set_byte(data + off + 2, (bits >> 16) & 255)
     ptr_set_byte(data + off + 3, (bits >> 24) & 255)
     return buf
+}
+
+fn oren_buf_fill_u8(buf, v) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    if v < 0 || v > 255 { return oren_err(4, "buf_fill_u8: byte out of range") }
+    var n = ptr_get(buf + 0)
+    var data = ptr_get(buf + 16)
+    var i = 0
+    while i < n {
+        ptr_set_byte(data + i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn sys_read_u8_buf(fd, buf, off, nbytes) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    if off < 0 || nbytes < 0 { return oren_err(4, "sys_read_u8_buf: negative offset/len") }
+    var n = ptr_get(buf + 0)
+    if off > n { return oren_err(4, "sys_read_u8_buf: offset out of bounds") }
+    if off + nbytes > n { return oren_err(4, "sys_read_u8_buf: length out of bounds") }
+    var data = ptr_get(buf + 16)
+    return sys_read(fd, data + off, nbytes)
+}
+
+fn sys_write_u8_buf(fd, buf, off, nbytes) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    if off < 0 || nbytes < 0 { return oren_err(4, "sys_write_u8_buf: negative offset/len") }
+    var n = ptr_get(buf + 0)
+    if off > n { return oren_err(4, "sys_write_u8_buf: offset out of bounds") }
+    if off + nbytes > n { return oren_err(4, "sys_write_u8_buf: length out of bounds") }
+    var data = ptr_get(buf + 16)
+    return sys_write(fd, data + off, nbytes)
 }
 
 // Bulk helpers (scalar baseline; SIMD can replace later).
