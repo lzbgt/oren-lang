@@ -1,0 +1,34 @@
+// Traits + impl blocks (rolling) are compile-time contracts.
+// Current implementation: `impl Trait for Type { fn m(...) { ... } }` lowers to a plain function:
+//   __oren_impl__<Trait>__<Type>__<method>(...)
+//
+// This test asserts:
+// - parser accepts `trait` declarations with `fn` signatures (no bodies)
+// - parser accepts `impl` blocks and lowers methods deterministically
+// - lowered methods compile/run under the C backend
+
+trait Adder3 {
+    fn add3(self, b, c);
+}
+
+impl Adder3 for i64 {
+    fn add3(self, b, c) { return self + b + c }
+}
+
+var r0 = __oren_impl__Adder3__i64__add3(1, 2, 3)
+if r0 != 6 { exit(1) }
+
+// Dotted names should be accepted (mangled deterministically).
+trait myorg.Num {
+    fn add(self, x);
+}
+
+impl myorg.Num for i64 {
+    fn add(self, x) { return self + x }
+}
+
+var r1 = __oren_impl__myorg_Num__i64__add(1, 2)
+if r1 != 3 { exit(2) }
+
+print("ok")
+exit(0)

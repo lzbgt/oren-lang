@@ -315,6 +315,8 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_STRUCT) { return parse_type_decl(p) }
     if cur_is(p, token.TOK_CLASS) { return parse_type_decl(p) }
     if cur_is(p, token.TOK_ENUM) { return parse_enum_decl(p) }
+    if cur_is(p, token.TOK_TRAIT) { return parse_trait_decl(p) }
+    if cur_is(p, token.TOK_IMPL) { return parse_impl_decl(p) }
     if cur_is(p, token.TOK_FFI) { return parse_ffi(p) }
     if cur_is(p, token.TOK_TEST) { return parse_test(p) }
     if cur_is(p, token.TOK_SPAWN) { return parse_spawn(p) }
@@ -335,6 +337,154 @@ fn parse_statement(p) {
         return parse_assign_or_expr_stmt(p)
     }
     return parse_expr_stmt(p)
+}
+
+fn parse_dotted_name(p) {
+    // Parse an identifier with optional dotted suffixes: A.B.C
+    if p["cur"]["type"] != token.TOK_IDENT { return nil }
+    var name = p["cur"]["literal"]
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // .
+        if !expect_peek(p, token.TOK_IDENT) { return nil }
+        name = name + "." + p["cur"]["literal"]
+    }
+    return name
+}
+
+fn skip_parens_signature(p) {
+    // Best-effort skip of (...) in trait signatures.
+    // Precondition: current token is '('.
+    var depth = 0
+    while true {
+        if cur_is(p, token.TOK_LPAREN) { depth = depth + 1 }
+        if cur_is(p, token.TOK_RPAREN) {
+            depth = depth - 1
+            if depth <= 0 { return nil }
+        }
+        if cur_is(p, token.TOK_EOF) { return nil }
+        parser_next_token(p)
+    }
+}
+
+fn parse_trait_decl(p) {
+    // trait Name { fn foo(self, ...) ; ... }
+    //
+    // Rolling implementation:
+    // - Parser accepts the syntax.
+    // - No runtime effect yet (traits are compile-time contracts).
+    //
+    // We intentionally desugar trait declarations into no emitted statements so
+    // existing backends are unchanged.
+    if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+    // trait name (cur is IDENT after expect_peek)
+    var trait_name = parse_dotted_name(p)
+    if trait_name == nil { return ast.new_stmt_list([]) }
+    if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
+
+    // Enter body.
+    parser_next_token(p)
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_FUNCTION) {
+            // Parse `fn name(...)` signature and ignore.
+            if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+            // Signature params: `(...)`
+            if !expect_peek(p, token.TOK_LPAREN) { return ast.new_stmt_list([]) }
+            // cur is '(' now
+            skip_parens_signature(p) // stops at ')'
+            parser_next_token(p) // move past ')'
+            // Optional trailing ';'
+            if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+            continue
+        }
+        parser_add_error(p, "trait body expects 'fn' signatures")
+        return ast.new_stmt_list([])
+    }
+
+    // p["cur"] is '}'.
+    return ast.new_stmt_list([])
+}
+
+fn impl_mangled_name(trait_name, type_name, method) {
+    // Deterministic lowering name for impl methods (rolling).
+    //
+    // Rationale:
+    // - avoids introducing a runtime method table before the type system is stable
+    // - keeps compilation bootstrap-friendly (plain fns)
+    // - stable across backends (C/native/bytecode)
+    //
+    // Convention:
+    //   __oren_impl__<Trait>__<Type>__<method>
+    //
+    // Dots are replaced by underscores for C identifier stability downstream.
+    var tn = trait_name
+    var ty = type_name
+    // Replace '.' with '_'
+    var i = 0
+    var out_t = ""
+    while i < oren_string_len(tn) {
+        var c = oren_string_char_at(tn, i)
+        if c == "." { out_t = out_t + "_" } else { out_t = out_t + c }
+        i = i + 1
+    }
+    i = 0
+    var out_ty = ""
+    while i < oren_string_len(ty) {
+        var c2 = oren_string_char_at(ty, i)
+        if c2 == "." { out_ty = out_ty + "_" } else { out_ty = out_ty + c2 }
+        i = i + 1
+    }
+    return "__oren_impl__" + out_t + "__" + out_ty + "__" + method
+}
+
+fn parse_impl_decl(p) {
+    // impl Trait for Type { fn method(self, ...) { ... } ... }
+    //
+    // Rolling implementation:
+    // - Parser accepts impl blocks.
+    // - Each method is lowered to a plain top-level function with a deterministic name:
+    //     __oren_impl__Trait__Type__method(...)
+    //
+    // This unblocks early stdlib layering and tooling without committing to a stable
+    // method dispatch ABI yet.
+    if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+    // cur is IDENT after expect_peek
+    var trait_name = parse_dotted_name(p)
+    if trait_name == nil { return ast.new_stmt_list([]) }
+
+    if !expect_peek(p, token.TOK_FOR) { return ast.new_stmt_list([]) }
+    if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+    // cur is IDENT after expect_peek
+    var type_name = parse_dotted_name(p)
+    if type_name == nil { return ast.new_stmt_list([]) }
+
+    if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
+
+    var out = []
+    parser_next_token(p)
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_FUNCTION) {
+            var st = parse_expr_stmt(p)
+            if st == nil { return ast.new_stmt_list(out) }
+            // st is ExprStmt(Function)
+            var fnn = st["expr"]
+            if fnn != nil && fnn["type"] == "Function" {
+                var mname = fnn["name"]
+                var newn = impl_mangled_name(trait_name, type_name, mname)
+                fnn["name"] = newn
+            }
+            oren_list_push(out, st)
+            parser_next_token(p)
+            continue
+        }
+        parser_add_error(p, "impl body expects 'fn' declarations")
+        return ast.new_stmt_list(out)
+    }
+    // p["cur"] is '}'.
+    return ast.new_stmt_list(out)
 }
 
 fn parse_match(p) {

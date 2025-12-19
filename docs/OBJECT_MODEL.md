@@ -182,3 +182,14 @@ So this document is the **direction**: it guides evolution without forcing an im
 3) Add “trait objects” (explicit opt-in) only when needed (plugins / heterogeneous containers).
 4) Add derive-style expansion via attributes (`@oren.derive(...)`) to reduce boilerplate.
 5) Add a stabilized v1 type system pass (optional) once the core bootstrapping story is complete.
+
+## Appendix: v0 lowering convention for `impl` (current implementation)
+
+In v0 (rolling), `impl` blocks are lowered by the parser into plain top-level functions, so backends remain unchanged.
+
+Convention:
+- `impl Trait for Type { fn method(self, ...) { ... } }` lowers to:
+  - `fn __oren_impl__Trait__Type__method(self, ...) { ... }`
+- Dots in `Trait`/`Type` names are replaced by underscores in the lowered symbol name.
+
+This is a temporary bootstrap mechanism until a stabilized trait dispatch model (static-first, optional trait objects) is implemented.

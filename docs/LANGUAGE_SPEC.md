@@ -16,11 +16,11 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 ### Keywords
 Implemented today:
 
-`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`
+`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`
 
 Planned (not implemented yet):
 
-`yield`, `defer`, `assert`, `test`, `trait`, `impl`, `enum`, `match`, `pub`
+`yield`, `defer`, `assert`, `test`, `match`, `pub`
 
 ### Identifiers
 Identifiers are ASCII letters, digits, and `_`:
@@ -570,6 +570,10 @@ Planned evolution (minimal rewrite):
 - Exhaustiveness checking remains a later milestone.
 
 `match` is a **contextual keyword**: it may still be used as an identifier (e.g. `var match = 1`) unless the parser sees the statement form `match <expr> { ... }`.
+**Status update (rolling):** `trait` and `impl` syntax are now accepted by the parser as compile-time-only constructs.
+- `trait` declarations have no runtime effect yet.
+- `impl Trait for Type { ... }` is lowered deterministically into plain top-level `fn`s (see `docs/OBJECT_MODEL.md`).
+
 
 Example:
 ```oren

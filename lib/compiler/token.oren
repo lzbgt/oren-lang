@@ -61,6 +61,8 @@ var TOK_SWITCH = "SWITCH"
 var TOK_CASE = "CASE"
 var TOK_DEFAULT = "DEFAULT"
 var TOK_ENUM = "ENUM"
+var TOK_TRAIT = "TRAIT"
+var TOK_IMPL = "IMPL"
 
 // Character constants
 var CH_TAB = oren_char(9)
@@ -120,6 +122,8 @@ fn lookup_ident(ident) {
     if ident == "case" { return TOK_CASE }
     if ident == "default" { return TOK_DEFAULT }
     if ident == "enum" { return TOK_ENUM }
+    if ident == "trait" { return TOK_TRAIT }
+    if ident == "impl" { return TOK_IMPL }
     return TOK_IDENT
 }
 

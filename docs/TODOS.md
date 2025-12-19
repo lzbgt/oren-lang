@@ -41,12 +41,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Tasks (Next, Highest Priority First)
 
 1) **P0 [arch] Traits/protocols: minimal object model milestone** `[lang]`
-   - Why: unblock ergonomic stdlib design (iterators, stringify/format, JSON codecs) with composition-first APIs.
-   - DoD (next deliverable, rolling):
-     - trait syntax accepted by parser: `trait Name { fn ... }` (no runtime impact yet)
-     - impl blocks accepted: `impl Trait for Type { fn ... }` and lowered deterministically into plain `fn`s
-     - document the deterministic naming + dispatch rules (static-first; trait objects opt-in later)
-     - keep `match` contextual (must not steal identifiers)
+   - Completed: parser now accepts `trait` and `impl Trait for Type { ... }` and lowers impl methods deterministically into plain `fn`s.
+   - Next deliverable: add a minimal compile-time resolver for `Type.method(x, ...)` and `x.method(...)` sugar (static-first), still without runtime vtables.
 
 2) **P0 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
@@ -74,3 +70,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - `enum` + `match` sugar implemented; `match` stays contextual (identifiers named `match` are valid).
 - `docs/OBJECT_MODEL.md` clarified: primitives can implement traits; static-first deterministic dispatch.
 - Linux: AVM builds cleanly in docker (fixed `fread` result handling + `int64_t` formatting warning).
+- Language: `trait` and `impl Trait for Type { ... }` syntax accepted by parser and lowered deterministically into plain `fn`s (bootstrap-friendly).
