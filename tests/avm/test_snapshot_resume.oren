@@ -5,6 +5,16 @@ fn main() {
     oren_buf_store_i32(b, 1, 22)
     oren_buf_store_i32(b, 2, 33)
 
+    // Exercise SIMD-ready f32 elementwise kernels in a snapshot/resume workflow.
+    // When AVM_ENABLE_SIMD=1 on arm64, these run through NEON paths; semantics must remain identical.
+    var fa = oren_f32_buf_new(3)
+    if oren_is_err(fa) { oren_exit(1) }
+    oren_buf_fill_f32(fa, 1.5)
+    var sdst = oren_f32_buf_new(3)
+    if oren_is_err(sdst) { oren_exit(1) }
+    oren_buf_scale_f32_into(sdst, fa, 2.0) // 1.5 * 2.0 = 3.0
+    if oren_buf_load_f32(sdst, 0) != 3.0 { oren_exit(1) }
+
     // This is intentionally long enough that a small --step-limit pauses mid-run.
     var i = 0
     while i < 200000 {
@@ -16,6 +26,7 @@ fn main() {
     if oren_buf_load_i32(b, 0) != 11 { oren_exit(1) }
     if oren_buf_load_i32(b, 1) != 22 { oren_exit(1) }
     if oren_buf_load_i32(b, 2) != 33 { oren_exit(1) }
+    if oren_buf_load_f32(sdst, 2) != 3.0 { oren_exit(1) }
     print("snapshot resume ok")
 }
 

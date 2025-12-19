@@ -9,6 +9,16 @@
 
 #include <unistd.h>
 
+// SIMD build-time gating (rolling; runtime opt-in via AVM_ENABLE_SIMD=1):
+// - Compiles NEON paths only when targeting arm64 with NEON available.
+// - SIMD must never change semantics; scalar fallback remains authoritative.
+#if defined(__aarch64__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+#define AVM_HAS_NEON 1
+#include <arm_neon.h>
+#else
+#define AVM_HAS_NEON 0
+#endif
+
 // Determinism hardening (rolling):
 // Avoid fused multiply-add / FP contraction differences across compilers/targets for AVM consensus hashing.
 #pragma STDC FP_CONTRACT OFF

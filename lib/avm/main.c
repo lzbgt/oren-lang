@@ -3213,6 +3213,12 @@ int main(int argc, char** argv) {
         if (tq > 1000000000ull) tq = 1000000000ull;
         vm->task_quantum_steps = (uint32_t)tq;
 
+        // SIMD acceleration (rolling, off by default):
+        // - AVM_ENABLE_SIMD=1 enables SIMD kernel implementations when available.
+        // - This is an optimization only; semantics must match scalar fallback.
+        const char* simd_env = getenv("AVM_ENABLE_SIMD");
+        if (simd_env && simd_env[0] && simd_env[0] != '0') vm->enable_simd = 1;
+
         // Budgets/timeouts (macOS-first, rolling ABI):
     // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
     // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)

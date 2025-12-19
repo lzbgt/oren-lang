@@ -237,6 +237,11 @@ typedef struct {
     // Today (bootstrap), it increments by the semantic `gas_cost(op)` per executed opcode dispatch (currently 1 for all ops).
     uint64_t gas_executed;
 
+    // SIMD acceleration (rolling, off by default):
+    // - enable_simd is a runtime opt-in (env/CLI), because SIMD must be validated against determinism invariants.
+    // - SIMD is an optimization only; semantics must match scalar fallback.
+    int enable_simd;
+
     // Cooperative task scheduling quantum (rolling): number of semantic steps a task may run
     // before yielding to another runnable task (if any). This affects determinism and must be
     // included in job hashing when consensus mode is used.

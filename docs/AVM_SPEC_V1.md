@@ -135,6 +135,11 @@ Bootstrap status (rolling, implemented in `lib/avm`):
   - `f32/f64` are IEEE-754 bit patterns encoded little-endian
   - This makes snapshot/resume, record/replay, and hashing independent of host endianness.
 
+SIMD note (rolling, arm64):
+
+- SIMD kernel implementations are an **optimization** only, and must never change semantics.
+- Runtime opt-in: `AVM_ENABLE_SIMD=1` (default off; scalar fallback remains authoritative).
+
 ### 2.3 Keep `List/Map` for dynamic control/data
 
 Lists/maps remain for:

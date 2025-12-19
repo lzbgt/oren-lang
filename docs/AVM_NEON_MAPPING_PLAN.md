@@ -102,7 +102,8 @@ This yields a deterministic order that is stable across compilers and platforms 
 
 Runtime:
 
-- Add a VM/global flag like `AVM_ENABLE_SIMD=1` (default off until validated).
+- Runtime opt-in flag: `AVM_ENABLE_SIMD=1` (default off until validated).
+- AVM must remain correct without SIMD; SIMD is an optimization only.
 - Consensus mode (deterministic) can force SIMD on/off depending on policy, but it must be explicit and stable.
 
 Build-time:

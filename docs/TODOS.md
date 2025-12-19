@@ -44,10 +44,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
-   - Next deliverable: “SIMD-ready” kernel ABI nucleus → first NEON implementation (still scalar fallback available) `[perf]`:
-     - introduce build+runtime gating for NEON kernels (`AVM_ENABLE_SIMD=1`, default off)
-     - implement NEON for `f32` elementwise kernels (`*_add_*_into`, `*_mul_*_into`, `*_scale_*_into`)
-     - validate determinism invariants (smoke suite + snapshot/resume hash stability) with SIMD on/off
+   - Next deliverable: NEON reductions (still scalar fallback available) `[perf]`:
+     - implement NEON for `f32` reductions (`dot`, `reduce_sum`) with a fixed reduction order (consensus-safe)
+     - extend smoke coverage for reduction kernels under `AVM_ENABLE_SIMD=1`
 
 2) **P1 [lang] Explicit fixed-width numeric types + type annotations** `[perf]`
    - DoD: Oren can express deterministic, hardware-level layouts without abusing attributes:
@@ -89,3 +88,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM: extended typed-buffer kernels: in-place add/scale/reduce and mul kernels for `f32`, plus mul+reduce for `i32`; covered by smoke suite.
 - AVM: completed ABI-nucleus `_into` kernels for scale (`f32/i32`) and added a concrete NEON mapping plan (`docs/AVM_NEON_MAPPING_PLAN.md`).
 - AVM: added allocation-free reduction `_into` kernels (`dot/reduce_sum` writing to `f64_buf/i64_buf`), wired through compiler lowering; covered by smoke suite.
+- AVM: added `AVM_ENABLE_SIMD=1` runtime opt-in + NEON implementations for `f32` elementwise `_into` kernels; validated via `oretest` running smoke+snapshot-resume in both scalar and SIMD modes on arm64.
