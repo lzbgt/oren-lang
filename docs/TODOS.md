@@ -60,4 +60,5 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Mach-O emitter: removed remaining layout magic numbers (segment alignment, codesign page size, exit-stub header sizing, section flags) by centralizing them as named constants.
 - Mach-O emitter: replaced raw segname/sectname byte sequences with a fixed-16 string helper (less brittle, clearer).
 - Mach-O emitter: centralized remaining structural constants (prot flags, build-version packing, codesign lengths) and removed more remaining magic numbers.
+- Refs: vendored Mach-O headers (`loader.h`, `nlist.h`) into `docs/refs/macho/` pinned to an Apple OSS `cctools` commit for audit-only reference (no build dependency).
 - Native backend docs: corrected `+` string concatenation note to match native lowering (`oren_add`) and current test coverage.
