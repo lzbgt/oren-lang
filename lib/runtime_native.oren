@@ -2100,6 +2100,16 @@ fn native_capsule_sys_dup_post(newfd, oldfd) {
 fn native_capsule_sys_dup2_pre(oldfd, newfd) {
     // Enforce domain for raw sys_dup2 boundary (no bypass).
     native_capsule_require_fd_domain(oldfd)
+    if global_get_capsule_mode() != 1 { return 0 }
+    // dup2/dup3 can implicitly close `newfd` if it is already open.
+    // For tagged fds (NET/PROC/TIME eventloop), require the corresponding domain as well
+    // so programs cannot drop capabilities by dup-clobbering a tagged fd slot.
+    if newfd >= 0 {
+        var k = native_capsule_net_fd_kind_get(newfd)
+        if k != 0 {
+            native_capsule_require_fd_domain(newfd)
+        }
+    }
     return 0
 }
 
