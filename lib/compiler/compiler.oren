@@ -197,6 +197,19 @@ fn scan_syscalls_in_src(src, prefix) {
     var p_len = oren_list_len(pb)
     var i = 0
     while i + p_len <= n {
+        // Skip line comments (`// ... \n`) so policy checks don't fail on docs/comments.
+        if i + 1 < n {
+            if sb[i] == 47 && sb[i + 1] == 47 {
+                // Skip until newline or EOF.
+                i = i + 2
+                while i < n {
+                    if sb[i] == 10 { i = i + 1; break } // '\n'
+                    i = i + 1
+                }
+                continue
+            }
+        }
+
         var match = true
         var j = 0
         while j < p_len {
@@ -297,6 +310,18 @@ fn count_substring_in_src(src, needle) {
     var count = 0
     var i = 0
     while i + nl <= sl {
+        // Skip line comments (`// ... \n`) so policy checks don't fail on docs/comments.
+        if i + 1 < sl {
+            if sb[i] == 47 && sb[i + 1] == 47 {
+                i = i + 2
+                while i < sl {
+                    if sb[i] == 10 { i = i + 1; break } // '\n'
+                    i = i + 1
+                }
+                continue
+            }
+        }
+
         var ok = true
         var j = 0
         while j < nl {
