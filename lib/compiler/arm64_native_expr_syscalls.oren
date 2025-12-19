@@ -1416,6 +1416,68 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             return true
         }
 
+        if fn_name == "sys_fcntl_getpath" {
+            // sys_fcntl_getpath(fd, buf) -> rc or negative errno
+            // macOS: fcntl(fd, F_GETPATH=50, buf)
+            // Linux: not supported; return -ENOSYS.
+            compile_expr(ctx, args[0]) // fd
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // buf
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            if ctx["platform"]["os"] == "linux" {
+                // Pop args and return -ENOSYS (38).
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 32
+                push_u32_le(ctx["code"], insn_movn(0, 37)) // -38
+                return true
+            }
+
+            // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
+            // Treat as FS operation (fd-domain gated).
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_movz(1, abi.darwin_fcntl_f_getpath()))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // buf
+            var bl_fcntl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_pre, "name": "native_capsule_sys_fcntl_pre"})
+
+            // Reload args for syscall: X0=fd, X1=cmd, X2=buf
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_movz(1, abi.darwin_fcntl_f_getpath()))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // buf
+
+            push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_fcntl()))
+            emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
+
+            // Normalize macOS syscall error to X0 = -errno.
+            var br_ok = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.CC ok
+            push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+            var ok_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+
+            // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fd
+            push_u32_le(ctx["code"], insn_movz(2, abi.darwin_fcntl_f_getpath()))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0)) // buf
+            var bl_fcntl_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_post, "name": "native_capsule_sys_fcntl_post"})
+
+            // Pop buf + fd slots.
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 32
+            return true
+        }
+
         if fn_name == "sys_dup" {
             // sys_dup(fd)
             compile_expr(ctx, args[0]) // fd -> X0
