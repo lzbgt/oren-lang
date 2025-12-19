@@ -145,7 +145,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             return true
         }
         
-        if fn_name == "sys_write" {
+    if fn_name == "sys_write" {
             // sys_write(fd, ptr, len)
             compile_expr(ctx, args[0]) // fd -> X0
 
@@ -200,8 +200,33 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
-            return true
+        return true
+    }
+
+    if fn_name == "sys_exit" {
+        // sys_exit(code) -> does not return
+        // NOTE: kept here so all syscall emission stays centralized in this module.
+        //
+        // We intentionally do not add capsule gating for exit yet:
+        // - exit is used by the injected runtime for fatal failures (OOM, init invariants)
+        // - requiring PROC enrollment for exit would make FS-only/TIME-only capsule programs brittle
+        // - AVM exit semantics are VM-terminate, not host-terminate
+
+        compile_expr(ctx, args[0]) // code -> X0
+
+        var svc_imm = abi.darwin_svc_imm()
+        var sys_reg = abi.darwin_syscall_reg()
+        var sys_exit = abi.darwin_sys_exit()
+        if ctx["platform"]["os"] == "linux" {
+            svc_imm = labi.linux_svc_imm()
+            sys_reg = labi.linux_syscall_reg()
+            sys_exit = labi.linux_sys_exit()
         }
+
+        push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
+        push_u32_le(ctx["code"], insn_svc(svc_imm))
+        return true
+    }
 
         if fn_name == "sys_open" {
             // sys_open(path_ptr, flags, mode)

@@ -63,5 +63,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native stmt codegen: removed direct `sys_write` emission for `print("literal")`; print now flows through runtime `oren_print` so syscall gating applies. Stdout/stderr writes are treated as a diagnostic channel (allowed even without FS enrollment).
 - Native expr codegen: removed unreachable legacy spawn lowering that embedded raw syscalls (runtime spawn uses `oren_spawn_call_list` instead).
 - AVM host FS: improved mount deny diagnostics to include op + path + env hint (keeps behavior aligned with native capsule UX).
+- Native stmt codegen: centralized `exit()` syscall lowering in `arm64_native_expr_syscalls.oren` to avoid scattered ABI constants.
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).

@@ -1,5 +1,6 @@
 import core "arm64_core.oren"
 import exprm "arm64_native_expr.oren"
+import sysm "arm64_native_expr_syscalls.oren"
 import abi "arm64_abi_macos.oren"
 import labi "arm64_abi_linux.oren"
 
@@ -727,20 +728,8 @@ fn native_compile_stmt(ctx, stmt) {
         if expr["type"] == "Call" {
             var fn_name = expr["fn"]["value"]
 
-            // NOTE: keep print/exit fast paths, but do NOT special-case syscalls like sys_write here.
-            // sys_* must go through the syscall lowering pipeline so capsule enforcement runs.
-
-            var sys_write = abi.darwin_sys_write()
-            var sys_exit = abi.darwin_sys_exit()
-            var svc_imm = abi.darwin_svc_imm()
-            var sys_reg = abi.darwin_syscall_reg()
-
-            if ctx["platform"]["os"] == "linux" {
-                sys_write = labi.linux_sys_write()
-                sys_exit = labi.linux_sys_exit()
-                svc_imm = labi.linux_svc_imm()
-                sys_reg = labi.linux_syscall_reg()
-            }
+            // NOTE: keep print/exit fast paths, but do NOT emit syscalls directly here.
+            // Keep all syscall emission centralized in `arm64_native_expr_syscalls.oren`.
 
             if fn_name == "print" {
                 var args = expr["args"]
@@ -808,9 +797,9 @@ fn native_compile_stmt(ctx, stmt) {
             }
             
             if fn_name == "exit" {
-                native_compile_expr(ctx, expr["args"][0])
-                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                // Route through centralized syscall lowering so OS ABIs stay in one place.
+                // (exit is implemented via sys_exit, but user code does not call sys_exit directly.)
+                sysm.native_compile_syscall_call(ctx, "sys_exit", expr["args"], native_compile_expr)
                 return nil
             }
 
