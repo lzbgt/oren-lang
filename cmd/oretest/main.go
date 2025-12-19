@@ -186,6 +186,13 @@ func main() {
 			cleanup: []string{"build/struct_field_assign_bad"},
 		},
 		{
+			name:    "trait_impl_ambiguous_method",
+			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/trait_impl_ambiguous_method.oren", *target, "build/trait_impl_ambiguous_method", gcArg),
+			log:     "build/logs/trait_impl_ambiguous_method.log",
+			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
+			cleanup: []string{"build/trait_impl_ambiguous_method"},
+		},
+		{
 			name:    "capsule_ok_compile",
 			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s -o %q --capsule%s", "tests/native/fixtures/capsule_ok.oren", *target, "build/capsule_ok", gcArg),
 			log:     "build/logs/capsule_ok.log",

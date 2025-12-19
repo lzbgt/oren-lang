@@ -1,0 +1,32 @@
+// Compile-fail fixture:
+// method-call sugar must be a compile-time error if multiple impls provide the
+// same `Type.method` name for a given receiver type.
+
+trait A {
+    fn add(self, x);
+}
+
+trait B {
+    fn add(self, x);
+}
+
+impl A for i64 {
+    fn add(self, x) { return self + x }
+}
+
+impl B for i64 {
+    fn add(self, x) { return self + x + 100 }
+}
+
+// Type-style call should be ambiguous.
+var r0 = i64.add(1, 2)
+
+// Receiver-style call should also be ambiguous.
+var v: i64 = 1
+var r1 = v.add(2)
+
+// Should never reach here (must fail to compile).
+print(r0)
+print(r1)
+exit(0)
+

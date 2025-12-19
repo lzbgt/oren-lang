@@ -51,16 +51,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - codegen honors exact widths when the programmer asks for it (esp. FFI + packet parsing + HPC kernels)
    - Keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system.
    - Next deliverables (finishable slices):
-     - apply deterministic wrap/truncate casts for annotated struct/class fields at construction time (cross-backend) ✅
-     - add explicit float32 rounding semantics (cross-backend, deterministic boundary) ✅
-     - normalize annotated locals/params/returns at boundaries (cross-backend) ✅
-     - implement native typed buffers parity (`*_buf_new`, load/store, bulk ops; f32 rounding) ✅
-     - define “typed pointers” for FFI/syscalls (no libc, syscall-first)
-       - next slice: endian-aware pointer reads/writes for packet parsing (BE/LE) ✅
-       - next slice: `u8_buf` + `sys_read_u8_buf/sys_write_u8_buf` for zero-copy IO ✅
-       - next slice: allow `u8_buf` as a byte container for `pack_view` / `oren_bytes_get_u8` ✅
-       - next slice: native `oren_bytes_{len,from_hex,to_hex,pack,unpack}` parity on `u8_buf` ✅
-       - next slice: `oren_u8_buf_wrap_ptr(malloc_ptr, len)` for true zero-copy packet parsing ✅
+     - v0 value-level semantics for annotated locals/params/returns/fields (cross-backend) ✅
+     - syscall-first packet parsing story (native): typed buffers + endian ptr helpers + `u8_buf` bytes APIs ✅
+     - next slice (real layouts): define and implement an exact-size struct layout mode (alignment/padding) suitable for FFI/HPC (beyond `@oren.packed` views).
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -75,7 +68,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 4) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
    - Next deliverables (in order):
-     - compile-time ambiguity diagnostics for multiple impls of the same `Type.method`
+     - compile-time ambiguity diagnostics for multiple impls of the same `Type.method` ✅
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
 5) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
