@@ -45,7 +45,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - built-in type tokens: `u8/i8/u16/i16/u32/i32/u64/i64/u128/i128/f32/f64/bool`
      - type annotation syntax works for locals, params, returns, and struct fields
    - Next deliverables (in order):
-     - parser+AST: `name: Type` and `Type` tokens for the fixed-width set
      - codegen: exact-size memory layout for those types (esp. `packed` structs and endian casts)
      - keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system
 
@@ -93,3 +92,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM: added allocation-free reduction `_into` kernels (`dot/reduce_sum` writing to `f64_buf/i64_buf`), wired through compiler lowering; covered by smoke suite.
 - AVM: added `AVM_ENABLE_SIMD=1` runtime opt-in + NEON implementations for `f32` elementwise `_into` kernels; validated via `oretest` running smoke+snapshot-resume in both scalar and SIMD modes on arm64.
 - AVM: added determinism-safe NEON reductions for `f32` (`dot`/`reduce_sum`), preserving the scalar “compute in f64, accumulate in fixed order” semantics; smoke suite includes a len=8 SIMD coverage block.
+- Compiler: promoted fixed-width type names (`u8/i32/f64/u16be/...`) to dedicated lexer tokens while keeping them identifier-like in expressions/dotted names; parser supports `name: Type` for vars/params/fields/for-in and `fn f(...): Ret {}` for return annotations.

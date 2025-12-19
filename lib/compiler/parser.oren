@@ -274,6 +274,8 @@ fn parser_next_token(p) {
 
 fn cur_is(p, t) { return p["cur"]["type"] == t }
 fn peek_is(p, t) { return p["peek"]["type"] == t }
+fn cur_is_ident_like(p) { return token.is_ident_like_token(p["cur"]["type"]) }
+fn peek_is_ident_like(p) { return token.is_ident_like_token(p["peek"]["type"]) }
 
 fn expect_peek(p, t) {
     if peek_is(p, t) {
@@ -282,6 +284,27 @@ fn expect_peek(p, t) {
     }
     parser_add_error(p, "expected " + t + ", got " + p["peek"]["type"])
     return false
+}
+
+fn expect_peek_ident_like(p, what) {
+    if peek_is_ident_like(p) {
+        parser_next_token(p)
+        return true
+    }
+    parser_add_error(p, "expected " + what + ", got " + p["peek"]["type"])
+    return false
+}
+
+fn parse_type_name_after_colon(p) {
+    // Precondition: current token is ':'
+    if !expect_peek_ident_like(p, "type name") { return nil }
+    var tname = p["cur"]["literal"]
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // .
+        if !expect_peek_ident_like(p, "type name segment") { return nil }
+        tname = tname + "." + p["cur"]["literal"]
+    }
+    return tname
 }
 
 fn parse_program(p) {
@@ -323,12 +346,12 @@ fn parse_attr_list(p) {
 fn parse_attr(p) {
     // Current token is '@'
     var at_tok = p["cur"]
-    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    if !expect_peek_ident_like(p, "attribute name") { return nil }
     var name = p["cur"]["literal"]
     // Support dotted namespaces: @myorg.tag(...)
     while peek_is(p, token.TOK_DOT) {
         parser_next_token(p) // '.'
-        if !expect_peek(p, token.TOK_IDENT) { return nil }
+        if !expect_peek_ident_like(p, "attribute name segment") { return nil }
         name = name + "." + p["cur"]["literal"]
     }
 
@@ -451,11 +474,11 @@ fn parse_statement(p) {
 
 fn parse_dotted_name(p) {
     // Parse an identifier with optional dotted suffixes: A.B.C
-    if p["cur"]["type"] != token.TOK_IDENT { return nil }
+    if !cur_is_ident_like(p) { return nil }
     var name = p["cur"]["literal"]
     while peek_is(p, token.TOK_DOT) {
         parser_next_token(p) // .
-        if !expect_peek(p, token.TOK_IDENT) { return nil }
+        if !expect_peek_ident_like(p, "dotted name segment") { return nil }
         name = name + "." + p["cur"]["literal"]
     }
     return name
@@ -485,7 +508,7 @@ fn parse_trait_decl(p) {
     //
     // We intentionally desugar trait declarations into no emitted statements so
     // existing backends are unchanged.
-    if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+    if !expect_peek_ident_like(p, "trait name") { return ast.new_stmt_list([]) }
     // trait name (cur is IDENT after expect_peek)
     var trait_name = parse_dotted_name(p)
     if trait_name == nil { return ast.new_stmt_list([]) }
@@ -498,7 +521,7 @@ fn parse_trait_decl(p) {
         if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
         if cur_is(p, token.TOK_FUNCTION) {
             // Parse `fn name(...)` signature and ignore.
-            if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+            if !expect_peek_ident_like(p, "trait method name") { return ast.new_stmt_list([]) }
             // Signature params: `(...)`
             if !expect_peek(p, token.TOK_LPAREN) { return ast.new_stmt_list([]) }
             // cur is '(' now
@@ -558,13 +581,13 @@ fn parse_impl_decl(p) {
     //
     // This unblocks early stdlib layering and tooling without committing to a stable
     // method dispatch ABI yet.
-    if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+    if !expect_peek_ident_like(p, "impl trait name") { return ast.new_stmt_list([]) }
     // cur is IDENT after expect_peek
     var trait_name = parse_dotted_name(p)
     if trait_name == nil { return ast.new_stmt_list([]) }
 
     if !expect_peek(p, token.TOK_FOR) { return ast.new_stmt_list([]) }
-    if !expect_peek(p, token.TOK_IDENT) { return ast.new_stmt_list([]) }
+    if !expect_peek_ident_like(p, "impl type name") { return ast.new_stmt_list([]) }
     // cur is IDENT after expect_peek
     var type_name = parse_dotted_name(p)
     if type_name == nil { return ast.new_stmt_list([]) }
@@ -1022,13 +1045,8 @@ fn parse_var(p) {
     // Stored on the identifier node as `ann_type` (non-semantic; used by lowerings/tooling).
     if peek_is(p, token.TOK_COLON) {
         parser_next_token(p) // :
-        if !expect_peek(p, token.TOK_IDENT) { return nil }
-        var tname = p["cur"]["literal"]
-        while peek_is(p, token.TOK_DOT) {
-            parser_next_token(p) // .
-            if !expect_peek(p, token.TOK_IDENT) { return nil }
-            tname = tname + "." + p["cur"]["literal"]
-        }
+        var tname = parse_type_name_after_colon(p)
+        if tname == nil { return nil }
         name["ann_type"] = tname
         type_env_set(p, name["value"], tname)
     }
@@ -1059,13 +1077,8 @@ fn parse_typed_short_var(p) {
     var tok = token.new_token(token.TOK_LET, "var")
 
     parser_next_token(p) // :
-    if !expect_peek(p, token.TOK_IDENT) { return nil }
-    var tname = p["cur"]["literal"]
-    while peek_is(p, token.TOK_DOT) {
-        parser_next_token(p) // .
-        if !expect_peek(p, token.TOK_IDENT) { return nil }
-        tname = tname + "." + p["cur"]["literal"]
-    }
+    var tname = parse_type_name_after_colon(p)
+    if tname == nil { return nil }
     name["ann_type"] = tname
     type_env_set(p, name["value"], tname)
 
@@ -1162,7 +1175,7 @@ fn parse_expression(p, prec) {
 
 fn parse_prefix(p) {
     var t = p["cur"]["type"]
-    if t == token.TOK_IDENT { return ast.new_identifier(p["cur"]) }
+    if token.is_ident_like_token(t) { return ast.new_identifier(p["cur"]) }
     if t == token.TOK_INT { return ast.new_integer(p["cur"]) }
     if t == token.TOK_FLOAT { return ast.new_float(p["cur"]) }
     if t == token.TOK_STRING { return ast.new_string(p["cur"]) }
@@ -1351,12 +1364,23 @@ fn parse_block(p) {
 fn parse_function(p) {
     var tok = p["cur"]
     var name = ""
-    if peek_is(p, token.TOK_IDENT) {
+    if peek_is_ident_like(p) {
         parser_next_token(p)
         name = p["cur"]["literal"]
     }
     if !expect_peek(p, token.TOK_LPAREN) { return nil }
     var params = parse_parameters(p)
+
+    // Optional return type annotation (rolling, metadata-only for now):
+    //   fn f(x: T): U { ... }
+    // Stored on the Function node as `ret_ann_type`.
+    var ret_ann = nil
+    if peek_is(p, token.TOK_COLON) {
+        parser_next_token(p) // ':'
+        ret_ann = parse_type_name_after_colon(p)
+        if ret_ann == nil { return nil }
+    }
+
     if !expect_peek(p, token.TOK_LBRACE) { return nil }
     // Seed the function body scope with any parameter type annotations so method
     // sugar (`x.method(...)`) can resolve inside the body.
@@ -1373,7 +1397,9 @@ fn parse_function(p) {
         p["_pending_scope_types"] = pend
     }
     var body = parse_block(p)
-    return ast.new_function(tok, name, params, body)
+    var fnn = ast.new_function(tok, name, params, body)
+    if ret_ann != nil { fnn["ret_ann_type"] = ret_ann }
+    return fnn
 }
 
 fn parse_parameters(p) {
@@ -1393,13 +1419,8 @@ fn parse_parameters(p) {
     var id0 = ast.new_identifier(p["cur"])
     if peek_is(p, token.TOK_COLON) {
         parser_next_token(p) // :
-        if !expect_peek(p, token.TOK_IDENT) { return params }
-        var tname0 = p["cur"]["literal"]
-        while peek_is(p, token.TOK_DOT) {
-            parser_next_token(p) // .
-            if !expect_peek(p, token.TOK_IDENT) { return params }
-            tname0 = tname0 + "." + p["cur"]["literal"]
-        }
+        var tname0 = parse_type_name_after_colon(p)
+        if tname0 == nil { return params }
         id0["ann_type"] = tname0
     }
     if attrs0 != nil && oren_list_len(attrs0) > 0 { id0["attrs"] = attrs0 }
@@ -1417,13 +1438,8 @@ fn parse_parameters(p) {
         var idN = ast.new_identifier(p["cur"])
         if peek_is(p, token.TOK_COLON) {
             parser_next_token(p) // :
-            if !expect_peek(p, token.TOK_IDENT) { return params }
-            var tnameN = p["cur"]["literal"]
-            while peek_is(p, token.TOK_DOT) {
-                parser_next_token(p) // .
-                if !expect_peek(p, token.TOK_IDENT) { return params }
-                tnameN = tnameN + "." + p["cur"]["literal"]
-            }
+            var tnameN = parse_type_name_after_colon(p)
+            if tnameN == nil { return params }
             idN["ann_type"] = tnameN
         }
         if attrsN != nil && oren_list_len(attrsN) > 0 { idN["attrs"] = attrsN }
@@ -1547,7 +1563,7 @@ fn parse_call_args(p) {
 
 fn parse_member(p, left) {
     var tok = p["cur"]
-    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    if !expect_peek_ident_like(p, "member name") { return nil }
     var prop = ast.new_identifier(p["cur"])
 
     // Enum dot-variant sugar:
@@ -1739,13 +1755,8 @@ fn parse_for(p) {
         //   for x: u8 in bytes { ... }
         if peek_is(p, token.TOK_COLON) {
             parser_next_token(p) // :
-            if !expect_peek(p, token.TOK_IDENT) { return nil }
-            var tname = p["cur"]["literal"]
-            while peek_is(p, token.TOK_DOT) {
-                parser_next_token(p) // .
-                if !expect_peek(p, token.TOK_IDENT) { return nil }
-                tname = tname + "." + p["cur"]["literal"]
-            }
+            var tname = parse_type_name_after_colon(p)
+            if tname == nil { return nil }
             user_name["ann_type"] = tname
             if !peek_is(p, token.TOK_IN) {
                 parser_add_error(p, "expected 'in' after for-in type annotation")
@@ -1921,13 +1932,8 @@ fn parse_type_decl(p) {
             // - `std.net.IPv4`
             if peek_is(p, token.TOK_COLON) {
                 parser_next_token(p) // ':'
-                if !expect_peek(p, token.TOK_IDENT) { return nil }
-                var tname = p["cur"]["literal"]
-                while peek_is(p, token.TOK_DOT) {
-                    parser_next_token(p) // '.'
-                    if !expect_peek(p, token.TOK_IDENT) { return nil }
-                    tname = tname + "." + p["cur"]["literal"]
-                }
+                var tname = parse_type_name_after_colon(p)
+                if tname == nil { return nil }
                 fid["ann_type"] = tname
             }
 

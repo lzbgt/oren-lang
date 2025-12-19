@@ -344,6 +344,7 @@ Oren supports a universal type-annotation sugar:
 - `x: u64 := expr`
 - `for x: T in iterable { ... }`
 - `fn f(x: T, y: U) { ... }`
+- `fn f(x: T): U { ... }`
 
 In **v0**, these annotations are treated as **metadata**:
 
@@ -351,7 +352,12 @@ In **v0**, these annotations are treated as **metadata**:
 - they may be consumed by compiler lowering passes (e.g. packed struct views, explicit casts, typed buffers)
 - they must not introduce nondeterminism (annotations are inert unless a lowering pass uses them in a deterministic way)
 
-Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved identifiers** intended to become true explicit types as the v1 type system is stabilized.
+Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved type tokens** intended to become true explicit types as the v1 type system is stabilized.
+
+Implementation note (current compiler):
+
+- The lexer recognizes these as dedicated tokens (not plain identifiers).
+- The parser treats them as **identifier-like** in expression/dotted-name contexts, so existing code such as `ints.u8(x)` continues to work.
 
 ### Control Flow
 - `if cond { ... } else { ... }` executes a block based on truthiness of `cond`.

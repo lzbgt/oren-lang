@@ -64,6 +64,32 @@ var TOK_ENUM = "ENUM"
 var TOK_TRAIT = "TRAIT"
 var TOK_IMPL = "IMPL"
 
+// Built-in fixed-width type tokens (rolling, reserved identifiers).
+// These must be treated as identifiers in expression contexts, but are not legal as user variable names.
+var TOK_U8 = "U8"
+var TOK_I8 = "I8"
+var TOK_U16 = "U16"
+var TOK_I16 = "I16"
+var TOK_U32 = "U32"
+var TOK_I32 = "I32"
+var TOK_U64 = "U64"
+var TOK_I64 = "I64"
+var TOK_U128 = "U128"
+var TOK_I128 = "I128"
+var TOK_F32 = "F32"
+var TOK_F64 = "F64"
+var TOK_BOOL_TYPE = "BOOL_TYPE"
+
+// Endian-explicit scalar types (rolling; used by packed byte views and future typed memory layout).
+var TOK_U16BE = "U16BE"
+var TOK_U16LE = "U16LE"
+var TOK_I16BE = "I16BE"
+var TOK_I16LE = "I16LE"
+var TOK_U32BE = "U32BE"
+var TOK_U32LE = "U32LE"
+var TOK_I32BE = "I32BE"
+var TOK_I32LE = "I32LE"
+
 // Character constants
 var CH_TAB = oren_char(9)
 var CH_LF = oren_char(10)
@@ -124,7 +150,67 @@ fn lookup_ident(ident) {
     if ident == "enum" { return TOK_ENUM }
     if ident == "trait" { return TOK_TRAIT }
     if ident == "impl" { return TOK_IMPL }
+
+    // Built-in fixed-width types (reserved).
+    if ident == "u8" { return TOK_U8 }
+    if ident == "i8" { return TOK_I8 }
+    if ident == "u16" { return TOK_U16 }
+    if ident == "i16" { return TOK_I16 }
+    if ident == "u32" { return TOK_U32 }
+    if ident == "i32" { return TOK_I32 }
+    if ident == "u64" { return TOK_U64 }
+    if ident == "i64" { return TOK_I64 }
+    if ident == "u128" { return TOK_U128 }
+    if ident == "i128" { return TOK_I128 }
+    if ident == "f32" { return TOK_F32 }
+    if ident == "f64" { return TOK_F64 }
+    if ident == "bool" { return TOK_BOOL_TYPE }
+
+    // Endian-explicit scalars (reserved).
+    if ident == "u16be" { return TOK_U16BE }
+    if ident == "u16le" { return TOK_U16LE }
+    if ident == "i16be" { return TOK_I16BE }
+    if ident == "i16le" { return TOK_I16LE }
+    if ident == "u32be" { return TOK_U32BE }
+    if ident == "u32le" { return TOK_U32LE }
+    if ident == "i32be" { return TOK_I32BE }
+    if ident == "i32le" { return TOK_I32LE }
+
     return TOK_IDENT
+}
+
+fn is_builtin_type_token(tt) {
+    if tt == TOK_U8 { return true }
+    if tt == TOK_I8 { return true }
+    if tt == TOK_U16 { return true }
+    if tt == TOK_I16 { return true }
+    if tt == TOK_U32 { return true }
+    if tt == TOK_I32 { return true }
+    if tt == TOK_U64 { return true }
+    if tt == TOK_I64 { return true }
+    if tt == TOK_U128 { return true }
+    if tt == TOK_I128 { return true }
+    if tt == TOK_F32 { return true }
+    if tt == TOK_F64 { return true }
+    if tt == TOK_BOOL_TYPE { return true }
+
+    if tt == TOK_U16BE { return true }
+    if tt == TOK_U16LE { return true }
+    if tt == TOK_I16BE { return true }
+    if tt == TOK_I16LE { return true }
+    if tt == TOK_U32BE { return true }
+    if tt == TOK_U32LE { return true }
+    if tt == TOK_I32BE { return true }
+    if tt == TOK_I32LE { return true }
+
+    return false
+}
+
+// Ident-like tokens: legal in expression position (parse as Identifier nodes),
+// and legal in dotted namespaces/type positions.
+fn is_ident_like_token(tt) {
+    if tt == TOK_IDENT { return true }
+    return is_builtin_type_token(tt)
 }
 
 fn new_token(tt, lit) {
