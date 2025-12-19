@@ -44,7 +44,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
-   - Next deliverable: cooperative concurrency MVP (single-threaded) with deterministic `spawn/join` + channels + `select`.
+   - Next deliverable: scheduling + determinism tightening:
+     - time-sliced cooperative tasks (gas quantum; deterministic)
+     - `join_timeout` semantics in deterministic TIME
+     - `select` fairness rules + send cases (not only recv)
 
 2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
@@ -76,3 +79,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Language: method-call sugar resolver:
   - `x.method(a, b)` resolves (with `x: Type` in scope) to the lowered impl function `__oren_impl__...__method(x, a, b)`
   - `Type.method(a, b)` resolves to the lowered impl function `__oren_impl__...__method(a, b)`
+- AVM bytecode backend: cooperative concurrency MVP:
+  - `spawn`/`oren_join` supported (VM-internal tasks; deterministic; no host syscalls)
+  - `oren_new_channel` / `oren_chan_send` / `oren_chan_recv` / `oren_select_recv` supported

@@ -3,6 +3,410 @@
 #include <stdlib.h>
 #include <string.h>
 
+// --- Cooperative Tasks (rolling, AVM v1 direction) ---
+//
+// This implements a minimal, VM-internal cooperative concurrency model to support:
+// - Oren `spawn f(...)` / `oren_join(handle)` in the bytecode backend
+// - VM-internal channels: `oren_new_channel`, `oren_chan_send`, `oren_chan_recv`
+// - `oren_select_recv([ch1, ch2, ...])`
+//
+// Design constraints:
+// - single-threaded, deterministic, no host syscalls
+// - shared heap + globals between tasks (like greenlets within one VM)
+// - blocking ops (`join`, `chan_recv`, `select_recv`) yield to other runnable tasks
+//
+// This is intentionally minimal and rolling: it is a foundation for later AVM v1
+// scheduling rules (gas/time slicing, deterministic select fairness, etc.).
+
+enum {
+    AVM_OP_SPAWN_CALL_LIST = 0x45,  // stack: [... fn args_list] -> [... handle_int]
+    AVM_OP_JOIN            = 0x46,  // stack: [... handle_int] -> [... ret]
+    AVM_OP_CHAN_NEW        = 0x47,  // stack: [...] -> [... chan_int]
+    AVM_OP_CHAN_SEND       = 0x48,  // stack: [... ch val] -> [... ok_int]
+    AVM_OP_CHAN_RECV       = 0x49,  // stack: [... ch] -> [... val] (blocks if empty)
+    AVM_OP_SELECT_RECV     = 0x4A,  // stack: [... list<ch>] -> [... [idx,val]] (blocks if none ready)
+    AVM_OP_YIELD           = 0x4B   // stack: [...] -> [...] (yield to another runnable task)
+};
+
+typedef struct {
+    int used;
+    int done;
+    int blocked;
+
+    int wait_kind;      // 0 none, 1 join, 2 recv, 3 select
+    int wait_id;        // join target task id
+    int wait_chan;      // recv channel id
+    AvmValue wait_list; // select list value (list of channel handles)
+
+    int wake_pending;
+    AvmValue wake_value;
+
+    int pc;
+    int sp;
+    int fp;
+    int frame_count;
+    AvmValue env;
+
+    AvmValue* stack;    // points to a stack buffer (main task uses vm->stack_base)
+    AvmFrame* frames;   // MAX_FRAMES frames saved/restored on task switch
+
+    AvmValue ret;
+    int has_ret;
+} AvmTask;
+
+typedef struct {
+    int used;
+    int64_t id;
+    // recv waiters (task ids)
+    int* recv_waiters;
+    int recv_count;
+    int recv_cap;
+    // buffered messages (rolling: unbounded, but best-effort cap to avoid runaway)
+    AvmValue* q;
+    int q_len;
+    int q_cap;
+} AvmChan;
+
+typedef struct {
+    int init;
+    int current_tid;
+
+    AvmTask* tasks;
+    int task_cap;
+    int task_count;
+
+    int* ready;
+    int ready_len;
+    int ready_cap;
+
+    int* select_waiters;
+    int select_len;
+    int select_cap;
+
+    AvmChan* chans;
+    int chan_cap;
+    int chan_count;
+    int64_t next_chan_id;
+} AvmSched;
+
+static void avm_sched_free(AvmVM* vm);
+
+static AvmSched* avm_sched_get(AvmVM* vm) {
+    return vm ? (AvmSched*)vm->sched : NULL;
+}
+
+static int sched_ready_push(AvmSched* s, int tid) {
+    if (!s) return 0;
+    if (tid < 0) return 0;
+    if (s->ready_len + 1 > s->ready_cap) {
+        int new_cap = s->ready_cap ? s->ready_cap * 2 : 16;
+        int* n = (int*)realloc(s->ready, sizeof(int) * (size_t)new_cap);
+        if (!n) return 0;
+        s->ready = n;
+        s->ready_cap = new_cap;
+    }
+    s->ready[s->ready_len++] = tid;
+    return 1;
+}
+
+static int sched_ready_pop(AvmSched* s, int* out_tid) {
+    if (!s || s->ready_len <= 0) return 0;
+    int tid = s->ready[0];
+    for (int i = 1; i < s->ready_len; i++) s->ready[i - 1] = s->ready[i];
+    s->ready_len--;
+    if (out_tid) *out_tid = tid;
+    return 1;
+}
+
+static int sched_select_waiter_add(AvmSched* s, int tid) {
+    if (!s) return 0;
+    if (s->select_len + 1 > s->select_cap) {
+        int new_cap = s->select_cap ? s->select_cap * 2 : 16;
+        int* n = (int*)realloc(s->select_waiters, sizeof(int) * (size_t)new_cap);
+        if (!n) return 0;
+        s->select_waiters = n;
+        s->select_cap = new_cap;
+    }
+    s->select_waiters[s->select_len++] = tid;
+    return 1;
+}
+
+static void task_save_from_vm(AvmVM* vm, AvmTask* t) {
+    if (!vm || !t) return;
+    t->pc = vm->pc;
+    t->sp = vm->sp;
+    t->fp = vm->fp;
+    t->frame_count = vm->frame_count;
+    t->env = vm->env;
+    if (t->frames) memcpy(t->frames, vm->frames, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+}
+
+static void task_load_into_vm(AvmVM* vm, AvmTask* t) {
+    if (!vm || !t) return;
+    vm->stack = t->stack;
+    vm->pc = t->pc;
+    vm->sp = t->sp;
+    vm->fp = t->fp;
+    vm->frame_count = t->frame_count;
+    vm->env = t->env;
+    if (t->frames) memcpy(vm->frames, t->frames, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+
+    if (t->wake_pending) {
+        if (vm->sp < (int)AVM_STACK_SIZE) {
+            vm->stack[vm->sp++] = t->wake_value;
+        } else {
+            avm_abort(vm, avm_err(AVM_ERR_BUDGET, "stack overflow on task wake"));
+        }
+        t->wake_pending = 0;
+        t->wake_value = avm_nil();
+    }
+}
+
+static AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b) {
+    AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+    if (!list) return avm_alloc_fail_value();
+    list->count = 2;
+    list->capacity = 2;
+    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * 2u, AVM_ALLOC_KIND_LIST);
+    if (!list->items) { avm_heap_free(list); return avm_alloc_fail_value(); }
+    list->items[0] = a;
+    list->items[1] = b;
+    AvmValue v; v.type = AVM_VAL_LIST; v.as.l = list;
+    return v;
+}
+
+static AvmSched* avm_sched_ensure(AvmVM* vm) {
+    if (!vm) return NULL;
+    AvmSched* s = (AvmSched*)vm->sched;
+    if (s && s->init) return s;
+
+    s = (AvmSched*)calloc(1, sizeof(AvmSched));
+    if (!s) return NULL;
+    s->init = 1;
+    s->current_tid = 0;
+    s->task_cap = 8;
+    s->tasks = (AvmTask*)calloc((size_t)s->task_cap, sizeof(AvmTask));
+    if (!s->tasks) { free(s); return NULL; }
+    s->ready = NULL;
+    s->ready_len = 0;
+    s->ready_cap = 0;
+    s->select_waiters = NULL;
+    s->select_len = 0;
+    s->select_cap = 0;
+    s->chan_cap = 8;
+    s->chans = (AvmChan*)calloc((size_t)s->chan_cap, sizeof(AvmChan));
+    if (!s->chans) { free(s->tasks); free(s); return NULL; }
+    s->next_chan_id = 1;
+
+    // Main task (tid 0) uses the VM's original stack allocation.
+    s->tasks[0].used = 1;
+    s->tasks[0].done = 0;
+    s->tasks[0].blocked = 0;
+    s->tasks[0].stack = vm->stack_base;
+    s->tasks[0].frames = (AvmFrame*)malloc(sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+    if (!s->tasks[0].frames) {
+        free(s->chans);
+        free(s->tasks);
+        free(s);
+        return NULL;
+    }
+    memset(s->tasks[0].frames, 0, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+    s->task_count = 1;
+
+    vm->sched = s;
+    return s;
+}
+
+static int sched_new_task(AvmVM* vm, AvmSched* s, AvmValue fn, AvmValue args_list) {
+    if (!vm || !s) return -1;
+    if (fn.type != AVM_VAL_FUNC || !fn.as.fn) return -1;
+    if (args_list.type != AVM_VAL_LIST || !args_list.as.l) return -1;
+
+    // Find a free tid slot.
+    int tid = -1;
+    for (int i = 0; i < s->task_cap; i++) {
+        if (!s->tasks[i].used) { tid = i; break; }
+    }
+    if (tid < 0) {
+        int new_cap = s->task_cap * 2;
+        AvmTask* nt = (AvmTask*)realloc(s->tasks, sizeof(AvmTask) * (size_t)new_cap);
+        if (!nt) return -1;
+        memset(nt + s->task_cap, 0, sizeof(AvmTask) * (size_t)(new_cap - s->task_cap));
+        s->tasks = nt;
+        tid = s->task_cap;
+        s->task_cap = new_cap;
+    }
+
+    AvmTask* t = &s->tasks[tid];
+    memset(t, 0, sizeof(*t));
+    t->used = 1;
+    t->done = 0;
+    t->blocked = 0;
+    t->wait_kind = 0;
+    t->wake_pending = 0;
+    t->wake_value = avm_nil();
+
+    t->stack = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)AVM_STACK_SIZE);
+    if (!t->stack) { memset(t, 0, sizeof(*t)); return -1; }
+    t->frames = (AvmFrame*)malloc(sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+    if (!t->frames) { free(t->stack); memset(t, 0, sizeof(*t)); return -1; }
+    memset(t->frames, 0, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+
+    AvmList* al = args_list.as.l;
+    if (al->count < 0 || al->count > (int)AVM_STACK_SIZE) {
+        free(t->frames);
+        free(t->stack);
+        memset(t, 0, sizeof(*t));
+        return -1;
+    }
+    // Seed initial arg stack (callee expects args at fp=0).
+    for (int i = 0; i < al->count; i++) {
+        t->stack[i] = al->items[i];
+    }
+    t->sp = al->count;
+    t->fp = 0;
+    t->frame_count = 0;
+    t->pc = (int)fn.as.fn->addr;
+    t->env = fn.as.fn->env;
+
+    if (tid >= s->task_count) s->task_count = tid + 1;
+    (void)sched_ready_push(s, tid);
+    return tid;
+}
+
+static AvmChan* sched_chan_get(AvmSched* s, int64_t hid) {
+    if (!s) return NULL;
+    if (hid <= 0) return NULL;
+    for (int i = 0; i < s->chan_cap; i++) {
+        if (s->chans[i].used && s->chans[i].id == hid) return &s->chans[i];
+    }
+    return NULL;
+}
+
+static int sched_chan_new(AvmSched* s) {
+    if (!s) return 0;
+    int idx = -1;
+    for (int i = 0; i < s->chan_cap; i++) {
+        if (!s->chans[i].used) { idx = i; break; }
+    }
+    if (idx < 0) {
+        int new_cap = s->chan_cap * 2;
+        AvmChan* nc = (AvmChan*)realloc(s->chans, sizeof(AvmChan) * (size_t)new_cap);
+        if (!nc) return 0;
+        memset(nc + s->chan_cap, 0, sizeof(AvmChan) * (size_t)(new_cap - s->chan_cap));
+        s->chans = nc;
+        idx = s->chan_cap;
+        s->chan_cap = new_cap;
+    }
+    AvmChan* ch = &s->chans[idx];
+    memset(ch, 0, sizeof(*ch));
+    ch->used = 1;
+    ch->id = s->next_chan_id++;
+    ch->recv_waiters = NULL;
+    ch->recv_count = 0;
+    ch->recv_cap = 0;
+    ch->q = NULL;
+    ch->q_len = 0;
+    ch->q_cap = 0;
+    if (idx >= s->chan_count) s->chan_count = idx + 1;
+    return (int)ch->id;
+}
+
+static int chan_recv_waiter_push(AvmChan* ch, int tid) {
+    if (!ch) return 0;
+    if (ch->recv_count + 1 > ch->recv_cap) {
+        int new_cap = ch->recv_cap ? ch->recv_cap * 2 : 8;
+        int* nw = (int*)realloc(ch->recv_waiters, sizeof(int) * (size_t)new_cap);
+        if (!nw) return 0;
+        ch->recv_waiters = nw;
+        ch->recv_cap = new_cap;
+    }
+    ch->recv_waiters[ch->recv_count++] = tid;
+    return 1;
+}
+
+static int chan_recv_waiter_pop(AvmChan* ch, int* out_tid) {
+    if (!ch || ch->recv_count <= 0) return 0;
+    int tid = ch->recv_waiters[0];
+    for (int i = 1; i < ch->recv_count; i++) ch->recv_waiters[i - 1] = ch->recv_waiters[i];
+    ch->recv_count--;
+    if (out_tid) *out_tid = tid;
+    return 1;
+}
+
+static int chan_queue_push(AvmChan* ch, AvmValue v) {
+    if (!ch) return 0;
+    // Best-effort runaway guard (rolling): avoid unbounded queue growth.
+    if (ch->q_len > 4096) return 0;
+    if (ch->q_len + 1 > ch->q_cap) {
+        int new_cap = ch->q_cap ? ch->q_cap * 2 : 8;
+        AvmValue* nq = (AvmValue*)realloc(ch->q, sizeof(AvmValue) * (size_t)new_cap);
+        if (!nq) return 0;
+        ch->q = nq;
+        ch->q_cap = new_cap;
+    }
+    ch->q[ch->q_len++] = v;
+    return 1;
+}
+
+static int chan_queue_pop(AvmChan* ch, AvmValue* out) {
+    if (!ch || ch->q_len <= 0) return 0;
+    AvmValue v = ch->q[0];
+    for (int i = 1; i < ch->q_len; i++) ch->q[i - 1] = ch->q[i];
+    ch->q_len--;
+    if (out) *out = v;
+    return 1;
+}
+
+static void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
+    if (!vm || !s || s->select_len <= 0) return;
+
+    int i = 0;
+    while (i < s->select_len) {
+        int tid = s->select_waiters[i];
+        if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) {
+            // Drop invalid waiter.
+            for (int j = i + 1; j < s->select_len; j++) s->select_waiters[j - 1] = s->select_waiters[j];
+            s->select_len--;
+            continue;
+        }
+        AvmTask* t = &s->tasks[tid];
+        if (!t->blocked || t->wait_kind != 3 || t->wait_list.type != AVM_VAL_LIST || !t->wait_list.as.l) {
+            for (int j = i + 1; j < s->select_len; j++) s->select_waiters[j - 1] = s->select_waiters[j];
+            s->select_len--;
+            continue;
+        }
+
+        AvmList* lst = t->wait_list.as.l;
+        int woke = 0;
+        for (int k = 0; k < lst->count; k++) {
+            AvmValue hv = lst->items[k];
+            if (hv.type != AVM_VAL_INT) continue;
+            AvmChan* ch = sched_chan_get(s, hv.as.i);
+            if (!ch) continue;
+            AvmValue msg;
+            if (chan_queue_pop(ch, &msg)) {
+                AvmValue pair = make_pair_list(vm, avm_int((int64_t)k), msg);
+                if (avm_is_err_val(pair)) { avm_abort(vm, pair); return; }
+                t->blocked = 0;
+                t->wait_kind = 0;
+                t->wait_list = avm_nil();
+                t->wake_pending = 1;
+                t->wake_value = pair;
+                (void)sched_ready_push(s, tid);
+                // Remove from select_waiters.
+                for (int j = i + 1; j < s->select_len; j++) s->select_waiters[j - 1] = s->select_waiters[j];
+                s->select_len--;
+                woke = 1;
+                break;
+            }
+        }
+        if (!woke) {
+            i++;
+        }
+    }
+}
+
 const char* avm_op_name(uint8_t op) {
     switch (op) {
         case 0x00: return "NOP";
@@ -45,6 +449,13 @@ const char* avm_op_name(uint8_t op) {
         case 0x42: return "GET_INDEX";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
+        case 0x45: return "SPAWN_CALL_LIST";
+        case 0x46: return "JOIN";
+        case 0x47: return "CHAN_NEW";
+        case 0x48: return "CHAN_SEND";
+        case 0x49: return "CHAN_RECV";
+        case 0x4A: return "SELECT_RECV";
+        case 0x4B: return "YIELD";
         default: return "OP?";
     }
 }
@@ -75,7 +486,8 @@ void avm_abort(AvmVM* vm, AvmValue err) {
 
 AvmVM* avm_new() {
     AvmVM* vm = (AvmVM*)malloc(sizeof(AvmVM));
-    vm->stack = (AvmValue*)malloc(sizeof(AvmValue) * AVM_STACK_SIZE);
+    vm->stack_base = (AvmValue*)malloc(sizeof(AvmValue) * AVM_STACK_SIZE);
+    vm->stack = vm->stack_base;
     vm->sp = 0;
     vm->pc = 0;
     vm->running = 0;
@@ -143,6 +555,7 @@ AvmVM* avm_new() {
     vm->trace_bytes_truncated = 0;
     vm->break_pcs = NULL;
     vm->break_pc_count = 0;
+    vm->sched = NULL;
     for (int i = 0; i < MAX_GLOBALS; i++) vm->globals[i].type = AVM_VAL_NIL;
     return vm;
 }
@@ -168,7 +581,11 @@ void avm_free(AvmVM* vm) {
         abort();
     }
 
-    if (vm->stack) free(vm->stack);
+    // Tear down cooperative scheduler (tasks/channels) if it was initialized.
+    // (Owned by this module; does not participate in the heap budget accounting.)
+    if (vm->sched) avm_sched_free(vm);
+
+    if (vm->stack_base) free(vm->stack_base);
     if (vm->break_pcs) free(vm->break_pcs);
     if (vm->fs_allow_prefixes) {
         for (int i = 0; i < vm->fs_allow_prefix_count; i++) {
@@ -202,6 +619,7 @@ void avm_load(AvmVM* vm, AvmProgram* prog) {
     vm->fp = 0;
     vm->env = avm_nil();
     vm->frame_count = 0;
+    vm->stack = vm->stack_base;
     vm->paused = 0;
     vm->has_result_value = 0;
     vm->result_value = avm_nil();
@@ -233,6 +651,16 @@ void avm_run(AvmVM* vm) {
 
     AvmVM* prev_owner = NULL;
     avm_alloc_owner_push(vm, &prev_owner);
+
+    AvmSched* sched = avm_sched_ensure(vm);
+    if (!sched) {
+        avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)"));
+        avm_alloc_owner_pop(prev_owner);
+        return;
+    }
+    sched->current_tid = 0;
+    // Ensure the main task state is in sync before any potential yields/switches.
+    task_save_from_vm(vm, &sched->tasks[0]);
 
     vm->running = 1;
     vm->exit_code = 0;
@@ -317,6 +745,42 @@ void avm_run(AvmVM* vm) {
             case 0x00: // NOP
                 break;
             case 0x01: // HALT
+                // HALT ends the current task. Task 0 halts the VM; other tasks complete normally.
+                if (sched && sched->current_tid != 0) {
+                    int tid = sched->current_tid;
+                    AvmTask* t = &sched->tasks[tid];
+                    t->done = 1;
+                    t->blocked = 0;
+                    t->wait_kind = 0;
+                    t->has_ret = 1;
+                    t->ret = (vm->sp > 0) ? vm->stack[vm->sp - 1] : avm_nil();
+                    task_save_from_vm(vm, t);
+
+                    // Wake join waiters (simple scan; rolling).
+                    for (int wi = 0; wi < sched->task_cap; wi++) {
+                        AvmTask* w = &sched->tasks[wi];
+                        if (!w->used || !w->blocked) continue;
+                        if (w->wait_kind == 1 && w->wait_id == tid) {
+                            w->blocked = 0;
+                            w->wait_kind = 0;
+                            w->wake_pending = 1;
+                            w->wake_value = t->ret;
+                            (void)sched_ready_push(sched, wi);
+                        }
+                    }
+
+                    // Switch to next runnable task.
+                    int next = -1;
+                    if (sched_ready_pop(sched, &next)) {
+                        sched->current_tid = next;
+                        task_load_into_vm(vm, &sched->tasks[next]);
+                        continue;
+                    }
+                    // No runnable tasks: if main task is still running, resume it; else stop.
+                    sched->current_tid = 0;
+                    task_load_into_vm(vm, &sched->tasks[0]);
+                    continue;
+                }
                 vm->running = 0;
                 break;
             case 0x02: { // PUSH_CONST u16
@@ -646,7 +1110,47 @@ void avm_run(AvmVM* vm) {
 
                 vm->frame_count--;
                 if (vm->frame_count < 0) {
-                    // Returning from top-level: keep the return value as the final stack value.
+                    // Returning from top-level:
+                    // - task 0: halt the VM (existing behavior)
+                    // - other tasks: mark task done and yield to scheduler
+                    if (sched && sched->current_tid != 0) {
+                        int tid = sched->current_tid;
+                        AvmTask* t = &sched->tasks[tid];
+                        t->done = 1;
+                        t->blocked = 0;
+                        t->wait_kind = 0;
+                        t->has_ret = 1;
+                        t->ret = ret;
+                        // Preserve a minimal stack with the return value.
+                        vm->sp = 0;
+                        vm->stack[vm->sp++] = ret;
+                        task_save_from_vm(vm, t);
+
+                        // Wake join waiters.
+                        for (int wi = 0; wi < sched->task_cap; wi++) {
+                            AvmTask* w = &sched->tasks[wi];
+                            if (!w->used || !w->blocked) continue;
+                            if (w->wait_kind == 1 && w->wait_id == tid) {
+                                w->blocked = 0;
+                                w->wait_kind = 0;
+                                w->wake_pending = 1;
+                                w->wake_value = ret;
+                                (void)sched_ready_push(sched, wi);
+                            }
+                        }
+
+                        int next = -1;
+                        if (sched_ready_pop(sched, &next)) {
+                            sched->current_tid = next;
+                            task_load_into_vm(vm, &sched->tasks[next]);
+                            continue;
+                        }
+                        // No runnable tasks: resume main.
+                        sched->current_tid = 0;
+                        task_load_into_vm(vm, &sched->tasks[0]);
+                        continue;
+                    }
+
                     vm->sp = 0;
                     vm->stack[vm->sp++] = ret;
                     vm->running = 0;
@@ -764,6 +1268,185 @@ void avm_run(AvmVM* vm) {
                 vm->fp = vm->sp - (int)argc;
                 vm->env = callee_env;
                 vm->pc = (int)addr;
+                break;
+            }
+            case AVM_OP_SPAWN_CALL_LIST: { // SPAWN_CALL_LIST
+                // stack: [... fn args_list] -> [... handle_int]
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->sp < 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on SPAWN_CALL_LIST")); break; }
+                AvmValue args_list = vm->stack[--vm->sp];
+                AvmValue fnv = vm->stack[--vm->sp];
+                int tid = sched_new_task(vm, sched, fnv, args_list);
+                if (tid < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "spawn failed")); break; }
+                // Public handle is tid+1 so 0 can represent nil/invalid.
+                vm->stack[vm->sp++] = avm_int((int64_t)(tid + 1));
+                break;
+            }
+            case AVM_OP_JOIN: { // JOIN
+                // stack: [... handle] -> [... ret] (blocks if not done)
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on JOIN")); break; }
+                AvmValue hv = vm->stack[--vm->sp];
+                if (hv.type != AVM_VAL_INT) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN expects int handle")); break; }
+                int tid = (int)hv.as.i - 1;
+                if (tid < 0 || tid >= sched->task_cap || !sched->tasks[tid].used) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN invalid handle"));
+                    break;
+                }
+                if (tid == sched->current_tid) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN self")); break; }
+                AvmTask* tgt = &sched->tasks[tid];
+                if (tgt->done) {
+                    vm->stack[vm->sp++] = tgt->has_ret ? tgt->ret : avm_nil();
+                    break;
+                }
+
+                // Block current task until target completes.
+                int cur = sched->current_tid;
+                AvmTask* ct = &sched->tasks[cur];
+                ct->blocked = 1;
+                ct->wait_kind = 1;
+                ct->wait_id = tid;
+                task_save_from_vm(vm, ct);
+
+                int next = -1;
+                if (!sched_ready_pop(sched, &next)) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
+                    break;
+                }
+                sched->current_tid = next;
+                task_load_into_vm(vm, &sched->tasks[next]);
+                continue;
+            }
+            case AVM_OP_CHAN_NEW: { // CHAN_NEW
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                int hid = sched_chan_new(sched);
+                if (hid <= 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "CHAN_NEW failed")); break; }
+                vm->stack[vm->sp++] = avm_int((int64_t)hid);
+                break;
+            }
+            case AVM_OP_CHAN_SEND: { // CHAN_SEND
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->sp < 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on CHAN_SEND")); break; }
+                AvmValue val = vm->stack[--vm->sp];
+                AvmValue hv = vm->stack[--vm->sp];
+                if (hv.type != AVM_VAL_INT) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CHAN_SEND expects int channel")); break; }
+                AvmChan* ch = sched_chan_get(sched, hv.as.i);
+                if (!ch) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CHAN_SEND invalid channel")); break; }
+
+                int recv_tid = -1;
+                if (chan_recv_waiter_pop(ch, &recv_tid)) {
+                    if (recv_tid >= 0 && recv_tid < sched->task_cap && sched->tasks[recv_tid].used) {
+                        AvmTask* rt = &sched->tasks[recv_tid];
+                        rt->blocked = 0;
+                        rt->wait_kind = 0;
+                        rt->wake_pending = 1;
+                        rt->wake_value = val;
+                        (void)sched_ready_push(sched, recv_tid);
+                    }
+                } else {
+                    if (!chan_queue_push(ch, val)) {
+                        avm_abort(vm, avm_err(AVM_ERR_BUDGET, "channel queue overflow"));
+                        break;
+                    }
+                }
+
+                // A send can make a previously-blocked select waiter runnable.
+                sched_try_wake_select_waiters(vm, sched);
+                if (vm->last_error.type != AVM_VAL_NIL) break;
+
+                vm->stack[vm->sp++] = avm_int(1);
+                break;
+            }
+            case AVM_OP_CHAN_RECV: { // CHAN_RECV
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on CHAN_RECV")); break; }
+                AvmValue hv = vm->stack[--vm->sp];
+                if (hv.type != AVM_VAL_INT) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CHAN_RECV expects int channel")); break; }
+                AvmChan* ch = sched_chan_get(sched, hv.as.i);
+                if (!ch) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CHAN_RECV invalid channel")); break; }
+
+                AvmValue msg;
+                if (chan_queue_pop(ch, &msg)) {
+                    vm->stack[vm->sp++] = msg;
+                    break;
+                }
+
+                // Block current task on this channel.
+                int cur = sched->current_tid;
+                AvmTask* ct = &sched->tasks[cur];
+                ct->blocked = 1;
+                ct->wait_kind = 2;
+                ct->wait_chan = (int)hv.as.i;
+                (void)chan_recv_waiter_push(ch, cur);
+                task_save_from_vm(vm, ct);
+
+                int next = -1;
+                if (!sched_ready_pop(sched, &next)) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
+                    break;
+                }
+                sched->current_tid = next;
+                task_load_into_vm(vm, &sched->tasks[next]);
+                continue;
+            }
+            case AVM_OP_SELECT_RECV: { // SELECT_RECV
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on SELECT_RECV")); break; }
+                AvmValue lv = vm->stack[--vm->sp];
+                if (lv.type != AVM_VAL_LIST || !lv.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SELECT_RECV expects list")); break; }
+
+                AvmList* lst = lv.as.l;
+                for (int i = 0; i < lst->count; i++) {
+                    AvmValue hv = lst->items[i];
+                    if (hv.type != AVM_VAL_INT) continue;
+                    AvmChan* ch = sched_chan_get(sched, hv.as.i);
+                    if (!ch) continue;
+                    AvmValue msg;
+                    if (chan_queue_pop(ch, &msg)) {
+                        AvmValue pair = make_pair_list(vm, avm_int((int64_t)i), msg);
+                        if (avm_is_err_val(pair)) { avm_abort(vm, pair); break; }
+                        vm->stack[vm->sp++] = pair;
+                        goto select_done;
+                    }
+                }
+
+                // Block current task, registering as a select waiter.
+                {
+                    int cur = sched->current_tid;
+                    AvmTask* ct = &sched->tasks[cur];
+                    ct->blocked = 1;
+                    ct->wait_kind = 3;
+                    ct->wait_list = lv;
+                    (void)sched_select_waiter_add(sched, cur);
+                    task_save_from_vm(vm, ct);
+
+                    int next = -1;
+                    if (!sched_ready_pop(sched, &next)) {
+                        avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "deadlock (no runnable tasks)"));
+                        break;
+                    }
+                    sched->current_tid = next;
+                    task_load_into_vm(vm, &sched->tasks[next]);
+                    continue;
+                }
+
+select_done:
+                break;
+            }
+            case AVM_OP_YIELD: { // YIELD
+                if (!sched) break;
+                int cur = sched->current_tid;
+                // If no other runnable tasks, yield is a no-op.
+                if (sched->ready_len <= 0) break;
+                AvmTask* ct = &sched->tasks[cur];
+                task_save_from_vm(vm, ct);
+                (void)sched_ready_push(sched, cur);
+                int next = -1;
+                if (sched_ready_pop(sched, &next)) {
+                    sched->current_tid = next;
+                    task_load_into_vm(vm, &sched->tasks[next]);
+                    continue;
+                }
                 break;
             }
             case 0x3E: { // MAKE_CLOSURE u8
@@ -973,4 +1656,42 @@ void avm_run(AvmVM* vm) {
     }
 
     avm_alloc_owner_pop(prev_owner);
+}
+
+static void avm_sched_free(AvmVM* vm) {
+    if (!vm || !vm->sched) return;
+    AvmSched* s = (AvmSched*)vm->sched;
+
+    if (s->tasks) {
+        for (int i = 0; i < s->task_cap; i++) {
+            AvmTask* t = &s->tasks[i];
+            if (!t->used) continue;
+            if (t->frames) free(t->frames);
+            // Task 0 stack is vm->stack_base (owned by VM).
+            if (i != 0 && t->stack) free(t->stack);
+            t->frames = NULL;
+            t->stack = NULL;
+            t->used = 0;
+        }
+        free(s->tasks);
+    }
+    if (s->ready) free(s->ready);
+    if (s->select_waiters) free(s->select_waiters);
+
+    if (s->chans) {
+        for (int i = 0; i < s->chan_cap; i++) {
+            AvmChan* ch = &s->chans[i];
+            if (!ch->used) continue;
+            if (ch->recv_waiters) free(ch->recv_waiters);
+            if (ch->q) free(ch->q);
+            ch->recv_waiters = NULL;
+            ch->q = NULL;
+            ch->used = 0;
+        }
+        free(s->chans);
+    }
+
+    free(s);
+    vm->sched = NULL;
+    vm->stack = vm->stack_base;
 }

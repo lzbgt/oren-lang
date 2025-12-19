@@ -450,6 +450,34 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 3;
             push = 0;
+        } else if (op == 0x45) { // SPAWN_CALL_LIST
+            len = 1;
+            pop = 2;  // fn + args_list
+            push = 1; // handle
+        } else if (op == 0x46) { // JOIN
+            len = 1;
+            pop = 1;
+            push = 1;
+        } else if (op == 0x47) { // CHAN_NEW
+            len = 1;
+            pop = 0;
+            push = 1;
+        } else if (op == 0x48) { // CHAN_SEND
+            len = 1;
+            pop = 2;  // ch + val
+            push = 1; // ok
+        } else if (op == 0x49) { // CHAN_RECV
+            len = 1;
+            pop = 1;  // ch
+            push = 1; // val
+        } else if (op == 0x4A) { // SELECT_RECV
+            len = 1;
+            pop = 1;  // list<ch>
+            push = 1; // [idx, val]
+        } else if (op == 0x4B) { // YIELD
+            len = 1;
+            pop = 0;
+            push = 0;
         } else {
             free(depth_at); free(queue); free(qdepth);
             return err_result("verify: unknown opcode");

@@ -98,6 +98,9 @@ typedef struct {
 } AvmFrame;
 
 typedef struct {
+    // NOTE: `stack` may be swapped when cooperative tasks are enabled.
+    // Always free `stack_base` (the original allocation) in teardown.
+    AvmValue* stack_base;
     AvmValue* stack;
     int sp; 
     int pc;
@@ -259,6 +262,11 @@ typedef struct {
     // Debug/breakpoints (rolling): if any breakpoints are set, VM pauses before executing an instruction at that pc.
     int* break_pcs;
     int break_pc_count;
+
+    // Cooperative tasks + channels (rolling, v1 direction):
+    // - Opaque internal scheduler state allocated by avm_vm.c
+    // - NULL means "disabled / not initialized"
+    void* sched;
     
     int argc;
     char** argv;

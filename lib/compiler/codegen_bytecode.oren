@@ -30,6 +30,15 @@ var AVM_CALL_INDIRECT_SPREAD = 68
 var AVM_MAKE_CLOSURE = 62
 var AVM_LOAD_ENV = 63
 
+// Cooperative tasks + channels (rolling, AVM v1 direction)
+var AVM_SPAWN_CALL_LIST = 69       // 0x45
+var AVM_JOIN = 70                  // 0x46
+var AVM_CHAN_NEW = 71              // 0x47
+var AVM_CHAN_SEND = 72             // 0x48
+var AVM_CHAN_RECV = 73             // 0x49
+var AVM_SELECT_RECV = 74           // 0x4A
+var AVM_YIELD = 75                 // 0x4B
+
 var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1
 var AVM_DOMAIN_TIME = 2
@@ -370,6 +379,36 @@ fn bytecode_compile_expr(ctx, expr) {
     }
     
     // print("Expr: " + expr["type"])
+
+    if expr["type"] == "SpawnExpr" {
+        // spawn <call>  (rolling, bytecode backend):
+        // Lower to VM opcode SPAWN_CALL_LIST with an explicit args list.
+        //
+        // stack: [... fn args_list] SPAWN_CALL_LIST -> [... handle]
+        var call = expr["call"]
+        if call == nil || call["type"] != "Call" {
+            print("bytecode backend: spawn expects Call")
+            oren_exit(1)
+        }
+        if call["spread"] != nil {
+            print("bytecode backend: spawn does not support spread args yet")
+            oren_exit(1)
+        }
+
+        // fn value
+        bytecode_compile_expr(ctx, call["fn"])
+        // args
+        var args = call["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            bytecode_compile_expr(ctx, args[i])
+            i = i + 1
+        }
+        emit_byte(ctx, AVM_NEW_LIST)
+        emit_u16(ctx, oren_list_len(args))
+        emit_byte(ctx, AVM_SPAWN_CALL_LIST)
+        return nil
+    }
 
     if expr["type"] == "If" {
         bytecode_compile_expr(ctx, expr["cond"])
@@ -823,6 +862,62 @@ fn bytecode_compile_expr(ctx, expr) {
             }
         }
         if name == "" { indirect = true }
+
+        // VM-internal cooperative concurrency primitives (bytecode backend only).
+        // These are opcodes (not host natives), so they remain deterministic and portable.
+        if name == "oren_new_channel" {
+            if oren_list_len(expr["args"]) != 0 {
+                print("bytecode backend: oren_new_channel expects ()")
+                oren_exit(1)
+            }
+            emit_byte(ctx, AVM_CHAN_NEW)
+            return nil
+        }
+        if name == "oren_chan_send" {
+            if oren_list_len(expr["args"]) != 2 {
+                print("bytecode backend: oren_chan_send expects (ch, val)")
+                oren_exit(1)
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            emit_byte(ctx, AVM_CHAN_SEND)
+            return nil
+        }
+        if name == "oren_chan_recv" {
+            if oren_list_len(expr["args"]) != 1 {
+                print("bytecode backend: oren_chan_recv expects (ch)")
+                oren_exit(1)
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_CHAN_RECV)
+            return nil
+        }
+        if name == "oren_select_recv" {
+            if oren_list_len(expr["args"]) != 1 {
+                print("bytecode backend: oren_select_recv expects (list<ch>)")
+                oren_exit(1)
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_SELECT_RECV)
+            return nil
+        }
+        if name == "oren_join" {
+            if oren_list_len(expr["args"]) != 1 {
+                print("bytecode backend: oren_join expects (handle)")
+                oren_exit(1)
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_JOIN)
+            return nil
+        }
+        if name == "oren_yield" {
+            if oren_list_len(expr["args"]) != 0 {
+                print("bytecode backend: oren_yield expects ()")
+                oren_exit(1)
+            }
+            emit_byte(ctx, AVM_YIELD)
+            return nil
+        }
         
         // Rolling ABI: prefer domain-based natives for effectful calls.
         // CORE calls currently map op == legacy native id.
@@ -1168,6 +1263,31 @@ fn bytecode_compile_stmt(ctx, stmt) {
             }
             i = i + 1
         }
+        return nil
+    }
+
+    if stmt["type"] == "Spawn" {
+        // spawn <call> as a statement: compile the spawn expr and discard the handle.
+        var call = stmt["call"]
+        if call == nil || call["type"] != "Call" {
+            print("bytecode backend: spawn expects Call")
+            oren_exit(1)
+        }
+        if call["spread"] != nil {
+            print("bytecode backend: spawn does not support spread args yet")
+            oren_exit(1)
+        }
+        bytecode_compile_expr(ctx, call["fn"])
+        var args = call["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            bytecode_compile_expr(ctx, args[i])
+            i = i + 1
+        }
+        emit_byte(ctx, AVM_NEW_LIST)
+        emit_u16(ctx, oren_list_len(args))
+        emit_byte(ctx, AVM_SPAWN_CALL_LIST)
+        emit_byte(ctx, AVM_POP)
         return nil
     }
 

@@ -275,6 +275,31 @@ fn test_switch() {
     assert_eq(y, 20)
 }
 
+fn worker_send(ch, v) {
+    oren_chan_send(ch, v)
+    return v + 1
+}
+
+fn test_concurrency_spawn_chan_select() {
+    // Cooperative tasks + channels/select (AVM internal; deterministic, single-threaded).
+    var ch = oren_new_channel()
+    var h = spawn worker_send(ch, 123)
+
+    // recv blocks until the worker sends
+    var v = oren_chan_recv(ch)
+    assert_eq(v, 123)
+    assert_eq(oren_join(h), 124)
+
+    // select over multiple channels: should pick the first ready channel by list order.
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    var h2 = spawn worker_send(c2, 7)
+    var sel = oren_select_recv([c1, c2])
+    assert_eq(sel[0], 1)
+    assert_eq(sel[1], 7)
+    assert_eq(oren_join(h2), 8)
+}
+
 fn main() {
     test_calls()
     test_recursion()
@@ -288,6 +313,7 @@ fn main() {
     test_float_ops()
     test_closures()
     test_switch()
+    test_concurrency_spawn_chan_select()
 
     print("avm smoke suite OK")
 }
