@@ -755,6 +755,62 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(cap_fs_sa_out) + " build/mnt_host/in.txt")
 
+    // sys_close:
+    var cap_fs_sc_out = "build/capsule_runtime_fs_syscall_close_prog"
+    var cap_fs_sc_log = "build/logs/capsule_runtime_fs_syscall_close_prog_build.log"
+    var cap_fs_sc_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_close_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_sc_out) + gc_arg
+    var cap_fs_sc_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_sc_cmd, cap_fs_sc_log)
+    if cap_fs_sc_rc != 0 || file_exists(cap_fs_sc_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_close_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_sc_log))
+        oren_exit(1)
+    }
+    var cap_fs_sc_deny_log = "build/logs/capsule_runtime_fs_syscall_close_prog_run_deny.log"
+    var cap_fs_sc_deny_cmd = "OREN_CAPSULE=1 ./" + cap_fs_sc_out
+    var cap_fs_sc_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sc_deny_cmd, cap_fs_sc_deny_log)
+    if cap_fs_sc_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_close_prog (expected runtime capsule deny: sys_close)")
+        oren_system("cat " + shell_quote(cap_fs_sc_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_sc_ok_log = "build/logs/capsule_runtime_fs_syscall_close_prog_run_allow.log"
+    var cap_fs_sc_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_sc_out
+    var cap_fs_sc_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sc_ok_cmd, cap_fs_sc_ok_log)
+    if cap_fs_sc_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_close_prog (expected runtime capsule allow: sys_close)")
+        oren_system("cat " + shell_quote(cap_fs_sc_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_sc_out))
+
+    // sys_fcntl:
+    var cap_fs_sf_out = "build/capsule_runtime_fs_syscall_fcntl_prog"
+    var cap_fs_sf_log = "build/logs/capsule_runtime_fs_syscall_fcntl_prog_build.log"
+    var cap_fs_sf_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_syscall_fcntl_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_fs_sf_out) + gc_arg
+    var cap_fs_sf_rc = run_shell_capture(timeout_bin, build_timeout, cap_fs_sf_cmd, cap_fs_sf_log)
+    if cap_fs_sf_rc != 0 || file_exists(cap_fs_sf_out) != true {
+        print("native failed: capsule_runtime_fs_syscall_fcntl_prog (build)")
+        oren_system("cat " + shell_quote(cap_fs_sf_log))
+        oren_exit(1)
+    }
+    var cap_fs_sf_deny_log = "build/logs/capsule_runtime_fs_syscall_fcntl_prog_run_deny.log"
+    var cap_fs_sf_deny_cmd = "OREN_CAPSULE=1 ./" + cap_fs_sf_out
+    var cap_fs_sf_deny_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sf_deny_cmd, cap_fs_sf_deny_log)
+    if cap_fs_sf_deny_rc == 0 {
+        print("native failed: capsule_runtime_fs_syscall_fcntl_prog (expected runtime capsule deny: sys_fcntl)")
+        oren_system("cat " + shell_quote(cap_fs_sf_deny_log))
+        oren_exit(1)
+    }
+    var cap_fs_sf_ok_log = "build/logs/capsule_runtime_fs_syscall_fcntl_prog_run_allow.log"
+    var cap_fs_sf_ok_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS ./" + cap_fs_sf_out
+    var cap_fs_sf_ok_rc = run_shell_capture(timeout_bin, run_timeout, cap_fs_sf_ok_cmd, cap_fs_sf_ok_log)
+    if cap_fs_sf_ok_rc != 0 {
+        print("native failed: capsule_runtime_fs_syscall_fcntl_prog (expected runtime capsule allow: sys_fcntl)")
+        oren_system("cat " + shell_quote(cap_fs_sf_ok_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(cap_fs_sf_out))
+
     // rmdir:
     var cap_fs_srd_out = "build/capsule_runtime_fs_syscall_rmdir_prog"
     var cap_fs_srd_log = "build/logs/capsule_runtime_fs_syscall_rmdir_prog_build.log"

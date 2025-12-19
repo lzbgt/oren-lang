@@ -952,6 +952,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
         if fn_name == "sys_close" {
             // sys_close(fd)
             compile_expr(ctx, args[0]) // fd -> X0
+
+            // pre: native_capsule_sys_close_pre(fd) -> fd
+            var bl_close_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_close_pre, "name": "native_capsule_sys_close_pre"})
+
             // Save fd so we can run a capsule post-hook that clears per-fd NET tags.
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1037,17 +1043,24 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             compile_expr(ctx, args[2]) // arg -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = arg
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Pop cmd -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
+            // Enforce domain based on fd kind (FS/NET/PROC) to prevent bypass.
+            // Keep values on stack and reload after the call (AArch64 caller-saved regs).
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // cmd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // arg
+            var bl_fcntl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_pre, "name": "native_capsule_sys_fcntl_pre"})
 
-            // Pop fd -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // cmd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // arg
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
@@ -1076,6 +1089,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
+
+            // Pop arg/cmd/fd slots.
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 48
             return true
         }
 
@@ -2128,6 +2147,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
             var ok_pos = oren_list_len(ctx["code"])
             set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+
+            // post: native_capsule_sys_kqueue_post(fd) -> fd
+            var bl_kqueue_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_post, "name": "native_capsule_sys_kqueue_post"})
             return true
         }
 

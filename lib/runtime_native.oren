@@ -355,6 +355,7 @@ var FD_KIND_TCP_STREAM = 1
 var FD_KIND_TCP_LISTEN = 2
 var FD_KIND_UDP_DGRAM = 3
 var FD_KIND_PROC_PIPE = 10
+var FD_KIND_KQUEUE = 20
 
 // --- Fork hygiene (rolling; syscall-first) ---
 // After fork(), the child process inherits any in-memory locks held at the moment of fork.
@@ -438,6 +439,7 @@ fn native_runtime_init() {
     FD_KIND_TCP_LISTEN = 2
     FD_KIND_UDP_DGRAM = 3
     FD_KIND_PROC_PIPE = 10
+    FD_KIND_KQUEUE = 20
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //
@@ -836,6 +838,33 @@ fn native_capsule_require_any(mask_bits, name_hint) {
     print("CAPSULE DENY: " + name_hint)
     print("hint: set OREN_CAP_ALLOW_DOMAINS to include one of: " + name_hint + " (or pass --cap-allow-domains)")
     exit(77)
+    return 0
+}
+
+fn native_capsule_require_fd_domain(fd) {
+    // Require an appropriate domain for an existing fd in capsule mode.
+    //
+    // Rules:
+    // - NET-tagged fds require NET.
+    // - PROC pipe fds require PROC.
+    // - Other fds require FS (stdio/files).
+    if global_get_capsule_mode() != 1 { return 0 }
+    if fd < 0 { return 0 }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k != 0 {
+        if k == FD_KIND_PROC_PIPE {
+            native_capsule_require(CAP_PROC, "PROC")
+            return 0
+        }
+        if k == FD_KIND_KQUEUE {
+            // Event-loop fds are shared across domains (TIME/NET/PROC).
+            native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+            return 0
+        }
+        native_capsule_require(CAP_NET, "NET")
+        return 0
+    }
+    native_capsule_require(CAP_FS, "FS")
     return 0
 }
 
@@ -1278,6 +1307,19 @@ fn native_capsule_sys_write_pre(fd) {
 
     native_capsule_require(CAP_FS, "FS")
     return fd
+}
+
+fn native_capsule_sys_close_pre(fd) {
+    // Enforce domain for raw sys_close boundary (no bypass).
+    native_capsule_require_fd_domain(fd)
+    return fd
+}
+
+fn native_capsule_sys_fcntl_pre(fd, cmd, arg) {
+    // Enforce domain for raw sys_fcntl boundary (no bypass).
+    // fcntl can mutate fd state and is used for FS (e.g. F_GETPATH) and NET (socket flags).
+    native_capsule_require_fd_domain(fd)
+    return 0
 }
 
 fn native_capsule_sys_mkdir_pre(path) {
@@ -2343,6 +2385,14 @@ fn native_capsule_sys_kqueue_pre() {
     // Rolling rule: allow if any of NET/PROC/TIME is enrolled.
     native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
     return 0
+}
+
+fn native_capsule_sys_kqueue_post(kq_fd) {
+    // Tag returned kqueue fd so fd-based syscalls (close/fcntl) enforce the right domain.
+    if global_get_capsule_mode() != 1 { return kq_fd }
+    if kq_fd < 0 { return kq_fd }
+    native_capsule_net_fd_kind_set(kq_fd, FD_KIND_KQUEUE)
+    return kq_fd
 }
 
 fn native_capsule_sys_kevent_pre() {

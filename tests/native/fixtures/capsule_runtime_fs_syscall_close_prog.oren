@@ -1,0 +1,7 @@
+fn main() {
+    // Raw sys_close capsule FS test:
+    // - In capsule mode, sys_close must be enforced at syscall boundary (no bypass).
+    // - Closing stdout (fd=1) is an FS-domain operation (stdio).
+    sys_close(1)
+    exit(0)
+}

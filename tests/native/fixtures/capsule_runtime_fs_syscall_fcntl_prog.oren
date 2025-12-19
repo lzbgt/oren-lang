@@ -1,0 +1,8 @@
+fn main() {
+    // Raw sys_fcntl capsule FS test:
+    // - In capsule mode, sys_fcntl must be enforced at syscall boundary (no bypass).
+    // - Using stdout (fd=1) exercises fd-domain gating (FS/stdio).
+    // - We ignore syscall rc: the point is that the syscall itself must be denied unless FS is enrolled.
+    sys_fcntl(1, 0, 0)
+    exit(0)
+}
