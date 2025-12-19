@@ -1,6 +1,6 @@
 typedef struct {
     void** ptrs;
-    uint8_t* types; // 1=STRING,2=LIST,3=MAP,4=BYTES,5=FUNC
+    uint8_t* types; // 1=STRING,2=LIST,3=MAP,4=BYTES,5=FUNC,6=I32_BUF,7=I64_BUF,8=F32_BUF,9=F64_BUF
     uint32_t* aux;
     uint32_t count;
     uint32_t cap;
@@ -44,6 +44,10 @@ static void avm_free_object_table_objects(ObjTable* t) {
         } else if (ty == 5) { // FUNC
             AvmFunc* fn = (AvmFunc*)ptr;
             avm_heap_free(fn);
+        } else if (ty == 6 || ty == 7 || ty == 8 || ty == 9) { // typed buffers
+            AvmBuf* b = (AvmBuf*)ptr;
+            if (b && b->data) avm_heap_free(b->data);
+            if (b) avm_heap_free(b);
         }
         t->ptrs[id] = NULL;
     }
@@ -169,6 +173,17 @@ static void collect_value_objects(ObjTable* t, AvmValue v) {
         collect_value_objects(t, v.as.fn->env);
         return;
     }
+    if ((v.type == AVM_VAL_I32_BUF || v.type == AVM_VAL_I64_BUF || v.type == AVM_VAL_F32_BUF || v.type == AVM_VAL_F64_BUF) && v.as.buf) {
+        if (objtable_find(t, v.as.buf) >= 0) return;
+        uint8_t ot = 0;
+        if (v.type == AVM_VAL_I32_BUF) ot = 6;
+        else if (v.type == AVM_VAL_I64_BUF) ot = 7;
+        else if (v.type == AVM_VAL_F32_BUF) ot = 8;
+        else if (v.type == AVM_VAL_F64_BUF) ot = 9;
+        uint32_t len = v.as.buf->len;
+        objtable_add(t, v.as.buf, ot, len);
+        return;
+    }
 }
 
 static int encode_value(FILE* f, ObjTable* objs, AvmValue v) {
@@ -211,6 +226,11 @@ static int encode_value(FILE* f, ObjTable* objs, AvmValue v) {
     } else if (v.type == AVM_VAL_FUNC) {
         tag = 4;
         int id = objtable_find(objs, v.as.fn);
+        if (id < 0) return 0;
+        payload = (uint64_t)id;
+    } else if (v.type == AVM_VAL_I32_BUF || v.type == AVM_VAL_I64_BUF || v.type == AVM_VAL_F32_BUF || v.type == AVM_VAL_F64_BUF) {
+        tag = 4;
+        int id = objtable_find(objs, v.as.buf);
         if (id < 0) return 0;
         payload = (uint64_t)id;
     } else {
@@ -266,6 +286,11 @@ static int encode_value_mem(AvmBytes* out, uint32_t* pos, ObjTable* objs, AvmVal
         int id = objtable_find(objs, v.as.fn);
         if (id < 0) return 0;
         payload = (uint64_t)id;
+    } else if (v.type == AVM_VAL_I32_BUF || v.type == AVM_VAL_I64_BUF || v.type == AVM_VAL_F32_BUF || v.type == AVM_VAL_F64_BUF) {
+        tag = 4;
+        int id = objtable_find(objs, v.as.buf);
+        if (id < 0) return 0;
+        payload = (uint64_t)id;
     } else {
         tag = 0;
         payload = 0;
@@ -295,6 +320,10 @@ static int decode_value_mem(const AvmBytes* in, uint32_t* pos, const uint8_t* ob
         if (ot == 3) { out->type = AVM_VAL_MAP; out->as.m = (AvmMap*)obj_ptrs[id]; return 1; }
         if (ot == 4) { out->type = AVM_VAL_BYTES; out->as.b = (AvmBytes*)obj_ptrs[id]; return 1; }
         if (ot == 5) { out->type = AVM_VAL_FUNC; out->as.fn = (AvmFunc*)obj_ptrs[id]; return 1; }
+        if (ot == 6) { out->type = AVM_VAL_I32_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
+        if (ot == 7) { out->type = AVM_VAL_I64_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
+        if (ot == 8) { out->type = AVM_VAL_F32_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
+        if (ot == 9) { out->type = AVM_VAL_F64_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
         return 0;
     }
     return 0;
@@ -354,6 +383,11 @@ static int encode_value_for_hash(AvmSha256Ctx* h, ObjTable* objs, AvmValue v) {
         int id = objtable_find(objs, v.as.fn);
         if (id < 0) return 0;
         payload = (uint64_t)id;
+    } else if (v.type == AVM_VAL_I32_BUF || v.type == AVM_VAL_I64_BUF || v.type == AVM_VAL_F32_BUF || v.type == AVM_VAL_F64_BUF) {
+        tag = 4;
+        int id = objtable_find(objs, v.as.buf);
+        if (id < 0) return 0;
+        payload = (uint64_t)id;
     } else {
         tag = 0;
         payload = 0;
@@ -393,6 +427,7 @@ static int encode_value_bytes(ObjTable* objs, AvmValue v, uint8_t out[9]) {
     else if (v.type == AVM_VAL_MAP) { tag = 4; int id = objtable_find(objs, v.as.m); if (id < 0) return 0; payload = (uint64_t)id; }
     else if (v.type == AVM_VAL_BYTES) { tag = 4; int id = objtable_find(objs, v.as.b); if (id < 0) return 0; payload = (uint64_t)id; }
     else if (v.type == AVM_VAL_FUNC) { tag = 4; int id = objtable_find(objs, v.as.fn); if (id < 0) return 0; payload = (uint64_t)id; }
+    else if (v.type == AVM_VAL_I32_BUF || v.type == AVM_VAL_I64_BUF || v.type == AVM_VAL_F32_BUF || v.type == AVM_VAL_F64_BUF) { tag = 4; int id = objtable_find(objs, v.as.buf); if (id < 0) return 0; payload = (uint64_t)id; }
     else { tag = 0; payload = 0; }
 
     out[0] = tag;
@@ -475,6 +510,12 @@ static int avm_value_hash(AvmValue v, uint8_t out[32]) {
             AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
             if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
             if (!encode_value_for_hash(&h, &objs, fn->env)) { objtable_free(&objs); return 0; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) { // typed buffers
+            AvmBuf* b = (AvmBuf*)objs.ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { objtable_free(&objs); return 0; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) avm_sha256_update(&h, b->data, (size_t)bytes_len);
         } else {
             objtable_free(&objs);
             return 0;
@@ -586,6 +627,14 @@ static int rr_write_value(FILE* f, AvmValue v) {
             AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
             if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
             if (!encode_value(f, &objs, fn->env)) { objtable_free(&objs); return 0; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) { // typed buffers
+            AvmBuf* b = (AvmBuf*)objs.ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { objtable_free(&objs); return 0; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                if (fwrite(b->data, 1, (size_t)bytes_len, f) != (size_t)bytes_len) { objtable_free(&objs); return 0; }
+            }
         } else {
             objtable_free(&objs);
             return 0;
@@ -635,6 +684,8 @@ static int rr_read_value(FILE* f, AvmValue* out) {
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
         else if (t == 5) payload_len = 9ull;
+        else if (t == 6 || t == 8) payload_len = (uint64_t)aux * 4ull;
+        else if (t == 7 || t == 9) payload_len = (uint64_t)aux * 8ull;
         else { ok = 0; break; }
 
         if (fseek(f, (long)payload_len, SEEK_CUR) != 0) { ok = 0; break; }
@@ -694,6 +745,19 @@ static int rr_read_value(FILE* f, AvmValue* out) {
             fn->env.type = AVM_VAL_NIL;
             fn->env.as.i = 0;
             obj_ptrs[id] = fn;
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) {
+            AvmBuf* b = (AvmBuf*)malloc(sizeof(AvmBuf));
+            if (!b) { ok = 0; break; }
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            b->len = aux;
+            b->elem_size = elem;
+            b->data = NULL;
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                b->data = (uint8_t*)malloc((size_t)bytes_len);
+                if (!b->data) { free(b); ok = 0; break; }
+            }
+            obj_ptrs[id] = b;
         } else {
             ok = 0;
             break;
@@ -737,6 +801,14 @@ static int rr_read_value(FILE* f, AvmValue* out) {
             AvmFunc* fn = (AvmFunc*)obj_ptrs[id];
             if (!fn || fn->addr != aux) { ok = 0; break; }
             if (!decode_value(f, obj_types, obj_ptrs, obj_count, &fn->env)) { ok = 0; break; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) {
+            AvmBuf* b = (AvmBuf*)obj_ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { ok = 0; break; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                if (fread(b->data, 1, (size_t)bytes_len, f) != (size_t)bytes_len) { ok = 0; break; }
+            }
         } else {
             ok = 0;
             break;
@@ -797,6 +869,15 @@ static int rr_write_value_mem(AvmBytes* out, uint32_t* pos, AvmValue v) {
             AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
             if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
             if (!encode_value_mem(out, pos, &objs, fn->env)) { objtable_free(&objs); return 0; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) { // typed buffers
+            AvmBuf* b = (AvmBuf*)objs.ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { objtable_free(&objs); return 0; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                if (bytes_len > (uint64_t)UINT32_MAX) { objtable_free(&objs); return 0; }
+                if (!mem_write_bytes(out, pos, b->data, (uint32_t)bytes_len)) { objtable_free(&objs); return 0; }
+            }
         } else {
             objtable_free(&objs);
             return 0;
@@ -847,8 +928,11 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
         else if (t == 5) payload_len = 9ull;
+        else if (t == 6 || t == 8) payload_len = (uint64_t)aux * 4ull;
+        else if (t == 7 || t == 9) payload_len = (uint64_t)aux * 8ull;
         else { ok = 0; break; }
 
+        if (payload_len > (uint64_t)UINT32_MAX) { ok = 0; break; }
         if ((uint64_t)(*pos) + payload_len > (uint64_t)in->len) { ok = 0; break; }
         *pos += (uint32_t)payload_len;
     }
@@ -908,6 +992,19 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
             fn->env.type = AVM_VAL_NIL;
             fn->env.as.i = 0;
             obj_ptrs[id] = fn;
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) {
+            AvmBuf* b = (AvmBuf*)malloc(sizeof(AvmBuf));
+            if (!b) { ok = 0; break; }
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            b->len = aux;
+            b->elem_size = elem;
+            b->data = NULL;
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                b->data = (uint8_t*)malloc((size_t)bytes_len);
+                if (!b->data) { free(b); ok = 0; break; }
+            }
+            obj_ptrs[id] = b;
         } else {
             ok = 0;
             break;
@@ -955,6 +1052,15 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
             AvmFunc* fn = (AvmFunc*)obj_ptrs[id];
             if (!fn || fn->addr != aux) { ok = 0; break; }
             if (!decode_value_mem(in, &cur, obj_types, obj_ptrs, obj_count, &fn->env)) { ok = 0; break; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) {
+            AvmBuf* b = (AvmBuf*)obj_ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { ok = 0; break; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                if ((uint64_t)cur + bytes_len > (uint64_t)in->len) { ok = 0; break; }
+                memcpy(b->data, in->data + cur, (size_t)bytes_len);
+            }
         } else {
             ok = 0;
             break;
@@ -1002,6 +1108,8 @@ static int rr_value_wire_size(AvmValue v, uint64_t* out_bytes) {
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull; // MAP key/value pairs
         else if (t == 4) payload_len = aux;                // BYTES bytes
         else if (t == 5) payload_len = 9ull;               // FUNC env value
+        else if (t == 6 || t == 8) payload_len = (uint64_t)aux * 4ull; // typed buf bytes
+        else if (t == 7 || t == 9) payload_len = (uint64_t)aux * 8ull;
         else { objtable_free(&objs); return 0; }
 
         if (sz > UINT64_MAX - payload_len) { objtable_free(&objs); return 0; }
@@ -1227,6 +1335,12 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
             AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
             if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
             if (!encode_value_for_hash(&h, &objs, fn->env)) { objtable_free(&objs); return 0; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) { // typed buffers
+            AvmBuf* b = (AvmBuf*)objs.ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { objtable_free(&objs); return 0; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) avm_sha256_update(&h, b->data, (size_t)bytes_len);
         } else {
             objtable_free(&objs);
             return 0;
@@ -1356,6 +1470,12 @@ int avm_result_hash(AvmVM* vm, uint8_t out[32]) {
             AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
             if (!fn || fn->addr != aux) { objtable_free(&objs); return 0; }
             if (!encode_value_for_hash(&h, &objs, fn->env)) { objtable_free(&objs); return 0; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) { // typed buffers
+            AvmBuf* b = (AvmBuf*)objs.ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { objtable_free(&objs); return 0; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) avm_sha256_update(&h, b->data, (size_t)bytes_len);
         } else {
             objtable_free(&objs);
             return 0;
@@ -1455,6 +1575,10 @@ static int decode_value(FILE* f, uint8_t* obj_types, void** obj_ptrs, uint32_t o
         if (ot == 3) { out->type = AVM_VAL_MAP; out->as.m = (AvmMap*)obj_ptrs[id]; return 1; }
         if (ot == 4) { out->type = AVM_VAL_BYTES; out->as.b = (AvmBytes*)obj_ptrs[id]; return 1; }
         if (ot == 5) { out->type = AVM_VAL_FUNC; out->as.fn = (AvmFunc*)obj_ptrs[id]; return 1; }
+        if (ot == 6) { out->type = AVM_VAL_I32_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
+        if (ot == 7) { out->type = AVM_VAL_I64_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
+        if (ot == 8) { out->type = AVM_VAL_F32_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
+        if (ot == 9) { out->type = AVM_VAL_F64_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
         return 0;
     }
     return 0;
@@ -1524,6 +1648,14 @@ int avm_snapshot(AvmVM* vm, const char* path) {
             AvmFunc* fn = (AvmFunc*)objs.ptrs[id];
             if (!fn || fn->addr != aux) { fclose(f); objtable_free(&objs); return 1; }
             if (!encode_value(f, &objs, fn->env)) { fclose(f); objtable_free(&objs); return 1; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) { // typed buffers
+            AvmBuf* b = (AvmBuf*)objs.ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { fclose(f); objtable_free(&objs); return 1; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                if (fwrite(b->data, 1, (size_t)bytes_len, f) != (size_t)bytes_len) { fclose(f); objtable_free(&objs); return 1; }
+            }
         } else {
             fclose(f);
             objtable_free(&objs);
@@ -1625,6 +1757,8 @@ int avm_restore(AvmVM* vm, const char* path) {
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
         else if (t == 5) payload_len = 9ull;
+        else if (t == 6 || t == 8) payload_len = (uint64_t)aux * 4ull;
+        else if (t == 7 || t == 9) payload_len = (uint64_t)aux * 8ull;
         else { ok = 0; break; }
 
         if (fseek(f, (long)payload_len, SEEK_CUR) != 0) { ok = 0; break; }
@@ -1678,6 +1812,26 @@ int avm_restore(AvmVM* vm, const char* path) {
                 if (!b->data) { free(b); ok = 0; break; }
             }
             obj_ptrs[id] = b;
+        } else if (t == 5) {
+            AvmFunc* fn = (AvmFunc*)malloc(sizeof(AvmFunc));
+            if (!fn) { ok = 0; break; }
+            fn->addr = aux;
+            fn->env.type = AVM_VAL_NIL;
+            fn->env.as.i = 0;
+            obj_ptrs[id] = fn;
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) {
+            AvmBuf* b = (AvmBuf*)malloc(sizeof(AvmBuf));
+            if (!b) { ok = 0; break; }
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            b->len = aux;
+            b->elem_size = elem;
+            b->data = NULL;
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                b->data = (uint8_t*)malloc((size_t)bytes_len);
+                if (!b->data) { free(b); ok = 0; break; }
+            }
+            obj_ptrs[id] = b;
         } else {
             ok = 0;
             break;
@@ -1723,6 +1877,14 @@ int avm_restore(AvmVM* vm, const char* path) {
             AvmFunc* fn = (AvmFunc*)obj_ptrs[id];
             if (!fn || fn->addr != aux) { ok = 0; break; }
             if (!decode_value(f, obj_types, obj_ptrs, obj_count, &fn->env)) { ok = 0; break; }
+        } else if (t == 6 || t == 7 || t == 8 || t == 9) {
+            AvmBuf* b = (AvmBuf*)obj_ptrs[id];
+            uint32_t elem = (t == 6 || t == 8) ? 4u : 8u;
+            if (!b || b->len != aux || b->elem_size != elem) { ok = 0; break; }
+            uint64_t bytes_len = (uint64_t)aux * (uint64_t)elem;
+            if (bytes_len > 0) {
+                if (fread(b->data, 1, (size_t)bytes_len, f) != (size_t)bytes_len) { ok = 0; break; }
+            }
         } else {
             ok = 0;
             break;
@@ -1749,6 +1911,8 @@ int avm_restore(AvmVM* vm, const char* path) {
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
         else if (t == 4) payload_len = aux;
         else if (t == 5) payload_len = 9ull;
+        else if (t == 6 || t == 8) payload_len = (uint64_t)aux * 4ull;
+        else if (t == 7 || t == 9) payload_len = (uint64_t)aux * 8ull;
         else { ok = 0; break; }
         if (fseek(f, (long)payload_len, SEEK_CUR) != 0) { ok = 0; break; }
     }

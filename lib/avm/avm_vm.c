@@ -610,6 +610,10 @@ static void avm_print_value_no_nl(AvmValue v) {
     else if (v.type == AVM_VAL_LIST) printf("<list>");
     else if (v.type == AVM_VAL_MAP) printf("<map>");
     else if (v.type == AVM_VAL_FUNC) printf("<func>");
+    else if (v.type == AVM_VAL_I32_BUF) printf("<i32_buf>");
+    else if (v.type == AVM_VAL_I64_BUF) printf("<i64_buf>");
+    else if (v.type == AVM_VAL_F32_BUF) printf("<f32_buf>");
+    else if (v.type == AVM_VAL_F64_BUF) printf("<f64_buf>");
     else printf("<?>");
 }
 

@@ -1578,6 +1578,10 @@ static const char* avm_val_type_name(AvmValue v) {
         case AVM_VAL_LIST: return "LIST";
         case AVM_VAL_MAP: return "MAP";
         case AVM_VAL_FUNC: return "FUNC";
+        case AVM_VAL_I32_BUF: return "I32_BUF";
+        case AVM_VAL_I64_BUF: return "I64_BUF";
+        case AVM_VAL_F32_BUF: return "F32_BUF";
+        case AVM_VAL_F64_BUF: return "F64_BUF";
         default: return "VAL?";
     }
 }
@@ -1813,6 +1817,10 @@ static void dump_value_short(FILE* out, AvmValue v) {
     if (v.type == AVM_VAL_LIST) { fprintf(out, "<list n=%d>", v.as.l ? v.as.l->count : 0); return; }
     if (v.type == AVM_VAL_MAP) { fprintf(out, "<map n=%d>", v.as.m ? v.as.m->count : 0); return; }
     if (v.type == AVM_VAL_FUNC) { fprintf(out, "<func addr=%u>", v.as.fn ? (unsigned)v.as.fn->addr : 0u); return; }
+    if (v.type == AVM_VAL_I32_BUF) { fprintf(out, "<i32_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
+    if (v.type == AVM_VAL_I64_BUF) { fprintf(out, "<i64_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
+    if (v.type == AVM_VAL_F32_BUF) { fprintf(out, "<f32_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
+    if (v.type == AVM_VAL_F64_BUF) { fprintf(out, "<f64_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
     fprintf(out, "<val?>");
 }
 

@@ -112,6 +112,18 @@ Notes:
 - `F32` buffers are the default for ML-ish compute (good perf/memory tradeoff).
 - `F64` buffers remain useful for numerically sensitive reductions.
 
+Bootstrap status (rolling, implemented in `lib/avm`):
+
+- New value types: `AVM_VAL_I32_BUF/AVM_VAL_I64_BUF/AVM_VAL_F32_BUF/AVM_VAL_F64_BUF`.
+- Minimal bootstrap intrinsics (CORE domain legacy ids):
+  - `oren_i32_buf_new(n)`, `oren_i64_buf_new(n)`, `oren_f32_buf_new(n)`, `oren_f64_buf_new(n)`
+  - `oren_buf_len(buf)`
+  - `oren_buf_load_i32/oren_buf_store_i32`, `..._i64`, `..._f32`, `..._f64`
+- Determinism rule: buffer payload is a byte array whose element encoding is **canonical little-endian**:
+  - `i32/i64` are two's-complement integers encoded little-endian
+  - `f32/f64` are IEEE-754 bit patterns encoded little-endian
+  - This makes snapshot/resume, record/replay, and hashing independent of host endianness.
+
 ### 2.3 Keep `List/Map` for dynamic control/data
 
 Lists/maps remain for:

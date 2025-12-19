@@ -28,7 +28,8 @@ enum {
     AVM_ALLOC_KIND_VPROC = 6,
     AVM_ALLOC_KIND_VNET = 7,
     AVM_ALLOC_KIND_TMP = 8,
-    AVM_ALLOC_KIND_FUNC = 9
+    AVM_ALLOC_KIND_FUNC = 9,
+    AVM_ALLOC_KIND_BUF = 10
 };
 
 static inline AvmValue avm_int(int64_t i) {

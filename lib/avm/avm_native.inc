@@ -1097,7 +1097,271 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
-        // TODO: Implement others
+        case 54: { // oren_i32_buf_new(len:int) -> I32_BUF
+            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+                int64_t n = args[0].as.i;
+                if (n < 0 || n > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "i32_buf_new: invalid length"); break; }
+                AvmBuf* b = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!b) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                b->len = (uint32_t)n;
+                b->elem_size = 4u;
+                b->data = NULL;
+                uint64_t bytes_len = (uint64_t)b->len * 4ull;
+                if (bytes_len > 0) {
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    memset(b->data, 0, (size_t)bytes_len);
+                }
+                res.type = AVM_VAL_I32_BUF;
+                res.as.buf = b;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_i32_buf_new expects (int)");
+            }
+            break;
+        }
+        case 55: { // oren_i64_buf_new(len:int) -> I64_BUF
+            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+                int64_t n = args[0].as.i;
+                if (n < 0 || n > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "i64_buf_new: invalid length"); break; }
+                AvmBuf* b = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!b) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                b->len = (uint32_t)n;
+                b->elem_size = 8u;
+                b->data = NULL;
+                uint64_t bytes_len = (uint64_t)b->len * 8ull;
+                if (bytes_len > 0) {
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    memset(b->data, 0, (size_t)bytes_len);
+                }
+                res.type = AVM_VAL_I64_BUF;
+                res.as.buf = b;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_i64_buf_new expects (int)");
+            }
+            break;
+        }
+        case 56: { // oren_f32_buf_new(len:int) -> F32_BUF
+            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+                int64_t n = args[0].as.i;
+                if (n < 0 || n > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "f32_buf_new: invalid length"); break; }
+                AvmBuf* b = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!b) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                b->len = (uint32_t)n;
+                b->elem_size = 4u;
+                b->data = NULL;
+                uint64_t bytes_len = (uint64_t)b->len * 4ull;
+                if (bytes_len > 0) {
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    memset(b->data, 0, (size_t)bytes_len);
+                }
+                res.type = AVM_VAL_F32_BUF;
+                res.as.buf = b;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_f32_buf_new expects (int)");
+            }
+            break;
+        }
+        case 57: { // oren_f64_buf_new(len:int) -> F64_BUF
+            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+                int64_t n = args[0].as.i;
+                if (n < 0 || n > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "f64_buf_new: invalid length"); break; }
+                AvmBuf* b = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!b) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                b->len = (uint32_t)n;
+                b->elem_size = 8u;
+                b->data = NULL;
+                uint64_t bytes_len = (uint64_t)b->len * 8ull;
+                if (bytes_len > 0) {
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    memset(b->data, 0, (size_t)bytes_len);
+                }
+                res.type = AVM_VAL_F64_BUF;
+                res.as.buf = b;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_f64_buf_new expects (int)");
+            }
+            break;
+        }
+        case 58: { // oren_buf_len(buf) -> int
+            if (nargs > 0 && (args[0].type == AVM_VAL_I32_BUF || args[0].type == AVM_VAL_I64_BUF || args[0].type == AVM_VAL_F32_BUF || args[0].type == AVM_VAL_F64_BUF)) {
+                AvmBuf* b = args[0].as.buf;
+                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_len: null buffer"); break; }
+                res = avm_int((int64_t)b->len);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_len expects (buf)");
+            }
+            break;
+        }
+        case 59: { // oren_buf_load_i32(i32_buf, idx) -> int
+            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_i32: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_i32: index out of bounds"); break; }
+                uint32_t off = (uint32_t)idx * 4u;
+                uint32_t u = (uint32_t)b->data[off]
+                           | ((uint32_t)b->data[off + 1] << 8)
+                           | ((uint32_t)b->data[off + 2] << 16)
+                           | ((uint32_t)b->data[off + 3] << 24);
+                res = avm_int((int64_t)(int32_t)u);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_load_i32 expects (i32_buf, int)");
+            }
+            break;
+        }
+        case 60: { // oren_buf_store_i32(i32_buf, idx, val) -> i32_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                int64_t v = args[2].as.i;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_i32: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_i32: index out of bounds"); break; }
+                if (v < (int64_t)INT32_MIN || v > (int64_t)INT32_MAX) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_i32: out of range"); break; }
+                uint32_t u = (uint32_t)(int32_t)v;
+                uint32_t off = (uint32_t)idx * 4u;
+                b->data[off] = (uint8_t)(u & 0xFFu);
+                b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_store_i32 expects (i32_buf, int, int)");
+            }
+            break;
+        }
+        case 61: { // oren_buf_load_i64(i64_buf, idx) -> int
+            if (nargs > 1 && args[0].type == AVM_VAL_I64_BUF && args[1].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                if (!b || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_i64: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_i64: index out of bounds"); break; }
+                uint32_t off = (uint32_t)idx * 8u;
+                uint64_t u = (uint64_t)b->data[off]
+                           | ((uint64_t)b->data[off + 1] << 8)
+                           | ((uint64_t)b->data[off + 2] << 16)
+                           | ((uint64_t)b->data[off + 3] << 24)
+                           | ((uint64_t)b->data[off + 4] << 32)
+                           | ((uint64_t)b->data[off + 5] << 40)
+                           | ((uint64_t)b->data[off + 6] << 48)
+                           | ((uint64_t)b->data[off + 7] << 56);
+                res = avm_int((int64_t)u);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_load_i64 expects (i64_buf, int)");
+            }
+            break;
+        }
+        case 62: { // oren_buf_store_i64(i64_buf, idx, val) -> i64_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_I64_BUF && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                uint64_t u = (uint64_t)args[2].as.i;
+                if (!b || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_i64: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_i64: index out of bounds"); break; }
+                uint32_t off = (uint32_t)idx * 8u;
+                b->data[off] = (uint8_t)(u & 0xFFu);
+                b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                b->data[off + 4] = (uint8_t)((u >> 32) & 0xFFu);
+                b->data[off + 5] = (uint8_t)((u >> 40) & 0xFFu);
+                b->data[off + 6] = (uint8_t)((u >> 48) & 0xFFu);
+                b->data[off + 7] = (uint8_t)((u >> 56) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_store_i64 expects (i64_buf, int, int)");
+            }
+            break;
+        }
+        case 63: { // oren_buf_load_f32(f32_buf, idx) -> float
+            if (nargs > 1 && args[0].type == AVM_VAL_F32_BUF && args[1].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_f32: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_f32: index out of bounds"); break; }
+                uint32_t off = (uint32_t)idx * 4u;
+                uint32_t u = (uint32_t)b->data[off]
+                           | ((uint32_t)b->data[off + 1] << 8)
+                           | ((uint32_t)b->data[off + 2] << 16)
+                           | ((uint32_t)b->data[off + 3] << 24);
+                float fv = 0.0f;
+                memcpy(&fv, &u, sizeof(fv));
+                res.type = AVM_VAL_FLOAT;
+                res.as.f = (double)fv;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_load_f32 expects (f32_buf, int)");
+            }
+            break;
+        }
+        case 64: { // oren_buf_store_f32(f32_buf, idx, val) -> f32_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_F32_BUF && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_FLOAT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_f32: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_f32: index out of bounds"); break; }
+                float fv = (float)args[2].as.f;
+                uint32_t u = 0;
+                memcpy(&u, &fv, sizeof(u));
+                uint32_t off = (uint32_t)idx * 4u;
+                b->data[off] = (uint8_t)(u & 0xFFu);
+                b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_store_f32 expects (f32_buf, int, float)");
+            }
+            break;
+        }
+        case 65: { // oren_buf_load_f64(f64_buf, idx) -> float
+            if (nargs > 1 && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                if (!b || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_f64: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_f64: index out of bounds"); break; }
+                uint32_t off = (uint32_t)idx * 8u;
+                uint64_t u = (uint64_t)b->data[off]
+                           | ((uint64_t)b->data[off + 1] << 8)
+                           | ((uint64_t)b->data[off + 2] << 16)
+                           | ((uint64_t)b->data[off + 3] << 24)
+                           | ((uint64_t)b->data[off + 4] << 32)
+                           | ((uint64_t)b->data[off + 5] << 40)
+                           | ((uint64_t)b->data[off + 6] << 48)
+                           | ((uint64_t)b->data[off + 7] << 56);
+                double dv = 0.0;
+                memcpy(&dv, &u, sizeof(dv));
+                res.type = AVM_VAL_FLOAT;
+                res.as.f = dv;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_load_f64 expects (f64_buf, int)");
+            }
+            break;
+        }
+        case 66: { // oren_buf_store_f64(f64_buf, idx, val) -> f64_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_FLOAT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t idx = args[1].as.i;
+                if (!b || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_f64: invalid buffer"); break; }
+                if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_f64: index out of bounds"); break; }
+                uint64_t u = 0;
+                memcpy(&u, &args[2].as.f, sizeof(u));
+                uint32_t off = (uint32_t)idx * 8u;
+                b->data[off] = (uint8_t)(u & 0xFFu);
+                b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                b->data[off + 4] = (uint8_t)((u >> 32) & 0xFFu);
+                b->data[off + 5] = (uint8_t)((u >> 40) & 0xFFu);
+                b->data[off + 6] = (uint8_t)((u >> 48) & 0xFFu);
+                b->data[off + 7] = (uint8_t)((u >> 56) & 0xFFu);
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_store_f64 expects (f64_buf, int, float)");
+            }
+            break;
+        }
         default:
             printf("Unknown native id: %d\n", id);
             break;

@@ -1,4 +1,10 @@
 fn main() {
+    var b = oren_i32_buf_new(3)
+    if oren_is_err(b) { oren_exit(1) }
+    oren_buf_store_i32(b, 0, 11)
+    oren_buf_store_i32(b, 1, 22)
+    oren_buf_store_i32(b, 2, 33)
+
     // This is intentionally long enough that a small --step-limit pauses mid-run.
     var i = 0
     while i < 200000 {
@@ -7,8 +13,10 @@ fn main() {
     if i != 200000 {
         oren_exit(1)
     }
+    if oren_buf_load_i32(b, 0) != 11 { oren_exit(1) }
+    if oren_buf_load_i32(b, 1) != 22 { oren_exit(1) }
+    if oren_buf_load_i32(b, 2) != 33 { oren_exit(1) }
     print("snapshot resume ok")
 }
 
 main()
-
