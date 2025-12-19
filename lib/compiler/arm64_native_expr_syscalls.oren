@@ -1305,7 +1305,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // fd
-            push_u32_le(ctx["code"], insn_movz(1, 3)) // F_GETFL
+            push_u32_le(ctx["code"], insn_movz(1, abi.posix_fcntl_f_getfl())) // F_GETFL
             push_u32_le(ctx["code"], insn_movz(2, 0)) // arg=0
             var bl_fcntl_pre = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
@@ -1313,7 +1313,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             // Reload args for syscall.
             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // fd
-            push_u32_le(ctx["code"], insn_movz(1, 3)) // cmd
+            push_u32_le(ctx["code"], insn_movz(1, abi.posix_fcntl_f_getfl())) // cmd
             push_u32_le(ctx["code"], insn_movz(2, 0)) // arg
 
             var sys_reg = abi.darwin_syscall_reg()
@@ -1341,7 +1341,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
             // rc is already in X0; pass fd/cmd/arg for fd-kind tracking.
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // fd
-            push_u32_le(ctx["code"], insn_movz(2, 3)) // cmd
+            push_u32_le(ctx["code"], insn_movz(2, abi.posix_fcntl_f_getfl())) // cmd
             push_u32_le(ctx["code"], insn_movz(3, 0)) // arg
             var bl_fcntl_post = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
@@ -1368,7 +1368,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
-            push_u32_le(ctx["code"], insn_movz(1, 4)) // F_SETFL
+            push_u32_le(ctx["code"], insn_movz(1, abi.posix_fcntl_f_setfl())) // F_SETFL
             push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // oren_flags
             // Translate flags to OS bits for the syscall arg.
             emit_translate_fcntl_setfl_flags(ctx)
@@ -1378,7 +1378,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             // Reload args for syscall: X0=fd, X1=cmd, X2=os_flags
             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
-            push_u32_le(ctx["code"], insn_movz(1, 4)) // cmd
+            push_u32_le(ctx["code"], insn_movz(1, abi.posix_fcntl_f_setfl())) // cmd
             push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // oren_flags
             emit_translate_fcntl_setfl_flags(ctx) // X2 becomes os_flags
 
@@ -1403,7 +1403,7 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fd
-            push_u32_le(ctx["code"], insn_movz(2, 4)) // cmd
+            push_u32_le(ctx["code"], insn_movz(2, abi.posix_fcntl_f_setfl())) // cmd
             push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0)) // original oren_flags (for debug)
             var bl_fcntl_post = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)

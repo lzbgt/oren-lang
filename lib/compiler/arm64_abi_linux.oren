@@ -68,6 +68,11 @@ fn linux_at_fdcwd() { return -100 } // AT_FDCWD (relative to current working dir
 fn linux_at_symlink_nofollow() { return 256 } // 0x100
 fn linux_at_removedir() { return 512 } // 0x200
 
+// fcntl(2) command values used by syscall-first helpers.
+// These are POSIX-stable across Darwin/Linux (verified via headers; audit-only).
+fn posix_fcntl_f_getfl() { return 3 }
+fn posix_fcntl_f_setfl() { return 4 }
+
 // --- mmap constants (Linux) ---
 //
 // Repo-owned constants used by the syscall-first allocator path.
