@@ -202,6 +202,22 @@ fn test_spawn_join_timeout() {
     assert_eq(r, 0 - 60, 130) // ETIMEDOUT (BSD)
 }
 
+fn test_err_predicate_and_bytes_safety() {
+    // Regression: `oren_is_err` and byte helpers must not probe memory when given large ints.
+    // These were a real source of native segfaults during rolling refactors.
+    assert_eq(oren_is_err(16909060), 0, 160) // 0x01020304 is NOT a pointer.
+
+    var e0 = oren_bytes_get_u8(16909060, 0)
+    assert_true(oren_is_err(e0) != 0, 161)
+
+    var xs = [1, 2]
+    var e1 = oren_bytes_get_u8(xs, 10)
+    assert_true(oren_is_err(e1) != 0, 162)
+
+    var ok = oren_bytes_get_u8(xs, 1)
+    assert_eq(ok, 2, 163)
+}
+
 fn test_env_execve_getenv() {
     // ENV correctness without libc:
     // - execve envp override works
@@ -533,6 +549,7 @@ fn main() {
     test_syscall_errno()
     test_time_proc()
     test_spawn_join_timeout()
+    test_err_predicate_and_bytes_safety()
     test_bytes_endian_and_pack_view()
     test_numeric_casts()
     test_float_ops()

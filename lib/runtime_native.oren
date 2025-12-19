@@ -4532,12 +4532,28 @@ fn oren_list_set(list, idx, value) {
 // In native v0, "bytes" are typically `list<int 0..255>`.
 // These helpers are deterministic and libc-free.
 
+fn native_bytes_as_list_node(bytes) {
+    if bytes == 0 { return 0 }
+    if bytes < 4096 { return 0 }
+    // Avoid probing memory at `bytes+...` unless this is a tracked heap pointer.
+    return oren_find_node(bytes)
+}
+
+fn native_bytes_is_list(bytes) {
+    var node = native_bytes_as_list_node(bytes)
+    if node == 0 { return false }
+    // Lists are tracked with kind=2 in the GC registry.
+    if ptr_get(iadd(node, 16)) != 2 { return false }
+    // Redundant sanity check: header magic.
+    if ptr_get(bytes + 24) != list_magic() { return false }
+    return true
+}
+
 fn oren_bytes_get_u8(bytes, idx) {
     // Return structured errors (not panic) so protocol parsing can be safe and
     // deterministic across backends (matches C/AVM conventions).
     if bytes == 0 { return oren_err(4, "bytes_get_u8: bytes is nil") }
-    if bytes < 4096 { return oren_err(4, "bytes_get_u8 expects list<int 0..255>") }
-    if ptr_get(bytes + 24) != list_magic() { return oren_err(4, "bytes_get_u8 expects list<int 0..255>") }
+    if native_bytes_is_list(bytes) != true { return oren_err(4, "bytes_get_u8 expects list<int 0..255>") }
     var count = ptr_get(bytes)
     if idx < 0 || idx >= count { return oren_err(4, "bytes_get_u8: index out of bounds") }
     var buf = ptr_get(bytes + 16)
@@ -4549,8 +4565,7 @@ fn oren_bytes_get_u8(bytes, idx) {
 
 fn oren_bytes_set_u8(bytes, idx, v) {
     if bytes == 0 { return oren_err(4, "bytes_set_u8: bytes is nil") }
-    if bytes < 4096 { return oren_err(4, "bytes_set_u8 expects list<int 0..255>") }
-    if ptr_get(bytes + 24) != list_magic() { return oren_err(4, "bytes_set_u8 expects list<int 0..255>") }
+    if native_bytes_is_list(bytes) != true { return oren_err(4, "bytes_set_u8 expects list<int 0..255>") }
     var count = ptr_get(bytes)
     if idx < 0 || idx >= count { return oren_err(4, "bytes_set_u8: index out of bounds") }
     if v < 0 || v > 255 { return oren_err(4, "bytes_set_u8: byte out of range") }

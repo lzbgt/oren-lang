@@ -643,8 +643,11 @@ Helpers (v0):
 - `oren_bytes_get_i16_be(bytes, off)` / `oren_bytes_get_i16_le(bytes, off)`
 - `oren_bytes_get_u32_be(bytes, off)` / `oren_bytes_get_u32_le(bytes, off)`
 - `oren_bytes_get_i32_be(bytes, off)` / `oren_bytes_get_i32_le(bytes, off)`
+- `oren_bytes_get_u64_be(bytes, off)` / `oren_bytes_get_u64_le(bytes, off)`
+- `oren_bytes_get_i64_be(bytes, off)` / `oren_bytes_get_i64_le(bytes, off)`
 - `oren_bytes_put_u16_be(bytes, off, v)` / `oren_bytes_put_u16_le(bytes, off, v)`
 - `oren_bytes_put_u32_be(bytes, off, v)` / `oren_bytes_put_u32_le(bytes, off, v)`
+- `oren_bytes_set_u64_be(bytes, off, v)` / `oren_bytes_set_u64_le(bytes, off, v)` (mask/truncate semantics)
 
 Example:
 
@@ -657,6 +660,10 @@ Example:
 var pkt = oren_read_bytes("ip.bin")
 var total_len = oren_bytes_get_u16_be(pkt, 2)
 ```
+
+Error behavior (portable rule):
+
+- On invalid arguments (wrong type, out-of-bounds, byte out of range), these helpers return a **structured error object** (`oren_err(OREN_ERR_INVALID_ARG, "...")`), not UB.
 
 Future direction (syntax sugar; no rewrite required):
 
