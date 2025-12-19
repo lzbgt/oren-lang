@@ -837,8 +837,8 @@ fn native_capsule_require(mask_bit, name) {
     if global_get_capsule_mode() != 1 { return 0 }
     var allow = global_get_cap_allow_mask()
     if (allow & mask_bit) != 0 { return 0 }
-    print("CAPSULE DENY: " + name)
-    print("hint: set OREN_CAP_ALLOW_DOMAINS to include " + name + " (or pass --cap-allow-domains)")
+    native_capsule_diag_print("CAPSULE DENY: " + name)
+    native_capsule_diag_print("hint: set OREN_CAP_ALLOW_DOMAINS to include " + name + " (or pass --cap-allow-domains)")
     exit(77)
     return 0
 }
@@ -847,9 +847,29 @@ fn native_capsule_require_any(mask_bits, name_hint) {
     if global_get_capsule_mode() != 1 { return 0 }
     var allow = global_get_cap_allow_mask()
     if (allow & mask_bits) != 0 { return 0 }
-    print("CAPSULE DENY: " + name_hint)
-    print("hint: set OREN_CAP_ALLOW_DOMAINS to include one of: " + name_hint + " (or pass --cap-allow-domains)")
+    native_capsule_diag_print("CAPSULE DENY: " + name_hint)
+    native_capsule_diag_print("hint: set OREN_CAP_ALLOW_DOMAINS to include one of: " + name_hint + " (or pass --cap-allow-domains)")
     exit(77)
+    return 0
+}
+
+fn native_capsule_diag_print(msg) {
+    // Diagnostic printing helper for capsule deny paths.
+    //
+    // Design goal:
+    // - Capsule enforcement must be able to explain *why* it denied an operation.
+    // - Those diagnostics must not themselves be blocked by FS/NET/PROC enrollment rules.
+    //
+    // Implementation:
+    // - Temporarily disable capsule_mode while calling print(), so sys_write gating does not recurse.
+    if msg == 0 { return 0 }
+    if global_get_capsule_mode() != 1 {
+        print(msg)
+        return 0
+    }
+    global_set_capsule_mode(0)
+    print(msg)
+    global_set_capsule_mode(1)
     return 0
 }
 
@@ -1299,8 +1319,10 @@ fn native_capsule_sys_write_pre(fd) {
     //
     // Capsule hardening:
     // - If the fd is NET-tagged (socket), require NET domain to prevent NET bypass.
+    // - Stdout/stderr (fd=1/2) are treated as a diagnostic channel and are always allowed.
     // - Otherwise treat it as FS/stdio and require FS domain.
     if global_get_capsule_mode() != 1 { return fd }
+    if fd == 1 || fd == 2 { return fd }
     var k = native_capsule_net_fd_kind_get(fd)
     if k != 0 {
         if k == FD_KIND_PROC_PIPE {

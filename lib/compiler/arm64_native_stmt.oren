@@ -798,34 +798,8 @@ fn native_compile_stmt(ctx, stmt) {
                     return nil
                 }
 
-                if arg0["type"] == "String" {
-                    // Print string literal directly via sys_write(fd=1, ptr, len) + newline.
-                    var s = arg0["value"]
-                    var len = oren_string_len(s)
-                    native_compile_expr(ctx, arg0) // X0 = ptr
-
-                    // X0=fd, X1=ptr, X2=len
-                    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
-                    push_u32_le(ctx["code"], insn_movz(2, len))
-                    push_u32_le(ctx["code"], insn_movz(0, 1))
-                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
-                    push_u32_le(ctx["code"], insn_svc(svc_imm))
-
-                    // Write newline (1 byte) from stack.
-                    push_u32_le(ctx["code"], insn_sub_sp(16))
-                    ctx["stack_size"] = ctx["stack_size"] + 16
-                    push_u32_le(ctx["code"], insn_movz(3, 10))
-                    push_u32_le(ctx["code"], insn_str_ptr(3, 31))
-                    push_u32_le(ctx["code"], insn_add_imm(1, 31, 0)) // X1 = SP
-                    push_u32_le(ctx["code"], insn_movz(2, 1))
-                    push_u32_le(ctx["code"], insn_movz(0, 1))
-                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
-                    push_u32_le(ctx["code"], insn_svc(svc_imm))
-                    push_u32_le(ctx["code"], insn_add_sp(16))
-                    ctx["stack_size"] = ctx["stack_size"] - 16
-                    return nil
-                }
-
+                // Non-format print: always go through runtime `oren_print` so sys_write gating applies
+                // (no direct sys_write syscall bypass in statement lowering).
                 native_compile_expr(ctx, arg0)
                 var bl_pos_print = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)

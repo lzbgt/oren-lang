@@ -16,7 +16,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 1) **P0 [safety] Syscall-first OS substrate hardening (native backend)**
    - Keep: PROC cancellation + TIME + ENV + NET loopback correctness; never hang.
    - Capability enrollment model: explicit mapping virtual -> host resources; deny-by-default with capability checks at the raw `sys_*` boundary (no bypass).
-   - Next: mounts UX polish + virtual mount mirroring (native/AVM) + remaining ambiguous fd syscalls (e.g. dup/dup2/dup3, ioctl) gated + fd-kind propagation.
+   - Next: mounts UX polish + virtual mount mirroring (native/AVM) + scan for remaining direct-syscall bypasses in codegen and close them.
 
 2) **P0 [maint] Centralize OS ABI constants in repo-owned tables (no SDK header dependency)**
    - Keep syscall numbers / struct offsets in repo code + `docs/refs/*`.
@@ -60,5 +60,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Capsule hardening: sys_fcntl post-hook propagates fd kind tags for `F_DUPFD` / `F_DUPFD_CLOEXEC` to prevent tag-bypass via fcntl-based fd duplication.
 - Capsule hardening: added `sys_ioctl` with fd-domain gating (FS/NET/PROC by fd kind) and tests for FS + NET-only enrollment.
 - Native stmt codegen: fixed `ExprStmt` to always evaluate expressions (calls are side-effectful) and removed a syscall fast-path that bypassed capsule gating for statement-position `sys_write`.
+- Native stmt codegen: removed direct `sys_write` emission for `print("literal")`; print now flows through runtime `oren_print` so syscall gating applies. Stdout/stderr writes are treated as a diagnostic channel (allowed even without FS enrollment).
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).
