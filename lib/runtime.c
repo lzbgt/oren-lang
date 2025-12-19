@@ -2100,6 +2100,24 @@ OrenValue oren_neq(OrenValue a, OrenValue b) {
     return eq.as.bool_val ? OREN_FALSE : OREN_TRUE;
 }
 
+OrenValue oren_bool_norm(OrenValue v) {
+    // bool cast semantics (rolling):
+    // - nil  -> false
+    // - bool -> identity
+    // - int  -> (v != 0)
+    // - float-> (v != 0.0)
+    // - other heap/object values -> true
+    //
+    // IMPORTANT: do not use `oren_is_truthy` for ints here; v0 truthiness treats all ints as truthy.
+    switch (v.type) {
+        case OREN_TYPE_NIL: return OREN_FALSE;
+        case OREN_TYPE_BOOL: return v;
+        case OREN_TYPE_INT: return oren_bool(v.as.int_val != 0);
+        case OREN_TYPE_FLOAT: return oren_bool(v.as.float_val != 0.0);
+        default: return OREN_TRUE;
+    }
+}
+
 OrenValue oren_lt(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_INT && b.type == OREN_TYPE_INT) {
         return oren_bool(a.as.int_val < b.as.int_val);

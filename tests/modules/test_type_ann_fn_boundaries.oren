@@ -1,0 +1,35 @@
+// Type annotation boundaries should have cross-backend semantic meaning:
+// - annotated local initializers normalize immediately
+// - annotated params normalize at function entry
+// - annotated returns normalize at return
+
+fn f_u8(x: u8): u8 {
+    // entry: x should be masked to u8 first
+    // return: result should be masked to u8
+    return x + 1
+}
+
+fn f_bool(x: bool): bool {
+    // bool normalization is (x != 0)
+    return x
+}
+
+fn g_u8(): u8 { return 1000 }
+
+// Local initializer cast.
+var a: u8 = 256 + 5
+if a != 5 { exit(1) }
+
+// Param + return cast.
+if f_u8(255) != 0 { exit(2) }
+if f_u8(256 + 5) != 6 { exit(3) } // (261 & 255)=5, +1 => 6
+
+// Return cast must apply even if the body returns a wide value.
+if g_u8() != (1000 & 255) { exit(4) }
+
+// Bool normalization.
+if f_bool(0) { exit(5) }
+if !f_bool(123) { exit(6) }
+
+print("module type_ann_fn_boundaries OK")
+exit(0)

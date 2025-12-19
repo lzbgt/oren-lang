@@ -4650,6 +4650,12 @@ fn oren_bytes_pack(xs) {
     return out
 }
 
+fn oren_bool_norm(x) {
+    // Native backend values are untagged; treat "bool" as numeric != 0.
+    // This matches the value-level meaning we want for `bool` annotations.
+    return x != 0
+}
+
 // --- Byte-order helpers (network parsing / serialization) ---
 //
 // In native v0, "bytes" are typically `list<int 0..255>`.

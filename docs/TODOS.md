@@ -53,13 +53,14 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Next deliverables (finishable slices):
      - apply deterministic wrap/truncate casts for annotated struct/class fields at construction time (cross-backend) ✅
      - add explicit float32 rounding semantics (cross-backend, deterministic boundary) ✅
+     - normalize annotated locals/params/returns at boundaries (cross-backend) ✅
      - implement native typed buffers parity (`*_buf_new`, load/store, bulk ops; f32 rounding) ✅
      - define “typed pointers” for FFI/syscalls (no libc, syscall-first)
        - next slice: endian-aware pointer reads/writes for packet parsing (BE/LE) ✅
        - next slice: `u8_buf` + `sys_read_u8_buf/sys_write_u8_buf` for zero-copy IO ✅
-       - next slice: allow `u8_buf` as a byte container for `pack_view` / `oren_bytes_get_u8` ✅
-       - next slice: native `oren_bytes_{len,from_hex,to_hex,pack,unpack}` parity on `u8_buf` ✅
-       - next slice: `oren_u8_buf_wrap_ptr(malloc_ptr, len)` for true zero-copy packet parsing ✅
+        - next slice: allow `u8_buf` as a byte container for `pack_view` / `oren_bytes_get_u8` ✅
+        - next slice: native `oren_bytes_{len,from_hex,to_hex,pack,unpack}` parity on `u8_buf` ✅
+        - next slice: `oren_u8_buf_wrap_ptr(malloc_ptr, len)` for true zero-copy packet parsing ✅
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -104,3 +105,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Native runtime safety: hardened `oren_bytes_get_u8/oren_bytes_set_u8` to avoid unsafe pointer probes on non-pointers; added regression in `test_integration_suite`.
 - Native runtime: made `u8_buf` iterable (`for x in bytes`) and added native bytes hex/pack/unpack coverage.
 - Native runtime: added `oren_u8_buf_wrap_ptr` to wrap malloc buffers as bytes without copying (enables `pack_view` directly over syscall read buffers).
+- Type annotations: `bool` normalization is now explicit (`oren_bool_norm`) so annotated params/locals/returns have consistent numeric semantics across backends.

@@ -1174,6 +1174,27 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 107: { // oren_bool_norm(x) -> bool
+            if (nargs > 0) {
+                AvmValue x = args[0];
+                res.type = AVM_VAL_BOOL;
+                if (x.type == AVM_VAL_NIL) {
+                    res.as.i = 0;
+                } else if (x.type == AVM_VAL_BOOL) {
+                    res.as.i = x.as.i ? 1 : 0;
+                } else if (x.type == AVM_VAL_INT) {
+                    res.as.i = x.as.i != 0 ? 1 : 0;
+                } else if (x.type == AVM_VAL_FLOAT) {
+                    res.as.i = x.as.f != 0.0 ? 1 : 0;
+                } else {
+                    // For all other heap/object types, treat as truthy.
+                    res.as.i = 1;
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_bool_norm expects (x)");
+            }
+            break;
+        }
         case 35: { // oren_bytes_from_hex(string) -> bytes
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 const char* s = (const char*)args[0].as.p;
