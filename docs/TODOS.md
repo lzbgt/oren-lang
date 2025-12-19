@@ -61,5 +61,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Capsule hardening: added `sys_ioctl` with fd-domain gating (FS/NET/PROC by fd kind) and tests for FS + NET-only enrollment.
 - Native stmt codegen: fixed `ExprStmt` to always evaluate expressions (calls are side-effectful) and removed a syscall fast-path that bypassed capsule gating for statement-position `sys_write`.
 - Native stmt codegen: removed direct `sys_write` emission for `print("literal")`; print now flows through runtime `oren_print` so syscall gating applies. Stdout/stderr writes are treated as a diagnostic channel (allowed even without FS enrollment).
+- Native expr codegen: removed unreachable legacy spawn lowering that embedded raw syscalls (runtime spawn uses `oren_spawn_call_list` instead).
 - Mach-O emitter: removed more magic literals by centralizing constants and using fixed-width names, without SDK header build deps.
 - Refs: refreshed vendored syscall/Mach-O sources pinned in `docs/refs/` (audit-only; not build deps).
