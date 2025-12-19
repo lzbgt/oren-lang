@@ -249,20 +249,32 @@ fn test_bytes_endian_and_pack_view() {
     assert_eq(b32[0], 1, 205)
     assert_eq(b32[3], 4, 206)
 
+    var b64 = [0, 0, 0, 0, 0, 0, 0, 0]
+    assert_eq(oren_bytes_set_u64_be(b64, 0, 72623859790382856), 72623859790382856, 207) // 0x0102030405060708
+    assert_eq(oren_bytes_get_u64_be(b64, 0), 72623859790382856, 208)
+    assert_eq(b64[0], 1, 209)
+    assert_eq(b64[7], 8, 210)
+
+    var b64n = [0, 0, 0, 0, 0, 0, 0, 0]
+    assert_eq(oren_bytes_set_i64_be(b64n, 0, -2), -2, 211)
+    assert_eq(oren_bytes_get_i64_be(b64n, 0), -2, 212)
+    assert_eq(b64n[0], 255, 213)
+    assert_eq(b64n[7], 254, 214)
+
     var pkt = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
-    assert_eq(pack_view("PV_H", pkt, 0).v, 69, 210)
-    assert_eq(pack_view("PV_H", pkt, 0).len, 84, 211)
-    assert_eq(pack_view("PV_H", pkt, 0).src, 3232235521, 212)
-    assert_eq(pack_view("PV_H", pkt, 0).dst, 134744072, 213)
+    assert_eq(pack_view("PV_H", pkt, 0).v, 69, 220)
+    assert_eq(pack_view("PV_H", pkt, 0).len, 84, 221)
+    assert_eq(pack_view("PV_H", pkt, 0).src, 3232235521, 222)
+    assert_eq(pack_view("PV_H", pkt, 0).dst, 134744072, 223)
 
     var bn = [255, 254]
-    assert_eq(pack_view("PV_S16", bn, 0).x, -2, 214)
+    assert_eq(pack_view("PV_S16", bn, 0).x, -2, 224)
 
     var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     pack_view("PV_H", out, 0).v = 69
     pack_view("PV_H", out, 0).len = 84
     pack_view("PV_H", out, 0).dst = 134744072
-    assert_eq(pack_view("PV_H", out, 0).dst, 134744072, 215)
+    assert_eq(pack_view("PV_H", out, 0).dst, 134744072, 225)
 }
 
 fn test_numeric_casts() {

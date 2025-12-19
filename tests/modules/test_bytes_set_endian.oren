@@ -20,5 +20,20 @@ if oren_bytes_set_i32_be(b32n, 0, -2) != -2 { exit(10) }
 if b32n[0] != 255 || b32n[3] != 254 { exit(11) }
 if oren_bytes_get_i32_be(b32n, 0) != -2 { exit(12) }
 
+var b64 = [0, 0, 0, 0, 0, 0, 0, 0]
+if oren_bytes_set_u64_be(b64, 0, 72623859790382856) != 72623859790382856 { exit(13) } // 0x0102030405060708
+if b64[0] != 1 || b64[1] != 2 || b64[6] != 7 || b64[7] != 8 { exit(14) }
+if oren_bytes_get_u64_be(b64, 0) != 72623859790382856 { exit(15) }
+
+var b64le = [0, 0, 0, 0, 0, 0, 0, 0]
+if oren_bytes_set_u64_le(b64le, 0, 72623859790382856) != 72623859790382856 { exit(16) }
+if b64le[0] != 8 || b64le[7] != 1 { exit(17) }
+if oren_bytes_get_u64_le(b64le, 0) != 72623859790382856 { exit(18) }
+
+var b64n = [0, 0, 0, 0, 0, 0, 0, 0]
+if oren_bytes_set_i64_be(b64n, 0, -2) != -2 { exit(19) }
+if b64n[0] != 255 || b64n[7] != 254 { exit(20) }
+if oren_bytes_get_i64_be(b64n, 0) != -2 { exit(21) }
+
 print("module bytes_set_endian OK")
 exit(0)

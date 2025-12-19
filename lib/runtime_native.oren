@@ -4676,6 +4676,72 @@ fn oren_bytes_set_i32_le(bytes, idx, v) {
     return u
 }
 
+fn oren_bytes_get_u64_be(bytes, idx) {
+    var b0 = oren_bytes_get_u8(bytes, idx)
+    var b1 = oren_bytes_get_u8(bytes, idx + 1)
+    var b2 = oren_bytes_get_u8(bytes, idx + 2)
+    var b3 = oren_bytes_get_u8(bytes, idx + 3)
+    var b4 = oren_bytes_get_u8(bytes, idx + 4)
+    var b5 = oren_bytes_get_u8(bytes, idx + 5)
+    var b6 = oren_bytes_get_u8(bytes, idx + 6)
+    var b7 = oren_bytes_get_u8(bytes, idx + 7)
+    return (b0 << 56) | (b1 << 48) | (b2 << 40) | (b3 << 32) | (b4 << 24) | (b5 << 16) | (b6 << 8) | b7
+}
+
+fn oren_bytes_get_u64_le(bytes, idx) {
+    var b0 = oren_bytes_get_u8(bytes, idx)
+    var b1 = oren_bytes_get_u8(bytes, idx + 1)
+    var b2 = oren_bytes_get_u8(bytes, idx + 2)
+    var b3 = oren_bytes_get_u8(bytes, idx + 3)
+    var b4 = oren_bytes_get_u8(bytes, idx + 4)
+    var b5 = oren_bytes_get_u8(bytes, idx + 5)
+    var b6 = oren_bytes_get_u8(bytes, idx + 6)
+    var b7 = oren_bytes_get_u8(bytes, idx + 7)
+    return (b7 << 56) | (b6 << 48) | (b5 << 40) | (b4 << 32) | (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+}
+
+fn oren_bytes_get_i64_be(bytes, idx) {
+    // v0 note: Oren ints are signed int64; `u64` values above MAX_I64 are not representable.
+    // The bit pattern is still correct for negative values (two's complement).
+    return oren_bytes_get_u64_be(bytes, idx)
+}
+
+fn oren_bytes_get_i64_le(bytes, idx) {
+    return oren_bytes_get_u64_le(bytes, idx)
+}
+
+fn oren_bytes_set_u64_be(bytes, idx, v) {
+    oren_bytes_set_u8(bytes, idx, (v >> 56) & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (v >> 48) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (v >> 40) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, (v >> 32) & 255)
+    oren_bytes_set_u8(bytes, idx + 4, (v >> 24) & 255)
+    oren_bytes_set_u8(bytes, idx + 5, (v >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 6, (v >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 7, v & 255)
+    return v
+}
+
+fn oren_bytes_set_u64_le(bytes, idx, v) {
+    oren_bytes_set_u8(bytes, idx, v & 255)
+    oren_bytes_set_u8(bytes, idx + 1, (v >> 8) & 255)
+    oren_bytes_set_u8(bytes, idx + 2, (v >> 16) & 255)
+    oren_bytes_set_u8(bytes, idx + 3, (v >> 24) & 255)
+    oren_bytes_set_u8(bytes, idx + 4, (v >> 32) & 255)
+    oren_bytes_set_u8(bytes, idx + 5, (v >> 40) & 255)
+    oren_bytes_set_u8(bytes, idx + 6, (v >> 48) & 255)
+    oren_bytes_set_u8(bytes, idx + 7, (v >> 56) & 255)
+    return v
+}
+
+fn oren_bytes_set_i64_be(bytes, idx, v) {
+    return oren_bytes_set_u64_be(bytes, idx, v)
+}
+
+fn oren_bytes_set_i64_le(bytes, idx, v) {
+    return oren_bytes_set_u64_le(bytes, idx, v)
+}
+
 fn oren_bytes_put_u32_be(bytes, idx, v) {
     if v < 0 || v > 4294967295 { oren_panic("u32 out of range") }
     oren_bytes_set_u8(bytes, idx, (v >> 24) & 255)

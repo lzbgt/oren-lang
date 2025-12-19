@@ -79,18 +79,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Recently Completed (high signal)
 
-- `make test` uses `./oretest` and is timeout-safe without accidentally killing the suite early (Makefile wraps `./oretest` in the suite timeout, not the build timeout).
-- `oretest` defaults to `runtime.NumCPU()` jobs for module+AVM tests (still clamped to 32).
-- AVM: deterministic time-sliced cooperative scheduling (task quantum) + `JOIN_TIMEOUT` opcode (`0x4C`) + deterministic join-timeout test.
-- Bytecode backend: `oren_join_timeout(handle, timeout_ms)` lowers to `JOIN_TIMEOUT`.
-- Smoke suite: non-blocking `oren_join_timeout(h, 0)` regression (ensures opcode+verifier+runtime stay wired).
-- AVM: `oren_select(cases)` supports deterministic select over **send+recv** cases (round-robin fairness, data-encoded cases); documented in `docs/AVM_SPEC_V1.md`.
-- AVM: typed numeric buffers (`I32_BUF/I64_BUF/F32_BUF/F64_BUF`) + minimal ops (`BUF_LEN`, typed load/store) wired through snapshot/resume + record/replay + hashing; covered by smoke suite + snapshot/resume test.
-- AVM: minimal typed-buffer compute kernels (scalar fallback): fill/add/dot for `i32` and `f32`; covered by smoke suite.
-- AVM: extended typed-buffer kernels: in-place add/scale/reduce and mul kernels for `f32`, plus mul+reduce for `i32`; covered by smoke suite.
-- AVM: completed ABI-nucleus `_into` kernels for scale (`f32/i32`) and added a concrete NEON mapping plan (`docs/AVM_NEON_MAPPING_PLAN.md`).
-- AVM: added allocation-free reduction `_into` kernels (`dot/reduce_sum` writing to `f64_buf/i64_buf`), wired through compiler lowering; covered by smoke suite.
-- AVM: added `AVM_ENABLE_SIMD=1` runtime opt-in + NEON implementations for `f32` elementwise `_into` kernels; validated via `oretest` running smoke+snapshot-resume in both scalar and SIMD modes on arm64.
-- AVM: added determinism-safe NEON reductions for `f32` (`dot`/`reduce_sum`), preserving the scalar “compute in f64, accumulate in fixed order” semantics; smoke suite includes a len=8 SIMD coverage block.
-- Compiler: promoted fixed-width type names (`u8/i32/f64/u16be/...`) to dedicated lexer tokens while keeping them identifier-like in expressions/dotted names; parser supports `name: Type` for vars/params/fields/for-in and `fn f(...): Ret {}` for return annotations.
-- Compiler: extended `@oren.packed` `pack_view` lowering to support 64-bit endian-aware fields (`u64be/u64le/i64be/i64le`) with PV2 reads and PV3 writes covered by the module pack_view regression.
+- See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.

@@ -15,6 +15,12 @@ if oren_bytes_get_u32_le(b32, 0) != 67305985 { exit(5) }
 var b32n = [255, 255, 255, 254]
 if oren_bytes_get_i32_be(b32n, 0) != -2 { exit(6) }
 
+var b64 = [1, 2, 3, 4, 5, 6, 7, 8]
+if oren_bytes_get_u64_be(b64, 0) != 72623859790382856 { exit(7) } // 0x0102030405060708
+if oren_bytes_get_u64_le(b64, 0) != 578437695752307201 { exit(8) } // 0x0807060504030201
+
+var b64n = [255, 255, 255, 255, 255, 255, 255, 254]
+if oren_bytes_get_i64_be(b64n, 0) != -2 { exit(9) }
+
 print("module endian casts OK")
 exit(0)
-

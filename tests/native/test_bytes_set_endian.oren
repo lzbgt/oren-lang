@@ -49,6 +49,24 @@ fn main() {
     assert_eq(b32n[0], 255, 62)
     assert_eq(b32n[3], 254, 63)
 
+    var b64 = [0, 0, 0, 0, 0, 0, 0, 0]
+    assert_eq(oren_bytes_set_u64_be(b64, 0, 72623859790382856), 72623859790382856, 70)
+    assert_eq(oren_bytes_get_u64_be(b64, 0), 72623859790382856, 71)
+    assert_eq(b64[0], 1, 72)
+    assert_eq(b64[7], 8, 73)
+
+    var b64le = [0, 0, 0, 0, 0, 0, 0, 0]
+    assert_eq(oren_bytes_set_u64_le(b64le, 0, 72623859790382856), 72623859790382856, 74)
+    assert_eq(oren_bytes_get_u64_le(b64le, 0), 72623859790382856, 75)
+    assert_eq(b64le[0], 8, 76)
+    assert_eq(b64le[7], 1, 77)
+
+    var b64n = [0, 0, 0, 0, 0, 0, 0, 0]
+    assert_eq(oren_bytes_set_i64_be(b64n, 0, -2), -2, 78)
+    assert_eq(oren_bytes_get_i64_be(b64n, 0), -2, 79)
+    assert_eq(b64n[0], 255, 80)
+    assert_eq(b64n[7], 254, 81)
+
     print("native bytes_set_endian OK")
     exit(0)
 }
