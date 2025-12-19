@@ -26,6 +26,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
    - macOS arm64 is largely done via `lib/compiler/arm64_abi_macos.oren` + `docs/refs/darwin_arm64_abi.md` (syscall reg/imm + core syscalls).
    - Linux arm64 baseline table added via `lib/compiler/arm64_abi_linux.oren` (syscall reg/imm + core syscalls).
    - Next: Linux arm64 parity tables + a single shared ABI layer used by native codegen.
+   - Keep tightening: remove remaining “magic literals” in native codegen in favor of ABI helpers.
 
 3) **P1 [correctness] String equality semantics + propagation (native backend)**
    - Native backend uses compile-time string propagation + runtime `strcmp` (no libc); AVM/C backends use tagged strings.
@@ -52,4 +53,5 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native runtime: fixed map layout to be list-like (`[count][cap][entries_ptr][magic]`) and implemented growth; fixes `{}` OOB corruption and unblocks `std/json` + smoke suite.
 - Native syscall lowering: preserve heap regs around every `svc` (defense-in-depth; rolling ABI stability).
 - Repo test runner: added syscall-first policy guard that forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved compiler modules.
+- ABI tables: added repo-owned `mmap` PROT/FLAGS constants (Darwin/Linux) and removed numeric literals from native allocator codegen.
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

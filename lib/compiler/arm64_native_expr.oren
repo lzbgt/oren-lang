@@ -1330,13 +1330,15 @@ fn native_compile_expr(ctx, expr) {
             // Slow path: mmap a fresh chunk (max(size, 64KB))
             var slow_target = oren_list_len(ctx["code"])
             var sys_mmap = abi.darwin_sys_mmap()
-            var mmap_flags = 4098 // 0x1002
+            var mmap_flags = abi.darwin_mmap_flags_private_anon()
+            var mmap_prot = abi.darwin_mmap_prot_read_write()
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var is_macos = true
             if ctx["platform"]["os"] == "linux" {
                 sys_mmap = labi.linux_sys_mmap()
-                mmap_flags = 34 // 0x22
+                mmap_flags = labi.linux_mmap_flags_private_anon()
+                mmap_prot = labi.linux_mmap_prot_read_write()
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
                 is_macos = false
@@ -1369,7 +1371,7 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_str_reg_sp(9, 8))
             
             push_u32_le(ctx["code"], insn_movz(0, 0))
-            push_u32_le(ctx["code"], insn_movz(2, 3))
+            push_u32_le(ctx["code"], insn_movz(2, mmap_prot))
             push_u32_le(ctx["code"], insn_movz(3, mmap_flags))
             push_u32_le(ctx["code"], insn_movn(4, 0))
             push_u32_le(ctx["code"], insn_movz(5, 0))

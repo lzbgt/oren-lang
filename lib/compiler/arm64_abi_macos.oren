@@ -78,3 +78,18 @@ fn darwin_fcntl_f_getpath() { return 50 }
 fn darwin_stat_size_bytes() { return 144 }
 fn darwin_stat_off_st_mode() { return 4 }
 fn darwin_stat_off_st_size() { return 96 }
+
+// --- mmap constants (Darwin) ---
+//
+// These are repo-owned ABI constants for the syscall-first allocator path:
+// - No SDK headers at build time
+// - Verified against macOS headers (audit-only) and `docs/refs/*`
+//
+// prot bits:
+//   PROT_READ  = 0x1
+//   PROT_WRITE = 0x2
+// flags bits:
+//   MAP_PRIVATE = 0x0002
+//   MAP_ANON    = 0x1000
+fn darwin_mmap_prot_read_write() { return 3 } // PROT_READ|PROT_WRITE
+fn darwin_mmap_flags_private_anon() { return 4098 } // MAP_PRIVATE|MAP_ANON (0x1002)

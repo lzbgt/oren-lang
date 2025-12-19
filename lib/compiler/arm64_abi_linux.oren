@@ -61,3 +61,17 @@ fn linux_svc_imm() { return 0 }
 fn linux_at_fdcwd() { return -100 } // AT_FDCWD (relative to current working directory)
 fn linux_at_symlink_nofollow() { return 256 } // 0x100
 fn linux_at_removedir() { return 512 } // 0x200
+
+// --- mmap constants (Linux) ---
+//
+// Repo-owned constants used by the syscall-first allocator path.
+// Verified against `docs/refs/linux_*` (audit-only; not a build dependency).
+//
+// prot bits:
+//   PROT_READ  = 0x1
+//   PROT_WRITE = 0x2
+// flags bits:
+//   MAP_PRIVATE   = 0x02
+//   MAP_ANONYMOUS = 0x20
+fn linux_mmap_prot_read_write() { return 3 } // PROT_READ|PROT_WRITE
+fn linux_mmap_flags_private_anon() { return 34 } // MAP_PRIVATE|MAP_ANONYMOUS (0x22)
