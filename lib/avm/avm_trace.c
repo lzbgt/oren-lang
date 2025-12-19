@@ -28,7 +28,12 @@ static size_t trace_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     if (op == 0x38) return 4;                 // CALL u16 u8
     if (op == 0x3A) return 4;                 // CALL_NATIVE u16 u8
     if (op == 0x3B) return 5;                 // CALL_NATIVE2 u8 u16 u8
+    if (op == 0x3C) return 3;                 // PUSH_FUNC u16
+    if (op == 0x3D) return 2;                 // CALL_INDIRECT u8
+    if (op == 0x3E) return 2;                 // MAKE_CLOSURE u8
+    if (op == 0x3F) return 2;                 // LOAD_ENV u8
     if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
+    if (op == 0x44) return 2;                 // CALL_INDIRECT_SPREAD u8
     return 1;
 }
 
@@ -381,4 +386,3 @@ AvmBytes* avm_trace_bytes(AvmVM* vm) {
     if (!vm) return NULL;
     return vm->trace_bytes;
 }
-

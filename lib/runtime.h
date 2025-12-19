@@ -154,6 +154,7 @@ OrenValue oren_call_obj(OrenValue fn, int count, ...);
 // Non-varargs forms (useful for spawn/callback paths).
 OrenValue oren_call_obj_argv(OrenValue fn, int argc, OrenValue* argv);
 OrenValue oren_call_obj_list(OrenValue fn, OrenValue args_list);
+OrenValue oren_call_obj_spread(OrenValue fn, OrenValue fixed_args, OrenValue spread_list);
 
 OrenValue oren_new_list(int count, ...);
 OrenValue oren_list_len(OrenValue list);
@@ -226,6 +227,10 @@ OrenValue oren_chmod(OrenValue path, OrenValue mode);
 void oren_print(OrenValue v);
 void oren_print_multi(int count, ...);
 void oren_print_fmt(OrenValue fmt, int count, ...);
+void oren_print_list(OrenValue args_list);
+void oren_print_spread(OrenValue fixed_args, OrenValue spread_list);
+void oren_print_fmt_list(OrenValue fmt, OrenValue args_list);
+void oren_print_fmt_spread(OrenValue fmt, OrenValue fixed_args, OrenValue spread_list);
 void oren_shutdown();
 void oren_panic(const char* msg);
 

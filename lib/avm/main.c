@@ -326,6 +326,9 @@ static VerifyResult verify_program_region(
         } else if (op == 0x20) { // PRINT
             len = 1;
             pop = 1;
+        } else if (op == 0x21) { // PRINT_LIST
+            len = 1;
+            pop = 1;
         } else if (op == 0x30) { // JMP i16
             len = 3;
         } else if (op == 0x31) { // JMP_IF i16
@@ -400,6 +403,13 @@ static VerifyResult verify_program_region(
             uint8_t nargs = code[pc + 1];
             if (nargs > 16) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL_INDIRECT nargs too large"); }
             pop = (int)nargs + 1; // fn + args
+            push = 1;
+        } else if (op == 0x44) { // CALL_INDIRECT_SPREAD u8_fixed
+            len = 2;
+            if (pc + len > code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated CALL_INDIRECT_SPREAD"); }
+            uint8_t fixed = code[pc + 1];
+            if (fixed > 16) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL_INDIRECT_SPREAD fixed too large"); }
+            pop = (int)fixed + 2; // fn + fixed args + spread list
             push = 1;
         } else if (op == 0x3E) { // MAKE_CLOSURE u8_ncap
             len = 2;
@@ -1455,6 +1465,7 @@ static const char* op_name(uint8_t op) {
         case 0x1B: return "SHL";
         case 0x1C: return "SHR";
         case 0x20: return "PRINT";
+        case 0x21: return "PRINT_LIST";
         case 0x30: return "JMP";
         case 0x31: return "JMP_IF";
         case 0x38: return "CALL";
@@ -1463,6 +1474,7 @@ static const char* op_name(uint8_t op) {
         case 0x3B: return "CALL_NATIVE2";
         case 0x3C: return "PUSH_FUNC";
         case 0x3D: return "CALL_INDIRECT";
+        case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x3E: return "MAKE_CLOSURE";
         case 0x3F: return "LOAD_ENV";
         case 0x40: return "NEW_LIST";
@@ -1528,6 +1540,7 @@ static size_t disasm_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     if (op == 0x3B) return 5;                 // CALL_NATIVE2 u8 u16 u8
     if (op == 0x3C) return 3;                 // PUSH_FUNC u16
     if (op == 0x3D) return 2;                 // CALL_INDIRECT u8
+    if (op == 0x44) return 2;                 // CALL_INDIRECT_SPREAD u8
     if (op == 0x3E) return 2;                 // MAKE_CLOSURE u8
     if (op == 0x3F) return 2;                 // LOAD_ENV u8
     if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
@@ -1621,6 +1634,9 @@ static void disasm_program_json(FILE* out, const AvmProgram* prog, int show_cons
             } else if (op == 0x3D) { // CALL_INDIRECT u8 nargs
                 uint8_t nargs = code[pc + 1];
                 fprintf(out, ",\"operands\":{\"nargs\":%u}", (unsigned)nargs);
+            } else if (op == 0x44) { // CALL_INDIRECT_SPREAD u8 fixed
+                uint8_t fixed = code[pc + 1];
+                fprintf(out, ",\"operands\":{\"fixed\":%u}", (unsigned)fixed);
             } else if (op == 0x3E) { // MAKE_CLOSURE u8 ncap
                 uint8_t ncap = code[pc + 1];
                 fprintf(out, ",\"operands\":{\"ncap\":%u}", (unsigned)ncap);
@@ -1707,6 +1723,10 @@ static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
         } else if ((op == 0x3D) && pc + 2 <= prog->code_len) { // CALL_INDIRECT u8 nargs
             uint8_t nargs = code[pc + 1];
             fprintf(out, " nargs=%u", (unsigned)nargs);
+            pc += 2;
+        } else if ((op == 0x44) && pc + 2 <= prog->code_len) { // CALL_INDIRECT_SPREAD u8 fixed
+            uint8_t fixed = code[pc + 1];
+            fprintf(out, " fixed=%u", (unsigned)fixed);
             pc += 2;
         } else if ((op == 0x3E) && pc + 2 <= prog->code_len) { // MAKE_CLOSURE u8 ncap
             uint8_t ncap = code[pc + 1];

@@ -10,6 +10,7 @@ var AVM_SUB = 17
 var AVM_MUL = 29
 var AVM_DIV = 30
 var AVM_PRINT = 32
+var AVM_PRINT_LIST = 33
 var AVM_LOAD_LOCAL = 4
 var AVM_STORE_LOCAL = 5
 var AVM_LOAD_GLOBAL = 6
@@ -25,6 +26,7 @@ var AVM_SET_INDEX = 67
 var AVM_CALL_NATIVE2 = 59
 var AVM_PUSH_FUNC = 60
 var AVM_CALL_INDIRECT = 61
+var AVM_CALL_INDIRECT_SPREAD = 68
 var AVM_MAKE_CLOSURE = 62
 var AVM_LOAD_ENV = 63
 
@@ -100,6 +102,7 @@ fn lambda_collect_declared_in_expression(exp, declared) {
             lambda_collect_declared_in_expression(exp["args"][i], declared)
             i = i + 1
         }
+        if exp["spread"] != nil { lambda_collect_declared_in_expression(exp["spread"], declared) }
         return nil
     }
     if et == "Prefix" { lambda_collect_declared_in_expression(exp["right"], declared); return nil }
@@ -210,6 +213,7 @@ fn lambda_collect_used_in_expression(exp, declared, seen, out) {
             lambda_collect_used_in_expression(exp["args"][i], declared, seen, out)
             i = i + 1
         }
+        if exp["spread"] != nil { lambda_collect_used_in_expression(exp["spread"], declared, seen, out) }
         return nil
     }
     if et == "Prefix" { lambda_collect_used_in_expression(exp["right"], declared, seen, out); return nil }
@@ -921,14 +925,44 @@ fn bytecode_compile_expr(ctx, expr) {
                 bytecode_compile_expr(ctx, args[i])
                 i = i + 1
             }
+            if expr["spread"] != nil {
+                // Call-site spread: [... fn fixed_args spread_list] CALL_INDIRECT_SPREAD fixed_count
+                bytecode_compile_expr(ctx, expr["spread"])
+                emit_byte(ctx, AVM_CALL_INDIRECT_SPREAD)
+                emit_byte(ctx, oren_list_len(args))
+                return nil
+            }
             emit_byte(ctx, AVM_CALL_INDIRECT)
             emit_byte(ctx, oren_list_len(args))
             return nil
         }
 
         if name == "print" {
-            bytecode_compile_expr(ctx, expr["args"][0])
-            emit_byte(ctx, AVM_PRINT)
+            // Rolling semantics:
+            // - print() prints a newline
+            // - print(x) prints x
+            // - print(a,b,...) prints values (AVM prints each element as a line; stable for tests)
+            //
+            // For spread: print(a, xs...) prints fixed args then xs elements.
+            var fixed = expr["args"]
+            var fixed_n = oren_list_len(fixed)
+            if fixed_n > 0 {
+                var j = 0
+                while j < fixed_n {
+                    bytecode_compile_expr(ctx, fixed[j])
+                    emit_byte(ctx, AVM_PRINT)
+                    j = j + 1
+                }
+            } else {
+                // print() => empty list => newline
+                emit_byte(ctx, AVM_NEW_LIST)
+                emit_u16(ctx, 0)
+                emit_byte(ctx, AVM_PRINT_LIST)
+            }
+            if expr["spread"] != nil {
+                bytecode_compile_expr(ctx, expr["spread"])
+                emit_byte(ctx, AVM_PRINT_LIST)
+            }
             var idx = add_constant(ctx, {"type": "Nil"})
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, idx)
@@ -936,6 +970,20 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         
         var args = expr["args"]
+        if expr["spread"] != nil {
+            // Spread calls are compiled as indirect calls so we don't need a dynamic
+            // CALL-by-name opcode: push a function value, fixed args, spread list.
+            bytecode_compile_expr(ctx, fn_node)
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            bytecode_compile_expr(ctx, expr["spread"])
+            emit_byte(ctx, AVM_CALL_INDIRECT_SPREAD)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
         var i = 0
         while i < oren_list_len(args) {
             bytecode_compile_expr(ctx, args[i])

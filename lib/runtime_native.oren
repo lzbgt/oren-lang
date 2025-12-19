@@ -3946,6 +3946,97 @@ fn oren_print(v) {
     return 0
 }
 
+fn oren_print_list(args_list) {
+    // Print list elements separated by spaces and trailing newline.
+    if args_list == 0 {
+        var nl = malloc(1)
+        ptr_set_byte(nl, 10)
+        sys_write(1, nl, 1)
+        return 0
+    }
+    var n = oren_list_len(args_list)
+    var i = 0
+    while i < n {
+        var v = oren_list_get(args_list, i)
+        oren_print_any_no_nl(v)
+        if i < n - 1 {
+            var sp = malloc(1)
+            ptr_set_byte(sp, 32)
+            sys_write(1, sp, 1)
+        }
+        i = i + 1
+    }
+    var nl2 = malloc(1)
+    ptr_set_byte(nl2, 10)
+    sys_write(1, nl2, 1)
+    return 0
+}
+
+fn oren_print_fmt_list(fmt, args_list) { return oren_print_fmt(fmt, args_list) }
+
+fn oren_print_spread(fixed_args, spread_list) {
+    var args = oren_new_list(0)
+    if fixed_args != 0 {
+        var n0 = oren_list_len(fixed_args)
+        var i0 = 0
+        while i0 < n0 {
+            oren_list_push(args, oren_list_get(fixed_args, i0))
+            i0 = i0 + 1
+        }
+    }
+    if spread_list != 0 {
+        var n1 = oren_list_len(spread_list)
+        var i1 = 0
+        while i1 < n1 {
+            oren_list_push(args, oren_list_get(spread_list, i1))
+            i1 = i1 + 1
+        }
+    }
+    return oren_print_list(args)
+}
+
+fn oren_print_fmt_spread(fmt, fixed_args, spread_list) {
+    var args = oren_new_list(0)
+    if fixed_args != 0 {
+        var n0 = oren_list_len(fixed_args)
+        var i0 = 0
+        while i0 < n0 {
+            oren_list_push(args, oren_list_get(fixed_args, i0))
+            i0 = i0 + 1
+        }
+    }
+    if spread_list != 0 {
+        var n1 = oren_list_len(spread_list)
+        var i1 = 0
+        while i1 < n1 {
+            oren_list_push(args, oren_list_get(spread_list, i1))
+            i1 = i1 + 1
+        }
+    }
+    return oren_print_fmt(fmt, args)
+}
+
+fn oren_call_obj_spread(fn_obj, fixed_args, spread_list) {
+    var args = oren_new_list(0)
+    if fixed_args != 0 {
+        var n0 = oren_list_len(fixed_args)
+        var i0 = 0
+        while i0 < n0 {
+            oren_list_push(args, oren_list_get(fixed_args, i0))
+            i0 = i0 + 1
+        }
+    }
+    if spread_list != 0 {
+        var n1 = oren_list_len(spread_list)
+        var i1 = 0
+        while i1 < n1 {
+            oren_list_push(args, oren_list_get(spread_list, i1))
+            i1 = i1 + 1
+        }
+    }
+    return oren_call_obj_list(fn_obj, args)
+}
+
 fn list_magic() { return 1279870019 } // 'LIST'
 fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
 

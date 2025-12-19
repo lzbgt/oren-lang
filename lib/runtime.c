@@ -2155,6 +2155,108 @@ void oren_print_fmt(OrenValue fmt_val, int count, ...) {
     va_end(args);
 }
 
+void oren_print_list(OrenValue args_list) {
+    if (args_list.type == OREN_TYPE_NIL) {
+        printf("\n");
+        return;
+    }
+    if (args_list.type != OREN_TYPE_LIST) {
+        oren_panic("print_list expects list");
+        return;
+    }
+    OrenList* l = args_list.as.list_val;
+    if (!l || l->count <= 0) {
+        printf("\n");
+        return;
+    }
+    for (int i = 0; i < l->count; i++) {
+        print_value_no_newline(l->items[i]);
+        if (i < l->count - 1) printf(" ");
+    }
+    printf("\n");
+}
+
+void oren_print_fmt_list(OrenValue fmt_val, OrenValue args_list) {
+    if (fmt_val.type != OREN_TYPE_STRING) {
+        oren_panic("print format must be string");
+        return;
+    }
+    if (args_list.type != OREN_TYPE_LIST && args_list.type != OREN_TYPE_NIL) {
+        oren_panic("print_fmt_list expects args list");
+        return;
+    }
+    OrenList* l = (args_list.type == OREN_TYPE_LIST) ? args_list.as.list_val : NULL;
+    int count = l ? l->count : 0;
+    const char* fmt = fmt_val.as.string_val;
+
+    int arg_idx = 0;
+    int len = (int)strlen(fmt);
+    int i = 0;
+    while (i < len) {
+        if (fmt[i] == '{' && i + 1 < len && fmt[i + 1] == '}') {
+            if (arg_idx < count) {
+                print_value_no_newline(l->items[arg_idx]);
+                arg_idx++;
+            } else {
+                printf("{}");
+            }
+            i += 2;
+        } else {
+            putchar(fmt[i]);
+            i++;
+        }
+    }
+    printf("\n");
+}
+
+static void print_build_args(OrenValue* out_list, OrenValue fixed_args, OrenValue spread_list) {
+    OrenValue args = oren_new_list(0);
+    if (fixed_args.type != OREN_TYPE_NIL) {
+        if (fixed_args.type != OREN_TYPE_LIST) {
+            oren_panic("spread fixed args must be list");
+            *out_list = OREN_NIL;
+            return;
+        }
+        OrenList* f = fixed_args.as.list_val;
+        for (int i = 0; i < f->count; i++) {
+            oren_list_push(args, f->items[i]);
+        }
+    }
+    if (spread_list.type != OREN_TYPE_NIL) {
+        if (spread_list.type != OREN_TYPE_LIST) {
+            oren_panic("spread list must be list");
+            *out_list = OREN_NIL;
+            return;
+        }
+        OrenList* s = spread_list.as.list_val;
+        for (int i = 0; i < s->count; i++) {
+            oren_list_push(args, s->items[i]);
+        }
+    }
+    *out_list = args;
+}
+
+void oren_print_spread(OrenValue fixed_args, OrenValue spread_list) {
+    OrenValue args = OREN_NIL;
+    print_build_args(&args, fixed_args, spread_list);
+    if (args.type == OREN_TYPE_NIL) return;
+    oren_print_list(args);
+}
+
+void oren_print_fmt_spread(OrenValue fmt, OrenValue fixed_args, OrenValue spread_list) {
+    OrenValue args = OREN_NIL;
+    print_build_args(&args, fixed_args, spread_list);
+    if (args.type == OREN_TYPE_NIL) return;
+    oren_print_fmt_list(fmt, args);
+}
+
+OrenValue oren_call_obj_spread(OrenValue fn, OrenValue fixed_args, OrenValue spread_list) {
+    OrenValue args = OREN_NIL;
+    print_build_args(&args, fixed_args, spread_list);
+    if (args.type == OREN_TYPE_NIL) return OREN_NIL;
+    return oren_call_obj_list(fn, args);
+}
+
 // Iterator hook for `for x in <container>` sugar.
 // Contract:
 //   oren_iter_next(container, idx:int) -> [ok:int, value]

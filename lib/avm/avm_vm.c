@@ -29,6 +29,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x1B: return "SHL";
         case 0x1C: return "SHR";
         case 0x20: return "PRINT";
+        case 0x21: return "PRINT_LIST";
         case 0x30: return "JMP";
         case 0x31: return "JMP_IF";
         case 0x38: return "CALL";
@@ -43,8 +44,21 @@ const char* avm_op_name(uint8_t op) {
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
         case 0x43: return "SET_INDEX";
+        case 0x44: return "CALL_INDIRECT_SPREAD";
         default: return "OP?";
     }
+}
+
+static void avm_print_value_no_nl(AvmValue v) {
+    if (v.type == AVM_VAL_INT) printf("%lld", (long long)v.as.i);
+    else if (v.type == AVM_VAL_FLOAT) printf("%f", v.as.f);
+    else if (v.type == AVM_VAL_STRING) printf("%s", (char*)v.as.p);
+    else if (v.type == AVM_VAL_BOOL) printf("%s", v.as.i ? "true" : "false");
+    else if (v.type == AVM_VAL_NIL) printf("nil");
+    else if (v.type == AVM_VAL_LIST) printf("<list>");
+    else if (v.type == AVM_VAL_MAP) printf("<map>");
+    else if (v.type == AVM_VAL_FUNC) printf("<func>");
+    else printf("<?>");
 }
 
 uint32_t avm_gas_cost(uint8_t op) {
@@ -550,12 +564,31 @@ void avm_run(AvmVM* vm) {
             case 0x20: { // PRINT
                 if (vm->sp > 0) {
                     AvmValue v = vm->stack[--vm->sp];
-                    if (v.type == AVM_VAL_INT) printf("%lld\n", (long long)v.as.i);
-                    else if (v.type == AVM_VAL_FLOAT) printf("%f\n", v.as.f);
-                    else if (v.type == AVM_VAL_STRING) printf("%s\n", (char*)v.as.p);
-                    else if (v.type == AVM_VAL_BOOL) printf("%s\n", v.as.i ? "true" : "false");
-                    else printf("nil\n");
+                    avm_print_value_no_nl(v);
+                    printf("\n");
                 }
+                break;
+            }
+            case 0x21: { // PRINT_LIST
+                if (vm->sp <= 0) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on PRINT_LIST"));
+                    break;
+                }
+                AvmValue lst = vm->stack[--vm->sp];
+                if (lst.type == AVM_VAL_NIL) {
+                    printf("\n");
+                    break;
+                }
+                if (lst.type != AVM_VAL_LIST || !lst.as.l) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "PRINT_LIST expects list"));
+                    break;
+                }
+                AvmList* l = lst.as.l;
+                for (int i = 0; i < l->count; i++) {
+                    avm_print_value_no_nl(l->items[i]);
+                    if (i < l->count - 1) printf(" ");
+                }
+                printf("\n");
                 break;
             }
             case 0x30: { // JMP i16
@@ -658,6 +691,66 @@ void avm_run(AvmVM* vm) {
                 }
                 vm->sp -= 1;
 
+                uint32_t fl = vm->frame_limit ? vm->frame_limit : (uint32_t)MAX_FRAMES;
+                if (fl > (uint32_t)MAX_FRAMES) fl = (uint32_t)MAX_FRAMES;
+                if (vm->frame_count >= (int)fl) {
+                    avm_abort(vm, avm_err(AVM_ERR_BUDGET, "call stack overflow (depth limit)"));
+                    break;
+                }
+                vm->frames[vm->frame_count].return_pc = vm->pc;
+                vm->frames[vm->frame_count].fp = vm->fp;
+                vm->frames[vm->frame_count].env = vm->env;
+                vm->frame_count++;
+                vm->fp = vm->sp - (int)argc;
+                vm->env = callee_env;
+                vm->pc = (int)addr;
+                break;
+            }
+            case 0x44: { // CALL_INDIRECT_SPREAD u8_fixed
+                uint8_t fixed = code[vm->pc++];
+                if (vm->sp < (int)fixed + 2) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on CALL_INDIRECT_SPREAD"));
+                    break;
+                }
+                int fn_idx = vm->sp - (int)fixed - 2;
+                AvmValue fv = vm->stack[fn_idx];
+                if (fv.type != AVM_VAL_FUNC || !fv.as.fn) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CALL_INDIRECT_SPREAD expects function value"));
+                    break;
+                }
+                AvmValue spread = vm->stack[vm->sp - 1];
+                if (spread.type != AVM_VAL_LIST || !spread.as.l) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CALL_INDIRECT_SPREAD expects list as spread arg"));
+                    break;
+                }
+                uint32_t addr = fv.as.fn->addr;
+                AvmValue callee_env = fv.as.fn->env;
+
+                AvmList* sl = spread.as.l;
+                if ((int)fixed + sl->count > 255) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CALL_INDIRECT_SPREAD argc too large"));
+                    break;
+                }
+
+                // Pop spread list value.
+                vm->sp -= 1;
+
+                // Remove fn value by shifting fixed args down over it.
+                for (int i = fn_idx; i < vm->sp - 1; i++) {
+                    vm->stack[i] = vm->stack[i + 1];
+                }
+                vm->sp -= 1;
+
+                // Append spread items to stack as additional args.
+                if (vm->sp + sl->count > (int)AVM_STACK_SIZE) {
+                    avm_abort(vm, avm_err(AVM_ERR_BUDGET, "stack overflow on CALL_INDIRECT_SPREAD"));
+                    break;
+                }
+                for (int i = 0; i < sl->count; i++) {
+                    vm->stack[vm->sp++] = sl->items[i];
+                }
+
+                uint8_t argc = (uint8_t)((int)fixed + sl->count);
                 uint32_t fl = vm->frame_limit ? vm->frame_limit : (uint32_t)MAX_FRAMES;
                 if (fl > (uint32_t)MAX_FRAMES) fl = (uint32_t)MAX_FRAMES;
                 if (vm->frame_count >= (int)fl) {

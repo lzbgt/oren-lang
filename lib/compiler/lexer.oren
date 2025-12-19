@@ -25,6 +25,13 @@ fn peek_char(l) {
     return oren_string_char_at(l["input"], l["read_position"])
 }
 
+fn peek_char2(l) {
+    var input_len = oren_string_len(l["input"])
+    var pos = l["read_position"] + 1
+    if pos >= input_len { return "" }
+    return oren_string_char_at(l["input"], pos)
+}
+
 fn skip_whitespace(l) {
     while token.is_whitespace(l["ch"]) {
         read_char(l)
@@ -227,7 +234,17 @@ fn next_token(l) {
     }
     if ch == ";" { read_char(l); return token.new_token(token.TOK_SEMICOLON, ";") }
     if ch == "@" { read_char(l); return token.new_token(token.TOK_AT, "@") }
-    if ch == "." { read_char(l); return token.new_token(token.TOK_DOT, ".") }
+    if ch == "." {
+        // Ellipsis for call-site spread: f(xs...)
+        if peek_char(l) == "." && peek_char2(l) == "." {
+            read_char(l) // second '.'
+            read_char(l) // third '.'
+            read_char(l)
+            return token.new_token(token.TOK_ELLIPSIS, "...")
+        }
+        read_char(l)
+        return token.new_token(token.TOK_DOT, ".")
+    }
     if ch == "," { read_char(l); return token.new_token(token.TOK_COMMA, ",") }
     if ch == "(" { read_char(l); return token.new_token(token.TOK_LPAREN, "(") }
     if ch == ")" { read_char(l); return token.new_token(token.TOK_RPAREN, ")") }

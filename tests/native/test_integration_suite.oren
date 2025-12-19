@@ -34,6 +34,7 @@ fn u16be_at(p, off) {
 }
 
 fn add(a, b) { return a + b }
+fn add3(a, b, c) { return a + b + c }
 
 fn sum_rec(n) {
     if n <= 0 { return 0 }
@@ -118,6 +119,12 @@ fn test_core_smoke() {
     // Function values + lambdas + capture-by-value.
     var f = add
     assert_eq(f(10, 1), 11, 50)
+
+    // Call-site spread for fixed-arity functions (bootstrap-friendly varargs).
+    var xs3 = [2, 3]
+    assert_eq(add3(1, xs3...), 6, 53)
+    var f3 = add3
+    assert_eq(f3(1, xs3...), 6, 54)
 
     var xcap = 10
     var g = |y| xcap + y

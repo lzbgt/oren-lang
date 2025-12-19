@@ -1157,21 +1157,55 @@ fn parse_parameters(p) {
 fn parse_call(p, fn_expr) {
     var tok = p["cur"]
     var args = parse_call_args(p)
-    return ast.new_call(tok, fn_expr, args)
+    var spread = p["_call_spread"]
+    p["_call_spread"] = nil
+    var c = ast.new_call(tok, fn_expr, args)
+    if spread != nil {
+        c["spread"] = spread
+    }
+    return c
 }
 
 fn parse_call_args(p) {
     var args = []
+    p["_call_spread"] = nil
     if peek_is(p, token.TOK_RPAREN) {
         parser_next_token(p)
         return args
     }
     parser_next_token(p)
-    oren_list_push(args, parse_expression(p, LOWEST))
+    var a0 = parse_expression(p, LOWEST)
+    if peek_is(p, token.TOK_ELLIPSIS) {
+        // Call-site spread: f(xs...)
+        // - only one spread allowed
+        // - spread must be last (before ')')
+        p["_call_spread"] = a0
+        parser_next_token(p) // ...
+        if !peek_is(p, token.TOK_RPAREN) {
+            parser_add_error(p, "spread '...' must be the last argument")
+        }
+    } else {
+        oren_list_push(args, a0)
+    }
     while peek_is(p, token.TOK_COMMA) {
         parser_next_token(p)
         parser_next_token(p)
-        oren_list_push(args, parse_expression(p, LOWEST))
+        if p["_call_spread"] != nil {
+            parser_add_error(p, "spread '...' must be the last argument")
+            // Still parse to make progress.
+            parse_expression(p, LOWEST)
+            continue
+        }
+        var ax = parse_expression(p, LOWEST)
+        if peek_is(p, token.TOK_ELLIPSIS) {
+            p["_call_spread"] = ax
+            parser_next_token(p) // ...
+            if !peek_is(p, token.TOK_RPAREN) {
+                parser_add_error(p, "spread '...' must be the last argument")
+            }
+        } else {
+            oren_list_push(args, ax)
+        }
     }
     expect_peek(p, token.TOK_RPAREN)
     return args

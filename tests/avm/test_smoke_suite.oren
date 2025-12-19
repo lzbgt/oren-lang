@@ -20,6 +20,7 @@ fn assert_eq(a, b) {
 }
 
 fn inc(x) { return x + 1 }
+fn add3(a, b, c) { return a + b + c }
 
 fn sum_rec(n) {
     if n <= 0 { return 0 }
@@ -35,6 +36,13 @@ fn test_calls() {
         i = i + 1
     }
     assert_eq(x, 10000)
+}
+
+fn test_spread_calls() {
+    var xs = [2, 3]
+    assert_eq(add3(1, xs...), 6)
+    var f = add3
+    assert_eq(f(1, xs...), 6)
 }
 
 fn test_recursion() {

@@ -132,6 +132,7 @@ fn lambda_collect_declared_in_expression(ctx, exp, declared) {
             lambda_collect_declared_in_expression(ctx, exp["args"][i], declared)
             i = i + 1
         }
+        if exp["spread"] != nil { lambda_collect_declared_in_expression(ctx, exp["spread"], declared) }
         return nil
     }
     if et == "Prefix" { lambda_collect_declared_in_expression(ctx, exp["right"], declared); return nil }
@@ -244,6 +245,7 @@ fn lambda_collect_used_in_expression(ctx, exp, declared, seen, out) {
             lambda_collect_used_in_expression(ctx, exp["args"][i], declared, seen, out)
             i = i + 1
         }
+        if exp["spread"] != nil { lambda_collect_used_in_expression(ctx, exp["spread"], declared, seen, out) }
         return nil
     }
     if et == "Prefix" { lambda_collect_used_in_expression(ctx, exp["right"], declared, seen, out); return nil }

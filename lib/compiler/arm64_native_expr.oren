@@ -1016,6 +1016,62 @@ fn native_compile_expr(ctx, expr) {
             oren_exit(1)
         }
 
+        // Call-site spread: f(a, xs...) where xs is a list.
+        // Lower to runtime helper `oren_call_obj_spread(fn_obj, fixed_args_list, spread_list)`.
+        // This keeps semantics consistent without introducing a user-defined varargs ABI.
+        if expr["spread"] != nil {
+            var fixed_args = expr["args"]
+
+            // fixed_list = oren_new_list(0); fixed_list.push(arg0..)
+            push_u32_le(ctx["code"], insn_movz(0, 0))
+            var bl_new_list_sp = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_sp, "name": "oren_new_list"})
+
+            // Save fixed_list on stack
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            var i_sp = 0
+            while i_sp < oren_list_len(fixed_args) {
+                native_compile_expr(ctx, fixed_args[i_sp])
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                var bl_push_sp = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_sp, "name": "oren_list_push"})
+                i_sp = i_sp + 1
+            }
+
+            // Save spread_list on stack
+            native_compile_expr(ctx, expr["spread"])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // fn_obj -> X0
+            native_compile_expr(ctx, fn_expr)
+
+            // Load fixed/spread into X1/X2 and pop stack
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fixed_list
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // spread_list
+            push_u32_le(ctx["code"], insn_add_sp(32))
+            ctx["stack_size"] = ctx["stack_size"] - 32
+
+            var bl_spread = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_spread, "name": "oren_call_obj_spread"})
+            return nil
+        }
+
         // Fast-path module namespace calls: `mod.fn(args...)` where `mod` is an import alias.
         if fn_expr["type"] == "Member" {
             var nsr2 = native_ns_resolve(ctx, fn_expr)

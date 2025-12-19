@@ -796,17 +796,110 @@ fn native_compile_stmt(ctx, stmt) {
             if fn_name == "print" {
                 var args = expr["args"]
                 var argc = oren_list_len(args)
-                var arg0 = args[0]
+                var spread = expr["spread"]
+                var arg0 = nil
+                if argc > 0 { arg0 = args[0] }
                 
                 var is_fmt = false
-                if argc > 1 {
-                    if arg0["type"] == "String" {
-                        if contains_curly_braces(arg0["value"]) {
-                            is_fmt = true
-                        }
-                    }
+                if arg0 != nil && arg0["type"] == "String" && contains_curly_braces(arg0["value"]) {
+                    if argc > 1 || spread != nil { is_fmt = true }
                 }
                 
+                if spread != nil {
+                    // Spread printing: lower to runtime helpers so we don't need to unroll
+                    // list elements in assembly.
+                    if is_fmt {
+                        // fixed list is args[1..]
+                        push_u32_le(ctx["code"], insn_movz(0, 0))
+                        var bl_new_list2 = oren_list_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list2, "name": "oren_new_list"})
+
+                        // Save fixed args list on stack.
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+
+                        var k2 = 1
+                        while k2 < argc {
+                            native_compile_expr(ctx, args[k2])
+                            push_u32_le(ctx["code"], insn_sub_sp(16))
+                            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                            ctx["stack_size"] = ctx["stack_size"] + 16
+
+                            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                            push_u32_le(ctx["code"], insn_add_sp(16))
+                            ctx["stack_size"] = ctx["stack_size"] - 16
+
+                            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+
+                            var bl_push2 = oren_list_len(ctx["code"])
+                            push_u32_le(ctx["code"], 0)
+                            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push2, "name": "oren_list_push"})
+                            k2 = k2 + 1
+                        }
+
+                        // Compile spread list and save on stack.
+                        native_compile_expr(ctx, spread)
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+
+                        // Compile fmt (arg0) last, then load fixed+spread into X1/X2.
+                        native_compile_expr(ctx, arg0)
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fixed
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // spread
+                        push_u32_le(ctx["code"], insn_add_sp(32))
+                        ctx["stack_size"] = ctx["stack_size"] - 32
+
+                        var bl_fmt_sp = oren_list_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fmt_sp, "name": "oren_print_fmt_spread"})
+                        return nil
+                    }
+
+                    // Non-format: fixed list is args[0..] (may be empty)
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var bl_new_list3 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list3, "name": "oren_new_list"})
+
+                    // Save fixed list on stack.
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    var k3 = 0
+                    while k3 < argc {
+                        native_compile_expr(ctx, args[k3])
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                        push_u32_le(ctx["code"], insn_add_sp(16))
+                        ctx["stack_size"] = ctx["stack_size"] - 16
+
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                        var bl_push3 = oren_list_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push3, "name": "oren_list_push"})
+                        k3 = k3 + 1
+                    }
+
+                    // Compile spread -> X0, move to X1, then restore fixed list into X0.
+                    native_compile_expr(ctx, spread)
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = spread
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // X0 = fixed
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+
+                    var bl_sp = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sp, "name": "oren_print_spread"})
+                    return nil
+                }
+
                 if is_fmt {
                     push_u32_le(ctx["code"], insn_movz(0, 0))
                     var bl_new_list = oren_list_len(ctx["code"])
@@ -851,10 +944,56 @@ fn native_compile_stmt(ctx, stmt) {
 
                 // Non-format print: always go through runtime `oren_print` so sys_write gating applies
                 // (no direct sys_write syscall bypass in statement lowering).
-                native_compile_expr(ctx, arg0)
-                var bl_pos_print = oren_list_len(ctx["code"])
+                if argc == 0 {
+                    // print() => newline
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var bl_nl = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_nl, "name": "oren_print_list"})
+                    return nil
+                }
+                if argc == 1 {
+                    native_compile_expr(ctx, arg0)
+                    var bl_pos_print = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_print, "name": "oren_print"})
+                    return nil
+                }
+
+                // print(a,b,...) => build args list and call oren_print_list(list)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var bl_new_list4 = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_print, "name": "oren_print"})
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list4, "name": "oren_new_list"})
+
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                var k4 = 0
+                while k4 < argc {
+                    native_compile_expr(ctx, args[k4])
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                    var bl_push4 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push4, "name": "oren_list_push"})
+                    k4 = k4 + 1
+                }
+
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+                var bl_pl = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pl, "name": "oren_print_list"})
                 return nil
             }
             

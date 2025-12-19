@@ -425,6 +425,11 @@ Design note:
 
 Adding true language-level varargs (e.g. `fn f(a, ...rest) {}`) has ABI consequences across backends. The minimal no-rewrite path is to first add a **call-site “spread”** feature for variadic builtins (e.g. `print(xs...)` where `xs` is a list), and only later consider user-defined variadic functions once calling conventions are stabilized.
 
+**Status update (rolling):** call-site spread is implemented:
+- Syntax: `f(xs...)` or `f(a, b, xs...)`
+- `xs` must be a list at runtime (or `nil`).
+- This feature is intended to support variadic builtins and “apply-style” calls without committing to a stable user-defined varargs ABI yet.
+
 ### Compile-time execution (“comptime”) (design direction)
 
 Oren should treat compile-time evaluation as a first-class concept, but it must stay aligned with the core niche:

@@ -231,6 +231,21 @@ fn transpile_type_ctor(t, type_decl) {
     emit(t, "}")
 }
 
+fn transpile_args_list_expr(t, args) {
+    // Build a list expression from a list of AST expressions (expression-level).
+    // Used for call-site spread and list-based variadic helpers.
+    var argc = oren_list_len(args)
+    if argc == 0 { return "oren_new_list(0)" }
+    var parts = ""
+    var j = 0
+    while j < argc {
+        if j > 0 { parts = parts + ", " }
+        parts = parts + transpile_expression(t, args[j])
+        j = j + 1
+    }
+    return "oren_new_list(" + int_str(argc) + ", " + parts + ")"
+}
+
 fn starts_with(s, prefix) {
     var sl = oren_string_len(s)
     var pl = oren_string_len(prefix)
@@ -302,6 +317,7 @@ fn lambda_collect_declared_in_expression(exp, declared) {
             lambda_collect_declared_in_expression(exp["args"][i], declared)
             i = i + 1
         }
+        if exp["spread"] != nil { lambda_collect_declared_in_expression(exp["spread"], declared) }
         return nil
     }
     if et == "Prefix" { lambda_collect_declared_in_expression(exp["right"], declared); return nil }
@@ -413,6 +429,7 @@ fn lambda_collect_used_in_expression(exp, declared, seen, out) {
             lambda_collect_used_in_expression(exp["args"][i], declared, seen, out)
             i = i + 1
         }
+        if exp["spread"] != nil { lambda_collect_used_in_expression(exp["spread"], declared, seen, out) }
         return nil
     }
     if et == "Prefix" { lambda_collect_used_in_expression(exp["right"], declared, seen, out); return nil }
@@ -875,6 +892,8 @@ fn transpile_expression(t, exp) {
         }
 
         var fn_expr = transpile_expression(t, exp["fn"])
+        var spread = exp["spread"]
+
         var args_s = ""
         var i = 0
         while i < oren_list_len(exp["args"]) {
@@ -887,6 +906,31 @@ fn transpile_expression(t, exp) {
             var name = exp["fn"]["value"]
             var argc = oren_list_len(exp["args"])
             if name == "print" {
+                if spread != nil {
+                    // print(..., xs...) lower to runtime list-based helpers.
+                    var arg0 = nil
+                    if argc > 0 { arg0 = exp["args"][0] }
+
+                    var is_fmt = false
+                    if arg0 != nil && arg0["type"] == "String" {
+                        if contains_curly_braces(arg0["value"]) {
+                            if argc > 1 || spread != nil { is_fmt = true }
+                        }
+                    }
+
+                    if is_fmt {
+                        var fmt_arg = transpile_expression(t, arg0)
+                        var rest = []
+                        var k = 1
+                        while k < argc {
+                            oren_list_push(rest, exp["args"][k])
+                            k = k + 1
+                        }
+                        return "oren_print_fmt_spread(" + fmt_arg + ", " + transpile_args_list_expr(t, rest) + ", " + transpile_expression(t, spread) + ")"
+                    }
+                    return "oren_print_spread(" + transpile_args_list_expr(t, exp["args"]) + ", " + transpile_expression(t, spread) + ")"
+                }
+
                 if argc == 0 { return "oren_print_multi(0)" }
                 
                 var is_fmt = false
@@ -938,8 +982,15 @@ fn transpile_expression(t, exp) {
         if exp["fn"]["type"] == "Identifier" {
             if starts_with(exp["fn"]["value"], "oren_") { use_call_obj = false }
         }
+        if spread != nil {
+            // Spread calls must go through a list-based apply helper.
+            use_call_obj = true
+        }
         if use_call_obj {
             var argc = oren_list_len(exp["args"])
+            if spread != nil {
+                return "oren_call_obj_spread(" + fn_expr + ", " + transpile_args_list_expr(t, exp["args"]) + ", " + transpile_expression(t, spread) + ")"
+            }
             if argc == 0 { return "oren_call_obj(" + fn_expr + ", 0)" }
             return "oren_call_obj(" + fn_expr + ", " + int_str(argc) + ", " + args_s + ")"
         }
