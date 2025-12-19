@@ -286,6 +286,17 @@ fn test_typed_buffers() {
     var fc = oren_buf_add_f32(fa, fb)
     assert_eq(oren_buf_load_f32(fc, 0), 3.5)
     assert_eq(oren_buf_dot_f32(fa, fb), 9.0) // 3 * (1.5*2.0)
+
+    var tmpi = oren_i32_buf_new(3)
+    oren_buf_add_i32_into(tmpi, a, b)
+    assert_eq(oren_buf_load_i32(tmpi, 1), 7)
+
+    var tmpf = oren_f32_buf_new(3)
+    oren_buf_add_f32_into(tmpf, fa, fb)
+    assert_eq(oren_buf_load_f32(tmpf, 2), 3.5)
+
+    oren_buf_scale_f32(tmpf, 2.0)
+    assert_eq(oren_buf_reduce_sum_f32(tmpf), 21.0) // 3 * 7.0
 }
 
 fn inc2(x) { return x + 1 }

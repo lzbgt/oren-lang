@@ -45,9 +45,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
    - Next deliverable: “SIMD-ready” kernel ABI + determinism hardening `[perf]`:
-     - decide/lock the kernel surface (naming + arg order + return shapes)
-     - add `BUF_*` kernels that can later map 1:1 onto NEON loops
-     - tighten float determinism expectations (no fast-math; avoid FMA drift)
+     - expand kernel set to cover `mul` + `reduce` patterns needed for ML
+     - define/lock float determinism policy for consensus (no fast-math, no FMA drift, fixed reduction order)
+     - plan the mapping for future NEON/SIMD lowering (still scalar fallback today)
 
 2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
