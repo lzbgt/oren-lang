@@ -58,5 +58,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Native runtime: `oren_getcwd()` now returns `"/"` in capsule mode (avoids leaking host paths; keeps path-normalization libs safe).
 - Native syscall lowering: introduced Oren-level `sys_open` flags and translated `CREAT/TRUNC` to OS-specific bits in codegen (removes Darwin-specific literals like `1537` from `.oren` sources; unblocks Linux parity).
 - Native syscall lowering: added Oren-level `O_NONBLOCK` and portable `sys_fcntl_getfl/sys_fcntl_setfl` helpers (keep `sys_fcntl` raw; translate only in dedicated helpers).
+- Tests: added a pipe-based nonblocking fcntl smoke fixture to lock down `sys_fcntl_getfl/sys_fcntl_setfl` semantics on native backend.
 - ABI tables: added repo-owned `mmap` PROT/FLAGS constants (Darwin/Linux) and removed numeric literals from native allocator codegen.
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

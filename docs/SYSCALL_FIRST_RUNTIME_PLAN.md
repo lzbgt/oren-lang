@@ -51,6 +51,11 @@ All OS interactions in the native runtime must go through a small, explicit `sys
 - pthread mutex/cond
 - stdio FILE APIs
 
+**Important nuance (rolling ABI, syscall-first correctness):**
+
+- `sys_*` intrinsics are **raw syscalls** (plus capsule gating at the syscall boundary).
+- Cross-platform “semantic portability” (e.g. mapping `O_NONBLOCK` across Darwin/Linux) must live in **dedicated wrappers** (either `oren_*` or explicit helper intrinsics), not hidden inside generic syscalls like `sys_fcntl`.
+
 ### D3: Implement macOS + Linux in parallel
 
 We target both:
@@ -121,6 +126,12 @@ This list is intentionally small and “kernel-shaped”. Naming can change, but
 
 For minimalism we can implement `sys_openat` only (Linux) and wrap.
 
+**Rolling ABI note (flags portability):**
+
+- `sys_open` takes **Oren-level flags** (stable inside the language runtime) rather than OS-specific `O_*` bits.
+- The native backend translates those Oren-level bits into OS bits at the syscall lowering layer.
+- Access mode bits remain POSIX-shaped: `flags & 3` is `RDONLY/WRONLY/RDWR`.
+
 ### Memory
 
 - `sys_mmap(addr, len, prot, flags, fd, off) -> ptr_or_neg_errno`
@@ -147,6 +158,14 @@ macOS implementation maps to `ulock_wait/ulock_wake` (or equivalent Darwin primi
 - `sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> 0_or_neg_errno`
   - macOS: syscall provides a 3rd out-param `mach_absolute_time` (usable as monotonic raw time).
   - Linux: syscall has no abs out-param; pass `abs_ptr=0`.
+
+### File descriptor flags (fcntl)
+
+Keep `sys_fcntl` raw for low-level needs, and provide portable helpers for common cases:
+
+- `sys_fcntl(fd, cmd, arg) -> rc_or_neg_errno` (raw)
+- `sys_fcntl_getfl(fd) -> oren_flags_or_neg_errno` (portable)
+- `sys_fcntl_setfl(fd, oren_flags) -> rc_or_neg_errno` (portable)
 
 ## 6. Milestones (ABCDE as Deliverables on This Architecture)
 

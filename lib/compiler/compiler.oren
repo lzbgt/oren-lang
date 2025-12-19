@@ -1671,6 +1671,26 @@ fn run_repo_tests(target, no_gc) {
     }
     oren_system("rm -f " + shell_quote(cwd_out))
 
+    // fcntl nonblock (runtime): pipe-based nonblocking toggle via syscall-first fcntl helpers.
+    var fcntl_nb_out = "build/runtime_fcntl_nonblock_pipe_prog"
+    var fcntl_nb_log = "build/logs/runtime_fcntl_nonblock_pipe_prog_build.log"
+    var fcntl_nb_cmd = "./oren build " + shell_quote("tests/native/fixtures/runtime_fcntl_nonblock_pipe_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(fcntl_nb_out) + gc_arg
+    var fcntl_nb_rc = run_shell_capture(timeout_bin, build_timeout, fcntl_nb_cmd, fcntl_nb_log)
+    if fcntl_nb_rc != 0 || file_exists(fcntl_nb_out) != true {
+        print("native failed: runtime_fcntl_nonblock_pipe_prog (build)")
+        oren_system("cat " + shell_quote(fcntl_nb_log))
+        oren_exit(1)
+    }
+    var fcntl_nb_run_log = "build/logs/runtime_fcntl_nonblock_pipe_prog_run.log"
+    var fcntl_nb_run_cmd = "./" + fcntl_nb_out
+    var fcntl_nb_run_rc = run_shell_capture(timeout_bin, run_timeout, fcntl_nb_run_cmd, fcntl_nb_run_log)
+    if fcntl_nb_run_rc != 0 {
+        print("native failed: runtime_fcntl_nonblock_pipe_prog (run)")
+        oren_system("cat " + shell_quote(fcntl_nb_run_log))
+        oren_exit(1)
+    }
+    oren_system("rm -f " + shell_quote(fcntl_nb_out))
+
     // Capsule NET allowlist (native runtime): deny-by-default endpoint enrollment.
     // Connect:
     // - no enrollment -> deny
