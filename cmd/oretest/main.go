@@ -115,6 +115,7 @@ func main() {
 		"tests/modules/test_int_casts.oren",
 		"tests/modules/test_int_casts_checked.oren",
 		"tests/modules/test_float_ops.oren",
+		"tests/modules/test_typed_struct_fields.oren",
 		"tests/modules/test_function_values.oren",
 		"tests/modules/test_lambda_closure.oren",
 		"tests/modules/test_lambda_multiline.oren",

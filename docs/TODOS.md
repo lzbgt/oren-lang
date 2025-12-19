@@ -50,6 +50,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - type annotation syntax works for locals, params, returns, and struct fields
      - codegen honors exact widths when the programmer asks for it (esp. FFI + packet parsing + HPC kernels)
    - Keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system.
+   - Next deliverables (finishable slices):
+     - apply deterministic wrap/truncate casts for annotated struct/class fields at construction time (cross-backend)
+     - add explicit float32 rounding semantics (needs a stable representation story)
+     - define/implement layout-stable “typed buffers” and FFI surfaces (no libc, syscall-first)
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.

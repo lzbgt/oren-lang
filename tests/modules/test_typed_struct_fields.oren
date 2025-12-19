@@ -1,0 +1,39 @@
+// Regression: type annotations are language-level (not attributes) and must have
+// immediate compile-time meaning for deterministic code.
+//
+// Rolling semantics (v0):
+// - struct/class values are immutable handles
+// - field type annotations normalize values at construction time (wrap/truncate)
+// - this must work cross-backend (C/native/bytecode) because it is an AST lowering
+
+struct H {
+    a: u8,
+    b: i8,
+    c: u16,
+    d: i16,
+    e: u32,
+    f: i32,
+    ok: bool
+}
+
+var h = H(
+    256 + 5,          // u8 -> 5
+    255,              // i8 -> -1
+    65536 + 7,        // u16 -> 7
+    65535,            // i16 -> -1
+    4294967296 + 9,   // u32 -> 9
+    4294967295,       // i32 -> -1
+    123               // bool -> true
+)
+
+if h.a != 5 { exit(1) }
+if h.b != -1 { exit(2) }
+if h.c != 7 { exit(3) }
+if h.d != -1 { exit(4) }
+if h.e != 9 { exit(5) }
+if h.f != -1 { exit(6) }
+if h.ok != true { exit(7) }
+
+print("module typed_struct_fields OK")
+exit(0)
+
