@@ -28,6 +28,24 @@ fn main() {
     if oren_is_err(s) { fail("read via mount failed") }
     assert_true(s == content, "content mismatch")
 
+
+    // Host-path allow-as-is (parity with native mounts):
+    // If the program passes an already-host-resolved path that is within an enrolled host prefix,
+    // it should be allowed.
+    var host_path = "build/mnt_avm/out_host.txt"
+    var content2 = "host ok"
+    var w3 = oren_write_file(host_path, content2)
+    if oren_is_err(w3) { fail("write via host path under mount failed") }
+
+    // Read it back via BOTH virtual and host forms.
+    var s3 = oren_read_file("v/out_host.txt")
+    if oren_is_err(s3) { fail("read via virtual path (host-written) failed") }
+    assert_true(s3 == content2, "content mismatch (virtual read)")
+
+    var s4 = oren_read_file(host_path)
+    if oren_is_err(s4) { fail("read via host path under mount failed") }
+    assert_true(s4 == content2, "content mismatch (host read)")
+
     // Paths that do not match any configured mount must be denied when mounts are present.
     var deny_path = "build/avm_mount_deny.txt"
     var w2 = oren_write_file(deny_path, "nope")

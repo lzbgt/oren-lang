@@ -513,7 +513,7 @@ fn native_compile_expr(ctx, expr) {
 		            // Linux aarch64 spawn: pipe2 + clone(SIGCHLD) + write result + exit_group.
 		            //
 		            // pipe2(int pipefd[2], int flags) => 0 on success, -errno on failure (fds written as int32).
-		            // __NR_pipe2 = 59, __NR_close = 57, __NR_write = 64, __NR_clone = 220, __NR_exit_group = 94
+		            // Syscall numbers and ABI (syscall reg + svc imm) are centralized in `arm64_abi_linux.oren`.
 
 		            // Keep pipe_buf pointer on stack across syscalls.
 		            // Stack (top-down) at this point:
@@ -526,15 +526,15 @@ fn native_compile_expr(ctx, expr) {
 		            // pipe2(pipe_buf, 0)
 		            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pipefd*
 		            push_u32_le(ctx["code"], insn_movz(1, 0)) // flags
-		            push_u32_le(ctx["code"], insn_movz(8, 59))
-		            push_u32_le(ctx["code"], insn_svc(0))
+		            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_pipe2()))
+		            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 		            // if X0 < 0 => exit_group(-X0)
 		            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
 		            var pipe_ok_br = oren_list_len(ctx["code"])
 		            push_u32_le(ctx["code"], 0) // B.GE ok
 		            push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // errno = -rv
-		            push_u32_le(ctx["code"], insn_movz(8, 94))
-		            push_u32_le(ctx["code"], insn_svc(0))
+		            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_exit_group()))
+		            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 		            var pipe_ok_pos = oren_list_len(ctx["code"])
 		            set_u32_le(ctx["code"], pipe_ok_br, insn_b_cond((pipe_ok_pos - pipe_ok_br) / 4, 10)) // GE
 
@@ -571,8 +571,8 @@ fn native_compile_expr(ctx, expr) {
 			            // --- Child ---
 			            // close(rfd)
 			            push_u32_le(ctx["code"], insn_mov_reg(0, 19))
-			            push_u32_le(ctx["code"], insn_movz(8, 57))
-			            push_u32_le(ctx["code"], insn_svc(0))
+			            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_close()))
+			            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
 		            // Call wrapper(args_list) -> X0=result
 		            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
@@ -585,19 +585,19 @@ fn native_compile_expr(ctx, expr) {
 			            push_u32_le(ctx["code"], insn_mov_reg(0, 20))
 			            push_u32_le(ctx["code"], insn_add_imm(1, 31, 0))   // X1 = SP
 			            push_u32_le(ctx["code"], insn_movz(2, 8))
-			            push_u32_le(ctx["code"], insn_movz(8, 64))
-			            push_u32_le(ctx["code"], insn_svc(0))
+			            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_write()))
+			            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 			            push_u32_le(ctx["code"], insn_add_sp(16))
 
 			            // close(wfd)
 			            push_u32_le(ctx["code"], insn_mov_reg(0, 20))
-			            push_u32_le(ctx["code"], insn_movz(8, 57))
-			            push_u32_le(ctx["code"], insn_svc(0))
+			            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_close()))
+			            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
 		            // exit_group(0)
 		            push_u32_le(ctx["code"], insn_movz(0, 0))
-		            push_u32_le(ctx["code"], insn_movz(8, 94))
-		            push_u32_le(ctx["code"], insn_svc(0))
+		            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_exit_group()))
+		            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
 			            // --- Parent ---
 			            var parent_pos = oren_list_len(ctx["code"])
@@ -605,8 +605,8 @@ fn native_compile_expr(ctx, expr) {
 
 			            // close(wfd)
 			            push_u32_le(ctx["code"], insn_mov_reg(0, 20))
-			            push_u32_le(ctx["code"], insn_movz(8, 57))
-			            push_u32_le(ctx["code"], insn_svc(0))
+			            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_close()))
+			            push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
 		            // Allocate handle = malloc_raw(24)
 		            var malloc_call = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "24"}]}
@@ -636,12 +636,12 @@ fn native_compile_expr(ctx, expr) {
 	        // --- macOS implementation (Darwin syscalls) ---
 	        // pipe(pipe_buf)
 	        push_u32_le(ctx["code"], insn_mov_reg(0, 22))
-	        push_u32_le(ctx["code"], insn_movz(16, 42))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_pipe()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 	        var pipe_ok_br = oren_list_len(ctx["code"])
 	        push_u32_le(ctx["code"], 0) // B.CC ok
-	        push_u32_le(ctx["code"], insn_movz(16, 1)) // exit(errno)
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_exit())) // exit(errno)
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 	        var pipe_ok_pos = oren_list_len(ctx["code"])
 	        set_u32_le(ctx["code"], pipe_ok_br, insn_b_cond((pipe_ok_pos - pipe_ok_br) / 4, 3)) // CC
 
@@ -655,12 +655,12 @@ fn native_compile_expr(ctx, expr) {
 	        push_u32_le(ctx["code"], insn_ldr_ptr(20, 3))  // X20 = wfd
 
 	        // fork() (Darwin ABI: X0=child_pid in both parent/child; X1=0 parent, 1 child)
-	        push_u32_le(ctx["code"], insn_movz(16, 2))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_fork()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 	        var fork_ok_br = oren_list_len(ctx["code"])
 	        push_u32_le(ctx["code"], 0) // B.CC ok
-	        push_u32_le(ctx["code"], insn_movz(16, 1))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_exit()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 	        var fork_ok_pos = oren_list_len(ctx["code"])
 	        set_u32_le(ctx["code"], fork_ok_br, insn_b_cond((fork_ok_pos - fork_ok_br) / 4, 3)) // CC
 
@@ -673,8 +673,8 @@ fn native_compile_expr(ctx, expr) {
 	        // --- Child ---
 	        // close(rfd)
 	        push_u32_le(ctx["code"], insn_mov_reg(0, 19))
-	        push_u32_le(ctx["code"], insn_movz(16, 6))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_close()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 
 	        // Call wrapper(args_list) -> X0=result
 	        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
@@ -687,19 +687,19 @@ fn native_compile_expr(ctx, expr) {
 	        push_u32_le(ctx["code"], insn_mov_reg(0, 20))
 	        push_u32_le(ctx["code"], insn_add_imm(1, 31, 0))
 	        push_u32_le(ctx["code"], insn_movz(2, 8))
-	        push_u32_le(ctx["code"], insn_movz(16, 4))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_write()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 	        push_u32_le(ctx["code"], insn_add_sp(16))
 
 	        // close(wfd)
 	        push_u32_le(ctx["code"], insn_mov_reg(0, 20))
-	        push_u32_le(ctx["code"], insn_movz(16, 6))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_close()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 
 	        // exit(0)
 	        push_u32_le(ctx["code"], insn_movz(0, 0))
-	        push_u32_le(ctx["code"], insn_movz(16, 1))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_exit()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 
 	        // --- Parent ---
 	        var parent_pos = oren_list_len(ctx["code"])
@@ -707,8 +707,8 @@ fn native_compile_expr(ctx, expr) {
 
 	        // close(wfd)
 	        push_u32_le(ctx["code"], insn_mov_reg(0, 20))
-	        push_u32_le(ctx["code"], insn_movz(16, 6))
-	        push_u32_le(ctx["code"], insn_svc(128))
+	        push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_close()))
+	        push_u32_le(ctx["code"], insn_svc(abi.darwin_svc_imm()))
 	        
 	        // Allocate handle = malloc_raw(24)
 	        var malloc_call = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "24"}]}

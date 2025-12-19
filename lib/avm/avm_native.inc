@@ -1554,10 +1554,52 @@ static char* avm_fs_map_path(const AvmVM* vm, const char* vpath, int is_write, i
         size_t vl = strlen(vp);
         if (vl == 0) continue;
         if (strncmp(vpath, vp, vl) == 0) {
-            if (vl > best_len) { best = i; best_len = vl; }
+            // Boundary check when virt_prefix does not end with '/':
+            // Avoid accidental matches like 'v/mnt' matching 'v/mnt2'.
+            int ok = 1;
+            if (vl > 0 && vp[vl - 1] != '/') {
+                char nextc = vpath[vl];
+                if (nextc != 0 && nextc != '/') ok = 0;
+            }
+            if (ok) {
+                if (vl > best_len) { best = i; best_len = vl; }
+            }
         }
     }
-    if (best < 0) return NULL;
+    if (best < 0) {
+        // Host-prefix fast path (parity with native runtime):
+        // If the caller already passes a host path that starts with any enrolled host prefix,
+        // allow it as-is. This keeps mounts as the enrollment mechanism even when higher-level
+        // code pre-resolves paths.
+        int best_h = -1;
+        size_t best_hl = 0;
+        for (int i = 0; i < n; i++) {
+            const char* hp = host[i];
+            if (!hp) continue;
+            size_t hl = strlen(hp);
+            if (hl == 0) continue;
+            if (strncmp(vpath, hp, hl) == 0) {
+                // Boundary check when host_prefix does not end with '/':
+                // Avoid accidental matches like '/mnt' matching '/mnt2'.
+                int ok = 1;
+                if (hl > 0 && hp[hl - 1] != '/') {
+                    char nextc = vpath[hl];
+                    if (nextc != 0 && nextc != '/') ok = 0;
+                }
+                if (ok) {
+                    if (hl > best_hl) { best_h = i; best_hl = hl; }
+                }
+            }
+        }
+        if (best_h < 0) return NULL;
+        if (matched_out) *matched_out = 1;
+        size_t pl = strlen(vpath);
+        char* out = (char*)malloc(pl + 1);
+        if (!out) return NULL;
+        memcpy(out, vpath, pl);
+        out[pl] = 0;
+        return out;
+    }
     if (matched_out) *matched_out = 1;
 
     const char* hp = host[best] ? host[best] : "";

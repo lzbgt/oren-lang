@@ -53,3 +53,7 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - ABI tables expanded to cover commonly used FS syscalls (unlink/mkdir/rename/access/getcwd) + Darwin sync/thread syscalls (ulock/thread_selfid) + mmap, eliminating more numeric literals from codegen.
 - Darwin arm64 syscall encoding audit: verified `x16=<raw n>; svc #0x80` ABI and removed unnecessary `0x2000000|n` encoding from codegen; documented in `docs/refs/darwin_arm64_abi.md` (+ repro in `tools/audit/`).
 - ABI tables expanded again: added kqueue/kevent/fork/bsdthread_register (Darwin) and nanosleep/clone (Linux) and removed remaining hardcoded `svc #0`/`svc #0x80` sites in syscall lowering.
+- Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.
+- Mach-O minimal exit stub (`macho_emit_exit_arm64`): now uses `arm64_abi_macos.oren` syscall ABI constants (no embedded MOVK/SVC magic).
+- FS mounts semantics hardened: longest-prefix + boundary checks in native runtime; AVM host mounts match (incl. host-path allow-as-is under enrolled host prefixes); added overlapping-mount regression tests.
+- FS allow-prefix policy hardened: require boundary when a prefix does not end with `/` (prevents `build` matching `build2`); applied to native capsule + AVM host allow-prefix checks.

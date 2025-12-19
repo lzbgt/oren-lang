@@ -836,6 +836,15 @@ fn native_capsule_fs_path_allowed(path, prefs) {
                         else { j = j + 1 }
                     }
                 }
+                if ok {
+                    // Boundary check when prefix does not end with '/':
+                    // Avoid accidental matches like "build" matching "build2".
+                    var last = ptr_get_byte(iadd(prefs, tok_start + tok_len - 1))
+                    if last != 47 {
+                        var nextc = ptr_get_byte(iadd(path, tok_len))
+                        if nextc != 0 && nextc != 47 { ok = false }
+                    }
+                }
                 if ok { return true }
             }
 
@@ -849,9 +858,21 @@ fn native_capsule_fs_path_allowed(path, prefs) {
 fn native_capsule_fs_mount_resolve(path, mounts_csv) {
     // mounts_csv: CSV of "<virt_prefix>=<host_prefix>" tokens.
     // Returns newly allocated host path string on match, or 0 if no match.
+    //
+    // Security + determinism rules (rolling):
+    // - Use LONGEST matching virt_prefix (order-independent).
+    // - Enforce a path boundary when prefix does not end with '/':
+    //     prefix matches only if next char is '/' or NUL.
     if path == 0 { return 0 }
     if mounts_csv == 0 { return 0 }
     if ptr_get_byte(mounts_csv) == 0 { return 0 }
+
+    var path_len = oren_string_len(path)
+
+    // Track best match by virt_len.
+    var best_virt_len = 0
+    var best_host_start = 0
+    var best_host_len = 0
 
     var n = native_cstr_len(mounts_csv)
     var i = 0
@@ -893,40 +914,35 @@ fn native_capsule_fs_mount_resolve(path, mounts_csv) {
                 var host_len = host_end - host_start
                 if virt_len > 0 && host_len > 0 {
                     // Prefix match of virt_prefix against path.
-                    var k = 0
-                    var match = true
-                    while k < virt_len {
-                        var pc = ptr_get_byte(path + k)
-                        if pc == 0 { match = false; k = virt_len }
-                        else {
-                            var vc = ptr_get_byte(iadd(mounts_csv, virt_start + k))
-                            if pc != vc { match = false; k = virt_len }
-                            else { k = k + 1 }
+                    if path_len >= virt_len {
+                        var k = 0
+                        var match = true
+                        while k < virt_len {
+                            var pc = ptr_get_byte(path + k)
+                            if pc == 0 { match = false; k = virt_len }
+                            else {
+                                var vc = ptr_get_byte(iadd(mounts_csv, virt_start + k))
+                                if pc != vc { match = false; k = virt_len }
+                                else { k = k + 1 }
+                            }
                         }
-                    }
 
-                    if match {
-                        var path_len = oren_string_len(path)
-                        if path_len < virt_len { match = false }
-                        else {
-                            var rem_len = path_len - virt_len
-                            var out = malloc(host_len + rem_len + 1)
-                            if out == 0 { exit(301) }
-                            // host prefix
-                            var a = 0
-                            while a < host_len {
-                                ptr_set_byte(out + a, ptr_get_byte(iadd(mounts_csv, host_start + a)))
-                                a = a + 1
+                        if match {
+                            // Boundary check when virt_prefix does not end with '/'.
+                            var last = ptr_get_byte(iadd(mounts_csv, virt_start + virt_len - 1))
+                            if last != 47 {
+                                var nextc = 0
+                                if path_len > virt_len { nextc = ptr_get_byte(path + virt_len) }
+                                if nextc != 0 && nextc != 47 { match = false }
                             }
-                            // remainder
-                            var b = 0
-                            while b < rem_len {
-                                ptr_set_byte(out + host_len + b, ptr_get_byte(path + virt_len + b))
-                                b = b + 1
+                        }
+
+                        if match {
+                            if virt_len > best_virt_len {
+                                best_virt_len = virt_len
+                                best_host_start = host_start
+                                best_host_len = host_len
                             }
-                            ptr_set_byte(out + host_len + rem_len, 0)
-                            oren_track_alloc(out, host_len + rem_len + 1, 1) // STRING
-                            return out
                         }
                     }
                 }
@@ -936,7 +952,28 @@ fn native_capsule_fs_mount_resolve(path, mounts_csv) {
         }
         i = i + 1
     }
-    return 0
+
+    if best_virt_len == 0 { return 0 }
+
+    var rem_len = path_len - best_virt_len
+    var out = malloc(best_host_len + rem_len + 1)
+    if out == 0 { exit(301) }
+
+    // host prefix
+    var a = 0
+    while a < best_host_len {
+        ptr_set_byte(out + a, ptr_get_byte(iadd(mounts_csv, best_host_start + a)))
+        a = a + 1
+    }
+    // remainder
+    var b = 0
+    while b < rem_len {
+        ptr_set_byte(out + best_host_len + b, ptr_get_byte(path + best_virt_len + b))
+        b = b + 1
+    }
+    ptr_set_byte(out + best_host_len + rem_len, 0)
+    oren_track_alloc(out, best_host_len + rem_len + 1, 1) // STRING
+    return out
 }
 
 fn native_capsule_fs_path_resolve_pair(path, op_kind) {
@@ -1004,6 +1041,16 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
                             if pc != ptr_get_byte(iadd(mounts, host_start + k)) { ok = false; break }
                             k = k + 1
                         }
+                        if ok {
+                            // Boundary check when host_prefix does not end with '/':
+                            // Avoid accidental enrollment bypass like "/mnt" matching "/mnt2".
+                            var last = ptr_get_byte(iadd(mounts, host_start + host_len - 1))
+                            if last != 47 {
+                                var nextc = ptr_get_byte(iadd(path, host_len))
+                                if nextc != 0 && nextc != 47 { ok = false }
+                            }
+                        }
+
                         if ok {
                             // Path already starts with enrolled host prefix; allow as-is.
                             return pair

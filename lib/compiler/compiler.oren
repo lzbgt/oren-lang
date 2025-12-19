@@ -456,6 +456,57 @@ fn run_repo_tests(target, no_gc) {
         oren_exit(1)
     }
 
+    // Overlapping mounts must select the LONGEST matching virt prefix, regardless of CSV order.
+    // Setup:
+    // - v/=build/mnt_host/          contains in.txt="zz" (len=2)
+    // - v/inner/=build/mnt_host2/   contains in.txt="abcde" (len=5)
+    oren_system("rm -rf build/mnt_host2 && mkdir -p build/mnt_host2")
+    oren_system("printf \"abcde\" > build/mnt_host2/in.txt")
+    // Ensure root still has different content.
+    oren_system("printf \"zz\" > build/mnt_host/in.txt")
+
+    var cap_ml_out = "build/capsule_runtime_fs_mount_longest_prog"
+    var cap_ml_log = "build/logs/capsule_runtime_fs_mount_longest_prog_build.log"
+    var cap_ml_cmd = "./oren build " + shell_quote("tests/native/fixtures/capsule_runtime_fs_mount_longest_prog.oren") + " --backend native --target " + target + " -o " + shell_quote(cap_ml_out) + gc_arg
+    var cap_ml_rc = run_shell_capture(timeout_bin, build_timeout, cap_ml_cmd, cap_ml_log)
+    if cap_ml_rc != 0 || file_exists(cap_ml_out) != true {
+        print("native failed: capsule_runtime_fs_mount_longest_prog (build)")
+        oren_system("cat " + shell_quote(cap_ml_log))
+        oren_exit(1)
+    }
+
+    // Order 1: shorter first.
+    var cap_ml1_log = "build/logs/capsule_runtime_fs_mount_longest_prog_run_order1.log"
+    var cap_ml1_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/=build/mnt_host/,v/inner/=build/mnt_host2/ ./" + cap_ml_out
+    var cap_ml1_rc = run_shell_capture(timeout_bin, run_timeout, cap_ml1_cmd, cap_ml1_log)
+    if cap_ml1_rc != 0 {
+        print("native failed: capsule_runtime_fs_mount_longest_prog (expected allow: order1)")
+        oren_system("cat " + shell_quote(cap_ml1_log))
+        oren_exit(1)
+    }
+    if cmd_ok("grep -q '^5$' " + shell_quote(cap_ml1_log)) != true {
+        print("native failed: capsule_runtime_fs_mount_longest_prog (expected output 5: order1)")
+        oren_system("cat " + shell_quote(cap_ml1_log))
+        oren_exit(1)
+    }
+
+    // Order 2: longer first.
+    var cap_ml2_log = "build/logs/capsule_runtime_fs_mount_longest_prog_run_order2.log"
+    var cap_ml2_cmd = "OREN_CAPSULE=1 OREN_CAP_ALLOW_DOMAINS=FS OREN_FS_MOUNTS_READ=v/inner/=build/mnt_host2/,v/=build/mnt_host/ ./" + cap_ml_out
+    var cap_ml2_rc = run_shell_capture(timeout_bin, run_timeout, cap_ml2_cmd, cap_ml2_log)
+    if cap_ml2_rc != 0 {
+        print("native failed: capsule_runtime_fs_mount_longest_prog (expected allow: order2)")
+        oren_system("cat " + shell_quote(cap_ml2_log))
+        oren_exit(1)
+    }
+    if cmd_ok("grep -q '^5$' " + shell_quote(cap_ml2_log)) != true {
+        print("native failed: capsule_runtime_fs_mount_longest_prog (expected output 5: order2)")
+        oren_system("cat " + shell_quote(cap_ml2_log))
+        oren_exit(1)
+    }
+
+    oren_system("rm -f " + shell_quote(cap_ml_out))
+
     // Missing WRITE mount => write should fail (read mount must not imply write).
     var cap_mw_out = "build/capsule_runtime_fs_mount_write_prog"
     var cap_mw_log = "build/logs/capsule_runtime_fs_mount_write_prog_build.log"
@@ -1524,7 +1575,7 @@ fn run_repo_tests(target, no_gc) {
                             if name3 == "test_fs_mounts_host_backend" {
                                 // AVM host FS mounts: explicit virtual->host enrollment, aligned with native mounts.
                                 oren_system("rm -rf build/mnt_avm && mkdir -p build/mnt_avm")
-                                oren_system("rm -f build/avm_mount_deny.txt build/mnt_avm/out.txt")
+                                oren_system("rm -f build/avm_mount_deny.txt build/mnt_avm/out.txt build/mnt_avm/out_host.txt")
                                 run_rc3 = run_shell_capture(timeout_bin, run_timeout, "./avm --deny-by-default --allow-domains \"0,1,6\" --fs-backend host --fs-mounts-read \"v/=build/mnt_avm/\" --fs-mounts-write \"v/=build/mnt_avm/\" " + shell_quote(out3), log3)
                                 oren_system("rm -rf build/mnt_avm")
                                 oren_system("rm -f build/avm_mount_deny.txt")

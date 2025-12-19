@@ -1038,12 +1038,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 92 // Darwin SYS_fcntl
+            var sysno = abi.darwin_sys_fcntl() // Darwin SYS_fcntl
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_fcntl = 25
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 25
+                sysno = labi.linux_sys_fcntl()
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1101,12 +1101,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 97 // Darwin SYS_socket
+            var sysno = abi.darwin_sys_socket() // Darwin SYS_socket
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_socket = 198
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 198
+                sysno = labi.linux_sys_socket()
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1175,12 +1175,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 98 // Darwin SYS_connect
+            var sysno = abi.darwin_sys_connect() // Darwin SYS_connect
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_connect = 203
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 203
+                sysno = labi.linux_sys_connect()
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1249,12 +1249,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 104 // Darwin SYS_bind
+            var sysno = abi.darwin_sys_bind() // Darwin SYS_bind
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_bind = 200
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 200
+                sysno = labi.linux_sys_bind()
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1316,12 +1316,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 106 // Darwin SYS_listen
+            var sysno = abi.darwin_sys_listen() // Darwin SYS_listen
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_listen = 201
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 201
+                sysno = labi.linux_sys_listen()
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1388,12 +1388,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 30 // Darwin SYS_accept
+            var sysno = abi.darwin_sys_accept() // Darwin SYS_accept
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_accept = 202
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 202
+                sysno = labi.linux_sys_accept()
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1457,14 +1457,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 31 // Darwin SYS_getpeername
-            if fn_name == "sys_getsockname" { sysno = 32 } // Darwin SYS_getsockname
+            var sysno = abi.darwin_sys_getpeername() // Darwin SYS_getpeername
+            if fn_name == "sys_getsockname" { sysno = abi.darwin_sys_getsockname() } // Darwin SYS_getsockname
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_getsockname = 204, __NR_getpeername = 205
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 205
-                if fn_name == "sys_getsockname" { sysno = 204 }
+                sysno = labi.linux_sys_getpeername()
+                if fn_name == "sys_getsockname" { sysno = labi.linux_sys_getsockname() }
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1534,14 +1534,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 118 // Darwin SYS_getsockopt
-            if fn_name == "sys_setsockopt" { sysno = 105 } // Darwin SYS_setsockopt
+            var sysno = abi.darwin_sys_getsockopt() // Darwin SYS_getsockopt
+            if fn_name == "sys_setsockopt" { sysno = abi.darwin_sys_setsockopt() } // Darwin SYS_setsockopt
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_setsockopt = 208, __NR_getsockopt = 209
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 209
-                if fn_name == "sys_setsockopt" { sysno = 208 }
+                sysno = labi.linux_sys_getsockopt()
+                if fn_name == "sys_setsockopt" { sysno = labi.linux_sys_setsockopt() }
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1581,12 +1581,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 134 // Darwin SYS_shutdown
+            var sysno = abi.darwin_sys_shutdown() // Darwin SYS_shutdown
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_shutdown = 210
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 210
+                sysno = labi.linux_sys_shutdown()
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1671,8 +1671,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = 363 // Darwin SYS_kevent
-            if fn_name == "sys_sendto" { sysno = 133 } // Darwin SYS_sendto
-            if fn_name == "sys_recvfrom" { sysno = 29 } // Darwin SYS_recvfrom
+            if fn_name == "sys_sendto" { sysno = abi.darwin_sys_sendto() } // Darwin SYS_sendto
+            if fn_name == "sys_recvfrom" { sysno = abi.darwin_sys_recvfrom() } // Darwin SYS_recvfrom
             if ctx["platform"]["os"] == "linux" {
                 // Linux has no kevent/kqueue syscalls.
                 if fn_name == "sys_kevent" {
@@ -1682,8 +1682,8 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 // Linux aarch64: __NR_sendto = 206, __NR_recvfrom = 207
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 207
-                if fn_name == "sys_sendto" { sysno = 206 }
+                sysno = labi.linux_sys_recvfrom()
+                if fn_name == "sys_sendto" { sysno = labi.linux_sys_sendto() }
             }
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -1754,11 +1754,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 116 // Darwin SYS_gettimeofday
+            var sysno = abi.darwin_sys_gettimeofday() // Darwin SYS_gettimeofday
             if ctx["platform"]["os"] == "linux" {
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 169
+                sysno = labi.linux_sys_gettimeofday()
                 // Linux ignores abs_ptr; clear X2 for safety.
                 push_u32_le(ctx["code"], insn_movz(2, 0))
             }
@@ -2026,14 +2026,14 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 29 // Darwin SYS_recvfrom (used for recv)
-            if fn_name == "sys_send" { sysno = 133 } // Darwin SYS_sendto (used for send)
+            var sysno = abi.darwin_sys_recvfrom() // Darwin SYS_recvfrom (used for recv)
+            if fn_name == "sys_send" { sysno = abi.darwin_sys_sendto() } // Darwin SYS_sendto (used for send)
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_sendto = 206, __NR_recvfrom = 207
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 207
-                if fn_name == "sys_send" { sysno = 206 }
+                sysno = labi.linux_sys_recvfrom()
+                if fn_name == "sys_send" { sysno = labi.linux_sys_sendto() }
             }
 
             push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -2252,12 +2252,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 59 // Darwin SYS_execve
+            var sysno = abi.darwin_sys_execve() // Darwin SYS_execve
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_execve = 221
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 221
+                sysno = labi.linux_sys_execve()
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
             if ctx["platform"]["os"] != "linux" {
@@ -2318,12 +2318,12 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 7 // Darwin SYS_wait4
+            var sysno = abi.darwin_sys_wait4() // Darwin SYS_wait4
             if ctx["platform"]["os"] == "linux" {
                 // Linux aarch64: __NR_wait4 = 260
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 260
+                sysno = labi.linux_sys_wait4()
             }
             push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
             push_u32_le(ctx["code"], insn_svc(svc_imm))
@@ -2375,11 +2375,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
-            var sysno = 37 // Darwin SYS_kill
+            var sysno = abi.darwin_sys_kill() // Darwin SYS_kill
             if ctx["platform"]["os"] == "linux" {
                 sys_reg = labi.linux_syscall_reg()
                 svc_imm = labi.linux_svc_imm()
-                sysno = 129
+                sysno = labi.linux_sys_kill()
             } else {
                 // posix=1 (third argument)
                 push_u32_le(ctx["code"], insn_movz(2, 1))

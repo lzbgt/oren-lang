@@ -1845,7 +1845,15 @@ int avm_path_allowed(AvmVM* vm, const char* path) {
         if (!pref) continue;
         size_t n = strlen(pref);
         if (n == 0) continue;
-        if (strncmp(path, pref, n) == 0) return 1;
+        if (strncmp(path, pref, n) == 0) {
+            // Boundary check when prefix does not end with '/':
+            // Avoid accidental matches like "build" matching "build2".
+            if (n > 0 && pref[n - 1] != '/') {
+                char nextc = path[n];
+                if (nextc != 0 && nextc != '/') continue;
+            }
+            return 1;
+        }
     }
     return 0;
 }

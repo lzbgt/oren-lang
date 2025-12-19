@@ -1,4 +1,6 @@
 import codegen "codegen_arm64.oren"
+import core "arm64_core.oren"
+import abi "arm64_abi_macos.oren"
 
 // Mach-O emitter for arm64 (Darwin).
 // Single responsibility: take a linked program, call the arm64 native codegen,
@@ -25,6 +27,7 @@ fn insn_movk(reg, imm16, shift_idx) { return codegen.insn_movk(reg, imm16, shift
 fn insn_bl(off) { return codegen.insn_bl(off) }
 fn insn_adr(reg, imm) { return codegen.insn_adr(reg, imm) }
 fn insn_ret() { return codegen.insn_ret() }
+fn insn_svc(imm) { return core.insn_svc(imm) }
 
 fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }
 
@@ -412,12 +415,11 @@ fn macho_exit_code_bytes(code) {
     var b = bytes_new()
     // MOV X0, #code
     push_u32_le(b, insn_movz(0, code))
-    // MOV X16, #1 (sys_exit)
-    push_u32_le(b, insn_movz(16, 1))
-    // SVC #0x80
-    // MOVK X16, #0x200, LSL #16
-    push_u32_le(b, 4068474896) // MOVK X16, #512, LSL #16
-    push_u32_le(b, 3556769921) // SVC #128 -> 0xD4001001
+
+    // Darwin arm64 syscall ABI: X16 = syscall number, SVC #0x80.
+    // Keep it raw (no 0x2000000|n encoding) per `docs/refs/darwin_arm64_abi.md`.
+    push_u32_le(b, insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_exit()))
+    push_u32_le(b, insn_svc(abi.darwin_svc_imm()))
     return b
 }
 
