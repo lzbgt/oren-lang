@@ -154,6 +154,30 @@ fn test_int_casts_checked() {
     assert_true(oren_is_err(ubad) != 0)
 }
 
+fn test_type_annotations_sugar() {
+    // Universal type annotation sugar:
+    // - var declarations
+    // - typed short declarations
+    // - typed iterator variables
+    //
+    // Semantics are currently non-typed (rolling); annotations must not change runtime behavior.
+    var a: u8 = 5
+    assert_eq(a, 5)
+
+    b: u16be := 6
+    assert_eq(b, 6)
+
+    var xs = [1, 2, 3]
+    var s = 0
+    for x: i32 in xs {
+        s = s + x
+    }
+    assert_eq(s, 6)
+
+    fn add(x: i32, y: i32) { return x + y }
+    assert_eq(add(1, 2), 3)
+}
+
 @oren.packed
 struct H {
     v: u8,

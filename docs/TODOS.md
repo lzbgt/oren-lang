@@ -42,8 +42,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Status: `make test` uses `./oretest` (Go runner) and module tests run with `--jobs` / `OREN_TEST_JOBS`.
    - Follow-up: make AVM tests parallel-safe by removing hardcoded `build/` assumptions (inject per-test base dir).
 
-2) **P0 [lang] Fixed-width scalar tokens + packed struct field type annotations**
-   - DoD: packed structs use `field: u8/u16be/...` (not `@oren.u16be`), and the syntax is documented as the network parsing story.
+2) **P0 [lang] Fixed-width scalar tokens + universal type-annotation syntax**
+   - DoD: `name: u8/u16be/...` works for **struct fields, vars, typed `:=`, for-in vars, and fn params** (not `@oren.u16be` field attributes), and the syntax is documented as the network parsing story.
    - Follow-up: decide whether `u8/i32/f64` become true static types (v1 type system) vs v0 “annotation-only” sugar used by lowering passes.
 
 3) **P0 [safety] Capsule OS-substrate: close remaining bypass surfaces** *(native backend)*

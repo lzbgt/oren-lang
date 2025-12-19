@@ -301,6 +301,7 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_LBRACE) { return parse_block(p) }
     if cur_is(p, token.TOK_IDENT) {
         if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
+        if peek_is(p, token.TOK_COLON) { return parse_typed_short_var(p) }
         return parse_assign_or_expr_stmt(p)
     }
     return parse_expr_stmt(p)
@@ -461,6 +462,22 @@ fn parse_var(p) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var name = ast.new_identifier(p["cur"])
+
+    // Optional type annotation sugar:
+    //   var x: u64 = ...
+    // Stored on the identifier node as `ann_type` (non-semantic; used by lowerings/tooling).
+    if peek_is(p, token.TOK_COLON) {
+        parser_next_token(p) // :
+        if !expect_peek(p, token.TOK_IDENT) { return nil }
+        var tname = p["cur"]["literal"]
+        while peek_is(p, token.TOK_DOT) {
+            parser_next_token(p) // .
+            if !expect_peek(p, token.TOK_IDENT) { return nil }
+            tname = tname + "." + p["cur"]["literal"]
+        }
+        name["ann_type"] = tname
+    }
+
     if !expect_peek(p, token.TOK_ASSIGN) { return nil }
     parser_next_token(p)
     var val = parse_expression(p, LOWEST)
@@ -471,6 +488,36 @@ fn parse_var(p) {
 fn parse_short_var(p) {
     var name = ast.new_identifier(p["cur"])
     var tok = token.new_token(token.TOK_LET, "var")
+    parser_next_token(p) // :=
+    parser_next_token(p) // value
+    var val = parse_expression(p, LOWEST)
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    return ast.new_var(tok, name, val)
+}
+
+fn parse_typed_short_var(p) {
+    // typed short var sugar:
+    //   x: u64 := expr
+    //
+    // This is only valid as a declaration (not assignment).
+    var name = ast.new_identifier(p["cur"])
+    var tok = token.new_token(token.TOK_LET, "var")
+
+    parser_next_token(p) // :
+    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    var tname = p["cur"]["literal"]
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // .
+        if !expect_peek(p, token.TOK_IDENT) { return nil }
+        tname = tname + "." + p["cur"]["literal"]
+    }
+    name["ann_type"] = tname
+
+    if !expect_peek(p, token.TOK_DECLARE) {
+        parser_add_error(p, "typed declaration requires ':=' after type annotation")
+        return nil
+    }
+
     parser_next_token(p) // :=
     parser_next_token(p) // value
     var val = parse_expression(p, LOWEST)
@@ -755,13 +802,24 @@ fn parse_parameters(p) {
     }
     parser_next_token(p) // first token in params (could be '@' or ident)
 
-    // param := {attr} ident
+    // param := {attr} ident [ ":" type ]
     var attrs0 = parse_attr_list(p)
     if p["cur"]["type"] != token.TOK_IDENT {
         parser_add_error(p, "expected parameter name, got " + p["cur"]["type"])
         return params
     }
     var id0 = ast.new_identifier(p["cur"])
+    if peek_is(p, token.TOK_COLON) {
+        parser_next_token(p) // :
+        if !expect_peek(p, token.TOK_IDENT) { return params }
+        var tname0 = p["cur"]["literal"]
+        while peek_is(p, token.TOK_DOT) {
+            parser_next_token(p) // .
+            if !expect_peek(p, token.TOK_IDENT) { return params }
+            tname0 = tname0 + "." + p["cur"]["literal"]
+        }
+        id0["ann_type"] = tname0
+    }
     if attrs0 != nil && oren_list_len(attrs0) > 0 { id0["attrs"] = attrs0 }
     oren_list_push(params, id0)
 
@@ -775,6 +833,17 @@ fn parse_parameters(p) {
             return params
         }
         var idN = ast.new_identifier(p["cur"])
+        if peek_is(p, token.TOK_COLON) {
+            parser_next_token(p) // :
+            if !expect_peek(p, token.TOK_IDENT) { return params }
+            var tnameN = p["cur"]["literal"]
+            while peek_is(p, token.TOK_DOT) {
+                parser_next_token(p) // .
+                if !expect_peek(p, token.TOK_IDENT) { return params }
+                tnameN = tnameN + "." + p["cur"]["literal"]
+            }
+            idN["ann_type"] = tnameN
+        }
         if attrsN != nil && oren_list_len(attrsN) > 0 { idN["attrs"] = attrsN }
         oren_list_push(params, idN)
     }
@@ -901,6 +970,7 @@ fn parse_for_init(p) {
     if cur_is(p, token.TOK_LET) { return parse_var(p) }
     if cur_is(p, token.TOK_IDENT) {
         if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
+        if peek_is(p, token.TOK_COLON) { return parse_typed_short_var(p) }
         return parse_assign_or_expr_stmt(p)
     }
     return parse_expr_stmt(p)
@@ -914,6 +984,10 @@ fn parse_for_post(p) {
     if cur_is(p, token.TOK_IDENT) {
         if peek_is(p, token.TOK_DECLARE) {
             parser_add_error(p, "for post does not allow :=")
+            return nil
+        }
+        if peek_is(p, token.TOK_COLON) {
+            parser_add_error(p, "for post does not allow type annotations")
             return nil
         }
         return parse_assign_or_expr_stmt(p)
@@ -952,8 +1026,26 @@ fn parse_for(p) {
     // - The internal name contains '@' which is not a legal identifier character in the lexer,
     //   so it cannot collide with source names.
     // - This keeps backends minimal: it relies only on existing `for`, indexing, and `oren_list_len`.
-    if cur_is(p, token.TOK_IDENT) && peek_is(p, token.TOK_IN) {
+    if cur_is(p, token.TOK_IDENT) && (peek_is(p, token.TOK_IN) || peek_is(p, token.TOK_COLON)) {
         var user_name = ast.new_identifier(p["cur"])
+
+        // Optional iterator variable annotation:
+        //   for x: u8 in bytes { ... }
+        if peek_is(p, token.TOK_COLON) {
+            parser_next_token(p) // :
+            if !expect_peek(p, token.TOK_IDENT) { return nil }
+            var tname = p["cur"]["literal"]
+            while peek_is(p, token.TOK_DOT) {
+                parser_next_token(p) // .
+                if !expect_peek(p, token.TOK_IDENT) { return nil }
+                tname = tname + "." + p["cur"]["literal"]
+            }
+            user_name["ann_type"] = tname
+            if !peek_is(p, token.TOK_IN) {
+                parser_add_error(p, "expected 'in' after for-in type annotation")
+                return nil
+            }
+        }
         var st_name = parser_gensym(p, "@forin_")
         var res_name = parser_gensym(p, "@forinr_")
         var st_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, st_name), "value": st_name}
