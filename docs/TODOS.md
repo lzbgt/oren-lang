@@ -62,5 +62,6 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 - Tests: removed remaining numeric `sys_open` flag literal in capsule FS fixture (uses Oren-level `OREN_O_*` constants).
 - Native runtime: moved macOS `fcntl(F_GETPATH)` usage behind `sys_fcntl_getpath` intrinsic (keeps OS-specific constants out of runtime code).
 - ABI tables: added `posix_fcntl_f_getfl/f_setfl` constants to remove remaining numeric fcntl cmd literals from syscall lowering.
+- NET: replaced remaining raw `AF_INET/SOCK_STREAM/IPPROTO_TCP` numeric literals in native runtime/tests with Oren-level POSIX constants (`OREN_AF_INET`, `OREN_SOCK_STREAM`, ...).
 - ABI tables: added repo-owned `mmap` PROT/FLAGS constants (Darwin/Linux) and removed numeric literals from native allocator codegen.
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

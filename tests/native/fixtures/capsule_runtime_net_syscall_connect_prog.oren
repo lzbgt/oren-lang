@@ -5,7 +5,7 @@ fn main() {
     // This program should:
     // - be denied in capsule mode unless loopback or explicit allowlist enrollment is enabled
     // - be allowed to attempt when loopback is enabled (even if connect fails)
-    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
     if fd >= 0 {
         var sa = oren_tcp_sockaddr_in("127.0.0.1", 1)
         if sa != 0 {
@@ -16,4 +16,3 @@ fn main() {
     }
     print("ok")
 }
-

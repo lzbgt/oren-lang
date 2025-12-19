@@ -3,7 +3,7 @@ fn main() {
     // - Connect to a virtual endpoint that is NOT loopback.
     // - In capsule mode, this should be allowed ONLY when an explicit mapping is provided
     //   via OREN_NET_TCP_CONNECT_MAP.
-    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
     if fd >= 0 {
         var sa = oren_tcp_sockaddr_in("1.2.3.4", 1)
         if sa != 0 {
@@ -14,4 +14,3 @@ fn main() {
     }
     print("ok")
 }
-

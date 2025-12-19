@@ -4,7 +4,7 @@ fn main() {
     // - sys_read on a NET-tagged fd must require NET domain (no bypass)
     //
     // This test does not require an actual connection; the syscall may return an error.
-    var fd = sys_socket(2, 1, 0) // AF_INET=2, SOCK_STREAM=1
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, 0)
     if fd < 0 { exit(2) }
 
     var buf = malloc(8)
@@ -16,4 +16,3 @@ fn main() {
     sys_close(fd)
     exit(0)
 }
-

@@ -361,6 +361,13 @@ var OREN_O_CREAT = 256
 var OREN_O_TRUNC = 512
 var OREN_O_NONBLOCK = 1024
 
+// POSIX socket constants used by syscall-first runtime (no SDK headers).
+// Values are stable across Darwin/Linux for IPv4 + TCP/UDP in practice.
+var OREN_AF_INET = 2
+var OREN_SOCK_STREAM = 1
+var OREN_SOCK_DGRAM = 2
+var OREN_IPPROTO_TCP = 6
+
 // Capsule per-fd kind tags (rolling; native backend only).
 // Stored in `net_fd_caps_ptr` (byte-per-fd).
 //
@@ -459,6 +466,12 @@ fn native_runtime_init() {
     OREN_O_CREAT = 256
     OREN_O_TRUNC = 512
     OREN_O_NONBLOCK = 1024
+
+    // POSIX socket constants.
+    OREN_AF_INET = 2
+    OREN_SOCK_STREAM = 1
+    OREN_SOCK_DGRAM = 2
+    OREN_IPPROTO_TCP = 6
 
     // Per-fd kind tags (capsule hardening).
     FD_KIND_NONE = 0
@@ -1813,7 +1826,7 @@ fn native_sockaddr_in_read_ip_port(addr, addrlen, out_ip4_ptr, out_port_ptr) {
     if out_ip4_ptr == 0 { return 0 }
     if out_port_ptr == 0 { return 0 }
     // sockaddr_in: [1]=AF_INET, [2..3]=port be, [4..7]=ip bytes
-    if ptr_get_byte(addr + 1) != 2 { return 0 }
+    if ptr_get_byte(addr + 1) != OREN_AF_INET { return 0 }
     ptr_set_byte(out_ip4_ptr + 0, ptr_get_byte(addr + 4))
     ptr_set_byte(out_ip4_ptr + 1, ptr_get_byte(addr + 5))
     ptr_set_byte(out_ip4_ptr + 2, ptr_get_byte(addr + 6))
@@ -1832,7 +1845,7 @@ fn native_capsule_net_tcp_map_apply(addr, addrlen, map_csv) {
     if ptr_get_byte(map_csv) == 0 { return 0 }
     if addr == 0 { return 0 }
     if addrlen < 8 { return 0 }
-    if ptr_get_byte(addr + 1) != 2 { return 0 } // AF_INET only
+    if ptr_get_byte(addr + 1) != OREN_AF_INET { return 0 } // AF_INET only
 
     var req_ip4 = malloc(4)
     if req_ip4 == 0 { return 0 }
@@ -1948,20 +1961,20 @@ fn native_capsule_sys_socket_pre(domain, type, protocol) {
     if global_get_capsule_mode() != 1 { return 0 }
 
     // Allow only AF_INET in v0.
-    if domain != 2 {
+    if domain != OREN_AF_INET {
         print("CAPSULE DENY: NET_SOCKET_DOMAIN")
         exit(79)
     }
 
     // Allow TCP/UDP only.
-    if type == 1 { // SOCK_STREAM
-        if protocol != 0 && protocol != 6 {
+    if type == OREN_SOCK_STREAM { // SOCK_STREAM
+        if protocol != 0 && protocol != OREN_IPPROTO_TCP {
             print("CAPSULE DENY: NET_SOCKET_PROTO")
             exit(79)
         }
         return 0
     }
-    if type == 2 { // SOCK_DGRAM
+    if type == OREN_SOCK_DGRAM { // SOCK_DGRAM
         if protocol != 0 && protocol != 17 {
             print("CAPSULE DENY: NET_SOCKET_PROTO")
             exit(79)
@@ -1978,9 +1991,9 @@ fn native_capsule_sys_socket_post(fd, domain, type, protocol) {
     if global_get_capsule_mode() != 1 { return fd }
     if fd < 0 { return fd }
     // Tag fd kind (rolling):
-    if domain == 2 {
-        if type == 1 { native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_STREAM) }
-        if type == 2 { native_capsule_net_fd_kind_set(fd, FD_KIND_UDP_DGRAM) }
+    if domain == OREN_AF_INET {
+        if type == OREN_SOCK_STREAM { native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_STREAM) }
+        if type == OREN_SOCK_DGRAM { native_capsule_net_fd_kind_set(fd, FD_KIND_UDP_DGRAM) }
     }
     return fd
 }
@@ -2010,7 +2023,7 @@ fn native_capsule_sys_connect_pre(fd, addr, addrlen) {
     var hi = ptr_get_byte(addr + 2)
     var lo = ptr_get_byte(addr + 3)
     var port = (hi << 8) | lo
-    if ptr_get_byte(addr + 1) != 2 {
+    if ptr_get_byte(addr + 1) != OREN_AF_INET {
         print("CAPSULE DENY: NET_CONNECT_SOCKADDR")
         exit(79)
     }
@@ -2052,7 +2065,7 @@ fn native_capsule_sys_bind_pre(fd, addr, addrlen) {
     var mapped = native_capsule_net_tcp_map_apply(addr, addrlen, map_csv)
     if mapped == 1 { return 0 }
 
-    if ptr_get_byte(addr + 1) != 2 {
+    if ptr_get_byte(addr + 1) != OREN_AF_INET {
         print("CAPSULE DENY: NET_BIND_SOCKADDR")
         exit(79)
     }
@@ -2223,7 +2236,7 @@ fn native_capsule_sys_sendto_pre(fd, buf, len, flags, to, tolen) {
 
     // For datagrams with explicit destination, enforce endpoint allowlist.
     if to != 0 {
-        if tolen < 8 || ptr_get_byte(to + 1) != 2 {
+        if tolen < 8 || ptr_get_byte(to + 1) != OREN_AF_INET {
             print("CAPSULE DENY: NET_SENDTO_SOCKADDR")
             exit(79)
         }
@@ -5005,7 +5018,7 @@ fn oren_tcp_sockaddr_in(ip, port) {
     }
 
     ptr_set_byte(sa + 0, 16) // len
-    ptr_set_byte(sa + 1, 2) // AF_INET
+    ptr_set_byte(sa + 1, OREN_AF_INET) // AF_INET
     // port in network order
     var hi = (port >> 8) & 255
     var lo = port & 255
@@ -5097,7 +5110,7 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
     native_capsule_require_net_connect(ip, port)
-    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
     if fd < 0 { return fd }
 
     // Non-blocking + explicit wait for connect completion.
@@ -5162,7 +5175,7 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_tcp_listen_local(port) {
     native_capsule_require_net_listen(0, port)
-    var fd = sys_socket(2, 1, 6) // AF_INET, SOCK_STREAM, IPPROTO_TCP
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
     if fd < 0 { return fd }
 
     // Allow quick reuse during tests.

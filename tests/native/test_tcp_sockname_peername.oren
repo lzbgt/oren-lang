@@ -82,7 +82,7 @@ fn main() {
     var prc = sys_getpeername(cfd2, peer_sa, peer_lenp)
     if prc < 0 { exit(0 - prc) }
 
-    if ptr_get_byte(peer_sa + 1) != 2 { exit(722) } // AF_INET
+    if ptr_get_byte(peer_sa + 1) != OREN_AF_INET { exit(722) } // AF_INET
     var peer_port = u16be_at(peer_sa, 2)
     if peer_port != port2 { exit(723) }
     if ipv4_eq(peer_sa, 4, 127, 0, 0, 1) == 0 { exit(724) }
@@ -96,7 +96,7 @@ fn main() {
 
     var src = sys_getsockname(cfd2, sock_sa, sock_lenp)
     if src < 0 { exit(0 - src) }
-    if ptr_get_byte(sock_sa + 1) != 2 { exit(732) } // AF_INET
+    if ptr_get_byte(sock_sa + 1) != OREN_AF_INET { exit(732) } // AF_INET
     if ipv4_eq(sock_sa, 4, 127, 0, 0, 1) == 0 { exit(733) }
     var local_port = u16be_at(sock_sa, 2)
     if local_port == 0 { exit(734) }
@@ -120,4 +120,3 @@ fn main() {
 }
 
 main()
-
