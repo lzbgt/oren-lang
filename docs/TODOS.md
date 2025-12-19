@@ -58,7 +58,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
    - Next deliverables (in order):
-     - add a determinism guard test that runs the same `.obc` with SIMD off/on and compares output + trace hash
      - (optional) add i32 elementwise NEON kernels if profiling shows it matters
 
 3) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
@@ -88,6 +87,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Test wall-time + stability: `./oretest` now runs module+avm suites concurrently under a shared job budget, and the Linux docker runner reuses `/work/repo` by default while syncing tracked sources only (prevents host-built binaries from polluting the container).
+- AVM SIMD determinism guard: `./oretest` now runs `test_smoke_suite` with `--print-result-hash --print-trace-hash` and compares scalar vs `AVM_ENABLE_SIMD=1` hashes (arm64 only).
 - Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.
 - Packed views: `pack_view` lowering now uses the endian helpers (fewer runtime calls, smaller AST) instead of per-byte shifts for 16/32/64-bit fields.
 - Native runtime safety: made `oren_is_err(v)` safe for large ints by probing only tracked heap pointers (prevents accidental segfaults when checking `oren_is_err(16909060)` etc).

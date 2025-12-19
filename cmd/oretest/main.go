@@ -582,18 +582,44 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 		switch name {
 		case "test_smoke_suite":
 			// Run the scalar path (default) first, then validate the SIMD path (arm64 only).
-			cmd := fmt.Sprintf("%s %q", avmPath, filepath.Join("build", name+".obc"))
+			//
+			// Determinism guard: compare RESULT_HASH + TRACE_HASH with SIMD off/on.
+			// The smoke suite includes SIMD-sensitive typed-buffer kernels (f32_buf ops), so this is high-signal.
+			cmd := fmt.Sprintf("%s --print-result-hash --print-trace-hash %q", avmPath, filepath.Join("build", name+".obc"))
 			if rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log); rc != 0 {
+				runOK = false
+				break
+			}
+			scalarResultHash, okR := extractHashFromLog(log, "RESULT_HASH")
+			scalarTraceHash, okT := extractHashFromLog(log, "TRACE_HASH")
+			if !okR || !okT {
+				_ = appendFileLine(log, "oretest: missing RESULT_HASH/TRACE_HASH in scalar run output")
 				runOK = false
 				break
 			}
 			if shouldValidateSIMD() {
 				simdLog := filepath.Join("build", "logs", "avm_"+name+"_simd.log")
-				simdCmd := fmt.Sprintf("env AVM_ENABLE_SIMD=1 %s %q", avmPath, filepath.Join("build", name+".obc"))
+				simdCmd := fmt.Sprintf("env AVM_ENABLE_SIMD=1 %s --print-result-hash --print-trace-hash %q", avmPath, filepath.Join("build", name+".obc"))
 				if rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, simdCmd), simdLog); rc != 0 {
 					runOK = false
 					// Swap the log to the SIMD run log for clearer failure output.
 					log = simdLog
+				} else {
+					simdResultHash, okR2 := extractHashFromLog(simdLog, "RESULT_HASH")
+					simdTraceHash, okT2 := extractHashFromLog(simdLog, "TRACE_HASH")
+					if !okR2 || !okT2 {
+						_ = appendFileLine(simdLog, "oretest: missing RESULT_HASH/TRACE_HASH in SIMD run output")
+						runOK = false
+						log = simdLog
+					} else if simdResultHash != scalarResultHash || simdTraceHash != scalarTraceHash {
+						_ = appendFileLine(simdLog, "oretest: SIMD determinism guard failed (hash mismatch)")
+						_ = appendFileLine(simdLog, "scalar RESULT_HASH "+scalarResultHash)
+						_ = appendFileLine(simdLog, "simd   RESULT_HASH "+simdResultHash)
+						_ = appendFileLine(simdLog, "scalar TRACE_HASH "+scalarTraceHash)
+						_ = appendFileLine(simdLog, "simd   TRACE_HASH "+simdTraceHash)
+						runOK = false
+						log = simdLog
+					}
 				}
 			}
 		case "test_multiverse_vfs_inherit":
@@ -892,6 +918,36 @@ func catFile(w *os.File, path string) error {
 		return err
 	}
 	_, err = w.Write(b)
+	return err
+}
+
+func extractHashFromLog(logPath string, prefix string) (string, bool) {
+	b, err := os.ReadFile(logPath)
+	if err != nil {
+		return "", false
+	}
+	s := string(b)
+	lines := strings.Split(s, "\n")
+	want := prefix + " "
+	for _, ln := range lines {
+		ln = strings.TrimSpace(ln)
+		if strings.HasPrefix(ln, want) {
+			return strings.TrimSpace(strings.TrimPrefix(ln, want)), true
+		}
+	}
+	return "", false
+}
+
+func appendFileLine(path string, line string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if !strings.HasSuffix(line, "\n") {
+		line += "\n"
+	}
+	_, err = f.WriteString(line)
 	return err
 }
 
