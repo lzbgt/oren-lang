@@ -4656,6 +4656,17 @@ fn oren_bool_norm(x) {
     return x != 0
 }
 
+fn oren_ptr_alloc(bytes) {
+    // Portable name for allocating a raw byte region for ABI/FFI struct layouts.
+    // In the native backend, `malloc` is syscall-first and GC-tracked.
+    return malloc(bytes)
+}
+
+fn oren_ptr_free(ptr) {
+    free(ptr)
+    return 0
+}
+
 // --- Byte-order helpers (network parsing / serialization) ---
 //
 // In native v0, "bytes" are typically `list<int 0..255>`.

@@ -907,7 +907,7 @@ fn compiler_main() {
         print("Failed to read file: " + path)
         var msg = oren_err_msg(src)
         if msg != nil { print(msg) }
-        return nil
+        oren_exit(2)
     }
     var l = lexer.new_lexer(src)
     var p = parser.new_parser(l)

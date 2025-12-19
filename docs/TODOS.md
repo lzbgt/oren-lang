@@ -54,7 +54,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - v0 value-level semantics for annotated locals/params/returns/fields (cross-backend) ✅
      - syscall-first packet parsing story (native): typed buffers + endian ptr helpers + `u8_buf` bytes APIs ✅
      - opt-in `@oren.abi` layouts + `oren_abi_{sizeof,alignof,offsetof}` (no host headers) ✅
-     - next slice (real layouts): make ABI layouts usable end-to-end for FFI structs (allocation + ptr accessors) without changing v0 struct/map semantics.
+     - next slice (real layouts): make ABI layouts usable end-to-end for FFI structs (allocation + ptr accessors) without changing v0 struct/map semantics. ✅
+     - next slice (real layouts v2): extend `@oren.abi` to cover nested ABI structs + pointers + fixed arrays (enables real OS structs + syscalls without host headers).
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -88,6 +89,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Test wall-time + stability: `./oretest` now runs module+avm suites concurrently under a shared job budget, and the Linux docker runner reuses `/work/repo` by default while syncing tracked sources only (prevents host-built binaries from polluting the container).
+- ABI layouts (end-to-end usable): added pointer allocation (`oren_ptr_alloc`/`oren_ptr_free`) plus endian-aware pointer accessors in the C runtime (`oren_ptr_get/set_*_{be,le}`) and a module regression (`tests/modules/test_abi_ptr_access.oren`).
+- Tooling hardening: `oren build <missing.oren>` now exits non-zero and `oretest` has a regression fixture to prevent silently-successful builds on missing input files.
 - AVM SIMD determinism guard: `./oretest` now runs `test_smoke_suite` with `--print-result-hash --print-trace-hash` and compares scalar vs `AVM_ENABLE_SIMD=1` hashes (arm64 only).
 - Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.
 - Packed views: `pack_view` lowering now uses the endian helpers (fewer runtime calls, smaller AST) instead of per-byte shifts for 16/32/64-bit fields.

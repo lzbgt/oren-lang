@@ -1,0 +1,37 @@
+// ABI layout + pointer helpers (C backend):
+// Demonstrates an end-to-end FFI struct story without host headers:
+// - layout computed at compile time via @oren.abi + oren_abi_offsetof
+// - raw memory allocated via oren_ptr_alloc
+// - fields read/written via oren_ptr_get/set_*_be/le
+
+@oren.abi
+struct Pkt {
+    v: u8,
+    len: u16be,
+    src: u32be,
+    dst: u32be
+}
+
+var p = oren_ptr_alloc(oren_abi_sizeof("Pkt"))
+if p == nil { exit(1) }
+
+var off_v = oren_abi_offsetof("Pkt", "v")
+var off_len = oren_abi_offsetof("Pkt", "len")
+var off_src = oren_abi_offsetof("Pkt", "src")
+var off_dst = oren_abi_offsetof("Pkt", "dst")
+
+oren_ptr_set_u8(p + off_v, 69)
+oren_ptr_set_u16_be(p + off_len, 84)
+oren_ptr_set_u32_be(p + off_src, 3232235521) // 192.168.0.1
+oren_ptr_set_u32_be(p + off_dst, 134744072)   // 8.8.8.8
+
+if oren_ptr_get_u8(p + off_v) != 69 { exit(2) }
+if oren_ptr_get_u16_be(p + off_len) != 84 { exit(3) }
+if oren_ptr_get_u32_be(p + off_src) != 3232235521 { exit(4) }
+if oren_ptr_get_u32_be(p + off_dst) != 134744072 { exit(5) }
+
+oren_ptr_free(p)
+
+print("module abi_ptr_access OK")
+exit(0)
+

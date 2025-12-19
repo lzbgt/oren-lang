@@ -221,6 +221,39 @@ OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length);
 OrenValue oren_env(OrenValue name);
 OrenValue oren_net_get(OrenValue url);
 
+// Raw pointer allocation (C backend / FFI helpers).
+// Returns an integer address (fits in i64 on supported platforms).
+OrenValue oren_ptr_alloc(OrenValue bytes);
+OrenValue oren_ptr_free(OrenValue ptr);
+
+// Pointer byte-order helpers (portable across native + C backends).
+OrenValue oren_ptr_get_u8(OrenValue p);
+OrenValue oren_ptr_set_u8(OrenValue p, OrenValue v);
+OrenValue oren_ptr_get_u16_be(OrenValue p);
+OrenValue oren_ptr_get_u16_le(OrenValue p);
+OrenValue oren_ptr_get_i16_be(OrenValue p);
+OrenValue oren_ptr_get_i16_le(OrenValue p);
+OrenValue oren_ptr_set_u16_be(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_u16_le(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_i16_be(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_i16_le(OrenValue p, OrenValue v);
+OrenValue oren_ptr_get_u32_be(OrenValue p);
+OrenValue oren_ptr_get_u32_le(OrenValue p);
+OrenValue oren_ptr_get_i32_be(OrenValue p);
+OrenValue oren_ptr_get_i32_le(OrenValue p);
+OrenValue oren_ptr_set_u32_be(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_u32_le(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_i32_be(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_i32_le(OrenValue p, OrenValue v);
+OrenValue oren_ptr_get_u64_be(OrenValue p);
+OrenValue oren_ptr_get_u64_le(OrenValue p);
+OrenValue oren_ptr_get_i64_be(OrenValue p);
+OrenValue oren_ptr_get_i64_le(OrenValue p);
+OrenValue oren_ptr_set_u64_be(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_u64_le(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_i64_be(OrenValue p, OrenValue v);
+OrenValue oren_ptr_set_i64_le(OrenValue p, OrenValue v);
+
 // Structured errors (currently represented as a map: {"__err": true, "code": int, "msg": string})
 OrenValue oren_err(OrenValue code, OrenValue msg);
 OrenValue oren_is_err(OrenValue v);

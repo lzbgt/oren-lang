@@ -118,6 +118,7 @@ func main() {
 		"tests/modules/test_typed_struct_fields.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_abi_layout.oren",
+		"tests/modules/test_abi_ptr_access.oren",
 		"tests/modules/test_function_values.oren",
 		"tests/modules/test_lambda_closure.oren",
 		"tests/modules/test_lambda_multiline.oren",
@@ -165,6 +166,13 @@ func main() {
 		ok      func(rc int) bool
 		cleanup []string
 	}{
+		{
+			name:    "missing_file",
+			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/__missing__.oren", *target, "build/missing_file", gcArg),
+			log:     "build/logs/missing_file.log",
+			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
+			cleanup: []string{"build/missing_file"},
+		},
 		{
 			name:    "strict_attrs_ok",
 			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s -o %q --strict-attrs --attr-allow-prefixes myorg.%s", "tests/native/fixtures/strict_attrs_ok.oren", *target, "build/strict_attrs_ok", gcArg),
