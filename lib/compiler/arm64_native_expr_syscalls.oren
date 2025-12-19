@@ -2220,6 +2220,63 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 16)) // optval
             push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))  // optlen(_ptr)
 
+            // Translate common Oren-level sockopt IDs to OS-specific values.
+            //
+            // Policy:
+            // - Keep `sys_{get,set}sockopt` raw by default so advanced code can pass OS
+            //   constants directly.
+            // - The native runtime uses Oren-level IDs for the small portable subset we
+            //   need (SOL_SOCKET + a few options).
+            // - We only translate when the *level* is Oren-level SOL_SOCKET; otherwise
+            //   we pass through unchanged.
+            //
+            // Conventions:
+            // - X1 = level
+            // - X2 = optname
+            // - X5, X6 = scratch (must not clobber X0..X4 args)
+            var oren_sol_socket = 1
+            var oren_so_reuseaddr = 2
+            var oren_so_error = 4
+
+            // Only translate the portable subset when level == OREN_SOL_SOCKET.
+            push_u32_le(ctx["code"], insn_movz(5, oren_sol_socket))
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 5))
+            var br_skip_all = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.NE skip all translations
+
+            // Preserve original optname so translations don't cascade after we mutate X2.
+            push_u32_le(ctx["code"], insn_mov_reg(6, 2)) // X6 = original optname
+
+            // Translate level to OS SOL_SOCKET value.
+            var os_sol = abi.darwin_sol_socket()
+            if ctx["platform"]["os"] == "linux" { os_sol = labi.linux_sol_socket() }
+            emit_load_u64_imm(ctx, 1, os_sol)
+
+            // If optname == OREN_SO_REUSEADDR, translate.
+            push_u32_le(ctx["code"], insn_movz(5, oren_so_reuseaddr))
+            push_u32_le(ctx["code"], insn_cmp_reg(6, 5)) // compare original optname
+            var br_skip_opt1 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.NE skip
+            var os_opt1 = abi.darwin_so_reuseaddr()
+            if ctx["platform"]["os"] == "linux" { os_opt1 = labi.linux_so_reuseaddr() }
+            emit_load_u64_imm(ctx, 2, os_opt1)
+            var after_opt1 = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_skip_opt1, insn_b_cond((after_opt1 - br_skip_opt1) / 4, 1)) // NE
+
+            // If optname == OREN_SO_ERROR, translate.
+            push_u32_le(ctx["code"], insn_movz(5, oren_so_error))
+            push_u32_le(ctx["code"], insn_cmp_reg(6, 5)) // compare original optname
+            var br_skip_opt2 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // B.NE skip
+            var os_opt2 = abi.darwin_so_error()
+            if ctx["platform"]["os"] == "linux" { os_opt2 = labi.linux_so_error() }
+            emit_load_u64_imm(ctx, 2, os_opt2)
+            var after_opt2 = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_skip_opt2, insn_b_cond((after_opt2 - br_skip_opt2) / 4, 1)) // NE
+
+            var after_all = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_skip_all, insn_b_cond((after_all - br_skip_all) / 4, 1)) // NE
+
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = abi.darwin_sys_getsockopt() // Darwin SYS_getsockopt

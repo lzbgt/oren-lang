@@ -48,20 +48,9 @@ This repo is in **rolling ABI** mode. This file is intentionally short (about 5-
 
 ## Recently Completed (high signal)
 
-- Native allocator: fixed macOS `mmap` errno normalization and corrected heap_ptr/heap_limit update so malloc bump-allocates after the first mmap; added `tests/native/test_malloc_bump.oren`.
-- Native codegen ABI: preserve X19–X26 across function calls; treat X27/X28 as reserved global heap registers (do not save/restore in prologue/epilogue).
-- Native runtime: fixed map layout to be list-like (`[count][cap][entries_ptr][magic]`) and implemented growth; fixes `{}` OOB corruption and unblocks `std/json` + smoke suite.
-- Native syscall lowering: preserve heap regs around every `svc` (defense-in-depth; rolling ABI stability).
-- Repo test runner: added syscall-first policy guard that forbids direct `darwin_sys_*` / `linux_sys_*` usage outside approved compiler modules.
-- Repo test runner: extended syscall-first policy guard to also bound direct `svc` emission (`insn_svc`) to the minimal approved files (entry stub + allocator slow path).
-- Repo test runner: syscall-first policy guard now ignores `//` comments when scanning (reduces brittleness; avoids false positives from doc strings).
-- Native runtime: `oren_getcwd()` now returns `"/"` in capsule mode (avoids leaking host paths; keeps path-normalization libs safe).
-- Native syscall lowering: introduced Oren-level `sys_open` flags and translated `CREAT/TRUNC` to OS-specific bits in codegen (removes Darwin-specific literals like `1537` from `.oren` sources; unblocks Linux parity).
-- Native syscall lowering: added Oren-level `O_NONBLOCK` and portable `sys_fcntl_getfl/sys_fcntl_setfl` helpers (keep `sys_fcntl` raw; translate only in dedicated helpers).
-- Tests: added a pipe-based nonblocking fcntl smoke fixture to lock down `sys_fcntl_getfl/sys_fcntl_setfl` semantics on native backend.
-- Tests: removed remaining numeric `sys_open` flag literal in capsule FS fixture (uses Oren-level `OREN_O_*` constants).
-- Native runtime: moved macOS `fcntl(F_GETPATH)` usage behind `sys_fcntl_getpath` intrinsic (keeps OS-specific constants out of runtime code).
-- ABI tables: added `posix_fcntl_f_getfl/f_setfl` constants to remove remaining numeric fcntl cmd literals from syscall lowering.
-- NET: replaced remaining raw `AF_INET/SOCK_STREAM/IPPROTO_TCP` numeric literals in native runtime/tests with Oren-level POSIX constants (`OREN_AF_INET`, `OREN_SOCK_STREAM`, ...).
-- ABI tables: added repo-owned `mmap` PROT/FLAGS constants (Darwin/Linux) and removed numeric literals from native allocator codegen.
+- Native codegen ABI: treat X27/X28 as reserved global heap registers; preserve heap regs around every `svc`.
+- Native runtime: fixed map layout + growth (`{}` no longer corrupts memory) and GC marks map entries.
+- Syscall-first policy guard: forbids direct `darwin_sys_*` / `linux_sys_*` outside `arm64_native_expr_syscalls.oren`, and bounds direct `insn_svc` emission.
+- OS ABI tables: repo-owned constants for `open` flags, `fcntl` cmds, `mmap` prot/flags (Darwin/Linux), with audit refs in `docs/refs/*`.
+- NET: replaced raw `AF_INET/SOCK_STREAM/IPPROTO_TCP` literals with Oren-level constants, and translated Oren-level `getsockopt/setsockopt` IDs to OS ABI values safely (no cascading translation).
 - Older completed work is archived in `docs/TODOS_ARCHIVE.md`.

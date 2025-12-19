@@ -368,6 +368,12 @@ var OREN_SOCK_STREAM = 1
 var OREN_SOCK_DGRAM = 2
 var OREN_IPPROTO_TCP = 6
 
+// Oren-level getsockopt/setsockopt constants (rolling ABI).
+// These are translated to OS-specific values in the native syscall lowering layer.
+var OREN_SOL_SOCKET = 1
+var OREN_SO_REUSEADDR = 2
+var OREN_SO_ERROR = 4
+
 // Capsule per-fd kind tags (rolling; native backend only).
 // Stored in `net_fd_caps_ptr` (byte-per-fd).
 //
@@ -472,6 +478,11 @@ fn native_runtime_init() {
     OREN_SOCK_STREAM = 1
     OREN_SOCK_DGRAM = 2
     OREN_IPPROTO_TCP = 6
+
+    // Sockopt constants (Oren-level; translated by native syscall lowering).
+    OREN_SOL_SOCKET = 1
+    OREN_SO_REUSEADDR = 2
+    OREN_SO_ERROR = 4
 
     // Per-fd kind tags (capsule hardening).
     FD_KIND_NONE = 0
@@ -5154,7 +5165,7 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
     oren_track_alloc(olen, 8, 0)
     ptr_set(olen, 4)
 
-    var grc = sys_getsockopt(fd, 65535, 4103, soerr_buf, olen) // SOL_SOCKET, SO_ERROR
+    var grc = sys_getsockopt(fd, OREN_SOL_SOCKET, OREN_SO_ERROR, soerr_buf, olen)
     if grc < 0 {
         free(soerr_buf)
         free(olen)
@@ -5183,7 +5194,7 @@ fn oren_tcp_listen_local(port) {
     if one == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
     oren_track_alloc(one, 8, 0)
     ptr_set(one, 1)
-    var sroc = sys_setsockopt(fd, 65535, 4, one, 4) // SOL_SOCKET, SO_REUSEADDR
+    var sroc = sys_setsockopt(fd, OREN_SOL_SOCKET, OREN_SO_REUSEADDR, one, 4)
     free(one)
     if sroc < 0 {
         sys_close(fd)

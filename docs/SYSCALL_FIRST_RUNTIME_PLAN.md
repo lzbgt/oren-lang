@@ -132,6 +132,9 @@ For minimalism we can implement `sys_openat` only (Linux) and wrap.
 - The native backend translates those Oren-level bits into OS bits at the syscall lowering layer.
 - Access mode bits remain POSIX-shaped: `flags & 3` is `RDONLY/WRONLY/RDWR`.
 
+Similarly, selected `sys_getsockopt/sys_setsockopt` parameters use Oren-level IDs for common options
+(e.g. `SOL_SOCKET`, `SO_REUSEADDR`, `SO_ERROR`) and are translated by the native backend before the syscall.
+
 ### Memory
 
 - `sys_mmap(addr, len, prot, flags, fd, off) -> ptr_or_neg_errno`
