@@ -4538,6 +4538,182 @@ fn oren_list_set(list, idx, value) {
 // In native v0, "bytes" are typically `list<int 0..255>`.
 // These helpers are deterministic and libc-free.
 
+// Pointer byte-order helpers (native syscall-first path).
+//
+// Use case:
+// - syscalls read into a raw pointer buffer (returned by malloc)
+// - libraries parse/serialize structured packets directly from/to that buffer
+//
+// IMPORTANT:
+// - These functions do NOT bounds-check (they only have a pointer, no length).
+// - They are unaligned-safe because they use ptr_get_byte/ptr_set_byte.
+// - All encodings are canonical little-endian in memory when using *_le helpers,
+//   and big-endian for *_be helpers.
+//
+// NOTE: like the list<bytes> helpers, `u64` values above MAX_I64 are not representable
+// in v0's signed int container; the bit pattern is still correct for negative values.
+
+fn oren_ptr_get_u8(p) { return ptr_get_byte(p) & 255 }
+fn oren_ptr_set_u8(p, v) { ptr_set_byte(p, v & 255); return v & 255 }
+
+fn oren_ptr_get_u16_be(p) {
+    var b0 = oren_ptr_get_u8(p + 0)
+    var b1 = oren_ptr_get_u8(p + 1)
+    return (b0 << 8) | b1
+}
+fn oren_ptr_get_u16_le(p) {
+    var b0 = oren_ptr_get_u8(p + 0)
+    var b1 = oren_ptr_get_u8(p + 1)
+    return (b1 << 8) | b0
+}
+fn oren_ptr_get_i16_be(p) {
+    var u = oren_ptr_get_u16_be(p)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+fn oren_ptr_get_i16_le(p) {
+    var u = oren_ptr_get_u16_le(p)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+
+fn oren_ptr_set_u16_be(p, v) {
+    var u = v & 65535
+    oren_ptr_set_u8(p + 0, (u >> 8) & 255)
+    oren_ptr_set_u8(p + 1, u & 255)
+    return u
+}
+fn oren_ptr_set_u16_le(p, v) {
+    var u = v & 65535
+    oren_ptr_set_u8(p + 0, u & 255)
+    oren_ptr_set_u8(p + 1, (u >> 8) & 255)
+    return u
+}
+fn oren_ptr_set_i16_be(p, v) {
+    var u = v & 65535
+    oren_ptr_set_u8(p + 0, (u >> 8) & 255)
+    oren_ptr_set_u8(p + 1, u & 255)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+fn oren_ptr_set_i16_le(p, v) {
+    var u = v & 65535
+    oren_ptr_set_u8(p + 0, u & 255)
+    oren_ptr_set_u8(p + 1, (u >> 8) & 255)
+    if u >= 32768 { return u - 65536 }
+    return u
+}
+
+fn oren_ptr_get_u32_be(p) {
+    var b0 = oren_ptr_get_u8(p + 0)
+    var b1 = oren_ptr_get_u8(p + 1)
+    var b2 = oren_ptr_get_u8(p + 2)
+    var b3 = oren_ptr_get_u8(p + 3)
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+}
+fn oren_ptr_get_u32_le(p) {
+    var b0 = oren_ptr_get_u8(p + 0)
+    var b1 = oren_ptr_get_u8(p + 1)
+    var b2 = oren_ptr_get_u8(p + 2)
+    var b3 = oren_ptr_get_u8(p + 3)
+    return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+}
+fn oren_ptr_get_i32_be(p) {
+    var u = oren_ptr_get_u32_be(p)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+fn oren_ptr_get_i32_le(p) {
+    var u = oren_ptr_get_u32_le(p)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_ptr_set_u32_be(p, v) {
+    var u = v & 4294967295
+    oren_ptr_set_u8(p + 0, (u >> 24) & 255)
+    oren_ptr_set_u8(p + 1, (u >> 16) & 255)
+    oren_ptr_set_u8(p + 2, (u >> 8) & 255)
+    oren_ptr_set_u8(p + 3, u & 255)
+    return u
+}
+fn oren_ptr_set_u32_le(p, v) {
+    var u = v & 4294967295
+    oren_ptr_set_u8(p + 0, u & 255)
+    oren_ptr_set_u8(p + 1, (u >> 8) & 255)
+    oren_ptr_set_u8(p + 2, (u >> 16) & 255)
+    oren_ptr_set_u8(p + 3, (u >> 24) & 255)
+    return u
+}
+fn oren_ptr_set_i32_be(p, v) {
+    var u = v & 4294967295
+    oren_ptr_set_u8(p + 0, (u >> 24) & 255)
+    oren_ptr_set_u8(p + 1, (u >> 16) & 255)
+    oren_ptr_set_u8(p + 2, (u >> 8) & 255)
+    oren_ptr_set_u8(p + 3, u & 255)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+fn oren_ptr_set_i32_le(p, v) {
+    var u = v & 4294967295
+    oren_ptr_set_u8(p + 0, u & 255)
+    oren_ptr_set_u8(p + 1, (u >> 8) & 255)
+    oren_ptr_set_u8(p + 2, (u >> 16) & 255)
+    oren_ptr_set_u8(p + 3, (u >> 24) & 255)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_ptr_get_u64_be(p) {
+    var b0 = oren_ptr_get_u8(p + 0)
+    var b1 = oren_ptr_get_u8(p + 1)
+    var b2 = oren_ptr_get_u8(p + 2)
+    var b3 = oren_ptr_get_u8(p + 3)
+    var b4 = oren_ptr_get_u8(p + 4)
+    var b5 = oren_ptr_get_u8(p + 5)
+    var b6 = oren_ptr_get_u8(p + 6)
+    var b7 = oren_ptr_get_u8(p + 7)
+    return (b0 << 56) | (b1 << 48) | (b2 << 40) | (b3 << 32) | (b4 << 24) | (b5 << 16) | (b6 << 8) | b7
+}
+fn oren_ptr_get_u64_le(p) {
+    var b0 = oren_ptr_get_u8(p + 0)
+    var b1 = oren_ptr_get_u8(p + 1)
+    var b2 = oren_ptr_get_u8(p + 2)
+    var b3 = oren_ptr_get_u8(p + 3)
+    var b4 = oren_ptr_get_u8(p + 4)
+    var b5 = oren_ptr_get_u8(p + 5)
+    var b6 = oren_ptr_get_u8(p + 6)
+    var b7 = oren_ptr_get_u8(p + 7)
+    return (b7 << 56) | (b6 << 48) | (b5 << 40) | (b4 << 32) | (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+}
+fn oren_ptr_get_i64_be(p) { return oren_ptr_get_u64_be(p) }
+fn oren_ptr_get_i64_le(p) { return oren_ptr_get_u64_le(p) }
+
+fn oren_ptr_set_u64_be(p, v) {
+    oren_ptr_set_u8(p + 0, (v >> 56) & 255)
+    oren_ptr_set_u8(p + 1, (v >> 48) & 255)
+    oren_ptr_set_u8(p + 2, (v >> 40) & 255)
+    oren_ptr_set_u8(p + 3, (v >> 32) & 255)
+    oren_ptr_set_u8(p + 4, (v >> 24) & 255)
+    oren_ptr_set_u8(p + 5, (v >> 16) & 255)
+    oren_ptr_set_u8(p + 6, (v >> 8) & 255)
+    oren_ptr_set_u8(p + 7, v & 255)
+    return v
+}
+fn oren_ptr_set_u64_le(p, v) {
+    oren_ptr_set_u8(p + 0, v & 255)
+    oren_ptr_set_u8(p + 1, (v >> 8) & 255)
+    oren_ptr_set_u8(p + 2, (v >> 16) & 255)
+    oren_ptr_set_u8(p + 3, (v >> 24) & 255)
+    oren_ptr_set_u8(p + 4, (v >> 32) & 255)
+    oren_ptr_set_u8(p + 5, (v >> 40) & 255)
+    oren_ptr_set_u8(p + 6, (v >> 48) & 255)
+    oren_ptr_set_u8(p + 7, (v >> 56) & 255)
+    return v
+}
+fn oren_ptr_set_i64_be(p, v) { return oren_ptr_set_u64_be(p, v) }
+fn oren_ptr_set_i64_le(p, v) { return oren_ptr_set_u64_le(p, v) }
+
 fn native_bytes_as_list_node(bytes) {
     if bytes == 0 { return 0 }
     if bytes < 4096 { return 0 }

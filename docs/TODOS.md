@@ -55,6 +55,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - add explicit float32 rounding semantics (cross-backend, deterministic boundary) ✅
      - implement native typed buffers parity (`*_buf_new`, load/store, bulk ops; f32 rounding) ✅
      - define “typed pointers” for FFI/syscalls (no libc, syscall-first)
+       - next slice: endian-aware pointer reads/writes for packet parsing (BE/LE) ✅
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -94,5 +95,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Bytecode backend: `TypeName(...)` constructor calls now compile to `NEW_LIST` (portable struct representation), removing the need for implicit runtime functions for types.
 - f32 semantics: deterministic float32 rounding boundary implemented as `oren_f32_round(x)` across backends (C runtime helper, AVM native id `106`, arm64 native intrinsic).
 - Native runtime: typed buffers implemented for the syscall-first native backend (i32/i64/f32/f64) including scalar bulk ops; f32 load/store uses `oren_f32_to_u32_bits` / `oren_u32_bits_to_f32` intrinsics.
+- Native runtime: endian-aware pointer helpers (`oren_ptr_get/set_{u16,u32,u64,i16,i32,i64}_{be,le}`) for syscall-first packet parsing directly from malloc buffers.
 - Native runtime safety: made `oren_is_err(v)` safe for large ints by probing only tracked heap pointers (prevents accidental segfaults when checking `oren_is_err(16909060)` etc).
 - Native runtime safety: hardened `oren_bytes_get_u8/oren_bytes_set_u8` to avoid unsafe pointer probes on non-pointers; added regression in `test_integration_suite`.

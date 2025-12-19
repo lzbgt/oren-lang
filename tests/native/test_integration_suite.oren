@@ -402,6 +402,37 @@ fn test_typed_buffers_native() {
     assert_eq(oren_buf_load_f32(fr, 0), 16777216.0, 466)
 }
 
+fn test_ptr_endian_helpers_native() {
+    // Pointer endian helpers are the syscall-first packet parsing story:
+    // sys_read() -> malloc buffer -> parse fields in BE/LE without copying.
+    var p = malloc(32)
+    if p == 0 { fail(900) }
+
+    // u16/i16
+    assert_eq(oren_ptr_set_u16_be(p + 0, 4660), 4660, 901) // 0x1234
+    assert_eq(oren_ptr_get_u16_be(p + 0), 4660, 902)
+    assert_eq(oren_ptr_get_u16_le(p + 0), 13330, 903) // 0x3412
+
+    assert_eq(oren_ptr_set_i16_be(p + 2, -2), -2, 904)
+    assert_eq(oren_ptr_get_i16_be(p + 2), -2, 905)
+
+    // u32/i32
+    assert_eq(oren_ptr_set_u32_le(p + 4, 16909060), 16909060, 906) // 0x01020304
+    assert_eq(ptr_get_byte(p + 4), 4, 907)
+    assert_eq(ptr_get_byte(p + 7), 1, 908)
+    assert_eq(oren_ptr_get_u32_le(p + 4), 16909060, 909)
+
+    assert_eq(oren_ptr_set_i32_be(p + 8, -1), -1, 910)
+    assert_eq(oren_ptr_get_i32_be(p + 8), -1, 911)
+
+    // u64
+    // 0x0102030405060708 fits in signed i64, so we can round-trip in v0.
+    var u64v = 72623859790382856
+    assert_eq(oren_ptr_set_u64_be(p + 16, u64v), u64v, 912)
+    assert_eq(oren_ptr_get_u64_be(p + 16), u64v, 913)
+    assert_eq(oren_ptr_get_u64_le(p + 16), 578437695752307201, 914) // byte-swapped
+}
+
 fn test_string_eq_semantics() {
     // String comparisons must be lexical by content.
     if "a" == "b" { fail(500) }
@@ -612,6 +643,7 @@ fn main() {
     test_numeric_casts()
     test_float_ops()
     test_typed_buffers_native()
+    test_ptr_endian_helpers_native()
     test_string_eq_semantics()
     test_read_bytes_roundtrip()
     test_gc_mem_stats()
