@@ -18,6 +18,16 @@ impl Adder3 for i64 {
 var r0 = __oren_impl__Adder3__i64__add3(1, 2, 3)
 if r0 != 6 { exit(1) }
 
+// Method-call sugar (static-first, rolling):
+// - `Type.method(...)` resolves to the lowered impl function name
+// - `x.method(...)` resolves if `x` has a known type annotation in scope
+var r0b = i64.add3(1, 2, 3)
+if r0b != 6 { exit(10) }
+
+var a: i64 = 1
+var r0c = a.add3(2, 3)
+if r0c != 6 { exit(11) }
+
 // Dotted names should be accepted (mangled deterministically).
 trait myorg.Num {
     fn add(self, x);
@@ -29,6 +39,13 @@ impl myorg.Num for i64 {
 
 var r1 = __oren_impl__myorg_Num__i64__add(1, 2)
 if r1 != 3 { exit(2) }
+
+var r1b = i64.add(1, 2)
+if r1b != 3 { exit(12) }
+
+var b: i64 = 10
+var r1c = b.add(7)
+if r1c != 17 { exit(13) }
 
 print("ok")
 exit(0)

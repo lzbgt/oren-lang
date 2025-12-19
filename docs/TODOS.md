@@ -40,15 +40,17 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [arch] Traits/protocols: minimal object model milestone** `[lang]`
-   - Completed: parser now accepts `trait` and `impl Trait for Type { ... }` and lowers impl methods deterministically into plain `fn`s.
-   - Next deliverable: add a minimal compile-time resolver for `Type.method(x, ...)` and `x.method(...)` sugar (static-first), still without runtime vtables.
-
-2) **P0 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
+1) **P0 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
    - Next deliverable: cooperative concurrency MVP (single-threaded) with deterministic `spawn/join` + channels + `select`.
+
+2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
+   - DoD: trait/impl has real compile-time meaning without runtime vtables.
+   - Next deliverables (in order):
+     - compile-time ambiguity diagnostics for multiple impls of the same `Type.method`
+     - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
 3) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
    - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
@@ -70,4 +72,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - `enum` + `match` sugar implemented; `match` stays contextual (identifiers named `match` are valid).
 - `docs/OBJECT_MODEL.md` clarified: primitives can implement traits; static-first deterministic dispatch.
 - Linux: AVM builds cleanly in docker (fixed `fread` result handling + `int64_t` formatting warning).
-- Language: `trait` and `impl Trait for Type { ... }` syntax accepted by parser and lowered deterministically into plain `fn`s (bootstrap-friendly).
+- Language: `trait` and `impl Trait for Type { ... }` syntax accepted by parser; impl methods lower deterministically into plain `fn`s (bootstrap-friendly).
+- Language: method-call sugar resolver:
+  - `x.method(a, b)` resolves (with `x: Type` in scope) to the lowered impl function `__oren_impl__...__method(x, a, b)`
+  - `Type.method(a, b)` resolves to the lowered impl function `__oren_impl__...__method(a, b)`

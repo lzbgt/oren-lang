@@ -59,6 +59,29 @@ fn new_parser(l) {
         "enums": {},
         "enum_variants": {},
 
+        // Rolling impl registry (parser-local):
+        // - impl_methods: { "TypeName": { "method": "__oren_impl__Trait__Type__method" } }
+        //
+        // Used for method-call sugar rewriting:
+        //   x.method(...)  -> __oren_impl__...__method(x, ...)
+        //   Type.method(...) -> __oren_impl__...__method(...)
+        //
+        // v0 policy: if multiple impls define the same method name for a type, the
+        // method is marked ambiguous and sugar becomes a compile-time error.
+        "impl_methods": {},
+
+        // Rolling type environment (parser-local):
+        // Stack of scopes mapping `varName -> typeName` (from `name: Type` annotations).
+        //
+        // Used for static-first method sugar on `x.method(...)` without adding a full
+        // type checker yet.
+        //
+        // Implementation note: use a depth counter + a map-of-maps to avoid relying
+        // on list pop/shrink primitives.
+        "type_scopes": {0: {}},
+        "type_depth": 0,
+        "_pending_scope_types": nil,
+
         // Attribute validation knobs (set by the compiler front-end).
         // Defaults are permissive (rolling mode).
         "strict_attrs": false,
@@ -79,6 +102,93 @@ fn new_parser(l) {
     parser_next_token(p)
     parser_next_token(p)
     return p
+}
+
+fn type_env_push(p) {
+    var m = {}
+    var pending = p["_pending_scope_types"]
+    if pending != nil {
+        // Merge pending types into the new scope.
+        var i = 0
+        while i < oren_list_len(pending) {
+            var pair = pending[i]
+            if pair != nil && pair["k"] != nil {
+                m[pair["k"]] = pair["v"]
+            }
+            i = i + 1
+        }
+        p["_pending_scope_types"] = nil
+    }
+    p["type_depth"] = p["type_depth"] + 1
+    p["type_scopes"][p["type_depth"]] = m
+}
+
+fn type_env_pop(p) {
+    if p["type_depth"] <= 0 { return nil } // keep global scope
+    p["type_scopes"][p["type_depth"]] = nil
+    p["type_depth"] = p["type_depth"] - 1
+    return nil
+}
+
+fn type_env_set(p, name, tname) {
+    if name == nil || tname == nil { return nil }
+    var scopes = p["type_scopes"]
+    if scopes == nil { return nil }
+    if scopes[p["type_depth"]] == nil { scopes[p["type_depth"]] = {} }
+    scopes[p["type_depth"]][name] = tname
+    return nil
+}
+
+fn type_env_get(p, name) {
+    if name == nil { return nil }
+    var scopes = p["type_scopes"]
+    if scopes == nil { return nil }
+    var i = p["type_depth"]
+    while i >= 0 {
+        var m = scopes[i]
+        if m != nil && m[name] != nil { return m[name] }
+        i = i - 1
+    }
+    return nil
+}
+
+fn expr_dotted_name(e) {
+    // Convert a dotted identifier/member chain into a string:
+    //   Ident("T")              -> "T"
+    //   Member(Ident("a"), "b") -> "a.b"
+    if e == nil { return nil }
+    if e["type"] == "Identifier" { return e["value"] }
+    if e["type"] == "Member" {
+        var left = expr_dotted_name(e["left"])
+        if left == nil { return nil }
+        var prop = e["prop"]
+        if prop == nil || prop["type"] != "Identifier" { return nil }
+        return left + "." + prop["value"]
+    }
+    return nil
+}
+
+fn impl_method_register(p, type_name, method, mangled) {
+    if type_name == nil || method == nil || mangled == nil { return nil }
+    if p["impl_methods"][type_name] == nil { p["impl_methods"][type_name] = {} }
+    var m = p["impl_methods"][type_name]
+    var prev = m[method]
+    if prev == nil {
+        m[method] = mangled
+        return nil
+    }
+    if prev != mangled {
+        // Mark ambiguous.
+        m[method] = "__AMBIG__"
+    }
+    return nil
+}
+
+fn impl_method_lookup(p, type_name, method) {
+    if type_name == nil || method == nil { return nil }
+    var m = p["impl_methods"][type_name]
+    if m == nil { return nil }
+    return m[method]
 }
 
 fn str_starts_with(s, prefix) {
@@ -475,6 +585,7 @@ fn parse_impl_decl(p) {
                 var mname = fnn["name"]
                 var newn = impl_mangled_name(trait_name, type_name, mname)
                 fnn["name"] = newn
+                impl_method_register(p, type_name, mname, newn)
             }
             oren_list_push(out, st)
             parser_next_token(p)
@@ -919,6 +1030,7 @@ fn parse_var(p) {
             tname = tname + "." + p["cur"]["literal"]
         }
         name["ann_type"] = tname
+        type_env_set(p, name["value"], tname)
     }
 
     if !expect_peek(p, token.TOK_ASSIGN) { return nil }
@@ -955,6 +1067,7 @@ fn parse_typed_short_var(p) {
         tname = tname + "." + p["cur"]["literal"]
     }
     name["ann_type"] = tname
+    type_env_set(p, name["value"], tname)
 
     if !expect_peek(p, token.TOK_DECLARE) {
         parser_add_error(p, "typed declaration requires ':=' after type annotation")
@@ -1208,6 +1321,7 @@ fn parse_if(p) {
 }
 
 fn parse_block(p) {
+    type_env_push(p)
     var block = ast.new_block(p["cur"])
     parser_next_token(p)
     var cont = true
@@ -1230,6 +1344,7 @@ fn parse_block(p) {
             parser_next_token(p)
         }
     }
+    type_env_pop(p)
     return block
 }
 
@@ -1243,6 +1358,20 @@ fn parse_function(p) {
     if !expect_peek(p, token.TOK_LPAREN) { return nil }
     var params = parse_parameters(p)
     if !expect_peek(p, token.TOK_LBRACE) { return nil }
+    // Seed the function body scope with any parameter type annotations so method
+    // sugar (`x.method(...)`) can resolve inside the body.
+    var pend = []
+    var pi = 0
+    while pi < oren_list_len(params) {
+        var id = params[pi]
+        if id != nil && id["ann_type"] != nil {
+            oren_list_push(pend, {"k": id["value"], "v": id["ann_type"]})
+        }
+        pi = pi + 1
+    }
+    if oren_list_len(pend) > 0 {
+        p["_pending_scope_types"] = pend
+    }
     var body = parse_block(p)
     return ast.new_function(tok, name, params, body)
 }
@@ -1309,6 +1438,61 @@ fn parse_call(p, fn_expr) {
     var args = parse_call_args(p)
     var spread = p["_call_spread"]
     p["_call_spread"] = nil
+    // Method-call sugar resolver (static-first, rolling):
+    //
+    //   x.method(a, b)      -> __oren_impl__...__method(x, a, b)
+    //   Type.method(a, b)   -> __oren_impl__...__method(a, b)
+    //
+    // Conditions:
+    // - Only triggers if we can resolve an impl method name deterministically.
+    // - `x.method(...)` uses the rolling type environment (from `x: Type` annotations).
+    // - Ambiguity (multiple impls for the same type+method) is a compile-time error.
+    if fn_expr != nil && fn_expr["type"] == "Member" {
+        var m = fn_expr
+        var method = nil
+        if m["prop"] != nil && m["prop"]["type"] == "Identifier" { method = m["prop"]["value"] }
+        if method != nil {
+            // Try receiver-style: x.method(...)
+            if m["left"] != nil && m["left"]["type"] == "Identifier" {
+                var recv = m["left"]
+                var tname = type_env_get(p, recv["value"])
+                if tname != nil {
+                    var mangled = impl_method_lookup(p, tname, method)
+                    if mangled == "__AMBIG__" {
+                        parser_add_error(p, "ambiguous method '" + method + "' for type '" + tname + "' (multiple impls)")
+                    } else {
+                        if mangled != nil {
+                            // Rewrite: insert receiver as arg0.
+                            var new_args = [recv]
+                            var ai = 0
+                            while ai < oren_list_len(args) {
+                                oren_list_push(new_args, args[ai])
+                                ai = ai + 1
+                            }
+                            args = new_args
+                            fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, mangled))
+                        }
+                    }
+                }
+            }
+
+            // Try type-style: Type.method(...)
+            if fn_expr["type"] == "Member" {
+                var tdot = expr_dotted_name(fn_expr["left"])
+                if tdot != nil {
+                    var mangled2 = impl_method_lookup(p, tdot, method)
+                    if mangled2 == "__AMBIG__" {
+                        parser_add_error(p, "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
+                    } else {
+                        if mangled2 != nil {
+                            fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, mangled2))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     var c = ast.new_call(tok, fn_expr, args)
     if spread != nil {
         c["spread"] = spread
