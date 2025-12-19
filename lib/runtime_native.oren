@@ -356,6 +356,7 @@ var CAP_TIME = 16
 //   O_* bits in `arm64_native_expr_syscalls.oren` (Darwin/Linux differ).
 var OREN_O_CREAT = 256
 var OREN_O_TRUNC = 512
+var OREN_O_NONBLOCK = 1024
 
 // Capsule per-fd kind tags (rolling; native backend only).
 // Stored in `net_fd_caps_ptr` (byte-per-fd).
@@ -457,6 +458,7 @@ fn native_runtime_init() {
     // Oren-level open(2) flags (translated by native syscall lowering).
     OREN_O_CREAT = 256
     OREN_O_TRUNC = 512
+    OREN_O_NONBLOCK = 1024
 
     // Per-fd kind tags (capsule hardening).
     FD_KIND_NONE = 0
@@ -5029,9 +5031,9 @@ fn oren_tcp_sockaddr_in(ip, port) {
 @cap.requires(domain="NET")
 fn oren_tcp_set_nonblock(fd) {
     native_capsule_require(CAP_NET, "NET")
-    var flags = sys_fcntl(fd, 3, 0) // F_GETFL
+    var flags = sys_fcntl(fd, 3, 0) // F_GETFL (returns Oren-level flags in native backend)
     if flags < 0 { return flags }
-    var r = sys_fcntl(fd, 4, flags | 4) // F_SETFL, O_NONBLOCK
+    var r = sys_fcntl(fd, 4, flags | OREN_O_NONBLOCK) // F_SETFL + O_NONBLOCK (Oren-level)
     return r
 }
 

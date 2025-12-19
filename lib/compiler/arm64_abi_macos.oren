@@ -51,6 +51,7 @@ fn darwin_sys_pipe() { return 42 }
 // These are used by the syscall-first native backend; do not pull SDK headers at build time.
 fn darwin_open_flag_creat() { return 512 }  // O_CREAT  = 0x0200
 fn darwin_open_flag_trunc() { return 1024 } // O_TRUNC  = 0x0400
+fn darwin_open_flag_nonblock() { return 4 } // O_NONBLOCK = 0x0004
 
 // Threading / sync (Darwin-specific)
 fn darwin_sys_thread_selfid() { return 372 }

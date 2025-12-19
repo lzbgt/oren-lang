@@ -115,6 +115,7 @@ fn emit_svc_preserve_heap(ctx, svc_imm) {
 // This avoids baking OS flag literals into `.oren` code and keeps Linux parity feasible.
 var OREN_O_CREAT = 256
 var OREN_O_TRUNC = 512
+var OREN_O_NONBLOCK = 1024
 
 fn emit_translate_open_flags(ctx) {
     // Input:
@@ -160,6 +161,83 @@ fn emit_translate_open_flags(ctx) {
     var after_trunc = oren_list_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_trunc, insn_b_cond((after_trunc - br_skip_trunc) / 4, 0)) // EQ
 
+    // If (oren_flags & OREN_O_NONBLOCK) != 0 => OR in OS O_NONBLOCK.
+    push_u32_le(ctx["code"], insn_movz(5, OREN_O_NONBLOCK))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_NONBLOCK
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
+    var br_skip_nb = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    var os_nb = abi.darwin_open_flag_nonblock()
+    if ctx["platform"]["os"] == "linux" {
+        os_nb = labi.linux_open_flag_nonblock()
+    }
+    push_u32_le(ctx["code"], insn_movz(7, os_nb))
+    push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_NONBLOCK
+    var after_nb = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
+
+    return nil
+}
+
+fn emit_translate_fcntl_setfl_flags(ctx) {
+    // Input:  X2 = oren_flags (rolling ABI)
+    // Output: X2 = os_flags (Darwin/Linux)
+    //
+    // Currently we translate only the bits we use in runtime/tests: O_NONBLOCK.
+    // Unknown bits are intentionally dropped in rolling mode (deny-by-default semantics).
+    push_u32_le(ctx["code"], insn_mov_reg(4, 2))  // X4 = oren_flags
+    push_u32_le(ctx["code"], insn_movz(2, 0))     // X2 = 0 (os_flags)
+
+    push_u32_le(ctx["code"], insn_movz(5, OREN_O_NONBLOCK))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_NONBLOCK
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
+    var br_skip_nb = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    var os_nb = abi.darwin_open_flag_nonblock()
+    if ctx["platform"]["os"] == "linux" {
+        os_nb = labi.linux_open_flag_nonblock()
+    }
+    push_u32_le(ctx["code"], insn_movz(7, os_nb))
+    push_u32_le(ctx["code"], insn_orr_reg(2, 2, 7)) // os_flags |= O_NONBLOCK
+    var after_nb = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
+    return nil
+}
+
+fn emit_translate_fcntl_getfl_return(ctx) {
+    // Input:  X0 = os_flags (or negative errno)
+    // Output: X0 = oren_flags (or negative errno)
+    //
+    // Keep access bits (&3) and translate O_NONBLOCK.
+    push_u32_le(ctx["code"], insn_mov_reg(4, 0))   // X4 = os_flags / rc
+
+    // If rc < 0, skip translation.
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp X0, XZR
+    var br_skip_all = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.LT skip
+
+    // X0 = os_flags & 3
+    push_u32_le(ctx["code"], insn_mov_reg(0, 4))
+    push_u32_le(ctx["code"], insn_movz(5, 3))
+    push_u32_le(ctx["code"], insn_and_reg(0, 0, 5))
+
+    // if (os_flags & OS_O_NONBLOCK) != 0 => X0 |= OREN_O_NONBLOCK
+    var os_nb = abi.darwin_open_flag_nonblock()
+    if ctx["platform"]["os"] == "linux" {
+        os_nb = labi.linux_open_flag_nonblock()
+    }
+    push_u32_le(ctx["code"], insn_movz(5, os_nb))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5))
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))
+    var br_skip_nb = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    push_u32_le(ctx["code"], insn_movz(7, OREN_O_NONBLOCK))
+    push_u32_le(ctx["code"], insn_orr_reg(0, 0, 7))
+    var after_nb = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
+
+    var after_all = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_all, insn_b_cond((after_all - br_skip_all) / 4, 11)) // LT
     return nil
 }
 
@@ -1136,6 +1214,10 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
         if fn_name == "sys_fcntl" {
             // sys_fcntl(fd, cmd, arg) (Darwin)
+            var cmd_lit = -1
+            if args[1]["type"] == "Integer" {
+                cmd_lit = int_from_string(args[1]["value"])
+            }
             compile_expr(ctx, args[0]) // fd -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1166,6 +1248,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // cmd
             push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // arg
 
+            // Translate Oren-level fcntl flags for F_SETFL (cmd=4).
+            if cmd_lit == 4 {
+                emit_translate_fcntl_setfl_flags(ctx)
+            }
+
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = abi.darwin_sys_fcntl() // Darwin SYS_fcntl
@@ -1192,6 +1279,11 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
                 var ok_pos = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+
+            // Translate OS fcntl flags to Oren-level for F_GETFL (cmd=3).
+            if cmd_lit == 3 {
+                emit_translate_fcntl_getfl_return(ctx)
             }
 
             // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
