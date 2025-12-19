@@ -1214,10 +1214,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
 
         if fn_name == "sys_fcntl" {
             // sys_fcntl(fd, cmd, arg) (Darwin)
-            var cmd_lit = -1
-            if args[1]["type"] == "Integer" {
-                cmd_lit = int_from_string(args[1]["value"])
-            }
             compile_expr(ctx, args[0]) // fd -> X0
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1248,11 +1244,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // cmd
             push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // arg
 
-            // Translate Oren-level fcntl flags for F_SETFL (cmd=4).
-            if cmd_lit == 4 {
-                emit_translate_fcntl_setfl_flags(ctx)
-            }
-
             var sys_reg = abi.darwin_syscall_reg()
             var svc_imm = abi.darwin_svc_imm()
             var sysno = abi.darwin_sys_fcntl() // Darwin SYS_fcntl
@@ -1281,11 +1272,6 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
             }
 
-            // Translate OS fcntl flags to Oren-level for F_GETFL (cmd=3).
-            if cmd_lit == 3 {
-                emit_translate_fcntl_getfl_return(ctx)
-            }
-
             // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // fd
             push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // cmd
@@ -1299,6 +1285,134 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             push_u32_le(ctx["code"], insn_add_sp(16))
             push_u32_le(ctx["code"], insn_add_sp(16))
             ctx["stack_size"] = ctx["stack_size"] - 48
+            return true
+        }
+
+        if fn_name == "sys_fcntl_getfl" {
+            // sys_fcntl_getfl(fd) -> oren_flags (or negative errno)
+            // Portable wrapper over fcntl(F_GETFL).
+            // This preserves syscall-first semantics by keeping sys_fcntl raw.
+            //
+            // We model the returned flags as Oren-level flags:
+            // - access bits (flags & 3)
+            // - OREN_O_NONBLOCK if set
+            compile_expr(ctx, args[0]) // fd -> X0
+
+            // Save fd for post-hook.
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // fd
+            push_u32_le(ctx["code"], insn_movz(1, 3)) // F_GETFL
+            push_u32_le(ctx["code"], insn_movz(2, 0)) // arg=0
+            var bl_fcntl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_pre, "name": "native_capsule_sys_fcntl_pre"})
+
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // fd
+            push_u32_le(ctx["code"], insn_movz(1, 3)) // cmd
+            push_u32_le(ctx["code"], insn_movz(2, 0)) // arg
+
+            var sys_reg = abi.darwin_syscall_reg()
+            var svc_imm = abi.darwin_svc_imm()
+            var sysno = abi.darwin_sys_fcntl()
+            if ctx["platform"]["os"] == "linux" {
+                sys_reg = labi.linux_syscall_reg()
+                svc_imm = labi.linux_svc_imm()
+                sysno = labi.linux_sys_fcntl()
+            }
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                // Normalize macOS syscall error to X0 = -errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+
+            // Translate OS flags in X0 to Oren-level flags (only for non-error returns).
+            emit_translate_fcntl_getfl_return(ctx)
+
+            // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+            // rc is already in X0; pass fd/cmd/arg for fd-kind tracking.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // fd
+            push_u32_le(ctx["code"], insn_movz(2, 3)) // cmd
+            push_u32_le(ctx["code"], insn_movz(3, 0)) // arg
+            var bl_fcntl_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_post, "name": "native_capsule_sys_fcntl_post"})
+
+            // Pop fd slot.
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            return true
+        }
+
+        if fn_name == "sys_fcntl_setfl" {
+            // sys_fcntl_setfl(fd, oren_flags) -> 0 or negative errno
+            // Portable wrapper over fcntl(F_SETFL) with Oren-level flags.
+            compile_expr(ctx, args[0]) // fd -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // oren_flags -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_movz(1, 4)) // F_SETFL
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // oren_flags
+            // Translate flags to OS bits for the syscall arg.
+            emit_translate_fcntl_setfl_flags(ctx)
+            var bl_fcntl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_pre, "name": "native_capsule_sys_fcntl_pre"})
+
+            // Reload args for syscall: X0=fd, X1=cmd, X2=os_flags
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
+            push_u32_le(ctx["code"], insn_movz(1, 4)) // cmd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // oren_flags
+            emit_translate_fcntl_setfl_flags(ctx) // X2 becomes os_flags
+
+            var sys_reg = abi.darwin_syscall_reg()
+            var svc_imm = abi.darwin_svc_imm()
+            var sysno = abi.darwin_sys_fcntl()
+            if ctx["platform"]["os"] == "linux" {
+                sys_reg = labi.linux_syscall_reg()
+                svc_imm = labi.linux_svc_imm()
+                sysno = labi.linux_sys_fcntl()
+            }
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                // Normalize macOS syscall error to X0 = -errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+
+            // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fd
+            push_u32_le(ctx["code"], insn_movz(2, 4)) // cmd
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0)) // original oren_flags (for debug)
+            var bl_fcntl_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_post, "name": "native_capsule_sys_fcntl_post"})
+
+            // Pop oren_flags + fd slots.
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 32
             return true
         }
 

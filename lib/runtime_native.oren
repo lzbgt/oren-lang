@@ -67,6 +67,8 @@ fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
 fn sys_gettid() { return 0 }
 fn sys_fcntl(fd, cmd, arg) { return 0 }
+fn sys_fcntl_getfl(fd) { return 0 }
+fn sys_fcntl_setfl(fd, flags) { return 0 }
 fn sys_dup(fd) { return 0 }
 fn sys_dup2(from, to) { return 0 }
 fn sys_dup3(from, to, flags) { return 0 }
@@ -5031,9 +5033,9 @@ fn oren_tcp_sockaddr_in(ip, port) {
 @cap.requires(domain="NET")
 fn oren_tcp_set_nonblock(fd) {
     native_capsule_require(CAP_NET, "NET")
-    var flags = sys_fcntl(fd, 3, 0) // F_GETFL (returns Oren-level flags in native backend)
+    var flags = sys_fcntl_getfl(fd)
     if flags < 0 { return flags }
-    var r = sys_fcntl(fd, 4, flags | OREN_O_NONBLOCK) // F_SETFL + O_NONBLOCK (Oren-level)
+    var r = sys_fcntl_setfl(fd, flags | OREN_O_NONBLOCK)
     return r
 }
 
