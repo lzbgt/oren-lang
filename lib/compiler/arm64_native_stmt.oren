@@ -724,7 +724,8 @@ fn native_compile_stmt(ctx, stmt) {
             var n_params = oren_list_len(params)
             var i = 0
             while i < n_params {
-                var p_name = params[i]["value"]
+                var p = params[i]
+                var p_name = p["value"]
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 if i < 8 {
                     push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
@@ -738,6 +739,23 @@ fn native_compile_stmt(ctx, stmt) {
                 ctx["locals"][p_name] = ctx["stack_size"]
                 ctx["stack_size"] = ctx["stack_size"] + 16
                 if fn_scope != nil { fn_scope["names"][p_name] = 1 }
+
+                // Type annotations (rolling): help the native backend decide whether a param is "floaty".
+                // Native float values are raw IEEE-754 f64 bits carried in registers (no tagged dynamic type).
+                // Without this, `x: f64` behaves like an int at runtime, breaking float arithmetic/comparisons.
+                var ann = nil
+                if p != nil { ann = p["ann_type"] }
+                if ann != nil {
+                    // Strip optional prefix `oren.` for uniformity.
+                    if oren_string_len(ann) > 5 {
+                        if oren_string_slice(ann, 0, 5) == "oren." {
+                            ann = oren_string_slice(ann, 5, oren_string_len(ann))
+                        }
+                    }
+                    if ann == "f64" || ann == "f32" {
+                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][p_name] = true }
+                    }
+                }
                 
                 if ctx["platform"]["debug"] == true {
                     oren_list_push(params_info, {"name": p_name, "offset": ctx["locals"][p_name]})

@@ -342,6 +342,11 @@ fn test_float_ops() {
     assert_eq(ptr_get_byte(s + 0), 97, 410) // 'a'
     assert_eq(ptr_get_byte(s + 1), 98, 411) // 'b'
     assert_eq(ptr_get_byte(s + 2), 0, 412)  // NUL
+
+    // Regression: float param annotations must mark locals as floaty in the native backend.
+    // Without this, `x: f64` is treated as an int and breaks float arithmetic/comparisons.
+    fn addf(x: f64, y: f64): f64 { return x + y }
+    assert_eq(addf(1.5, 2.5), 4.0, 413)
 }
 
 fn test_string_eq_semantics() {
