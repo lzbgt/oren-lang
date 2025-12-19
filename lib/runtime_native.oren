@@ -5311,11 +5311,53 @@ fn native_buf_new(len, elem_size, tag) {
     return header
 }
 
+fn native_buf_wrap_ptr(data, len, elem_size, tag) {
+    // Wrap an existing tracked allocation as a typed buffer payload.
+    //
+    // This enables true zero-copy pipelines:
+    //   sys_read(fd, malloc(N), N) -> wrap -> pack_view / bytes helpers
+    //
+    // SAFETY / CONTRACT:
+    // - `data` must be a tracked allocation (so GC can validate it and keep it alive).
+    // - The underlying allocation size must be >= len*elem_size.
+    // - This buffer does not "own" the payload at a language level; GC reachability keeps
+    //   the payload alive. Manual `free(data)` while the wrapper is reachable is undefined
+    //   behavior in v0 (similar to freeing list/map internal buffers).
+    if len < 0 { return oren_err(4, "buf_wrap_ptr: negative length") }
+    if elem_size != 1 && elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_wrap_ptr: invalid elem_size") }
+    if len > 2147483647 { return oren_err(4, "buf_wrap_ptr: length too large") }
+    if len != 0 && (data == 0 || data == -1) { return oren_err(4, "buf_wrap_ptr: nil payload") }
+
+    var bytes_len = len * elem_size
+    if bytes_len < 0 { return oren_err(4, "buf_wrap_ptr: size overflow") }
+    if bytes_len != 0 {
+        var node = oren_find_node(data)
+        if node == 0 { return oren_err(4, "buf_wrap_ptr: payload must be tracked") }
+        var cap = ptr_get(iadd(node, 8))
+        if cap < bytes_len { return oren_err(4, "buf_wrap_ptr: payload too small") }
+    }
+
+    var header = malloc(40)
+    if header == 0 || header == -1 { return oren_err(8, "buf_wrap_ptr: alloc failed") }
+    oren_track_alloc(header, 40, 0)
+    // Mark header kind=7 (BUF) so GC can keep payload alive.
+    var node2 = oren_find_node(header)
+    if node2 != 0 { ptr_set(iadd(node2, 16), 7) }
+
+    ptr_set(header + 0, len)
+    ptr_set(header + 8, elem_size)
+    ptr_set(header + 16, data)
+    ptr_set(header + 24, buf_magic())
+    ptr_set(header + 32, tag)
+    return header
+}
+
 fn oren_i32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_I32) }
 fn oren_i64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_I64) }
 fn oren_f32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_F32) }
 fn oren_f64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_F64) }
 fn oren_u8_buf_new(len) { return native_buf_new(len, 1, BUF_TAG_U8) }
+fn oren_u8_buf_wrap_ptr(ptr, len) { return native_buf_wrap_ptr(ptr, len, 1, BUF_TAG_U8) }
 
 fn oren_buf_len(buf) {
     if native_buf_as_node(buf) == 0 { return oren_err(4, "buf_len expects (buf)") }

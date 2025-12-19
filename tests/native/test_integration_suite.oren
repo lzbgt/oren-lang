@@ -504,6 +504,26 @@ fn test_u8_buf_syscall_io() {
     assert_eq(oren_buf_load_u8(inp, 1), 66, 947)
 }
 
+fn test_u8_buf_wrap_ptr_zero_copy() {
+    // Zero-copy: wrap a raw malloc buffer as u8_buf so pack_view/bytes helpers can operate on it.
+    var p = malloc(12)
+    if p == 0 { fail(960) }
+
+    var pkt = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    var i = 0
+    while i < 12 {
+        ptr_set_byte(p + i, pkt[i])
+        i = i + 1
+    }
+
+    var b = oren_u8_buf_wrap_ptr(p, 12)
+    assert_true(oren_is_err(b) == 0, 961)
+    assert_eq(pack_view("PV_H", b, 0).dst, 134744072, 962)
+
+    // bytes helpers should work on wrapped buffers too.
+    assert_streq(oren_bytes_to_hex(b), "45000054c0a8000108080808", 963)
+}
+
 fn test_string_eq_semantics() {
     // String comparisons must be lexical by content.
     if "a" == "b" { fail(500) }
@@ -717,6 +737,7 @@ fn main() {
     test_typed_buffers_native()
     test_ptr_endian_helpers_native()
     test_u8_buf_syscall_io()
+    test_u8_buf_wrap_ptr_zero_copy()
     test_string_eq_semantics()
     test_read_bytes_roundtrip()
     test_gc_mem_stats()

@@ -59,6 +59,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - next slice: `u8_buf` + `sys_read_u8_buf/sys_write_u8_buf` for zero-copy IO ✅
        - next slice: allow `u8_buf` as a byte container for `pack_view` / `oren_bytes_get_u8` ✅
        - next slice: native `oren_bytes_{len,from_hex,to_hex,pack,unpack}` parity on `u8_buf` ✅
+       - next slice: `oren_u8_buf_wrap_ptr(malloc_ptr, len)` for true zero-copy packet parsing ✅
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -102,3 +103,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Native runtime safety: made `oren_is_err(v)` safe for large ints by probing only tracked heap pointers (prevents accidental segfaults when checking `oren_is_err(16909060)` etc).
 - Native runtime safety: hardened `oren_bytes_get_u8/oren_bytes_set_u8` to avoid unsafe pointer probes on non-pointers; added regression in `test_integration_suite`.
 - Native runtime: made `u8_buf` iterable (`for x in bytes`) and added native bytes hex/pack/unpack coverage.
+- Native runtime: added `oren_u8_buf_wrap_ptr` to wrap malloc buffers as bytes without copying (enables `pack_view` directly over syscall read buffers).
