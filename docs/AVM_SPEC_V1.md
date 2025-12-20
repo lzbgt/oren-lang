@@ -61,6 +61,15 @@ Additionally required for agent-grade determinism:
 - define map iteration order requirements (or explicitly declare maps unordered)
 - define scheduler determinism policy for tasks (when coroutines land)
 
+**Rolling decisions (repo-enforced):**
+
+- **Integer overflow behavior:** `int` arithmetic in the VM is **i64 two’s-complement wraparound** for `ADD/SUB/MUL/SHL/SHR` (mod 2^64 on bit patterns).
+  - Rationale: C signed overflow is UB; wrap semantics keep consensus deterministic across compilers/flags.
+  - Note: `SHR` is a **logical** right shift (operates on bit patterns), not an arithmetic sign-extending shift.
+- **Division errors:** `int / int` aborts deterministically on:
+  - division by zero
+  - `i64_min / -1` overflow
+
 ## 2) Value Model (Next-Gen)
 
 The v0 model (`Nil/Int/Float/Bool/String/List/Map`) is not sufficient for ML-ish workloads.

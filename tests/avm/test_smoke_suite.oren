@@ -51,6 +51,20 @@ fn test_recursion() {
     assert_eq(sum_rec(2000), 2001000)
 }
 
+fn test_int_arith_wrap() {
+    // Determinism rule (AVM v1 direction): integer arithmetic is defined as i64 two's-complement wraparound.
+    //
+    // This prevents C UB from leaking into VM semantics (different compilers/flags could differ otherwise).
+    var max = ints.MAX_I64
+    assert_eq(max + 1, -9223372036854775808)
+
+    var min = -9223372036854775808
+    assert_eq(min - 1, 9223372036854775807)
+
+    // (2^63 - 1) * 2 == 2^64 - 2 -> -2 in signed wrap.
+    assert_eq(max * 2, -2)
+}
+
 fn test_bytes() {
     var b = oren_bytes_from_hex("00ff1020")
     if oren_is_err(b) { fail() }
@@ -466,6 +480,7 @@ fn test_select_send_round_robin() {
 fn main() {
     test_calls()
     test_recursion()
+    test_int_arith_wrap()
     test_bytes()
     test_bytes_set_endian()
     test_map_order()

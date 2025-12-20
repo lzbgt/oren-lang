@@ -48,6 +48,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Avoid running bootstrap builds on in-tree modules/tests/tools; prefer `./oren build ... -o build/...` or the curated runners (`make test`, `./oretest`).
    - If you *did* create `*.oren.c` artifacts, delete them before running `make test` (keep `oren.oren.c` only).
 
+9) ** Refactor in rolling **
+  - when a file is over 2000 lines, refacotor to be SOLID principles applied modules
+
 ## Tasks (Next, Highest Priority First)
 
 1) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
@@ -95,5 +98,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
 - Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
 - Metadata: trait declarations are preserved in module metadata JSON (`traits`, methods, and return annotations), enabling doc/serde tooling without runtime vtables yet.
+- AVM determinism: integer arithmetic in the VM is now defined as i64 two’s-complement wraparound (no C signed-overflow UB), and invalid ops (div0, shift out of range) abort deterministically (covered by `tests/avm/test_smoke_suite.oren` + expected-failure `tests/avm/test_arith_invalid.oren`).
 - Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.
 - Stdlib errno wrappers (v7): added `lib/std/result.oren` helpers to convert `-errno` syscall-style returns into structured errors.

@@ -186,6 +186,7 @@ func main() {
 		"tests/avm/test_time_rng_deterministic.oren",
 		"tests/avm/test_budget_timeout.oren",
 		"tests/avm/test_call_depth_limit.oren",
+		"tests/avm/test_arith_invalid.oren",
 		"tests/avm/test_vfs_no_host_fs.oren",
 		"tests/avm/test_vproc_no_host_proc.oren",
 		"tests/avm/test_vnet_no_host_net.oren",
@@ -206,6 +207,7 @@ func main() {
 		"tests/avm/test_budget_gas.oren",
 		"tests/avm/test_budget_timeout.oren",
 		"tests/avm/test_call_depth_limit.oren",
+		"tests/avm/test_arith_invalid.oren",
 		"tests/avm/test_vfs_no_host_fs.oren",
 		"tests/avm/test_vproc_no_host_proc.oren",
 		"tests/avm/test_vnet_no_host_net.oren",
@@ -634,6 +636,13 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 			if rc == 0 || rc == 124 {
 				runOK = false
 			}
+		case "test_arith_invalid":
+			// Expected: non-zero due to deterministic arithmetic validation (not external timeout).
+			cmd := fmt.Sprintf("./avm %q", obc)
+			rc := runWithTimeout(timeoutBin, runTimeout, cmd, log)
+			if rc == 0 || rc == 124 {
+				runOK = false
+			}
 		case "test_fs_mounts_host_backend":
 			_ = os.RemoveAll("build/mnt_avm")
 			_ = os.MkdirAll("build/mnt_avm", 0o755)
@@ -868,6 +877,13 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 			}
 		case "test_budget_timeout":
 			cmd := fmt.Sprintf("%s --timeout-ms 10 %q", avmPath, filepath.Join("build", name+".obc"))
+			rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log)
+			if rc == 0 || rc == 124 {
+				runOK = false
+			}
+		case "test_arith_invalid":
+			// Expected: non-zero due to deterministic arithmetic validation (not external timeout).
+			cmd := fmt.Sprintf("%s %q", avmPath, filepath.Join("build", name+".obc"))
 			rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log)
 			if rc == 0 || rc == 124 {
 				runOK = false

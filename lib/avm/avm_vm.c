@@ -3,6 +3,43 @@
 #include <stdlib.h>
 #include <string.h>
 
+// --- Deterministic integer semantics (AVM v1 direction) ---
+//
+// C signed overflow is undefined behavior, which is unacceptable for AVM determinism.
+// Define all int arithmetic in terms of 64-bit two's-complement wraparound.
+//
+// We do this by operating on *bit patterns* as uint64 and bit-casting back to int64.
+// (Casting uint64->int64 when out-of-range is implementation-defined; memcpy is not.)
+static inline uint64_t avm_u64_bits_i64(int64_t x) {
+    uint64_t u = 0;
+    memcpy(&u, &x, sizeof(u));
+    return u;
+}
+
+static inline int64_t avm_i64_from_u64_bits(uint64_t u) {
+    int64_t x = 0;
+    memcpy(&x, &u, sizeof(x));
+    return x;
+}
+
+static inline int64_t avm_i64_add_wrap(int64_t a, int64_t b) {
+    return avm_i64_from_u64_bits(avm_u64_bits_i64(a) + avm_u64_bits_i64(b));
+}
+
+static inline int64_t avm_i64_sub_wrap(int64_t a, int64_t b) {
+    return avm_i64_from_u64_bits(avm_u64_bits_i64(a) - avm_u64_bits_i64(b));
+}
+
+static inline int64_t avm_i64_mul_wrap(int64_t a, int64_t b) {
+    return avm_i64_from_u64_bits(avm_u64_bits_i64(a) * avm_u64_bits_i64(b));
+}
+
+static inline int avm_i64_is_min(int64_t x) {
+    // Compile-time-safe i64 min without relying on implementation-defined casts.
+    // -(2^63) == (-9223372036854775807 - 1)
+    return x == ((int64_t)-9223372036854775807LL - 1LL);
+}
+
 // --- Cooperative Tasks (rolling, AVM v1 direction) ---
 //
 // This implements a minimal, VM-internal cooperative concurrency model to support:
@@ -967,7 +1004,7 @@ void avm_run(AvmVM* vm) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
                     if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
-                        vm->stack[vm->sp++] = avm_int(a.as.i + b.as.i);
+                        vm->stack[vm->sp++] = avm_int(avm_i64_add_wrap(a.as.i, b.as.i));
                     } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
                         AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f + b.as.f; vm->stack[vm->sp++] = r;
                     } else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
@@ -997,7 +1034,7 @@ void avm_run(AvmVM* vm) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
                     if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
-                        vm->stack[vm->sp++] = avm_int(a.as.i - b.as.i);
+                        vm->stack[vm->sp++] = avm_int(avm_i64_sub_wrap(a.as.i, b.as.i));
                     } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
                         AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f - b.as.f; vm->stack[vm->sp++] = r;
                     } else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
@@ -1015,7 +1052,7 @@ void avm_run(AvmVM* vm) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
                     if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
-                        vm->stack[vm->sp++] = avm_int(a.as.i * b.as.i);
+                        vm->stack[vm->sp++] = avm_int(avm_i64_mul_wrap(a.as.i, b.as.i));
                     } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
                         AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f * b.as.f; vm->stack[vm->sp++] = r;
                     } else if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
@@ -1033,6 +1070,15 @@ void avm_run(AvmVM* vm) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
                     if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+                        if (b.as.i == 0) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "division by zero"));
+                            break;
+                        }
+                        // INT64_MIN / -1 overflows in two's complement; define as an error.
+                        if (avm_i64_is_min(a.as.i) && b.as.i == -1) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "division overflow (i64_min / -1)"));
+                            break;
+                        }
                         vm->stack[vm->sp++] = avm_int(a.as.i / b.as.i);
                     } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
                         AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f / b.as.f; vm->stack[vm->sp++] = r;
@@ -1134,7 +1180,8 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_int(a.as.i & b.as.i);
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_int(a.as.i & b.as.i);
+                    else vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
             }
@@ -1142,7 +1189,8 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_int(a.as.i | b.as.i);
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_int(a.as.i | b.as.i);
+                    else vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
             }
@@ -1150,7 +1198,8 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_int(a.as.i ^ b.as.i);
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) vm->stack[vm->sp++] = avm_int(a.as.i ^ b.as.i);
+                    else vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
             }
@@ -1158,7 +1207,17 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_int(a.as.i << b.as.i);
+                    if (a.type != AVM_VAL_INT || b.type != AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_nil();
+                        break;
+                    }
+                    if (b.as.i < 0 || b.as.i >= 64) {
+                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SHL shift count out of range (need 0..63)"));
+                        break;
+                    }
+                    uint64_t ua = avm_u64_bits_i64(a.as.i);
+                    uint64_t ur = ua << (uint64_t)b.as.i;
+                    vm->stack[vm->sp++] = avm_int(avm_i64_from_u64_bits(ur));
                 }
                 break;
             }
@@ -1166,7 +1225,17 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    vm->stack[vm->sp++] = avm_int((uint64_t)a.as.i >> (uint64_t)b.as.i);
+                    if (a.type != AVM_VAL_INT || b.type != AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_nil();
+                        break;
+                    }
+                    if (b.as.i < 0 || b.as.i >= 64) {
+                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SHR shift count out of range (need 0..63)"));
+                        break;
+                    }
+                    uint64_t ua = avm_u64_bits_i64(a.as.i);
+                    uint64_t ur = ua >> (uint64_t)b.as.i;
+                    vm->stack[vm->sp++] = avm_int(avm_i64_from_u64_bits(ur));
                 }
                 break;
             }

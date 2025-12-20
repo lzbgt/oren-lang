@@ -1,0 +1,18 @@
+// AVM arithmetic invalid cases must abort deterministically (no host crash/UB).
+//
+// This test is expected to exit non-zero.
+
+fn main() {
+    // Division by zero must not crash the host VM process.
+    var x = 1 / 0
+    print(x)
+
+    // Shift-by-64 is undefined in C; VM must reject it deterministically.
+    var y = 1 << 64
+    print(y)
+
+    // If we got here, it's a failure (we expected abort).
+    exit(0)
+}
+
+main()

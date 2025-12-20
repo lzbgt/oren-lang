@@ -70,22 +70,23 @@ endif
 # AVM test selection:
 # - Default: curated smoke list for iteration velocity.
 # - Override for full coverage: `make test AVM_TESTS="tests/avm/*.oren"`
-AVM_TESTS ?= \
-	tests/avm/test_smoke_suite.oren \
-	tests/avm/test_closure_fn_values.oren \
-	tests/avm/test_policy_scan.oren \
-	tests/avm/test_job_scan.oren \
-	tests/avm/test_snapshot_resume.oren \
-	tests/avm/test_multiverse_invalid_obc.oren \
-	tests/avm/test_time_rng_deterministic.oren \
-	tests/avm/test_time_rng_record_replay_mem.oren \
-	tests/avm/test_budget_gas.oren \
-	tests/avm/test_budget_timeout.oren \
-	tests/avm/test_call_depth_limit.oren \
-	tests/avm/test_vfs_no_host_fs.oren \
-	tests/avm/test_vproc_no_host_proc.oren \
-	tests/avm/test_vnet_no_host_net.oren \
-	tests/avm/test_switch.oren
+	AVM_TESTS ?= \
+		tests/avm/test_smoke_suite.oren \
+		tests/avm/test_closure_fn_values.oren \
+		tests/avm/test_policy_scan.oren \
+		tests/avm/test_job_scan.oren \
+		tests/avm/test_snapshot_resume.oren \
+		tests/avm/test_multiverse_invalid_obc.oren \
+		tests/avm/test_time_rng_deterministic.oren \
+		tests/avm/test_time_rng_record_replay_mem.oren \
+		tests/avm/test_budget_gas.oren \
+		tests/avm/test_budget_timeout.oren \
+		tests/avm/test_call_depth_limit.oren \
+		tests/avm/test_arith_invalid.oren \
+		tests/avm/test_vfs_no_host_fs.oren \
+		tests/avm/test_vproc_no_host_proc.oren \
+		tests/avm/test_vnet_no_host_net.oren \
+		tests/avm/test_switch.oren
 
 # Source files
 OREN_SRC := oren.oren
@@ -322,18 +323,25 @@ tests/native/while.oren \
 				elif [ $$rc -eq 124 ]; then \
 					echo "FAIL: $$name (External timeout fired; expected AVM to abort first)" >> $$log; failed="$$failed $$name"; continue; \
 				fi; \
-			elif [ "$$name" = "test_call_depth_limit" ]; then \
-				set +e; $(RUN_WITH_TIMEOUT) ./avm --call-depth-max 32 build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
-				if [ $$rc -eq 0 ]; then \
-					echo "FAIL: $$name (Expected call depth abort)" >> $$log; failed="$$failed $$name"; continue; \
-				elif [ $$rc -eq 124 ]; then \
-					echo "FAIL: $$name (External timeout fired; expected AVM to abort first)" >> $$log; failed="$$failed $$name"; continue; \
-				fi; \
-			elif [ "$$name" = "test_budget_io_fs" ]; then \
-				set +e; AVM_IO_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
-				if [ $$rc -eq 0 ]; then \
-					echo "FAIL: $$name (Expected io budget abort)"; cat $$log; exit 1; \
-				elif [ $$rc -eq 124 ]; then \
+				elif [ "$$name" = "test_call_depth_limit" ]; then \
+					set +e; $(RUN_WITH_TIMEOUT) ./avm --call-depth-max 32 build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+					if [ $$rc -eq 0 ]; then \
+						echo "FAIL: $$name (Expected call depth abort)" >> $$log; failed="$$failed $$name"; continue; \
+					elif [ $$rc -eq 124 ]; then \
+						echo "FAIL: $$name (External timeout fired; expected AVM to abort first)" >> $$log; failed="$$failed $$name"; continue; \
+					fi; \
+				elif [ "$$name" = "test_arith_invalid" ]; then \
+					set +e; $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+					if [ $$rc -eq 0 ]; then \
+						echo "FAIL: $$name (Expected arithmetic abort)" >> $$log; failed="$$failed $$name"; continue; \
+					elif [ $$rc -eq 124 ]; then \
+						echo "FAIL: $$name (External timeout fired; expected AVM to abort first)" >> $$log; failed="$$failed $$name"; continue; \
+					fi; \
+				elif [ "$$name" = "test_budget_io_fs" ]; then \
+					set +e; AVM_IO_BYTES=64 $(RUN_WITH_TIMEOUT) ./avm build/$$name.obc > $$log 2>&1; rc=$$?; set -e; \
+					if [ $$rc -eq 0 ]; then \
+						echo "FAIL: $$name (Expected io budget abort)"; cat $$log; exit 1; \
+					elif [ $$rc -eq 124 ]; then \
 					echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)"; cat $$log; exit 1; \
 				fi; \
 			elif [ "$$name" = "test_budget_log_mem" ]; then \
