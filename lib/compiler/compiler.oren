@@ -877,6 +877,18 @@ fn link_program(entry_path, root_prog, config) {
     // Opt-in via `@oren.abi` and does not depend on host headers.
     if trace_passes { print("[trace] pass: abi_layout") }
     abi_layout.lower_linked_program_in_place(linked)
+    if linked["abi_layout_errors"] != nil && oren_list_len(linked["abi_layout_errors"]) > 0 {
+        var first_err = linked["abi_layout_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("ABI layout errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["abi_layout_errors"]) {
+            print(linked["abi_layout_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
 
     // Optimizer baseline (safe, conservative).
     if trace_passes { print("[trace] pass: optimizer") }

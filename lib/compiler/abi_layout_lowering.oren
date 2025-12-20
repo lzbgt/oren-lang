@@ -1,5 +1,14 @@
 import ast "ast.oren"
 
+var ABI_LAYOUT_ERRS = nil
+
+fn abi_layout_error(msg) {
+    if ABI_LAYOUT_ERRS == nil { ABI_LAYOUT_ERRS = [] }
+    oren_list_push(ABI_LAYOUT_ERRS, msg)
+    return nil
+}
+
+
 // ABI layout lowering (rolling).
 //
 // Purpose:
@@ -205,13 +214,14 @@ fn abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, arch, visit
                 if st == nil { return nil }
 
                 if visiting != nil && visiting[base] == true {
-                    print("ABI layout cycle detected involving: " + base)
-                    oren_exit(1)
+                    abi_layout_error("ABI layout cycle detected involving: " + base)
+                    return nil
                 }
                 visiting[base] = true
                 lay = compute_abi_layout_for_type(st, abi_types, abi_layouts, target, arch, visiting)
                 visiting[base] = false
                 abi_layouts[base] = lay
+                if lay == nil { return nil }
             }
             sa = {"size": lay["size"], "align": lay["align"]}
         }
@@ -257,13 +267,13 @@ fn compute_abi_layout_for_type(stmt, abi_types, abi_layouts, target, arch, visit
         var fname = fid["value"]
         var kind = fid["ann_type"]
         if kind == nil {
-            print("ABI struct field missing type annotation: " + tname + "." + fname)
-            oren_exit(1)
+            abi_layout_error("ABI struct field missing type annotation: " + tname + "." + fname)
+            return nil
         }
         var sa = abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, arch, visiting)
         if sa == nil {
-            print("ABI struct field has unsupported type: " + tname + "." + fname + ": " + kind)
-            oren_exit(1)
+            abi_layout_error("ABI struct field has unsupported type: " + tname + "." + fname + ": " + kind)
+            return nil
         }
         var sz = sa["size"]
         var al = sa["align"]
@@ -353,8 +363,8 @@ fn lower_expr_in_place(expr, abi_layouts) {
             var name = fn_expr["value"]
             if name == "oren_build_target" || name == "oren_build_arch" {
                 if oren_list_len(args) != 0 {
-                    print(name + " expects ()")
-                    oren_exit(1)
+                    abi_layout_error(name + " expects ()")
+                    return expr
                 }
                 if name == "oren_build_target" {
                     var v = abi_layouts["__oren_config_target"]
@@ -367,34 +377,34 @@ fn lower_expr_in_place(expr, abi_layouts) {
             }
             if name == "oren_abi_sizeof" || name == "oren_abi_alignof" {
                 if oren_list_len(args) != 1 || args[0] == nil || args[0]["type"] != "String" {
-                    print(name + " expects (\"Type\")")
-                    oren_exit(1)
+                    abi_layout_error(name + " expects (\"Type\")")
+                    return expr
                 }
                 var tname = args[0]["value"]
                 var lay = abi_layouts[tname]
                 if lay == nil {
-                    print(name + ": unknown ABI type: " + tname)
-                    oren_exit(1)
+                    abi_layout_error(name + ": unknown ABI type: " + tname)
+                    return expr
                 }
                 if name == "oren_abi_sizeof" { return int_lit(lay["size"]) }
                 return int_lit(lay["align"])
             }
             if name == "oren_abi_offsetof" {
                 if oren_list_len(args) != 2 || args[0] == nil || args[0]["type"] != "String" || args[1] == nil || args[1]["type"] != "String" {
-                    print("oren_abi_offsetof expects (\"Type\", \"field\")")
-                    oren_exit(1)
+                    abi_layout_error("oren_abi_offsetof expects (\"Type\", \"field\")")
+                    return expr
                 }
                 var tname2 = args[0]["value"]
                 var fname2 = args[1]["value"]
                 var lay2 = abi_layouts[tname2]
                 if lay2 == nil {
-                    print("oren_abi_offsetof: unknown ABI type: " + tname2)
-                    oren_exit(1)
+                    abi_layout_error("oren_abi_offsetof: unknown ABI type: " + tname2)
+                    return expr
                 }
                 var off = lay2["offsets"][fname2]
                 if off == nil {
-                    print("oren_abi_offsetof: unknown field: " + tname2 + "." + fname2)
-                    oren_exit(1)
+                    abi_layout_error("oren_abi_offsetof: unknown field: " + tname2 + "." + fname2)
+                    return expr
                 }
                 return int_lit(off)
             }
@@ -484,6 +494,7 @@ fn lower_stmt_in_place(stmt, abi_layouts) {
 }
 
 fn lower_linked_program_in_place(linked) {
+    ABI_LAYOUT_ERRS = []
     if linked == nil { return nil }
     var stmts = linked["statements"]
     var abi_layouts = {}
@@ -540,6 +551,10 @@ fn lower_linked_program_in_place(linked) {
     while i < oren_list_len(stmts) {
         lower_stmt_in_place(stmts[i], abi_layouts)
         i = i + 1
+    }
+
+    if ABI_LAYOUT_ERRS != nil && oren_list_len(ABI_LAYOUT_ERRS) > 0 {
+        linked["abi_layout_errors"] = ABI_LAYOUT_ERRS
     }
 
     linked["abi_layouts"] = abi_layouts

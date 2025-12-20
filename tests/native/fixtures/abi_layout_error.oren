@@ -1,0 +1,8 @@
+@abi
+struct S {
+    a: u8
+}
+
+// Unknown ABI type should surface as compile error via OREN_DIAG.
+var off = oren_abi_offsetof("NoSuch", "a")
+print(off)
