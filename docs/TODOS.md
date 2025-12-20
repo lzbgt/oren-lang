@@ -70,39 +70,27 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[stdlib][ux] `std/time` v0 (datetime-like, portable + deterministic surface)**
-   - Goal:
-     - Provide a modern time API usable for server-side apps and agentic tooling, while keeping
-       deterministic execution possible in AVM mode.
-   - DoD:
-     - Add `lib/std/time.oren` with:
-       - `Instant` + `Duration` (nanosecond precision, monotonic-safe arithmetic)
-       - `now_unix_ns()` + `now_mono_raw()` plumbing (backend-specific; exposed via a stable stdlib API)
-       - `sleep_ms(ms)` wrapper with clear semantics
-       - `DateTime` UTC v0: epoch conversions + ISO-8601 parse/format (UTC-only v0; locale/tz later)
-     - Add a module test covering parse/format roundtrip + monotonic non-decrease smoke
-
 ### B) AVM (evolves alongside language/compiler)
 
-2) **[vm][safety] Record/Replay v1 for all effectful domains**
+1) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-3) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+2) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-4) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+3) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-5) **[boot][arch] Compiler-in-AVM (close the loop)**
+4) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
@@ -113,6 +101,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- `std/time` v0: added `lib/std/time.oren` (UTC ISO-8601 parse/format, epoch conversions, monotonic/unix clocks, sleep); added runtime TIME primitives and a module test; verified on macOS.
 - Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.
 - Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.
 - `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.

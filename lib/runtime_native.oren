@@ -2878,6 +2878,11 @@ fn oren_time_unix_ns() {
     return sec * 1000000000 + usec * 1000
 }
 
+// Rolling alias used by stdlib + AVM parity.
+fn oren_time_now_ns() {
+    return oren_time_unix_ns()
+}
+
 // Monotonic “raw” time. For correctness, treat as compare-only (do not assume units).
 // On Linux, this will be nanoseconds (via clock_gettime64 monotonic in the intrinsic).
 // On macOS, this is mach_absolute_time units (returned by gettimeofday's 3rd out-arg).

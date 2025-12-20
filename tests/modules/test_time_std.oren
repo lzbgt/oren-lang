@@ -1,0 +1,59 @@
+import time "../../lib/std/time.oren"
+import result "../../lib/std/result.oren"
+
+fn fail(code) {
+    print("module time_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn assert_streq(a, b, code) {
+    if a == b { return 0 }
+    print("got: " + a)
+    print("expected: " + b)
+    fail(code)
+}
+
+// ISO-8601 UTC roundtrip (no fraction).
+var s0 = "2025-01-02T03:04:05Z"
+var dt0 = time.parse_iso8601_utc(s0)
+if result.is_err(dt0) { fail(10) }
+assert_eq(dt0.year, 2025, 11)
+assert_eq(dt0.month, 1, 12)
+assert_eq(dt0.day, 2, 13)
+assert_eq(dt0.hour, 3, 14)
+assert_eq(dt0.minute, 4, 15)
+assert_eq(dt0.second, 5, 16)
+assert_eq(dt0.nanosecond, 0, 17)
+assert_streq(time.format_iso8601_utc(dt0), s0, 18)
+
+// Fractional seconds parse/format.
+var s1 = "2025-01-02T03:04:05.1234Z"
+var dt1 = time.parse_iso8601_utc(s1)
+if result.is_err(dt1) { fail(20) }
+assert_eq(dt1.nanosecond, 123400000, 21)
+assert_streq(time.format_iso8601_utc(dt1), s1, 22)
+
+// Unix ns conversion roundtrip.
+var ns0 = time.datetime_to_unix_ns(dt0)
+if result.is_err(ns0) { fail(30) }
+var dt0b = time.datetime_from_unix_ns(ns0)
+assert_streq(time.format_iso8601_utc(dt0b), s0, 31)
+
+// Monotonic smoke (should not go backwards).
+var a = time.mono_raw()
+time.sleep_ms(1)
+var b = time.mono_raw()
+assert_true(b >= a, 40)
+
+print("module time_std OK")
+exit(0)

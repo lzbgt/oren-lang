@@ -180,6 +180,28 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — `std/time` v0 (UTC-only ISO8601 + epoch conversions)
+
+- Runtime (C backend):
+  - Added TIME primitives to `lib/runtime.c` / `lib/runtime.h`:
+    - `oren_sleep_ns` / `oren_sleep_ms`
+    - `oren_time_unix_ns`
+    - `oren_time_mono_raw`
+    - `oren_time_now_ns` (stable alias for stdlib + AVM parity)
+- Runtime (native):
+  - Added `oren_time_now_ns` alias in `lib/runtime_native.oren` (maps to unix time for now).
+- Stdlib:
+  - Added `lib/std/time.oren`:
+    - `Duration`, `Instant`, `DateTime`
+    - UTC ISO-8601 `parse_iso8601_utc` / `format_iso8601_utc`
+    - `datetime_to_unix_ns` / `datetime_from_unix_ns`
+    - `sleep_ms`, `now_unix_ns`, `now_ns`, `mono_raw`, `instant_now`
+  - Design: UTC-only v0; fractional seconds (1..9 digits) supported; format trims trailing zeros.
+- Tests:
+  - Added `tests/modules/test_time_std.oren` and wired into `cmd/oretest`.
+- Verified:
+  - `make test` on macOS.
+
 ## Archived (2025-12-20) — `%` modulo operator (C backend + AVM + native backend)
 
 - Language:

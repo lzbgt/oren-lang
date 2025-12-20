@@ -1,0 +1,315 @@
+// std/time (v0, rolling)
+//
+// Goal:
+// - Provide a modern, ergonomic time API for server-side code and tools.
+// - Keep a deterministic surface for AVM execution (AVM overrides `oren_time_now_ns`).
+//
+// Design notes:
+// - We keep v0 UTC-only for DateTime formatting/parsing (ISO-8601 with 'Z').
+// - Locale and IANA time zones are explicitly deferred (need tzdb policy + determinism story).
+
+import result "result.oren"
+
+struct Duration {
+    ns: i64
+}
+
+struct Instant {
+    // Monotonic time in nanoseconds (or "raw" units on some native targets).
+    // Compare-only; do not assume wall-clock.
+    raw: i64
+}
+
+struct DateTime {
+    year: i32,
+    month: i32,
+    day: i32,
+    hour: i32,
+    minute: i32,
+    second: i32,
+    nanosecond: i32
+}
+
+fn duration_ns(ns) { return Duration(ns) }
+fn duration_ms(ms) { return Duration(ms * 1000000) }
+fn duration_s(s) { return Duration(s * 1000000000) }
+
+fn duration_add(a, b) { return Duration(a.ns + b.ns) }
+fn duration_sub(a, b) { return Duration(a.ns - b.ns) }
+
+fn sleep_ms(ms) {
+    // Returns 0 or -errno depending on backend.
+    return oren_sleep_ms(ms)
+}
+
+fn now_unix_ns() {
+    // C backend + native backend: wall clock ns.
+    // AVM: should be gated by TIME domain and record/replay if host-backed.
+    return oren_time_unix_ns()
+}
+
+fn now_ns() {
+    // Deterministic-friendly clock:
+    // - AVM implements `oren_time_now_ns` as virtual time
+    // - C backend uses unix time for now (bootstrap)
+    // - native backend aliases to unix time for now
+    return oren_time_now_ns()
+}
+
+fn mono_raw() {
+    return oren_time_mono_raw()
+}
+
+fn instant_now() { return Instant(mono_raw()) }
+
+fn is_leap_year(y) {
+    // Gregorian
+    if (y % 4) != 0 { return false }
+    if (y % 100) != 0 { return true }
+    if (y % 400) != 0 { return false }
+    return true
+}
+
+fn days_in_month(y, m) {
+    if m == 1 { return 31 }
+    if m == 2 {
+        if is_leap_year(y) { return 29 }
+        return 28
+    }
+    if m == 3 { return 31 }
+    if m == 4 { return 30 }
+    if m == 5 { return 31 }
+    if m == 6 { return 30 }
+    if m == 7 { return 31 }
+    if m == 8 { return 31 }
+    if m == 9 { return 30 }
+    if m == 10 { return 31 }
+    if m == 11 { return 30 }
+    if m == 12 { return 31 }
+    return 0
+}
+
+fn floor_div(a, b) {
+    // floor(a / b) for b>0, since Oren division truncs toward 0.
+    if b <= 0 { return 0 }
+    if a >= 0 { return a / b }
+    return 0 - ((0 - a + (b - 1)) / b)
+}
+
+fn floor_mod(a, b) {
+    // a - floor_div(a,b)*b, result in [0,b) for b>0
+    var q = floor_div(a, b)
+    return a - q * b
+}
+
+fn days_from_civil(y, m, d) {
+    // Howard Hinnant: days since 1970-01-01 (UTC), proleptic Gregorian.
+    var yy = y
+    var mm = m
+    if mm <= 2 { yy = yy - 1 }
+    var era = floor_div(yy, 400)
+    var yoe = yy - era * 400
+    var mp = mm
+    if mm > 2 {
+        mp = mp - 3
+    } else {
+        mp = mp + 9
+    }
+    var doy = (153 * mp + 2) / 5 + d - 1
+    var doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    return era * 146097 + doe - 719468
+}
+
+fn civil_from_days(z) {
+    // Inverse of days_from_civil. Returns DateTime-like triple {y,m,d}.
+    var zz = z + 719468
+    var era = floor_div(zz, 146097)
+    var doe = zz - era * 146097
+    var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    var y = yoe + era * 400
+    var doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    var mp = (5 * doy + 2) / 153
+    var d = doy - (153 * mp + 2) / 5 + 1
+    var m = mp
+    if mp < 10 {
+        m = m + 3
+    } else {
+        m = m - 9
+    }
+    if m <= 2 { y = y + 1 }
+    return {"y": y, "m": m, "d": d}
+}
+
+fn datetime_to_unix_ns(dt) {
+    // Validate (minimal, v0).
+    if dt.month < 1 || dt.month > 12 { return result.err(4, "datetime_to_unix_ns: invalid month") }
+    var dim = days_in_month(dt.year, dt.month)
+    if dim == 0 { return result.err(4, "datetime_to_unix_ns: invalid month") }
+    if dt.day < 1 || dt.day > dim { return result.err(4, "datetime_to_unix_ns: invalid day") }
+    if dt.hour < 0 || dt.hour > 23 { return result.err(4, "datetime_to_unix_ns: invalid hour") }
+    if dt.minute < 0 || dt.minute > 59 { return result.err(4, "datetime_to_unix_ns: invalid minute") }
+    if dt.second < 0 || dt.second > 60 { return result.err(4, "datetime_to_unix_ns: invalid second") } // allow leap second v0
+    if dt.nanosecond < 0 || dt.nanosecond > 999999999 { return result.err(4, "datetime_to_unix_ns: invalid nanosecond") }
+
+    var days = days_from_civil(dt.year, dt.month, dt.day)
+    var sec = days * 86400 + dt.hour * 3600 + dt.minute * 60 + dt.second
+    var ns = sec * 1000000000 + dt.nanosecond
+    return ns
+}
+
+fn datetime_from_unix_ns(ns) {
+    var sec = floor_div(ns, 1000000000)
+    var nsec = floor_mod(ns, 1000000000)
+    var days = floor_div(sec, 86400)
+    var sod = floor_mod(sec, 86400)
+
+    var ymd = civil_from_days(days)
+    var hour = sod / 3600
+    var rem = sod - hour * 3600
+    var minute = rem / 60
+    var second = rem - minute * 60
+
+    return DateTime(
+        ymd["y"], ymd["m"], ymd["d"],
+        hour, minute, second,
+        nsec
+    )
+}
+
+fn _digit(ch) {
+    if ch == "0" { return 0 }
+    if ch == "1" { return 1 }
+    if ch == "2" { return 2 }
+    if ch == "3" { return 3 }
+    if ch == "4" { return 4 }
+    if ch == "5" { return 5 }
+    if ch == "6" { return 6 }
+    if ch == "7" { return 7 }
+    if ch == "8" { return 8 }
+    if ch == "9" { return 9 }
+    return -1
+}
+
+fn _parse_2(s, off) {
+    var d0 = _digit(oren_string_char_at(s, off))
+    var d1 = _digit(oren_string_char_at(s, off + 1))
+    if d0 < 0 || d1 < 0 { return result.err(4, "parse: expected 2 digits") }
+    return d0 * 10 + d1
+}
+
+fn _parse_4(s, off) {
+    var d0 = _digit(oren_string_char_at(s, off))
+    var d1 = _digit(oren_string_char_at(s, off + 1))
+    var d2 = _digit(oren_string_char_at(s, off + 2))
+    var d3 = _digit(oren_string_char_at(s, off + 3))
+    if d0 < 0 || d1 < 0 || d2 < 0 || d3 < 0 { return result.err(4, "parse: expected 4 digits") }
+    return d0 * 1000 + d1 * 100 + d2 * 10 + d3
+}
+
+fn parse_iso8601_utc(s) {
+    // Supported forms (v0):
+    // - YYYY-MM-DDTHH:MM:SSZ
+    // - YYYY-MM-DDTHH:MM:SS.NNNNNNNNNZ (1..9 fractional digits; right-padded to ns)
+    if s == nil { return result.err(4, "parse_iso8601_utc: nil") }
+    if oren_string_len(s) < 20 { return result.err(4, "parse_iso8601_utc: too short") }
+
+    if oren_string_char_at(s, 4) != "-" { return result.err(4, "parse_iso8601_utc: expected '-'") }
+    if oren_string_char_at(s, 7) != "-" { return result.err(4, "parse_iso8601_utc: expected '-'") }
+    if oren_string_char_at(s, 10) != "T" { return result.err(4, "parse_iso8601_utc: expected 'T'") }
+    if oren_string_char_at(s, 13) != ":" { return result.err(4, "parse_iso8601_utc: expected ':'") }
+    if oren_string_char_at(s, 16) != ":" { return result.err(4, "parse_iso8601_utc: expected ':'") }
+
+    var year = _parse_4(s, 0)
+    if result.is_err(year) { return year }
+    var month = _parse_2(s, 5)
+    if result.is_err(month) { return month }
+    var day = _parse_2(s, 8)
+    if result.is_err(day) { return day }
+    var hour = _parse_2(s, 11)
+    if result.is_err(hour) { return hour }
+    var minute = _parse_2(s, 14)
+    if result.is_err(minute) { return minute }
+    var second = _parse_2(s, 17)
+    if result.is_err(second) { return second }
+
+    var nanosecond = 0
+    var end = oren_string_len(s) - 1
+    if oren_string_char_at(s, end) != "Z" { return result.err(4, "parse_iso8601_utc: expected 'Z'") }
+
+    if oren_string_len(s) == 20 {
+        // no fraction
+        return DateTime(year, month, day, hour, minute, second, 0)
+    }
+
+    if oren_string_char_at(s, 19) != "." { return result.err(4, "parse_iso8601_utc: expected '.' or 'Z'") }
+
+    var frac_len = (oren_string_len(s) - 1) - 20
+    if frac_len < 1 || frac_len > 9 { return result.err(4, "parse_iso8601_utc: fractional seconds must be 1..9 digits") }
+
+    var i = 0
+    while i < frac_len {
+        var d = _digit(oren_string_char_at(s, 20 + i))
+        if d < 0 { return result.err(4, "parse_iso8601_utc: invalid fractional digit") }
+        nanosecond = nanosecond * 10 + d
+        i = i + 1
+    }
+    // Right-pad to 9 digits.
+    while frac_len < 9 {
+        nanosecond = nanosecond * 10
+        frac_len = frac_len + 1
+    }
+
+    return DateTime(year, month, day, hour, minute, second, nanosecond)
+}
+
+fn _pad2(n) {
+    // assumes 0..99
+    if n < 10 { return "0" + oren_int_to_string(n) }
+    return oren_int_to_string(n)
+}
+
+fn _pad4(n) {
+    // v0: assume 0..9999 for now
+    var s = oren_int_to_string(n)
+    if oren_string_len(s) == 4 { return s }
+    if oren_string_len(s) == 3 { return "0" + s }
+    if oren_string_len(s) == 2 { return "00" + s }
+    if oren_string_len(s) == 1 { return "000" + s }
+    return s
+}
+
+fn format_iso8601_utc(dt) {
+    var base =
+        _pad4(dt.year) + "-" +
+        _pad2(dt.month) + "-" +
+        _pad2(dt.day) + "T" +
+        _pad2(dt.hour) + ":" +
+        _pad2(dt.minute) + ":" +
+        _pad2(dt.second)
+
+    if dt.nanosecond == 0 {
+        return base + "Z"
+    }
+
+    // Always emit 9 digits, then trim trailing zeros for readability.
+    var ns = dt.nanosecond
+    var frac = ""
+    var i = 0
+    // Build 9 digits (most significant to least).
+    var div = 100000000
+    while i < 9 {
+        var d = ns / div
+        frac = frac + oren_int_to_string(d)
+        ns = ns - d * div
+        div = div / 10
+        i = i + 1
+    }
+    // Trim trailing zeros.
+    var j = oren_string_len(frac)
+    while j > 0 {
+        if oren_string_char_at(frac, j - 1) != "0" { break }
+        j = j - 1
+    }
+    frac = oren_string_slice(frac, 0, j)
+    return base + "." + frac + "Z"
+}

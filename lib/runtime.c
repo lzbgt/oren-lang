@@ -5,6 +5,7 @@
 #include <setjmp.h>
 #include <execinfo.h>
 #include <time.h>
+#include <sys/time.h>
 #include <limits.h>
 
 OrenValue OREN_NIL;
@@ -1309,6 +1310,85 @@ OrenValue oren_div(OrenValue a, OrenValue b) {
     }
     oren_panic("Type mismatch in div");
     return OREN_NIL;
+}
+
+// --- TIME (C backend runtime) ---
+//
+// Note: this is a host-effectful backend; libc usage here is acceptable for bootstrap.
+// AVM determinism is provided by the AVM TIME domain; native backend uses syscall-first TIME.
+
+OrenValue oren_sleep_ns(OrenValue ns) {
+    if (ns.type != OREN_TYPE_INT) {
+        oren_panic("sleep_ns expects int");
+        return OREN_NIL;
+    }
+    long long nsv = ns.as.int_val;
+    if (nsv <= 0) return oren_int(0);
+
+    // Avoid overflow in seconds conversion.
+    long long sec = nsv / 1000000000LL;
+    long long nsec = nsv % 1000000000LL;
+    if (nsec < 0) nsec = 0;
+
+    struct timespec ts;
+    ts.tv_sec = (time_t)sec;
+    ts.tv_nsec = (long)nsec;
+
+    while (1) {
+        int rc = nanosleep(&ts, &ts);
+        if (rc == 0) return oren_int(0);
+        if (errno == EINTR) continue;
+        return oren_int(0 - (long long)errno);
+    }
+}
+
+OrenValue oren_sleep_ms(OrenValue ms) {
+    if (ms.type != OREN_TYPE_INT) {
+        oren_panic("sleep_ms expects int");
+        return OREN_NIL;
+    }
+    long long msv = ms.as.int_val;
+    if (msv <= 0) return oren_int(0);
+    // ms -> ns, detect overflow conservatively.
+    if (msv > LLONG_MAX / 1000000LL) {
+        return oren_int(0 - (long long)EINVAL);
+    }
+    return oren_sleep_ns(oren_int(msv * 1000000LL));
+}
+
+static OrenValue oren_time_clock_ns(clockid_t clk) {
+    struct timespec ts;
+    if (clock_gettime(clk, &ts) != 0) {
+        return oren_int(0);
+    }
+    long long sec = (long long)ts.tv_sec;
+    long long nsec = (long long)ts.tv_nsec;
+    return oren_int(sec * 1000000000LL + nsec);
+}
+
+OrenValue oren_time_unix_ns() {
+    // Prefer clock_gettime; fall back to gettimeofday if unavailable.
+#ifdef CLOCK_REALTIME
+    return oren_time_clock_ns(CLOCK_REALTIME);
+#else
+    struct timeval tv;
+    if (gettimeofday(&tv, NULL) != 0) return oren_int(0);
+    return oren_int((long long)tv.tv_sec * 1000000000LL + (long long)tv.tv_usec * 1000LL);
+#endif
+}
+
+OrenValue oren_time_mono_raw() {
+#ifdef CLOCK_MONOTONIC
+    return oren_time_clock_ns(CLOCK_MONOTONIC);
+#else
+    // Best-effort fallback: wall clock.
+    return oren_time_unix_ns();
+#endif
+}
+
+OrenValue oren_time_now_ns() {
+    // Rolling alias for compatibility with the AVM TIME domain surface.
+    return oren_time_unix_ns();
 }
 
 OrenValue oren_mod(OrenValue a, OrenValue b) {

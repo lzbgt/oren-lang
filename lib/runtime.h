@@ -262,6 +262,17 @@ OrenValue oren_read_bytes(OrenValue path);
 OrenValue oren_bytes_from_string(OrenValue s);
 // Build a string from list<int 0..255> (inverse of bytes_from_string).
 OrenValue oren_string_from_bytes(OrenValue bytes);
+
+// --- TIME (C backend runtime) ---
+//
+// Convention:
+// - sleep returns 0 on success, or -errno on failure
+// - time returns nanoseconds in an int (best-effort)
+OrenValue oren_sleep_ms(OrenValue ms);
+OrenValue oren_sleep_ns(OrenValue ns);
+OrenValue oren_time_now_ns();
+OrenValue oren_time_unix_ns();
+OrenValue oren_time_mono_raw();
 // Byte-level reads/writes (list<int 0..255>) helpers.
 OrenValue oren_bytes_get_u8(OrenValue bytes, OrenValue index);
 OrenValue oren_bytes_set_u8(OrenValue bytes, OrenValue index, OrenValue value);
