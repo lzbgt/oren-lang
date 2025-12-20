@@ -125,6 +125,7 @@ func main() {
 			"tests/modules/test_abi_kevent.oren",
 			"tests/modules/test_abi_stat.oren",
 			"tests/modules/test_abi_epoll_event.oren",
+			"tests/modules/test_abi_socket_structs_v5.oren",
 			"tests/modules/test_function_values.oren",
 		"tests/modules/test_lambda_closure.oren",
 		"tests/modules/test_lambda_multiline.oren",

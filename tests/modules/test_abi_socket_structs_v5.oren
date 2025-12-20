@@ -1,0 +1,99 @@
+// Curated OS ABI structs (rolling v5): sockaddr_in6, sockaddr_un, pollfd.
+//
+// Goal: enable syscall-first networking without host headers.
+// This module asserts deterministic layouts and does a few ptr round-trips.
+
+// --- sockaddr_in6 ---
+@oren.abi
+struct SockAddrIn6Darwin {
+    sin6_len: u8,
+    sin6_family: u8,
+    sin6_port: u16be,
+    sin6_flowinfo: u32le,
+    sin6_addr: u8[16],
+    sin6_scope_id: u32le
+}
+
+@oren.abi
+struct SockAddrIn6Linux {
+    sin6_family: u16le,
+    sin6_port: u16be,
+    sin6_flowinfo: u32le,
+    sin6_addr: u8[16],
+    sin6_scope_id: u32le
+}
+
+// --- sockaddr_un ---
+@oren.abi
+struct SockAddrUnDarwin {
+    sun_len: u8,
+    sun_family: u8,
+    sun_path: u8[104]
+}
+
+@oren.abi
+struct SockAddrUnLinux {
+    sun_family: u16le,
+    sun_path: u8[108]
+}
+
+// --- pollfd (same on macOS/Linux arm64) ---
+@oren.abi
+struct PollFd {
+    fd: i32le,
+    events: i16le,
+    revents: i16le
+}
+
+var t = oren_build_target()
+
+if t == "macos" {
+    // sockaddr_in6 (Darwin)
+    if oren_abi_sizeof("SockAddrIn6Darwin") != 28 { exit(1) }
+    if oren_abi_offsetof("SockAddrIn6Darwin", "sin6_len") != 0 { exit(2) }
+    if oren_abi_offsetof("SockAddrIn6Darwin", "sin6_family") != 1 { exit(3) }
+    if oren_abi_offsetof("SockAddrIn6Darwin", "sin6_port") != 2 { exit(4) }
+    if oren_abi_offsetof("SockAddrIn6Darwin", "sin6_flowinfo") != 4 { exit(5) }
+    if oren_abi_offsetof("SockAddrIn6Darwin", "sin6_addr") != 8 { exit(6) }
+    if oren_abi_offsetof("SockAddrIn6Darwin", "sin6_scope_id") != 24 { exit(7) }
+
+    // sockaddr_un (Darwin)
+    if oren_abi_sizeof("SockAddrUnDarwin") != 106 { exit(8) }
+    if oren_abi_offsetof("SockAddrUnDarwin", "sun_len") != 0 { exit(9) }
+    if oren_abi_offsetof("SockAddrUnDarwin", "sun_family") != 1 { exit(10) }
+    if oren_abi_offsetof("SockAddrUnDarwin", "sun_path") != 2 { exit(11) }
+} else {
+    // sockaddr_in6 (Linux)
+    if oren_abi_sizeof("SockAddrIn6Linux") != 28 { exit(20) }
+    if oren_abi_offsetof("SockAddrIn6Linux", "sin6_family") != 0 { exit(21) }
+    if oren_abi_offsetof("SockAddrIn6Linux", "sin6_port") != 2 { exit(22) }
+    if oren_abi_offsetof("SockAddrIn6Linux", "sin6_flowinfo") != 4 { exit(23) }
+    if oren_abi_offsetof("SockAddrIn6Linux", "sin6_addr") != 8 { exit(24) }
+    if oren_abi_offsetof("SockAddrIn6Linux", "sin6_scope_id") != 24 { exit(25) }
+
+    // sockaddr_un (Linux)
+    if oren_abi_sizeof("SockAddrUnLinux") != 110 { exit(26) }
+    if oren_abi_offsetof("SockAddrUnLinux", "sun_family") != 0 { exit(27) }
+    if oren_abi_offsetof("SockAddrUnLinux", "sun_path") != 2 { exit(28) }
+}
+
+// pollfd (both)
+if oren_abi_sizeof("PollFd") != 8 { exit(40) }
+if oren_abi_offsetof("PollFd", "fd") != 0 { exit(41) }
+if oren_abi_offsetof("PollFd", "events") != 4 { exit(42) }
+if oren_abi_offsetof("PollFd", "revents") != 6 { exit(43) }
+
+// Minimal ptr round-trip for pollfd.
+var p = oren_ptr_alloc(oren_abi_sizeof("PollFd"))
+if p == nil { exit(50) }
+oren_ptr_set_i32_le(p + oren_abi_offsetof("PollFd", "fd"), 123)
+oren_ptr_set_i16_le(p + oren_abi_offsetof("PollFd", "events"), 1)
+oren_ptr_set_i16_le(p + oren_abi_offsetof("PollFd", "revents"), 2)
+if oren_ptr_get_i32_le(p + oren_abi_offsetof("PollFd", "fd")) != 123 { exit(51) }
+if oren_ptr_get_i16_le(p + oren_abi_offsetof("PollFd", "events")) != 1 { exit(52) }
+if oren_ptr_get_i16_le(p + oren_abi_offsetof("PollFd", "revents")) != 2 { exit(53) }
+oren_ptr_free(p)
+
+print("module abi_socket_structs_v5 OK")
+exit(0)
+
