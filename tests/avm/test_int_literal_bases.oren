@@ -1,0 +1,29 @@
+// Bytecode backend must match integer literal parsing semantics.
+// (This runs inside AVM.)
+
+fn fail(code) {
+    print("avm int_literal_bases FAIL " + oren_int_to_string(code))
+    oren_exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+assert_eq(0xff, 255, 10)
+assert_eq(0x10, 16, 11)
+assert_eq(0b1010, 10, 12)
+assert_eq(0o17, 15, 13)
+
+assert_eq(1_000_000, 1000000, 20)
+assert_eq(0xFF_FF, 65535, 21)
+assert_eq(0b1111_0000, 240, 22)
+assert_eq(0o12_34, 668, 23)
+
+// Float literals: `_` separators are allowed and ignored.
+assert_eq(1_000.0, 1000.0, 30)
+assert_eq(1.2_5, 1.25, 31)
+
+print("avm int_literal_bases OK")
+oren_exit(0)

@@ -101,6 +101,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Numeric literals: added `_` separators and `0x`/`0b`/`0o` base-prefixed int literals across lexer + optimizer + bytecode + native backend + C backend; added module + AVM coverage; verified on macOS + Linux docker.
 - AVM: added `test_map_iter_deterministic` to pin deterministic map key iteration under deny-by-default mode.
 - Casting overflow semantics: made `oren_trunc_int` deterministic clamp (`NaN→0`, `+inf/overflow→INT64_MAX`, `-inf/overflow→INT64_MIN`) across C runtime + AVM native intrinsics; updated docs and added module coverage.
 - Iteration: added `for x in <typed_buf>` support for `i32/i64/f32/f64` buffers in C runtime + native runtime; added module coverage and wired it into oretest curated lists.

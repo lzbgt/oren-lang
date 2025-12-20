@@ -140,13 +140,26 @@ call_suffix     = "(" [ expression { "," expression } ] ")" ;
 member_suffix   = "." ident ;
 index_suffix    = "[" expression "]" ;
 
-array_lit       = "[" [ expression { "," expression } ] "]" ;
-map_lit         = "{" [ expression ":" expression { "," expression ":" expression } ] "}" ;
+	array_lit       = "[" [ expression { "," expression } ] "]" ;
+	map_lit         = "{" [ expression ":" expression { "," expression ":" expression } ] "}" ;
 
-literal         = int_lit | float_lit | string_lit | "true" | "false" | "nil" ;
-ident           = /[A-Za-z_][A-Za-z0-9_]*/ ;
-dotted_name     = ident { "." ident } ;
-type_name       = [ "*" { "*" } ] dotted_name { "[" int_lit "]" } ;
+	// Numeric literals (rolling):
+	// - int literals may be decimal or prefixed base (0x/0b/0o)
+	// - `_` separators are allowed and ignored
+	//
+	// NOTE: negative numbers are represented as prefix expressions (`-` token + int literal),
+	// not as a signed literal token.
+	int_lit         = dec_int | hex_int | bin_int | oct_int ;
+	dec_int         = dec_digit (dec_digit | "_")* ;
+	hex_int         = "0x" hex_digit (hex_digit | "_")* ;
+	bin_int         = "0b" ("0" | "1") (("0" | "1") | "_")* ;
+	oct_int         = "0o" oct_digit (oct_digit | "_")* ;
+	float_lit       = dec_int "." dec_int ; // no exponent yet
+
+	literal         = int_lit | float_lit | string_lit | "true" | "false" | "nil" ;
+	ident           = /[A-Za-z_][A-Za-z0-9_]*/ ;
+	dotted_name     = ident { "." ident } ;
+	type_name       = [ "*" { "*" } ] dotted_name { "[" int_lit "]" } ;
 attr            = "@" dotted_name [ "(" { /* literal args only (v0) */ } ")" ] ;
 param           = { attr } [ "..." ] ident [ ":" type_name ] ;
 param_list      = param { "," param } ;

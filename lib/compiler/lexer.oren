@@ -120,8 +120,42 @@ fn read_identifier(l) {
 
 fn read_number(l) {
     var out = ""
-    while token.is_digit(l["ch"]) {
-        out = out + l["ch"]
+    while token.is_digit(l["ch"]) || l["ch"] == "_" {
+        if l["ch"] != "_" { out = out + l["ch"] }
+        read_char(l)
+    }
+    return out
+}
+
+fn is_hex_digit(ch) {
+    if token.is_digit(ch) { return true }
+    if ch >= "a" && ch <= "f" { return true }
+    if ch >= "A" && ch <= "F" { return true }
+    return false
+}
+
+fn read_hex_number(l) {
+    var out = ""
+    while is_hex_digit(l["ch"]) || l["ch"] == "_" {
+        if l["ch"] != "_" { out = out + l["ch"] }
+        read_char(l)
+    }
+    return out
+}
+
+fn read_bin_number(l) {
+    var out = ""
+    while l["ch"] == "0" || l["ch"] == "1" || l["ch"] == "_" {
+        if l["ch"] != "_" { out = out + l["ch"] }
+        read_char(l)
+    }
+    return out
+}
+
+fn read_oct_number(l) {
+    var out = ""
+    while (l["ch"] >= "0" && l["ch"] <= "7") || l["ch"] == "_" {
+        if l["ch"] != "_" { out = out + l["ch"] }
         read_char(l)
     }
     return out
@@ -315,8 +349,38 @@ fn next_token(l) {
         return tok_lc(l, token.lookup_ident(ident), ident, start, l["position"], start_line, start_col)
     }
     if token.is_digit(ch) {
+        // Numeric literals (rolling):
+        // - decimal int/float: allow `_` separators (ignored)
+        // - ints: allow base prefixes 0x, 0b, 0o (also allow `_` separators)
+        //
+        // NOTE: negative numbers remain a prefix expression (`-` token + INT).
+        if ch == "0" {
+            var p = peek_char(l)
+            if p == "x" || p == "X" {
+                read_char(l) // consume '0'
+                read_char(l) // consume 'x'
+                var hex = read_hex_number(l)
+                if hex == "" { return tok_lc(l, token.TOK_ILLEGAL, "0x", start, l["position"], start_line, start_col) }
+                return tok_lc(l, token.TOK_INT, "0x" + hex, start, l["position"], start_line, start_col)
+            }
+            if p == "b" || p == "B" {
+                read_char(l) // consume '0'
+                read_char(l) // consume 'b'
+                var bin = read_bin_number(l)
+                if bin == "" { return tok_lc(l, token.TOK_ILLEGAL, "0b", start, l["position"], start_line, start_col) }
+                return tok_lc(l, token.TOK_INT, "0b" + bin, start, l["position"], start_line, start_col)
+            }
+            if p == "o" || p == "O" {
+                read_char(l) // consume '0'
+                read_char(l) // consume 'o'
+                var oct = read_oct_number(l)
+                if oct == "" { return tok_lc(l, token.TOK_ILLEGAL, "0o", start, l["position"], start_line, start_col) }
+                return tok_lc(l, token.TOK_INT, "0o" + oct, start, l["position"], start_line, start_col)
+            }
+        }
+
         var num = read_number(l)
-        if l["ch"] == "." {
+        if l["ch"] == "." && token.is_digit(peek_char(l)) {
             read_char(l)
             var frac = read_number(l)
             return tok_lc(l, token.TOK_FLOAT, num + "." + frac, start, l["position"], start_line, start_col)

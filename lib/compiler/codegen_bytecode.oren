@@ -677,9 +677,21 @@ fn bytecode_compile_expr(ctx, expr) {
                 }
             }
         }
+        var base = 10
+        if i + 1 < oren_string_len(s) && oren_string_char_at(s, i) == "0" {
+            var c1 = oren_string_char_at(s, i + 1)
+            if c1 == "x" || c1 == "X" { base = 16; i = i + 2 }
+            else {
+                if c1 == "b" || c1 == "B" { base = 2; i = i + 2 }
+                else {
+                    if c1 == "o" || c1 == "O" { base = 8; i = i + 2 }
+                }
+            }
+        }
         while i < oren_string_len(s) {
             var digit = 0
             var c = oren_string_char_at(s, i)
+            if c == "_" { i = i + 1; continue }
             if c == "0" { digit = 0 }
             if c == "1" { digit = 1 }
             if c == "2" { digit = 2 }
@@ -690,7 +702,15 @@ fn bytecode_compile_expr(ctx, expr) {
             if c == "7" { digit = 7 }
             if c == "8" { digit = 8 }
             if c == "9" { digit = 9 }
-            val = val * 10 + digit
+            if base == 16 {
+                if c == "a" || c == "A" { digit = 10 }
+                if c == "b" || c == "B" { digit = 11 }
+                if c == "c" || c == "C" { digit = 12 }
+                if c == "d" || c == "D" { digit = 13 }
+                if c == "e" || c == "E" { digit = 14 }
+                if c == "f" || c == "F" { digit = 15 }
+            }
+            val = val * base + digit
             i = i + 1
         }
         if neg { val = 0 - val }
