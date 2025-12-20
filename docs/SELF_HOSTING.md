@@ -1,10 +1,31 @@
-# C Transpilation and Self-Hosting
+# Self-Hosting (Stage0 → Stage1 → Stage2)
 
-This project emits C as an intermediate and links a small runtime (`lib/runtime.[ch]`). `oren.oren` is a compiler written in Oren, so once you have a stage0 bootstrap binary you can rebuild the compiler (and compile Oren programs) without Go.
+Oren is a self-hosted language:
 
-For a focused explanation of the C backend and how it interacts with C source files, see `docs/C_BACKEND.md`.
+- **Stage0**: a small compiler written in Go (`./cmd/oren`) used only for bootstrapping.
+- **Stage1**: the compiler written in Oren (`oren.oren`), built by Stage0.
+- **Stage2+**: Stage1 rebuilds itself, proving self-hosting.
 
-## How Oren Targets C
+This repo intentionally supports multiple backends (C / native / bytecode). Self-hosting uses whichever backend is practical for the platform and phase.
+
+Authoritative end-to-end instructions live in `docs/BUILD_AND_VERIFY.md` (this file is a conceptual overview).
+
+## Backends (context)
+
+### C backend (portable bootstrapping path)
+The C backend transpiles Oren to C, then relies on the host C toolchain to compile/link. This is still the “most portable” path and remains useful as a fallback.
+
+For details, see `docs/C_BACKEND.md`.
+
+### Native backend (syscall-first, no host SDK headers)
+The native backend emits Mach-O (macOS arm64) or ELF (Linux arm64) directly.
+
+Design constraints and ABI tables are documented in `docs/NATIVE_BACKEND.md`.
+
+### Bytecode backend (AVM)
+The bytecode backend emits `.obc` for the AVM prototype.
+
+## How the C backend targets C (historical + still relevant)
 - **Boxed values**: every Oren value is an `OrenValue` (ints/floats/bools/strings, lists, maps, and optionally wrapped Python objects).
 - **Generated C shape**:
   - `#include "runtime.h"`
@@ -76,22 +97,32 @@ go build -o oren_bootstrap ./cmd/oren
 ```
 
 ## Using the Self-Hosted Compiler
-By default, `./oren <file.oren>` builds a native executable next to the source (and also writes a `<file.oren>.c` intermediate).
+Use `./oren build ...` explicitly. The default backend is intentionally configurable and may change during rolling development.
 
-To emit C only:
+Recommended:
+
+- C backend: `./oren build hello.oren --backend c -o hello`
+- native backend: `./oren build hello.oren --backend native -o hello`
+- bytecode backend: `./oren build hello.oren --backend bytecode -o hello.obc`
+
+To emit C only (C backend):
 ```sh
-./oren --emit-c hello.oren
+./oren build hello.oren --backend c --emit-c
 ```
 
 ## How `oren` Builds a Binary
-The self-hosted compiler (`oren.oren`) follows this workflow:
-1) Read `.oren` source (`oren_read_file`)
-2) Lex/parse into an AST
-3) Resolve imports (if any), then transpile to a single C translation unit that includes `lib/runtime.[ch]`
-4) Write `<file>.oren.c` (`oren_write_file`)
-5) Invoke the platform C toolchain via `oren_system("cc ... lib/runtime.c -Ilib")`
+The high-level pipeline is:
 
-You can override the C compiler with `--cc clang` (or any other `cc`-compatible driver). If you enable Python FFI (`--python`), the compiler also adds `-DOREN_ENABLE_PYTHON` and the `python3-config` flags.
+1) Read `.oren` sources
+2) Lex/parse into an AST
+3) Resolve imports and link into a program model
+4) Run lowering passes (attributes, ABI layout, packed-byte views, etc.)
+5) Emit:
+   - C (`--backend c`)
+   - native Mach-O/ELF (`--backend native`)
+   - AVM bytecode (`--backend bytecode`)
+
+For the C backend, the toolchain invocation is explicit and overrideable (see `docs/C_BACKEND.md`).
 
 If you prefer to compile the generated C yourself, use `--emit-c` and then run the compile/link step manually.
 
@@ -101,7 +132,8 @@ If you prefer to compile the generated C yourself, use `--emit-c` and then run t
 - `oren_system(cmd)` is used to invoke the C compiler.
 - `oren_exit(code)` is used to exit with a non-zero status on build failure.
 
-## Native Backend (Option B)
-The long-term goal is to have `oren` produce host executables directly (Mach-O on macOS, ELF on Linux) without emitting C or invoking `cc/ld/codesign`.
+## Notes on build artifacts (`*.oren.c`)
+The C backend can write `*.oren.c` files (when `--emit-c` is used).
 
-Progress notes and design constraints are tracked in `docs/NATIVE_BACKEND.md`.
+This repo’s canonical test runners avoid generating `*.oren.c` in-tree by default to prevent accidental Makefile implicit-rule coupling.
+See `docs/TODOS.md` rule “Never generate `*.oren.c` next to sources” and `docs/TEST_SYSTEM.md` for the migration plan.

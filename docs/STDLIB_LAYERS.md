@@ -98,8 +98,17 @@ Attributes are compile-time metadata (not runtime decorators). They matter for s
 
 Current implementation locations:
 
-- parser parses `@attr(...)` into `Attr` nodes with literal args (`lib/compiler/parser.oren`)
+- parser parses `@attr(...)` into `Attr` nodes with literal args (`lib/compiler/parser_core.oren` + `lib/compiler/parser_parse.oren`)
 - native backend supports `--metadata` output (`<out>.meta.json`) for tooling
+- strict attribute mode is implemented and enforced at parse-time (`--strict-attrs` + `--attr-allow-prefixes`, see `./oren build --help`)
+
+Ergonomics (rolling):
+
+- reserved compiler directives:
+  - `@pack` (canonical in metadata: `oren.packed`)
+  - `@abi` (canonical in metadata: `oren.abi`)
+- serde namespace (canonical for tooling/codegen):
+  - accept `@json.*` as a frontend alias, canonicalize to `@serde.*`
 
 ## 6) Recommended placement guide (quick reference)
 
@@ -115,4 +124,3 @@ Example calls:
 - `print`: syslib (tooling depends on it)
 - JSON: syslib or stdlib (depends on whether the compiler/AVM need it)
 - HTTP/WebSocket: stdlib (built atop NET)
-

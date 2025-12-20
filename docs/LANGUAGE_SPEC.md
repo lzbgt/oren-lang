@@ -433,7 +433,7 @@ Design note:
   - function scope
   - block scope (`{ ... }`) where variables may shadow outer names
 
-#### Type-annotation syntax (rolling, metadata-only in v0)
+#### Type-annotation syntax (rolling, hybrid semantics in v0)
 
 Oren supports a universal type-annotation sugar:
 
@@ -443,13 +443,26 @@ Oren supports a universal type-annotation sugar:
 - `fn f(x: T, y: U) { ... }`
 - `fn f(x: T): U { ... }`
 
-In **v0**, these annotations are treated as **metadata**:
+In **v0**, annotations are a **rolling hybrid**:
 
-- they do not change the runtime value model (still dynamically typed)
-- they may be consumed by compiler lowering passes (e.g. packed struct views, explicit casts, typed buffers)
-- they must not introduce nondeterminism (annotations are inert unless a lowering pass uses them in a deterministic way)
+- Oren remains dynamically typed at runtime, but the compiler already consumes some annotations in deterministic lowering passes.
+- Annotations are **inert by default** unless a specific lowering pass defines deterministic semantics.
+
+Current semantics (implementation reality):
+
+- `bool`: deterministic normalization via `oren_bool_norm(x)` (avoids backend-specific “truthiness” mismatches)
+- small integers (`u8/i8/u16/i16/u32/i32`): deterministic wrap/truncate casts at field init, local init, and function boundaries
+- `f32`: deterministic rounding boundary (via `oren_f32_round(x)`); `f64` remains the default float precision
+- endian-tagged integer kinds (`u16be`, `u32le`, etc.) are treated as the same width for value casts, but matter for packed-byte views and ABI layouts
+
+Other annotations are currently metadata-only and exist primarily for tooling and future stabilization (v1).
 
 Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved type tokens** intended to become true explicit types as the v1 type system is stabilized.
+
+Important rolling note on `i128/u128`:
+
+- The syntax tokens exist and are usable in ABI/layout contexts (`@abi` structs, `sizeof`/`offsetof`).
+- Full runtime-semantic `i128/u128` arithmetic is **not** stabilized yet; until it is, treat `i128/u128` as **ABI/layout-only** rather than as a general numeric type in expressions.
 
 Implementation note (current compiler):
 

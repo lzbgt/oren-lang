@@ -24,6 +24,14 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Refs: refreshed vendored Linux/Darwin syscall references under `docs/refs/` and recorded pinned upstream commits in `docs/refs/SOURCES.md` (audit-only).
 - Native backend docs: corrected `+` string concatenation note to match native lowering (`oren_add`) and current test coverage.
 
+## Archived (2025-12-20) — Doc alignment + tracker cleanup
+
+- Tracker: clarified docs-only verification scope to include `README.md` + `LICENSE`; reweighted TODO list to focus on attribute-driven serde as the next major language ergonomics step.
+- Docs: added `docs/ATTRIBUTES.md` as the attribute cookbook and documented the emitted metadata shape.
+- Docs: updated `docs/LANGUAGE_SPEC.md` to reflect current type-annotation semantics (value-level casts + `bool` normalization + `f32` rounding) and to mark `i128/u128` as ABI/layout-only until runtime semantics stabilize.
+- Docs: updated `docs/SELF_HOSTING.md` to match the current multi-backend reality and to defer to `docs/BUILD_AND_VERIFY.md` for the authoritative bootstrap steps.
+- Docs: updated `docs/STDLIB_LAYERS.md` to point at the refactored parser modules and to document strict attribute mode flags.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.

@@ -35,7 +35,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 5) **Verify before declaring done** `[quality]`
    - If code changes: run the canonical suite (preferred) `./oretest --target macos` (or `make test`).
-   - If **docs-only** changes (only `docs/*` modified): tests are not required.
+   - If **docs-only** changes (only documentation files modified): tests are not required.
+     - Allowed docs-only set: `docs/*`, `README.md`, `LICENSE`.
 
 6) **Keep this file actionable** `[maint]`
    - Each item must have a concrete “Definition of Done” (DoD) and be finishable.
@@ -67,28 +68,20 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][safety] Troubleshooting & diagnostics (compiler + native runtime)**
+1) **[lang][ux] Attribute-driven serde (JSON v1)**
+   - Why now:
+     - Attributes exist and are preserved in metadata; `std/json` is currently explicit `JsonValue`.
+     - The next “modern language” step is to make `@json.*` actually useful for library authors without runtime reflection.
    - DoD:
-     - parse/compile errors include `file:line:col` when source spans are available
-     - native backend must never “print and continue” on codegen errors; it must fail compilation with actionable messages
-     - runtime panics/fails include function names and keep the stable `OREN_DIAG ...` one-liner (AI-friendly)
-     - provide stable *tool surfaces* for debugging (no ad-hoc debug prints):
-       - `oren dump tokens <file.oren> [-o out.json]` (token stream with spans)
-       - `oren dump linked <file.oren> [-o out.json]` (linked/program summary)
-       - `OREN_TRACE_PASSES=1` traces major compiler passes (for AI-friendly “what phase broke”)
-
-   - Status:
-     - compiler emits `OREN_DIAG kind=parse code=1 ...` on parse failures (oretest enforced)
-     - compiler emits `OREN_DIAG kind=compile code=2 ...` on CLI/config/I/O errors like missing inputs / unknown backend (oretest enforced)
-     - native backend emits `OREN_DIAG kind=codegen code=1 ...` on codegen failures (oretest enforced)
-     - compiler emits `OREN_DIAG kind=compile code=1 ...` for impl-lowering compile errors (oretest enforced)
-     - linker emits `OREN_DIAG kind=compile code=1 ...` for deterministic field offset conflicts
-     - packview lowering no longer hard-exits; it reports `linked["packview_errors"]` and the compiler emits `OREN_DIAG kind=compile code=1 ...` (oretest enforced)
-     - abi_layout lowering no longer hard-exits; it reports `linked["abi_layout_errors"]` and the compiler emits `OREN_DIAG kind=compile code=1 ...` (oretest enforced)
-     - bytecode backend codegen no longer hard-exits; it reports `ctx["errors"]` and the compiler emits `OREN_DIAG kind=codegen code=1 ...` (oretest enforced)
-     - `oren dump ...` and `oren meta ...` CLI argument/I/O errors emit `OREN_DIAG kind=compile code=2 ...` (oretest enforced via CLI suite)
-     - `oren build ...` CLI argument validation errors emit `OREN_DIAG kind=compile code=2 ...` (oretest enforced via CLI suite)
-     - parser refactor: `lib/compiler/parser.oren` is now a small public facade over `parser_core.oren` + `parser_parse.oren` (keeps files <2000 lines)
+     - define the stable v0 surface for struct serde annotations:
+       - `@json.rename("wire")`, `@json.skip()`, `@json.default(<lit>)`, optional `@json.tag("...")`
+     - implement a deterministic, portable codegen path:
+       - either a compiler “derive” phase that emits helper fns per struct, or
+       - an AVM/native metadata query primitive usable by stdlib (no host effects)
+     - add a single integration test that:
+       - defines a struct with `@json.*`
+       - encodes + decodes it
+       - verifies deterministic object key ordering and stable results
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:

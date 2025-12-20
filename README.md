@@ -63,7 +63,7 @@ Authoritative specs/strategy docs:
 ```bash
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler (default target)
-make test       # curated native + module + AVM bytecode tests (wrapper over `./oren test`)
+make test       # curated native + module + AVM bytecode tests (wrapper over `./oretest`)
 make test-legacy # broader Makefile-driven suite (slower)
 make verify     # clean + stage2 self-hosting verification
 ```
@@ -90,6 +90,11 @@ make verify     # clean + stage2 self-hosting verification
 ### Run native tests (single file)
 ```bash
 ./oren test tests/native/test_gc.oren --target macos
+```
+
+### Run the curated suite (recommended)
+```bash
+./oretest --target macos
 ```
 
 ### Build bytecode + run on AVM (experimental)
