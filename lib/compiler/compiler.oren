@@ -100,6 +100,29 @@ fn normalize_rc(rc) {
     return rc
 }
 
+fn diag_escape(msg) {
+    // Escape newlines/tabs so one-line OREN_DIAG is machine-friendly.
+    if msg == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(msg) {
+        var c = oren_string_char_at(msg, i)
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
+fn emit_diag(kind, code, msg) {
+    // Compiler/toolchain diagnostic one-liner (AI-friendly).
+    // Format matches runtime OREN_DIAG.
+    print("OREN_DIAG kind=" + kind + " code=" + oren_int_to_string(code) + " msg=" + diag_escape(msg))
+    return nil
+}
+
 fn _imod(a, b) {
     // Integer modulo without relying on a runtime helper.
     // Assumes b>0.
@@ -1031,6 +1054,9 @@ fn compiler_main() {
             p["attr_allow_prefixes"] = allow
             var prog = parser.parse_program(p)
             if oren_list_len(p["errors"]) > 0 {
+                var first_err = nil
+                if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+                emit_diag("parse", 1, first_err)
                 print("Parse errors:")
                 var ei = 0
                 while ei < oren_list_len(p["errors"]) {
@@ -1060,6 +1086,9 @@ fn compiler_main() {
             pg["attr_allow_prefixes"] = allow
             var progg = parser.parse_program(pg)
             if oren_list_len(pg["errors"]) > 0 {
+                var first_err = nil
+                if oren_list_len(pg["errors"]) > 0 { first_err = pg["errors"][0] }
+                emit_diag("parse", 1, first_err)
                 print("Parse errors:")
                 var eig = 0
                 while eig < oren_list_len(pg["errors"]) {
@@ -1151,6 +1180,9 @@ fn compiler_main() {
         p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
         var prog = parser.parse_program(p)
         if oren_list_len(p["errors"]) > 0 {
+            var first_err = nil
+            if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+            emit_diag("parse", 1, first_err)
             print("Parse errors:")
             var ei = 0
             while ei < oren_list_len(p["errors"]) {
@@ -1384,6 +1416,9 @@ fn compiler_main() {
     p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
     var prog = parser.parse_program(p)
     if oren_list_len(p["errors"]) > 0 {
+        var first_err = nil
+        if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+        emit_diag("parse", 1, first_err)
         print("Parse errors:")
         var i = 0
         while i < oren_list_len(p["errors"]) {

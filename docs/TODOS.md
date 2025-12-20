@@ -77,6 +77,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - `oren dump linked <file.oren> [-o out.json]` (linked/program summary)
        - `OREN_TRACE_PASSES=1` traces major compiler passes (for AI-friendly “what phase broke”)
 
+   - Status:
+     - compiler emits `OREN_DIAG kind=parse code=1 ...` on parse failures (oretest enforced)
+
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:
      - define a minimal IR boundary (or reuse current representation) that enables at least:
