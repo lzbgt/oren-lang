@@ -53,31 +53,37 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [vm] AVM determinism + governance invariants** `[safety]`
-   - DoD: AVM outputs are deterministic under the same inputs, and governance scanning is safe.
-   - Concrete deliverables (keep high-signal + testable):
-     - `RESULT_HASH` / `TRACE_HASH` stable across repeated runs on the same host (enforced by `oretest` rerun guard) ✅
-     - deterministic TIME/RNG semantics stay documented and enforced (`docs/AVM_SPEC_V1.md`)
-     - capability domains (FS/NET/PROC/ENV/TIME) remain explicit ops; policy/job scanning must not execute bytecode
+1) **P0 [vm] Record/Replay v1 for all effectful domains** `[safety]`
+   - DoD: deterministic mode supports full “agent loop” replay across machines:
+     - record/replay for FS + NET + PROC + ENV + TIME + RNG
+     - replay runs must not touch the host (even if the recorded run did)
+     - replay logs are budgeted and portable (in-memory and file-backed)
 
-2) **P1 [lang] Oren “modern core” spec ↔ compiler alignment** `[arch]`
-   - DoD: core language features are implemented consistently across backends, with deterministic semantics.
-   - Next deliverables (in order):
-     - finish/confirm the typed-annotation story in spec (u8/i32/f64 tokens are language-level; attributes are metadata only)
-     - keep function values / closures / varargs / spawn/join semantics locked down by the integration suites
-     - define the trait/protocol roadmap in one place (no runtime vtables in v0; compile-time meaning first)
+2) **P0 [vm] Deterministic concurrency substrate (AVM tasks)** `[safety]`
+   - DoD: a program can run concurrent workflows deterministically:
+     - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
+     - define scheduling determinism (either deterministic policy or record/replay scheduling)
+     - budgets (gas/deadline/mem/io) propagate through task trees (structured concurrency)
 
-3) **P1 [boot] AVM staged evolution: C → Oren-native → stdlib → compiles Oren** `[arch]`
-   - DoD: the repo has a clear staged path (documented + reflected in code layout):
-     - Stage A: AVM in C (portable, can use libc; like the C backend)
-     - Stage B: Oren-native AVM (built as syslib/stdlib component)
-     - Stage C: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe
-   - Next deliverable: document the minimal surface between stages (what “host services” AVM needs vs what becomes `.oren` stdlib).
+3) **P1 [vm] Snapshot/restore format hardening + stability knobs** `[safety]`
+   - DoD: snapshots are reliable for long-lived agent execution:
+     - snapshot includes full VM state (frames/stack/globals/heap/env) and validates on load
+     - hash-friendly, chunkable layout (for swarm consensus + dedupe)
+     - clear “rolling vs stable” compatibility policy for snapshots (separate from `.obc`)
 
-4) **P2 [maint] Capsule safety hardening (keep, but don’t derail roadmap)** `[safety]`
-   - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
+4) **P1 [lang] Traits/protocols: coherence + generic impl templates** `[arch]`
+   - DoD: traits move from “syntax + metadata” to compile-time meaning without runtime vtables:
+     - define coherence/overlap rules (deterministic selection; no spooky action at distance)
+     - design + implement “blanket impls” / generic impl templates (no overlap)
+     - optional explicit disambiguation syntax (when multiple impls are in scope)
 
-5) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
+5) **P1 [boot] Compiler-in-AVM (close the loop)** `[arch]`
+   - DoD: AVM can ingest `.oren` (as BYTES/VirtualFS), compile to `.obc`, and execute in a child universe:
+     - in-memory compilation pipeline (no host toolchain)
+     - sandboxed module loader rules + governance hooks
+     - produced `.obc` is hash-addressable for swarm validation
+
+6) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
    - Goal: enable ergonomic HTTP libs (FastAPI-like) that can auto-export a modern API contract.
    - Direction:
      - use attributes as the source of truth (already in metadata JSON)
