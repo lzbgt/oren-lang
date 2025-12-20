@@ -40,6 +40,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Prefer reusing `OREN_DOCKER_NAME=oren-linux-dev` and restarting it when needed to refresh bind mounts.
    - Do not wipe the container workspace by default; incremental builds must be possible (use an explicit clean flag when required).
    - Prefer syncing **tracked sources only** (git index) into `/work/repo` so host-built binaries never pollute the container workspace.
+   - Forward feature flags via env (e.g. `OREN_TEST_FULL=1`) so Linux matches macOS runner behavior.
+   - Remove stale build outputs (`oren`, `oretest`, `avm`) before running `make` to avoid timestamp skew from tar sync.
 
 ## Tasks (Next, Highest Priority First)
 
@@ -49,6 +51,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - `make test` prints a compact summary by default (only failed test details).
      - A single integration “smoke suite” exercises the core feature set (lang + native + avm) so we can delete/merge redundant micro-tests.
      - Keep `--full`/`--verbose` modes for deep debugging (but not the default).
+   - Current state:
+     - `oretest` defaults to a “fast curated suite”; enable full suite via `OREN_TEST_FULL=1`.
+     - Per-test progress is available via `OREN_TEST_VERBOSE=1`.
+     - Linux docker runner supports the same flags and avoids stale build artifacts.
 
 2) **P0 [lang] Exact-size layouts for fixed-width types (beyond packed views)** `[perf]`
    - Context: type tokens + annotation syntax already exist; now they must meaningfully affect layout/FFI.

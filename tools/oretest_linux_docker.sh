@@ -95,7 +95,7 @@ echo "[linux-oretest-docker] running make test (OREN_TEST_JOBS=$JOBS)"
 # - Use tracked files as the source of truth (git index), not `tar .`.
 echo "[linux-oretest-docker] syncing tracked sources into /work/repo"
 git ls-files -z \
-  | xargs -0 tar -czf - \
+  | tar -czf - --null -T - \
   | docker exec -i "$NAME" bash -lc '
 set -euo pipefail
 mkdir -p /work/repo
@@ -112,7 +112,17 @@ docker exec "$NAME" tini -s -- bash -lc "
 set -euo pipefail
 mkdir -p /work/repo
 cd /work/repo
+# IMPORTANT:
+# The repo sync does not include a .git directory, and file mtimes come from tar.
+# If previous build artifacts exist, `make` can incorrectly treat them as up-to-date.
+# Remove well-known build outputs each run to force correct rebuilds without wiping
+# the whole workspace (keeps incremental apt-installed toolchain, etc.).
+rm -f ./oren ./oren_bootstrap ./oretest ./avm || true
+rm -rf ./build/logs || true
 export OREN_TEST_JOBS='$JOBS'
+export OREN_TEST_FULL='${OREN_TEST_FULL:-0}'
+export OREN_TEST_VERBOSE='${OREN_TEST_VERBOSE:-0}'
+export OREN_NO_GC='${OREN_NO_GC:-}'
 export GOPROXY='$GOPROXY'
 export GOSUMDB='$GOSUMDB'
 make bootstrap

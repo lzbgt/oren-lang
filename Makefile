@@ -98,12 +98,12 @@ OREN_OREN_SRC := $(shell find lib -name "*.oren")
 # Stage 0: Bootstrap Compiler (Go)
 oren_bootstrap: $(GO_SRC)
 	@echo "Building Stage 0 (Bootstrap)..."
-	go build -o oren_bootstrap ./cmd/oren
+	@go build -o oren_bootstrap ./cmd/oren
 
 # Go-based repo test runner (keeps test orchestration out of self-hosted compiler sources)
 oretest: $(GO_SRC)
 	@echo "Building oretest..."
-	go build -o oretest ./cmd/oretest
+	@go build -o oretest ./cmd/oretest
 
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
 oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC)
@@ -140,7 +140,10 @@ test-inner: oren avm oretest
 	@# - failure-only output
 	@# - curated lists are in sync with repo evolution
 	@# IMPORTANT: `./oretest` runs the full suite; it must not be constrained by BUILD_TIMEOUT_SECS.
-	@$(RUN_SUITE_WITH_TIMEOUT) ./oretest --target $(OREN_TEST_TARGET) $(GC_ARG)
+	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG)"; \
+		if [ "$$OREN_TEST_FULL" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --full"; fi; \
+		if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
+		$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS
 
 # Legacy suite: historical Makefile-driven runner.
 # Keep it for “extra coverage” during rolling refactors, but do not make it the default.
@@ -670,7 +673,7 @@ avm: lib/avm/main.c lib/avm/avm.h lib/avm/avm_internal.h lib/avm/sha256.c lib/av
      lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c lib/avm/avm_native.c \
      lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c
 	@echo "Building AVM..."
-	$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -o avm lib/avm/main.c lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c \
+	@$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -o avm lib/avm/main.c lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c \
 		lib/avm/avm_containers.c lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c \
 		lib/avm/avm_native.c lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c lib/avm/sha256.c
 

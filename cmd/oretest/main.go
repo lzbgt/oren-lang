@@ -44,9 +44,11 @@ type syscallBlock struct {
 
 func main() {
 	var (
-		target = flag.String("target", "macos", "native backend target: macos|linux")
-		noGC   = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
-		jobs   = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
+		target  = flag.String("target", "macos", "native backend target: macos|linux")
+		noGC    = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
+		jobs    = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
+		full    = flag.Bool("full", envBool("OREN_TEST_FULL", false), "run the full curated suite (env OREN_TEST_FULL=1)")
+		verbose = flag.Bool("verbose", envBool("OREN_TEST_VERBOSE", false), "print per-test progress (env OREN_TEST_VERBOSE=1)")
 	)
 	flag.Parse()
 
@@ -92,6 +94,16 @@ func main() {
 		gcArg = " --no-gc"
 	}
 
+	var printMu sync.Mutex
+	vprintln := func(msg string) {
+		if !*verbose {
+			return
+		}
+		printMu.Lock()
+		defer printMu.Unlock()
+		fmt.Println(msg)
+	}
+
 	if err := auditNativeCapsuleSyscallPrehooks(); err != nil {
 		fmt.Fprintln(os.Stderr, "capsule audit failed:", err)
 		os.Exit(1)
@@ -106,7 +118,26 @@ func main() {
 		"tests/native/test_integration_suite.oren",
 		"tests/native/test_debug_panic.oren",
 	}
-		moduleTests := []string{
+	moduleTestsFast := []string{
+		// Core language / execution sanity (C backend).
+		"tests/modules/test_spawn_join_timeout.oren",
+		"tests/modules/test_lambda_multiline.oren",
+		"tests/modules/test_trait_impl.oren",
+		"tests/modules/test_match_enum.oren",
+		// Typed annotations and packed views (critical for syscall-first parsing).
+		"tests/modules/test_type_ann_fn_boundaries.oren",
+		"tests/modules/test_typed_struct_fields.oren",
+		"tests/modules/test_pack_view.oren",
+		// ABI layouts (curated, no host headers).
+		"tests/modules/test_abi_layout.oren",
+		"tests/modules/test_abi_ptr_access.oren",
+		"tests/modules/test_abi_socket_structs_v5.oren",
+		// Stdlib building blocks.
+		"tests/modules/test_result.oren",
+		"tests/modules/test_argparse.oren",
+		"tests/modules/test_json.oren",
+	}
+	moduleTestsFull := []string{
 		"tests/modules/test_shapes.oren",
 		"tests/modules/test_spawn.oren",
 		"tests/modules/test_spawn_join_timeout.oren",
@@ -119,14 +150,14 @@ func main() {
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
-			"tests/modules/test_abi_nested_arrays.oren",
-			"tests/modules/test_abi_u128_layout.oren",
-			"tests/modules/test_abi_sockaddr_in.oren",
-			"tests/modules/test_abi_kevent.oren",
-			"tests/modules/test_abi_stat.oren",
-			"tests/modules/test_abi_epoll_event.oren",
-			"tests/modules/test_abi_socket_structs_v5.oren",
-			"tests/modules/test_function_values.oren",
+		"tests/modules/test_abi_nested_arrays.oren",
+		"tests/modules/test_abi_u128_layout.oren",
+		"tests/modules/test_abi_sockaddr_in.oren",
+		"tests/modules/test_abi_kevent.oren",
+		"tests/modules/test_abi_stat.oren",
+		"tests/modules/test_abi_epoll_event.oren",
+		"tests/modules/test_abi_socket_structs_v5.oren",
+		"tests/modules/test_function_values.oren",
 		"tests/modules/test_lambda_closure.oren",
 		"tests/modules/test_lambda_multiline.oren",
 		"tests/modules/test_trait_impl.oren",
@@ -136,16 +167,27 @@ func main() {
 		"tests/modules/test_pack_view.oren",
 		"tests/modules/test_gc_threads.oren",
 		"tests/modules/test_gc_stack_roots.oren",
-			"tests/modules/test_result.oren",
-			"tests/modules/test_argparse.oren",
-			"tests/modules/test_build_target_arch.oren",
-			"tests/modules/test_metadata_attrs.oren",
+		"tests/modules/test_result.oren",
+		"tests/modules/test_argparse.oren",
+		"tests/modules/test_build_target_arch.oren",
+		"tests/modules/test_metadata_attrs.oren",
 		"tests/modules/test_strings.oren",
 		"tests/modules/test_string_from_bytes.oren",
 		"tests/modules/test_json.oren",
 		"tests/modules/test_switch.oren",
 	}
-	avmTests := []string{
+	avmTestsFast := []string{
+		"tests/avm/test_smoke_suite.oren",
+		"tests/avm/test_snapshot_resume.oren",
+		"tests/avm/test_multiverse_invalid_obc.oren",
+		"tests/avm/test_time_rng_deterministic.oren",
+		"tests/avm/test_budget_timeout.oren",
+		"tests/avm/test_call_depth_limit.oren",
+		"tests/avm/test_vfs_no_host_fs.oren",
+		"tests/avm/test_vproc_no_host_proc.oren",
+		"tests/avm/test_vnet_no_host_net.oren",
+	}
+	avmTestsFull := []string{
 		"tests/avm/test_smoke_suite.oren",
 		"tests/avm/test_spawn_join_timeout.oren",
 		"tests/avm/test_policy_scan.oren",
@@ -164,6 +206,13 @@ func main() {
 		"tests/avm/test_vproc_no_host_proc.oren",
 		"tests/avm/test_vnet_no_host_net.oren",
 		"tests/avm/test_oren_env_bridge_capsule.oren",
+	}
+
+	moduleTests := moduleTestsFast
+	avmTests := avmTestsFast
+	if *full {
+		moduleTests = moduleTestsFull
+		avmTests = avmTestsFull
 	}
 
 	// Compile-fail fixtures (portable semantics guards).
@@ -241,6 +290,7 @@ func main() {
 
 	// Run fixtures sequentially (fast, high-signal).
 	for _, fx := range fixtures {
+		vprintln("fixture: " + fx.name)
 		rc := runWithTimeout(timeoutBin, buildTimeout, fx.cmd, fx.log)
 		for _, c := range fx.cleanup {
 			_ = os.Remove(c)
@@ -253,7 +303,7 @@ func main() {
 	}
 
 	// Native tests: compile+run sequentially (low count, avoids over-parallelizing codesign).
-	nativeRes := runNativeTests(timeoutBin, *target, gcArg, buildTimeout, runTimeout, nativeTests)
+	nativeRes := runNativeTests(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, nativeTests)
 	if !nativeRes.ok {
 		os.Exit(1)
 	}
@@ -280,11 +330,11 @@ func main() {
 	wgSuites.Add(2)
 	go func() {
 		defer wgSuites.Done()
-		moduleRes = runModuleTestsParallel(timeoutBin, *target, gcArg, buildTimeout, runTimeout, moduleJobs, moduleTests)
+		moduleRes = runModuleTestsParallel(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, moduleJobs, moduleTests)
 	}()
 	go func() {
 		defer wgSuites.Done()
-		avmRes = runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg, buildTimeout, runTimeout, avmJobs, avmTests)
+		avmRes = runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg, buildTimeout, runTimeout, *verbose, vprintln, avmJobs, avmTests)
 	}()
 	wgSuites.Wait()
 
@@ -325,10 +375,13 @@ type suiteResult struct {
 	failed []testResult
 }
 
-func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, tests []string) suiteResult {
+func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	for _, path := range tests {
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
+		if verbose {
+			vprintln("native: " + path)
+		}
 		out := filepath.Join("build", name)
 		log := filepath.Join("build", "logs", "native_"+name+".log")
 		buildCmd := fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", path, target, out, gcArg)
@@ -378,10 +431,13 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 	return res
 }
 
-func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, jobs int, tests []string) suiteResult {
+func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	results := runParallel(jobs, tests, func(path string) testResult {
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
+		if verbose {
+			vprintln("module: " + path)
+		}
 		workdir := filepath.Join("build", "tmp", "mod_"+name)
 		_ = os.RemoveAll(workdir)
 		_ = os.MkdirAll(filepath.Join(workdir, "build"), 0o755)
@@ -586,10 +642,13 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 	return res
 }
 
-func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeout, runTimeout time.Duration, jobs int, tests []string) suiteResult {
+func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	results := runParallel(jobs, tests, func(path string) testResult {
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
+		if verbose {
+			vprintln("avm: " + path)
+		}
 		workdir := filepath.Join("build", "tmp", "avm_"+name)
 		_ = os.RemoveAll(workdir)
 		_ = os.MkdirAll(filepath.Join(workdir, "build"), 0o755)
@@ -935,6 +994,21 @@ func envInt(key string, def int) int {
 		return def
 	}
 	return n
+}
+
+func envBool(key string, def bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return def
+	}
 }
 
 func catFile(w *os.File, path string) error {

@@ -383,6 +383,12 @@ var OREN_SOL_SOCKET = 1
 var OREN_SO_REUSEADDR = 2
 var OREN_SO_ERROR = 4
 
+// Typed buffer tags:
+// `ore_iter_next` needs BUF_TAG_U8 early to support `for x in u8_buf`.
+// Keep this as a top-level constant so the native backend doesn't depend on
+// global forward references (rolling parser/codegen constraint).
+var BUF_TAG_U8 = 5
+
 // Capsule per-fd kind tags (rolling; native backend only).
 // Stored in `net_fd_caps_ptr` (byte-per-fd).
 //
@@ -5339,7 +5345,7 @@ var BUF_TAG_I32 = 1
 var BUF_TAG_I64 = 2
 var BUF_TAG_F32 = 3
 var BUF_TAG_F64 = 4
-var BUF_TAG_U8 = 5
+// BUF_TAG_U8 is defined near global constants (used by iterator).
 
 fn native_buf_as_node(buf) {
     if buf == 0 { return 0 }
