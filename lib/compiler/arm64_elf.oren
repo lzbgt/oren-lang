@@ -228,8 +228,10 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
             var name2 = fix["name"]
             var target = functions[name2]
             if target == nil {
-                print("native backend: undefined function " + name2)
-                return nil
+                var e = "native backend: undefined function " + name2
+                print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e))
+                print(e)
+                oren_exit(1)
             }
             var offset = (target - pos) / 4
             set_u32_le(code, pos, insn_bl(offset))
@@ -247,8 +249,10 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
             var name3 = fix["name"]
             var target2 = functions[name3]
             if target2 == nil {
-                print("native backend: undefined function " + name3)
-                return nil
+                var e = "native backend: undefined function " + name3
+                print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e))
+                print(e)
+                oren_exit(1)
             }
             var reg = fix["reg"]
             if reg == nil { reg = 0 }
