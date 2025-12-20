@@ -4,7 +4,7 @@
 // This module asserts deterministic layouts and does a few ptr round-trips.
 
 // --- sockaddr_in6 ---
-@oren.abi
+@abi
 struct SockAddrIn6Darwin {
     sin6_len: u8,
     sin6_family: u8,
@@ -14,7 +14,7 @@ struct SockAddrIn6Darwin {
     sin6_scope_id: u32le
 }
 
-@oren.abi
+@abi
 struct SockAddrIn6Linux {
     sin6_family: u16le,
     sin6_port: u16be,
@@ -24,21 +24,21 @@ struct SockAddrIn6Linux {
 }
 
 // --- sockaddr_un ---
-@oren.abi
+@abi
 struct SockAddrUnDarwin {
     sun_len: u8,
     sun_family: u8,
     sun_path: u8[104]
 }
 
-@oren.abi
+@abi
 struct SockAddrUnLinux {
     sun_family: u16le,
     sun_path: u8[108]
 }
 
 // --- pollfd (same on macOS/Linux arm64) ---
-@oren.abi
+@abi
 struct PollFd {
     fd: i32le,
     events: i16le,
@@ -96,4 +96,3 @@ oren_ptr_free(p)
 
 print("module abi_socket_structs_v5 OK")
 exit(0)
-

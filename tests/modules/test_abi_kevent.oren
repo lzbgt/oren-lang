@@ -3,7 +3,7 @@
 // Goal: be able to define syscall structs in .oren without host headers.
 // This test only asserts the layout on macOS; on Linux it's a no-op.
 
-@oren.abi
+@abi
 struct KeventDarwin {
     ident: usize,
     filter: i16,
@@ -35,4 +35,3 @@ if t == "macos" {
 
 print("module abi_kevent OK")
 exit(0)
-

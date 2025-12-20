@@ -79,6 +79,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
    - Status:
      - compiler emits `OREN_DIAG kind=parse code=1 ...` on parse failures (oretest enforced)
+     - compiler emits `OREN_DIAG kind=compile code=2 ...` on CLI/config/I/O errors like missing inputs / unknown backend (oretest enforced)
      - native backend emits `OREN_DIAG kind=codegen code=1 ...` on codegen failures (oretest enforced)
      - compiler emits `OREN_DIAG kind=compile code=1 ...` for impl-lowering compile errors (oretest enforced)
      - linker emits `OREN_DIAG kind=compile code=1 ...` for deterministic field offset conflicts
@@ -166,4 +167,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Compiler diagnostics: lexer tokens now carry byte spans + file info; parse errors render `file:line:col`; native backend codegen errors fail the build with actionable locations.
 - Runtime diagnostics: panics/fails emit a stable one-line `OREN_DIAG kind=... code=... msg=...` (AI-friendly; no lldb/otool needed).
 - Attribute ergonomics: alias canonicalization (`@pack` → `@oren.packed`, `@abi` → `@oren.abi`, `@json.*` → `@serde.*`) keeps user code terse but metadata canonical.
+- Attribute ergonomics: repo tests now prefer the terse surface forms (`@pack`, `@abi`) while keeping canonical names in compiler metadata.
 - Verification loop: `oretest` is parallel + timeout-safe by default, and Linux/arm64 docker runner reuses a persistent container for fast smoke tests.

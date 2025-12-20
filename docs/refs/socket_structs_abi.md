@@ -2,7 +2,7 @@
 
 This file records **fact-based** layouts of common socket structs used by the
 syscall-first networking path. These layouts are used to define `.oren` ABI
-structs (`@oren.abi`) without depending on host headers at build time.
+structs (`@abi`, canonical: `@oren.abi`) without depending on host headers at build time.
 
 ## `struct sockaddr_in6` (macOS arm64 / Linux arm64)
 
@@ -57,4 +57,3 @@ Verified via tiny audit C programs:
     - `fd` == 0 (size 4)
     - `events` == 4 (size 2)
     - `revents` == 6 (size 2)
-

@@ -59,7 +59,7 @@ fn integration_alloc_garbage() {
     return 0
 }
 
-@oren.packed
+@pack
 struct PV_H {
     v: u8,
     t: u8,
@@ -68,7 +68,7 @@ struct PV_H {
     dst: u32be
 }
 
-@oren.packed
+@pack
 struct PV_S16 {
     x: i16be
 }

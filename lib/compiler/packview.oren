@@ -37,8 +37,8 @@ fn starts_with(s, prefix) {
 // - u32be, u32le, i32be, i32le
 // - u64be, u64le, i64be, i64le
 //
-// Reserved type attr:
-// - @oren.packed
+// Reserved type attr (canonical): `@oren.packed`
+// Ergonomic alias (recommended): `@pack`
 
 fn has_attr(node, name) {
     if node == nil { return false }

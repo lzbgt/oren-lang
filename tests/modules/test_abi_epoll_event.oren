@@ -3,7 +3,7 @@
 // We keep this layout repo-owned (no host headers at build time).
 // On macOS this module is a no-op.
 
-@oren.abi
+@abi
 struct EpollEventLinux {
     events: u32le,
     __pad0: u8[4],

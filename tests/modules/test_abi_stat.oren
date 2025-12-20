@@ -9,7 +9,7 @@
 // - sizeof(struct stat) == 144
 // - offsetof(st_mode) == 4, sizeof(st_mode) == 2 (expected; audit in docs/refs)
 // - offsetof(st_size) == 96, sizeof(st_size) == 8
-@oren.abi
+@abi
 struct StatDarwin {
     __pad0: u8[4],
     st_mode: u16le,
@@ -22,7 +22,7 @@ struct StatDarwin {
 // - sizeof(struct stat) == 128
 // - offsetof(st_mode) == 16, sizeof(st_mode) == 4
 // - offsetof(st_size) == 48, sizeof(st_size) == 8
-@oren.abi
+@abi
 struct StatLinux {
     __pad0: u8[16],
     st_mode: u32le,
@@ -62,4 +62,3 @@ if t == "macos" {
 
 print("module abi_stat OK")
 exit(0)
-

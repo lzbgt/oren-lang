@@ -747,7 +747,7 @@ fn link_program(entry_path, root_prog, config) {
                 // Rolling: v0 structs are represented as NEW_LIST (positional) so we
                 // require consistent field indices *across types* for member access.
                 //
-                // ABI structs (`@oren.abi`) are layout-only helpers for FFI and are not
+                // ABI structs (`@abi`, canonical: `@oren.abi`) are layout-only helpers for FFI and are not
                 // meant to participate in v0 member-access semantics. Skip them so we can
                 // define OS-specific structs (sockaddr, kevent, stat) with different field
                 // orders without breaking non-ABI code.
@@ -874,7 +874,7 @@ fn link_program(entry_path, root_prog, config) {
     type_ann.lower_linked_program_in_place(linked)
 
     // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
-    // Opt-in via `@oren.abi` and does not depend on host headers.
+    // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.
     if trace_passes { print("[trace] pass: abi_layout") }
     abi_layout.lower_linked_program_in_place(linked)
     if linked["abi_layout_errors"] != nil && oren_list_len(linked["abi_layout_errors"]) > 0 {
@@ -1072,8 +1072,11 @@ fn compiler_main() {
         if kind == "linked" {
             var src = oren_read_file(path)
             if oren_is_err(src) {
-                print("Failed to read file: " + path)
+                var emsg = "Failed to read file: " + path
                 var msg = oren_err_msg(src)
+                if msg != nil { emsg = emsg + " (" + msg + ")" }
+                emit_diag("compile", 2, emsg)
+                print("Failed to read file: " + path)
                 if msg != nil { print(msg) }
                 oren_exit(2)
             }
@@ -1104,8 +1107,11 @@ fn compiler_main() {
         if kind == "graph" {
             var srcg = oren_read_file(path)
             if oren_is_err(srcg) {
-                print("Failed to read file: " + path)
+                var emsgg = "Failed to read file: " + path
                 var msgg = oren_err_msg(srcg)
+                if msgg != nil { emsgg = emsgg + " (" + msgg + ")" }
+                emit_diag("compile", 2, emsgg)
+                print("Failed to read file: " + path)
                 if msgg != nil { print(msgg) }
                 oren_exit(2)
             }
@@ -1198,8 +1204,11 @@ fn compiler_main() {
 
         var src = oren_read_file(path)
         if oren_is_err(src) {
-            print("Failed to read file: " + path)
+            var emsg = "Failed to read file: " + path
             var msg = oren_err_msg(src)
+            if msg != nil { emsg = emsg + " (" + msg + ")" }
+            emit_diag("compile", 2, emsg)
+            print("Failed to read file: " + path)
             if msg != nil { print(msg) }
             oren_exit(2)
         }
@@ -1428,14 +1437,18 @@ fn compiler_main() {
     }
 
     if backend != "c" && backend != "native" && backend != "bytecode" {
+        emit_diag("compile", 2, "Unknown backend: " + backend)
         print("Unknown backend: " + backend)
-        return nil
+        oren_exit(2)
     }
 
     var src = oren_read_file(path)
     if oren_is_err(src) {
-        print("Failed to read file: " + path)
+        var emsg = "Failed to read file: " + path
         var msg = oren_err_msg(src)
+        if msg != nil { emsg = emsg + " (" + msg + ")" }
+        emit_diag("compile", 2, emsg)
+        print("Failed to read file: " + path)
         if msg != nil { print(msg) }
         oren_exit(2)
     }

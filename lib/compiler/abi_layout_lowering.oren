@@ -20,7 +20,7 @@ fn abi_layout_error(msg) {
 //     oren_abi_offsetof("Type", "field") -> int literal
 //
 // This is an opt-in mode enabled by annotating a type declaration:
-//     @oren.abi
+//     @abi   // canonicalized to @oren.abi by the parser
 //     struct Foo { a: u8, b: u32, c: u16 }
 //
 // Non-goals (future work):

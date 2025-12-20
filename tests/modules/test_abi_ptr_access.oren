@@ -1,10 +1,10 @@
 // ABI layout + pointer helpers (C backend):
 // Demonstrates an end-to-end FFI struct story without host headers:
-// - layout computed at compile time via @oren.abi + oren_abi_offsetof
+// - layout computed at compile time via @abi + oren_abi_offsetof
 // - raw memory allocated via oren_ptr_alloc
 // - fields read/written via oren_ptr_get/set_*_be/le
 
-@oren.abi
+@abi
 struct Pkt {
     v: u8,
     len: u16be,
@@ -34,4 +34,3 @@ oren_ptr_free(p)
 
 print("module abi_ptr_access OK")
 exit(0)
-

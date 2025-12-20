@@ -2,7 +2,7 @@
 //
 // This test asserts a deterministic C-like layout algorithm for fixed-width primitives.
 
-@oren.abi
+@abi
 struct ABI1 {
     a: u8,
     b: u32,
@@ -21,7 +21,7 @@ if oren_abi_offsetof("ABI1", "b") != 4 { exit(3) }
 if oren_abi_offsetof("ABI1", "c") != 8 { exit(4) }
 if oren_abi_sizeof("ABI1") != 12 { exit(5) }
 
-@oren.abi
+@abi
 struct ABI2 {
     x: bool,
     y: f64,
@@ -37,4 +37,3 @@ if oren_abi_sizeof("ABI2") != 24 { exit(10) }
 
 print("module abi_layout OK")
 exit(0)
-

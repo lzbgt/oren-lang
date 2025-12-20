@@ -3,7 +3,7 @@
 // We keep these as repo-owned deterministic layouts (no host headers).
 // Use oren_build_target() to select OS-specific variants (Darwin has sin_len).
 
-@oren.abi
+@abi
 struct SockAddrInDarwin {
     sin_len: u8,
     sin_family: u8,
@@ -12,7 +12,7 @@ struct SockAddrInDarwin {
     sin_zero: u8[8]
 }
 
-@oren.abi
+@abi
 struct SockAddrInLinux {
     sin_family: u16le,
     sin_port: u16be,
@@ -35,4 +35,3 @@ if t == "macos" {
 
 print("module abi_sockaddr_in OK")
 exit(0)
-

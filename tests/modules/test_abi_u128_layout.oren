@@ -3,7 +3,7 @@
 // v0 does not have 128-bit integer values yet; this test only asserts
 // deterministic offsets and total size.
 
-@oren.abi
+@abi
 struct S128 {
     a: u8,
     b: u128,
@@ -21,7 +21,7 @@ if oren_abi_offsetof("S128", "b") != 16 { exit(3) }
 if oren_abi_offsetof("S128", "c") != 32 { exit(4) }
 if oren_abi_sizeof("S128") != 48 { exit(5) }
 
-@oren.abi
+@abi
 struct I128 {
     x: i128,
     y: i128
@@ -34,4 +34,3 @@ if oren_abi_sizeof("I128") != 32 { exit(9) }
 
 print("module abi_u128_layout OK")
 exit(0)
-

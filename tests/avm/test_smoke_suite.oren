@@ -204,7 +204,7 @@ struct F32Box {
     x: f32
 }
 
-@oren.packed
+@pack
 struct H {
     v: u8,
     t: u8,
@@ -213,7 +213,7 @@ struct H {
     dst: u32be
 }
 
-@oren.packed
+@pack
 struct S16 {
     x: i16be
 }

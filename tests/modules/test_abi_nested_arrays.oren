@@ -3,7 +3,7 @@
 // This is still layout-only: we don't change v0 struct/map semantics.
 // Instead, we compute offsets/sizes at compile-time and use ptr accessors.
 
-@oren.abi
+@abi
 struct Inner {
     a: u8,
     b: u32be
@@ -18,7 +18,7 @@ if oren_abi_sizeof("Inner") != 8 { exit(2) }
 if oren_abi_offsetof("Inner", "a") != 0 { exit(3) }
 if oren_abi_offsetof("Inner", "b") != 4 { exit(4) }
 
-@oren.abi
+@abi
 struct Outer {
     x: u16,
     inner: Inner,
