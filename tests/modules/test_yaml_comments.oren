@@ -1,0 +1,58 @@
+import yaml "../../lib/std/yaml.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn assert_ok(r, msg) {
+    if r != nil && r["ok"] == 1 { return 0 }
+    if r != nil {
+        var e = r["err"]
+        var ln = r["line"]
+        if e != nil {
+            print("ERR: " + e)
+        }
+        if ln != nil {
+            print("LINE: " + oren_int_to_string(ln))
+        }
+    }
+    print("ASSERT FAIL: " + msg)
+    exit(1)
+}
+
+fn test_yaml_comments() {
+    // baseline (no comments)
+    var s0 = "active: true\nname: bob\n"
+    var r0 = yaml.decode(s0)
+    assert_ok(r0, "decode baseline ok")
+    assert(r0["v"]["t"] == "object", "baseline is object")
+    assert(r0["v"]["o"]["active"]["b"] == 1, "active true")
+    assert(r0["v"]["o"]["name"]["s"] == "bob", "name bob")
+
+    // '#' comments (YAML style) and '//' comments (C/JSON style)
+    var s1 = "# header\nactive: true # tail\nname: bob // tail2\n"
+    var r1 = yaml.decode(s1)
+    assert_ok(r1, "decode line comments ok")
+    assert(r1["v"]["o"]["active"]["b"] == 1, "active true w/ comments")
+    assert(r1["v"]["o"]["name"]["s"] == "bob", "name bob w/ comments")
+
+    // block comments spanning lines: preserve newlines/indent structure
+    var s2 = "active: true\n/* block\ncomment */\nname: bob\n"
+    var r2 = yaml.decode(s2)
+    assert_ok(r2, "decode block comments ok")
+    assert(r2["v"]["o"]["active"]["b"] == 1, "active true w/ block comment")
+    assert(r2["v"]["o"]["name"]["s"] == "bob", "name bob w/ block comment")
+
+    // Safety: do not treat URL 'http://..' as a comment (no whitespace before '//')
+    var s3 = "url: http://example.com\n"
+    var r3 = yaml.decode(s3)
+    assert_ok(r3, "decode url ok")
+    assert(r3["v"]["o"]["url"]["s"] == "http://example.com", "url preserved")
+}
+
+test_yaml_comments()
+print("ok")
+exit(0)

@@ -105,6 +105,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Stdlib: added `lib/std/math.oren` + `lib/std/regex.oren` (deterministic Thompson NFA; no backtracking blowups) with module tests and oretest wiring; verified on macOS + linux docker runner.
+- YAML: decoder now tolerates YAML `#` and C/JSON `//` + `/* */` comments (safe whitespace rule to avoid breaking `http://...`), with module coverage.
 - Test system: specified a minimal Oren-native test manifest + runner CLI contract in `docs/TEST_SYSTEM.md` (no rewrite; keeps `cmd/oretest` outside compiler sources).
 - Serde attribute ergonomics v1: prefer `@serde(format="json", ...)` / `@serde(rename=..., skip=..., default=...)` while keeping legacy dotted forms working in rolling mode.
 - Serde v1: `oren meta` now emits a normalized per-struct serde schema under `structs[*].serde` (versioned, deterministic).

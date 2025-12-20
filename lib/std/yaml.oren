@@ -8,7 +8,10 @@
 //   - mappings (string keys only): `key: value` and `key:` nested blocks
 //   - sequences: `- value` and `-` nested blocks
 //   - scalars: null, bool, int (base10), string (quoted or bare)
-//   - optional document start `---` and full-line comments `# ...`
+//   - optional document start `---`
+//   - comment tolerance:
+//     - YAML-style `# ...` (when `#` is at start or preceded by whitespace)
+//     - JSON/C-style `// ...` and `/* ... */` (same whitespace rule; `/* */` may span lines)
 // - No anchors, tags, merge keys, multi-doc, flow style, or complex scalars.
 //
 // NOTE: YAML 1.2 is a superset of JSON. This module also accepts JSON text as input
@@ -103,24 +106,117 @@ fn _split_lines(s) {
     return out
 }
 
-fn _strip_comment(line) {
-    // v1: treat a '#' preceded by whitespace as comment start.
-    // Not a full YAML tokenizer; good enough for our own emitter + common configs.
-    if line == nil { return nil }
-    var bs = oren_bytes_from_string(line)
+fn _strip_comments_text(s) {
+    // Comment tolerance for config files:
+    // - YAML '# ...' comment when preceded by whitespace (or at start).
+    // - C/JSON style '//' and '/* */' (same whitespace rule).
+    //   Block comments may span lines; we preserve '\n'/'\r' inside block comments so
+    //   line numbers remain stable.
+    //
+    // Not a full YAML tokenizer; designed to be deterministic and safe for common inputs.
+    if s == nil { return nil }
+    var bs = oren_bytes_from_string(s)
     var out = []
+
+    var in_quote = false
+    var in_line_comment = false
+    var in_block_comment = false
+
     var i = 0
     while i < oren_list_len(bs) {
         var b = bs[i]
-        if b == 35 { // '#'
-            // If at start or preceded by whitespace, treat as comment.
-            if i == 0 { break }
-            var p = bs[i - 1]
-            if _is_ws(p) { break }
+
+        if in_line_comment {
+            // Consume until newline, but keep newline bytes.
+            if b == 10 { // \n
+                oren_list_push(out, 10)
+                in_line_comment = false
+            } else {
+                if b == 13 { // \r
+                    oren_list_push(out, 13)
+                    // keep optional \n if present
+                    if i + 1 < oren_list_len(bs) && bs[i + 1] == 10 {
+                        oren_list_push(out, 10)
+                        i = i + 1
+                    }
+                    in_line_comment = false
+                }
+            }
+            i = i + 1
+            continue
         }
+
+        if in_block_comment {
+            // Preserve newlines; otherwise drop bytes until closing '*/'.
+            if b == 42 && i + 1 < oren_list_len(bs) && bs[i + 1] == 47 {
+                in_block_comment = false
+                i = i + 2
+                continue
+            }
+            if b == 10 { oren_list_push(out, 10) }
+            if b == 13 { oren_list_push(out, 13) }
+            i = i + 1
+            continue
+        }
+
+        if in_quote {
+            // Preserve escapes so we don't accidentally terminate on an escaped quote.
+            if b == 92 { // '\\'
+                oren_list_push(out, b)
+                if i + 1 < oren_list_len(bs) {
+                    oren_list_push(out, bs[i + 1])
+                    i = i + 2
+                    continue
+                }
+            }
+            oren_list_push(out, b)
+            if b == 34 { in_quote = false } // '"'
+            i = i + 1
+            continue
+        }
+
+        // Not in quote/comment: detect comment starts with a safe rule:
+        // only treat as comment if at start or preceded by whitespace.
+        var ws_ok = false
+        if i == 0 { ws_ok = true } else {
+            var pb = bs[i - 1]
+            // Treat newline as whitespace for comment-start purposes so full-line comments work.
+            if _is_ws(pb) || pb == 10 { ws_ok = true }
+        }
+
+        if b == 34 { // '"'
+            in_quote = true
+            oren_list_push(out, b)
+            i = i + 1
+            continue
+        }
+
+        if ws_ok {
+            if b == 35 { // '#'
+                in_line_comment = true
+                i = i + 1
+                continue
+            }
+            if b == 47 && i + 1 < oren_list_len(bs) {
+                var n = bs[i + 1]
+                if n == 47 { // '//'
+                    in_line_comment = true
+                    i = i + 2
+                    continue
+                }
+                if n == 42 { // '/*'
+                    in_block_comment = true
+                    i = i + 2
+                    continue
+                }
+            }
+        }
+
+        // normal byte
         oren_list_push(out, b)
         i = i + 1
     }
+
     return oren_string_from_bytes(out)
 }
 
@@ -349,12 +445,13 @@ fn decode(s) {
     }
 
     // 2) Subset YAML parser (block style).
-    var lines0 = _split_lines(s)
-    // Keep original indentation, but strip trailing comments.
+    // Keep original indentation, but strip comments first (YAML '#' and C/JSON '//'/'/* */').
+    var s2 = _strip_comments_text(s)
+    var lines0 = _split_lines(s2)
     var plines = []
     var i = 0
     while i < oren_list_len(lines0) {
-        var raw = _strip_comment(lines0[i])
+        var raw = lines0[i]
         if raw == nil { raw = "" }
         oren_list_push(plines, raw)
         i = i + 1
