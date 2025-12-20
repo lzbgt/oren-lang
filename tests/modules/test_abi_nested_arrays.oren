@@ -1,0 +1,75 @@
+// ABI layout v2: nested ABI structs, pointers, and fixed arrays.
+//
+// This is still layout-only: we don't change v0 struct/map semantics.
+// Instead, we compute offsets/sizes at compile-time and use ptr accessors.
+
+@oren.abi
+struct Inner {
+    a: u8,
+    b: u32be
+}
+
+// Inner layout:
+// a @0
+// b @4
+// sizeof 8, align 4
+if oren_abi_alignof("Inner") != 4 { exit(1) }
+if oren_abi_sizeof("Inner") != 8 { exit(2) }
+if oren_abi_offsetof("Inner", "a") != 0 { exit(3) }
+if oren_abi_offsetof("Inner", "b") != 4 { exit(4) }
+
+@oren.abi
+struct Outer {
+    x: u16,
+    inner: Inner,
+    mac: u8[6],
+    p: *u8
+}
+
+// Outer layout on arm64 (macOS/Linux):
+// x @0 (u16 align 2), inner @4 (align 4), mac @12, p @24? wait compute carefully:
+// x size2 => off2
+// inner align4 => off4, size8 => off12
+// mac size6 => off18
+// p align8 => off24, size8 => off32, sizeof => 32, align 8
+if oren_abi_alignof("Outer") != 8 { exit(10) }
+if oren_abi_offsetof("Outer", "x") != 0 { exit(11) }
+if oren_abi_offsetof("Outer", "inner") != 4 { exit(12) }
+if oren_abi_offsetof("Outer", "mac") != 12 { exit(13) }
+if oren_abi_offsetof("Outer", "p") != 24 { exit(14) }
+if oren_abi_sizeof("Outer") != 32 { exit(15) }
+
+// Exercise ptr accessors against computed offsets.
+var n = oren_abi_sizeof("Outer")
+var ptr = oren_ptr_alloc(n)
+
+// x (u16 native-endian = little-endian on arm64)
+oren_ptr_set_u16_le(ptr + oren_abi_offsetof("Outer", "x"), 48879) // 0xBEEF
+if oren_ptr_get_u16_le(ptr + oren_abi_offsetof("Outer", "x")) != 48879 { exit(20) }
+
+// inner.b is BE in memory by annotation (layout width is u32).
+var inner_off = oren_abi_offsetof("Outer", "inner")
+var b_off = oren_abi_offsetof("Inner", "b")
+oren_ptr_set_u32_be(ptr + inner_off + b_off, 16909060) // 0x01020304
+if oren_ptr_get_u32_be(ptr + inner_off + b_off) != 16909060 { exit(21) }
+
+// mac array (bytes)
+var mac_off = oren_abi_offsetof("Outer", "mac")
+oren_ptr_set_u8(ptr + mac_off + 0, 222) // 0xDE
+oren_ptr_set_u8(ptr + mac_off + 1, 173) // 0xAD
+oren_ptr_set_u8(ptr + mac_off + 2, 190) // 0xBE
+oren_ptr_set_u8(ptr + mac_off + 3, 239) // 0xEF
+oren_ptr_set_u8(ptr + mac_off + 4, 0)
+oren_ptr_set_u8(ptr + mac_off + 5, 1)
+if oren_ptr_get_u8(ptr + mac_off + 0) != 222 { exit(22) }
+if oren_ptr_get_u8(ptr + mac_off + 5) != 1 { exit(23) }
+
+// pointer field stored as native u64 (little-endian on arm64).
+var p_off = oren_abi_offsetof("Outer", "p")
+oren_ptr_set_u64_le(ptr + p_off, 1234605616436508552) // 0x1122334455667788
+if oren_ptr_get_u64_le(ptr + p_off) != 1234605616436508552 { exit(24) }
+
+oren_ptr_free(ptr)
+
+print("module abi_nested_arrays OK")
+exit(0)

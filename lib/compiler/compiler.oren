@@ -534,7 +534,7 @@ fn load_module(base, path) {
     return mod
 }
 
-fn link_program(entry_path, root_prog) {
+fn link_program(entry_path, root_prog, config) {
     MODULES = {}
     MODULE_STACK = []
     MODULE_ORDER = []
@@ -614,7 +614,7 @@ fn link_program(entry_path, root_prog) {
         i = i + 1
     }
     
-    var linked = {"statements": merged_stmts, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets}
+    var linked = {"statements": merged_stmts, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets, "config": config}
 
     // Compile-time lowering: packed struct views over bytes.
     packview.lower_linked_program_in_place(linked)
@@ -930,7 +930,7 @@ fn compiler_main() {
     }
 
     if backend == "bytecode" {
-        var linked_bc = link_program(path, prog)
+        var linked_bc = link_program(path, prog, {"target": target})
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc)
 
         // Rolling: embed metadata into the `.obc` constant pool as a BYTES constant so:
@@ -966,7 +966,7 @@ fn compiler_main() {
             return nil
         }
 
-        var linked = link_program(path, prog)
+        var linked = link_program(path, prog, {"target": target})
         var export_names = []
         
         if is_shared_lib {
@@ -1071,7 +1071,7 @@ fn compiler_main() {
     }
 
     // For C backend, we also need to load modules to populate MODULE_ORDER
-    var linked_c = link_program(path, prog)
+    var linked_c = link_program(path, prog, {"target": target})
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     var c_path = path + ".c"
     var w3 = oren_write_file(c_path, c_code)

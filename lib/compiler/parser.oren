@@ -299,13 +299,39 @@ fn expect_peek_ident_like(p, what) {
 
 fn parse_type_name_after_colon(p) {
     // Precondition: current token is ':'
+    var tname = ""
+
+    // Pointer sugar:
+    //   var p: *u8 = ...
+    //   fn f(x: **MyType) { ... }
+    //
+    // NOTE: stored as a string for now (rolling), interpreted by lowerings.
+    while peek_is(p, token.TOK_ASTERISK) {
+        parser_next_token(p) // '*'
+        tname = tname + "*"
+    }
+
     if !expect_peek_ident_like(p, "type name") { return nil }
-    var tname = p["cur"]["literal"]
+    tname = tname + p["cur"]["literal"]
     while peek_is(p, token.TOK_DOT) {
         parser_next_token(p) // .
         if !expect_peek_ident_like(p, "type name segment") { return nil }
         tname = tname + "." + p["cur"]["literal"]
     }
+
+    // Fixed-size array sugar:
+    //   var mac: u8[6] = ...
+    //   struct Foo { bytes: u8[16] }
+    //
+    // Stored as a string `T[N]` (or `*T[N]`, etc).
+    while peek_is(p, token.TOK_LBRACKET) {
+        parser_next_token(p) // '['
+        if !expect_peek(p, token.TOK_INT) { return nil }
+        var n_lit = p["cur"]["literal"]
+        if !expect_peek(p, token.TOK_RBRACKET) { return nil }
+        tname = tname + "[" + n_lit + "]"
+    }
+
     return tname
 }
 
