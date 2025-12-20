@@ -228,6 +228,7 @@ func main() {
 	avmTestsFast := []string{
 		"tests/avm/test_smoke_suite.oren",
 		"tests/avm/test_snapshot_resume.oren",
+		"tests/avm/test_snapshot_resume_record_log.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_time_rng_deterministic.oren",
 		"tests/avm/test_budget_timeout.oren",
@@ -244,6 +245,7 @@ func main() {
 		"tests/avm/test_policy_scan.oren",
 		"tests/avm/test_job_scan.oren",
 		"tests/avm/test_snapshot_resume.oren",
+		"tests/avm/test_snapshot_resume_record_log.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_multiverse_vfs_inherit.oren",
 		"tests/avm/test_fs_mounts_host_backend.oren",
@@ -1018,7 +1020,7 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 			}
 			_ = os.Remove("build/avm_job_scan_should_not_write.txt")
 			_ = os.Remove("build/avm_job_scan_should_not_write2.txt")
-		case "test_snapshot_resume":
+		case "test_snapshot_resume", "test_snapshot_resume_record_log":
 			snap := filepath.Join("build", name+".avms")
 			_ = os.Remove(snap)
 			// Expect pause exit code 2 (paused), then resume.
@@ -1279,7 +1281,7 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 			}
 			_ = os.Remove(deny1)
 			_ = os.Remove(deny2)
-		case "test_snapshot_resume":
+		case "test_snapshot_resume", "test_snapshot_resume_record_log":
 			snap := filepath.Join(workBuild, name+".avms")
 			_ = os.Remove(snap)
 			cmd := fmt.Sprintf("%s --step-limit 2000 --print-pause-json --snapshot-out %q %q", avmPath, filepath.Join("build", name+".avms"), filepath.Join("build", name+".obc"))

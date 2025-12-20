@@ -93,7 +93,20 @@ echo "[linux-oretest-docker] running make test (OREN_TEST_JOBS=$JOBS)"
 # - Do NOT copy host-built binaries like `./oretest` or `./oren` into the Linux container,
 #   or `make` may treat them as up-to-date and attempt to execute a macOS binary.
 # - Use tracked files as the source of truth (git index), not `tar .`.
+#
+# NOTE:
+# This runner syncs only tracked files (`git ls-files`). If you add new files but do not
+# `git add`/commit them, the container will not see them and tests may fail with confusing
+# "cannot open file" errors.
 echo "[linux-oretest-docker] syncing tracked sources into /work/repo"
+ALLOW_DIRTY="${OREN_LINUX_DOCKER_ALLOW_DIRTY:-0}"
+if [[ "$ALLOW_DIRTY" != "1" ]]; then
+  if git status --porcelain --untracked-files=normal | grep -q '^??'; then
+    echo "[linux-oretest-docker] ERROR: untracked files present; this runner syncs tracked sources only." >&2
+    echo "[linux-oretest-docker] Hint: run \`git add -A\` (and commit), or set OREN_LINUX_DOCKER_ALLOW_DIRTY=1." >&2
+    exit 2
+  fi
+fi
 git ls-files -z \
   | tar -czf - --null -T - \
   | docker exec -i "$NAME" bash -lc '

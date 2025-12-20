@@ -1602,6 +1602,10 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     collect_value_objects(&objs, vm->env);
     for (int i = 0; i < vm->frame_count; i++) collect_value_objects(&objs, vm->frames[i].env);
 
+    // Record/replay in-memory logs (rolling; AVMSNAP5+): needed for deterministic replay and nested universes.
+    if (vm->record_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->record_log_bytes; collect_value_objects(&objs, v); }
+    if (vm->replay_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes; collect_value_objects(&objs, v); }
+
     FILE* f = fopen(path, "wb");
     if (!f) {
         objtable_free(&objs);
@@ -1609,7 +1613,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     }
 
     // Magic (8 bytes)
-    const uint8_t magic[8] = {'A','V','M','S','N','A','P','4'};
+    const uint8_t magic[8] = {'A','V','M','S','N','A','P','5'};
     if (fwrite(magic, 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
 
     if (!write_u32_le(f, (uint32_t)objs.count)) { fclose(f); objtable_free(&objs); return 1; }
@@ -1698,6 +1702,30 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     if (!write_u64_le(f, vm->rng_state)) { fclose(f); objtable_free(&objs); return 1; }
     if (!write_u64_le(f, vm->gas_executed)) { fclose(f); objtable_free(&objs); return 1; }
 
+    // Record/replay logs (rolling; AVMSNAP5+)
+    if (!write_u8(f, (uint8_t)(vm->record_log_bytes ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+    if (vm->record_log_bytes) {
+        AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->record_log_bytes;
+        if (!encode_value(f, &objs, v)) { fclose(f); objtable_free(&objs); return 1; }
+    }
+    if (!write_u8(f, (uint8_t)(vm->replay_log_bytes ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+    if (vm->replay_log_bytes) {
+        AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes;
+        if (!encode_value(f, &objs, v)) { fclose(f); objtable_free(&objs); return 1; }
+    }
+    if (!write_u32_le(f, (uint32_t)vm->replay_log_pos)) { fclose(f); objtable_free(&objs); return 1; }
+
+    // Budgets + counters (rolling; AVMSNAP5+): ensures pause/resume does not widen budgets by accident.
+    if (!write_u64_le(f, vm->gas_remaining)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->deadline_ns)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->heap_budget_bytes)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->heap_used_bytes)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->io_budget_bytes)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->io_used_bytes)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->log_budget_bytes)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u64_le(f, vm->log_used_bytes)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u8(f, (uint8_t)(vm->cancelled ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+
     fclose(f);
     objtable_free(&objs);
     return 0;
@@ -1714,10 +1742,12 @@ int avm_restore(AvmVM* vm, const char* path) {
     const uint8_t want2[8] = {'A','V','M','S','N','A','P','2'};
     const uint8_t want3[8] = {'A','V','M','S','N','A','P','3'};
     const uint8_t want4[8] = {'A','V','M','S','N','A','P','4'};
+    const uint8_t want5[8] = {'A','V','M','S','N','A','P','5'};
     int snap_ver = 0;
     if (memcmp(magic, want2, 8) == 0) snap_ver = 2;
     if (memcmp(magic, want3, 8) == 0) snap_ver = 3;
     if (memcmp(magic, want4, 8) == 0) snap_ver = 4;
+    if (memcmp(magic, want5, 8) == 0) snap_ver = 5;
     if (snap_ver == 0) { fclose(f); return 1; }
 
     int ok = 1;
@@ -1991,6 +2021,47 @@ int avm_restore(AvmVM* vm, const char* path) {
         // AVMSNAP2 did not capture deterministic state; reset rolling fields.
         vm->virtual_sleep_ns = 0;
         vm->gas_executed = 0;
+    }
+
+    // Record/replay logs + budgets (rolling; AVMSNAP5+)
+    if (snap_ver >= 5) {
+        uint8_t has_rec = 0;
+        if (fread(&has_rec, 1, 1, f) != 1) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->record_log_bytes = NULL;
+        if (has_rec) {
+            AvmValue v = avm_nil();
+            if (!decode_value(f, obj_types, obj_ptrs, obj_count, &v)) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            if (v.type != AVM_VAL_BYTES || !v.as.b) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            vm->record_log_bytes = v.as.b;
+        }
+
+        uint8_t has_rep = 0;
+        if (fread(&has_rep, 1, 1, f) != 1) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->replay_log_bytes = NULL;
+        if (has_rep) {
+            AvmValue v = avm_nil();
+            if (!decode_value(f, obj_types, obj_ptrs, obj_count, &v)) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            if (v.type != AVM_VAL_BYTES || !v.as.b) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            vm->replay_log_bytes = v.as.b;
+        }
+
+        uint32_t rpos = read_u32_le(f, &ok);
+        if (!ok) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->replay_log_pos = rpos;
+
+        int ok3 = 1;
+        vm->gas_remaining = read_u64_le(f, &ok3);
+        vm->deadline_ns = read_u64_le(f, &ok3);
+        vm->heap_budget_bytes = read_u64_le(f, &ok3);
+        vm->heap_used_bytes = read_u64_le(f, &ok3);
+        vm->io_budget_bytes = read_u64_le(f, &ok3);
+        vm->io_used_bytes = read_u64_le(f, &ok3);
+        vm->log_budget_bytes = read_u64_le(f, &ok3);
+        vm->log_used_bytes = read_u64_le(f, &ok3);
+        if (!ok3) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        uint8_t cancelled = 0;
+        if (fread(&cancelled, 1, 1, f) != 1) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->cancelled = cancelled ? 1 : 0;
     }
 
     fclose(f);

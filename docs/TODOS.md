@@ -51,6 +51,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Prefer reusing `OREN_DOCKER_NAME=oren-linux-dev` and restarting it when needed to refresh bind mounts.
    - Do not wipe the container workspace by default; incremental builds must be possible (use an explicit clean flag when required).
    - Prefer syncing **tracked sources only** (git index) into `/work/repo` so host-built binaries never pollute the container workspace.
+   - If you add new files, you must `git add`/commit them before running the docker suite (otherwise the container won't see them).
    - Forward feature flags via env (e.g. `OREN_TEST_FULL=1`) so Linux matches macOS runner behavior.
    - Remove stale build outputs (`oren`, `oretest`, `avm`) before running `make` to avoid timestamp skew from tar sync.
 
@@ -72,25 +73,15 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### B) AVM (evolves alongside language/compiler)
 
-1) **[vm][safety] Record/Replay v1 for all effectful domains**
-   - DoD:
-     - record/replay for FS + NET + PROC + ENV + TIME + RNG
-     - replay runs must not touch the host (even if the recorded run did)
-     - replay logs are budgeted and portable (in-memory and file-backed)
-
-2) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
-   - DoD:
-     - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
-     - define scheduling determinism (either deterministic policy or record/replay scheduling)
-     - budgets propagate through task trees (structured concurrency)
-
-3) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+1) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
+     - include record/replay-bytes state + log budget counters so pause/resume does not lose determinism data
+     - include cooperative task scheduler state (tasks/channels) or explicitly forbid snapshot when tasks are enabled
 
-4) **[boot][arch] Compiler-in-AVM (close the loop)**
+2) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
@@ -102,6 +93,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - `std/time` v0: added `lib/std/time.oren` (UTC ISO-8601 parse/format, epoch conversions, monotonic/unix clocks, sleep); added runtime TIME primitives and a module test; verified on macOS.
+- AVM record/replay v1: portable log format with file + in-memory logs; effectful domains replay from logs (no host effects); deterministic TIME/RNG supported; covered by AVM tests.
+- AVM deterministic cooperative tasks: task scheduler + `yield`/spawn/join/select primitives; deterministic step-quantum via `AVM_TASK_QUANTUM`; covered by AVM tests.
 - Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.
 - Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.
 - `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.

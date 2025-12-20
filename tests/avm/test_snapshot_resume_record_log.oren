@@ -1,0 +1,47 @@
+fn main() {
+    // Snapshot/resume must preserve in-memory record logs, otherwise deterministic replay
+    // (and nested universes) break across pause/resume.
+    //
+    // oretest runs this test in two phases:
+    //   1) --step-limit ... --snapshot-out ... (expects pause)
+    //   2) --snapshot-in ... (expects success)
+    //
+    // The key invariant: record_log_bytes should still exist after resume and continue appending.
+
+    oren_avm_record_to_bytes()
+    var b0 = oren_avm_get_record_bytes()
+    if b0 == nil { oren_exit(1) }
+    var n0 = oren_bytes_len(b0)
+    if n0 < 8 { oren_exit(1) } // "AVMLOG01" header
+
+    // Record some effectful calls.
+    var t1 = oren_time_now_ns()
+    var r1 = oren_rand_u64()
+    var v1 = oren_env("AVM_RR_ENV_KEY")
+    if t1 == nil { oren_exit(1) }
+    if r1 == nil { oren_exit(1) }
+    // v1 may be nil or string; either is fine as long as it's recorded.
+
+    var b1 = oren_avm_get_record_bytes()
+    if b1 == nil { oren_exit(1) }
+    var n1 = oren_bytes_len(b1)
+    if n1 <= n0 { oren_exit(1) }
+
+    // Long loop so a small --step-limit pauses mid-run.
+    var i = 0
+    while i < 200000 {
+        i = i + 1
+    }
+
+    // After resume, this should append to the same record log rather than starting over.
+    var r2 = oren_rand_u64()
+    if r2 == nil { oren_exit(1) }
+    var b2 = oren_avm_get_record_bytes()
+    if b2 == nil { oren_exit(1) }
+    var n2 = oren_bytes_len(b2)
+    if n2 <= n1 { oren_exit(1) }
+
+    oren_set_result({"n0": n0, "n1": n1, "n2": n2})
+}
+
+main()
