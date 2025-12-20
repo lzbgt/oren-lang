@@ -466,15 +466,78 @@ fn new_module_prefix() {
     return "M" + oren_int_to_string(MODULE_ID_COUNTER) + "_"
 }
 
+
+fn path_norm(path) {
+    if path == nil { return "" }
+    var n = oren_string_len(path)
+    if n == 0 { return "" }
+
+    var is_abs = oren_string_char_at(path, 0) == "/"
+    var segs = []
+
+    var i = 0
+    var start = 0
+    while i <= n {
+        var at_end = i == n
+        if at_end || oren_string_char_at(path, i) == "/" {
+            var seg = oren_string_slice(path, start, i)
+            if seg != "" && seg != "." {
+                if seg == ".." {
+                    var sl = oren_list_len(segs)
+                    if sl > 0 && segs[sl - 1] != ".." {
+                        // pop
+                        var ns = []
+                        var j = 0
+                        while j + 1 < sl {
+                            oren_list_push(ns, segs[j])
+                            j = j + 1
+                        }
+                        segs = ns
+                    } else {
+                        if !is_abs { oren_list_push(segs, "..") }
+                    }
+                } else {
+                    oren_list_push(segs, seg)
+                }
+            }
+            start = i + 1
+        }
+        i = i + 1
+    }
+
+    var out = ""
+    if is_abs { out = "/" }
+
+    i = 0
+    while i < oren_list_len(segs) {
+        if out != "" && oren_string_char_at(out, oren_string_len(out) - 1) != "/" {
+            out = out + "/"
+        }
+        out = out + segs[i]
+        i = i + 1
+    }
+
+    if out == "" {
+        if is_abs { return "/" }
+        return "."
+    }
+    return out
+}
+
 fn resolve_path(base, path) {
-    if oren_string_char_at(path, 0) == "/" { return path }
-    return base + "/" + path
+    if path == nil { return "" }
+    if oren_string_len(path) > 0 && oren_string_char_at(path, 0) == "/" { return path_norm(path) }
+    return path_norm(base + "/" + path)
 }
 
 fn load_module(base, path) {
     var full = resolve_path(base, path)
     if MODULES[full] != nil {
         return MODULES[full]
+    }
+
+    if oren_env("OREN_TRACE_PASSES") != nil {
+        print("[trace] load_module: " + full)
     }
     
     // Cycle check
@@ -512,7 +575,7 @@ fn load_module(base, path) {
         oren_exit(1)
     }
 
-    var mod = {"prefix": new_module_prefix(), "path": full, "program": prog, "aliases": {}, "added": false}
+    var mod = {"prefix": new_module_prefix(), "path": full, "program": prog, "aliases": {}, "imports": [], "added": false}
     MODULES[full] = mod
 
     var dir = dirname(full)
@@ -527,6 +590,8 @@ fn load_module(base, path) {
             }
             var dep = load_module(dir, s["path"])
             mod["aliases"][alias] = dep["prefix"]
+            // Preserve import edges in deterministic source order for graph export.
+            oren_list_push(mod["imports"], {"alias": alias, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"]})
         }
         i = i + 1
     }
@@ -556,15 +621,15 @@ fn load_module(base, path) {
         oren_list_push(MODULE_ORDER, mod)
     }
 
-    // list_pop not in runtime?
-    // We need to implement list_pop or use slice.
-    // var new_stack = [] ...
-    // Actually runtime has no list_pop.
-    // Let's just remove last element manually?
-    // Oren doesn't have `pop`.
-    // We can slice.
-    // MODULE_STACK = oren_list_slice(MODULE_STACK, 0, oren_list_len(MODULE_STACK) - 1)
-    // Assuming we implement list_pop helper
+    // Pop cycle-check stack (runtime has no list_pop; do it manually).
+    var new_stack = []
+    var si = 0
+    var sl = oren_list_len(MODULE_STACK)
+    while si + 1 < sl {
+        oren_list_push(new_stack, MODULE_STACK[si])
+        si = si + 1
+    }
+    MODULE_STACK = new_stack
     
     return mod
 }
@@ -579,6 +644,7 @@ fn link_program(entry_path, root_prog, config) {
     
     var base = dirname(entry_path)
     var root_aliases = {}
+    var root_imports = []
     
     var i = 0
     while i < oren_list_len(root_prog["statements"]) {
@@ -587,6 +653,8 @@ fn link_program(entry_path, root_prog, config) {
             var alias = s["name"]["value"]
             var mod = load_module(base, s["path"])
             root_aliases[alias] = mod["prefix"]
+            // Preserve root import edges in source order.
+            oren_list_push(root_imports, {"alias": alias, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"]})
         }
         i = i + 1
     }
@@ -680,7 +748,24 @@ fn link_program(entry_path, root_prog, config) {
     
     // Preserve metadata-only surfaces across module linking.
     // (Traits are not represented as executable statements yet in v0.)
-    var linked = {"statements": merged_stmts, "traits": merged_traits, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets, "config": config}
+    // Provide a deterministic module graph surface for tooling.
+    var module_summaries = []
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m = MODULE_ORDER[i]
+        oren_list_push(module_summaries, {"prefix": m["prefix"], "path": m["path"], "imports": m["imports"]})
+        i = i + 1
+    }
+
+    var linked = {
+        "statements": merged_stmts,
+        "traits": merged_traits,
+        "aliases": root_aliases,
+        "type_ns": type_ns,
+        "field_offsets": field_offsets,
+        "config": config,
+        "module_graph": {"entry": entry_path, "imports": root_imports, "modules": module_summaries}
+    }
 
     // Whole-program impl/method-call lowering:
     // - enables cross-module method call sugar without runtime vtables
@@ -832,8 +917,8 @@ fn compiler_main() {
     }
 
     if mode == "dump" {
-        // Usage: oren dump <tokens|linked> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]
-        if i + 1 >= argc { print("Usage: oren dump <tokens|linked> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]"); return nil }
+        // Usage: oren dump <tokens|linked|graph> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]
+        if i + 1 >= argc { print("Usage: oren dump <tokens|linked|graph> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]"); return nil }
         var kind = args[i]
         var path = args[i + 1]
         i = i + 2
@@ -919,8 +1004,38 @@ fn compiler_main() {
             if rc2 != 0 { oren_exit(rc2) }
             return nil
         }
+        if kind == "graph" {
+            var srcg = oren_read_file(path)
+            if oren_is_err(srcg) {
+                print("Failed to read file: " + path)
+                var msgg = oren_err_msg(srcg)
+                if msgg != nil { print(msgg) }
+                oren_exit(2)
+            }
+            var lg = lexer.new_lexer(srcg)
+            lg["file"] = path
+            var pg = parser.new_parser(lg)
+            pg["strict_attrs"] = strict
+            pg["attr_allow_prefixes"] = allow
+            var progg = parser.parse_program(pg)
+            if oren_list_len(pg["errors"]) > 0 {
+                print("Parse errors:")
+                var eig = 0
+                while eig < oren_list_len(pg["errors"]) {
+                    print(pg["errors"][eig])
+                    eig = eig + 1
+                }
+                oren_exit(1)
+            }
+            var linkedg = link_program(path, progg, {"target": target, "arch": arch})
+            var graph = linkedg["module_graph"]
+            var jsg = dump.module_graph_json(graph)
+            var rcg = dump.write_or_print(outp, jsg)
+            if rcg != 0 { oren_exit(rcg) }
+            return nil
+        }
 
-        print("Unknown dump kind: " + kind + " (expected: tokens|linked)")
+        print("Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
         oren_exit(1)
     }
 

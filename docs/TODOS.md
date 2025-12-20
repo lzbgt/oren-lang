@@ -99,6 +99,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD:
      - stable module dependency graph export (JSON) for a build target
      - deterministic build ordering and deterministic artifact hashes in “deterministic mode”
+   - Status:
+     - module dependency graph export is available via `oren dump graph <file.oren>` (JSON, deterministic ordering)
 
 5) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
    - DoD:
@@ -143,6 +145,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
 - Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
+- Tooling: `oren dump graph <file.oren>` exports a deterministic module dependency graph (JSON).
 - Compiler diagnostics: lexer tokens now carry byte spans + file info; parse errors render `file:line:col`; native backend codegen errors fail the build with actionable locations.
 - Runtime diagnostics: panics/fails emit a stable one-line `OREN_DIAG kind=... code=... msg=...` (AI-friendly; no lldb/otool needed).
 - Attribute ergonomics: alias canonicalization (`@pack` → `@oren.packed`, `@abi` → `@oren.abi`, `@json.*` → `@serde.*`) keeps user code terse but metadata canonical.

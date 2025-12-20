@@ -157,3 +157,71 @@ fn linked_summary_json(linked) {
     return out
 }
 
+fn _json_obj_str(k, v) {
+    if v == nil { return json_string(k) + ": null" }
+    return json_string(k) + ": " + v
+}
+
+fn module_graph_json(graph) {
+    if graph == nil { return "{}\n" }
+    var entry = graph["entry"]
+    if entry == nil { entry = "<entry>" }
+
+    var imports = graph["imports"]
+    if imports == nil { imports = [] }
+    var modules = graph["modules"]
+    if modules == nil { modules = [] }
+
+    var out = "{\n"
+    out = out + "  " + json_kv_str("entry", entry) + ",\n"
+
+    // Root imports (deterministic, in source order).
+    out = out + "  \"imports\": [\n"
+    var i = 0
+    while i < oren_list_len(imports) {
+        var imp = imports[i]
+        if i != 0 { out = out + ",\n" }
+        out = out + "    { "
+        out = out + json_kv_str("alias", imp["alias"]) + ", "
+        out = out + json_kv_str("path", imp["path"]) + ", "
+        out = out + json_kv_str("prefix", imp["prefix"]) + ", "
+        out = out + json_kv_str("full", imp["full"])
+        out = out + " }"
+        i = i + 1
+    }
+    out = out + "\n  ],\n"
+
+    // Module list + their import edges (deterministic, module order then source order).
+    out = out + "  \"modules\": [\n"
+    i = 0
+    while i < oren_list_len(modules) {
+        var m = modules[i]
+        if i != 0 { out = out + ",\n" }
+        out = out + "    {\n"
+        out = out + "      " + json_kv_str("prefix", m["prefix"]) + ",\n"
+        out = out + "      " + json_kv_str("path", m["path"]) + ",\n"
+
+        var imps = m["imports"]
+        if imps == nil { imps = [] }
+        out = out + "      \"imports\": [\n"
+        var j = 0
+        while j < oren_list_len(imps) {
+            var ei = imps[j]
+            if j != 0 { out = out + ",\n" }
+            out = out + "        { "
+            out = out + json_kv_str("alias", ei["alias"]) + ", "
+            out = out + json_kv_str("path", ei["path"]) + ", "
+            out = out + json_kv_str("prefix", ei["prefix"]) + ", "
+            out = out + json_kv_str("full", ei["full"])
+            out = out + " }"
+            j = j + 1
+        }
+        out = out + "\n      ]\n"
+        out = out + "    }"
+        i = i + 1
+    }
+    out = out + "\n  ]\n"
+
+    out = out + "}\n"
+    return out
+}
