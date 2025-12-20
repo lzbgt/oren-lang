@@ -159,6 +159,13 @@ AVM exists because there are real environments where:
 
 So Oren can compile to bytecode (`.obc`) and run under a VM with strong governance.
 
+Important clarification (to avoid confusion with the native syscall-first backend):
+
+- The **current AVM is a portable C implementation** (`lib/avm` + `./avm`).
+- Like the **C backend**, the C AVM may use libc for convenience (CLI, buffers, parsing), because it is a *bootstrap/portability artifact*.
+- The **“no libc shims” rule applies to the native backend runtime**, not to every bootstrap component.
+- Long-term direction (documented elsewhere in this repo): AVM becomes an **Oren-native stdlib/syslib component**, and the “compiler-in-AVM” loop closes without requiring an OS toolchain on restricted devices.
+
 ### 4.1 Capability domains and Virtual backends
 
 In AVM, effectful operations are explicit:
@@ -349,4 +356,3 @@ Instead, Oren’s differentiator is that it is designed for agentic workflows:
 - deterministic replay
 - explicit capability domains and virtualization
 - nested universes and swarm validation
-

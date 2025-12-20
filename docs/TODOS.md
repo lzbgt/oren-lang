@@ -53,32 +53,31 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
-   - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
-     - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
-     - deterministic TIME/RNG, snapshot/resume, multiverse
+1) **P0 [vm] AVM determinism + governance invariants** `[safety]`
+   - DoD: AVM outputs are deterministic under the same inputs, and governance scanning is safe.
+   - Concrete deliverables (keep high-signal + testable):
+     - `RESULT_HASH` / `TRACE_HASH` stable across repeated runs on the same host (enforced by `oretest` rerun guard) ✅
+     - deterministic TIME/RNG semantics stay documented and enforced (`docs/AVM_SPEC_V1.md`)
+     - capability domains (FS/NET/PROC/ENV/TIME) remain explicit ops; policy/job scanning must not execute bytecode
 
-2) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
-   - DoD: trait/impl has real compile-time meaning without runtime vtables.
+2) **P1 [lang] Oren “modern core” spec ↔ compiler alignment** `[arch]`
+   - DoD: core language features are implemented consistently across backends, with deterministic semantics.
    - Next deliverables (in order):
-     - compile-time ambiguity diagnostics for multiple impls of the same `Type.method` ✅
-     - export trait declarations into module metadata JSON (`traits` section) ✅
-     - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
-     - (design) blanket impls / generic impl templates + coherence rules (no overlap, deterministic selection)
+     - finish/confirm the typed-annotation story in spec (u8/i32/f64 tokens are language-level; attributes are metadata only)
+     - keep function values / closures / varargs / spawn/join semantics locked down by the integration suites
+     - define the trait/protocol roadmap in one place (no runtime vtables in v0; compile-time meaning first)
 
-3) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
-   - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
-   - Next deliverable: define the minimal “AVM-in-Oren” surface area (hosted by C AVM first).
+3) **P1 [boot] AVM staged evolution: C → Oren-native → stdlib → compiles Oren** `[arch]`
+   - DoD: the repo has a clear staged path (documented + reflected in code layout):
+     - Stage A: AVM in C (portable, can use libc; like the C backend)
+     - Stage B: Oren-native AVM (built as syslib/stdlib component)
+     - Stage C: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe
+   - Next deliverable: document the minimal surface between stages (what “host services” AVM needs vs what becomes `.oren` stdlib).
 
-4) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
-   - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
-   - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
-
-5) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+4) **P2 [maint] Capsule safety hardening (keep, but don’t derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
-   - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
-6) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
+5) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
    - Goal: enable ergonomic HTTP libs (FastAPI-like) that can auto-export a modern API contract.
    - Direction:
      - use attributes as the source of truth (already in metadata JSON)
@@ -99,5 +98,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
 - Metadata: trait declarations are preserved in module metadata JSON (`traits`, methods, and return annotations), enabling doc/serde tooling without runtime vtables yet.
 - AVM determinism: integer arithmetic in the VM is now defined as i64 two’s-complement wraparound (no C signed-overflow UB), and invalid ops (div0, shift out of range) abort deterministically (covered by `tests/avm/test_smoke_suite.oren` + expected-failure `tests/avm/test_arith_invalid.oren`).
+- AVM determinism guard: `oretest` reruns `test_smoke_suite` in scalar mode and requires `RESULT_HASH`/`TRACE_HASH` to match (catches uninitialized/pointer-order hash issues).
 - Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.
 - Stdlib errno wrappers (v7): added `lib/std/result.oren` helpers to convert `-errno` syscall-style returns into structured errors.

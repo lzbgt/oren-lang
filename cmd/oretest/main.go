@@ -546,6 +546,51 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 
 		runOK := true
 		switch name {
+		case "test_smoke_suite":
+			// Determinism guard (same host, same binary, repeated run).
+			//
+			// This catches:
+			// - uninitialized memory included in hashing
+			// - pointer-order dependence in RESULT_HASH / TRACE_HASH
+			cmd1 := fmt.Sprintf("./avm --print-result-hash --print-trace-hash %q", obc)
+			if rc := runWithTimeout(timeoutBin, runTimeout, cmd1, log); rc != 0 {
+				runOK = false
+				break
+			}
+			scalarResultHash, okR := extractHashFromLog(log, "RESULT_HASH")
+			scalarTraceHash, okT := extractHashFromLog(log, "TRACE_HASH")
+			if !okR || !okT {
+				_ = appendFileLine(log, "oretest: missing RESULT_HASH/TRACE_HASH in scalar run output")
+				runOK = false
+				break
+			}
+
+			rerunLog := filepath.Join("build", "logs", "avm_"+name+"_rerun.log")
+			_ = os.Remove(rerunLog)
+			cmd2 := fmt.Sprintf("./avm --print-result-hash --print-trace-hash %q", obc)
+			if rc := runWithTimeout(timeoutBin, runTimeout, cmd2, rerunLog); rc != 0 {
+				runOK = false
+				log = rerunLog
+				break
+			}
+			rerunResultHash, okR2 := extractHashFromLog(rerunLog, "RESULT_HASH")
+			rerunTraceHash, okT2 := extractHashFromLog(rerunLog, "TRACE_HASH")
+			if !okR2 || !okT2 {
+				_ = appendFileLine(rerunLog, "oretest: missing RESULT_HASH/TRACE_HASH in rerun output")
+				runOK = false
+				log = rerunLog
+				break
+			}
+			if rerunResultHash != scalarResultHash || rerunTraceHash != scalarTraceHash {
+				_ = appendFileLine(rerunLog, "oretest: repeated-run determinism guard failed (hash mismatch)")
+				_ = appendFileLine(rerunLog, "first RESULT_HASH "+scalarResultHash)
+				_ = appendFileLine(rerunLog, "rerun RESULT_HASH "+rerunResultHash)
+				_ = appendFileLine(rerunLog, "first TRACE_HASH "+scalarTraceHash)
+				_ = appendFileLine(rerunLog, "rerun TRACE_HASH "+rerunTraceHash)
+				runOK = false
+				log = rerunLog
+				break
+			}
 		case "test_multiverse_vfs_inherit":
 			// Build nested-universe fixtures (bytecode programs consumed as data by the test).
 			fx := []struct {
@@ -735,7 +780,9 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 		case "test_smoke_suite":
 			// Run the scalar path (default) first, then validate the SIMD path (arm64 only).
 			//
-			// Determinism guard: compare RESULT_HASH + TRACE_HASH with SIMD off/on.
+			// Determinism guard:
+			// - compare RESULT_HASH + TRACE_HASH with SIMD off/on
+			// - compare scalar run vs scalar rerun (same host, same binary)
 			// The smoke suite includes SIMD-sensitive typed-buffer kernels (f32_buf ops), so this is high-signal.
 			cmd := fmt.Sprintf("%s --print-result-hash --print-trace-hash %q", avmPath, filepath.Join("build", name+".obc"))
 			if rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log); rc != 0 {
@@ -749,6 +796,34 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 				runOK = false
 				break
 			}
+
+			// Re-run the scalar path and ensure hashes match (same host determinism).
+			rerunLog := filepath.Join("build", "logs", "avm_"+name+"_rerun.log")
+			_ = os.Remove(rerunLog)
+			if rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), rerunLog); rc != 0 {
+				runOK = false
+				log = rerunLog
+				break
+			}
+			rerunResultHash, okR2 := extractHashFromLog(rerunLog, "RESULT_HASH")
+			rerunTraceHash, okT2 := extractHashFromLog(rerunLog, "TRACE_HASH")
+			if !okR2 || !okT2 {
+				_ = appendFileLine(rerunLog, "oretest: missing RESULT_HASH/TRACE_HASH in scalar rerun output")
+				runOK = false
+				log = rerunLog
+				break
+			}
+			if rerunResultHash != scalarResultHash || rerunTraceHash != scalarTraceHash {
+				_ = appendFileLine(rerunLog, "oretest: repeated-run determinism guard failed (hash mismatch)")
+				_ = appendFileLine(rerunLog, "first RESULT_HASH "+scalarResultHash)
+				_ = appendFileLine(rerunLog, "rerun RESULT_HASH "+rerunResultHash)
+				_ = appendFileLine(rerunLog, "first TRACE_HASH "+scalarTraceHash)
+				_ = appendFileLine(rerunLog, "rerun TRACE_HASH "+rerunTraceHash)
+				runOK = false
+				log = rerunLog
+				break
+			}
+
 			if shouldValidateSIMD() {
 				simdLog := filepath.Join("build", "logs", "avm_"+name+"_simd.log")
 				simdCmd := fmt.Sprintf("env AVM_ENABLE_SIMD=1 %s --print-result-hash --print-trace-hash %q", avmPath, filepath.Join("build", name+".obc"))
