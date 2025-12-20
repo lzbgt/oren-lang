@@ -55,12 +55,13 @@ fn cli_spec() {
     argparse.cmd_option(meta, "--arch", nil, "string", "arm64", "Target arch for ABI/layout lowering: arm64 (rolling)")
     argparse.cmd_flag(meta, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
     argparse.cmd_option(meta, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
+    argparse.cmd_flag(meta, "--deterministic", nil, "Deterministic mode: emit stable artifact hash (sha256) for metadata output")
 
     var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
     argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
 
     var dumpcmd = argparse.add_command(p, "dump", "Dump compiler internals for troubleshooting (JSON)")
-    argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked")
+    argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked|graph")
     argparse.cmd_positional(dumpcmd, "file.oren", true, "Input source file")
     argparse.cmd_option(dumpcmd, "-o", nil, "string", "", "Output path (default: stdout)")
     argparse.cmd_option(dumpcmd, "--target", nil, "string", "macos", "Target OS for lowering: macos|linux")
@@ -1088,6 +1089,10 @@ fn compiler_main() {
         var arch = "arm64"
         var out_meta = strip_suffix(path, ".oren") + ".meta.json"
 
+        var deterministic = false
+        var env_det = oren_env("OREN_DETERMINISTIC")
+        if env_det != nil { deterministic = true }
+
         var env_strict_attrs = oren_env("OREN_STRICT_ATTRS")
         if env_strict_attrs != nil { STRICT_ATTRS = true }
         var env_attr_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
@@ -1118,8 +1123,13 @@ fn compiler_main() {
                                 ATTR_ALLOW_PREFIXES = split_csv(args[i + 1])
                                 i = i + 2
                             } else {
-                                print("Unknown arg: " + args[i])
-                                return nil
+                                if args[i] == "--deterministic" {
+                                    deterministic = true
+                                    i = i + 1
+                                } else {
+                                    print("Unknown arg: " + args[i])
+                                    return nil
+                                }
                             }
                         }
                     }
@@ -1160,6 +1170,16 @@ fn compiler_main() {
             oren_exit(1)
         }
         print("Wrote metadata: " + out_meta)
+        if deterministic {
+            var bs = oren_read_bytes(out_meta)
+            if oren_is_err(bs) {
+                print("Failed to read artifact for hashing: " + out_meta)
+                var msgH = oren_err_msg(bs)
+                if msgH != nil { print(msgH) }
+                oren_exit(1)
+            }
+            _emit_artifact_hash("meta", out_meta, bs)
+        }
         return nil
     }
 
@@ -1484,6 +1504,16 @@ fn compiler_main() {
                 oren_exit(1)
             }
             print("Wrote metadata: " + meta_path)
+            if deterministic {
+                var bsM = oren_read_bytes(meta_path)
+                if oren_is_err(bsM) {
+                    print("Failed to read artifact for hashing: " + meta_path)
+                    var msgHM = oren_err_msg(bsM)
+                    if msgHM != nil { print(msgHM) }
+                    oren_exit(1)
+                }
+                _emit_artifact_hash("meta", meta_path, bsM)
+            }
         }
 
         if target == "linux" {

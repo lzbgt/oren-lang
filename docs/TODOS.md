@@ -104,6 +104,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Status:
      - module dependency graph export is available via `oren dump graph <file.oren>` (JSON, deterministic ordering)
      - `oren build --deterministic` emits stable `OREN_ARTIFACT ... sha256=...` hashes (oretest enforces bytecode reproducibility)
+     - deterministic mode also hashes metadata sidecars (`--metadata` / `oren meta --deterministic`) as `kind=meta`
 
 5) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
    - DoD:
