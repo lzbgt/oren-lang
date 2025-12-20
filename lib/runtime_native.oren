@@ -364,6 +364,12 @@ var OREN_O_NONBLOCK = 1024
 // POSIX socket constants used by syscall-first runtime (no SDK headers).
 // Values are stable across Darwin/Linux for IPv4 + TCP/UDP in practice.
 var OREN_AF_INET = 2
+// NOTE: AF_INET6 differs across Darwin/Linux:
+// - macOS: 30
+// - Linux: 10
+// We initialize this deterministically in `native_runtime_init` based on target_os.
+var OREN_AF_INET6 = 30
+var OREN_AF_UNIX = 1
 var OREN_SOCK_STREAM = 1
 var OREN_SOCK_DGRAM = 2
 var OREN_IPPROTO_TCP = 6
@@ -504,6 +510,9 @@ fn native_runtime_init(target_os) {
 
     // POSIX socket constants.
     OREN_AF_INET = 2
+    // AF_INET6 differs across macOS/Linux.
+    if target_os == 1 { OREN_AF_INET6 = 30 } else { OREN_AF_INET6 = 10 }
+    OREN_AF_UNIX = 1
     OREN_SOCK_STREAM = 1
     OREN_SOCK_DGRAM = 2
     OREN_IPPROTO_TCP = 6
@@ -6416,6 +6425,118 @@ fn oren_tcp_sockaddr_in(ip, port) {
     }
 
     return sa
+}
+
+fn oren_sockaddr_in6(ip6_bytes, port) {
+    // struct sockaddr_in6:
+    //
+    // - macOS/BSD (28 bytes):
+    //     u8  sin6_len
+    //     u8  sin6_family
+    //     u16 sin6_port (big-endian)
+    //     u32 sin6_flowinfo (native-endian; little on arm64)
+    //     u8  sin6_addr[16]
+    //     u32 sin6_scope_id (native-endian; little on arm64)
+    //
+    // - Linux (28 bytes):
+    //     u16 sin6_family (little-endian)
+    //     u16 sin6_port   (big-endian)
+    //     u32 sin6_flowinfo (little-endian)
+    //     u8  sin6_addr[16]
+    //     u32 sin6_scope_id (little-endian)
+    //
+    // Input:
+    // - ip6_bytes: bytes container (list<int 0..255> or u8_buf) of length 16; if nil => ::1.
+    var sa = malloc(28)
+    if sa == 0 { return 0 }
+    oren_track_alloc(sa, 28, 0)
+
+    // zero-fill
+    var zi = 0
+    while zi < 28 {
+        ptr_set_byte(sa + zi, 0)
+        zi = zi + 1
+    }
+
+    if g_target_os == 1 {
+        // macOS/BSD
+        ptr_set_byte(sa + 0, 28)
+        ptr_set_byte(sa + 1, OREN_AF_INET6)
+    } else {
+        // Linux: family u16 LE
+        ptr_set_byte(sa + 0, OREN_AF_INET6 & 255)
+        ptr_set_byte(sa + 1, (OREN_AF_INET6 >> 8) & 255)
+    }
+
+    // port in network order
+    ptr_set_byte(sa + 2, (port >> 8) & 255)
+    ptr_set_byte(sa + 3, port & 255)
+
+    // addr bytes
+    if ip6_bytes == 0 {
+        // default ::1 (last byte = 1)
+        ptr_set_byte(sa + 8 + 15, 1)
+    } else {
+        var n = oren_bytes_len(ip6_bytes)
+        if oren_is_err(n) { return 0 }
+        if n != 16 { return 0 }
+        var i = 0
+        while i < 16 {
+            var b = oren_bytes_get_u8(ip6_bytes, i)
+            if b < 0 || b > 255 { return 0 }
+            ptr_set_byte(sa + 8 + i, b)
+            i = i + 1
+        }
+    }
+    return sa
+}
+
+fn oren_sockaddr_un(path) {
+    // struct sockaddr_un:
+    // - macOS/BSD: len(u8) + family(u8) + path[104], sizeof=106
+    // - Linux: family(u16) + path[108], sizeof=110
+    //
+    // Input:
+    // - path: string (NUL not required; we NUL-terminate if room)
+    if path == 0 { return 0 }
+    var n = oren_string_len(path)
+    if n < 0 { return 0 }
+
+    if g_target_os == 1 {
+        var sa = malloc(106)
+        if sa == 0 { return 0 }
+        oren_track_alloc(sa, 106, 0)
+        var zi = 0
+        while zi < 106 { ptr_set_byte(sa + zi, 0); zi = zi + 1 }
+        ptr_set_byte(sa + 0, 106)
+        ptr_set_byte(sa + 1, OREN_AF_UNIX)
+        var i = 0
+        while i < n {
+            if i >= 104 { break }
+            ptr_set_byte(sa + 2 + i, ptr_get_byte(path + i))
+            i = i + 1
+        }
+        // NUL terminate if there is space
+        if i < 104 { ptr_set_byte(sa + 2 + i, 0) }
+        return sa
+    }
+
+    // Linux
+    var sa2 = malloc(110)
+    if sa2 == 0 { return 0 }
+    oren_track_alloc(sa2, 110, 0)
+    var zj = 0
+    while zj < 110 { ptr_set_byte(sa2 + zj, 0); zj = zj + 1 }
+    ptr_set_byte(sa2 + 0, OREN_AF_UNIX)
+    ptr_set_byte(sa2 + 1, 0)
+    var j = 0
+    while j < n {
+        if j >= 108 { break }
+        ptr_set_byte(sa2 + 2 + j, ptr_get_byte(path + j))
+        j = j + 1
+    }
+    if j < 108 { ptr_set_byte(sa2 + 2 + j, 0) }
+    return sa2
 }
 
 @cap.requires(domain="NET")

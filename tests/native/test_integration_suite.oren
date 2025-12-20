@@ -720,6 +720,45 @@ fn test_net_loopback_minimal() {
     sys_wait4(pid, st, 0, 0)
 }
 
+fn test_sockaddr_packers() {
+    // Pack-only tests (no syscalls): validates syscall-first OS ABI layout helpers in native runtime.
+    //
+    // Note: sockaddr_in6 and sockaddr_un layouts differ across macOS/Linux.
+
+    // sockaddr_in6 ::1:1234
+    var sa6 = oren_sockaddr_in6(0, 1234)
+    if sa6 == 0 { fail(900) }
+    // port be at +2
+    assert_eq(u16be_at(sa6, 2), 1234, 901)
+    // address last byte == 1
+    if ptr_get_byte(sa6 + 8 + 15) != 1 { fail(902) }
+    // family location differs:
+    if g_target_os == 1 {
+        if ptr_get_byte(sa6 + 1) != OREN_AF_INET6 { fail(903) }
+        if ptr_get_byte(sa6 + 0) != 28 { fail(904) }
+    } else {
+        // Linux: u16 LE at [0..1]
+        if ptr_get_byte(sa6 + 0) != (OREN_AF_INET6 & 255) { fail(905) }
+        if ptr_get_byte(sa6 + 1) != ((OREN_AF_INET6 >> 8) & 255) { fail(906) }
+    }
+    free(sa6)
+
+    // sockaddr_un path "/tmp/ab"
+    var sun = oren_sockaddr_un("/tmp/ab")
+    if sun == 0 { fail(910) }
+    if g_target_os == 1 {
+        if ptr_get_byte(sun + 1) != OREN_AF_UNIX { fail(911) }
+        if ptr_get_byte(sun + 2) != 47 { fail(912) } // '/'
+        if ptr_get_byte(sun + 3) != 116 { fail(913) } // 't'
+    } else {
+        // Linux: family u16 LE at [0..1]
+        if ptr_get_byte(sun + 0) != OREN_AF_UNIX { fail(914) }
+        if ptr_get_byte(sun + 1) != 0 { fail(915) }
+        if ptr_get_byte(sun + 2) != 47 { fail(916) }
+    }
+    free(sun)
+}
+
 fn main() {
     // ENV test must run first because it may execve() once.
     test_env_execve_getenv()
@@ -742,6 +781,7 @@ fn main() {
     test_read_bytes_roundtrip()
     test_gc_mem_stats()
     test_net_loopback_minimal()
+    test_sockaddr_packers()
 
     print("native integration suite OK")
     exit(0)
