@@ -45,44 +45,35 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [maint] Verification loop: fast, parallel, non-hanging** `[perf]`
-   - Goal: iteration velocity stays high even as the language/AVM become more capable.
-   - DoD:
-     - `make test` remains timeout-safe (no infinite hangs).
-     - `oretest` must not require external GNU `timeout` on macOS; internal process-group kill is the baseline.
-     - Default output is compact: only failed test details + a short summary.
-     - Keep `OREN_TEST_FULL=1` / `OREN_TEST_VERBOSE=1` for deep debugging.
-     - Reduce redundant micro-tests by merging into a small number of high-signal integration suites (native + module + AVM).
-
-2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
+1) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
    - Next deliverables (in order):
      - (optional) add i32 elementwise NEON kernels if profiling shows it matters
 
-3) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
+2) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
 
-4) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
+3) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
    - Next deliverables (in order):
      - compile-time ambiguity diagnostics for multiple impls of the same `Type.method` ✅
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
-5) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
+4) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
    - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
    - Next deliverable: define the minimal “AVM-in-Oren” surface area (hosted by C AVM first).
 
-6) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
+5) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
    - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
    - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
 
-7) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+6) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
    - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
-8) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
+7) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
    - Goal: enable ergonomic HTTP libs (FastAPI-like) that can auto-export a modern API contract.
    - Direction:
      - use attributes as the source of truth (already in metadata JSON)
@@ -95,6 +86,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Verification loop: `oretest` is parallel + timeout-safe by default; it no longer requires GNU `timeout`/`gtimeout` on macOS (internal process-group kill).
 - Varargs: implemented `fn f(a, ...rest)` end-to-end across parser + C backend + native backend + AVM bytecode, with spawn/join coverage and linux/arm64 docker verification.
 - Runtime diagnostics: failures/panics now emit a stable `OREN_DIAG kind=... code=... msg=...` one-liner, enforced by `oretest` fixtures (AI-friendly, no lldb/otool needed).
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
