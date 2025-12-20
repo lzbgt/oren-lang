@@ -235,6 +235,7 @@ func main() {
 	}
 	avmTestsFast := []string{
 		"tests/avm/test_smoke_suite.oren",
+		"tests/avm/test_map_iter_deterministic.oren",
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
 		"tests/avm/test_snapshot_vfs_resume.oren",
@@ -252,6 +253,7 @@ func main() {
 	}
 	avmTestsFull := []string{
 		"tests/avm/test_smoke_suite.oren",
+		"tests/avm/test_map_iter_deterministic.oren",
 		"tests/avm/test_spawn_join_timeout.oren",
 		"tests/avm/test_policy_scan.oren",
 		"tests/avm/test_job_scan.oren",
@@ -994,6 +996,13 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 				log = rerunLog
 				break
 			}
+		case "test_map_iter_deterministic":
+			// Map iteration order should be deterministic even under capsule-like configs.
+			// Run in deterministic mode and deny-by-default (no host effects).
+			cmd := fmt.Sprintf("env AVM_DETERMINISTIC=1 AVM_TIME_START_NS=0 AVM_TIME_STEP_NS=1 ./avm --deny-by-default --allow-domains \"0,6\" %q", obc)
+			if rc := runWithTimeout(timeoutBin, runTimeout, cmd, log); rc != 0 {
+				runOK = false
+			}
 		case "test_multiverse_vfs_inherit":
 			// Build nested-universe fixtures (bytecode programs consumed as data by the test).
 			fx := []struct {
@@ -1312,6 +1321,13 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 						log = simdLog
 					}
 				}
+			}
+		case "test_map_iter_deterministic":
+			// Map iteration order should be deterministic even under capsule-like configs.
+			// Run in deterministic mode and deny-by-default (no host effects).
+			cmd := fmt.Sprintf("env AVM_DETERMINISTIC=1 AVM_TIME_START_NS=0 AVM_TIME_STEP_NS=1 %s --deny-by-default --allow-domains \"0,6\" %q", avmPath, filepath.Join("build", name+".obc"))
+			if rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log); rc != 0 {
+				runOK = false
 			}
 		case "test_multiverse_vfs_inherit":
 			fx := []struct {

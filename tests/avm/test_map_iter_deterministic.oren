@@ -1,0 +1,33 @@
+// Map iteration order must be deterministic (key ordered), especially in AVM
+// deterministic/capsule modes.
+//
+// This test is intentionally "no host effects": it should be runnable with:
+//   --deny-by-default --allow-domains "0,6"
+// and optionally with AVM_DETERMINISTIC=1.
+
+fn fail(code) {
+    print("avm map_iter_deterministic FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// Insert in non-sorted order (int keys).
+var m = {3: 30, 1: 10, 2: 20}
+
+var ks = []
+for k in m {
+    oren_list_push(ks, k)
+}
+
+assert_eq(oren_list_len(ks), 3, 10)
+assert_eq(ks[0], 1, 11)
+assert_eq(ks[1], 2, 12)
+assert_eq(ks[2], 3, 13)
+
+print("avm map_iter_deterministic OK")
+exit(0)
+
