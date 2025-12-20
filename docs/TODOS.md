@@ -88,6 +88,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - bytecode backend codegen no longer hard-exits; it reports `ctx["errors"]` and the compiler emits `OREN_DIAG kind=codegen code=1 ...` (oretest enforced)
      - `oren dump ...` and `oren meta ...` CLI argument/I/O errors emit `OREN_DIAG kind=compile code=2 ...` (oretest enforced via CLI suite)
      - `oren build ...` CLI argument validation errors emit `OREN_DIAG kind=compile code=2 ...` (oretest enforced via CLI suite)
+     - parser refactor: `lib/compiler/parser.oren` is now a small public facade over `parser_core.oren` + `parser_parse.oren` (keeps files <2000 lines)
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:
