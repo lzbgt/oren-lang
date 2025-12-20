@@ -94,5 +94,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Runtime diagnostics: failures/panics now emit a stable `OREN_DIAG kind=... code=... msg=...` one-liner, enforced by `oretest` fixtures (AI-friendly, no lldb/otool needed).
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
+- Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
 - Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.
 - Stdlib errno wrappers (v7): added `lib/std/result.oren` helpers to convert `-errno` syscall-style returns into structured errors.

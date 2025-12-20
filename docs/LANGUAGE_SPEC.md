@@ -172,6 +172,12 @@ Attributes attach to declarations:
 - parameters (future)
 - fields (future)
 
+Rolling status note (implementation reality):
+
+- Attributes are implemented today for: functions, types, parameters, and fields.
+- Some attributes are pure metadata, while a small reserved set are compiler directives
+  (e.g. packed byte views / ABI layouts).
+
 Example (function):
 
 ```oren
@@ -202,6 +208,15 @@ struct User {
 
 3) **Reserved namespaces**
    - Compiler/tool-reserved: `oren.*`, `avm.*`, `cap.*`, `ffi.*`, `codegen.*`, `trace.*`
+
+4) **Ergonomic aliases (surface syntax)**
+   - For readability, the compiler accepts a small set of short aliases and canonicalizes
+     them before strict-mode validation and before emitting metadata.
+   - Canonical form is what gets embedded into `.obc` metadata / `--metadata` JSON.
+   - Current aliases:
+     - `@pack` → `@oren.packed`
+     - `@abi` → `@oren.abi`
+     - `@json.*` → `@serde.*` (serde namespace is canonical for tooling + future codegen)
 
 #### Stdlib impact: JSON serde (rolling plan)
 

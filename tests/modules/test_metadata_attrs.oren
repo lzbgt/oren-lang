@@ -41,9 +41,10 @@ fn parse_src(src) {
 fn test_metadata_includes_attrs() {
     var src = ""
     src = src + "@doc(\"hello\")\n"
-    src = src + "fn f(@serde.rename(\"x\") a, b) { return 0 }\n"
-    src = src + "@serde.tag(\"t\")\n"
-    src = src + "struct S { @serde.rename(\"id\") id, name }\n"
+    // Ergonomics: allow `@json.*` sugar, canonicalized to `serde.*` in metadata.
+    src = src + "fn f(@json.rename(\"x\") a, b) { return 0 }\n"
+    src = src + "@json.tag(\"t\")\n"
+    src = src + "struct S { @json.rename(\"id\") id, name }\n"
 
     var prog = parse_src(src)
     var j = metadata.generate_metadata(prog)
@@ -65,4 +66,3 @@ fn test_metadata_includes_attrs() {
 test_metadata_includes_attrs()
 print("ok")
 exit(0)
-

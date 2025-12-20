@@ -1,7 +1,7 @@
 // Module/C backend regression: packed views are compile-time lowered and must
 // work with the portable v0 bytes representation (list<int 0..255>).
 
-@oren.packed
+@pack
 struct H {
     v: u8,
     t: u8,
@@ -10,27 +10,27 @@ struct H {
     dst: u32be
 }
 
-@oren.packed
+@pack
 struct S16 {
     x: i16be
 }
 
-@oren.packed
+@pack
 struct U64 {
     x: u64be
 }
 
-@oren.packed
+@pack
 struct S64 {
     x: i64be
 }
 
-@oren.packed
+@pack
 struct U64LE {
     x: u64le
 }
 
-@oren.packed
+@pack
 struct S64LE {
     x: i64le
 }
