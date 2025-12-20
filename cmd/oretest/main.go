@@ -315,6 +315,42 @@ func main() {
 			cleanup: []string{"build/deterministic_meta_1.meta.json", "build/deterministic_meta_2.meta.json", "build/deterministic_meta_1.out", "build/deterministic_meta_2.out", "build/deterministic_meta_1.hash", "build/deterministic_meta_2.hash"},
 		},
 		{
+			name: "deterministic_native_meta_hash",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target %s --metadata --deterministic -o %q > %q && "+
+					"./oren build %q --backend native --target %s --metadata --deterministic -o %q > %q && "+
+					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
+					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
+					"diff -q %q %q",
+				"tests/modules/test_strings.oren",
+				*target,
+				"build/deterministic_native_meta_1",
+				"build/deterministic_native_meta_1.out",
+				"tests/modules/test_strings.oren",
+				*target,
+				"build/deterministic_native_meta_2",
+				"build/deterministic_native_meta_2.out",
+				"build/deterministic_native_meta_1.out",
+				"build/deterministic_native_meta_1.hash",
+				"build/deterministic_native_meta_2.out",
+				"build/deterministic_native_meta_2.hash",
+				"build/deterministic_native_meta_1.hash",
+				"build/deterministic_native_meta_2.hash",
+			),
+			log:     "build/logs/deterministic_native_meta_hash.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/deterministic_native_meta_1",
+				"build/deterministic_native_meta_1.meta.json",
+				"build/deterministic_native_meta_1.out",
+				"build/deterministic_native_meta_1.hash",
+				"build/deterministic_native_meta_2",
+				"build/deterministic_native_meta_2.meta.json",
+				"build/deterministic_native_meta_2.out",
+				"build/deterministic_native_meta_2.hash",
+			},
+		},
+		{
 			name:    "missing_file",
 			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/__missing__.oren", *target, "build/missing_file", gcArg),
 			log:     "build/logs/missing_file.log",

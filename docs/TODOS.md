@@ -106,6 +106,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - `oren build --deterministic` emits stable `OREN_ARTIFACT ... sha256=...` hashes (oretest enforces bytecode reproducibility)
      - deterministic mode also hashes metadata sidecars (`--metadata` / `oren meta --deterministic`) as `kind=meta`
      - oretest also enforces deterministic `kind=meta` hashes
+     - oretest covers both `oren meta` and `oren build --backend native --metadata` paths
 
 5) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
    - DoD:
