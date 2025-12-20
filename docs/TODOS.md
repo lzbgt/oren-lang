@@ -78,32 +78,41 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - type annotations keep doing deterministic implicit normalization at boundaries (C-like truncation rules, but explicitly specified)
      - `lib/std/casts.oren` stays as an optional clarity layer (not required for performance)
 
-2) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+2) **[lang][arch] Static type system plan + milestones (gradual typing → generics/traits)**
+   - Why now:
+     - Casting, packed views, and syscall-first networking need a clear long-term type story.
+     - Keeps future work coherent (avoid rework in parser/AST/codegen).
+   - DoD:
+     - document the phased plan in `docs/TYPE_SYSTEM_PLAN.md`
+     - explicitly define: width tokens, `as` cast surface, trait model (compile-time + runtime), packed view story
+     - update any outdated docs that contradict the plan
+
+3) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
 ### B) AVM (evolves alongside language/compiler)
 
-3) **[vm][safety] Record/Replay v1 for all effectful domains**
+4) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-4) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+5) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-5) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+6) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-6) **[boot][arch] Compiler-in-AVM (close the loop)**
+7) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
