@@ -149,6 +149,123 @@ Treat runtime polymorphism as a **VM feature**, not just “syntax sugar”.
 
 ---
 
+## 5) Generic traits without per-type boilerplate (blanket impls + defaults)
+
+The pain you’re pointing at is real: if Oren requires writing `impl Add for i32`, `impl Add for i64`, `impl Add for u64`, … for every trait, the model becomes noisy and *not* AI/agentic-friendly.
+
+A modern, elegant way to avoid that is to support **generic trait mechanisms** at the *language* level, but keep them **deterministic** and **toolable**.
+
+There are three complementary mechanisms; Oren should use **all three**, but staged.
+
+### 5.1 Trait default methods (big win, minimal complexity)
+
+Allow traits to provide **default method bodies**, expressed only in terms of:
+
+- other trait methods
+- pure operators on primitives
+- whitelisted builtin helpers
+
+Example direction:
+
+```oren
+trait Eq {
+    fn eq(self, rhs)
+
+    // default impl in terms of eq
+    fn ne(self, rhs) { return !self.eq(rhs) }
+}
+```
+
+Why it matters:
+
+- you implement the “minimum core” (`eq`) once per type,
+- you get a full surface (`ne`) for free,
+- it does not require generics or a type checker.
+
+Determinism note: defaults are just code; they compile like any other function and are deterministic.
+
+### 5.2 Blanket impls / impl templates (“generic impl”) 
+
+A **blanket impl** is an implementation that applies to a *family* of types.
+
+This is how Rust avoids per-type boilerplate for `Option<T>`, `Vec<T>`, etc.
+
+In Oren’s rolling world (where we’re still growing the type system), the *most future-proof* plan is:
+
+- support generic impls over **nominal types** *once generics exist* (v1+), and
+- in v0/v0.5, allow a limited “kind constraint” form for primitives/containers.
+
+Conceptual examples (v1 direction):
+
+```oren
+// Applies to any T that is Eq.
+impl[T] Eq for Option[T] where T: Eq {
+    fn eq(self, rhs) {
+        // ... compare tags and payloads ...
+    }
+}
+
+// Applies to any T that is ToString.
+impl[T] ToString for List[T] where T: ToString {
+    fn to_string(self) { ... }
+}
+```
+
+For primitives, you want “blanket over kinds”:
+
+```oren
+// Applies to all signed integer widths.
+impl Eq for signed_int {
+    fn eq(self, rhs) { return self == rhs }
+}
+
+// Applies to all floats.
+impl Eq for float {
+    fn eq(self, rhs) { return self == rhs }
+}
+```
+
+We don’t have `signed_int`/`float` kind types yet — but *documenting this now* keeps the model coherent, and lets us add the syntax later without rewrites.
+
+### 5.3 Derive-style expansion (attributes) for “data traits”
+
+For traits that are purely structural (serde, hashing, comparisons), the most ergonomic solution is a derive.
+
+Example:
+
+```oren
+@derive(Eq, Hash)
+struct User { id: u64, name: string }
+```
+
+This is not runtime reflection.
+
+It is **compile-time code generation** driven by metadata, which is deterministic and AVM-friendly.
+
+---
+
+## 6) Coherence + determinism rules for generic impls (non-negotiable)
+
+Generic impls are powerful, but they can destroy determinism if resolution is ambiguous.
+
+Oren should adopt a simple, strict **coherence rule** (Rust-like):
+
+1) For any pair `(Trait, Type)`, there must be **at most one applicable impl**.
+2) If multiple impls could apply, compilation is an error **unless** there is a single “most specific” impl by a well-defined subsumption rule.
+3) Cross-module resolution must be deterministic:
+   - the set of visible impls is determined by explicit imports/modules,
+   - no runtime discovery, no reflection.
+
+### 6.1 Practical staged enforcement (no big rewrite)
+
+- v0/v0.5: keep current explicit `impl Trait for Type` lowering + method-sugar registry.
+  - if multiple impls collide on the same `Type.method` name, error (already implemented).
+- v1: add an *optional explicit qualification syntax* for ambiguity resolution.
+  - example direction: `Trait.method(x, ...)` or `Type::Trait::method(x, ...)` (syntax TBD).
+- v1+: introduce blanket impls with a strict overlap checker.
+
+This staging keeps Oren **powerful** while maintaining a **solid foundation**.
+
 ## 5) Bootstrap reality (v0 rolling)
 
 Current implementation status:

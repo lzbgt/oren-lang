@@ -180,6 +180,10 @@ So this document is the **direction**: it guides evolution without forcing an im
 
 ## 9) Staged implementation plan (minimal rewrite)
 
+A key ergonomics requirement is avoiding per-type boilerplate for primitives and containers.
+Oren should eventually support **blanket impls / generic impl templates** plus **trait default methods** and **derive-style expansion** (attribute-driven)
+so most behavior can be implemented once and applied to many types deterministically.
+
 1) Add `trait` declarations as compile-time contracts (doc + parser support first).
 2) Add `impl Trait for Type` with static dispatch for:
    - core runtime types (string/list/map/int/float) first

@@ -61,6 +61,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - compile-time ambiguity diagnostics for multiple impls of the same `Type.method` ✅
      - export trait declarations into module metadata JSON (`traits` section) ✅
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
+     - (design) blanket impls / generic impl templates + coherence rules (no overlap, deterministic selection)
 
 3) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
    - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).

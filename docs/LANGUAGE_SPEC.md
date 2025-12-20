@@ -247,6 +247,17 @@ If/when `.obc` gains a metadata section that contains attributes:
 - **Execution identity** (`program_hash`) must be derived from semantics (code + constants), not from inert metadata.
 - Metadata may have its own hash (`meta_hash`) for auditing/debugging, but must not affect consensus execution identity.
 
+
+#### Trait ergonomics (direction)
+
+To avoid boilerplate (e.g. implementing `Eq`/`Add` for every integer width), Oren’s trait system should support:
+
+- **default methods** in trait definitions
+- **blanket impls / generic impl templates** (later) with strict coherence rules
+- **derive-style expansion** (attribute-driven) for structural/data traits like serde
+
+This stays compatible with AVM determinism because resolution is compile-time and overlap is forbidden (or must be explicitly disambiguated).
+
 ### Values and Types
 The runtime is dynamically typed. Values include:
 - `nil`
