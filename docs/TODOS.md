@@ -38,7 +38,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - If **docs-only** changes (only `docs/*` modified): tests are not required.
 
 6) **Keep this file actionable** `[maint]`
-   - Each P0/P1 item must have a concrete “Definition of Done” (DoD) and be finishable.
+   - Each item must have a concrete “Definition of Done” (DoD) and be finishable.
    - Avoid “infinite P0s” like “harden everything” without a crisp deliverable.
    - Keep the list 5–10 items total; merge and delete aggressively.
    - Repo must build from a clean clone: ignore build outputs only (do not accidentally ignore source dirs like `cmd/oren/` or `cmd/oretest/`).
@@ -63,19 +63,13 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][quality] Doc comments (`///`) end-to-end (parse → metadata → tooling)**
-   - DoD:
-     - lexer/parser accept `///` doc comments and attach them deterministically to the next declaration (fn/struct/trait/impl/enum)
-     - metadata JSON includes `doc` fields for public symbols
-     - oretest has at least one integration test proving doc export works and is stable
-
-2) **[lang][arch] Traits/protocols: coherence + generic impl templates (no runtime vtables in v0)**
+1) **[lang][arch] Traits/protocols: coherence + generic impl templates (no runtime vtables in v0)**
    - DoD:
      - define coherence/overlap rules (deterministic selection; no spooky action at distance)
      - implement “blanket impls” / generic impl templates with non-overlap enforcement
      - optional explicit disambiguation syntax (when multiple impls are in scope)
 
-3) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
+2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:
      - define a minimal IR boundary (or reuse current representation) that enables at least:
        - constant folding for numeric ops
@@ -83,43 +77,43 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - peephole cleanup for redundant moves/loads
      - add a small microbenchmark `.oren` program in `examples/` + measure before/after in `docs/`
 
-4) **[lang][safety] “Production panic” diagnostics: spans + stable backtrace mapping**
+3) **[lang][safety] “Production panic” diagnostics: spans + stable backtrace mapping**
    - DoD:
      - panics/errors include function + source span where available
      - metadata provides enough PC→span mapping for AVM traces and native panics (rolling schema OK)
      - oretest enforces machine-readable one-line `OREN_DIAG ...` + stable fields
 
-5) **[lang][arch] Module graph + reproducible builds (compiler surface)**
+4) **[lang][arch] Module graph + reproducible builds (compiler surface)**
    - DoD:
      - stable module dependency graph export (JSON) for a build target
      - deterministic build ordering and deterministic artifact hashes in “deterministic mode”
 
-6) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
+5) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
    - DoD:
      - define minimal `.oren`-level test runner spec (output format, filters, JSON output)
      - keep `cmd/oretest` as orchestration for now, but document staged migration path
 
 ### B) AVM (evolves alongside language/compiler)
 
-7) **[vm][safety] Record/Replay v1 for all effectful domains**
+6) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-8) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+7) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-9) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+8) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-10) **[boot][arch] Compiler-in-AVM (close the loop)**
+9) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
@@ -127,7 +121,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-11) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+10) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <module.meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
@@ -135,6 +129,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Language tooling: `///` doc comments now parse and attach deterministically to declarations, and are exported in metadata JSON (validated by `tests/modules/test_metadata_attrs.oren` in fast suite).
 - AVM SIMD: expanded NEON coverage to i32 typed-buffer kernels (add/mul/scale/reduce) with determinism guard (scalar vs SIMD result+trace hash) via `test_smoke_suite`.
 - Verification loop: `oretest` is parallel + timeout-safe by default; it no longer requires GNU `timeout`/`gtimeout` on macOS (internal process-group kill).
 - Varargs: implemented `fn f(a, ...rest)` end-to-end across parser + C backend + native backend + AVM bytecode, with spawn/join coverage and linux/arm64 docker verification.

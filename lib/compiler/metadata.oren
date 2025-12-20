@@ -163,7 +163,8 @@ fn generate_metadata(prog) {
 
             // New: rich params and function-level attrs.
             json = json + "      \"params\": " + json_named_list(params) + ",\n"
-            json = json + "      \"attrs\": " + json_attrs(func["attrs"]) + "\n"
+            json = json + "      \"attrs\": " + json_attrs(func["attrs"]) + ",\n"
+            json = json + "      \"doc\": " + json_string(func["doc"]) + "\n"
             json = json + "    }"
             first = false
         }
@@ -183,6 +184,7 @@ fn generate_metadata(prog) {
             if !first { json = json + ",\n" }
             json = json + "    {\n"
             json = json + "      \"name\": " + json_string(t["name"]) + ",\n"
+            json = json + "      \"doc\": " + json_string(t["doc"]) + ",\n"
             // Methods are recorded as a list of name + params (params reuse the Named/attr shape).
             json = json + "      \"methods\": [\n"
             var ms = t["methods"]
@@ -219,6 +221,7 @@ fn generate_metadata(prog) {
             json = json + "    {\n"
             json = json + "      \"name\": " + json_string(s["name"]["value"]) + ",\n"
             json = json + "      \"attrs\": " + json_attrs(s["attrs"]) + ",\n"
+            json = json + "      \"doc\": " + json_string(s["doc"]) + ",\n"
 
             // Backwards-compatible: keep a flat list of names.
             var fields = s["fields"]

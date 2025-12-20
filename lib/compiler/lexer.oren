@@ -46,6 +46,24 @@ fn skip_comment(l) {
     return nil
 }
 
+fn read_line_comment_text(l) {
+    // Read until '\n' or EOF, leaving l["ch"] on '\n' or "".
+    var out = ""
+    while l["ch"] != "" {
+        if l["ch"] == token.CH_LF { return out }
+        out = out + l["ch"]
+        read_char(l)
+    }
+    return out
+}
+
+fn trim_one_leading_space(s) {
+    if s == nil { return s }
+    if oren_string_len(s) == 0 { return s }
+    if oren_string_char_at(s, 0) == " " { return oren_string_slice(s, 1, oren_string_len(s)) }
+    return s
+}
+
 fn skip_block_comment(l) {
     // We already consumed the opening '/' and '*'
     var depth = 1
@@ -184,6 +202,19 @@ fn next_token(l) {
         return token.new_token(token.TOK_BANG, "!")
     }
     if ch == "/" {
+        // Doc comment: `/// ...`
+        //
+        // Emitted as a token so the parser can attach it to the next declaration
+        // and export it in metadata deterministically.
+        if peek_char(l) == "/" && peek_char2(l) == "/" {
+            read_char(l) // consume first '/'
+            read_char(l) // consume second '/'
+            read_char(l) // consume third '/'
+            var text = read_line_comment_text(l)
+            text = trim_one_leading_space(text)
+            // Do not consume the '\n' here; `skip_whitespace` will handle it.
+            return token.new_token(token.TOK_DOC, text)
+        }
         if peek_char(l) == "/" {
             skip_comment(l)
             return next_token(l)

@@ -63,6 +63,9 @@ var TOK_DEFAULT = "DEFAULT"
 var TOK_ENUM = "ENUM"
 var TOK_TRAIT = "TRAIT"
 var TOK_IMPL = "IMPL"
+// Doc comment token: emitted for `///` lines (rolling).
+// The parser attaches doc strings deterministically to the next declaration.
+var TOK_DOC = "DOC"
 
 // Built-in fixed-width type tokens (rolling, reserved identifiers).
 // These must be treated as identifiers in expression contexts, but are not legal as user variable names.

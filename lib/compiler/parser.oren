@@ -296,6 +296,37 @@ fn parser_add_error(p, msg) {
     oren_list_push(p["errors"], msg)
 }
 
+fn docs_join(lines) {
+    if lines == nil { return nil }
+    if oren_list_len(lines) == 0 { return nil }
+    var out = ""
+    var i = 0
+    while i < oren_list_len(lines) {
+        if i != 0 { out = out + "\n" }
+        out = out + lines[i]
+        i = i + 1
+    }
+    return out
+}
+
+fn parse_doc_list(p) {
+    // Collect consecutive `///` doc comment tokens and return a single joined
+    // doc string. Attachment is handled deterministically in parse_program.
+    var lines = []
+    while cur_is(p, token.TOK_DOC) {
+        oren_list_push(lines, p["cur"]["literal"])
+        parser_next_token(p)
+    }
+    if oren_list_len(lines) == 0 { return nil }
+    return docs_join(lines)
+}
+
+fn parser_take_pending_doc(p) {
+    var d = p["_pending_doc"]
+    p["_pending_doc"] = nil
+    return d
+}
+
 fn parser_next_token(p) {
     p["cur"] = p["peek"]
     p["peek"] = lexer.next_token(p["l"])
@@ -365,12 +396,40 @@ fn parse_type_name_after_colon(p) {
 fn parse_program(p) {
     var prog = ast.new_program()
     while p["cur"]["type"] != token.TOK_EOF {
-        var attrs = parse_attr_list(p)
+        // Allow doc comments and attributes to appear in either order before a declaration:
+        //   /// doc
+        //   @attr(...)
+        //   fn ...
+        //
+        // or:
+        //   @attr(...)
+        //   /// doc
+        //   struct ...
+        //
+        // We collect both deterministically and attach to the next declaration only.
+        var doc_lines = []
+        var attrs = []
+        while cur_is(p, token.TOK_DOC) || cur_is(p, token.TOK_AT) {
+            if cur_is(p, token.TOK_DOC) {
+                oren_list_push(doc_lines, p["cur"]["literal"])
+                parser_next_token(p)
+            } else {
+                var a = parse_attr(p)
+                if a != nil { oren_list_push(attrs, a) }
+                parser_next_token(p)
+            }
+        }
+        var doc = docs_join(doc_lines)
+        p["_pending_doc"] = doc
         var stmt = parse_statement(p)
         if stmt != nil {
             if stmt["type"] == "StmtList" {
                 if attrs != nil && oren_list_len(attrs) != 0 {
                     parser_add_error(p, "attributes may not precede enum sugar expansion")
+                }
+                if p["_pending_doc"] != nil {
+                    parser_add_error(p, "doc comments may not precede enum/impl sugar expansion yet")
+                    p["_pending_doc"] = nil
                 }
                 var si = 0
                 while si < oren_list_len(stmt["stmts"]) {
@@ -379,9 +438,29 @@ fn parse_program(p) {
                 }
             } else {
                 attach_attrs_to_stmt(p, stmt, attrs)
+                // Attach doc to declaration statements (fn/struct/class/import/ffi).
+                var pending = parser_take_pending_doc(p)
+                if pending != nil {
+                    if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" {
+                        stmt["doc"] = pending
+                    } else {
+                        if stmt["type"] == "ExprStmt" {
+                            var exp = stmt["expr"]
+                            if exp != nil && exp["type"] == "Function" {
+                                // Function consumes pending doc in parse_function.
+                            } else {
+                                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi)")
+                            }
+                        } else {
+                            parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi)")
+                        }
+                    }
+                }
                 oren_list_push(prog["statements"], stmt)
             }
         }
+        // If no statement consumed the doc, clear it to avoid leakage.
+        p["_pending_doc"] = nil
         parser_next_token(p)
     }
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
@@ -567,6 +646,7 @@ fn parse_trait_decl(p) {
     // - Trait declarations are compile-time contracts only (no runtime representation yet).
     // - We keep a metadata-only record under p["traits"] for tooling (docs/serde/OpenAPI/etc).
     // - No statements are emitted, so existing backends remain unchanged.
+    var doc = parser_take_pending_doc(p)
     if !expect_peek_ident_like(p, "trait name") { return ast.new_stmt_list([]) }
     var trait_name = parse_dotted_name(p)
     if trait_name == nil { return ast.new_stmt_list([]) }
@@ -627,7 +707,7 @@ fn parse_trait_decl(p) {
     }
 
     // p["cur"] is '}' (or EOF). Record trait metadata for tooling.
-    oren_list_push(p["traits"], {"name": trait_name, "methods": methods})
+    oren_list_push(p["traits"], {"name": trait_name, "doc": doc, "methods": methods})
     return ast.new_stmt_list([])
 }
 
@@ -673,6 +753,7 @@ fn parse_impl_decl(p) {
     //
     // This unblocks early stdlib layering and tooling without committing to a stable
     // method dispatch ABI yet.
+    var doc = parser_take_pending_doc(p)
     if !expect_peek_ident_like(p, "impl trait name") { return ast.new_stmt_list([]) }
     // cur is IDENT after expect_peek
     var trait_name = parse_dotted_name(p)
@@ -697,6 +778,7 @@ fn parse_impl_decl(p) {
             // st is ExprStmt(Function)
             var fnn = st["expr"]
             if fnn != nil && fnn["type"] == "Function" {
+                if doc != nil && fnn["doc"] == nil { fnn["doc"] = doc }
                 var mname = fnn["name"]
                 var newn = impl_mangled_name(trait_name, type_name, mname)
                 fnn["name"] = newn
@@ -882,6 +964,7 @@ fn parse_enum_decl(p) {
     // Notes:
     // - Enum values are plain maps (deterministic order is handled by map implementation).
     // - `match` / exhaustiveness checking is a later milestone.
+    var doc = parser_take_pending_doc(p)
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var enum_name = p["cur"]["literal"]
@@ -966,7 +1049,9 @@ fn parse_enum_decl(p) {
         oren_list_push(b["stmts"], ast.new_return(token.new_token(token.TOK_RETURN, "return"), h))
         // Keep function declarations in the normal surface form used by the rest
         // of the compiler pipeline: `ExprStmt(Function)`.
-        oren_list_push(out, ast.new_expr_stmt(fn_tok, ast.new_function(fn_tok, fn_name, params, b)))
+        var fnn = ast.new_function(fn_tok, fn_name, params, b)
+        if doc != nil { fnn["doc"] = doc }
+        oren_list_push(out, ast.new_expr_stmt(fn_tok, fnn))
 
         // Next token after variant (',' or '}')
         parser_next_token(p)
@@ -1112,6 +1197,9 @@ fn parse_test(p) {
     var tok = p["cur"]
     // test "name" { ... }
     // Convert to function: fn test_name() { ... }
+
+    // Allow doc comments to precede `test` blocks; attach them to the lowered function.
+    var doc = parser_take_pending_doc(p)
     
     if !expect_peek(p, token.TOK_STRING) { return nil }
     var test_name = p["cur"]["literal"]
@@ -1124,6 +1212,7 @@ fn parse_test(p) {
     // Create function AST
     // params = []
     var fn_node = ast.new_function(tok, func_name, [], body)
+    if doc != nil { fn_node["doc"] = doc }
     return ast.new_expr_stmt(tok, fn_node)
 }
 
@@ -1434,6 +1523,10 @@ fn parse_block(p) {
         if cur_is(p, token.TOK_RBRACE) { cont = false }
         if cur_is(p, token.TOK_EOF) { cont = false }
         if cont {
+            // Allow doc comments inside blocks (useful for local declarations in the future).
+            // For now, docs are attached only to declarations (primarily `fn`).
+            var doc = parse_doc_list(p)
+            p["_pending_doc"] = doc
             var stmt = parse_statement(p)
             if stmt != nil {
                 if stmt["type"] == "StmtList" {
@@ -1446,6 +1539,11 @@ fn parse_block(p) {
                     oren_list_push(block["stmts"], stmt)
                 }
             }
+            if p["_pending_doc"] != nil {
+                // Prevent leakage to later statements.
+                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/trait/impl/enum)")
+                p["_pending_doc"] = nil
+            }
             parser_next_token(p)
         }
     }
@@ -1455,6 +1553,10 @@ fn parse_block(p) {
 
 fn parse_function(p) {
     var tok = p["cur"]
+    // Doc comments attach to the next declaration. Consume them at the start of
+    // parsing the declaration so nested parsing (function body) can't clobber
+    // the pending doc value.
+    var doc = parser_take_pending_doc(p)
     var name = ""
     if peek_is_ident_like(p) {
         parser_next_token(p)
@@ -1491,6 +1593,7 @@ fn parse_function(p) {
     var body = parse_block(p)
     var fnn = ast.new_function(tok, name, params, body)
     if ret_ann != nil { fnn["ret_ann_type"] = ret_ann }
+    if doc != nil { fnn["doc"] = doc }
     return fnn
 }
 

@@ -134,6 +134,8 @@ func main() {
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
 		"tests/modules/test_abi_socket_structs_v5.oren",
+		// Compiler metadata surfaces (tooling/agentic).
+		"tests/modules/test_metadata_attrs.oren",
 		// Stdlib building blocks.
 		"tests/modules/test_result.oren",
 		"tests/modules/test_argparse.oren",
