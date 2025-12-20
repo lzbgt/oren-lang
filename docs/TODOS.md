@@ -71,6 +71,38 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
+1) **[lang][arch] Attributes v1: stable syntax + meta emission**
+   - DoD:
+     - Attribute syntax is minimal and namespace-friendly:
+       - allow `@pack`, `@serde(...)`, `@json(...)` style without forcing `@oren.*`
+       - unknown attributes are preserved in AST + `meta` output (so user libs can consume them)
+     - Attributes can be attached to: module, struct, enum, field, function, param, local var
+     - Built-in `oren meta` emits a canonical JSON schema for attributes + types + docs
+     - `cmd/oredoc` consumes `oren meta` output only (no compiler-internal imports)
+     - Add one integration test exercising:
+       - `@pack` (packed struct view)
+       - `@serde` rename/default/skip (metadata only for now; codegen can follow later)
+
+2) **[lang][perf] Casting + numeric model (HPC-ready)**
+   - DoD:
+     - Fixed-width scalar tokens are first-class (`u8/i32/u64/f32/f64`, etc.)
+     - Numeric casts are explicit and efficient:
+       - `u8(1.9)` truncates toward zero
+       - `round(x)` / `floor(x)` / `ceil(x)` are separate math ops
+       - `bitcast[T](x)` exists for raw reinterpret when needed (unsafe)
+     - Endian-aware loads/stores are expressible without attribute abuse (network/HPC I/O)
+     - Add/extend a module test to cover int↔float boundary cases + overflow behavior
+
+3) **[lang][ux] Containers + iteration semantics**
+   - DoD:
+     - `for x in ...` works for: list, map, string, bytes/buffer, stream-like iterables
+     - Map iteration is deterministic (key ordered) in deterministic modes (AVM + tests)
+     - Container operations are surface-level language/library APIs (not scattered C helpers):
+       - `list.push(x)`, `list.len()`, `map.get(k)`, `map.set(k,v)` (exact naming TBD)
+     - Add one integration test that:
+       - builds a map, iterates deterministically, hashes result
+       - runs under AVM deterministic mode without host effects
+
 ### B) AVM (evolves alongside language/compiler)
 
 1) **[vm][safety] Snapshot/restore format hardening + stability knobs**
@@ -99,6 +131,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - AVM record/replay v1: portable log format with file + in-memory logs; effectful domains replay from logs (no host effects); deterministic TIME/RNG supported; covered by AVM tests.
 - AVM deterministic cooperative tasks: task scheduler + `yield`/spawn/join/select primitives; deterministic step-quantum via `AVM_TASK_QUANTUM`; covered by AVM tests.
 - AVM snapshots v5: snapshot now preserves in-memory record/replay logs + budget counters; snapshot explicitly rejects tasks/channels state (until scheduler snapshot is implemented); covered by AVM tests.
+- AVM state hash: `STATE_HASH` now incorporates policy/config + virtual backend fixtures (VFS/VPROC/VNET) so host vs virtual execution cannot collide; covered by an AVM test and an oretest assertion; verified on macOS + Linux docker.
 - Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.
 - Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.
 - `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.
