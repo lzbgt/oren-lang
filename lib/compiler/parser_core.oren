@@ -1,0 +1,485 @@
+import token "token.oren"
+import lexer "lexer.oren"
+import ast "ast.oren"
+
+// Precedence
+var LOWEST = 1
+var OR_P = 2
+var AND_P = 3
+var BITOR_P = 4
+var BITXOR_P = 5
+var BITAND_P = 6
+var EQUALS_P = 7
+var LESSGREATER_P = 8
+var SHIFT_P = 9
+var SUM_P = 10
+var PRODUCT_P = 11
+var PREFIX_P = 12
+var CALL_P = 13
+var INDEX_P = 14
+
+fn precedence(tokType) {
+    if tokType == token.TOK_DOT { return INDEX_P }
+    if tokType == token.TOK_LBRACKET { return INDEX_P }
+    if tokType == token.TOK_EQ { return EQUALS_P }
+    if tokType == token.TOK_NOT_EQ { return EQUALS_P }
+    if tokType == token.TOK_AND { return AND_P }
+    if tokType == token.TOK_OR { return OR_P }
+    if tokType == token.TOK_BITOR { return BITOR_P }
+    if tokType == token.TOK_BITXOR { return BITXOR_P }
+    if tokType == token.TOK_BITAND { return BITAND_P }
+    if tokType == token.TOK_LT { return LESSGREATER_P }
+    if tokType == token.TOK_GT { return LESSGREATER_P }
+    if tokType == token.TOK_LTE { return LESSGREATER_P }
+    if tokType == token.TOK_GTE { return LESSGREATER_P }
+    if tokType == token.TOK_SHL { return SHIFT_P }
+    if tokType == token.TOK_SHR { return SHIFT_P }
+    if tokType == token.TOK_PLUS { return SUM_P }
+    if tokType == token.TOK_MINUS { return SUM_P }
+    if tokType == token.TOK_SLASH { return PRODUCT_P }
+    if tokType == token.TOK_ASTERISK { return PRODUCT_P }
+    if tokType == token.TOK_LPAREN { return CALL_P }
+    return LOWEST
+}
+
+// ----- Parser (core state + helpers) -----
+fn new_parser(l) {
+    var p = {
+        "l": l,
+        // Source + path for diagnostics (rolling).
+        "_src": l["input"],
+        "file": l["file"],
+        "errors": [],
+        "cur": token.new_token(token.TOK_ILLEGAL, ""),
+        "peek": token.new_token(token.TOK_ILLEGAL, ""),
+        "gensym": 0,
+
+        // Rolling symbol tables (parser-local):
+        // - enums: { "Option": true }
+        // - enum_variants: { "Option": { "None": 0, "Some": 1 } }
+        //
+        // Used for syntax sugar like `Option.Some(1)` and `Option.None`.
+        "enums": {},
+        "enum_variants": {},
+
+        // Rolling impl registry (parser-local):
+        // - impl_methods: { "TypeName": { "method": "__oren_impl__Trait__Type__method" } }
+        //
+        // Used for method-call sugar rewriting:
+        //   x.method(...)  -> __oren_impl__...__method(x, ...)
+        //   Type.method(...) -> __oren_impl__...__method(...)
+        //
+        // v0 policy: if multiple impls define the same method name for a type, the
+        // method is marked ambiguous and sugar becomes a compile-time error.
+        "impl_methods": {},
+        // Qualified impl registry (trait-qualified calls):
+        // - impl_trait_methods: { "TraitName": { "TypeName": { "method": "__oren_impl__..." } } }
+        "impl_trait_methods": {},
+
+        // Rolling trait registry (parser-local, metadata-only for now):
+        // - traits: [ {"name": "Foo", "methods": [ {"name": "bar", "params": [...] } ] } ]
+        "traits": [],
+        // Set of known trait names (for `Trait.method(x, ...)` calls).
+        "trait_set": {},
+
+        // Rolling type environment (parser-local):
+        // Stack of scopes mapping `varName -> typeName` (from `name: Type` annotations).
+        //
+        // Used for static-first method sugar on `x.method(...)` without adding a full
+        // type checker yet.
+        //
+        // Implementation note: use a depth counter + a map-of-maps to avoid relying
+        // on list pop/shrink primitives.
+        "type_scopes": {0: {}},
+        "type_depth": 0,
+        "_pending_scope_types": nil,
+
+        // Attribute validation knobs (set by the compiler front-end).
+        // Defaults are permissive (rolling mode).
+        "strict_attrs": false,
+        "attr_allow_prefixes": [],
+
+        // Built-in, compiler-recognized attribute names (strict mode allows only these
+        // unless a prefix is explicitly allowlisted).
+        //
+        // NOTE: keep this list small but complete for reserved compiler attributes.
+        "known_attrs": [
+            "doc", "deprecated",
+            // Capability-governed host effects (enforced only when capsule mode is enabled).
+            "cap.requires",
+            // Packed struct / byte views (compile-time lowering).
+            "oren.packed",
+            // ABI/FFI layout mode (compile-time meaning; does not use host headers).
+            "oren.abi"
+        ]
+    }
+    parser_next_token(p)
+    parser_next_token(p)
+    return p
+}
+
+fn type_env_push(p) {
+    var m = {}
+    var pending = p["_pending_scope_types"]
+    if pending != nil {
+        // Merge pending types into the new scope.
+        var i = 0
+        while i < oren_list_len(pending) {
+            var pair = pending[i]
+            if pair != nil && pair["k"] != nil {
+                m[pair["k"]] = pair["v"]
+            }
+            i = i + 1
+        }
+        p["_pending_scope_types"] = nil
+    }
+    p["type_depth"] = p["type_depth"] + 1
+    p["type_scopes"][p["type_depth"]] = m
+}
+
+fn type_env_pop(p) {
+    if p["type_depth"] <= 0 { return nil } // keep global scope
+    p["type_scopes"][p["type_depth"]] = nil
+    p["type_depth"] = p["type_depth"] - 1
+    return nil
+}
+
+fn type_env_set(p, name, tname) {
+    if name == nil || tname == nil { return nil }
+    var scopes = p["type_scopes"]
+    if scopes == nil { return nil }
+    if scopes[p["type_depth"]] == nil { scopes[p["type_depth"]] = {} }
+    scopes[p["type_depth"]][name] = tname
+    return nil
+}
+
+fn type_env_get(p, name) {
+    if name == nil { return nil }
+    var scopes = p["type_scopes"]
+    if scopes == nil { return nil }
+    var i = p["type_depth"]
+    while i >= 0 {
+        var m = scopes[i]
+        if m != nil && m[name] != nil { return m[name] }
+        i = i - 1
+    }
+    return nil
+}
+
+fn expr_dotted_name(e) {
+    // Convert a dotted identifier/member chain into a string:
+    //   Ident("T")              -> "T"
+    //   Member(Ident("a"), "b") -> "a.b"
+    if e == nil { return nil }
+    if e["type"] == "Identifier" { return e["value"] }
+    if e["type"] == "Member" {
+        var left = expr_dotted_name(e["left"])
+        if left == nil { return nil }
+        var prop = e["prop"]
+        if prop == nil || prop["type"] != "Identifier" { return nil }
+        return left + "." + prop["value"]
+    }
+    return nil
+}
+
+fn impl_method_register(p, type_name, method, mangled) {
+    if type_name == nil || method == nil || mangled == nil { return nil }
+    if p["impl_methods"][type_name] == nil { p["impl_methods"][type_name] = {} }
+    var m = p["impl_methods"][type_name]
+    var prev = m[method]
+    if prev == nil {
+        m[method] = mangled
+        return nil
+    }
+    if prev != mangled {
+        // Mark ambiguous.
+        m[method] = "__AMBIG__"
+    }
+    return nil
+}
+
+fn impl_method_lookup(p, type_name, method) {
+    if type_name == nil || method == nil { return nil }
+    var m = p["impl_methods"][type_name]
+    if m != nil && m[method] != nil { return m[method] }
+    // Blanket impl fallback (rolling): `impl Trait for any { ... }`
+    var anym = p["impl_methods"]["any"]
+    if anym != nil { return anym[method] }
+    return nil
+}
+
+fn impl_trait_method_register(p, trait_name, type_name, method, mangled) {
+    // Qualified registry:
+    //   impl Trait for Type { fn method(...) { ... } }
+    // can be referenced via `Trait.method(x, ...)` even when unqualified `x.method(...)`
+    // is ambiguous due to multiple traits defining the same method name for the type.
+    if trait_name == nil || type_name == nil || method == nil || mangled == nil { return nil }
+    if p["impl_trait_methods"] == nil { p["impl_trait_methods"] = {} }
+    if p["impl_trait_methods"][trait_name] == nil { p["impl_trait_methods"][trait_name] = {} }
+    if p["impl_trait_methods"][trait_name][type_name] == nil { p["impl_trait_methods"][trait_name][type_name] = {} }
+    var m = p["impl_trait_methods"][trait_name][type_name]
+    var prev = m[method]
+    if prev != nil && prev != mangled {
+        parser_add_error(p, "duplicate impl for '" + trait_name + "' on type '" + type_name + "' method '" + method + "'")
+        m[method] = "__AMBIG__"
+        return nil
+    }
+    m[method] = mangled
+    return nil
+}
+
+fn impl_trait_method_lookup(p, trait_name, type_name, method) {
+    if trait_name == nil || type_name == nil || method == nil { return nil }
+    var tm = p["impl_trait_methods"]
+    if tm == nil { return nil }
+    var by_trait = tm[trait_name]
+    if by_trait == nil { return nil }
+    var by_type = by_trait[type_name]
+    if by_type != nil && by_type[method] != nil { return by_type[method] }
+    // Blanket impl fallback (rolling): `impl Trait for any { ... }`
+    var by_any = by_trait["any"]
+    if by_any != nil { return by_any[method] }
+    return nil
+}
+
+fn str_starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn attr_is_reserved(name) {
+    // Reserved namespaces (compiler/tool meaning).
+    if str_starts_with(name, "oren.") { return true }
+    if str_starts_with(name, "avm.") { return true }
+    if str_starts_with(name, "cap.") { return true }
+    if str_starts_with(name, "ffi.") { return true }
+    if str_starts_with(name, "codegen.") { return true }
+    if str_starts_with(name, "trace.") { return true }
+    return false
+}
+
+fn attr_is_known(p, name) {
+    var known = p["known_attrs"]
+    var i = 0
+    while i < oren_list_len(known) {
+        if known[i] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn attr_is_allowlisted(p, name) {
+    var prefixes = p["attr_allow_prefixes"]
+    var i = 0
+    while i < oren_list_len(prefixes) {
+        var pref = prefixes[i]
+        if pref != nil && pref != "" {
+            if str_starts_with(name, pref) { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn attr_normalize_name(name) {
+    // Ergonomic attribute aliases (surface syntax) normalized to canonical
+    // compiler/tool namespaces (stored in metadata).
+    //
+    // This keeps source concise while preserving governance rules:
+    // - reserved namespaces remain explicit and stable (`oren.*`, `cap.*`, ...)
+    // - strict mode validation is applied to the canonical form
+    //
+    // Today we only normalize a small curated set of aliases. Everything else
+    // stays untouched to avoid surprising rewrites.
+    if name == "pack" { return "oren.packed" }
+    if name == "abi" { return "oren.abi" }
+
+    // Serde ergonomics: allow `@json.*` as a frontend alias for `@serde.*`.
+    // Canonicalize to serde so tooling + future codegen can share one namespace.
+    if name == "json" { return "serde" }
+    if str_starts_with(name, "json.") {
+        return "serde." + oren_string_slice(name, 5, oren_string_len(name))
+    }
+
+    return name
+}
+
+fn attr_validate(p, name) {
+    if p["strict_attrs"] != true { return nil }
+
+    // Reserved namespaces require explicit compiler support in strict mode.
+    if attr_is_reserved(name) {
+        if !attr_is_known(p, name) {
+            parser_add_error(p, "unknown reserved attribute '" + name + "' in strict mode")
+        }
+        return nil
+    }
+
+    // Non-reserved: allow if known or allowlisted by prefix.
+    if attr_is_known(p, name) { return nil }
+    if attr_is_allowlisted(p, name) { return nil }
+
+    parser_add_error(p, "unknown attribute '" + name + "' in strict mode (allow via --attr-allow-prefixes / OREN_ATTR_ALLOW_PREFIXES)")
+    return nil
+}
+
+fn parser_gensym(p, prefix) {
+    var n = p["gensym"]
+    p["gensym"] = n + 1
+    return prefix + oren_int_to_string(n)
+}
+
+fn parser_add_error(p, msg) {
+    // Prefer attaching location to parse errors; fall back to raw message.
+    var tok = p["cur"]
+    if tok == nil {
+        oren_list_push(p["errors"], msg)
+        return nil
+    }
+    var file = tok["file"]
+    if file == nil { file = p["file"] }
+    if file == nil { file = "<input>" }
+    var line = tok["line"]
+    var col = tok["col"]
+    if line != nil && col != nil {
+        oren_list_push(p["errors"], file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col) + ": " + msg)
+        return nil
+    }
+
+    var pos = tok["pos"]
+    if pos == nil {
+        oren_list_push(p["errors"], file + ": " + msg)
+        return nil
+    }
+
+    // Map byte offset -> (line, col), 1-based.
+    var src = p["_src"]
+    if src == nil {
+        if p["l"] != nil { src = p["l"]["input"] }
+    }
+    if src == nil {
+        oren_list_push(p["errors"], file + ":" + oren_int_to_string(pos) + ": " + msg)
+        return nil
+    }
+    line = 1
+    col = 1
+    var i = 0
+    while i < pos && i < oren_string_len(src) {
+        var ch = oren_string_char_at(src, i)
+        if ch == token.CH_LF {
+            line = line + 1
+            col = 1
+        } else {
+            col = col + 1
+        }
+        i = i + 1
+    }
+    oren_list_push(p["errors"], file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col) + ": " + msg)
+    return nil
+}
+
+fn docs_join(lines) {
+    if lines == nil { return nil }
+    if oren_list_len(lines) == 0 { return nil }
+    var out = ""
+    var i = 0
+    while i < oren_list_len(lines) {
+        if i != 0 { out = out + "\n" }
+        out = out + lines[i]
+        i = i + 1
+    }
+    return out
+}
+
+fn parse_doc_list(p) {
+    // Collect consecutive `///` doc comment tokens and return a single joined
+    // doc string. Attachment is handled deterministically in parse_program.
+    var lines = []
+    while cur_is(p, token.TOK_DOC) {
+        oren_list_push(lines, p["cur"]["literal"])
+        parser_next_token(p)
+    }
+    if oren_list_len(lines) == 0 { return nil }
+    return docs_join(lines)
+}
+
+fn parser_take_pending_doc(p) {
+    var d = p["_pending_doc"]
+    p["_pending_doc"] = nil
+    return d
+}
+
+fn parser_next_token(p) {
+    p["cur"] = p["peek"]
+    p["peek"] = lexer.next_token(p["l"])
+}
+
+fn cur_is(p, t) { return p["cur"]["type"] == t }
+fn peek_is(p, t) { return p["peek"]["type"] == t }
+fn cur_is_ident_like(p) { return token.is_ident_like_token(p["cur"]["type"]) }
+fn peek_is_ident_like(p) { return token.is_ident_like_token(p["peek"]["type"]) }
+
+fn expect_peek(p, t) {
+    if peek_is(p, t) {
+        parser_next_token(p)
+        return true
+    }
+    parser_add_error(p, "expected " + t + ", got " + p["peek"]["type"])
+    return false
+}
+
+fn expect_peek_ident_like(p, what) {
+    if peek_is_ident_like(p) {
+        parser_next_token(p)
+        return true
+    }
+    parser_add_error(p, "expected " + what + ", got " + p["peek"]["type"])
+    return false
+}
+
+fn parse_type_name_after_colon(p) {
+    // Precondition: current token is ':'
+    var tname = ""
+
+    // Pointer sugar:
+    //   var p: *u8 = ...
+    //   fn f(x: **MyType) { ... }
+    //
+    // NOTE: stored as a string for now (rolling), interpreted by lowerings.
+    while peek_is(p, token.TOK_ASTERISK) {
+        parser_next_token(p) // '*'
+        tname = tname + "*"
+    }
+
+    if !expect_peek_ident_like(p, "type name") { return nil }
+    tname = tname + p["cur"]["literal"]
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // .
+        if !expect_peek_ident_like(p, "type name segment") { return nil }
+        tname = tname + "." + p["cur"]["literal"]
+    }
+
+    // Fixed-size array sugar:
+    //   var mac: u8[6] = ...
+    //   struct Foo { bytes: u8[16] }
+    //
+    // Stored as a string `T[N]` (or `*T[N]`, etc).
+    while peek_is(p, token.TOK_LBRACKET) {
+        parser_next_token(p) // '['
+        if !expect_peek(p, token.TOK_INT) { return nil }
+        var n_lit = p["cur"]["literal"]
+        if !expect_peek(p, token.TOK_RBRACKET) { return nil }
+        tname = tname + "[" + n_lit + "]"
+    }
+
+    return tname
+}
+
