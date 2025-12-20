@@ -4,10 +4,25 @@ var v = oren_read_file("__definitely_not_a_real_file__.txt")
 var s = r.unwrap_or(v, "fallback")
 
 if s == "fallback" {
+    // errno/syscall wrapper regression
+    var e = r.ok_or_errno(0 - 12, "alloc") // -ENOMEM
+    if r.is_err(e) != true {
+        print("Result FAIL (expected err)")
+        exit(1)
+    }
+    if oren_err_code(e) != 12 {
+        print("Result FAIL (bad errno)")
+        exit(1)
+    }
+    var okv = r.ok_or_errno(5, "read")
+    if okv != 5 {
+        print("Result FAIL (ok passthrough)")
+        exit(1)
+    }
+
     print("Result OK")
     exit(0)
 }
 
 print("Result FAIL")
 exit(1)
-

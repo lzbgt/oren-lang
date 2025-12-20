@@ -37,3 +37,36 @@ fn expect(v, message) {
     return v
 }
 
+// --- errno / syscall helpers (rolling) ---
+//
+// Many syscall-first runtime APIs return:
+//   - success: >= 0 (fd, byte count, etc)
+//   - failure: negative errno (e.g. -12 for ENOMEM)
+//
+// These helpers convert that convention into the structured error map:
+//   {"__err": true, "code": errno, "msg": "..."}
+//
+// Design:
+// - Keep syscall wrappers cheap and low-level (they can keep returning -errno).
+// - Provide library-level adapters for app code to opt into structured errors.
+
+fn err(code, msg) {
+    return oren_err(code, msg)
+}
+
+fn ok_or_errno(rc, context) {
+    // If rc is a syscall-style return value:
+    // - rc >= 0 => return rc
+    // - rc < 0  => return structured error with code = -rc
+    if rc >= 0 { return rc }
+    var code = 0 - rc
+    var ctx = context
+    if ctx == nil { ctx = "syscall" }
+    var msg = ctx + " failed (errno=" + oren_int_to_string(code) + ")"
+    return oren_err(code, msg)
+}
+
+fn unwrap_errno(rc, context) {
+    // Like ok_or_errno, but exits on error.
+    return unwrap(ok_or_errno(rc, context))
+}

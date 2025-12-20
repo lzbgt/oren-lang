@@ -67,7 +67,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - next slice (real layouts v4): add `usize/isize`, `*void`/opaque ptr conventions, and a small curated ABI structs set for OS syscalls (stat, sockaddr, kevent, epoll) in `.oren` with tests. ✅
      - next slice (real layouts v5): extend curated OS structs (sockaddr_in6, sockaddr_un, pollfd) + wire syscall wrappers in native stdlib (still no host headers). ✅
      - next slice (real layouts v6): nonblocking NET wait abstraction (kqueue vs epoll) with deterministic timeouts. ✅
-     - next slice (real layouts v7): `errno`-typed result wrappers (stop manually threading `-errno` ints everywhere).
+     - next slice (real layouts v7): `errno`-typed result wrappers (stop manually threading `-errno` ints everywhere). ✅
 
 3) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -101,3 +101,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.
+- Stdlib errno wrappers (v7): added `lib/std/result.oren` helpers to convert `-errno` syscall-style returns into structured errors.
