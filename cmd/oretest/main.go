@@ -301,6 +301,28 @@ func main() {
 		cleanup []string
 	}{
 		{
+			name: "bytecode_negative_int_constants",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
+					"./avm --disasm-consts %q > %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/fixtures/bytecode_neg_int_const.oren",
+				*target,
+				"build/bytecode_neg_int_const.obc",
+				"build/bytecode_neg_int_const.build.out",
+				"build/bytecode_neg_int_const.obc",
+				"build/bytecode_neg_int_const.disasm.out",
+				"=-4",
+				"build/bytecode_neg_int_const.disasm.out",
+				"=-3",
+				"build/bytecode_neg_int_const.disasm.out",
+			),
+			log:     "build/logs/fixture_bytecode_negative_int_constants.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/bytecode_neg_int_const.obc", "build/bytecode_neg_int_const.build.out", "build/bytecode_neg_int_const.disasm.out"},
+		},
+		{
 			name: "deterministic_bytecode_hash",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+

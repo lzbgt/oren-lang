@@ -73,14 +73,7 @@ fn fold_infix(op, a, b) {
     if !small_int(av) || !small_int(bv) { return nil }
 
     if op == "+" { return int_lit(av + bv) }
-    // NOTE: we intentionally do not fold `-` yet.
-    //
-    // Rationale (rolling, safety-first):
-    // - `-` is heavily used for negative constants (`0 - 60`, `0 - 4`, etc.).
-    // - A previous regression caused bytecode compilation to fold subtraction incorrectly.
-    // - Until we have stronger cross-backend constant-model verification, keep `-` evaluated at runtime.
-    //
-    // (Peephole `x - 0` is still safe and handled separately.)
+    if op == "-" { return int_lit(av - bv) }
     if op == "*" { return int_lit(av * bv) }
 
     // Avoid folding ops that can trap or are semantics-sensitive without a full model.

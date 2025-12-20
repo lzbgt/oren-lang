@@ -1,0 +1,7 @@
+// Fixture: ensure the bytecode backend can represent negative integer constants in the constant pool.
+// This relies on optimizer constant folding for small ints.
+
+print(oren_int_to_string(0 - 4))
+print(oren_int_to_string(2 - 5))
+exit(0)
+

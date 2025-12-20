@@ -117,4 +117,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.
 - GC registry scaling: replaced linear `oren_find_node()` lookup with a pointer-indexed hash table and added a GC stress module test; verified on macOS + Linux docker.
 - Iteration (stream-like): added `lib/std/iter.oren` (`range` / `range3`) implemented via an “iterable map” protocol in `oren_iter_next` across C runtime, native runtime, and AVM native; covered by module + AVM tests; verified on macOS + Linux docker.
-- Bytecode correctness: disabled optimizer constant folding for `-` until a stronger cross-backend constant model is implemented (prevents wrong folding like `2-5 -> 3` in bytecode).
+- Bytecode correctness: fixed negative integer constant parsing in the bytecode backend; restored optimizer folding for `-` and added an oretest fixture to assert `-4`/`-3` appear in `.obc` constants.
