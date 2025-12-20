@@ -71,6 +71,40 @@ Deliverables:
   - stable log paths
 - optional `--json` output for agentic tooling
 
+#### Proposed v0 spec (manifest + CLI)
+
+This is the minimum bar for an Oren-native runner to replace most Makefile glue *without*
+becoming a compiler-internal concern.
+
+**Manifest file**
+
+- Location: `tests/manifest.oren`
+- The manifest is a normal `.oren` module that returns a list of test entries.
+- Each entry is a plain map (stable keys, no reflection required):
+
+  - `name`: string (stable identifier; used for filtering and log paths)
+  - `kind`: string enum: `native|module|avm|fixture`
+  - `path`: string (repo-relative source path)
+  - `tags`: list[string] (e.g. `["fast","stdlib","serde"]`)
+  - `timeout_ms`: int (wall clock; defaults by kind if omitted)
+
+**Runner CLI**
+
+- `oretest --list` prints stable test IDs (one per line).
+- `oretest --filter <glob>` runs only tests whose `name` or `path` matches.
+- `oretest --tag <tag>` runs only tests containing that tag (can repeat).
+- `oretest --jobs <N>` controls parallelism (default: `min(num_cpu, 32)`).
+- `oretest --json` emits a machine-readable JSON line per test result:
+  - `{ "name": "...", "kind": "...", "path": "...", "ok": true|false, "ms": 123, "log": "build/logs/..." }`
+
+**Text output contract**
+
+Keep human output small and stable (agent-friendly):
+
+- success: `X/Y <kind> tests passed`
+- failure summary: `failed:` then indented list of test IDs + log file paths
+- failure details: only show the tail of log by default; full log stays in `build/logs/`
+
 ### Phase C — Oren-native build/test language surface
 
 Goal: a first-class Oren “tooling DSL” so the project does not depend on Make in production workflows.

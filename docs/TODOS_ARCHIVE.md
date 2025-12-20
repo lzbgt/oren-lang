@@ -32,6 +32,11 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Docs: updated `docs/SELF_HOSTING.md` to match the current multi-backend reality and to defer to `docs/BUILD_AND_VERIFY.md` for the authoritative bootstrap steps.
 - Docs: updated `docs/STDLIB_LAYERS.md` to point at the refactored parser modules and to document strict attribute mode flags.
 
+## Archived (2025-12-20) — Test system evolution spec (no rewrite)
+
+- Documented a minimal Oren-native test manifest shape and runner CLI/output contract in `docs/TEST_SYSTEM.md`.
+- The design keeps `cmd/oretest` as the current orchestrator (Go), enforcing SOLID by keeping test orchestration out of `lib/compiler/*.oren`.
+
 ## Archived (2025-12-20) — Serde JSON v1 (attribute-driven, no reflection)
 
 - Implemented attribute-driven JSON serde helper generation (opt-in) in `lib/compiler/serde_json_lowering.oren`.
