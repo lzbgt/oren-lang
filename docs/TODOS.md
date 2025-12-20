@@ -57,7 +57,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - next slice (real layouts): make ABI layouts usable end-to-end for FFI structs (allocation + ptr accessors) without changing v0 struct/map semantics. ✅
      - next slice (real layouts v2): extend `@oren.abi` to cover nested ABI structs + pointers + fixed arrays (enables real OS structs + syscalls without host headers). ✅
      - next slice (real layouts v3): add u128/i128 layouts + fixed-array ptr helpers where needed, and thread target/arch ABI parameters through (no host headers). ✅
-     - next slice (real layouts v4): add `usize/isize`, `*void`/opaque ptr conventions, and a small curated ABI structs set for OS syscalls (stat, sockaddr, kevent, epoll) in `.oren` with tests. ⏳
+     - next slice (real layouts v4): add `usize/isize`, `*void`/opaque ptr conventions, and a small curated ABI structs set for OS syscalls (stat, sockaddr, kevent, epoll) in `.oren` with tests. ✅
+     - next slice (real layouts v5): extend curated OS structs (sockaddr_in6, sockaddr_un, pollfd) + wire syscall wrappers in native stdlib (still no host headers).
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -96,6 +97,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - ABI layouts (v3): added u128/i128 layout support and threaded `--arch` into the compiler config (currently `arm64` only) + regression `tests/modules/test_abi_u128_layout.oren`.
 - ABI layouts (v4, partial): added `oren_build_target()` / `oren_build_arch()` compile-time builtins, `usize/isize` layout support, and curated syscall structs tests for `sockaddr_in` and Darwin `kevent`.
 - ABI layouts (v4, partial): added curated `struct stat` layouts for Darwin/Linux arm64 (repo-owned padding model) plus `docs/refs/linux_arm64_abi.md` audit notes and module regression `tests/modules/test_abi_stat.oren`.
+- ABI layouts (v4): added Linux `epoll_event` layout regression (`tests/modules/test_abi_epoll_event.oren`) plus `docs/refs/linux_epoll_abi.md` audit notes.
 - Tooling hardening: `oren build <missing.oren>` now exits non-zero and `oretest` has a regression fixture to prevent silently-successful builds on missing input files.
 - AVM SIMD determinism guard: `./oretest` now runs `test_smoke_suite` with `--print-result-hash --print-trace-hash` and compares scalar vs `AVM_ENABLE_SIMD=1` hashes (arm64 only).
 - Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.

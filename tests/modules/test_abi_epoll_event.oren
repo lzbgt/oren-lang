@@ -1,0 +1,31 @@
+// Curated OS ABI structs (rolling v4): struct epoll_event (Linux).
+//
+// We keep this layout repo-owned (no host headers at build time).
+// On macOS this module is a no-op.
+
+@oren.abi
+struct EpollEventLinux {
+    events: u32le,
+    __pad0: u8[4],
+    data: u64le
+}
+
+var t = oren_build_target()
+if t == "linux" {
+    if oren_abi_alignof("EpollEventLinux") != 8 { exit(1) }
+    if oren_abi_sizeof("EpollEventLinux") != 16 { exit(2) }
+    if oren_abi_offsetof("EpollEventLinux", "events") != 0 { exit(3) }
+    if oren_abi_offsetof("EpollEventLinux", "data") != 8 { exit(4) }
+
+    // Round-trip fields via ptr helpers.
+    var p = oren_ptr_alloc(oren_abi_sizeof("EpollEventLinux"))
+    if p == nil { exit(5) }
+    oren_ptr_set_u32_le(p + oren_abi_offsetof("EpollEventLinux", "events"), 1) // EPOLLIN (value stable)
+    if oren_ptr_get_u32_le(p + oren_abi_offsetof("EpollEventLinux", "events")) != 1 { exit(6) }
+    oren_ptr_set_u64_le(p + oren_abi_offsetof("EpollEventLinux", "data"), 1234605616436508552) // 0x1122334455667788
+    if oren_ptr_get_u64_le(p + oren_abi_offsetof("EpollEventLinux", "data")) != 1234605616436508552 { exit(7) }
+    oren_ptr_free(p)
+}
+
+print("module abi_epoll_event OK")
+exit(0)
