@@ -70,25 +70,24 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Typed buffers + views (slice + matrix stride view)**
-   - Why now:
-     - Without contiguous typed buffers and views, server-side HPC cannot reach acceptable performance.
-   - DoD:
-     - define `[]T` slice shape (ptr+len) and a matrix view with stride
-     - keep views zero-copy; no hidden allocations
-     - add `std/bytes`/`std/buffer` helper surface as needed (keep SOLID)
-     - add module tests targeting public surfaces (no compiler-internal imports)
-
-2) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
-   - DoD:
-     - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
-     - no runtime dependency; purely compiler metadata → spec
-
-3) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
+1) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
    - DoD:
      - keep scalar APIs stable (`dot_*`, `axpy_*`, `matmul_*`)
      - add optional NEON fast paths for arm64 for dot/axpy (no correctness changes; keep deterministic rounding rules)
      - keep a clean fallback path for non-NEON targets
+
+2) **[lang/runtime][perf] Allocation + GC metadata scaling (HPC hot paths)**
+   - Why now:
+     - server-side HPC workloads are allocation-heavy; `oren_find_node()` linear scans can become a bottleneck.
+   - DoD:
+     - replace the `g_allocs` linked-list lookup with a hash table (or another O(1) registry)
+     - keep GC determinism + thread safety (no missed roots, no UAF)
+     - add a micro-benchmark style module test (not timing-based) that allocates many small objects and verifies correctness under GC stress
+
+3) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+   - DoD:
+     - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
+     - no runtime dependency; purely compiler metadata → spec
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -122,3 +121,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.
+- Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.

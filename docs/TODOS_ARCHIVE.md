@@ -118,6 +118,31 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `cbor.decode_next(bytes, pos)` for incremental parsing (one item)
   - `cbor.decode_sequence(bytes)` for whole-buffer sequences
   - `cbor.encode_sequence(items)` for emitting sequences
+
+## Archived (2025-12-21) — Typed buffers + views + C backend ordering fix
+
+- **Typed buffers** (C backend runtime primitives):
+  - Added `OREN_TYPE_{I32,I64,F32,F64}_BUF` + `OrenBuf` header in `lib/runtime.h`.
+  - Implemented buffer ops in `lib/runtime_buf.c` (alloc, load/store, fill, add/mul/scale, dot, reduce_sum; `_into` variants for out-params).
+  - Linked C backend builds against both `lib/runtime.c` and `lib/runtime_buf.c` (see `lib/compiler/compiler.oren`).
+  - Added `lib/std/buffer.oren` (zero-copy slice + matrix-stride views using map-based view objects in v0).
+  - Added `tests/modules/test_buffer_views.oren` and wired it into `cmd/oretest`.
+
+- **Language ergonomics / parsing**:
+  - Parser: added `[]T` prefix type annotation parsing (stored as `"[]T"` string) in `lib/compiler/parser_core.oren`.
+  - Parser: removed the compile-time error that blocked `obj.field = v` (struct fields are now assignable; semantics are backend-defined in rolling mode) in `lib/compiler/parser_parse.oren`.
+
+- **Correctness fix (high impact)**:
+  - C backend: fixed a semantic bug where top-level `var` initializers were hoisted ahead of other top-level statements.
+    - `var` now declares a global symbol but executes its initializer in source order by lowering to an `Assign` statement in `main_body`.
+    - Implemented in `lib/compiler/transpiler.oren` by changing `collect_parts()` and removing the global-initializer hoist block.
+
+- **Quality-of-life**:
+  - C runtime: `print_value_no_newline` now prints buffer values as `<i32_buf len=N>` (etc) and no longer triggers missing-switch warnings.
+
+- Verified:
+  - `./oretest` on macOS
+  - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
 - Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
