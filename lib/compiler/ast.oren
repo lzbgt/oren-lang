@@ -1,5 +1,5 @@
 // AST Constructors
-fn new_program() { return {"type": "Program", "statements": []} }
+fn new_program() { return {"type": "Program", "statements": [], "traits": []} }
 fn new_identifier(tok) { return {"type": "Identifier", "token": tok, "value": tok["literal"]} }
 fn new_integer(tok) { return {"type": "Integer", "token": tok, "value": tok["literal"]} }
 fn new_float(tok) { return {"type": "Float", "token": tok, "value": tok["literal"]} }

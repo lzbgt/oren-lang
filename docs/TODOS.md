@@ -43,6 +43,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Forward feature flags via env (e.g. `OREN_TEST_FULL=1`) so Linux matches macOS runner behavior.
    - Remove stale build outputs (`oren`, `oretest`, `avm`) before running `make` to avoid timestamp skew from tar sync.
 
+8) **Never generate `*.oren.c` next to sources** `[maint]`
+   - `./oren_bootstrap build path/to/file.oren` writes `file.oren.c` next to sources; Make may then treat the source as a build target via implicit C rules.
+   - Avoid running bootstrap builds on in-tree modules/tests/tools; prefer `./oren build ... -o build/...` or the curated runners (`make test`, `./oretest`).
+   - If you *did* create `*.oren.c` artifacts, delete them before running `make test` (keep `oren.oren.c` only).
+
 ## Tasks (Next, Highest Priority First)
 
 1) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
@@ -54,6 +59,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
    - Next deliverables (in order):
      - compile-time ambiguity diagnostics for multiple impls of the same `Type.method` ✅
+     - export trait declarations into module metadata JSON (`traits` section) ✅
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
 3) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
@@ -87,5 +93,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Runtime diagnostics: failures/panics now emit a stable `OREN_DIAG kind=... code=... msg=...` one-liner, enforced by `oretest` fixtures (AI-friendly, no lldb/otool needed).
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
 - Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
+- Metadata: trait declarations are preserved in module metadata JSON (`traits`, methods, and return annotations), enabling doc/serde tooling without runtime vtables yet.
 - Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.
 - Stdlib errno wrappers (v7): added `lib/std/result.oren` helpers to convert `-errno` syscall-style returns into structured errors.

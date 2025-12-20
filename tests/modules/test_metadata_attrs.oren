@@ -46,6 +46,9 @@ fn test_metadata_includes_attrs() {
     src = src + "@json.tag(\"t\")\n"
     src = src + "struct S { @json.rename(\"id\") id, name }\n"
 
+    // Trait metadata is preserved (metadata-only, no runtime meaning yet).
+    src = src + "trait Reader { fn read(buf); fn close(): i32 }\n"
+
     var prog = parse_src(src)
     var j = metadata.generate_metadata(prog)
 
@@ -58,6 +61,14 @@ fn test_metadata_includes_attrs() {
     assert(contains(j, "\"params\": [{ \"name\": \"a\", \"attrs\": [{\"name\": \"serde.rename\""), "param attr preserved")
 
     // Struct + field attrs are preserved.
+
+    // Traits are included.
+    assert(contains(j, "\"traits\": ["), "traits section present")
+    assert(contains(j, "\"name\": \"Reader\""), "trait name present")
+    assert(contains(j, "\"methods\": ["), "trait methods present")
+    assert(contains(j, "\"name\": \"read\""), "trait method read present")
+    assert(contains(j, "\"name\": \"close\""), "trait method close present")
+    assert(contains(j, "\"ret_ann_type\": \"i32\""), "trait method return annotation preserved")
     assert(contains(j, "\"name\": \"S\""), "struct present")
     assert(contains(j, "\"attrs\": [{\"name\": \"serde.tag\""), "struct attr preserved")
     assert(contains(j, "\"fields\": [{ \"name\": \"id\", \"attrs\": [{\"name\": \"serde.rename\""), "field attr preserved")

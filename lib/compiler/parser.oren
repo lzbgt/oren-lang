@@ -70,6 +70,10 @@ fn new_parser(l) {
         // method is marked ambiguous and sugar becomes a compile-time error.
         "impl_methods": {},
 
+        // Rolling trait registry (parser-local, metadata-only for now):
+        // - traits: [ {"name": "Foo", "methods": [ {"name": "bar", "params": [...] } ] } ]
+        "traits": [],
+
         // Rolling type environment (parser-local):
         // Stack of scopes mapping `varName -> typeName` (from `name: Type` annotations).
         //
@@ -380,6 +384,8 @@ fn parse_program(p) {
         }
         parser_next_token(p)
     }
+    // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
+    prog["traits"] = p["traits"]
     return prog
 }
 
@@ -555,42 +561,73 @@ fn skip_parens_signature(p) {
 }
 
 fn parse_trait_decl(p) {
-    // trait Name { fn foo(self, ...) ; ... }
+    // trait Foo { fn m(a, b); fn n(x): i32; }
     //
     // Rolling implementation:
-    // - Parser accepts the syntax.
-    // - No runtime effect yet (traits are compile-time contracts).
-    //
-    // We intentionally desugar trait declarations into no emitted statements so
-    // existing backends are unchanged.
+    // - Trait declarations are compile-time contracts only (no runtime representation yet).
+    // - We keep a metadata-only record under p["traits"] for tooling (docs/serde/OpenAPI/etc).
+    // - No statements are emitted, so existing backends remain unchanged.
     if !expect_peek_ident_like(p, "trait name") { return ast.new_stmt_list([]) }
-    // trait name (cur is IDENT after expect_peek)
     var trait_name = parse_dotted_name(p)
     if trait_name == nil { return ast.new_stmt_list([]) }
     if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
 
+    var methods = []
     // Enter body.
     parser_next_token(p)
     while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
         if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p); continue }
         if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
+
         if cur_is(p, token.TOK_FUNCTION) {
-            // Parse `fn name(...)` signature and ignore.
+            // Parse `fn name(...)` signature and record it.
             if !expect_peek_ident_like(p, "trait method name") { return ast.new_stmt_list([]) }
-            // Signature params: `(...)`
+            var mname = p["cur"]["literal"]
             if !expect_peek(p, token.TOK_LPAREN) { return ast.new_stmt_list([]) }
-            // cur is '(' now
-            skip_parens_signature(p) // stops at ')'
-            parser_next_token(p) // move past ')'
-            // Optional trailing ';'
-            if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+            var params = parse_parameters(p) // leaves cur at ')'
+
+            // Optional return type: `: T`
+            var ret_ann = nil
+            if peek_is(p, token.TOK_COLON) {
+                parser_next_token(p) // ':'
+                ret_ann = parse_type_name_after_colon(p)
+                if ret_ann == nil { return ast.new_stmt_list([]) }
+            }
+
+            // Convert params (Identifier AST nodes) into stable metadata.
+            var mparams = []
+            var pi = 0
+            while pi < oren_list_len(params) {
+                var id = params[pi]
+                var pname = nil
+                var ann = nil
+                var isv = false
+                var pattrs = []
+                if id != nil {
+                    pname = id["value"]
+                    ann = id["ann_type"]
+                    if id["is_varargs"] == true { isv = true }
+                    if id["attrs"] != nil { pattrs = id["attrs"] }
+                }
+                oren_list_push(mparams, {"value": pname, "attrs": pattrs, "ann_type": ann, "is_varargs": isv})
+                pi = pi + 1
+            }
+
+            oren_list_push(methods, {"name": mname, "params": mparams, "ret_ann_type": ret_ann})
+
+            // Consume optional separator and continue.
+            if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+            if peek_is(p, token.TOK_COMMA) { parser_next_token(p) }
+            parser_next_token(p)
             continue
         }
-        parser_add_error(p, "trait body expects 'fn' signatures")
-        return ast.new_stmt_list([])
+
+        // Unknown token inside trait body: skip (rolling mode).
+        parser_next_token(p)
     }
 
-    // p["cur"] is '}'.
+    // p["cur"] is '}' (or EOF). Record trait metadata for tooling.
+    oren_list_push(p["traits"], {"name": trait_name, "methods": methods})
     return ast.new_stmt_list([])
 }
 
