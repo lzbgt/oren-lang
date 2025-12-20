@@ -1,15 +1,18 @@
 # Docs Index (Canonical Map)
 
-**Last updated:** 2025-12-16  
+**Last updated:** 2025-12-20  
 This folder contains both **canonical specs** and a few **compatibility stubs** kept to avoid link rot while the repo evolves in rolling mode.
 
 ## 1) “Start Here”
 
+- `docs/TODOS.md` — the single source of truth task tracker (execution order).
 - `docs/EVOLUTION_GUIDE.md` — beginner guide: bootstrapping + backends + day0→final evolution narrative.
 - `docs/AGENTIC_REQUIREMENTS.md` — top agentic-AI requirements (language + compiler + AVM), prioritized and implementation-ordered.
 - `docs/ROADMAP.md` — what to implement next (phases, priorities).
 - `docs/BUILD_AND_VERIFY.md` — how to build, test, and verify the toolchain.
 - `docs/TEST_SYSTEM.md` — how the repo test/build system evolves from Makefile → Oren-native tooling.
+- `docs/STDLIB_LAYERS.md` — builtin syslib vs shipped stdlib separation (no-libc-shims constraint).
+- `docs/ATTRIBUTES.md` — attribute cookbook and deterministic metadata contract (serde/pack/abi/doc).
 
 ## 2) Canonical Specs
 

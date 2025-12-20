@@ -47,7 +47,11 @@ Examples (current / expected direction):
 - `std/bytes` (byte helpers, endian reads/writes; used by packet parsing)
 - `std/result` (small error/value helpers used across stdlib)
 - `std/argparse` (used by `./oren` and `./avm` CLIs)
-- `std/json` (once attributes + type info path is ready)
+- `std/math` (portable helpers: abs/min/max/clamp + `is_nan`)
+- `std/regex` (deterministic Thompson NFA; no catastrophic backtracking)
+- `std/json` (portable explicit `JsonValue`; tolerant decode for config text)
+- `std/yaml` (deterministic subset; tolerant decode for common config text)
+- `std/cbor` (deterministic subset + CBOR Sequences streaming helpers)
 
 **Rules:**
 
@@ -89,6 +93,18 @@ Attributes are compile-time metadata (not runtime decorators). They matter for s
 - JSON serde wants field-level rename/skip/default
 - networking wants packed struct “views” over bytes
 - governance wants capability declarations and policy scanning
+
+### Determinism + “config ergonomics”
+
+Oren accepts some common config conveniences while keeping output canonical and deterministic:
+
+- `std/json.decode(...)` tolerates C-style comments (`// ...` and `/* ... */`) for config compatibility.
+- `std/yaml.decode(...)` tolerates:
+  - YAML `# ...` comments, and
+  - C/JSON `// ...` and `/* ... */` comments,
+  using a whitespace/start rule to avoid breaking values like `http://example.com`.
+
+Encoders remain canonical and deterministic (they do not emit comments).
 
 ### Determinism rules (v0, current implementation)
 

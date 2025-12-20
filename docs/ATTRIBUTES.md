@@ -181,6 +181,12 @@ Other supported serde formats (rolling, v1):
   - `User__yaml_encode(x)` → YamlValue (tagged; see `lib/std/yaml.oren`)
   - `User__yaml_decode(yv)` → `{ok, err?, v?}`
 
+YAML decode (config tolerance):
+
+- `std/yaml.decode(...)` accepts YAML `# ...` comments and also C/JSON-style `// ...` and `/* ... */` comments.
+- Comment detection is restricted (start/whitespace rule) to avoid breaking values like `http://example.com`.
+  Encoders remain canonical (no comments).
+
 CBOR streaming (rolling, v1):
 
 - `lib/std/cbor.oren` implements CBOR Sequences (RFC 8742) for streaming:

@@ -168,7 +168,7 @@ Workflow:
 2) Copy to the Linux host:
 
 ```bash
-scp build/linux_hello blu@qemu-blu.localc:/home/blu/
+scp build/linux_hello blu@qemu-blu.local:/home/blu/
 ```
 
 3) Run it:

@@ -51,6 +51,16 @@ Authoritative specs/strategy docs:
   - Native backend targets **macOS arm64** and **Linux arm64**.
   - C backend is portable to any platform with a C toolchain.
 
+## Stdlib (Rolling highlights)
+
+This repo is intentionally syscall-first and “no libc shims” for native runtime, so the stdlib focuses on **portable, deterministic building blocks**:
+
+- `lib/std/json.oren`: deterministic JSON representation + tolerant decode for config text (C-style comments).
+- `lib/std/yaml.oren`: deterministic YAML subset + tolerant decode (YAML `#` and C/JSON `//` + `/* */` comments).
+- `lib/std/cbor.oren`: deterministic CBOR subset + CBOR Sequences streaming helpers.
+- `lib/std/regex.oren`: deterministic Thompson NFA regex engine (no backtracking blowups).
+- `lib/std/math.oren`: small math helpers (`abs/min/max/clamp`, `is_nan`).
+
 ## Build, Test, Verify
 
 

@@ -56,6 +56,16 @@ Agentic/production constraints that drive prioritization (rolling mode):
 - **Security/Trust**: Deterministic builds, supply-chain verification, signed artifacts, sandboxed exec.
 - **Ecosystem**: Standard library build-out (collections, fs/net/crypto/time), cross-platform story (Windows), and polished docs/examples.
 
+### Stdlib direction (rolling)
+
+The stdlib is intentionally built “from the bottom up” without libc shims:
+
+- deterministic parsing/encoding building blocks (`std/json`, `std/yaml`, `std/cbor`)
+- deterministic text tooling (`std/regex`)
+- small portable math helpers (`std/math`)
+
+Higher-level libraries (HTTP/WebSocket, etc.) will be layered on top of the syscall-first `NET` and AVM VirtualNET domains once those are fully stabilized.
+
 ## Agent-Native Track (AVM + Bytecode)
 This track is defined in `docs/OREN_EVOLUTION.md` and complements the phases above by targeting restricted environments (iOS/Web/Edge) where native exec toolchains may be unavailable.
 
