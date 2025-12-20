@@ -68,42 +68,34 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][safety] Type casting system (builtin casts + deterministic implicit conversions)**
+1) **[lang][arch] `as` cast operator (syntax + lowering to builtin casts)**
    - Why now:
-     - Modern stdlib (math/serde/regex) and syscall-first parsing need a crisp, deterministic casting story.
-     - Casts must be cheap and ubiquitous; they must compile to lowering-time rewrites, not runtime calls.
+     - `u8(x)` cast-sugar is useful, but the production-grade surface should also support `expr as u8`.
+     - `as` is a non-allocating, compile-time rewrite (must stay cheap).
    - DoD:
-     - support builtin cast sugar: `u8(x)`, `i32(x)`, `f32(x)`, `bool(x)`, and endian-tagged spellings (`u16be(x)` etc.)
-     - casts compile to deterministic lowering-time rewrites (no dynamic call overhead)
-     - type annotations keep doing deterministic implicit normalization at boundaries (C-like truncation rules, but explicitly specified)
-     - `lib/std/casts.oren` stays as an optional clarity layer (not required for performance)
+     - parse `expr as <type>` (width tokens + endian spellings)
+     - lower to the same deterministic cast rewrites as annotation boundaries / cast sugar
+     - add module tests (incl. precedence and nesting) and wire into `cmd/oretest`
 
-2) **[lang][arch] Static type system plan + milestones (gradual typing → generics/traits)**
+2) **[lang][safety] Typecheck mode v0 (annotated code validation)**
    - Why now:
-     - Casting, packed views, and syscall-first networking need a clear long-term type story.
-     - Keeps future work coherent (avoid rework in parser/AST/codegen).
+     - We need production-grade failures and earlier feedback without breaking rolling-mode execution.
    - DoD:
-     - document the phased plan in `docs/TYPE_SYSTEM_PLAN.md`
-     - explicitly define: width tokens, `as` cast surface, trait model (compile-time + runtime), packed view story
-     - update any outdated docs that contradict the plan
+     - add `oren build --typecheck` (or equivalent) that validates:
+       - fn param/return annotations at callsites/returns
+       - invalid cast inputs (e.g. `f32("x")`) are rejected with `file:line:col`
+     - typecheck must not depend on host headers/SDKs
 
-3) **[stdlib][perf] `std/linalg` foundation (scalar-first, SIMD-ready)**
-   - Why now:
-     - Oren targets syscall-first servers *and* scientific/HPC workloads; linalg is the forcing function for:
-       - explicit width tokens (`f32`/`f64`/`i32`/`u32`)
-       - predictable contiguous memory layouts
-       - SIMD pathways (NEON today, more later)
-   - DoD:
-     - add `lib/std/linalg.oren` with a minimal, composable surface:
-       - `dot_f64`, `dot_f32`, `axpy_f64`, `axpy_f32` (or generic once generics exist)
-       - `matmul_f64` baseline (row-major), correctness over speed
-     - add module tests: dot + matmul correctness + numeric edge cases
-     - leave a clear SIMD hook boundary for later NEON kernels (no backtracking design)
-
-4) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+3) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
+
+4) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
+   - DoD:
+     - keep scalar APIs stable (`dot_*`, `axpy_*`, `matmul_*`)
+     - add optional NEON fast paths for arm64 for dot/axpy (no correctness changes; keep deterministic rounding rules)
+     - keep a clean fallback path for non-NEON targets
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -136,6 +128,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Casting: builtin cast sugar + deterministic boundary normalization; added `std/casts` clarity module and regression tests.
+- Stdlib: added `std/linalg` (scalar-first dot/axpy/matmul) with module tests and oretest wiring; verified on macOS + linux docker runner.
 - Stdlib: added `lib/std/math.oren` + `lib/std/regex.oren` (deterministic Thompson NFA; no backtracking blowups) with module tests and oretest wiring; verified on macOS + linux docker runner.
 - YAML: decoder now tolerates YAML `#` and C/JSON `//` + `/* */` comments (safe whitespace rule to avoid breaking `http://...`), with module coverage.
 - Test system: specified a minimal Oren-native test manifest + runner CLI contract in `docs/TEST_SYSTEM.md` (no rewrite; keeps `cmd/oretest` outside compiler sources).

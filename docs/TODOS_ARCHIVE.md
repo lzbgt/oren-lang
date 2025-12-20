@@ -32,6 +32,16 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Docs: updated `docs/SELF_HOSTING.md` to match the current multi-backend reality and to defer to `docs/BUILD_AND_VERIFY.md` for the authoritative bootstrap steps.
 - Docs: updated `docs/STDLIB_LAYERS.md` to point at the refactored parser modules and to document strict attribute mode flags.
 
+## Archived (2025-12-20) — Casting model + type plan + linalg foundation
+
+- Casting: removed strict-casts mode (language semantics are deterministic by default).
+- Casting: compiler lowers builtin cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, `bool(x)`, endian spellings like `u16be(x)`) into deterministic rewrites (no dynamic call overhead).
+- Casting: added `lib/std/casts.oren` as an optional clarity layer matching annotation lowering.
+- Tests: added regression module test `tests/modules/test_cast_sugar.oren` and wired it into `cmd/oretest`.
+- Docs: added `docs/TYPE_SYSTEM_PLAN.md` to guide gradual typing → generics/traits.
+- Stdlib: added `lib/std/linalg.oren` (scalar-first `dot_*`, `axpy_*`, `matmul_*`) with module test `tests/modules/test_linalg.oren` and oretest wiring.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 ## Archived (2025-12-20) — Test system evolution spec (no rewrite)
 
 - Documented a minimal Oren-native test manifest shape and runner CLI/output contract in `docs/TEST_SYSTEM.md`.

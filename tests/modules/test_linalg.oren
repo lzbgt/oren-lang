@@ -1,0 +1,62 @@
+import linalg "../../lib/std/linalg.oren"
+
+fn fail(code) {
+    print("module linalg FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn assert_list_eq(a, b, code_base) {
+    if oren_list_len(a) != oren_list_len(b) { fail(code_base) }
+    var i = 0
+    while i < oren_list_len(a) {
+        if a[i] != b[i] { fail(code_base + 1 + i) }
+        i = i + 1
+    }
+    return 0
+}
+
+// dot
+var a = [1.0, 2.0, 3.0]
+var b = [4.0, 5.0, 6.0]
+assert_eq(linalg.dot_f64(a, b), 32.0, 10)
+assert_eq(linalg.dot_f32(a, b), f32(32.0), 11)
+
+// axpy
+var x = [1.0, 2.0]
+var y = [10.0, 20.0]
+var z = linalg.axpy_f64(2.0, x, y)
+assert_list_eq(z, [12.0, 24.0], 20)
+
+// in-place axpy
+var y2 = [10.0, 20.0]
+var y2r = linalg.axpy_f64_in_place(2.0, x, y2)
+assert_list_eq(y2r, [12.0, 24.0], 30)
+assert_list_eq(y2, [12.0, 24.0], 31)
+
+// matmul: (2x3) * (3x2) -> (2x2)
+var A = [1.0, 2.0, 3.0,
+         4.0, 5.0, 6.0]
+var B = [7.0, 8.0,
+         9.0, 10.0,
+         11.0, 12.0]
+var C = linalg.matmul_f64(A, B, 2, 3, 2)
+assert_list_eq(C, [58.0, 64.0,
+                   139.0, 154.0], 40)
+
+// mismatch returns error
+var bad = linalg.dot_f64([1.0], [2.0, 3.0])
+assert_true(oren_is_err(bad), 50)
+
+print("module linalg OK")
+exit(0)
+

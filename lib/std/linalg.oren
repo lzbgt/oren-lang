@@ -1,0 +1,136 @@
+// std/linalg (rolling)
+//
+// Scope: minimal linear algebra primitives, scalar-first.
+//
+// Design goals:
+// - Deterministic and portable across backends.
+// - Correctness-first (no host math libs, no UB).
+// - SIMD-ready later: keep hot loops isolated so NEON kernels can replace them.
+//
+// IMPORTANT: v0 float at runtime is f64 (tagged float).
+// `*_f32` APIs provide a deterministic float32 *boundary* by rounding outputs to f32,
+// but computations still occur in f64 unless/until we have a true f32 container.
+
+fn _err_invalid_arg(msg) {
+    // Code 4 matches existing stdlib convention (see std/ints).
+    return oren_err(4, msg)
+}
+
+fn _vec2_len(a, b, ctx) {
+    var na = oren_list_len(a)
+    var nb = oren_list_len(b)
+    if na != nb {
+        var where = ctx
+        if where == nil { where = "linalg" }
+        return _err_invalid_arg(where + ": length mismatch (" + oren_int_to_string(na) + " != " + oren_int_to_string(nb) + ")")
+    }
+    return na
+}
+
+// --- dot products ---
+
+fn dot_f64(a, b) {
+    var n = _vec2_len(a, b, "dot_f64")
+    if oren_is_err(n) { return n }
+    var i = 0
+    var s = 0.0
+    while i < n {
+        s = s + a[i] * b[i]
+        i = i + 1
+    }
+    return s
+}
+
+fn dot_f32(a, b) {
+    // v0 implementation: compute in f64 then round the *result* to f32.
+    // This provides deterministic behavior without per-element rounding overhead.
+    var s = dot_f64(a, b)
+    if oren_is_err(s) { return s }
+    return f32(s)
+}
+
+// --- axpy (y := a*x + y) ---
+
+fn axpy_f64(alpha, x, y) {
+    var n = _vec2_len(x, y, "axpy_f64")
+    if oren_is_err(n) { return n }
+    var out = []
+    var i = 0
+    while i < n {
+        oren_list_push(out, alpha * x[i] + y[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn axpy_f64_in_place(alpha, x, y) {
+    var n = _vec2_len(x, y, "axpy_f64_in_place")
+    if oren_is_err(n) { return n }
+    var i = 0
+    while i < n {
+        y[i] = alpha * x[i] + y[i]
+        i = i + 1
+    }
+    return y
+}
+
+fn axpy_f32(alpha, x, y) {
+    var out = axpy_f64(alpha, x, y)
+    if oren_is_err(out) { return out }
+    // Round each element to float32 boundary.
+    var i = 0
+    while i < oren_list_len(out) {
+        out[i] = f32(out[i])
+        i = i + 1
+    }
+    return out
+}
+
+// --- matrix multiplication ---
+//
+// Row-major, flat arrays:
+// - A is m x n, length m*n, indexed as A[i*n + k]
+// - B is n x p, length n*p, indexed as B[k*p + j]
+// - Out is m x p, length m*p, indexed as Out[i*p + j]
+
+fn matmul_f64(a, b, m, n, p) {
+    if m < 0 || n < 0 || p < 0 {
+        return _err_invalid_arg("matmul_f64: negative dims")
+    }
+    if oren_list_len(a) != m * n {
+        return _err_invalid_arg("matmul_f64: A length mismatch")
+    }
+    if oren_list_len(b) != n * p {
+        return _err_invalid_arg("matmul_f64: B length mismatch")
+    }
+
+    var out = []
+    var i = 0
+    while i < m {
+        var j = 0
+        while j < p {
+            var k = 0
+            var s = 0.0
+            while k < n {
+                s = s + a[i * n + k] * b[k * p + j]
+                k = k + 1
+            }
+            oren_list_push(out, s)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn matmul_f32(a, b, m, n, p) {
+    var out = matmul_f64(a, b, m, n, p)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < oren_list_len(out) {
+        out[i] = f32(out[i])
+        i = i + 1
+    }
+    return out
+}
+

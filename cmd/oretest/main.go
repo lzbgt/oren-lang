@@ -120,7 +120,7 @@ func main() {
 		"tests/native/test_sys_execve_fail_safe.oren",
 		"tests/native/test_debug_panic.oren",
 	}
-	moduleTestsFast := []string{
+		moduleTestsFast := []string{
 		// Core language / execution sanity (C backend).
 		"tests/modules/test_spawn_join_timeout.oren",
 		"tests/modules/test_lambda_multiline.oren",
@@ -141,11 +141,12 @@ func main() {
 		"tests/modules/test_abi_ptr_access.oren",
 		"tests/modules/test_abi_socket_structs_v5.oren",
 		// Stdlib building blocks.
-		"tests/modules/test_result.oren",
-		"tests/modules/test_argparse.oren",
-		"tests/modules/test_math.oren",
-		"tests/modules/test_regex.oren",
-		"tests/modules/test_json.oren",
+			"tests/modules/test_result.oren",
+			"tests/modules/test_argparse.oren",
+			"tests/modules/test_math.oren",
+			"tests/modules/test_linalg.oren",
+			"tests/modules/test_regex.oren",
+			"tests/modules/test_json.oren",
 		"tests/modules/test_json_comments.oren",
 		"tests/modules/test_json_serde_attrs.oren",
 		"tests/modules/test_yaml_serde_attrs.oren",
@@ -155,7 +156,7 @@ func main() {
 		"tests/modules/test_cbor_serde_streaming.oren",
 		"tests/modules/test_varargs.oren",
 	}
-	moduleTestsFull := []string{
+		moduleTestsFull := []string{
 		"tests/modules/test_shapes.oren",
 		"tests/modules/test_spawn.oren",
 		"tests/modules/test_spawn_join_timeout.oren",
@@ -195,10 +196,11 @@ func main() {
 		"tests/modules/test_argparse.oren",
 		"tests/modules/test_build_target_arch.oren",
 		"tests/modules/test_strings.oren",
-		"tests/modules/test_string_from_bytes.oren",
-		"tests/modules/test_math.oren",
-		"tests/modules/test_regex.oren",
-		"tests/modules/test_json.oren",
+			"tests/modules/test_string_from_bytes.oren",
+			"tests/modules/test_math.oren",
+			"tests/modules/test_linalg.oren",
+			"tests/modules/test_regex.oren",
+			"tests/modules/test_json.oren",
 		"tests/modules/test_json_comments.oren",
 		"tests/modules/test_json_serde_attrs.oren",
 		"tests/modules/test_yaml_serde_attrs.oren",

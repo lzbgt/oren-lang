@@ -49,6 +49,7 @@ Examples (current / expected direction):
 - `std/argparse` (used by `./oren` and `./avm` CLIs)
 - `std/casts` (canonical explicit casts matching annotation lowering; clarity layer)
 - `std/math` (portable helpers: abs/min/max/clamp + `is_nan`)
+- `std/linalg` (scalar-first dot/axpy/matmul; SIMD-ready hooks later)
 - `std/regex` (deterministic Thompson NFA; no catastrophic backtracking)
 - `std/json` (portable explicit `JsonValue`; tolerant decode for config text)
 - `std/yaml` (deterministic subset; tolerant decode for common config text)
