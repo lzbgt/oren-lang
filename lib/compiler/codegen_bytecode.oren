@@ -51,6 +51,14 @@ var AVM_DOMAIN_EXIT = 6
 var AVM_DOMAIN_ENV = 7
 var AVM_DOMAIN_AVM = 8
 
+fn bytecode_error(ctx, msg) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    oren_list_push(ctx["errors"], msg)
+    ctx["fatal"] = true
+    return nil
+}
+
 fn new_bytecode_ctx() {
     return {
         "code": [],
@@ -78,6 +86,8 @@ fn new_bytecode_ctx() {
         // Optional BYTES blob appended to the constant pool by the compiler driver
         // (tooling metadata, not referenced by program code).
         "meta_bytes": nil
+        ,"errors": []
+        ,"fatal": false
     }
 }
 
@@ -377,6 +387,7 @@ fn str_starts_with(s, prefix) {
 }
 
 fn bytecode_compile_expr(ctx, expr) {
+    if ctx != nil && ctx["fatal"] == true { return nil }
     if expr == nil {
         var idx = add_constant(ctx, {"type": "Nil"})
         emit_byte(ctx, AVM_PUSH_CONST)
@@ -393,12 +404,12 @@ fn bytecode_compile_expr(ctx, expr) {
         // stack: [... fn args_list] SPAWN_CALL_LIST -> [... handle]
         var call = expr["call"]
         if call == nil || call["type"] != "Call" {
-            print("bytecode backend: spawn expects Call")
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: spawn expects Call")
+            return nil
         }
         if call["spread"] != nil {
-            print("bytecode backend: spawn does not support spread args yet")
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: spawn does not support spread args yet")
+            return nil
         }
 
         // fn value
@@ -418,8 +429,8 @@ fn bytecode_compile_expr(ctx, expr) {
             }
         }
         if fixed >= 0 && oren_list_len(args) < fixed {
-            print("bytecode backend: varargs arity mismatch for " + call["fn"]["value"])
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + call["fn"]["value"])
+            return nil
         }
 
         var n_args = oren_list_len(args)
@@ -911,13 +922,13 @@ fn bytecode_compile_expr(ctx, expr) {
             var targc = ctx["types"][name]
             if targc != nil {
                 if expr["spread"] != nil {
-                    print("bytecode backend: type constructor does not support spread args yet: " + name)
-                    oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: type constructor does not support spread args yet: " + name)
+            return nil
                 }
                 var args0 = expr["args"]
                 if oren_list_len(args0) != targc {
-                    print("bytecode backend: type constructor arity mismatch for " + name)
-                    oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
+            return nil
                 }
                 var ai0 = 0
                 while ai0 < oren_list_len(args0) {
@@ -934,16 +945,16 @@ fn bytecode_compile_expr(ctx, expr) {
         // These are opcodes (not host natives), so they remain deterministic and portable.
         if name == "oren_new_channel" {
             if oren_list_len(expr["args"]) != 0 {
-                print("bytecode backend: oren_new_channel expects ()")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_new_channel expects ()")
+            return nil
             }
             emit_byte(ctx, AVM_CHAN_NEW)
             return nil
         }
         if name == "oren_chan_send" {
             if oren_list_len(expr["args"]) != 2 {
-                print("bytecode backend: oren_chan_send expects (ch, val)")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_chan_send expects (ch, val)")
+            return nil
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             bytecode_compile_expr(ctx, expr["args"][1])
@@ -952,8 +963,8 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "oren_chan_recv" {
             if oren_list_len(expr["args"]) != 1 {
-                print("bytecode backend: oren_chan_recv expects (ch)")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_chan_recv expects (ch)")
+            return nil
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_CHAN_RECV)
@@ -961,8 +972,8 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "oren_select_recv" {
             if oren_list_len(expr["args"]) != 1 {
-                print("bytecode backend: oren_select_recv expects (list<ch>)")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_select_recv expects (list<ch>)")
+            return nil
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_SELECT_RECV)
@@ -970,8 +981,8 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "oren_select" {
             if oren_list_len(expr["args"]) != 1 {
-                print("bytecode backend: oren_select expects (list<case>)")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_select expects (list<case>)")
+            return nil
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_SELECT)
@@ -979,8 +990,8 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "oren_join" {
             if oren_list_len(expr["args"]) != 1 {
-                print("bytecode backend: oren_join expects (handle)")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_join expects (handle)")
+            return nil
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             emit_byte(ctx, AVM_JOIN)
@@ -988,8 +999,8 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "oren_join_timeout" {
             if oren_list_len(expr["args"]) != 2 {
-                print("bytecode backend: oren_join_timeout expects (handle, timeout_ms)")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_join_timeout expects (handle, timeout_ms)")
+            return nil
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             bytecode_compile_expr(ctx, expr["args"][1])
@@ -998,8 +1009,8 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "oren_yield" {
             if oren_list_len(expr["args"]) != 0 {
-                print("bytecode backend: oren_yield expects ()")
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: oren_yield expects ()")
+            return nil
             }
             emit_byte(ctx, AVM_YIELD)
             return nil
@@ -1012,6 +1023,9 @@ fn bytecode_compile_expr(ctx, expr) {
         var native_op = -1
 
         if name == "oren_system" { native_domain = AVM_DOMAIN_PROC; native_op = 0 }
+        // Builtin aliases (surface names without the `oren_` prefix).
+        if name == "system" { native_domain = AVM_DOMAIN_PROC; native_op = 0 }
+        if name == "exit" { native_domain = AVM_DOMAIN_EXIT; native_op = 0 }
         if name == "oren_exit" { native_domain = AVM_DOMAIN_EXIT; native_op = 0 }
         if name == "oren_env" { native_domain = AVM_DOMAIN_ENV; native_op = 0 }
         if name == "oren_time_now_ns" { native_domain = AVM_DOMAIN_TIME; native_op = 0 }
@@ -1212,8 +1226,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if vf != nil { fixed = vf }
         if expr["spread"] != nil {
             if fixed >= 0 {
-                print("bytecode backend: varargs+spread not supported yet for direct calls: " + name)
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: varargs+spread not supported yet for direct calls: " + name)
+            return nil
             }
             // Spread calls are compiled as indirect calls so we don't need a dynamic
             // CALL-by-name opcode: push a function value, fixed args, spread list.
@@ -1229,8 +1243,8 @@ fn bytecode_compile_expr(ctx, expr) {
             return nil
         }
         if fixed >= 0 && oren_list_len(args) < fixed {
-            print("bytecode backend: varargs arity mismatch for " + name)
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + name)
+            return nil
         }
         var n_args = oren_list_len(args)
         var i = 0
@@ -1396,11 +1410,12 @@ fn bytecode_collect_locals_stmt(ctx, stmt) {
 }
 
 fn bytecode_compile_stmt(ctx, stmt) {
+    if ctx != nil && ctx["fatal"] == true { return nil }
     if stmt["type"] == "Break" {
         var loop = ctx["loop_ctx"]
         if loop == nil {
-            print("bytecode backend: break outside of loop")
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: break outside of loop")
+            return nil
         }
         emit_byte(ctx, AVM_JMP)
         var jidx = oren_list_len(ctx["code"])
@@ -1412,8 +1427,8 @@ fn bytecode_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Continue" {
         var loop2 = ctx["loop_ctx"]
         if loop2 == nil {
-            print("bytecode backend: continue outside of loop")
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: continue outside of loop")
+            return nil
         }
         emit_byte(ctx, AVM_JMP)
         var jidx2 = oren_list_len(ctx["code"])
@@ -1441,12 +1456,12 @@ fn bytecode_compile_stmt(ctx, stmt) {
         // spawn <call> as a statement: compile the spawn expr and discard the handle.
         var call = stmt["call"]
         if call == nil || call["type"] != "Call" {
-            print("bytecode backend: spawn expects Call")
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: spawn expects Call")
+            return nil
         }
         if call["spread"] != nil {
-            print("bytecode backend: spawn does not support spread args yet")
-            oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: spawn does not support spread args yet")
+            return nil
         }
         bytecode_compile_expr(ctx, call["fn"])
         var args = call["args"]
@@ -1501,8 +1516,8 @@ fn bytecode_compile_stmt(ctx, stmt) {
             var idx = ctx["locals"][name]
             if idx == nil {
                 // Should not happen: we pre-collect locals in bytecode_compile_function.
-                print("bytecode backend: internal error, missing local slot for " + name)
-                oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: internal error, missing local slot for " + name)
+            return nil
             }
             emit_byte(ctx, AVM_STORE_LOCAL)
             emit_byte(ctx, idx)
@@ -1518,8 +1533,8 @@ fn bytecode_compile_stmt(ctx, stmt) {
             if caps != nil {
                 var cidx = caps[target["value"]]
                 if cidx != nil {
-                    print("bytecode backend: cannot assign to captured var '" + target["value"] + "' (capture-by-value)")
-                    oren_exit(1)
+            bytecode_error(ctx, "bytecode backend: cannot assign to captured var '" + target["value"] + "' (capture-by-value)")
+            return nil
                 }
             }
             bytecode_compile_expr(ctx, stmt["value"])
@@ -1770,7 +1785,7 @@ fn bytecode_compile_program(linked) {
         if addr != nil {
             patch_u16(ctx, pos, addr)
         } else {
-            print("Undefined function: " + name)
+            bytecode_error(ctx, "Undefined function: " + name)
         }
         j = j + 1
     }
@@ -1785,7 +1800,7 @@ fn bytecode_compile_program(linked) {
         if addr2 != nil {
             patch_u16(ctx, pos2, addr2)
         } else {
-            print("Undefined function value: " + name2)
+            bytecode_error(ctx, "Undefined function value: " + name2)
         }
         k = k + 1
     }

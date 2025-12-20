@@ -1466,6 +1466,18 @@ fn compiler_main() {
     if backend == "bytecode" {
         var linked_bc = link_program(path, prog, {"target": target, "arch": arch})
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc)
+        if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+            var first_err = ctx["errors"][0]
+            emit_diag("codegen", 1, first_err)
+            print("Bytecode codegen errors:")
+            var ei = 0
+            while ei < oren_list_len(ctx["errors"]) {
+                print(ctx["errors"][ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
+        }
+
 
         // Rolling: embed metadata into the `.obc` constant pool as a BYTES constant so:
         // - tooling can discover attrs/types/fields without a sidecar file

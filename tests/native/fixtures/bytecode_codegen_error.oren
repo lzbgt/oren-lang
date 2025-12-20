@@ -1,0 +1,5 @@
+fn f(x) { return x }
+
+var xs = [1]
+// Bytecode backend: spawn currently rejects spread args; should surface OREN_DIAG kind=codegen.
+spawn f(xs...)
