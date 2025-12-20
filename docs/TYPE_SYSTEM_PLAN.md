@@ -42,7 +42,7 @@ In v0 these annotations are currently implemented as a **lowering pass**:
 
 `u8(x)`, `i32(x)`, `f32(x)`, `bool(x)`, and endian-tagged spellings (`u16be(x)`) are treated as **builtin cast sugar**:
 
-- the compiler rewrites them into deterministic cast expressions (integers) or intrinsic calls (`oren_f32_round`, `oren_bool_norm`).
+- the compiler rewrites them into deterministic cast expressions (integers) or intrinsic calls (`oren_f32_round`, `oren_bool_norm`, `oren_trunc_int`).
 - the **native backend can inline** these intrinsics (no function call overhead in the emitted binary).
 
 ## 2) Target model: "Static when you want it"
@@ -147,4 +147,3 @@ Oren should be explicit like C for performance, but also deterministic and docum
 We intentionally avoid a separate "strict mode" toggle:
 
 - the language semantics themselves should be strict and deterministic.
-

@@ -47,6 +47,12 @@ fn neq_zero_expr(x) {
     return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_bool_norm"}, [x])
 }
 
+fn trunc_int_expr(x) {
+    // Deterministic numeric truncation for float->int casts.
+    // Implemented as a runtime helper in C/bytecode; native backend inlines it.
+    return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_trunc_int"}, [x])
+}
+
 fn normalize_kind_for_value_cast(kind) {
     if kind == nil { return nil }
 
@@ -77,17 +83,35 @@ fn cast_expr_for_kind(kind, expr) {
     var k = normalize_kind_for_value_cast(kind)
     if k == nil { return expr }
 
-    if k == "u8" { return mask_expr(expr, "255") }
-    if k == "i8" { return sub_expr(xor_expr(mask_expr(expr, "255"), "128"), "128") }
+    if k == "u8" {
+        var x = trunc_int_expr(expr)
+        return mask_expr(x, "255")
+    }
+    if k == "i8" {
+        var x2 = trunc_int_expr(expr)
+        return sub_expr(xor_expr(mask_expr(x2, "255"), "128"), "128")
+    }
 
-    if k == "u16" { return mask_expr(expr, "65535") }
-    if k == "i16" { return sub_expr(xor_expr(mask_expr(expr, "65535"), "32768"), "32768") }
+    if k == "u16" {
+        var x3 = trunc_int_expr(expr)
+        return mask_expr(x3, "65535")
+    }
+    if k == "i16" {
+        var x4 = trunc_int_expr(expr)
+        return sub_expr(xor_expr(mask_expr(x4, "65535"), "32768"), "32768")
+    }
 
-    if k == "u32" { return mask_expr(expr, "4294967295") }
-    if k == "i32" { return sub_expr(xor_expr(mask_expr(expr, "4294967295"), "2147483648"), "2147483648") }
+    if k == "u32" {
+        var x5 = trunc_int_expr(expr)
+        return mask_expr(x5, "4294967295")
+    }
+    if k == "i32" {
+        var x6 = trunc_int_expr(expr)
+        return sub_expr(xor_expr(mask_expr(x6, "4294967295"), "2147483648"), "2147483648")
+    }
 
-    // v0 ints are machine-sized signed. Keep i64/u64 as identity for now.
-    if k == "i64" || k == "u64" { return expr }
+    // v0 ints are machine-sized signed. Normalize to int64 container via truncation.
+    if k == "i64" || k == "u64" { return trunc_int_expr(expr) }
 
     // bool is normalized to a boolean value.
     if k == "bool" { return neq_zero_expr(expr) }
@@ -95,7 +119,9 @@ fn cast_expr_for_kind(kind, expr) {
     if k == "f32" {
         // Round to float32 precision (deterministic boundary).
         // Lowered as a call so C/bytecode backends can implement it as a runtime helper.
-        return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_f32_round"}, [expr])
+        // Coerce ints to float via arithmetic promotion (expr + 0.0).
+        var f = ast.new_infix(nil, expr, "+", {"type": "Float", "token": nil, "value": "0.0"})
+        return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_f32_round"}, [f])
     }
     if k == "f64" {
         // Force float container in v0 (where float is f64).

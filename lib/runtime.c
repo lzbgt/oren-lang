@@ -2226,6 +2226,32 @@ OrenValue oren_bool_norm(OrenValue v) {
     }
 }
 
+OrenValue oren_trunc_int(OrenValue v) {
+    // Numeric truncation semantics (rolling):
+    // - int   -> identity
+    // - float -> truncate toward zero (discard fractional part)
+    //
+    // This is intentionally NOT rounding. Rounding (floor/ceil/round) belongs
+    // to math helpers; casts must be cheap and deterministic.
+    if (v.type == OREN_TYPE_INT) { return v; }
+    if (v.type == OREN_TYPE_FLOAT) {
+        double d = v.as.float_val;
+        // NaN check without <math.h>.
+        if (d != d) {
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("trunc_int: NaN"));
+        }
+        // Guard against undefined behavior in (int64_t)d.
+        // Valid int64 range is [-2^63, 2^63-1]; we reject values outside [-2^63, 2^63).
+        const double lim = 9223372036854775808.0; // 2^63
+        if (d >= lim || d < -lim) {
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("trunc_int: float out of int64 range"));
+        }
+        int64_t i = (int64_t)d; // C truncates toward zero for finite values in range.
+        return oren_int(i);
+    }
+    return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("trunc_int expects (int|float)"));
+}
+
 OrenValue oren_ptr_alloc(OrenValue bytes) {
     if (bytes.type != OREN_TYPE_INT) {
         oren_panic("ptr_alloc expects int");

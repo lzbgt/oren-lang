@@ -180,6 +180,11 @@ OrenValue oren_f32_round(OrenValue v);
 // Normalize a value to a boolean using numeric (int/float) semantics rather than generic truthiness.
 // Used by the compiler as the semantic core of `bool` annotations.
 OrenValue oren_bool_norm(OrenValue v);
+// Truncate a numeric value to an int using deterministic semantics:
+// - int   -> identity
+// - float -> truncate toward zero (like C cast), error on NaN/overflow
+// Used by the compiler for float->int cast sugar lowering (e.g. `u8(1.9)`).
+OrenValue oren_trunc_int(OrenValue v);
 
 OrenValue oren_read_file(OrenValue path);
 OrenValue oren_write_file(OrenValue path, OrenValue content);

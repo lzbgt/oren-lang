@@ -1195,6 +1195,26 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 108: { // oren_trunc_int(x: int|float) -> int
+            if (nargs > 0) {
+                AvmValue x = args[0];
+                if (x.type == AVM_VAL_INT) {
+                    res = x;
+                } else if (x.type == AVM_VAL_FLOAT) {
+                    double d = x.as.f;
+                    // NaN check without <math.h>.
+                    if (d != d) { res = avm_err(AVM_ERR_INVALID_ARG, "trunc_int: NaN"); break; }
+                    const double lim = 9223372036854775808.0; // 2^63
+                    if (d >= lim || d < -lim) { res = avm_err(AVM_ERR_INVALID_ARG, "trunc_int: float out of int64 range"); break; }
+                    res = avm_int((int64_t)d); // truncate toward zero
+                } else {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "oren_trunc_int expects (int|float)");
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_trunc_int expects (x)");
+            }
+            break;
+        }
         case 35: { // oren_bytes_from_hex(string) -> bytes
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 const char* s = (const char*)args[0].as.p;

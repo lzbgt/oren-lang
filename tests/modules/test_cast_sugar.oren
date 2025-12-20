@@ -19,6 +19,12 @@ assert_eq(i16(65535), -1, 13)
 assert_eq(u32(4294967296 + 9), 9, 14)
 assert_eq(i32(4294967295), -1, 15)
 
+// float -> int casts (truncate toward zero, then wrap/truncate to width)
+assert_eq(u8(1.9), 1, 16)
+assert_eq(u8(-1.9), 255, 17)
+assert_eq(i32(1.9), 1, 18)
+assert_eq(i32(-1.9), -1, 19)
+
 // endian-tagged spellings are accepted as cast sugar too (value-level cast semantics).
 assert_eq(u16be(65536 + 7), 7, 20)
 assert_eq(i16le(65535), -1, 21)
@@ -29,7 +35,7 @@ if !bool(123) { fail(31) }
 
 // f32 rounding boundary: 16777217 (2^24+1) rounds to 16777216 in float32.
 assert_eq(f32(16777217.0), 16777216.0, 40)
+assert_eq(f32(16777217), 16777216.0, 41)
 
 print("module cast_sugar OK")
 exit(0)
-

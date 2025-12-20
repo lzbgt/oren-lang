@@ -1376,6 +1376,27 @@ fn native_compile_expr(ctx, expr) {
             return nil
         }
 
+        if fn_name == "oren_trunc_int" {
+            // Intrinsic: truncate float bits to an int (toward zero), or identity for int-like values.
+            //
+            // Native backend has no tagged dynamic values, so we decide based on float propagation:
+            // - if arg is floaty -> FCVTZS X0, D0
+            // - otherwise -> identity
+            var args2 = expr["args"]
+            if args2 == nil || oren_list_len(args2) != 1 {
+                native_error(ctx, expr["token"], "native backend: oren_trunc_int expects 1 argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+            var a0 = args2[0]
+            native_compile_expr(ctx, a0) // X0 = value (int or float bits)
+            if native_expr_is_floaty(ctx, a0) {
+                push_u32_le(ctx["code"], insn_fmov_d_x(0, 0)) // D0 = X0 bits
+                push_u32_le(ctx["code"], insn_fcvtzs(0, 0)) // X0 = (int64)D0 (truncate toward zero)
+            }
+            return nil
+        }
+
         if fn_name == "oren_f32_to_u32_bits" {
             // Intrinsic: convert float64 bits (X0) to IEEE-754 float32 bits (u32 in W0).
             var args = expr["args"]

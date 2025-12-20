@@ -80,7 +80,7 @@ Production server HPC requires OS threads:
 This repo is rolling; priorities are driven by what blocks production libraries.
 
 1) **Typecheck mode v0** (opt-in)
-   - reject obviously invalid casts (`f32("x")`, `u8(1.0)`, etc.)
+   - reject obviously invalid casts (`f32("x")`, `u8("x")`, etc.)
    - validate annotated function boundaries when argument/return is statically-known
 
 2) **Typed buffers + views**
@@ -101,4 +101,3 @@ This repo is rolling; priorities are driven by what blocks production libraries.
 
 - The actionable prioritized tracker is: `docs/TODOS.md`
 - Completed work is moved to: `docs/TODOS_ARCHIVE.md`
-

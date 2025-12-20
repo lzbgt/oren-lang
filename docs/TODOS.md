@@ -22,9 +22,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Test/build steps must never block forever.
    - Any new long-running subprocess must be wrapped in a wall-time timeout.
 
-2) **No libc shims / no libc dependency** `[arch]`
-   - Native backend output must not require `libc` facilities like `malloc/free`, `pthread`, `stdio`.
-   - Runtime must be implemented via `sys_*` primitives + `.oren` code.
+2) **No libc shims for the native backend** `[arch]`
+   - **Native backend output** must not require `libc` facilities like `malloc/free`, `pthread`, `stdio`.
+   - The **C backend / C AVM** may use `libc` during bootstrap (like a normal C program), until the Oren-native runtime is complete.
+   - Native runtime primitives must be implemented via `sys_*` + repo-owned ABI tables + `.oren` code (no host SDK dependence).
 
 3) **No build-time dependency on host SDK/system headers** `[arch]`
    - OS ABI constants live in repo-owned tables (`lib/compiler/*_abi_*.oren`).
@@ -69,16 +70,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][safety] Typecheck mode v0 (annotated code validation)**
-   - Why now:
-     - We need production-grade failures and earlier feedback without breaking rolling-mode execution.
-   - DoD:
-     - add `oren build --typecheck` (or equivalent) that validates:
-       - fn param/return annotations at callsites/returns
-       - invalid cast inputs (e.g. `f32("x")`) are rejected with `file:line:col`
-      - typecheck must not depend on host headers/SDKs
-
-2) **[lang][perf] Typed buffers + views (slice + matrix stride view)**
+1) **[lang][perf] Typed buffers + views (slice + matrix stride view)**
    - Why now:
      - Without contiguous typed buffers and views, server-side HPC cannot reach acceptable performance.
    - DoD:
@@ -87,12 +79,12 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - add `std/bytes`/`std/buffer` helper surface as needed (keep SOLID)
      - add module tests targeting public surfaces (no compiler-internal imports)
 
-3) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+2) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
-4) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
+3) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
    - DoD:
      - keep scalar APIs stable (`dot_*`, `axpy_*`, `matmul_*`)
      - add optional NEON fast paths for arm64 for dot/axpy (no correctness changes; keep deterministic rounding rules)
@@ -100,25 +92,25 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### B) AVM (evolves alongside language/compiler)
 
-5) **[vm][safety] Record/Replay v1 for all effectful domains**
+4) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-6) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+5) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-7) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+6) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-8) **[boot][arch] Compiler-in-AVM (close the loop)**
+7) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
@@ -129,28 +121,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
-- Language: added `as` cast operator (`expr as u8`) desugared to builtin cast sugar; added module test + oretest wiring; updated spec.
-- Tooling: added opt-in `--typecheck` pass (v0) + oretest fixture for invalid casts.
-- Casting: builtin cast sugar + deterministic boundary normalization; added `std/casts` clarity module and regression tests.
-- Stdlib: added `std/linalg` (scalar-first dot/axpy/matmul) with module tests and oretest wiring; verified on macOS + linux docker runner.
-- Stdlib: added `lib/std/math.oren` + `lib/std/regex.oren` (deterministic Thompson NFA; no backtracking blowups) with module tests and oretest wiring; verified on macOS + linux docker runner.
-- YAML: decoder now tolerates YAML `#` and C/JSON `//` + `/* */` comments (safe whitespace rule to avoid breaking `http://...`), with module coverage.
-- Test system: specified a minimal Oren-native test manifest + runner CLI contract in `docs/TEST_SYSTEM.md` (no rewrite; keeps `cmd/oretest` outside compiler sources).
-- Serde attribute ergonomics v1: prefer `@serde(format="json", ...)` / `@serde(rename=..., skip=..., default=...)` while keeping legacy dotted forms working in rolling mode.
-- Serde v1: `oren meta` now emits a normalized per-struct serde schema under `structs[*].serde` (versioned, deterministic).
-- CBOR v1 (RFC 8949 subset): added `lib/std/cbor.oren` + `@serde(format="cbor")` lowering and deterministic bytes tests.
-- CBOR streaming (RFC 8742): added `cbor.decode_next` / `cbor.decode_sequence` / `cbor.encode_sequence` + tests.
-- CBOR serde streaming: added `cbor.encode_sequence_typed` / `cbor.decode_next_typed` / `cbor.decode_sequence_typed` + integration test.
-- YAML serde adaptor v1: added `lib/std/yaml.oren` (deterministic subset) + `@serde(format="yaml")` lowering + tests.
-- Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
-- Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
-- Native debug traces: `--debug` builds now print `file:line:col` in stack traces (from debug info table), making panics AI-diagnosable without lldb.
-- Tooling: `oren dump graph <file.oren>` exports a deterministic module dependency graph (JSON).
-- Deterministic builds: `oren build --deterministic` emits stable `OREN_ARTIFACT ... sha256=...` hashes; oretest enforces bytecode reproducibility.
-- Compiler diagnostics: lexer tokens now carry byte spans + file info; parse errors render `file:line:col`; native backend codegen errors fail the build with actionable locations.
-- Runtime diagnostics: panics/fails emit a stable one-line `OREN_DIAG kind=... code=... msg=...` (AI-friendly; no lldb/otool needed).
-- Attribute ergonomics: alias canonicalization (`@pack` → `@oren.packed`, `@abi` → `@oren.abi`, `@json.*` → `@serde.*`) keeps user code terse but metadata canonical.
-- Attribute ergonomics: repo tests now prefer the terse surface forms (`@pack`, `@abi`) while keeping canonical names in compiler metadata.
-- Verification loop: `oretest` is parallel + timeout-safe by default, and Linux/arm64 docker runner reuses a persistent container for fast smoke tests.
-- JSON decode: tolerate C-style comments (`//` and `/* */`) for config compatibility; encoder remains canonical.
-- Serde JSON v1 (no reflection): opt-in via `@json.derive("json")`, generates `<Type>__json_encode` / `<Type>__json_decode`, covered by `tests/modules/test_json_serde_attrs.oren`.
+- Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.

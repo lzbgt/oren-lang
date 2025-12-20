@@ -1120,6 +1120,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_bytes_set_i64_le" { native_id = 105 }
         if name == "oren_f32_round" { native_id = 106 }
         if name == "oren_bool_norm" { native_id = 107 }
+        if name == "oren_trunc_int" { native_id = 108 }
         if name == "oren_bytes_from_hex" { native_id = 35 }
         if name == "oren_bytes_to_hex" { native_id = 36 }
         if name == "oren_avm_record_to_bytes" { native_id = 40 }

@@ -42,6 +42,15 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Stdlib: added `lib/std/linalg.oren` (scalar-first `dot_*`, `axpy_*`, `matmul_*`) with module test `tests/modules/test_linalg.oren` and oretest wiring.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — Numeric cast semantics (float→int truncation)
+
+- Casting: defined and implemented float→int cast semantics: truncate toward zero, then wrap/truncate to target width.
+  - Added `oren_trunc_int` intrinsic (C runtime + AVM native + native backend inline).
+  - Updated cast sugar lowering to apply `oren_trunc_int` before integer masks and to allow `f32(int)` via `x + 0.0` coercion.
+- Typecheck v0: relaxed numeric cast rules so `u8(1.0)` is valid; string/bool/nil remain rejected for numeric casts.
+- Tests: expanded `tests/modules/test_cast_sugar.oren` to cover float→int and `f32(int)`; kept `tests/fixtures/typecheck_bad_cast.oren` rejecting `f32("...")`.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 ## Archived (2025-12-20) — `as` cast operator + typecheck v0 scaffolding
 
 - Language: added `as` cast operator (`expr as u8`) desugared to builtin cast sugar.

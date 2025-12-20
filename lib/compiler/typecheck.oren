@@ -7,7 +7,7 @@ import token "token.oren"
 // - Provide an opt-in correctness gate for annotated code without requiring a full
 //   static type system yet.
 // - Catch obvious type mismatches at compile time:
-//   - invalid cast inputs (e.g. `f32("x")`, `u8(1.0)`)
+//   - invalid cast inputs (e.g. `f32("x")`)
 //   - invalid `as` casts (desugared to cast sugar calls by the parser)
 //   - function call/return mismatches when signatures are annotated and the value
 //     is statically-known (literals and simple arithmetic).
@@ -164,18 +164,18 @@ fn _check_cast_call(errors, call, env) {
     // bool(...) is allowed for all categories (it is the explicit normalization).
     if tgt_cat == "bool" { return nil }
 
-    // f32/f64 casts require a float input in v0.
+    // f32/f64 casts require a numeric (int|float) input in v0.
     if tgt_cat == "float" {
-        if arg_cat == "int" || arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
-            _err(errors, call["token"], "invalid cast: " + nm + "(...) expects float input")
+        if arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
+            _err(errors, call["token"], "invalid cast: " + nm + "(...) expects numeric input")
         }
         return nil
     }
 
-    // int casts currently require int input (bitwise lowering assumes ints).
+    // int casts accept int|float input (float truncation is deterministic).
     if tgt_cat == "int" {
-        if arg_cat == "float" || arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
-            _err(errors, call["token"], "invalid cast: " + nm + "(...) expects int input")
+        if arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
+            _err(errors, call["token"], "invalid cast: " + nm + "(...) expects numeric input")
         }
         return nil
     }
