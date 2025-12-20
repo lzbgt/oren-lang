@@ -178,6 +178,13 @@ Other supported serde formats (rolling, v1):
   - `User__cbor_encode(x)` → CborValue (tagged; see `lib/std/cbor.oren`)
   - `User__cbor_decode(cv)` → `{ok, err?, v?}`
 
+CBOR streaming (rolling, v1):
+
+- `lib/std/cbor.oren` implements CBOR Sequences (RFC 8742) for streaming:
+  - `cbor.encode_sequence([CborValue...]) -> bytes` (concatenation)
+  - `cbor.decode_next(bytes, pos) -> {ok, err?, v?, pos}` (incremental)
+  - `cbor.decode_sequence(bytes) -> {ok, err?, v:[CborValue...], pos}`
+
 Planned next step:
 
 - add attribute-driven serde codegen helpers (compiler phase or AVM metadata query) so libraries can implement ergonomic:

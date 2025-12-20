@@ -1,6 +1,7 @@
 // std/cbor (rolling)
 //
 // RFC 8949: docs/refs/cbor/rfc8949.txt (audit reference)
+// CBOR Sequences (streaming): RFC 8742 docs/refs/cbor/rfc8742.txt (audit reference)
 //
 // Goal:
 // - Deterministic and portable CBOR encode/decode across backends.
@@ -372,4 +373,40 @@ fn decode(bs) {
         return _err("trailing input", r["pos"])
     }
     return r
+}
+
+// Streaming / sequence API (RFC 8742)
+//
+// A CBOR sequence is a concatenation of 1+ CBOR items. This is the CBOR-native
+// way to stream without wrapping everything in a top-level array.
+//
+// We expose a "decode next" primitive so higher-level IO can incrementally
+// parse from buffers, and a convenience decode_sequence for whole buffers.
+
+fn decode_next(bs, pos) {
+    // Returns {"ok":1,"v":CborValue,"pos":newpos} or {"ok":0,"err":...,"pos":...}.
+    if pos == nil { pos = 0 }
+    return _decode_value(bs, pos)
+}
+
+fn decode_sequence(bs) {
+    var out = []
+    var pos = 0
+    while pos < oren_list_len(bs) {
+        var r = _decode_value(bs, pos)
+        if r["ok"] != 1 { return r }
+        oren_list_push(out, r["v"])
+        pos = r["pos"]
+    }
+    return {"ok": 1, "v": out, "pos": pos}
+}
+
+fn encode_sequence(items) {
+    var out = []
+    var i = 0
+    while items != nil && i < oren_list_len(items) {
+        _encode_value(out, items[i])
+        i = i + 1
+    }
+    return out
 }

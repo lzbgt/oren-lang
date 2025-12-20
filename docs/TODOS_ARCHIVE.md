@@ -81,6 +81,16 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Vendored RFC 8949 text into `docs/refs/cbor/rfc8949.txt` for audit reference.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — CBOR streaming (CBOR Sequences, RFC 8742)
+
+- Vendored RFC 8742 text into `docs/refs/cbor/rfc8742.txt` for audit reference.
+- Added streaming-friendly API in `lib/std/cbor.oren`:
+  - `cbor.decode_next(bytes, pos)` for incremental parsing (one item)
+  - `cbor.decode_sequence(bytes)` for whole-buffer sequences
+  - `cbor.encode_sequence(items)` for emitting sequences
+- Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.

@@ -120,7 +120,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Serde attribute ergonomics v1: prefer `@serde(format="json", ...)` / `@serde(rename=..., skip=..., default=...)` while keeping legacy dotted forms working in rolling mode.
 - Serde v1: `oren meta` now emits a normalized per-struct serde schema under `structs[*].serde` (versioned, deterministic).
-- CBOR v1 (RFC 8949 subset): added `lib/std/cbor.oren` + `@serde(format="cbor")` lowering and a deterministic bytes test.
+- CBOR v1 (RFC 8949 subset): added `lib/std/cbor.oren` + `@serde(format="cbor")` lowering and deterministic bytes tests.
+- CBOR streaming (RFC 8742): added `cbor.decode_next` / `cbor.decode_sequence` / `cbor.encode_sequence` + tests.
 - Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
 - Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
 - Native debug traces: `--debug` builds now print `file:line:col` in stack traces (from debug info table), making panics AI-diagnosable without lldb.

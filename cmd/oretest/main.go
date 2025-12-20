@@ -145,6 +145,7 @@ func main() {
 		"tests/modules/test_json.oren",
 		"tests/modules/test_json_serde_attrs.oren",
 		"tests/modules/test_cbor_serde_attrs.oren",
+		"tests/modules/test_cbor_sequence.oren",
 		"tests/modules/test_varargs.oren",
 	}
 	moduleTestsFull := []string{
@@ -190,6 +191,7 @@ func main() {
 		"tests/modules/test_json.oren",
 		"tests/modules/test_json_serde_attrs.oren",
 		"tests/modules/test_cbor_serde_attrs.oren",
+		"tests/modules/test_cbor_sequence.oren",
 		"tests/modules/test_switch.oren",
 		"tests/modules/test_varargs.oren",
 	}

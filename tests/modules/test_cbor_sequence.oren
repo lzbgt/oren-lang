@@ -1,0 +1,70 @@
+import cbor "../../lib/std/cbor.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn assert_bytes_eq(got, exp, msg) {
+    if oren_list_len(got) != oren_list_len(exp) {
+        assert(false, msg + " (len)")
+    }
+    var i = 0
+    while i < oren_list_len(got) {
+        if got[i] != exp[i] {
+            print("BYTE mismatch at " + oren_int_to_string(i) + ": got=" + oren_int_to_string(got[i]) + " exp=" + oren_int_to_string(exp[i]))
+            assert(false, msg + " (byte)")
+        }
+        i = i + 1
+    }
+}
+
+fn test_array_roundtrip() {
+    var v = cbor.carray([cbor.cint(1), cbor.cstring("x"), cbor.cbool(1), cbor.cnull()])
+    var bs = cbor.encode(v)
+    var r = cbor.decode(bs)
+    assert(r["ok"] == 1, "decode ok")
+    var v2 = r["v"]
+    assert(v2["t"] == "array", "type array")
+    assert(oren_list_len(v2["a"]) == 4, "len 4")
+    assert(v2["a"][0]["i"] == 1, "int 1")
+    assert(v2["a"][1]["s"] == "x", "string x")
+    assert(v2["a"][2]["b"] == 1, "bool true")
+    assert(v2["a"][3]["t"] == "null", "null")
+}
+
+fn test_sequence_bytes_and_decode_next() {
+    // Sequence: [1][\"x\"][true][null]
+    // 01                    # unsigned 1
+    // 61 78                 # text(1) \"x\"
+    // f5                    # true
+    // f6                    # null
+    var items = [cbor.cint(1), cbor.cstring("x"), cbor.cbool(1), cbor.cnull()]
+    var bs = cbor.encode_sequence(items)
+    var exp = [1, 97, 120, 245, 246]
+    assert_bytes_eq(bs, exp, "encode_sequence bytes")
+
+    // decode_next
+    var r1 = cbor.decode_next(bs, 0)
+    assert(r1["ok"] == 1 && r1["v"]["i"] == 1, "decode_next #1")
+    var r2 = cbor.decode_next(bs, r1["pos"])
+    assert(r2["ok"] == 1 && r2["v"]["s"] == "x", "decode_next #2")
+
+    // decode_sequence
+    var rs = cbor.decode_sequence(bs)
+    assert(rs["ok"] == 1, "decode_sequence ok")
+    var xs = rs["v"]
+    assert(oren_list_len(xs) == 4, "sequence len 4")
+    assert(xs[0]["i"] == 1, "seq[0]")
+    assert(xs[1]["s"] == "x", "seq[1]")
+    assert(xs[2]["b"] == 1, "seq[2]")
+    assert(xs[3]["t"] == "null", "seq[3]")
+}
+
+test_array_roundtrip()
+test_sequence_bytes_and_decode_next()
+print("ok")
+exit(0)
+
