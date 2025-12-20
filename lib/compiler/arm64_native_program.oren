@@ -617,6 +617,7 @@ fn native_compile_program_arm64(linked, platform) {
         "code": bytes_new(),
         "data": bytes_new(),
         "fixups": [],
+        "errors": [],
         "locals": {},
         "globals": {},
         "globals_floaty": {},
@@ -818,6 +819,7 @@ fn native_compile_program_arm64(linked, platform) {
         oren_exit(1)
     }
     var l = lexer.new_lexer(runtime_src)
+    l["file"] = "lib/runtime_native.oren"
     var p = parser.new_parser(l)
     var runtime_prog = parser.parse_program(p)
     if oren_list_len(p["errors"]) != 0 {
@@ -1035,6 +1037,7 @@ fn native_compile_program_arm64(linked, platform) {
     
     print("Generating symbol table...")
     var l_sym = lexer.new_lexer(sym_src)
+    l_sym["file"] = "<native:symbol_table>"
     var p_sym = parser.new_parser(l_sym)
     var prog_sym = parser.parse_program(p_sym)
     if oren_list_len(prog_sym["statements"]) > 0 {

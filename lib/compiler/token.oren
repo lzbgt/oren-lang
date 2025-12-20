@@ -231,3 +231,16 @@ fn is_ident_like_token(tt) {
 fn new_token(tt, lit) {
     return {"type": tt, "literal": lit}
 }
+
+// Token with source span info (byte offsets into the original source string).
+//
+// - pos: start byte offset (0-based)
+// - end: end byte offset (exclusive, 0-based)
+// - file: optional source file path (string or nil)
+//
+// Rolling note: many compiler-generated/synthetic tokens (macro expansions)
+// still use new_token() and may not carry spans. That's OK: diagnostics should
+// include spans when available, not require them.
+fn new_token_pos(tt, lit, pos, end, file) {
+    return {"type": tt, "literal": lit, "pos": pos, "end": end, "file": file}
+}

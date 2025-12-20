@@ -50,6 +50,7 @@ fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit
 
 // Delegate expression compilation to the expr module.
 fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
 
 fn native_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Spawn" {
@@ -61,8 +62,8 @@ fn native_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Break" {
         var loop = ctx["loop_ctx"]
         if loop == nil {
-            print("native backend: break outside of loop")
-            oren_exit(1)
+            native_error(ctx, stmt["token"], "native backend: break outside of loop")
+            return nil
         }
 
         // Restore stack to the loop base before leaving.
@@ -81,8 +82,8 @@ fn native_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Continue" {
         var loop2 = ctx["loop_ctx"]
         if loop2 == nil {
-            print("native backend: continue outside of loop")
-            oren_exit(1)
+            native_error(ctx, stmt["token"], "native backend: continue outside of loop")
+            return nil
         }
 
         // Restore stack to the loop base before continuing.
@@ -219,7 +220,7 @@ fn native_compile_stmt(ctx, stmt) {
              
              return nil
         }
-        print("native backend: unsupported set target")
+        native_error(ctx, stmt["token"], "native backend: unsupported set target")
         return nil
     }
 
@@ -262,7 +263,7 @@ fn native_compile_stmt(ctx, stmt) {
             return nil
         }
         
-        print("native backend: assignment to undefined variable " + name)
+        native_error(ctx, stmt["token"], "native backend: assignment to undefined variable " + name)
         return nil
     }
 

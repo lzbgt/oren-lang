@@ -2,6 +2,51 @@ import core "arm64_core.oren"
 import sysm "arm64_native_expr_syscalls.oren"
 import abi "arm64_abi_macos.oren"
 import labi "arm64_abi_linux.oren"
+import token "token.oren"
+
+fn native_src_line_col(src, pos) {
+    // Map byte offset -> (line, col), 1-based.
+    var line = 1
+    var col = 1
+    var i = 0
+    while i < pos && i < oren_string_len(src) {
+        var ch = oren_string_char_at(src, i)
+        if ch == token.CH_LF {
+            line = line + 1
+            col = 1
+        } else {
+            col = col + 1
+        }
+        i = i + 1
+    }
+    return {"line": line, "col": col}
+}
+
+fn native_tok_loc(tok) {
+    if tok == nil { return nil }
+    var file = tok["file"]
+    var pos = tok["pos"]
+    if file == nil || pos == nil { return nil }
+
+    var src = oren_read_file(file)
+    if oren_is_err(src) {
+        return file + ":" + oren_int_to_string(pos)
+    }
+    var lc = native_src_line_col(src, pos)
+    return file + ":" + oren_int_to_string(lc["line"]) + ":" + oren_int_to_string(lc["col"])
+}
+
+fn native_error(ctx, tok, msg) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    var loc = native_tok_loc(tok)
+    if loc != nil {
+        oren_list_push(ctx["errors"], loc + ": " + msg)
+    } else {
+        oren_list_push(ctx["errors"], msg)
+    }
+    return nil
+}
 
 // Re-export core helpers locally so the native expr compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -295,8 +340,9 @@ fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
 
 fn native_compile_expr(ctx, expr) {
     if expr == nil {
-        print("native backend: expr is nil")
-        oren_exit(1)
+        native_error(ctx, nil, "native backend: expr is nil")
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        return nil
     }
     
     // Lambda literal: parser lowers `|...| { ... }` into an anonymous Function node (name="").
@@ -305,8 +351,9 @@ fn native_compile_expr(ctx, expr) {
         if expr["name"] == "" {
             var lname = expr["lambda_name"]
             if lname == nil {
-                print("native backend: lambda not collected (missing lambda_name)")
-                oren_exit(1)
+                native_error(ctx, expr["token"], "native backend: lambda not collected (missing lambda_name)")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
             }
 
             var caps = expr["captures"]
@@ -365,8 +412,9 @@ fn native_compile_expr(ctx, expr) {
             return nil
         }
 
-        print("native backend: unexpected Function expression (name=" + expr["name"] + ")")
-        oren_exit(1)
+        native_error(ctx, expr["token"], "native backend: unexpected Function expression (name=" + expr["name"] + ")")
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        return nil
     }
 
     if expr["type"] == "String" {
@@ -589,7 +637,8 @@ fn native_compile_expr(ctx, expr) {
         
         // Check aliases (imported modules)
         if ctx["aliases"][name] != nil {
-            print("native backend: cannot use module '" + name + "' as value")
+            native_error(ctx, expr["token"], "native backend: cannot use module '" + name + "' as value")
+            push_u32_le(ctx["code"], insn_movz(0, 0))
             return nil
         }
 
@@ -610,7 +659,8 @@ fn native_compile_expr(ctx, expr) {
             }
         }
         
-        print("native backend: undefined variable " + name)
+        native_error(ctx, expr["token"], "native backend: undefined variable " + name)
+        push_u32_le(ctx["code"], insn_movz(0, 0))
         return nil
     }
     if expr["type"] == "Prefix" {
@@ -641,7 +691,8 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_eor_reg(0, 0, 1))
             return nil
         }
-        print("native backend: unsupported prefix " + expr["op"])
+        native_error(ctx, expr["token"], "native backend: unsupported prefix " + expr["op"])
+        push_u32_le(ctx["code"], insn_movz(0, 0))
         return nil
     }
 
@@ -840,7 +891,8 @@ fn native_compile_expr(ctx, expr) {
             }
         }
         
-        print("native backend: unsupported operator " + op)
+        native_error(ctx, expr["token"], "native backend: unsupported operator " + op)
+        push_u32_le(ctx["code"], insn_movz(0, 0))
         return nil
     }
     
@@ -919,7 +971,8 @@ fn native_compile_expr(ctx, expr) {
         var nsr = native_ns_resolve(ctx, expr)
         if nsr != nil {
             if nsr["is_ns"] == true {
-                print("native backend: cannot use namespace '" + nsr["name"] + "' as value")
+                native_error(ctx, expr["token"], "native backend: cannot use namespace '" + nsr["name"] + "' as value")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
                 return nil
             }
             return native_compile_expr(ctx, {"type": "Identifier", "value": nsr["name"]})
@@ -1005,8 +1058,9 @@ fn native_compile_expr(ctx, expr) {
     if expr["type"] == "Call" {
         var fn_expr = expr["fn"]
         if fn_expr == nil {
-            print("native backend: call with nil callee")
-            oren_exit(1)
+            native_error(ctx, expr["token"], "native backend: call with nil callee")
+            push_u32_le(ctx["code"], insn_movz(0, 0))
+            return nil
         }
 
         // Call-site spread: f(a, xs...) where xs is a list.
@@ -1070,8 +1124,9 @@ fn native_compile_expr(ctx, expr) {
             var nsr2 = native_ns_resolve(ctx, fn_expr)
             if nsr2 != nil {
                 if nsr2["is_ns"] == true {
-                    print("native backend: cannot call namespace '" + nsr2["name"] + "'")
-                    oren_exit(1)
+                    native_error(ctx, expr["token"], "native backend: cannot call namespace '" + nsr2["name"] + "'")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return nil
                 }
                 fn_expr = {"type": "Identifier", "value": nsr2["name"]}
             }
@@ -1304,12 +1359,14 @@ fn native_compile_expr(ctx, expr) {
             //   D0 -> X0 (bits)
             var args = expr["args"]
             if args == nil || oren_list_len(args) != 1 {
-                print("native backend: oren_f32_round expects 1 argument")
-                oren_exit(1)
+                native_error(ctx, expr["token"], "native backend: oren_f32_round expects 1 argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
             }
             if !native_expr_is_floaty(ctx, args[0]) {
-                print("native backend: oren_f32_round expects float argument")
-                oren_exit(1)
+                native_error(ctx, expr["token"], "native backend: oren_f32_round expects float argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
             }
             native_compile_expr(ctx, args[0]) // X0 = f64 bits
             push_u32_le(ctx["code"], insn_fmov_d_x(0, 0)) // D0 = X0 bits
@@ -1323,12 +1380,14 @@ fn native_compile_expr(ctx, expr) {
             // Intrinsic: convert float64 bits (X0) to IEEE-754 float32 bits (u32 in W0).
             var args = expr["args"]
             if args == nil || oren_list_len(args) != 1 {
-                print("native backend: oren_f32_to_u32_bits expects 1 argument")
-                oren_exit(1)
+                native_error(ctx, expr["token"], "native backend: oren_f32_to_u32_bits expects 1 argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
             }
             if !native_expr_is_floaty(ctx, args[0]) {
-                print("native backend: oren_f32_to_u32_bits expects float argument")
-                oren_exit(1)
+                native_error(ctx, expr["token"], "native backend: oren_f32_to_u32_bits expects float argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
             }
             native_compile_expr(ctx, args[0]) // X0 = f64 bits
             push_u32_le(ctx["code"], insn_fmov_d_x(0, 0)) // D0 = X0 bits
@@ -1341,8 +1400,9 @@ fn native_compile_expr(ctx, expr) {
             // Intrinsic: convert IEEE-754 float32 bits (u32 in W0) to float64 bits (X0).
             var args = expr["args"]
             if args == nil || oren_list_len(args) != 1 {
-                print("native backend: oren_u32_bits_to_f32 expects 1 argument")
-                oren_exit(1)
+                native_error(ctx, expr["token"], "native backend: oren_u32_bits_to_f32 expects 1 argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
             }
             native_compile_expr(ctx, args[0]) // X0 = bits (low 32)
             push_u32_le(ctx["code"], insn_fmov_s_w(0, 0)) // S0 = W0 bits
@@ -1763,6 +1823,7 @@ fn native_compile_expr(ctx, expr) {
         return nil
     }
 
-    print("native backend: unsupported expr " + expr["type"])
+    native_error(ctx, expr["token"], "native backend: unsupported expr " + expr["type"])
+    push_u32_le(ctx["code"], insn_movz(0, 0))
     return nil
 }

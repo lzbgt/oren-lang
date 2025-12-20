@@ -1,7 +1,9 @@
 import token "token.oren"
 
 fn new_lexer(input) {
-    var l = {"input": input, "position": 0, "read_position": 0, "ch": ""}
+    // `file` is optional and should be set by the caller when lexing a real module,
+    // so tokens can carry location info for diagnostics.
+    var l = {"input": input, "position": 0, "read_position": 0, "ch": "", "file": nil}
     read_char(l)
     return l
 }
@@ -141,65 +143,61 @@ fn read_string(l) {
 fn next_token(l) {
     skip_whitespace(l)
     var ch = l["ch"]
+    var start = l["position"]
 
     if ch == "&" {
         if peek_char(l) == "&" {
             var cur = ch
             read_char(l)
-            var tok_and = token.new_token(token.TOK_AND, cur + l["ch"])
             read_char(l)
-            return tok_and
+            return token.new_token_pos(token.TOK_AND, cur + "&", start, l["position"], l["file"])
         }
         read_char(l)
-        return token.new_token(token.TOK_BITAND, "&")
+        return token.new_token_pos(token.TOK_BITAND, "&", start, l["position"], l["file"])
     }
     if ch == "|" {
         if peek_char(l) == "|" {
             var cur2 = ch
             read_char(l)
-            var tok_or = token.new_token(token.TOK_OR, cur2 + l["ch"])
             read_char(l)
-            return tok_or
+            return token.new_token_pos(token.TOK_OR, cur2 + "|", start, l["position"], l["file"])
         }
         read_char(l)
-        return token.new_token(token.TOK_BITOR, "|")
+        return token.new_token_pos(token.TOK_BITOR, "|", start, l["position"], l["file"])
     }
-    if ch == "^" { read_char(l); return token.new_token(token.TOK_BITXOR, "^") }
+    if ch == "^" { read_char(l); return token.new_token_pos(token.TOK_BITXOR, "^", start, l["position"], l["file"]) }
     if ch == "=" {
         if peek_char(l) == "=" {
             var cur = ch
             read_char(l)
-            var tok = token.new_token(token.TOK_EQ, cur + l["ch"])
             read_char(l)
-            return tok
+            return token.new_token_pos(token.TOK_EQ, cur + "=", start, l["position"], l["file"])
         }
         read_char(l)
-        return token.new_token(token.TOK_ASSIGN, "=")
+        return token.new_token_pos(token.TOK_ASSIGN, "=", start, l["position"], l["file"])
     }
     if ch == ":" {
         if peek_char(l) == "=" {
             var cur = ch
             read_char(l)
-            var tok_declare = token.new_token(token.TOK_DECLARE, cur + l["ch"])
             read_char(l)
-            return tok_declare
+            return token.new_token_pos(token.TOK_DECLARE, cur + "=", start, l["position"], l["file"])
         }
         read_char(l)
-        return token.new_token(token.TOK_COLON, ":")
+        return token.new_token_pos(token.TOK_COLON, ":", start, l["position"], l["file"])
     }
-    if ch == "+" { read_char(l); return token.new_token(token.TOK_PLUS, "+") }
-    if ch == "-" { read_char(l); return token.new_token(token.TOK_MINUS, "-") }
-    if ch == "~" { read_char(l); return token.new_token(token.TOK_TILDE, "~") }
+    if ch == "+" { read_char(l); return token.new_token_pos(token.TOK_PLUS, "+", start, l["position"], l["file"]) }
+    if ch == "-" { read_char(l); return token.new_token_pos(token.TOK_MINUS, "-", start, l["position"], l["file"]) }
+    if ch == "~" { read_char(l); return token.new_token_pos(token.TOK_TILDE, "~", start, l["position"], l["file"]) }
     if ch == "!" {
         if peek_char(l) == "=" {
             var curb = ch
             read_char(l)
-            var tok_not_eq = token.new_token(token.TOK_NOT_EQ, curb + l["ch"])
             read_char(l)
-            return tok_not_eq
+            return token.new_token_pos(token.TOK_NOT_EQ, curb + "=", start, l["position"], l["file"])
         }
         read_char(l)
-        return token.new_token(token.TOK_BANG, "!")
+        return token.new_token_pos(token.TOK_BANG, "!", start, l["position"], l["file"])
     }
     if ch == "/" {
         // Doc comment: `/// ...`
@@ -213,7 +211,7 @@ fn next_token(l) {
             var text = read_line_comment_text(l)
             text = trim_one_leading_space(text)
             // Do not consume the '\n' here; `skip_whitespace` will handle it.
-            return token.new_token(token.TOK_DOC, text)
+            return token.new_token_pos(token.TOK_DOC, text, start, l["position"], l["file"])
         }
         if peek_char(l) == "/" {
             skip_comment(l)
@@ -226,84 +224,80 @@ fn next_token(l) {
             return next_token(l)
         }
         read_char(l)
-        return token.new_token(token.TOK_SLASH, "/")
+        return token.new_token_pos(token.TOK_SLASH, "/", start, l["position"], l["file"])
     }
-    if ch == "*" { read_char(l); return token.new_token(token.TOK_ASTERISK, "*") }
+    if ch == "*" { read_char(l); return token.new_token_pos(token.TOK_ASTERISK, "*", start, l["position"], l["file"]) }
     if ch == "<" {
         if peek_char(l) == "=" {
             var curc = ch
             read_char(l)
-            var tok_lte = token.new_token(token.TOK_LTE, curc + l["ch"])
             read_char(l)
-            return tok_lte
+            return token.new_token_pos(token.TOK_LTE, curc + "=", start, l["position"], l["file"])
         }
         if peek_char(l) == "<" {
             var curshl = ch
             read_char(l)
-            var tok_shl = token.new_token(token.TOK_SHL, curshl + l["ch"])
             read_char(l)
-            return tok_shl
+            return token.new_token_pos(token.TOK_SHL, curshl + "<", start, l["position"], l["file"])
         }
-        read_char(l); return token.new_token(token.TOK_LT, "<")
+        read_char(l); return token.new_token_pos(token.TOK_LT, "<", start, l["position"], l["file"])
     }
     if ch == ">" {
         if peek_char(l) == "=" {
             var curd = ch
             read_char(l)
-            var tok_gte = token.new_token(token.TOK_GTE, curd + l["ch"])
             read_char(l)
-            return tok_gte
+            return token.new_token_pos(token.TOK_GTE, curd + "=", start, l["position"], l["file"])
         }
         if peek_char(l) == ">" {
             var curshr = ch
             read_char(l)
-            var tok_shr = token.new_token(token.TOK_SHR, curshr + l["ch"])
             read_char(l)
-            return tok_shr
+            return token.new_token_pos(token.TOK_SHR, curshr + ">", start, l["position"], l["file"])
         }
-        read_char(l); return token.new_token(token.TOK_GT, ">")
+        read_char(l); return token.new_token_pos(token.TOK_GT, ">", start, l["position"], l["file"])
     }
-    if ch == ";" { read_char(l); return token.new_token(token.TOK_SEMICOLON, ";") }
-    if ch == "@" { read_char(l); return token.new_token(token.TOK_AT, "@") }
+    if ch == ";" { read_char(l); return token.new_token_pos(token.TOK_SEMICOLON, ";", start, l["position"], l["file"]) }
+    if ch == "@" { read_char(l); return token.new_token_pos(token.TOK_AT, "@", start, l["position"], l["file"]) }
     if ch == "." {
         // Ellipsis for call-site spread: f(xs...)
         if peek_char(l) == "." && peek_char2(l) == "." {
             read_char(l) // second '.'
             read_char(l) // third '.'
             read_char(l)
-            return token.new_token(token.TOK_ELLIPSIS, "...")
+            return token.new_token_pos(token.TOK_ELLIPSIS, "...", start, l["position"], l["file"])
         }
         read_char(l)
-        return token.new_token(token.TOK_DOT, ".")
+        return token.new_token_pos(token.TOK_DOT, ".", start, l["position"], l["file"])
     }
-    if ch == "," { read_char(l); return token.new_token(token.TOK_COMMA, ",") }
-    if ch == "(" { read_char(l); return token.new_token(token.TOK_LPAREN, "(") }
-    if ch == ")" { read_char(l); return token.new_token(token.TOK_RPAREN, ")") }
-    if ch == "{" { read_char(l); return token.new_token(token.TOK_LBRACE, "{") }
-    if ch == "}" { read_char(l); return token.new_token(token.TOK_RBRACE, "}") }
-    if ch == "[" { read_char(l); return token.new_token(token.TOK_LBRACKET, "[") }
-    if ch == "]" { read_char(l); return token.new_token(token.TOK_RBRACKET, "]") }
+    if ch == "," { read_char(l); return token.new_token_pos(token.TOK_COMMA, ",", start, l["position"], l["file"]) }
+    if ch == "(" { read_char(l); return token.new_token_pos(token.TOK_LPAREN, "(", start, l["position"], l["file"]) }
+    if ch == ")" { read_char(l); return token.new_token_pos(token.TOK_RPAREN, ")", start, l["position"], l["file"]) }
+    if ch == "{" { read_char(l); return token.new_token_pos(token.TOK_LBRACE, "{", start, l["position"], l["file"]) }
+    if ch == "}" { read_char(l); return token.new_token_pos(token.TOK_RBRACE, "}", start, l["position"], l["file"]) }
+    if ch == "[" { read_char(l); return token.new_token_pos(token.TOK_LBRACKET, "[", start, l["position"], l["file"]) }
+    if ch == "]" { read_char(l); return token.new_token_pos(token.TOK_RBRACKET, "]", start, l["position"], l["file"]) }
     if ch == token.CH_QUOTE {
         var str = read_string(l)
         read_char(l)
-        return token.new_token(token.TOK_STRING, str)
+        return token.new_token_pos(token.TOK_STRING, str, start, l["position"], l["file"])
     }
     if ch == "" {
-        return token.new_token(token.TOK_EOF, "")
+        return token.new_token_pos(token.TOK_EOF, "", start, start, l["file"])
     }
     if token.is_letter(ch) {
         var ident = read_identifier(l)
-        return token.new_token(token.lookup_ident(ident), ident)
+        return token.new_token_pos(token.lookup_ident(ident), ident, start, l["position"], l["file"])
     }
     if token.is_digit(ch) {
         var num = read_number(l)
         if l["ch"] == "." {
             read_char(l)
             var frac = read_number(l)
-            return token.new_token(token.TOK_FLOAT, num + "." + frac)
+            return token.new_token_pos(token.TOK_FLOAT, num + "." + frac, start, l["position"], l["file"])
         }
-        return token.new_token(token.TOK_INT, num)
+        return token.new_token_pos(token.TOK_INT, num, start, l["position"], l["file"])
     }
     read_char(l)
-    return token.new_token(token.TOK_ILLEGAL, ch)
+    return token.new_token_pos(token.TOK_ILLEGAL, ch, start, l["position"], l["file"])
 }

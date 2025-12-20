@@ -46,6 +46,9 @@ fn precedence(tokType) {
 fn new_parser(l) {
     var p = {
         "l": l,
+        // Source + path for diagnostics (rolling).
+        "_src": l["input"],
+        "file": l["file"],
         "errors": [],
         "cur": token.new_token(token.TOK_ILLEGAL, ""),
         "peek": token.new_token(token.TOK_ILLEGAL, ""),
@@ -335,7 +338,45 @@ fn parser_gensym(p, prefix) {
 }
 
 fn parser_add_error(p, msg) {
-    oren_list_push(p["errors"], msg)
+    // Prefer attaching location to parse errors; fall back to raw message.
+    var tok = p["cur"]
+    if tok == nil {
+        oren_list_push(p["errors"], msg)
+        return nil
+    }
+    var file = tok["file"]
+    if file == nil { file = p["file"] }
+    if file == nil { file = "<input>" }
+    var pos = tok["pos"]
+    if pos == nil {
+        oren_list_push(p["errors"], file + ": " + msg)
+        return nil
+    }
+
+    // Map byte offset -> (line, col), 1-based.
+    var src = p["_src"]
+    if src == nil {
+        if p["l"] != nil { src = p["l"]["input"] }
+    }
+    if src == nil {
+        oren_list_push(p["errors"], file + ":" + oren_int_to_string(pos) + ": " + msg)
+        return nil
+    }
+    var line = 1
+    var col = 1
+    var i = 0
+    while i < pos && i < oren_string_len(src) {
+        var ch = oren_string_char_at(src, i)
+        if ch == token.CH_LF {
+            line = line + 1
+            col = 1
+        } else {
+            col = col + 1
+        }
+        i = i + 1
+    }
+    oren_list_push(p["errors"], file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col) + ": " + msg)
+    return nil
 }
 
 fn docs_join(lines) {

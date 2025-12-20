@@ -113,6 +113,17 @@ fn elf_build_prefix_arm64(text_size, code, entry_idx) {
 fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode, no_gc, capsule, cap_allow_domains) {
     var ctx = native_compile_program_arm64(linked, {"os": "linux", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
+    if ctx["errors"] != nil {
+        if oren_list_len(ctx["errors"]) > 0 {
+            print("native backend errors:")
+            var ei = 0
+            while ei < oren_list_len(ctx["errors"]) {
+                print(ctx["errors"][ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
+        }
+    }
     
     var code = ctx["code"]
     var data = ctx["data"]

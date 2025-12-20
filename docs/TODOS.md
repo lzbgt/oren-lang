@@ -67,16 +67,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][arch] Traits/protocols: coherence + generic impl templates (no runtime vtables in v0)**
+1) **[lang][safety] Troubleshooting & diagnostics (compiler + native runtime)**
    - DoD:
-     - define coherence/overlap rules (deterministic selection; no spooky action at distance)
-     - implement “blanket impls” / generic impl templates with non-overlap enforcement (implemented: `impl Trait for any { ... }`, with exact-type precedence)
-     - explicit disambiguation syntax when multiple impls are in scope (implemented: `Trait.method(x, ...)`)
-     - cross-module method sugar must resolve deterministically (implemented via whole-program impl lowering in `link_program`)
-   - Notes:
-     - current determinism model is vtable-free: impl blocks lower to plain functions, and method calls are rewritten at compile time
-      - ambiguity is only an error when a call site requires a unique impl (registry overlap alone is allowed)
-      - coherence guard (implemented): a `(Trait, Type)` may only have one `impl` block (no split-impl across modules/files)
+     - parse/compile errors include `file:line:col` when source spans are available
+     - native backend must never “print and continue” on codegen errors; it must fail compilation with actionable messages
+     - runtime panics/fails include function names and keep the stable `OREN_DIAG ...` one-liner (AI-friendly)
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:
@@ -147,6 +142,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Verification loop: `oretest` is parallel + timeout-safe by default; it no longer requires GNU `timeout`/`gtimeout` on macOS (internal process-group kill).
 - Varargs: implemented `fn f(a, ...rest)` end-to-end across parser + C backend + native backend + AVM bytecode, with spawn/join coverage and linux/arm64 docker verification.
 - Runtime diagnostics: failures/panics now emit a stable `OREN_DIAG kind=... code=... msg=...` one-liner, enforced by `oretest` fixtures (AI-friendly, no lldb/otool needed).
+- Compiler diagnostics: lexer tokens now carry byte-span + file info, parse errors render as `file:line:col: ...`, and native backend codegen errors fail the build with actionable locations.
 - Native syscalls: macOS `sys_execve` now returns `-errno` on failure (consistent with other syscalls and Linux); negative integer literals are loaded via a shared i64-imm loader to avoid invalid encodings.
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
 - Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
