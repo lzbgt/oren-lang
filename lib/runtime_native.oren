@@ -3698,8 +3698,81 @@ fn oren_raw_print_str(s) {
     return 0
 }
 
+fn oren_diag_sanitize(msg) {
+    // Best-effort: make msg single-line and ASCII-safe for log parsing.
+    // Replaces '\n' -> '\\n', '\r' -> '\\r', '\t' -> '\\t'.
+    if msg == 0 { return 0 }
+    var n = oren_string_len(msg)
+    if n <= 0 { return msg }
+    if n > 1024 { n = 1024 }
+    // Worst case each char expands to 2 bytes.
+    var out = malloc(n * 2 + 1)
+    if out == 0 { return msg }
+    var i = 0
+    var j = 0
+    while i < n {
+        var c = ptr_get_byte(msg + i)
+        if c == 10 { // '\n'
+            ptr_set_byte(out + j, 92) // '\\'
+            ptr_set_byte(out + j + 1, 110) // 'n'
+            j = j + 2
+        } else {
+            if c == 13 { // '\r'
+                ptr_set_byte(out + j, 92)
+                ptr_set_byte(out + j + 1, 114) // 'r'
+                j = j + 2
+            } else {
+                if c == 9 { // '\t'
+                    ptr_set_byte(out + j, 92)
+                    ptr_set_byte(out + j + 1, 116) // 't'
+                    j = j + 2
+                } else {
+                    ptr_set_byte(out + j, c)
+                    j = j + 1
+                }
+            }
+        }
+        i = i + 1
+    }
+    ptr_set_byte(out + j, 0)
+    oren_track_alloc(out, j + 1, 1)
+    return out
+}
+
+fn oren_diag_emit(kind, code, msg) {
+    // Stable, machine-readable diagnostic header for AI agents/tools.
+    // Format (single line):
+    //   OREN_DIAG kind=<kind> code=<code> msg=<sanitized>
+    //
+    // Keep this best-effort and non-fatal; diagnostics must not crash.
+    var m = oren_diag_sanitize(msg)
+    var s0 = "OREN_DIAG kind="
+    var s1 = string_concat(s0, kind)
+    var s2 = string_concat(s1, " code=")
+    var s3 = string_concat(s2, oren_int_to_string(code))
+    var s4 = string_concat(s3, " msg=")
+    var s5 = string_concat(s4, m)
+    print(s5)
+    return 0
+}
+
+fn oren_fail(code, msg) {
+    // Fail-fast helper for tests + internal invariants.
+    // Emits an AI-friendly diagnostic line + a stack trace.
+    g_panicking = 1
+    oren_diag_emit("fail", code, msg)
+    if g_debug_info != 0 {
+        stack_trace_debug()
+    } else {
+        stack_trace()
+    }
+    exit(code)
+    return 0
+}
+
 fn oren_panic(msg) {
     g_panicking = 1
+    oren_diag_emit("panic", 1, msg)
     print("Runtime Panic: ")
     oren_raw_print_str(msg)
     if g_debug_info != 0 {

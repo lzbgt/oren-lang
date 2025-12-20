@@ -96,7 +96,29 @@ static OrenThreadState* oren_thread_state() {
     return st;
 }
 
+static void oren_diag_emit(const char* kind, int code, const char* msg) {
+    // Stable, machine-readable diagnostic header for tools/AI agents.
+    //
+    // Format:
+    //   OREN_DIAG kind=<kind> code=<code> msg=<sanitized>
+    //
+    // Best-effort: keep this allocation-free and robust even during failure.
+    if (!kind) kind = "unknown";
+    if (!msg) msg = "";
+    fprintf(stderr, "OREN_DIAG kind=%s code=%d msg=", kind, code);
+    // Sanitize newlines/tabs so logs stay single-line and parseable.
+    for (int i = 0; msg[i] && i < 1024; i++) {
+        unsigned char c = (unsigned char)msg[i];
+        if (c == '\n') { fputs("\\n", stderr); continue; }
+        if (c == '\r') { fputs("\\r", stderr); continue; }
+        if (c == '\t') { fputs("\\t", stderr); continue; }
+        fputc(c, stderr);
+    }
+    fputc('\n', stderr);
+}
+
 void oren_panic(const char* msg) {
+    oren_diag_emit("panic", 1, msg);
     OrenThreadState* st = oren_thread_state();
     if (st && st->has_panic_buf) {
         // We can't easily pass the string pointer through longjmp (int arg).
@@ -115,8 +137,28 @@ void oren_panic(const char* msg) {
     int frames = backtrace(callstack, 128);
     fprintf(stderr, "Stack Trace:\n");
     backtrace_symbols_fd(callstack, frames, 2);
-
     exit(1);
+}
+
+OrenValue oren_fail(OrenValue code, OrenValue msg) {
+    // Fail-fast helper for tests + internal invariants.
+    // Emits an AI-friendly diagnostic line + a stack trace.
+    int ec = 1;
+    const char* s = "";
+    if (code.type == OREN_TYPE_INT) {
+        ec = (int)code.as.int_val;
+    }
+    if (msg.type == OREN_TYPE_STRING) {
+        s = msg.as.string_val ? msg.as.string_val : "";
+    }
+    oren_diag_emit("fail", ec, s);
+    fprintf(stderr, "Runtime Fail: %s\n", s);
+    void* callstack[128];
+    int frames = backtrace(callstack, 128);
+    fprintf(stderr, "Stack Trace:\n");
+    backtrace_symbols_fd(callstack, frames, 2);
+    exit(ec);
+    return OREN_NIL;
 }
 
 static void oren_thread_unregister() {

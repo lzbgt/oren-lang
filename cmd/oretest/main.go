@@ -288,6 +288,37 @@ func main() {
 		},
 	}
 
+	// Runtime diagnostics fixtures (expected non-zero exit, machine-readable header).
+	runtimeFixtures := []struct {
+		name    string
+		build   string
+		run     string
+		log     string
+		ok      func(rc int, out string) bool
+		cleanup []string
+	}{
+		{
+			name:  "diag_fail_native",
+			build: fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", "tests/native/fixtures/diag_fail.oren", *target, "build/diag_fail_native", gcArg),
+			run:   "./build/diag_fail_native",
+			log:   "build/logs/diag_fail_native.log",
+			ok: func(rc int, out string) bool {
+				return rc == 42 && strings.Contains(out, "OREN_DIAG kind=fail code=42")
+			},
+			cleanup: []string{"build/diag_fail_native"},
+		},
+		{
+			name:  "diag_fail_c",
+			build: fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/diag_fail.oren", *target, "build/diag_fail_c", gcArg),
+			run:   "./build/diag_fail_c",
+			log:   "build/logs/diag_fail_c.log",
+			ok: func(rc int, out string) bool {
+				return rc == 42 && strings.Contains(out, "OREN_DIAG kind=fail code=42")
+			},
+			cleanup: []string{"build/diag_fail_c"},
+		},
+	}
+
 	// Run fixtures sequentially (fast, high-signal).
 	for _, fx := range fixtures {
 		vprintln("fixture: " + fx.name)
@@ -299,6 +330,27 @@ func main() {
 			fmt.Fprintf(os.Stderr, "fixture failed: %s (log: %s)\n", fx.name, fx.log)
 			_ = catFile(os.Stderr, fx.log)
 			os.Exit(1)
+		}
+	}
+
+	// Run runtime diagnostics fixtures sequentially.
+	for _, fx := range runtimeFixtures {
+		vprintln("runtime fixture: " + fx.name)
+		rc := runWithTimeout(timeoutBin, buildTimeout, fx.build, fx.log)
+		if rc != 0 {
+			fmt.Fprintf(os.Stderr, "runtime fixture build failed: %s (log: %s)\n", fx.name, fx.log)
+			_ = catFile(os.Stderr, fx.log)
+			os.Exit(1)
+		}
+		rc2 := runWithTimeout(timeoutBin, runTimeout, fx.run, fx.log)
+		outb, _ := os.ReadFile(fx.log)
+		if !fx.ok(rc2, string(outb)) {
+			fmt.Fprintf(os.Stderr, "runtime fixture failed: %s (log: %s)\n", fx.name, fx.log)
+			_ = catFile(os.Stderr, fx.log)
+			os.Exit(1)
+		}
+		for _, c := range fx.cleanup {
+			_ = os.Remove(c)
 		}
 	}
 

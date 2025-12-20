@@ -45,35 +45,21 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [maint] Fast, low-noise verification loop** `[perf]`
-   - Problem: verification is still too slow/noisy to iterate aggressively.
+1) **P0 [maint] Verification loop: fast, parallel, non-hanging** `[perf]`
+   - Goal: iteration velocity stays high even as the language/AVM become more capable.
    - DoD:
-     - `make test` prints a compact summary by default (only failed test details).
-     - A single integration “smoke suite” exercises the core feature set (lang + native + avm) so we can delete/merge redundant micro-tests.
-     - Keep `--full`/`--verbose` modes for deep debugging (but not the default).
-   - Current state:
-     - `oretest` defaults to a “fast curated suite”; enable full suite via `OREN_TEST_FULL=1`.
-     - Per-test progress is available via `OREN_TEST_VERBOSE=1`.
-     - Linux docker runner supports the same flags and avoids stale build artifacts.
+     - `make test` remains timeout-safe (no infinite hangs).
+     - Default output is compact: only failed test details + a short summary.
+     - Keep `OREN_TEST_FULL=1` / `OREN_TEST_VERBOSE=1` for deep debugging.
+     - Reduce redundant micro-tests by merging into a small number of high-signal integration suites (native + module + AVM).
 
-2) **P0 [lang] Exact-size layouts for fixed-width types (beyond packed views)** `[perf]`
-   - Context: type tokens + annotation syntax already exist; now they must meaningfully affect layout/FFI.
-   - DoD: Oren can express deterministic, hardware-level layouts without abusing attributes:
-     - built-in type tokens: `u8/i8/u16/i16/u32/i32/u64/i64/u128/i128/f32/f64/bool`
-     - type annotation syntax works for locals, params, returns, and struct fields
-     - codegen honors exact widths when the programmer asks for it (esp. FFI + packet parsing + HPC kernels)
-   - Keep attrs for metadata (`@json.name`, `@oren.packed`, etc.), not the type system.
-   - Next deliverables (finishable slices):
-     - v0 value-level semantics for annotated locals/params/returns/fields (cross-backend) ✅
-     - syscall-first packet parsing story (native): typed buffers + endian ptr helpers + `u8_buf` bytes APIs ✅
-     - opt-in `@oren.abi` layouts + `oren_abi_{sizeof,alignof,offsetof}` (no host headers) ✅
-     - next slice (real layouts): make ABI layouts usable end-to-end for FFI structs (allocation + ptr accessors) without changing v0 struct/map semantics. ✅
-     - next slice (real layouts v2): extend `@oren.abi` to cover nested ABI structs + pointers + fixed arrays (enables real OS structs + syscalls without host headers). ✅
-     - next slice (real layouts v3): add u128/i128 layouts + fixed-array ptr helpers where needed, and thread target/arch ABI parameters through (no host headers). ✅
-     - next slice (real layouts v4): add `usize/isize`, `*void`/opaque ptr conventions, and a small curated ABI structs set for OS syscalls (stat, sockaddr, kevent, epoll) in `.oren` with tests. ✅
-     - next slice (real layouts v5): extend curated OS structs (sockaddr_in6, sockaddr_un, pollfd) + wire syscall wrappers in native stdlib (still no host headers). ✅
-     - next slice (real layouts v6): nonblocking NET wait abstraction (kqueue vs epoll) with deterministic timeouts. ✅
-     - next slice (real layouts v7): `errno`-typed result wrappers (stop manually threading `-errno` ints everywhere). ✅
+2) **P0 [lang] Varargs + ABI-safe calling conventions** `[perf]`
+   - Goal: real stdlib APIs (printf-like, logging, formatting, sys wrappers) without forcing allocations.
+   - DoD:
+     - syntax: `fn f(a, b, ...rest) { }` (exact spelling TBD, but implemented end-to-end)
+     - lowering works for C backend + native backend + AVM bytecode (when available)
+     - deterministic semantics: varargs order + packing is stable across backends (no hidden host ABI reliance)
+     - tests: at least one integration test that uses varargs + lambdas + spawn (smoke-level coverage)
 
 3) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -106,5 +92,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Runtime diagnostics: failures/panics now emit a stable `OREN_DIAG kind=... code=... msg=...` one-liner, enforced by `oretest` fixtures (AI-friendly, no lldb/otool needed).
+- Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
 - Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.
 - Stdlib errno wrappers (v7): added `lib/std/result.oren` helpers to convert `-errno` syscall-style returns into structured errors.

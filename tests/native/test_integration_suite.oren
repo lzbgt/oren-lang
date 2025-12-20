@@ -2,8 +2,10 @@ import json "../../lib/std/json.oren"
 import ints "../../lib/std/ints.oren"
 
 fn fail(code) {
-    print("native integration suite FAIL " + oren_int_to_string(code))
-    exit(code)
+    // Use the runtime's structured diagnostic header so failures are easy to parse
+    // by tools/AI agents without external debuggers.
+    oren_fail(code, "native integration suite")
+    return 0
 }
 
 fn assert_true(x, code) {

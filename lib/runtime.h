@@ -280,5 +280,6 @@ void oren_print_fmt_list(OrenValue fmt, OrenValue args_list);
 void oren_print_fmt_spread(OrenValue fmt, OrenValue fixed_args, OrenValue spread_list);
 void oren_shutdown();
 void oren_panic(const char* msg);
+OrenValue oren_fail(OrenValue code, OrenValue msg);
 
 #endif
