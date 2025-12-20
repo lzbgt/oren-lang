@@ -908,6 +908,9 @@ fn native_compile_program_arm64(linked, platform) {
                 "name": "__entry_stub__",
                 "start": 0,
                 "end": entry_end,
+                "file": "<native>",
+                "line": 0,
+                "col": 0,
                 "params": []
             })
         }
@@ -918,6 +921,9 @@ fn native_compile_program_arm64(linked, platform) {
                 "name": "__top_level__",
                 "start": top_start,
                 "end": top_level_end,
+                "file": "<native>",
+                "line": 0,
+                "col": 0,
                 "params": []
             })
         }

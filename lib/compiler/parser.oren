@@ -347,6 +347,13 @@ fn parser_add_error(p, msg) {
     var file = tok["file"]
     if file == nil { file = p["file"] }
     if file == nil { file = "<input>" }
+    var line = tok["line"]
+    var col = tok["col"]
+    if line != nil && col != nil {
+        oren_list_push(p["errors"], file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col) + ": " + msg)
+        return nil
+    }
+
     var pos = tok["pos"]
     if pos == nil {
         oren_list_push(p["errors"], file + ": " + msg)
@@ -362,8 +369,8 @@ fn parser_add_error(p, msg) {
         oren_list_push(p["errors"], file + ":" + oren_int_to_string(pos) + ": " + msg)
         return nil
     }
-    var line = 1
-    var col = 1
+    line = 1
+    col = 1
     var i = 0
     while i < pos && i < oren_string_len(src) {
         var ch = oren_string_char_at(src, i)

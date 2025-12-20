@@ -63,6 +63,8 @@ fn dump_tokens_json(src_path, strict_attrs, attr_allow_prefixes) {
         out = out + json_kv_str("type", t["type"]) + ", "
         out = out + json_kv_str("literal", t["literal"]) + ", "
         out = out + json_kv_str("file", t["file"]) + ", "
+        out = out + json_kv_int("line", t["line"]) + ", "
+        out = out + json_kv_int("col", t["col"]) + ", "
         out = out + json_kv_int("pos", t["pos"]) + ", "
         out = out + json_kv_int("end", t["end"])
         out = out + " }"

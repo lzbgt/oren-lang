@@ -784,10 +784,22 @@ fn native_compile_stmt(ctx, stmt) {
             var func_end = oren_list_len(ctx["code"])
             
             if ctx["platform"]["debug"] == true {
+                var ftok = expr["token"]
+                var ffile = nil
+                var fline = 0
+                var fcol = 0
+                if ftok != nil {
+                    ffile = ftok["file"]
+                    if ftok["line"] != nil { fline = ftok["line"] }
+                    if ftok["col"] != nil { fcol = ftok["col"] }
+                }
                 oren_list_push(ctx["debug_info"]["funcs"], {
                     "name": fn_name,
                     "start": func_start,
                     "end": func_end,
+                    "file": ffile,
+                    "line": fline,
+                    "col": fcol,
                     "params": params_info
                 })
             }

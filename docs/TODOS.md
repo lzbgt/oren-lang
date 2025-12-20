@@ -94,6 +94,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - panics/errors include function + source span where available
      - metadata provides enough PC→span mapping for AVM traces and native panics (rolling schema OK)
      - oretest enforces machine-readable one-line `OREN_DIAG ...` + stable fields
+   - Status:
+     - native debug stack traces now print `file:line:col` for frames when built with `--debug` (via extended debug info table)
 
 4) **[lang][arch] Module graph + reproducible builds (compiler surface)**
    - DoD:
@@ -145,6 +147,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
 - Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
+- Native debug traces: `--debug` builds now print `file:line:col` in stack traces (from debug info table), making panics AI-diagnosable without lldb.
 - Tooling: `oren dump graph <file.oren>` exports a deterministic module dependency graph (JSON).
 - Compiler diagnostics: lexer tokens now carry byte spans + file info; parse errors render `file:line:col`; native backend codegen errors fail the build with actionable locations.
 - Runtime diagnostics: panics/fails emit a stable one-line `OREN_DIAG kind=... code=... msg=...` (AI-friendly; no lldb/otool needed).

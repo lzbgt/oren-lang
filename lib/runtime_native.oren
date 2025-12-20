@@ -3478,6 +3478,13 @@ fn compute_program_pc_bounds() {
         var name_len = ptr_get_u64(ptr)
         ptr = ptr + 8 + name_len
         ptr = align_ptr8(ptr)
+
+        // file + (line,col)
+        var file_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + file_len
+        ptr = align_ptr8(ptr)
+        ptr = ptr + 16 // line + col
+
         var p_count = ptr_get_u64(ptr)
         ptr = ptr + 8
         var j = 0
@@ -3541,6 +3548,13 @@ fn find_func_info(pc) {
         var name_len = ptr_get_u64(ptr)
         ptr = ptr + 8 + name_len
         ptr = align_ptr8(ptr)
+
+        // file + (line,col)
+        var file_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + file_len
+        ptr = align_ptr8(ptr)
+        ptr = ptr + 16 // line + col
+
         var p_count = ptr_get_u64(ptr)
         ptr = ptr + 8
         var j = 0
@@ -3619,17 +3633,38 @@ fn stack_trace_debug() {
             var name_len = ptr_get_u64(info_ptr)
             var name = read_string_at(info_ptr + 8, name_len)
             
-            // We don't have file/line info yet; print a stable, useful shape:
-            //   at func +off (pc=...)
+            var ptr = info_ptr + 8 + name_len
+            ptr = align_ptr8(ptr)
+
+            var file_len = ptr_get_u64(ptr)
+            ptr = ptr + 8
+            var file = "<unknown>"
+            if file_len > 0 {
+                file = read_string_at(ptr, file_len)
+            }
+            ptr = ptr + file_len
+            ptr = align_ptr8(ptr)
+            var line = ptr_get_u64(ptr)
+            var col = ptr_get_u64(ptr + 8)
+            ptr = ptr + 16
+
+            // Print stable shape:
+            //   at func file:line:col +off (pc=...)
             var s0 = string_concat("  at ", name)
+            if line != 0 && col != 0 {
+                var sF = string_concat(s0, " ")
+                sF = string_concat(sF, file)
+                sF = string_concat(sF, ":")
+                sF = string_concat(sF, oren_int_to_string(line))
+                sF = string_concat(sF, ":")
+                s0 = string_concat(sF, oren_int_to_string(col))
+            }
             var s1 = string_concat(s0, " +")
             var s2 = string_concat(s1, oren_int_to_string(off_in_func))
             var s3 = string_concat(s2, " (pc=")
             var s4 = string_concat(s3, oren_int_to_string(pc))
             print(string_concat(s4, ")"))
-            
-            var ptr = info_ptr + 8 + name_len
-            ptr = align_ptr8(ptr)
+
             var p_count = ptr_get_u64(ptr)
             ptr = ptr + 8
             var j = 0

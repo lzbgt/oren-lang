@@ -529,6 +529,22 @@ fn emit_debug_info(ctx, text_base, header_size) {
         var k = 0
         while k < oren_list_len(name_bytes) { bytes_push(p, name_bytes[k]); k = k + 1 }
         while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+
+        // Optional source location for deterministic "panic" diagnostics.
+        // File stored as UTF-8; line/col are 1-based (0 means unknown).
+        var ffile = f["file"]
+        if ffile == nil { ffile = "" }
+        var file_bytes = oren_bytes_from_string(ffile)
+        push_u64_le(p, oren_list_len(file_bytes))
+        k = 0
+        while k < oren_list_len(file_bytes) { bytes_push(p, file_bytes[k]); k = k + 1 }
+        while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+        var line = f["line"]
+        var col = f["col"]
+        if line == nil { line = 0 }
+        if col == nil { col = 0 }
+        push_u64_le(p, line)
+        push_u64_le(p, col)
         
         var params = f["params"]
         push_u64_le(p, oren_list_len(params))
