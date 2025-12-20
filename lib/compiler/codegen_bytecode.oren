@@ -1893,5 +1893,5 @@ fn bytecode_emit_program(out_path, ctx) {
         if msg != nil { print(msg) }
         oren_exit(1)
     }
-    return nil
+    return bytes
 }

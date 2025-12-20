@@ -43,6 +43,7 @@ fn cli_spec() {
     argparse.cmd_flag(build, "--notarize", nil, "(macOS) notarize output with notarytool")
     argparse.cmd_option(build, "--notary-profile", nil, "string", "", "(macOS) notarytool keychain profile")
     argparse.cmd_flag(build, "--no-gc", nil, "Disable GC scanning (also via env OREN_NO_GC=1)")
+    argparse.cmd_flag(build, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds")
 
     var emitc = argparse.add_command(p, "emit-c", "Alias for: build --backend c --emit-c")
     argparse.cmd_positional(emitc, "file.oren", true, "Input source file")
@@ -96,6 +97,45 @@ fn normalize_rc(rc) {
     if rc < 0 { return rc }
     if rc >= 256 { return rc / 256 }
     return rc
+}
+
+fn _imod(a, b) {
+    // Integer modulo without relying on a runtime helper.
+    // Assumes b>0.
+    return a - (a / b) * b
+}
+
+fn _hex_digit(n) {
+    // n in [0,15]
+    return oren_string_char_at("0123456789abcdef", n)
+}
+
+fn _bytes_to_hex(bs) {
+    if bs == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == nil { b = 0 }
+        if b < 0 { b = 0 }
+        if b > 255 { b = _imod(b, 256) }
+        out = out + _hex_digit(b / 16) + _hex_digit(_imod(b, 16))
+        i = i + 1
+    }
+    return out
+}
+
+fn _sha256_hex(bs) {
+    if bs == nil { return "" }
+    var n = oren_list_len(bs)
+    var d = oren_sha256_range(bs, 0, n)
+    return _bytes_to_hex(d)
+}
+
+fn _emit_artifact_hash(kind, path, bs) {
+    var h = _sha256_hex(bs)
+    print("OREN_ARTIFACT kind=" + kind + " sha256=" + h + " path=" + path)
+    return nil
 }
 
 fn ensure_dir(path) {
@@ -1141,6 +1181,7 @@ fn compiler_main() {
     var no_gc = false
     var emit_meta = false
     var is_shared_lib = false
+    var deterministic = false
     // Rolling mode: default native builds to embed debug info so panics produce readable stack traces.
     // Users can still disable by explicitly setting OREN_NATIVE_NO_DEBUG=1 (kept as an env knob so we
     // don't need to introduce a new CLI flag yet).
@@ -1160,6 +1201,8 @@ fn compiler_main() {
     if env_capsule != nil { CAPSULE = true }
     var env_cap_domains = oren_env("OREN_CAP_ALLOW_DOMAINS")
     if env_cap_domains != nil { CAP_ALLOW_DOMAINS = split_csv(env_cap_domains) }
+    var env_det = oren_env("OREN_DETERMINISTIC")
+    if env_det != nil { deterministic = true }
 
     while i < argc {
         if args[i] == "--emit-c" {
@@ -1256,8 +1299,13 @@ fn compiler_main() {
                                                                         no_gc = true
                                                                         i = i + 1
                                                                     } else {
-                                                                        print("Unknown arg: " + args[i])
-                                                                        return nil
+                                                                        if args[i] == "--deterministic" {
+                                                                            deterministic = true
+                                                                            i = i + 1
+                                                                        } else {
+                                                                            print("Unknown arg: " + args[i])
+                                                                            return nil
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -1279,6 +1327,12 @@ fn compiler_main() {
                 }
             }
         }
+    }
+
+    if deterministic {
+        // Deterministic mode: avoid post-processing that can inject non-reproducible data.
+        codesign_id = ""
+        notarize = false
     }
 
     // If user did not explicitly request debug info, default it on for native backend builds.
@@ -1350,8 +1404,9 @@ fn compiler_main() {
         }
         ctx["meta_bytes"] = meta_bytes
 
-        codegen_bytecode.bytecode_emit_program(out_path, ctx)
+        var out_bytes = codegen_bytecode.bytecode_emit_program(out_path, ctx)
         print("Bytecode emitted: " + out_path)
+        if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
         return nil
     }
 
@@ -1453,6 +1508,17 @@ fn compiler_main() {
             }
         }
         
+        if deterministic {
+            var bs = oren_read_bytes(out_path)
+            if oren_is_err(bs) {
+                print("Failed to read artifact for hashing: " + out_path)
+                var msgH = oren_err_msg(bs)
+                if msgH != nil { print(msgH) }
+                oren_exit(1)
+            }
+            _emit_artifact_hash("native", out_path, bs)
+        }
+
         print("Build successful: " + out_path)
         
         if disasm {
@@ -1538,5 +1604,15 @@ fn compiler_main() {
         }
     }
     print("Build successful: " + out_path)
+    if deterministic {
+        var bsC = oren_read_bytes(out_path)
+        if oren_is_err(bsC) {
+            print("Failed to read artifact for hashing: " + out_path)
+            var msgHC = oren_err_msg(bsC)
+            if msgHC != nil { print(msgHC) }
+            oren_exit(1)
+        }
+        _emit_artifact_hash("c", out_path, bsC)
+    }
     return nil
 }

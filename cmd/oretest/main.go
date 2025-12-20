@@ -241,6 +241,33 @@ func main() {
 		cleanup []string
 	}{
 		{
+			name: "deterministic_bytecode_hash",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
+					"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
+					"grep -E '^OREN_ARTIFACT kind=bytecode sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
+					"grep -E '^OREN_ARTIFACT kind=bytecode sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
+					"diff -q %q %q",
+				"tests/modules/test_strings.oren",
+				*target,
+				"build/deterministic_1.obc",
+				"build/deterministic_1.out",
+				"tests/modules/test_strings.oren",
+				*target,
+				"build/deterministic_2.obc",
+				"build/deterministic_2.out",
+				"build/deterministic_1.out",
+				"build/deterministic_1.hash",
+				"build/deterministic_2.out",
+				"build/deterministic_2.hash",
+				"build/deterministic_1.hash",
+				"build/deterministic_2.hash",
+			),
+			log:     "build/logs/deterministic_bytecode_hash.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/deterministic_1.obc", "build/deterministic_2.obc", "build/deterministic_1.out", "build/deterministic_2.out", "build/deterministic_1.hash", "build/deterministic_2.hash"},
+		},
+		{
 			name: "oren_meta_emit",
 			cmd: fmt.Sprintf(
 				"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
