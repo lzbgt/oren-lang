@@ -86,25 +86,25 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### B) AVM (evolves alongside language/compiler)
 
-4) **[vm][safety] Record/Replay v1 for all effectful domains**
+3) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-5) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+4) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-6) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+5) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-7) **[boot][arch] Compiler-in-AVM (close the loop)**
+6) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
