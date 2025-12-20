@@ -108,6 +108,7 @@ fn collect_trait_set(linked) {
 fn collect_impl_registries(linked, errs) {
     var impl_methods = {}
     var impl_trait_methods = {}
+    var impl_blocks = {}
     var ss = linked["statements"]
     var i = 0
     while i < oren_list_len(ss) {
@@ -120,6 +121,21 @@ fn collect_impl_registries(linked, errs) {
                 var ty = e["impl_type"]
                 var m = e["impl_method"]
                 if tr != nil && ty != nil && m != nil {
+                    // Coherence: exactly one `impl Trait for Type { ... }` block per (Trait, Type).
+                    // Splitting methods across multiple impl blocks makes resolution non-local and
+                    // breaks determinism guarantees we want in rolling mode.
+                    var bid = e["impl_block_id"]
+                    if bid != nil {
+                        if impl_blocks[tr] == nil { impl_blocks[tr] = {} }
+                        var prev = impl_blocks[tr][ty]
+                        if prev == nil {
+                            impl_blocks[tr][ty] = bid
+                        } else {
+                            if prev != bid {
+                                oren_list_push(errs, "multiple impl blocks for trait '" + tr + "' on type '" + ty + "'")
+                            }
+                        }
+                    }
                     impl_trait_method_register(impl_trait_methods, tr, ty, m, e["name"], errs)
                     impl_method_register(impl_methods, ty, m, e["name"], errs)
                 }

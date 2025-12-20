@@ -811,6 +811,7 @@ fn parse_impl_decl(p) {
     if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
 
     var out = []
+    var impl_block_id = parser_gensym(p, "@impl_" + trait_name + "_" + type_name + "_")
     parser_next_token(p)
     while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
         if cur_is(p, token.TOK_DOC) {
@@ -836,6 +837,7 @@ fn parse_impl_decl(p) {
                 fnn["impl_type"] = type_name
                 fnn["impl_method"] = mname
                 fnn["impl_mangled_base"] = newn
+                fnn["impl_block_id"] = impl_block_id
                 fnn["name"] = newn
                 impl_method_register(p, type_name, mname, newn)
                 impl_trait_method_register(p, trait_name, type_name, mname, newn)

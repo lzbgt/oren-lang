@@ -268,6 +268,13 @@ Oren should adopt a simple, strict **coherence rule** (Rust-like):
    - the set of visible impls is determined by explicit imports/modules,
    - no runtime discovery, no reflection.
 
+Rolling v0 enforcement (implemented):
+
+- **Single impl block rule:** there must be exactly one `impl Trait for Type { ... }` block per `(Trait, Type)`.
+  - Splitting methods across multiple impl blocks is rejected deterministically.
+- **Blanket impl:** `impl Trait for any { ... }` is allowed as a catch-all.
+  - Exact `impl Trait for SomeType` overrides the `any` blanket.
+
 ### 6.1 Practical staged enforcement (no big rewrite)
 
 - v0/v0.5: keep current explicit `impl Trait for Type` lowering + method-sugar registry.

@@ -75,7 +75,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - cross-module method sugar must resolve deterministically (implemented via whole-program impl lowering in `link_program`)
    - Notes:
      - current determinism model is vtable-free: impl blocks lower to plain functions, and method calls are rewritten at compile time
-     - ambiguity is only an error when a call site requires a unique impl (registry overlap alone is allowed)
+      - ambiguity is only an error when a call site requires a unique impl (registry overlap alone is allowed)
+      - coherence guard (implemented): a `(Trait, Type)` may only have one `impl` block (no split-impl across modules/files)
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:

@@ -1,0 +1,18 @@
+// Coherence: a (Trait, Type) must have exactly one `impl` block.
+// Splitting methods across multiple impl blocks is rejected deterministically.
+
+trait T {
+    fn a(self);
+    fn b(self);
+}
+
+impl T for i64 {
+    fn a(self) { return self + 1 }
+}
+
+impl T for i64 {
+    fn b(self) { return self + 2 }
+}
+
+exit(0)
+
