@@ -24,7 +24,13 @@ typedef enum {
     OREN_TYPE_PY_OBJ,
     OREN_TYPE_LIST,
     OREN_TYPE_MAP,
-    OREN_TYPE_FUNC
+    OREN_TYPE_FUNC,
+    // Typed numeric buffers (rolling; required for HPC + SIMD kernels).
+    // Backends must treat payload as little-endian bytes for determinism.
+    OREN_TYPE_I32_BUF,
+    OREN_TYPE_I64_BUF,
+    OREN_TYPE_F32_BUF,
+    OREN_TYPE_F64_BUF
 } OrenType;
 
 // Stable error codes (rolling ABI; subject to refinement, but keep numbers stable once used).
@@ -41,6 +47,7 @@ typedef enum {
 
 struct OrenList;
 struct OrenMap;
+struct OrenBuf;
 
 typedef struct OrenValue OrenValue;
 
@@ -64,6 +71,7 @@ struct OrenValue {
         struct OrenList* list_val;
         struct OrenMap* map_val;
         OrenFunc func_val;
+        struct OrenBuf* buf_val;
     } as;
 };
 
@@ -81,6 +89,12 @@ typedef struct OrenMap {
     int count;
     int capacity;
 } OrenMap;
+
+typedef struct OrenBuf {
+    uint8_t* data;
+    uint32_t len;       // element count
+    uint32_t elem_size; // 4 for i32/f32, 8 for i64/f64
+} OrenBuf;
 
 // GC / roots
 void oren_register_root(OrenValue* slot);
@@ -185,6 +199,50 @@ OrenValue oren_bool_norm(OrenValue v);
 // - float -> truncate toward zero (like C cast), error on NaN/overflow
 // Used by the compiler for float->int cast sugar lowering (e.g. `u8(1.9)`).
 OrenValue oren_trunc_int(OrenValue v);
+
+// --- typed numeric buffers (C backend) ---
+OrenValue oren_i32_buf_new(OrenValue len);
+OrenValue oren_i64_buf_new(OrenValue len);
+OrenValue oren_f32_buf_new(OrenValue len);
+OrenValue oren_f64_buf_new(OrenValue len);
+
+OrenValue oren_buf_len(OrenValue buf);
+
+OrenValue oren_buf_load_i32(OrenValue buf, OrenValue idx);
+OrenValue oren_buf_store_i32(OrenValue buf, OrenValue idx, OrenValue v);
+OrenValue oren_buf_load_i64(OrenValue buf, OrenValue idx);
+OrenValue oren_buf_store_i64(OrenValue buf, OrenValue idx, OrenValue v);
+OrenValue oren_buf_load_f32(OrenValue buf, OrenValue idx);
+OrenValue oren_buf_store_f32(OrenValue buf, OrenValue idx, OrenValue v);
+OrenValue oren_buf_load_f64(OrenValue buf, OrenValue idx);
+OrenValue oren_buf_store_f64(OrenValue buf, OrenValue idx, OrenValue v);
+
+OrenValue oren_buf_fill_i32(OrenValue buf, OrenValue v);
+OrenValue oren_buf_fill_i64(OrenValue buf, OrenValue v);
+OrenValue oren_buf_fill_f32(OrenValue buf, OrenValue v);
+OrenValue oren_buf_fill_f64(OrenValue buf, OrenValue v);
+
+OrenValue oren_buf_add_i32(OrenValue a, OrenValue b);
+OrenValue oren_buf_add_f32(OrenValue a, OrenValue b);
+OrenValue oren_buf_dot_i32(OrenValue a, OrenValue b);
+OrenValue oren_buf_dot_f32(OrenValue a, OrenValue b);
+
+OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b);
+OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b);
+OrenValue oren_buf_mul_i32(OrenValue a, OrenValue b);
+OrenValue oren_buf_mul_f32(OrenValue a, OrenValue b);
+OrenValue oren_buf_mul_i32_into(OrenValue dst, OrenValue a, OrenValue b);
+OrenValue oren_buf_mul_f32_into(OrenValue dst, OrenValue a, OrenValue b);
+OrenValue oren_buf_scale_i32_into(OrenValue dst, OrenValue a, OrenValue scalar);
+OrenValue oren_buf_scale_f32(OrenValue buf, OrenValue scalar);
+OrenValue oren_buf_scale_f32_into(OrenValue dst, OrenValue a, OrenValue scalar);
+
+OrenValue oren_buf_reduce_sum_i32(OrenValue buf);
+OrenValue oren_buf_reduce_sum_f32(OrenValue buf);
+OrenValue oren_buf_dot_i32_into(OrenValue out, OrenValue a, OrenValue b);
+OrenValue oren_buf_dot_f32_into(OrenValue out, OrenValue a, OrenValue b);
+OrenValue oren_buf_reduce_sum_i32_into(OrenValue out, OrenValue a);
+OrenValue oren_buf_reduce_sum_f32_into(OrenValue out, OrenValue a);
 
 OrenValue oren_read_file(OrenValue path);
 OrenValue oren_write_file(OrenValue path, OrenValue content);

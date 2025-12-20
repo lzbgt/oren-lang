@@ -1,0 +1,88 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module buffer_views FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+// Smoke: i32 buffer basic load/store.
+var b: []i32 = buffer.i32_new(6)
+assert_true(!oren_is_err(b), 10)
+
+var i = 0
+while i < 6 {
+    var r = oren_buf_store_i32(b, i, 10 + i)
+    assert_true(!oren_is_err(r), 11 + i)
+    i = i + 1
+}
+assert_eq(oren_buf_load_i32(b, 0), 10, 20)
+assert_eq(oren_buf_load_i32(b, 5), 15, 21)
+
+// Slice view (zero-copy)
+// Also validates that `[]T` parses in more than one place (locals + fn params).
+fn buf_len_i32(x: []i32): i64 { return oren_buf_len(x) }
+var b_alias: []i32 = b
+assert_eq(buf_len_i32(b_alias), 6, 29)
+var slice = buffer.slice_new(b, 2, 3)
+assert_true(!oren_is_err(slice), 30)
+assert_eq(buffer.slice_len(slice), 3, 31)
+assert_eq(buffer.slice_load_i32(slice, 0), 12, 32)
+assert_eq(buffer.slice_load_i32(slice, 2), 14, 33)
+
+// Write through view.
+var w = buffer.slice_store_i32(slice, 1, 99)
+assert_true(!oren_is_err(w), 34)
+var got = oren_buf_load_i32(b, 3)
+assert_eq(got, 99, 35)
+
+// f32 matrix view over a flat buffer
+var fb: []f32 = buffer.f32_new(4)
+assert_true(!oren_is_err(fb), 40)
+oren_buf_store_f32(fb, 0, 1.0)
+oren_buf_store_f32(fb, 1, 2.0)
+oren_buf_store_f32(fb, 2, 3.0)
+oren_buf_store_f32(fb, 3, 4.0)
+var m = buffer.mat_view_new(fb, 0, 2, 2, 2)
+assert_true(!oren_is_err(m), 41)
+assert_eq(buffer.mat_load_f32(m, 0, 0), 1.0, 42)
+assert_eq(buffer.mat_load_f32(m, 1, 0), 3.0, 43)
+
+// Ensure store path works and preserves float32 boundary determinism (via runtime store_f32).
+buffer.mat_store_f32(m, 1, 1, 123.25)
+assert_eq(oren_buf_load_f32(fb, 3), f32(123.25), 44)
+
+// Buffer dot (i32)
+var b2 = buffer.i32_new(6)
+assert_true(!oren_is_err(b2), 50)
+i = 0
+while i < 6 {
+    var r2 = oren_buf_store_i32(b2, i, 1)
+    assert_true(!oren_is_err(r2), 51 + i)
+    i = i + 1
+}
+assert_eq(oren_buf_load_i32(b2, 0), 1, 58)
+assert_eq(oren_buf_load_i32(b2, 5), 1, 59)
+assert_eq(oren_buf_reduce_sum_i32(b2), 6, 60)
+var d = oren_buf_dot_i32(b, b2)
+if oren_is_err(d) {
+    print("module buffer_views dot_i32 err")
+    exit(62)
+}
+var expected = 10 + 11 + 12 + 99 + 14 + 15
+if d != expected {
+    print("module buffer_views dot_i32 mismatch got=" + oren_int_to_string(d) + " expected=" + oren_int_to_string(expected))
+    exit(63)
+}
+
+print("module buffer_views OK")
+exit(0)

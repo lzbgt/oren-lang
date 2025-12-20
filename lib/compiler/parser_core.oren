@@ -476,6 +476,19 @@ fn parse_type_name_after_colon(p) {
         tname = tname + "*"
     }
 
+    // Slice sugar (prefix):
+    //   var xs: []u8 = ...
+    //   fn f(x: [][]f32) { ... }
+    //
+    // Stored as a string `[]T` (or `*[]T`, etc).
+    while peek_is(p, token.TOK_LBRACKET) {
+        // In type-position, `[]T` is the only supported prefix-bracket form.
+        // Fixed arrays are suffix sugar (`T[N]`) parsed later.
+        parser_next_token(p) // '['
+        if !expect_peek(p, token.TOK_RBRACKET) { return nil }
+        tname = tname + "[]"
+    }
+
     if !expect_peek_ident_like(p, "type name") { return nil }
     tname = tname + p["cur"]["literal"]
     while peek_is(p, token.TOK_DOT) {

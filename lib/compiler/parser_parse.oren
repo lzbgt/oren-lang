@@ -978,24 +978,6 @@ fn parse_assign_or_expr_stmt(p) {
         var val = parse_expression(p, LOWEST)
         if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
         if left_exp["type"] == "Identifier" { return ast.new_assign(tok, left_exp, val) }
-        if left_exp["type"] == "Member" {
-            // Struct fields are immutable in the rolling design, and backends differ
-            // in struct representation. Treat `obj.field = v` as a compile-time error.
-            //
-            // Exception: `pack_view("Type", bytes, off).field = value` is a compile-time-only
-            // packed-bytes view write (PV3) and is allowed.
-            var ok_pack_view = false
-            var pv = left_exp["left"]
-            if pv != nil && pv["type"] == "Call" {
-                var fnn = pv["fn"]
-                if fnn != nil && fnn["type"] == "Identifier" && fnn["value"] == "pack_view" {
-                    ok_pack_view = true
-                }
-            }
-            if !ok_pack_view {
-                parser_add_error(p, "cannot assign to struct field via '.' (struct fields are immutable); use indexing for maps/lists or construct a new value")
-            }
-        }
         return ast.new_set(tok, left_exp, val)
     }
 

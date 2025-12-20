@@ -1,0 +1,92 @@
+// std/buffer (rolling)
+//
+// Goal:
+// - Provide a minimal, cross-backend typed-buffer surface for HPC-style code.
+// - Keep views zero-copy by using offsets/strides over a shared buffer object.
+//
+// Reality in v0:
+// - Typed buffers are currently runtime primitives (C backend + AVM + native runtime).
+// - Oren does not have full generics yet, so this module provides structural
+//   "views" that rely on passing the right load/store function.
+
+fn _err_invalid(msg) { return oren_err(4, msg) }
+
+// Constructors (thin wrappers)
+fn i32_new(n) { return oren_i32_buf_new(n) }
+fn i64_new(n) { return oren_i64_buf_new(n) }
+fn f32_new(n) { return oren_f32_buf_new(n) }
+fn f64_new(n) { return oren_f64_buf_new(n) }
+
+fn len(buf) { return oren_buf_len(buf) }
+
+// --- generic zero-copy views ---
+
+fn slice_new(buf, off, n) {
+    if off == nil || n == nil { return _err_invalid("slice_new: nil off/len") }
+    if off < 0 || n < 0 { return _err_invalid("slice_new: negative off/len") }
+    var bl = oren_buf_len(buf)
+    if oren_is_err(bl) { return bl }
+    if off + n > bl { return _err_invalid("slice_new: out of bounds") }
+    return {"buf": buf, "off": off, "len": n}
+}
+
+fn slice_len(s) {
+    if s == nil { return 0 }
+    return s["len"]
+}
+
+fn slice_load_i32(s, idx) {
+    var n = s["len"]
+    if idx < 0 || idx >= n { return _err_invalid("slice_load_i32: index out of bounds") }
+    return oren_buf_load_i32(s["buf"], s["off"] + idx)
+}
+
+fn slice_store_i32(s, idx, v) {
+    var n = s["len"]
+    if idx < 0 || idx >= n { return _err_invalid("slice_store_i32: index out of bounds") }
+    return oren_buf_store_i32(s["buf"], s["off"] + idx, v)
+}
+
+fn slice_load_f32(s, idx) {
+    var n = s["len"]
+    if idx < 0 || idx >= n { return _err_invalid("slice_load_f32: index out of bounds") }
+    return oren_buf_load_f32(s["buf"], s["off"] + idx)
+}
+
+fn slice_store_f32(s, idx, v) {
+    var n = s["len"]
+    if idx < 0 || idx >= n { return _err_invalid("slice_store_f32: index out of bounds") }
+    return oren_buf_store_f32(s["buf"], s["off"] + idx, v)
+}
+
+fn mat_view_new(buf, off, rows, cols, row_stride) {
+    if off < 0 || rows < 0 || cols < 0 || row_stride < 0 {
+        return _err_invalid("mat_view_new: negative arg")
+    }
+    if row_stride < cols {
+        return _err_invalid("mat_view_new: stride < cols")
+    }
+    // Bounds: last element index = off + (rows-1)*row_stride + (cols-1)
+    var bl = oren_buf_len(buf)
+    if oren_is_err(bl) { return bl }
+    if rows == 0 || cols == 0 { return {"buf": buf, "off": off, "rows": rows, "cols": cols, "row_stride": row_stride} }
+    var last = off + (rows - 1) * row_stride + (cols - 1)
+    if last < 0 || last >= bl { return _err_invalid("mat_view_new: out of bounds") }
+    return {"buf": buf, "off": off, "rows": rows, "cols": cols, "row_stride": row_stride}
+}
+
+fn mat_load_f32(m, r, c) {
+    var rows = m["rows"]
+    var cols = m["cols"]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_load_f32: index out of bounds") }
+    var idx = m["off"] + r * m["row_stride"] + c
+    return oren_buf_load_f32(m["buf"], idx)
+}
+
+fn mat_store_f32(m, r, c, v) {
+    var rows = m["rows"]
+    var cols = m["cols"]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_store_f32: index out of bounds") }
+    var idx = m["off"] + r * m["row_stride"] + c
+    return oren_buf_store_f32(m["buf"], idx, v)
+}

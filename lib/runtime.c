@@ -314,6 +314,23 @@ static void oren_mark_value(OrenValue v) {
         }
         return;
     }
+    if (v.type == OREN_TYPE_I32_BUF || v.type == OREN_TYPE_I64_BUF || v.type == OREN_TYPE_F32_BUF || v.type == OREN_TYPE_F64_BUF) {
+        // Buffers are GC-tracked heap headers + raw payload bytes. Payload contains no pointers.
+        // Mark both header and payload allocations so payload cannot be collected independently.
+        OrenBuf* b = v.as.buf_val;
+        if (!b) return;
+        OrenAllocNode* n = oren_find_node(b);
+        if (n && n->freed == 0) {
+            n->freed = -1;
+        }
+        if (b->data) {
+            OrenAllocNode* n2 = oren_find_node(b->data);
+            if (n2 && n2->freed == 0) {
+                n2->freed = -1;
+            }
+        }
+        return;
+    }
     if (v.type == OREN_TYPE_FUNC) {
         // A function value is an immediate value, but its closure environment (if any)
         // may point to GC-tracked allocations (typically an OrenList of captured values).
@@ -481,7 +498,7 @@ void oren_gc_safepoint() {
 }
 
 static int oren_type_valid(int t) {
-    return t >= OREN_TYPE_NIL && t <= OREN_TYPE_FUNC;
+    return t >= OREN_TYPE_NIL && t <= OREN_TYPE_F64_BUF;
 }
 
 static void oren_mark_stack_range(void* a, void* b) {
@@ -1262,6 +1279,11 @@ OrenValue oren_eq(OrenValue a, OrenValue b) {
         case OREN_TYPE_NIL: return OREN_TRUE;
         case OREN_TYPE_FUNC:
             return oren_bool(a.as.func_val.fn == b.as.func_val.fn && a.as.func_val.env == b.as.func_val.env);
+        case OREN_TYPE_I32_BUF:
+        case OREN_TYPE_I64_BUF:
+        case OREN_TYPE_F32_BUF:
+        case OREN_TYPE_F64_BUF:
+            return oren_bool(a.as.buf_val == b.as.buf_val);
         case OREN_TYPE_PY_OBJ: {
 #ifdef OREN_ENABLE_PYTHON
             // Check identity or equality
@@ -2508,6 +2530,18 @@ static void print_value_no_newline(OrenValue v) {
         case OREN_TYPE_STRING: printf("%s", v.as.string_val); break;
         case OREN_TYPE_NIL: printf("nil"); break;
         case OREN_TYPE_FUNC: printf("<func %p>", (void*)v.as.func_val.fn); break;
+        case OREN_TYPE_I32_BUF:
+            printf("<i32_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
+            break;
+        case OREN_TYPE_I64_BUF:
+            printf("<i64_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
+            break;
+        case OREN_TYPE_F32_BUF:
+            printf("<f32_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
+            break;
+        case OREN_TYPE_F64_BUF:
+            printf("<f64_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
+            break;
         case OREN_TYPE_PY_OBJ: {
 #ifdef OREN_ENABLE_PYTHON
             PyObject* str = PyObject_Str(v.as.py_obj);

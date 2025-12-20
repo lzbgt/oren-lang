@@ -1840,7 +1840,7 @@ fn compiler_main() {
         return nil
     }
 
-    var cmd = cc + " -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c -Ilib -pthread"
+    var cmd = cc + " -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib -pthread"
     var k_lib = 0
     while k_lib < oren_list_len(link_libs) {
         cmd = cmd + " " + shell_quote(link_libs[k_lib])

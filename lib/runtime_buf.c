@@ -1,0 +1,544 @@
+#include "runtime.h"
+
+#include <limits.h>
+#include <stdint.h>
+#include <string.h>
+
+static OrenValue buf_err(const char* msg) {
+    return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(msg));
+}
+
+static int buf_is_i32(OrenValue v) { return v.type == OREN_TYPE_I32_BUF && v.as.buf_val != NULL; }
+static int buf_is_i64(OrenValue v) { return v.type == OREN_TYPE_I64_BUF && v.as.buf_val != NULL; }
+static int buf_is_f32(OrenValue v) { return v.type == OREN_TYPE_F32_BUF && v.as.buf_val != NULL; }
+static int buf_is_f64(OrenValue v) { return v.type == OREN_TYPE_F64_BUF && v.as.buf_val != NULL; }
+
+static uint32_t buf_len_u32(OrenBuf* b) { return b ? b->len : 0u; }
+
+static uint8_t* buf_data(OrenBuf* b) { return b ? b->data : NULL; }
+
+static OrenValue buf_new(uint32_t elem_size, OrenValue lenv, OrenType ty) {
+    if (lenv.type != OREN_TYPE_INT) {
+        return buf_err("buf_new expects (int)");
+    }
+    long long ln = lenv.as.int_val;
+    if (ln < 0) {
+        return buf_err("buf_new: negative length");
+    }
+    if (ln > (long long)UINT32_MAX) {
+        return buf_err("buf_new: length too large");
+    }
+    uint32_t len = (uint32_t)ln;
+
+    uint64_t bytes_len = (uint64_t)len * (uint64_t)elem_size;
+    if (bytes_len > (uint64_t)SIZE_MAX) {
+        return buf_err("buf_new: size overflow");
+    }
+
+    // Allocate header+payload together as a single GC-tracked block.
+    // This avoids GC reachability hazards from raw pointers between allocations.
+    size_t total = sizeof(OrenBuf) + (size_t)bytes_len;
+    uint64_t p = oren_alloc_struct(total);
+    if (p == 0) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("buf_new: alloc failed"));
+    }
+    OrenBuf* hdr = (OrenBuf*)(uintptr_t)p;
+    hdr->len = len;
+    hdr->elem_size = elem_size;
+    hdr->data = NULL;
+    if (bytes_len > 0) {
+        hdr->data = ((uint8_t*)hdr) + sizeof(OrenBuf);
+        memset(hdr->data, 0, (size_t)bytes_len);
+    }
+
+    OrenValue out;
+    out.type = ty;
+    out.as.buf_val = hdr;
+    return out;
+}
+
+OrenValue oren_i32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_I32_BUF); }
+OrenValue oren_i64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_I64_BUF); }
+OrenValue oren_f32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_F32_BUF); }
+OrenValue oren_f64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_F64_BUF); }
+
+OrenValue oren_buf_len(OrenValue buf) {
+    if (buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
+        return buf_err("buf_len expects (buf)");
+    }
+    OrenBuf* b = buf.as.buf_val;
+    if (!b) return buf_err("buf_len: invalid buffer");
+    return oren_int((long long)b->len);
+}
+
+static int buf_check_idx(OrenBuf* b, long long idx) {
+    if (!b) return 0;
+    if (idx < 0) return 0;
+    if ((uint64_t)idx >= (uint64_t)b->len) return 0;
+    if (!b->data && b->len != 0) return 0;
+    return 1;
+}
+
+static uint32_t load_u32_le(uint8_t* p) {
+    return (uint32_t)p[0]
+         | ((uint32_t)p[1] << 8)
+         | ((uint32_t)p[2] << 16)
+         | ((uint32_t)p[3] << 24);
+}
+
+static void store_u32_le(uint8_t* p, uint32_t u) {
+    p[0] = (uint8_t)(u & 0xFFu);
+    p[1] = (uint8_t)((u >> 8) & 0xFFu);
+    p[2] = (uint8_t)((u >> 16) & 0xFFu);
+    p[3] = (uint8_t)((u >> 24) & 0xFFu);
+}
+
+static uint64_t load_u64_le(uint8_t* p) {
+    uint64_t u = 0;
+    for (int i = 0; i < 8; i++) {
+        u |= ((uint64_t)p[i] << (uint64_t)(i * 8));
+    }
+    return u;
+}
+
+static void store_u64_le(uint8_t* p, uint64_t u) {
+    for (int i = 0; i < 8; i++) {
+        p[i] = (uint8_t)((u >> (uint64_t)(i * 8)) & 0xFFu);
+    }
+}
+
+OrenValue oren_buf_load_i32(OrenValue buf, OrenValue idxv) {
+    if (!buf_is_i32(buf) || idxv.type != OREN_TYPE_INT) return buf_err("oren_buf_load_i32 expects (i32_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_load_i32: index out of bounds");
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 4u;
+    uint32_t u = load_u32_le(p);
+    int32_t v = (int32_t)u;
+    return oren_int((long long)v);
+}
+
+OrenValue oren_buf_store_i32(OrenValue buf, OrenValue idxv, OrenValue vv) {
+    if (!buf_is_i32(buf) || idxv.type != OREN_TYPE_INT || vv.type != OREN_TYPE_INT) return buf_err("oren_buf_store_i32 expects (i32_buf, int, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_store_i32: index out of bounds");
+    int32_t v = (int32_t)vv.as.int_val; // wrap
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 4u;
+    store_u32_le(p, (uint32_t)v);
+    return buf;
+}
+
+OrenValue oren_buf_load_i64(OrenValue buf, OrenValue idxv) {
+    if (!buf_is_i64(buf) || idxv.type != OREN_TYPE_INT) return buf_err("oren_buf_load_i64 expects (i64_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_load_i64: index out of bounds");
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 8u;
+    uint64_t u = load_u64_le(p);
+    int64_t v = 0;
+    memcpy(&v, &u, sizeof(v));
+    return oren_int((long long)v);
+}
+
+OrenValue oren_buf_store_i64(OrenValue buf, OrenValue idxv, OrenValue vv) {
+    if (!buf_is_i64(buf) || idxv.type != OREN_TYPE_INT || vv.type != OREN_TYPE_INT) return buf_err("oren_buf_store_i64 expects (i64_buf, int, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_store_i64: index out of bounds");
+    int64_t v = (int64_t)vv.as.int_val;
+    uint64_t u = 0;
+    memcpy(&u, &v, sizeof(u));
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 8u;
+    store_u64_le(p, u);
+    return buf;
+}
+
+OrenValue oren_buf_load_f64(OrenValue buf, OrenValue idxv) {
+    if (!buf_is_f64(buf) || idxv.type != OREN_TYPE_INT) return buf_err("oren_buf_load_f64 expects (f64_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_load_f64: index out of bounds");
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 8u;
+    uint64_t u = load_u64_le(p);
+    double d = 0.0;
+    memcpy(&d, &u, sizeof(d));
+    return oren_float(d);
+}
+
+OrenValue oren_buf_store_f64(OrenValue buf, OrenValue idxv, OrenValue vv) {
+    if (!buf_is_f64(buf) || idxv.type != OREN_TYPE_INT || vv.type != OREN_TYPE_FLOAT) return buf_err("oren_buf_store_f64 expects (f64_buf, int, float)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_store_f64: index out of bounds");
+    double d = vv.as.float_val;
+    uint64_t u = 0;
+    memcpy(&u, &d, sizeof(u));
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 8u;
+    store_u64_le(p, u);
+    return buf;
+}
+
+OrenValue oren_buf_load_f32(OrenValue buf, OrenValue idxv) {
+    if (!buf_is_f32(buf) || idxv.type != OREN_TYPE_INT) return buf_err("oren_buf_load_f32 expects (f32_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_load_f32: index out of bounds");
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 4u;
+    uint32_t u = load_u32_le(p);
+    float f = 0.0f;
+    memcpy(&f, &u, sizeof(f));
+    return oren_float((double)f);
+}
+
+OrenValue oren_buf_store_f32(OrenValue buf, OrenValue idxv, OrenValue vv) {
+    if (!buf_is_f32(buf) || idxv.type != OREN_TYPE_INT || vv.type != OREN_TYPE_FLOAT) return buf_err("oren_buf_store_f32 expects (f32_buf, int, float)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_store_f32: index out of bounds");
+    float f = (float)vv.as.float_val; // deterministic float32 boundary
+    uint32_t u = 0;
+    memcpy(&u, &f, sizeof(u));
+    uint8_t* p = buf_data(b) + (uint32_t)idx * 4u;
+    store_u32_le(p, u);
+    return buf;
+}
+
+OrenValue oren_buf_fill_i32(OrenValue buf, OrenValue vv) {
+    if (!buf_is_i32(buf) || vv.type != OREN_TYPE_INT) return buf_err("oren_buf_fill_i32 expects (i32_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    uint32_t n = buf_len_u32(b);
+    int32_t v = (int32_t)vv.as.int_val;
+    uint32_t u = (uint32_t)v;
+    for (uint32_t i = 0; i < n; i++) {
+        store_u32_le(buf_data(b) + i * 4u, u);
+    }
+    return buf;
+}
+
+OrenValue oren_buf_fill_i64(OrenValue buf, OrenValue vv) {
+    if (!buf_is_i64(buf) || vv.type != OREN_TYPE_INT) return buf_err("oren_buf_fill_i64 expects (i64_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    uint32_t n = buf_len_u32(b);
+    int64_t v = (int64_t)vv.as.int_val;
+    uint64_t u = 0;
+    memcpy(&u, &v, sizeof(u));
+    for (uint32_t i = 0; i < n; i++) {
+        store_u64_le(buf_data(b) + i * 8u, u);
+    }
+    return buf;
+}
+
+OrenValue oren_buf_fill_f64(OrenValue buf, OrenValue vv) {
+    if (!buf_is_f64(buf) || vv.type != OREN_TYPE_FLOAT) return buf_err("oren_buf_fill_f64 expects (f64_buf, float)");
+    OrenBuf* b = buf.as.buf_val;
+    uint32_t n = buf_len_u32(b);
+    double d = vv.as.float_val;
+    uint64_t u = 0;
+    memcpy(&u, &d, sizeof(u));
+    for (uint32_t i = 0; i < n; i++) {
+        store_u64_le(buf_data(b) + i * 8u, u);
+    }
+    return buf;
+}
+
+OrenValue oren_buf_fill_f32(OrenValue buf, OrenValue vv) {
+    if (!buf_is_f32(buf) || vv.type != OREN_TYPE_FLOAT) return buf_err("oren_buf_fill_f32 expects (f32_buf, float)");
+    OrenBuf* b = buf.as.buf_val;
+    uint32_t n = buf_len_u32(b);
+    float f = (float)vv.as.float_val;
+    uint32_t u = 0;
+    memcpy(&u, &f, sizeof(u));
+    for (uint32_t i = 0; i < n; i++) {
+        store_u32_le(buf_data(b) + i * 4u, u);
+    }
+    return buf;
+}
+
+static OrenValue buf_new_like(OrenValue a) {
+    if (buf_is_i32(a)) return oren_i32_buf_new(oren_int((long long)a.as.buf_val->len));
+    if (buf_is_i64(a)) return oren_i64_buf_new(oren_int((long long)a.as.buf_val->len));
+    if (buf_is_f32(a)) return oren_f32_buf_new(oren_int((long long)a.as.buf_val->len));
+    if (buf_is_f64(a)) return oren_f64_buf_new(oren_int((long long)a.as.buf_val->len));
+    return buf_err("buf_new_like: invalid buffer");
+}
+
+OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_i32(dst) || !buf_is_i32(a) || !buf_is_i32(b)) return buf_err("oren_buf_add_i32_into expects (i32_buf, i32_buf, i32_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_add_i32_into: length mismatch");
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
+        uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
+        uint32_t us = ua + ub; // wrap
+        store_u32_le(buf_data(od) + i * 4u, us);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_add_i32(OrenValue a, OrenValue b) {
+    if (!buf_is_i32(a) || !buf_is_i32(b)) return buf_err("oren_buf_add_i32 expects (i32_buf, i32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_add_i32: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_add_i32_into(out, a, b);
+}
+
+OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_f32(dst) || !buf_is_f32(a) || !buf_is_f32(b)) return buf_err("oren_buf_add_f32_into expects (f32_buf, f32_buf, f32_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_add_f32_into: length mismatch");
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
+        uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
+        float fa = 0.0f, fb = 0.0f;
+        memcpy(&fa, &ua, sizeof(fa));
+        memcpy(&fb, &ub, sizeof(fb));
+        float fs = fa + fb;
+        uint32_t us = 0;
+        memcpy(&us, &fs, sizeof(us));
+        store_u32_le(buf_data(od) + i * 4u, us);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_add_f32(OrenValue a, OrenValue b) {
+    if (!buf_is_f32(a) || !buf_is_f32(b)) return buf_err("oren_buf_add_f32 expects (f32_buf, f32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_add_f32: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_add_f32_into(out, a, b);
+}
+
+OrenValue oren_buf_mul_i32_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_i32(dst) || !buf_is_i32(a) || !buf_is_i32(b)) return buf_err("oren_buf_mul_i32_into expects (i32_buf, i32_buf, i32_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_mul_i32_into: length mismatch");
+    for (uint32_t i = 0; i < od->len; i++) {
+        int32_t va = (int32_t)load_u32_le(buf_data(ba) + i * 4u);
+        int32_t vb = (int32_t)load_u32_le(buf_data(bb) + i * 4u);
+        int64_t prod = (int64_t)va * (int64_t)vb;
+        int32_t vp = (int32_t)prod; // wrap
+        store_u32_le(buf_data(od) + i * 4u, (uint32_t)vp);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_mul_i32(OrenValue a, OrenValue b) {
+    if (!buf_is_i32(a) || !buf_is_i32(b)) return buf_err("oren_buf_mul_i32 expects (i32_buf, i32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_mul_i32: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_mul_i32_into(out, a, b);
+}
+
+OrenValue oren_buf_mul_f32_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_f32(dst) || !buf_is_f32(a) || !buf_is_f32(b)) return buf_err("oren_buf_mul_f32_into expects (f32_buf, f32_buf, f32_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_mul_f32_into: length mismatch");
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
+        uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
+        float fa = 0.0f, fb = 0.0f;
+        memcpy(&fa, &ua, sizeof(fa));
+        memcpy(&fb, &ub, sizeof(fb));
+        float fp = fa * fb;
+        uint32_t up = 0;
+        memcpy(&up, &fp, sizeof(up));
+        store_u32_le(buf_data(od) + i * 4u, up);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_mul_f32(OrenValue a, OrenValue b) {
+    if (!buf_is_f32(a) || !buf_is_f32(b)) return buf_err("oren_buf_mul_f32 expects (f32_buf, f32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_mul_f32: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_mul_f32_into(out, a, b);
+}
+
+OrenValue oren_buf_scale_f32(OrenValue buf, OrenValue scalar) {
+    if (!buf_is_f32(buf) || scalar.type != OREN_TYPE_FLOAT) return buf_err("oren_buf_scale_f32 expects (f32_buf, float)");
+    OrenBuf* b = buf.as.buf_val;
+    float s = (float)scalar.as.float_val;
+    for (uint32_t i = 0; i < b->len; i++) {
+        uint32_t u = load_u32_le(buf_data(b) + i * 4u);
+        float f = 0.0f;
+        memcpy(&f, &u, sizeof(f));
+        float outv = f * s;
+        uint32_t outu = 0;
+        memcpy(&outu, &outv, sizeof(outu));
+        store_u32_le(buf_data(b) + i * 4u, outu);
+    }
+    return buf;
+}
+
+OrenValue oren_buf_scale_f32_into(OrenValue dst, OrenValue a, OrenValue scalar) {
+    if (!buf_is_f32(dst) || !buf_is_f32(a) || scalar.type != OREN_TYPE_FLOAT) return buf_err("oren_buf_scale_f32_into expects (f32_buf, f32_buf, float)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    if (od->len != ba->len) return buf_err("buf_scale_f32_into: length mismatch");
+    float s = (float)scalar.as.float_val;
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint32_t u = load_u32_le(buf_data(ba) + i * 4u);
+        float f = 0.0f;
+        memcpy(&f, &u, sizeof(f));
+        float outv = f * s;
+        uint32_t outu = 0;
+        memcpy(&outu, &outv, sizeof(outu));
+        store_u32_le(buf_data(od) + i * 4u, outu);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_scale_i32_into(OrenValue dst, OrenValue a, OrenValue scalar) {
+    if (!buf_is_i32(dst) || !buf_is_i32(a) || scalar.type != OREN_TYPE_INT) return buf_err("oren_buf_scale_i32_into expects (i32_buf, i32_buf, int)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    if (od->len != ba->len) return buf_err("buf_scale_i32_into: length mismatch");
+    long long sv = scalar.as.int_val;
+    if (sv < (long long)INT32_MIN || sv > (long long)INT32_MAX) return buf_err("buf_scale_i32_into: scalar out of range");
+    int32_t s = (int32_t)sv;
+    for (uint32_t i = 0; i < od->len; i++) {
+        int32_t v = (int32_t)load_u32_le(buf_data(ba) + i * 4u);
+        int64_t prod = (int64_t)v * (int64_t)s;
+        int32_t vp = (int32_t)prod;
+        store_u32_le(buf_data(od) + i * 4u, (uint32_t)vp);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_dot_i32(OrenValue a, OrenValue b) {
+    if (!buf_is_i32(a) || !buf_is_i32(b)) return buf_err("oren_buf_dot_i32 expects (i32_buf, i32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_i32: length mismatch");
+    int64_t acc = 0;
+    uint32_t n = a.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        int32_t va = (int32_t)load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+        int32_t vb = (int32_t)load_u32_le(buf_data(b.as.buf_val) + i * 4u);
+        acc += (int64_t)va * (int64_t)vb;
+    }
+    return oren_int((long long)acc);
+}
+
+OrenValue oren_buf_dot_f32(OrenValue a, OrenValue b) {
+    if (!buf_is_f32(a) || !buf_is_f32(b)) return buf_err("oren_buf_dot_f32 expects (f32_buf, f32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_f32: length mismatch");
+    double acc = 0.0;
+    uint32_t n = a.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t ua = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+        uint32_t ub = load_u32_le(buf_data(b.as.buf_val) + i * 4u);
+        float fa = 0.0f, fb = 0.0f;
+        memcpy(&fa, &ua, sizeof(fa));
+        memcpy(&fb, &ub, sizeof(fb));
+        acc += (double)fa * (double)fb;
+    }
+    return oren_float(acc);
+}
+
+OrenValue oren_buf_reduce_sum_i32(OrenValue buf) {
+    if (!buf_is_i32(buf)) return buf_err("oren_buf_reduce_sum_i32 expects (i32_buf)");
+    int64_t acc = 0;
+    uint32_t n = buf.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        int32_t v = (int32_t)load_u32_le(buf_data(buf.as.buf_val) + i * 4u);
+        acc += (int64_t)v;
+    }
+    return oren_int((long long)acc);
+}
+
+OrenValue oren_buf_reduce_sum_f32(OrenValue buf) {
+    if (!buf_is_f32(buf)) return buf_err("oren_buf_reduce_sum_f32 expects (f32_buf)");
+    double acc = 0.0;
+    uint32_t n = buf.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t u = load_u32_le(buf_data(buf.as.buf_val) + i * 4u);
+        float f = 0.0f;
+        memcpy(&f, &u, sizeof(f));
+        acc += (double)f;
+    }
+    return oren_float(acc);
+}
+
+static OrenValue buf_store_f64_at0(OrenValue out, double d, const char* expects) {
+    if (!buf_is_f64(out)) return buf_err(expects);
+    OrenBuf* b = out.as.buf_val;
+    if (!b || b->len < 1u || !b->data) return buf_err("buf_store_f64_at0: out must have len>=1");
+    uint64_t u = 0;
+    memcpy(&u, &d, sizeof(u));
+    store_u64_le(buf_data(b), u);
+    return out;
+}
+
+static OrenValue buf_store_i64_at0(OrenValue out, int64_t v, const char* expects) {
+    if (!buf_is_i64(out)) return buf_err(expects);
+    OrenBuf* b = out.as.buf_val;
+    if (!b || b->len < 1u || !b->data) return buf_err("buf_store_i64_at0: out must have len>=1");
+    uint64_t u = 0;
+    memcpy(&u, &v, sizeof(u));
+    store_u64_le(buf_data(b), u);
+    return out;
+}
+
+OrenValue oren_buf_dot_f32_into(OrenValue out, OrenValue a, OrenValue b) {
+    if (!buf_is_f64(out) || !buf_is_f32(a) || !buf_is_f32(b)) return buf_err("oren_buf_dot_f32_into expects (f64_buf, f32_buf, f32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_f32_into: length mismatch");
+    double acc = 0.0;
+    uint32_t n = a.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t ua = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+        uint32_t ub = load_u32_le(buf_data(b.as.buf_val) + i * 4u);
+        float fa = 0.0f, fb = 0.0f;
+        memcpy(&fa, &ua, sizeof(fa));
+        memcpy(&fb, &ub, sizeof(fb));
+        acc += (double)fa * (double)fb;
+    }
+    return buf_store_f64_at0(out, acc, "oren_buf_dot_f32_into expects (f64_buf, f32_buf, f32_buf)");
+}
+
+OrenValue oren_buf_reduce_sum_f32_into(OrenValue out, OrenValue a) {
+    if (!buf_is_f64(out) || !buf_is_f32(a)) return buf_err("oren_buf_reduce_sum_f32_into expects (f64_buf, f32_buf)");
+    double acc = 0.0;
+    uint32_t n = a.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t u = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+        float f = 0.0f;
+        memcpy(&f, &u, sizeof(f));
+        acc += (double)f;
+    }
+    return buf_store_f64_at0(out, acc, "oren_buf_reduce_sum_f32_into expects (f64_buf, f32_buf)");
+}
+
+OrenValue oren_buf_dot_i32_into(OrenValue out, OrenValue a, OrenValue b) {
+    if (!buf_is_i64(out) || !buf_is_i32(a) || !buf_is_i32(b)) return buf_err("oren_buf_dot_i32_into expects (i64_buf, i32_buf, i32_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_i32_into: length mismatch");
+    int64_t acc = 0;
+    uint32_t n = a.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        int32_t va = (int32_t)load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+        int32_t vb = (int32_t)load_u32_le(buf_data(b.as.buf_val) + i * 4u);
+        acc += (int64_t)va * (int64_t)vb;
+    }
+    return buf_store_i64_at0(out, acc, "oren_buf_dot_i32_into expects (i64_buf, i32_buf, i32_buf)");
+}
+
+OrenValue oren_buf_reduce_sum_i32_into(OrenValue out, OrenValue a) {
+    if (!buf_is_i64(out) || !buf_is_i32(a)) return buf_err("oren_buf_reduce_sum_i32_into expects (i64_buf, i32_buf)");
+    int64_t acc = 0;
+    uint32_t n = a.as.buf_val->len;
+    for (uint32_t i = 0; i < n; i++) {
+        int32_t v = (int32_t)load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+        acc += (int64_t)v;
+    }
+    return buf_store_i64_at0(out, acc, "oren_buf_reduce_sum_i32_into expects (i64_buf, i32_buf)");
+}

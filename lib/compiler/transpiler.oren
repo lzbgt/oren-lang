@@ -1199,7 +1199,14 @@ fn collect_parts(program) {
                 oren_list_push(types, s)
             } else {
                 if s["type"] == "Var" {
-                    oren_list_push(globals, s)
+                    // C backend: top-level `var` declares a global symbol, but the initializer
+                    // must execute in source order (NOT hoisted ahead of other top-level statements).
+                    //
+                    // We model that as:
+                    // - a global declaration (so other functions can reference it)
+                    // - an `Assign` statement in `main_body` at the exact original position.
+                    oren_list_push(globals, {"type": "VarDecl", "name": s["name"]})
+                    oren_list_push(main_body, {"type": "Assign", "name": s["name"], "value": s["value"]})
                 } else {
                     var is_fn_decl = false
                     if s["type"] == "ExprStmt" {
@@ -1294,13 +1301,6 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     while i < oren_list_len(units) {
         t["aliases"] = units[i]["aliases"]
         var pref = units[i]["prefix"]
-        // globals init
-        var globals2 = units[i]["parts"]["globals"]
-        var jg = 0
-        while jg < oren_list_len(globals2) {
-            collect_lambdas_in_expression(t, pref, units[i]["aliases"], globals2[jg]["value"])
-            jg = jg + 1
-        }
         // function bodies
         var funs2 = units[i]["parts"]["functions"]
         var jf = 0
@@ -1380,19 +1380,6 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         var j = 0
         while j < oren_list_len(globals) {
             emit(t, "oren_register_root(&" + globals[j]["name"]["value"] + ");")
-            j = j + 1
-        }
-        i = i + 1
-    }
-
-    // Global initializers.
-    i = 0
-    while i < oren_list_len(units) {
-        t["aliases"] = units[i]["aliases"]
-        var globals = units[i]["parts"]["globals"]
-        var j = 0
-        while j < oren_list_len(globals) {
-            emit(t, globals[j]["name"]["value"] + " = " + transpile_expression(t, globals[j]["value"]) + ";")
             j = j + 1
         }
         i = i + 1
