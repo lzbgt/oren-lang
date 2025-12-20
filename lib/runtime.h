@@ -218,6 +218,10 @@ OrenValue oren_f64_buf_new(OrenValue len);
 
 OrenValue oren_buf_len(OrenValue buf);
 
+// Debug/diagnostic helper (C backend): returns (uintptr_t)buf->data % mod.
+// Does not expose the full pointer value, but enables alignment assertions in tests.
+OrenValue oren_buf_data_mod(OrenValue buf, OrenValue mod);
+
 OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idx);
 OrenValue oren_buf_store_u8(OrenValue buf, OrenValue idx, OrenValue v);
 OrenValue oren_buf_load_i32(OrenValue buf, OrenValue idx);

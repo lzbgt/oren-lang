@@ -76,6 +76,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Add an explicit “unscanned / raw bytes” allocation mode for typed buffers (avoid GC scanning and pointer false-positives)
      - Support aligned allocation (arm64 NEON-friendly)
      - Expose as `std/buffer` API (portable across C/native/AVM where feasible)
+   - Status:
+     - Aligned typed-buffer payloads: **done** (64-byte) in native runtime + AVM allocator; covered by `test_buffer_alignment.oren` and verified on macOS + Linux docker
+     - “Unscanned / raw bytes” typed buffers: **still needed** (design must cover C runtime + native runtime + AVM)
 
 2) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
    - DoD:
@@ -113,6 +116,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Typed buffers: 64-byte aligned payloads across native runtime + AVM allocator; added `oren_buf_data_mod` (C runtime) and module coverage `tests/modules/test_buffer_alignment.oren`; verified on macOS + Linux docker.
 - Generics v0: added `fn f[T](...)` parsing + whole-program monomorphization (`f[T](...) -> f__T(...)`), plus an integration module test `test_generic_fn_monomorph_dot` for `i32` + `f32`; verified on macOS + Linux docker.
 - C backend: added `u8_buf` type and made `oren_bytes_get_*` / `oren_bytes_set_*` accept both `list<int>` and `u8_buf`; added module coverage (`test_u8_buf_bytes_helpers`) and verified on macOS + Linux docker.
 - Numeric literals: added `_` separators and `0x`/`0b`/`0o` base-prefixed int literals across lexer + optimizer + bytecode + native backend + C backend; added module + AVM coverage; verified on macOS + Linux docker.

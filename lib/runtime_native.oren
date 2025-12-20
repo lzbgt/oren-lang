@@ -4604,7 +4604,7 @@ fn oren_iter_next(container, idx) {
                             var tag = ptr_get(container + 32)
                             var n = ptr_get(container + 0)
                             if idx < n {
-                                var data = ptr_get(container + 16)
+                                var data = native_buf_data_ptr(container)
                                 if tag == BUF_TAG_U8 {
                                     ok = 1
                                     val = ptr_get_byte(data + idx) & 255
@@ -5174,7 +5174,7 @@ fn oren_bytes_get_u8(bytes, idx) {
     if native_bytes_is_u8_buf(bytes) == true {
         var count2 = ptr_get(bytes + 0)
         if idx < 0 || idx >= count2 { return oren_err(4, "bytes_get_u8: index out of bounds") }
-        var data = ptr_get(bytes + 16)
+        var data = native_buf_data_ptr(bytes)
         if data == 0 { return oren_err(4, "bytes_get_u8: buf payload is nil") }
         return ptr_get_byte(data + idx) & 255
     }
@@ -5195,7 +5195,7 @@ fn oren_bytes_set_u8(bytes, idx, v) {
     if native_bytes_is_u8_buf(bytes) == true {
         var count2 = ptr_get(bytes + 0)
         if idx < 0 || idx >= count2 { return oren_err(4, "bytes_set_u8: index out of bounds") }
-        var data = ptr_get(bytes + 16)
+        var data = native_buf_data_ptr(bytes)
         if data == 0 { return oren_err(4, "bytes_set_u8: buf payload is nil") }
         ptr_set_byte(data + idx, v)
         return v
@@ -5540,15 +5540,33 @@ fn oren_index_set(container, index, value) {
 // - Payload bytes are canonical little-endian element encodings to match AVM semantics.
 // - These APIs mirror the AVM typed buffer surface so higher-level code can be backend-agnostic.
 //
-// Header layout (40 bytes):
+// Header layout (56 bytes):
 //   [0]  len (element count)
 //   [8]  elem_size (1/4/8)
-//   [16] data_ptr (raw bytes)
+//   [16] data_base (GC keep-alive anchor for the payload allocation)
 //   [24] magic ('BUF\\0')
 //   [32] type_tag (1=i32, 2=i64, 3=f32, 4=f64, 5=u8)
+//   [40] data_ptr (payload pointer used for load/store; may be aligned)
 
 fn buf_magic() { return 4609346 } // 'BUF\0'
 // BUF_TAG_* are defined near global constants (used by iterator and native codegen).
+
+// Default alignment for typed-buffer payload pointers (cache-line, NEON-friendly).
+// This is a performance property only; it must not change semantics.
+fn buf_align_default() { return 64 }
+
+fn native_align_up(p, align) {
+    if align <= 1 { return p }
+    var u = p + align - 1
+    // Mod-based alignment to avoid relying on bitwise ops during early bootstrap.
+    return u - (u % align)
+}
+
+fn native_buf_data_ptr(buf) {
+    var p = ptr_get(buf + 40)
+    if p != 0 { return p }
+    return ptr_get(buf + 16)
+}
 
 fn native_buf_as_node(buf) {
     if buf == 0 { return 0 }
@@ -5575,23 +5593,27 @@ fn native_buf_new(len, elem_size, tag) {
     if len > 2147483647 { return oren_err(4, "buf_new: length too large") }
     if elem_size != 1 && elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new: invalid elem_size") }
 
-    var header = malloc(40)
+    var header = malloc(56)
     if header == 0 || header == -1 { return oren_err(8, "buf_new: alloc failed") }
-    oren_track_alloc(header, 40, 0)
+    oren_track_alloc(header, 56, 0)
     // Mark header kind=7 (BUF) so GC can keep payload alive.
     var node = oren_find_node(header)
     if node != 0 { ptr_set(iadd(node, 16), 7) }
 
     var bytes_len = len * elem_size
     var data = 0
+    var data_ptr = 0
     if bytes_len > 0 {
-        data = malloc(bytes_len)
+        // Over-allocate so we can align the working payload pointer while keeping the GC anchor stable.
+        var cap = bytes_len + (buf_align_default() - 1)
+        data = malloc(cap)
         if data == 0 || data == -1 { return oren_err(8, "buf_new: payload alloc failed") }
-        oren_track_alloc(data, bytes_len, 0)
+        oren_track_alloc(data, cap, 0)
+        data_ptr = native_align_up(data, buf_align_default())
         // Zero-fill (malloc does not promise zeroed memory).
         var i = 0
         while i < bytes_len {
-            ptr_set_byte(data + i, 0)
+            ptr_set_byte(data_ptr + i, 0)
             i = i + 1
         }
     }
@@ -5601,6 +5623,7 @@ fn native_buf_new(len, elem_size, tag) {
     ptr_set(header + 16, data)
     ptr_set(header + 24, buf_magic())
     ptr_set(header + 32, tag)
+    ptr_set(header + 40, data_ptr)
     return header
 }
 
@@ -5630,9 +5653,9 @@ fn native_buf_wrap_ptr(data, len, elem_size, tag) {
         if cap < bytes_len { return oren_err(4, "buf_wrap_ptr: payload too small") }
     }
 
-    var header = malloc(40)
+    var header = malloc(56)
     if header == 0 || header == -1 { return oren_err(8, "buf_wrap_ptr: alloc failed") }
-    oren_track_alloc(header, 40, 0)
+    oren_track_alloc(header, 56, 0)
     // Mark header kind=7 (BUF) so GC can keep payload alive.
     var node2 = oren_find_node(header)
     if node2 != 0 { ptr_set(iadd(node2, 16), 7) }
@@ -5642,6 +5665,7 @@ fn native_buf_wrap_ptr(data, len, elem_size, tag) {
     ptr_set(header + 16, data)
     ptr_set(header + 24, buf_magic())
     ptr_set(header + 32, tag)
+    ptr_set(header + 40, data)
     return header
 }
 
@@ -5662,7 +5686,7 @@ fn oren_buf_load_i32(buf, idx) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_load_i32: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 4
     var b0 = ptr_get_byte(data + off + 0)
     var b1 = ptr_get_byte(data + off + 1)
@@ -5678,7 +5702,7 @@ fn oren_buf_load_u8(buf, idx) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_load_u8: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     return ptr_get_byte(data + idx) & 255
 }
 
@@ -5687,7 +5711,7 @@ fn oren_buf_store_i32(buf, idx, v) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_store_i32: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 4
     var u = v & 4294967295
     ptr_set_byte(data + off + 0, u & 255)
@@ -5703,7 +5727,7 @@ fn oren_buf_store_u8(buf, idx, v) {
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_store_u8: index out of bounds") }
     if v < 0 || v > 255 { return oren_err(4, "buf_store_u8: byte out of range") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     ptr_set_byte(data + idx, v)
     return buf
 }
@@ -5713,7 +5737,7 @@ fn oren_buf_load_i64(buf, idx) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_load_i64: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 8
     var u = 0
     var i = 0
@@ -5730,7 +5754,7 @@ fn oren_buf_store_i64(buf, idx, v) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_store_i64: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 8
     var i = 0
     while i < 8 {
@@ -5746,7 +5770,7 @@ fn oren_buf_load_f64(buf, idx): f64 {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_load_f64: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 8
     var bits = 0
     var i = 0
@@ -5764,7 +5788,7 @@ fn oren_buf_store_f64(buf, idx, v: f64) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_store_f64: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 8
     var i = 0
     while i < 8 {
@@ -5780,7 +5804,7 @@ fn oren_buf_load_f32(buf, idx): f64 {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_load_f32: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 4
     var b0 = ptr_get_byte(data + off + 0)
     var b1 = ptr_get_byte(data + off + 1)
@@ -5796,7 +5820,7 @@ fn oren_buf_store_f32(buf, idx, v: f64) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_store_f32: index out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var off = idx * 4
     var bits = oren_f32_to_u32_bits(v)
     ptr_set_byte(data + off + 0, bits & 255)
@@ -5811,7 +5835,7 @@ fn oren_buf_fill_u8(buf, v) {
     if oren_is_err(err) { return err }
     if v < 0 || v > 255 { return oren_err(4, "buf_fill_u8: byte out of range") }
     var n = ptr_get(buf + 0)
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     var i = 0
     while i < n {
         ptr_set_byte(data + i, v)
@@ -5827,7 +5851,7 @@ fn sys_read_u8_buf(fd, buf, off, nbytes) {
     var n = ptr_get(buf + 0)
     if off > n { return oren_err(4, "sys_read_u8_buf: offset out of bounds") }
     if off + nbytes > n { return oren_err(4, "sys_read_u8_buf: length out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     return sys_read(fd, data + off, nbytes)
 }
 
@@ -5838,7 +5862,7 @@ fn sys_write_u8_buf(fd, buf, off, nbytes) {
     var n = ptr_get(buf + 0)
     if off > n { return oren_err(4, "sys_write_u8_buf: offset out of bounds") }
     if off + nbytes > n { return oren_err(4, "sys_write_u8_buf: length out of bounds") }
-    var data = ptr_get(buf + 16)
+    var data = native_buf_data_ptr(buf)
     return sys_write(fd, data + off, nbytes)
 }
 

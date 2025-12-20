@@ -106,6 +106,22 @@ OrenValue oren_buf_len(OrenValue buf) {
     return oren_int((long long)b->len);
 }
 
+OrenValue oren_buf_data_mod(OrenValue buf, OrenValue modv) {
+    if (modv.type != OREN_TYPE_INT) return buf_err("buf_data_mod expects (buf, int)");
+    long long m = modv.as.int_val;
+    if (m <= 0) return buf_err("buf_data_mod: mod must be > 0");
+    if ((uint64_t)m > 4096u) return buf_err("buf_data_mod: mod too large");
+    if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
+        return buf_err("buf_data_mod expects (buf, int)");
+    }
+    OrenBuf* b = buf.as.buf_val;
+    if (!b) return buf_err("buf_data_mod: invalid buffer");
+    if (b->len == 0) return oren_int(0);
+    if (!b->data) return buf_err("buf_data_mod: payload is nil");
+    uintptr_t u = (uintptr_t)b->data;
+    return oren_int((long long)(u % (uintptr_t)m));
+}
+
 static int buf_check_idx(OrenBuf* b, long long idx) {
     if (!b) return 0;
     if (idx < 0) return 0;

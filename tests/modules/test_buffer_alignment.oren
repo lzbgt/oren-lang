@@ -1,0 +1,27 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module buffer_alignment FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// C-backend runtime guarantees buffer payload alignment (currently 64 bytes).
+// We test this without exposing raw pointers by using `oren_buf_data_mod`.
+
+var b0: []i32 = buffer.i32_new(0)
+assert_eq(oren_buf_data_mod(b0, 64), 0, 10)
+
+var b1: []i32 = buffer.i32_new(8)
+assert_eq(oren_buf_data_mod(b1, 64), 0, 20)
+
+var b2: []f32 = buffer.f32_new(8)
+assert_eq(oren_buf_data_mod(b2, 64), 0, 30)
+
+print("module buffer_alignment OK")
+exit(0)
+
