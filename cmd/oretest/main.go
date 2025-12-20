@@ -149,6 +149,7 @@ func main() {
 		"tests/modules/test_container_methods.oren",
 		"tests/modules/test_int_literal_bases.oren",
 		"tests/modules/test_generic_call_specialization.oren",
+		"tests/modules/test_generic_fn_monomorph_dot.oren",
 		// ABI layouts (curated, no host headers).
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
@@ -194,6 +195,7 @@ func main() {
 		"tests/modules/test_container_methods.oren",
 		"tests/modules/test_int_literal_bases.oren",
 		"tests/modules/test_generic_call_specialization.oren",
+		"tests/modules/test_generic_fn_monomorph_dot.oren",
 		"tests/modules/test_mod.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_abi_layout.oren",

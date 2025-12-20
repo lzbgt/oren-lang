@@ -13,6 +13,7 @@ import serde_json "serde_json_lowering.oren"
 import type_ann "type_ann_lowering.oren"
 import typecheck "typecheck.oren"
 import gen_calls "generic_call_lowering.oren"
+import gen_mono "generic_monomorph.oren"
 import abi_layout "abi_layout_lowering.oren"
 import impl_lowering "impl_lowering.oren"
 import optimizer "optimizer.oren"
@@ -934,6 +935,22 @@ fn link_program(entry_path, root_prog, config) {
     if trace_passes { print("[trace] pass: generic_calls") }
     gen_calls.lower_linked_program_in_place(linked)
 
+    // Compile-time lowering: generic function monomorphization (rolling v0).
+    //   fn f[T](...) + f[T](...) calls  ->  fn f__T(...)
+    if trace_passes { print("[trace] pass: generic_mono") }
+    gen_mono.lower_linked_program_in_place(linked)
+    if linked["generic_monomorph_errors"] != nil && oren_list_len(linked["generic_monomorph_errors"]) > 0 {
+        var first_err = linked["generic_monomorph_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Generic monomorphization errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["generic_monomorph_errors"]) {
+            print(linked["generic_monomorph_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
     // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
     // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.
     if trace_passes { print("[trace] pass: abi_layout") }
@@ -957,6 +974,130 @@ fn link_program(entry_path, root_prog, config) {
 
     if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
     return linked
+}
+
+fn _unit_prefix_from_function_name(name) {
+    // Functions from imported modules are prefixed as `M<N>_foo` (e.g. `M12_len`).
+    // Root functions are unprefixed.
+    if name == nil || name == "" { return "root" }
+    if oren_string_len(name) < 3 { return "root" }
+    if oren_string_char_at(name, 0) != "M" { return "root" }
+    var i = 1
+    while i < oren_string_len(name) {
+        var ch = oren_string_char_at(name, i)
+        if ch >= "0" && ch <= "9" {
+            i = i + 1
+            continue
+        }
+        break
+    }
+    if i == 1 { return "root" }
+    if i < oren_string_len(name) && oren_string_char_at(name, i) == "_" {
+        return oren_string_slice(name, 0, i)
+    }
+    return "root"
+}
+
+fn c_backend_sync_generated_functions(root_prog, module_order, linked) {
+    // The C backend transpiler consumes per-module programs (MODULE_ORDER + root_prog).
+    // Whole-program passes may generate new functions by rebuilding `linked["statements"]`.
+    //
+    // Sync strategy (rolling, deterministic):
+    // - Remove generic templates (`fn f[T]`) from unit programs (so C won't emit unspecialized stubs).
+    // - Collect a set of already-present function names across all unit programs.
+    // - Any function in `linked["statements"]` not already present is appended to:
+    //     - module unit program matching `M<N>_` prefix, or
+    //     - root program (fallback).
+
+    if root_prog == nil || module_order == nil || linked == nil { return nil }
+
+    // Build prefix -> program table.
+    var by_pref = {}
+    var i = 0
+    while i < oren_list_len(module_order) {
+        var mod = module_order[i]
+        if mod != nil && mod["prefix"] != nil && mod["program"] != nil {
+            by_pref[mod["prefix"]] = mod["program"]
+        }
+        i = i + 1
+    }
+    by_pref["root"] = root_prog
+
+    // Remove generic templates from each unit and collect present function names.
+    var present = {}
+    i = 0
+    while i < oren_list_len(module_order) {
+        var mod = module_order[i]
+        var prog = mod["program"]
+        if prog != nil {
+            var out_stmts = []
+            var ss = prog["statements"]
+            var j = 0
+            while ss != nil && j < oren_list_len(ss) {
+                var st = ss[j]
+                var skip = false
+                if st != nil && st["type"] == "ExprStmt" {
+                    var e = st["expr"]
+                    if e != nil && e["type"] == "Function" {
+                        if e["type_params"] != nil && oren_list_len(e["type_params"]) > 0 {
+                            skip = true
+                        } else {
+                            present[e["name"]] = true
+                        }
+                    }
+                }
+                if !skip { oren_list_push(out_stmts, st) }
+                j = j + 1
+            }
+            prog["statements"] = out_stmts
+        }
+        i = i + 1
+    }
+
+    // Root program too.
+    var out_root = []
+    var ssr = root_prog["statements"]
+    var jr = 0
+    while ssr != nil && jr < oren_list_len(ssr) {
+        var st = ssr[jr]
+        var skip = false
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" {
+                if e["type_params"] != nil && oren_list_len(e["type_params"]) > 0 {
+                    skip = true
+                } else {
+                    present[e["name"]] = true
+                }
+            }
+        }
+        if !skip { oren_list_push(out_root, st) }
+        jr = jr + 1
+    }
+    root_prog["statements"] = out_root
+
+    // Append newly generated functions from linked program into the appropriate unit.
+    var linked_ss = linked["statements"]
+    var k = 0
+    while linked_ss != nil && k < oren_list_len(linked_ss) {
+        var st = linked_ss[k]
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" {
+                var nm = e["name"]
+                if nm != nil && present[nm] != true {
+                    var pref = _unit_prefix_from_function_name(nm)
+                    var dst = by_pref[pref]
+                    if dst == nil { dst = root_prog }
+                    if dst["statements"] == nil { dst["statements"] = [] }
+                    oren_list_push(dst["statements"], st)
+                    present[nm] = true
+                }
+            }
+        }
+        k = k + 1
+    }
+    return nil
 }
 
 fn compiler_main() {
@@ -1832,8 +1973,14 @@ fn compiler_main() {
         return nil
     }
 
-    // For C backend, we also need to load modules to populate MODULE_ORDER
+    // For C backend, we also need to load modules to populate MODULE_ORDER.
+    //
+    // Note: some whole-program lowerings (like generic monomorphization) may generate
+    // *new* function definitions during linking. The C transpiler consumes per-module
+    // ASTs (MODULE_ORDER + prog), so we must sync generated functions back into those
+    // unit programs before transpiling.
     var linked_c = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck})
+    c_backend_sync_generated_functions(prog, MODULE_ORDER, linked_c)
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     // IMPORTANT (rolling hygiene):
     // Do NOT write generated C next to sources. This breaks Makefile implicit rules

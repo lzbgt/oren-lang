@@ -71,24 +71,23 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Generics + monomorphization (HPC enabler)**
-   - DoD:
-     - Parse + lower generic function definitions (syntax TBD, but must be unambiguous)
-     - Monomorphize at compile time (no runtime overhead in hot loops)
-     - Allow simple constraints via `trait` (compile-time only v0)
-     - Add a small integration test that compiles a generic `dot<T>` for `i32` + `f32`
-
-2) **[lang][perf] Allocator control for large numeric buffers**
+1) **[lang][perf] Allocator control for large numeric buffers**
    - DoD:
      - Add an explicit “unscanned / raw bytes” allocation mode for typed buffers (avoid GC scanning and pointer false-positives)
      - Support aligned allocation (arm64 NEON-friendly)
      - Expose as `std/buffer` API (portable across C/native/AVM where feasible)
 
-3) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
+2) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
    - DoD:
      - Define a stable intrinsic boundary (compiler-known names) for vector kernels
      - Add feature gating + scalar fallback (deterministic)
      - Expand `std/linalg` kernels safely (keep reference implementations)
+
+3) **[lang][perf] Expand generics v0.1 (constraints + hygiene)**
+   - DoD:
+     - Keep v0 single-type-param generics, but enforce “unspecialized call to generic template is a compile error”
+     - Add minimal constraint enforcement: `fn f[T: Trait]` requires an `impl Trait for <T>` (or `any`) to exist
+     - Extend monomorph substitution to cover additional AST nodes encountered in real code
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -114,6 +113,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Generics v0: added `fn f[T](...)` parsing + whole-program monomorphization (`f[T](...) -> f__T(...)`), plus an integration module test `test_generic_fn_monomorph_dot` for `i32` + `f32`; verified on macOS + Linux docker.
 - C backend: added `u8_buf` type and made `oren_bytes_get_*` / `oren_bytes_set_*` accept both `list<int>` and `u8_buf`; added module coverage (`test_u8_buf_bytes_helpers`) and verified on macOS + Linux docker.
 - Numeric literals: added `_` separators and `0x`/`0b`/`0o` base-prefixed int literals across lexer + optimizer + bytecode + native backend + C backend; added module + AVM coverage; verified on macOS + Linux docker.
 - `std/buffer` views: switched slice/matrix views from map-based records to fixed-position lists to reduce hot-loop overhead; verified on macOS + Linux docker.

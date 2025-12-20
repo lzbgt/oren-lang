@@ -173,6 +173,12 @@ fn lower_expr(expr, declared) {
                     var dotted = expr_dotted_name(fn_expr["index"])
                     var suff = mangle_type_name(dotted)
                     if suff != nil && suff != "" {
+                        // Preserve type-argument metadata so later passes (monomorphization)
+                        // can reconstruct the original dotted type name even after mangling.
+                        //
+                        // Rolling v0: single type argument only.
+                        expr["generic_type_arg"] = dotted
+                        expr["generic_type_arg_mangled"] = suff
                         expr["fn"] = ast.new_identifier({"literal": base + "__" + suff})
                     }
                 }

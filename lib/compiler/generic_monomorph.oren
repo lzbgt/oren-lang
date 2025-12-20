@@ -1,0 +1,534 @@
+import ast "ast.oren"
+
+// Generic function monomorphization (rolling v0).
+//
+// Supported surface:
+//   fn dot[T](a: []T, b: []T): T { ... }
+//   dot[i32](...)   // call-site triggers instantiation
+//
+// Notes:
+// - This pass runs after `generic_call_lowering`, which rewrites calls:
+//     f[T](...) -> f__T(...)
+//   and stamps call-site metadata:
+//     call["generic_type_arg"] = "math.Vec4"
+//     call["generic_type_arg_mangled"] = "math_Vec4"
+//
+// - We intentionally avoid `for k in map` loops in the compiler implementation
+//   because stage-0 bootstrap currently cannot emit valid C for parser-generated
+//   internal identifiers like `@forin_*`.
+//
+// - v0 supports exactly 1 type parameter per generic function.
+
+fn err_push(errs, msg) {
+    if errs == nil { return nil }
+    oren_list_push(errs, msg)
+    return nil
+}
+
+fn split_base_and_suffix(name) {
+    // Split `foo__bar` -> {"base":"foo","suff":"bar"}, otherwise {"base":nil,"suff":nil}.
+    if name == nil { return {"base": nil, "suff": nil} }
+    var j = 0
+    while j + 1 < oren_string_len(name) {
+        if oren_string_char_at(name, j) == "_" && oren_string_char_at(name, j + 1) == "_" {
+            return {"base": oren_string_slice(name, 0, j), "suff": oren_string_slice(name, j + 2, oren_string_len(name))}
+        }
+        j = j + 1
+    }
+    return {"base": nil, "suff": nil}
+}
+
+fn split_type_string(tname) {
+    // Type name strings come from parse_type_name_after_colon:
+    //   * prefix: '*' and '[]' repetitions
+    //   * base: ident(.ident)*
+    //   * suffix: fixed arrays '[N]' repetitions
+    //
+    // Returns {prefix, base, suffix}.
+    if tname == nil { return {"prefix": "", "base": "", "suffix": ""} }
+    var s = tname
+    var prefix = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        if ch == "*" {
+            prefix = prefix + "*"
+            i = i + 1
+            continue
+        }
+        // '[]'
+        if ch == "[" {
+            if i + 1 < oren_string_len(s) && oren_string_char_at(s, i + 1) == "]" {
+                prefix = prefix + "[]"
+                i = i + 2
+                continue
+            }
+        }
+        break
+    }
+    // Base until '[' or end.
+    var base = ""
+    while i < oren_string_len(s) {
+        var ch2 = oren_string_char_at(s, i)
+        if ch2 == "[" { break }
+        base = base + ch2
+        i = i + 1
+    }
+    var suffix = ""
+    while i < oren_string_len(s) {
+        suffix = suffix + oren_string_char_at(s, i)
+        i = i + 1
+    }
+    return {"prefix": prefix, "base": base, "suffix": suffix}
+}
+
+fn replace_type_param_in_type_string(tname, param, concrete) {
+    if tname == nil || param == nil || concrete == nil { return tname }
+    var parts = split_type_string(tname)
+    if parts["base"] == param {
+        return parts["prefix"] + concrete + parts["suffix"]
+    }
+    return tname
+}
+
+fn rewrite_ident_name(name, param, mangled) {
+    // Replace:
+    // - exact "T" -> "i32" (cast sugar `T(x)` etc; dotted types are not supported here)
+    // - suffix "__T" -> "__i32" (helper indirection patterns: `load__T`)
+    if name == nil { return nil }
+    if param != nil && name == param { return mangled }
+    if param != nil {
+        var suf = "__" + param
+        var ln = oren_string_len(name)
+        var sln = oren_string_len(suf)
+        if ln >= sln {
+            var tail = oren_string_slice(name, ln - sln, ln)
+            if tail == suf {
+                return oren_string_slice(name, 0, ln - sln) + "__" + mangled
+            }
+        }
+    }
+    return name
+}
+
+fn clone_identifier(id, param, concrete_type, mangled_type) {
+    if id == nil { return nil }
+    var out = {"type": "Identifier", "token": id["token"], "value": rewrite_ident_name(id["value"], param, mangled_type)}
+    if id["attrs"] != nil { out["attrs"] = id["attrs"] }
+    if id["doc"] != nil { out["doc"] = id["doc"] }
+    if id["is_varargs"] != nil { out["is_varargs"] = id["is_varargs"] }
+    if id["ann_type"] != nil {
+        out["ann_type"] = replace_type_param_in_type_string(id["ann_type"], param, concrete_type)
+    }
+    return out
+}
+
+fn clone_expr(e, param, concrete_type, mangled_type) {
+    if e == nil { return nil }
+    var t = e["type"]
+
+    if t == "Identifier" { return clone_identifier(e, param, concrete_type, mangled_type) }
+    if t == "Integer" { return {"type": "Integer", "token": e["token"], "value": e["value"]} }
+    if t == "Float" { return {"type": "Float", "token": e["token"], "value": e["value"]} }
+    if t == "String" { return {"type": "String", "token": e["token"], "value": e["value"]} }
+    if t == "Boolean" { return {"type": "Boolean", "token": e["token"], "value": e["value"]} }
+    if t == "Nil" { return {"type": "Nil", "token": e["token"]} }
+
+    if t == "Prefix" {
+        return {"type": "Prefix", "token": e["token"], "op": e["op"], "right": clone_expr(e["right"], param, concrete_type, mangled_type)}
+    }
+    if t == "Infix" {
+        return {
+            "type": "Infix",
+            "token": e["token"],
+            "left": clone_expr(e["left"], param, concrete_type, mangled_type),
+            "op": e["op"],
+            "right": clone_expr(e["right"], param, concrete_type, mangled_type)
+        }
+    }
+    if t == "If" {
+        var out = {"type": "If", "token": e["token"]}
+        out["cond"] = clone_expr(e["cond"], param, concrete_type, mangled_type)
+        out["consq"] = clone_stmt(e["consq"], param, concrete_type, mangled_type)
+        if e["alt"] != nil { out["alt"] = clone_stmt(e["alt"], param, concrete_type, mangled_type) }
+        return out
+    }
+    if t == "Call" {
+        var out = {"type": "Call", "token": e["token"]}
+        out["fn"] = clone_expr(e["fn"], param, concrete_type, mangled_type)
+        var args = []
+        var xs = e["args"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            oren_list_push(args, clone_expr(xs[i], param, concrete_type, mangled_type))
+            i = i + 1
+        }
+        out["args"] = args
+        if e["spread"] != nil { out["spread"] = clone_expr(e["spread"], param, concrete_type, mangled_type) }
+        return out
+    }
+    if t == "Member" {
+        return {"type": "Member", "token": e["token"], "left": clone_expr(e["left"], param, concrete_type, mangled_type), "prop": clone_expr(e["prop"], param, concrete_type, mangled_type)}
+    }
+    if t == "Index" {
+        return {"type": "Index", "token": e["token"], "left": clone_expr(e["left"], param, concrete_type, mangled_type), "index": clone_expr(e["index"], param, concrete_type, mangled_type)}
+    }
+    if t == "Array" {
+        var out = {"type": "Array", "token": e["token"]}
+        var elems = []
+        var xs = e["elements"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            oren_list_push(elems, clone_expr(xs[i], param, concrete_type, mangled_type))
+            i = i + 1
+        }
+        out["elements"] = elems
+        return out
+    }
+    if t == "Hash" {
+        // pairs: list of {"k":expr, "v":expr}
+        var out = {"type": "Hash", "token": e["token"]}
+        var pairs = []
+        var ps = e["pairs"]
+        var i = 0
+        while ps != nil && i < oren_list_len(ps) {
+            var p = ps[i]
+            var np = {"k": clone_expr(p["k"], param, concrete_type, mangled_type), "v": clone_expr(p["v"], param, concrete_type, mangled_type)}
+            oren_list_push(pairs, np)
+            i = i + 1
+        }
+        out["pairs"] = pairs
+        return out
+    }
+    if t == "SpawnExpr" {
+        return {"type": "SpawnExpr", "token": e["token"], "call": clone_expr(e["call"], param, concrete_type, mangled_type)}
+    }
+    if t == "Lambda" {
+        // Runtime lambda surface (env/argc/argv wrapper); keep structure but substitute in params/body.
+        var out = {"type": "Lambda", "token": e["token"]}
+        out["name"] = e["name"]
+        out["params"] = clone_id_list(e["params"], param, concrete_type, mangled_type)
+        out["body"] = clone_stmt(e["body"], param, concrete_type, mangled_type)
+        return out
+    }
+    if t == "Function" {
+        // Nested function expr (rare); handle similarly to top-level.
+        return clone_function(e, param, concrete_type, mangled_type)
+    }
+
+    // Fallback: keep expression as-is (rolling; expand as needed).
+    return e
+}
+
+fn clone_id_list(xs, param, concrete_type, mangled_type) {
+    var out = []
+    var i = 0
+    while xs != nil && i < oren_list_len(xs) {
+        oren_list_push(out, clone_identifier(xs[i], param, concrete_type, mangled_type))
+        i = i + 1
+    }
+    return out
+}
+
+fn clone_stmt(s, param, concrete_type, mangled_type) {
+    if s == nil { return nil }
+    var t = s["type"]
+
+    if t == "Block" || t == "StmtList" {
+        var out = {"type": t, "token": s["token"]}
+        var out_stmts = []
+        var xs = s["stmts"]
+        if xs == nil { xs = s["statements"] }
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            oren_list_push(out_stmts, clone_stmt(xs[i], param, concrete_type, mangled_type))
+            i = i + 1
+        }
+        out["stmts"] = out_stmts
+        return out
+    }
+    if t == "Var" {
+        var out = {"type": "Var", "token": s["token"]}
+        out["name"] = clone_identifier(s["name"], param, concrete_type, mangled_type)
+        out["value"] = clone_expr(s["value"], param, concrete_type, mangled_type)
+        return out
+    }
+    if t == "Assign" {
+        var out = {"type": "Assign", "token": s["token"]}
+        out["name"] = clone_identifier(s["name"], param, concrete_type, mangled_type)
+        out["value"] = clone_expr(s["value"], param, concrete_type, mangled_type)
+        return out
+    }
+    if t == "Set" {
+        var out = {"type": "Set", "token": s["token"]}
+        out["left"] = clone_expr(s["left"], param, concrete_type, mangled_type)
+        out["value"] = clone_expr(s["value"], param, concrete_type, mangled_type)
+        return out
+    }
+    if t == "Return" {
+        return {"type": "Return", "token": s["token"], "value": clone_expr(s["value"], param, concrete_type, mangled_type)}
+    }
+    if t == "ExprStmt" {
+        return {"type": "ExprStmt", "token": s["token"], "expr": clone_expr(s["expr"], param, concrete_type, mangled_type)}
+    }
+    if t == "While" {
+        var out = {"type": "While", "token": s["token"]}
+        out["cond"] = clone_expr(s["cond"], param, concrete_type, mangled_type)
+        out["body"] = clone_stmt(s["body"], param, concrete_type, mangled_type)
+        return out
+    }
+    if t == "For" {
+        var out = {"type": "For", "token": s["token"]}
+        out["init"] = clone_stmt(s["init"], param, concrete_type, mangled_type)
+        out["cond"] = clone_expr(s["cond"], param, concrete_type, mangled_type)
+        out["post"] = clone_stmt(s["post"], param, concrete_type, mangled_type)
+        out["body"] = clone_stmt(s["body"], param, concrete_type, mangled_type)
+        return out
+    }
+    if t == "Break" { return {"type": "Break", "token": s["token"]} }
+    if t == "Continue" { return {"type": "Continue", "token": s["token"]} }
+    if t == "Spawn" { return {"type": "Spawn", "token": s["token"], "call": clone_expr(s["call"], param, concrete_type, mangled_type)} }
+    if t == "Import" { return s }
+    if t == "FFI" { return s }
+    if t == "Type" { return s }
+
+    // Fallback: keep statement as-is (rolling; expand as needed).
+    return s
+}
+
+fn clone_function(fn0, param, concrete_type, mangled_type) {
+    if fn0 == nil { return nil }
+    var out = {"type": "Function", "token": fn0["token"], "name": fn0["name"]}
+    out["params"] = clone_id_list(fn0["params"], param, concrete_type, mangled_type)
+    out["body"] = clone_stmt(fn0["body"], param, concrete_type, mangled_type)
+    if fn0["ret_ann_type"] != nil {
+        out["ret_ann_type"] = replace_type_param_in_type_string(fn0["ret_ann_type"], param, concrete_type)
+    }
+    if fn0["doc"] != nil { out["doc"] = fn0["doc"] }
+    return out
+}
+
+fn collect_generic_templates(linked, errs) {
+    var templates = {}
+    var ss = linked["statements"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" && e["type_params"] != nil && oren_list_len(e["type_params"]) > 0 {
+                var name = e["name"]
+                if name == nil || name == "" {
+                    err_push(errs, "generic function must have a name")
+                } else {
+                    if templates[name] != nil {
+                        err_push(errs, "duplicate generic function template: " + name)
+                    }
+                    templates[name] = e
+                }
+            }
+        }
+        i = i + 1
+    }
+    return templates
+}
+
+fn add_instantiation(insts, base, dotted, mangled) {
+    if insts[base] == nil { insts[base] = [] }
+    var xs = insts[base]
+    var i = 0
+    while i < oren_list_len(xs) {
+        if xs[i]["mangled"] == mangled { return nil }
+        i = i + 1
+    }
+    oren_list_push(xs, {"dotted": dotted, "mangled": mangled})
+    return nil
+}
+
+fn sort_instantiations(xs) {
+    // Insertion sort by `mangled` (small lists expected).
+    if xs == nil { return [] }
+    var i = 1
+    while i < oren_list_len(xs) {
+        var key = xs[i]
+        var j = i - 1
+        while j >= 0 && xs[j]["mangled"] > key["mangled"] {
+            xs[j + 1] = xs[j]
+            j = j - 1
+        }
+        xs[j + 1] = key
+        i = i + 1
+    }
+    return xs
+}
+
+fn collect_instantiations_expr(e, templates, insts) {
+    if e == nil { return nil }
+    var t = e["type"]
+    if t == "Call" && e["fn"] != nil && e["fn"]["type"] == "Identifier" {
+        var fname = e["fn"]["value"]
+        var targ = e["generic_type_arg"]
+        var tm = e["generic_type_arg_mangled"]
+        if targ != nil && tm != nil {
+            var parts = split_base_and_suffix(fname)
+            var base = parts["base"]
+            if base != nil && templates[base] != nil {
+                add_instantiation(insts, base, targ, tm)
+            }
+        }
+        // descend into call fn/args too (nested specializations)
+        collect_instantiations_expr(e["fn"], templates, insts)
+        var args = e["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            collect_instantiations_expr(args[i], templates, insts)
+            i = i + 1
+        }
+        if e["spread"] != nil { collect_instantiations_expr(e["spread"], templates, insts) }
+        return nil
+    }
+    if t == "Prefix" { collect_instantiations_expr(e["right"], templates, insts); return nil }
+    if t == "Infix" { collect_instantiations_expr(e["left"], templates, insts); collect_instantiations_expr(e["right"], templates, insts); return nil }
+    if t == "If" {
+        collect_instantiations_expr(e["cond"], templates, insts)
+        collect_instantiations_stmt(e["consq"], templates, insts)
+        if e["alt"] != nil { collect_instantiations_stmt(e["alt"], templates, insts) }
+        return nil
+    }
+    if t == "Member" { collect_instantiations_expr(e["left"], templates, insts); collect_instantiations_expr(e["prop"], templates, insts); return nil }
+    if t == "Index" { collect_instantiations_expr(e["left"], templates, insts); collect_instantiations_expr(e["index"], templates, insts); return nil }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            collect_instantiations_expr(xs[i], templates, insts)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i = 0
+        while ps != nil && i < oren_list_len(ps) {
+            collect_instantiations_expr(ps[i]["k"], templates, insts)
+            collect_instantiations_expr(ps[i]["v"], templates, insts)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "SpawnExpr" { collect_instantiations_expr(e["call"], templates, insts); return nil }
+    if t == "Function" {
+        collect_instantiations_stmt(e["body"], templates, insts)
+        return nil
+    }
+    if t == "Lambda" {
+        collect_instantiations_stmt(e["body"], templates, insts)
+        return nil
+    }
+    return nil
+}
+
+fn collect_instantiations_stmt(s, templates, insts) {
+    if s == nil { return nil }
+    var t = s["type"]
+    if t == "ExprStmt" { collect_instantiations_expr(s["expr"], templates, insts); return nil }
+    if t == "Var" { collect_instantiations_expr(s["value"], templates, insts); return nil }
+    if t == "Assign" { collect_instantiations_expr(s["value"], templates, insts); return nil }
+    if t == "Set" { collect_instantiations_expr(s["left"], templates, insts); collect_instantiations_expr(s["value"], templates, insts); return nil }
+    if t == "Return" { collect_instantiations_expr(s["value"], templates, insts); return nil }
+    if t == "While" { collect_instantiations_expr(s["cond"], templates, insts); collect_instantiations_stmt(s["body"], templates, insts); return nil }
+    if t == "For" {
+        collect_instantiations_stmt(s["init"], templates, insts)
+        collect_instantiations_expr(s["cond"], templates, insts)
+        collect_instantiations_stmt(s["post"], templates, insts)
+        collect_instantiations_stmt(s["body"], templates, insts)
+        return nil
+    }
+    if t == "Spawn" { collect_instantiations_expr(s["call"], templates, insts); return nil }
+    if t == "Block" || t == "StmtList" {
+        var xs = s["stmts"]
+        if xs == nil { xs = s["statements"] }
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            collect_instantiations_stmt(xs[i], templates, insts)
+            i = i + 1
+        }
+        return nil
+    }
+    return nil
+}
+
+fn emit_specializations_for_template(template_fn, inst_list, errs) {
+    if template_fn["type_params"] == nil || oren_list_len(template_fn["type_params"]) != 1 {
+        err_push(errs, "v0 generics supports exactly 1 type parameter (fn " + template_fn["name"] + ")")
+        return []
+    }
+    var tp = template_fn["type_params"][0]
+    var pname = tp["name"]
+
+    var out = []
+    if inst_list == nil { return out }
+    sort_instantiations(inst_list)
+    var i = 0
+    while i < oren_list_len(inst_list) {
+        var info = inst_list[i]
+        var dotted = info["dotted"]
+        var mangled = info["mangled"]
+
+        var fnc = clone_function(template_fn, pname, dotted, mangled)
+        fnc["name"] = template_fn["name"] + "__" + mangled
+        fnc["type_params"] = nil
+        fnc["is_monomorphized"] = true
+        fnc["mono_type_arg"] = dotted
+        oren_list_push(out, fnc)
+        i = i + 1
+    }
+    return out
+}
+
+fn lower_linked_program_in_place(linked) {
+    if linked == nil { return nil }
+    var errs = []
+    var templates = collect_generic_templates(linked, errs)
+
+    // Collect instantiations by scanning the whole program (after generic-call lowering).
+    var insts = {}
+    var ss = linked["statements"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        collect_instantiations_stmt(ss[i], templates, insts)
+        i = i + 1
+    }
+
+    // Rebuild statements: replace each generic template statement with its generated specializations.
+    var out_stmts = []
+    i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        var replaced = false
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" && e["type_params"] != nil && oren_list_len(e["type_params"]) > 0 {
+                var base = e["name"]
+                var specs = emit_specializations_for_template(e, insts[base], errs)
+                var si = 0
+                while si < oren_list_len(specs) {
+                    oren_list_push(out_stmts, ast.new_expr_stmt(specs[si]["token"], specs[si]))
+                    si = si + 1
+                }
+                replaced = true
+            }
+        }
+        if !replaced {
+            oren_list_push(out_stmts, st)
+        }
+        i = i + 1
+    }
+
+    linked["statements"] = out_stmts
+    if oren_list_len(errs) > 0 {
+        linked["generic_monomorph_errors"] = errs
+    }
+    return nil
+}
+

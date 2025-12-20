@@ -1,0 +1,59 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module generic_fn_monomorph_dot FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// --- per-type helpers used by the generic template (explicit, deterministic) ---
+
+fn zero__i32() { return 0 }
+fn add__i32(a, b) { return a + b }
+fn mul__i32(a, b) { return a * b }
+fn load__i32(buf: []i32, idx) { return oren_buf_load_i32(buf, idx) }
+
+fn zero__f32() { return 0.0 }
+fn add__f32(a, b) { return a + b }
+fn mul__f32(a, b) { return a * b }
+fn load__f32(buf: []f32, idx) { return oren_buf_load_f32(buf, idx) }
+
+// --- generic function definition + monomorphization ---
+//
+// This template deliberately uses only:
+// - type annotations `[]T` / `T`
+// - helper identifiers suffixed with `__T` that the monomorphizer rewrites to `__i32`, `__f32`, etc.
+//
+// so the compiler can monomorphize it without a full static type system yet.
+fn dot[T](a: []T, b: []T): T {
+    var n = oren_buf_len(a)
+    var i = 0
+    var sum: T = zero__T()
+    while i < n {
+        sum = add__T(sum, mul__T(load__T(a, i), load__T(b, i)))
+        i = i + 1
+    }
+    return sum
+}
+
+// --- i32 specialization ---
+var ai: []i32 = buffer.i32_new(3)
+var bi: []i32 = buffer.i32_new(3)
+oren_buf_store_i32(ai, 0, 1); oren_buf_store_i32(ai, 1, 2); oren_buf_store_i32(ai, 2, 3)
+oren_buf_store_i32(bi, 0, 4); oren_buf_store_i32(bi, 1, 5); oren_buf_store_i32(bi, 2, 6)
+assert_eq(dot[i32](ai, bi), 32, 10)
+
+// --- f32 specialization ---
+var af: []f32 = buffer.f32_new(3)
+var bf: []f32 = buffer.f32_new(3)
+oren_buf_store_f32(af, 0, 1.0); oren_buf_store_f32(af, 1, 2.0); oren_buf_store_f32(af, 2, 3.0)
+oren_buf_store_f32(bf, 0, 0.5); oren_buf_store_f32(bf, 1, 1.0); oren_buf_store_f32(bf, 2, 1.5)
+assert_eq(dot[f32](af, bf), 7.0, 20)
+
+print("module generic_fn_monomorph_dot OK")
+exit(0)
+

@@ -1295,6 +1295,51 @@ fn parse_function(p) {
         parser_next_token(p)
         name = p["cur"]["literal"]
     }
+
+    // Generic function definition (rolling v0):
+    //   fn f[T](x: []T): T { ... }
+    //
+    // - Stored as `fn["type_params"] = [{name, constraint?}]`.
+    // - Monomorphization is implemented as a later whole-program lowering pass.
+    var type_params = nil
+    if peek_is(p, token.TOK_LBRACKET) {
+        type_params = []
+        parser_next_token(p) // '['
+        if peek_is(p, token.TOK_RBRACKET) {
+            // Empty `[]` is invalid for now (avoid ambiguous surfaces).
+            parser_add_error(p, "empty generic parameter list")
+            return nil
+        }
+        parser_next_token(p) // first token in type params
+        while true {
+            if p["cur"]["type"] != token.TOK_IDENT {
+                parser_add_error(p, "expected generic type parameter name, got " + p["cur"]["type"])
+                return nil
+            }
+            var tp = {"name": p["cur"]["literal"]}
+            // Optional constraint:
+            //   T: TraitName
+            if peek_is(p, token.TOK_COLON) {
+                parser_next_token(p) // ':'
+                var c = parse_type_name_after_colon(p)
+                if c == nil { return nil }
+                tp["constraint"] = c
+            }
+            oren_list_push(type_params, tp)
+
+            if peek_is(p, token.TOK_COMMA) {
+                parser_next_token(p)
+                parser_next_token(p) // next token after comma
+                continue
+            }
+            if peek_is(p, token.TOK_RBRACKET) {
+                parser_next_token(p)
+                break
+            }
+            parser_add_error(p, "expected ',' or ']' after generic parameter")
+            return nil
+        }
+    }
     if !expect_peek(p, token.TOK_LPAREN) { return nil }
     var params = parse_parameters(p)
 
@@ -1325,6 +1370,7 @@ fn parse_function(p) {
     }
     var body = parse_block(p)
     var fnn = ast.new_function(tok, name, params, body)
+    if type_params != nil { fnn["type_params"] = type_params }
     if ret_ann != nil { fnn["ret_ann_type"] = ret_ann }
     if doc != nil { fnn["doc"] = doc }
     return fnn
