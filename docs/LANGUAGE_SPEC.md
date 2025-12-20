@@ -618,6 +618,7 @@ Planned evolution (minimal rewrite):
 **Status update (rolling):** `trait` and `impl` syntax are now accepted by the parser as compile-time-only constructs.
 - `trait` declarations have no runtime effect yet.
 - `impl Trait for Type { ... }` is lowered deterministically into plain top-level `fn`s (see `docs/OBJECT_MODEL.md`).
+- Design direction: Oren is **static-first** (`trait` = compile-time dispatch) with **explicit opt-in** runtime polymorphism (`dyn Trait`) when needed. See `docs/TRAITS_AND_POLYMORPHISM.md`.
 
 
 Example:

@@ -131,6 +131,11 @@ This prevents “hidden host effects” and composes with nested universes.
 
 ## 6) Deterministic dispatch + trait objects
 
+Static-first: prefer compile-time dispatch; use explicit trait objects only when required.
+
+- `trait` is compile-time by default (no runtime rep).
+- `dyn Trait` (syntax TBD) introduces a runtime representation `{value, vtable_id}` and must be capability/determinism-governed.
+- In consensus jobs, trait objects should be callable but not comparable/hashable unless a stable semantics is defined.
 Traits must not re-introduce nondeterminism.
 
 Recommended rules:
