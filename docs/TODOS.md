@@ -85,6 +85,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - dead-code elimination for unused locals/temporaries
        - peephole cleanup for redundant moves/loads
      - add a small microbenchmark `.oren` program in `examples/` + measure before/after in `docs/`
+   - Status:
+     - implemented a conservative AST/link-time optimizer pass: constant folding (small ints), peepholes, and trivial top-level DCE
+     - added `examples/bench_opt_native.oren` as a baseline microbenchmark
+     - fixed a native SIGILL regression found while enabling the optimizer: negative integer literals must not emit `MOVZ` with a negative imm16
 
 3) **[lang][safety] “Production panic” diagnostics: spans + stable backtrace mapping**
    - DoD:
@@ -143,6 +147,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Verification loop: `oretest` is parallel + timeout-safe by default; it no longer requires GNU `timeout`/`gtimeout` on macOS (internal process-group kill).
 - Varargs: implemented `fn f(a, ...rest)` end-to-end across parser + C backend + native backend + AVM bytecode, with spawn/join coverage and linux/arm64 docker verification.
 - Runtime diagnostics: failures/panics now emit a stable `OREN_DIAG kind=... code=... msg=...` one-liner, enforced by `oretest` fixtures (AI-friendly, no lldb/otool needed).
+- Native syscalls: macOS `sys_execve` now returns `-errno` on failure (consistent with other syscalls and Linux); negative integer literals are loaded via a shared i64-imm loader to avoid invalid encodings.
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
 - Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
 - Metadata: trait declarations are preserved in module metadata JSON (`traits`, methods, and return annotations), enabling doc/serde tooling without runtime vtables yet.

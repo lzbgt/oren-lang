@@ -1,0 +1,624 @@
+import ast "ast.oren"
+
+// Optimizer baseline (rolling, conservative).
+//
+// Goal:
+// - Provide a minimal, future-proof optimization layer without introducing a new IR.
+// - Keep it deterministic and safe: never change observable behavior.
+//
+// Current scope:
+// - Constant folding for small integer literals.
+// - Algebraic peepholes (x+0, x*1, x*0, x-0) for integer expressions.
+// - Conservative dead-code elimination for unused locals with trivial RHS.
+//
+// Non-goals (future):
+// - Global DCE across control-flow.
+// - Escape analysis / stack-vs-heap decisions.
+// - Float folding/rounding.
+
+fn is_int_lit(e) {
+    return e != nil && e["type"] == "Integer" && e["value"] != nil
+}
+
+fn parse_int(s) {
+    // Minimal decimal parser.
+    if s == nil { return 0 }
+    var i = 0
+    var neg = false
+    if oren_string_len(s) > 0 && oren_string_char_at(s, 0) == "-" {
+        neg = true
+        i = 1
+    }
+    var n = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        var d = 0
+        if ch == "0" { d = 0 }
+        if ch == "1" { d = 1 }
+        if ch == "2" { d = 2 }
+        if ch == "3" { d = 3 }
+        if ch == "4" { d = 4 }
+        if ch == "5" { d = 5 }
+        if ch == "6" { d = 6 }
+        if ch == "7" { d = 7 }
+        if ch == "8" { d = 8 }
+        if ch == "9" { d = 9 }
+        n = n * 10 + d
+        i = i + 1
+    }
+    if neg { return -n }
+    return n
+}
+
+fn abs_int(n) {
+    if n < 0 { return -n }
+    return n
+}
+
+fn small_int(n) {
+    // Keep folds safely within host integer range.
+    // (We intentionally do not assume i64 wrap semantics for the compiler itself.)
+    return abs_int(n) <= 1000000000
+}
+
+fn int_lit(n) {
+    return {"type": "Integer", "token": nil, "value": oren_int_to_string(n)}
+}
+
+fn fold_infix(op, a, b) {
+    // Only fold when both sides are small int literals.
+    if !is_int_lit(a) || !is_int_lit(b) { return nil }
+    var av = parse_int(a["value"])
+    var bv = parse_int(b["value"])
+    if !small_int(av) || !small_int(bv) { return nil }
+
+    if op == "+" { return int_lit(av + bv) }
+    if op == "-" { return int_lit(av - bv) }
+    if op == "*" { return int_lit(av * bv) }
+
+    // Avoid folding ops that can trap or are semantics-sensitive without a full model.
+    // - "/" can trap on div0
+    // - shifts can trap on invalid counts (backend-dependent today)
+    return nil
+}
+
+fn is_zero(e) { return is_int_lit(e) && parse_int(e["value"]) == 0 }
+fn is_one(e) { return is_int_lit(e) && parse_int(e["value"]) == 1 }
+
+fn fold_peephole_infix(op, left, right) {
+    // Simple algebraic identities (safe).
+    if op == "+" {
+        if is_zero(right) { return left }
+        if is_zero(left) { return right }
+    }
+    if op == "-" {
+        if is_zero(right) { return left }
+    }
+    if op == "*" {
+        if is_one(right) { return left }
+        if is_one(left) { return right }
+        // NOTE: Do NOT fold `x * 0` to `0` here: that would drop evaluation of `x`
+        // (and any side effects) without a purity analysis. Keep it conservative.
+    }
+    return nil
+}
+
+fn expr_trivial(e) {
+    // Trivial, side-effect-free RHS suitable for DCE removal when unused.
+    if e == nil { return true }
+    if e["type"] == "Integer" || e["type"] == "Float" || e["type"] == "String" || e["type"] == "Boolean" || e["type"] == "Nil" { return true }
+    if e["type"] == "Identifier" { return true }
+    return false
+}
+
+fn env_new() { return [{}] }
+
+fn env_push(env) {
+    // Create a new env stack (do not mutate the parent env list).
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) {
+        oren_list_push(out, env[i])
+        i = i + 1
+    }
+    oren_list_push(out, {})
+    return out
+}
+
+fn env_pop(env) {
+    if oren_list_len(env) <= 1 { return env }
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) - 1 {
+        oren_list_push(out, env[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn env_set(env, name) {
+    if name == nil { return nil }
+    env[oren_list_len(env) - 1][name] = true
+    return nil
+}
+
+fn env_has(env, name) {
+    if name == nil { return false }
+    var i = oren_list_len(env) - 1
+    while i >= 0 {
+        if env[i][name] == true { return true }
+        i = i - 1
+    }
+    return false
+}
+
+fn collect_uses_expr(e, uses, env) {
+    if e == nil { return nil }
+    var t = e["type"]
+    if t == "Identifier" {
+        var nm = e["value"]
+        if nm != nil && !env_has(env, nm) {
+            if uses[nm] == nil { uses[nm] = 0 }
+            uses[nm] = uses[nm] + 1
+        }
+        return nil
+    }
+    if t == "Prefix" {
+        collect_uses_expr(e["right"], uses, env)
+        return nil
+    }
+    if t == "Infix" {
+        collect_uses_expr(e["left"], uses, env)
+        collect_uses_expr(e["right"], uses, env)
+        return nil
+    }
+    if t == "If" {
+        collect_uses_expr(e["cond"], uses, env)
+        collect_uses_stmt(e["consq"], uses, env)
+        if e["alt"] != nil { collect_uses_stmt(e["alt"], uses, env) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            collect_uses_expr(xs[i], uses, env)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            collect_uses_expr(ps[i2]["key"], uses, env)
+            collect_uses_expr(ps[i2]["value"], uses, env)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        collect_uses_expr(e["left"], uses, env)
+        collect_uses_expr(e["index"], uses, env)
+        return nil
+    }
+    if t == "Member" {
+        collect_uses_expr(e["left"], uses, env)
+        return nil
+    }
+    if t == "SpawnExpr" {
+        collect_uses_expr(e["call"], uses, env)
+        return nil
+    }
+    if t == "Call" {
+        collect_uses_expr(e["fn"], uses, env)
+        var args = e["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            collect_uses_expr(args[i3], uses, env)
+            i3 = i3 + 1
+        }
+        if e["spread"] != nil { collect_uses_expr(e["spread"], uses, env) }
+        return nil
+    }
+    if t == "Function" {
+        // New local scope for params + locals.
+        var new_env = env_push(env)
+        var params = e["params"]
+        if params != nil {
+            var pi = 0
+            while pi < oren_list_len(params) {
+                var id = params[pi]
+                if id != nil && id["type"] == "Identifier" {
+                    env_set(new_env, id["value"])
+                }
+                pi = pi + 1
+            }
+        }
+        collect_uses_stmt(e["body"], uses, new_env)
+        return nil
+    }
+    return nil
+}
+
+fn collect_uses_stmt(s, uses, env) {
+    if s == nil { return nil }
+    var t = s["type"]
+    if t == "Block" {
+        var new_env = env_push(env)
+        var ss = s["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            collect_uses_stmt(ss[i], uses, new_env)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        // Note: don't count the LHS as a use.
+        collect_uses_expr(s["value"], uses, env)
+        // Bind the name only for *locals* (not top-level).
+        // Top-level vars are globals and must remain visible to functions/imported code.
+        if oren_list_len(env) > 1 {
+            var nm = s["name"]
+            if nm != nil && nm["type"] == "Identifier" {
+                env_set(env, nm["value"])
+            }
+        }
+        return nil
+    }
+    if t == "Assign" {
+        // Do not count LHS as a read.
+        collect_uses_expr(s["value"], uses, env)
+        return nil
+    }
+    if t == "Set" {
+        // Member/index bases are reads.
+        collect_uses_expr(s["left"], uses, env)
+        collect_uses_expr(s["value"], uses, env)
+        return nil
+    }
+    if t == "ExprStmt" {
+        collect_uses_expr(s["expr"], uses, env)
+        return nil
+    }
+    if t == "Return" {
+        collect_uses_expr(s["value"], uses, env)
+        return nil
+    }
+    if t == "While" {
+        collect_uses_expr(s["cond"], uses, env)
+        collect_uses_stmt(s["body"], uses, env)
+        return nil
+    }
+    if t == "For" {
+        var new_env = env_push(env)
+        collect_uses_stmt(s["init"], uses, new_env)
+        collect_uses_expr(s["cond"], uses, new_env)
+        collect_uses_expr(s["post"], uses, new_env)
+        collect_uses_stmt(s["body"], uses, new_env)
+        return nil
+    }
+    return nil
+}
+
+fn fold_expr(e) {
+    if e == nil { return nil }
+    var t = e["type"]
+    if t == "Prefix" {
+        e["right"] = fold_expr(e["right"])
+        return e
+    }
+    if t == "Infix" {
+        e["left"] = fold_expr(e["left"])
+        e["right"] = fold_expr(e["right"])
+        // constant fold
+        var op = e["op"]
+        var folded = fold_infix(op, e["left"], e["right"])
+        if folded != nil { return folded }
+        // peepholes
+        var peep = fold_peephole_infix(op, e["left"], e["right"])
+        if peep != nil { return peep }
+        return e
+    }
+    if t == "If" {
+        e["cond"] = fold_expr(e["cond"])
+        fold_stmt(e["consq"])
+        if e["alt"] != nil { fold_stmt(e["alt"]) }
+        return e
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            xs[i] = fold_expr(xs[i])
+            i = i + 1
+        }
+        return e
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            ps[i2]["key"] = fold_expr(ps[i2]["key"])
+            ps[i2]["value"] = fold_expr(ps[i2]["value"])
+            i2 = i2 + 1
+        }
+        return e
+    }
+    if t == "Index" {
+        e["left"] = fold_expr(e["left"])
+        e["index"] = fold_expr(e["index"])
+        return e
+    }
+    if t == "Member" {
+        e["left"] = fold_expr(e["left"])
+        return e
+    }
+    if t == "SpawnExpr" {
+        e["call"] = fold_expr(e["call"])
+        return e
+    }
+    if t == "Call" {
+        e["fn"] = fold_expr(e["fn"])
+        var args = e["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            args[i3] = fold_expr(args[i3])
+            i3 = i3 + 1
+        }
+        if e["spread"] != nil { e["spread"] = fold_expr(e["spread"]) }
+        return e
+    }
+    if t == "Function" {
+        fold_stmt(e["body"])
+        return e
+    }
+    return e
+}
+
+fn fold_stmt(s) {
+    if s == nil { return nil }
+    var t = s["type"]
+    if t == "Block" {
+        var ss = s["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            fold_stmt(ss[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        s["value"] = fold_expr(s["value"])
+        return nil
+    }
+    if t == "Assign" {
+        s["value"] = fold_expr(s["value"])
+        return nil
+    }
+    if t == "Set" {
+        s["left"] = fold_expr(s["left"])
+        s["value"] = fold_expr(s["value"])
+        return nil
+    }
+    if t == "ExprStmt" {
+        s["expr"] = fold_expr(s["expr"])
+        return nil
+    }
+    if t == "Return" {
+        s["value"] = fold_expr(s["value"])
+        return nil
+    }
+    if t == "While" {
+        s["cond"] = fold_expr(s["cond"])
+        fold_stmt(s["body"])
+        return nil
+    }
+    if t == "For" {
+        fold_stmt(s["init"])
+        s["cond"] = fold_expr(s["cond"])
+        s["post"] = fold_expr(s["post"])
+        fold_stmt(s["body"])
+        return nil
+    }
+    return nil
+}
+
+fn collect_reads_expr(e, reads) {
+    // Count identifier reads (conservative; may over-count due to shadowing).
+    if e == nil { return nil }
+    var t = e["type"]
+    if t == "Identifier" {
+        var nm = e["value"]
+        if nm != nil {
+            if reads[nm] == nil { reads[nm] = 0 }
+            reads[nm] = reads[nm] + 1
+        }
+        return nil
+    }
+    if t == "Prefix" {
+        collect_reads_expr(e["right"], reads)
+        return nil
+    }
+    if t == "Infix" {
+        collect_reads_expr(e["left"], reads)
+        collect_reads_expr(e["right"], reads)
+        return nil
+    }
+    if t == "If" {
+        collect_reads_expr(e["cond"], reads)
+        collect_reads_stmt(e["consq"], reads)
+        if e["alt"] != nil { collect_reads_stmt(e["alt"], reads) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            collect_reads_expr(xs[i], reads)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            collect_reads_expr(ps[i2]["key"], reads)
+            collect_reads_expr(ps[i2]["value"], reads)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        collect_reads_expr(e["left"], reads)
+        collect_reads_expr(e["index"], reads)
+        return nil
+    }
+    if t == "Member" {
+        collect_reads_expr(e["left"], reads)
+        return nil
+    }
+    if t == "SpawnExpr" {
+        collect_reads_expr(e["call"], reads)
+        return nil
+    }
+    if t == "Call" {
+        collect_reads_expr(e["fn"], reads)
+        var args = e["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            collect_reads_expr(args[i3], reads)
+            i3 = i3 + 1
+        }
+        if e["spread"] != nil { collect_reads_expr(e["spread"], reads) }
+        return nil
+    }
+    if t == "Function" {
+        // Captures are real reads; include nested functions.
+        collect_reads_stmt(e["body"], reads)
+        return nil
+    }
+    return nil
+}
+
+fn collect_reads_stmt(s, reads) {
+    if s == nil { return nil }
+    var t = s["type"]
+    if t == "Block" {
+        var ss = s["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            collect_reads_stmt(ss[i], reads)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "Assign" {
+        // LHS is a write; don't count it as a read.
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "Set" {
+        // Member/index bases are reads.
+        collect_reads_expr(s["left"], reads)
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "ExprStmt" {
+        collect_reads_expr(s["expr"], reads)
+        return nil
+    }
+    if t == "Return" {
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "While" {
+        collect_reads_expr(s["cond"], reads)
+        collect_reads_stmt(s["body"], reads)
+        return nil
+    }
+    if t == "For" {
+        collect_reads_stmt(s["init"], reads)
+        collect_reads_expr(s["cond"], reads)
+        collect_reads_expr(s["post"], reads)
+        collect_reads_stmt(s["body"], reads)
+        return nil
+    }
+    if t == "Function" {
+        collect_reads_stmt(s["body"], reads)
+        return nil
+    }
+    return nil
+}
+
+fn dce_block_in_place(block) {
+    // DCE only for locals inside blocks (function bodies), never for top-level globals.
+    if block == nil || block["type"] != "Block" { return nil }
+
+    // Recurse first.
+    var ss = block["stmts"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil && st["type"] == "Block" { dce_block_in_place(st) }
+        if st != nil && st["type"] == "While" { dce_block_in_place(st["body"]) }
+        if st != nil && st["type"] == "For" { dce_block_in_place(st["body"]) }
+        if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
+            dce_block_in_place(st["expr"]["body"])
+        }
+        i = i + 1
+    }
+
+    // Collect reads in this block (including nested blocks).
+    var reads = {}
+    i = 0
+    while i < oren_list_len(ss) {
+        collect_reads_stmt(ss[i], reads)
+        i = i + 1
+    }
+
+    var out = []
+    i = 0
+    while i < oren_list_len(ss) {
+        var st2 = ss[i]
+        if st2 != nil && st2["type"] == "Var" {
+            var nm = st2["name"]
+            if nm != nil && nm["type"] == "Identifier" {
+                var name = nm["value"]
+                if name != nil && (reads[name] == nil || reads[name] == 0) {
+                    if expr_trivial(st2["value"]) {
+                        i = i + 1
+                        continue
+                    }
+                }
+            }
+        }
+        oren_list_push(out, st2)
+        i = i + 1
+    }
+    block["stmts"] = out
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    if linked == nil { return nil }
+
+    // Fold expressions first (so DCE sees simplified RHS).
+    var ss = linked["statements"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        fold_stmt(ss[i])
+        // DCE for function bodies.
+        if ss[i] != nil && ss[i]["type"] == "ExprStmt" && ss[i]["expr"] != nil && ss[i]["expr"]["type"] == "Function" {
+            dce_block_in_place(ss[i]["expr"]["body"])
+        }
+        i = i + 1
+    }
+    return nil
+}

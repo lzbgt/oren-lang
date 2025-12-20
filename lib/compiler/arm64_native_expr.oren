@@ -75,6 +75,7 @@ fn insn_sub_imm(rd, rn, imm) { return core.insn_sub_imm(rd, rn, imm) }
 fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
 fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
 fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
 fn emit_add_sp_offset_to_reg(ctx, reg, offset) { return core.emit_add_sp_offset_to_reg(ctx, reg, offset) }
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
@@ -555,32 +556,13 @@ fn native_compile_expr(ctx, expr) {
 
     if expr["type"] == "Integer" {
         var val = int_from_string(expr["value"])
-        if val < 65536 {
-            push_u32_le(ctx["code"], insn_movz(0, val))
-        } else {
-            // MOVZ low 16
-            var low = int_mod(val, 65536)
-            push_u32_le(ctx["code"], insn_movz(0, low))
-            
-            // MOVK high 16
-            var high = val / 65536
-            if high > 0 {
-                var high16 = int_mod(high, 65536)
-                push_u32_le(ctx["code"], insn_movk(0, high16, 1)) // 1 = LSL 16
-                
-                var higher = high / 65536
-                if higher > 0 {
-                    var higher16 = int_mod(higher, 65536)
-                    push_u32_le(ctx["code"], insn_movk(0, higher16, 2)) // 2 = LSL 32
-                    
-                    // Even higher?
-                    var highest = higher / 65536
-                    if highest > 0 {
-                        push_u32_le(ctx["code"], insn_movk(0, highest, 3)) // 3 = LSL 48
-                    }
-                }
-            }
-        }
+        // IMPORTANT: integers are i64 semantics in v0 (including negatives).
+        // Never emit MOVZ with a negative imm16 (it yields an invalid encoding like 0xD27FFEE0).
+        // Delegate to the shared immediate loader which handles:
+        // - small positives (MOVZ)
+        // - small negatives (MOVN)
+        // - larger values (MOVZ/MOVK or load+neg)
+        emit_load_i64_imm(ctx, 0, val)
         return nil
     }
     if expr["type"] == "Identifier" {

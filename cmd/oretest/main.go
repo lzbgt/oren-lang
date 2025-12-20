@@ -117,6 +117,7 @@ func main() {
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
 		"tests/native/test_integration_suite.oren",
+		"tests/native/test_sys_execve_fail_safe.oren",
 		"tests/native/test_debug_panic.oren",
 	}
 	moduleTestsFast := []string{
@@ -127,6 +128,7 @@ func main() {
 		"tests/modules/test_trait_qualified_calls.oren",
 		"tests/modules/test_trait_cross_module_calls.oren",
 		"tests/modules/test_trait_blanket_impl_any.oren",
+		"tests/modules/test_optimizer_baseline.oren",
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_int_ops_wrap.oren",
 		// Typed annotations and packed views (critical for syscall-first parsing).
@@ -171,6 +173,7 @@ func main() {
 		"tests/modules/test_trait_qualified_calls.oren",
 		"tests/modules/test_trait_cross_module_calls.oren",
 		"tests/modules/test_trait_blanket_impl_any.oren",
+		"tests/modules/test_optimizer_baseline.oren",
 		"tests/modules/test_enum.oren",
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_endian_casts.oren",

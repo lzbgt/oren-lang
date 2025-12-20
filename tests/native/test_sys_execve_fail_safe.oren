@@ -1,0 +1,28 @@
+// Regression: sys_execve failure must be safe (must not crash).
+//
+// `sys_execve` should:
+// - either succeed and never return, OR
+// - fail and return a conventional error value, without corrupting control flow.
+//
+// Syscall-first convention: return negative errno on failure.
+// - ENOENT is 2 on macOS and Linux => expect -2 for a missing executable.
+
+fn fail(code) {
+    oren_fail(code, "sys_execve fail-safe")
+    return 0
+}
+
+var argvp = malloc(16) // 2 pointers
+if argvp == 0 { fail(1) }
+ptr_set(argvp + 0, "no_such_file_hopefully")
+ptr_set(argvp + 8, 0)
+
+var rc = sys_execve("no_such_file_hopefully", argvp, 0)
+// Success never returns. Failure must return -ENOENT.
+if rc != (0 - 2) {
+    print("sys_execve rc=" + oren_int_to_string(rc))
+    fail(2)
+}
+
+print("ok")
+exit(0)

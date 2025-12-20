@@ -1,0 +1,17 @@
+// Optimizer baseline: constant folding + peepholes must preserve semantics.
+
+fn calc() {
+    var x: i64 = 0
+    // (1+2)*3 = 9
+    x = x + ((1 + 2) * 3)
+    // peepholes
+    x = x + 0
+    x = x * 1
+    x = x * 0 + 9
+    return x
+}
+
+if calc() != 9 { exit(1) }
+print("ok")
+exit(0)
+

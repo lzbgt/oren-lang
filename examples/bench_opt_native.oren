@@ -1,0 +1,32 @@
+// Micro-benchmark used for the optimizer baseline (native backend).
+//
+// Intent:
+// - exercise constant folding and simple peepholes
+// - keep behavior deterministic
+//
+// Manual run (macOS):
+//   ./oren build examples/bench_opt_native.oren --backend native -o build/bench_opt
+//   time ./build/bench_opt
+
+fn hot(n) {
+    var i: i64 = 0
+    var acc: i64 = 0
+    while i < n {
+        // Constants should fold to reduce runtime work:
+        //   (1 + 2) * 3  -> 9
+        //   acc + 0      -> acc
+        //   acc * 1      -> acc
+        acc = acc + ((1 + 2) * 3)
+        acc = acc + 0
+        acc = acc * 1
+        i = i + 1
+    }
+    return acc
+}
+
+var r = hot(20000000) // 20M iterations
+// Avoid being optimized away entirely.
+if r == 0 { exit(1) }
+print("ok")
+exit(0)
+

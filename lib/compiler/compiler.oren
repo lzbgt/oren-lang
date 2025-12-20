@@ -12,6 +12,7 @@ import packview "packview.oren"
 import type_ann "type_ann_lowering.oren"
 import abi_layout "abi_layout_lowering.oren"
 import impl_lowering "impl_lowering.oren"
+import optimizer "optimizer.oren"
 import argparse "../std/argparse.oren"
 
 fn cli_spec() {
@@ -692,6 +693,9 @@ fn link_program(entry_path, root_prog, config) {
     // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
     // Opt-in via `@oren.abi` and does not depend on host headers.
     abi_layout.lower_linked_program_in_place(linked)
+
+    // Optimizer baseline (safe, conservative).
+    optimizer.lower_linked_program_in_place(linked)
 
     return linked
 }
