@@ -1,0 +1,579 @@
+// std/yaml (rolling)
+//
+// YAML 1.2.2 spec (audit reference): docs/refs/yaml/yaml-1.2.2.html
+//
+// v1 scope (explicitly limited):
+// - Deterministic and portable encode/decode across backends.
+// - Supports a small, useful subset:
+//   - mappings (string keys only): `key: value` and `key:` nested blocks
+//   - sequences: `- value` and `-` nested blocks
+//   - scalars: null, bool, int (base10), string (quoted or bare)
+//   - optional document start `---` and full-line comments `# ...`
+// - No anchors, tags, merge keys, multi-doc, flow style, or complex scalars.
+//
+// NOTE: YAML 1.2 is a superset of JSON. This module also accepts JSON text as input
+// in `decode(...)` by delegating to std/json as a fallback.
+//
+// YamlValue representation mirrors std/json's JsonValue (tagged) so serde lowering can
+// reuse the same shape across formats:
+//   {"t":"null"}
+//   {"t":"bool","b":0|1}
+//   {"t":"int","i":<int>}
+//   {"t":"string","s":<string>}
+//   {"t":"array","a":[YamlValue...]}
+//   {"t":"object","o":{ string_key: YamlValue, ... }}
+//
+// Encoding is deterministic:
+// - objects are emitted with keys sorted lexicographically (bytewise)
+// - indentation is 2 spaces per level
+
+import json "json.oren"
+
+fn ynull() { return {"t": "null"} }
+fn ybool(b) { return {"t": "bool", "b": b} }
+fn yint(i) { return {"t": "int", "i": i} }
+fn ystring(s) { return {"t": "string", "s": s} }
+fn yarray(a) { return {"t": "array", "a": a} }
+fn yobject(o) { return {"t": "object", "o": o} }
+
+fn _err(msg, line) { return {"ok": 0, "err": msg, "line": line} }
+fn _ok(v) { return {"ok": 1, "v": v} }
+
+fn _is_ws(b) { return b == 32 || b == 9 || b == 13 }
+fn _is_digit(b) { return b >= 48 && b <= 57 }
+
+fn _streq(a, b) {
+    if a == nil || b == nil { return false }
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    var al = oren_list_len(ab)
+    var bl = oren_list_len(bb)
+    if al != bl { return false }
+    var i = 0
+    while i < al {
+        if ab[i] != bb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _trim(s) {
+    if s == nil { return nil }
+    var bs = oren_bytes_from_string(s)
+    var n = oren_list_len(bs)
+    var i = 0
+    while i < n && _is_ws(bs[i]) { i = i + 1 }
+    var j = n
+    while j > i && _is_ws(bs[j - 1]) { j = j - 1 }
+    if i == 0 && j == n { return s }
+    var out = []
+    var k = i
+    while k < j { oren_list_push(out, bs[k]); k = k + 1 }
+    return oren_string_from_bytes(out)
+}
+
+fn _split_lines(s) {
+    var bs = oren_bytes_from_string(s)
+    var out = []
+    var cur = []
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 10 { // \n
+            var line = oren_string_from_bytes(cur)
+            oren_list_push(out, line)
+            cur = []
+            i = i + 1
+            continue
+        }
+        if b == 13 { // \r
+            // consume optional \n
+            var line2 = oren_string_from_bytes(cur)
+            oren_list_push(out, line2)
+            cur = []
+            if i + 1 < oren_list_len(bs) && bs[i + 1] == 10 { i = i + 2 } else { i = i + 1 }
+            continue
+        }
+        oren_list_push(cur, b)
+        i = i + 1
+    }
+    // final line
+    var last = oren_string_from_bytes(cur)
+    oren_list_push(out, last)
+    return out
+}
+
+fn _strip_comment(line) {
+    // v1: treat a '#' preceded by whitespace as comment start.
+    // Not a full YAML tokenizer; good enough for our own emitter + common configs.
+    if line == nil { return nil }
+    var bs = oren_bytes_from_string(line)
+    var out = []
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 35 { // '#'
+            // If at start or preceded by whitespace, treat as comment.
+            if i == 0 { break }
+            var p = bs[i - 1]
+            if _is_ws(p) { break }
+        }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+    return oren_string_from_bytes(out)
+}
+
+fn _line_indent(line) {
+    var bs = oren_bytes_from_string(line)
+    var i = 0
+    while i < oren_list_len(bs) && bs[i] == 32 { i = i + 1 }
+    // tabs are not supported in v1 (explicit).
+    if i < oren_list_len(bs) && bs[i] == 9 { return -1 }
+    return i
+}
+
+fn _slice_bytes(bs, i, j) {
+    var out = []
+    var k = i
+    while k < j { oren_list_push(out, bs[k]); k = k + 1 }
+    return out
+}
+
+fn _parse_quoted_string(s, line_no) {
+    var bs = oren_bytes_from_string(s)
+    if oren_list_len(bs) < 2 { return _err("invalid quoted string", line_no) }
+    if bs[0] != 34 { return _err("expected '\"'", line_no) }
+    var out = []
+    var i = 1
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 34 {
+            if i != oren_list_len(bs) - 1 { return _err("trailing content after quoted string", line_no) }
+            var ss = oren_string_from_bytes(out)
+            return _ok(ystring(ss))
+        }
+        if b == 92 { // backslash
+            i = i + 1
+            if i >= oren_list_len(bs) { return _err("unterminated escape", line_no) }
+            var e = bs[i]
+            if e == 34 { oren_list_push(out, 34) }
+            else {
+                if e == 92 { oren_list_push(out, 92) }
+                else {
+                    if e == 110 { oren_list_push(out, 10) } // \n
+                    else {
+                        if e == 114 { oren_list_push(out, 13) } // \r
+                        else {
+                            if e == 116 { oren_list_push(out, 9) }  // \t
+                            else { return _err("unsupported escape", line_no) }
+                        }
+                    }
+                }
+            }
+            i = i + 1
+            continue
+        }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+    return _err("unterminated quoted string", line_no)
+}
+
+fn _parse_scalar(tok, line_no) {
+    tok = _trim(tok)
+    if tok == nil || tok == "" { return _err("expected scalar", line_no) }
+    if _streq(tok, "null") || _streq(tok, "~") { return _ok(ynull()) }
+    if _streq(tok, "true") { return _ok(ybool(1)) }
+    if _streq(tok, "false") { return _ok(ybool(0)) }
+    // quoted string
+    var bs = oren_bytes_from_string(tok)
+    if oren_list_len(bs) >= 2 && bs[0] == 34 {
+        return _parse_quoted_string(tok, line_no)
+    }
+    // int (base10)
+    var i = 0
+    var neg = false
+    if bs[0] == 45 { neg = true; i = 1 }
+    var any = false
+    var v = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if !_is_digit(b) { any = false; break }
+        any = true
+        v = v * 10 + (b - 48)
+        i = i + 1
+    }
+    if any == true && i == oren_list_len(bs) {
+        if neg { v = -v }
+        return _ok(yint(v))
+    }
+    // bare string
+    return _ok(ystring(tok))
+}
+
+fn _peek_next_nonempty(lines, idx) {
+    var i = idx
+    while i < oren_list_len(lines) {
+        var ln = lines[i]
+        if ln != nil && _trim(ln) != "" { return i }
+        i = i + 1
+    }
+    return -1
+}
+
+fn _parse_block(lines, idx, indent) {
+    // returns {"ok":1,"v":YamlValue,"idx":newidx} or err
+    // Decide block kind from first line at this indent: sequence or mapping.
+    var first_i = _peek_next_nonempty(lines, idx)
+    if first_i < 0 { return {"ok": 1, "v": ynull(), "idx": idx} }
+    var line = lines[first_i]
+    var ind = _line_indent(line)
+    if ind < 0 { return _err("tabs not supported", first_i + 1) }
+    if ind < indent { return {"ok": 1, "v": ynull(), "idx": idx} }
+    if ind > indent { return _err("unexpected indentation", first_i + 1) }
+    var body = _trim(oren_string_slice(line, indent, oren_string_len(line)))
+
+    var is_seq = false
+    if oren_string_len(body) >= 1 && oren_string_slice(body, 0, 1) == "-" { is_seq = true }
+
+    if is_seq {
+        var items = []
+        var i = first_i
+        while i < oren_list_len(lines) {
+            var raw = lines[i]
+            if raw == nil { i = i + 1; continue }
+            var raw2 = _trim(raw)
+            if raw2 == "" { i = i + 1; continue }
+            var ind2 = _line_indent(raw)
+            if ind2 < 0 { return _err("tabs not supported", i + 1) }
+            if ind2 < indent { break }
+            if ind2 != indent { return _err("mixed indentation in sequence", i + 1) }
+            var rest = _trim(oren_string_slice(raw, indent, oren_string_len(raw)))
+            if oren_string_len(rest) < 1 || oren_string_slice(rest, 0, 1) != "-" {
+                return _err("expected '-'", i + 1)
+            }
+            var after = _trim(oren_string_slice(rest, 1, oren_string_len(rest)))
+            if after == "" {
+                // nested block
+                var ni = _peek_next_nonempty(lines, i + 1)
+                if ni < 0 { return _err("expected nested block", i + 1) }
+                var indn = _line_indent(lines[ni])
+                if indn <= indent { return _err("expected indented nested block", ni + 1) }
+                var r = _parse_block(lines, i + 1, indn)
+                if r["ok"] != 1 { return r }
+                oren_list_push(items, r["v"])
+                i = r["idx"]
+                continue
+            }
+            var rv = _parse_scalar(after, i + 1)
+            if rv["ok"] != 1 { return rv }
+            oren_list_push(items, rv["v"])
+            i = i + 1
+        }
+        return {"ok": 1, "v": yarray(items), "idx": i}
+    }
+
+    // mapping
+    var obj = {}
+    var i2 = first_i
+    while i2 < oren_list_len(lines) {
+        var rawm = lines[i2]
+        if rawm == nil { i2 = i2 + 1; continue }
+        var rawm2 = _trim(rawm)
+        if rawm2 == "" { i2 = i2 + 1; continue }
+        var indm = _line_indent(rawm)
+        if indm < 0 { return _err("tabs not supported", i2 + 1) }
+        if indm < indent { break }
+        if indm != indent { return _err("mixed indentation in mapping", i2 + 1) }
+
+        var line_no = i2 + 1
+        var restm = _trim(oren_string_slice(rawm, indent, oren_string_len(rawm)))
+
+        // split at first ':'
+        var bs = oren_bytes_from_string(restm)
+        var kpos = -1
+        var j = 0
+        while j < oren_list_len(bs) {
+            if bs[j] == 58 { kpos = j; break }
+            j = j + 1
+        }
+        if kpos < 0 { return _err("expected ':' in mapping entry", line_no) }
+
+        var key_raw = oren_string_from_bytes(_slice_bytes(bs, 0, kpos))
+        var val_raw = oren_string_from_bytes(_slice_bytes(bs, kpos + 1, oren_list_len(bs)))
+        key_raw = _trim(key_raw)
+        val_raw = _trim(val_raw)
+        if key_raw == "" { return _err("empty key", line_no) }
+
+        // key may be quoted
+        var key = key_raw
+        var kb = oren_bytes_from_string(key_raw)
+        if oren_list_len(kb) >= 2 && kb[0] == 34 {
+            var rk = _parse_quoted_string(key_raw, line_no)
+            if rk["ok"] != 1 { return rk }
+            key = rk["v"]["s"]
+        }
+
+        if val_raw == "" {
+            // nested block
+            var ni2 = _peek_next_nonempty(lines, i2 + 1)
+            if ni2 < 0 { return _err("expected nested block", line_no) }
+            var indn2 = _line_indent(lines[ni2])
+            if indn2 <= indent { return _err("expected indented nested block", ni2 + 1) }
+            var r2 = _parse_block(lines, i2 + 1, indn2)
+            if r2["ok"] != 1 { return r2 }
+            obj[key] = r2["v"]
+            i2 = r2["idx"]
+            continue
+        }
+
+        var rv2 = _parse_scalar(val_raw, line_no)
+        if rv2["ok"] != 1 { return rv2 }
+        obj[key] = rv2["v"]
+        i2 = i2 + 1
+    }
+    return {"ok": 1, "v": yobject(obj), "idx": i2}
+}
+
+fn decode(s) {
+    if s == nil { return _err("input is nil", 1) }
+
+    // 1) Fallback: YAML 1.2 JSON subset => accept JSON text.
+    // This makes config files that are JSON always work, even if our YAML subset parser
+    // doesn't cover a corner case.
+    var jr = json.decode(s)
+    if jr != nil && jr["ok"] == 1 {
+        // JsonValue representation is identical to YamlValue representation.
+        return {"ok": 1, "v": jr["v"]}
+    }
+
+    // 2) Subset YAML parser (block style).
+    var lines0 = _split_lines(s)
+    // Keep original indentation, but strip trailing comments.
+    var plines = []
+    var i = 0
+    while i < oren_list_len(lines0) {
+        var raw = _strip_comment(lines0[i])
+        if raw == nil { raw = "" }
+        oren_list_push(plines, raw)
+        i = i + 1
+    }
+
+    // normalize: drop leading empty lines and optional document start '---'
+    var start = _peek_next_nonempty(plines, 0)
+    if start < 0 { return {"ok": 1, "v": ynull()} }
+    if _streq(_trim(plines[start]), "---") { start = start + 1 }
+    start = _peek_next_nonempty(plines, start)
+    if start < 0 { return {"ok": 1, "v": ynull()} }
+
+    var ind = _line_indent(plines[start])
+    if ind < 0 { return _err("tabs not supported", start + 1) }
+    var r = _parse_block(plines, start, ind)
+    if r["ok"] != 1 { return r }
+    return {"ok": 1, "v": r["v"]}
+}
+
+fn _bytes_cmp(a, b) {
+    var al = oren_list_len(a)
+    var bl = oren_list_len(b)
+    var i = 0
+    var n = al
+    if bl < n { n = bl }
+    while i < n {
+        var av = a[i]
+        var bv = b[i]
+        if av < bv { return -1 }
+        if av > bv { return 1 }
+        i = i + 1
+    }
+    if al < bl { return -1 }
+    if al > bl { return 1 }
+    return 0
+}
+
+fn _key_lt(a, b) {
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    return _bytes_cmp(ab, bb) < 0
+}
+
+fn _sort_keys(keys) {
+    var i = 1
+    while i < oren_list_len(keys) {
+        var k = keys[i]
+        var j = i - 1
+        while j >= 0 && _key_lt(k, keys[j]) {
+            keys[j + 1] = keys[j]
+            j = j - 1
+        }
+        keys[j + 1] = k
+        i = i + 1
+    }
+    return keys
+}
+
+fn _safe_bare_ident(s) {
+    if s == nil || s == "" { return false }
+    // Disallow reserved scalars (avoid ambiguity on decode).
+    if _streq(s, "null") || _streq(s, "~") || _streq(s, "true") || _streq(s, "false") { return false }
+    var bs = oren_bytes_from_string(s)
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        var ok = false
+        if b >= 65 && b <= 90 { ok = true }
+        if b >= 97 && b <= 122 { ok = true }
+        if b >= 48 && b <= 57 { ok = true }
+        if b == 95 || b == 45 || b == 46 || b == 47 { ok = true } // _ - . /
+        if ok != true { return false }
+        i = i + 1
+    }
+    // Avoid leading '-' which could be parsed as a sequence item.
+    if oren_string_slice(s, 0, 1) == "-" { return false }
+    return true
+}
+
+fn _escape_string(s) {
+    var bs = oren_bytes_from_string(s)
+    var out = []
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 34 { // "
+            oren_list_push(out, 92); oren_list_push(out, 34)
+        } else {
+            if b == 92 { // \
+                oren_list_push(out, 92); oren_list_push(out, 92)
+            } else {
+                if b == 10 { // \n
+                    oren_list_push(out, 92); oren_list_push(out, 110)
+                } else {
+                    if b == 13 { // \r
+                        oren_list_push(out, 92); oren_list_push(out, 114)
+                    } else {
+                        if b == 9 { // \t
+                            oren_list_push(out, 92); oren_list_push(out, 116)
+                        } else {
+                            oren_list_push(out, b)
+                        }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return oren_string_from_bytes(out)
+}
+
+fn _indent(n) {
+    var out = ""
+    var i = 0
+    while i < n {
+        out = out + " "
+        i = i + 1
+    }
+    return out
+}
+
+fn _encode_inline(v) {
+    var t = v["t"]
+    if _streq(t, "null") { return "null" }
+    if _streq(t, "bool") { if v["b"] != 0 { return "true" } else { return "false" } }
+    if _streq(t, "int") { return oren_int_to_string(v["i"]) }
+    if _streq(t, "string") {
+        var s = v["s"]
+        if _safe_bare_ident(s) { return s }
+        return "\"" + _escape_string(s) + "\""
+    }
+    return nil // arrays/objects handled by block emitter
+}
+
+fn _encode_block(v, indent) {
+    var t = v["t"]
+    var inl = _encode_inline(v)
+    if inl != nil { return inl }
+    if _streq(t, "array") {
+        var a = v["a"]
+        if a == nil || oren_list_len(a) == 0 { return "[]" }
+        var out = ""
+        var i = 0
+        while i < oren_list_len(a) {
+            var item = a[i]
+            var inl2 = _encode_inline(item)
+            if inl2 != nil {
+                out = out + _indent(indent) + "- " + inl2 + "\n"
+            } else {
+                out = out + _indent(indent) + "-\n"
+                out = out + _encode_block(item, indent + 2)
+                if !ends_with(out, "\n") { out = out + "\n" }
+            }
+            i = i + 1
+        }
+        return out
+    }
+    if _streq(t, "object") {
+        var o = v["o"]
+        if o == nil { return "{}" }
+        var keys = []
+        for k in o { oren_list_push(keys, k) }
+        _sort_keys(keys)
+        if oren_list_len(keys) == 0 { return "{}" }
+        var out2 = ""
+        var i2 = 0
+        while i2 < oren_list_len(keys) {
+            var k2 = keys[i2]
+            var key_enc = k2
+            if !_safe_bare_ident(k2) { key_enc = "\"" + _escape_string(k2) + "\"" }
+            var vv = o[k2]
+            var inl3 = _encode_inline(vv)
+            if inl3 != nil {
+                out2 = out2 + _indent(indent) + key_enc + ": " + inl3 + "\n"
+            } else {
+                out2 = out2 + _indent(indent) + key_enc + ":\n"
+                out2 = out2 + _encode_block(vv, indent + 2)
+                if !ends_with(out2, "\n") { out2 = out2 + "\n" }
+            }
+            i2 = i2 + 1
+        }
+        return out2
+    }
+    // Unknown tag: encode as null
+    return "null"
+}
+
+fn starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var sb = oren_bytes_from_string(s)
+    var pb = oren_bytes_from_string(prefix)
+    if oren_list_len(sb) < oren_list_len(pb) { return false }
+    var i = 0
+    while i < oren_list_len(pb) {
+        if sb[i] != pb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn ends_with(s, suffix) {
+    if s == nil || suffix == nil { return false }
+    var sb = oren_bytes_from_string(s)
+    var pb = oren_bytes_from_string(suffix)
+    var sl = oren_list_len(sb)
+    var pl = oren_list_len(pb)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if sb[(sl - pl) + i] != pb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn encode(v) {
+    // Emit in canonical block style (no '---' header for now).
+    var out = _encode_block(v, 0)
+    // Normalize final newline (present).
+    if !ends_with(out, "\n") { out = out + "\n" }
+    return out
+}

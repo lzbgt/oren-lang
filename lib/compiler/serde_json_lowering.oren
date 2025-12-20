@@ -1,12 +1,14 @@
 import ast "ast.oren"
 
-// Attribute-driven serde lowering (rolling): JSON + CBOR v1.
+// Attribute-driven serde lowering (rolling): JSON + YAML + CBOR v1.
 //
 // Goal:
 // - Use struct field type annotations + `@serde.*` attributes to generate
 //   deterministic helper functions:
 //     - <Type>__json_encode(x) -> JsonValue
 //     - <Type>__json_decode(jv) -> {"ok":0|1,"err":string,"v":<Type>}
+//     - <Type>__yaml_encode(x) -> YamlValue (same tagged representation as JsonValue)
+//     - <Type>__yaml_decode(yv) -> {"ok":0|1,"err":string,"v":<Type>}
 //     - <Type>__cbor_encode(x) -> CborValue
 //     - <Type>__cbor_decode(cv) -> {"ok":0|1,"err":string,"v":<Type>}
 //
@@ -15,7 +17,8 @@ import ast "ast.oren"
 // - No host effects.
 // - Deterministic across backends (C/native/bytecode).
 //
-// JsonValue is the portable tagged representation defined in `lib/std/json.oren`:
+// JsonValue is the portable tagged representation defined in `lib/std/json.oren`.
+// YamlValue (std/yaml) uses the same representation.
 //   {"t":"null"}
 //   {"t":"bool","b":0|1}
 //   {"t":"int","i":<int>}
@@ -539,8 +542,8 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     //   @serde(derive="json")   // previous compact form
     var fmt = struct_derive_value_any(type_stmt)
     if fmt == nil { return nil }
-    if fmt != "json" && fmt != "cbor" {
-        serde_json_error("serde: unknown derive format '" + fmt + "' (supported: \"json\"|\"cbor\") (struct " + tname + ")")
+    if fmt != "json" && fmt != "yaml" && fmt != "cbor" {
+        serde_json_error("serde: unknown derive format '" + fmt + "' (supported: \"json\"|\"yaml\"|\"cbor\") (struct " + tname + ")")
         return nil
     }
 
@@ -583,6 +586,17 @@ fn lower_one_type(type_stmt, stmts, prefix) {
         return nil
     }
 
+    var is_yaml = false
+    if fmt == "yaml" { is_yaml = true }
+    var enc_name = tname + "__json_encode"
+    var dec_name = tname + "__json_decode"
+    var kind_label = "JsonValue"
+    if is_yaml {
+        enc_name = tname + "__yaml_encode"
+        dec_name = tname + "__yaml_decode"
+        kind_label = "YamlValue"
+    }
+
     // Encode: build {"t":"object","o":{...}} literal.
     var obj_pairs = []
 
@@ -620,20 +634,20 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     enc_body["stmts"] = [
         ast.new_return(nil, json_object(ast.new_hash(nil, obj_pairs)))
     ]
-    var enc_fn = {"type": "Function", "token": nil, "name": tname + "__json_encode", "params": [ident("x")], "body": enc_body}
+    var enc_fn = {"type": "Function", "token": nil, "name": enc_name, "params": [ident("x")], "body": enc_body}
 
-    // Decode: validate JsonValue object + extract fields by kind.
+    // Decode: validate object + extract fields by kind.
     var dec_stmts = []
 
     // if jv == nil { return err }
     var if_jv_nil = ast.new_if(nil, ast.new_infix(nil, ident("jv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
-    if_jv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected JsonValue (got nil)"))]
+    if_jv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " (got nil)"))]
     if_jv_nil["alt"]["stmts"] = []
     oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_jv_nil))
 
     // if jv["t"] != "object" { return err }
     var if_not_obj = ast.new_if(nil, ast.new_infix(nil, index(ident("jv"), "t"), "!=", str_lit("object")), ast.new_block(nil), ast.new_block(nil))
-    if_not_obj["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected JsonValue object"))]
+    if_not_obj["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " object"))]
     if_not_obj["alt"]["stmts"] = []
     oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_not_obj))
 
@@ -641,7 +655,7 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     oren_list_push(dec_stmts, ast.new_var(nil, ident("o"), index(ident("jv"), "o")))
     // if o == nil { return err }
     var if_o_nil = ast.new_if(nil, ast.new_infix(nil, ident("o"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
-    if_o_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected JsonValue object.o map"))]
+    if_o_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " object.o map"))]
     if_o_nil["alt"]["stmts"] = []
     oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_o_nil))
 
@@ -656,7 +670,7 @@ fn lower_one_type(type_stmt, stmts, prefix) {
         oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_nil))
         // if tv["t"] != "string" { err }
         var if_tv_kind = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
-        if_tv_kind["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag field t must be a JSON string"))]
+        if_tv_kind["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag field t must be a string"))]
         if_tv_kind["alt"]["stmts"] = []
         oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_kind))
         // if tv["s"] != <tag> { err }
@@ -718,7 +732,7 @@ fn lower_one_type(type_stmt, stmts, prefix) {
                     if kind2 == "int" {
                         // if fv["t"] != "int" { err }
                         var if_kind_int = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("int")), ast.new_block(nil), ast.new_block(nil))
-                        if_kind_int["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected JSON int"))]
+                        if_kind_int["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected int"))]
                         if_kind_int["alt"]["stmts"] = []
                         oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_int))
                         // var fname = fv["i"]
@@ -726,14 +740,14 @@ fn lower_one_type(type_stmt, stmts, prefix) {
                     } else {
                         if kind2 == "string" {
                             var if_kind_str = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
-                            if_kind_str["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected JSON string"))]
+                            if_kind_str["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected string"))]
                             if_kind_str["alt"]["stmts"] = []
                             oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_str))
                             oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "s")))
                         } else {
                             if kind2 == "bool" {
                                 var if_kind_bool = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("bool")), ast.new_block(nil), ast.new_block(nil))
-                                if_kind_bool["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected JSON bool"))]
+                                if_kind_bool["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected bool"))]
                                 if_kind_bool["alt"]["stmts"] = []
                                 oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_bool))
                                 oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "b")))
@@ -760,7 +774,7 @@ fn lower_one_type(type_stmt, stmts, prefix) {
 
     var dec_body = ast.new_block(nil)
     dec_body["stmts"] = dec_stmts
-    var dec_fn = {"type": "Function", "token": nil, "name": tname + "__json_decode", "params": [ident("jv")], "body": dec_body}
+    var dec_fn = {"type": "Function", "token": nil, "name": dec_name, "params": [ident("jv")], "body": dec_body}
 
     // Append generated functions to the program (end).
     // Keep top-level named functions as ExprStmt(Function) for C backend compatibility.

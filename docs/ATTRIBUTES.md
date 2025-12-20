@@ -177,6 +177,9 @@ Other supported serde formats (rolling, v1):
 - `@serde(format="cbor")` generates:
   - `User__cbor_encode(x)` → CborValue (tagged; see `lib/std/cbor.oren`)
   - `User__cbor_decode(cv)` → `{ok, err?, v?}`
+- `@serde(format="yaml")` generates:
+  - `User__yaml_encode(x)` → YamlValue (tagged; see `lib/std/yaml.oren`)
+  - `User__yaml_decode(yv)` → `{ok, err?, v?}`
 
 CBOR streaming (rolling, v1):
 

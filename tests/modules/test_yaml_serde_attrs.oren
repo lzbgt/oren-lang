@@ -1,0 +1,48 @@
+import yaml "../../lib/std/yaml.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+@serde(format="yaml", tag="User")
+struct User {
+    @serde(rename="user_id")
+    id: i32,
+    active: bool,
+    name: string,
+    // Skip requires a default so decode stays deterministic.
+    @serde(skip=true, default=0)
+    internal: i32
+}
+
+fn test_roundtrip() {
+    var u = User(7, true, "bob", 123)
+    var yv = User__yaml_encode(u)
+    var s = yaml.encode(yv)
+
+    // Deterministic key order (lexicographic): active, name, t, user_id
+    var exp = "active: true\nname: bob\nt: User\nuser_id: 7\n"
+    if s != exp {
+        print("GOT:\n" + s)
+        print("EXP:\n" + exp)
+    }
+    assert(s == exp, "encode matches expected YAML")
+
+    var r = yaml.decode(s)
+    assert(r["ok"] == 1, "yaml.decode ok")
+    var rr = User__yaml_decode(r["v"])
+    assert(rr["ok"] == 1, "User__yaml_decode ok")
+    var u2 = rr["v"]
+    assert(u2.id == 7, "id roundtrip")
+    assert(u2.name == "bob", "name roundtrip")
+    assert(u2.active == true, "active roundtrip")
+    assert(u2.internal == 0, "internal default")
+}
+
+test_roundtrip()
+print("ok")
+exit(0)
+
