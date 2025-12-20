@@ -51,3 +51,76 @@ fn is_nan(x) {
     return x != x
 }
 
+// --- rounding helpers (float, deterministic, no host libm) ---
+//
+// Semantics (rolling, v0):
+// - `floor(x)` / `ceil(x)` / `round(x)` operate on float values and return a float.
+// - Errors:
+//   - NaN returns `Err(code=4, msg=...)` (OREN_ERR_INVALID_ARG)
+// - Large magnitude:
+//   - For |x| >= 2^63, we return x unchanged (it cannot be meaningfully truncated to i64).
+//     This is deterministic and avoids spurious errors for large-but-integral floats.
+//
+// Rounding rule:
+// - `round(x)` is **half away from zero**.
+//   (Bankers rounding can be added later as a separate API if needed.)
+
+fn trunc_i64_from_f(x) {
+    // Returns int or Err.
+    return oren_trunc_int(x)
+}
+
+fn floor(x) {
+    if is_nan(x) { return oren_err(4, "floor: NaN") }
+    // Preserve -0.0 by returning the input.
+    if x == 0.0 { return x }
+    var lim = 9223372036854775808.0 // 2^63
+    if x >= lim || x <= 0.0 - lim { return x }
+
+    var ti = trunc_i64_from_f(x)
+    if oren_is_err(ti) { return ti }
+    var t = f64(ti)
+    if t == x { return x }
+    if x > 0.0 { return t }
+    return t - 1.0
+}
+
+fn ceil(x) {
+    if is_nan(x) { return oren_err(4, "ceil: NaN") }
+    if x == 0.0 { return x }
+    var lim = 9223372036854775808.0 // 2^63
+    if x >= lim || x <= 0.0 - lim { return x }
+
+    var ti = trunc_i64_from_f(x)
+    if oren_is_err(ti) { return ti }
+    var t = f64(ti)
+    if t == x { return x }
+    if x < 0.0 { return t }
+    return t + 1.0
+}
+
+fn round(x) {
+    if is_nan(x) { return oren_err(4, "round: NaN") }
+    if x == 0.0 { return x }
+    var lim = 9223372036854775808.0 // 2^63
+    if x >= lim || x <= 0.0 - lim { return x }
+
+    var ti = trunc_i64_from_f(x)
+    if oren_is_err(ti) { return ti }
+    var t = f64(ti)
+    if t == x { return x }
+
+    var frac = x - t
+    // abs(frac)
+    var af = frac
+    if af < 0.0 { af = 0.0 - af }
+
+    if af > 0.5 {
+        if x > 0.0 { return t + 1.0 }
+        return t - 1.0
+    }
+    if af < 0.5 { return t }
+    // exactly half: away from zero
+    if x > 0.0 { return t + 1.0 }
+    return t - 1.0
+}
