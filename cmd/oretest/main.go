@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -61,9 +62,9 @@ func main() {
 
 	timeoutBin := detectTimeoutBin()
 	if timeoutBin == "" {
-		fmt.Fprintln(os.Stderr, "ERROR: timeout not found (need `timeout` or `gtimeout` in PATH).")
-		fmt.Fprintln(os.Stderr, "macOS: brew install coreutils")
-		os.Exit(2)
+		// Not fatal: we implement our own process-group kill based timeout.
+		// On macOS, GNU coreutils `gtimeout` is not installed by default.
+		fmt.Fprintln(os.Stderr, "WARN: `timeout`/`gtimeout` not found; oretest will use internal timeouts only.")
 	}
 
 	if _, err := os.Stat("./oren"); err != nil {
@@ -981,28 +982,51 @@ func runWithTimeout(timeoutBin string, d time.Duration, cmd string, logPath stri
 	defer cancel()
 
 	// Keep behavior aligned with Makefile: enforce timeouts everywhere.
-	// Important: invoke `timeout` as the *process*, and run the actual command via `sh -c`
-	// so call sites can use shell syntax (env vars, quoting, etc.) safely.
+	// Important: run the actual command via `sh -c` so call sites can use shell syntax
+	// (env vars, quoting, etc.) safely.
+	//
+	// Important: `exec.CommandContext` does not reliably kill child processes.
+	// We always run each test in its own process group, and on timeout we kill the group.
 	var c *exec.Cmd
 	if timeoutBin != "" {
+		// Keep using GNU timeout if available for parity with Makefile behavior, but
+		// still rely on our internal process-group kill as the ultimate backstop.
 		c = exec.CommandContext(ctx, timeoutBin, "-k", "2", fmt.Sprintf("%d", int(d.Seconds())), "sh", "-c", cmd)
 	} else {
-		c = exec.CommandContext(ctx, "sh", "-c", cmd)
+		c = exec.Command("sh", "-c", cmd)
 	}
+	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	var buf bytes.Buffer
 	c.Stdout = &buf
 	c.Stderr = &buf
-	runErr := c.Run()
 
-	if runErr != nil && buf.Len() == 0 {
+	runErr := c.Start()
+	if runErr != nil {
 		// Ensure the log is actionable even when the process failed to start.
-		_, _ = buf.WriteString(runErr.Error())
-		_, _ = buf.WriteString("\n")
+		if buf.Len() == 0 {
+			_, _ = buf.WriteString(runErr.Error())
+			_, _ = buf.WriteString("\n")
+		}
+		_ = os.WriteFile(logPath, buf.Bytes(), 0o644)
+		return 1
+	}
+
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- c.Wait() }()
+
+	timedOut := false
+	select {
+	case runErr = <-waitCh:
+		// done
+	case <-ctx.Done():
+		timedOut = true
+		killProcessGroup(c.Process.Pid)
+		runErr = <-waitCh
 	}
 
 	_ = os.WriteFile(logPath, buf.Bytes(), 0o644)
 
-	if ctx.Err() == context.DeadlineExceeded {
+	if timedOut || ctx.Err() == context.DeadlineExceeded {
 		// GNU timeout uses 124; align on that.
 		return 124
 	}
@@ -1032,6 +1056,21 @@ func detectTimeoutBin() string {
 		return "gtimeout"
 	}
 	return ""
+}
+
+func killProcessGroup(pid int) {
+	if pid <= 0 {
+		return
+	}
+
+	// Send TERM first (best effort), then KILL. Group kill requires Setpgid=true.
+	_ = syscall.Kill(-pid, syscall.SIGTERM)
+	_ = syscall.Kill(pid, syscall.SIGTERM)
+
+	time.Sleep(200 * time.Millisecond)
+
+	_ = syscall.Kill(-pid, syscall.SIGKILL)
+	_ = syscall.Kill(pid, syscall.SIGKILL)
 }
 
 func envInt(key string, def int) int {

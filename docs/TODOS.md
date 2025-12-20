@@ -49,6 +49,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Goal: iteration velocity stays high even as the language/AVM become more capable.
    - DoD:
      - `make test` remains timeout-safe (no infinite hangs).
+     - `oretest` must not require external GNU `timeout` on macOS; internal process-group kill is the baseline.
      - Default output is compact: only failed test details + a short summary.
      - Keep `OREN_TEST_FULL=1` / `OREN_TEST_VERBOSE=1` for deep debugging.
      - Reduce redundant micro-tests by merging into a small number of high-signal integration suites (native + module + AVM).
@@ -80,6 +81,16 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 7) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
    - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
+
+8) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
+   - Goal: enable ergonomic HTTP libs (FastAPI-like) that can auto-export a modern API contract.
+   - Direction:
+     - use attributes as the source of truth (already in metadata JSON)
+     - recommend `@get("/path")`, `@post("/path")`, `@tag("...")`, `@summary("...")`, `@deprecated()` etc.
+     - export format: **OpenAPI 3.1** (sufficiently contemporary + tooling ecosystem)
+   - DoD (later):
+     - `oredoc openapi <module.meta.json>` emits a valid OpenAPI 3.1 document (even if schemas are “opaque” until v1 types stabilize)
+     - no runtime dependency; purely compiler metadata → spec
 
 ## Recently Completed (high signal)
 
