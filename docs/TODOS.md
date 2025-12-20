@@ -80,6 +80,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Status:
      - compiler emits `OREN_DIAG kind=parse code=1 ...` on parse failures (oretest enforced)
      - native backend emits `OREN_DIAG kind=codegen code=1 ...` on codegen failures (oretest enforced)
+     - compiler emits `OREN_DIAG kind=compile code=1 ...` for impl-lowering compile errors (oretest enforced)
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:

@@ -21,6 +21,28 @@ import ast "ast.oren"
 //
 // This pass is shared by all backends because it runs as part of module linking.
 
+fn tok_loc(tok) {
+    if tok == nil { return nil }
+    var file = tok["file"]
+    if file == nil { file = "<input>" }
+    var line = tok["line"]
+    var col = tok["col"]
+    if line != nil && col != nil {
+        return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+    }
+    var pos = tok["pos"]
+    if pos != nil { return file + ":" + oren_int_to_string(pos) }
+    return file
+}
+
+fn err_push(errs, tok, msg) {
+    if errs == nil { return nil }
+    var loc = tok_loc(tok)
+    if loc != nil { oren_list_push(errs, loc + ": " + msg) }
+    else { oren_list_push(errs, msg) }
+    return nil
+}
+
 fn expr_dotted_name(expr) {
     if expr == nil { return nil }
     if expr["type"] == "Identifier" { return expr["value"] }
@@ -46,7 +68,7 @@ fn impl_method_register(impl_methods, type_name, method, fn_name, errs) {
     return nil
 }
 
-fn impl_trait_method_register(impl_trait_methods, trait_name, type_name, method, fn_name, errs) {
+fn impl_trait_method_register(impl_trait_methods, trait_name, type_name, method, fn_name, errs, tok) {
     if impl_trait_methods[trait_name] == nil { impl_trait_methods[trait_name] = {} }
     if impl_trait_methods[trait_name][type_name] == nil { impl_trait_methods[trait_name][type_name] = {} }
     var m = impl_trait_methods[trait_name][type_name]
@@ -62,7 +84,7 @@ fn impl_trait_method_register(impl_trait_methods, trait_name, type_name, method,
     //
     // Note: method name collisions across traits are allowed; this error is only for
     // the same trait+type+method tuple.
-    oren_list_push(errs, "duplicate impl for '" + trait_name + "." + method + "' on type '" + type_name + "'")
+    err_push(errs, tok, "duplicate impl for '" + trait_name + "." + method + "' on type '" + type_name + "'")
     return nil
 }
 
@@ -132,11 +154,11 @@ fn collect_impl_registries(linked, errs) {
                             impl_blocks[tr][ty] = bid
                         } else {
                             if prev != bid {
-                                oren_list_push(errs, "multiple impl blocks for trait '" + tr + "' on type '" + ty + "'")
+                                err_push(errs, e["token"], "multiple impl blocks for trait '" + tr + "' on type '" + ty + "'")
                             }
                         }
                     }
-                    impl_trait_method_register(impl_trait_methods, tr, ty, m, e["name"], errs)
+                    impl_trait_method_register(impl_trait_methods, tr, ty, m, e["name"], errs, e["token"])
                     impl_method_register(impl_methods, ty, m, e["name"], errs)
                 }
             }
@@ -203,7 +225,7 @@ fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
         if tname != nil {
             var mangled = impl_method_lookup(regs["impl_methods"], tname, method)
             if mangled == "__AMBIG__" {
-                oren_list_push(errs, "ambiguous method '" + method + "' for type '" + tname + "' (multiple impls)")
+                err_push(errs, expr["token"], "ambiguous method '" + method + "' for type '" + tname + "' (multiple impls)")
                 return expr
             }
             if mangled != nil {
@@ -231,7 +253,7 @@ fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
                 if recv_type != nil {
                     var qm = impl_trait_method_lookup(regs["impl_trait_methods"], tdot, recv_type, method)
                     if qm == "__AMBIG__" {
-                        oren_list_push(errs, "ambiguous qualified method '" + tdot + "." + method + "' for type '" + recv_type + "'")
+                        err_push(errs, expr["token"], "ambiguous qualified method '" + tdot + "." + method + "' for type '" + recv_type + "'")
                         return expr
                     }
                     if qm != nil {
@@ -255,7 +277,7 @@ fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
         if by_type != nil {
             var mangled2 = by_type[method]
             if mangled2 == "__AMBIG__" {
-                oren_list_push(errs, "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
+                err_push(errs, expr["token"], "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
                 return expr
             }
             if mangled2 != nil {

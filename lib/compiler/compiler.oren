@@ -837,6 +837,8 @@ fn link_program(entry_path, root_prog, config) {
     if trace_passes { print("[trace] pass: impl_lowering") }
     impl_lowering.lower_linked_program_in_place(linked)
     if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
+        var first_err = linked["impl_lowering_errors"][0]
+        emit_diag("compile", 1, first_err)
         print("Impl lowering errors:")
         var ei = 0
         while ei < oren_list_len(linked["impl_lowering_errors"]) {

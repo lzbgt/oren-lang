@@ -377,6 +377,19 @@ func main() {
 			cleanup: []string{"build/codegen_error"},
 		},
 		{
+			name: "compiler_impl_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"'",
+				"tests/native/fixtures/trait_impl_duplicate.oren",
+				*target,
+				"build/impl_err",
+				gcArg,
+			),
+			log:     "build/logs/compiler_impl_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/impl_err"},
+		},
+		{
 			name:    "missing_file",
 			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/__missing__.oren", *target, "build/missing_file", gcArg),
 			log:     "build/logs/missing_file.log",
