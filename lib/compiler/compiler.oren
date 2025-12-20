@@ -11,6 +11,7 @@ import metadata "metadata.oren"
 import packview "packview.oren"
 import serde_json "serde_json_lowering.oren"
 import type_ann "type_ann_lowering.oren"
+import typecheck "typecheck.oren"
 import abi_layout "abi_layout_lowering.oren"
 import impl_lowering "impl_lowering.oren"
 import optimizer "optimizer.oren"
@@ -35,6 +36,7 @@ fn cli_spec() {
     argparse.cmd_option(build, "--link", "-l", "string", "", "(native backend, macOS) add LC_LOAD_DYLIB")
     argparse.cmd_flag(build, "--metadata", nil, "(native backend) write <out>.meta.json")
     argparse.cmd_flag(build, "--analyze", nil, "Print analysis info and exit")
+    argparse.cmd_flag(build, "--typecheck", nil, "Typecheck annotated code (fail fast on type errors; still builds on success)")
     argparse.cmd_flag(build, "--python", nil, "(C backend) enable Python integration (requires python3-config)")
     argparse.cmd_flag(build, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
     argparse.cmd_option(build, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
@@ -898,6 +900,26 @@ fn link_program(entry_path, root_prog, config) {
         oren_exit(1)
     }
 
+    // Optional: typecheck pass (gradual typing).
+    //
+    // Run this before normalization casts are inserted so diagnostics point at user code
+    // rather than compiler-generated boundary rewrites.
+    if config != nil && config["typecheck"] == true {
+        if trace_passes { print("[trace] pass: typecheck") }
+        typecheck.typecheck_linked_program_in_place(linked)
+    }
+    if linked["typecheck_errors"] != nil && oren_list_len(linked["typecheck_errors"]) > 0 {
+        var first_err = linked["typecheck_errors"][0]
+        emit_diag("typecheck", 1, first_err)
+        print("Typecheck errors:")
+        var ei2 = 0
+        while ei2 < oren_list_len(linked["typecheck_errors"]) {
+            print(linked["typecheck_errors"][ei2])
+            ei2 = ei2 + 1
+        }
+        oren_exit(1)
+    }
+
 
     // Compile-time lowering: apply value-level normalization for annotated boundaries.
     // (Rolling step toward exact-size layout semantics.)
@@ -1367,6 +1389,7 @@ fn compiler_main() {
     var emit_meta = false
     var is_shared_lib = false
     var deterministic = false
+    var do_typecheck = false
     // Rolling mode: default native builds to embed debug info so panics produce readable stack traces.
     // Users can still disable by explicitly setting OREN_NATIVE_NO_DEBUG=1 (kept as an env knob so we
     // don't need to introduce a new CLI flag yet).
@@ -1436,14 +1459,18 @@ fn compiler_main() {
                                     CAP_ALLOW_DOMAINS = split_csv(args[i + 1])
                                     i = i + 2
                                 } else {
-                            if args[i] == "--python" {
-                                enable_python = true
-                                i = i + 1
-                            } else {
-                                if args[i] == "--link" || args[i] == "-l" {
-                                    if i + 1 >= argc {
-                                        emit_diag("compile", 2, "Missing value for --link")
-                                        print("Missing value for --link")
+                                if args[i] == "--python" {
+                                    enable_python = true
+                                    i = i + 1
+                                } else {
+                                    if args[i] == "--typecheck" {
+                                        do_typecheck = true
+                                        i = i + 1
+                                    } else {
+                                        if args[i] == "--link" || args[i] == "-l" {
+                                            if i + 1 >= argc {
+                                                emit_diag("compile", 2, "Missing value for --link")
+                                                print("Missing value for --link")
                                         oren_exit(2)
                                     }
                                     oren_list_push(link_libs, args[i + 1])
@@ -1531,8 +1558,9 @@ fn compiler_main() {
                                                                             emit_diag("compile", 2, "Unknown arg: " + args[i])
                                                                             print("Unknown arg: " + args[i])
                                                                             oren_exit(2)
-                                                                        }
-                                                                    }
+                                        }
+                                    }
+                                }
                                                                 }
                                                             }
                                                         }
@@ -1612,7 +1640,7 @@ fn compiler_main() {
     }
 
     if backend == "bytecode" {
-        var linked_bc = link_program(path, prog, {"target": target, "arch": arch})
+        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck})
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc)
         if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
             var first_err = ctx["errors"][0]
@@ -1662,7 +1690,7 @@ fn compiler_main() {
             oren_exit(2)
         }
 
-        var linked = link_program(path, prog, {"target": target, "arch": arch})
+        var linked = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck})
         var export_names = []
         
         if is_shared_lib {
@@ -1797,7 +1825,7 @@ fn compiler_main() {
     }
 
     // For C backend, we also need to load modules to populate MODULE_ORDER
-    var linked_c = link_program(path, prog, {"target": target, "arch": arch})
+    var linked_c = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck})
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     var c_path = path + ".c"
     var w3 = oren_write_file(c_path, c_code)

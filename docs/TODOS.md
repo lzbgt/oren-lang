@@ -12,6 +12,7 @@ Priority model:
 
 - Completed / detailed history: `docs/TODOS_ARCHIVE.md`
 - Platform focus right now: **macOS arm64 first** (but avoid designs that block Linux arm64 later).
+- Roadmap driver: production **server-side HPC** requirements (Eigen/BLAS-like workloads), see `docs/HPC_SERVER_PLAN.md`.
 
 ## Rules (Enforced For Every Task)
 
@@ -75,14 +76,23 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - add `oren build --typecheck` (or equivalent) that validates:
        - fn param/return annotations at callsites/returns
        - invalid cast inputs (e.g. `f32("x")`) are rejected with `file:line:col`
-     - typecheck must not depend on host headers/SDKs
+      - typecheck must not depend on host headers/SDKs
 
-2) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+2) **[lang][perf] Typed buffers + views (slice + matrix stride view)**
+   - Why now:
+     - Without contiguous typed buffers and views, server-side HPC cannot reach acceptable performance.
+   - DoD:
+     - define `[]T` slice shape (ptr+len) and a matrix view with stride
+     - keep views zero-copy; no hidden allocations
+     - add `std/bytes`/`std/buffer` helper surface as needed (keep SOLID)
+     - add module tests targeting public surfaces (no compiler-internal imports)
+
+3) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
-3) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
+4) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
    - DoD:
      - keep scalar APIs stable (`dot_*`, `axpy_*`, `matmul_*`)
      - add optional NEON fast paths for arm64 for dot/axpy (no correctness changes; keep deterministic rounding rules)
@@ -120,6 +130,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Language: added `as` cast operator (`expr as u8`) desugared to builtin cast sugar; added module test + oretest wiring; updated spec.
+- Tooling: added opt-in `--typecheck` pass (v0) + oretest fixture for invalid casts.
 - Casting: builtin cast sugar + deterministic boundary normalization; added `std/casts` clarity module and regression tests.
 - Stdlib: added `std/linalg` (scalar-first dot/axpy/matmul) with module tests and oretest wiring; verified on macOS + linux docker runner.
 - Stdlib: added `lib/std/math.oren` + `lib/std/regex.oren` (deterministic Thompson NFA; no backtracking blowups) with module tests and oretest wiring; verified on macOS + linux docker runner.

@@ -1,0 +1,467 @@
+import ast "ast.oren"
+import token "token.oren"
+
+// Typecheck pass (rolling, v0).
+//
+// Goal:
+// - Provide an opt-in correctness gate for annotated code without requiring a full
+//   static type system yet.
+// - Catch obvious type mismatches at compile time:
+//   - invalid cast inputs (e.g. `f32("x")`, `u8(1.0)`)
+//   - invalid `as` casts (desugared to cast sugar calls by the parser)
+//   - function call/return mismatches when signatures are annotated and the value
+//     is statically-known (literals and simple arithmetic).
+//
+// Non-goals:
+// - Full inference, unification, generic constraints
+// - Proving container element types
+//
+// Output:
+// - linked["typecheck_errors"] = [string...]
+
+fn _tok_loc(tok) {
+    if tok == nil { return "<unknown>:0:0" }
+    var file = tok["file"]
+    if file == nil { file = "<unknown>" }
+    var line = tok["line"]
+    var col = tok["col"]
+    if line == nil { line = 0 }
+    if col == nil { col = 0 }
+    return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+}
+
+fn _err(errors, tok, msg) {
+    var loc = _tok_loc(tok)
+    oren_list_push(errors, loc + ": typecheck: " + msg)
+    return nil
+}
+
+fn _ann_to_cat(ann) {
+    // Categories: int|float|bool|unknown
+    if ann == nil { return "unknown" }
+
+    // Strip optional namespace prefix.
+    if oren_string_len(ann) > 5 && oren_string_slice(ann, 0, 5) == "oren." {
+        ann = oren_string_slice(ann, 5, oren_string_len(ann))
+    }
+
+    // Endian types are scalar ints for value-level typechecking.
+    if ann == "u16be" || ann == "u16le" || ann == "i16be" || ann == "i16le" { return "int" }
+    if ann == "u32be" || ann == "u32le" || ann == "i32be" || ann == "i32le" { return "int" }
+    if ann == "u64be" || ann == "u64le" || ann == "i64be" || ann == "i64le" { return "int" }
+
+    if ann == "u8" || ann == "i8" { return "int" }
+    if ann == "u16" || ann == "i16" { return "int" }
+    if ann == "u32" || ann == "i32" { return "int" }
+    if ann == "u64" || ann == "i64" { return "int" }
+    if ann == "u128" || ann == "i128" { return "int" }
+
+    if ann == "f32" || ann == "f64" { return "float" }
+    if ann == "bool" { return "bool" }
+
+    return "unknown"
+}
+
+fn _is_cast_target_name(name) {
+    if name == nil { return false }
+    // Scalar widths.
+    if name == "u8" || name == "i8" { return true }
+    if name == "u16" || name == "i16" { return true }
+    if name == "u32" || name == "i32" { return true }
+    if name == "u64" || name == "i64" { return true }
+    if name == "u128" || name == "i128" { return true }
+    if name == "f32" || name == "f64" { return true }
+    if name == "bool" { return true }
+
+    // Endian spellings.
+    if name == "u16be" || name == "u16le" { return true }
+    if name == "i16be" || name == "i16le" { return true }
+    if name == "u32be" || name == "u32le" { return true }
+    if name == "i32be" || name == "i32le" { return true }
+    if name == "u64be" || name == "u64le" { return true }
+    if name == "i64be" || name == "i64le" { return true }
+
+    return false
+}
+
+fn _cat_of_literal(expr) {
+    if expr == nil { return "unknown" }
+    var t = expr["type"]
+    if t == "Integer" { return "int" }
+    if t == "Float" { return "float" }
+    if t == "String" { return "string" }
+    if t == "Boolean" { return "bool" }
+    if t == "Nil" { return "nil" }
+    return "unknown"
+}
+
+fn _cat(expr, env) {
+    // A conservative "static category" classifier.
+    // Returns: int|float|string|bool|nil|unknown
+    if expr == nil { return "unknown" }
+
+    var lit = _cat_of_literal(expr)
+    if lit != "unknown" { return lit }
+
+    var t = expr["type"]
+    if t == "Identifier" {
+        if env != nil && env[expr["value"]] != nil { return env[expr["value"]] }
+        return "unknown"
+    }
+    if t == "Prefix" {
+        return _cat(expr["right"], env)
+    }
+    if t == "Infix" {
+        var op = expr["op"]
+        var lc = _cat(expr["left"], env)
+        var rc = _cat(expr["right"], env)
+        if op == "+" || op == "-" || op == "*" || op == "/" {
+            if lc == "float" || rc == "float" { return "float" }
+            if lc == "int" && rc == "int" { return "int" }
+            return "unknown"
+        }
+        if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
+            return "bool"
+        }
+        if op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
+            if lc == "int" && rc == "int" { return "int" }
+            return "unknown"
+        }
+        if op == "&&" || op == "||" { return "bool" }
+        return "unknown"
+    }
+    if t == "If" { return "unknown" }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        if fn_expr != nil && fn_expr["type"] == "Identifier" && _is_cast_target_name(fn_expr["value"]) {
+            // Cast result category is determined by the target.
+            var k = _ann_to_cat(fn_expr["value"])
+            if k == "int" { return "int" }
+            if k == "float" { return "float" }
+            if k == "bool" { return "bool" }
+            return "unknown"
+        }
+        // Unknown function return.
+        return "unknown"
+    }
+
+    return "unknown"
+}
+
+fn _check_cast_call(errors, call, env) {
+    if call == nil || call["type"] != "Call" { return nil }
+    var fn_expr = call["fn"]
+    if fn_expr == nil || fn_expr["type"] != "Identifier" { return nil }
+    var nm = fn_expr["value"]
+    if !_is_cast_target_name(nm) { return nil }
+
+    var args = call["args"]
+    if args == nil || oren_list_len(args) != 1 { return nil }
+
+    var arg_cat = _cat(args[0], env)
+    var tgt_cat = _ann_to_cat(nm)
+
+    // bool(...) is allowed for all categories (it is the explicit normalization).
+    if tgt_cat == "bool" { return nil }
+
+    // f32/f64 casts require a float input in v0.
+    if tgt_cat == "float" {
+        if arg_cat == "int" || arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
+            _err(errors, call["token"], "invalid cast: " + nm + "(...) expects float input")
+        }
+        return nil
+    }
+
+    // int casts currently require int input (bitwise lowering assumes ints).
+    if tgt_cat == "int" {
+        if arg_cat == "float" || arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
+            _err(errors, call["token"], "invalid cast: " + nm + "(...) expects int input")
+        }
+        return nil
+    }
+
+    return nil
+}
+
+fn _collect_fn_sigs_in_stmt(stmt, sigs) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "ExprStmt" {
+        return _collect_fn_sigs_in_stmt(stmt["expr"], sigs)
+    }
+    if t == "Function" {
+        var name = stmt["name"]
+        if name != nil && name != "" {
+            var ps = stmt["params"]
+            var pk = []
+            var i = 0
+            while i < oren_list_len(ps) {
+                var pid = ps[i]
+                if pid != nil && pid["ann_type"] != nil { oren_list_push(pk, _ann_to_cat(pid["ann_type"])) }
+                else { oren_list_push(pk, "unknown") }
+                i = i + 1
+            }
+            sigs[name] = {"params": pk, "ret": _ann_to_cat(stmt["ret_ann_type"])}
+        }
+        _collect_fn_sigs_in_stmt(stmt["body"], sigs)
+        return nil
+    }
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { xs = stmt["statements"] }
+        if xs == nil { return nil }
+        var j = 0
+        while j < oren_list_len(xs) {
+            _collect_fn_sigs_in_stmt(xs[j], sigs)
+            j = j + 1
+        }
+        return nil
+    }
+    if t == "While" { return _collect_fn_sigs_in_stmt(stmt["body"], sigs) }
+    if t == "For" {
+        if stmt["init"] != nil { _collect_fn_sigs_in_stmt(stmt["init"], sigs) }
+        if stmt["post"] != nil { _collect_fn_sigs_in_stmt(stmt["post"], sigs) }
+        return _collect_fn_sigs_in_stmt(stmt["body"], sigs)
+    }
+    if t == "Switch" {
+        var cs = stmt["cases"]
+        var ci = 0
+        while ci < oren_list_len(cs) {
+            _collect_fn_sigs_in_stmt(cs[ci]["body"], sigs)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { _collect_fn_sigs_in_stmt(stmt["default"], sigs) }
+        return nil
+    }
+    return nil
+}
+
+fn _typecheck_expr(errors, expr, env, sigs) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+
+    if t == "Prefix" {
+        _typecheck_expr(errors, expr["right"], env, sigs)
+        return nil
+    }
+    if t == "Infix" {
+        _typecheck_expr(errors, expr["left"], env, sigs)
+        _typecheck_expr(errors, expr["right"], env, sigs)
+        return nil
+    }
+    if t == "If" {
+        _typecheck_expr(errors, expr["cond"], env, sigs)
+        _typecheck_stmt(errors, expr["consq"], env, sigs, nil)
+        if expr["alt"] != nil { _typecheck_stmt(errors, expr["alt"], env, sigs, nil) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            _typecheck_expr(errors, xs[i], env, sigs)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            _typecheck_expr(errors, ps[i2]["key"], env, sigs)
+            _typecheck_expr(errors, ps[i2]["value"], env, sigs)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        _typecheck_expr(errors, expr["left"], env, sigs)
+        _typecheck_expr(errors, expr["index"], env, sigs)
+        return nil
+    }
+    if t == "Member" {
+        _typecheck_expr(errors, expr["left"], env, sigs)
+        return nil
+    }
+    if t == "SpawnExpr" {
+        _typecheck_expr(errors, expr["call"], env, sigs)
+        return nil
+    }
+    if t == "Call" {
+        // Descend into args first.
+        _typecheck_expr(errors, expr["fn"], env, sigs)
+        var args = expr["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            _typecheck_expr(errors, args[i3], env, sigs)
+            i3 = i3 + 1
+        }
+        if expr["spread"] != nil { _typecheck_expr(errors, expr["spread"], env, sigs) }
+
+        // Cast sugar validation.
+        _check_cast_call(errors, expr, env)
+
+        // Function signature callsite validation (best-effort).
+        var fn_expr = expr["fn"]
+        if fn_expr != nil && fn_expr["type"] == "Identifier" {
+            var sig = sigs[fn_expr["value"]]
+            if sig != nil {
+                var exp_params = sig["params"]
+                if exp_params != nil && oren_list_len(exp_params) == oren_list_len(args) {
+                    var ai = 0
+                    while ai < oren_list_len(args) {
+                        var want = exp_params[ai]
+                        var got = _cat(args[ai], env)
+                        if want == "int" && got != "unknown" && got != "int" {
+                            _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects int")
+                        }
+                        if want == "float" && got != "unknown" && got != "float" {
+                            _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects float")
+                        }
+                        if want == "bool" && got != "unknown" && got != "bool" {
+                            _err(errors, expr["token"], "call type mismatch: param " + oren_int_to_string(ai) + " expects bool")
+                        }
+                        ai = ai + 1
+                    }
+                }
+            }
+        }
+        return nil
+    }
+    if t == "Function" {
+        // Nested function: check its body with a fresh env.
+        var fn_env = {}
+        var params = expr["params"]
+        var pi = 0
+        while pi < oren_list_len(params) {
+            var pid = params[pi]
+            if pid != nil && pid["ann_type"] != nil {
+                fn_env[pid["value"]] = _ann_to_cat(pid["ann_type"])
+            }
+            pi = pi + 1
+        }
+        _typecheck_stmt(errors, expr["body"], fn_env, sigs, _ann_to_cat(expr["ret_ann_type"]))
+        return nil
+    }
+
+    return nil
+}
+
+fn _typecheck_stmt(errors, stmt, env, sigs, ret_cat) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { xs = stmt["statements"] }
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            _typecheck_stmt(errors, xs[i], env, sigs, ret_cat)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        var nm = stmt["name"]
+        if nm != nil && nm["ann_type"] != nil {
+            env[nm["value"]] = _ann_to_cat(nm["ann_type"])
+        }
+        _typecheck_expr(errors, stmt["value"], env, sigs)
+        return nil
+    }
+    if t == "Assign" {
+        _typecheck_expr(errors, stmt["value"], env, sigs)
+        return nil
+    }
+    if t == "Set" {
+        _typecheck_expr(errors, stmt["left"], env, sigs)
+        _typecheck_expr(errors, stmt["value"], env, sigs)
+        return nil
+    }
+    if t == "Return" {
+        _typecheck_expr(errors, stmt["value"], env, sigs)
+        if ret_cat != nil && ret_cat != "unknown" {
+            var got = _cat(stmt["value"], env)
+            if ret_cat == "int" && got != "unknown" && got != "int" {
+                _err(errors, stmt["token"], "return type mismatch: expects int")
+            }
+            if ret_cat == "float" && got != "unknown" && got != "float" {
+                _err(errors, stmt["token"], "return type mismatch: expects float")
+            }
+            if ret_cat == "bool" && got != "unknown" && got != "bool" {
+                _err(errors, stmt["token"], "return type mismatch: expects bool")
+            }
+        }
+        return nil
+    }
+    if t == "ExprStmt" {
+        _typecheck_expr(errors, stmt["expr"], env, sigs)
+        return nil
+    }
+    if t == "While" {
+        _typecheck_expr(errors, stmt["cond"], env, sigs)
+        _typecheck_stmt(errors, stmt["body"], env, sigs, ret_cat)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _typecheck_stmt(errors, stmt["init"], env, sigs, ret_cat) }
+        if stmt["cond"] != nil { _typecheck_expr(errors, stmt["cond"], env, sigs) }
+        if stmt["post"] != nil { _typecheck_stmt(errors, stmt["post"], env, sigs, ret_cat) }
+        _typecheck_stmt(errors, stmt["body"], env, sigs, ret_cat)
+        return nil
+    }
+    if t == "Spawn" {
+        _typecheck_expr(errors, stmt["call"], env, sigs)
+        return nil
+    }
+    if t == "Switch" {
+        _typecheck_expr(errors, stmt["value"], env, sigs)
+        var cases = stmt["cases"]
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            var vals = cases[ci]["values"]
+            var vi = 0
+            while vi < oren_list_len(vals) {
+                _typecheck_expr(errors, vals[vi], env, sigs)
+                vi = vi + 1
+            }
+            _typecheck_stmt(errors, cases[ci]["body"], env, sigs, ret_cat)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { _typecheck_stmt(errors, stmt["default"], env, sigs, ret_cat) }
+        return nil
+    }
+    if t == "Function" {
+        // In some contexts functions can appear as statements.
+        _typecheck_expr(errors, stmt, env, sigs)
+        return nil
+    }
+
+    return nil
+}
+
+fn typecheck_linked_program_in_place(linked) {
+    if linked == nil { return linked }
+
+    var errors = []
+
+    // Collect function signatures (best-effort).
+    var sigs = {}
+    var stmts = linked["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _collect_fn_sigs_in_stmt(stmts[i], sigs)
+        i = i + 1
+    }
+
+    // Typecheck all statements.
+    i = 0
+    while i < oren_list_len(stmts) {
+        _typecheck_stmt(errors, stmts[i], {}, sigs, nil)
+        i = i + 1
+    }
+
+    linked["typecheck_errors"] = errors
+    return linked
+}

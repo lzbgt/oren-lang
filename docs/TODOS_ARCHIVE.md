@@ -42,6 +42,12 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Stdlib: added `lib/std/linalg.oren` (scalar-first `dot_*`, `axpy_*`, `matmul_*`) with module test `tests/modules/test_linalg.oren` and oretest wiring.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — `as` cast operator + typecheck v0 scaffolding
+
+- Language: added `as` cast operator (`expr as u8`) desugared to builtin cast sugar.
+- Language: added opt-in `--typecheck` pass to reject obvious invalid casts and mismatched annotated boundaries.
+- Tests: added `tests/modules/test_as_cast.oren` and fixture `tests/fixtures/typecheck_bad_cast.oren` wired into `cmd/oretest`.
+
 ## Archived (2025-12-20) — Test system evolution spec (no rewrite)
 
 - Documented a minimal Oren-native test manifest shape and runner CLI/output contract in `docs/TEST_SYSTEM.md`.

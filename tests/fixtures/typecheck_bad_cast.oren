@@ -1,0 +1,9 @@
+// Expected to fail under: `./oren build ... --typecheck`
+
+fn main() {
+    // f32(...) requires float input in v0.
+    var x = f32("not a float")
+    print(x)
+    exit(0)
+}
+
