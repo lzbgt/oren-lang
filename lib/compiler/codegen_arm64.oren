@@ -35,3 +35,4 @@ fn insn_ret() { return core.insn_ret() }
 
 // Top-level compilation entry
 fn native_compile_program_arm64(linked, platform) { return prog.native_compile_program_arm64(linked, platform) }
+fn native_emit_errors_and_exit(ctx) { return prog.native_emit_errors_and_exit(ctx) }

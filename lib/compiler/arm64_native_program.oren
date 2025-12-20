@@ -612,6 +612,37 @@ fn synth_lambda_wrapper(def) {
     return node_expr_stmt(wrapper_fun)
 }
 
+fn native_diag_escape(msg) {
+    if msg == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(msg) {
+        var c = oren_string_char_at(msg, i)
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
+fn native_emit_errors_and_exit(ctx) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { return nil }
+    if oren_list_len(ctx["errors"]) == 0 { return nil }
+    var first = ctx["errors"][0]
+    print("OREN_DIAG kind=codegen code=1 msg=" + native_diag_escape(first))
+    print("native backend errors:")
+    var ei = 0
+    while ei < oren_list_len(ctx["errors"]) {
+        print(ctx["errors"][ei])
+        ei = ei + 1
+    }
+    oren_exit(1)
+    return nil
+}
+
 fn native_compile_program_arm64(linked, platform) {
     var ctx = {
         "code": bytes_new(),
