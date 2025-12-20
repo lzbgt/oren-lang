@@ -11,6 +11,8 @@
 // `*_f32` APIs provide a deterministic float32 *boundary* by rounding outputs to f32,
 // but computations still occur in f64 unless/until we have a true f32 container.
 
+import buffer "../../lib/std/buffer.oren"
+
 fn _err_invalid_arg(msg) {
     // Code 4 matches existing stdlib convention (see std/ints).
     return oren_err(4, msg)
@@ -49,6 +51,21 @@ fn dot_f32(a, b) {
     return f32(s)
 }
 
+// --- typed-buffer HPC variants ---
+//
+// These operate on runtime typed buffers (`[]i32`, `[]f32`, ...). They avoid the
+// per-element boxed list overhead and enable runtime kernels (including NEON
+// where semantics are safe).
+
+fn dot_i32_buf(a: []i32, b: []i32) {
+    return oren_buf_dot_i32(a, b)
+}
+
+fn dot_f32_buf(a: []f32, b: []f32) {
+    // Semantics: deterministic dot in f64 accumulation order (runtime-defined).
+    return oren_buf_dot_f32(a, b)
+}
+
 // --- axpy (y := a*x + y) ---
 
 fn axpy_f64(alpha, x, y) {
@@ -84,6 +101,36 @@ fn axpy_f32(alpha, x, y) {
         i = i + 1
     }
     return out
+}
+
+fn axpy_f32_buf_in_place(alpha, x: []f32, y: []f32) {
+    return oren_buf_axpy_f32_in_place(alpha, x, y)
+}
+
+fn axpy_f32_buf(alpha, x: []f32, y: []f32) {
+    var n = buffer.len(x)
+    if oren_is_err(n) { return n }
+    var ny = buffer.len(y)
+    if oren_is_err(ny) { return ny }
+    if n != ny { return _err_invalid_arg("axpy_f32_buf: length mismatch") }
+    var out: []f32 = buffer.f32_new(n)
+    if oren_is_err(out) { return out }
+    return oren_buf_axpy_f32_into(out, alpha, x, y)
+}
+
+fn axpy_i32_buf_in_place(alpha, x: []i32, y: []i32) {
+    return oren_buf_axpy_i32_in_place(alpha, x, y)
+}
+
+fn axpy_i32_buf(alpha, x: []i32, y: []i32) {
+    var n = buffer.len(x)
+    if oren_is_err(n) { return n }
+    var ny = buffer.len(y)
+    if oren_is_err(ny) { return ny }
+    if n != ny { return _err_invalid_arg("axpy_i32_buf: length mismatch") }
+    var out: []i32 = buffer.i32_new(n)
+    if oren_is_err(out) { return out }
+    return oren_buf_axpy_i32_into(out, alpha, x, y)
 }
 
 // --- matrix multiplication ---
@@ -133,4 +180,3 @@ fn matmul_f32(a, b, m, n, p) {
     }
     return out
 }
-

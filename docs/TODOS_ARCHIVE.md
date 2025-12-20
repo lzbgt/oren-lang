@@ -143,6 +143,25 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Verified:
   - `./oretest` on macOS
   - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
+
+## Archived (2025-12-21) — `std/linalg` v0.2 (buffers + safe NEON) + i32 overflow hardening
+
+- Runtime (C backend buffers):
+  - Defined wrap-safe semantics for i32 `dot` / `reduce_sum` by accumulating modulo 2^64 (avoids signed overflow UB).
+  - Added arm64 NEON fast paths for i32 `dot` / `reduce_sum` (little-endian only; deterministic).
+  - Added AXPY intrinsics:
+    - `oren_buf_axpy_f32_{into,in_place}` (per-element float32 mul+add; avoids fused multiply-add)
+    - `oren_buf_axpy_i32_{into,in_place}` (per-element wrap math)
+
+- Stdlib:
+  - `lib/std/linalg.oren` gained typed-buffer APIs (`*_buf`) and delegates to runtime buffer kernels for performance.
+
+- Tests:
+  - Extended `tests/modules/test_linalg.oren` to cover typed-buffer dot/axpy.
+
+- Verified:
+  - `./oretest` on macOS
+  - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
 - Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 

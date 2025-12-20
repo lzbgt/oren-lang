@@ -1,4 +1,5 @@
 import linalg "../../lib/std/linalg.oren"
+import buffer "../../lib/std/buffer.oren"
 
 fn fail(code) {
     print("module linalg FAIL " + oren_int_to_string(code))
@@ -57,6 +58,29 @@ assert_list_eq(C, [58.0, 64.0,
 var bad = linalg.dot_f64([1.0], [2.0, 3.0])
 assert_true(oren_is_err(bad), 50)
 
+// --- typed-buffer variants ---
+
+var bi: []i32 = buffer.i32_new(3)
+var bj: []i32 = buffer.i32_new(3)
+oren_buf_store_i32(bi, 0, 1)
+oren_buf_store_i32(bi, 1, 2)
+oren_buf_store_i32(bi, 2, 3)
+oren_buf_store_i32(bj, 0, 4)
+oren_buf_store_i32(bj, 1, 5)
+oren_buf_store_i32(bj, 2, 6)
+assert_eq(linalg.dot_i32_buf(bi, bj), 32, 60)
+
+var bf: []f32 = buffer.f32_new(2)
+var bg: []f32 = buffer.f32_new(2)
+oren_buf_store_f32(bf, 0, 1.0)
+oren_buf_store_f32(bf, 1, 2.0)
+oren_buf_store_f32(bg, 0, 10.0)
+oren_buf_store_f32(bg, 1, 20.0)
+
+var r = linalg.axpy_f32_buf_in_place(2.0, bf, bg)
+assert_true(!oren_is_err(r), 61)
+assert_eq(oren_buf_load_f32(bg, 0), f32(12.0), 62)
+assert_eq(oren_buf_load_f32(bg, 1), f32(24.0), 63)
+
 print("module linalg OK")
 exit(0)
-

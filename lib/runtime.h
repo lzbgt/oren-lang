@@ -237,15 +237,25 @@ OrenValue oren_buf_scale_i32_into(OrenValue dst, OrenValue a, OrenValue scalar);
 OrenValue oren_buf_scale_f32(OrenValue buf, OrenValue scalar);
 OrenValue oren_buf_scale_f32_into(OrenValue dst, OrenValue a, OrenValue scalar);
 
-OrenValue oren_buf_reduce_sum_i32(OrenValue buf);
-OrenValue oren_buf_reduce_sum_f32(OrenValue buf);
-OrenValue oren_buf_dot_i32_into(OrenValue out, OrenValue a, OrenValue b);
-OrenValue oren_buf_dot_f32_into(OrenValue out, OrenValue a, OrenValue b);
-OrenValue oren_buf_reduce_sum_i32_into(OrenValue out, OrenValue a);
-OrenValue oren_buf_reduce_sum_f32_into(OrenValue out, OrenValue a);
+	OrenValue oren_buf_reduce_sum_i32(OrenValue buf);
+	OrenValue oren_buf_reduce_sum_f32(OrenValue buf);
+	OrenValue oren_buf_dot_i32_into(OrenValue out, OrenValue a, OrenValue b);
+	OrenValue oren_buf_dot_f32_into(OrenValue out, OrenValue a, OrenValue b);
+	OrenValue oren_buf_reduce_sum_i32_into(OrenValue out, OrenValue a);
+	OrenValue oren_buf_reduce_sum_f32_into(OrenValue out, OrenValue a);
 
-OrenValue oren_read_file(OrenValue path);
-OrenValue oren_write_file(OrenValue path, OrenValue content);
+	// AXPY: y := alpha*x + y (in-place) and dst := alpha*x + y (into).
+	//
+	// Determinism contract (v0):
+	// - f32 ops round `alpha` to float32 boundary, then do per-element mul+add in float32.
+	// - implementations must not change per-element rounding (avoid FMA contraction).
+	OrenValue oren_buf_axpy_f32_into(OrenValue dst, OrenValue alpha, OrenValue x, OrenValue y);
+	OrenValue oren_buf_axpy_f32_in_place(OrenValue alpha, OrenValue x, OrenValue y);
+	OrenValue oren_buf_axpy_i32_into(OrenValue dst, OrenValue alpha, OrenValue x, OrenValue y);
+	OrenValue oren_buf_axpy_i32_in_place(OrenValue alpha, OrenValue x, OrenValue y);
+
+	OrenValue oren_read_file(OrenValue path);
+	OrenValue oren_write_file(OrenValue path, OrenValue content);
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes);
 OrenValue oren_read_bytes(OrenValue path);
 OrenValue oren_bytes_from_string(OrenValue s);
