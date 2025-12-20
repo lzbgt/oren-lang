@@ -16,11 +16,15 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 ### Keywords
 Implemented today:
 
-`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`
+`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `match`
 
 Planned (not implemented yet):
 
-`yield`, `defer`, `assert`, `test`, `match`, `pub`
+`yield`, `defer`, `assert`, `pub`
+
+Rolling note: `match` is a **contextual** keyword to preserve compatibility with code that uses
+`match` as an identifier (variable/function name). The parser treats `match` as a statement only
+when the following token sequence looks like a match statement, not an identifier usage.
 
 ### Identifiers
 Identifiers are ASCII letters, digits, and `_`:
@@ -44,32 +48,47 @@ program         = { statement } EOF ;
 
 statement       = var_stmt
                 | short_var_stmt
+                | typed_short_var_stmt
                 | assignment
                 | return_stmt
                 | while_stmt
                 | for_stmt
                 | switch_stmt
+                | match_stmt
                 | break_stmt
                 | continue_stmt
                 | import_stmt
                 | type_stmt
+                | trait_stmt
+                | impl_stmt
+                | enum_stmt
                 | ffi_stmt
+                | test_stmt
                 | spawn_stmt
                 | expr_stmt ;
 
-var_stmt        = "var" ident "=" expression [ ";" ] ;
+var_stmt        = "var" ident [ ":" type_name ] "=" expression [ ";" ] ;
 short_var_stmt  = ident ":=" expression [ ";" ] ;
+typed_short_var_stmt = ident ":" type_name ":=" expression [ ";" ] ;
 return_stmt     = "return" expression [ ";" ] ;
 while_stmt      = "while" expression block ;
 for_stmt        = "for" [ for_header ] block ;
 switch_stmt     = "switch" expression "{" { case_clause } [ default_clause ] "}" ;
+match_stmt      = "match" expression "{" { match_case } [ match_default ] "}" ;
 case_clause     = "case" expression { "," expression } [ ":" ] block ;
 default_clause  = "default" [ ":" ] block ;
+match_case      = "case" match_pattern [ ":" ] block ;
+match_default   = "default" [ ":" ] block ;
 break_stmt      = "break" [ ";" ] ;
 continue_stmt   = "continue" [ ";" ] ;
 import_stmt     = "import" ident string_lit [ ";" ] ;
-type_stmt       = ("struct" | "class") ident "{" [ ident { "," ident } [ "," ] ] "}" [ ";" ] ;
+type_stmt       = ("struct" | "class") ident "{" [ field { "," field } [ "," ] ] "}" [ ";" ] ;
+field           = { attr } ident [ ":" type_name ] ;
+trait_stmt      = "trait" ident "{" { "fn" ident "(" [ param_list ] ")" [ ":" type_name ] ";" } "}" ;
+impl_stmt       = "impl" dotted_name "for" dotted_name "{" { "fn" ident "(" [ param_list ] ")" [ ":" type_name ] block } "}" ;
+enum_stmt       = "enum" ident "{" ident [ "(" [ ident { "," ident } ] ")" ] { "," ident [ "(" [ ident { "," ident } ] ")" ] } [ "," ] "}" ;
 ffi_stmt        = "ffi" ident [ ";" ] ;
+test_stmt       = "test" string_lit block ;
 spawn_stmt      = "spawn" expression [ ";" ] ;
 expr_stmt       = expression [ ";" ] ;
 
@@ -77,11 +96,13 @@ for_header      = expression
                 | [ for_init ] ";" [ expression ] ";" [ for_post ] ;
 for_init        = var_stmt_no_semi
                 | short_var_stmt_no_semi
+                | typed_short_var_stmt_no_semi
                 | assignment_no_semi
                 | expression ;
 for_post        = assignment_no_semi | expression ;
-var_stmt_no_semi       = "var" ident "=" expression ;
+var_stmt_no_semi       = "var" ident [ ":" type_name ] "=" expression ;
 short_var_stmt_no_semi = ident ":=" expression ;
+typed_short_var_stmt_no_semi = ident ":" type_name ":=" expression ;
 assignment_no_semi     = assign_target "=" expression ;
 
 assignment      = assign_target "=" expression [ ";" ] ;
@@ -107,9 +128,10 @@ infix_tail      = infix_op expression
                 | index_suffix ;
 
 if_expr         = "if" expression block [ "else" block ] ;
-fn_lit          = "fn" [ ident ] "(" [ ident { "," ident } ] ")" block ;
+fn_lit          = "fn" [ ident ] "(" [ param_list ] ")" block ;
 lambda_lit      = "|" [ ident { "," ident } ] "|" ( expression | block ) ;
                 // Note: for empty parameter lists, the source form `|| expr` is allowed (lexer emits a single `||` token).
+                // Rolling note: lambda params are currently untyped identifiers (no attrs, no varargs).
 spawn_expr      = "spawn" expression ;
                 // v0 restriction (all backends): `spawn` currently requires a call expression,
                 // e.g. `spawn f(x, y)`; it does not spawn arbitrary expressions.
@@ -122,6 +144,12 @@ map_lit         = "{" [ expression ":" expression { "," expression ":" expressio
 
 literal         = int_lit | float_lit | string_lit | "true" | "false" | "nil" ;
 ident           = /[A-Za-z_][A-Za-z0-9_]*/ ;
+dotted_name     = ident { "." ident } ;
+type_name       = [ "*" { "*" } ] dotted_name { "[" int_lit "]" } ;
+attr            = "@" dotted_name [ "(" { /* literal args only (v0) */ } ")" ] ;
+param           = { attr } [ "..." ] ident [ ":" type_name ] ;
+param_list      = param { "," param } ;
+match_pattern   = dotted_name [ "(" [ ident { "," ident } ] ")" ] ;
 infix_op        = "+" | "-" | "*" | "/"
                 | "<<" | ">>"
                 | "==" | "!=" | "<" | ">" | "<=" | ">="
@@ -147,6 +175,25 @@ infix_op        = "+" | "-" | "*" | "/"
 All infix operators are left-associative.
 
 ## Semantics
+
+### Notes on current (rolling) type annotations
+
+Oren is still in rolling mode without a full static type checker, but the parser already supports
+**explicit type annotation syntax** because it is required for:
+
+- syscall-first network/FFI structs (`u16be`, `u32be`, pointers like `*u8`, fixed arrays like `u8[16]`)
+- deterministic packed-byte views (`@pack` + field `name: u16be`)
+- method sugar resolution (static-first): `x: Type; x.method(...)` can lower to an impl method
+
+Where type annotations can appear today:
+
+- locals: `var x: u64 = ...`
+- typed short var: `x: u64 := ...`
+- function params: `fn f(x: u64) { ... }`
+- struct/class fields: `struct S { len: u16be, bytes: u8[16] }`
+
+Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved tokens** intended to
+become true explicit types as the v1 type system is stabilized (see later sections in this spec).
 
 ### Meta / Attributes (declaration annotations) (design direction)
 

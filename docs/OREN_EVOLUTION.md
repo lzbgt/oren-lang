@@ -9,7 +9,11 @@
 ## 1. The Vision: "Universal Agency"
 
 The ultimate goal of Oren is to become the **"Native Tongue of AI Agents."**
-It is designed to solve the "Sandbox Paradox": The need for Agents to have powerful, system-level capabilities while running safely in restricted environments (like iOS, Edge, or WebAssembly) where standard tools (GCC, Python) are unavailable or illegal.
+It is designed to solve the "Sandbox Paradox": The need for Agents to have powerful, system-level capabilities while running safely in restricted environments (like iOS or other sandboxed edge environments) where standard tools (GCC, Python) are unavailable or illegal.
+
+Rolling reality note (Dec 2025):
+- The primary "restricted environment" driver here is **iOS/App Store (no JIT)** and similar sandboxed contexts.
+- "WebAssembly" can be a future *hosting substrate* for AVM, but it is not a required milestone for the near-term roadmap.
 
 **The "Hybrid Runtime" Philosophy:**
 Oren is not just a compiled language; it is a dual-mode system:
@@ -28,7 +32,7 @@ graph TD
     B --> C{Target Selector}
     
     C -- "Server / Desktop" --> D[Native Backend]
-    D --> E[ARM64 / x86_64 Binary]
+    D --> E[ARM64 Binary (macOS/Linux today)]
     E --> F[Host Execution]
     
     C -- "iOS / Web / Edge" --> G[Bytecode Backend]
@@ -82,10 +86,10 @@ graph TD
 
 ## 4. Why This Wins
 
-| Feature | C / C++ | Python | WASM | **Oren (Hybrid)** |
+| Feature | C / C++ | Python | WASM (as host VM) | **Oren (Hybrid)** |
 | :--- | :--- | :--- | :--- | :--- |
 | **Performance** | Native | Slow | Near-Native | **Native** (Server) / **Interpreted** (Mobile) |
-| **iOS/AppStore** | **Banned** (No Exec) | Hard to Embed | Supported | **Native Support** (via Interpreter) |
+| **iOS/AppStore** | **Banned** (No Exec) | Hard to Embed | Supported | **Native Support** (via AVM interpreter) |
 | **Agent Safety** | Dangerous | Safe | Safe | **Safe** (Managed Runtime) |
 | **Dependency** | High (GCC/Clang) | High (PyRuntime) | High (Toolchain) | **Zero** (Self-Contained) |
 
@@ -94,7 +98,7 @@ graph TD
 ## 5. Current Status (Dec 2025)
 
 *   **Compiler:** Self-hosting (Stage 2) active.
-*   **Backends:** C (Transpiler), ARM64 native backend, and bytecode backend operational.
+*   **Backends:** C (Transpiler), **arm64 native backend** (macOS/Linux), and bytecode backend operational.
 *   **AVM:** `lib/avm` stack-machine interpreter exists; `.obc` can be emitted and executed.
 *   **Host calls:** capability-scoped `CALL_NATIVE2(domain, op, nargs)` exists (rolling ABI), with FS and CORE domains started.
 *   **Next Step:** Continue hardening the AVM for agent workloads: verifier + budgets + deterministic mode + snapshotting.

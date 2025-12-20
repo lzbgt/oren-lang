@@ -3,7 +3,7 @@
 This document captures the staged plan for turning Oren into a production-grade, modern language and toolchain. It specifically addresses the trade-offs highlighted in `docs/COMPARISON.md`.
 
 ## Goals
-- Fast native codegen for macOS/Linux ARM64 (and x86_64), with a portable C backend for constrained targets.
+- Fast native codegen for macOS/Linux **arm64 first**, with a portable C backend for bootstrapping and constrained targets.
 - Robust type system (generics, interfaces/traits, enums/ADTs, pattern matching) with a sound checker.
 - Predictable memory story: optional GC (desktop/server) and deterministic/manual mode (embedded).
 - First-class developer ergonomics: formatter, linter, LSP, test runner, package manager, and debugging/profiling hooks.
@@ -16,14 +16,16 @@ Agentic/production constraints that drive prioritization (rolling mode):
 - **Linux parity early** (validate on QEMU host) to avoid macOS-only drift.
 
 ## Mitigation Strategies (Addressing Disadvantages)
-- **Runtime Performance**: Move from stack-machine codegen to a Register Allocator (Linear Scan or Graph Coloring) to close the 2x-10x perf gap with Zig/C. Implement basic peephole optimizations (instruction selection).
-- **Platform Limitations**: Implement x86_64 native backend (Near/Mid-term) and WebAssembly (WASM) backend (Long-term) to broaden reach beyond ARM64.
+- **Runtime Performance**: Move from stack-machine codegen to a Register Allocator (Linear Scan or Graph Coloring) and keep a simple optimization pipeline (const-folding, DCE, peepholes) to close the perf gap with Zig/C.
+- **Platform Limitations (rolling stance)**:
+  - native backend focus is **macOS arm64 and Linux arm64** until the syscall-first runtime model is stable.
+  - x86_64 and WASM are considered **future** targets; they must not drive early architecture decisions or block progress on syscall-first + determinism.
 - **Safety**: Transition from conservative stack scanning to **Precise GC** using stack maps generated at compile-time. This prevents integers from being mistaken for pointers (leaks) and enables moving collectors.
 - **Ecosystem Split**: Define a `core` library subset that is guaranteed to work in `--no-gc` mode. Standard library modules will be explicitly marked if they require the managed heap.
 
 ## Phase 1
 - **Memory/GC**: [DONE] Implemented conservative stack scanning and thread registry. Next: Upgrade to **Precise GC** with stack maps, add safepoints and per-frame roots. Refine collection locking.
-- **Architecture**: **x86_64 Native Backend** skeleton to verify cross-platform compiler architecture.
+- **Architecture**: Keep native backend architecture clean so new targets can be added later, but do not spend effort on new CPU/OS targets until syscall-first runtime surfaces are stable.
 - **Concurrency**: [IN PROGRESS] Core threading primitives foundation (Thread Registry). Implementing IPC (Pipes). Next: `spawn` intrinsic (Linux clone/macOS bsdthread_create), channels/queues, atomics; ensure runtime data structures are thread-safe.
 - **FFI/Linking**: [DONE] Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding and GOT stubs. Linux `DT_NEEDED`/PLT pending but architecture is shared.
 - **Native backend**: Managed struct allocation in the native runtime (done). Global variable support (done). Next: register allocator groundwork (IR definition).
@@ -45,7 +47,7 @@ Agentic/production constraints that drive prioritization (rolling mode):
 ## Phase 3
 - **AI Readiness**: Implement agent-native features from `docs/AGENTIC_REQUIREMENTS.md` (metadata export, verification, deterministic workflows).
 - **Concurrency (Advanced)**: **M:N Scheduler** (Coroutines), **Pub/Sub**, **Fan-Out**, and **Parallel Iterators** (see `docs/CONCURRENCY_MODEL.md`).
-- **Targets**: **WebAssembly (WASM)** backend.
+- **Targets (future)**: consider WASM as a *host* for AVM (portable VM), but treat a full WASM-native backend as long-term and non-blocking.
 - **Async/Tasks**: Async/await or lightweight tasks with a scheduler; GC/stack interaction.
 - **Security/Trust**: Deterministic builds, supply-chain verification, signed artifacts, sandboxed exec.
 - **Ecosystem**: Standard library build-out (collections, fs/net/crypto/time), cross-platform story (Windows), and polished docs/examples.
