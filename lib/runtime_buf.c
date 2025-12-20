@@ -4,12 +4,22 @@
 #include <stdint.h>
 #include <string.h>
 
+#define OREN_BUF_ALIGN 64u
+
 #if defined(__aarch64__) && defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #include <arm_neon.h>
 #define OREN_BUF_HAVE_NEON 1
 #else
 #define OREN_BUF_HAVE_NEON 0
 #endif
+
+static uint8_t* align_ptr(uint8_t* p, uint32_t align) {
+    if (align == 0u) return p;
+    uintptr_t u = (uintptr_t)p;
+    uintptr_t a = (uintptr_t)align;
+    uintptr_t out = (u + (a - 1u)) & ~(a - 1u);
+    return (uint8_t*)out;
+}
 
 static OrenValue buf_err(const char* msg) {
     return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(msg));
@@ -55,8 +65,11 @@ static OrenValue buf_new(uint32_t elem_size, OrenValue lenv, OrenType ty) {
     }
 
     // Allocate header+payload together as a single GC-tracked block.
-    // This avoids GC reachability hazards from raw pointers between allocations.
-    size_t total = sizeof(OrenBuf) + (size_t)bytes_len;
+    //
+    // Also align the payload pointer for SIMD-friendly kernels. This stays portable
+    // and doesn't change observable semantics: only performance and ABI of the internal
+    // `OrenBuf` payload pointer.
+    size_t total = sizeof(OrenBuf) + (size_t)bytes_len + (OREN_BUF_ALIGN - 1u);
     uint64_t p = oren_alloc_struct(total);
     if (p == 0) {
         return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("buf_new: alloc failed"));
@@ -66,7 +79,8 @@ static OrenValue buf_new(uint32_t elem_size, OrenValue lenv, OrenType ty) {
     hdr->elem_size = elem_size;
     hdr->data = NULL;
     if (bytes_len > 0) {
-        hdr->data = ((uint8_t*)hdr) + sizeof(OrenBuf);
+        uint8_t* start = ((uint8_t*)hdr) + sizeof(OrenBuf);
+        hdr->data = align_ptr(start, OREN_BUF_ALIGN);
         memset(hdr->data, 0, (size_t)bytes_len);
     }
 
