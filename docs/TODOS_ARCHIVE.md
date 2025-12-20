@@ -62,6 +62,14 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Tests: strengthened `tests/modules/test_json_serde_attrs.oren` to cover both compact `@serde(...)` and legacy dotted forms.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — Serde schema metadata v1 (`oren meta`)
+
+- Implemented a normalized serde schema under `structs[*].serde` in metadata output (deterministic, versioned).
+  - Includes: `version`, `format`, optional `tag`, and normalized fields:
+    - `name`, `ann_type`, `wire`, `skip`, `default`
+- Added oretest coverage to ensure `oren meta` contains the serde schema for the JSON fixture.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.

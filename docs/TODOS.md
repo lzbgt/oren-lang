@@ -68,42 +68,32 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][ux] Serde v1: compiler emits unified “serde schema” metadata**
-   - Why now:
-     - JSON v1 codegen exists, but libraries need a stable metadata contract to build multi-format serdes without compiler churn.
-   - DoD:
-     - `oren meta` exports a normalized serde schema per struct:
-       - struct-level: `format`, optional `tag`, field list
-       - field-level: `rename`, `skip`, `default`, and type info (already in `ann_type`)
-     - schema is deterministic, versioned (rolling schema OK), and does not require runtime reflection
-     - `@serde(...)` stays as the source-level configuration surface (no new syntax)
-
-2) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
+1) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
    - DoD:
      - define minimal `.oren`-level test runner spec (output format, filters, JSON output)
      - keep `cmd/oretest` as orchestration for now, but document staged migration path
 
 ### B) AVM (evolves alongside language/compiler)
 
-3) **[vm][safety] Record/Replay v1 for all effectful domains**
+2) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-4) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+3) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-5) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+4) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-6) **[boot][arch] Compiler-in-AVM (close the loop)**
+5) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
@@ -111,7 +101,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-7) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+6) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
@@ -120,6 +110,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Serde attribute ergonomics v1: prefer `@serde(format="json", ...)` / `@serde(rename=..., skip=..., default=...)` while keeping legacy dotted forms working in rolling mode.
+- Serde v1: `oren meta` now emits a normalized per-struct serde schema under `structs[*].serde` (versioned, deterministic).
 - Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
 - Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
 - Native debug traces: `--debug` builds now print `file:line:col` in stack traces (from debug info table), making panics AI-diagnosable without lldb.

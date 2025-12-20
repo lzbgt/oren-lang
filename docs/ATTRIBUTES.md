@@ -64,6 +64,28 @@ Notes:
 - `args[*].key` is `null` for positional arguments; keyword args (future) would fill `key`.
 - argument values are literal-only in v0.
 
+### 2.2 Normalized serde schema (what libraries/tooling want)
+
+In addition to the raw attribute list, `oren meta` also emits a **normalized** serde schema per struct when any `@serde...` / `@json...` attributes are present.
+
+This is designed so libraries can implement JSON/YAML/TOML/etc on top of a stable metadata contract (without importing compiler internals and without runtime reflection).
+
+Shape (rolling, v1):
+
+```json
+{
+  "name": "User",
+  "serde": {
+    "version": 1,
+    "format": "json",
+    "tag": "User",
+    "fields": [
+      {"name":"id","ann_type":"i32","wire":"user_id","skip":false,"default":null}
+    ]
+  }
+}
+```
+
 ## 3) Strict attribute mode (governance / auditing)
 
 Strict attribute mode is implemented and enforced at parse-time:

@@ -1,5 +1,13 @@
 import token "token.oren"
 
+fn str_starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var ls = oren_string_len(s)
+    var lp = oren_string_len(prefix)
+    if lp > ls { return false }
+    return oren_string_slice(s, 0, lp) == prefix
+}
+
 fn escape_json_string(s) {
     // Minimal JSON escaping for strings we emit in metadata.
     // Keep it deterministic and avoid allocations beyond concatenation.
@@ -133,6 +141,207 @@ fn to_json(val) {
     return ""
 }
 
+fn attr_find(attrs, name) {
+    if attrs == nil { return nil }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["name"] == name { return a }
+        i = i + 1
+    }
+    return nil
+}
+
+fn attr_any_has_prefix(attrs, prefix) {
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil {
+            var n = a["name"]
+            if n == prefix { return true }
+            if prefix != nil && n != nil && str_starts_with(n, prefix + ".") { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn attr_arg0_value(a) {
+    if a == nil { return nil }
+    var args = a["args"]
+    if args == nil { return nil }
+    if oren_list_len(args) < 1 { return nil }
+    var x = args[0]
+    if x == nil { return nil }
+    return x["value"]
+}
+
+fn attr_kw_value(a, key) {
+    if a == nil { return nil }
+    var args = a["args"]
+    if args == nil { return nil }
+    var i = 0
+    while i < oren_list_len(args) {
+        var x = args[i]
+        if x != nil && x["key"] == key {
+            return x["value"]
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn attr_kw_string(a, key) {
+    var v = attr_kw_value(a, key)
+    if v == nil { return nil }
+    if v["type"] == "String" { return v["value"] }
+    return nil
+}
+
+fn attr_kw_bool(a, key) {
+    var v = attr_kw_value(a, key)
+    if v == nil { return nil }
+    if v["type"] == "Boolean" { return v["value"] }
+    return nil
+}
+
+fn serde_struct_format(attrs) {
+    // Returns "json" / other format string, or nil if no opt-in requested.
+    //
+    // Canonical opt-in (preferred):
+    //   @serde(format="json")
+    //   @serde("json")
+    //
+    // Rolling back-compat:
+    //   @serde.derive("json") / @serde.derive() (defaults to json)
+    //   @serde(derive="json") / @serde(derive=true)
+    var a = attr_find(attrs, "serde.derive")
+    if a != nil {
+        var v = attr_arg0_value(a)
+        if v != nil && v["type"] == "String" { return v["value"] }
+        // Empty derive defaults to json in v0.
+        return "json"
+    }
+    var b = attr_find(attrs, "serde")
+    if b != nil {
+        var fmt = attr_kw_string(b, "format")
+        if fmt != nil { return fmt }
+        var p0 = attr_arg0_value(b)
+        if p0 != nil && p0["type"] == "String" { return p0["value"] }
+        var s2 = attr_kw_string(b, "derive")
+        if s2 != nil { return s2 }
+        var bv = attr_kw_bool(b, "derive")
+        if bv == true { return "json" }
+    }
+    return nil
+}
+
+fn serde_struct_tag(attrs) {
+    var a = attr_find(attrs, "serde.tag")
+    if a != nil {
+        var v = attr_arg0_value(a)
+        if v != nil && v["type"] == "String" { return v["value"] }
+    }
+    var b = attr_find(attrs, "serde")
+    if b != nil {
+        var t = attr_kw_string(b, "tag")
+        if t != nil { return t }
+    }
+    return nil
+}
+
+fn serde_field_rename(field) {
+    var attrs = field["attrs"]
+    var a = attr_find(attrs, "serde.rename")
+    if a != nil {
+        var v = attr_arg0_value(a)
+        if v != nil && v["type"] == "String" { return v["value"] }
+    }
+    var b = attr_find(attrs, "serde")
+    if b != nil {
+        var s = attr_kw_string(b, "rename")
+        if s != nil { return s }
+    }
+    return nil
+}
+
+fn serde_field_skip(field) {
+    var attrs = field["attrs"]
+    if attr_find(attrs, "serde.skip") != nil { return true }
+    var b = attr_find(attrs, "serde")
+    if b != nil {
+        var sv = attr_kw_bool(b, "skip")
+        if sv == true { return true }
+    }
+    return false
+}
+
+fn serde_field_default(field) {
+    var attrs = field["attrs"]
+    var a = attr_find(attrs, "serde.default")
+    if a != nil { return attr_arg0_value(a) }
+    var b = attr_find(attrs, "serde")
+    if b != nil {
+        return attr_kw_value(b, "default")
+    }
+    return nil
+}
+
+fn json_serde_schema_for_struct(type_stmt) {
+    var attrs = type_stmt["attrs"]
+    var fields = type_stmt["fields"]
+    if attrs == nil && fields == nil { return "null" }
+
+    // Emit schema only if the struct mentions serde anywhere (struct-level or field-level).
+    var has = false
+    if attr_any_has_prefix(attrs, "serde") { has = true }
+    var i = 0
+    while !has && fields != nil && i < oren_list_len(fields) {
+        var f = fields[i]
+        if f != nil && attr_any_has_prefix(f["attrs"], "serde") { has = true }
+        i = i + 1
+    }
+    if !has { return "null" }
+
+    var out = "{"
+    out = out + "\"version\": 1, "
+    out = out + "\"format\": " + json_string(serde_struct_format(attrs)) + ", "
+    out = out + "\"tag\": " + json_string(serde_struct_tag(attrs)) + ", "
+    out = out + "\"fields\": ["
+
+    i = 0
+    var first = true
+    while fields != nil && i < oren_list_len(fields) {
+        var f2 = fields[i]
+        if f2 != nil {
+            if !first { out = out + ", " }
+            var name = f2["value"]
+            var ann = f2["ann_type"]
+            var rename = serde_field_rename(f2)
+            var wire = name
+            if rename != nil { wire = rename }
+            var skip = serde_field_skip(f2)
+            var dflt = serde_field_default(f2)
+            var skip_js = "false"
+            if skip { skip_js = "true" }
+
+            out = out + "{"
+            out = out + "\"name\": " + json_string(name) + ", "
+            out = out + "\"ann_type\": " + json_string(ann) + ", "
+            out = out + "\"wire\": " + json_string(wire) + ", "
+            out = out + "\"skip\": " + skip_js + ", "
+            out = out + "\"default\": " + json_attr_value(dflt)
+            out = out + "}"
+            first = false
+        }
+        i = i + 1
+    }
+    out = out + "]"
+    out = out + "}"
+    return out
+}
+
 fn generate_metadata(prog) {
     var json = "{\n"
     json = json + "  \"functions\": [\n"
@@ -228,7 +437,11 @@ fn generate_metadata(prog) {
             json = json + "      \"field_names\": " + json_string_list(fields) + ",\n"
 
             // New: rich field list including attrs.
-            json = json + "      \"fields\": " + json_named_list(fields) + "\n"
+            json = json + "      \"fields\": " + json_named_list(fields) + ",\n"
+
+            // New (rolling): normalized serde schema so libraries can implement multi-format serdes
+            // without depending on compiler internals.
+            json = json + "      \"serde\": " + json_serde_schema_for_struct(s) + "\n"
             json = json + "    }"
             first = false
         }

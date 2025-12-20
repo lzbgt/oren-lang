@@ -289,6 +289,33 @@ func main() {
 			cleanup: []string{"build/meta_attrs.meta.json"},
 		},
 		{
+			name: "oren_meta_serde_schema",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s -o %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/modules/test_json_serde_attrs.oren",
+				*target,
+				"build/serde_schema.meta.json",
+				"\"serde\": {\"version\": 1, \"format\": \"json\", \"tag\": \"User\"",
+				"build/serde_schema.meta.json",
+				"\"wire\": \"user_id\"",
+				"build/serde_schema.meta.json",
+				"\"skip\": true",
+				"build/serde_schema.meta.json",
+				"\"default\": 0",
+				"build/serde_schema.meta.json",
+				"\"ann_type\": \"i32\"",
+				"build/serde_schema.meta.json",
+			),
+			log:     "build/logs/oren_meta_serde_schema.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/serde_schema.meta.json"},
+		},
+		{
 			name: "deterministic_meta_hash",
 			cmd: fmt.Sprintf(
 				"./oren meta %q --target %s --deterministic -o %q > %q && "+
