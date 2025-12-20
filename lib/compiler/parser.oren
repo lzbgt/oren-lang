@@ -1457,6 +1457,38 @@ fn parse_function(p) {
     return fnn
 }
 
+fn parse_param_name_and_ann(p, attrs) {
+    // Parse one parameter name with optional varargs marker and optional type annotation.
+    //
+    // param := {attr} ["..."] ident [ ":" type ]
+    //
+    // Returns an Identifier node with optional fields:
+    // - attrs
+    // - ann_type
+    // - is_varargs (bool)
+    var is_varargs = false
+    if p["cur"]["type"] == token.TOK_ELLIPSIS {
+        is_varargs = true
+        // Advance to the actual name.
+        parser_next_token(p)
+    }
+    if p["cur"]["type"] != token.TOK_IDENT {
+        parser_add_error(p, "expected parameter name, got " + p["cur"]["type"])
+        return nil
+    }
+    var id = ast.new_identifier(p["cur"])
+    if is_varargs { id["is_varargs"] = true }
+
+    if peek_is(p, token.TOK_COLON) {
+        parser_next_token(p) // :
+        var tname = parse_type_name_after_colon(p)
+        if tname == nil { return nil }
+        id["ann_type"] = tname
+    }
+    if attrs != nil && oren_list_len(attrs) > 0 { id["attrs"] = attrs }
+    return id
+}
+
 fn parse_parameters(p) {
     var params = []
     if peek_is(p, token.TOK_RPAREN) {
@@ -1465,20 +1497,10 @@ fn parse_parameters(p) {
     }
     parser_next_token(p) // first token in params (could be '@' or ident)
 
-    // param := {attr} ident [ ":" type ]
+    // param := {attr} ["..."] ident [ ":" type ]
     var attrs0 = parse_attr_list(p)
-    if p["cur"]["type"] != token.TOK_IDENT {
-        parser_add_error(p, "expected parameter name, got " + p["cur"]["type"])
-        return params
-    }
-    var id0 = ast.new_identifier(p["cur"])
-    if peek_is(p, token.TOK_COLON) {
-        parser_next_token(p) // :
-        var tname0 = parse_type_name_after_colon(p)
-        if tname0 == nil { return params }
-        id0["ann_type"] = tname0
-    }
-    if attrs0 != nil && oren_list_len(attrs0) > 0 { id0["attrs"] = attrs0 }
+    var id0 = parse_param_name_and_ann(p, attrs0)
+    if id0 == nil { return params }
     oren_list_push(params, id0)
 
     while peek_is(p, token.TOK_COMMA) {
@@ -1486,21 +1508,32 @@ fn parse_parameters(p) {
         parser_next_token(p) // next token after comma (could be '@' or ident)
 
         var attrsN = parse_attr_list(p)
-        if p["cur"]["type"] != token.TOK_IDENT {
-            parser_add_error(p, "expected parameter name, got " + p["cur"]["type"])
-            return params
-        }
-        var idN = ast.new_identifier(p["cur"])
-        if peek_is(p, token.TOK_COLON) {
-            parser_next_token(p) // :
-            var tnameN = parse_type_name_after_colon(p)
-            if tnameN == nil { return params }
-            idN["ann_type"] = tnameN
-        }
-        if attrsN != nil && oren_list_len(attrsN) > 0 { idN["attrs"] = attrsN }
+        var idN = parse_param_name_and_ann(p, attrsN)
+        if idN == nil { return params }
         oren_list_push(params, idN)
     }
     if !expect_peek(p, token.TOK_RPAREN) { return params }
+
+    // Enforce varargs placement: at most one, and it must be last.
+    var saw_varargs = false
+    var i = 0
+    while i < oren_list_len(params) {
+        var id = params[i]
+        var isv = (id != nil && id["is_varargs"] == true)
+        if isv {
+            if saw_varargs {
+                parser_add_error(p, "only one varargs parameter is allowed")
+                break
+            }
+            saw_varargs = true
+            if i != oren_list_len(params) - 1 {
+                parser_add_error(p, "varargs parameter must be last")
+                break
+            }
+        }
+        i = i + 1
+    }
+
     return params
 }
 

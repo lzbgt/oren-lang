@@ -63,6 +63,9 @@ fn new_bytecode_ctx() {
         "in_function": false,
         "functions": {},
         "declared_funcs": {},
+        // Named function varargs mapping (name -> fixed param count).
+        // Presence means the function has a trailing `...rest` parameter.
+        "func_varargs_fixed": {},
         "types": {},
         "fixups": [],
         "fun_fixups": [],
@@ -401,14 +404,48 @@ fn bytecode_compile_expr(ctx, expr) {
         // fn value
         bytecode_compile_expr(ctx, call["fn"])
         // args
+        //
+        // Varargs packing (rolling): if the callee is a known named function with
+        // a trailing `...rest`, pack extra args into a list as the last element.
         var args = call["args"]
+        var fixed = -1
+        if call["fn"] != nil && call["fn"]["type"] == "Identifier" {
+            var nm = call["fn"]["value"]
+            // Only pack for direct named functions (not local/global vars).
+            if ctx["locals"][nm] == nil && ctx["globals"][nm] == nil {
+                var vf = ctx["func_varargs_fixed"][nm]
+                if vf != nil { fixed = vf }
+            }
+        }
+        if fixed >= 0 && oren_list_len(args) < fixed {
+            print("bytecode backend: varargs arity mismatch for " + call["fn"]["value"])
+            oren_exit(1)
+        }
+
+        var n_args = oren_list_len(args)
+        var fixed_count = n_args
+        if fixed >= 0 { fixed_count = fixed }
+
         var i = 0
-        while i < oren_list_len(args) {
+        while i < fixed_count {
             bytecode_compile_expr(ctx, args[i])
             i = i + 1
         }
+        if fixed >= 0 {
+            var ri = fixed
+            while ri < n_args {
+                bytecode_compile_expr(ctx, args[ri])
+                ri = ri + 1
+            }
+            emit_byte(ctx, AVM_NEW_LIST)
+            emit_u16(ctx, n_args - fixed)
+        }
         emit_byte(ctx, AVM_NEW_LIST)
-        emit_u16(ctx, oren_list_len(args))
+        if fixed >= 0 {
+            emit_u16(ctx, fixed + 1)
+        } else {
+            emit_u16(ctx, n_args)
+        }
         emit_byte(ctx, AVM_SPAWN_CALL_LIST)
         return nil
     }
@@ -1168,7 +1205,16 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         
         var args = expr["args"]
+        // Varargs packing (rolling): for direct named calls to a function declared with
+        // a trailing `...rest`, pack extra args into a list as the last argument.
+        var fixed = -1
+        var vf = ctx["func_varargs_fixed"][name]
+        if vf != nil { fixed = vf }
         if expr["spread"] != nil {
+            if fixed >= 0 {
+                print("bytecode backend: varargs+spread not supported yet for direct calls: " + name)
+                oren_exit(1)
+            }
             // Spread calls are compiled as indirect calls so we don't need a dynamic
             // CALL-by-name opcode: push a function value, fixed args, spread list.
             bytecode_compile_expr(ctx, fn_node)
@@ -1182,16 +1228,36 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, oren_list_len(args))
             return nil
         }
+        if fixed >= 0 && oren_list_len(args) < fixed {
+            print("bytecode backend: varargs arity mismatch for " + name)
+            oren_exit(1)
+        }
+        var n_args = oren_list_len(args)
         var i = 0
-        while i < oren_list_len(args) {
+        var fixed_count = n_args
+        if fixed >= 0 { fixed_count = fixed }
+        while i < fixed_count {
             bytecode_compile_expr(ctx, args[i])
             i = i + 1
+        }
+        if fixed >= 0 {
+            var ri = fixed
+            while ri < n_args {
+                bytecode_compile_expr(ctx, args[ri])
+                ri = ri + 1
+            }
+            emit_byte(ctx, AVM_NEW_LIST)
+            emit_u16(ctx, n_args - fixed)
         }
         
         emit_byte(ctx, AVM_CALL)
         var call_pos = oren_list_len(ctx["code"])
         emit_u16(ctx, 0)
-        emit_byte(ctx, oren_list_len(args))
+        if fixed >= 0 {
+            emit_byte(ctx, fixed + 1)
+        } else {
+            emit_byte(ctx, n_args)
+        }
         
         oren_list_push(ctx["fixups"], {"pos": call_pos, "name": name})
         return nil
@@ -1647,13 +1713,31 @@ fn bytecode_compile_program(linked) {
         }
         if st != nil && st["type"] == "Function" {
             var nm = st["name"]
-            if nm != nil && nm != "" { ctx["declared_funcs"][nm] = true }
+            if nm != nil && nm != "" {
+                ctx["declared_funcs"][nm] = true
+                var params = st["params"]
+                if params != nil && oren_list_len(params) > 0 {
+                    var last = params[oren_list_len(params) - 1]
+                    if last != nil && last["is_varargs"] == true {
+                        ctx["func_varargs_fixed"][nm] = oren_list_len(params) - 1
+                    }
+                }
+            }
         }
         if st != nil && st["type"] == "ExprStmt" {
             var ex = st["expr"]
             if ex != nil && ex["type"] == "Function" {
                 var nm2 = ex["name"]
-                if nm2 != nil && nm2 != "" { ctx["declared_funcs"][nm2] = true }
+                if nm2 != nil && nm2 != "" {
+                    ctx["declared_funcs"][nm2] = true
+                    var params2 = ex["params"]
+                    if params2 != nil && oren_list_len(params2) > 0 {
+                        var last2 = params2[oren_list_len(params2) - 1]
+                        if last2 != nil && last2["is_varargs"] == true {
+                            ctx["func_varargs_fixed"][nm2] = oren_list_len(params2) - 1
+                        }
+                    }
+                }
             }
         }
         pi = pi + 1

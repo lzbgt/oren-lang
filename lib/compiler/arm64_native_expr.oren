@@ -1197,6 +1197,60 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_blr(9))
             return nil
         }
+
+        // Varargs named functions: lower through the uniform callable-object path so we can
+        // pass variable argument counts deterministically.
+        //
+        // We build an args_list and then inline-call the function object's code pointer.
+        // The function object for `fn_name` points at `__oren_fnwrap_<fn_name>`, which
+        // packs rest args into a list and calls the real function.
+        if ctx["func_varargs_fixed"][fn_name] != nil {
+            // args_list = oren_new_list(0)
+            push_u32_le(ctx["code"], insn_movz(0, 0))
+            var bl_new_list_v = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_v, "name": "oren_new_list"})
+
+            // Save args_list on stack
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            var args_v = expr["args"]
+            var nargs_v = oren_list_len(args_v)
+            var i_v = 0
+            while i_v < nargs_v {
+                native_compile_expr(ctx, args_v[i_v])
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                var bl_push_v = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_v, "name": "oren_list_push"})
+                i_v = i_v + 1
+            }
+
+            // fn_obj -> X0
+            native_compile_expr(ctx, fn_expr)
+
+            // X1 = args_list, pop stack
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Inline `oren_call_obj_list(fn_obj, args_list)`.
+            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = fn_obj
+            emit_load_ptr_from_base_plus(ctx, 0, 2, 8) // env -> X0
+            emit_load_ptr_from_base_plus(ctx, 9, 2, 0) // code -> X9
+            push_u32_le(ctx["code"], insn_blr(9))
+            return nil
+        }
         if fn_name == "oren_call_obj_list" {
             // Intrinsic: indirect call through a native function object.
             // Signature: oren_call_obj_list(fn_obj, args_list) -> value

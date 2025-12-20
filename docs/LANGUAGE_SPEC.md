@@ -253,6 +253,30 @@ The runtime is dynamically typed. Values include:
 - `bool` (`true`/`false`)
 - `int` (signed 64-bit in the C runtime; two’s complement)
 - `float` (**IEEE-754 binary64 / float64**)
+
+### Varargs (rolling)
+
+Oren supports **varargs parameters** at the end of a parameter list:
+
+```oren
+fn sum(x, ...rest) {
+    // `rest` is a list of extra arguments (possibly empty).
+    return x
+}
+```
+
+Semantics (v0 / rolling):
+
+- Only one varargs parameter is allowed, and it must be the **last** parameter.
+- The varargs binding is always a **list** (possibly empty).
+- Calls may supply **zero or more** extra arguments:
+  - `sum(1)` binds `rest = []`
+  - `sum(1, 2, 3)` binds `rest = [2, 3]`
+
+Backend note (rolling):
+
+- Backends may lower varargs through wrapper calls or call-site packing, but the observable semantics
+  must remain the same across C/native/AVM bytecode.
 - `string` (byte string)
 - `list` (ordered, **heterogeneous**)
 - `map` (keyed, deterministic iteration order; see “deterministic maps contract”)

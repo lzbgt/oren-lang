@@ -75,6 +75,15 @@ fn func_decl_add(ctx, fn_name, arity) {
     return nil
 }
 
+fn func_varargs_fixed_from_params(params) {
+    if params == nil { return -1 }
+    var n = oren_list_len(params)
+    if n == 0 { return -1 }
+    var last = params[n - 1]
+    if last != nil && last["is_varargs"] == true { return n - 1 }
+    return -1
+}
+
 fn func_decl_scan_stmt_list(ctx, stmts) {
     var i = 0
     while i < oren_list_len(stmts) {
@@ -93,6 +102,10 @@ fn func_decl_scan_stmt_list(ctx, stmts) {
             var name = fn_node["name"]
             if name != nil && name != "" {
                 func_decl_add(ctx, name, oren_list_len(fn_node["params"]))
+                var vf = func_varargs_fixed_from_params(fn_node["params"])
+                if vf >= 0 {
+                    ctx["func_varargs_fixed"][name] = vf
+                }
             }
         }
         i = i + 1
@@ -451,7 +464,7 @@ fn collect_lambdas_in_statement(ctx, stmt) {
     return nil
 }
 
-fn synth_fnwrap(fn_name, arity) {
+fn synth_fnwrap(fn_name, arity, varargs_fixed) {
     var wname = "__oren_fnwrap_" + fn_name
     var params = [node_id("__env"), node_id("__args")]
     var stmts = []
@@ -460,20 +473,51 @@ fn synth_fnwrap(fn_name, arity) {
     var cond_env = node_infix(node_id("__env"), "!=", node_int(0))
     oren_list_push(stmts, node_if(cond_env, [node_expr_stmt(node_call("oren_panic", [node_string("env mismatch")]))]))
 
-    // if oren_list_len(__args) != arity { oren_panic("arity mismatch") }
     var len_call = node_call("oren_list_len", [node_id("__args")])
-    var cond_arity = node_infix(len_call, "!=", node_int(arity))
-    oren_list_push(stmts, node_if(cond_arity, [node_expr_stmt(node_call("oren_panic", [node_string("arity mismatch")]))]))
+    if varargs_fixed == nil {
+        // if oren_list_len(__args) != arity { oren_panic("arity mismatch") }
+        var cond_arity = node_infix(len_call, "!=", node_int(arity))
+        oren_list_push(stmts, node_if(cond_arity, [node_expr_stmt(node_call("oren_panic", [node_string("arity mismatch")]))]))
 
-    // return fn_name(oren_list_get(__args,0), ...)
-    var call_args = []
-    var i = 0
-    while i < arity {
-        oren_list_push(call_args, node_call("oren_list_get", [node_id("__args"), node_int(i)]))
-        i = i + 1
+        // return fn_name(oren_list_get(__args,0), ...)
+        var call_args = []
+        var i = 0
+        while i < arity {
+            oren_list_push(call_args, node_call("oren_list_get", [node_id("__args"), node_int(i)]))
+            i = i + 1
+        }
+        var call0 = node_call(fn_name, call_args)
+        oren_list_push(stmts, node_return(call0))
+    } else {
+        // Varargs: accept len >= fixed, pack rest into a list, and call the real fn.
+        var fixed = varargs_fixed
+        var cond_lt = node_infix(len_call, "<", node_int(fixed))
+        oren_list_push(stmts, node_if(cond_lt, [node_expr_stmt(node_call("oren_panic", [node_string("arity mismatch")]))]))
+
+        // var __rest = []
+        var rest_name = "__rest"
+        oren_list_push(stmts, {"type": "Var", "name": node_id(rest_name), "value": {"type": "Array", "elements": []}})
+
+        // for __i=fixed; __i<len(__args); __i=__i+1 { push(__rest, get(__args,__i)) }
+        var i_name = "__i"
+        var init = {"type": "Var", "name": node_id(i_name), "value": node_int(fixed)}
+        var cond = node_infix(node_id(i_name), "<", len_call)
+        var post = {"type": "Assign", "name": node_id(i_name), "value": node_infix(node_id(i_name), "+", node_int(1))}
+        var body = {"type": "Block", "stmts": [
+            node_expr_stmt(node_call("oren_list_push", [node_id(rest_name), node_call("oren_list_get", [node_id("__args"), node_id(i_name)])]))
+        ]}
+        oren_list_push(stmts, {"type": "For", "init": init, "cond": cond, "post": post, "body": body})
+
+        // call args: fixed args + __rest
+        var call_args2 = []
+        var j = 0
+        while j < fixed {
+            oren_list_push(call_args2, node_call("oren_list_get", [node_id("__args"), node_int(j)]))
+            j = j + 1
+        }
+        oren_list_push(call_args2, node_id(rest_name))
+        oren_list_push(stmts, node_return(node_call(fn_name, call_args2)))
     }
-    var call0 = node_call(fn_name, call_args)
-    oren_list_push(stmts, node_return(call0))
 
     var fun = {"type": "Function", "name": wname, "params": params, "body": node_block(stmts)}
     return node_expr_stmt(fun)
@@ -504,11 +548,17 @@ fn synth_lambda_wrapper(def) {
         oren_list_push(stmts, node_if(cond_env_len, [node_expr_stmt(node_call("oren_panic", [node_string("closure env mismatch")]))]))
     }
 
-    // if oren_list_len(__args) != param_count { oren_panic("arity mismatch") }
+    // Arity: fixed, or varargs (last param "...rest" bound as list).
     var param_count = oren_list_len(fun["params"])
     var args_len = node_call("oren_list_len", [node_id("__args")])
-    var cond_args_len = node_infix(args_len, "!=", node_int(param_count))
-    oren_list_push(stmts, node_if(cond_args_len, [node_expr_stmt(node_call("oren_panic", [node_string("arity mismatch")]))]))
+    var fixed = func_varargs_fixed_from_params(fun["params"])
+    if fixed < 0 {
+        var cond_args_len = node_infix(args_len, "!=", node_int(param_count))
+        oren_list_push(stmts, node_if(cond_args_len, [node_expr_stmt(node_call("oren_panic", [node_string("arity mismatch")]))]))
+    } else {
+        var cond_lt = node_infix(args_len, "<", node_int(fixed))
+        oren_list_push(stmts, node_if(cond_lt, [node_expr_stmt(node_call("oren_panic", [node_string("arity mismatch")]))]))
+    }
 
     // Bind captures: var <cap> = oren_list_get(__env, i)
     var i = 0
@@ -519,13 +569,35 @@ fn synth_lambda_wrapper(def) {
         i = i + 1
     }
 
-    // Bind params: var <p> = oren_list_get(__args, i)
-    i = 0
-    while i < param_count {
-        var pname = fun["params"][i]["value"]
-        var vstmt2 = {"type": "Var", "name": node_id(pname), "value": node_call("oren_list_get", [node_id("__args"), node_int(i)])}
-        oren_list_push(stmts, vstmt2)
-        i = i + 1
+    // Bind params: fixed positional args + optional varargs rest list.
+    if fixed < 0 {
+        i = 0
+        while i < param_count {
+            var pname = fun["params"][i]["value"]
+            var vstmt2 = {"type": "Var", "name": node_id(pname), "value": node_call("oren_list_get", [node_id("__args"), node_int(i)])}
+            oren_list_push(stmts, vstmt2)
+            i = i + 1
+        }
+    } else {
+        i = 0
+        while i < fixed {
+            var pname2 = fun["params"][i]["value"]
+            var vstmt3 = {"type": "Var", "name": node_id(pname2), "value": node_call("oren_list_get", [node_id("__args"), node_int(i)])}
+            oren_list_push(stmts, vstmt3)
+            i = i + 1
+        }
+
+        var rest_name2 = fun["params"][param_count - 1]["value"]
+        oren_list_push(stmts, {"type": "Var", "name": node_id(rest_name2), "value": {"type": "Array", "elements": []}})
+
+        var i_name2 = "__i"
+        var init2 = {"type": "Var", "name": node_id(i_name2), "value": node_int(fixed)}
+        var cond2 = node_infix(node_id(i_name2), "<", args_len)
+        var post2 = {"type": "Assign", "name": node_id(i_name2), "value": node_infix(node_id(i_name2), "+", node_int(1))}
+        var body2 = {"type": "Block", "stmts": [
+            node_expr_stmt(node_call("oren_list_push", [node_id(rest_name2), node_call("oren_list_get", [node_id("__args"), node_id(i_name2)])]))
+        ]}
+        oren_list_push(stmts, {"type": "For", "init": init2, "cond": cond2, "post": post2, "body": body2})
     }
 
     // Append original lambda body statements.
@@ -555,6 +627,8 @@ fn native_compile_program_arm64(linked, platform) {
         // Named function declarations (name -> arity) collected before codegen.
         // Used for first-class function values in the native backend.
         "func_arity": {},
+        // Named function varargs mapping (name -> fixed param count). Presence means varargs.
+        "func_varargs_fixed": {},
         "func_decl_order": [],
         // Lambda collection state (lambdas are parsed as anonymous Function nodes with name="").
         "lambda_defs": [],
@@ -810,7 +884,8 @@ fn native_compile_program_arm64(linked, platform) {
         var fname = ctx["func_decl_order"][wi]
         var arity = ctx["func_arity"][fname]
         if arity != nil {
-            native_compile_stmt(ctx, synth_fnwrap(fname, arity))
+            var vf = ctx["func_varargs_fixed"][fname]
+            native_compile_stmt(ctx, synth_fnwrap(fname, arity, vf))
         }
         wi = wi + 1
     }

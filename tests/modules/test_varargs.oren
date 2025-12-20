@@ -1,0 +1,40 @@
+// Varargs regression (cross-backend):
+// - syntax: fn f(a, ...rest)
+// - rest is bound to a list of extra args (possibly empty)
+// - works with spawn + join
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn count(...rest) {
+    return oren_list_len(rest)
+}
+
+fn sum1(x, ...rest) {
+    var s = x
+    var i = 0
+    while i < oren_list_len(rest) {
+        s = s + rest[i]
+        i = i + 1
+    }
+    return s
+}
+
+assert(count() == 0, "count empty")
+assert(count(1) == 1, "count 1")
+assert(count(1, 2, 3) == 3, "count 3")
+
+assert(sum1(5) == 5, "sum fixed only")
+assert(sum1(1, 2, 3) == 6, "sum varargs")
+
+var h = spawn sum1(1, 2, 3, 4)
+var r = oren_join(h)
+assert(r == 10, "spawn+join varargs")
+
+print("module varargs OK")
+exit(0)
+

@@ -1,6 +1,6 @@
 // ----- Transpiler helpers ----- 
 fn new_transpiler() {
-    return {"lines": [], "indent": 0, "functions": [], "aliases": {}, "type_ns": {}, "lambda_defs": [], "lambda_counter": 0}
+    return {"lines": [], "indent": 0, "functions": [], "func_varargs_fixed": {}, "aliases": {}, "type_ns": {}, "lambda_defs": [], "lambda_counter": 0}
 }
 
 fn emit(t, s) {
@@ -36,6 +36,22 @@ fn list_contains(lst, val) {
         i = i + 1
     }
     return false
+}
+
+fn fun_varargs_fixed(fun) {
+    // Returns fixed-parameter count for a varargs function, or -1 if not varargs.
+    //
+    // Varargs syntax: fn f(a, b, ...rest) { }
+    // Internally: `rest` is bound to a list of extra args.
+    var params = fun["params"]
+    if params == nil { return -1 }
+    var n = oren_list_len(params)
+    if n == 0 { return -1 }
+    var last = params[n - 1]
+    if last != nil && last["is_varargs"] == true {
+        return n - 1
+    }
+    return -1
 }
 
 fn trim_trailing_underscores(s) {
@@ -661,15 +677,30 @@ fn transpile_lambda_def(t, def) {
     }
 
     var pc = oren_list_len(fun["params"])
+    var fixed = fun_varargs_fixed(fun)
     if pc == 0 {
         emit(t, "(void)argc;")
         emit(t, "(void)argv;")
     } else {
-        emit(t, "if (argc != " + oren_int_to_string(pc) + ") { oren_panic(\"arity mismatch\"); }")
-        var j = 0
-        while j < pc {
-            emit(t, "OrenValue " + c_ident(fun["params"][j]["value"]) + " = argv[" + oren_int_to_string(j) + "];")
-            j = j + 1
+        if fixed < 0 {
+            emit(t, "if (argc != " + oren_int_to_string(pc) + ") { oren_panic(\"arity mismatch\"); }")
+            var j = 0
+            while j < pc {
+                emit(t, "OrenValue " + c_ident(fun["params"][j]["value"]) + " = argv[" + oren_int_to_string(j) + "];")
+                j = j + 1
+            }
+        } else {
+            emit(t, "if (argc < " + oren_int_to_string(fixed) + ") { oren_panic(\"arity mismatch\"); }")
+            var j2 = 0
+            while j2 < fixed {
+                emit(t, "OrenValue " + c_ident(fun["params"][j2]["value"]) + " = argv[" + oren_int_to_string(j2) + "];")
+                j2 = j2 + 1
+            }
+            var rest_name = fun["params"][pc - 1]["value"]
+            emit(t, "OrenValue " + c_ident(rest_name) + " = oren_new_list(0);")
+            emit(t, "for (int __i = " + oren_int_to_string(fixed) + "; __i < argc; __i++) {")
+            emit(t, "    oren_list_push(" + c_ident(rest_name) + ", argv[__i]);")
+            emit(t, "}")
         }
     }
 
@@ -982,6 +1013,12 @@ fn transpile_expression(t, exp) {
         if exp["fn"]["type"] == "Identifier" {
             if starts_with(exp["fn"]["value"], "oren_") { use_call_obj = false }
         }
+        // Varargs functions require uniform-call lowering (argc/argv) in the C backend,
+        // because C does not support calling a fixed-arity function with variable arity.
+        // The fnwrap packs rest args into a list and calls the real function.
+        if fn_sym != "" && t["func_varargs_fixed"][fn_sym] != nil {
+            use_call_obj = true
+        }
         if spread != nil {
             // Spread calls must go through a list-based apply helper.
             use_call_obj = true
@@ -1071,18 +1108,38 @@ fn transpile_function(t, func_decl) {
 
     // Uniform-call wrapper so functions can be used as first-class function values.
     var fname = func_decl["name"]
+    var fixed = fun_varargs_fixed(func_decl)
     emit(t, fnwrap_sig_by_name(fname) + " {")
     indent_more(t)
     emit(t, "(void)env;")
-    emit(t, "if (argc != " + int_str(oren_list_len(func_decl["params"])) + ") { oren_panic(\"arity mismatch\"); }")
-    var args2 = ""
-    var k = 0
-    while k < oren_list_len(func_decl["params"]) {
-        if k > 0 { args2 = args2 + ", " }
-        args2 = args2 + "argv[" + int_str(k) + "]"
-        k = k + 1
+    var pc = oren_list_len(func_decl["params"])
+    if fixed < 0 {
+        emit(t, "if (argc != " + int_str(pc) + ") { oren_panic(\"arity mismatch\"); }")
+        var args2 = ""
+        var k = 0
+        while k < pc {
+            if k > 0 { args2 = args2 + ", " }
+            args2 = args2 + "argv[" + int_str(k) + "]"
+            k = k + 1
+        }
+        emit(t, "return " + fname + "(" + args2 + ");")
+    } else {
+        emit(t, "if (argc < " + int_str(fixed) + ") { oren_panic(\"arity mismatch\"); }")
+        emit(t, "OrenValue __rest = oren_new_list(0);")
+        emit(t, "for (int __i = " + int_str(fixed) + "; __i < argc; __i++) {")
+        emit(t, "    oren_list_push(__rest, argv[__i]);")
+        emit(t, "}")
+        var args3 = ""
+        var k2 = 0
+        while k2 < fixed {
+            if k2 > 0 { args3 = args3 + ", " }
+            args3 = args3 + "argv[" + int_str(k2) + "]"
+            k2 = k2 + 1
+        }
+        if fixed > 0 { args3 = args3 + ", " }
+        args3 = args3 + "__rest"
+        emit(t, "return " + fname + "(" + args3 + ");")
     }
-    emit(t, "return " + fname + "(" + args2 + ");")
     indent_less(t)
     emit(t, "}")
 }
@@ -1198,6 +1255,10 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         var j = 0
         while j < oren_list_len(funs) {
             oren_list_push(t["functions"], funs[j]["name"])
+            var vf = fun_varargs_fixed(funs[j])
+            if vf >= 0 {
+                t["func_varargs_fixed"][funs[j]["name"]] = vf
+            }
             j = j + 1
         }
         var types = units[i]["parts"]["types"]

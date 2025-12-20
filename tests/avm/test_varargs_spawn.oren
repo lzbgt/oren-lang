@@ -1,0 +1,27 @@
+// AVM regression: varargs + spawn uses args_list packing and must stay deterministic.
+
+fn sum1(x, ...rest) {
+    var s = x
+    var i = 0
+    while i < oren_list_len(rest) {
+        s = s + rest[i]
+        i = i + 1
+    }
+    return s
+}
+
+fn _fail() {
+    // Existing AVM tests use a deterministic "index out of range" as the failure mechanism.
+    var xs = []
+    return xs[1]
+}
+
+fn main() {
+    var h = spawn sum1(1, 2, 3, 4)
+    var r = oren_join(h)
+    if r != 10 { _fail() }
+
+    print("avm varargs spawn OK")
+}
+
+main()

@@ -136,6 +136,7 @@ func main() {
 		"tests/modules/test_result.oren",
 		"tests/modules/test_argparse.oren",
 		"tests/modules/test_json.oren",
+		"tests/modules/test_varargs.oren",
 	}
 	moduleTestsFull := []string{
 		"tests/modules/test_shapes.oren",
@@ -175,6 +176,7 @@ func main() {
 		"tests/modules/test_string_from_bytes.oren",
 		"tests/modules/test_json.oren",
 		"tests/modules/test_switch.oren",
+		"tests/modules/test_varargs.oren",
 	}
 	avmTestsFast := []string{
 		"tests/avm/test_smoke_suite.oren",
@@ -186,6 +188,7 @@ func main() {
 		"tests/avm/test_vfs_no_host_fs.oren",
 		"tests/avm/test_vproc_no_host_proc.oren",
 		"tests/avm/test_vnet_no_host_net.oren",
+		"tests/avm/test_varargs_spawn.oren",
 	}
 	avmTestsFull := []string{
 		"tests/avm/test_smoke_suite.oren",
@@ -206,6 +209,7 @@ func main() {
 		"tests/avm/test_vproc_no_host_proc.oren",
 		"tests/avm/test_vnet_no_host_net.oren",
 		"tests/avm/test_oren_env_bridge_capsule.oren",
+		"tests/avm/test_varargs_spawn.oren",
 	}
 
 	moduleTests := moduleTestsFast
