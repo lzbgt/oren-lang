@@ -184,6 +184,10 @@ CBOR streaming (rolling, v1):
   - `cbor.encode_sequence([CborValue...]) -> bytes` (concatenation)
   - `cbor.decode_next(bytes, pos) -> {ok, err?, v?, pos}` (incremental)
   - `cbor.decode_sequence(bytes) -> {ok, err?, v:[CborValue...], pos}`
+  - serde-friendly typed helpers:
+    - `cbor.encode_sequence_typed(items, Type__cbor_encode) -> bytes`
+    - `cbor.decode_next_typed(bytes, pos, Type__cbor_decode) -> {ok, err?, v:<T>, pos}`
+    - `cbor.decode_sequence_typed(bytes, Type__cbor_decode) -> {ok, err?, v:[T...], pos}`
 
 Planned next step:
 

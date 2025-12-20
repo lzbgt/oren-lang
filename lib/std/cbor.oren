@@ -410,3 +410,47 @@ fn encode_sequence(items) {
     }
     return out
 }
+
+// Typed helpers for serde-generated encode/decode functions.
+//
+// These helpers make it easy to build streaming protocols using the compiler-generated
+// `<Type>__cbor_encode` / `<Type>__cbor_decode` helpers without reimplementing sequence loops.
+//
+// Example:
+//   var bs = cbor.encode_sequence_typed(users, User__cbor_encode)
+//   var r = cbor.decode_sequence_typed(bs, User__cbor_decode)
+
+fn encode_sequence_typed(items, encode_fn) {
+    // encode_fn: T -> CborValue
+    var cvs = []
+    var i = 0
+    while items != nil && i < oren_list_len(items) {
+        var cv = encode_fn(items[i])
+        oren_list_push(cvs, cv)
+        i = i + 1
+    }
+    return encode_sequence(cvs)
+}
+
+fn decode_next_typed(bs, pos, decode_fn) {
+    // decode_fn: CborValue -> {ok, err?, v?}
+    var r = decode_next(bs, pos)
+    if r["ok"] != 1 { return r }
+    var rr = decode_fn(r["v"])
+    if rr["ok"] != 1 {
+        return {"ok": 0, "err": rr["err"], "pos": r["pos"]}
+    }
+    return {"ok": 1, "v": rr["v"], "pos": r["pos"]}
+}
+
+fn decode_sequence_typed(bs, decode_fn) {
+    var out = []
+    var pos = 0
+    while pos < oren_list_len(bs) {
+        var r = decode_next_typed(bs, pos, decode_fn)
+        if r["ok"] != 1 { return r }
+        oren_list_push(out, r["v"])
+        pos = r["pos"]
+    }
+    return {"ok": 1, "v": out, "pos": pos}
+}

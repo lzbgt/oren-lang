@@ -1,0 +1,74 @@
+import cbor "../../lib/std/cbor.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+@serde(format="cbor", tag="User")
+struct User {
+    @serde(rename="user_id")
+    id: i32,
+    active: bool,
+    name: string,
+    @serde(skip=true, default=0)
+    internal: i32
+}
+
+fn test_sequence_typed_roundtrip() {
+    var users = [
+        User(1, true, "a", 123),
+        User(2, false, "b", 456),
+        User(3, true, "c", 789)
+    ]
+
+    // Stream encode: concatenate a sequence of CBOR items.
+    var bs = cbor.encode_sequence_typed(users, User__cbor_encode)
+
+    // Stream decode: parse + type-decode each item.
+    var r = cbor.decode_sequence_typed(bs, User__cbor_decode)
+    assert(r["ok"] == 1, "decode_sequence_typed ok")
+    var out = r["v"]
+    assert(oren_list_len(out) == 3, "len 3")
+
+    assert(out[0].id == 1, "id0")
+    assert(out[0].active == true, "active0")
+    assert(out[0].name == "a", "name0")
+    assert(out[0].internal == 0, "internal default0")
+
+    assert(out[1].id == 2, "id1")
+    assert(out[1].active == false, "active1")
+    assert(out[1].name == "b", "name1")
+    assert(out[1].internal == 0, "internal default1")
+
+    assert(out[2].id == 3, "id2")
+    assert(out[2].active == true, "active2")
+    assert(out[2].name == "c", "name2")
+    assert(out[2].internal == 0, "internal default2")
+
+    // Incremental decode: one item at a time.
+    var pos = 0
+    var r0 = cbor.decode_next_typed(bs, pos, User__cbor_decode)
+    assert(r0["ok"] == 1, "decode_next_typed #0 ok")
+    pos = r0["pos"]
+    assert(r0["v"].id == 1, "decode_next_typed id0")
+
+    var r1 = cbor.decode_next_typed(bs, pos, User__cbor_decode)
+    assert(r1["ok"] == 1, "decode_next_typed #1 ok")
+    pos = r1["pos"]
+    assert(r1["v"].id == 2, "decode_next_typed id1")
+
+    var r2 = cbor.decode_next_typed(bs, pos, User__cbor_decode)
+    assert(r2["ok"] == 1, "decode_next_typed #2 ok")
+    pos = r2["pos"]
+    assert(r2["v"].id == 3, "decode_next_typed id2")
+
+    assert(pos == oren_list_len(bs), "fully consumed")
+}
+
+test_sequence_typed_roundtrip()
+print("ok")
+exit(0)
+

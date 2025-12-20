@@ -91,6 +91,15 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — CBOR serde streaming helpers (typed sequences)
+
+- Added serde-friendly typed streaming helpers to `lib/std/cbor.oren`:
+  - `cbor.encode_sequence_typed(items, Type__cbor_encode)`
+  - `cbor.decode_next_typed(bytes, pos, Type__cbor_decode)`
+  - `cbor.decode_sequence_typed(bytes, Type__cbor_decode)`
+- Added integration test: `tests/modules/test_cbor_serde_streaming.oren`.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.
