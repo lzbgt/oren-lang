@@ -1,6 +1,14 @@
 # TODOs (Execution Order, Rolling)
 
-This repo is in **rolling ABI** mode. This file is intentionally short (about 5–10 items): it is the execution order for the next engineering work.
+This repo is in **rolling ABI** mode.
+
+This file is the *single source of truth* for what to do next.
+
+Priority model:
+
+- **Order = priority.** The first unfinished item is the most urgent.
+- We intentionally avoid fixed labels like “P0/P1”: the list is continuously reordered as reality changes.
+- Completed items are moved to `docs/TODOS_ARCHIVE.md` to keep this file readable.
 
 - Completed / detailed history: `docs/TODOS_ARCHIVE.md`
 - Platform focus right now: **macOS arm64 first** (but avoid designs that block Linux arm64 later).
@@ -51,46 +59,77 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 9) ** Refactor in rolling **
   - when a file is over 2000 lines, refacotor to be SOLID principles applied modules
 
-## Tasks (Next, Highest Priority First)
+## Tasks (Priority Order: Top = Next)
 
-1) **P0 [vm] Record/Replay v1 for all effectful domains** `[safety]`
-   - DoD: deterministic mode supports full “agent loop” replay across machines:
+### A) Language + Compiler (primary focus)
+
+1) **[lang][quality] Doc comments (`///`) end-to-end (parse → metadata → tooling)**
+   - DoD:
+     - lexer/parser accept `///` doc comments and attach them deterministically to the next declaration (fn/struct/trait/impl/enum)
+     - metadata JSON includes `doc` fields for public symbols
+     - oretest has at least one integration test proving doc export works and is stable
+
+2) **[lang][arch] Traits/protocols: coherence + generic impl templates (no runtime vtables in v0)**
+   - DoD:
+     - define coherence/overlap rules (deterministic selection; no spooky action at distance)
+     - implement “blanket impls” / generic impl templates with non-overlap enforcement
+     - optional explicit disambiguation syntax (when multiple impls are in scope)
+
+3) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
+   - DoD:
+     - define a minimal IR boundary (or reuse current representation) that enables at least:
+       - constant folding for numeric ops
+       - dead-code elimination for unused locals/temporaries
+       - peephole cleanup for redundant moves/loads
+     - add a small microbenchmark `.oren` program in `examples/` + measure before/after in `docs/`
+
+4) **[lang][safety] “Production panic” diagnostics: spans + stable backtrace mapping**
+   - DoD:
+     - panics/errors include function + source span where available
+     - metadata provides enough PC→span mapping for AVM traces and native panics (rolling schema OK)
+     - oretest enforces machine-readable one-line `OREN_DIAG ...` + stable fields
+
+5) **[lang][arch] Module graph + reproducible builds (compiler surface)**
+   - DoD:
+     - stable module dependency graph export (JSON) for a build target
+     - deterministic build ordering and deterministic artifact hashes in “deterministic mode”
+
+6) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
+   - DoD:
+     - define minimal `.oren`-level test runner spec (output format, filters, JSON output)
+     - keep `cmd/oretest` as orchestration for now, but document staged migration path
+
+### B) AVM (evolves alongside language/compiler)
+
+7) **[vm][safety] Record/Replay v1 for all effectful domains**
+   - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-2) **P0 [vm] Deterministic concurrency substrate (AVM tasks)** `[safety]`
-   - DoD: a program can run concurrent workflows deterministically:
+8) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+   - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
-     - budgets (gas/deadline/mem/io) propagate through task trees (structured concurrency)
+     - budgets propagate through task trees (structured concurrency)
 
-3) **P1 [vm] Snapshot/restore format hardening + stability knobs** `[safety]`
-   - DoD: snapshots are reliable for long-lived agent execution:
-     - snapshot includes full VM state (frames/stack/globals/heap/env) and validates on load
+9) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+   - DoD:
+     - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
-     - clear “rolling vs stable” compatibility policy for snapshots (separate from `.obc`)
+     - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-4) **P1 [lang] Traits/protocols: coherence + generic impl templates** `[arch]`
-   - DoD: traits move from “syntax + metadata” to compile-time meaning without runtime vtables:
-     - define coherence/overlap rules (deterministic selection; no spooky action at distance)
-     - design + implement “blanket impls” / generic impl templates (no overlap)
-     - optional explicit disambiguation syntax (when multiple impls are in scope)
-
-5) **P1 [boot] Compiler-in-AVM (close the loop)** `[arch]`
-   - DoD: AVM can ingest `.oren` (as BYTES/VirtualFS), compile to `.obc`, and execute in a child universe:
-     - in-memory compilation pipeline (no host toolchain)
+10) **[boot][arch] Compiler-in-AVM (close the loop)**
+   - DoD:
+     - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
      - produced `.obc` is hash-addressable for swarm validation
 
-6) **P2 [ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)** `[lang]`
-   - Goal: enable ergonomic HTTP libs (FastAPI-like) that can auto-export a modern API contract.
-   - Direction:
-     - use attributes as the source of truth (already in metadata JSON)
-     - recommend `@get("/path")`, `@post("/path")`, `@tag("...")`, `@summary("...")`, `@deprecated()` etc.
-     - export format: **OpenAPI 3.1** (sufficiently contemporary + tooling ecosystem)
-   - DoD (later):
-     - `oredoc openapi <module.meta.json>` emits a valid OpenAPI 3.1 document (even if schemas are “opaque” until v1 types stabilize)
+### C) Libraries + Ecosystem (important, but not blocking core correctness)
+
+11) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+   - DoD:
+     - `oredoc openapi <module.meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
 ## Recently Completed (high signal)

@@ -466,3 +466,8 @@ Focus statement (to avoid roadmap thrash):
 ## Recently Completed (for context)
 
 - Native panic traces: add pseudo symbols for `__top_level__` (top-level statement lowering) and `__entry_stub__` (arm64 entry shim) so stack traces are readable even without an explicit `fn main()`.
+
+## 2025-12-20 (Recent)
+
+- `oretest`: added a repeated-run determinism guard for `tests/avm/test_smoke_suite.oren` (rerun scalar mode, require `RESULT_HASH` + `TRACE_HASH` match).
+- Docs: clarified that AVM FLOAT constants are wired end-to-end and documented const tag `3` as float64 bit-pattern in the bootstrap spec (`docs/AVM_SPEC.md`).
