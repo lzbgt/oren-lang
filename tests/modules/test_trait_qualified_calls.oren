@@ -1,0 +1,36 @@
+// Trait-qualified method calls (disambiguation).
+//
+// When multiple traits define the same method name for the same type, unqualified
+// `x.method(...)` is ambiguous (see `tests/native/fixtures/trait_impl_ambiguous_method.oren`).
+//
+// This test asserts that explicit calls of the form:
+//   Trait.method(x, ...)
+// resolve deterministically to the correct lowered impl function.
+
+trait AddLike {
+    fn op(self, x);
+}
+
+trait MulLike {
+    fn op(self, x);
+}
+
+impl AddLike for i64 {
+    fn op(self, x) { return self + x }
+}
+
+impl MulLike for i64 {
+    fn op(self, x) { return self * x }
+}
+
+var a: i64 = 3
+
+var r0 = AddLike.op(a, 4)
+if r0 != 7 { exit(1) }
+
+var r1 = MulLike.op(a, 4)
+if r1 != 12 { exit(2) }
+
+print("ok")
+exit(0)
+

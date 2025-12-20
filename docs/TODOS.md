@@ -67,7 +67,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD:
      - define coherence/overlap rules (deterministic selection; no spooky action at distance)
      - implement “blanket impls” / generic impl templates with non-overlap enforcement
-     - optional explicit disambiguation syntax (when multiple impls are in scope)
+     - explicit disambiguation syntax when multiple impls are in scope (implemented: `Trait.method(x, ...)`)
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:
@@ -137,6 +137,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
 - Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
 - Metadata: trait declarations are preserved in module metadata JSON (`traits`, methods, and return annotations), enabling doc/serde tooling without runtime vtables yet.
+- Trait disambiguation: `Trait.method(x, ...)` resolves deterministically to the correct lowered impl function when `x.method(...)` is ambiguous (covered by `tests/modules/test_trait_qualified_calls.oren`).
 - AVM determinism: integer arithmetic in the VM is now defined as i64 two’s-complement wraparound (no C signed-overflow UB), and invalid ops (div0, shift out of range) abort deterministically (covered by `tests/avm/test_smoke_suite.oren` + expected-failure `tests/avm/test_arith_invalid.oren`).
 - AVM determinism guard: `oretest` reruns `test_smoke_suite` in scalar mode and requires `RESULT_HASH`/`TRACE_HASH` to match (catches uninitialized/pointer-order hash issues).
 - Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.

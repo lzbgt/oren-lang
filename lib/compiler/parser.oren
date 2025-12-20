@@ -69,10 +69,15 @@ fn new_parser(l) {
         // v0 policy: if multiple impls define the same method name for a type, the
         // method is marked ambiguous and sugar becomes a compile-time error.
         "impl_methods": {},
+        // Qualified impl registry (trait-qualified calls):
+        // - impl_trait_methods: { "TraitName": { "TypeName": { "method": "__oren_impl__..." } } }
+        "impl_trait_methods": {},
 
         // Rolling trait registry (parser-local, metadata-only for now):
         // - traits: [ {"name": "Foo", "methods": [ {"name": "bar", "params": [...] } ] } ]
         "traits": [],
+        // Set of known trait names (for `Trait.method(x, ...)` calls).
+        "trait_set": {},
 
         // Rolling type environment (parser-local):
         // Stack of scopes mapping `varName -> typeName` (from `name: Type` annotations).
@@ -195,6 +200,37 @@ fn impl_method_lookup(p, type_name, method) {
     var m = p["impl_methods"][type_name]
     if m == nil { return nil }
     return m[method]
+}
+
+fn impl_trait_method_register(p, trait_name, type_name, method, mangled) {
+    // Qualified registry:
+    //   impl Trait for Type { fn method(...) { ... } }
+    // can be referenced via `Trait.method(x, ...)` even when unqualified `x.method(...)`
+    // is ambiguous due to multiple traits defining the same method name for the type.
+    if trait_name == nil || type_name == nil || method == nil || mangled == nil { return nil }
+    if p["impl_trait_methods"] == nil { p["impl_trait_methods"] = {} }
+    if p["impl_trait_methods"][trait_name] == nil { p["impl_trait_methods"][trait_name] = {} }
+    if p["impl_trait_methods"][trait_name][type_name] == nil { p["impl_trait_methods"][trait_name][type_name] = {} }
+    var m = p["impl_trait_methods"][trait_name][type_name]
+    var prev = m[method]
+    if prev != nil && prev != mangled {
+        parser_add_error(p, "duplicate impl for '" + trait_name + "' on type '" + type_name + "' method '" + method + "'")
+        m[method] = "__AMBIG__"
+        return nil
+    }
+    m[method] = mangled
+    return nil
+}
+
+fn impl_trait_method_lookup(p, trait_name, type_name, method) {
+    if trait_name == nil || type_name == nil || method == nil { return nil }
+    var tm = p["impl_trait_methods"]
+    if tm == nil { return nil }
+    var by_trait = tm[trait_name]
+    if by_trait == nil { return nil }
+    var by_type = by_trait[type_name]
+    if by_type == nil { return nil }
+    return by_type[method]
 }
 
 fn str_starts_with(s, prefix) {
@@ -707,6 +743,7 @@ fn parse_trait_decl(p) {
     }
 
     // p["cur"] is '}' (or EOF). Record trait metadata for tooling.
+    p["trait_set"][trait_name] = true
     oren_list_push(p["traits"], {"name": trait_name, "doc": doc, "methods": methods})
     return ast.new_stmt_list([])
 }
@@ -770,6 +807,11 @@ fn parse_impl_decl(p) {
     var out = []
     parser_next_token(p)
     while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_DOC) {
+            var md = parse_doc_list(p)
+            if md != nil { p["_pending_doc"] = md }
+            continue
+        }
         if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p); continue }
         if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
         if cur_is(p, token.TOK_FUNCTION) {
@@ -783,6 +825,7 @@ fn parse_impl_decl(p) {
                 var newn = impl_mangled_name(trait_name, type_name, mname)
                 fnn["name"] = newn
                 impl_method_register(p, type_name, mname, newn)
+                impl_trait_method_register(p, trait_name, type_name, mname, newn)
             }
             oren_list_push(out, st)
             parser_next_token(p)
@@ -1730,6 +1773,34 @@ fn parse_call(p, fn_expr) {
                     } else {
                         if mangled2 != nil {
                             fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, mangled2))
+                        }
+                    }
+                }
+            }
+
+            // Try trait-qualified: Trait.method(x, ...)
+            //
+            // This is the disambiguation path when multiple traits define the same
+            // method name for a type, and unqualified `x.method(...)` is ambiguous.
+            if fn_expr["type"] == "Member" {
+                var tname_left = expr_dotted_name(fn_expr["left"])
+                if tname_left != nil && p["trait_set"][tname_left] == true {
+                    if args != nil && oren_list_len(args) > 0 {
+                        var recv0 = args[0]
+                        if recv0 != nil && recv0["type"] == "Identifier" {
+                            var recv_type = type_env_get(p, recv0["value"])
+                            if recv_type != nil {
+                                var qm = impl_trait_method_lookup(p, tname_left, recv_type, method)
+                                if qm == "__AMBIG__" {
+                                    parser_add_error(p, "ambiguous qualified method '" + tname_left + "." + method + "' for type '" + recv_type + "'")
+                                } else {
+                                    if qm != nil {
+                                        fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, qm))
+                                    } else {
+                                        parser_add_error(p, "no impl for qualified call '" + tname_left + "." + method + "' on type '" + recv_type + "'")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
