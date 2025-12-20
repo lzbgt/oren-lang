@@ -468,6 +468,29 @@ func main() {
 			cleanup: []string{"build/dump_tokens_missing.json"},
 		},
 		{
+			name: "build_missing_target_value_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend c --target 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"; printf \"%%s\\n\" \"$out\" | grep -F \"Missing value for --target\"'",
+				"tests/modules/test_strings.oren",
+			),
+			log:     "build/logs/build_missing_target_value_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{},
+		},
+		{
+			name: "build_emit_c_with_native_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend native --emit-c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"; printf \"%%s\\n\" \"$out\" | grep -F -- \"--emit-c is only supported\"'",
+				"tests/modules/test_strings.oren",
+				*target,
+				"build/emit_c_native_bad",
+				gcArg,
+			),
+			log:     "build/logs/build_emit_c_with_native_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/emit_c_native_bad"},
+		},
+		{
 			name:    "strict_attrs_ok",
 			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s -o %q --strict-attrs --attr-allow-prefixes myorg.%s", "tests/native/fixtures/strict_attrs_ok.oren", *target, "build/strict_attrs_ok", gcArg),
 			log:     "build/logs/strict_attrs_ok.log",
