@@ -1,0 +1,45 @@
+// Container method sugar (rolling).
+//
+// Goal: "modern surface" while keeping deterministic lowering:
+//   - xs.push(v) -> oren_list_push(xs, v)
+//   - xs.len()   -> oren_list_len(xs)
+//   - m.set(k,v) -> m[k] = v   (statement-only sugar)
+//   - m.get(k)   -> m[k]
+//   - m.len()    -> oren_map_len(m)
+//   - b.len()    -> oren_buf_len(b)
+
+fn fail(code) {
+    print("module container_methods FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// list.push + list.len
+var xs = []
+xs.push(1)
+xs.push(2)
+xs.push(3)
+assert_eq(xs.len(), 3, 10)
+assert_eq(xs[0], 1, 11)
+assert_eq(xs[2], 3, 12)
+
+// map.set (statement) + map.get + map.len
+var m = {}
+m.set("b", 2)
+m.set("a", 1)
+assert_eq(m.len(), 2, 20)
+assert_eq(m.get("a"), 1, 21)
+assert_eq(m.get("b"), 2, 22)
+
+// typed buffer len
+var b = oren_i32_buf_new(4)
+if oren_is_err(b) { fail(30) }
+assert_eq(b.len(), 4, 31)
+
+print("module container_methods OK")
+exit(0)
+

@@ -77,9 +77,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Map iteration is deterministic (key ordered) in deterministic modes (AVM + tests)
      - Container operations are surface-level language/library APIs (not scattered C helpers):
        - `list.push(x)`, `list.len()`, `map.get(k)`, `map.set(k,v)` (exact naming TBD)
-     - Add one integration test that:
-       - builds a map, iterates deterministically, hashes result
-       - runs under AVM deterministic/capsule-like mode without host effects (**done**: `tests/avm/test_map_iter_deterministic.oren`)
+      - Add one integration test that:
+        - builds a map, iterates deterministically, hashes result
+        - runs under AVM deterministic/capsule-like mode without host effects (**done**: `tests/avm/test_map_iter_deterministic.oren`)
+      - Add one module test that covers the method sugar on list/map/buf (**done**: `tests/modules/test_container_methods.oren`)
 
 2) **[lang][perf] Casting + numeric model (follow-ups)**
    - DoD:

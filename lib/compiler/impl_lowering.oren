@@ -206,8 +206,132 @@ fn type_env_get(env, name) {
     return nil
 }
 
-fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
+// Best-effort local inference for builtin container method sugar (rolling).
+//
+// Native backend values are untagged, so we cannot fully do dynamic dispatch at runtime.
+// Instead we infer receiver kinds from syntax + local assignments, and only lower
+// when we have enough information.
+fn kind_env_new() { return [{}] }
+
+fn kind_env_push(env) {
+    oren_list_push(env, {})
+    return env
+}
+
+fn kind_env_pop(env) {
+    if oren_list_len(env) > 1 {
+        var out = []
+        var i = 0
+        while i < oren_list_len(env) - 1 {
+            oren_list_push(out, env[i])
+            i = i + 1
+        }
+        return out
+    }
+    return env
+}
+
+fn kind_env_set(env, name, kind) {
+    if name == nil || kind == nil { return nil }
+    env[oren_list_len(env) - 1][name] = kind
+    return nil
+}
+
+fn kind_env_get(env, name) {
+    if name == nil { return nil }
+    var i = oren_list_len(env) - 1
+    while i >= 0 {
+        var m = env[i]
+        if m[name] != nil { return m[name] }
+        i = i - 1
+    }
+    return nil
+}
+
+fn infer_container_kind(expr, kind_env) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Identifier" {
+        return kind_env_get(kind_env, expr["value"])
+    }
+    if t == "Array" { return "list" }
+    if t == "Hash" { return "map" }
+    if t == "String" { return "string" }
+    if t == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "oren_i32_buf_new" { return "buf" }
+            if nm == "oren_i64_buf_new" { return "buf" }
+            if nm == "oren_f32_buf_new" { return "buf" }
+            if nm == "oren_f64_buf_new" { return "buf" }
+        }
+    }
+    return nil
+}
+
+fn rewrite_builtin_container_call(expr, kind_env) {
     if expr == nil || expr["type"] != "Call" { return expr }
+    var fn_expr = expr["fn"]
+    if fn_expr == nil || fn_expr["type"] != "Member" { return expr }
+
+    var method = nil
+    if fn_expr["prop"] != nil && fn_expr["prop"]["type"] == "Identifier" { method = fn_expr["prop"]["value"] }
+    if method == nil { return expr }
+
+    var recv = fn_expr["left"]
+    var args = expr["args"]
+    if args == nil { args = [] }
+
+    // Builtin container method sugar (rolling):
+    // - list.len()   -> oren_list_len(list)
+    // - list.push(x) -> oren_list_push(list, x)
+    // - map.len()    -> oren_map_len(map)
+    // - map.get(k)   -> map[k]
+    // - buf.len()    -> oren_buf_len(buf)
+    // - string.len() -> oren_string_len(string)
+    //
+    // NOTE:
+    // - map.set(k,v) is statement-only sugar (rewritten in stmt lowering to `m[k] = v`).
+    // - If the receiver kind cannot be inferred, we leave it unchanged (user can call
+    //   explicit primitives like `oren_list_push`).
+    if method == "len" {
+        if oren_list_len(args) != 0 { return expr }
+        var k = infer_container_kind(recv, kind_env)
+        if k == "list" { return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_len"}, [recv]) }
+        if k == "map" { return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_map_len"}, [recv]) }
+        if k == "buf" { return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_buf_len"}, [recv]) }
+        if k == "string" { return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_string_len"}, [recv]) }
+        return expr
+    }
+
+    if method == "push" {
+        if oren_list_len(args) != 1 { return expr }
+        var k2 = infer_container_kind(recv, kind_env)
+        if k2 == "list" {
+            return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_push"}, [recv, args[0]])
+        }
+        return expr
+    }
+
+    if method == "get" {
+        if oren_list_len(args) != 1 { return expr }
+        var k3 = infer_container_kind(recv, kind_env)
+        if k3 == "map" || k3 == "list" {
+            return ast.new_index(expr["token"], recv, args[0])
+        }
+        return expr
+    }
+
+    return expr
+}
+
+fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
+    if expr == nil || expr["type"] != "Call" { return expr }
+
+    // Builtin container method sugar first (does not require impl/type annotations).
+    expr = rewrite_builtin_container_call(expr, kind_env)
+
     var fn_expr = expr["fn"]
     if fn_expr == nil || fn_expr["type"] != "Member" { return expr }
 
@@ -290,13 +414,14 @@ fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
     return expr
 }
 
-fn lower_expr_in_place(expr, regs, trait_set, env, errs) {
+fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
     if expr == nil { return nil }
     var t = expr["type"]
 
     if t == "Function" {
         // New scope seeded with annotated params.
         env = type_env_push(env)
+        kind_env = kind_env_push(kind_env)
         var params = expr["params"]
         if params != nil {
             var pi = 0
@@ -304,34 +429,36 @@ fn lower_expr_in_place(expr, regs, trait_set, env, errs) {
                 var id = params[pi]
                 if id != nil && id["type"] == "Identifier" && id["ann_type"] != nil {
                     type_env_set(env, id["value"], id["ann_type"])
+                    if id["ann_type"] == "string" { kind_env_set(kind_env, id["value"], "string") }
                 }
                 pi = pi + 1
             }
         }
-        lower_stmt_in_place(expr["body"], regs, trait_set, env, errs)
+        lower_stmt_in_place(expr["body"], regs, trait_set, env, kind_env, errs)
         env = type_env_pop(env)
+        kind_env = kind_env_pop(kind_env)
         return expr
     }
     if t == "Prefix" {
-        expr["right"] = lower_expr_in_place(expr["right"], regs, trait_set, env, errs)
+        expr["right"] = lower_expr_in_place(expr["right"], regs, trait_set, env, kind_env, errs)
         return expr
     }
     if t == "Infix" {
-        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, errs)
-        expr["right"] = lower_expr_in_place(expr["right"], regs, trait_set, env, errs)
+        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, kind_env, errs)
+        expr["right"] = lower_expr_in_place(expr["right"], regs, trait_set, env, kind_env, errs)
         return expr
     }
     if t == "If" {
-        expr["cond"] = lower_expr_in_place(expr["cond"], regs, trait_set, env, errs)
-        lower_stmt_in_place(expr["consq"], regs, trait_set, env, errs)
-        if expr["alt"] != nil { lower_stmt_in_place(expr["alt"], regs, trait_set, env, errs) }
+        expr["cond"] = lower_expr_in_place(expr["cond"], regs, trait_set, env, kind_env, errs)
+        lower_stmt_in_place(expr["consq"], regs, trait_set, env, kind_env, errs)
+        if expr["alt"] != nil { lower_stmt_in_place(expr["alt"], regs, trait_set, env, kind_env, errs) }
         return expr
     }
     if t == "Array" {
         var xs = expr["elements"]
         var i = 0
         while i < oren_list_len(xs) {
-            xs[i] = lower_expr_in_place(xs[i], regs, trait_set, env, errs)
+            xs[i] = lower_expr_in_place(xs[i], regs, trait_set, env, kind_env, errs)
             i = i + 1
         }
         return expr
@@ -340,94 +467,126 @@ fn lower_expr_in_place(expr, regs, trait_set, env, errs) {
         var ps = expr["pairs"]
         var i2 = 0
         while i2 < oren_list_len(ps) {
-            ps[i2]["key"] = lower_expr_in_place(ps[i2]["key"], regs, trait_set, env, errs)
-            ps[i2]["value"] = lower_expr_in_place(ps[i2]["value"], regs, trait_set, env, errs)
+            ps[i2]["key"] = lower_expr_in_place(ps[i2]["key"], regs, trait_set, env, kind_env, errs)
+            ps[i2]["value"] = lower_expr_in_place(ps[i2]["value"], regs, trait_set, env, kind_env, errs)
             i2 = i2 + 1
         }
         return expr
     }
     if t == "Index" {
-        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, errs)
-        expr["index"] = lower_expr_in_place(expr["index"], regs, trait_set, env, errs)
+        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, kind_env, errs)
+        expr["index"] = lower_expr_in_place(expr["index"], regs, trait_set, env, kind_env, errs)
         return expr
     }
     if t == "Member" {
-        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, errs)
+        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, kind_env, errs)
         return expr
     }
     if t == "SpawnExpr" {
-        expr["call"] = lower_expr_in_place(expr["call"], regs, trait_set, env, errs)
+        expr["call"] = lower_expr_in_place(expr["call"], regs, trait_set, env, kind_env, errs)
         return expr
     }
     if t == "Call" {
-        expr["fn"] = lower_expr_in_place(expr["fn"], regs, trait_set, env, errs)
+        expr["fn"] = lower_expr_in_place(expr["fn"], regs, trait_set, env, kind_env, errs)
         var args = expr["args"]
         var i3 = 0
         while i3 < oren_list_len(args) {
-            args[i3] = lower_expr_in_place(args[i3], regs, trait_set, env, errs)
+            args[i3] = lower_expr_in_place(args[i3], regs, trait_set, env, kind_env, errs)
             i3 = i3 + 1
         }
-        if expr["spread"] != nil { expr["spread"] = lower_expr_in_place(expr["spread"], regs, trait_set, env, errs) }
-        return rewrite_call_expr(expr, regs, trait_set, env, errs)
+        if expr["spread"] != nil { expr["spread"] = lower_expr_in_place(expr["spread"], regs, trait_set, env, kind_env, errs) }
+        return rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs)
     }
     return expr
 }
 
-fn lower_stmt_in_place(stmt, regs, trait_set, env, errs) {
+fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
     if stmt == nil { return nil }
     var t = stmt["type"]
     if t == "Block" {
         env = type_env_push(env)
+        kind_env = kind_env_push(kind_env)
         var ss = stmt["stmts"]
         var i = 0
         while i < oren_list_len(ss) {
-            lower_stmt_in_place(ss[i], regs, trait_set, env, errs)
+            lower_stmt_in_place(ss[i], regs, trait_set, env, kind_env, errs)
             i = i + 1
         }
         env = type_env_pop(env)
+        kind_env = kind_env_pop(kind_env)
         return nil
     }
     if t == "Var" {
-        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, kind_env, errs)
         var nm = stmt["name"]
         if nm != nil && nm["type"] == "Identifier" && nm["ann_type"] != nil {
             type_env_set(env, nm["value"], nm["ann_type"])
         }
+        if nm != nil && nm["type"] == "Identifier" {
+            var k = infer_container_kind(stmt["value"], kind_env)
+            if k != nil { kind_env_set(kind_env, nm["value"], k) }
+        }
         return nil
     }
     if t == "Assign" {
-        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, kind_env, errs)
+        var nm2 = stmt["name"]
+        if nm2 != nil && nm2["type"] == "Identifier" {
+            var k2 = infer_container_kind(stmt["value"], kind_env)
+            if k2 != nil { kind_env_set(kind_env, nm2["value"], k2) }
+        }
         return nil
     }
     if t == "Set" {
-        stmt["left"] = lower_expr_in_place(stmt["left"], regs, trait_set, env, errs)
-        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        stmt["left"] = lower_expr_in_place(stmt["left"], regs, trait_set, env, kind_env, errs)
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, kind_env, errs)
         return nil
     }
     if t == "ExprStmt" {
-        stmt["expr"] = lower_expr_in_place(stmt["expr"], regs, trait_set, env, errs)
+        stmt["expr"] = lower_expr_in_place(stmt["expr"], regs, trait_set, env, kind_env, errs)
+        // Statement-only sugar: map.set(k,v) / list.set(i,v) -> (container[idx] = v)
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Call" && e["fn"] != nil && e["fn"]["type"] == "Member" {
+            var prop = nil
+            if e["fn"]["prop"] != nil && e["fn"]["prop"]["type"] == "Identifier" { prop = e["fn"]["prop"]["value"] }
+            if prop == "set" {
+                var recv = e["fn"]["left"]
+                var args = e["args"]
+                if args != nil && oren_list_len(args) == 2 {
+                    var k3 = infer_container_kind(recv, kind_env)
+                    if k3 == "map" || k3 == "list" {
+                        stmt["type"] = "Set"
+                        stmt["left"] = ast.new_index(e["token"], recv, args[0])
+                        stmt["value"] = args[1]
+                        stmt["expr"] = nil
+                    }
+                }
+            }
+        }
         return nil
     }
     if t == "Return" {
-        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, kind_env, errs)
         return nil
     }
     if t == "While" {
-        stmt["cond"] = lower_expr_in_place(stmt["cond"], regs, trait_set, env, errs)
-        lower_stmt_in_place(stmt["body"], regs, trait_set, env, errs)
+        stmt["cond"] = lower_expr_in_place(stmt["cond"], regs, trait_set, env, kind_env, errs)
+        lower_stmt_in_place(stmt["body"], regs, trait_set, env, kind_env, errs)
         return nil
     }
     if t == "For" {
         env = type_env_push(env)
-        lower_stmt_in_place(stmt["init"], regs, trait_set, env, errs)
-        stmt["cond"] = lower_expr_in_place(stmt["cond"], regs, trait_set, env, errs)
-        stmt["post"] = lower_expr_in_place(stmt["post"], regs, trait_set, env, errs)
-        lower_stmt_in_place(stmt["body"], regs, trait_set, env, errs)
+        kind_env = kind_env_push(kind_env)
+        lower_stmt_in_place(stmt["init"], regs, trait_set, env, kind_env, errs)
+        stmt["cond"] = lower_expr_in_place(stmt["cond"], regs, trait_set, env, kind_env, errs)
+        stmt["post"] = lower_expr_in_place(stmt["post"], regs, trait_set, env, kind_env, errs)
+        lower_stmt_in_place(stmt["body"], regs, trait_set, env, kind_env, errs)
         env = type_env_pop(env)
+        kind_env = kind_env_pop(kind_env)
         return nil
     }
     if t == "Function" {
-        lower_expr_in_place(stmt, regs, trait_set, env, errs)
+        lower_expr_in_place(stmt, regs, trait_set, env, kind_env, errs)
         return nil
     }
     return nil
@@ -438,12 +597,13 @@ fn lower_linked_program_in_place(linked) {
     var regs = collect_impl_registries(linked, errs)
     var trait_set = collect_trait_set(linked)
     var env = type_env_new()
+    var kind_env = kind_env_new()
 
     // Whole-program traversal (top-level statements + nested functions).
     var ss = linked["statements"]
     var i = 0
     while i < oren_list_len(ss) {
-        lower_stmt_in_place(ss[i], regs, trait_set, env, errs)
+        lower_stmt_in_place(ss[i], regs, trait_set, env, kind_env, errs)
         i = i + 1
     }
 

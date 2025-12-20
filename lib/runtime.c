@@ -2338,6 +2338,17 @@ OrenValue oren_map_get(OrenValue map, OrenValue key) {
     return OREN_NIL;
 }
 
+OrenValue oren_map_len(OrenValue map) {
+    if (map.type != OREN_TYPE_MAP) {
+        oren_panic("len on non-map");
+        return OREN_NIL; // Should not be reached
+    }
+    lock_collections();
+    int c = map.as.map_val->count;
+    unlock_collections();
+    return oren_int(c);
+}
+
 OrenValue oren_call_obj_argv(OrenValue fn, int argc, OrenValue* argv) {
     if (fn.type == OREN_TYPE_FUNC) {
         return fn.as.func_val.fn(fn.as.func_val.env, argc, argv);

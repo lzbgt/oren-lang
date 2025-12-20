@@ -145,6 +145,7 @@ func main() {
 		"tests/modules/test_as_cast.oren",
 		"tests/modules/test_bitcast.oren",
 		"tests/modules/test_iter_buffers.oren",
+		"tests/modules/test_container_methods.oren",
 		// ABI layouts (curated, no host headers).
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
@@ -185,6 +186,7 @@ func main() {
 		"tests/modules/test_bitcast.oren",
 		"tests/modules/test_iter_buffers.oren",
 		"tests/modules/test_typed_struct_fields.oren",
+		"tests/modules/test_container_methods.oren",
 		"tests/modules/test_mod.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_abi_layout.oren",

@@ -505,6 +505,22 @@ Implementation note (current compiler):
 - `continue` skips to the next loop iteration.
 - `return expr` returns from the current function. A return value is always required; use `return nil` if needed.
 
+### Builtin container method sugar (rolling)
+
+Oren supports a small amount of container method sugar to keep code modern and readable,
+while still lowering deterministically in v0:
+
+- `xs.push(v)` → `oren_list_push(xs, v)`
+- `xs.len()` → `oren_list_len(xs)`
+- `m.set(k, v)` → `m[k] = v` (**statement-only sugar**)
+- `m.get(k)` → `m[k]`
+- `m.len()` → `oren_map_len(m)`
+- `b.len()` → `oren_buf_len(b)`
+
+Important: this is **best-effort** in rolling v0. The lowering only applies when the compiler
+can infer the receiver kind from syntax/local assignments (needed because the native backend
+runtime values are untagged).
+
 ### Concurrency (v0)
 - `spawn f(...)` starts a new OS thread.
 - **Arguments**: Arguments passed to `spawn` (`spawn f(a, b)`) are evaluated in the parent thread and passed to the new thread's entry function `f`.

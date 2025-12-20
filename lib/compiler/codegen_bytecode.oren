@@ -1133,6 +1133,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_u32_bits_to_f32" { native_id = 110 }
         if name == "oren_f64_to_u64_bits" { native_id = 111 }
         if name == "oren_u64_bits_to_f64" { native_id = 112 }
+        if name == "oren_map_len" { native_id = 113 }
         if name == "oren_bytes_from_hex" { native_id = 35 }
         if name == "oren_bytes_to_hex" { native_id = 36 }
         if name == "oren_avm_record_to_bytes" { native_id = 40 }

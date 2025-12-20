@@ -181,6 +181,7 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value);
 
 OrenValue oren_new_map(int count, ...);
 OrenValue oren_map_get(OrenValue map, OrenValue key);
+OrenValue oren_map_len(OrenValue map);
 
 OrenValue oren_string_len(OrenValue s);
 OrenValue oren_string_char_at(OrenValue s, OrenValue index);

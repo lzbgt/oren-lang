@@ -1266,6 +1266,13 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 113: { // oren_map_len(map) -> int
+            if (nargs > 0 && args[0].type == AVM_VAL_MAP) {
+                res.type = AVM_VAL_INT;
+                res.as.i = (int64_t)args[0].as.m->count;
+            }
+            break;
+        }
         case 35: { // oren_bytes_from_hex(string) -> bytes
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 const char* s = (const char*)args[0].as.p;
