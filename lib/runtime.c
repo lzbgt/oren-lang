@@ -444,7 +444,7 @@ static void oren_mark_value(OrenValue v) {
         }
         return;
     }
-    if (v.type == OREN_TYPE_I32_BUF || v.type == OREN_TYPE_I64_BUF || v.type == OREN_TYPE_F32_BUF || v.type == OREN_TYPE_F64_BUF) {
+    if (v.type == OREN_TYPE_U8_BUF || v.type == OREN_TYPE_I32_BUF || v.type == OREN_TYPE_I64_BUF || v.type == OREN_TYPE_F32_BUF || v.type == OREN_TYPE_F64_BUF) {
         // Buffers are GC-tracked heap headers + raw payload bytes. Payload contains no pointers.
         // Mark both header and payload allocations so payload cannot be collected independently.
         OrenBuf* b = v.as.buf_val;
@@ -1503,6 +1503,7 @@ OrenValue oren_eq(OrenValue a, OrenValue b) {
         case OREN_TYPE_NIL: return OREN_TRUE;
         case OREN_TYPE_FUNC:
             return oren_bool(a.as.func_val.fn == b.as.func_val.fn && a.as.func_val.env == b.as.func_val.env);
+        case OREN_TYPE_U8_BUF:
         case OREN_TYPE_I32_BUF:
         case OREN_TYPE_I64_BUF:
         case OREN_TYPE_F32_BUF:
@@ -1731,25 +1732,47 @@ OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value) {
 }
 
 static int bytes_get_u8_checked(OrenValue bytes, int idx, uint8_t* out) {
-    if (bytes.type != OREN_TYPE_LIST) return 0;
-    if (idx < 0 || idx >= bytes.as.list_val->count) return 0;
-    OrenValue v = bytes.as.list_val->items[idx];
-    if (v.type != OREN_TYPE_INT) return 0;
-    if (v.as.int_val < 0 || v.as.int_val > 255) return 0;
-    *out = (uint8_t)v.as.int_val;
-    return 1;
+    if (bytes.type == OREN_TYPE_LIST) {
+        if (idx < 0 || idx >= bytes.as.list_val->count) return 0;
+        OrenValue v = bytes.as.list_val->items[idx];
+        if (v.type != OREN_TYPE_INT) return 0;
+        if (v.as.int_val < 0 || v.as.int_val > 255) return 0;
+        *out = (uint8_t)v.as.int_val;
+        return 1;
+    }
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b) return 0;
+        if (b->elem_size != 1u) return 0;
+        if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) return 0;
+        if (!b->data && b->len != 0) return 0;
+        *out = b->data[(uint32_t)idx];
+        return 1;
+    }
+    return 0;
 }
 
 static int bytes_set_u8_checked(OrenValue bytes, int idx, uint8_t val) {
-    if (bytes.type != OREN_TYPE_LIST) return 0;
-    if (idx < 0 || idx >= bytes.as.list_val->count) return 0;
-    bytes.as.list_val->items[idx] = oren_int((int64_t)val);
-    return 1;
+    if (bytes.type == OREN_TYPE_LIST) {
+        if (idx < 0 || idx >= bytes.as.list_val->count) return 0;
+        bytes.as.list_val->items[idx] = oren_int((int64_t)val);
+        return 1;
+    }
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b) return 0;
+        if (b->elem_size != 1u) return 0;
+        if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) return 0;
+        if (!b->data && b->len != 0) return 0;
+        b->data[(uint32_t)idx] = val;
+        return 1;
+    }
+    return 0;
 }
 
 
 OrenValue oren_bytes_get_u8(OrenValue bytes, OrenValue index) {
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u8 expects (bytes:list<int>, idx:int)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u8 expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;
     uint8_t b0;
     lock_collections();
@@ -1760,22 +1783,20 @@ OrenValue oren_bytes_get_u8(OrenValue bytes, OrenValue index) {
 }
 
 OrenValue oren_bytes_set_u8(OrenValue bytes, OrenValue index, OrenValue value) {
-    if (bytes.type != OREN_TYPE_LIST) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>, idx:int, value:int 0..255)"));
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>, idx:int, value:int 0..255)"));
-    if (value.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>, idx:int, value:int 0..255)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>|u8_buf, idx:int, value:int 0..255)"));
+    if (value.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8 expects (bytes:list<int>|u8_buf, idx:int, value:int 0..255)"));
     int idx = (int)index.as.int_val;
     int64_t v = value.as.int_val;
     if (v < 0 || v > 255) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8: value out of range"));
     lock_collections();
-    int ok = (idx >= 0 && idx < bytes.as.list_val->count);
-    if (ok) bytes.as.list_val->items[idx] = oren_int(v);
+    int ok = bytes_set_u8_checked(bytes, idx, (uint8_t)v);
     unlock_collections();
     if (!ok) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u8: index out of bounds"));
     return oren_int(v);
 }
 
 OrenValue oren_bytes_get_u16_be(OrenValue bytes, OrenValue index) {
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u16_be expects (bytes:list<int>, idx:int)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u16_be expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;
     uint8_t b0, b1;
     lock_collections();
@@ -1786,7 +1807,7 @@ OrenValue oren_bytes_get_u16_be(OrenValue bytes, OrenValue index) {
 }
 
 OrenValue oren_bytes_get_u16_le(OrenValue bytes, OrenValue index) {
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u16_le expects (bytes:list<int>, idx:int)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u16_le expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;
     uint8_t b0, b1;
     lock_collections();
@@ -1813,7 +1834,7 @@ OrenValue oren_bytes_get_i16_le(OrenValue bytes, OrenValue index) {
 }
 
 OrenValue oren_bytes_get_u32_be(OrenValue bytes, OrenValue index) {
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u32_be expects (bytes:list<int>, idx:int)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u32_be expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;
     uint8_t b0, b1, b2, b3;
     lock_collections();
@@ -1828,7 +1849,7 @@ OrenValue oren_bytes_get_u32_be(OrenValue bytes, OrenValue index) {
 }
 
 OrenValue oren_bytes_get_u32_le(OrenValue bytes, OrenValue index) {
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u32_le expects (bytes:list<int>, idx:int)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u32_le expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;
     uint8_t b0, b1, b2, b3;
     lock_collections();
@@ -1859,7 +1880,7 @@ OrenValue oren_bytes_get_i32_le(OrenValue bytes, OrenValue index) {
 }
 
 OrenValue oren_bytes_get_u64_be(OrenValue bytes, OrenValue index) {
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u64_be expects (bytes:list<int>, idx:int)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u64_be expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;
     uint8_t b0, b1, b2, b3, b4, b5, b6, b7;
     lock_collections();
@@ -1879,7 +1900,7 @@ OrenValue oren_bytes_get_u64_be(OrenValue bytes, OrenValue index) {
 }
 
 OrenValue oren_bytes_get_u64_le(OrenValue bytes, OrenValue index) {
-    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u64_le expects (bytes:list<int>, idx:int)"));
+    if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u64_le expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;
     uint8_t b0, b1, b2, b3, b4, b5, b6, b7;
     lock_collections();
@@ -1910,7 +1931,7 @@ OrenValue oren_bytes_get_i64_le(OrenValue bytes, OrenValue index) {
 
 OrenValue oren_bytes_set_u16_be(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u16_be expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u16_be expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFu;
@@ -1925,7 +1946,7 @@ OrenValue oren_bytes_set_u16_be(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_u16_le(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u16_le expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u16_le expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFu;
@@ -1952,7 +1973,7 @@ static int64_t sign_extend32(uint64_t u) {
 
 OrenValue oren_bytes_set_i16_be(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i16_be expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i16_be expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFu;
@@ -1967,7 +1988,7 @@ OrenValue oren_bytes_set_i16_be(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_i16_le(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i16_le expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i16_le expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFu;
@@ -1982,7 +2003,7 @@ OrenValue oren_bytes_set_i16_le(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_u32_be(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u32_be expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u32_be expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFFFFFu;
@@ -2002,7 +2023,7 @@ OrenValue oren_bytes_set_u32_be(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_u32_le(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u32_le expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u32_le expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFFFFFu;
@@ -2022,7 +2043,7 @@ OrenValue oren_bytes_set_u32_le(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_i32_be(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i32_be expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i32_be expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFFFFFu;
@@ -2042,7 +2063,7 @@ OrenValue oren_bytes_set_i32_be(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_i32_le(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i32_le expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_i32_le expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val & 0xFFFFFFFFu;
@@ -2062,7 +2083,7 @@ OrenValue oren_bytes_set_i32_le(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_u64_be(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u64_be expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u64_be expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val;
@@ -2090,7 +2111,7 @@ OrenValue oren_bytes_set_u64_be(OrenValue bytes, OrenValue index, OrenValue valu
 
 OrenValue oren_bytes_set_u64_le(OrenValue bytes, OrenValue index, OrenValue value) {
     if (index.type != OREN_TYPE_INT || value.type != OREN_TYPE_INT) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u64_le expects (bytes:list<int>, idx:int, value:int)"));
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_set_u64_le expects (bytes:list<int>|u8_buf, idx:int, value:int)"));
     }
     int idx = (int)index.as.int_val;
     uint64_t u = (uint64_t)value.as.int_val;
@@ -2773,6 +2794,9 @@ static void print_value_no_newline(OrenValue v) {
         case OREN_TYPE_STRING: printf("%s", v.as.string_val); break;
         case OREN_TYPE_NIL: printf("nil"); break;
         case OREN_TYPE_FUNC: printf("<func %p>", (void*)v.as.func_val.fn); break;
+        case OREN_TYPE_U8_BUF:
+            printf("<u8_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
+            break;
         case OREN_TYPE_I32_BUF:
             printf("<i32_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
             break;
@@ -3044,14 +3068,15 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
     }
 
     // Typed numeric buffers (C backend).
-    if (container.type == OREN_TYPE_I32_BUF || container.type == OREN_TYPE_I64_BUF ||
+    if (container.type == OREN_TYPE_U8_BUF || container.type == OREN_TYPE_I32_BUF || container.type == OREN_TYPE_I64_BUF ||
         container.type == OREN_TYPE_F32_BUF || container.type == OREN_TYPE_F64_BUF) {
         OrenBuf* b = container.as.buf_val;
         if (!b) { return oren_new_list(2, oren_int(0), OREN_NIL); }
         if (i < (long long)b->len) {
             OrenValue v = OREN_NIL;
             OrenValue idxv = oren_int(i);
-            if (container.type == OREN_TYPE_I32_BUF) v = oren_buf_load_i32(container, idxv);
+            if (container.type == OREN_TYPE_U8_BUF) v = oren_buf_load_u8(container, idxv);
+            else if (container.type == OREN_TYPE_I32_BUF) v = oren_buf_load_i32(container, idxv);
             else if (container.type == OREN_TYPE_I64_BUF) v = oren_buf_load_i64(container, idxv);
             else if (container.type == OREN_TYPE_F32_BUF) v = oren_buf_load_f32(container, idxv);
             else v = oren_buf_load_f64(container, idxv);

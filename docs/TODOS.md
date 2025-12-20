@@ -114,6 +114,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- C backend: added `u8_buf` type and made `oren_bytes_get_*` / `oren_bytes_set_*` accept both `list<int>` and `u8_buf`; added module coverage (`test_u8_buf_bytes_helpers`) and verified on macOS + Linux docker.
 - Numeric literals: added `_` separators and `0x`/`0b`/`0o` base-prefixed int literals across lexer + optimizer + bytecode + native backend + C backend; added module + AVM coverage; verified on macOS + Linux docker.
 - `std/buffer` views: switched slice/matrix views from map-based records to fixed-position lists to reduce hot-loop overhead; verified on macOS + Linux docker.
 - Generic-call specialization sugar v0: added `f[T](...) -> f__T(...)` lowering (conservative: only for declared functions) with module + AVM coverage; verified on macOS + Linux docker.

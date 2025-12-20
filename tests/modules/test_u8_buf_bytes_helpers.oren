@@ -1,0 +1,46 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module u8_buf_bytes_helpers FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+// Create a u8 buffer and write bytes into it.
+var b: []u8 = buffer.u8_new(8)
+assert_true(!oren_is_err(b), 10)
+
+assert_true(!oren_is_err(oren_buf_store_u8(b, 0, 0x01)), 11)
+assert_true(!oren_is_err(oren_buf_store_u8(b, 1, 0x02)), 12)
+assert_true(!oren_is_err(oren_buf_store_u8(b, 2, 0x03)), 13)
+assert_true(!oren_is_err(oren_buf_store_u8(b, 3, 0x04)), 14)
+
+// bytes_get_* helpers must work on u8 buffers as "bytes".
+assert_eq(oren_bytes_get_u16_be(b, 0), 0x0102, 20)
+assert_eq(oren_bytes_get_u16_le(b, 0), 0x0201, 21)
+assert_eq(oren_bytes_get_u32_be(b, 0), 0x01020304, 22)
+assert_eq(oren_bytes_get_u32_le(b, 0), 0x04030201, 23)
+
+// bytes_set_* helpers must also work on u8 buffers as "bytes" (in-place).
+assert_true(!oren_is_err(oren_bytes_set_u16_be(b, 4, 0xABCD)), 30)
+assert_eq(oren_buf_load_u8(b, 4), 0xAB, 31)
+assert_eq(oren_buf_load_u8(b, 5), 0xCD, 32)
+
+assert_true(!oren_is_err(oren_bytes_set_u32_le(b, 0, 0x11223344)), 40)
+assert_eq(oren_buf_load_u8(b, 0), 0x44, 41)
+assert_eq(oren_buf_load_u8(b, 1), 0x33, 42)
+assert_eq(oren_buf_load_u8(b, 2), 0x22, 43)
+assert_eq(oren_buf_load_u8(b, 3), 0x11, 44)
+
+print("module u8_buf_bytes_helpers OK")
+exit(0)
+

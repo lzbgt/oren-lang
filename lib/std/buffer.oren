@@ -12,6 +12,7 @@
 fn _err_invalid(msg) { return oren_err(4, msg) }
 
 // Constructors (thin wrappers)
+fn u8_new(n) { return oren_u8_buf_new(n) }
 fn i32_new(n) { return oren_i32_buf_new(n) }
 fn i64_new(n) { return oren_i64_buf_new(n) }
 fn f32_new(n) { return oren_f32_buf_new(n) }
@@ -71,6 +72,20 @@ fn slice_store_i32(s, idx, v) {
     var n = s[2]
     if idx < 0 || idx >= n { return _err_invalid("slice_store_i32: index out of bounds") }
     return oren_buf_store_i32(s[0], s[1] + idx, v)
+}
+
+fn slice_load_u8(s, idx) {
+    if !_slice_is_list(s) { return _err_invalid("slice_load_u8: expects slice") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("slice_load_u8: index out of bounds") }
+    return oren_buf_load_u8(s[0], s[1] + idx)
+}
+
+fn slice_store_u8(s, idx, v) {
+    if !_slice_is_list(s) { return _err_invalid("slice_store_u8: expects slice") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("slice_store_u8: index out of bounds") }
+    return oren_buf_store_u8(s[0], s[1] + idx, v)
 }
 
 fn slice_load_f32(s, idx) {

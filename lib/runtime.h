@@ -27,6 +27,7 @@ typedef enum {
     OREN_TYPE_FUNC,
     // Typed numeric buffers (rolling; required for HPC + SIMD kernels).
     // Backends must treat payload as little-endian bytes for determinism.
+    OREN_TYPE_U8_BUF,
     OREN_TYPE_I32_BUF,
     OREN_TYPE_I64_BUF,
     OREN_TYPE_F32_BUF,
@@ -209,6 +210,7 @@ OrenValue oren_bool_norm(OrenValue v);
 OrenValue oren_trunc_int(OrenValue v);
 
 // --- typed numeric buffers (C backend) ---
+OrenValue oren_u8_buf_new(OrenValue len);
 OrenValue oren_i32_buf_new(OrenValue len);
 OrenValue oren_i64_buf_new(OrenValue len);
 OrenValue oren_f32_buf_new(OrenValue len);
@@ -216,6 +218,8 @@ OrenValue oren_f64_buf_new(OrenValue len);
 
 OrenValue oren_buf_len(OrenValue buf);
 
+OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idx);
+OrenValue oren_buf_store_u8(OrenValue buf, OrenValue idx, OrenValue v);
 OrenValue oren_buf_load_i32(OrenValue buf, OrenValue idx);
 OrenValue oren_buf_store_i32(OrenValue buf, OrenValue idx, OrenValue v);
 OrenValue oren_buf_load_i64(OrenValue buf, OrenValue idx);
@@ -225,6 +229,7 @@ OrenValue oren_buf_store_f32(OrenValue buf, OrenValue idx, OrenValue v);
 OrenValue oren_buf_load_f64(OrenValue buf, OrenValue idx);
 OrenValue oren_buf_store_f64(OrenValue buf, OrenValue idx, OrenValue v);
 
+OrenValue oren_buf_fill_u8(OrenValue buf, OrenValue v);
 OrenValue oren_buf_fill_i32(OrenValue buf, OrenValue v);
 OrenValue oren_buf_fill_i64(OrenValue buf, OrenValue v);
 OrenValue oren_buf_fill_f32(OrenValue buf, OrenValue v);

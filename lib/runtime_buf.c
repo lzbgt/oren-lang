@@ -25,6 +25,7 @@ static OrenValue buf_err(const char* msg) {
     return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(msg));
 }
 
+static int buf_is_u8(OrenValue v) { return v.type == OREN_TYPE_U8_BUF && v.as.buf_val != NULL; }
 static int buf_is_i32(OrenValue v) { return v.type == OREN_TYPE_I32_BUF && v.as.buf_val != NULL; }
 static int buf_is_i64(OrenValue v) { return v.type == OREN_TYPE_I64_BUF && v.as.buf_val != NULL; }
 static int buf_is_f32(OrenValue v) { return v.type == OREN_TYPE_F32_BUF && v.as.buf_val != NULL; }
@@ -94,9 +95,10 @@ OrenValue oren_i32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_I3
 OrenValue oren_i64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_I64_BUF); }
 OrenValue oren_f32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_F32_BUF); }
 OrenValue oren_f64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_F64_BUF); }
+OrenValue oren_u8_buf_new(OrenValue len) { return buf_new(1u, len, OREN_TYPE_U8_BUF); }
 
 OrenValue oren_buf_len(OrenValue buf) {
-    if (buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
+    if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
         return buf_err("buf_len expects (buf)");
     }
     OrenBuf* b = buf.as.buf_val;
@@ -138,6 +140,27 @@ static void store_u64_le(uint8_t* p, uint64_t u) {
     for (int i = 0; i < 8; i++) {
         p[i] = (uint8_t)((u >> (uint64_t)(i * 8)) & 0xFFu);
     }
+}
+
+OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idxv) {
+    if (!buf_is_u8(buf) || idxv.type != OREN_TYPE_INT) return buf_err("oren_buf_load_u8 expects (u8_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_load_u8: index out of bounds");
+    uint8_t* p = buf_data(b) + (uint32_t)idx;
+    return oren_int((long long)(*p));
+}
+
+OrenValue oren_buf_store_u8(OrenValue buf, OrenValue idxv, OrenValue vv) {
+    if (!buf_is_u8(buf) || idxv.type != OREN_TYPE_INT || vv.type != OREN_TYPE_INT) return buf_err("oren_buf_store_u8 expects (u8_buf, int, int)");
+    OrenBuf* b = buf.as.buf_val;
+    long long idx = idxv.as.int_val;
+    if (!buf_check_idx(b, idx)) return buf_err("buf_store_u8: index out of bounds");
+    long long v = vv.as.int_val;
+    if (v < 0 || v > 255) return buf_err("buf_store_u8: byte out of range");
+    uint8_t* p = buf_data(b) + (uint32_t)idx;
+    *p = (uint8_t)v;
+    return buf;
 }
 
 OrenValue oren_buf_load_i32(OrenValue buf, OrenValue idxv) {
@@ -234,6 +257,19 @@ OrenValue oren_buf_store_f32(OrenValue buf, OrenValue idxv, OrenValue vv) {
     memcpy(&u, &f, sizeof(u));
     uint8_t* p = buf_data(b) + (uint32_t)idx * 4u;
     store_u32_le(p, u);
+    return buf;
+}
+
+OrenValue oren_buf_fill_u8(OrenValue buf, OrenValue vv) {
+    if (!buf_is_u8(buf) || vv.type != OREN_TYPE_INT) return buf_err("oren_buf_fill_u8 expects (u8_buf, int)");
+    OrenBuf* b = buf.as.buf_val;
+    uint32_t n = buf_len_u32(b);
+    long long v = vv.as.int_val;
+    if (v < 0 || v > 255) return buf_err("buf_fill_u8: byte out of range");
+    uint8_t u = (uint8_t)v;
+    for (uint32_t i = 0; i < n; i++) {
+        buf_data(b)[i] = u;
+    }
     return buf;
 }
 
