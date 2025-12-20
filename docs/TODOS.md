@@ -72,6 +72,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - parse/compile errors include `file:line:col` when source spans are available
      - native backend must never “print and continue” on codegen errors; it must fail compilation with actionable messages
      - runtime panics/fails include function names and keep the stable `OREN_DIAG ...` one-liner (AI-friendly)
+     - provide stable *tool surfaces* for debugging (no ad-hoc debug prints):
+       - `oren dump tokens <file.oren> [-o out.json]` (token stream with spans)
+       - `oren dump linked <file.oren> [-o out.json]` (linked/program summary)
+       - `OREN_TRACE_PASSES=1` traces major compiler passes (for AI-friendly “what phase broke”)
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:
@@ -137,19 +141,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
-- Language tooling: `///` doc comments now parse and attach deterministically to declarations, and are exported in metadata JSON (validated by `tests/modules/test_metadata_attrs.oren` in fast suite).
-- AVM SIMD: expanded NEON coverage to i32 typed-buffer kernels (add/mul/scale/reduce) with determinism guard (scalar vs SIMD result+trace hash) via `test_smoke_suite`.
-- Verification loop: `oretest` is parallel + timeout-safe by default; it no longer requires GNU `timeout`/`gtimeout` on macOS (internal process-group kill).
-- Varargs: implemented `fn f(a, ...rest)` end-to-end across parser + C backend + native backend + AVM bytecode, with spawn/join coverage and linux/arm64 docker verification.
-- Runtime diagnostics: failures/panics now emit a stable `OREN_DIAG kind=... code=... msg=...` one-liner, enforced by `oretest` fixtures (AI-friendly, no lldb/otool needed).
-- Compiler diagnostics: lexer tokens now carry byte-span + file info, parse errors render as `file:line:col: ...`, and native backend codegen errors fail the build with actionable locations.
-- Native syscalls: macOS `sys_execve` now returns `-errno` on failure (consistent with other syscalls and Linux); negative integer literals are loaded via a shared i64-imm loader to avoid invalid encodings.
-- Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
-- Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
-- Metadata: trait declarations are preserved in module metadata JSON (`traits`, methods, and return annotations), enabling doc/serde tooling without runtime vtables yet.
-- Tooling: `oren meta <file.oren> -o out.meta.json` emits metadata as a first-class compiler tool surface (and metadata coverage moved to an oretest fixture to avoid importing compiler internals).
-- Trait disambiguation: `Trait.method(x, ...)` resolves deterministically to the correct lowered impl function when `x.method(...)` is ambiguous (covered by `tests/modules/test_trait_qualified_calls.oren`).
-- AVM determinism: integer arithmetic in the VM is now defined as i64 two’s-complement wraparound (no C signed-overflow UB), and invalid ops (div0, shift out of range) abort deterministically (covered by `tests/avm/test_smoke_suite.oren` + expected-failure `tests/avm/test_arith_invalid.oren`).
-- AVM determinism guard: `oretest` reruns `test_smoke_suite` in scalar mode and requires `RESULT_HASH`/`TRACE_HASH` to match (catches uninitialized/pointer-order hash issues).
-- Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.
-- Stdlib errno wrappers (v7): added `lib/std/result.oren` helpers to convert `-errno` syscall-style returns into structured errors.
+- Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
+- Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
+- Compiler diagnostics: lexer tokens now carry byte spans + file info; parse errors render `file:line:col`; native backend codegen errors fail the build with actionable locations.
+- Runtime diagnostics: panics/fails emit a stable one-line `OREN_DIAG kind=... code=... msg=...` (AI-friendly; no lldb/otool needed).
+- Attribute ergonomics: alias canonicalization (`@pack` → `@oren.packed`, `@abi` → `@oren.abi`, `@json.*` → `@serde.*`) keeps user code terse but metadata canonical.
+- Verification loop: `oretest` is parallel + timeout-safe by default, and Linux/arm64 docker runner reuses a persistent container for fast smoke tests.

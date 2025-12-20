@@ -13,6 +13,7 @@ import type_ann "type_ann_lowering.oren"
 import abi_layout "abi_layout_lowering.oren"
 import impl_lowering "impl_lowering.oren"
 import optimizer "optimizer.oren"
+import dump "dump.oren"
 import argparse "../std/argparse.oren"
 
 fn cli_spec() {
@@ -56,6 +57,15 @@ fn cli_spec() {
 
     var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
     argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
+
+    var dumpcmd = argparse.add_command(p, "dump", "Dump compiler internals for troubleshooting (JSON)")
+    argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked")
+    argparse.cmd_positional(dumpcmd, "file.oren", true, "Input source file")
+    argparse.cmd_option(dumpcmd, "-o", nil, "string", "", "Output path (default: stdout)")
+    argparse.cmd_option(dumpcmd, "--target", nil, "string", "macos", "Target OS for lowering: macos|linux")
+    argparse.cmd_option(dumpcmd, "--arch", nil, "string", "arm64", "Target arch for lowering: arm64 (rolling)")
+    argparse.cmd_flag(dumpcmd, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
+    argparse.cmd_option(dumpcmd, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
 
     return p
 }
@@ -560,6 +570,8 @@ fn load_module(base, path) {
 }
 
 fn link_program(entry_path, root_prog, config) {
+    var trace_passes = oren_env("OREN_TRACE_PASSES") != nil
+    if trace_passes { print("[trace] link: start " + entry_path) }
     MODULES = {}
     MODULE_STACK = []
     MODULE_ORDER = []
@@ -673,6 +685,7 @@ fn link_program(entry_path, root_prog, config) {
     // Whole-program impl/method-call lowering:
     // - enables cross-module method call sugar without runtime vtables
     // - enforces deterministic coherence (ambiguous overlap is a compile error)
+    if trace_passes { print("[trace] pass: impl_lowering") }
     impl_lowering.lower_linked_program_in_place(linked)
     if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
         print("Impl lowering errors:")
@@ -685,19 +698,24 @@ fn link_program(entry_path, root_prog, config) {
     }
 
     // Compile-time lowering: packed struct views over bytes.
+    if trace_passes { print("[trace] pass: packview") }
     packview.lower_linked_program_in_place(linked)
 
     // Compile-time lowering: apply value-level normalization for annotated struct/class fields.
     // (Rolling step toward exact-size layout semantics.)
+    if trace_passes { print("[trace] pass: type_ann") }
     type_ann.lower_linked_program_in_place(linked)
 
     // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
     // Opt-in via `@oren.abi` and does not depend on host headers.
+    if trace_passes { print("[trace] pass: abi_layout") }
     abi_layout.lower_linked_program_in_place(linked)
 
     // Optimizer baseline (safe, conservative).
+    if trace_passes { print("[trace] pass: optimizer") }
     optimizer.lower_linked_program_in_place(linked)
 
+    if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
     return linked
 }
 
@@ -726,7 +744,10 @@ fn compiler_main() {
             else {
                 if args[i] == "scan" { mode = "scan"; i = i + 1 }
                 else {
-                    if args[i] == "--emit-c" { mode = "emit-c"; i = i + 1 }
+                    if args[i] == "dump" { mode = "dump"; i = i + 1 }
+                    else {
+                        if args[i] == "--emit-c" { mode = "emit-c"; i = i + 1 }
+                    }
                 }
             }
         }
@@ -808,6 +829,99 @@ fn compiler_main() {
         
         oren_system("rm " + nm_out)
         return nil
+    }
+
+    if mode == "dump" {
+        // Usage: oren dump <tokens|linked> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]
+        if i + 1 >= argc { print("Usage: oren dump <tokens|linked> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]"); return nil }
+        var kind = args[i]
+        var path = args[i + 1]
+        i = i + 2
+
+        var target = "macos"
+        var arch = "arm64"
+        var outp = ""
+
+        var strict = false
+        var allow = []
+        var env_strict = oren_env("OREN_STRICT_ATTRS")
+        if env_strict != nil { strict = true }
+        var env_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
+        if env_allow != nil { allow = split_csv(env_allow) }
+
+        while i < argc {
+            if args[i] == "--target" {
+                if i + 1 >= argc { print("Missing value for --target"); return nil }
+                target = args[i + 1]
+                i = i + 2
+            } else {
+                if args[i] == "--arch" {
+                    if i + 1 >= argc { print("Missing value for --arch"); return nil }
+                    arch = args[i + 1]
+                    i = i + 2
+                } else {
+                    if args[i] == "-o" {
+                        if i + 1 >= argc { print("Missing value for -o"); return nil }
+                        outp = args[i + 1]
+                        i = i + 2
+                    } else {
+                        if args[i] == "--strict-attrs" {
+                            strict = true
+                            i = i + 1
+                        } else {
+                            if args[i] == "--attr-allow-prefixes" {
+                                if i + 1 >= argc { print("Missing value for --attr-allow-prefixes"); return nil }
+                                allow = split_csv(args[i + 1])
+                                i = i + 2
+                            } else {
+                                print("Unknown arg: " + args[i])
+                                return nil
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if kind == "tokens" {
+            var js = dump.dump_tokens_json(path, strict, allow)
+            if js == nil { oren_exit(1) }
+            var rc = dump.write_or_print(outp, js)
+            if rc != 0 { oren_exit(rc) }
+            return nil
+        }
+        if kind == "linked" {
+            var src = oren_read_file(path)
+            if oren_is_err(src) {
+                print("Failed to read file: " + path)
+                var msg = oren_err_msg(src)
+                if msg != nil { print(msg) }
+                oren_exit(2)
+            }
+            var l = lexer.new_lexer(src)
+            l["file"] = path
+            var p = parser.new_parser(l)
+            p["strict_attrs"] = strict
+            p["attr_allow_prefixes"] = allow
+            var prog = parser.parse_program(p)
+            if oren_list_len(p["errors"]) > 0 {
+                print("Parse errors:")
+                var ei = 0
+                while ei < oren_list_len(p["errors"]) {
+                    print(p["errors"][ei])
+                    ei = ei + 1
+                }
+                oren_exit(1)
+            }
+            var linked = link_program(path, prog, {"target": target, "arch": arch})
+            var js2 = dump.linked_summary_json(linked)
+            var rc2 = dump.write_or_print(outp, js2)
+            if rc2 != 0 { oren_exit(rc2) }
+            return nil
+        }
+
+        print("Unknown dump kind: " + kind + " (expected: tokens|linked)")
+        oren_exit(1)
     }
 
     if mode == "meta" {
