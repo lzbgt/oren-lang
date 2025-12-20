@@ -106,6 +106,11 @@ oretest: $(GO_SRC)
 	@echo "Building oretest..."
 	@go build -o oretest ./cmd/oretest
 
+# Go-based metadata-to-artifacts tool (OpenAPI, etc).
+oredoc: $(GO_SRC)
+	@echo "Building oredoc..."
+	@go build -o oredoc ./cmd/oredoc
+
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
 oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC)
 	@echo "Building Stage 1 (Oren)..."
@@ -135,7 +140,7 @@ test: oren
 		exit $$rc; \
 	}
 
-test-inner: oren avm oretest
+test-inner: oren avm oretest oredoc
 	@# Canonical curated runner lives inside the compiler:
 	@# - timeout-protected
 	@# - failure-only output

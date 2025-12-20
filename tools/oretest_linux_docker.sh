@@ -118,6 +118,7 @@ cd /work/repo
 # Remove well-known build outputs each run to force correct rebuilds without wiping
 # the whole workspace (keeps incremental apt-installed toolchain, etc.).
 rm -f ./oren ./oren_bootstrap ./oretest ./avm || true
+rm -f ./oredoc || true
 rm -rf ./build/logs || true
 export OREN_TEST_JOBS='$JOBS'
 export OREN_TEST_FULL='${OREN_TEST_FULL:-0}'

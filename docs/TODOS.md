@@ -70,12 +70,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
-   - DoD:
-     - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
-     - no runtime dependency; purely compiler metadata → spec
-
-2) **[stdlib][ux] `std/time` v0 (datetime-like, portable + deterministic surface)**
+1) **[stdlib][ux] `std/time` v0 (datetime-like, portable + deterministic surface)**
    - Goal:
      - Provide a modern time API usable for server-side apps and agentic tooling, while keeping
        deterministic execution possible in AVM mode.
@@ -89,25 +84,25 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### B) AVM (evolves alongside language/compiler)
 
-3) **[vm][safety] Record/Replay v1 for all effectful domains**
+2) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-4) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+3) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-5) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+4) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-6) **[boot][arch] Compiler-in-AVM (close the loop)**
+5) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks

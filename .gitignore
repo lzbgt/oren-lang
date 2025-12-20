@@ -6,6 +6,7 @@
 *.o
 *.dSYM/
 /oretest
+/oredoc
 
 
 # Generated C

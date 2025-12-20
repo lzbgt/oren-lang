@@ -76,6 +76,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ERROR: ./avm not found; run `make avm`.")
 		os.Exit(2)
 	}
+	if _, err := os.Stat("./oredoc"); err != nil {
+		fmt.Fprintln(os.Stderr, "ERROR: ./oredoc not found; run `make oredoc` or `make test`.")
+		os.Exit(2)
+	}
 	orenPath, _ := filepath.Abs("./oren")
 	avmPath, _ := filepath.Abs("./avm")
 
@@ -343,6 +347,36 @@ func main() {
 			log:     "build/logs/oren_meta_serde_schema.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/serde_schema.meta.json"},
+		},
+		{
+			name: "oredoc_openapi_export",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s -o %q && "+
+					"./oredoc openapi %q -o %q --title %q --version %q --format %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/modules/test_json_serde_attrs.oren",
+				*target,
+				"build/openapi.meta.json",
+				"build/openapi.meta.json",
+				"build/openapi.json",
+				"Oren API",
+				"0.0.0",
+				"json",
+				"\"openapi\": \"3.1.0\"",
+				"build/openapi.json",
+				"\"components\": {",
+				"build/openapi.json",
+				"\"schemas\": {",
+				"build/openapi.json",
+				"\"User\": {",
+				"build/openapi.json",
+			),
+			log:     "build/logs/oredoc_openapi_export.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/openapi.meta.json", "build/openapi.json"},
 		},
 		{
 			name: "deterministic_meta_hash",

@@ -197,6 +197,27 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `./oretest --target macos`
   - `tools/oretest_linux_docker.sh`
 
+## Archived (2025-12-21) — `oredoc openapi` (OpenAPI 3.1 export from metadata)
+
+- Tooling:
+  - Added `cmd/oredoc` (Go) to export OpenAPI 3.1 documents from `oren meta` output.
+  - CLI: `./oredoc openapi <meta.json> -o out.json -title ... -version ... -format json`
+  - Accepts both `-flag` and `--flag` forms for convenience.
+- OpenAPI mapping (v0):
+  - Exports minimal valid OpenAPI 3.1 document with `components.schemas` derived from `structs[*].serde`.
+  - Maps Oren scalar annotations (`i32`, `u64`, `f32`, `bool`, `string`, `[]T`, etc.) to OpenAPI schema shapes.
+- Tests:
+  - Added an oretest fixture `oredoc_openapi_export` that roundtrips `oren meta` → `oredoc openapi` and validates key fields.
+
+## Archived (2025-12-21) — C-backend build hygiene + GC stack-scan hardening
+
+- C backend build hygiene:
+  - `oren build --backend c` no longer writes generated `*.oren.c` next to sources.
+  - C output is emitted alongside the output artifact (`out_path + ".c"`) and deleted on success.
+- GC correctness:
+  - Hardened `oren_mark_value` to validate allocation-kind before traversing list/map/buffer payloads.
+  - Fixes a real crash where conservative stack scanning could misclassify a pointer and dereference a non-list/non-map allocation.
+
 ## Archived (2025-12-20) — CBOR serde streaming helpers (typed sequences)
 
 - Added serde-friendly typed streaming helpers to `lib/std/cbor.oren`:

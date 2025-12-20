@@ -419,7 +419,7 @@ static void oren_mark_value(OrenValue v) {
         OrenList* lst = v.as.list_val;
         if (!lst) return;
         OrenAllocNode* n = oren_find_node(lst);
-        if (n && n->freed == 0) {
+        if (n && n->freed == 0 && n->kind == OREN_ALLOC_LIST) {
             n->freed = -1;
             for (int i = 0; i < lst->count; i++) {
                 oren_mark_value(lst->items[i]);
@@ -431,7 +431,7 @@ static void oren_mark_value(OrenValue v) {
         OrenMap* mp = v.as.map_val;
         if (!mp) return;
         OrenAllocNode* n = oren_find_node(mp);
-        if (n && n->freed == 0) {
+        if (n && n->freed == 0 && n->kind == OREN_ALLOC_MAP) {
             n->freed = -1;
             for (int i = 0; i < mp->count; i++) {
                 oren_mark_value(mp->keys[i]);
@@ -446,14 +446,9 @@ static void oren_mark_value(OrenValue v) {
         OrenBuf* b = v.as.buf_val;
         if (!b) return;
         OrenAllocNode* n = oren_find_node(b);
-        if (n && n->freed == 0) {
+        if (n && n->freed == 0 && n->kind == OREN_ALLOC_STRUCT) {
             n->freed = -1;
-        }
-        if (b->data) {
-            OrenAllocNode* n2 = oren_find_node(b->data);
-            if (n2 && n2->freed == 0) {
-                n2->freed = -1;
-            }
+            // Payload is currently embedded in the same struct allocation.
         }
         return;
     }

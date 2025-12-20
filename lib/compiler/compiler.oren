@@ -1827,7 +1827,13 @@ fn compiler_main() {
     // For C backend, we also need to load modules to populate MODULE_ORDER
     var linked_c = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck})
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
-    var c_path = path + ".c"
+    // IMPORTANT (rolling hygiene):
+    // Do NOT write generated C next to sources. This breaks Makefile implicit rules
+    // and pollutes the working tree (especially under parallel oretest runs).
+    //
+    // Emit the C file alongside the output binary instead.
+    ensure_dir(dirname(out_path))
+    var c_path = out_path + ".c"
     var w3 = oren_write_file(c_path, c_code)
     if oren_is_err(w3) {
         print("Failed to write C output: " + c_path)
@@ -1855,6 +1861,9 @@ fn compiler_main() {
         print("Build failed")
         oren_exit(1)
     }
+    // On success, remove intermediate C output to keep builds clean.
+    // (If you want the emitted C, use `--emit-c` / `oren emit-c`).
+    oren_system("rm -f " + shell_quote(c_path))
     if target == "macos" {
         if codesign_id != "" {
             var cs_cmd2 = "codesign -s " + shell_quote(codesign_id) + " --force " + shell_quote(out_path)
