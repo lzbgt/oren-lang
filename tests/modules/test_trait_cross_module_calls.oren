@@ -1,0 +1,21 @@
+import a "trait_mod_a.oren"
+
+// Cross-module method sugar:
+// - impl is defined in imported module
+// - call is made in this module
+//
+// This requires whole-program impl lowering after module linking.
+var x: i64 = 10
+var r0 = x.add1()
+if r0 != 11 { exit(1) }
+
+// Also validate trait-qualified call works across modules.
+//
+// NOTE: Traits are metadata-only in v0 and do not exist as runtime values, so
+// trait-qualified calls must remain compile-time-only and should not depend on
+// module aliasing. `AddOne.add1(x)` is rewritten to the correct impl function.
+var r1 = AddOne.add1(x)
+if r1 != 11 { exit(2) }
+
+print("ok")
+exit(0)

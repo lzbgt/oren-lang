@@ -823,6 +823,13 @@ fn parse_impl_decl(p) {
                 if doc != nil && fnn["doc"] == nil { fnn["doc"] = doc }
                 var mname = fnn["name"]
                 var newn = impl_mangled_name(trait_name, type_name, mname)
+                // Preserve impl identity for later whole-program passes:
+                // - enables cross-module method call lowering after module linking
+                // - enables coherence checks without parsing mangled identifiers
+                fnn["impl_trait"] = trait_name
+                fnn["impl_type"] = type_name
+                fnn["impl_method"] = mname
+                fnn["impl_mangled_base"] = newn
                 fnn["name"] = newn
                 impl_method_register(p, type_name, mname, newn)
                 impl_trait_method_register(p, trait_name, type_name, mname, newn)

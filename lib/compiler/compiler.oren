@@ -11,6 +11,7 @@ import metadata "metadata.oren"
 import packview "packview.oren"
 import type_ann "type_ann_lowering.oren"
 import abi_layout "abi_layout_lowering.oren"
+import impl_lowering "impl_lowering.oren"
 import argparse "../std/argparse.oren"
 
 fn cli_spec() {
@@ -666,6 +667,20 @@ fn link_program(entry_path, root_prog, config) {
     // Preserve metadata-only surfaces across module linking.
     // (Traits are not represented as executable statements yet in v0.)
     var linked = {"statements": merged_stmts, "traits": merged_traits, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets, "config": config}
+
+    // Whole-program impl/method-call lowering:
+    // - enables cross-module method call sugar without runtime vtables
+    // - enforces deterministic coherence (ambiguous overlap is a compile error)
+    impl_lowering.lower_linked_program_in_place(linked)
+    if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
+        print("Impl lowering errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["impl_lowering_errors"]) {
+            print(linked["impl_lowering_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
 
     // Compile-time lowering: packed struct views over bytes.
     packview.lower_linked_program_in_place(linked)

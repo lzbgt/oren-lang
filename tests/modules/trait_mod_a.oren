@@ -1,0 +1,10 @@
+// Module used by `test_trait_cross_module_calls.oren`.
+
+trait AddOne {
+    fn add1(self);
+}
+
+impl AddOne for i64 {
+    fn add1(self) { return self + 1 }
+}
+

@@ -125,6 +125,7 @@ func main() {
 		"tests/modules/test_lambda_multiline.oren",
 		"tests/modules/test_trait_impl.oren",
 		"tests/modules/test_trait_qualified_calls.oren",
+		"tests/modules/test_trait_cross_module_calls.oren",
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_int_ops_wrap.oren",
 		// Typed annotations and packed views (critical for syscall-first parsing).
@@ -167,6 +168,7 @@ func main() {
 		"tests/modules/test_lambda_multiline.oren",
 		"tests/modules/test_trait_impl.oren",
 		"tests/modules/test_trait_qualified_calls.oren",
+		"tests/modules/test_trait_cross_module_calls.oren",
 		"tests/modules/test_enum.oren",
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_endian_casts.oren",

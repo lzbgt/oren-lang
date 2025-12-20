@@ -1,0 +1,391 @@
+import ast "ast.oren"
+
+// Impl/method-call lowering (whole-program, after module linking).
+//
+// Why this exists:
+// - The parser's impl registry is per-module (per parse), so it cannot resolve
+//   method sugar across modules.
+// - We want deterministic lowering without runtime vtables in v0.
+//
+// What it does:
+// - Collect all lowered impl functions (from `impl Trait for Type { ... }`) via
+//   fields stamped on Function AST nodes during parsing:
+//     fn["impl_trait"], fn["impl_type"], fn["impl_method"]
+// - Build deterministic registries:
+//     impl_methods[type][method] = fn_name OR "__AMBIG__"
+//     impl_trait_methods[trait][type][method] = fn_name OR "__AMBIG__"
+// - Rewrite call sites in-place:
+//     x.method(...)           -> __oren_impl__...(x, ...)   when x has a known annotation in scope
+//     Type.method(...)        -> __oren_impl__...( ... )
+//     Trait.method(x, ...)    -> __oren_impl__...(x, ...)   when x has a known annotation in scope
+//
+// This pass is shared by all backends because it runs as part of module linking.
+
+fn expr_dotted_name(expr) {
+    if expr == nil { return nil }
+    if expr["type"] == "Identifier" { return expr["value"] }
+    if expr["type"] == "Member" {
+        var left = expr_dotted_name(expr["left"])
+        if left == nil { return nil }
+        if expr["prop"] == nil || expr["prop"]["type"] != "Identifier" { return nil }
+        return left + "." + expr["prop"]["value"]
+    }
+    return nil
+}
+
+fn impl_method_register(impl_methods, type_name, method, fn_name, errs) {
+    if impl_methods[type_name] == nil { impl_methods[type_name] = {} }
+    var m = impl_methods[type_name]
+    var prev = m[method]
+    if prev == nil {
+        m[method] = fn_name
+        return nil
+    }
+    if prev == fn_name { return nil }
+    m[method] = "__AMBIG__"
+    return nil
+}
+
+fn impl_trait_method_register(impl_trait_methods, trait_name, type_name, method, fn_name, errs) {
+    if impl_trait_methods[trait_name] == nil { impl_trait_methods[trait_name] = {} }
+    if impl_trait_methods[trait_name][type_name] == nil { impl_trait_methods[trait_name][type_name] = {} }
+    var m = impl_trait_methods[trait_name][type_name]
+    var prev = m[method]
+    if prev == nil {
+        m[method] = fn_name
+        return nil
+    }
+    if prev == fn_name { return nil }
+    m[method] = "__AMBIG__"
+    return nil
+}
+
+fn impl_method_lookup(impl_methods, type_name, method) {
+    if impl_methods[type_name] == nil { return nil }
+    return impl_methods[type_name][method]
+}
+
+fn impl_trait_method_lookup(impl_trait_methods, trait_name, type_name, method) {
+    if impl_trait_methods[trait_name] == nil { return nil }
+    if impl_trait_methods[trait_name][type_name] == nil { return nil }
+    return impl_trait_methods[trait_name][type_name][method]
+}
+
+fn collect_trait_set(linked) {
+    var set = {}
+    if linked == nil { return set }
+    var ts = linked["traits"]
+    if ts == nil { return set }
+    var i = 0
+    while i < oren_list_len(ts) {
+        var t = ts[i]
+        if t != nil && t["name"] != nil {
+            set[t["name"]] = true
+        }
+        i = i + 1
+    }
+    return set
+}
+
+fn collect_impl_registries(linked, errs) {
+    var impl_methods = {}
+    var impl_trait_methods = {}
+    var ss = linked["statements"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        // impl blocks are lowered to plain Function expressions inside ExprStmt.
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" {
+                var tr = e["impl_trait"]
+                var ty = e["impl_type"]
+                var m = e["impl_method"]
+                if tr != nil && ty != nil && m != nil {
+                    impl_trait_method_register(impl_trait_methods, tr, ty, m, e["name"], errs)
+                    impl_method_register(impl_methods, ty, m, e["name"], errs)
+                }
+            }
+        }
+        i = i + 1
+    }
+    return {"impl_methods": impl_methods, "impl_trait_methods": impl_trait_methods}
+}
+
+fn type_env_new() { return [{}] }
+
+fn type_env_push(env) {
+    oren_list_push(env, {})
+    return env
+}
+
+fn type_env_pop(env) {
+    if oren_list_len(env) > 1 {
+        // Remove last scope by rebuilding slice (no pop primitive).
+        var out = []
+        var i = 0
+        while i < oren_list_len(env) - 1 {
+            oren_list_push(out, env[i])
+            i = i + 1
+        }
+        return out
+    }
+    return env
+}
+
+fn type_env_set(env, name, tname) {
+    if name == nil || tname == nil { return nil }
+    env[oren_list_len(env) - 1][name] = tname
+    return nil
+}
+
+fn type_env_get(env, name) {
+    if name == nil { return nil }
+    var i = oren_list_len(env) - 1
+    while i >= 0 {
+        var m = env[i]
+        if m[name] != nil { return m[name] }
+        i = i - 1
+    }
+    return nil
+}
+
+fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
+    if expr == nil || expr["type"] != "Call" { return expr }
+    var fn_expr = expr["fn"]
+    if fn_expr == nil || fn_expr["type"] != "Member" { return expr }
+
+    var method = nil
+    if fn_expr["prop"] != nil && fn_expr["prop"]["type"] == "Identifier" { method = fn_expr["prop"]["value"] }
+    if method == nil { return expr }
+
+    var args = expr["args"]
+    if args == nil { args = [] }
+
+    // receiver-style: x.method(...)
+    if fn_expr["left"] != nil && fn_expr["left"]["type"] == "Identifier" {
+        var recv = fn_expr["left"]
+        var tname = type_env_get(env, recv["value"])
+        if tname != nil {
+            var mangled = impl_method_lookup(regs["impl_methods"], tname, method)
+            if mangled == "__AMBIG__" {
+                oren_list_push(errs, "ambiguous method '" + method + "' for type '" + tname + "' (multiple impls)")
+                return expr
+            }
+            if mangled != nil {
+                // Insert receiver as arg0.
+                var new_args = [recv]
+                var ai = 0
+                while ai < oren_list_len(args) {
+                    oren_list_push(new_args, args[ai])
+                    ai = ai + 1
+                }
+                expr["args"] = new_args
+                expr["fn"] = {"type": "Identifier", "token": nil, "value": mangled}
+                return expr
+            }
+        }
+    }
+
+    // type-style: Type.method(...)
+    var tdot = expr_dotted_name(fn_expr["left"])
+    if tdot != nil {
+        var mangled2 = impl_method_lookup(regs["impl_methods"], tdot, method)
+        if mangled2 == "__AMBIG__" {
+            oren_list_push(errs, "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
+            return expr
+        }
+        if mangled2 != nil {
+            expr["fn"] = {"type": "Identifier", "token": nil, "value": mangled2}
+            return expr
+        }
+    }
+
+    // trait-qualified: Trait.method(x, ...)
+    if tdot != nil && trait_set[tdot] == true {
+        if oren_list_len(args) > 0 {
+            var recv0 = args[0]
+            if recv0 != nil && recv0["type"] == "Identifier" {
+                var recv_type = type_env_get(env, recv0["value"])
+                if recv_type != nil {
+                    var qm = impl_trait_method_lookup(regs["impl_trait_methods"], tdot, recv_type, method)
+                    if qm == "__AMBIG__" {
+                        oren_list_push(errs, "ambiguous qualified method '" + tdot + "." + method + "' for type '" + recv_type + "'")
+                        return expr
+                    }
+                    if qm != nil {
+                        expr["fn"] = {"type": "Identifier", "token": nil, "value": qm}
+                        return expr
+                    }
+                    // No impl found: do not error here; this might be a normal static call
+                    // to a namespaced function `Trait.method` in non-trait code.
+                }
+            }
+        }
+    }
+
+    return expr
+}
+
+fn lower_expr_in_place(expr, regs, trait_set, env, errs) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+
+    if t == "Function" {
+        // New scope seeded with annotated params.
+        env = type_env_push(env)
+        var params = expr["params"]
+        if params != nil {
+            var pi = 0
+            while pi < oren_list_len(params) {
+                var id = params[pi]
+                if id != nil && id["type"] == "Identifier" && id["ann_type"] != nil {
+                    type_env_set(env, id["value"], id["ann_type"])
+                }
+                pi = pi + 1
+            }
+        }
+        lower_stmt_in_place(expr["body"], regs, trait_set, env, errs)
+        env = type_env_pop(env)
+        return expr
+    }
+    if t == "Prefix" {
+        expr["right"] = lower_expr_in_place(expr["right"], regs, trait_set, env, errs)
+        return expr
+    }
+    if t == "Infix" {
+        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, errs)
+        expr["right"] = lower_expr_in_place(expr["right"], regs, trait_set, env, errs)
+        return expr
+    }
+    if t == "If" {
+        expr["cond"] = lower_expr_in_place(expr["cond"], regs, trait_set, env, errs)
+        lower_stmt_in_place(expr["consq"], regs, trait_set, env, errs)
+        if expr["alt"] != nil { lower_stmt_in_place(expr["alt"], regs, trait_set, env, errs) }
+        return expr
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            xs[i] = lower_expr_in_place(xs[i], regs, trait_set, env, errs)
+            i = i + 1
+        }
+        return expr
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            ps[i2]["key"] = lower_expr_in_place(ps[i2]["key"], regs, trait_set, env, errs)
+            ps[i2]["value"] = lower_expr_in_place(ps[i2]["value"], regs, trait_set, env, errs)
+            i2 = i2 + 1
+        }
+        return expr
+    }
+    if t == "Index" {
+        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, errs)
+        expr["index"] = lower_expr_in_place(expr["index"], regs, trait_set, env, errs)
+        return expr
+    }
+    if t == "Member" {
+        expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, errs)
+        return expr
+    }
+    if t == "SpawnExpr" {
+        expr["call"] = lower_expr_in_place(expr["call"], regs, trait_set, env, errs)
+        return expr
+    }
+    if t == "Call" {
+        expr["fn"] = lower_expr_in_place(expr["fn"], regs, trait_set, env, errs)
+        var args = expr["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            args[i3] = lower_expr_in_place(args[i3], regs, trait_set, env, errs)
+            i3 = i3 + 1
+        }
+        if expr["spread"] != nil { expr["spread"] = lower_expr_in_place(expr["spread"], regs, trait_set, env, errs) }
+        return rewrite_call_expr(expr, regs, trait_set, env, errs)
+    }
+    return expr
+}
+
+fn lower_stmt_in_place(stmt, regs, trait_set, env, errs) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" {
+        env = type_env_push(env)
+        var ss = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            lower_stmt_in_place(ss[i], regs, trait_set, env, errs)
+            i = i + 1
+        }
+        env = type_env_pop(env)
+        return nil
+    }
+    if t == "Var" {
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        var nm = stmt["name"]
+        if nm != nil && nm["type"] == "Identifier" && nm["ann_type"] != nil {
+            type_env_set(env, nm["value"], nm["ann_type"])
+        }
+        return nil
+    }
+    if t == "Assign" {
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        return nil
+    }
+    if t == "Set" {
+        stmt["left"] = lower_expr_in_place(stmt["left"], regs, trait_set, env, errs)
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        return nil
+    }
+    if t == "ExprStmt" {
+        stmt["expr"] = lower_expr_in_place(stmt["expr"], regs, trait_set, env, errs)
+        return nil
+    }
+    if t == "Return" {
+        stmt["value"] = lower_expr_in_place(stmt["value"], regs, trait_set, env, errs)
+        return nil
+    }
+    if t == "While" {
+        stmt["cond"] = lower_expr_in_place(stmt["cond"], regs, trait_set, env, errs)
+        lower_stmt_in_place(stmt["body"], regs, trait_set, env, errs)
+        return nil
+    }
+    if t == "For" {
+        env = type_env_push(env)
+        lower_stmt_in_place(stmt["init"], regs, trait_set, env, errs)
+        stmt["cond"] = lower_expr_in_place(stmt["cond"], regs, trait_set, env, errs)
+        stmt["post"] = lower_expr_in_place(stmt["post"], regs, trait_set, env, errs)
+        lower_stmt_in_place(stmt["body"], regs, trait_set, env, errs)
+        env = type_env_pop(env)
+        return nil
+    }
+    if t == "Function" {
+        lower_expr_in_place(stmt, regs, trait_set, env, errs)
+        return nil
+    }
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    var errs = []
+    var regs = collect_impl_registries(linked, errs)
+    var trait_set = collect_trait_set(linked)
+    var env = type_env_new()
+
+    // Whole-program traversal (top-level statements + nested functions).
+    var ss = linked["statements"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        lower_stmt_in_place(ss[i], regs, trait_set, env, errs)
+        i = i + 1
+    }
+
+    if oren_list_len(errs) > 0 {
+        linked["impl_lowering_errors"] = errs
+    }
+    return nil
+}
