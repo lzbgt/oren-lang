@@ -1,0 +1,38 @@
+// Curated OS ABI structs (rolling v4): kevent (Darwin).
+//
+// Goal: be able to define syscall structs in .oren without host headers.
+// This test only asserts the layout on macOS; on Linux it's a no-op.
+
+@oren.abi
+struct KeventDarwin {
+    ident: usize,
+    filter: i16,
+    flags: u16,
+    fflags: u32,
+    data: isize,
+    udata: *void
+}
+
+var t = oren_build_target()
+if t == "macos" {
+    // Expected on arm64:
+    // ident @0 (usize 8)
+    // filter @8 (i16)
+    // flags @10 (u16)
+    // fflags @12 (u32)
+    // data @16 (isize 8)
+    // udata @24 (*void 8)
+    // sizeof 32, align 8
+    if oren_abi_alignof("KeventDarwin") != 8 { exit(1) }
+    if oren_abi_offsetof("KeventDarwin", "ident") != 0 { exit(2) }
+    if oren_abi_offsetof("KeventDarwin", "filter") != 8 { exit(3) }
+    if oren_abi_offsetof("KeventDarwin", "flags") != 10 { exit(4) }
+    if oren_abi_offsetof("KeventDarwin", "fflags") != 12 { exit(5) }
+    if oren_abi_offsetof("KeventDarwin", "data") != 16 { exit(6) }
+    if oren_abi_offsetof("KeventDarwin", "udata") != 24 { exit(7) }
+    if oren_abi_sizeof("KeventDarwin") != 32 { exit(8) }
+}
+
+print("module abi_kevent OK")
+exit(0)
+

@@ -187,6 +187,19 @@ fn streq(a, b) {
     return true
 }
 
+fn has_attr_list(stmt, name) {
+    if stmt == nil || name == nil { return false }
+    var attrs = stmt["attrs"]
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn scan_syscalls_in_src(src, prefix) {
     var out = []
     var sb = oren_bytes_from_string(src)
@@ -568,18 +581,27 @@ fn link_program(entry_path, root_prog, config) {
             var st = stmts[j]
             if st["type"] == "Type" {
                 type_ns[st["name"]["value"]] = true
-                var fi = 0
-                while fi < oren_list_len(st["fields"]) {
-                    var fname = st["fields"][fi]["value"]
-                    if field_offsets[fname] == nil {
-                        field_offsets[fname] = fi
-                    } else {
-                        if field_offsets[fname] != fi {
-                            print("Inconsistent field offset for '" + fname + "'")
-                            oren_exit(1)
+                // Rolling: v0 structs are represented as NEW_LIST (positional) so we
+                // require consistent field indices *across types* for member access.
+                //
+                // ABI structs (`@oren.abi`) are layout-only helpers for FFI and are not
+                // meant to participate in v0 member-access semantics. Skip them so we can
+                // define OS-specific structs (sockaddr, kevent, stat) with different field
+                // orders without breaking non-ABI code.
+                if has_attr_list(st, "oren.abi") != true {
+                    var fi = 0
+                    while fi < oren_list_len(st["fields"]) {
+                        var fname = st["fields"][fi]["value"]
+                        if field_offsets[fname] == nil {
+                            field_offsets[fname] = fi
+                        } else {
+                            if field_offsets[fname] != fi {
+                                print("Inconsistent field offset for '" + fname + "'")
+                                oren_exit(1)
+                            }
                         }
+                        fi = fi + 1
                     }
-                    fi = fi + 1
                 }
             }
             if st["type"] != "Import" {
@@ -595,18 +617,20 @@ fn link_program(entry_path, root_prog, config) {
         var st = root_prog["statements"][i]
         if st["type"] == "Type" {
             type_ns[st["name"]["value"]] = true
-            var fi2 = 0
-            while fi2 < oren_list_len(st["fields"]) {
-                var fname2 = st["fields"][fi2]["value"]
-                if field_offsets[fname2] == nil {
-                    field_offsets[fname2] = fi2
-                } else {
-                    if field_offsets[fname2] != fi2 {
-                        print("Inconsistent field offset for '" + fname2 + "'")
-                        oren_exit(1)
+            if has_attr_list(st, "oren.abi") != true {
+                var fi2 = 0
+                while fi2 < oren_list_len(st["fields"]) {
+                    var fname2 = st["fields"][fi2]["value"]
+                    if field_offsets[fname2] == nil {
+                        field_offsets[fname2] = fi2
+                    } else {
+                        if field_offsets[fname2] != fi2 {
+                            print("Inconsistent field offset for '" + fname2 + "'")
+                            oren_exit(1)
+                        }
                     }
+                    fi2 = fi2 + 1
                 }
-                fi2 = fi2 + 1
             }
         }
         if st["type"] != "Import" {

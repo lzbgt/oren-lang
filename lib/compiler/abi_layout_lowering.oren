@@ -190,7 +190,12 @@ fn abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, arch, visit
     if ptr_depth > 0 {
         sa = abi_ptr_size_align_for_target(target, arch)
     } else {
+        if base == "usize" || base == "isize" {
+            // size_t/ssize_t (pointer-sized integers).
+            sa = abi_ptr_size_align_for_target(target, arch)
+        } else {
         sa = abi_size_align_for_kind(base)
+        }
         if sa == nil {
             // Nested ABI struct by name.
             var lay = abi_layouts[base]
@@ -274,6 +279,7 @@ fn compute_abi_layout_for_type(stmt, abi_types, abi_layouts, target, arch, visit
 }
 
 fn int_lit(v) { return {"type": "Integer", "token": nil, "value": oren_int_to_string(v)} }
+fn string_lit(s) { return {"type": "String", "token": nil, "value": s} }
 
 fn lower_expr_in_place(expr, abi_layouts) {
     if expr == nil { return nil }
@@ -345,6 +351,20 @@ fn lower_expr_in_place(expr, abi_layouts) {
         var fn_expr = expr["fn"]
         if fn_expr != nil && fn_expr["type"] == "Identifier" {
             var name = fn_expr["value"]
+            if name == "oren_build_target" || name == "oren_build_arch" {
+                if oren_list_len(args) != 0 {
+                    print(name + " expects ()")
+                    oren_exit(1)
+                }
+                if name == "oren_build_target" {
+                    var v = abi_layouts["__oren_config_target"]
+                    if v == nil { v = "macos" }
+                    return string_lit(v)
+                }
+                var a = abi_layouts["__oren_config_arch"]
+                if a == nil { a = "arm64" }
+                return string_lit(a)
+            }
             if name == "oren_abi_sizeof" || name == "oren_abi_alignof" {
                 if oren_list_len(args) != 1 || args[0] == nil || args[0]["type"] != "String" {
                     print(name + " expects (\"Type\")")
@@ -481,6 +501,11 @@ fn lower_linked_program_in_place(linked) {
         arch = linked["config"]["arch"]
     }
     if arch == nil { arch = "arm64" }
+
+    // Reserve config keys inside abi_layouts for compile-time builtins.
+    // (Type names can't reasonably collide with these.)
+    abi_layouts["__oren_config_target"] = target
+    abi_layouts["__oren_config_arch"] = arch
 
     // Collect ABI-marked type layouts.
     var i = 0

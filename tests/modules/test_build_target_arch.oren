@@ -1,0 +1,12 @@
+// Compile-time build config introspection (rolling).
+// These are compile-time-only builtins lowered by the compiler (no runtime dependency).
+
+var t = oren_build_target()
+var a = oren_build_arch()
+
+if t != "macos" && t != "linux" { exit(1) }
+if a != "arm64" { exit(2) }
+
+print("module build_target_arch OK: " + t + " / " + a)
+exit(0)
+

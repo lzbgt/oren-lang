@@ -1,0 +1,38 @@
+// Curated OS ABI structs (rolling v4): sockaddr_in.
+//
+// We keep these as repo-owned deterministic layouts (no host headers).
+// Use oren_build_target() to select OS-specific variants (Darwin has sin_len).
+
+@oren.abi
+struct SockAddrInDarwin {
+    sin_len: u8,
+    sin_family: u8,
+    sin_port: u16be,
+    sin_addr: u32be,
+    sin_zero: u8[8]
+}
+
+@oren.abi
+struct SockAddrInLinux {
+    sin_family: u16le,
+    sin_port: u16be,
+    sin_addr: u32be,
+    sin_zero: u8[8]
+}
+
+var t = oren_build_target()
+if t == "macos" {
+    if oren_abi_sizeof("SockAddrInDarwin") != 16 { exit(1) }
+    if oren_abi_offsetof("SockAddrInDarwin", "sin_family") != 1 { exit(2) }
+    if oren_abi_offsetof("SockAddrInDarwin", "sin_port") != 2 { exit(3) }
+    if oren_abi_offsetof("SockAddrInDarwin", "sin_addr") != 4 { exit(4) }
+} else {
+    if oren_abi_sizeof("SockAddrInLinux") != 16 { exit(5) }
+    if oren_abi_offsetof("SockAddrInLinux", "sin_family") != 0 { exit(6) }
+    if oren_abi_offsetof("SockAddrInLinux", "sin_port") != 2 { exit(7) }
+    if oren_abi_offsetof("SockAddrInLinux", "sin_addr") != 4 { exit(8) }
+}
+
+print("module abi_sockaddr_in OK")
+exit(0)
+
