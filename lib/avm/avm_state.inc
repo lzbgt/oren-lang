@@ -1258,8 +1258,34 @@ AvmValue rr_replay_entry_mem(AvmVM* vm, const AvmBytes* in, uint32_t* pos, uint8
 // Canonical state hash (rolling):
 // - Hashes the same logical state deterministically.
 // - Maps are hashed in canonical key order (by encoded key bytes) to avoid order-dependent hashes.
+
+static int cmp_cstr_ptr(const void* a, const void* b) {
+    const char* sa = *(const char* const*)a;
+    const char* sb = *(const char* const*)b;
+    if (!sa) sa = "";
+    if (!sb) sb = "";
+    return strcmp(sa, sb);
+}
+
+typedef struct { const char* v; const char* h; } MountPair;
+static int cmp_mount_pair(const void* a, const void* b) {
+    const MountPair* pa = (const MountPair*)a;
+    const MountPair* pb = (const MountPair*)b;
+    const char* av = pa && pa->v ? pa->v : "";
+    const char* bv = pb && pb->v ? pb->v : "";
+    int c = strcmp(av, bv);
+    if (c != 0) return c;
+    const char* ah = pa && pa->h ? pa->h : "";
+    const char* bh = pb && pb->h ? pb->h : "";
+    return strcmp(ah, bh);
+}
+
 int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
     if (!vm || !vm->prog) return 0;
+
+    // Hash policy/config state (rolling):
+    // This must include anything that can affect semantics (permissions, backends, budgets, replay logs).
+    // Do NOT include diagnostic counters like alloc_next_id.
 
     ObjTable objs = {0};
     for (int i = 0; i < vm->sp; i++) collect_value_objects(&objs, vm->stack[i]);
@@ -1268,6 +1294,10 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
     collect_value_objects(&objs, vm->last_error);
     collect_value_objects(&objs, vm->env);
     for (int i = 0; i < vm->frame_count; i++) collect_value_objects(&objs, vm->frames[i].env);
+
+    // Record/replay logs are part of VM state for deterministic replay and budget accounting.
+    if (vm->record_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->record_log_bytes; collect_value_objects(&objs, v); }
+    if (vm->replay_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes; collect_value_objects(&objs, v); }
 
     AvmSha256Ctx h;
     avm_sha256_init(&h);
@@ -1382,6 +1412,197 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
     sha_u64_le(&h, vm->virtual_sleep_ns);
     sha_u64_le(&h, vm->rng_state);
     sha_u64_le(&h, vm->gas_executed);
+
+    // Budgets and cancellation are semantically observable (can abort runs).
+    sha_u64_le(&h, vm->gas_remaining);
+    sha_u64_le(&h, vm->deadline_ns);
+    sha_u64_le(&h, vm->heap_budget_bytes);
+    sha_u64_le(&h, vm->heap_used_bytes);
+    sha_u64_le(&h, vm->io_budget_bytes);
+    sha_u64_le(&h, vm->io_used_bytes);
+    sha_u64_le(&h, vm->log_budget_bytes);
+    sha_u64_le(&h, vm->log_used_bytes);
+    sha_u32_le(&h, (uint32_t)vm->cancelled);
+
+    // Record/replay config state.
+    sha_u32_le(&h, (uint32_t)(vm->record_log_bytes ? 1 : 0));
+    sha_u32_le(&h, (uint32_t)(vm->replay_log_bytes ? 1 : 0));
+    sha_u32_le(&h, (uint32_t)vm->replay_log_pos);
+
+    // Capability and backend config state.
+    sha_u64_le(&h, vm->allowed_native_domains);
+    sha_u32_le(&h, (uint32_t)vm->fs_backend_kind);
+    sha_u32_le(&h, (uint32_t)vm->proc_backend_kind);
+    sha_u32_le(&h, (uint32_t)vm->net_backend_kind);
+    sha_u32_le(&h, (uint32_t)vm->proc_exit_code);
+
+    // FS allow prefixes (canonical order: lexicographic).
+    if (vm->fs_allow_prefix_count > 0 && vm->fs_allow_prefixes) {
+        int n = vm->fs_allow_prefix_count;
+        char** tmp = (char**)malloc(sizeof(char*) * (size_t)n);
+        if (!tmp) { objtable_free(&objs); return 0; }
+        for (int i = 0; i < n; i++) tmp[i] = vm->fs_allow_prefixes[i];
+        qsort(tmp, (size_t)n, sizeof(char*), cmp_cstr_ptr);
+        sha_u32_le(&h, (uint32_t)n);
+        for (int i = 0; i < n; i++) {
+            const char* s = tmp[i] ? tmp[i] : "";
+            uint32_t sl = (uint32_t)strlen(s);
+            sha_u32_le(&h, sl);
+            if (sl > 0) avm_sha256_update(&h, (const uint8_t*)s, sl);
+        }
+        free(tmp);
+    } else {
+        sha_u32_le(&h, 0);
+    }
+
+    // FS mounts (canonical order: virt then host).
+    {
+        int n = (vm->fs_mounts_read_count > 0 && vm->fs_mounts_read_virt && vm->fs_mounts_read_host) ? vm->fs_mounts_read_count : 0;
+        sha_u32_le(&h, (uint32_t)n);
+        if (n > 0) {
+            MountPair* pairs = (MountPair*)malloc(sizeof(MountPair) * (size_t)n);
+            if (!pairs) { objtable_free(&objs); return 0; }
+            for (int i = 0; i < n; i++) {
+                pairs[i].v = vm->fs_mounts_read_virt[i] ? vm->fs_mounts_read_virt[i] : "";
+                pairs[i].h = vm->fs_mounts_read_host[i] ? vm->fs_mounts_read_host[i] : "";
+            }
+            qsort(pairs, (size_t)n, sizeof(MountPair), cmp_mount_pair);
+            for (int i = 0; i < n; i++) {
+                uint32_t vl = (uint32_t)strlen(pairs[i].v);
+                uint32_t hl = (uint32_t)strlen(pairs[i].h);
+                sha_u32_le(&h, vl);
+                if (vl > 0) avm_sha256_update(&h, (const uint8_t*)pairs[i].v, vl);
+                sha_u32_le(&h, hl);
+                if (hl > 0) avm_sha256_update(&h, (const uint8_t*)pairs[i].h, hl);
+            }
+            free(pairs);
+        }
+    }
+    {
+        int n = (vm->fs_mounts_write_count > 0 && vm->fs_mounts_write_virt && vm->fs_mounts_write_host) ? vm->fs_mounts_write_count : 0;
+        sha_u32_le(&h, (uint32_t)n);
+        if (n > 0) {
+            MountPair* pairs = (MountPair*)malloc(sizeof(MountPair) * (size_t)n);
+            if (!pairs) { objtable_free(&objs); return 0; }
+            for (int i = 0; i < n; i++) {
+                pairs[i].v = vm->fs_mounts_write_virt[i] ? vm->fs_mounts_write_virt[i] : "";
+                pairs[i].h = vm->fs_mounts_write_host[i] ? vm->fs_mounts_write_host[i] : "";
+            }
+            qsort(pairs, (size_t)n, sizeof(MountPair), cmp_mount_pair);
+            for (int i = 0; i < n; i++) {
+                uint32_t vl = (uint32_t)strlen(pairs[i].v);
+                uint32_t hl = (uint32_t)strlen(pairs[i].h);
+                sha_u32_le(&h, vl);
+                if (vl > 0) avm_sha256_update(&h, (const uint8_t*)pairs[i].v, vl);
+                sha_u32_le(&h, hl);
+                if (hl > 0) avm_sha256_update(&h, (const uint8_t*)pairs[i].h, hl);
+            }
+            free(pairs);
+        }
+    }
+
+    // VirtualFS contents: hash canonicalized entries so insertion order doesn't affect state hash.
+    if (vm->vfs) {
+        AvmVfs* v = (AvmVfs*)vm->vfs;
+        uint32_t cnt = v ? v->count : 0u;
+        sha_u32_le(&h, cnt);
+        if (cnt > 0 && v->entries) {
+            uint32_t* order = (uint32_t*)malloc(sizeof(uint32_t) * (size_t)cnt);
+            if (!order) { objtable_free(&objs); return 0; }
+            for (uint32_t i = 0; i < cnt; i++) order[i] = i;
+            // Simple O(n^2) sort by path (bootstrap sizes).
+            for (uint32_t i = 0; i < cnt; i++) {
+                for (uint32_t j = i + 1; j < cnt; j++) {
+                    const char* pi = v->entries[order[i]].path ? v->entries[order[i]].path : "";
+                    const char* pj = v->entries[order[j]].path ? v->entries[order[j]].path : "";
+                    if (strcmp(pi, pj) > 0) {
+                        uint32_t tmpi = order[i];
+                        order[i] = order[j];
+                        order[j] = tmpi;
+                    }
+                }
+            }
+            for (uint32_t ii = 0; ii < cnt; ii++) {
+                AvmVfsEntry* e = &v->entries[order[ii]];
+                const char* p = (e && e->path) ? e->path : "";
+                uint32_t pl = (uint32_t)strlen(p);
+                sha_u32_le(&h, pl);
+                if (pl > 0) avm_sha256_update(&h, (const uint8_t*)p, pl);
+                uint32_t dl = e ? e->len : 0u;
+                sha_u32_le(&h, dl);
+                if (dl > 0 && e->data) avm_sha256_update(&h, e->data, dl);
+            }
+            free(order);
+        }
+    } else {
+        sha_u32_le(&h, 0);
+    }
+
+    // VirtualPROC fixtures: canonical order by cmd.
+    if (vm->vproc) {
+        AvmVproc* vp = (AvmVproc*)vm->vproc;
+        uint32_t cnt = vp ? vp->count : 0u;
+        sha_u32_le(&h, cnt);
+        if (cnt > 0 && vp->entries) {
+            uint32_t* order = (uint32_t*)malloc(sizeof(uint32_t) * (size_t)cnt);
+            if (!order) { objtable_free(&objs); return 0; }
+            for (uint32_t i = 0; i < cnt; i++) order[i] = i;
+            for (uint32_t i = 0; i < cnt; i++) {
+                for (uint32_t j = i + 1; j < cnt; j++) {
+                    const char* ai = vp->entries[order[i]].cmd ? vp->entries[order[i]].cmd : "";
+                    const char* aj = vp->entries[order[j]].cmd ? vp->entries[order[j]].cmd : "";
+                    if (strcmp(ai, aj) > 0) {
+                        uint32_t t = order[i]; order[i] = order[j]; order[j] = t;
+                    }
+                }
+            }
+            for (uint32_t ii = 0; ii < cnt; ii++) {
+                AvmVprocEntry* e = &vp->entries[order[ii]];
+                const char* cmd = (e && e->cmd) ? e->cmd : "";
+                uint32_t cl = (uint32_t)strlen(cmd);
+                sha_u32_le(&h, cl);
+                if (cl > 0) avm_sha256_update(&h, (const uint8_t*)cmd, cl);
+                sha_u32_le(&h, (uint32_t)e->exit_code);
+            }
+            free(order);
+        }
+    } else {
+        sha_u32_le(&h, 0);
+    }
+
+    // VirtualNET fixtures: canonical order by url.
+    if (vm->vnet) {
+        AvmVnet* vn = (AvmVnet*)vm->vnet;
+        uint32_t cnt = vn ? vn->count : 0u;
+        sha_u32_le(&h, cnt);
+        if (cnt > 0 && vn->entries) {
+            uint32_t* order = (uint32_t*)malloc(sizeof(uint32_t) * (size_t)cnt);
+            if (!order) { objtable_free(&objs); return 0; }
+            for (uint32_t i = 0; i < cnt; i++) order[i] = i;
+            for (uint32_t i = 0; i < cnt; i++) {
+                for (uint32_t j = i + 1; j < cnt; j++) {
+                    const char* ai = vn->entries[order[i]].url ? vn->entries[order[i]].url : "";
+                    const char* aj = vn->entries[order[j]].url ? vn->entries[order[j]].url : "";
+                    if (strcmp(ai, aj) > 0) {
+                        uint32_t t = order[i]; order[i] = order[j]; order[j] = t;
+                    }
+                }
+            }
+            for (uint32_t ii = 0; ii < cnt; ii++) {
+                AvmVnetEntry* e = &vn->entries[order[ii]];
+                const char* url = (e && e->url) ? e->url : "";
+                uint32_t ul = (uint32_t)strlen(url);
+                sha_u32_le(&h, ul);
+                if (ul > 0) avm_sha256_update(&h, (const uint8_t*)url, ul);
+                uint32_t bl = e ? e->body_len : 0u;
+                sha_u32_le(&h, bl);
+                if (bl > 0 && e->body) avm_sha256_update(&h, e->body, bl);
+            }
+            free(order);
+        }
+    } else {
+        sha_u32_le(&h, 0);
+    }
 
     avm_sha256_final(&h, out);
     objtable_free(&objs);

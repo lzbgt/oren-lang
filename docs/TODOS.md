@@ -79,7 +79,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
      - include record/replay-bytes state + log budget counters so pause/resume does not lose determinism data (**done**)
-     - include VM configuration + virtual backend state (e.g. `fs_backend_kind` + VirtualFS contents) so resume does not accidentally touch host (**in progress**)
+     - include VM configuration + virtual backend state (e.g. `fs_backend_kind` + VirtualFS contents) so resume does not accidentally touch host (**done**)
      - tasks/channels:
        - **v0:** explicitly forbid snapshot when `vm->sched != NULL` (**done**, exit code becomes `3` when `--snapshot-out` is requested on a paused run)
        - **v1:** add full scheduler snapshot support (tasks + channels) so spawned workloads can be paused/resumed

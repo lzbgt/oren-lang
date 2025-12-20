@@ -230,6 +230,7 @@ func main() {
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
 		"tests/avm/test_snapshot_vfs_resume.oren",
+		"tests/avm/test_state_hash_includes_vfs.oren",
 		"tests/avm/test_snapshot_tasks_forbidden.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_time_rng_deterministic.oren",
@@ -249,6 +250,7 @@ func main() {
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
 		"tests/avm/test_snapshot_vfs_resume.oren",
+		"tests/avm/test_state_hash_includes_vfs.oren",
 		"tests/avm/test_snapshot_tasks_forbidden.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_multiverse_vfs_inherit.oren",
@@ -1065,6 +1067,41 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 				}
 			}
 			_ = os.Remove(snap)
+		case "test_state_hash_includes_vfs":
+			_ = os.Remove("build/avm_state_hash_vfs.txt")
+			cmdVfs := fmt.Sprintf("./avm --deny-by-default --allow-domains \"0,1,6\" --fs-backend vfs --print-state-hash %q", obc)
+			if rc := runWithTimeout(timeoutBin, runTimeout, cmdVfs, log); rc != 0 {
+				runOK = false
+				break
+			}
+			h1, ok1 := extractHashFromLog(log, "STATE_HASH")
+			if !ok1 {
+				_ = appendFileLine(log, "oretest: missing STATE_HASH in vfs run output")
+				runOK = false
+				break
+			}
+
+			log2 := filepath.Join("build", "logs", "avm_"+name+"_host.log")
+			_ = os.Remove(log2)
+			cmdHost := fmt.Sprintf("./avm --deny-by-default --allow-domains \"0,1,6\" --fs-allow-prefixes \"build/\" --fs-backend host --print-state-hash %q", obc)
+			if rc := runWithTimeout(timeoutBin, runTimeout, cmdHost, log2); rc != 0 {
+				runOK = false
+				log = log2
+				break
+			}
+			h2, ok2 := extractHashFromLog(log2, "STATE_HASH")
+			if !ok2 {
+				_ = appendFileLine(log2, "oretest: missing STATE_HASH in host run output")
+				runOK = false
+				log = log2
+				break
+			}
+			if h1 == h2 {
+				_ = appendFileLine(log2, "oretest: expected STATE_HASH to differ between vfs and host backends")
+				runOK = false
+				log = log2
+			}
+			_ = os.Remove("build/avm_state_hash_vfs.txt")
 		case "test_budget_gas":
 			// Expected: AVM exits non-zero due to internal gas budget (not external timeout).
 			cmd := fmt.Sprintf("env AVM_GAS=20000 ./avm %q", obc)
@@ -1367,6 +1404,41 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 				}
 			}
 			_ = os.Remove(snap)
+		case "test_state_hash_includes_vfs":
+			_ = os.Remove(filepath.Join(workBuild, "avm_state_hash_vfs.txt"))
+			cmdVfs := fmt.Sprintf("%s --deny-by-default --allow-domains \"0,1,6\" --fs-backend vfs --print-state-hash %q", avmPath, filepath.Join("build", name+".obc"))
+			if rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmdVfs), log); rc != 0 {
+				runOK = false
+				break
+			}
+			h1, ok1 := extractHashFromLog(log, "STATE_HASH")
+			if !ok1 {
+				_ = appendFileLine(log, "oretest: missing STATE_HASH in vfs run output")
+				runOK = false
+				break
+			}
+
+			log2 := filepath.Join("build", "logs", "avm_"+name+"_host.log")
+			_ = os.Remove(log2)
+			cmdHost := fmt.Sprintf("%s --deny-by-default --allow-domains \"0,1,6\" --fs-allow-prefixes \"build/\" --fs-backend host --print-state-hash %q", avmPath, filepath.Join("build", name+".obc"))
+			if rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmdHost), log2); rc != 0 {
+				runOK = false
+				log = log2
+				break
+			}
+			h2, ok2 := extractHashFromLog(log2, "STATE_HASH")
+			if !ok2 {
+				_ = appendFileLine(log2, "oretest: missing STATE_HASH in host run output")
+				runOK = false
+				log = log2
+				break
+			}
+			if h1 == h2 {
+				_ = appendFileLine(log2, "oretest: expected STATE_HASH to differ between vfs and host backends")
+				runOK = false
+				log = log2
+			}
+			_ = os.Remove(filepath.Join(workBuild, "avm_state_hash_vfs.txt"))
 		case "test_budget_gas":
 			cmd := fmt.Sprintf("env AVM_GAS=20000 %s %q", avmPath, filepath.Join("build", name+".obc"))
 			rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log)

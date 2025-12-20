@@ -1,0 +1,19 @@
+fn main() {
+    // This test is exercised by the oretest harness using `--print-state-hash`.
+    // The program must be runnable under both:
+    // - host FS backend (writes to host)
+    // - VirtualFS backend (writes to VM state)
+    //
+    // The harness compares STATE_HASH between the two modes.
+    var path = "build/avm_state_hash_vfs.txt"
+    var content = "state hash vfs probe"
+
+    var w = oren_write_file(path, content)
+    if oren_is_err(w) { oren_exit(1) }
+
+    var s = oren_read_file(path)
+    if oren_is_err(s) { oren_exit(1) }
+    if s != content { oren_exit(1) }
+}
+
+main()
