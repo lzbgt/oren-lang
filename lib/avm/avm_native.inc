@@ -1989,6 +1989,39 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 AvmBuf* b = args[2].as.buf;
                 if (!dst || !a || !b || dst->elem_size != 4u || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_i32_into: invalid buffers"); break; }
                 if (dst->len != a->len || dst->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_i32_into: length mismatch"); break; }
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    uint32_t i = 0;
+                    for (; i + 4u <= dst->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        int32_t wa[4], wb[4], wo[4];
+                        memcpy(wa, a->data + off, 16);
+                        memcpy(wb, b->data + off, 16);
+                        int32x4_t va = vld1q_s32(wa);
+                        int32x4_t vb = vld1q_s32(wb);
+                        int32x4_t vs = vaddq_s32(va, vb); // wrap
+                        vst1q_s32(wo, vs);
+                        memcpy(dst->data + off, wo, 16);
+                    }
+                    for (; i < dst->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        uint32_t us = ua + ub; // wrap
+                        dst->data[off] = (uint8_t)(us & 0xFFu);
+                        dst->data[off + 1] = (uint8_t)((us >> 8) & 0xFFu);
+                        dst->data[off + 2] = (uint8_t)((us >> 16) & 0xFFu);
+                        dst->data[off + 3] = (uint8_t)((us >> 24) & 0xFFu);
+                    }
+                } else
+#endif
+                {
                 for (uint32_t i = 0; i < dst->len; i++) {
                     uint32_t off = i * 4u;
                     uint32_t ua = (uint32_t)a->data[off]
@@ -2004,6 +2037,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     dst->data[off + 1] = (uint8_t)((us >> 8) & 0xFFu);
                     dst->data[off + 2] = (uint8_t)((us >> 16) & 0xFFu);
                     dst->data[off + 3] = (uint8_t)((us >> 24) & 0xFFu);
+                }
                 }
                 res = args[0];
             } else {
@@ -2287,6 +2321,42 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 AvmBuf* b = args[2].as.buf;
                 if (!dst || !a || !b || dst->elem_size != 4u || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_mul_i32_into: invalid buffers"); break; }
                 if (dst->len != a->len || dst->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_mul_i32_into: length mismatch"); break; }
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    uint32_t i = 0;
+                    for (; i + 4u <= dst->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        int32_t wa[4], wb[4], wo[4];
+                        memcpy(wa, a->data + off, 16);
+                        memcpy(wb, b->data + off, 16);
+                        int32x4_t va = vld1q_s32(wa);
+                        int32x4_t vb = vld1q_s32(wb);
+                        int32x4_t vp = vmulq_s32(va, vb); // wrap (low 32 bits)
+                        vst1q_s32(wo, vp);
+                        memcpy(dst->data + off, wo, 16);
+                    }
+                    for (; i < dst->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        int32_t va = (int32_t)ua;
+                        int32_t vb = (int32_t)ub;
+                        int64_t prod = (int64_t)va * (int64_t)vb;
+                        uint32_t up = (uint32_t)(int32_t)prod; // wrap to i32
+                        dst->data[off] = (uint8_t)(up & 0xFFu);
+                        dst->data[off + 1] = (uint8_t)((up >> 8) & 0xFFu);
+                        dst->data[off + 2] = (uint8_t)((up >> 16) & 0xFFu);
+                        dst->data[off + 3] = (uint8_t)((up >> 24) & 0xFFu);
+                    }
+                } else
+#endif
+                {
                 for (uint32_t i = 0; i < dst->len; i++) {
                     uint32_t off = i * 4u;
                     uint32_t ua = (uint32_t)a->data[off]
@@ -2305,6 +2375,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     dst->data[off + 1] = (uint8_t)((up >> 8) & 0xFFu);
                     dst->data[off + 2] = (uint8_t)((up >> 16) & 0xFFu);
                     dst->data[off + 3] = (uint8_t)((up >> 24) & 0xFFu);
+                }
                 }
                 res = args[0];
             } else {
@@ -2344,6 +2415,36 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 AvmBuf* b = args[0].as.buf;
                 if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_i32: invalid buffer"); break; }
                 int64_t acc = 0;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    int64x2_t vacc0 = vdupq_n_s64(0);
+                    int64x2_t vacc1 = vdupq_n_s64(0);
+                    uint32_t i = 0;
+                    for (; i + 4u <= b->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        int32_t w[4];
+                        memcpy(w, b->data + off, 16);
+                        int32x4_t v = vld1q_s32(w);
+                        int32x2_t vlo = vget_low_s32(v);
+                        int32x2_t vhi = vget_high_s32(v);
+                        vacc0 = vaddq_s64(vacc0, vmovl_s32(vlo));
+                        vacc1 = vaddq_s64(vacc1, vmovl_s32(vhi));
+                    }
+                    vacc0 = vaddq_s64(vacc0, vacc1);
+                    acc += (int64_t)vgetq_lane_s64(vacc0, 0);
+                    acc += (int64_t)vgetq_lane_s64(vacc0, 1);
+                    for (; i < b->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t u = (uint32_t)b->data[off]
+                                   | ((uint32_t)b->data[off + 1] << 8)
+                                   | ((uint32_t)b->data[off + 2] << 16)
+                                   | ((uint32_t)b->data[off + 3] << 24);
+                        int32_t v = (int32_t)u;
+                        acc += (int64_t)v;
+                    }
+                } else
+#endif
+                {
                 for (uint32_t i = 0; i < b->len; i++) {
                     uint32_t off = i * 4u;
                     uint32_t u = (uint32_t)b->data[off]
@@ -2352,6 +2453,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                                | ((uint32_t)b->data[off + 3] << 24);
                     int32_t v = (int32_t)u;
                     acc += (int64_t)v;
+                }
                 }
                 res = avm_int(acc);
             } else {
@@ -2432,6 +2534,36 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 int64_t sv = args[2].as.i;
                 if (sv < (int64_t)INT32_MIN || sv > (int64_t)INT32_MAX) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_scale_i32_into: scalar out of range"); break; }
                 int32_t s = (int32_t)sv;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    int32x4_t vs = vdupq_n_s32(s);
+                    uint32_t i = 0;
+                    for (; i + 4u <= dst->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        int32_t wa[4], wo[4];
+                        memcpy(wa, a->data + off, 16);
+                        int32x4_t va = vld1q_s32(wa);
+                        int32x4_t vp = vmulq_s32(va, vs); // wrap
+                        vst1q_s32(wo, vp);
+                        memcpy(dst->data + off, wo, 16);
+                    }
+                    for (; i < dst->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        int32_t v = (int32_t)ua;
+                        int64_t prod = (int64_t)v * (int64_t)s;
+                        uint32_t up = (uint32_t)(int32_t)prod; // wrap to i32
+                        dst->data[off] = (uint8_t)(up & 0xFFu);
+                        dst->data[off + 1] = (uint8_t)((up >> 8) & 0xFFu);
+                        dst->data[off + 2] = (uint8_t)((up >> 16) & 0xFFu);
+                        dst->data[off + 3] = (uint8_t)((up >> 24) & 0xFFu);
+                    }
+                } else
+#endif
+                {
                 for (uint32_t i = 0; i < dst->len; i++) {
                     uint32_t off = i * 4u;
                     uint32_t ua = (uint32_t)a->data[off]
@@ -2445,6 +2577,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     dst->data[off + 1] = (uint8_t)((up >> 8) & 0xFFu);
                     dst->data[off + 2] = (uint8_t)((up >> 16) & 0xFFu);
                     dst->data[off + 3] = (uint8_t)((up >> 24) & 0xFFu);
+                }
                 }
                 res = args[0];
             } else {
