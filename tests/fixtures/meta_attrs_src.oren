@@ -1,0 +1,17 @@
+/// f: doc line 1
+/// f: doc line 2
+@doc("hello")
+fn f(@json.rename("x") a, b) { return 0 }
+
+@json.tag("t")
+/// S: doc
+struct S {
+    @json.rename("id") id,
+    name
+}
+
+/// Reader: doc
+trait Reader {
+    fn read(buf);
+    fn close(): i32
+}

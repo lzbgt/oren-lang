@@ -40,7 +40,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 6) **Keep this file actionable** `[maint]`
    - Each item must have a concrete “Definition of Done” (DoD) and be finishable.
    - Avoid “infinite P0s” like “harden everything” without a crisp deliverable.
-   - Keep the list 5–10 items total; merge and delete aggressively.
+   - Keep the list *short and top-down prioritized* (target ~10–20 items max); merge and archive aggressively.
    - Repo must build from a clean clone: ignore build outputs only (do not accidentally ignore source dirs like `cmd/oren/` or `cmd/oretest/`).
 
 7) **Linux Docker runner is persistent** `[maint]`
@@ -58,6 +58,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 9) ** Refactor in rolling **
   - when a file is over 2000 lines, refacotor to be SOLID principles applied modules
+
+10) **Tests must target public tool surfaces** `[maint]`
+   - Avoid importing `lib/compiler/*` inside `.oren` tests (couples tests to compiler internals).
+   - Prefer using `./oren` subcommands (`build`, `meta`, etc.) and checking outputs via `cmd/oretest` fixtures.
 
 ## Tasks (Priority Order: Top = Next)
 
@@ -123,7 +127,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 10) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
-     - `oredoc openapi <module.meta.json>` emits a valid OpenAPI 3.1 document
+     - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
 ## Recently Completed (high signal)
@@ -137,6 +141,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Fixed-width type tokens + annotations: `u8/i32/f64/...` are language-level types (not attributes) with cross-backend tests (e.g. typed struct fields and fn boundary normalization).
 - Attribute ergonomics: added alias canonicalization so `@pack` → `@oren.packed`, `@abi` → `@oren.abi`, and `@json.*` → `@serde.*` (metadata stays canonical; pack-view tests use `@pack`).
 - Metadata: trait declarations are preserved in module metadata JSON (`traits`, methods, and return annotations), enabling doc/serde tooling without runtime vtables yet.
+- Tooling: `oren meta <file.oren> -o out.meta.json` emits metadata as a first-class compiler tool surface (and metadata coverage moved to an oretest fixture to avoid importing compiler internals).
 - Trait disambiguation: `Trait.method(x, ...)` resolves deterministically to the correct lowered impl function when `x.method(...)` is ambiguous (covered by `tests/modules/test_trait_qualified_calls.oren`).
 - AVM determinism: integer arithmetic in the VM is now defined as i64 two’s-complement wraparound (no C signed-overflow UB), and invalid ops (div0, shift out of range) abort deterministically (covered by `tests/avm/test_smoke_suite.oren` + expected-failure `tests/avm/test_arith_invalid.oren`).
 - AVM determinism guard: `oretest` reruns `test_smoke_suite` in scalar mode and requires `RESULT_HASH`/`TRACE_HASH` to match (catches uninitialized/pointer-order hash issues).

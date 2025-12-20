@@ -135,8 +135,6 @@ func main() {
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
 		"tests/modules/test_abi_socket_structs_v5.oren",
-		// Compiler metadata surfaces (tooling/agentic).
-		"tests/modules/test_metadata_attrs.oren",
 		// Stdlib building blocks.
 		"tests/modules/test_result.oren",
 		"tests/modules/test_argparse.oren",
@@ -178,7 +176,6 @@ func main() {
 		"tests/modules/test_result.oren",
 		"tests/modules/test_argparse.oren",
 		"tests/modules/test_build_target_arch.oren",
-		"tests/modules/test_metadata_attrs.oren",
 		"tests/modules/test_strings.oren",
 		"tests/modules/test_string_from_bytes.oren",
 		"tests/modules/test_json.oren",
@@ -236,6 +233,26 @@ func main() {
 		ok      func(rc int) bool
 		cleanup []string
 	}{
+		{
+			name: "oren_meta_emit",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/meta_attrs_src.oren",
+				*target,
+				"build/meta_attrs.meta.json",
+				"f: doc line 1",
+				"build/meta_attrs.meta.json",
+				"\"name\": \"Reader\"",
+				"build/meta_attrs.meta.json",
+				"serde.rename",
+				"build/meta_attrs.meta.json",
+				"\"traits\": [",
+				"build/meta_attrs.meta.json",
+			),
+			log:     "build/logs/oren_meta_emit.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/meta_attrs.meta.json"},
+		},
 		{
 			name:    "missing_file",
 			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/__missing__.oren", *target, "build/missing_file", gcArg),

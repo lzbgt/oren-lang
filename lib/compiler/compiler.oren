@@ -44,6 +44,14 @@ fn cli_spec() {
     var emitc = argparse.add_command(p, "emit-c", "Alias for: build --backend c --emit-c")
     argparse.cmd_positional(emitc, "file.oren", true, "Input source file")
 
+    var meta = argparse.add_command(p, "meta", "Emit metadata JSON for a .oren entry module (no codegen)")
+    argparse.cmd_positional(meta, "file.oren", true, "Input source file")
+    argparse.cmd_option(meta, "-o", nil, "string", "", "Output path (default: <file>.meta.json)")
+    argparse.cmd_option(meta, "--target", nil, "string", "macos", "Target OS for ABI/layout lowering: macos|linux")
+    argparse.cmd_option(meta, "--arch", nil, "string", "arm64", "Target arch for ABI/layout lowering: arm64 (rolling)")
+    argparse.cmd_flag(meta, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
+    argparse.cmd_option(meta, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
+
     var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
     argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
 
@@ -569,6 +577,7 @@ fn link_program(entry_path, root_prog, config) {
     }
     
     var merged_stmts = []
+    var merged_traits = []
     var type_ns = {}
     var field_offsets = {}
     
@@ -576,6 +585,13 @@ fn link_program(entry_path, root_prog, config) {
     while i < oren_list_len(MODULE_ORDER) {
         var mod = MODULE_ORDER[i]
         var stmts = mod["program"]["statements"]
+        if mod["program"]["traits"] != nil {
+            var ti = 0
+            while ti < oren_list_len(mod["program"]["traits"]) {
+                oren_list_push(merged_traits, mod["program"]["traits"][ti])
+                ti = ti + 1
+            }
+        }
         var j = 0
         while j < oren_list_len(stmts) {
             var st = stmts[j]
@@ -638,8 +654,18 @@ fn link_program(entry_path, root_prog, config) {
         }
         i = i + 1
     }
+
+    if root_prog["traits"] != nil {
+        var rti = 0
+        while rti < oren_list_len(root_prog["traits"]) {
+            oren_list_push(merged_traits, root_prog["traits"][rti])
+            rti = rti + 1
+        }
+    }
     
-    var linked = {"statements": merged_stmts, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets, "config": config}
+    // Preserve metadata-only surfaces across module linking.
+    // (Traits are not represented as executable statements yet in v0.)
+    var linked = {"statements": merged_stmts, "traits": merged_traits, "aliases": root_aliases, "type_ns": type_ns, "field_offsets": field_offsets, "config": config}
 
     // Compile-time lowering: packed struct views over bytes.
     packview.lower_linked_program_in_place(linked)
@@ -676,9 +702,12 @@ fn compiler_main() {
     else {
         if args[i] == "emit-c" { mode = "emit-c"; i = i + 1 }
         else {
-            if args[i] == "scan" { mode = "scan"; i = i + 1 }
+            if args[i] == "meta" { mode = "meta"; i = i + 1 }
             else {
-                if args[i] == "--emit-c" { mode = "emit-c"; i = i + 1 }
+                if args[i] == "scan" { mode = "scan"; i = i + 1 }
+                else {
+                    if args[i] == "--emit-c" { mode = "emit-c"; i = i + 1 }
+                }
             }
         }
     }
@@ -758,6 +787,89 @@ fn compiler_main() {
         }
         
         oren_system("rm " + nm_out)
+        return nil
+    }
+
+    if mode == "meta" {
+        if i >= argc { print("Usage: oren meta <file.oren> [-o out.meta.json] [--target macos|linux] [--arch arm64]"); return nil }
+        var path = args[i]
+        i = i + 1
+
+        var target = "macos"
+        var arch = "arm64"
+        var out_meta = strip_suffix(path, ".oren") + ".meta.json"
+
+        var env_strict_attrs = oren_env("OREN_STRICT_ATTRS")
+        if env_strict_attrs != nil { STRICT_ATTRS = true }
+        var env_attr_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
+        if env_attr_allow != nil { ATTR_ALLOW_PREFIXES = split_csv(env_attr_allow) }
+
+        while i < argc {
+            if args[i] == "--target" {
+                if i + 1 >= argc { print("Missing value for --target"); return nil }
+                target = args[i + 1]
+                i = i + 2
+            } else {
+                if args[i] == "--arch" {
+                    if i + 1 >= argc { print("Missing value for --arch"); return nil }
+                    arch = args[i + 1]
+                    i = i + 2
+                } else {
+                    if args[i] == "-o" {
+                        if i + 1 >= argc { print("Missing value for -o"); return nil }
+                        out_meta = args[i + 1]
+                        i = i + 2
+                    } else {
+                        if args[i] == "--strict-attrs" {
+                            STRICT_ATTRS = true
+                            i = i + 1
+                        } else {
+                            if args[i] == "--attr-allow-prefixes" {
+                                if i + 1 >= argc { print("Missing value for --attr-allow-prefixes"); return nil }
+                                ATTR_ALLOW_PREFIXES = split_csv(args[i + 1])
+                                i = i + 2
+                            } else {
+                                print("Unknown arg: " + args[i])
+                                return nil
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        var src = oren_read_file(path)
+        if oren_is_err(src) {
+            print("Failed to read file: " + path)
+            var msg = oren_err_msg(src)
+            if msg != nil { print(msg) }
+            oren_exit(2)
+        }
+        var l = lexer.new_lexer(src)
+        var p = parser.new_parser(l)
+        p["strict_attrs"] = STRICT_ATTRS
+        p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+        var prog = parser.parse_program(p)
+        if oren_list_len(p["errors"]) > 0 {
+            print("Parse errors:")
+            var ei = 0
+            while ei < oren_list_len(p["errors"]) {
+                print(p["errors"][ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
+        }
+
+        var linked = link_program(path, prog, {"target": target, "arch": arch})
+        var meta_json = metadata.generate_metadata(linked)
+        var w = oren_write_file(out_meta, meta_json)
+        if oren_is_err(w) {
+            print("Failed to write metadata: " + out_meta)
+            var msgw = oren_err_msg(w)
+            if msgw != nil { print(msgw) }
+            oren_exit(1)
+        }
+        print("Wrote metadata: " + out_meta)
         return nil
     }
 
