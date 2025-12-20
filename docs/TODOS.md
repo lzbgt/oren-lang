@@ -109,6 +109,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Stdlib: added `lib/std/math.oren` + `lib/std/regex.oren` (deterministic Thompson NFA; no backtracking blowups) with module tests and oretest wiring; verified on macOS + linux docker runner.
 - Serde attribute ergonomics v1: prefer `@serde(format="json", ...)` / `@serde(rename=..., skip=..., default=...)` while keeping legacy dotted forms working in rolling mode.
 - Serde v1: `oren meta` now emits a normalized per-struct serde schema under `structs[*].serde` (versioned, deterministic).
 - CBOR v1 (RFC 8949 subset): added `lib/std/cbor.oren` + `@serde(format="cbor")` lowering and deterministic bytes tests.

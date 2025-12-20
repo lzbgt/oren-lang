@@ -1,0 +1,73 @@
+import re "../../lib/std/regex.oren"
+
+fn fail(code) {
+    print("module regex FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_false(x, code) {
+    if x != true { return 0 }
+    fail(code)
+}
+
+fn assert_compile_err(pat, code) {
+    var r = re.compile(pat)
+    if r["ok"] != 1 { return 0 }
+    fail(code)
+}
+
+// literals + search-anywhere
+assert_true(re.is_match("abc", "xxabcxx"), 10)
+assert_false(re.is_match("abc", "abx"), 11)
+
+// dot
+assert_true(re.is_match("a.c", "abc"), 20)
+assert_false(re.is_match("a.c", "ac"), 21)
+
+// quantifiers
+assert_true(re.is_match("ab*c", "ac"), 30)
+assert_true(re.is_match("ab*c", "abbbc"), 31)
+assert_false(re.is_match("ab+c", "ac"), 32)
+assert_true(re.is_match("ab+c", "abbbc"), 33)
+assert_true(re.is_match("ab?c", "ac"), 34)
+assert_true(re.is_match("ab?c", "abc"), 35)
+
+// alternation + grouping
+assert_true(re.is_match("ab|cd", "xxcdyy"), 40)
+assert_true(re.is_match("a(b|c)d", "abd"), 41)
+assert_true(re.is_match("a(b|c)d", "acd"), 42)
+assert_false(re.is_match("a(b|c)d", "ad"), 43)
+
+// anchors (absolute to the whole string)
+assert_true(re.is_match("^abc$", "abc"), 50)
+assert_false(re.is_match("^abc$", "xabc"), 51)
+assert_true(re.is_match("abc$", "xabc"), 52)
+assert_true(re.is_match("^abc", "abcx"), 53)
+assert_false(re.is_match("^abc", "xabc"), 54)
+
+// character classes
+assert_true(re.is_match("[a-z]+", "abc"), 60)
+assert_false(re.is_match("[a-z]+", "ABC"), 61)
+assert_true(re.is_match("[^0-9]+", "abc"), 62)
+assert_false(re.is_match("^[^0-9]+$", "a1"), 63)
+
+// escaping metachars
+assert_true(re.is_match("a\\*b", "a*b"), 70)
+assert_false(re.is_match("a\\*b", "ab"), 71)
+assert_true(re.is_match("\\.", "x.y"), 72)
+
+// compile error cases
+assert_compile_err(")", 80)
+assert_compile_err("(", 81)
+assert_compile_err("*", 82)
+assert_compile_err("\\", 83)
+assert_compile_err("[", 84)
+assert_compile_err("[a-", 85)
+
+print("module regex OK")
+exit(0)

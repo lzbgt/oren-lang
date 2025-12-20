@@ -1,0 +1,53 @@
+// std/math (rolling)
+//
+// Scope: small, deterministic, portable helpers.
+// - Int-first (works the same on all backends).
+// - Float helpers are provided only when semantics are stable enough (no host math lib calls).
+
+fn abs_i(x) {
+    if x < 0 { return -x }
+    return x
+}
+
+fn min_i(a, b) {
+    if a < b { return a }
+    return b
+}
+
+fn max_i(a, b) {
+    if a > b { return a }
+    return b
+}
+
+fn clamp_i(x, lo, hi) {
+    if x < lo { return lo }
+    if x > hi { return hi }
+    return x
+}
+
+fn abs_f(x) {
+    if x < 0.0 { return -x }
+    return x
+}
+
+fn min_f(a, b) {
+    if a < b { return a }
+    return b
+}
+
+fn max_f(a, b) {
+    if a > b { return a }
+    return b
+}
+
+fn clamp_f(x, lo, hi) {
+    if x < lo { return lo }
+    if x > hi { return hi }
+    return x
+}
+
+fn is_nan(x) {
+    // IEEE-ish: NaN != NaN
+    return x != x
+}
+

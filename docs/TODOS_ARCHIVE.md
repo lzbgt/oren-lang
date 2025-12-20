@@ -112,6 +112,19 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added integration test `tests/modules/test_yaml_serde_attrs.oren` and wired it into `cmd/oretest`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — Stdlib math + regex v1 (portable, deterministic)
+
+- Added `lib/std/math.oren`:
+  - int helpers: `abs_i`, `min_i`, `max_i`, `clamp_i`
+  - float helpers: `abs_f`, `min_f`, `max_f`, `clamp_f`, `is_nan`
+- Added `lib/std/regex.oren`:
+  - deterministic Thompson NFA engine (no backtracking blowups)
+  - syntax v1: literals, `.`, `?`, `*`, `+`, `|`, grouping `( )`, anchors `^` `$`, classes `[a-z]` / `[^...]`, escapes via `\\`
+- Tests:
+  - added `tests/modules/test_math.oren` + `tests/modules/test_regex.oren`
+  - wired into `cmd/oretest/main.go`
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.

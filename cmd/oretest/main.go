@@ -142,6 +142,8 @@ func main() {
 		// Stdlib building blocks.
 		"tests/modules/test_result.oren",
 		"tests/modules/test_argparse.oren",
+		"tests/modules/test_math.oren",
+		"tests/modules/test_regex.oren",
 		"tests/modules/test_json.oren",
 		"tests/modules/test_json_comments.oren",
 		"tests/modules/test_json_serde_attrs.oren",
@@ -191,6 +193,8 @@ func main() {
 		"tests/modules/test_build_target_arch.oren",
 		"tests/modules/test_strings.oren",
 		"tests/modules/test_string_from_bytes.oren",
+		"tests/modules/test_math.oren",
+		"tests/modules/test_regex.oren",
 		"tests/modules/test_json.oren",
 		"tests/modules/test_json_comments.oren",
 		"tests/modules/test_json_serde_attrs.oren",

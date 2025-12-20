@@ -1,0 +1,46 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code) {
+    print("module math FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// ints
+assert_eq(math.abs_i(0), 0, 10)
+assert_eq(math.abs_i(5), 5, 11)
+assert_eq(math.abs_i(0 - 5), 5, 12)
+
+assert_eq(math.min_i(1, 2), 1, 20)
+assert_eq(math.max_i(1, 2), 2, 21)
+assert_eq(math.clamp_i(5, 0, 10), 5, 22)
+assert_eq(math.clamp_i(0 - 5, 0, 10), 0, 23)
+assert_eq(math.clamp_i(99, 0, 10), 10, 24)
+
+// floats
+assert_eq(math.abs_f(0.0), 0.0, 30)
+assert_eq(math.abs_f(1.25), 1.25, 31)
+assert_eq(math.abs_f(0.0 - 1.25), 1.25, 32)
+
+assert_eq(math.min_f(1.0, 2.0), 1.0, 40)
+assert_eq(math.max_f(1.0, 2.0), 2.0, 41)
+assert_eq(math.clamp_f(5.0, 0.0, 10.0), 5.0, 42)
+assert_eq(math.clamp_f(0.0 - 5.0, 0.0, 10.0), 0.0, 43)
+assert_eq(math.clamp_f(99.0, 0.0, 10.0), 10.0, 44)
+
+// NaN predicate (IEEE-ish). 0.0/0.0 should yield NaN.
+var nanv = 0.0 / 0.0
+assert_true(math.is_nan(nanv), 50)
+assert_true(math.is_nan(0.0) != true, 51)
+
+print("module math OK")
+exit(0)
