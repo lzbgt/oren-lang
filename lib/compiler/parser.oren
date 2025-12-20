@@ -198,8 +198,11 @@ fn impl_method_register(p, type_name, method, mangled) {
 fn impl_method_lookup(p, type_name, method) {
     if type_name == nil || method == nil { return nil }
     var m = p["impl_methods"][type_name]
-    if m == nil { return nil }
-    return m[method]
+    if m != nil && m[method] != nil { return m[method] }
+    // Blanket impl fallback (rolling): `impl Trait for any { ... }`
+    var anym = p["impl_methods"]["any"]
+    if anym != nil { return anym[method] }
+    return nil
 }
 
 fn impl_trait_method_register(p, trait_name, type_name, method, mangled) {
@@ -229,8 +232,11 @@ fn impl_trait_method_lookup(p, trait_name, type_name, method) {
     var by_trait = tm[trait_name]
     if by_trait == nil { return nil }
     var by_type = by_trait[type_name]
-    if by_type == nil { return nil }
-    return by_type[method]
+    if by_type != nil && by_type[method] != nil { return by_type[method] }
+    // Blanket impl fallback (rolling): `impl Trait for any { ... }`
+    var by_any = by_trait["any"]
+    if by_any != nil { return by_any[method] }
+    return nil
 }
 
 fn str_starts_with(s, prefix) {
@@ -1774,7 +1780,12 @@ fn parse_call(p, fn_expr) {
             if fn_expr["type"] == "Member" {
                 var tdot = expr_dotted_name(fn_expr["left"])
                 if tdot != nil {
-                    var mangled2 = impl_method_lookup(p, tdot, method)
+                    // IMPORTANT: do not consult blanket (`any`) fallbacks here.
+                    // `Module.fn(...)` and `Trait.method(...)` share the same surface syntax and we must
+                    // avoid rewriting unrelated calls due to a blanket impl on `any`.
+                    var by_type = p["impl_methods"][tdot]
+                    var mangled2 = nil
+                    if by_type != nil { mangled2 = by_type[method] }
                     if mangled2 == "__AMBIG__" {
                         parser_add_error(p, "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
                     } else {
@@ -1798,14 +1809,11 @@ fn parse_call(p, fn_expr) {
                             var recv_type = type_env_get(p, recv0["value"])
                             if recv_type != nil {
                                 var qm = impl_trait_method_lookup(p, tname_left, recv_type, method)
-                                if qm == "__AMBIG__" {
-                                    parser_add_error(p, "ambiguous qualified method '" + tname_left + "." + method + "' for type '" + recv_type + "'")
-                                } else {
-                                    if qm != nil {
-                                        fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, qm))
-                                    } else {
-                                        parser_add_error(p, "no impl for qualified call '" + tname_left + "." + method + "' on type '" + recv_type + "'")
-                                    }
+                                // v0 parsing is module-local; other modules can provide impls.
+                                // Only rewrite when a unique target is known.
+                                // Whole-program coherence and missing-impl errors are enforced in the linker lowering pass.
+                                if qm != nil && qm != "__AMBIG__" {
+                                    fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, qm))
                                 }
                             }
                         }

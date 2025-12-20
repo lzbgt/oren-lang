@@ -195,6 +195,18 @@ In Oren’s rolling world (where we’re still growing the type system), the *mo
 - support generic impls over **nominal types** *once generics exist* (v1+), and
 - in v0/v0.5, allow a limited “kind constraint” form for primitives/containers.
 
+Rolling v0 (implemented today) also supports a minimal “catch-all” blanket:
+
+```oren
+// Applies to any runtime value.
+// This is intentionally limited (no constraints yet) but unblocks ergonomic defaults.
+impl Eq for any { fn eq(self, rhs) { ... } }
+```
+
+Resolution rule:
+
+- If both `impl Trait for Type` and `impl Trait for any` exist, the concrete `Type` impl wins.
+
 Conceptual examples (v1 direction):
 
 ```oren

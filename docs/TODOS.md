@@ -70,7 +70,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 1) **[lang][arch] Traits/protocols: coherence + generic impl templates (no runtime vtables in v0)**
    - DoD:
      - define coherence/overlap rules (deterministic selection; no spooky action at distance)
-     - implement “blanket impls” / generic impl templates with non-overlap enforcement
+     - implement “blanket impls” / generic impl templates with non-overlap enforcement (implemented: `impl Trait for any { ... }`, with exact-type precedence)
      - explicit disambiguation syntax when multiple impls are in scope (implemented: `Trait.method(x, ...)`)
      - cross-module method sugar must resolve deterministically (implemented via whole-program impl lowering in `link_program`)
    - Notes:

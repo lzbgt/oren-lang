@@ -1,0 +1,16 @@
+// Coherence: duplicate impls for the same (Trait, Type) must be rejected.
+
+trait T {
+    fn f(self);
+}
+
+impl T for i64 {
+    fn f(self) { return self }
+}
+
+impl T for i64 {
+    fn f(self) { return self }
+}
+
+exit(0)
+

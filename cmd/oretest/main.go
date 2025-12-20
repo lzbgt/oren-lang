@@ -126,6 +126,7 @@ func main() {
 		"tests/modules/test_trait_impl.oren",
 		"tests/modules/test_trait_qualified_calls.oren",
 		"tests/modules/test_trait_cross_module_calls.oren",
+		"tests/modules/test_trait_blanket_impl_any.oren",
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_int_ops_wrap.oren",
 		// Typed annotations and packed views (critical for syscall-first parsing).
@@ -169,6 +170,7 @@ func main() {
 		"tests/modules/test_trait_impl.oren",
 		"tests/modules/test_trait_qualified_calls.oren",
 		"tests/modules/test_trait_cross_module_calls.oren",
+		"tests/modules/test_trait_blanket_impl_any.oren",
 		"tests/modules/test_enum.oren",
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_endian_casts.oren",
@@ -289,6 +291,13 @@ func main() {
 			log:     "build/logs/trait_impl_ambiguous_method.log",
 			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
 			cleanup: []string{"build/trait_impl_ambiguous_method"},
+		},
+		{
+			name:    "trait_impl_duplicate",
+			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/trait_impl_duplicate.oren", *target, "build/trait_impl_duplicate", gcArg),
+			log:     "build/logs/trait_impl_duplicate.log",
+			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
+			cleanup: []string{"build/trait_impl_duplicate"},
 		},
 		{
 			name:    "capsule_ok_compile",

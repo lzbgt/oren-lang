@@ -1,0 +1,39 @@
+// Blanket impl / impl template (rolling).
+//
+// v0: minimal blanket impl syntax:
+//   impl Trait for any { ... }
+//
+// Rules:
+// - Exact `impl Trait for i64` overrides blanket `impl Trait for any`.
+// - Deterministic, vtable-free: method calls are rewritten at compile time.
+
+trait Z {
+    fn z(self);
+}
+
+impl Z for any {
+    fn z(self) { return 0 }
+}
+
+impl Z for i64 {
+    fn z(self) { return 7 }
+}
+
+var a: i64 = 123
+var r0 = a.z()
+if r0 != 7 { exit(1) }
+
+var b: u32 = 5
+var r1 = b.z()
+if r1 != 0 { exit(2) }
+
+// Trait-qualified should also pick exact-vs-any deterministically.
+var r2 = Z.z(a)
+if r2 != 7 { exit(3) }
+
+var r3 = Z.z(b)
+if r3 != 0 { exit(4) }
+
+print("ok")
+exit(0)
+

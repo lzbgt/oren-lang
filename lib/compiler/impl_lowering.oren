@@ -57,18 +57,36 @@ fn impl_trait_method_register(impl_trait_methods, trait_name, type_name, method,
     }
     if prev == fn_name { return nil }
     m[method] = "__AMBIG__"
+    // Coherence (non-negotiable): for any (Trait, Type, method) there must be at most
+    // one impl definition in the visible program.
+    //
+    // Note: method name collisions across traits are allowed; this error is only for
+    // the same trait+type+method tuple.
+    oren_list_push(errs, "duplicate impl for '" + trait_name + "." + method + "' on type '" + type_name + "'")
     return nil
 }
 
 fn impl_method_lookup(impl_methods, type_name, method) {
-    if impl_methods[type_name] == nil { return nil }
-    return impl_methods[type_name][method]
+    // Blanket impl fallback: `impl Trait for any { ... }`
+    if impl_methods[type_name] != nil && impl_methods[type_name][method] != nil {
+        return impl_methods[type_name][method]
+    }
+    if impl_methods["any"] != nil {
+        return impl_methods["any"][method]
+    }
+    return nil
 }
 
 fn impl_trait_method_lookup(impl_trait_methods, trait_name, type_name, method) {
+    // Blanket impl fallback: exact match wins, otherwise `any`.
     if impl_trait_methods[trait_name] == nil { return nil }
-    if impl_trait_methods[trait_name][type_name] == nil { return nil }
-    return impl_trait_methods[trait_name][type_name][method]
+    if impl_trait_methods[trait_name][type_name] != nil && impl_trait_methods[trait_name][type_name][method] != nil {
+        return impl_trait_methods[trait_name][type_name][method]
+    }
+    if impl_trait_methods[trait_name]["any"] != nil {
+        return impl_trait_methods[trait_name]["any"][method]
+    }
+    return nil
 }
 
 fn collect_trait_set(linked) {
@@ -187,21 +205,8 @@ fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
         }
     }
 
-    // type-style: Type.method(...)
-    var tdot = expr_dotted_name(fn_expr["left"])
-    if tdot != nil {
-        var mangled2 = impl_method_lookup(regs["impl_methods"], tdot, method)
-        if mangled2 == "__AMBIG__" {
-            oren_list_push(errs, "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
-            return expr
-        }
-        if mangled2 != nil {
-            expr["fn"] = {"type": "Identifier", "token": nil, "value": mangled2}
-            return expr
-        }
-    }
-
     // trait-qualified: Trait.method(x, ...)
+    var tdot = expr_dotted_name(fn_expr["left"])
     if tdot != nil && trait_set[tdot] == true {
         if oren_list_len(args) > 0 {
             var recv0 = args[0]
@@ -220,6 +225,26 @@ fn rewrite_call_expr(expr, regs, trait_set, env, errs) {
                     // No impl found: do not error here; this might be a normal static call
                     // to a namespaced function `Trait.method` in non-trait code.
                 }
+            }
+        }
+    }
+
+    // type-style: Type.method(...)
+    //
+    // IMPORTANT: do not consult blanket (`any`) fallbacks here.
+    // `Module.fn(...)` and `Trait.method(...)` share the same surface syntax and we must
+    // avoid rewriting unrelated calls due to a blanket impl on `any`.
+    if tdot != nil {
+        var by_type = regs["impl_methods"][tdot]
+        if by_type != nil {
+            var mangled2 = by_type[method]
+            if mangled2 == "__AMBIG__" {
+                oren_list_push(errs, "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
+                return expr
+            }
+            if mangled2 != nil {
+                expr["fn"] = {"type": "Identifier", "token": nil, "value": mangled2}
+                return expr
             }
         }
     }
