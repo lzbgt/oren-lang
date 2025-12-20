@@ -1,0 +1,37 @@
+// ABI layout v3: u128/i128 size+align support (layout-only).
+//
+// v0 does not have 128-bit integer values yet; this test only asserts
+// deterministic offsets and total size.
+
+@oren.abi
+struct S128 {
+    a: u8,
+    b: u128,
+    c: u16
+}
+
+// Expected layout (C-like):
+// a @0 (align 1)
+// b @16 (align 16), size 16
+// c @32 (align 2), size 2
+// sizeof align_up(34, 16) = 48
+if oren_abi_alignof("S128") != 16 { exit(1) }
+if oren_abi_offsetof("S128", "a") != 0 { exit(2) }
+if oren_abi_offsetof("S128", "b") != 16 { exit(3) }
+if oren_abi_offsetof("S128", "c") != 32 { exit(4) }
+if oren_abi_sizeof("S128") != 48 { exit(5) }
+
+@oren.abi
+struct I128 {
+    x: i128,
+    y: i128
+}
+
+if oren_abi_alignof("I128") != 16 { exit(6) }
+if oren_abi_offsetof("I128", "x") != 0 { exit(7) }
+if oren_abi_offsetof("I128", "y") != 16 { exit(8) }
+if oren_abi_sizeof("I128") != 32 { exit(9) }
+
+print("module abi_u128_layout OK")
+exit(0)
+

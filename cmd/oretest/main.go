@@ -120,6 +120,7 @@ func main() {
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
 		"tests/modules/test_abi_nested_arrays.oren",
+		"tests/modules/test_abi_u128_layout.oren",
 		"tests/modules/test_function_values.oren",
 		"tests/modules/test_lambda_closure.oren",
 		"tests/modules/test_lambda_multiline.oren",

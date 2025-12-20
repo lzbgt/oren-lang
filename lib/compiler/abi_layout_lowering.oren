@@ -67,6 +67,7 @@ fn abi_size_align_for_kind(kind) {
     if k == "u16" || k == "i16" { return {"size": 2, "align": 2} }
     if k == "u32" || k == "i32" || k == "f32" { return {"size": 4, "align": 4} }
     if k == "u64" || k == "i64" || k == "f64" { return {"size": 8, "align": 8} }
+    if k == "u128" || k == "i128" { return {"size": 16, "align": 16} }
     return nil
 }
 
@@ -112,14 +113,18 @@ fn parse_uint_dec(s) {
     return n
 }
 
-fn abi_ptr_size_align_for_target(target) {
+fn abi_ptr_size_align_for_target(target, arch) {
     // Returns {"size": int, "align": int}
     //
     // Rolling: all currently supported native targets are arm64 and use 64-bit pointers.
     // We keep this centralized so future arch additions can update here.
     if target == nil { return nil }
-    if target == "macos" { return {"size": 8, "align": 8} }
-    if target == "linux" { return {"size": 8, "align": 8} }
+    if arch == nil { arch = "arm64" }
+    if arch == "arm64" {
+        if target == "macos" { return {"size": 8, "align": 8} }
+        if target == "linux" { return {"size": 8, "align": 8} }
+        return {"size": 8, "align": 8}
+    }
     return nil
 }
 
@@ -165,7 +170,7 @@ fn abi_parse_array_suffixes(rest) {
     return {"base": base, "dims": dims}
 }
 
-fn abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, visiting) {
+fn abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, arch, visiting) {
     // Returns {"size": int, "align": int} or nil.
     if kind == nil { return nil }
     kind = strip_oren_prefix(kind)
@@ -183,7 +188,7 @@ fn abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, visiting) {
     var sa = nil
 
     if ptr_depth > 0 {
-        sa = abi_ptr_size_align_for_target(target)
+        sa = abi_ptr_size_align_for_target(target, arch)
     } else {
         sa = abi_size_align_for_kind(base)
         if sa == nil {
@@ -199,7 +204,7 @@ fn abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, visiting) {
                     oren_exit(1)
                 }
                 visiting[base] = true
-                lay = compute_abi_layout_for_type(st, abi_types, abi_layouts, target, visiting)
+                lay = compute_abi_layout_for_type(st, abi_types, abi_layouts, target, arch, visiting)
                 visiting[base] = false
                 abi_layouts[base] = lay
             }
@@ -232,7 +237,7 @@ fn align_up(off, align) {
     return off + (align - r)
 }
 
-fn compute_abi_layout_for_type(stmt, abi_types, abi_layouts, target, visiting) {
+fn compute_abi_layout_for_type(stmt, abi_types, abi_layouts, target, arch, visiting) {
     // Returns:
     //  {"size": int, "align": int, "offsets": {fieldName: int}}
     var tname = stmt["name"]["value"]
@@ -250,7 +255,7 @@ fn compute_abi_layout_for_type(stmt, abi_types, abi_layouts, target, visiting) {
             print("ABI struct field missing type annotation: " + tname + "." + fname)
             oren_exit(1)
         }
-        var sa = abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, visiting)
+        var sa = abi_size_align_for_ann_type(kind, abi_types, abi_layouts, target, arch, visiting)
         if sa == nil {
             print("ABI struct field has unsupported type: " + tname + "." + fname + ": " + kind)
             oren_exit(1)
@@ -471,6 +476,11 @@ fn lower_linked_program_in_place(linked) {
         // Rolling default: macOS first.
         target = "macos"
     }
+    var arch = nil
+    if linked["config"] != nil {
+        arch = linked["config"]["arch"]
+    }
+    if arch == nil { arch = "arm64" }
 
     // Collect ABI-marked type layouts.
     var i = 0
@@ -493,7 +503,7 @@ fn lower_linked_program_in_place(linked) {
             var tname2 = st2["name"]["value"]
             if abi_layouts[tname2] == nil {
                 visiting[tname2] = true
-                abi_layouts[tname2] = compute_abi_layout_for_type(st2, abi_types, abi_layouts, target, visiting)
+                abi_layouts[tname2] = compute_abi_layout_for_type(st2, abi_types, abi_layouts, target, arch, visiting)
                 visiting[tname2] = false
             }
         }

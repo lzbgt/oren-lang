@@ -56,7 +56,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - opt-in `@oren.abi` layouts + `oren_abi_{sizeof,alignof,offsetof}` (no host headers) ✅
      - next slice (real layouts): make ABI layouts usable end-to-end for FFI structs (allocation + ptr accessors) without changing v0 struct/map semantics. ✅
      - next slice (real layouts v2): extend `@oren.abi` to cover nested ABI structs + pointers + fixed arrays (enables real OS structs + syscalls without host headers). ✅
-     - next slice (real layouts v3): add u128/i128 layouts + fixed-array ptr helpers where needed, and thread target/arch ABI parameters through (no host headers).
+     - next slice (real layouts v3): add u128/i128 layouts + fixed-array ptr helpers where needed, and thread target/arch ABI parameters through (no host headers). ✅
+     - next slice (real layouts v4): add `usize/isize`, `*void`/opaque ptr conventions, and a small curated ABI structs set for OS syscalls (stat, sockaddr, kevent, epoll) in `.oren` with tests.
 
 2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
@@ -92,6 +93,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Test wall-time + stability: `./oretest` now runs module+avm suites concurrently under a shared job budget, and the Linux docker runner reuses `/work/repo` by default while syncing tracked sources only (prevents host-built binaries from polluting the container).
 - ABI layouts (end-to-end usable): added pointer allocation (`oren_ptr_alloc`/`oren_ptr_free`) plus endian-aware pointer accessors in the C runtime (`oren_ptr_get/set_*_{be,le}`) and a module regression (`tests/modules/test_abi_ptr_access.oren`).
 - ABI layouts (nested v2): `@oren.abi` now supports nested ABI structs, pointers (`*T`), and fixed arrays (`T[N]`), plus a regression test `tests/modules/test_abi_nested_arrays.oren`.
+- ABI layouts (v3): added u128/i128 layout support and threaded `--arch` into the compiler config (currently `arm64` only) + regression `tests/modules/test_abi_u128_layout.oren`.
 - Tooling hardening: `oren build <missing.oren>` now exits non-zero and `oretest` has a regression fixture to prevent silently-successful builds on missing input files.
 - AVM SIMD determinism guard: `./oretest` now runs `test_smoke_suite` with `--print-result-hash --print-trace-hash` and compares scalar vs `AVM_ENABLE_SIMD=1` hashes (arm64 only).
 - Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.

@@ -23,6 +23,7 @@ fn cli_spec() {
     argparse.cmd_flag(build, "--emit-c", nil, "(C backend) stop after generating <file.oren>.c")
     argparse.cmd_option(build, "--cc", nil, "string", "cc", "(C backend) C compiler")
     argparse.cmd_option(build, "--target", nil, "string", "macos", "(native backend) target OS: macos|linux")
+    argparse.cmd_option(build, "--arch", nil, "string", "arm64", "(native backend) target arch: arm64 (rolling; only arm64 supported now)")
     argparse.cmd_flag(build, "--disasm", nil, "(native backend) disassemble output via otool/objdump")
     argparse.cmd_flag(build, "--debug", nil, "(native backend) embed debug info for stack traces")
     argparse.cmd_flag(build, "--lib", nil, "(native backend) build a shared library")
@@ -745,6 +746,7 @@ fn compiler_main() {
     var cc = "cc"
     var backend = "c"
     var target = "macos"
+    var arch = "arm64"
     var disasm = false
     var analyze = false
     var codesign_id = ""
@@ -831,6 +833,11 @@ fn compiler_main() {
                                             target = args[i + 1]
                                             i = i + 2
                                         } else {
+                                            if args[i] == "--arch" {
+                                                if i + 1 >= argc { print("Missing value for --arch"); return nil }
+                                                arch = args[i + 1]
+                                                i = i + 2
+                                            } else {
                                     if args[i] == "--disasm" {
                                         disasm = true
                                         i = i + 1
@@ -871,6 +878,7 @@ fn compiler_main() {
                                                         }
                                                     }
                                                 }
+                                            }
                                             }
                                         }
                                     }
@@ -930,7 +938,7 @@ fn compiler_main() {
     }
 
     if backend == "bytecode" {
-        var linked_bc = link_program(path, prog, {"target": target})
+        var linked_bc = link_program(path, prog, {"target": target, "arch": arch})
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc)
 
         // Rolling: embed metadata into the `.obc` constant pool as a BYTES constant so:
@@ -966,7 +974,7 @@ fn compiler_main() {
             return nil
         }
 
-        var linked = link_program(path, prog, {"target": target})
+        var linked = link_program(path, prog, {"target": target, "arch": arch})
         var export_names = []
         
         if is_shared_lib {
@@ -1071,7 +1079,7 @@ fn compiler_main() {
     }
 
     // For C backend, we also need to load modules to populate MODULE_ORDER
-    var linked_c = link_program(path, prog, {"target": target})
+    var linked_c = link_program(path, prog, {"target": target, "arch": arch})
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     var c_path = path + ".c"
     var w3 = oren_write_file(c_path, c_code)
