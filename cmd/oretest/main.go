@@ -229,6 +229,7 @@ func main() {
 		"tests/avm/test_smoke_suite.oren",
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
+		"tests/avm/test_snapshot_vfs_resume.oren",
 		"tests/avm/test_snapshot_tasks_forbidden.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_time_rng_deterministic.oren",
@@ -247,6 +248,7 @@ func main() {
 		"tests/avm/test_job_scan.oren",
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
+		"tests/avm/test_snapshot_vfs_resume.oren",
 		"tests/avm/test_snapshot_tasks_forbidden.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_multiverse_vfs_inherit.oren",
@@ -1048,6 +1050,21 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 				runOK = false
 			}
 			_ = os.Remove(snap)
+		case "test_snapshot_vfs_resume":
+			snap := filepath.Join("build", name+".avms")
+			_ = os.Remove(snap)
+			// First run: force VirtualFS; snapshot must capture backend kind and contents.
+			cmd := fmt.Sprintf("./avm --deny-by-default --allow-domains \"0,1,6\" --fs-backend vfs --step-limit 2000 --print-pause-json --snapshot-out %q %q", snap, obc)
+			rc := runWithTimeout(timeoutBin, runTimeout, cmd, log)
+			if rc != 2 {
+				runOK = false
+			} else {
+				rc2 := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("./avm --snapshot-in %q %q", snap, obc), log)
+				if rc2 != 0 {
+					runOK = false
+				}
+			}
+			_ = os.Remove(snap)
 		case "test_budget_gas":
 			// Expected: AVM exits non-zero due to internal gas budget (not external timeout).
 			cmd := fmt.Sprintf("env AVM_GAS=20000 ./avm %q", obc)
@@ -1334,6 +1351,20 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 			rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log)
 			if rc != 3 {
 				runOK = false
+			}
+			_ = os.Remove(snap)
+		case "test_snapshot_vfs_resume":
+			snap := filepath.Join(workBuild, name+".avms")
+			_ = os.Remove(snap)
+			cmd := fmt.Sprintf("%s --deny-by-default --allow-domains \"0,1,6\" --fs-backend vfs --step-limit 2000 --print-pause-json --snapshot-out %q %q", avmPath, filepath.Join("build", name+".avms"), filepath.Join("build", name+".obc"))
+			rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log)
+			if rc != 2 {
+				runOK = false
+			} else {
+				rc2 := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, fmt.Sprintf("%s --snapshot-in %q %q", avmPath, filepath.Join("build", name+".avms"), filepath.Join("build", name+".obc"))), log)
+				if rc2 != 0 {
+					runOK = false
+				}
 			}
 			_ = os.Remove(snap)
 		case "test_budget_gas":

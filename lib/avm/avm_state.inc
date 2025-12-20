@@ -1584,6 +1584,65 @@ static int decode_value(FILE* f, uint8_t* obj_types, void** obj_ptrs, uint32_t o
     return 0;
 }
 
+static int write_u8(FILE* f, uint8_t v);
+static int write_u32_le(FILE* f, uint32_t v);
+static int write_u64_le(FILE* f, uint64_t v);
+static uint32_t read_u32_le(FILE* f, int* ok);
+static uint64_t read_u64_le(FILE* f, int* ok);
+
+static int snap_write_str(FILE* f, const char* s) {
+    if (!f) return 0;
+    if (!s) {
+        return write_u32_le(f, 0xFFFFFFFFu);
+    }
+    uint64_t n64 = (uint64_t)strlen(s);
+    if (n64 > 0xFFFFFFFEu) return 0;
+    uint32_t n = (uint32_t)n64;
+    if (!write_u32_le(f, n)) return 0;
+    if (n > 0) {
+        if (fwrite(s, 1, n, f) != n) return 0;
+    }
+    return 1;
+}
+
+static char* snap_read_str(FILE* f, int* ok) {
+    if (!ok) return NULL;
+    uint32_t n = read_u32_le(f, ok);
+    if (!*ok) return NULL;
+    if (n == 0xFFFFFFFFu) return NULL;
+    // sanity cap (rolling): prevent hostile snapshots from allocating absurd strings
+    if (n > 64u * 1024u * 1024u) { *ok = 0; return NULL; }
+    char* s = (char*)avm_heap_malloc_k((size_t)n + 1u, AVM_ALLOC_KIND_TMP);
+    if (!s) { *ok = 0; return NULL; }
+    if (n > 0) {
+        if (fread(s, 1, n, f) != n) { *ok = 0; avm_heap_free(s); return NULL; }
+    }
+    s[n] = 0;
+    return s;
+}
+
+static int snap_write_bytes(FILE* f, const uint8_t* data, uint32_t len) {
+    if (!write_u32_le(f, len)) return 0;
+    if (len > 0) {
+        if (fwrite(data, 1, len, f) != len) return 0;
+    }
+    return 1;
+}
+
+static uint8_t* snap_read_bytes(FILE* f, uint32_t* out_len, int* ok) {
+    if (!ok) return NULL;
+    uint32_t n = read_u32_le(f, ok);
+    if (!*ok) return NULL;
+    if (out_len) *out_len = n;
+    // sanity cap (rolling): 512MB
+    if (n > 512u * 1024u * 1024u) { *ok = 0; return NULL; }
+    if (n == 0) return NULL;
+    uint8_t* buf = (uint8_t*)avm_heap_malloc_k((size_t)n, AVM_ALLOC_KIND_TMP);
+    if (!buf) { *ok = 0; return NULL; }
+    if (fread(buf, 1, n, f) != n) { *ok = 0; avm_heap_free(buf); return NULL; }
+    return buf;
+}
+
 int avm_snapshot(AvmVM* vm, const char* path) {
     if (!vm || !vm->prog || !path) return 1;
 
@@ -1625,7 +1684,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     }
 
     // Magic (8 bytes)
-    const uint8_t magic[8] = {'A','V','M','S','N','A','P','5'};
+    const uint8_t magic[8] = {'A','V','M','S','N','A','P','6'};
     if (fwrite(magic, 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
 
     if (!write_u32_le(f, (uint32_t)objs.count)) { fclose(f); objtable_free(&objs); return 1; }
@@ -1738,6 +1797,114 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     if (!write_u64_le(f, vm->log_used_bytes)) { fclose(f); objtable_free(&objs); return 1; }
     if (!write_u8(f, (uint8_t)(vm->cancelled ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
 
+    // VM configuration + virtual backends (rolling; AVMSNAP6+)
+    if (!write_u64_le(f, vm->allowed_native_domains)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u32_le(f, (uint32_t)vm->fs_backend_kind)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u32_le(f, (uint32_t)vm->proc_backend_kind)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u32_le(f, (uint32_t)vm->net_backend_kind)) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u32_le(f, (uint32_t)vm->proc_exit_code)) { fclose(f); objtable_free(&objs); return 1; }
+
+    // FS allow prefixes
+    uint32_t apc = (vm->fs_allow_prefix_count > 0 && vm->fs_allow_prefixes) ? (uint32_t)vm->fs_allow_prefix_count : 0u;
+    if (!write_u32_le(f, apc)) { fclose(f); objtable_free(&objs); return 1; }
+    for (uint32_t i = 0; i < apc; i++) {
+        if (!snap_write_str(f, vm->fs_allow_prefixes[i])) { fclose(f); objtable_free(&objs); return 1; }
+    }
+
+    // FS mounts (read)
+    uint32_t mrc = (vm->fs_mounts_read_count > 0 && vm->fs_mounts_read_virt && vm->fs_mounts_read_host) ? (uint32_t)vm->fs_mounts_read_count : 0u;
+    if (!write_u32_le(f, mrc)) { fclose(f); objtable_free(&objs); return 1; }
+    for (uint32_t i = 0; i < mrc; i++) {
+        if (!snap_write_str(f, vm->fs_mounts_read_virt[i])) { fclose(f); objtable_free(&objs); return 1; }
+        if (!snap_write_str(f, vm->fs_mounts_read_host[i])) { fclose(f); objtable_free(&objs); return 1; }
+    }
+    // FS mounts (write)
+    uint32_t mwc = (vm->fs_mounts_write_count > 0 && vm->fs_mounts_write_virt && vm->fs_mounts_write_host) ? (uint32_t)vm->fs_mounts_write_count : 0u;
+    if (!write_u32_le(f, mwc)) { fclose(f); objtable_free(&objs); return 1; }
+    for (uint32_t i = 0; i < mwc; i++) {
+        if (!snap_write_str(f, vm->fs_mounts_write_virt[i])) { fclose(f); objtable_free(&objs); return 1; }
+        if (!snap_write_str(f, vm->fs_mounts_write_host[i])) { fclose(f); objtable_free(&objs); return 1; }
+    }
+
+    // VirtualFS snapshot (AVMVFS01)
+    if (vm->vfs) {
+        if (fwrite("AVMVFS01", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
+        AvmVfs* v = (AvmVfs*)vm->vfs;
+        uint32_t cnt = v ? v->count : 0u;
+        if (!write_u32_le(f, cnt)) { fclose(f); objtable_free(&objs); return 1; }
+        for (uint32_t i = 0; i < cnt; i++) {
+            AvmVfsEntry* e = &v->entries[i];
+            if (!snap_write_str(f, e ? e->path : "")) { fclose(f); objtable_free(&objs); return 1; }
+            uint32_t bl = e ? e->len : 0u;
+            if (!snap_write_bytes(f, e ? e->data : NULL, bl)) { fclose(f); objtable_free(&objs); return 1; }
+        }
+    } else {
+        if (fwrite("AVMVFS00", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
+    }
+
+    // VirtualPROC fixtures snapshot (AVMPRC01 blob)
+    if (vm->vproc) {
+        AvmVproc* vp = (AvmVproc*)vm->vproc;
+        uint32_t cnt = vp ? vp->count : 0u;
+        // Build a fixture blob in memory then write it as length-prefixed bytes.
+        AvmBytes* blob = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_TMP);
+        if (!blob) { fclose(f); objtable_free(&objs); return 1; }
+        blob->data = NULL; blob->len = 0; blob->capacity = 0;
+        uint32_t p = 0;
+        if (!bytes_ensure_cap(blob, 12)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        const uint8_t magicp[8] = {'A','V','M','P','R','C','0','1'};
+        if (!mem_write_bytes(blob, &p, magicp, 8)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        if (!mem_write_u32_le(blob, &p, cnt)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        for (uint32_t i = 0; i < cnt; i++) {
+            const char* cmd = vp->entries[i].cmd ? vp->entries[i].cmd : "";
+            uint64_t cl64 = (uint64_t)strlen(cmd);
+            if (cl64 > 0xFFFFFFFEu) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+            uint32_t cl = (uint32_t)cl64;
+            if (!mem_write_u32_le(blob, &p, cl)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+            if (!mem_write_bytes(blob, &p, (const uint8_t*)cmd, cl)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+            if (!mem_write_u32_le(blob, &p, (uint32_t)vp->entries[i].exit_code)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        }
+        blob->len = (int)p;
+        if (fwrite("AVMPRC1B", 1, 8, f) != 8) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        if (!snap_write_bytes(f, blob->data, (uint32_t)blob->len)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        if (blob->data) avm_heap_free(blob->data);
+        avm_heap_free(blob);
+    } else {
+        if (fwrite("AVMPRC0B", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
+    }
+
+    // VirtualNET fixtures snapshot (AVMNET01 blob)
+    if (vm->vnet) {
+        AvmVnet* vn = (AvmVnet*)vm->vnet;
+        uint32_t cnt = vn ? vn->count : 0u;
+        AvmBytes* blob = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_TMP);
+        if (!blob) { fclose(f); objtable_free(&objs); return 1; }
+        blob->data = NULL; blob->len = 0; blob->capacity = 0;
+        uint32_t p = 0;
+        if (!bytes_ensure_cap(blob, 12)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        const uint8_t magicn[8] = {'A','V','M','N','E','T','0','1'};
+        if (!mem_write_bytes(blob, &p, magicn, 8)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        if (!mem_write_u32_le(blob, &p, cnt)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        for (uint32_t i = 0; i < cnt; i++) {
+            const char* url = vn->entries[i].url ? vn->entries[i].url : "";
+            uint64_t ul64 = (uint64_t)strlen(url);
+            if (ul64 > 0xFFFFFFFEu) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+            uint32_t ul = (uint32_t)ul64;
+            if (!mem_write_u32_le(blob, &p, ul)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+            if (!mem_write_bytes(blob, &p, (const uint8_t*)url, ul)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+            uint32_t bl = vn->entries[i].body_len;
+            if (!mem_write_u32_le(blob, &p, bl)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+            if (!mem_write_bytes(blob, &p, vn->entries[i].body, bl)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        }
+        blob->len = (int)p;
+        if (fwrite("AVMNET1B", 1, 8, f) != 8) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        if (!snap_write_bytes(f, blob->data, (uint32_t)blob->len)) { avm_heap_free(blob); fclose(f); objtable_free(&objs); return 1; }
+        if (blob->data) avm_heap_free(blob->data);
+        avm_heap_free(blob);
+    } else {
+        if (fwrite("AVMNET0B", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
+    }
+
     fclose(f);
     objtable_free(&objs);
     return 0;
@@ -1755,11 +1922,13 @@ int avm_restore(AvmVM* vm, const char* path) {
     const uint8_t want3[8] = {'A','V','M','S','N','A','P','3'};
     const uint8_t want4[8] = {'A','V','M','S','N','A','P','4'};
     const uint8_t want5[8] = {'A','V','M','S','N','A','P','5'};
+    const uint8_t want6[8] = {'A','V','M','S','N','A','P','6'};
     int snap_ver = 0;
     if (memcmp(magic, want2, 8) == 0) snap_ver = 2;
     if (memcmp(magic, want3, 8) == 0) snap_ver = 3;
     if (memcmp(magic, want4, 8) == 0) snap_ver = 4;
     if (memcmp(magic, want5, 8) == 0) snap_ver = 5;
+    if (memcmp(magic, want6, 8) == 0) snap_ver = 6;
     if (snap_ver == 0) { fclose(f); return 1; }
 
     int ok = 1;
@@ -2074,6 +2243,154 @@ int avm_restore(AvmVM* vm, const char* path) {
         uint8_t cancelled = 0;
         if (fread(&cancelled, 1, 1, f) != 1) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
         vm->cancelled = cancelled ? 1 : 0;
+    }
+
+    // VM configuration + virtual backends (rolling; AVMSNAP6+)
+    if (snap_ver >= 6) {
+        int okc = 1;
+        vm->allowed_native_domains = read_u64_le(f, &okc);
+        uint32_t fs_kind = read_u32_le(f, &okc);
+        uint32_t proc_kind = read_u32_le(f, &okc);
+        uint32_t net_kind = read_u32_le(f, &okc);
+        uint32_t proc_ec = read_u32_le(f, &okc);
+        if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->fs_backend_kind = (int)fs_kind;
+        vm->proc_backend_kind = (int)proc_kind;
+        vm->net_backend_kind = (int)net_kind;
+        vm->proc_exit_code = (int)proc_ec;
+
+        // FS allow prefixes
+        uint32_t apc = read_u32_le(f, &okc);
+        if (!okc || apc > 100000u) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->fs_allow_prefix_count = 0;
+        vm->fs_allow_prefixes = NULL;
+        if (apc > 0) {
+            vm->fs_allow_prefixes = (char**)avm_heap_malloc_k(sizeof(char*) * (size_t)apc, AVM_ALLOC_KIND_TMP);
+            if (!vm->fs_allow_prefixes) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            for (uint32_t i = 0; i < apc; i++) vm->fs_allow_prefixes[i] = NULL;
+            for (uint32_t i = 0; i < apc; i++) {
+                char* s = snap_read_str(f, &okc);
+                if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                vm->fs_allow_prefixes[i] = s ? s : (char*)avm_heap_malloc_k(1, AVM_ALLOC_KIND_TMP);
+                if (!vm->fs_allow_prefixes[i]) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (!s) vm->fs_allow_prefixes[i][0] = 0;
+            }
+            vm->fs_allow_prefix_count = (int)apc;
+        }
+
+        // FS mounts (read)
+        uint32_t mrc = read_u32_le(f, &okc);
+        if (!okc || mrc > 100000u) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->fs_mounts_read_count = 0;
+        vm->fs_mounts_read_virt = NULL;
+        vm->fs_mounts_read_host = NULL;
+        if (mrc > 0) {
+            vm->fs_mounts_read_virt = (char**)avm_heap_malloc_k(sizeof(char*) * (size_t)mrc, AVM_ALLOC_KIND_TMP);
+            vm->fs_mounts_read_host = (char**)avm_heap_malloc_k(sizeof(char*) * (size_t)mrc, AVM_ALLOC_KIND_TMP);
+            if (!vm->fs_mounts_read_virt || !vm->fs_mounts_read_host) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            for (uint32_t i = 0; i < mrc; i++) { vm->fs_mounts_read_virt[i] = NULL; vm->fs_mounts_read_host[i] = NULL; }
+            for (uint32_t i = 0; i < mrc; i++) {
+                vm->fs_mounts_read_virt[i] = snap_read_str(f, &okc);
+                vm->fs_mounts_read_host[i] = snap_read_str(f, &okc);
+                if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (!vm->fs_mounts_read_virt[i]) { vm->fs_mounts_read_virt[i] = (char*)avm_heap_malloc_k(1, AVM_ALLOC_KIND_TMP); if (!vm->fs_mounts_read_virt[i]) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; } vm->fs_mounts_read_virt[i][0]=0; }
+                if (!vm->fs_mounts_read_host[i]) { vm->fs_mounts_read_host[i] = (char*)avm_heap_malloc_k(1, AVM_ALLOC_KIND_TMP); if (!vm->fs_mounts_read_host[i]) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; } vm->fs_mounts_read_host[i][0]=0; }
+            }
+            vm->fs_mounts_read_count = (int)mrc;
+        }
+
+        // FS mounts (write)
+        uint32_t mwc = read_u32_le(f, &okc);
+        if (!okc || mwc > 100000u) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        vm->fs_mounts_write_count = 0;
+        vm->fs_mounts_write_virt = NULL;
+        vm->fs_mounts_write_host = NULL;
+        if (mwc > 0) {
+            vm->fs_mounts_write_virt = (char**)avm_heap_malloc_k(sizeof(char*) * (size_t)mwc, AVM_ALLOC_KIND_TMP);
+            vm->fs_mounts_write_host = (char**)avm_heap_malloc_k(sizeof(char*) * (size_t)mwc, AVM_ALLOC_KIND_TMP);
+            if (!vm->fs_mounts_write_virt || !vm->fs_mounts_write_host) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            for (uint32_t i = 0; i < mwc; i++) { vm->fs_mounts_write_virt[i] = NULL; vm->fs_mounts_write_host[i] = NULL; }
+            for (uint32_t i = 0; i < mwc; i++) {
+                vm->fs_mounts_write_virt[i] = snap_read_str(f, &okc);
+                vm->fs_mounts_write_host[i] = snap_read_str(f, &okc);
+                if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (!vm->fs_mounts_write_virt[i]) { vm->fs_mounts_write_virt[i] = (char*)avm_heap_malloc_k(1, AVM_ALLOC_KIND_TMP); if (!vm->fs_mounts_write_virt[i]) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; } vm->fs_mounts_write_virt[i][0]=0; }
+                if (!vm->fs_mounts_write_host[i]) { vm->fs_mounts_write_host[i] = (char*)avm_heap_malloc_k(1, AVM_ALLOC_KIND_TMP); if (!vm->fs_mounts_write_host[i]) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; } vm->fs_mounts_write_host[i][0]=0; }
+            }
+            vm->fs_mounts_write_count = (int)mwc;
+        }
+
+        // VirtualFS blob
+        char tag[8];
+        if (fread(tag, 1, 8, f) != 8) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        if (memcmp(tag, "AVMVFS01", 8) == 0) {
+            uint32_t cnt = read_u32_le(f, &okc);
+            if (!okc || cnt > 1000000u) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            AvmVfs* v = (AvmVfs*)avm_heap_malloc_k(sizeof(AvmVfs), AVM_ALLOC_KIND_VFS);
+            if (!v) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            v->entries = NULL;
+            v->count = cnt;
+            v->cap = cnt;
+            if (cnt > 0) {
+                v->entries = (AvmVfsEntry*)avm_heap_malloc_k(sizeof(AvmVfsEntry) * (size_t)cnt, AVM_ALLOC_KIND_VFS);
+                if (!v->entries) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                for (uint32_t i = 0; i < cnt; i++) { v->entries[i].path = NULL; v->entries[i].data = NULL; v->entries[i].len = 0; }
+            }
+            for (uint32_t i = 0; i < cnt; i++) {
+                char* path = snap_read_str(f, &okc);
+                uint32_t bl = 0;
+                uint8_t* data = snap_read_bytes(f, &bl, &okc);
+                if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (!path) { path = (char*)avm_heap_malloc_k(1, AVM_ALLOC_KIND_VFS); if (!path) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; } path[0] = 0; }
+                uint8_t* body = NULL;
+                if (bl > 0) {
+                    body = (uint8_t*)avm_heap_malloc_k((size_t)bl, AVM_ALLOC_KIND_VFS);
+                    if (!body) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                    memcpy(body, data, bl);
+                }
+                if (data) avm_heap_free(data);
+                v->entries[i].path = path;
+                v->entries[i].data = body;
+                v->entries[i].len = bl;
+            }
+            vm->vfs = v;
+        } else if (memcmp(tag, "AVMVFS00", 8) == 0) {
+            vm->vfs = NULL;
+        } else {
+            fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+        }
+
+        // VirtualPROC fixtures blob
+        if (fread(tag, 1, 8, f) != 8) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        if (memcmp(tag, "AVMPRC1B", 8) == 0) {
+            uint32_t bl = 0;
+            uint8_t* buf = snap_read_bytes(f, &bl, &okc);
+            if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            if (bl > 0 && buf) {
+                (void)avm_proc_load_fixtures(vm, buf, (size_t)bl);
+            }
+            if (buf) avm_heap_free(buf);
+        } else if (memcmp(tag, "AVMPRC0B", 8) == 0) {
+            vm->vproc = NULL;
+        } else {
+            fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+        }
+
+        // VirtualNET fixtures blob
+        if (fread(tag, 1, 8, f) != 8) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+        if (memcmp(tag, "AVMNET1B", 8) == 0) {
+            uint32_t bl = 0;
+            uint8_t* buf = snap_read_bytes(f, &bl, &okc);
+            if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            if (bl > 0 && buf) {
+                (void)avm_net_load_fixtures(vm, buf, (size_t)bl);
+            }
+            if (buf) avm_heap_free(buf);
+        } else if (memcmp(tag, "AVMNET0B", 8) == 0) {
+            vm->vnet = NULL;
+        } else {
+            fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+        }
     }
 
     fclose(f);

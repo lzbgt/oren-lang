@@ -1,0 +1,30 @@
+fn main() {
+    // Snapshot/resume must preserve VirtualFS contents and backend config.
+    // oretest runs with `--fs-backend vfs` for the first (paused) run; the resume run
+    // does NOT pass `--fs-backend`, so the snapshot must carry the backend kind + data.
+
+    var path = "vfs/hello.txt"
+    var content = "hello vfs snapshot"
+
+    var w = oren_write_file(path, content)
+    if oren_is_err(w) { oren_exit(1) }
+
+    var s = oren_read_file(path)
+    if oren_is_err(s) { oren_exit(1) }
+    if s != content { oren_exit(1) }
+
+    // Long loop so --step-limit pauses mid-run.
+    var i = 0
+    while i < 200000 {
+        i = i + 1
+    }
+
+    // Verify after resume.
+    var s2 = oren_read_file(path)
+    if oren_is_err(s2) { oren_exit(1) }
+    if s2 != content { oren_exit(1) }
+
+    oren_set_result("ok")
+}
+
+main()

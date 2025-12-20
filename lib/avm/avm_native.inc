@@ -3138,18 +3138,6 @@ fail:
     return 0;
 }
 
-typedef struct {
-    char* path;
-    uint8_t* data;
-    uint32_t len;
-} AvmVfsEntry;
-
-typedef struct {
-    AvmVfsEntry* entries;
-    uint32_t count;
-    uint32_t cap;
-} AvmVfs;
-
 static int avm_clone_fs_allow_prefixes(AvmVM* dst, AvmVM* src) {
     if (!dst) return 0;
     if (!src) return 1;

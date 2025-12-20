@@ -144,6 +144,7 @@ typedef struct {
     uint32_t count;
 } AvmVnet;
 AvmVnetEntry* avm_vnet_find(AvmVM* vm, const char* url);
+int avm_net_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len);
 
 typedef struct {
     char* cmd;
@@ -154,6 +155,21 @@ typedef struct {
     uint32_t count;
 } AvmVproc;
 AvmVprocEntry* avm_vproc_find(AvmVM* vm, const char* cmd);
+int avm_proc_load_fixtures(AvmVM* vm, const uint8_t* data, size_t len);
+
+// --- VirtualFS backing store (in-memory filesystem) ---
+// Stored under `AvmVM.vfs` when fs_backend_kind==1.
+typedef struct {
+    char* path;
+    uint8_t* data;
+    uint32_t len;
+} AvmVfsEntry;
+
+typedef struct {
+    AvmVfsEntry* entries;
+    uint32_t count;
+    uint32_t cap;
+} AvmVfs;
 
 // --- Heap release from snapshot module (internal wrapper) ---
 void avm_release_heap_all(AvmVM* vm);
