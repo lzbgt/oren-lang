@@ -268,12 +268,12 @@ tests/native/while.oren \
 	@# Module Tests (C Backend)
 	@if [ "$(TEST_QUIET)" = "0" ]; then echo "Testing Module System..."; fi
 	@pass=0; total=0; failed=""; \
-		for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_spawn_join_timeout.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren tests/modules/test_argparse.oren tests/modules/test_metadata_attrs.oren tests/modules/test_strings.oren tests/modules/test_string_from_bytes.oren tests/modules/test_json.oren tests/modules/test_switch.oren; do \
-			total=$$((total+1)); \
-			name=$$(basename $$t .oren); \
-			log=build/logs/mod_$$name.log; \
-			$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend c -o build/$$name $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1 || { failed="$$failed $$name"; continue; }; \
-			$(RUN_WITH_TIMEOUT) ./build/$$name > $$log 2>&1 || { echo "FAIL: $$name (run exit code $$?)" >> $$log; failed="$$failed $$name"; continue; }; \
+			for t in tests/modules/test_shapes.oren tests/modules/test_spawn.oren tests/modules/test_spawn_join_timeout.oren tests/modules/test_read_bytes.oren tests/modules/test_function_values.oren tests/modules/test_lambda_closure.oren tests/modules/test_lambda_multiline.oren tests/modules/test_endian_casts.oren tests/modules/test_gc_threads.oren tests/modules/test_gc_stack_roots.oren tests/modules/test_result.oren tests/modules/test_argparse.oren tests/modules/test_metadata_attrs.oren tests/modules/test_int_ops_wrap.oren tests/modules/test_strings.oren tests/modules/test_string_from_bytes.oren tests/modules/test_json.oren tests/modules/test_switch.oren; do \
+				total=$$((total+1)); \
+				name=$$(basename $$t .oren); \
+				log=build/logs/mod_$$name.log; \
+				$(RUN_BUILD_WITH_TIMEOUT) ./oren build $$t --backend c -o build/$$name $(CODESIGN_ARG) $(GC_ARG) > $$log 2>&1 || { failed="$$failed $$name"; continue; }; \
+				$(RUN_WITH_TIMEOUT) ./build/$$name > $$log 2>&1 || { echo "FAIL: $$name (run exit code $$?)" >> $$log; failed="$$failed $$name"; continue; }; \
 			pass=$$((pass+1)); \
 		done; \
 		if [ "$(TEST_QUIET)" = "1" ]; then echo "$$pass/$$total module tests passed"; fi; \

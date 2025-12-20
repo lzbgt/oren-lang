@@ -125,6 +125,7 @@ func main() {
 		"tests/modules/test_lambda_multiline.oren",
 		"tests/modules/test_trait_impl.oren",
 		"tests/modules/test_match_enum.oren",
+		"tests/modules/test_int_ops_wrap.oren",
 		// Typed annotations and packed views (critical for syscall-first parsing).
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_typed_struct_fields.oren",
@@ -147,6 +148,7 @@ func main() {
 		"tests/modules/test_bytes_set_endian.oren",
 		"tests/modules/test_int_casts.oren",
 		"tests/modules/test_int_casts_checked.oren",
+		"tests/modules/test_int_ops_wrap.oren",
 		"tests/modules/test_float_ops.oren",
 		"tests/modules/test_typed_struct_fields.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",

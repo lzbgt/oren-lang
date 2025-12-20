@@ -5,6 +5,7 @@
 #include <setjmp.h>
 #include <execinfo.h>
 #include <time.h>
+#include <limits.h>
 
 OrenValue OREN_NIL;
 OrenValue OREN_TRUE;
@@ -1062,7 +1063,14 @@ int oren_is_truthy(OrenValue v) {
 
 OrenValue oren_add(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_INT && b.type == OREN_TYPE_INT) {
-        return oren_int(a.as.int_val + b.as.int_val);
+        // Deterministic i64 wrap semantics (two's complement) without signed-overflow UB.
+        uint64_t ua = 0, ub = 0, ur = 0;
+        long long r = 0;
+        memcpy(&ua, &a.as.int_val, sizeof(ua));
+        memcpy(&ub, &b.as.int_val, sizeof(ub));
+        ur = ua + ub;
+        memcpy(&r, &ur, sizeof(r));
+        return oren_int(r);
     }
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_FLOAT) {
         return oren_float(a.as.float_val + b.as.float_val);
@@ -1090,7 +1098,14 @@ OrenValue oren_add(OrenValue a, OrenValue b) {
 
 OrenValue oren_sub(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_INT && b.type == OREN_TYPE_INT) {
-        return oren_int(a.as.int_val - b.as.int_val);
+        // Deterministic i64 wrap semantics (two's complement) without signed-overflow UB.
+        uint64_t ua = 0, ub = 0, ur = 0;
+        long long r = 0;
+        memcpy(&ua, &a.as.int_val, sizeof(ua));
+        memcpy(&ub, &b.as.int_val, sizeof(ub));
+        ur = ua - ub;
+        memcpy(&r, &ur, sizeof(r));
+        return oren_int(r);
     }
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_FLOAT) {
         return oren_float(a.as.float_val - b.as.float_val);
@@ -1107,7 +1122,14 @@ OrenValue oren_sub(OrenValue a, OrenValue b) {
 
 OrenValue oren_mul(OrenValue a, OrenValue b) {
      if (a.type == OREN_TYPE_INT && b.type == OREN_TYPE_INT) {
-        return oren_int(a.as.int_val * b.as.int_val);
+        // Deterministic i64 wrap semantics (two's complement) without signed-overflow UB.
+        uint64_t ua = 0, ub = 0, ur = 0;
+        long long r = 0;
+        memcpy(&ua, &a.as.int_val, sizeof(ua));
+        memcpy(&ub, &b.as.int_val, sizeof(ub));
+        ur = ua * ub;
+        memcpy(&r, &ur, sizeof(r));
+        return oren_int(r);
     }
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_FLOAT) {
         return oren_float(a.as.float_val * b.as.float_val);
@@ -1124,6 +1146,16 @@ OrenValue oren_mul(OrenValue a, OrenValue b) {
 
 OrenValue oren_div(OrenValue a, OrenValue b) {
      if (a.type == OREN_TYPE_INT && b.type == OREN_TYPE_INT) {
+        // Deterministic error instead of host SIGFPE / UB.
+        if (b.as.int_val == 0) {
+            oren_panic("division by zero");
+            return OREN_NIL;
+        }
+        // INT64_MIN / -1 overflows in two's complement.
+        if (a.as.int_val == LLONG_MIN && b.as.int_val == -1) {
+            oren_panic("division overflow (i64_min / -1)");
+            return OREN_NIL;
+        }
         return oren_int(a.as.int_val / b.as.int_val);
     }
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_FLOAT) {
@@ -1152,38 +1184,72 @@ static uint64_t oren_u64(OrenValue v, const char *op) {
 OrenValue oren_band(OrenValue a, OrenValue b) {
     uint64_t x = oren_u64(a, "bitand");
     uint64_t y = oren_u64(b, "bitand");
-    return oren_int((long long)(x & y));
+    uint64_t ur = (x & y);
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
 }
 
 OrenValue oren_bor(OrenValue a, OrenValue b) {
     uint64_t x = oren_u64(a, "bitor");
     uint64_t y = oren_u64(b, "bitor");
-    return oren_int((long long)(x | y));
+    uint64_t ur = (x | y);
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
 }
 
 OrenValue oren_bxor(OrenValue a, OrenValue b) {
     uint64_t x = oren_u64(a, "bitxor");
     uint64_t y = oren_u64(b, "bitxor");
-    return oren_int((long long)(x ^ y));
+    uint64_t ur = (x ^ y);
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
 }
 
 OrenValue oren_shl(OrenValue a, OrenValue b) {
-    uint64_t x = oren_u64(a, "shl");
-    uint64_t s = oren_u64(b, "shl");
-    if (s >= 64) return oren_int(0);
-    return oren_int((long long)(x << s));
+    if (a.type != OREN_TYPE_INT || b.type != OREN_TYPE_INT) {
+        oren_panic("shl expects int");
+        return OREN_NIL;
+    }
+    long long s = b.as.int_val;
+    if (s < 0 || s >= 64) {
+        oren_panic("shl shift count out of range (need 0..63)");
+        return OREN_NIL;
+    }
+    uint64_t x = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    uint64_t ur = x << (uint64_t)s;
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
 }
 
 OrenValue oren_shr(OrenValue a, OrenValue b) {
-    uint64_t x = oren_u64(a, "shr");
-    uint64_t s = oren_u64(b, "shr");
-    if (s >= 64) return oren_int(0);
-    return oren_int((long long)(x >> s));
+    if (a.type != OREN_TYPE_INT || b.type != OREN_TYPE_INT) {
+        oren_panic("shr expects int");
+        return OREN_NIL;
+    }
+    long long s = b.as.int_val;
+    if (s < 0 || s >= 64) {
+        oren_panic("shr shift count out of range (need 0..63)");
+        return OREN_NIL;
+    }
+    uint64_t x = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    uint64_t ur = x >> (uint64_t)s;
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
 }
 
 OrenValue oren_bnot(OrenValue v) {
     uint64_t x = oren_u64(v, "bnot");
-    return oren_int((long long)(~x));
+    uint64_t ur = ~x;
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
 }
 
 OrenValue oren_eq(OrenValue a, OrenValue b) {

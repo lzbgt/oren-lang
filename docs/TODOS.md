@@ -26,8 +26,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - No bypassing capsule capability checks by emitting direct `svc` / OS sysno calls outside the approved lowering modules.
 
 5) **Verify before declaring done** `[quality]`
-   - Canonical curated suite (preferred): `./oretest --target macos`
-   - Wrapper (same suite): `make test`
+   - If code changes: run the canonical suite (preferred) `./oretest --target macos` (or `make test`).
+   - If **docs-only** changes (only `docs/*` modified): tests are not required.
 
 6) **Keep this file actionable** `[maint]`
    - Each P0/P1 item must have a concrete “Definition of Done” (DoD) and be finishable.

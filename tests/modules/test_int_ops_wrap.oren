@@ -1,0 +1,26 @@
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    print("ASSERT_EQ FAIL code=" + oren_int_to_string(code))
+    print(a)
+    print(b)
+    exit(code)
+}
+
+fn run() {
+    // Cross-backend determinism: int arithmetic is i64 two's-complement wraparound.
+    var max = 9223372036854775807
+    // Avoid an unrepresentable negative literal on some C compilers: derive via bit shift.
+    var min = 1 << 63
+
+    assert_eq(max + 1, min, 10)
+    assert_eq(min - 1, max, 11)
+    assert_eq(max * 2, -2, 12)
+
+    // Bit shifts are defined on bit patterns; right shift is logical.
+    assert_eq(1 << 63, min, 20)
+    assert_eq((-1 >> 1), max, 21)
+
+    print("ok")
+}
+
+run()
