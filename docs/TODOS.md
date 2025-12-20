@@ -75,14 +75,17 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
-2) **[lang][ux] Add integer modulo operator `%` (syntax + runtime semantics)**
-   - Why now:
-     - `%` is a fundamental operator for many non-HPC tasks (hashing, parsing, scheduling).
-     - Current workarounds (counter resets) are clunky and error-prone.
+2) **[stdlib][ux] `std/time` v0 (datetime-like, portable + deterministic surface)**
+   - Goal:
+     - Provide a modern time API usable for server-side apps and agentic tooling, while keeping
+       deterministic execution possible in AVM mode.
    - DoD:
-     - parser + codegen for `a % b` (int % int) with deterministic semantics (match C trunc division rules)
-     - define behavior for `b==0` (panic or error; pick one and document)
-     - add module test coverage
+     - Add `lib/std/time.oren` with:
+       - `Instant` + `Duration` (nanosecond precision, monotonic-safe arithmetic)
+       - `now_unix_ns()` + `now_mono_raw()` plumbing (backend-specific; exposed via a stable stdlib API)
+       - `sleep_ms(ms)` wrapper with clear semantics
+       - `DateTime` UTC v0: epoch conversions + ISO-8601 parse/format (UTC-only v0; locale/tz later)
+     - Add a module test covering parse/format roundtrip + monotonic non-decrease smoke
 
 ### B) AVM (evolves alongside language/compiler)
 

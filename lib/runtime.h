@@ -142,6 +142,7 @@ OrenValue oren_add(OrenValue a, OrenValue b);
 OrenValue oren_sub(OrenValue a, OrenValue b);
 OrenValue oren_mul(OrenValue a, OrenValue b);
 OrenValue oren_div(OrenValue a, OrenValue b);
+OrenValue oren_mod(OrenValue a, OrenValue b);
 
 OrenValue oren_band(OrenValue a, OrenValue b);
 OrenValue oren_bor(OrenValue a, OrenValue b);

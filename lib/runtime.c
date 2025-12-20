@@ -1316,6 +1316,24 @@ OrenValue oren_div(OrenValue a, OrenValue b) {
     return OREN_NIL;
 }
 
+OrenValue oren_mod(OrenValue a, OrenValue b) {
+     if (a.type == OREN_TYPE_INT && b.type == OREN_TYPE_INT) {
+        // Deterministic error instead of host SIGFPE / UB.
+        if (b.as.int_val == 0) {
+            oren_panic("modulo by zero");
+            return OREN_NIL;
+        }
+        // INT64_MIN % -1 is undefined in C because it implies INT64_MIN / -1 overflow.
+        if (a.as.int_val == LLONG_MIN && b.as.int_val == -1) {
+            oren_panic("modulo overflow (i64_min % -1)");
+            return OREN_NIL;
+        }
+        return oren_int(a.as.int_val % b.as.int_val);
+    }
+    oren_panic("Type mismatch in mod");
+    return OREN_NIL;
+}
+
 static uint64_t oren_u64(OrenValue v, const char *op) {
     if (v.type != OREN_TYPE_INT) {
         char buf[64];

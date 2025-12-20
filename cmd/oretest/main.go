@@ -120,7 +120,7 @@ func main() {
 		"tests/native/test_sys_execve_fail_safe.oren",
 		"tests/native/test_debug_panic.oren",
 	}
-		moduleTestsFast := []string{
+	moduleTestsFast := []string{
 		// Core language / execution sanity (C backend).
 		"tests/modules/test_spawn_join_timeout.oren",
 		"tests/modules/test_lambda_multiline.oren",
@@ -131,6 +131,7 @@ func main() {
 		"tests/modules/test_optimizer_baseline.oren",
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_int_ops_wrap.oren",
+		"tests/modules/test_mod.oren",
 		// Typed annotations and packed views (critical for syscall-first parsing).
 			"tests/modules/test_type_ann_fn_boundaries.oren",
 			"tests/modules/test_typed_struct_fields.oren",
@@ -172,6 +173,7 @@ func main() {
 			"tests/modules/test_cast_sugar.oren",
 			"tests/modules/test_as_cast.oren",
 			"tests/modules/test_typed_struct_fields.oren",
+		"tests/modules/test_mod.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",

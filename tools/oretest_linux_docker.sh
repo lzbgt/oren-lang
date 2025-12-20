@@ -114,7 +114,7 @@ mkdir -p /work/repo
 cd /work/repo
 # IMPORTANT:
 # The repo sync does not include a .git directory, and file mtimes come from tar.
-# If previous build artifacts exist, `make` can incorrectly treat them as up-to-date.
+# If previous build artifacts exist, make can incorrectly treat them as up-to-date.
 # Remove well-known build outputs each run to force correct rebuilds without wiping
 # the whole workspace (keeps incremental apt-installed toolchain, etc.).
 rm -f ./oren ./oren_bootstrap ./oretest ./avm || true

@@ -3980,6 +3980,36 @@ fn oren_add(a, b) {
     return iadd(a, b)
 }
 
+fn oren_mod(a, b) {
+    // Deterministic signed remainder with explicit error on:
+    // - modulo by zero
+    // - i64_min % -1 (would imply division overflow)
+    //
+    // Native codegen's `/` uses unsigned division (rolling), so we implement the
+    // signed behavior explicitly using abs() + unsigned division on positives.
+    if b == 0 {
+        oren_panic("modulo by zero")
+        return 0
+    }
+
+    // INT64_MIN = -(1<<63). In Oren's rolling int model, this constant is safe.
+    var i64_min = 0 - (1 << 63)
+    if a == i64_min && b == -1 {
+        oren_panic("modulo overflow (i64_min % -1)")
+        return 0
+    }
+
+    var ua = a
+    var ub = b
+    if ua < 0 { ua = 0 - ua }
+    if ub < 0 { ub = 0 - ub }
+    // quotient for positive operands (unsigned division semantics are fine here)
+    var q = ua / ub
+    var rpos = ua - (q * ub)
+    if a < 0 { return 0 - rpos }
+    return rpos
+}
+
 fn oren_int_to_string(n) {
     var buf = malloc(32)
     if buf == 0 { exit(300) }

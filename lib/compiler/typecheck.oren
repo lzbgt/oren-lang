@@ -120,6 +120,10 @@ fn _cat(expr, env) {
             if lc == "int" && rc == "int" { return "int" }
             return "unknown"
         }
+        if op == "%" {
+            if lc == "int" && rc == "int" { return "int" }
+            return "unknown"
+        }
         if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
             return "bool"
         }

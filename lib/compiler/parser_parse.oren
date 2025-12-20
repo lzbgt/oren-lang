@@ -1136,6 +1136,7 @@ fn parse_infix(p, left) {
     if t == token.TOK_MINUS { is_op = true }
     if t == token.TOK_SLASH { is_op = true }
     if t == token.TOK_ASTERISK { is_op = true }
+    if t == token.TOK_PERCENT { is_op = true }
     if t == token.TOK_EQ { is_op = true }
     if t == token.TOK_NOT_EQ { is_op = true }
     if t == token.TOK_AND { is_op = true }

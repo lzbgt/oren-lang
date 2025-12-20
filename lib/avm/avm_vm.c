@@ -597,6 +597,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x11: return "SUB";
         case 0x1D: return "MUL";
         case 0x1E: return "DIV";
+        case 0x1F: return "MOD";
         case 0x12: return "LT";
         case 0x13: return "EQ";
         case 0x14: return "NEQ";
@@ -1086,6 +1087,27 @@ void avm_run(AvmVM* vm) {
                         AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = (double)a.as.i / b.as.f; vm->stack[vm->sp++] = r;
                     } else if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) {
                         AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f / (double)b.as.i; vm->stack[vm->sp++] = r;
+                    } else {
+                        vm->stack[vm->sp++] = avm_nil();
+                    }
+                }
+                break;
+            }
+            case 0x1F: { // MOD
+                if (vm->sp >= 2) {
+                    AvmValue b = vm->stack[--vm->sp];
+                    AvmValue a = vm->stack[--vm->sp];
+                    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+                        if (b.as.i == 0) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "modulo by zero"));
+                            break;
+                        }
+                        // INT64_MIN % -1 is invalid because it implies INT64_MIN / -1 overflow.
+                        if (avm_i64_is_min(a.as.i) && b.as.i == -1) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "modulo overflow (i64_min % -1)"));
+                            break;
+                        }
+                        vm->stack[vm->sp++] = avm_int(a.as.i % b.as.i);
                     } else {
                         vm->stack[vm->sp++] = avm_nil();
                     }

@@ -211,6 +211,7 @@ fn next_token(l) {
     if ch == "+" { read_char(l); return tok_lc(l, token.TOK_PLUS, "+", start, l["position"], start_line, start_col) }
     if ch == "-" { read_char(l); return tok_lc(l, token.TOK_MINUS, "-", start, l["position"], start_line, start_col) }
     if ch == "~" { read_char(l); return tok_lc(l, token.TOK_TILDE, "~", start, l["position"], start_line, start_col) }
+    if ch == "%" { read_char(l); return tok_lc(l, token.TOK_PERCENT, "%", start, l["position"], start_line, start_col) }
     if ch == "!" {
         if peek_char(l) == "=" {
             var curb = ch

@@ -1,0 +1,23 @@
+fn fail(code) {
+    print("module mod FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// Basic modulo semantics: sign of remainder follows dividend (C/Go/Rust-like trunc-to-zero division).
+assert_eq(7 % 3, 1, 10)
+assert_eq(-7 % 3, -1, 11)
+assert_eq(7 % -3, 1, 12)
+assert_eq(-7 % -3, -1, 13)
+
+// Precedence: % binds like * and /.
+assert_eq(2 + 7 % 3, 3, 20)
+assert_eq(2 + 7 % 3 * 10, 12, 21) // 7%3=1; 1*10=10; 2+10=12
+
+print("module mod OK")
+exit(0)
+

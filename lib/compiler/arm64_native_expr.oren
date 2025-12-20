@@ -698,7 +698,7 @@ fn native_compile_expr(ctx, expr) {
 
     if expr["type"] == "Infix" {
         var op = expr["op"]
-        if op == "+" || op == "-" || op == "*" || op == "/" || op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
+        if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
             // Compile Left
             native_compile_expr(ctx, expr["left"])
             
@@ -748,6 +748,19 @@ fn native_compile_expr(ctx, expr) {
                 var bl_pos = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_add"})
+            }
+            if op == "%" {
+                // Deterministic modulo semantics are implemented in the native runtime helper.
+                // (We need div0/overflow checks; hardware division does not trap.)
+                //
+                // Swap X0/X1 so X0=Left, X1=Right for oren_mod call
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // Right -> X2
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // Left -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // Right -> X1
+
+                var bl_pos2 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_mod"})
             }
             if op == "-" { push_u32_le(ctx["code"], insn_sub_reg(0, 1, 0)) }
             if op == "*" { push_u32_le(ctx["code"], insn_mul(0, 1, 0)) }

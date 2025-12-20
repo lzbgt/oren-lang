@@ -891,6 +891,7 @@ fn transpile_expression(t, exp) {
         if op == "-" { return "oren_sub(" + left + ", " + right_expr + ")" }
         if op == "*" { return "oren_mul(" + left + ", " + right_expr + ")" }
         if op == "/" { return "oren_div(" + left + ", " + right_expr + ")" }
+        if op == "%" { return "oren_mod(" + left + ", " + right_expr + ")" }
         if op == "&" { return "oren_band(" + left + ", " + right_expr + ")" }
         if op == "|" { return "oren_bor(" + left + ", " + right_expr + ")" }
         if op == "^" { return "oren_bxor(" + left + ", " + right_expr + ")" }

@@ -40,6 +40,7 @@ fn precedence(tokType) {
     if tokType == token.TOK_MINUS { return SUM_P }
     if tokType == token.TOK_SLASH { return PRODUCT_P }
     if tokType == token.TOK_ASTERISK { return PRODUCT_P }
+    if tokType == token.TOK_PERCENT { return PRODUCT_P }
     if tokType == token.TOK_LPAREN { return CALL_P }
     return LOWEST
 }

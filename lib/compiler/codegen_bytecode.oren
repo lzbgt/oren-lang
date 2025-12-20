@@ -9,6 +9,7 @@ var AVM_ADD = 16
 var AVM_SUB = 17
 var AVM_MUL = 29
 var AVM_DIV = 30
+var AVM_MOD = 31
 var AVM_PRINT = 32
 var AVM_PRINT_LIST = 33
 var AVM_LOAD_LOCAL = 4
@@ -832,6 +833,9 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if expr["op"] == "/" {
             emit_byte(ctx, AVM_DIV)
+        }
+        if expr["op"] == "%" {
+            emit_byte(ctx, AVM_MOD)
         }
         if expr["op"] == "<" {
             emit_byte(ctx, 18)

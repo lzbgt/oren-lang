@@ -180,6 +180,23 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — `%` modulo operator (C backend + AVM + native backend)
+
+- Language:
+  - Added `%` operator tokenization + parsing with `PRODUCT_P` precedence.
+  - Updated typecheck v0 category inference so `%` is int-only.
+- Backends:
+  - C backend lowers `a % b` to `oren_mod(a, b)` with deterministic checks (div0, i64_min%-1).
+  - AVM bytecode adds opcode `MOD` (0x1F) with deterministic error semantics for div0/overflow.
+  - Native backend lowers `%` to the native runtime helper `oren_mod` so semantics stay deterministic.
+- Tests:
+  - Added `tests/modules/test_mod.oren` and wired it into `cmd/oretest`.
+- Tooling:
+  - Fixed `tools/oretest_linux_docker.sh` quoting hazard by removing backticks inside docker `bash -lc` heredoc.
+- Verified:
+  - `./oretest --target macos`
+  - `tools/oretest_linux_docker.sh`
+
 ## Archived (2025-12-20) — CBOR serde streaming helpers (typed sequences)
 
 - Added serde-friendly typed streaming helpers to `lib/std/cbor.oren`:
