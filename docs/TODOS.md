@@ -68,16 +68,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[stdlib][ux] YAML serde adaptor v1 (portable, deterministic)**
-   - Why now:
-     - JSON + CBOR exist; YAML is the next high-impact “human config” format.
-   - DoD:
-     - ship `lib/std/yaml.oren` with a deterministic `YamlValue` representation
-     - implement `yaml.encode(YamlValue)->string` and `yaml.decode(string)->{ok,err?,v?}`
-     - implement `@serde(format="yaml")` lowering (same field options as JSON/CBOR)
-     - document the supported YAML subset explicitly (YAML 1.2 JSON subset is acceptable for v1 if called out)
-
-2) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
+1) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
    - DoD:
      - define minimal `.oren`-level test runner spec (output format, filters, JSON output)
      - keep `cmd/oretest` as orchestration for now, but document staged migration path
@@ -123,6 +114,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - CBOR v1 (RFC 8949 subset): added `lib/std/cbor.oren` + `@serde(format="cbor")` lowering and deterministic bytes tests.
 - CBOR streaming (RFC 8742): added `cbor.decode_next` / `cbor.decode_sequence` / `cbor.encode_sequence` + tests.
 - CBOR serde streaming: added `cbor.encode_sequence_typed` / `cbor.decode_next_typed` / `cbor.decode_sequence_typed` + integration test.
+- YAML serde adaptor v1: added `lib/std/yaml.oren` (deterministic subset) + `@serde(format="yaml")` lowering + tests.
 - Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
 - Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
 - Native debug traces: `--debug` builds now print `file:line:col` in stack traces (from debug info table), making panics AI-diagnosable without lldb.

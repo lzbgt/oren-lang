@@ -100,6 +100,18 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added integration test: `tests/modules/test_cbor_serde_streaming.oren`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — YAML serde adaptor v1 (deterministic subset)
+
+- Added `lib/std/yaml.oren`:
+  - deterministic YAML emitter (block style, sorted keys, 2-space indent)
+  - deterministic subset decoder (mappings + sequences + scalar types), plus JSON-text fallback (YAML 1.2 JSON subset)
+  - audit reference: `docs/refs/yaml/yaml-1.2.2.html`
+- Extended serde lowering to support `@serde(format="yaml")`:
+  - generates `<Type>__yaml_encode` / `<Type>__yaml_decode`
+  - representation matches JSON tagged value shape (`YamlValue` == `JsonValue` shape)
+- Added integration test `tests/modules/test_yaml_serde_attrs.oren` and wired it into `cmd/oretest`.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.
