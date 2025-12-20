@@ -79,7 +79,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - `list.push(x)`, `list.len()`, `map.get(k)`, `map.set(k,v)` (exact naming TBD)
      - Add one integration test that:
        - builds a map, iterates deterministically, hashes result
-       - runs under AVM deterministic mode without host effects
+       - runs under AVM deterministic/capsule-like mode without host effects (**done**: `tests/avm/test_map_iter_deterministic.oren`)
 
 2) **[lang][perf] Casting + numeric model (follow-ups)**
    - DoD:
@@ -111,6 +111,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- AVM: added `test_map_iter_deterministic` to pin deterministic map key iteration under deny-by-default mode.
 - Casting overflow semantics: made `oren_trunc_int` deterministic clamp (`NaN→0`, `+inf/overflow→INT64_MAX`, `-inf/overflow→INT64_MIN`) across C runtime + AVM native intrinsics; updated docs and added module coverage.
 - Iteration: added `for x in <typed_buf>` support for `i32/i64/f32/f64` buffers in C runtime + native runtime; added module coverage and wired it into oretest curated lists.
 - Attributes v1: allow `@pack`/`@abi` and canonicalize `@json.*` to `serde.*`; preserve unknown attrs; support attrs + doc comments on vars; accept attrs inside blocks; `oren meta` now exports `globals[]` with attrs; covered by oretest meta fixture + native integration suite; verified on macOS + Linux docker.
