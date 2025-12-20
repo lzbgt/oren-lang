@@ -71,17 +71,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Casting + numeric model (HPC-ready)**
-   - DoD:
-     - Fixed-width scalar tokens are first-class (`u8/i32/u64/f32/f64`, etc.)
-     - Numeric casts are explicit and efficient:
-       - `u8(1.9)` truncates toward zero
-        - `round(x)` / `floor(x)` / `ceil(x)` are separate math ops (**done**)
-       - `bitcast[T](x)` exists for raw reinterpret when needed (unsafe) (**done**)
-     - Endian-aware loads/stores are expressible without attribute abuse (network/HPC I/O)
-     - Add/extend a module test to cover int↔float boundary cases + overflow behavior
-
-2) **[lang][ux] Containers + iteration semantics**
+1) **[lang][ux] Containers + iteration semantics**
    - DoD:
      - `for x in ...` works for: list, map, string, bytes/buffer, stream-like iterables
      - Map iteration is deterministic (key ordered) in deterministic modes (AVM + tests)
@@ -90,6 +80,12 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Add one integration test that:
        - builds a map, iterates deterministically, hashes result
        - runs under AVM deterministic mode without host effects
+
+2) **[lang][perf] Casting + numeric model (follow-ups)**
+   - DoD:
+     - Add `expr as T` cast operator (desugars to builtin cast sugar)
+     - Stabilize `i128/u128` runtime arithmetic (not just ABI/layout)
+     - Keep float→int behavior deterministic and backend-consistent (documented + tested)
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -115,6 +111,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Casting overflow semantics: made `oren_trunc_int` deterministic clamp (`NaN→0`, `+inf/overflow→INT64_MAX`, `-inf/overflow→INT64_MIN`) across C runtime + AVM native intrinsics; updated docs and added module coverage.
+- Iteration: added `for x in <typed_buf>` support for `i32/i64/f32/f64` buffers in C runtime + native runtime; added module coverage and wired it into oretest curated lists.
 - Attributes v1: allow `@pack`/`@abi` and canonicalize `@json.*` to `serde.*`; preserve unknown attrs; support attrs + doc comments on vars; accept attrs inside blocks; `oren meta` now exports `globals[]` with attrs; covered by oretest meta fixture + native integration suite; verified on macOS + Linux docker.
 - `bitcast[T](x)` v0: added lowering + runtime helpers for `u32/f32/u64/f64` bit reinterpretation; fixed unary `-` lowering to preserve float `-0.0`; covered by a module test; verified on macOS + Linux docker.
 - `std/math` rounding v0: added deterministic `floor/ceil/round` (half-away-from-zero, NaN->Err); covered by a module test including `-0.0` bit preservation.
