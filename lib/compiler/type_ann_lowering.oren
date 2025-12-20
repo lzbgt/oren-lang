@@ -53,6 +53,40 @@ fn trunc_int_expr(x) {
     return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_trunc_int"}, [x])
 }
 
+fn bitcast_expr_for_kind(kind, expr) {
+    // bitcast[T](x) lowering (rolling):
+    //
+    // Surface:
+    //   bitcast[u32](x)  -> raw IEEE-754 float32 bits as int (low 32)
+    //   bitcast[f32](x)  -> interpret low 32 bits of int as float32
+    //   bitcast[u64](x)  -> raw IEEE-754 float64 bits as int64 (two's complement)
+    //   bitcast[f64](x)  -> interpret int64 bits as float64
+    //
+    // Notes:
+    // - This is intentionally "unsafe": it reinterprets bits, no numeric conversion.
+    // - Implemented via tiny runtime helpers in C/bytecode, and inlined in native backend.
+    if kind == nil || expr == nil { return expr }
+    var k = normalize_kind_for_value_cast(kind)
+    if k == nil { return expr }
+
+    if k == "u32" {
+        // Coerce input to float container, then round to float32 semantics, then extract bits.
+        return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_f32_to_u32_bits"}, [cast_expr_for_kind("f32", expr)])
+    }
+    if k == "f32" {
+        // Interpret low 32 bits.
+        return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_u32_bits_to_f32"}, [cast_expr_for_kind("u32", expr)])
+    }
+    if k == "u64" {
+        // Expect a float (f64 container). Do not coerce ints: bitcast is not numeric cast.
+        return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_f64_to_u64_bits"}, [expr])
+    }
+    if k == "f64" {
+        return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_u64_bits_to_f64"}, [expr])
+    }
+    return expr
+}
+
 fn normalize_kind_for_value_cast(kind) {
     if kind == nil { return nil }
 
@@ -241,6 +275,26 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
         }
         if expr["spread"] != nil {
             expr["spread"] = lower_expr_in_place(expr["spread"], type_kinds, ret_kind)
+        }
+
+        // bitcast[T](x) lowering:
+        //
+        // We intentionally implement this without adding a new parser feature.
+        // The surface form:
+        //   bitcast[u32](x)
+        // parses as:
+        //   Call(fn=Index(left=Identifier("bitcast"), index=Identifier("u32")), args=[x])
+        //
+        // Then we lower it here into small backend intrinsics.
+        var fn_bc = expr["fn"]
+        if fn_bc != nil && fn_bc["type"] == "Index" && expr["spread"] == nil && oren_list_len(args) == 1 {
+            var left = fn_bc["left"]
+            var idx = fn_bc["index"]
+            if left != nil && left["type"] == "Identifier" && left["value"] == "bitcast" {
+                if idx != nil && idx["type"] == "Identifier" {
+                    return bitcast_expr_for_kind(idx["value"], args[0])
+                }
+            }
         }
 
         // Builtin cast sugar lowering:

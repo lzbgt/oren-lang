@@ -76,8 +76,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Fixed-width scalar tokens are first-class (`u8/i32/u64/f32/f64`, etc.)
      - Numeric casts are explicit and efficient:
        - `u8(1.9)` truncates toward zero
-       - `round(x)` / `floor(x)` / `ceil(x)` are separate math ops
-       - `bitcast[T](x)` exists for raw reinterpret when needed (unsafe)
+        - `round(x)` / `floor(x)` / `ceil(x)` are separate math ops
+       - `bitcast[T](x)` exists for raw reinterpret when needed (unsafe) (**done**)
      - Endian-aware loads/stores are expressible without attribute abuse (network/HPC I/O)
      - Add/extend a module test to cover int↔float boundary cases + overflow behavior
 
@@ -116,6 +116,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Attributes v1: allow `@pack`/`@abi` and canonicalize `@json.*` to `serde.*`; preserve unknown attrs; support attrs + doc comments on vars; accept attrs inside blocks; `oren meta` now exports `globals[]` with attrs; covered by oretest meta fixture + native integration suite; verified on macOS + Linux docker.
+- `bitcast[T](x)` v0: added lowering + runtime helpers for `u32/f32/u64/f64` bit reinterpretation; fixed unary `-` lowering to preserve float `-0.0`; covered by a module test; verified on macOS + Linux docker.
 - `std/time` v0: added `lib/std/time.oren` (UTC ISO-8601 parse/format, epoch conversions, monotonic/unix clocks, sleep); added runtime TIME primitives and a module test; verified on macOS.
 - AVM record/replay v1: portable log format with file + in-memory logs; effectful domains replay from logs (no host effects); deterministic TIME/RNG supported; covered by AVM tests.
 - AVM deterministic cooperative tasks: task scheduler + `yield`/spawn/join/select primitives; deterministic step-quantum via `AVM_TASK_QUANTUM`; covered by AVM tests.

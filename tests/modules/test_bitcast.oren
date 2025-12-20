@@ -1,0 +1,32 @@
+// bitcast[T](x) tests (rolling).
+//
+// Design constraints:
+// - No runtime reflection
+// - Deterministic and backend-portable semantics (C backend + AVM bytecode + native)
+// - "Unsafe": reinterprets bits, not numeric conversion
+
+fn fail(code) {
+    print("module bitcast FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// f32 <-> u32
+assert_eq(bitcast[u32](1.0), 1065353216, 10) // 0x3f800000
+assert_eq(bitcast[f32](1065353216), 1.0, 11)
+
+// f64 <-> u64
+assert_eq(bitcast[u64](1.0), 4607182418800017408, 20) // 0x3ff0000000000000
+assert_eq(bitcast[f64](4607182418800017408), 1.0, 21)
+
+// -0.0 round-trip (sign bit set): 0x8000000000000000 == int64_min
+assert_eq(bitcast[u64](-0.0), -9223372036854775808, 30)
+assert_eq(bitcast[f64](-9223372036854775808), -0.0, 31)
+
+print("module bitcast OK")
+exit(0)
+

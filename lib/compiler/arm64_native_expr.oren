@@ -200,6 +200,7 @@ fn native_expr_is_floaty(ctx, expr) {
             // Native runtime/library functions that are known to return float bits.
             if nm == "oren_f32_round" { return true }
             if nm == "oren_u32_bits_to_f32" { return true }
+            if nm == "oren_u64_bits_to_f64" { return true }
             if nm == "oren_buf_load_f32" { return true }
             if nm == "oren_buf_load_f64" { return true }
             if nm == "oren_buf_dot_f32" { return true }
@@ -1442,6 +1443,37 @@ fn native_compile_expr(ctx, expr) {
             push_u32_le(ctx["code"], insn_fmov_s_w(0, 0)) // S0 = W0 bits
             push_u32_le(ctx["code"], insn_fcvt_d_from_s(0, 0)) // D0 = (double)S0
             push_u32_le(ctx["code"], insn_umov_x_d(0, 0)) // X0 = bits
+            return nil
+        }
+
+        if fn_name == "oren_f64_to_u64_bits" {
+            // Intrinsic: reinterpret float64 bits as u64 (in X0).
+            var args = expr["args"]
+            if args == nil || oren_list_len(args) != 1 {
+                native_error(ctx, expr["token"], "native backend: oren_f64_to_u64_bits expects 1 argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+            if !native_expr_is_floaty(ctx, args[0]) {
+                native_error(ctx, expr["token"], "native backend: oren_f64_to_u64_bits expects float argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+            native_compile_expr(ctx, args[0]) // X0 = f64 bits
+            // Identity (float bits are already in X0).
+            return nil
+        }
+
+        if fn_name == "oren_u64_bits_to_f64" {
+            // Intrinsic: reinterpret u64 bits (X0) as float64 bits (X0).
+            var args = expr["args"]
+            if args == nil || oren_list_len(args) != 1 {
+                native_error(ctx, expr["token"], "native backend: oren_u64_bits_to_f64 expects 1 argument")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+            native_compile_expr(ctx, args[0]) // X0 = bits
+            // Identity: float bits and int bits share the same carrier register.
             return nil
         }
         

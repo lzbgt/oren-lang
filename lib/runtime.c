@@ -3570,6 +3570,53 @@ OrenValue oren_f32_round(OrenValue v) {
     return oren_float((double)f);
 }
 
+OrenValue oren_f32_to_u32_bits(OrenValue v) {
+    // Unsafe bitcast: float32 bits -> u32 (returned as int64 container).
+    //
+    // Input is a float (f64 container); we first round to float32 semantics, then extract bits.
+    if (v.type != OREN_TYPE_FLOAT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("f32_to_u32_bits expects float"));
+    }
+    float f = (float)v.as.float_val;
+    uint32_t bits = 0;
+    memcpy(&bits, &f, sizeof(bits));
+    return oren_int((int64_t)(uint64_t)bits);
+}
+
+OrenValue oren_u32_bits_to_f32(OrenValue v) {
+    // Unsafe bitcast: interpret low 32 bits of int as float32.
+    if (v.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u32_bits_to_f32 expects int"));
+    }
+    uint32_t bits = (uint32_t)(uint64_t)v.as.int_val;
+    float f = 0.0f;
+    memcpy(&f, &bits, sizeof(bits));
+    // Return in the v0 float container (f64) while preserving float32 rounding boundary.
+    return oren_float((double)f);
+}
+
+OrenValue oren_f64_to_u64_bits(OrenValue v) {
+    // Unsafe bitcast: float64 bits -> u64 (returned as int64 container).
+    if (v.type != OREN_TYPE_FLOAT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("f64_to_u64_bits expects float"));
+    }
+    uint64_t bits = 0;
+    double d = v.as.float_val;
+    memcpy(&bits, &d, sizeof(bits));
+    return oren_int((int64_t)bits);
+}
+
+OrenValue oren_u64_bits_to_f64(OrenValue v) {
+    // Unsafe bitcast: int64 bits -> float64.
+    if (v.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u64_bits_to_f64 expects int"));
+    }
+    uint64_t bits = (uint64_t)v.as.int_val;
+    double d = 0.0;
+    memcpy(&d, &bits, sizeof(bits));
+    return oren_float(d);
+}
+
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end) {
     if (s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || end.type != OREN_TYPE_INT) {
         oren_panic("string_slice type mismatch");

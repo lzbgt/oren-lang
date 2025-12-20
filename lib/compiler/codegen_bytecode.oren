@@ -855,13 +855,17 @@ fn bytecode_compile_expr(ctx, expr) {
 
     if expr["type"] == "Prefix" {
         var op = expr["op"]
-        // Unary minus: 0 - x
+        // Unary minus: (-1) * x
+        //
+        // Rationale:
+        // - Preserves IEEE-754 sign bit for floats (notably -0.0) which `0 - x` does not.
+        // - Integers use deterministic wrap semantics (two's complement), so this matches `-x`.
         if op == "-" {
-            var z_idx = add_constant(ctx, {"type": "Integer", "value": 0})
+            var z_idx = add_constant(ctx, {"type": "Integer", "value": -1})
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, z_idx)
             bytecode_compile_expr(ctx, expr["right"])
-            emit_byte(ctx, AVM_SUB)
+            emit_byte(ctx, AVM_MUL)
             return nil
         }
 
@@ -1125,6 +1129,10 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_f32_round" { native_id = 106 }
         if name == "oren_bool_norm" { native_id = 107 }
         if name == "oren_trunc_int" { native_id = 108 }
+        if name == "oren_f32_to_u32_bits" { native_id = 109 }
+        if name == "oren_u32_bits_to_f32" { native_id = 110 }
+        if name == "oren_f64_to_u64_bits" { native_id = 111 }
+        if name == "oren_u64_bits_to_f64" { native_id = 112 }
         if name == "oren_bytes_from_hex" { native_id = 35 }
         if name == "oren_bytes_to_hex" { native_id = 36 }
         if name == "oren_avm_record_to_bytes" { native_id = 40 }

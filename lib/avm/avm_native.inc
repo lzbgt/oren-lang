@@ -1215,6 +1215,52 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 109: { // oren_f32_to_u32_bits(x: float) -> int
+            if (nargs > 0 && args[0].type == AVM_VAL_FLOAT) {
+                float f = (float)args[0].as.f;
+                uint32_t u = 0;
+                memcpy(&u, &f, sizeof(u));
+                res = avm_int((int64_t)(uint64_t)u);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_f32_to_u32_bits expects (float)");
+            }
+            break;
+        }
+        case 110: { // oren_u32_bits_to_f32(x: int) -> float
+            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+                uint32_t u = (uint32_t)(uint64_t)args[0].as.i;
+                float f = 0.0f;
+                memcpy(&f, &u, sizeof(u));
+                res.type = AVM_VAL_FLOAT;
+                res.as.f = (double)f;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_u32_bits_to_f32 expects (int)");
+            }
+            break;
+        }
+        case 111: { // oren_f64_to_u64_bits(x: float) -> int
+            if (nargs > 0 && args[0].type == AVM_VAL_FLOAT) {
+                uint64_t bits = 0;
+                double d = args[0].as.f;
+                memcpy(&bits, &d, sizeof(bits));
+                res = avm_int((int64_t)bits);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_f64_to_u64_bits expects (float)");
+            }
+            break;
+        }
+        case 112: { // oren_u64_bits_to_f64(x: int) -> float
+            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+                uint64_t bits = (uint64_t)args[0].as.i;
+                double d = 0.0;
+                memcpy(&d, &bits, sizeof(bits));
+                res.type = AVM_VAL_FLOAT;
+                res.as.f = d;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_u64_bits_to_f64 expects (int)");
+            }
+            break;
+        }
         case 35: { // oren_bytes_from_hex(string) -> bytes
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 const char* s = (const char*)args[0].as.p;

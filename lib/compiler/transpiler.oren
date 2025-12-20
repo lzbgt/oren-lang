@@ -879,7 +879,10 @@ fn transpile_expression(t, exp) {
     }
     if et == "Prefix" {
         var right = transpile_expression(t, exp["right"])
-        if exp["op"] == "-" { return "oren_sub(oren_int(0), " + right + ")" }
+        // Unary minus:
+        // - Use multiplication by -1 so float negation preserves IEEE-754 sign bit (notably -0.0).
+        // - Integers have deterministic wrap semantics in the runtime, so -1*x is consistent.
+        if exp["op"] == "-" { return "oren_mul(oren_int(-1), " + right + ")" }
         if exp["op"] == "!" { return "oren_bool(!oren_is_truthy(" + right + "))" }
         if exp["op"] == "~" { return "oren_bnot(" + right + ")" }
     }
