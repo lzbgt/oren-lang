@@ -759,7 +759,9 @@ fn link_program(entry_path, root_prog, config) {
                             field_offsets[fname] = fi
                         } else {
                             if field_offsets[fname] != fi {
-                                print("Inconsistent field offset for '" + fname + "'")
+                                var msgF = "Inconsistent field offset for '" + fname + "'"
+                                emit_diag("compile", 1, msgF)
+                                print(msgF)
                                 oren_exit(1)
                             }
                         }
@@ -788,7 +790,9 @@ fn link_program(entry_path, root_prog, config) {
                         field_offsets[fname2] = fi2
                     } else {
                         if field_offsets[fname2] != fi2 {
-                            print("Inconsistent field offset for '" + fname2 + "'")
+                            var msgF2 = "Inconsistent field offset for '" + fname2 + "'"
+                            emit_diag("compile", 1, msgF2)
+                            print(msgF2)
                             oren_exit(1)
                         }
                     }
