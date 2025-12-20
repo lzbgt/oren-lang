@@ -43,7 +43,14 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ## Tasks (Next, Highest Priority First)
 
-1) **P0 [lang] Exact-size layouts for fixed-width types (beyond packed views)** `[perf]`
+1) **P0 [maint] Fast, low-noise verification loop** `[perf]`
+   - Problem: verification is still too slow/noisy to iterate aggressively.
+   - DoD:
+     - `make test` prints a compact summary by default (only failed test details).
+     - A single integration “smoke suite” exercises the core feature set (lang + native + avm) so we can delete/merge redundant micro-tests.
+     - Keep `--full`/`--verbose` modes for deep debugging (but not the default).
+
+2) **P0 [lang] Exact-size layouts for fixed-width types (beyond packed views)** `[perf]`
    - Context: type tokens + annotation syntax already exist; now they must meaningfully affect layout/FFI.
    - DoD: Oren can express deterministic, hardware-level layouts without abusing attributes:
      - built-in type tokens: `u8/i8/u16/i16/u32/i32/u64/i64/u128/i128/f32/f64/bool`
@@ -59,59 +66,38 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - next slice (real layouts v3): add u128/i128 layouts + fixed-array ptr helpers where needed, and thread target/arch ABI parameters through (no host headers). ✅
      - next slice (real layouts v4): add `usize/isize`, `*void`/opaque ptr conventions, and a small curated ABI structs set for OS syscalls (stat, sockaddr, kevent, epoll) in `.oren` with tests. ✅
      - next slice (real layouts v5): extend curated OS structs (sockaddr_in6, sockaddr_un, pollfd) + wire syscall wrappers in native stdlib (still no host headers). ✅
-     - next slice (real layouts v6): introduce `errno`-typed result wrappers + nonblocking NET wait abstraction (kqueue vs epoll) with deterministic timeouts.
+     - next slice (real layouts v6): nonblocking NET wait abstraction (kqueue vs epoll) with deterministic timeouts. ✅
+     - next slice (real layouts v7): `errno`-typed result wrappers (stop manually threading `-errno` ints everywhere).
 
-2) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
+3) **P1 [vm] AVM SIMD: determinism-safe NEON baseline + guardrails** `[perf]`
    - DoD: `AVM_ENABLE_SIMD=1` is safe to enable for kernels without changing semantics.
    - Next deliverables (in order):
      - (optional) add i32 elementwise NEON kernels if profiling shows it matters
 
-3) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
+4) **P1 [vm] AVM v1 foundation: capability-governed host interface + determinism** `[safety]`
    - DoD: AVM supports the v1 direction (see `docs/AVM_SPEC_V1.md`) in a way that enables agentic execution:
      - capability domains (FS/NET/PROC/ENV/TIME) as explicit ops
      - deterministic TIME/RNG, snapshot/resume, multiverse
 
-4) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
+5) **P1 [arch] Traits/protocols: move from syntax to meaning** `[lang]`
    - DoD: trait/impl has real compile-time meaning without runtime vtables.
    - Next deliverables (in order):
      - compile-time ambiguity diagnostics for multiple impls of the same `Type.method` ✅
      - (design) optional explicit qualification syntax for disambiguation (keep deterministic)
 
-5) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
+6) **P1 [stdlib] Oren-native AVM as builtin syslib component** `[arch]`
    - DoD: AVM can be built (later: rewritten) in `.oren` as part of the toolchain stdlib (`docs/STDLIB_LAYERS.md`).
    - Next deliverable: define the minimal “AVM-in-Oren” surface area (hosted by C AVM first).
 
-6) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
+7) **P1 [boot] Oren compiler as an AVM feature** `[arch]`
    - DoD: AVM can ingest `.oren`, compile to `.obc`, and run it in a child universe (no JIT; service-side JIT later).
    - Next deliverable: design the in-memory compilation pipeline + sandboxed module loader rules.
 
-7) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
+8) **P2 [maint] Capsule safety hardening (keep, but don't derail roadmap)** `[safety]`
    - DoD: syscall-first capsule enforcement stays airtight while language/AVM evolve.
    - Next deliverable: keep static audits + a small curated runtime fixture suite for each domain.
 
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
-- Test wall-time + stability: `./oretest` now runs module+avm suites concurrently under a shared job budget, and the Linux docker runner reuses `/work/repo` by default while syncing tracked sources only (prevents host-built binaries from polluting the container).
-- ABI layouts (end-to-end usable): added pointer allocation (`oren_ptr_alloc`/`oren_ptr_free`) plus endian-aware pointer accessors in the C runtime (`oren_ptr_get/set_*_{be,le}`) and a module regression (`tests/modules/test_abi_ptr_access.oren`).
-- ABI layouts (nested v2): `@oren.abi` now supports nested ABI structs, pointers (`*T`), and fixed arrays (`T[N]`), plus a regression test `tests/modules/test_abi_nested_arrays.oren`.
-- ABI layouts (v3): added u128/i128 layout support and threaded `--arch` into the compiler config (currently `arm64` only) + regression `tests/modules/test_abi_u128_layout.oren`.
-- ABI layouts (v4, partial): added `oren_build_target()` / `oren_build_arch()` compile-time builtins, `usize/isize` layout support, and curated syscall structs tests for `sockaddr_in` and Darwin `kevent`.
-- ABI layouts (v4, partial): added curated `struct stat` layouts for Darwin/Linux arm64 (repo-owned padding model) plus `docs/refs/linux_arm64_abi.md` audit notes and module regression `tests/modules/test_abi_stat.oren`.
-- ABI layouts (v4): added Linux `epoll_event` layout regression (`tests/modules/test_abi_epoll_event.oren`) plus `docs/refs/linux_epoll_abi.md` audit notes.
-- ABI layouts (v5, partial): added curated socket struct layouts (`sockaddr_in6`, `sockaddr_un`, `pollfd`) with audit notes (`docs/refs/socket_structs_abi.md`) and regression module `tests/modules/test_abi_socket_structs_v5.oren`.
-- Native NET wrappers (v5): added syscall-first packers `oren_sockaddr_in6` and `oren_sockaddr_un` in the native runtime and covered them in the native integration suite (`tests/native/test_integration_suite.oren`).
-- Tooling hardening: `oren build <missing.oren>` now exits non-zero and `oretest` has a regression fixture to prevent silently-successful builds on missing input files.
-- AVM SIMD determinism guard: `./oretest` now runs `test_smoke_suite` with `--print-result-hash --print-trace-hash` and compares scalar vs `AVM_ENABLE_SIMD=1` hashes (arm64 only).
-- Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.
-- Packed views: `pack_view` lowering now uses the endian helpers (fewer runtime calls, smaller AST) instead of per-byte shifts for 16/32/64-bit fields.
-- Bytecode backend: `TypeName(...)` constructor calls now compile to `NEW_LIST` (portable struct representation), removing the need for implicit runtime functions for types.
-- f32 semantics: deterministic float32 rounding boundary implemented as `oren_f32_round(x)` across backends (C runtime helper, AVM native id `106`, arm64 native intrinsic).
-- Native runtime: typed buffers implemented for the syscall-first native backend (i32/i64/f32/f64) including scalar bulk ops; f32 load/store uses `oren_f32_to_u32_bits` / `oren_u32_bits_to_f32` intrinsics.
-- Native runtime: endian-aware pointer helpers (`oren_ptr_get/set_{u16,u32,u64,i16,i32,i64}_{be,le}`) for syscall-first packet parsing directly from malloc buffers.
-- Native runtime safety: made `oren_is_err(v)` safe for large ints by probing only tracked heap pointers (prevents accidental segfaults when checking `oren_is_err(16909060)` etc).
-- Native runtime safety: hardened `oren_bytes_get_u8/oren_bytes_set_u8` to avoid unsafe pointer probes on non-pointers; added regression in `test_integration_suite`.
-- Native runtime: made `u8_buf` iterable (`for x in bytes`) and added native bytes hex/pack/unpack coverage.
-- Native runtime: added `oren_u8_buf_wrap_ptr` to wrap malloc buffers as bytes without copying (enables `pack_view` directly over syscall read buffers).
-- Type annotations: `bool` normalization is now explicit (`oren_bool_norm`) so annotated params/locals/returns have consistent numeric semantics across backends.
-- ABI layouts: added opt-in `@oren.abi` + compile-time `oren_abi_{sizeof,alignof,offsetof}` (no host headers) and a module test.
+- Native NET wait (v6): added syscall-first Linux `epoll_*` support + a shared readiness wait (`kqueue` on macOS, `epoll` on Linux) and removed busy retry loops from TCP connect/accept/read/write.

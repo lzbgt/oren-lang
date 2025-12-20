@@ -2920,6 +2920,207 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             return true
         }
 
+        if fn_name == "sys_epoll_create1" {
+            // sys_epoll_create1(flags) -> fd_or_neg_errno
+            //
+            // Linux aarch64: __NR_epoll_create1 = 20
+            // Darwin: epoll does not exist (return -ENOSYS).
+            compile_expr(ctx, args[0]) // flags -> X0
+            // pre: native_capsule_sys_epoll_create1_pre(flags) -> flags
+            var bl_epoll_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_pre, "name": "native_capsule_sys_epoll_create1_pre"})
+
+            if ctx["platform"]["os"] != "linux" {
+                // -ENOSYS (78)
+                emit_load_i64_imm(ctx, 0, -78)
+                return true
+            }
+
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_epoll_create1()))
+            emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // post: native_capsule_sys_epoll_create1_post(fd) -> fd
+            var bl_epoll_post = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_post, "name": "native_capsule_sys_epoll_create1_post"})
+            return true
+        }
+
+        if fn_name == "sys_epoll_ctl" {
+            // sys_epoll_ctl(epfd, op, fd, event_ptr) -> 0_or_neg_errno
+            //
+            // Linux aarch64: __NR_epoll_ctl = 21
+            // Darwin: epoll does not exist (return -ENOSYS).
+            //
+            // Keep args on stack so we can call capsule enforcement without losing values.
+            compile_expr(ctx, args[0]) // epfd
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // op
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[2]) // fd
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[3]) // event_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_epoll_ctl_pre(epfd, op, fd, event_ptr)
+            // Stack: a3@0, a2@16, a1@32, a0@48
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+            var bl_epoll_ctl_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_ctl_pre, "name": "native_capsule_sys_epoll_ctl_pre"})
+
+            if ctx["platform"]["os"] != "linux" {
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                // Pop args (4 slots).
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 64
+                return true
+            }
+
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_epoll_ctl()))
+            emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop args (4 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 64
+            return true
+        }
+
+        if fn_name == "sys_epoll_pwait" {
+            // sys_epoll_pwait(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsetsize) -> n_or_neg_errno
+            //
+            // Linux aarch64: __NR_epoll_pwait = 22
+            // Darwin: epoll does not exist (return -ENOSYS).
+            //
+            // Keep args on stack so we can call capsule enforcement without losing values.
+            compile_expr(ctx, args[0])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[2])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[3])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[4])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[5])
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_epoll_pwait_pre(epfd, events, maxevents, timeout, sigmask, sigsetsize)
+            // Stack: a5@0, a4@16, a3@32, a2@48, a1@64, a0@80
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 80))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 64))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 48))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 32))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
+            var bl_epoll_pwait_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_pwait_pre, "name": "native_capsule_sys_epoll_pwait_pre"})
+
+            if ctx["platform"]["os"] != "linux" {
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                // Pop args (6 slots).
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 96
+                return true
+            }
+
+            // Reload args for syscall.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 80))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 64))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 48))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 32))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
+
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_str_reg_sp(28, 8))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+            push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_epoll_pwait()))
+            emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 0))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 8))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop args (6 slots).
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 96
+            return true
+        }
+
 	        if fn_name == "sys_fork" {
             // sys_fork() (Darwin)
             // macOS syscall: fork (2)

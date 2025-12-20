@@ -102,6 +102,9 @@ fn sys_send(fd, buf, len, flags) { return sys_sendto(fd, buf, len, flags, 0, 0) 
 fn sys_recv(fd, buf, len, flags) { return sys_recvfrom(fd, buf, len, flags, 0, 0) }
 fn sys_kqueue() { return 0 }
 fn sys_kevent(kq, changelist, nchanges, eventlist, nevents, timeout_ptr) { return 0 }
+fn sys_epoll_create1(flags) { return 0 }
+fn sys_epoll_ctl(epfd, op, fd, event_ptr) { return 0 }
+fn sys_epoll_pwait(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsetsize) { return 0 }
 fn sys_nanosleep(ns) { return 0 }
 
 fn oren_memcpy(dst, src, len) {
@@ -392,6 +395,7 @@ var FD_KIND_TCP_LISTEN = 2
 var FD_KIND_UDP_DGRAM = 3
 var FD_KIND_PROC_PIPE = 10
 var FD_KIND_KQUEUE = 20
+var FD_KIND_EPOLL = 21
 
 // NET wait backend detection (rolling):
 // - macOS: kqueue/kevent is available
@@ -408,6 +412,14 @@ var g_net_has_kqueue = -1
 // - 1: macOS
 // - 2: Linux
 var g_target_os = 0
+
+// Linux epoll constants (stable on Linux; unused on macOS).
+// Used by syscall-first NET wait to avoid libc poll/select shims.
+var OREN_EPOLL_CTL_ADD = 1
+var OREN_EPOLL_CTL_DEL = 2
+var OREN_EPOLL_CTL_MOD = 3
+var OREN_EPOLLIN = 1
+var OREN_EPOLLOUT = 4
 
 // fcntl(2) commands used for fd duplication (stable across Darwin/Linux).
 // Verified via Apple SDK headers for macOS (audit only; not a build dependency).
@@ -529,9 +541,17 @@ fn native_runtime_init(target_os) {
     FD_KIND_UDP_DGRAM = 3
     FD_KIND_PROC_PIPE = 10
     FD_KIND_KQUEUE = 20
+    FD_KIND_EPOLL = 21
 
     FCNTL_F_DUPFD = 0
     FCNTL_F_DUPFD_CLOEXEC = 67
+
+    // Linux epoll constants (unused on macOS; safe to define).
+    OREN_EPOLL_CTL_ADD = 1
+    OREN_EPOLL_CTL_DEL = 2
+    OREN_EPOLL_CTL_MOD = 3
+    OREN_EPOLLIN = 1
+    OREN_EPOLLOUT = 4
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //
@@ -970,6 +990,11 @@ fn native_capsule_require_fd_domain(fd) {
         }
         if k == FD_KIND_KQUEUE {
             // Event-loop fds are shared across domains (TIME/NET/PROC).
+            native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+            return 0
+        }
+        if k == FD_KIND_EPOLL {
+            // Linux epoll fds serve the same "event loop" role as kqueue fds.
             native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
             return 0
         }
@@ -2643,6 +2668,39 @@ fn native_capsule_sys_kevent_pre() {
     // Enforce enrollment on raw sys_kevent (no bypass).
     // Rolling rule: allow if any of NET/PROC/TIME is enrolled.
     native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+    return 0
+}
+
+fn native_capsule_sys_epoll_create1_pre(flags) {
+    // Enforce enrollment on raw sys_epoll_create1 (no bypass).
+    // Rolling rule: allow if any of NET/PROC/TIME is enrolled.
+    native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+    return flags
+}
+
+fn native_capsule_sys_epoll_create1_post(epfd) {
+    // Tag returned epoll fd so fd-based syscalls (close/fcntl) enforce the right domain.
+    if global_get_capsule_mode() != 1 { return epfd }
+    if epfd < 0 { return epfd }
+    native_capsule_net_fd_kind_set(epfd, FD_KIND_EPOLL)
+    return epfd
+}
+
+fn native_capsule_sys_epoll_ctl_pre(epfd, op, fd, event_ptr) {
+    // Enforce enrollment on raw sys_epoll_ctl (no bypass).
+    native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+    // Ensure the epoll fd itself is within an allowed domain.
+    native_capsule_require_fd_domain(epfd)
+    // Ensure the target fd is within an allowed domain (NET socket, PROC pipe, etc).
+    native_capsule_require_fd_domain(fd)
+    return 0
+}
+
+fn native_capsule_sys_epoll_pwait_pre(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsetsize) {
+    // Enforce enrollment on raw sys_epoll_pwait (no bypass).
+    // Rolling rule: allow if any of NET/PROC/TIME is enrolled.
+    native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+    native_capsule_require_fd_domain(epfd)
     return 0
 }
 
@@ -6617,6 +6675,73 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
 }
 
 @cap.requires(domain="NET")
+fn oren_fd_wait_epoll(fd, events_mask, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    // Returns 1 if ready, 0 if timed out, or negative errno.
+    //
+    // Linux only. Darwin does not have epoll (return -ENOSYS).
+    if g_target_os == 1 { return 0 - 78 } // ENOSYS
+    if timeout_ms < 0 { timeout_ms = -1 } // epoll uses -1 for infinite
+
+    var epfd = sys_epoll_create1(0)
+    if epfd < 0 { return epfd }
+
+    // struct epoll_event (Linux arm64):
+    //   u32 events @0
+    //   u32 pad    @4
+    //   u64 data   @8
+    var ev = malloc(16)
+    if ev == 0 { sys_close(epfd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 16, 0)
+    var out = malloc(16)
+    if out == 0 { sys_close(epfd); free(ev); return 0 - 12 } // ENOMEM
+    oren_track_alloc(out, 16, 0)
+
+    var zi = 0
+    while zi < 16 {
+        ptr_set_byte(ev + zi, 0)
+        ptr_set_byte(out + zi, 0)
+        zi = zi + 1
+    }
+
+    oren_ptr_set_u32_le(ev + 0, events_mask)
+    oren_ptr_set_u64_le(ev + 8, fd)
+
+    var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, fd, ev)
+    if rc < 0 {
+        sys_close(epfd)
+        free(ev)
+        free(out)
+        return rc
+    }
+
+    var n = sys_epoll_pwait(epfd, out, 1, timeout_ms, 0, 0)
+    sys_close(epfd)
+    free(ev)
+    free(out)
+    if n > 0 { return 1 }
+    return n
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_readable(fd, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
+    }
+    return oren_fd_wait_epoll(fd, OREN_EPOLLIN, timeout_ms)
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_writable(fd, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
+    }
+    return oren_fd_wait_epoll(fd, OREN_EPOLLOUT, timeout_ms)
+}
+
+@cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
     native_capsule_require_net_connect(ip, port)
     var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
@@ -6656,58 +6781,21 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
     oren_track_alloc(olen, 8, 0)
     ptr_set(olen, 4)
 
-    if g_net_has_kqueue == 1 {
-        // macOS path (kqueue-backed readiness wait).
-        var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
-        if n == 0 {
-            free(soerr_buf)
-            free(olen)
-            sys_close(fd)
-            return 0 - 60 // ETIMEDOUT
-        }
-        if n < 0 {
-            free(soerr_buf)
-            free(olen)
-            sys_close(fd)
-            return n
-        }
-    } else {
-        // Linux fallback: deterministic retry budget (nonblocking connect).
-        // `timeout_ms` is treated as an iteration budget (rolling).
-        var remaining = timeout_ms
-        if remaining < 0 { remaining = 2147483647 }
-        while remaining > 0 {
-            ptr_set(soerr_buf, 0)
-            ptr_set(olen, 4)
-            var grc0 = sys_getsockopt(fd, OREN_SOL_SOCKET, OREN_SO_ERROR, soerr_buf, olen)
-            if grc0 < 0 {
-                free(soerr_buf)
-                free(olen)
-                sys_close(fd)
-                return grc0
-            }
-            var soerr0 = ptr_get(soerr_buf)
-            if soerr0 == 0 {
-                free(soerr_buf)
-                free(olen)
-                return fd
-            }
-            // Still in progress?
-            // - EINPROGRESS: 36 (macOS) / 115 (Linux)
-            // - EALREADY:    37 (macOS) / 114 (Linux)
-            if soerr0 == 36 || soerr0 == 115 || soerr0 == 37 || soerr0 == 114 {
-                remaining = remaining - 1
-                continue
-            }
-            free(soerr_buf)
-            free(olen)
-            sys_close(fd)
-            return 0 - soerr0
-        }
+    // Readiness wait for connect completion:
+    // - macOS: kqueue-backed
+    // - Linux: epoll-backed (syscall-first, no libc)
+    var n = oren_fd_wait_writable(fd, timeout_ms)
+    if n == 0 {
         free(soerr_buf)
         free(olen)
         sys_close(fd)
         return 0 - 60 // ETIMEDOUT
+    }
+    if n < 0 {
+        free(soerr_buf)
+        free(olen)
+        sys_close(fd)
+        return n
     }
 
     var grc = sys_getsockopt(fd, OREN_SOL_SOCKET, OREN_SO_ERROR, soerr_buf, olen)
@@ -6777,83 +6865,37 @@ fn oren_tcp_listen_local(port) {
 @cap.requires(domain="NET")
 fn oren_tcp_accept(listen_fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
-    if g_net_has_kqueue == 1 {
-        var n = oren_tcp_wait_kqueue(listen_fd, -1, timeout_ms) // EVFILT_READ
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
-        if n < 0 { return n }
-        return sys_accept(listen_fd, 0, 0)
-    }
-
-    // Linux fallback: listen_fd is already nonblocking (see `oren_tcp_listen_local`).
-    var remaining = timeout_ms
-    if remaining < 0 { remaining = 2147483647 }
-    while remaining > 0 {
-        var cfd = sys_accept(listen_fd, 0, 0)
-        if cfd >= 0 { return cfd }
-        // EAGAIN/EWOULDBLOCK:
-        // - macOS: 35
-        // - Linux: 11
-        if cfd == 0 - 35 || cfd == 0 - 11 {
-            remaining = remaining - 1
-            continue
-        }
-        return cfd
-    }
-    return 0 - 60
+    var n = oren_fd_wait_readable(listen_fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    return sys_accept(listen_fd, 0, 0)
 }
 
 @cap.requires(domain="NET")
 fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
-    if g_net_has_kqueue == 1 {
-        var n = oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
-        if n < 0 { return n }
-        var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
-        if r == 0 - 35 { return 0 } // EAGAIN (macOS)
-        return r
-    }
-
-    // Linux fallback: nonblocking retry budget.
-    var remaining = timeout_ms
-    if remaining < 0 { remaining = 2147483647 }
-    while remaining > 0 {
-        var r2 = sys_recvfrom(fd, buf, len, 0, 0, 0)
-        if r2 >= 0 { return r2 }
-        if r2 == 0 - 35 || r2 == 0 - 11 {
-            remaining = remaining - 1
-            continue
-        }
-        return r2
-    }
-    return 0 - 60
+    var n = oren_fd_wait_readable(fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
+    // EAGAIN/EWOULDBLOCK:
+    // - macOS: 35
+    // - Linux: 11
+    if r == 0 - 35 || r == 0 - 11 { return 0 }
+    return r
 }
 
 @cap.requires(domain="NET")
 fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
-    if g_net_has_kqueue == 1 {
-        var n = oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
-        if n < 0 { return n }
-        return sys_sendto(fd, buf, len, 0, 0, 0)
-    }
-
-    // Linux fallback: nonblocking retry budget.
-    var remaining = timeout_ms
-    if remaining < 0 { remaining = 2147483647 }
-    while remaining > 0 {
-        var w2 = sys_sendto(fd, buf, len, 0, 0, 0)
-        if w2 >= 0 { return w2 }
-        if w2 == 0 - 35 || w2 == 0 - 11 {
-            remaining = remaining - 1
-            continue
-        }
-        return w2
-    }
-    return 0 - 60
+    var n = oren_fd_wait_writable(fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    var w = sys_sendto(fd, buf, len, 0, 0, 0)
+    if w == 0 - 35 || w == 0 - 11 { return 0 }
+    return w
 }
 
 @cap.requires(domain="NET")
