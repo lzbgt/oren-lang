@@ -145,6 +145,7 @@ func main() {
 		"tests/modules/test_as_cast.oren",
 		"tests/modules/test_bitcast.oren",
 		"tests/modules/test_iter_buffers.oren",
+		"tests/modules/test_iter_range.oren",
 		"tests/modules/test_container_methods.oren",
 		// ABI layouts (curated, no host headers).
 		"tests/modules/test_abi_layout.oren",
@@ -185,6 +186,7 @@ func main() {
 		"tests/modules/test_as_cast.oren",
 		"tests/modules/test_bitcast.oren",
 		"tests/modules/test_iter_buffers.oren",
+		"tests/modules/test_iter_range.oren",
 		"tests/modules/test_typed_struct_fields.oren",
 		"tests/modules/test_container_methods.oren",
 		"tests/modules/test_mod.oren",
@@ -238,6 +240,7 @@ func main() {
 	avmTestsFast := []string{
 		"tests/avm/test_smoke_suite.oren",
 		"tests/avm/test_map_iter_deterministic.oren",
+		"tests/avm/test_iter_range.oren",
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
 		"tests/avm/test_snapshot_vfs_resume.oren",
@@ -256,6 +259,7 @@ func main() {
 	avmTestsFull := []string{
 		"tests/avm/test_smoke_suite.oren",
 		"tests/avm/test_map_iter_deterministic.oren",
+		"tests/avm/test_iter_range.oren",
 		"tests/avm/test_spawn_join_timeout.oren",
 		"tests/avm/test_policy_scan.oren",
 		"tests/avm/test_job_scan.oren",

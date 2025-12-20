@@ -1,0 +1,28 @@
+// std/iter (rolling)
+//
+// Iterator helpers that compile to "data iterables" consumed by `for x in ...`.
+//
+// Design constraints:
+// - Must work across backends (C/native/AVM-bytecode).
+// - Must be deterministic and must not require host effects.
+//
+// Contract:
+// - `for x in iterable` desugars to calls to `oren_iter_next(iterable, idx)`.
+// - Backends recognize special "iterable map" objects by the marker key `__iter`.
+//
+// This is the minimal "stream-like iterable" story in v0.
+
+fn range(n) {
+    // Yield integers 0..(n-1).
+    return {"__iter": "range", "start": 0, "end": n, "step": 1}
+}
+
+fn range3(start, end, step) {
+    // Yield start, start+step, ... while:
+    // - step > 0: value < end
+    // - step < 0: value > end
+    //
+    // step == 0 yields an empty sequence (deterministic, avoids infinite loops).
+    return {"__iter": "range", "start": start, "end": end, "step": step}
+}
+

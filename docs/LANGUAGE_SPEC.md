@@ -500,7 +500,18 @@ Implementation note (current compiler):
     - `string`: yields byte codepoints (`0..255`), stopping at NUL terminator
     - `bytes` (AVM): yields `u8` values (`0..255`)
     - typed numeric buffers: yields element values (`i32/i64/f32/f64`) in index order
-  - Streams / iterators beyond these built-ins require an explicit iterator protocol extension (planned; not stable yet).
+  - Streams / iterators beyond these built-ins (rolling):
+    - v0 supports a minimal, portable “data iterable” protocol: an **iterable map** with the marker key `__iter`.
+    - Backends may recognize these objects inside `oren_iter_next` to implement stream-like iteration
+      without adding new VM value kinds.
+    - Initial supported adaptor: `range` (stdlib helper `lib/std/iter.oren`):
+      - `iter.range(n)` yields `0..(n-1)`
+      - `iter.range3(start, end, step)` yields `start, start+step, ...` while:
+        - `step > 0`: value `< end`
+        - `step < 0`: value `> end`
+        - `step == 0`: yields an empty sequence (deterministic; avoids hangs)
+      - Representation (implementation detail, rolling):
+        - `{"__iter":"range","start":0,"end":N,"step":1}`
 - `break` exits the nearest enclosing loop (`while`/`for`).
 - `continue` skips to the next loop iteration.
 - `return expr` returns from the current function. A return value is always required; use `return nil` if needed.

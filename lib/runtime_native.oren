@@ -4555,10 +4555,37 @@ fn oren_iter_next(container, idx) {
             } else {
                 // Map: yield keys in deterministic order (stored sorted).
                 if kind == 3 {
+                    // Iterable map protocol (rolling): allow maps to represent stream-like iterables.
+                    //
+                    // Used by std/iter.oren:
+                    //   {"__iter":"range","start":0,"end":N,"step":1}
+                    //
+                    // Normal maps still iterate keys deterministically.
+                    var it = oren_map_get(container, "__iter")
+                    // Important native backend safety note:
+                    // - Values are not tagged at runtime, so we must not call `strcmp` on an integer.
+                    // - The stdlib `range(...)` helper uses a string literal "range", so pointer equality
+                    //   is sufficient and avoids crashing on non-string values.
+                    if it == "range" {
+                        var start = oren_map_get(container, "start")
+                        var end = oren_map_get(container, "end")
+                        var step = oren_map_get(container, "step")
+                        if step != 0 {
+                            var v = start + (idx * step)
+                            if step > 0 {
+                                if v < end { ok = 1; val = v }
+                            } else {
+                                if step < 0 {
+                                    if v > end { ok = 1; val = v }
+                                }
+                            }
+                        }
+                    } else {
                     var count2 = ptr_get(container + 0)
                     if idx < count2 {
                         ok = 1
                         val = oren_map_key_at(container, idx)
+                    }
                     }
                 } else {
                     // Typed buffers: allow numeric buffers to be iterated.

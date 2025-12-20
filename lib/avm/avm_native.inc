@@ -1,3 +1,6 @@
+// Forward decls for helpers defined later in this include.
+static int avm_map_get_key(AvmValue vmap, const char* key, AvmValue* out);
+
 AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
     AvmValue res; res.type = AVM_VAL_NIL;
     switch(id) {
@@ -1368,7 +1371,63 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                         }
                     } else if (container.type == AVM_VAL_MAP && container.as.m) {
                         AvmMap* m = container.as.m;
-                        if (idx < m->count) {
+                        // Iterable map protocol (rolling): allow maps to represent stream-like iterables.
+                        // Used by std/iter.oren:
+                        //   {"__iter":"range","start":0,"end":N,"step":1}
+                        AvmValue itv;
+                        if (avm_map_get_key(container, "__iter", &itv) && itv.type == AVM_VAL_STRING && itv.as.p &&
+                            strcmp((const char*)itv.as.p, "range") == 0) {
+                            AvmValue sv, ev, stepv;
+                            if (avm_map_get_key(container, "start", &sv) && avm_map_get_key(container, "end", &ev) && avm_map_get_key(container, "step", &stepv)) {
+                                // Accept int or float (match v0 cast/coercion behavior).
+                                // This avoids surprising "empty iteration" when a backend represents numeric literals differently.
+                                int have = 1;
+                                int64_t start = 0, end = 0, step = 0;
+                                if (sv.type == AVM_VAL_INT) start = sv.as.i;
+                                else if (sv.type == AVM_VAL_FLOAT) {
+                                    double d = sv.as.f;
+                                    if (d != d) start = 0;
+                                    else {
+                                        const double lim = 9223372036854775808.0;
+                                        if (d >= lim) start = INT64_MAX;
+                                        else if (d <= -lim) start = INT64_MIN;
+                                        else start = (int64_t)d;
+                                    }
+                                } else have = 0;
+
+                                if (ev.type == AVM_VAL_INT) end = ev.as.i;
+                                else if (ev.type == AVM_VAL_FLOAT) {
+                                    double d = ev.as.f;
+                                    if (d != d) end = 0;
+                                    else {
+                                        const double lim = 9223372036854775808.0;
+                                        if (d >= lim) end = INT64_MAX;
+                                        else if (d <= -lim) end = INT64_MIN;
+                                        else end = (int64_t)d;
+                                    }
+                                } else have = 0;
+
+                                if (stepv.type == AVM_VAL_INT) step = stepv.as.i;
+                                else if (stepv.type == AVM_VAL_FLOAT) {
+                                    double d = stepv.as.f;
+                                    if (d != d) step = 0;
+                                    else {
+                                        const double lim = 9223372036854775808.0;
+                                        if (d >= lim) step = INT64_MAX;
+                                        else if (d <= -lim) step = INT64_MIN;
+                                        else step = (int64_t)d;
+                                    }
+                                } else have = 0;
+
+                                if (have && step != 0) {
+                                    int64_t v = start + idx * step;
+                                    if ((step > 0 && v < end) || (step < 0 && v > end)) {
+                                        okv = avm_int(1);
+                                        val = avm_int(v);
+                                    }
+                                }
+                            }
+                        } else if (idx < m->count) {
                             okv = avm_int(1);
                             val = m->keys[(int)idx]; // map iteration yields keys
                         }
@@ -2904,9 +2963,17 @@ static int avm_map_get_key(AvmValue vmap, const char* key, AvmValue* out) {
     out->type = AVM_VAL_NIL;
     if (vmap.type != AVM_VAL_MAP || !vmap.as.m || !key) return 0;
     AvmMap* map = vmap.as.m;
+    size_t keylen = strlen(key);
     for (int i = 0; i < map->count; i++) {
         AvmValue k = map->keys[i];
         if (k.type == AVM_VAL_STRING && k.as.p && strcmp((const char*)k.as.p, key) == 0) {
+            *out = map->values[i];
+            return 1;
+        }
+        // Some compiler paths may use BYTES for keys (rolling). Support both string and bytes
+        // keys for internal protocol lookups (e.g. "__iter", "__err").
+        if (k.type == AVM_VAL_BYTES && k.as.b && k.as.b->data && k.as.b->len == keylen &&
+            memcmp(k.as.b->data, key, keylen) == 0) {
             *out = map->values[i];
             return 1;
         }

@@ -71,18 +71,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][ux] Containers + iteration semantics**
-   - DoD:
-     - `for x in ...` works for: list, map, string, bytes/buffer, stream-like iterables
-     - Map iteration is deterministic (key ordered) in deterministic modes (AVM + tests)
-     - Container operations are surface-level language/library APIs (not scattered C helpers):
-       - `list.push(x)`, `list.len()`, `map.get(k)`, `map.set(k,v)` (exact naming TBD)
-      - Add one integration test that:
-        - builds a map, iterates deterministically, hashes result
-        - runs under AVM deterministic/capsule-like mode without host effects (**done**: `tests/avm/test_map_iter_deterministic.oren`)
-      - Add one module test that covers the method sugar on list/map/buf (**done**: `tests/modules/test_container_methods.oren`)
-
-2) **[lang][perf] Casting + numeric model (follow-ups)**
+1) **[lang][perf] Casting + numeric model (follow-ups)**
    - DoD:
      - Add `expr as T` cast operator (desugars to builtin cast sugar)
      - Stabilize `i128/u128` runtime arithmetic (not just ABI/layout)
@@ -127,3 +116,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.
 - `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.
 - GC registry scaling: replaced linear `oren_find_node()` lookup with a pointer-indexed hash table and added a GC stress module test; verified on macOS + Linux docker.
+- Iteration (stream-like): added `lib/std/iter.oren` (`range` / `range3`) implemented via an “iterable map” protocol in `oren_iter_next` across C runtime, native runtime, and AVM native; covered by module + AVM tests; verified on macOS + Linux docker.
+- Bytecode correctness: disabled optimizer constant folding for `-` until a stronger cross-backend constant model is implemented (prevents wrong folding like `2-5 -> 3` in bytecode).

@@ -14,6 +14,9 @@ OrenValue OREN_FALSE;
 static OrenList *OREN_ARG_LIST = NULL;
 static OrenValue OREN_RESULT_VALUE;
 
+// Forward decl: runtime uses "const string" keys in hot paths without heap allocation.
+static OrenValue oren_string_const(const char* s);
+
 typedef enum {
     OREN_ALLOC_STRING = 1,
     OREN_ALLOC_LIST = 2,
@@ -2994,6 +2997,33 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
     }
 
     if (container.type == OREN_TYPE_MAP) {
+        // "Iterable map" protocol (rolling): allow maps to represent stream-like iterables.
+        //
+        // This is used by std/iter.oren's `range(...)` helpers:
+        //   {"__iter":"range","start":0,"end":N,"step":1}
+        //
+        // Note: normal maps still iterate keys deterministically.
+        OrenValue it = oren_map_get(container, oren_string_const("__iter"));
+        if (it.type == OREN_TYPE_STRING && it.as.string_val && strcmp(it.as.string_val, "range") == 0) {
+            OrenValue startv = oren_map_get(container, oren_string_const("start"));
+            OrenValue endv = oren_map_get(container, oren_string_const("end"));
+            OrenValue stepv = oren_map_get(container, oren_string_const("step"));
+            // If the iterable map is malformed, treat it as an empty sequence (deterministic,
+            // avoids crashing in production).
+            if (startv.type == OREN_TYPE_INT && endv.type == OREN_TYPE_INT && stepv.type == OREN_TYPE_INT) {
+                long long start = startv.as.int_val;
+                long long end = endv.as.int_val;
+                long long step = stepv.as.int_val;
+                if (step == 0) {
+                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                }
+                long long v = start + (long long)i * step;
+                if ((step > 0 && v < end) || (step < 0 && v > end)) {
+                    return oren_new_list(2, oren_int(1), oren_int(v));
+                }
+            }
+            return oren_new_list(2, oren_int(0), OREN_NIL);
+        }
         OrenMap* m = container.as.map_val;
         if (i < m->count) {
             return oren_new_list(2, oren_int(1), m->keys[(int)i]);

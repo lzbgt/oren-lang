@@ -1,0 +1,50 @@
+import iter "../../lib/std/iter.oren"
+
+fn fail(code) {
+    print("module iter_range FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// range(n): 0..(n-1)
+var sum0 = 0
+for x in iter.range(5) {
+    sum0 = sum0 + x
+}
+assert_eq(sum0, 10, 10) // 0+1+2+3+4
+
+// range3(start,end,step): positive step
+var sum1 = 0
+for x in iter.range3(2, 10, 3) {
+    sum1 = sum1 + x
+}
+assert_eq(sum1, 2 + 5 + 8, 20)
+
+// range3: negative step
+var sum2 = 0
+var xs = []
+for x in iter.range3(10, 0, 0 - 4) {
+    oren_list_push(xs, x)
+    sum2 = sum2 + x
+}
+assert_eq(oren_list_len(xs), 3, 30) // 10,6,2
+assert_eq(xs[0], 10, 31)
+assert_eq(xs[1], 6, 32)
+assert_eq(xs[2], 2, 33)
+assert_eq(sum2, 18, 34)
+
+// step == 0: empty sequence (must not hang)
+var count0 = 0
+for _ in iter.range3(0, 1000000, 0) {
+    count0 = count0 + 1
+    if count0 > 0 { fail(40) }
+}
+assert_eq(count0, 0, 41)
+
+print("module iter_range OK")
+exit(0)
+
