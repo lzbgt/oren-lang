@@ -29,7 +29,9 @@ enum {
     AVM_ALLOC_KIND_VNET = 7,
     AVM_ALLOC_KIND_TMP = 8,
     AVM_ALLOC_KIND_FUNC = 9,
-    AVM_ALLOC_KIND_BUF = 10
+    AVM_ALLOC_KIND_BUF = 10,
+    // Opaque raw bytes (no pointers). Used for typed-buffer payloads.
+    AVM_ALLOC_KIND_RAW = 11
 };
 
 static inline AvmValue avm_int(int64_t i) {

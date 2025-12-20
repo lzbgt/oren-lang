@@ -1581,7 +1581,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 b->data = NULL;
                 uint64_t bytes_len = (uint64_t)b->len * 4ull;
                 if (bytes_len > 0) {
-                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     memset(b->data, 0, (size_t)bytes_len);
                 }
@@ -1603,7 +1603,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 b->data = NULL;
                 uint64_t bytes_len = (uint64_t)b->len * 8ull;
                 if (bytes_len > 0) {
-                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     memset(b->data, 0, (size_t)bytes_len);
                 }
@@ -1625,7 +1625,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 b->data = NULL;
                 uint64_t bytes_len = (uint64_t)b->len * 4ull;
                 if (bytes_len > 0) {
-                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     memset(b->data, 0, (size_t)bytes_len);
                 }
@@ -1647,7 +1647,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 b->data = NULL;
                 uint64_t bytes_len = (uint64_t)b->len * 8ull;
                 if (bytes_len > 0) {
-                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                     memset(b->data, 0, (size_t)bytes_len);
                 }
@@ -1933,7 +1933,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 uint64_t bytes_len = (uint64_t)out->len * 4ull;
                 out->data = NULL;
                 if (bytes_len > 0) {
-                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!out->data) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 }
                 for (uint32_t i = 0; i < out->len; i++) {
@@ -1972,7 +1972,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 uint64_t bytes_len = (uint64_t)out->len * 4ull;
                 out->data = NULL;
                 if (bytes_len > 0) {
-                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!out->data) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 }
                 for (uint32_t i = 0; i < out->len; i++) {
@@ -2436,7 +2436,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 uint64_t bytes_len = (uint64_t)out->len * 4ull;
                 out->data = NULL;
                 if (bytes_len > 0) {
-                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!out->data) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 }
                 // Reuse the in-place kernel semantics for determinism (fixed loop order).
@@ -2533,7 +2533,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 uint64_t bytes_len = (uint64_t)out->len * 4ull;
                 out->data = NULL;
                 if (bytes_len > 0) {
-                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_BUF);
+                    out->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
                     if (!out->data) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
                 }
                 AvmValue dstv; dstv.type = AVM_VAL_I32_BUF; dstv.as.buf = out;

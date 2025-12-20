@@ -68,7 +68,7 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
     AvmAllocHdr* h = NULL;
     // Typed buffers are hot in HPC-style workloads; align to cache line for NEON-friendly kernels.
     // We keep this deterministic and portable by using `posix_memalign` (free-able with `free`).
-    if (kind == AVM_ALLOC_KIND_BUF) {
+    if (kind == AVM_ALLOC_KIND_BUF || kind == AVM_ALLOC_KIND_RAW) {
         void* p = NULL;
         int er = posix_memalign(&p, 64u, total);
         if (er != 0 || !p) {
@@ -156,7 +156,7 @@ void* avm_heap_realloc_k(void* p, size_t new_size, uint8_t kind) {
     uint64_t old_size = h->size;
 
     // Preserve BUF alignment guarantees: use alloc+copy instead of libc realloc.
-    if (kind == AVM_ALLOC_KIND_BUF) {
+    if (kind == AVM_ALLOC_KIND_BUF || kind == AVM_ALLOC_KIND_RAW) {
         void* np = avm_heap_malloc_k(new_size, kind);
         if (!np) return NULL;
         size_t copy_n = (old_size < (uint64_t)new_size) ? (size_t)old_size : new_size;

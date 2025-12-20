@@ -21,7 +21,9 @@ typedef enum {
     OREN_ALLOC_STRING = 1,
     OREN_ALLOC_LIST = 2,
     OREN_ALLOC_MAP = 3,
-    OREN_ALLOC_STRUCT = 4
+    OREN_ALLOC_STRUCT = 4,
+    // Opaque raw bytes (no pointers). Used for typed buffer payloads and other HPC blobs.
+    OREN_ALLOC_RAW = 5
 } OrenAllocKind;
 
 typedef struct OrenAllocNode {
@@ -452,7 +454,11 @@ static void oren_mark_value(OrenValue v) {
         OrenAllocNode* n = oren_find_node(b);
         if (n && n->freed == 0 && n->kind == OREN_ALLOC_STRUCT) {
             n->freed = -1;
-            // Payload is currently embedded in the same struct allocation.
+            // Payload is a separate RAW allocation (aligned); keep it alive too.
+            if (b->data) {
+                OrenAllocNode* dn = oren_find_node(b->data);
+                if (dn && dn->freed == 0 && dn->kind == OREN_ALLOC_RAW) dn->freed = -1;
+            }
         }
         return;
     }
@@ -3936,4 +3942,80 @@ void oren_free_struct(uint64_t ptr) {
         free(n);
     }
     pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+uint64_t oren_alloc_raw_aligned(size_t bytes, size_t align) {
+    void* p = NULL;
+    if (align == 0) align = sizeof(void*);
+    if ((align & (align - 1)) != 0 || align < sizeof(void*)) {
+        oren_panic("raw alloc align invalid");
+        return 0;
+    }
+    int er = posix_memalign(&p, align, bytes);
+    if (er != 0 || !p) {
+        oren_panic("raw alloc failed");
+        return 0;
+    }
+#ifndef OREN_NO_GC
+    oren_register_alloc(p, OREN_ALLOC_RAW);
+#endif
+    if (!p) {
+        oren_panic("raw alloc failed");
+        return 0;
+    }
+    return (uint64_t)p;
+}
+
+void oren_free_raw(uint64_t ptr) {
+#ifdef OREN_NO_GC
+    free((void*)ptr);
+    return;
+#endif
+    void* p = (void*)ptr;
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_find_node(p);
+    if (n && !n->freed) {
+        n->freed = 1;
+        free(p);
+    }
+    if (n) {
+        OrenAllocNode* prev = NULL;
+        OrenAllocNode* cur = g_allocs;
+        while (cur) {
+            if (cur == n) {
+                if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                break;
+            }
+            prev = cur;
+            cur = cur->next;
+        }
+        oren_alloc_index_remove_locked(p);
+        free(n);
+    }
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+OrenValue oren_buf_payload_is_raw(OrenValue buf) {
+    if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
+        oren_panic("buf_payload_is_raw expects (buf)");
+        return OREN_NIL;
+    }
+    OrenBuf* b = buf.as.buf_val;
+    if (!b) {
+        oren_panic("buf_payload_is_raw: invalid buffer");
+        return OREN_NIL;
+    }
+    if (b->len == 0) return OREN_TRUE;
+    if (!b->data) return OREN_FALSE;
+
+#ifdef OREN_NO_GC
+    // In no-GC mode we don't track allocations; payload is still raw bytes by definition.
+    return OREN_TRUE;
+#endif
+
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_find_node(b->data);
+    int ok = (n && n->freed == 0 && n->kind == OREN_ALLOC_RAW);
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return oren_bool(ok);
 }

@@ -78,7 +78,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Expose as `std/buffer` API (portable across C/native/AVM where feasible)
    - Status:
      - Aligned typed-buffer payloads: **done** (64-byte) in native runtime + AVM allocator; covered by `test_buffer_alignment.oren` and verified on macOS + Linux docker
-     - “Unscanned / raw bytes” typed buffers: **still needed** (design must cover C runtime + native runtime + AVM)
+     - “Unscanned / raw bytes” typed buffers: **done** (payload allocations are explicitly tagged RAW/opaque across C runtime + native runtime + AVM); covered by `test_buffer_payload_raw.oren`
+     - Arena/mmap options: **still needed** (add an explicit large-buffer allocation policy that can return memory to the OS under bursty workloads)
 
 2) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
    - DoD:

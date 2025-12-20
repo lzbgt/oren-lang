@@ -5608,7 +5608,9 @@ fn native_buf_new(len, elem_size, tag) {
         var cap = bytes_len + (buf_align_default() - 1)
         data = malloc(cap)
         if data == 0 || data == -1 { return oren_err(8, "buf_new: payload alloc failed") }
-        oren_track_alloc(data, cap, 0)
+        // Mark payload kind=8 (RAW) so GC never treats it as pointer-containing memory.
+        // This is an explicit contract for typed buffers (HPC).
+        oren_track_alloc(data, cap, 8)
         data_ptr = native_align_up(data, buf_align_default())
         // Zero-fill (malloc does not promise zeroed memory).
         var i = 0

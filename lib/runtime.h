@@ -217,6 +217,9 @@ OrenValue oren_f32_buf_new(OrenValue len);
 OrenValue oren_f64_buf_new(OrenValue len);
 
 OrenValue oren_buf_len(OrenValue buf);
+// Diagnostic helper: return true if the buffer payload is tracked as RAW bytes.
+// Useful for ensuring buffer payloads are unscanned and not treated as pointer-containing memory.
+OrenValue oren_buf_payload_is_raw(OrenValue buf);
 
 // Debug/diagnostic helper (C backend): returns (uintptr_t)buf->data % mod.
 // Does not expose the full pointer value, but enables alignment assertions in tests.
@@ -368,6 +371,11 @@ OrenValue oren_get_result();
 void oren_free(OrenValue v);
 uint64_t oren_alloc_struct(size_t bytes);
 void oren_free_struct(uint64_t ptr);
+// Allocate an opaque/raw byte region.
+// - Payload contains no OrenValue pointers (unscanned by the GC; safe for HPC buffers).
+// - `align` must be a power of two, and >= sizeof(void*). Use 64 for SIMD-friendly kernels.
+uint64_t oren_alloc_raw_aligned(size_t bytes, size_t align);
+void oren_free_raw(uint64_t ptr);
 OrenValue oren_system(OrenValue cmd);
 OrenValue oren_exit(OrenValue code);
 OrenValue oren_chmod(OrenValue path, OrenValue mode);
