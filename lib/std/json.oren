@@ -39,14 +39,53 @@ fn _streq(a, b) {
 }
 
 fn _skip_ws(bs, pos) {
+    // Skip whitespace and tolerate C-style comments in decode.
+    // Supported:
+    //   - line comments: // ... (to end of line)
+    //   - block comments: /* ... */
+    // Comments are only recognized outside strings.
     var n = oren_list_len(bs)
     var i = pos
     while i < n {
-        if !_is_ws(bs[i]) { break }
-        i = i + 1
+        // whitespace
+        while i < n && _is_ws(bs[i]) { i = i + 1 }
+        if i >= n { return i }
+
+        // comments
+        if bs[i] == 47 { // '/'
+            if i + 1 >= n { return i }
+            var n2 = bs[i + 1]
+            if n2 == 47 {
+                // // ...
+
+                i = i + 2
+                while i < n {
+                    var b = bs[i]
+                    if b == 10 || b == 13 { break }
+                    i = i + 1
+                }
+                continue
+            }
+            if n2 == 42 {
+                // /* ... */
+                i = i + 2
+                while i + 1 < n {
+                    if bs[i] == 42 && bs[i + 1] == 47 {
+                        i = i + 2
+                        break
+                    }
+                    i = i + 1
+                }
+                // Unterminated block comment: treat as EOF; callers will error.
+                continue
+            }
+        }
+
+        return i
     }
     return i
 }
+
 
 fn _err(msg, pos) {
     return {"ok": 0, "err": msg, "pos": pos}

@@ -125,4 +125,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Attribute ergonomics: alias canonicalization (`@pack` → `@oren.packed`, `@abi` → `@oren.abi`, `@json.*` → `@serde.*`) keeps user code terse but metadata canonical.
 - Attribute ergonomics: repo tests now prefer the terse surface forms (`@pack`, `@abi`) while keeping canonical names in compiler metadata.
 - Verification loop: `oretest` is parallel + timeout-safe by default, and Linux/arm64 docker runner reuses a persistent container for fast smoke tests.
+- JSON decode: tolerate C-style comments (`//` and `/* */`) for config compatibility; encoder remains canonical.
 - Serde JSON v1 (no reflection): opt-in via `@json.derive("json")`, generates `<Type>__json_encode` / `<Type>__json_decode`, covered by `tests/modules/test_json_serde_attrs.oren`.
