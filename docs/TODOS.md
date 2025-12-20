@@ -71,11 +71,24 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Casting + numeric model (follow-ups)**
+1) **[lang][perf] Generics + monomorphization (HPC enabler)**
    - DoD:
-     - Add `expr as T` cast operator (desugars to builtin cast sugar)
-     - Stabilize `i128/u128` runtime arithmetic (not just ABI/layout)
-     - Keep float→int behavior deterministic and backend-consistent (documented + tested)
+     - Parse + lower generic function definitions (syntax TBD, but must be unambiguous)
+     - Monomorphize at compile time (no runtime overhead in hot loops)
+     - Allow simple constraints via `trait` (compile-time only v0)
+     - Add a small integration test that compiles a generic `dot<T>` for `i32` + `f32`
+
+2) **[lang][perf] Allocator control for large numeric buffers**
+   - DoD:
+     - Add an explicit “unscanned / raw bytes” allocation mode for typed buffers (avoid GC scanning and pointer false-positives)
+     - Support aligned allocation (arm64 NEON-friendly)
+     - Expose as `std/buffer` API (portable across C/native/AVM where feasible)
+
+3) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
+   - DoD:
+     - Define a stable intrinsic boundary (compiler-known names) for vector kernels
+     - Add feature gating + scalar fallback (deterministic)
+     - Expand `std/linalg` kernels safely (keep reference implementations)
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -102,6 +115,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - Numeric literals: added `_` separators and `0x`/`0b`/`0o` base-prefixed int literals across lexer + optimizer + bytecode + native backend + C backend; added module + AVM coverage; verified on macOS + Linux docker.
+- `std/buffer` views: switched slice/matrix views from map-based records to fixed-position lists to reduce hot-loop overhead; verified on macOS + Linux docker.
 - AVM: added `test_map_iter_deterministic` to pin deterministic map key iteration under deny-by-default mode.
 - Casting overflow semantics: made `oren_trunc_int` deterministic clamp (`NaN→0`, `+inf/overflow→INT64_MAX`, `-inf/overflow→INT64_MIN`) across C runtime + AVM native intrinsics; updated docs and added module coverage.
 - Iteration: added `for x in <typed_buf>` support for `i32/i64/f32/f64` buffers in C runtime + native runtime; added module coverage and wired it into oretest curated lists.
