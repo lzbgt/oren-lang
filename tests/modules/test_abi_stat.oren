@@ -1,0 +1,65 @@
+// Curated OS ABI structs (rolling v4): struct stat (Darwin/Linux arm64).
+//
+// Important:
+// - This is a layout-only representation to let `.oren` code compute offsets and
+//   read/write fields from syscall buffers without host headers.
+// - We intentionally model only a minimal subset (st_mode, st_size) + padding.
+
+// Darwin/macOS arm64:
+// - sizeof(struct stat) == 144
+// - offsetof(st_mode) == 4, sizeof(st_mode) == 2 (expected; audit in docs/refs)
+// - offsetof(st_size) == 96, sizeof(st_size) == 8
+@oren.abi
+struct StatDarwin {
+    __pad0: u8[4],
+    st_mode: u16le,
+    __pad1: u8[90],
+    st_size: i64le,
+    __pad2: u8[40]
+}
+
+// Linux arm64:
+// - sizeof(struct stat) == 128
+// - offsetof(st_mode) == 16, sizeof(st_mode) == 4
+// - offsetof(st_size) == 48, sizeof(st_size) == 8
+@oren.abi
+struct StatLinux {
+    __pad0: u8[16],
+    st_mode: u32le,
+    __pad1: u8[28],
+    st_size: i64le,
+    __pad2: u8[72]
+}
+
+var t = oren_build_target()
+if t == "macos" {
+    if oren_abi_alignof("StatDarwin") != 8 { exit(1) }
+    if oren_abi_sizeof("StatDarwin") != 144 { exit(2) }
+    if oren_abi_offsetof("StatDarwin", "st_mode") != 4 { exit(3) }
+    if oren_abi_offsetof("StatDarwin", "st_size") != 96 { exit(4) }
+
+    var p = oren_ptr_alloc(oren_abi_sizeof("StatDarwin"))
+    if p == nil { exit(5) }
+    oren_ptr_set_u16_le(p + oren_abi_offsetof("StatDarwin", "st_mode"), 33188) // 0o100644
+    if oren_ptr_get_u16_le(p + oren_abi_offsetof("StatDarwin", "st_mode")) != 33188 { exit(6) }
+    oren_ptr_set_i64_le(p + oren_abi_offsetof("StatDarwin", "st_size"), 1234)
+    if oren_ptr_get_i64_le(p + oren_abi_offsetof("StatDarwin", "st_size")) != 1234 { exit(7) }
+    oren_ptr_free(p)
+} else {
+    if oren_abi_alignof("StatLinux") != 8 { exit(10) }
+    if oren_abi_sizeof("StatLinux") != 128 { exit(11) }
+    if oren_abi_offsetof("StatLinux", "st_mode") != 16 { exit(12) }
+    if oren_abi_offsetof("StatLinux", "st_size") != 48 { exit(13) }
+
+    var p2 = oren_ptr_alloc(oren_abi_sizeof("StatLinux"))
+    if p2 == nil { exit(14) }
+    oren_ptr_set_u32_le(p2 + oren_abi_offsetof("StatLinux", "st_mode"), 33188) // 0o100644
+    if oren_ptr_get_u32_le(p2 + oren_abi_offsetof("StatLinux", "st_mode")) != 33188 { exit(15) }
+    oren_ptr_set_i64_le(p2 + oren_abi_offsetof("StatLinux", "st_size"), 5678)
+    if oren_ptr_get_i64_le(p2 + oren_abi_offsetof("StatLinux", "st_size")) != 5678 { exit(16) }
+    oren_ptr_free(p2)
+}
+
+print("module abi_stat OK")
+exit(0)
+

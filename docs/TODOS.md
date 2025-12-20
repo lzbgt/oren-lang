@@ -95,6 +95,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - ABI layouts (nested v2): `@oren.abi` now supports nested ABI structs, pointers (`*T`), and fixed arrays (`T[N]`), plus a regression test `tests/modules/test_abi_nested_arrays.oren`.
 - ABI layouts (v3): added u128/i128 layout support and threaded `--arch` into the compiler config (currently `arm64` only) + regression `tests/modules/test_abi_u128_layout.oren`.
 - ABI layouts (v4, partial): added `oren_build_target()` / `oren_build_arch()` compile-time builtins, `usize/isize` layout support, and curated syscall structs tests for `sockaddr_in` and Darwin `kevent`.
+- ABI layouts (v4, partial): added curated `struct stat` layouts for Darwin/Linux arm64 (repo-owned padding model) plus `docs/refs/linux_arm64_abi.md` audit notes and module regression `tests/modules/test_abi_stat.oren`.
 - Tooling hardening: `oren build <missing.oren>` now exits non-zero and `oretest` has a regression fixture to prevent silently-successful builds on missing input files.
 - AVM SIMD determinism guard: `./oretest` now runs `test_smoke_suite` with `--print-result-hash --print-trace-hash` and compares scalar vs `AVM_ENABLE_SIMD=1` hashes (arm64 only).
 - Endian helpers: added `oren_bytes_{get,set}_{u64,i64}_{be,le}` for C runtime, native runtime, and AVM bytecode (native IDs `90..105`), and extended tests to cover 64-bit cases.
