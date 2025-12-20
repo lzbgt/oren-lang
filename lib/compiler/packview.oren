@@ -1,4 +1,14 @@
 import ast "ast.oren"
+var PACKVIEW_ERRS = nil
+
+fn packview_error(msg) {
+    if PACKVIEW_ERRS == nil { PACKVIEW_ERRS = [] }
+    oren_list_push(PACKVIEW_ERRS, msg)
+    return nil
+}
+
+
+
 
 
 fn starts_with(s, prefix) {
@@ -279,17 +289,17 @@ fn schema_from_linked(linked) {
                     var fname = fid["value"]
                     var k = field_kind(fid)
                     if k == "__MULTIPLE__" {
-                        print("Packed struct field has multiple kind annotations: " + tname + "." + fname)
-                        oren_exit(1)
+                        packview_error("Packed struct field has multiple kind annotations: " + tname + "." + fname)
+                        return nil
                     }
                     if k == nil {
-                        print("Packed struct field missing type annotation (e.g. len: u16be): " + tname + "." + fname)
-                        oren_exit(1)
+                        packview_error("Packed struct field missing type annotation (e.g. len: u16be): " + tname + "." + fname)
+                        return nil
                     }
                     var sz = kind_size(k)
                     if sz <= 0 {
-                        print("Unsupported packed field kind: " + k + " at " + tname + "." + fname)
-                        oren_exit(1)
+                        packview_error("Unsupported packed field kind: " + k + " at " + tname + "." + fname)
+                        return nil
                     }
                     field_map[fname] = {"kind": k, "offset": total, "size": sz}
                     total = total + sz
@@ -350,19 +360,19 @@ fn lower_expr(expr, schemas) {
         if is_pack_view_call(left) {
             var args2 = left["args"]
             if args2 == nil || oren_list_len(args2) != 3 {
-                print("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
-                oren_exit(1)
+                packview_error("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
+                return expr
             }
             var tname_node = args2[0]
             if tname_node == nil || tname_node["type"] != "String" {
-                print("pack_view arg0 must be a string literal type name")
-                oren_exit(1)
+                packview_error("pack_view arg0 must be a string literal type name")
+                return expr
             }
             var type_name = tname_node["value"]
             var schema = schemas[type_name]
             if schema == nil {
-                print("Unknown packed type in pack_view: " + type_name)
-                oren_exit(1)
+                packview_error("Unknown packed type in pack_view: " + type_name)
+                return expr
             }
 
             var bytes_expr = lower_expr(args2[1], schemas)
@@ -370,14 +380,14 @@ fn lower_expr(expr, schemas) {
 
             var prop = expr["prop"]
             if prop == nil || prop["type"] != "Identifier" {
-                print("pack_view(...).<field> expects an identifier field")
-                oren_exit(1)
+                packview_error("pack_view(...).<field> expects an identifier field")
+                return expr
             }
             var field_name = prop["value"]
             var f = schema["fields"][field_name]
             if f == nil {
-                print("Unknown packed field: " + type_name + "." + field_name)
-                oren_exit(1)
+                packview_error("Unknown packed field: " + type_name + "." + field_name)
+                return expr
             }
 
             var off = f["offset"]
@@ -388,8 +398,8 @@ fn lower_expr(expr, schemas) {
 
             var out = build_read_expr(f["kind"], bytes_expr, base_idx)
             if out == nil {
-                print("Unsupported packed field kind: " + f["kind"])
-                oren_exit(1)
+                packview_error("Unsupported packed field kind: " + f["kind"])
+                return expr
             }
             return out
         }
@@ -456,31 +466,31 @@ fn lower_stmt(stmt, schemas) {
                 // PV3: pack_view("Type", bytes, off).field = value
                 var args2 = mleft["args"]
                 if args2 == nil || oren_list_len(args2) != 3 {
-                    print("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
-                    oren_exit(1)
+                    packview_error("pack_view expects 3 args: pack_view(\"Type\", bytes, offset)")
+                    return nil
                 }
                 var tname_node = args2[0]
                 if tname_node == nil || tname_node["type"] != "String" {
-                    print("pack_view arg0 must be a string literal type name")
-                    oren_exit(1)
+                    packview_error("pack_view arg0 must be a string literal type name")
+                    return nil
                 }
                 var type_name = tname_node["value"]
                 var schema = schemas[type_name]
                 if schema == nil {
-                    print("Unknown packed type in pack_view: " + type_name)
-                    oren_exit(1)
+                    packview_error("Unknown packed type in pack_view: " + type_name)
+                    return nil
                 }
 
                 var prop = left["prop"]
                 if prop == nil || prop["type"] != "Identifier" {
-                    print("pack_view(...).<field> expects an identifier field")
-                    oren_exit(1)
+                    packview_error("pack_view(...).<field> expects an identifier field")
+                    return nil
                 }
                 var field_name = prop["value"]
                 var f = schema["fields"][field_name]
                 if f == nil {
-                    print("Unknown packed field: " + type_name + "." + field_name)
-                    oren_exit(1)
+                    packview_error("Unknown packed field: " + type_name + "." + field_name)
+                    return nil
                 }
 
                 // Lower subexpressions once (avoid multiple evaluation).
@@ -586,8 +596,8 @@ fn validate_expr_no_pack_view(expr) {
     var t = expr["type"]
     if t == "Call" {
         if is_pack_view_call(expr) {
-            print("pack_view(...) must be used as pack_view(\"Type\", bytes, offset).field")
-            oren_exit(1)
+            packview_error("pack_view(...) must be used as pack_view(\"Type\", bytes, offset).field")
+            return nil
         }
         validate_expr_no_pack_view(expr["fn"])
         var args = expr["args"]
@@ -707,8 +717,12 @@ fn validate_stmt_no_pack_view(stmt) {
 }
 
 fn lower_linked_program_in_place(linked) {
+    PACKVIEW_ERRS = []
     var schemas = schema_from_linked(linked)
-    if schemas == nil { return nil }
+    if schemas == nil {
+        if PACKVIEW_ERRS != nil && oren_list_len(PACKVIEW_ERRS) > 0 { linked["packview_errors"] = PACKVIEW_ERRS }
+        return nil
+    }
 
     var stmts = linked["statements"]
     var i = 0
@@ -724,5 +738,8 @@ fn lower_linked_program_in_place(linked) {
         vi = vi + 1
     }
 
+    if PACKVIEW_ERRS != nil && oren_list_len(PACKVIEW_ERRS) > 0 {
+        linked["packview_errors"] = PACKVIEW_ERRS
+    }
     return nil
 }

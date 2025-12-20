@@ -1,0 +1,9 @@
+@pack
+struct H {
+    // Invalid kind: should fail in packview lowering and emit OREN_DIAG kind=compile
+    len: u128be
+}
+
+var b = [0]
+// This expression would be lowered if the schema were valid.
+print(pack_view("H", b, 0).len)

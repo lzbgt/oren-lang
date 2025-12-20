@@ -855,6 +855,18 @@ fn link_program(entry_path, root_prog, config) {
     // Compile-time lowering: packed struct views over bytes.
     if trace_passes { print("[trace] pass: packview") }
     packview.lower_linked_program_in_place(linked)
+    if linked["packview_errors"] != nil && oren_list_len(linked["packview_errors"]) > 0 {
+        var first_err = linked["packview_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Packview errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["packview_errors"]) {
+            print(linked["packview_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
 
     // Compile-time lowering: apply value-level normalization for annotated struct/class fields.
     // (Rolling step toward exact-size layout semantics.)
