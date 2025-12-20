@@ -1,0 +1,24 @@
+fn worker(n) {
+    var i = 0
+    while i < n {
+        i = i + 1
+    }
+    return i
+}
+
+fn main() {
+    // Any use of spawn enables the cooperative task scheduler.
+    // Snapshot currently forbids tasks/channels state; the CLI --snapshot-out should fail.
+    var h = spawn worker(1000)
+    var j = oren_join(h)
+    if j != 1000 { oren_exit(1) }
+
+    // Keep running long enough for --step-limit to pause mid-run.
+    var k = 0
+    while k < 200000 {
+        k = k + 1
+    }
+    oren_set_result("ok")
+}
+
+main()

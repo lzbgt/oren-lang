@@ -56,6 +56,13 @@ static inline AvmValue avm_nil(void) {
 // --- VM control ---
 void avm_abort(AvmVM* vm, AvmValue err);
 
+// --- Cooperative scheduler (internal) ---
+// Returns 1 if the scheduler is either disabled or in a "trivial" state that is safe to snapshot:
+// - only main task exists
+// - no channels exist
+// - no ready/select wait queues are populated
+int avm_sched_is_trivial(AvmVM* vm);
+
 // --- Allocation (heap budgeting + leak-free teardown) ---
 void avm_alloc_owner_push(AvmVM* vm, AvmVM** prev);
 void avm_alloc_owner_pop(AvmVM* prev);

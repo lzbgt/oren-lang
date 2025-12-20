@@ -229,6 +229,7 @@ func main() {
 		"tests/avm/test_smoke_suite.oren",
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
+		"tests/avm/test_snapshot_tasks_forbidden.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_time_rng_deterministic.oren",
 		"tests/avm/test_budget_timeout.oren",
@@ -246,6 +247,7 @@ func main() {
 		"tests/avm/test_job_scan.oren",
 		"tests/avm/test_snapshot_resume.oren",
 		"tests/avm/test_snapshot_resume_record_log.oren",
+		"tests/avm/test_snapshot_tasks_forbidden.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
 		"tests/avm/test_multiverse_vfs_inherit.oren",
 		"tests/avm/test_fs_mounts_host_backend.oren",
@@ -1035,6 +1037,17 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 				}
 			}
 			_ = os.Remove(snap)
+		case "test_snapshot_tasks_forbidden":
+			snap := filepath.Join("build", name+".avms")
+			_ = os.Remove(snap)
+			// Use a small step limit to ensure we pause even if the program is "small".
+			cmd := fmt.Sprintf("./avm --step-limit 200 --print-pause-json --snapshot-out %q %q", snap, obc)
+			rc := runWithTimeout(timeoutBin, runTimeout, cmd, log)
+			// Snapshot must be rejected when tasks/channels are enabled; `avm` uses rc=3 in that case.
+			if rc != 3 {
+				runOK = false
+			}
+			_ = os.Remove(snap)
 		case "test_budget_gas":
 			// Expected: AVM exits non-zero due to internal gas budget (not external timeout).
 			cmd := fmt.Sprintf("env AVM_GAS=20000 ./avm %q", obc)
@@ -1313,6 +1326,16 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 				}
 				_ = os.Remove(snap2)
 			}
+		case "test_snapshot_tasks_forbidden":
+			snap := filepath.Join(workBuild, name+".avms")
+			_ = os.Remove(snap)
+			// Use a small step limit to ensure we pause even if the program is "small".
+			cmd := fmt.Sprintf("%s --step-limit 200 --print-pause-json --snapshot-out %q %q", avmPath, filepath.Join("build", name+".avms"), filepath.Join("build", name+".obc"))
+			rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log)
+			if rc != 3 {
+				runOK = false
+			}
+			_ = os.Remove(snap)
 		case "test_budget_gas":
 			cmd := fmt.Sprintf("env AVM_GAS=20000 %s %q", avmPath, filepath.Join("build", name+".obc"))
 			rc := runWithTimeout(timeoutBin, runTimeout, inDir(workdir, cmd), log)

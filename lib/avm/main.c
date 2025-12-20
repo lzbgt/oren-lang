@@ -3535,7 +3535,13 @@ int main(int argc, char** argv) {
         if (snap_out) {
             if (avm_snapshot(vm, snap_out) != 0) {
                 fprintf(stderr, "AVM snapshot failed: %s\n", snap_out);
-                // do not override execution result; just report and continue
+                // Snapshot-out is primarily used for pause/resume workflows.
+                // If we paused (exit_code==2) but failed to write a snapshot, resuming is impossible.
+                // In that case, report a distinct non-pause exit code so orchestration does not
+                // treat the run as a resumable pause.
+                if (vm->exit_code == 2) {
+                    vm->exit_code = 3;
+                }
             }
         }
         if (vm->exit_code != 0) {

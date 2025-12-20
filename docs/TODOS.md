@@ -78,8 +78,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
-     - include record/replay-bytes state + log budget counters so pause/resume does not lose determinism data
-     - include cooperative task scheduler state (tasks/channels) or explicitly forbid snapshot when tasks are enabled
+     - include record/replay-bytes state + log budget counters so pause/resume does not lose determinism data (**done**)
+     - tasks/channels:
+       - **v0:** explicitly forbid snapshot when `vm->sched != NULL` (**done**, exit code becomes `3` when `--snapshot-out` is requested on a paused run)
+       - **v1:** add full scheduler snapshot support (tasks + channels) so spawned workloads can be paused/resumed
 
 2) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
@@ -95,6 +97,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - `std/time` v0: added `lib/std/time.oren` (UTC ISO-8601 parse/format, epoch conversions, monotonic/unix clocks, sleep); added runtime TIME primitives and a module test; verified on macOS.
 - AVM record/replay v1: portable log format with file + in-memory logs; effectful domains replay from logs (no host effects); deterministic TIME/RNG supported; covered by AVM tests.
 - AVM deterministic cooperative tasks: task scheduler + `yield`/spawn/join/select primitives; deterministic step-quantum via `AVM_TASK_QUANTUM`; covered by AVM tests.
+- AVM snapshots v5: snapshot now preserves in-memory record/replay logs + budget counters; snapshot explicitly rejects tasks/channels state (until scheduler snapshot is implemented); covered by AVM tests.
 - Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.
 - Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.
 - `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.

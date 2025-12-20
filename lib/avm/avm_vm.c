@@ -148,6 +148,32 @@ static AvmSched* avm_sched_get(AvmVM* vm) {
     return vm ? (AvmSched*)vm->sched : NULL;
 }
 
+int avm_sched_is_trivial(AvmVM* vm) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s) return 1;
+
+    // If any channels exist, snapshot must capture channel queues + waiter lists; not supported yet.
+    if (s->chan_count != 0) return 0;
+
+    // If any ready/select queues exist, snapshot would need to capture scheduler queues; not supported yet.
+    if (s->ready_len != 0) return 0;
+    if (s->select_len != 0) return 0;
+
+    // Only task 0 is allowed to exist.
+    if (s->task_count > 1) return 0;
+
+    // Even if task_count==1, ensure no extra used tasks exist in expanded arrays.
+    for (int i = 1; i < s->task_cap; i++) {
+        if (s->tasks && s->tasks[i].used) return 0;
+    }
+
+    // Main task must not be blocked on scheduler primitives.
+    if (s->tasks && s->tasks[0].blocked) return 0;
+    if (s->tasks && s->tasks[0].wait_kind != 0) return 0;
+
+    return 1;
+}
+
 static int sched_ready_push(AvmSched* s, int tid) {
     if (!s) return 0;
     if (tid < 0) return 0;

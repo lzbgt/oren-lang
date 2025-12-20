@@ -1587,6 +1587,18 @@ static int decode_value(FILE* f, uint8_t* obj_types, void** obj_ptrs, uint32_t o
 int avm_snapshot(AvmVM* vm, const char* path) {
     if (!vm || !vm->prog || !path) return 1;
 
+    // Cooperative tasks/channels (rolling): snapshot support is not implemented yet.
+    // Rather than silently producing an incomplete snapshot (which would break determinism),
+    // explicitly refuse snapshot when the scheduler is non-trivial.
+    //
+    // Note: AVM currently initializes the scheduler even for single-task programs.
+    // We allow snapshots when the scheduler is "trivial" (main task only, no chans/queues).
+    if (vm->sched && !avm_sched_is_trivial(vm)) {
+        // best effort; crash is acceptable for now in snapshotting path
+        fprintf(stderr, "snapshot: tasks/channels snapshot is not supported yet (non-trivial scheduler)\n");
+        return 1;
+    }
+
     ObjTable objs = {0};
 
     // Deterministic root traversal order:
