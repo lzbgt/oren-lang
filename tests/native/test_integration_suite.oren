@@ -161,6 +161,11 @@ fn test_core_smoke() {
 
     // sum 1..2000 = 2000*2001/2 = 2001000
     assert_eq(sum_rec(2000), 2001000, 70)
+
+    // Attributes inside blocks (metadata-only; must not affect semantics).
+    @myorg.local(tag="smoke")
+    var local_attr_smoke: i32 = 123
+    assert_eq(local_attr_smoke, 123, 71)
 }
 
 fn test_malloc_bump() {

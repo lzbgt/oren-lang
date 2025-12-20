@@ -380,7 +380,7 @@ fn generate_metadata(prog) {
         i = i + 1
     }
     json = json + "\n  ],\n"
-    
+
     // Trait declarations (rolling, metadata-only for now).
     // Backends ignore these until a stabilized trait model is implemented.
     json = json + "  \"traits\": [\n"
@@ -414,6 +414,38 @@ fn generate_metadata(prog) {
             }
             json = json + "\n      ]\n"
             json = json + "    }"
+            first = false
+        }
+        i = i + 1
+    }
+    json = json + "\n  ],\n"
+
+    // Global vars (rolling, metadata-only).
+    //
+    // Notes:
+    // - Locals are intentionally not included in v0 metadata (keeps meta stable and
+    //   avoids coupling to statement-level lowering details).
+    // - We include attrs on the identifier node (consistent with params/fields).
+    json = json + "  \"globals\": [\n"
+    i = 0
+    first = true
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        if s != nil && s["type"] == "Var" {
+            if !first { json = json + ",\n" }
+            var nm = nil
+            var ann = nil
+            var attrs = nil
+            if s["name"] != nil && s["name"]["type"] == "Identifier" {
+                nm = s["name"]["value"]
+                ann = s["name"]["ann_type"]
+                attrs = s["name"]["attrs"]
+            }
+            json = json + "    {"
+            json = json + "\"name\": " + json_string(nm) + ", "
+            json = json + "\"ann_type\": " + json_string(ann) + ", "
+            json = json + "\"attrs\": " + json_attrs(attrs)
+            json = json + "}"
             first = false
         }
         i = i + 1

@@ -332,6 +332,22 @@ func main() {
 			cleanup: []string{"build/meta_attrs.meta.json"},
 		},
 		{
+			name: "oren_meta_globals_attrs",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/meta_attrs_globals.oren",
+				*target,
+				"build/meta_attrs_globals.meta.json",
+				"\"globals\": [",
+				"build/meta_attrs_globals.meta.json",
+				"myorg.global",
+				"build/meta_attrs_globals.meta.json",
+			),
+			log:     "build/logs/oren_meta_globals_attrs.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/meta_attrs_globals.meta.json"},
+		},
+		{
 			name: "oren_meta_serde_schema",
 			cmd: fmt.Sprintf(
 				"./oren meta %q --target %s -o %q && "+

@@ -1,0 +1,13 @@
+/// global attrs should appear in `oren meta`
+@myorg.global(tag="g", purpose="meta-smoke")
+var G: i32 = 7
+
+fn main() {
+    // Local var attrs are accepted and preserved in AST (metadata does not export locals in v0).
+    @myorg.local(tag="x")
+    var x: i32 = 1
+    if x != 1 { exit(991) }
+    if G != 7 { exit(992) }
+    exit(0)
+}
+

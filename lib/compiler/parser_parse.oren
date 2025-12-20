@@ -104,7 +104,7 @@ fn parse_program(p) {
                 // Attach doc to declaration statements (fn/struct/class/import/ffi).
                 var pending = parser_take_pending_doc(p)
                 if pending != nil {
-                    if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" {
+                    if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" || stmt["type"] == "Var" {
                         stmt["doc"] = pending
                     } else {
                         if stmt["type"] == "ExprStmt" {
@@ -112,10 +112,10 @@ fn parse_program(p) {
                             if exp != nil && exp["type"] == "Function" {
                                 // Function consumes pending doc in parse_function.
                             } else {
-                                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi)")
+                                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
                             }
                         } else {
-                            parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi)")
+                            parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
                         }
                     }
                 }
@@ -225,9 +225,18 @@ fn attach_attrs_to_stmt(p, stmt, attrs) {
     if attrs == nil { return nil }
     if oren_list_len(attrs) == 0 { return nil }
 
-    // Allowed targets (M1): declarations only.
+    // Allowed targets (M1): declarations + local/global vars.
     if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" {
         stmt["attrs"] = attrs
+        return nil
+    }
+    if stmt["type"] == "Var" {
+        // Prefer storing attrs on the identifier node (consistent with fields/params).
+        if stmt["name"] != nil && stmt["name"]["type"] == "Identifier" {
+            stmt["name"]["attrs"] = attrs
+        } else {
+            stmt["attrs"] = attrs
+        }
         return nil
     }
     if stmt["type"] == "ExprStmt" {
@@ -238,7 +247,7 @@ fn attach_attrs_to_stmt(p, stmt, attrs) {
         }
     }
 
-    parser_add_error(p, "attributes may only precede declarations (fn/struct/class/import/ffi)")
+    parser_add_error(p, "attributes may only precede declarations (fn/struct/class/import/ffi/var)")
     return nil
 }
 
@@ -1210,26 +1219,63 @@ fn parse_block(p) {
         if cur_is(p, token.TOK_RBRACE) { cont = false }
         if cur_is(p, token.TOK_EOF) { cont = false }
         if cont {
-            // Allow doc comments inside blocks (useful for local declarations in the future).
-            // For now, docs are attached only to declarations (primarily `fn`).
-            var doc = parse_doc_list(p)
+            // Allow doc comments and attributes inside blocks (useful for local declarations,
+            // and for metadata channels like @trace/@cap annotations).
+            //
+            // We collect both deterministically and attach to the next statement only,
+            // matching top-level behavior.
+            var doc_lines = []
+            var attrs = []
+            while cur_is(p, token.TOK_DOC) || cur_is(p, token.TOK_AT) {
+                if cur_is(p, token.TOK_DOC) {
+                    oren_list_push(doc_lines, p["cur"]["literal"])
+                    parser_next_token(p)
+                } else {
+                    var a = parse_attr(p)
+                    if a != nil { oren_list_push(attrs, a) }
+                    parser_next_token(p)
+                }
+            }
+            var doc = docs_join(doc_lines)
             p["_pending_doc"] = doc
             var stmt = parse_statement(p)
             if stmt != nil {
                 if stmt["type"] == "StmtList" {
+                    if attrs != nil && oren_list_len(attrs) != 0 {
+                        parser_add_error(p, "attributes may not precede enum/impl sugar expansion in blocks yet")
+                    }
+                    if p["_pending_doc"] != nil {
+                        parser_add_error(p, "doc comments may not precede enum/impl sugar expansion in blocks yet")
+                        p["_pending_doc"] = nil
+                    }
                     var si = 0
                     while si < oren_list_len(stmt["stmts"]) {
                         oren_list_push(block["stmts"], stmt["stmts"][si])
                         si = si + 1
                     }
                 } else {
+                    // Attach attrs (metadata-only) if present.
+                    attach_attrs_to_stmt(p, stmt, attrs)
+                    // Attach doc to declaration-like statements.
+                    var pending = parser_take_pending_doc(p)
+                    if pending != nil {
+                        if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" || stmt["type"] == "Var" {
+                            stmt["doc"] = pending
+                        } else {
+                            if stmt["type"] == "ExprStmt" {
+                                var exp = stmt["expr"]
+                                if exp != nil && exp["type"] == "Function" {
+                                    // Function consumes pending doc in parse_function.
+                                } else {
+                                    parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
+                                }
+                            } else {
+                                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
+                            }
+                        }
+                    }
                     oren_list_push(block["stmts"], stmt)
                 }
-            }
-            if p["_pending_doc"] != nil {
-                // Prevent leakage to later statements.
-                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/trait/impl/enum)")
-                p["_pending_doc"] = nil
             }
             parser_next_token(p)
         }

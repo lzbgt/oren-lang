@@ -71,19 +71,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][arch] Attributes v1: stable syntax + meta emission**
-   - DoD:
-     - Attribute syntax is minimal and namespace-friendly:
-       - allow `@pack`, `@serde(...)`, `@json(...)` style without forcing `@oren.*`
-       - unknown attributes are preserved in AST + `meta` output (so user libs can consume them)
-     - Attributes can be attached to: module, struct, enum, field, function, param, local var
-     - Built-in `oren meta` emits a canonical JSON schema for attributes + types + docs
-     - `cmd/oredoc` consumes `oren meta` output only (no compiler-internal imports)
-     - Add one integration test exercising:
-       - `@pack` (packed struct view)
-       - `@serde` rename/default/skip (metadata only for now; codegen can follow later)
-
-2) **[lang][perf] Casting + numeric model (HPC-ready)**
+1) **[lang][perf] Casting + numeric model (HPC-ready)**
    - DoD:
      - Fixed-width scalar tokens are first-class (`u8/i32/u64/f32/f64`, etc.)
      - Numeric casts are explicit and efficient:
@@ -93,7 +81,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Endian-aware loads/stores are expressible without attribute abuse (network/HPC I/O)
      - Add/extend a module test to cover int↔float boundary cases + overflow behavior
 
-3) **[lang][ux] Containers + iteration semantics**
+2) **[lang][ux] Containers + iteration semantics**
    - DoD:
      - `for x in ...` works for: list, map, string, bytes/buffer, stream-like iterables
      - Map iteration is deterministic (key ordered) in deterministic modes (AVM + tests)
@@ -127,6 +115,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Attributes v1: allow `@pack`/`@abi` and canonicalize `@json.*` to `serde.*`; preserve unknown attrs; support attrs + doc comments on vars; accept attrs inside blocks; `oren meta` now exports `globals[]` with attrs; covered by oretest meta fixture + native integration suite; verified on macOS + Linux docker.
 - `std/time` v0: added `lib/std/time.oren` (UTC ISO-8601 parse/format, epoch conversions, monotonic/unix clocks, sleep); added runtime TIME primitives and a module test; verified on macOS.
 - AVM record/replay v1: portable log format with file + in-memory logs; effectful domains replay from logs (no host effects); deterministic TIME/RNG supported; covered by AVM tests.
 - AVM deterministic cooperative tasks: task scheduler + `yield`/spawn/join/select primitives; deterministic step-quantum via `AVM_TASK_QUANTUM`; covered by AVM tests.
