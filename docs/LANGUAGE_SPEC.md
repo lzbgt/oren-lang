@@ -457,6 +457,7 @@ Current semantics (implementation reality):
 - small integers (`u8/i8/u16/i16/u32/i32`): deterministic wrap/truncate casts at field init, local init, and function boundaries
   - integer casts accept **int or float** inputs
   - float inputs truncate toward zero first (via `oren_trunc_int(x)`), then wrap/truncate to the target width
+    - `NaN` and float values outside int64 range cause a deterministic cast error in v0
 - `f32`: deterministic rounding boundary (via `oren_f32_round(x)`); `f64` remains the default float precision
 - endian-tagged integer kinds (`u16be`, `u32le`, etc.) are treated as the same width for value casts, but matter for packed-byte views and ABI layouts
 
