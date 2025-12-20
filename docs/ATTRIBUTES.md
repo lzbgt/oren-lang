@@ -172,6 +172,12 @@ This generates (rolling names):
 - `User__json_encode(x)` → JsonValue
 - `User__json_decode(jv)` → `{ok, err?, v?}`
 
+Other supported serde formats (rolling, v1):
+
+- `@serde(format="cbor")` generates:
+  - `User__cbor_encode(x)` → CborValue (tagged; see `lib/std/cbor.oren`)
+  - `User__cbor_decode(cv)` → `{ok, err?, v?}`
+
 Planned next step:
 
 - add attribute-driven serde codegen helpers (compiler phase or AVM metadata query) so libraries can implement ergonomic:

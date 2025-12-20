@@ -1,0 +1,375 @@
+// std/cbor (rolling)
+//
+// RFC 8949: docs/refs/cbor/rfc8949.txt (audit reference)
+//
+// Goal:
+// - Deterministic and portable CBOR encode/decode across backends.
+// - Keep representation explicit (tagged) like std/json.oren so we don't depend on
+//   runtime type introspection.
+//
+// CborValue shape (map):
+//   {"t":"null"}
+//   {"t":"bool","b":0|1}                  // b is int for cross-backend stability
+//   {"t":"int","i":<int>}
+//   {"t":"bytes","bs":[u8...]}
+//   {"t":"string","s":<string>}
+//   {"t":"array","a":[CborValue...]}
+//   {"t":"map","m":{ string_key: CborValue, ... }}
+//
+// Canonical encoding:
+// - definite-length only
+// - maps are encoded with canonical key ordering (RFC 8949 §4.2.1):
+//     sort keys by (byte length, then bytewise lexicographic)
+
+fn cnull() { return {"t": "null"} }
+fn cbool(b) { return {"t": "bool", "b": b} }
+fn cint(i) { return {"t": "int", "i": i} }
+fn cbytes(bs) { return {"t": "bytes", "bs": bs} }
+fn cstring(s) { return {"t": "string", "s": s} }
+fn carray(a) { return {"t": "array", "a": a} }
+fn cmap(m) { return {"t": "map", "m": m} }
+
+fn _streq(a, b) {
+    if a == nil || b == nil { return false }
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    var al = oren_list_len(ab)
+    var bl = oren_list_len(bb)
+    if al != bl { return false }
+    var i = 0
+    while i < al {
+        if ab[i] != bb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _err(msg, pos) {
+    return {"ok": 0, "err": msg, "pos": pos}
+}
+
+fn _ok(v, pos) {
+    return {"ok": 1, "v": v, "pos": pos}
+}
+
+fn _push_u8(out, b) { oren_list_push(out, b & 255) }
+
+fn _push_u16be(out, n) {
+    _push_u8(out, (n >> 8) & 255)
+    _push_u8(out, n & 255)
+}
+
+fn _push_u32be(out, n) {
+    _push_u8(out, (n >> 24) & 255)
+    _push_u8(out, (n >> 16) & 255)
+    _push_u8(out, (n >> 8) & 255)
+    _push_u8(out, n & 255)
+}
+
+fn _push_u64be(out, n) {
+    // Rolling: Oren int is assumed to be at least 64-bit signed for now.
+    var i = 7
+    while i >= 0 {
+        _push_u8(out, (n >> (i * 8)) & 255)
+        i = i - 1
+    }
+}
+
+fn _emit_uint(out, major, n) {
+    // Emit major type + uint argument using the shortest definite-length form.
+    if n < 0 { n = 0 }
+    if n < 24 {
+        _push_u8(out, (major << 5) | (n & 31))
+        return nil
+    }
+    if n < 256 {
+        _push_u8(out, (major << 5) | 24)
+        _push_u8(out, n)
+        return nil
+    }
+    if n < 65536 {
+        _push_u8(out, (major << 5) | 25)
+        _push_u16be(out, n)
+        return nil
+    }
+    // Prefer 32-bit unless a 64-bit payload is needed.
+    // NOTE: we avoid unsigned > 2^31-1 in v0 tests; still, keep 64-bit path.
+    if n < 4294967296 {
+        _push_u8(out, (major << 5) | 26)
+        _push_u32be(out, n)
+        return nil
+    }
+    _push_u8(out, (major << 5) | 27)
+    _push_u64be(out, n)
+    return nil
+}
+
+fn _string_bytes(s) { return oren_bytes_from_string(s) }
+
+fn _bytes_cmp(a, b) {
+    // Compare two byte lists lexicographically.
+    var al = oren_list_len(a)
+    var bl = oren_list_len(b)
+    var i = 0
+    var n = al
+    if bl < n { n = bl }
+    while i < n {
+        var av = a[i]
+        var bv = b[i]
+        if av < bv { return -1 }
+        if av > bv { return 1 }
+        i = i + 1
+    }
+    if al < bl { return -1 }
+    if al > bl { return 1 }
+    return 0
+}
+
+fn _key_lt(a, b) {
+    // Canonical map key ordering (RFC 8949 §4.2.1): length, then bytewise.
+    var ab = _string_bytes(a)
+    var bb = _string_bytes(b)
+    var al = oren_list_len(ab)
+    var bl = oren_list_len(bb)
+    if al < bl { return true }
+    if al > bl { return false }
+    return _bytes_cmp(ab, bb) < 0
+}
+
+fn _sort_keys_canonical(keys) {
+    // Insertion sort (small N typical; deterministic).
+    var i = 1
+    while i < oren_list_len(keys) {
+        var k = keys[i]
+        var j = i - 1
+        while j >= 0 && _key_lt(k, keys[j]) {
+            keys[j + 1] = keys[j]
+            j = j - 1
+        }
+        keys[j + 1] = k
+        i = i + 1
+    }
+    return keys
+}
+
+fn _encode_value(out, v) {
+    var t = v["t"]
+    if _streq(t, "null") {
+        _push_u8(out, 246) // 0xf6 null
+        return nil
+    }
+    if _streq(t, "bool") {
+        if v["b"] != 0 { _push_u8(out, 245) } // 0xf5 true
+        else { _push_u8(out, 244) }          // 0xf4 false
+        return nil
+    }
+    if _streq(t, "int") {
+        var i = v["i"]
+        if i >= 0 {
+            _emit_uint(out, 0, i) // major 0 unsigned
+        } else {
+            var u = (-1 - i)
+            _emit_uint(out, 1, u) // major 1 negative
+        }
+        return nil
+    }
+    if _streq(t, "bytes") {
+        var bs = v["bs"]
+        _emit_uint(out, 2, oren_list_len(bs)) // major 2 byte string
+        var i2 = 0
+        while i2 < oren_list_len(bs) {
+            _push_u8(out, bs[i2])
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if _streq(t, "string") {
+        var s = v["s"]
+        var sb = _string_bytes(s)
+        _emit_uint(out, 3, oren_list_len(sb)) // major 3 text string (utf-8 bytes)
+        var i3 = 0
+        while i3 < oren_list_len(sb) {
+            _push_u8(out, sb[i3])
+            i3 = i3 + 1
+        }
+        return nil
+    }
+    if _streq(t, "array") {
+        var a = v["a"]
+        _emit_uint(out, 4, oren_list_len(a))
+        var i4 = 0
+        while i4 < oren_list_len(a) {
+            _encode_value(out, a[i4])
+            i4 = i4 + 1
+        }
+        return nil
+    }
+    if _streq(t, "map") {
+        var m = v["m"]
+        // Collect keys then sort canonically.
+        var keys = []
+        for k in m {
+            oren_list_push(keys, k)
+        }
+        _sort_keys_canonical(keys)
+        _emit_uint(out, 5, oren_list_len(keys))
+        var i5 = 0
+        while i5 < oren_list_len(keys) {
+            var k2 = keys[i5]
+            _encode_value(out, cstring(k2))
+            _encode_value(out, m[k2])
+            i5 = i5 + 1
+        }
+        return nil
+    }
+    // Unknown tag: encode as null (rolling safety).
+    _push_u8(out, 246)
+    return nil
+}
+
+fn encode(v) {
+    var out = []
+    _encode_value(out, v)
+    return out
+}
+
+fn _need(bs, pos, n) {
+    if pos + n > oren_list_len(bs) { return 0 }
+    return 1
+}
+
+fn _read_u16be(bs, pos) {
+    return (bs[pos] << 8) | bs[pos + 1]
+}
+
+fn _read_u32be(bs, pos) {
+    return (bs[pos] << 24) | (bs[pos + 1] << 16) | (bs[pos + 2] << 8) | bs[pos + 3]
+}
+
+fn _read_u64be(bs, pos) {
+    var v = 0
+    var i = 0
+    while i < 8 {
+        v = (v << 8) | (bs[pos + i] & 255)
+        i = i + 1
+    }
+    return v
+}
+
+fn _read_uint_arg(bs, pos, ai) {
+    // Returns {"ok":1,"n":<uint>,"pos":newpos} or err
+    if ai < 24 { return {"ok": 1, "n": ai, "pos": pos} }
+    if ai == 24 {
+        if _need(bs, pos, 1) != 1 { return _err("unexpected EOF", pos) }
+        return {"ok": 1, "n": bs[pos], "pos": pos + 1}
+    }
+    if ai == 25 {
+        if _need(bs, pos, 2) != 1 { return _err("unexpected EOF", pos) }
+        return {"ok": 1, "n": _read_u16be(bs, pos), "pos": pos + 2}
+    }
+    if ai == 26 {
+        if _need(bs, pos, 4) != 1 { return _err("unexpected EOF", pos) }
+        return {"ok": 1, "n": _read_u32be(bs, pos), "pos": pos + 4}
+    }
+    if ai == 27 {
+        if _need(bs, pos, 8) != 1 { return _err("unexpected EOF", pos) }
+        return {"ok": 1, "n": _read_u64be(bs, pos), "pos": pos + 8}
+    }
+    return _err("unsupported additional info", pos)
+}
+
+fn _decode_value(bs, pos) {
+    var n = oren_list_len(bs)
+    if pos >= n { return _err("unexpected EOF", pos) }
+    var b = bs[pos] & 255
+    pos = pos + 1
+    var major = (b >> 5) & 7
+    var ai = b & 31
+
+    // Simple values (major 7) we need (false/true/null).
+    if major == 7 {
+        if ai == 20 { return _ok(cbool(0), pos) } // false
+        if ai == 21 { return _ok(cbool(1), pos) } // true
+        if ai == 22 { return _ok(cnull(), pos) }  // null
+        return _err("unsupported simple value", pos - 1)
+    }
+
+    var r = _read_uint_arg(bs, pos, ai)
+    if r["ok"] != 1 { return r }
+    var arg = r["n"]
+    pos = r["pos"]
+
+    if major == 0 {
+        return _ok(cint(arg), pos)
+    }
+    if major == 1 {
+        // negative: -1 - n
+        return _ok(cint(-1 - arg), pos)
+    }
+    if major == 2 {
+        // bytes
+        if _need(bs, pos, arg) != 1 { return _err("unexpected EOF in bytes", pos) }
+        var out = []
+        var i2 = 0
+        while i2 < arg {
+            oren_list_push(out, bs[pos + i2] & 255)
+            i2 = i2 + 1
+        }
+        return _ok(cbytes(out), pos + arg)
+    }
+    if major == 3 {
+        // text
+        if _need(bs, pos, arg) != 1 { return _err("unexpected EOF in string", pos) }
+        var out2 = []
+        var i3 = 0
+        while i3 < arg {
+            oren_list_push(out2, bs[pos + i3] & 255)
+            i3 = i3 + 1
+        }
+        var s = oren_string_from_bytes(out2)
+        if s == nil { return _err("string_from_bytes failed", pos) }
+        return _ok(cstring(s), pos + arg)
+    }
+    if major == 4 {
+        // array
+        var items = []
+        var i4 = 0
+        var p2 = pos
+        while i4 < arg {
+            var rv = _decode_value(bs, p2)
+            if rv["ok"] != 1 { return rv }
+            oren_list_push(items, rv["v"])
+            p2 = rv["pos"]
+            i4 = i4 + 1
+        }
+        return _ok(carray(items), p2)
+    }
+    if major == 5 {
+        // map (string keys only in v0)
+        var m = {}
+        var i5 = 0
+        var p3 = pos
+        while i5 < arg {
+            var rk = _decode_value(bs, p3)
+            if rk["ok"] != 1 { return rk }
+            if rk["v"]["t"] != "string" { return _err("map key must be string", p3) }
+            var key = rk["v"]["s"]
+            var rv2 = _decode_value(bs, rk["pos"])
+            if rv2["ok"] != 1 { return rv2 }
+            m[key] = rv2["v"]
+            p3 = rv2["pos"]
+            i5 = i5 + 1
+        }
+        return _ok(cmap(m), p3)
+    }
+    return _err("unsupported major type", pos - 1)
+}
+
+fn decode(bs) {
+    var r = _decode_value(bs, 0)
+    if r["ok"] != 1 { return r }
+    if r["pos"] != oren_list_len(bs) {
+        return _err("trailing input", r["pos"])
+    }
+    return r
+}

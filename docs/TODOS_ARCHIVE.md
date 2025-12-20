@@ -70,6 +70,17 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added oretest coverage to ensure `oren meta` contains the serde schema for the JSON fixture.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — CBOR v1 (RFC 8949 subset) + `@serde(format="cbor")`
+
+- Added `lib/std/cbor.oren`:
+  - deterministic CBOR encode/decode for a small portable tagged representation (`CborValue`)
+  - canonical map key ordering (length then bytewise) for stable bytes
+- Extended serde lowering to support `@serde(format="cbor")`:
+  - generates `<Type>__cbor_encode` / `<Type>__cbor_decode` (tagged value; binary encoding is via std/cbor)
+- Added integration test `tests/modules/test_cbor_serde_attrs.oren` and wired it into `cmd/oretest`.
+- Vendored RFC 8949 text into `docs/refs/cbor/rfc8949.txt` for audit reference.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.

@@ -1,0 +1,81 @@
+import cbor "../../lib/std/cbor.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+fn assert_bytes_eq(got, exp, msg) {
+    if oren_list_len(got) != oren_list_len(exp) {
+        print("LEN GOT: " + oren_int_to_string(oren_list_len(got)))
+        print("LEN EXP: " + oren_int_to_string(oren_list_len(exp)))
+        assert(false, msg + " (len)")
+    }
+    var i = 0
+    while i < oren_list_len(got) {
+        if got[i] != exp[i] {
+            print("BYTE MISMATCH at " + oren_int_to_string(i) + ": got=" + oren_int_to_string(got[i]) + " exp=" + oren_int_to_string(exp[i]))
+            assert(false, msg + " (byte)")
+        }
+        i = i + 1
+    }
+}
+
+@serde(format="cbor", tag="User")
+struct User {
+    @serde(rename="user_id")
+    id: i32,
+    active: bool,
+    name: string,
+    @serde(skip=true, default=0)
+    internal: i32
+}
+
+fn test_roundtrip_and_canonical_bytes() {
+    var u = User(7, true, "bob", 123)
+
+    // Serde lowering produces a tagged CBOR value (CborValue), not raw bytes.
+    var cv = User__cbor_encode(u)
+    var bs = cbor.encode(cv)
+
+    // Canonical map key order (RFC 8949 §4.2.1): length, then bytewise.
+    // Keys here: "t"(1), "name"(4), "active"(6), "user_id"(7).
+    //
+    // a4                                   # map(4)
+    //   61 74                              # text(1) "t"
+    //   64 55 73 65 72                     # text(4) "User"
+    //   64 6e 61 6d 65                     # text(4) "name"
+    //   63 62 6f 62                        # text(3) "bob"
+    //   66 61 63 74 69 76 65               # text(6) "active"
+    //   f5                                 # true
+    //   67 75 73 65 72 5f 69 64            # text(7) "user_id"
+    //   07                                 # unsigned(7)
+    var exp = [
+        164, // 0xa4
+        97, 116, // 0x61 0x74
+        100, 85, 115, 101, 114, // 0x64 "User"
+        100, 110, 97, 109, 101, // 0x64 "name"
+        99, 98, 111, 98, // 0x63 "bob"
+        102, 97, 99, 116, 105, 118, 101, // 0x66 "active"
+        245, // 0xf5 true
+        103, 117, 115, 101, 114, 95, 105, 100, // 0x67 "user_id"
+        7
+    ]
+    assert_bytes_eq(bs, exp, "canonical CBOR bytes")
+
+    var r = cbor.decode(bs)
+    assert(r["ok"] == 1, "cbor.decode ok")
+    var rr = User__cbor_decode(r["v"])
+    assert(rr["ok"] == 1, "User__cbor_decode ok")
+    var u2 = rr["v"]
+    assert(u2.id == 7, "id roundtrip")
+    assert(u2.name == "bob", "name roundtrip")
+    assert(u2.active == true, "active roundtrip")
+    assert(u2.internal == 0, "internal default")
+}
+
+test_roundtrip_and_canonical_bytes()
+print("ok")
+exit(0)

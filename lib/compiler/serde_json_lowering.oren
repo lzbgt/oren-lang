@@ -1,12 +1,14 @@
 import ast "ast.oren"
 
-// Attribute-driven JSON serde lowering (rolling).
+// Attribute-driven serde lowering (rolling): JSON + CBOR v1.
 //
 // Goal:
 // - Use struct field type annotations + `@serde.*` attributes to generate
 //   deterministic helper functions:
 //     - <Type>__json_encode(x) -> JsonValue
 //     - <Type>__json_decode(jv) -> {"ok":0|1,"err":string,"v":<Type>}
+//     - <Type>__cbor_encode(x) -> CborValue
+//     - <Type>__cbor_decode(cv) -> {"ok":0|1,"err":string,"v":<Type>}
 //
 // Constraints:
 // - No runtime reflection.
@@ -150,6 +152,35 @@ fn json_object(obj_map_expr) {
     return ast.new_hash(nil, [
         {"key": str_lit("t"), "value": str_lit("object")},
         {"key": str_lit("o"), "value": obj_map_expr}
+    ])
+}
+
+// CBOR tagged value constructors (compatible with `lib/std/cbor.oren`).
+fn cbor_int(expr) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("int")},
+        {"key": str_lit("i"), "value": expr}
+    ])
+}
+
+fn cbor_string(expr) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("string")},
+        {"key": str_lit("s"), "value": expr}
+    ])
+}
+
+fn cbor_bool_int(expr_int01) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("bool")},
+        {"key": str_lit("b"), "value": expr_int01}
+    ])
+}
+
+fn cbor_map(map_expr) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("map")},
+        {"key": str_lit("m"), "value": map_expr}
     ])
 }
 
@@ -337,6 +368,157 @@ fn make_result_err(msg) {
     ])
 }
 
+fn lower_one_type_cbor(type_stmt, stmts, prefix, field_info) {
+    var tname = type_stmt["name"]["value"]
+    var tagv = struct_tag_value_any(type_stmt)
+
+    // Encode: build {"t":"map","m":{...}} tagged value.
+    var map_pairs = []
+    if tagv != nil {
+        oren_list_push(map_pairs, {"key": str_lit("t"), "value": cbor_string(str_lit(tagv))})
+    }
+
+    var i = 0
+    while i < oren_list_len(field_info) {
+        var fi = field_info[i]
+        if fi != nil && fi["skip"] != true {
+            var wire = fi["wire"]
+            var k = fi["kind"]
+            var val_expr = member(ident("x"), fi["fname"])
+            if k == "int" {
+                oren_list_push(map_pairs, {"key": str_lit(wire), "value": cbor_int(val_expr)})
+            } else {
+                if k == "string" {
+                    oren_list_push(map_pairs, {"key": str_lit(wire), "value": cbor_string(val_expr)})
+                } else {
+                    if k == "bool" {
+                        ensure_bool_to_int_helper(stmts, prefix)
+                        var helper = prefix + "__oren_serde_bool_to_int"
+                        oren_list_push(map_pairs, {"key": str_lit(wire), "value": cbor_bool_int(call0(helper, [val_expr]))})
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    var enc_body = ast.new_block(nil)
+    enc_body["stmts"] = [
+        ast.new_return(nil, cbor_map(ast.new_hash(nil, map_pairs)))
+    ]
+    var enc_name = tname + "__cbor_encode"
+    if prefix != nil && prefix != "" { enc_name = prefix + enc_name }
+    var enc_fn = {"type": "Function", "token": nil, "name": enc_name, "params": [ident("x")], "body": enc_body}
+    oren_list_push(stmts, ast.new_expr_stmt(nil, enc_fn))
+
+    // Decode: validate CborValue map + extract fields by kind.
+    var dec_stmts = []
+
+    var if_cv_nil = ast.new_if(nil, ast.new_infix(nil, ident("cv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+    if_cv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected CborValue (got nil)"))]
+    if_cv_nil["alt"]["stmts"] = []
+    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_cv_nil))
+
+    var if_not_map = ast.new_if(nil, ast.new_infix(nil, index(ident("cv"), "t"), "!=", str_lit("map")), ast.new_block(nil), ast.new_block(nil))
+    if_not_map["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected CborValue map"))]
+    if_not_map["alt"]["stmts"] = []
+    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_not_map))
+
+    oren_list_push(dec_stmts, ast.new_var(nil, ident("m"), index(ident("cv"), "m")))
+    var if_m_nil = ast.new_if(nil, ast.new_infix(nil, ident("m"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+    if_m_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected CborValue map.m map"))]
+    if_m_nil["alt"]["stmts"] = []
+    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_m_nil))
+
+    if tagv != nil {
+        oren_list_push(dec_stmts, ast.new_var(nil, ident("tv"), index(ident("m"), "t")))
+        var if_tv_nil = ast.new_if(nil, ast.new_infix(nil, ident("tv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+        if_tv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("missing tag field t"))]
+        if_tv_nil["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_nil))
+        var if_tv_kind = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
+        if_tv_kind["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag field t must be a CBOR string"))]
+        if_tv_kind["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_kind))
+        var if_tv_mismatch = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "s"), "!=", str_lit(tagv)), ast.new_block(nil), ast.new_block(nil))
+        if_tv_mismatch["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag mismatch"))]
+        if_tv_mismatch["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_mismatch))
+    }
+
+    var ctor_args = []
+    i = 0
+    while i < oren_list_len(field_info) {
+        var fi2 = field_info[i]
+        if fi2 != nil {
+            var fname2 = fi2["fname"]
+            var wire2 = fi2["wire"]
+            var kind2 = fi2["kind"]
+            var skip2 = fi2["skip"]
+            var def2 = fi2["default"]
+
+            oren_list_push(dec_stmts, ast.new_var(nil, ident(fname2), {"type": "Nil", "token": nil}))
+            var tmp = "__fv_" + oren_int_to_string(i)
+            oren_list_push(dec_stmts, ast.new_var(nil, ident(tmp), index(ident("m"), wire2)))
+
+            var miss_if = ast.new_if(nil, ast.new_infix(nil, ident(tmp), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+            var miss_consq = []
+            if def2 != nil {
+                miss_consq = [ast.new_assign(nil, ident(fname2), def2)]
+            } else {
+                if skip2 == true {
+                    miss_consq = [ast.new_return(nil, make_result_err("missing skipped field default"))]
+                } else {
+                    miss_consq = [ast.new_return(nil, make_result_err("missing field: " + wire2))]
+                }
+            }
+            miss_if["consq"]["stmts"] = miss_consq
+
+            var pres = []
+            // Validate tag type + extract for non-skipped fields.
+            if kind2 == "int" {
+                var if_k = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("int")), ast.new_block(nil), ast.new_block(nil))
+                if_k["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + " must be CBOR int"))]
+                if_k["alt"]["stmts"] = []
+                pres = [ast.new_expr_stmt(nil, if_k), ast.new_assign(nil, ident(fname2), index(ident(tmp), "i"))]
+            } else {
+                if kind2 == "string" {
+                    var if_s = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
+                    if_s["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + " must be CBOR string"))]
+                    if_s["alt"]["stmts"] = []
+                    pres = [ast.new_expr_stmt(nil, if_s), ast.new_assign(nil, ident(fname2), index(ident(tmp), "s"))]
+                } else {
+                    if kind2 == "bool" {
+                        var if_b = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("bool")), ast.new_block(nil), ast.new_block(nil))
+                        if_b["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + " must be CBOR bool"))]
+                        if_b["alt"]["stmts"] = []
+                        pres = [ast.new_expr_stmt(nil, if_b), ast.new_assign(nil, ident(fname2), ast.new_infix(nil, index(ident(tmp), "b"), "!=", int_lit("0")))]
+                    } else {
+                        pres = [ast.new_return(nil, make_result_err("unsupported field kind"))]
+                    }
+                }
+            }
+
+            miss_if["alt"]["stmts"] = pres
+            oren_list_push(dec_stmts, ast.new_expr_stmt(nil, miss_if))
+
+            oren_list_push(ctor_args, ident(fname2))
+        }
+        i = i + 1
+    }
+
+    var ctor = ast.new_call(nil, ident(tname), ctor_args)
+    oren_list_push(dec_stmts, ast.new_return(nil, make_result_ok(ctor)))
+
+    var dec_body = ast.new_block(nil)
+    dec_body["stmts"] = dec_stmts
+    var dec_name = tname + "__cbor_decode"
+    if prefix != nil && prefix != "" { dec_name = prefix + dec_name }
+    var dec_fn = {"type": "Function", "token": nil, "name": dec_name, "params": [ident("cv")], "body": dec_body}
+    oren_list_push(stmts, ast.new_expr_stmt(nil, dec_fn))
+    return nil
+}
+
 fn lower_one_type(type_stmt, stmts, prefix) {
     var tname = type_stmt["name"]["value"]
     var fields = type_stmt["fields"]
@@ -357,8 +539,8 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     //   @serde(derive="json")   // previous compact form
     var fmt = struct_derive_value_any(type_stmt)
     if fmt == nil { return nil }
-    if fmt != "json" {
-        serde_json_error("serde: unknown derive format '" + fmt + "' (supported: \"json\") (struct " + tname + ")")
+    if fmt != "json" && fmt != "cbor" {
+        serde_json_error("serde: unknown derive format '" + fmt + "' (supported: \"json\"|\"cbor\") (struct " + tname + ")")
         return nil
     }
 
@@ -394,6 +576,11 @@ fn lower_one_type(type_stmt, stmts, prefix) {
             })
         }
         i = i + 1
+    }
+
+    if fmt == "cbor" {
+        lower_one_type_cbor(type_stmt, stmts, prefix, field_info)
+        return nil
     }
 
     // Encode: build {"t":"object","o":{...}} literal.
