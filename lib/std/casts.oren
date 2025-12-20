@@ -1,0 +1,53 @@
+// std/casts (rolling)
+//
+// Canonical explicit casts for v0.
+//
+// Design goals:
+// - Deterministic across backends (C/native/bytecode).
+// - Matches `type_ann_lowering.oren` normalization semantics for annotated boundaries.
+// - Provides a single obvious import path for explicit casts:
+//     import casts "../../lib/std/casts.oren"
+//     var x: u8 = casts.u8(expr)
+//
+// NOTE: This is NOT yet a full static type system; it is an explicit, portable cast surface.
+
+import ints "ints.oren"
+
+// Integer width casts (wrap/truncate semantics).
+fn u8(x) { return ints.u8(x) }
+fn i8(x) { return ints.i8(x) }
+fn u16(x) { return ints.u16(x) }
+fn i16(x) { return ints.i16(x) }
+fn u32(x) { return ints.u32(x) }
+fn i32(x) { return ints.i32(x) }
+fn i64(x) { return ints.i64(x) }
+fn u64(x) { return ints.u64(x) }
+
+// Checked integer casts (error on out-of-range).
+fn try_u8(x) { return ints.try_u8(x) }
+fn try_i8(x) { return ints.try_i8(x) }
+fn try_u16(x) { return ints.try_u16(x) }
+fn try_i16(x) { return ints.try_i16(x) }
+fn try_u32(x) { return ints.try_u32(x) }
+fn try_i32(x) { return ints.try_i32(x) }
+fn try_i64(x) { return ints.try_i64(x) }
+fn try_u64(x) { return ints.try_u64(x) }
+
+// Bool normalization with numeric semantics (int/float: != 0).
+fn bool(x) {
+    return oren_bool_norm(x)
+}
+
+// Float casts.
+//
+// v0 float is f64 at runtime. `f32` is a deterministic rounding boundary.
+fn f32(x) {
+    return oren_f32_round(x)
+}
+
+fn f64(x) {
+    // Coerce to float without relying on host math libs.
+    // Adding 0.0 forces floaty behavior in the runtime arithmetic.
+    return x + 0.0
+}
+

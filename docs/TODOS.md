@@ -68,32 +68,42 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+1) **[lang][safety] Type casting system (builtin casts + deterministic implicit conversions)**
+   - Why now:
+     - Modern stdlib (math/serde/regex) and syscall-first parsing need a crisp, deterministic casting story.
+     - Casts must be cheap and ubiquitous; they must compile to lowering-time rewrites, not runtime calls.
+   - DoD:
+     - support builtin cast sugar: `u8(x)`, `i32(x)`, `f32(x)`, `bool(x)`, and endian-tagged spellings (`u16be(x)` etc.)
+     - casts compile to deterministic lowering-time rewrites (no dynamic call overhead)
+     - type annotations keep doing deterministic implicit normalization at boundaries (C-like truncation rules, but explicitly specified)
+     - `lib/std/casts.oren` stays as an optional clarity layer (not required for performance)
+
+2) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
 ### B) AVM (evolves alongside language/compiler)
 
-2) **[vm][safety] Record/Replay v1 for all effectful domains**
+3) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-3) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+4) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-4) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+5) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-5) **[boot][arch] Compiler-in-AVM (close the loop)**
+6) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks

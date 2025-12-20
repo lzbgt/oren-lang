@@ -86,7 +86,7 @@ fn cast_expr_for_kind(kind, expr) {
     if k == "u32" { return mask_expr(expr, "4294967295") }
     if k == "i32" { return sub_expr(xor_expr(mask_expr(expr, "4294967295"), "2147483648"), "2147483648") }
 
-    // v0 ints are machine-sized signed. Keep i64 as identity; u64 is best-effort.
+    // v0 ints are machine-sized signed. Keep i64/u64 as identity for now.
     if k == "i64" || k == "u64" { return expr }
 
     // bool is normalized to a boolean value.
@@ -96,6 +96,11 @@ fn cast_expr_for_kind(kind, expr) {
         // Round to float32 precision (deterministic boundary).
         // Lowered as a call so C/bytecode backends can implement it as a runtime helper.
         return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_f32_round"}, [expr])
+    }
+    if k == "f64" {
+        // Force float container in v0 (where float is f64).
+        // Use arithmetic coercion (no host lib calls).
+        return ast.new_infix(nil, expr, "+", {"type": "Float", "token": nil, "value": "0.0"})
     }
     // f64 is the default float precision in v0.
     return expr
@@ -210,6 +215,22 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
         }
         if expr["spread"] != nil {
             expr["spread"] = lower_expr_in_place(expr["spread"], type_kinds, ret_kind)
+        }
+
+        // Builtin cast sugar lowering:
+        // - `u8(x)` / `i32(x)` / `f32(x)` / `bool(x)` / endian-tagged types
+        // becomes a deterministic cast expression (no function call).
+        //
+        // This is critical for performance and for a clean language surface: casts should
+        // not require stdlib imports, and should not allocate or call dynamically.
+        var fn1 = expr["fn"]
+        if fn1 != nil && fn1["type"] == "Identifier" && expr["spread"] == nil && oren_list_len(args) == 1 {
+            var nm1 = fn1["value"]
+            // Only treat known cast kinds as sugar, otherwise keep as a normal call.
+            var kk = normalize_kind_for_value_cast(nm1)
+            if kk == "u8" || kk == "i8" || kk == "u16" || kk == "i16" || kk == "u32" || kk == "i32" || kk == "u64" || kk == "i64" || kk == "bool" || kk == "f32" || kk == "f64" {
+                return cast_expr_for_kind(nm1, args[0])
+            }
         }
 
         // Struct/class constructor normalization:
@@ -398,25 +419,25 @@ fn collect_type_kinds_in_stmt(stmt, type_kinds) {
     return nil
 }
 
-fn lower_linked_program_in_place(linked) {
-    if linked == nil { return nil }
+	fn lower_linked_program_in_place(linked) {
+	    if linked == nil { return nil }
 
-    // Build mapping: TypeName -> [field_kind_or_nil...]
-    var type_kinds = {}
-    var stmts = linked["statements"]
-    var i = 0
-    while i < oren_list_len(stmts) {
-        collect_type_kinds_in_stmt(stmts[i], type_kinds)
-        i = i + 1
-    }
+	    // Build mapping: TypeName -> [field_kind_or_nil...]
+	    var type_kinds = {}
+	    var stmts = linked["statements"]
+	    var i = 0
+	    while i < oren_list_len(stmts) {
+	        collect_type_kinds_in_stmt(stmts[i], type_kinds)
+	        i = i + 1
+	    }
 
-    // Rewrite expressions in all statements.
-    i = 0
-    while i < oren_list_len(stmts) {
-        lower_stmt_in_place(stmts[i], type_kinds, nil)
-        i = i + 1
-    }
+	    // Rewrite expressions in all statements.
+	    i = 0
+	    while i < oren_list_len(stmts) {
+	        lower_stmt_in_place(stmts[i], type_kinds, nil)
+	        i = i + 1
+	    }
 
-    linked["type_kinds"] = type_kinds
-    return linked
-}
+	    linked["type_kinds"] = type_kinds
+	    return linked
+	}

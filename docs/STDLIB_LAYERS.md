@@ -47,6 +47,7 @@ Examples (current / expected direction):
 - `std/bytes` (byte helpers, endian reads/writes; used by packet parsing)
 - `std/result` (small error/value helpers used across stdlib)
 - `std/argparse` (used by `./oren` and `./avm` CLIs)
+- `std/casts` (canonical explicit casts matching annotation lowering; clarity layer)
 - `std/math` (portable helpers: abs/min/max/clamp + `is_nan`)
 - `std/regex` (deterministic Thompson NFA; no catastrophic backtracking)
 - `std/json` (portable explicit `JsonValue`; tolerant decode for config text)

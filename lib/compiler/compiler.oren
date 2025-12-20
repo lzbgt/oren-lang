@@ -45,7 +45,6 @@ fn cli_spec() {
     argparse.cmd_option(build, "--notary-profile", nil, "string", "", "(macOS) notarytool keychain profile")
     argparse.cmd_flag(build, "--no-gc", nil, "Disable GC scanning (also via env OREN_NO_GC=1)")
     argparse.cmd_flag(build, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds")
-
     var emitc = argparse.add_command(p, "emit-c", "Alias for: build --backend c --emit-c")
     argparse.cmd_positional(emitc, "file.oren", true, "Input source file")
 
@@ -900,7 +899,7 @@ fn link_program(entry_path, root_prog, config) {
     }
 
 
-    // Compile-time lowering: apply value-level normalization for annotated struct/class fields.
+    // Compile-time lowering: apply value-level normalization for annotated boundaries.
     // (Rolling step toward exact-size layout semantics.)
     if trace_passes { print("[trace] pass: type_ann") }
     type_ann.lower_linked_program_in_place(linked)
@@ -1828,11 +1827,11 @@ fn compiler_main() {
         print("Build failed")
         oren_exit(1)
     }
-        if target == "macos" {
-            if codesign_id != "" {
-                var cs_cmd2 = "codesign -s " + shell_quote(codesign_id) + " --force " + shell_quote(out_path)
-                var cs_res2 = oren_system(cs_cmd2)
-                if cs_res2 != 0 {
+    if target == "macos" {
+        if codesign_id != "" {
+            var cs_cmd2 = "codesign -s " + shell_quote(codesign_id) + " --force " + shell_quote(out_path)
+            var cs_res2 = oren_system(cs_cmd2)
+            if cs_res2 != 0 {
                 print("codesign failed with " + codesign_id + ", retrying ad-hoc...")
                 var ad_cmd2 = "codesign -s - --force " + shell_quote(out_path)
                 var ad_res2 = oren_system(ad_cmd2)

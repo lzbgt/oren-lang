@@ -1,0 +1,35 @@
+// Regression: builtin cast sugar `u8(x)` etc should be lowered to deterministic casts,
+// not runtime function calls. Works without importing stdlib cast helpers.
+
+fn fail(code) {
+    print("module cast_sugar FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// small int casts
+assert_eq(u8(256 + 5), 5, 10)
+assert_eq(i8(255), -1, 11)
+assert_eq(u16(65536 + 7), 7, 12)
+assert_eq(i16(65535), -1, 13)
+assert_eq(u32(4294967296 + 9), 9, 14)
+assert_eq(i32(4294967295), -1, 15)
+
+// endian-tagged spellings are accepted as cast sugar too (value-level cast semantics).
+assert_eq(u16be(65536 + 7), 7, 20)
+assert_eq(i16le(65535), -1, 21)
+
+// bool normalization
+if bool(0) { fail(30) }
+if !bool(123) { fail(31) }
+
+// f32 rounding boundary: 16777217 (2^24+1) rounds to 16777216 in float32.
+assert_eq(f32(16777217.0), 16777216.0, 40)
+
+print("module cast_sugar OK")
+exit(0)
+
