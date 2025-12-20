@@ -68,8 +68,9 @@ fn func_decl_add(ctx, fn_name, arity) {
         oren_list_push(ctx["func_decl_order"], fn_name)
     } else {
         if existing != arity {
-            print("native backend: inconsistent arity for '" + fn_name + "' (" + oren_int_to_string(existing) + " vs " + oren_int_to_string(arity) + ")")
-            oren_exit(1)
+            // Do not hard-exit inside codegen: collect and let the outer compiler emit OREN_DIAG.
+            oren_list_push(ctx["errors"], "native backend: inconsistent arity for '" + fn_name + "' (" + oren_int_to_string(existing) + " vs " + oren_int_to_string(arity) + ")")
+            return nil
         }
     }
     return nil
@@ -844,23 +845,24 @@ fn native_compile_program_arm64(linked, platform) {
     // Inject Runtime
     var runtime_src = oren_read_file("lib/runtime_native.oren")
     if oren_is_err(runtime_src) {
-        print("Failed to read lib/runtime_native.oren")
         var msg = oren_err_msg(runtime_src)
-        if msg != nil { print(msg) }
-        oren_exit(1)
+        var e = "Failed to read lib/runtime_native.oren"
+        if msg != nil { e = e + ": " + msg }
+        oren_list_push(ctx["errors"], e)
+        return ctx
     }
     var l = lexer.new_lexer(runtime_src)
     l["file"] = "lib/runtime_native.oren"
     var p = parser.new_parser(l)
     var runtime_prog = parser.parse_program(p)
     if oren_list_len(p["errors"]) != 0 {
-        print("Parse errors in lib/runtime_native.oren:")
+        oren_list_push(ctx["errors"], "Parse errors in lib/runtime_native.oren")
         var ei = 0
         while ei < oren_list_len(p["errors"]) {
-            print(p["errors"][ei])
+            oren_list_push(ctx["errors"], p["errors"][ei])
             ei = ei + 1
         }
-        oren_exit(1)
+        return ctx
     }
 
     // Capsule mode: enforce capability gating on user code before codegen.

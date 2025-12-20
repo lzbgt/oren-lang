@@ -51,6 +51,21 @@ var AVM_DOMAIN_EXIT = 6
 var AVM_DOMAIN_ENV = 7
 var AVM_DOMAIN_AVM = 8
 
+fn bc_diag_escape(msg) {
+    if msg == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(msg) {
+        var c = oren_string_char_at(msg, i)
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
 fn bytecode_error(ctx, msg) {
     if ctx == nil { return nil }
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -1903,9 +1918,11 @@ fn bytecode_emit_program(out_path, ctx) {
     
     var w = oren_write_bytes(out_path, bytes)
     if oren_is_err(w) {
-        print("Failed to write bytecode: " + out_path)
         var msg = oren_err_msg(w)
-        if msg != nil { print(msg) }
+        var e = "Failed to write bytecode: " + out_path
+        if msg != nil { e = e + ": " + msg }
+        print("OREN_DIAG kind=codegen code=2 msg=" + bc_diag_escape(e))
+        print(e)
         oren_exit(1)
     }
     return bytes

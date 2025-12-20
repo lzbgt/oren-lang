@@ -1,5 +1,21 @@
 import codegen "codegen_arm64.oren"
 
+fn elf_diag_escape(msg) {
+    if msg == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(msg) {
+        var c = oren_string_char_at(msg, i)
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
+
 // ELF emitter for arm64 (Linux).
 // Single responsibility: take a linked program, call the arm64 native codegen,
 // apply fixups, and write an ELF executable.
@@ -258,9 +274,11 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     
     var w3 = oren_write_bytes(out_path, prefix)
     if oren_is_err(w3) {
-        print("Failed to write output: " + out_path)
         var msg3 = oren_err_msg(w3)
-        if msg3 != nil { print(msg3) }
+        var e = "Failed to write output: " + out_path
+        if msg3 != nil { e = e + ": " + msg3 }
+        print("OREN_DIAG kind=codegen code=2 msg=" + elf_diag_escape(e))
+        print(e)
         oren_exit(1)
     }
     oren_chmod(out_path, 493) // 0755

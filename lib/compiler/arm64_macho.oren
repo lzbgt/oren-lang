@@ -2,6 +2,22 @@ import codegen "codegen_arm64.oren"
 import core "arm64_core.oren"
 import abi "arm64_abi_macos.oren"
 
+fn macho_diag_escape(msg) {
+    if msg == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(msg) {
+        var c = oren_string_char_at(msg, i)
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
+
 // Mach-O emitter for arm64 (Darwin).
 // Single responsibility: take a linked program, call the arm64 native codegen,
 // apply fixups, and write a Mach-O executable/shared library.
@@ -588,9 +604,11 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
 
     var w = oren_write_bytes(out_path, prefix)
     if oren_is_err(w) {
-        print("Failed to write output: " + out_path)
         var msg = oren_err_msg(w)
-        if msg != nil { print(msg) }
+        var e = "Failed to write output: " + out_path
+        if msg != nil { e = e + ": " + msg }
+        print("OREN_DIAG kind=codegen code=2 msg=" + macho_diag_escape(e))
+        print(e)
         oren_exit(1)
     }
     oren_chmod(out_path, 493) // 0755
@@ -831,9 +849,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     
     var w2 = oren_write_bytes(out_path, prefix)
     if oren_is_err(w2) {
-        print("Failed to write output: " + out_path)
-        var msg2 = oren_err_msg(w2)
-        if msg2 != nil { print(msg2) }
+        var msg = oren_err_msg(w2)
+        var e = "Failed to write output: " + out_path
+        if msg != nil { e = e + ": " + msg }
+        print("OREN_DIAG kind=codegen code=2 msg=" + macho_diag_escape(e))
+        print(e)
         oren_exit(1)
     }
     oren_chmod(out_path, 493) // 0755
