@@ -87,32 +87,45 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - explicitly define: width tokens, `as` cast surface, trait model (compile-time + runtime), packed view story
      - update any outdated docs that contradict the plan
 
-3) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+3) **[stdlib][perf] `std/linalg` foundation (scalar-first, SIMD-ready)**
+   - Why now:
+     - Oren targets syscall-first servers *and* scientific/HPC workloads; linalg is the forcing function for:
+       - explicit width tokens (`f32`/`f64`/`i32`/`u32`)
+       - predictable contiguous memory layouts
+       - SIMD pathways (NEON today, more later)
+   - DoD:
+     - add `lib/std/linalg.oren` with a minimal, composable surface:
+       - `dot_f64`, `dot_f32`, `axpy_f64`, `axpy_f32` (or generic once generics exist)
+       - `matmul_f64` baseline (row-major), correctness over speed
+     - add module tests: dot + matmul correctness + numeric edge cases
+     - leave a clear SIMD hook boundary for later NEON kernels (no backtracking design)
+
+4) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
 ### B) AVM (evolves alongside language/compiler)
 
-4) **[vm][safety] Record/Replay v1 for all effectful domains**
+5) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-5) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+6) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-6) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+7) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-7) **[boot][arch] Compiler-in-AVM (close the loop)**
+8) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
