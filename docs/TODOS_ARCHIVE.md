@@ -49,6 +49,19 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Updated curated runner list (`cmd/oretest/main.go`) to include it.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-20) — Serde attribute ergonomics v1 (format-first)
+
+- Upgraded the preferred surface syntax to remove redundancy and be multi-format friendly:
+  - Struct opt-in: `@serde(format="json", tag="User")` (also supports positional `@serde("json")`).
+  - Field options: `@serde(rename="wire")`, `@serde(skip=true, default=0)`.
+- Kept rolling back-compat:
+  - `@json.*` aliases still canonicalize to `serde.*`.
+  - legacy dotted: `@json.derive("json")`, `@json.tag("User")`, `@json.rename("x")`, `@json.skip()`, `@json.default(0)`.
+  - previous compact: `@serde(derive="json")` still works.
+- Parser: fixed keyword-arg parsing to accept keyword tokens as keys (e.g. `default=0` where `default` is tokenized as a keyword).
+- Tests: strengthened `tests/modules/test_json_serde_attrs.oren` to cover both compact `@serde(...)` and legacy dotted forms.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.

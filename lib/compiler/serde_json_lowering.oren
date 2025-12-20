@@ -70,6 +70,41 @@ fn attr_arg0_string(attr) {
     return v["value"]
 }
 
+fn attr_kw_value(attr, key) {
+    // Returns the literal value node for a keyword argument `key=...`, or nil.
+    if attr == nil { return nil }
+    var args = attr["args"]
+    if args == nil { return nil }
+    var i = 0
+    while i < oren_list_len(args) {
+        var a = args[i]
+        if a != nil && a["key"] == key {
+            return a["value"]
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn attr_kw_string(attr, key) {
+    var v = attr_kw_value(attr, key)
+    if v == nil { return nil }
+    if v["type"] != "String" { return nil }
+    return v["value"]
+}
+
+fn attr_kw_bool(attr, key) {
+    var v = attr_kw_value(attr, key)
+    if v == nil { return nil }
+    if v["type"] == "Boolean" { return v["value"] }
+    // Accept 0/1 ints for convenience (still literal-only).
+    if v["type"] == "Integer" {
+        if v["value"] == "0" { return false }
+        if v["value"] == "1" { return true }
+    }
+    return nil
+}
+
 fn str_lit(s) { return {"type": "String", "token": nil, "value": s} }
 fn int_lit(s) { return {"type": "Integer", "token": nil, "value": s} }
 fn ident(name) { return {"type": "Identifier", "token": nil, "value": name} }
@@ -153,6 +188,12 @@ fn field_wire_name(fid) {
         var s = attr_arg0_string(a)
         if s != nil { return s }
     }
+    // Compact form: `@json(rename="wire")` canonicalizes to attr name `serde`.
+    var b = get_attr(fid, "serde")
+    if b != nil {
+        var s2 = attr_kw_string(b, "rename")
+        if s2 != nil { return s2 }
+    }
     return fid["value"]
 }
 
@@ -163,13 +204,77 @@ fn field_default_literal(fid) {
     return attr_arg0(a)
 }
 
-fn field_is_skip(fid) { return has_attr(fid, "serde.skip") }
+fn field_default_literal_any(fid) {
+    // Prefer explicit attribute form.
+    var a = get_attr(fid, "serde.default")
+    if a != nil { return attr_arg0(a) }
+    // Compact form: `@serde(default=...)` (also works via `@json(...)` alias).
+    var b = get_attr(fid, "serde")
+    if b != nil {
+        var v = attr_kw_value(b, "default")
+        if v != nil { return v }
+    }
+    return nil
+}
+
+fn field_is_skip(fid) {
+    if has_attr(fid, "serde.skip") { return true }
+    var b = get_attr(fid, "serde")
+    if b != nil {
+        var sv = attr_kw_bool(b, "skip")
+        if sv == true { return true }
+    }
+    return false
+}
 
 fn struct_tag_value(type_stmt) {
     // `@json.tag("X")` / canonical `@serde.tag("X")`
     var a = get_attr(type_stmt, "serde.tag")
     if a == nil { return nil }
     return attr_arg0_string(a)
+}
+
+fn struct_tag_value_any(type_stmt) {
+    var a = get_attr(type_stmt, "serde.tag")
+    if a != nil {
+        var s = attr_arg0_string(a)
+        if s != nil { return s }
+    }
+    // Compact form: `@serde(tag="X")` (or `@json(tag="X")` alias).
+    var b = get_attr(type_stmt, "serde")
+    if b != nil {
+        var s2 = attr_kw_string(b, "tag")
+        if s2 != nil { return s2 }
+    }
+    return nil
+}
+
+fn struct_derive_value_any(type_stmt) {
+    // Returns a string (format) or nil if no derive requested.
+    var a = get_attr(type_stmt, "serde.derive")
+    if a != nil {
+        var s = attr_arg0_string(a)
+        if s != nil { return s }
+        // `@serde.derive()` defaults to json.
+        return "json"
+    }
+
+    // Compact form: `@serde(format="json")` (preferred) or `@serde("json")` (positional).
+    // This is explicit enough to opt-in codegen and removes the redundant `derive="json"`.
+    var b = get_attr(type_stmt, "serde")
+    if b != nil {
+        var fmt = attr_kw_string(b, "format")
+        if fmt != nil { return fmt }
+        var p0 = attr_arg0_string(b)
+        if p0 != nil { return p0 }
+
+        // Back-compat: `@serde(derive="json")` or `@serde(derive=true)`.
+        var s2 = attr_kw_string(b, "derive")
+        if s2 != nil { return s2 }
+        var bv = attr_kw_bool(b, "derive")
+        if bv == true { return "json" }
+    }
+    return nil
 }
 
 fn ensure_bool_to_int_helper(stmts, prefix) {
@@ -243,12 +348,16 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     // codegen constraints onto every annotated struct.
     //
     // Supported (canonical) opt-in:
+    //   @serde(format="json")   // preferred (future multi-format friendly)
+    //   @serde("json")          // positional shorthand
+    //
+    // Back-compat forms (rolling mode):
     //   @serde.derive("json")   // or @json.derive("json")
     //   @serde.derive()         // defaults to json in v0
-    var d = get_attr(type_stmt, "serde.derive")
-    if d == nil { return nil }
-    var fmt = attr_arg0_string(d)
-    if fmt != nil && fmt != "json" {
+    //   @serde(derive="json")   // previous compact form
+    var fmt = struct_derive_value_any(type_stmt)
+    if fmt == nil { return nil }
+    if fmt != "json" {
         serde_json_error("serde: unknown derive format '" + fmt + "' (supported: \"json\") (struct " + tname + ")")
         return nil
     }
@@ -262,10 +371,10 @@ fn lower_one_type(type_stmt, stmts, prefix) {
             var fname = f2["value"]
             var ann = f2["ann_type"]
             var skip = field_is_skip(f2)
-            var dflt = field_default_literal(f2)
+            var dflt = field_default_literal_any(f2)
             var kind = serde_kind_for_ann(ann)
             if skip && dflt == nil {
-                serde_json_error("serde: skipped field requires @json.default(...) (struct " + tname + " field " + fname + ")")
+                serde_json_error("serde: skipped field requires @serde.default(...) (struct " + tname + " field " + fname + ")")
             }
             if !skip {
                 if ann == nil {
@@ -290,7 +399,7 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     // Encode: build {"t":"object","o":{...}} literal.
     var obj_pairs = []
 
-    var tagv = struct_tag_value(type_stmt)
+    var tagv = struct_tag_value_any(type_stmt)
     if tagv != nil {
         // Use fixed key "t" for now (rolling). (Matches existing fixture usage.)
         oren_list_push(obj_pairs, {"key": str_lit("t"), "value": json_string(str_lit(tagv))})

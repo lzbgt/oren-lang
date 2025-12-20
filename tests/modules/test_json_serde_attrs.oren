@@ -7,20 +7,32 @@ fn assert(cond, msg) {
     }
 }
 
-@json.tag("User")
-@json.derive("json")
+// Compact attribute syntax (recommended): prefer canonical `@serde(...)`.
+@serde(format="json", tag="User")
 struct User {
-    @json.rename("user_id")
+    @serde(rename="user_id")
     id: i32,
     active: bool,
     name: string,
     // Not serialized (skip), but must have a default for decode.
+    @serde(skip=true, default=0)
+    internal: i32
+}
+
+// Legacy dotted attribute syntax (still supported in rolling mode).
+@json.derive("json")
+@json.tag("UserLegacy")
+struct UserLegacy {
+    @json.rename("user_id")
+    id: i32,
+    active: bool,
+    name: string,
     @json.skip()
     @json.default(0)
     internal: i32
 }
 
-fn test_roundtrip() {
+fn test_roundtrip_compact() {
     var u = User(7, true, "bob", 123)
     var jv = User__json_encode(u)
     var s = json.encode(jv)
@@ -45,6 +57,30 @@ fn test_roundtrip() {
     assert(u2.internal == 0, "internal default")
 }
 
-test_roundtrip()
+fn test_roundtrip_legacy() {
+    var u = UserLegacy(7, true, "bob", 123)
+    var jv = UserLegacy__json_encode(u)
+    var s = json.encode(jv)
+
+    var exp = "{\"active\":true,\"name\":\"bob\",\"t\":\"UserLegacy\",\"user_id\":7}"
+    if s != exp {
+        print("GOT: " + s)
+        print("EXP: " + exp)
+    }
+    assert(s == exp, "encode matches expected JSON")
+
+    var r = json.decode(s)
+    assert(r["ok"] == 1, "json.decode ok")
+    var rr = UserLegacy__json_decode(r["v"])
+    assert(rr["ok"] == 1, "UserLegacy__json_decode ok")
+    var u2 = rr["v"]
+    assert(u2.id == 7, "id roundtrip")
+    assert(u2.name == "bob", "name roundtrip")
+    assert(u2.active == true, "active roundtrip")
+    assert(u2.internal == 0, "internal default")
+}
+
+test_roundtrip_compact()
+test_roundtrip_legacy()
 print("ok")
 exit(0)

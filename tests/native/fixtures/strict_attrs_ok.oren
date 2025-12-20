@@ -1,5 +1,6 @@
 @doc("Strict attribute mode: allowlisted prefixes + known attrs")
 @myorg.feature("alpha", 1, true, nil)
+fn f(@json(rename="x") a) { return 0 }
 fn main() {
     print("strict attrs ok")
 }

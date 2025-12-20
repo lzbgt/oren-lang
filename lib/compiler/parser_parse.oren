@@ -173,7 +173,10 @@ fn parse_attr(p) {
                 var key = nil
                 var val = nil
 
-                if cur_is(p, token.TOK_IDENT) && peek_is(p, token.TOK_ASSIGN) {
+                // Keyword args in attrs: allow a small "attr-name token" set as keys.
+                // This keeps ergonomic forms like `@json(default=0)` working even though
+                // `default` is a keyword token in the lexer.
+                if token.is_attr_name_token(p["cur"]["type"]) && peek_is(p, token.TOK_ASSIGN) {
                     key = p["cur"]["literal"]
                     parser_next_token(p) // '='
                     parser_next_token(p) // value

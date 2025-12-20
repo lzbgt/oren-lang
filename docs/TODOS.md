@@ -68,71 +68,42 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][ux] Serde attribute ergonomics v1 (multi-format ready)**
+1) **[lang][ux] Serde v1: compiler emits unified “serde schema” metadata**
    - Why now:
-     - JSON serde helpers are implemented; next is to make the attribute surface concise and scalable to multiple formats.
+     - JSON v1 codegen exists, but libraries need a stable metadata contract to build multi-format serdes without compiler churn.
    - DoD:
-     - reduce per-field annotation noise (prefer single attribute call rather than many lines)
-     - define a coherent “one set of field options” model that can map to JSON/YAML/XML later without syntax churn
-     - keep determinism rules: literal-only args, unknown attrs inert by default, strict-attrs governance intact
+     - `oren meta` exports a normalized serde schema per struct:
+       - struct-level: `format`, optional `tag`, field list
+       - field-level: `rename`, `skip`, `default`, and type info (already in `ann_type`)
+     - schema is deterministic, versioned (rolling schema OK), and does not require runtime reflection
+     - `@serde(...)` stays as the source-level configuration surface (no new syntax)
 
-2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
-   - DoD:
-     - define a minimal IR boundary (or reuse current representation) that enables at least:
-       - constant folding for numeric ops
-       - dead-code elimination for unused locals/temporaries
-       - peephole cleanup for redundant moves/loads
-     - add a small microbenchmark `.oren` program in `examples/` + measure before/after in `docs/`
-   - Status:
-     - implemented a conservative AST/link-time optimizer pass: constant folding (small ints), peepholes, and trivial top-level DCE
-     - added `examples/bench_opt_native.oren` as a baseline microbenchmark
-     - fixed a native SIGILL regression found while enabling the optimizer: negative integer literals must not emit `MOVZ` with a negative imm16
-
-3) **[lang][safety] “Production panic” diagnostics: spans + stable backtrace mapping**
-   - DoD:
-     - panics/errors include function + source span where available
-     - metadata provides enough PC→span mapping for AVM traces and native panics (rolling schema OK)
-     - oretest enforces machine-readable one-line `OREN_DIAG ...` + stable fields
-   - Status:
-     - native debug stack traces now print `file:line:col` for frames when built with `--debug` (via extended debug info table)
-
-4) **[lang][arch] Module graph + reproducible builds (compiler surface)**
-   - DoD:
-     - stable module dependency graph export (JSON) for a build target
-     - deterministic build ordering and deterministic artifact hashes in “deterministic mode”
-   - Status:
-     - module dependency graph export is available via `oren dump graph <file.oren>` (JSON, deterministic ordering)
-     - `oren build --deterministic` emits stable `OREN_ARTIFACT ... sha256=...` hashes (oretest enforces bytecode reproducibility)
-     - deterministic mode also hashes metadata sidecars (`--metadata` / `oren meta --deterministic`) as `kind=meta`
-     - oretest also enforces deterministic `kind=meta` hashes
-     - oretest covers both `oren meta` and `oren build --backend native --metadata` paths
-
-5) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
+2) **[lang][ux] Oren-native test runner direction (reduce Makefile coupling)**
    - DoD:
      - define minimal `.oren`-level test runner spec (output format, filters, JSON output)
      - keep `cmd/oretest` as orchestration for now, but document staged migration path
 
 ### B) AVM (evolves alongside language/compiler)
 
-6) **[vm][safety] Record/Replay v1 for all effectful domains**
+3) **[vm][safety] Record/Replay v1 for all effectful domains**
    - DoD:
      - record/replay for FS + NET + PROC + ENV + TIME + RNG
      - replay runs must not touch the host (even if the recorded run did)
      - replay logs are budgeted and portable (in-memory and file-backed)
 
-7) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
+4) **[vm][safety] Deterministic concurrency substrate (AVM tasks)**
    - DoD:
      - introduce `yield`/tasks with a deterministic scheduler mode (single-thread baseline)
      - define scheduling determinism (either deterministic policy or record/replay scheduling)
      - budgets propagate through task trees (structured concurrency)
 
-8) **[vm][safety] Snapshot/restore format hardening + stability knobs**
+5) **[vm][safety] Snapshot/restore format hardening + stability knobs**
    - DoD:
      - snapshot includes full VM state and validates on load
      - hash-friendly, chunkable layout (for swarm consensus + dedupe)
      - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
 
-9) **[boot][arch] Compiler-in-AVM (close the loop)**
+6) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
@@ -140,7 +111,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-10) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+7) **[stdlib][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
@@ -148,6 +119,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Serde attribute ergonomics v1: prefer `@serde(format="json", ...)` / `@serde(rename=..., skip=..., default=...)` while keeping legacy dotted forms working in rolling mode.
 - Tooling: `oren dump tokens|linked <file.oren>` emits deterministic JSON for troubleshooting.
 - Pass tracing: `OREN_TRACE_PASSES=1` prints major compiler phases during linking/compilation.
 - Native debug traces: `--debug` builds now print `file:line:col` in stack traces (from debug info table), making panics AI-diagnosable without lldb.

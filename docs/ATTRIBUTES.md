@@ -131,16 +131,16 @@ Current behavior (rolling):
 Opt-in JSON v1 codegen (implemented):
 
 ```oren
-@json.derive("json")
+// Prefer `@serde(...)` (canonical namespace). `@json(...)` remains supported as an alias.
+@serde(format="json")
 struct User {
-    @json.rename("user_id")
+    @serde(rename="user_id")
     id: i32,
     active: bool,
     name: string,
 
     // Skip requires a default so decode stays deterministic.
-    @json.skip()
-    @json.default(0)
+    @serde(skip=true, default=0)
     internal: i32
 }
 ```

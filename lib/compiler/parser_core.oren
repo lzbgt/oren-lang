@@ -112,7 +112,7 @@ fn new_parser(l) {
             // ABI/FFI layout mode (compile-time meaning; does not use host headers).
             "oren.abi",
             // Serde metadata (non-reserved but frequently used; allow in strict mode).
-            "serde.rename", "serde.skip", "serde.default", "serde.tag", "serde.derive"
+            "serde", "serde.rename", "serde.skip", "serde.default", "serde.tag", "serde.derive"
         ]
     }
     parser_next_token(p)
