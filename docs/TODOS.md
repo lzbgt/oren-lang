@@ -70,18 +70,19 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang/runtime][perf] Allocation + GC metadata scaling (HPC hot paths)**
-   - Why now:
-     - server-side HPC workloads are allocation-heavy; `oren_find_node()` linear scans can become a bottleneck.
-   - DoD:
-     - replace the `g_allocs` linked-list lookup with a hash table (or another O(1) registry)
-     - keep GC determinism + thread safety (no missed roots, no UAF)
-     - add a micro-benchmark style module test (not timing-based) that allocates many small objects and verifies correctness under GC stress
-
-2) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+1) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
+
+2) **[lang][ux] Add integer modulo operator `%` (syntax + runtime semantics)**
+   - Why now:
+     - `%` is a fundamental operator for many non-HPC tasks (hashing, parsing, scheduling).
+     - Current workarounds (counter resets) are clunky and error-prone.
+   - DoD:
+     - parser + codegen for `a % b` (int % int) with deterministic semantics (match C trunc division rules)
+     - define behavior for `b==0` (panic or error; pick one and document)
+     - add module test coverage
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -117,3 +118,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.
 - Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.
 - `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.
+- GC registry scaling: replaced linear `oren_find_node()` lookup with a pointer-indexed hash table and added a GC stress module test; verified on macOS + Linux docker.

@@ -30,6 +30,127 @@ typedef struct OrenAllocNode {
 static OrenAllocNode* g_allocs = NULL;
 static pthread_mutex_t g_alloc_mutex = PTHREAD_MUTEX_INITIALIZER;
 static OrenAllocNode* g_roots = NULL;
+
+// Allocation registry acceleration:
+//
+// g_allocs remains the canonical linked list for sweep iteration.
+// g_alloc_index is an O(1) pointer->node index to avoid O(n) scans in `oren_find_node`,
+// which becomes a bottleneck for allocation-heavy workloads (HPC, serde, etc.).
+//
+// IMPORTANT:
+// - All access to this index must happen under g_alloc_mutex, matching existing registry discipline.
+// - We intentionally keep a simple open-addressing table: deterministic, no libc hash maps.
+static OrenAllocNode** g_alloc_index = NULL;
+static size_t g_alloc_index_cap = 0;
+static size_t g_alloc_index_len = 0;
+#define OREN_ALLOC_INDEX_TOMBSTONE ((OrenAllocNode*)(uintptr_t)1)
+
+static size_t oren_ptr_hash(void* p) {
+    uintptr_t x = (uintptr_t)p;
+    // Mix like a splitmix-ish avalanche (deterministic).
+    x ^= x >> 33;
+    x *= (uintptr_t)0xff51afd7ed558ccdULL;
+    x ^= x >> 33;
+    x *= (uintptr_t)0xc4ceb9fe1a85ec53ULL;
+    x ^= x >> 33;
+    return (size_t)x;
+}
+
+static void oren_alloc_index_init_locked(size_t cap) {
+    if (cap < 1024) cap = 1024;
+    // Keep power-of-two for fast masking.
+    size_t c = 1;
+    while (c < cap) c <<= 1;
+    g_alloc_index = (OrenAllocNode**)calloc(c, sizeof(OrenAllocNode*));
+    if (!g_alloc_index) {
+        fprintf(stderr, "alloc index init failed\n");
+        exit(1);
+    }
+    g_alloc_index_cap = c;
+    g_alloc_index_len = 0;
+}
+
+static void oren_alloc_index_put_locked(OrenAllocNode* n);
+
+static void oren_alloc_index_rebuild_locked(size_t new_cap) {
+    OrenAllocNode** old = g_alloc_index;
+    g_alloc_index = NULL;
+    g_alloc_index_cap = 0;
+    g_alloc_index_len = 0;
+    oren_alloc_index_init_locked(new_cap);
+
+    // Reinsert all current nodes (including freed markers; they remain addressable).
+    OrenAllocNode* cur = g_allocs;
+    while (cur) {
+        oren_alloc_index_put_locked(cur);
+        cur = cur->next;
+    }
+
+    free(old);
+}
+
+static void oren_alloc_index_maybe_grow_locked() {
+    if (g_alloc_index == NULL) {
+        oren_alloc_index_init_locked(2048);
+        return;
+    }
+    // Keep load factor <= ~0.7 (tombstones are cleaned on rebuild).
+    if ((g_alloc_index_len + 1) * 10 >= g_alloc_index_cap * 7) {
+        oren_alloc_index_rebuild_locked(g_alloc_index_cap * 2);
+    }
+}
+
+static void oren_alloc_index_put_locked(OrenAllocNode* n) {
+    if (!n || !n->ptr) return;
+    oren_alloc_index_maybe_grow_locked();
+    size_t mask = g_alloc_index_cap - 1;
+    size_t i = oren_ptr_hash(n->ptr) & mask;
+    size_t first_tomb = (size_t)-1;
+    while (1) {
+        OrenAllocNode* slot = g_alloc_index[i];
+        if (slot == NULL) {
+            if (first_tomb != (size_t)-1) i = first_tomb;
+            g_alloc_index[i] = n;
+            g_alloc_index_len++;
+            return;
+        }
+        if (slot == OREN_ALLOC_INDEX_TOMBSTONE) {
+            if (first_tomb == (size_t)-1) first_tomb = i;
+        } else if (slot->ptr == n->ptr) {
+            // Replace (shouldn't happen, but keep deterministic).
+            g_alloc_index[i] = n;
+            return;
+        }
+        i = (i + 1) & mask;
+    }
+}
+
+static OrenAllocNode* oren_alloc_index_get_locked(void* ptr) {
+    if (!ptr || !g_alloc_index || g_alloc_index_cap == 0) return NULL;
+    size_t mask = g_alloc_index_cap - 1;
+    size_t i = oren_ptr_hash(ptr) & mask;
+    while (1) {
+        OrenAllocNode* slot = g_alloc_index[i];
+        if (slot == NULL) return NULL;
+        if (slot != OREN_ALLOC_INDEX_TOMBSTONE && slot->ptr == ptr) return slot;
+        i = (i + 1) & mask;
+    }
+}
+
+static void oren_alloc_index_remove_locked(void* ptr) {
+    if (!ptr || !g_alloc_index || g_alloc_index_cap == 0) return;
+    size_t mask = g_alloc_index_cap - 1;
+    size_t i = oren_ptr_hash(ptr) & mask;
+    while (1) {
+        OrenAllocNode* slot = g_alloc_index[i];
+        if (slot == NULL) return;
+        if (slot != OREN_ALLOC_INDEX_TOMBSTONE && slot->ptr == ptr) {
+            g_alloc_index[i] = OREN_ALLOC_INDEX_TOMBSTONE;
+            return;
+        }
+        i = (i + 1) & mask;
+    }
+}
 static pthread_mutex_t g_collection_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_collection_cv = PTHREAD_COND_INITIALIZER;
 static int g_gc_requested = 0;
@@ -268,10 +389,15 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     n->freed = 0;
     n->next = g_allocs;
     g_allocs = n;
+    oren_alloc_index_put_locked(n);
     pthread_mutex_unlock(&g_alloc_mutex);
 }
 
 static OrenAllocNode* oren_find_node(void* ptr) {
+    // Contract: caller holds g_alloc_mutex (mark/sweep or explicit frees).
+    // Fallback to linear scan only if index isn't initialized (should not happen in practice).
+    OrenAllocNode* n = oren_alloc_index_get_locked(ptr);
+    if (n) return n;
     OrenAllocNode* cur = g_allocs;
     while (cur) {
         if (cur->ptr == ptr) return cur;
@@ -434,6 +560,7 @@ void oren_gc_collect() {
     while (n) {
         int marked = (n->freed == -1);
         if (!marked && n->freed == 0) {
+            void* dead_ptr = n->ptr;
             if (n->kind == OREN_ALLOC_STRING) {
                 free(n->ptr);
             } else if (n->kind == OREN_ALLOC_LIST) {
@@ -451,6 +578,7 @@ void oren_gc_collect() {
             OrenAllocNode* to_free = n;
             n = n->next;
             if (prev) prev->next = n; else g_allocs = n;
+            if (dead_ptr) oren_alloc_index_remove_locked(dead_ptr);
             free(to_free);
             continue;
         }
@@ -3396,6 +3524,24 @@ void oren_free(OrenValue v) {
             n->freed = 1;
             free(n->ptr);
         }
+        // Remove tracking node to keep registry bounded.
+        // (Leaving freed nodes around makes `g_allocs` grow without bound under manual frees.)
+        if (n) {
+            void* p = n->ptr;
+            // unlink from list
+            OrenAllocNode* prev = NULL;
+            OrenAllocNode* cur = g_allocs;
+            while (cur) {
+                if (cur == n) {
+                    if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                    break;
+                }
+                prev = cur;
+                cur = cur->next;
+            }
+            if (p) oren_alloc_index_remove_locked(p);
+            free(n);
+        }
         pthread_mutex_unlock(&g_alloc_mutex);
         return;
     }
@@ -3411,6 +3557,21 @@ void oren_free(OrenValue v) {
             n->freed = 1;
             if (lst->items) free(lst->items);
             free(lst);
+        }
+        if (n) {
+            void* p = n->ptr;
+            OrenAllocNode* prev = NULL;
+            OrenAllocNode* cur = g_allocs;
+            while (cur) {
+                if (cur == n) {
+                    if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                    break;
+                }
+                prev = cur;
+                cur = cur->next;
+            }
+            if (p) oren_alloc_index_remove_locked(p);
+            free(n);
         }
         pthread_mutex_unlock(&g_alloc_mutex);
         return;
@@ -3429,6 +3590,21 @@ void oren_free(OrenValue v) {
             if (mp->keys) free(mp->keys);
             if (mp->values) free(mp->values);
             free(mp);
+        }
+        if (n) {
+            void* p = n->ptr;
+            OrenAllocNode* prev = NULL;
+            OrenAllocNode* cur = g_allocs;
+            while (cur) {
+                if (cur == n) {
+                    if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                    break;
+                }
+                prev = cur;
+                cur = cur->next;
+            }
+            if (p) oren_alloc_index_remove_locked(p);
+            free(n);
         }
         pthread_mutex_unlock(&g_alloc_mutex);
         return;
@@ -3464,6 +3640,12 @@ void oren_shutdown() {
         n = next;
     }
     g_allocs = NULL;
+    if (g_alloc_index) {
+        free(g_alloc_index);
+        g_alloc_index = NULL;
+        g_alloc_index_cap = 0;
+        g_alloc_index_len = 0;
+    }
     // Clear registered roots to release bookkeeping nodes
     OrenAllocNode* r = g_roots;
     while (r != NULL) {
@@ -3500,6 +3682,21 @@ void oren_free_struct(uint64_t ptr) {
     if (n && !n->freed) {
         n->freed = 1;
         free(p);
+    }
+    if (n) {
+        // Remove tracking node to keep registry bounded under explicit frees.
+        OrenAllocNode* prev = NULL;
+        OrenAllocNode* cur = g_allocs;
+        while (cur) {
+            if (cur == n) {
+                if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                break;
+            }
+            prev = cur;
+            cur = cur->next;
+        }
+        oren_alloc_index_remove_locked(p);
+        free(n);
     }
     pthread_mutex_unlock(&g_alloc_mutex);
 }

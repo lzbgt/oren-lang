@@ -1,0 +1,65 @@
+// Stress the C-backend GC allocation registry.
+//
+// Purpose:
+// - ensure the alloc registry lookup (now hash-indexed) remains correct under churn
+// - ensure GC can mark lots of live objects without crashing or freeing live pointers
+//
+// Not timing-based: just a large-ish allocation loop + explicit `oren_gc_collect()` calls.
+
+fn fail(code) {
+    print("module alloc_gc_scale FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+// Keep a sparse set of objects alive across many collections.
+var keep = []
+
+var i = 0
+var keep_mod = 0
+var gc_mod = 0
+while i < 20000 {
+    // Allocate a new string each iteration.
+    var s = "x" + oren_int_to_string(i)
+
+    // Ephemeral allocations (not retained).
+    var tmp = [i, s, "y" + oren_int_to_string(i)]
+    if oren_list_len(tmp) != 3 { fail(10) }
+
+    // Keep some strings alive (to validate they survive GC).
+    if keep_mod == 0 {
+        oren_list_push(keep, s)
+    }
+    keep_mod = keep_mod + 1
+    if keep_mod == 97 { keep_mod = 0 }
+
+    // Force collections periodically.
+    if gc_mod == 0 {
+        oren_gc_collect()
+    }
+    gc_mod = gc_mod + 1
+    if gc_mod == 500 { gc_mod = 0 }
+
+    i = i + 1
+}
+
+oren_gc_collect()
+
+// Validate that kept strings are still sane.
+assert_true(oren_list_len(keep) > 0, 20)
+var k = 0
+while k < oren_list_len(keep) {
+    var s2 = keep[k]
+    assert_true(s2 != nil, 30)
+    assert_true(oren_string_len(s2) >= 1, 31)
+    // Must start with "x"
+    assert_true(oren_string_slice(s2, 0, 1) == "x", 32)
+    k = k + 1
+}
+
+print("module alloc_gc_scale OK")
+exit(0)

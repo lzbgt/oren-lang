@@ -162,6 +162,21 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Verified:
   - `./oretest` on macOS
   - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
+
+## Archived (2025-12-21) — GC allocation registry indexing (hash table) + stress test
+
+- Runtime (C backend GC registry):
+  - Replaced `oren_find_node()` linear scan over `g_allocs` with an open-addressing hash index (`g_alloc_index`) keyed by allocation pointer.
+  - Kept `g_allocs` as the canonical sweep list; the index is only for O(1) lookup during mark/free.
+  - Hardened explicit frees (`oren_free`, `oren_free_struct`) to remove registry nodes so the alloc registry does not grow without bound under manual frees.
+  - Sweep now removes freed nodes from the index as well.
+
+- Tests:
+  - Added `tests/modules/test_alloc_gc_scale.oren` (allocation churn + periodic `oren_gc_collect()`) and wired it into `cmd/oretest`.
+
+- Verified:
+  - `./oretest` on macOS
+  - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
 - Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
