@@ -1,0 +1,30 @@
+// Generic specialization call sugar (rolling, v0):
+//   f[T](...) -> f__T(...)
+//
+// This is a stepping stone toward real generics + monomorphization.
+
+fn fail(code) {
+    print("module generic_call_specialization FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// Two distinct specializations, manually provided by name-mangling convention.
+fn add__i32(a: i32, b: i32): i32 { return a + b }
+fn add__f32(a: f32, b: f32): f64 { return a + b }
+
+assert_eq(add[i32](1, 2), 3, 10)
+assert_eq(add[f32](1.25, 2.5), f32(3.75), 11)
+
+// Ensure we don't break normal indexing-call patterns:
+// calling a function stored in a list should continue to work.
+var fs = [add__i32]
+assert_eq(fs[0](10, 20), 30, 20)
+
+print("module generic_call_specialization OK")
+exit(0)
+

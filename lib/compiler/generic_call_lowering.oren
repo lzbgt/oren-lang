@@ -1,0 +1,280 @@
+import ast "ast.oren"
+
+// Generic-call lowering (rolling, v0).
+//
+// Goal:
+// - Provide a *zero-runtime-cost* “monomorphization hook” surface for HPC code
+//   before full generic function definitions exist.
+//
+// Surface:
+//   f[T](a, b)   // specialization call
+//
+// Lowering:
+//   f[T](...)  ->  f__T(...)
+//
+// Notes:
+// - This pass is intentionally conservative to avoid breaking normal indexing calls:
+//     xs[i](...)  // calling an element function
+//   Therefore we only rewrite when the base identifier (`f`) refers to a known
+//   named function declared in the program.
+// - `T` is restricted to identifier-like “type names”:
+//     - Identifier: `i32`
+//     - Member chain: `math.Vec4`
+//
+// This is shared by all backends because it rewrites the AST in-place during
+// `link_program`.
+
+fn expr_dotted_name(expr) {
+    if expr == nil { return nil }
+    if expr["type"] == "Identifier" { return expr["value"] }
+    if expr["type"] == "Member" {
+        var left = expr_dotted_name(expr["left"])
+        if left == nil { return nil }
+        var prop = expr["prop"]
+        if prop == nil || prop["type"] != "Identifier" { return nil }
+        return left + "." + prop["value"]
+    }
+    return nil
+}
+
+fn mangle_type_name(dotted) {
+    // Convert dotted name into identifier-friendly suffix.
+    // We intentionally keep it simple and deterministic: '.' -> '_'.
+    if dotted == nil { return nil }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(dotted) {
+        var ch = oren_string_char_at(dotted, i)
+        if ch == "." { out = out + "_" }
+        else { out = out + ch }
+        i = i + 1
+    }
+    return out
+}
+
+fn collect_declared_functions(linked) {
+    // Returns:
+    // - out["declared"]: exact function names declared in the program
+    // - out["bases"]: base names that have at least one specialization `base__T`
+    var declared = {}
+    var bases = {}
+    if linked == nil { return {"declared": declared, "bases": bases} }
+    var ss = linked["statements"]
+    if ss == nil { return {"declared": declared, "bases": bases} }
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" {
+                var name = e["name"]
+                if name != nil && name != "" {
+                    declared[name] = true
+
+                    // If it's a specialization name like `foo__i32`, record `foo` as a base.
+                    var j = 0
+                    while j + 1 < oren_string_len(name) {
+                        if oren_string_char_at(name, j) == "_" && oren_string_char_at(name, j + 1) == "_" {
+                            var base = oren_string_slice(name, 0, j)
+                            if base != nil && base != "" { bases[base] = true }
+                            break
+                        }
+                        j = j + 1
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return {"declared": declared, "bases": bases}
+}
+
+fn lower_expr(expr, declared) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+
+    if t == "Function" {
+        lower_stmt(expr["body"], declared)
+        return expr
+    }
+    if t == "Prefix" {
+        expr["right"] = lower_expr(expr["right"], declared)
+        return expr
+    }
+    if t == "Infix" {
+        expr["left"] = lower_expr(expr["left"], declared)
+        expr["right"] = lower_expr(expr["right"], declared)
+        return expr
+    }
+    if t == "If" {
+        expr["cond"] = lower_expr(expr["cond"], declared)
+        lower_stmt(expr["consq"], declared)
+        if expr["alt"] != nil { lower_stmt(expr["alt"], declared) }
+        return expr
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        var i0 = 0
+        while i0 < oren_list_len(xs) {
+            xs[i0] = lower_expr(xs[i0], declared)
+            i0 = i0 + 1
+        }
+        return expr
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i1 = 0
+        while i1 < oren_list_len(ps) {
+            ps[i1]["key"] = lower_expr(ps[i1]["key"], declared)
+            ps[i1]["value"] = lower_expr(ps[i1]["value"], declared)
+            i1 = i1 + 1
+        }
+        return expr
+    }
+    if t == "Index" {
+        expr["left"] = lower_expr(expr["left"], declared)
+        expr["index"] = lower_expr(expr["index"], declared)
+        return expr
+    }
+    if t == "Member" {
+        expr["left"] = lower_expr(expr["left"], declared)
+        return expr
+    }
+    if t == "SpawnExpr" {
+        expr["call"] = lower_expr(expr["call"], declared)
+        return expr
+    }
+    if t == "Call" {
+        // Descend first (in case args contain specializations too).
+        expr["fn"] = lower_expr(expr["fn"], declared)
+        var args = expr["args"]
+        var i2 = 0
+        while i2 < oren_list_len(args) {
+            args[i2] = lower_expr(args[i2], declared)
+            i2 = i2 + 1
+        }
+        if expr["spread"] != nil { expr["spread"] = lower_expr(expr["spread"], declared) }
+
+        // Rewrite specialization call:
+        //   f[T](...) -> f__T(...)
+        var fn_expr = expr["fn"]
+        if fn_expr != nil && fn_expr["type"] == "Index" {
+            var left = fn_expr["left"]
+            if left != nil && left["type"] == "Identifier" {
+                var base = left["value"]
+                var ok = false
+                if base != nil {
+                    if declared != nil {
+                        if declared["declared"] != nil && declared["declared"][base] == true { ok = true }
+                        if declared["bases"] != nil && declared["bases"][base] == true { ok = true }
+                    }
+                }
+                if ok {
+                    var dotted = expr_dotted_name(fn_expr["index"])
+                    var suff = mangle_type_name(dotted)
+                    if suff != nil && suff != "" {
+                        expr["fn"] = ast.new_identifier({"literal": base + "__" + suff})
+                    }
+                }
+            }
+        }
+        return expr
+    }
+
+    return expr
+}
+
+fn lower_stmt(stmt, declared) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { xs = stmt["statements"] }
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            lower_stmt(xs[i], declared)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        stmt["value"] = lower_expr(stmt["value"], declared)
+        return nil
+    }
+    if t == "Assign" {
+        stmt["value"] = lower_expr(stmt["value"], declared)
+        return nil
+    }
+    if t == "Set" {
+        stmt["left"] = lower_expr(stmt["left"], declared)
+        stmt["value"] = lower_expr(stmt["value"], declared)
+        return nil
+    }
+    if t == "Return" {
+        stmt["value"] = lower_expr(stmt["value"], declared)
+        return nil
+    }
+    if t == "ExprStmt" {
+        stmt["expr"] = lower_expr(stmt["expr"], declared)
+        return nil
+    }
+    if t == "While" {
+        stmt["cond"] = lower_expr(stmt["cond"], declared)
+        lower_stmt(stmt["body"], declared)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { lower_stmt(stmt["init"], declared) }
+        if stmt["cond"] != nil { stmt["cond"] = lower_expr(stmt["cond"], declared) }
+        if stmt["post"] != nil { lower_stmt(stmt["post"], declared) }
+        lower_stmt(stmt["body"], declared)
+        return nil
+    }
+    if t == "Spawn" {
+        stmt["call"] = lower_expr(stmt["call"], declared)
+        return nil
+    }
+    if t == "Switch" {
+        stmt["value"] = lower_expr(stmt["value"], declared)
+        var cases = stmt["cases"]
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            var vals = cases[ci]["values"]
+            var vi = 0
+            while vi < oren_list_len(vals) {
+                vals[vi] = lower_expr(vals[vi], declared)
+                vi = vi + 1
+            }
+            lower_stmt(cases[ci]["body"], declared)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { lower_stmt(stmt["default"], declared) }
+        return nil
+    }
+    if t == "Function" {
+        // Some passes treat Function nodes as statements (rare, but supported).
+        lower_expr(stmt, declared)
+        return nil
+    }
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    if linked == nil { return linked }
+    var reg = collect_declared_functions(linked)
+    var declared = reg["declared"]
+    var bases = reg["bases"]
+    if declared == nil { declared = {} }
+    if bases == nil { bases = {} }
+    var ss = linked["statements"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        // Pass both sets through a merged view:
+        // treat a name as eligible if it is declared directly OR has specializations.
+        lower_stmt(ss[i], {"declared": declared, "bases": bases})
+        i = i + 1
+    }
+    return linked
+}

@@ -12,6 +12,7 @@ import packview "packview.oren"
 import serde_json "serde_json_lowering.oren"
 import type_ann "type_ann_lowering.oren"
 import typecheck "typecheck.oren"
+import gen_calls "generic_call_lowering.oren"
 import abi_layout "abi_layout_lowering.oren"
 import impl_lowering "impl_lowering.oren"
 import optimizer "optimizer.oren"
@@ -925,6 +926,13 @@ fn link_program(entry_path, root_prog, config) {
     // (Rolling step toward exact-size layout semantics.)
     if trace_passes { print("[trace] pass: type_ann") }
     type_ann.lower_linked_program_in_place(linked)
+
+    // Compile-time lowering: specialization call sugar.
+    //   f[T](...) -> f__T(...)
+    //
+    // This is a v0 stepping stone toward full generics + monomorphization, with zero runtime cost.
+    if trace_passes { print("[trace] pass: generic_calls") }
+    gen_calls.lower_linked_program_in_place(linked)
 
     // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
     // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.

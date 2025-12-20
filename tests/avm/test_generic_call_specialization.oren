@@ -1,0 +1,25 @@
+// AVM coverage for generic specialization call sugar (v0):
+//   f[T](...) -> f__T(...)
+
+fn fail(code) {
+    print("avm generic_call_specialization FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn add__i32(a: i32, b: i32): i32 { return a + b }
+fn add__f32(a: f32, b: f32): f64 { return a + b }
+
+assert_eq(add[i32](1, 2), 3, 10)
+assert_eq(add[f32](1.25, 2.5), f32(3.75), 11)
+
+var fs = [add__i32]
+assert_eq(fs[0](10, 20), 30, 20)
+
+print("avm generic_call_specialization OK")
+exit(0)
+
