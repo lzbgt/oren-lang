@@ -456,6 +456,18 @@ func main() {
 			cleanup: []string{"build/unknown_backend"},
 		},
 		{
+			name: "dump_tokens_missing_file_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
+				"tests/native/fixtures/__missing__.oren",
+				"build/dump_tokens_missing.json",
+				*target,
+			),
+			log:     "build/logs/dump_tokens_missing_file_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/dump_tokens_missing.json"},
+		},
+		{
 			name:    "strict_attrs_ok",
 			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s -o %q --strict-attrs --attr-allow-prefixes myorg.%s", "tests/native/fixtures/strict_attrs_ok.oren", *target, "build/strict_attrs_ok", gcArg),
 			log:     "build/logs/strict_attrs_ok.log",

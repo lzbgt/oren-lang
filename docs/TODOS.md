@@ -86,6 +86,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - packview lowering no longer hard-exits; it reports `linked["packview_errors"]` and the compiler emits `OREN_DIAG kind=compile code=1 ...` (oretest enforced)
      - abi_layout lowering no longer hard-exits; it reports `linked["abi_layout_errors"]` and the compiler emits `OREN_DIAG kind=compile code=1 ...` (oretest enforced)
      - bytecode backend codegen no longer hard-exits; it reports `ctx["errors"]` and the compiler emits `OREN_DIAG kind=codegen code=1 ...` (oretest enforced)
+     - `oren dump ...` and `oren meta ...` CLI argument/I/O errors emit `OREN_DIAG kind=compile code=2 ...` (oretest enforced via CLI suite)
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:

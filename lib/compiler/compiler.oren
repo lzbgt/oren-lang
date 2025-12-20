@@ -1012,7 +1012,12 @@ fn compiler_main() {
 
     if mode == "dump" {
         // Usage: oren dump <tokens|linked|graph> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]
-        if i + 1 >= argc { print("Usage: oren dump <tokens|linked|graph> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]"); return nil }
+        if i + 1 >= argc {
+            var msg_usage = "Usage: oren dump <tokens|linked|graph> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]"
+            emit_diag("compile", 2, msg_usage)
+            print(msg_usage)
+            oren_exit(2)
+        }
         var kind = args[i]
         var path = args[i + 1]
         i = i + 2
@@ -1030,17 +1035,29 @@ fn compiler_main() {
 
         while i < argc {
             if args[i] == "--target" {
-                if i + 1 >= argc { print("Missing value for --target"); return nil }
+                if i + 1 >= argc {
+                    emit_diag("compile", 2, "Missing value for --target")
+                    print("Missing value for --target")
+                    oren_exit(2)
+                }
                 target = args[i + 1]
                 i = i + 2
             } else {
                 if args[i] == "--arch" {
-                    if i + 1 >= argc { print("Missing value for --arch"); return nil }
+                    if i + 1 >= argc {
+                        emit_diag("compile", 2, "Missing value for --arch")
+                        print("Missing value for --arch")
+                        oren_exit(2)
+                    }
                     arch = args[i + 1]
                     i = i + 2
                 } else {
                     if args[i] == "-o" {
-                        if i + 1 >= argc { print("Missing value for -o"); return nil }
+                        if i + 1 >= argc {
+                            emit_diag("compile", 2, "Missing value for -o")
+                            print("Missing value for -o")
+                            oren_exit(2)
+                        }
                         outp = args[i + 1]
                         i = i + 2
                     } else {
@@ -1049,12 +1066,17 @@ fn compiler_main() {
                             i = i + 1
                         } else {
                             if args[i] == "--attr-allow-prefixes" {
-                                if i + 1 >= argc { print("Missing value for --attr-allow-prefixes"); return nil }
+                                if i + 1 >= argc {
+                                    emit_diag("compile", 2, "Missing value for --attr-allow-prefixes")
+                                    print("Missing value for --attr-allow-prefixes")
+                                    oren_exit(2)
+                                }
                                 allow = split_csv(args[i + 1])
                                 i = i + 2
                             } else {
+                                emit_diag("compile", 2, "Unknown arg: " + args[i])
                                 print("Unknown arg: " + args[i])
-                                return nil
+                                oren_exit(2)
                             }
                         }
                     }
@@ -1064,9 +1086,15 @@ fn compiler_main() {
 
         if kind == "tokens" {
             var js = dump.dump_tokens_json(path, strict, allow)
-            if js == nil { oren_exit(1) }
+            if js == nil {
+                emit_diag("compile", 2, "dump tokens failed: " + path)
+                oren_exit(1)
+            }
             var rc = dump.write_or_print(outp, js)
-            if rc != 0 { oren_exit(rc) }
+            if rc != 0 {
+                emit_diag("compile", 2, "Failed to write dump output: " + outp)
+                oren_exit(rc)
+            }
             return nil
         }
         if kind == "linked" {
@@ -1101,7 +1129,10 @@ fn compiler_main() {
             var linked = link_program(path, prog, {"target": target, "arch": arch})
             var js2 = dump.linked_summary_json(linked)
             var rc2 = dump.write_or_print(outp, js2)
-            if rc2 != 0 { oren_exit(rc2) }
+            if rc2 != 0 {
+                emit_diag("compile", 2, "Failed to write dump output: " + outp)
+                oren_exit(rc2)
+            }
             return nil
         }
         if kind == "graph" {
@@ -1137,16 +1168,25 @@ fn compiler_main() {
             var graph = linkedg["module_graph"]
             var jsg = dump.module_graph_json(graph)
             var rcg = dump.write_or_print(outp, jsg)
-            if rcg != 0 { oren_exit(rcg) }
+            if rcg != 0 {
+                emit_diag("compile", 2, "Failed to write dump output: " + outp)
+                oren_exit(rcg)
+            }
             return nil
         }
 
+        emit_diag("compile", 2, "Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
         print("Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
-        oren_exit(1)
+        oren_exit(2)
     }
 
     if mode == "meta" {
-        if i >= argc { print("Usage: oren meta <file.oren> [-o out.meta.json] [--target macos|linux] [--arch arm64]"); return nil }
+        if i >= argc {
+            var msg_usage = "Usage: oren meta <file.oren> [-o out.meta.json] [--target macos|linux] [--arch arm64]"
+            emit_diag("compile", 2, msg_usage)
+            print(msg_usage)
+            oren_exit(2)
+        }
         var path = args[i]
         i = i + 1
 
@@ -1165,17 +1205,29 @@ fn compiler_main() {
 
         while i < argc {
             if args[i] == "--target" {
-                if i + 1 >= argc { print("Missing value for --target"); return nil }
+                if i + 1 >= argc {
+                    emit_diag("compile", 2, "Missing value for --target")
+                    print("Missing value for --target")
+                    oren_exit(2)
+                }
                 target = args[i + 1]
                 i = i + 2
             } else {
                 if args[i] == "--arch" {
-                    if i + 1 >= argc { print("Missing value for --arch"); return nil }
+                    if i + 1 >= argc {
+                        emit_diag("compile", 2, "Missing value for --arch")
+                        print("Missing value for --arch")
+                        oren_exit(2)
+                    }
                     arch = args[i + 1]
                     i = i + 2
                 } else {
                     if args[i] == "-o" {
-                        if i + 1 >= argc { print("Missing value for -o"); return nil }
+                        if i + 1 >= argc {
+                            emit_diag("compile", 2, "Missing value for -o")
+                            print("Missing value for -o")
+                            oren_exit(2)
+                        }
                         out_meta = args[i + 1]
                         i = i + 2
                     } else {
@@ -1184,7 +1236,11 @@ fn compiler_main() {
                             i = i + 1
                         } else {
                             if args[i] == "--attr-allow-prefixes" {
-                                if i + 1 >= argc { print("Missing value for --attr-allow-prefixes"); return nil }
+                                if i + 1 >= argc {
+                                    emit_diag("compile", 2, "Missing value for --attr-allow-prefixes")
+                                    print("Missing value for --attr-allow-prefixes")
+                                    oren_exit(2)
+                                }
                                 ATTR_ALLOW_PREFIXES = split_csv(args[i + 1])
                                 i = i + 2
                             } else {
@@ -1192,8 +1248,9 @@ fn compiler_main() {
                                     deterministic = true
                                     i = i + 1
                                 } else {
+                                    emit_diag("compile", 2, "Unknown arg: " + args[i])
                                     print("Unknown arg: " + args[i])
-                                    return nil
+                                    oren_exit(2)
                                 }
                             }
                         }
@@ -1235,8 +1292,11 @@ fn compiler_main() {
         var meta_json = metadata.generate_metadata(linked)
         var w = oren_write_file(out_meta, meta_json)
         if oren_is_err(w) {
-            print("Failed to write metadata: " + out_meta)
+            var emsgW = "Failed to write metadata: " + out_meta
             var msgw = oren_err_msg(w)
+            if msgw != nil { emsgW = emsgW + " (" + msgw + ")" }
+            emit_diag("compile", 2, emsgW)
+            print("Failed to write metadata: " + out_meta)
             if msgw != nil { print(msgw) }
             oren_exit(1)
         }
@@ -1244,8 +1304,11 @@ fn compiler_main() {
         if deterministic {
             var bs = oren_read_bytes(out_meta)
             if oren_is_err(bs) {
-                print("Failed to read artifact for hashing: " + out_meta)
+                var emsgH = "Failed to read artifact for hashing: " + out_meta
                 var msgH = oren_err_msg(bs)
+                if msgH != nil { emsgH = emsgH + " (" + msgH + ")" }
+                emit_diag("compile", 2, emsgH)
+                print("Failed to read artifact for hashing: " + out_meta)
                 if msgH != nil { print(msgH) }
                 oren_exit(1)
             }
