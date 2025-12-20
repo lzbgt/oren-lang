@@ -189,7 +189,7 @@ func main() {
 				return
 			}
 
-			args := []string{"-o", outFilename, cFilename, "lib/runtime.c", "-Ilib", "-pthread"}
+			args := []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
 			if noGC {
 				args = append(args, "-DOREN_NO_GC")
 			}

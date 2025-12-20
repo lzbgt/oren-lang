@@ -1,0 +1,35 @@
+// Cast overflow/NaN behavior must be deterministic and backend-consistent.
+//
+// Rolling v0 semantics (implemented in C runtime + AVM + native lowering):
+// - trunc_int(NaN) -> 0
+// - trunc_int(+inf/overflow) -> INT64_MAX
+// - trunc_int(-inf/overflow) -> INT64_MIN
+
+fn fail(code) {
+    print("module cast_overflow FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+var inf = 1.0 / 0.0
+var ninf = 0.0 - inf
+var nanv = 0.0 / 0.0
+
+var max = 9223372036854775807
+var min = 0 - max - 1
+
+assert_eq(i64(inf), max, 10)
+assert_eq(i64(ninf), min, 11)
+assert_eq(i64(nanv), 0, 12)
+
+// Width casts must remain in-range and deterministic even for infinities.
+assert_eq(u8(inf), 255, 20)
+assert_eq(u8(ninf), 0, 21)
+
+print("module cast_overflow OK")
+exit(0)
+

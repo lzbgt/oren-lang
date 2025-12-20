@@ -457,7 +457,10 @@ Current semantics (implementation reality):
 - small integers (`u8/i8/u16/i16/u32/i32`): deterministic wrap/truncate casts at field init, local init, and function boundaries
   - integer casts accept **int or float** inputs
   - float inputs truncate toward zero first (via `oren_trunc_int(x)`), then wrap/truncate to the target width
-    - `NaN` and float values outside int64 range cause a deterministic cast error in v0
+    - `NaN` becomes `0`
+    - float values outside int64 range clamp deterministically:
+      - `+inf`/overflow → `INT64_MAX`
+      - `-inf`/overflow → `INT64_MIN`
 - `f32`: deterministic rounding boundary (via `oren_f32_round(x)`); `f64` remains the default float precision
 - endian-tagged integer kinds (`u16be`, `u32le`, etc.) are treated as the same width for value casts, but matter for packed-byte views and ABI layouts
 
@@ -496,6 +499,7 @@ Implementation note (current compiler):
     - `map`: yields **keys** in deterministic key order (see deterministic maps contract)
     - `string`: yields byte codepoints (`0..255`), stopping at NUL terminator
     - `bytes` (AVM): yields `u8` values (`0..255`)
+    - typed numeric buffers: yields element values (`i32/i64/f32/f64`) in index order
   - Streams / iterators beyond these built-ins require an explicit iterator protocol extension (planned; not stable yet).
 - `break` exits the nearest enclosing loop (`while`/`for`).
 - `continue` skips to the next loop iteration.

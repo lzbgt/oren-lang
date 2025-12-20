@@ -388,6 +388,10 @@ var OREN_SO_ERROR = 4
 // Keep this as a top-level constant so the native backend doesn't depend on
 // global forward references (rolling parser/codegen constraint).
 var BUF_TAG_U8 = 5
+var BUF_TAG_I32 = 1
+var BUF_TAG_I64 = 2
+var BUF_TAG_F32 = 3
+var BUF_TAG_F64 = 4
 
 // Capsule per-fd kind tags (rolling; native backend only).
 // Stored in `net_fd_caps_ptr` (byte-per-fd).
@@ -4557,14 +4561,47 @@ fn oren_iter_next(container, idx) {
                         val = oren_map_key_at(container, idx)
                     }
                 } else {
-                    // Typed buffers: allow u8_buf to be iterated as bytes (0..255).
+                    // Typed buffers: allow numeric buffers to be iterated.
+                    //
+                    // Notes:
+                    // - buf is a native heap object with:
+                    //   - len @ +0
+                    //   - data ptr @ +16
+                    //   - magic @ +24
+                    //   - tag @ +32
+                    // - We read raw little-endian payload and return:
+                    //   - i32/i64 -> int
+                    //   - f32/f64 -> float bits (native float container)
                     if kind == 7 {
-                        if ptr_get(container + 24) == buf_magic() && ptr_get(container + 32) == BUF_TAG_U8 {
+                        if ptr_get(container + 24) == buf_magic() {
+                            var tag = ptr_get(container + 32)
                             var n = ptr_get(container + 0)
                             if idx < n {
                                 var data = ptr_get(container + 16)
-                                ok = 1
-                                val = ptr_get_byte(data + idx) & 255
+                                if tag == BUF_TAG_U8 {
+                                    ok = 1
+                                    val = ptr_get_byte(data + idx) & 255
+                                } else {
+                                    if tag == BUF_TAG_I32 {
+                                        ok = 1
+                                        val = oren_ptr_get_i32_le(data + idx * 4)
+                                    } else {
+                                        if tag == BUF_TAG_I64 {
+                                            ok = 1
+                                            val = oren_ptr_get_i64_le(data + idx * 8)
+                                        } else {
+                                            if tag == BUF_TAG_F32 {
+                                                ok = 1
+                                                val = oren_u32_bits_to_f32(oren_ptr_get_u32_le(data + idx * 4))
+                                            } else {
+                                                if tag == BUF_TAG_F64 {
+                                                    ok = 1
+                                                    val = oren_u64_bits_to_f64(oren_ptr_get_u64_le(data + idx * 8))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -5484,11 +5521,7 @@ fn oren_index_set(container, index, value) {
 //   [32] type_tag (1=i32, 2=i64, 3=f32, 4=f64, 5=u8)
 
 fn buf_magic() { return 4609346 } // 'BUF\0'
-var BUF_TAG_I32 = 1
-var BUF_TAG_I64 = 2
-var BUF_TAG_F32 = 3
-var BUF_TAG_F64 = 4
-// BUF_TAG_U8 is defined near global constants (used by iterator).
+// BUF_TAG_* are defined near global constants (used by iterator and native codegen).
 
 fn native_buf_as_node(buf) {
     if buf == 0 { return 0 }

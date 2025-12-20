@@ -45,6 +45,14 @@ In v0 these annotations are currently implemented as a **lowering pass**:
 - the compiler rewrites them into deterministic cast expressions (integers) or intrinsic calls (`oren_f32_round`, `oren_bool_norm`, `oren_trunc_int`).
 - the **native backend can inline** these intrinsics (no function call overhead in the emitted binary).
 
+`oren_trunc_int(x)` semantics (v0, cross-backend deterministic):
+
+- `int` input: identity
+- `float` input: truncate toward zero, then clamp special values deterministically:
+  - `NaN` → `0`
+  - `+inf`/overflow → `INT64_MAX`
+  - `-inf`/overflow → `INT64_MIN`
+
 ## 2) Target model: "Static when you want it"
 
 Oren should support *both*:

@@ -1,0 +1,39 @@
+// Iteration must support typed buffers (`for x in buf`).
+// This is important for HPC workloads so buffer-backed data structures can be used
+// with idiomatic loops.
+
+fn fail(code) {
+    print("module iter_buffers FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// i32_buf
+var bi = oren_i32_buf_new(4)
+if oren_is_err(bi) { fail(10) }
+oren_buf_store_i32(bi, 0, 1)
+oren_buf_store_i32(bi, 1, 2)
+oren_buf_store_i32(bi, 2, 3)
+oren_buf_store_i32(bi, 3, 4)
+var si = 0
+for x in bi { si = si + x }
+assert_eq(si, 10, 11)
+
+// f32_buf
+var bf = oren_f32_buf_new(4)
+if oren_is_err(bf) { fail(20) }
+oren_buf_store_f32(bf, 0, 1.0)
+oren_buf_store_f32(bf, 1, 2.0)
+oren_buf_store_f32(bf, 2, 3.0)
+oren_buf_store_f32(bf, 3, 4.0)
+var sf = 0.0
+for y in bf { sf = sf + y }
+assert_eq(sf, 10.0, 21)
+
+print("module iter_buffers OK")
+exit(0)
+

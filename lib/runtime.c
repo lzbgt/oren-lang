@@ -2470,29 +2470,37 @@ OrenValue oren_bool_norm(OrenValue v) {
 }
 
 OrenValue oren_trunc_int(OrenValue v) {
-    // Numeric truncation semantics (rolling):
+    // Numeric truncation semantics (rolling, cross-backend deterministic):
     // - int   -> identity
     // - float -> truncate toward zero (discard fractional part)
     //
-    // This is intentionally NOT rounding. Rounding (floor/ceil/round) belongs
-    // to math helpers; casts must be cheap and deterministic.
+    // Special float values (deterministic, no UB):
+    // - NaN   -> 0
+    // - +inf / overflow -> INT64_MAX
+    // - -inf / overflow -> INT64_MIN
+    //
+    // Rationale:
+    // - Native backend uses an ARM64 lowering equivalent to FCVTZS behavior on IEEE-754 inputs.
+    // - Returning a structured Err here would leak into arithmetic ops and create non-uniform
+    //   behavior unless the whole numeric tower becomes Result-aware.
     if (v.type == OREN_TYPE_INT) { return v; }
     if (v.type == OREN_TYPE_FLOAT) {
         double d = v.as.float_val;
         // NaN check without <math.h>.
-        if (d != d) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("trunc_int: NaN"));
-        }
-        // Guard against undefined behavior in (int64_t)d.
-        // Valid int64 range is [-2^63, 2^63-1]; we reject values outside [-2^63, 2^63).
+        if (d != d) { return oren_int(0); }
+
+        // Avoid undefined behavior in (int64_t)d by clamping.
+        //
+        // Valid int64 range is [-2^63, 2^63-1]. Use lim=2^63 as the boundary.
         const double lim = 9223372036854775808.0; // 2^63
-        if (d >= lim || d < -lim) {
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("trunc_int: float out of int64 range"));
-        }
-        int64_t i = (int64_t)d; // C truncates toward zero for finite values in range.
-        return oren_int(i);
+        if (d >= lim) { return oren_int(LLONG_MAX); }
+        if (d <= -lim) { return oren_int(LLONG_MIN); }
+
+        int64_t i = (int64_t)d; // truncate toward zero for finite values in range.
+        return oren_int((long long)i);
     }
-    return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("trunc_int expects (int|float)"));
+    // Keep behavior deterministic: non-numeric -> 0.
+    return oren_int(0);
 }
 
 OrenValue oren_ptr_alloc(OrenValue bytes) {
@@ -2994,7 +3002,30 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
         return oren_new_list(2, oren_int(1), oren_int((long long)ch));
     }
 
-    oren_panic("iter_next: unsupported container type (need list/map/string)");
+    // Typed numeric buffers (C backend).
+    if (container.type == OREN_TYPE_I32_BUF || container.type == OREN_TYPE_I64_BUF ||
+        container.type == OREN_TYPE_F32_BUF || container.type == OREN_TYPE_F64_BUF) {
+        OrenBuf* b = container.as.buf_val;
+        if (!b) { return oren_new_list(2, oren_int(0), OREN_NIL); }
+        if (i < (long long)b->len) {
+            OrenValue v = OREN_NIL;
+            OrenValue idxv = oren_int(i);
+            if (container.type == OREN_TYPE_I32_BUF) v = oren_buf_load_i32(container, idxv);
+            else if (container.type == OREN_TYPE_I64_BUF) v = oren_buf_load_i64(container, idxv);
+            else if (container.type == OREN_TYPE_F32_BUF) v = oren_buf_load_f32(container, idxv);
+            else v = oren_buf_load_f64(container, idxv);
+            // `oren_buf_load_*` can return an Err map only if the buffer is corrupted
+            // or index checks diverge; treat this as a hard failure (bug).
+            if (oren_is_err(v).as.bool_val) {
+                oren_panic("iter_next: buffer load failed");
+                return OREN_NIL;
+            }
+            return oren_new_list(2, oren_int(1), v);
+        }
+        return oren_new_list(2, oren_int(0), OREN_NIL);
+    }
+
+    oren_panic("iter_next: unsupported container type (need list/map/string/buf)");
     return OREN_NIL; // Should not be reached
 }
 
