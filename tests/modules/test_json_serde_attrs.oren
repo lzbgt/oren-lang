@@ -1,0 +1,50 @@
+import json "../../lib/std/json.oren"
+
+fn assert(cond, msg) {
+    if !cond {
+        print("ASSERT FAIL: " + msg)
+        exit(1)
+    }
+}
+
+@json.tag("User")
+@json.derive("json")
+struct User {
+    @json.rename("user_id")
+    id: i32,
+    active: bool,
+    name: string,
+    // Not serialized (skip), but must have a default for decode.
+    @json.skip()
+    @json.default(0)
+    internal: i32
+}
+
+fn test_roundtrip() {
+    var u = User(7, true, "bob", 123)
+    var jv = User__json_encode(u)
+    var s = json.encode(jv)
+
+    // Deterministic object key order in encoder.
+    var exp = "{\"active\":true,\"name\":\"bob\",\"t\":\"User\",\"user_id\":7}"
+    if s != exp {
+        print("GOT: " + s)
+        print("EXP: " + exp)
+    }
+    assert(s == exp, "encode matches expected JSON")
+
+    var r = json.decode(s)
+    assert(r["ok"] == 1, "json.decode ok")
+    var rr = User__json_decode(r["v"])
+    assert(rr["ok"] == 1, "User__json_decode ok")
+    var u2 = rr["v"]
+    assert(u2.id == 7, "id roundtrip")
+    assert(u2.name == "bob", "name roundtrip")
+    assert(u2.active == true, "active roundtrip")
+    // internal is skipped, so decode uses default(0).
+    assert(u2.internal == 0, "internal default")
+}
+
+test_roundtrip()
+print("ok")
+exit(0)

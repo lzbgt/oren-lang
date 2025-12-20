@@ -9,6 +9,7 @@ import parser "parser.oren"
 import ast "ast.oren"
 import metadata "metadata.oren"
 import packview "packview.oren"
+import serde_json "serde_json_lowering.oren"
 import type_ann "type_ann_lowering.oren"
 import abi_layout "abi_layout_lowering.oren"
 import impl_lowering "impl_lowering.oren"
@@ -680,6 +681,22 @@ fn load_module(base, path) {
     }
     renamer.rename_program_in_place(prog, pairs)
 
+    // Attribute-driven JSON serde codegen (opt-in via `@json.derive(...)`).
+    // Must run *after* module renaming so generated functions are naturally prefixed
+    // via the (already-prefixed) type names.
+    serde_json.lower_program_in_place(prog, mod["prefix"])
+    if prog["serde_json_errors"] != nil && oren_list_len(prog["serde_json_errors"]) > 0 {
+        var first_err = prog["serde_json_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Serde JSON lowering errors in " + full + ":")
+        var ei = 0
+        while ei < oren_list_len(prog["serde_json_errors"]) {
+            print(prog["serde_json_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
     if mod["added"] != true {
         mod["added"] = true
         oren_list_push(MODULE_ORDER, mod)
@@ -721,6 +738,21 @@ fn link_program(entry_path, root_prog, config) {
             oren_list_push(root_imports, {"alias": alias, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"]})
         }
         i = i + 1
+    }
+
+    // Attribute-driven JSON serde codegen for the root module.
+    // Root is not renamed, so prefix is empty.
+    serde_json.lower_program_in_place(root_prog, "")
+    if root_prog["serde_json_errors"] != nil && oren_list_len(root_prog["serde_json_errors"]) > 0 {
+        var first_err = root_prog["serde_json_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Serde JSON lowering errors in " + entry_path + ":")
+        var ei = 0
+        while ei < oren_list_len(root_prog["serde_json_errors"]) {
+            print(root_prog["serde_json_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
     }
     
     var merged_stmts = []

@@ -68,20 +68,13 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][ux] Attribute-driven serde (JSON v1)**
+1) **[lang][ux] Serde attribute ergonomics v1 (multi-format ready)**
    - Why now:
-     - Attributes exist and are preserved in metadata; `std/json` is currently explicit `JsonValue`.
-     - The next “modern language” step is to make `@json.*` actually useful for library authors without runtime reflection.
+     - JSON serde helpers are implemented; next is to make the attribute surface concise and scalable to multiple formats.
    - DoD:
-     - define the stable v0 surface for struct serde annotations:
-       - `@json.rename("wire")`, `@json.skip()`, `@json.default(<lit>)`, optional `@json.tag("...")`
-     - implement a deterministic, portable codegen path:
-       - either a compiler “derive” phase that emits helper fns per struct, or
-       - an AVM/native metadata query primitive usable by stdlib (no host effects)
-     - add a single integration test that:
-       - defines a struct with `@json.*`
-       - encodes + decodes it
-       - verifies deterministic object key ordering and stable results
+     - reduce per-field annotation noise (prefer single attribute call rather than many lines)
+     - define a coherent “one set of field options” model that can map to JSON/YAML/XML later without syntax churn
+     - keep determinism rules: literal-only args, unknown attrs inert by default, strict-attrs governance intact
 
 2) **[lang][perf] Native backend optimizer baseline (no huge rewrite)**
    - DoD:
@@ -165,3 +158,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Attribute ergonomics: alias canonicalization (`@pack` → `@oren.packed`, `@abi` → `@oren.abi`, `@json.*` → `@serde.*`) keeps user code terse but metadata canonical.
 - Attribute ergonomics: repo tests now prefer the terse surface forms (`@pack`, `@abi`) while keeping canonical names in compiler metadata.
 - Verification loop: `oretest` is parallel + timeout-safe by default, and Linux/arm64 docker runner reuses a persistent container for fast smoke tests.
+- Serde JSON v1 (no reflection): opt-in via `@json.derive("json")`, generates `<Type>__json_encode` / `<Type>__json_decode`, covered by `tests/modules/test_json_serde_attrs.oren`.

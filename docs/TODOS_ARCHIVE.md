@@ -32,6 +32,23 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Docs: updated `docs/SELF_HOSTING.md` to match the current multi-backend reality and to defer to `docs/BUILD_AND_VERIFY.md` for the authoritative bootstrap steps.
 - Docs: updated `docs/STDLIB_LAYERS.md` to point at the refactored parser modules and to document strict attribute mode flags.
 
+## Archived (2025-12-20) — Serde JSON v1 (attribute-driven, no reflection)
+
+- Implemented attribute-driven JSON serde helper generation (opt-in) in `lib/compiler/serde_json_lowering.oren`.
+  - `@json.derive("json")` / canonical `@serde.derive("json")` on a struct triggers codegen.
+  - Generates:
+    - `<Type>__json_encode(x)` → JsonValue
+    - `<Type>__json_decode(jv)` → `{ok, err?, v?}`
+  - Supports field options:
+    - `@json.rename("wire")`
+    - `@json.skip()` + `@json.default(<literal>)` (skip requires default for decode determinism)
+    - `@json.tag("TypeTag")` (adds `"t"` tag field, validated on decode)
+- Parser: allowed `default` keyword token in attribute dotted names (`@json.default(...)`) without making `default` a general identifier.
+- Tests:
+  - Added `tests/modules/test_json_serde_attrs.oren` (integration: encode + decode + ordering + defaults).
+  - Updated curated runner list (`cmd/oretest/main.go`) to include it.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 # TODOs (Rolling, Prioritized)
 
 This repo is in **rolling ABI** mode (no version gates yet). This file is the canonical “what to do next” checklist for engineering execution.

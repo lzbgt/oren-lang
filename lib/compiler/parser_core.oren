@@ -110,7 +110,9 @@ fn new_parser(l) {
             // Packed struct / byte views (compile-time lowering).
             "oren.packed",
             // ABI/FFI layout mode (compile-time meaning; does not use host headers).
-            "oren.abi"
+            "oren.abi",
+            // Serde metadata (non-reserved but frequently used; allow in strict mode).
+            "serde.rename", "serde.skip", "serde.default", "serde.tag", "serde.derive"
         ]
     }
     parser_next_token(p)
@@ -445,6 +447,19 @@ fn expect_peek_ident_like(p, what) {
     return false
 }
 
+fn peek_is_attr_name(p) {
+    return token.is_attr_name_token(p["peek"]["type"])
+}
+
+fn expect_peek_attr_name(p, what) {
+    if peek_is_attr_name(p) {
+        parser_next_token(p)
+        return true
+    }
+    parser_add_error(p, "expected " + what + ", got " + p["peek"]["type"])
+    return false
+}
+
 fn parse_type_name_after_colon(p) {
     // Precondition: current token is ':'
     var tname = ""
@@ -482,4 +497,3 @@ fn parse_type_name_after_colon(p) {
 
     return tname
 }
-

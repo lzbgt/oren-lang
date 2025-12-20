@@ -111,7 +111,7 @@ This is intended for syscall-first FFI and low-level networking codegen.
 
 ### 4.3 Serde metadata (`@json.*` / canonical `@serde.*`)
 
-Serde attributes are currently **metadata-only** (no auto-derive yet).
+Serde attributes are supported as metadata (for tooling) and also have an **opt-in** JSON v1 codegen path.
 
 ```oren
 struct User {
@@ -123,10 +123,32 @@ struct User {
 }
 ```
 
-Current behavior:
+Current behavior (rolling):
 
 - `oren meta` / `--metadata` include these attrs in a structured form.
-- `std/json` is currently a portable explicit `JsonValue` representation (no struct auto-serde yet).
+- `std/json` is a portable explicit `JsonValue` representation.
+
+Opt-in JSON v1 codegen (implemented):
+
+```oren
+@json.derive("json")
+struct User {
+    @json.rename("user_id")
+    id: i32,
+    active: bool,
+    name: string,
+
+    // Skip requires a default so decode stays deterministic.
+    @json.skip()
+    @json.default(0)
+    internal: i32
+}
+```
+
+This generates (rolling names):
+
+- `User__json_encode(x)` → JsonValue
+- `User__json_decode(jv)` → `{ok, err?, v?}`
 
 Planned next step:
 

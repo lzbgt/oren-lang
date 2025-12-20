@@ -1,0 +1,496 @@
+import ast "ast.oren"
+
+// Attribute-driven JSON serde lowering (rolling).
+//
+// Goal:
+// - Use struct field type annotations + `@serde.*` attributes to generate
+//   deterministic helper functions:
+//     - <Type>__json_encode(x) -> JsonValue
+//     - <Type>__json_decode(jv) -> {"ok":0|1,"err":string,"v":<Type>}
+//
+// Constraints:
+// - No runtime reflection.
+// - No host effects.
+// - Deterministic across backends (C/native/bytecode).
+//
+// JsonValue is the portable tagged representation defined in `lib/std/json.oren`:
+//   {"t":"null"}
+//   {"t":"bool","b":0|1}
+//   {"t":"int","i":<int>}
+//   {"t":"string","s":<string>}
+//   {"t":"array","a":[JsonValue...]}
+//   {"t":"object","o":{ string_key: JsonValue, ... }}
+
+var SERDE_JSON_ERRS = nil
+
+fn serde_json_error(msg) {
+    if SERDE_JSON_ERRS == nil { SERDE_JSON_ERRS = [] }
+    oren_list_push(SERDE_JSON_ERRS, msg)
+    return nil
+}
+
+fn has_attr(node, name) {
+    if node == nil { return false }
+    var attrs = node["attrs"]
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        if attrs[i] != nil && attrs[i]["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn get_attr(node, name) {
+    if node == nil { return nil }
+    var attrs = node["attrs"]
+    if attrs == nil { return nil }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["name"] == name { return a }
+        i = i + 1
+    }
+    return nil
+}
+
+fn attr_arg0(attr) {
+    if attr == nil { return nil }
+    var args = attr["args"]
+    if args == nil || oren_list_len(args) < 1 { return nil }
+    var a0 = args[0]
+    if a0 == nil { return nil }
+    return a0["value"]
+}
+
+fn attr_arg0_string(attr) {
+    var v = attr_arg0(attr)
+    if v == nil { return nil }
+    if v["type"] != "String" { return nil }
+    return v["value"]
+}
+
+fn str_lit(s) { return {"type": "String", "token": nil, "value": s} }
+fn int_lit(s) { return {"type": "Integer", "token": nil, "value": s} }
+fn ident(name) { return {"type": "Identifier", "token": nil, "value": name} }
+
+fn member(obj, name) {
+    return ast.new_member(nil, obj, {"type": "Identifier", "token": nil, "value": name})
+}
+
+fn index(left, key) {
+    return ast.new_index(nil, left, str_lit(key))
+}
+
+fn call0(name, args) { return ast.new_call(nil, ident(name), args) }
+
+fn json_null() {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("null")}
+    ])
+}
+
+fn json_int(expr) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("int")},
+        {"key": str_lit("i"), "value": expr}
+    ])
+}
+
+fn json_string(expr) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("string")},
+        {"key": str_lit("s"), "value": expr}
+    ])
+}
+
+fn json_bool_int(expr_int01) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("bool")},
+        {"key": str_lit("b"), "value": expr_int01}
+    ])
+}
+
+fn json_object(obj_map_expr) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("t"), "value": str_lit("object")},
+        {"key": str_lit("o"), "value": obj_map_expr}
+    ])
+}
+
+fn normalize_kind(kind) {
+    if kind == nil { return nil }
+    // Strip optional `oren.` prefix for internal uniformity.
+    if oren_string_len(kind) > 5 && oren_string_slice(kind, 0, 5) == "oren." {
+        kind = oren_string_slice(kind, 5, oren_string_len(kind))
+    }
+    // Endian tags behave as the same width for value semantics.
+    if kind == "u16be" || kind == "u16le" { return "u16" }
+    if kind == "i16be" || kind == "i16le" { return "i16" }
+    if kind == "u32be" || kind == "u32le" { return "u32" }
+    if kind == "i32be" || kind == "i32le" { return "i32" }
+    if kind == "u64be" || kind == "u64le" { return "u64" }
+    if kind == "i64be" || kind == "i64le" { return "i64" }
+    return kind
+}
+
+fn serde_kind_for_ann(ann) {
+    // Rolling v0 serde kinds: int/string/bool only.
+    // (float support needs a stable JSON float story; add later.)
+    if ann == nil { return nil }
+    var k = normalize_kind(ann)
+    if k == "string" { return "string" }
+    if k == "bool" { return "bool" }
+    if k == "u8" || k == "i8" || k == "u16" || k == "i16" || k == "u32" || k == "i32" || k == "u64" || k == "i64" {
+        return "int"
+    }
+    return nil
+}
+
+fn field_wire_name(fid) {
+    var a = get_attr(fid, "serde.rename")
+    if a != nil {
+        var s = attr_arg0_string(a)
+        if s != nil { return s }
+    }
+    return fid["value"]
+}
+
+fn field_default_literal(fid) {
+    // Literal-only in v0.
+    var a = get_attr(fid, "serde.default")
+    if a == nil { return nil }
+    return attr_arg0(a)
+}
+
+fn field_is_skip(fid) { return has_attr(fid, "serde.skip") }
+
+fn struct_tag_value(type_stmt) {
+    // `@json.tag("X")` / canonical `@serde.tag("X")`
+    var a = get_attr(type_stmt, "serde.tag")
+    if a == nil { return nil }
+    return attr_arg0_string(a)
+}
+
+fn ensure_bool_to_int_helper(stmts, prefix) {
+    // Insert once per program. The helper is pure and deterministic.
+    //
+    // __oren_serde_bool_to_int(x):
+    //   b = oren_bool_norm(x)
+    //   if b == true { return 1 }
+    //   return 0
+    //
+    // We avoid relying on truthiness of ints here; `oren_bool_norm` forces a bool.
+    if prefix == nil { prefix = "" }
+    var fn_name = prefix + "__oren_serde_bool_to_int"
+
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        if s != nil && s["type"] == "Function" && s["name"] == fn_name {
+            return nil
+        }
+        if s != nil && s["type"] == "ExprStmt" && s["expr"] != nil && s["expr"]["type"] == "Function" && s["expr"]["name"] == fn_name {
+            return nil
+        }
+        i = i + 1
+    }
+
+    var body = ast.new_block(nil)
+    var ifexpr = ast.new_if(
+        nil,
+        ast.new_infix(nil, ident("b"), "==", {"type": "Boolean", "token": nil, "value": true}),
+        ast.new_block(nil),
+        ast.new_block(nil)
+    )
+    ifexpr["consq"]["stmts"] = [ast.new_return(nil, int_lit("1"))]
+    ifexpr["alt"]["stmts"] = []
+    body["stmts"] = [
+        ast.new_var(nil, ident("b"), call0("oren_bool_norm", [ident("x")])),
+        // If is an expression node; wrap it as a statement for C backend transpilation.
+        ast.new_expr_stmt(nil, ifexpr),
+        ast.new_return(nil, int_lit("0"))
+    ]
+
+    var fnn = {"type": "Function", "token": nil, "name": fn_name, "params": [ident("x")], "body": body}
+    // Keep top-level named functions as ExprStmt(Function) for C backend compatibility.
+    oren_list_push(stmts, ast.new_expr_stmt(nil, fnn))
+    return nil
+}
+
+fn make_result_ok(v) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("ok"), "value": int_lit("1")},
+        {"key": str_lit("v"), "value": v}
+    ])
+}
+
+fn make_result_err(msg) {
+    return ast.new_hash(nil, [
+        {"key": str_lit("ok"), "value": int_lit("0")},
+        {"key": str_lit("err"), "value": str_lit(msg)}
+    ])
+}
+
+fn lower_one_type(type_stmt, stmts, prefix) {
+    var tname = type_stmt["name"]["value"]
+    var fields = type_stmt["fields"]
+    if fields == nil { return nil }
+
+    // Serde lowering is opt-in via an explicit derive attribute.
+    //
+    // This keeps `@json.*` usable as pure metadata (docs/tooling) without forcing
+    // codegen constraints onto every annotated struct.
+    //
+    // Supported (canonical) opt-in:
+    //   @serde.derive("json")   // or @json.derive("json")
+    //   @serde.derive()         // defaults to json in v0
+    var d = get_attr(type_stmt, "serde.derive")
+    if d == nil { return nil }
+    var fmt = attr_arg0_string(d)
+    if fmt != nil && fmt != "json" {
+        serde_json_error("serde: unknown derive format '" + fmt + "' (supported: \"json\") (struct " + tname + ")")
+        return nil
+    }
+
+    // Validate fields: every non-skipped field must have a supported type annotation.
+    var field_info = []
+    var i = 0
+    while i < oren_list_len(fields) {
+        var f2 = fields[i]
+        if f2 != nil {
+            var fname = f2["value"]
+            var ann = f2["ann_type"]
+            var skip = field_is_skip(f2)
+            var dflt = field_default_literal(f2)
+            var kind = serde_kind_for_ann(ann)
+            if skip && dflt == nil {
+                serde_json_error("serde: skipped field requires @json.default(...) (struct " + tname + " field " + fname + ")")
+            }
+            if !skip {
+                if ann == nil {
+                    serde_json_error("serde: field requires type annotation (e.g. name: string) (struct " + tname + " field " + fname + ")")
+                } else {
+                    if kind == nil {
+                        serde_json_error("serde: unsupported field type '" + ann + "' (rolling supports string|bool|int widths) (struct " + tname + " field " + fname + ")")
+                    }
+                }
+            }
+            oren_list_push(field_info, {
+                "fname": fname,
+                "wire": field_wire_name(f2),
+                "kind": kind,
+                "skip": skip,
+                "default": dflt
+            })
+        }
+        i = i + 1
+    }
+
+    // Encode: build {"t":"object","o":{...}} literal.
+    var obj_pairs = []
+
+    var tagv = struct_tag_value(type_stmt)
+    if tagv != nil {
+        // Use fixed key "t" for now (rolling). (Matches existing fixture usage.)
+        oren_list_push(obj_pairs, {"key": str_lit("t"), "value": json_string(str_lit(tagv))})
+    }
+
+    i = 0
+    while i < oren_list_len(field_info) {
+        var fi = field_info[i]
+        if fi != nil && fi["skip"] != true {
+            var wire = fi["wire"]
+            var k = fi["kind"]
+            var val_expr = member(ident("x"), fi["fname"])
+            if k == "int" {
+                oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_int(val_expr)})
+            } else {
+                if k == "string" {
+                    oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_string(val_expr)})
+                } else {
+                if k == "bool" {
+                        ensure_bool_to_int_helper(stmts, prefix)
+                        var helper = prefix + "__oren_serde_bool_to_int"
+                        oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_bool_int(call0(helper, [val_expr]))})
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    var enc_body = ast.new_block(nil)
+    enc_body["stmts"] = [
+        ast.new_return(nil, json_object(ast.new_hash(nil, obj_pairs)))
+    ]
+    var enc_fn = {"type": "Function", "token": nil, "name": tname + "__json_encode", "params": [ident("x")], "body": enc_body}
+
+    // Decode: validate JsonValue object + extract fields by kind.
+    var dec_stmts = []
+
+    // if jv == nil { return err }
+    var if_jv_nil = ast.new_if(nil, ast.new_infix(nil, ident("jv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+    if_jv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected JsonValue (got nil)"))]
+    if_jv_nil["alt"]["stmts"] = []
+    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_jv_nil))
+
+    // if jv["t"] != "object" { return err }
+    var if_not_obj = ast.new_if(nil, ast.new_infix(nil, index(ident("jv"), "t"), "!=", str_lit("object")), ast.new_block(nil), ast.new_block(nil))
+    if_not_obj["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected JsonValue object"))]
+    if_not_obj["alt"]["stmts"] = []
+    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_not_obj))
+
+    // var o = jv["o"]
+    oren_list_push(dec_stmts, ast.new_var(nil, ident("o"), index(ident("jv"), "o")))
+    // if o == nil { return err }
+    var if_o_nil = ast.new_if(nil, ast.new_infix(nil, ident("o"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+    if_o_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected JsonValue object.o map"))]
+    if_o_nil["alt"]["stmts"] = []
+    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_o_nil))
+
+    // Tag check (if enabled).
+    if tagv != nil {
+        // var tv = o["t"]
+        oren_list_push(dec_stmts, ast.new_var(nil, ident("tv"), index(ident("o"), "t")))
+        // if tv == nil { err }
+        var if_tv_nil = ast.new_if(nil, ast.new_infix(nil, ident("tv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+        if_tv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("missing tag field t"))]
+        if_tv_nil["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_nil))
+        // if tv["t"] != "string" { err }
+        var if_tv_kind = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
+        if_tv_kind["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag field t must be a JSON string"))]
+        if_tv_kind["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_kind))
+        // if tv["s"] != <tag> { err }
+        var if_tv_mismatch = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "s"), "!=", str_lit(tagv)), ast.new_block(nil), ast.new_block(nil))
+        if_tv_mismatch["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag mismatch"))]
+        if_tv_mismatch["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_mismatch))
+    }
+
+    // Extract fields in declaration order.
+    var ctor_args = []
+    i = 0
+    while i < oren_list_len(field_info) {
+        var fi2 = field_info[i]
+        if fi2 != nil {
+            var fname2 = fi2["fname"]
+            var wire2 = fi2["wire"]
+            var kind2 = fi2["kind"]
+            var skip2 = fi2["skip"]
+            var def2 = fi2["default"]
+
+            // Declare the output local in the function scope so both branches can assign.
+            oren_list_push(dec_stmts, ast.new_var(nil, ident(fname2), {"type": "Nil", "token": nil}))
+
+            // var fv_<n> = o["wire"]
+            var tmp = "__fv_" + oren_int_to_string(i)
+            oren_list_push(dec_stmts, ast.new_var(nil, ident(tmp), index(ident("o"), wire2)))
+
+            // if missing:
+            //   if default -> use default
+            //   else -> err
+            var miss_if = ast.new_if(nil, ast.new_infix(nil, ident(tmp), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+            var miss_consq = []
+            if def2 != nil {
+                // Use literal default directly.
+                // Note: for bool fields, default should be true/false or 0/1; value semantics are handled by type_ann casts at constructor.
+                miss_consq = [ast.new_assign(nil, ident(fname2), def2)]
+            } else {
+                if skip2 == true {
+                    // Skip requires default; already validated, but keep safe.
+                    miss_consq = [ast.new_return(nil, make_result_err("missing skipped field default"))]
+                } else {
+                    miss_consq = [ast.new_return(nil, make_result_err("missing field: " + wire2))]
+                }
+            }
+            miss_if["consq"]["stmts"] = miss_consq
+
+            // present branch: validate tag and extract
+            var pres = []
+            if def2 == nil && skip2 == true {
+                // unreachable (validated), but stay safe
+                pres = [ast.new_return(nil, make_result_err("skipped field must not appear without default"))]
+            } else {
+                if skip2 == true {
+                    // Ignore serialized value and use default.
+                    pres = [ast.new_assign(nil, ident(fname2), def2)]
+                } else {
+                    // Validate + extract based on kind.
+                    if kind2 == "int" {
+                        // if fv["t"] != "int" { err }
+                        var if_kind_int = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("int")), ast.new_block(nil), ast.new_block(nil))
+                        if_kind_int["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected JSON int"))]
+                        if_kind_int["alt"]["stmts"] = []
+                        oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_int))
+                        // var fname = fv["i"]
+                        oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "i")))
+                    } else {
+                        if kind2 == "string" {
+                            var if_kind_str = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
+                            if_kind_str["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected JSON string"))]
+                            if_kind_str["alt"]["stmts"] = []
+                            oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_str))
+                            oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "s")))
+                        } else {
+                            if kind2 == "bool" {
+                                var if_kind_bool = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("bool")), ast.new_block(nil), ast.new_block(nil))
+                                if_kind_bool["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected JSON bool"))]
+                                if_kind_bool["alt"]["stmts"] = []
+                                oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_bool))
+                                oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "b")))
+                            } else {
+                                // Should have been validated.
+                                oren_list_push(pres, ast.new_return(nil, make_result_err("unsupported kind")))
+                            }
+                        }
+                    }
+                }
+            }
+            miss_if["alt"]["stmts"] = pres
+            oren_list_push(dec_stmts, ast.new_expr_stmt(nil, miss_if))
+
+            // ctor arg: local variable `fname2`
+            oren_list_push(ctor_args, ident(fname2))
+        }
+        i = i + 1
+    }
+
+    // Construct and return ok.
+    var ctor_call = ast.new_call(nil, ident(tname), ctor_args)
+    oren_list_push(dec_stmts, ast.new_return(nil, make_result_ok(ctor_call)))
+
+    var dec_body = ast.new_block(nil)
+    dec_body["stmts"] = dec_stmts
+    var dec_fn = {"type": "Function", "token": nil, "name": tname + "__json_decode", "params": [ident("jv")], "body": dec_body}
+
+    // Append generated functions to the program (end).
+    // Keep top-level named functions as ExprStmt(Function) for C backend compatibility.
+    oren_list_push(stmts, ast.new_expr_stmt(nil, enc_fn))
+    oren_list_push(stmts, ast.new_expr_stmt(nil, dec_fn))
+    return nil
+}
+
+fn lower_program_in_place(prog, prefix) {
+    SERDE_JSON_ERRS = nil
+    if prog == nil { return nil }
+    var stmts = prog["statements"]
+    if stmts == nil { return nil }
+
+    // Iterate over type declarations and generate serde helpers where requested.
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        if s != nil && s["type"] == "Type" {
+            lower_one_type(s, stmts, prefix)
+        }
+        i = i + 1
+    }
+
+    if SERDE_JSON_ERRS != nil && oren_list_len(SERDE_JSON_ERRS) > 0 {
+        prog["serde_json_errors"] = SERDE_JSON_ERRS
+    }
+    return nil
+}

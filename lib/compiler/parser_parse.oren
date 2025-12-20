@@ -144,12 +144,12 @@ fn parse_attr_list(p) {
 fn parse_attr(p) {
     // Current token is '@'
     var at_tok = p["cur"]
-    if !expect_peek_ident_like(p, "attribute name") { return nil }
+    if !core.expect_peek_attr_name(p, "attribute name") { return nil }
     var name = p["cur"]["literal"]
     // Support dotted namespaces: @myorg.tag(...)
     while peek_is(p, token.TOK_DOT) {
         parser_next_token(p) // '.'
-        if !expect_peek_ident_like(p, "attribute name segment") { return nil }
+        if !core.expect_peek_attr_name(p, "attribute name segment") { return nil }
         name = name + "." + p["cur"]["literal"]
     }
 

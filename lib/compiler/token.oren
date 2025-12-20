@@ -228,6 +228,17 @@ fn is_ident_like_token(tt) {
     return is_builtin_type_token(tt)
 }
 
+// Attribute-name tokens: legal after `@` and in dotted attribute segments.
+//
+// We intentionally allow some keyword tokens here (e.g. `default`) to keep
+// attribute namespaces ergonomic (`@json.default(...)`), without making those
+// keywords valid identifiers in all expression contexts.
+fn is_attr_name_token(tt) {
+    if is_ident_like_token(tt) { return true }
+    if tt == TOK_DEFAULT { return true }
+    return false
+}
+
 fn new_token(tt, lit) {
     return {"type": tt, "literal": lit}
 }
