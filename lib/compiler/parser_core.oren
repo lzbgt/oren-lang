@@ -14,13 +14,15 @@ var LESSGREATER_P = 8
 var SHIFT_P = 9
 var SUM_P = 10
 var PRODUCT_P = 11
-var PREFIX_P = 12
-var CALL_P = 13
-var INDEX_P = 14
+var CAST_P = 12
+var PREFIX_P = 13
+var CALL_P = 14
+var INDEX_P = 15
 
 fn precedence(tokType) {
     if tokType == token.TOK_DOT { return INDEX_P }
     if tokType == token.TOK_LBRACKET { return INDEX_P }
+    if tokType == token.TOK_AS { return CAST_P }
     if tokType == token.TOK_EQ { return EQUALS_P }
     if tokType == token.TOK_NOT_EQ { return EQUALS_P }
     if tokType == token.TOK_AND { return AND_P }

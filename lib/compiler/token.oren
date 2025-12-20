@@ -63,6 +63,7 @@ var TOK_DEFAULT = "DEFAULT"
 var TOK_ENUM = "ENUM"
 var TOK_TRAIT = "TRAIT"
 var TOK_IMPL = "IMPL"
+var TOK_AS = "AS"
 // Doc comment token: emitted for `///` lines (rolling).
 // The parser attaches doc strings deterministically to the next declaration.
 var TOK_DOC = "DOC"
@@ -157,6 +158,7 @@ fn lookup_ident(ident) {
     if ident == "enum" { return TOK_ENUM }
     if ident == "trait" { return TOK_TRAIT }
     if ident == "impl" { return TOK_IMPL }
+    if ident == "as" { return TOK_AS }
 
     // Built-in fixed-width types (reserved).
     if ident == "u8" { return TOK_U8 }

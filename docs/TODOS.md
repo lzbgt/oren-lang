@@ -68,16 +68,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][arch] `as` cast operator (syntax + lowering to builtin casts)**
-   - Why now:
-     - `u8(x)` cast-sugar is useful, but the production-grade surface should also support `expr as u8`.
-     - `as` is a non-allocating, compile-time rewrite (must stay cheap).
-   - DoD:
-     - parse `expr as <type>` (width tokens + endian spellings)
-     - lower to the same deterministic cast rewrites as annotation boundaries / cast sugar
-     - add module tests (incl. precedence and nesting) and wire into `cmd/oretest`
-
-2) **[lang][safety] Typecheck mode v0 (annotated code validation)**
+1) **[lang][safety] Typecheck mode v0 (annotated code validation)**
    - Why now:
      - We need production-grade failures and earlier feedback without breaking rolling-mode execution.
    - DoD:
@@ -86,12 +77,12 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - invalid cast inputs (e.g. `f32("x")`) are rejected with `file:line:col`
      - typecheck must not depend on host headers/SDKs
 
-3) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
+2) **[stdlib/tooling][ux] API docs via attributes (FastAPI-style ergonomics, OpenAPI export)**
    - DoD:
      - `oredoc openapi <meta.json>` emits a valid OpenAPI 3.1 document
      - no runtime dependency; purely compiler metadata → spec
 
-4) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
+3) **[stdlib][perf] `std/linalg` v0.2 (SIMD hooks + NEON kernels where safe)**
    - DoD:
      - keep scalar APIs stable (`dot_*`, `axpy_*`, `matmul_*`)
      - add optional NEON fast paths for arm64 for dot/axpy (no correctness changes; keep deterministic rounding rules)
@@ -128,6 +119,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Language: added `as` cast operator (`expr as u8`) desugared to builtin cast sugar; added module test + oretest wiring; updated spec.
 - Casting: builtin cast sugar + deterministic boundary normalization; added `std/casts` clarity module and regression tests.
 - Stdlib: added `std/linalg` (scalar-first dot/axpy/matmul) with module tests and oretest wiring; verified on macOS + linux docker runner.
 - Stdlib: added `lib/std/math.oren` + `lib/std/regex.oren` (deterministic Thompson NFA; no backtracking blowups) with module tests and oretest wiring; verified on macOS + linux docker runner.

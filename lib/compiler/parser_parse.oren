@@ -15,6 +15,7 @@ var LESSGREATER_P = core.LESSGREATER_P
 var SHIFT_P = core.SHIFT_P
 var SUM_P = core.SUM_P
 var PRODUCT_P = core.PRODUCT_P
+var CAST_P = core.CAST_P
 var PREFIX_P = core.PREFIX_P
 var CALL_P = core.CALL_P
 var INDEX_P = core.INDEX_P
@@ -1147,6 +1148,7 @@ fn parse_spawn_expr(p) {
 
 fn parse_infix(p, left) {
     var t = p["cur"]["type"]
+    if t == token.TOK_AS { return parse_as_cast(p, left) }
     var is_op = false
     if t == token.TOK_PLUS { is_op = true }
     if t == token.TOK_MINUS { is_op = true }
@@ -1177,6 +1179,27 @@ fn parse_infix(p, left) {
     if t == token.TOK_DOT { return parse_member(p, left) }
     if t == token.TOK_LBRACKET { return parse_index(p, left) }
     return left
+}
+
+fn parse_as_cast(p, left) {
+    // Cast operator:
+    //   <expr> as <type>
+    //
+    // v0 restriction: <type> must be a builtin width token (u8/i32/f32/u16be/...).
+    // Lowering strategy: desugar into call-form cast sugar:
+    //   x as u8  ->  u8(x)
+    //
+    // Then `type_ann_lowering.oren` rewrites `u8(x)` into deterministic casts.
+    var tok = p["cur"] // 'as'
+    parser_next_token(p) // type token
+
+    if !token.is_builtin_type_token(p["cur"]["type"]) {
+        parser_add_error(p, "expected builtin type after 'as' (e.g. u8/i32/f32/bool/u16be)")
+        return left
+    }
+
+    var fn_expr = ast.new_identifier(p["cur"])
+    return ast.new_call(tok, fn_expr, [left])
 }
 
 fn parse_if(p) {

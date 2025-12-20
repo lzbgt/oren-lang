@@ -16,7 +16,7 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 ### Keywords
 Implemented today:
 
-`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `match`
+`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `match`, `as`
 
 Planned (not implemented yet):
 
@@ -125,7 +125,8 @@ prefix_expr     = literal
 infix_tail      = infix_op expression
                 | call_suffix
                 | member_suffix
-                | index_suffix ;
+                | index_suffix
+                | cast_suffix ;
 
 if_expr         = "if" expression block [ "else" block ] ;
 fn_lit          = "fn" [ ident ] "(" [ param_list ] ")" block ;
@@ -155,22 +156,24 @@ infix_op        = "+" | "-" | "*" | "/"
                 | "==" | "!=" | "<" | ">" | "<=" | ">="
                 | "&" | "^" | "|"
                 | "&&" | "||" ;
+cast_suffix     = "as" type_name ;
 ```
 
 ## Operator Precedence (highest to lowest)
 1. Member access: `.` and indexing: `[]`
 2. Call: `()`
-3. Prefix: `!` `-`
-4. Multiplicative: `*` `/`
-5. Additive: `+` `-`
-6. Shift: `<<` `>>`
-7. Comparisons: `<` `>` `<=` `>=`
-8. Equality: `==` `!=`
-9. Bitwise AND: `&`
-10. Bitwise XOR: `^`
-11. Bitwise OR: `|`
-12. Logical AND: `&&`
-13. Logical OR: `||`
+3. Cast: `as <type>`
+4. Prefix: `!` `-` `~`
+5. Multiplicative: `*` `/`
+6. Additive: `+` `-`
+7. Shift: `<<` `>>`
+8. Comparisons: `<` `>` `<=` `>=`
+9. Equality: `==` `!=`
+10. Bitwise AND: `&`
+11. Bitwise XOR: `^`
+12. Bitwise OR: `|`
+13. Logical AND: `&&`
+14. Logical OR: `||`
 
 All infix operators are left-associative.
 

@@ -132,12 +132,13 @@ func main() {
 		"tests/modules/test_match_enum.oren",
 		"tests/modules/test_int_ops_wrap.oren",
 		// Typed annotations and packed views (critical for syscall-first parsing).
-		"tests/modules/test_type_ann_fn_boundaries.oren",
-		"tests/modules/test_typed_struct_fields.oren",
-		"tests/modules/test_pack_view.oren",
-		"tests/modules/test_cast_sugar.oren",
-		// ABI layouts (curated, no host headers).
-		"tests/modules/test_abi_layout.oren",
+			"tests/modules/test_type_ann_fn_boundaries.oren",
+			"tests/modules/test_typed_struct_fields.oren",
+			"tests/modules/test_pack_view.oren",
+			"tests/modules/test_cast_sugar.oren",
+			"tests/modules/test_as_cast.oren",
+			// ABI layouts (curated, no host headers).
+			"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
 		"tests/modules/test_abi_socket_structs_v5.oren",
 		// Stdlib building blocks.
@@ -165,9 +166,10 @@ func main() {
 		"tests/modules/test_int_casts.oren",
 		"tests/modules/test_int_casts_checked.oren",
 		"tests/modules/test_int_ops_wrap.oren",
-		"tests/modules/test_float_ops.oren",
-		"tests/modules/test_cast_sugar.oren",
-		"tests/modules/test_typed_struct_fields.oren",
+			"tests/modules/test_float_ops.oren",
+			"tests/modules/test_cast_sugar.oren",
+			"tests/modules/test_as_cast.oren",
+			"tests/modules/test_typed_struct_fields.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_abi_layout.oren",
 		"tests/modules/test_abi_ptr_access.oren",
