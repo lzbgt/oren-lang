@@ -47,7 +47,11 @@ Agentic/production constraints that drive prioritization (rolling mode):
 ## Phase 3
 - **AI Readiness**: Implement agent-native features from `docs/AGENTIC_REQUIREMENTS.md` (metadata export, verification, deterministic workflows).
 - **Concurrency (Advanced)**: **M:N Scheduler** (Coroutines), **Pub/Sub**, **Fan-Out**, and **Parallel Iterators** (see `docs/CONCURRENCY_MODEL.md`).
-- **Targets (future)**: consider WASM as a *host* for AVM (portable VM), but treat a full WASM-native backend as long-term and non-blocking.
+- **Targets (future, non-goal by default)**:
+  - Oren is explicitly trying to **avoid the WASM toolchain bloat** as a primary deployment story.
+  - If WASM is used at all, the intent is **“AVM hosted in WASM”** (run the portable AVM interpreter inside an existing WASM sandbox),
+    not “Oren → WASM backend” as a first-class compilation target.
+  - This keeps the core niche: small toolchain, syscall-first native binaries, and an agent-safe VM (`.obc`) with VirtualFS/NET/PROC.
 - **Async/Tasks**: Async/await or lightweight tasks with a scheduler; GC/stack interaction.
 - **Security/Trust**: Deterministic builds, supply-chain verification, signed artifacts, sandboxed exec.
 - **Ecosystem**: Standard library build-out (collections, fs/net/crypto/time), cross-platform story (Windows), and polished docs/examples.
