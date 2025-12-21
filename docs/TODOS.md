@@ -105,6 +105,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
         - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f32_4x4_ptr` (bit-exact vs scalar reference).
       - Added `oren_buf_gemm_i32_4x4_slice_into` (native_id=129): 4×4 i32 GEMM boundary returning 16 i64 results, with C runtime + native runtime + AVM parity.
       - Tail columns are covered in both packed and non-packed 4-row paths (`p % 4 != 0`).
+      - Added `linalg.matmul_f32_buf_into(out, a, b, m, n, p)` to enable allocation-free HPC loops (caller owns output buffer).
 
 3) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:

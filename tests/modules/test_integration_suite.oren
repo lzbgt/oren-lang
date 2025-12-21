@@ -168,6 +168,13 @@ assert_eq(oren_buf_load_f32(mf_o, 1), 2.0, 68, "matmul_f32_buf[1]")
 assert_eq(oren_buf_load_f32(mf_o, 2), 3.0, 69, "matmul_f32_buf[2]")
 assert_eq(oren_buf_load_f32(mf_o, 3), 4.0, 70, "matmul_f32_buf[3]")
 
+// in-place matmul: caller-provided output buffer (HPC style)
+var mf_o2: []f32 = buffer.f32_new(4)
+var mr = linalg.matmul_f32_buf_into(mf_o2, mf_a, mf_b, 1, 4, 4)
+assert_true(!oren_is_err(mr), 71, "matmul_f32_buf_into ok")
+assert_eq(oren_buf_load_f32(mf_o2, 0), 1.0, 72, "matmul_f32_buf_into[0]")
+assert_eq(oren_buf_load_f32(mf_o2, 3), 4.0, 73, "matmul_f32_buf_into[3]")
+
 // i32 matmul packed-B path (triggers use_packed: n>=64, p>=4, n*p>=4096)
 // A: 1x64 with A[k]=k+1
 // B: 64x64 identity => Out == A (row)
