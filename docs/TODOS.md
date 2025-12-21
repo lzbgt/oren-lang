@@ -112,7 +112,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - runtime: `oren_buf_dot_f32_4_slice_into` (C runtime has a deterministic NEON path; native runtime scalar; AVM has deterministic NEON path)
        - bytecode backend: mapped as CORE native id `127`
        - tests: module + native SIMD + AVM smoke cover the microkernel via direct calls and matmul
-     - DONE: native backend now has a true single-pass SIMD 1×4 f32 dot intrinsic (`simd_dot_f32_4_ptr`) used by `oren_buf_dot_f32_4_slice_into` (still deterministic; no reassociation / no FMA).
+     - DONE: native backend now has true single-pass SIMD 1×4 dot intrinsics:
+       - f32: `simd_dot_f32_4_ptr` used by `oren_buf_dot_f32_4_slice_into` (deterministic widening/order; no reassociation / no FMA)
+       - i32: `simd_dot_i32_4_ptr` used by `oren_buf_dot_i32_4_slice_into` (wrap semantics; safe SIMD reassociation)
      - NEXT: extend the microkernel family beyond dot (e.g. small GEMM tiles) while preserving deterministic widening/order.
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**

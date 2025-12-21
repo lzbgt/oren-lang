@@ -6578,7 +6578,19 @@ fn oren_buf_dot_i32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_i32_4_slice_into: b_off out of bounds") }
     if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_i32_4_slice_into: b range out of bounds") }
 
-    // NOTE: no native SIMD fast path for 4-way dot yet; implement scalar and keep it correct.
+    // Native SIMD fast path: 1×4 i32 dot microkernel intrinsic (single-pass over A).
+    if native_simd_enabled() != 0 && n >= 4 {
+        var outp = native_buf_data_ptr(out) + out_off * 8
+        var pa = native_buf_data_ptr(a) + a_off * 4
+        var pb0 = native_buf_data_ptr(b) + b0_off * 4
+        var pb1 = native_buf_data_ptr(b) + b1_off * 4
+        var pb2 = native_buf_data_ptr(b) + b2_off * 4
+        var pb3 = native_buf_data_ptr(b) + b3_off * 4
+        simd_dot_i32_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
+        return out
+    }
+
+    // Scalar fallback.
     var s0 = 0
     var s1 = 0
     var s2 = 0
