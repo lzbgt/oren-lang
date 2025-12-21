@@ -275,7 +275,8 @@ func main() {
 				"./oren build %q --backend bytecode --target %s --deterministic --manifest -o %q > %q && "+
 					"test -s %q && "+
 					"grep -Fq %q %q && "+
-					"grep -Fq %q %q",
+					"grep -Fq %q %q && "+
+					"grep -Eq %q %q",
 				"tests/modules/test_strings.oren",
 				*target,
 				"build/manifest_bytecode.obc",
@@ -284,6 +285,8 @@ func main() {
 				"\"kind\":\"bytecode\"",
 				"build/manifest_bytecode.obc.manifest.json",
 				"\"deterministic\":true",
+				"build/manifest_bytecode.obc.manifest.json",
+				"\\\"size_bytes\\\":[1-9][0-9]*",
 				"build/manifest_bytecode.obc.manifest.json",
 			),
 			log:     "build/logs/manifest_bytecode.log",
@@ -296,7 +299,8 @@ func main() {
 				"./oren meta %q --target %s --deterministic --manifest -o %q > %q && "+
 					"test -s %q && "+
 					"grep -Fq %q %q && "+
-					"grep -Fq %q %q",
+					"grep -Fq %q %q && "+
+					"grep -Eq %q %q",
 				"tests/fixtures/meta_attrs_src.oren",
 				*target,
 				"build/manifest_meta.meta.json",
@@ -305,6 +309,8 @@ func main() {
 				"\"kind\":\"meta\"",
 				"build/manifest_meta.meta.json.manifest.json",
 				"\"deterministic\":true",
+				"build/manifest_meta.meta.json.manifest.json",
+				"\\\"size_bytes\\\":[1-9][0-9]*",
 				"build/manifest_meta.meta.json.manifest.json",
 			),
 			log:     "build/logs/manifest_meta.log",
@@ -501,11 +507,14 @@ func main() {
 		{
 			name: "deterministic_native_meta_hash",
 			cmd: fmt.Sprintf(
-				"./oren build %q --backend native --target %s --metadata --deterministic -o %q > %q && "+
-					"./oren build %q --backend native --target %s --metadata --deterministic -o %q > %q && "+
+				"./oren build %q --backend native --target %s --metadata --deterministic --manifest -o %q > %q && "+
+					"./oren build %q --backend native --target %s --metadata --deterministic --manifest -o %q > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
-					"diff -q %q %q",
+					"diff -q %q %q && "+
+					"test -s %q && test -s %q && "+
+					"grep -Fq %q %q && grep -Fq %q %q && grep -Eq %q %q && "+
+					"grep -Fq %q %q && grep -Fq %q %q && grep -Eq %q %q",
 				"tests/modules/test_strings.oren",
 				*target,
 				"build/deterministic_native_meta_1",
@@ -520,6 +529,20 @@ func main() {
 				"build/deterministic_native_meta_2.hash",
 				"build/deterministic_native_meta_1.hash",
 				"build/deterministic_native_meta_2.hash",
+				"build/deterministic_native_meta_1.meta.json.manifest.json",
+				"build/deterministic_native_meta_2.meta.json.manifest.json",
+				"\"kind\":\"meta\"",
+				"build/deterministic_native_meta_1.meta.json.manifest.json",
+				"\"deterministic\":true",
+				"build/deterministic_native_meta_1.meta.json.manifest.json",
+				"\\\"size_bytes\\\":[1-9][0-9]*",
+				"build/deterministic_native_meta_1.meta.json.manifest.json",
+				"\"kind\":\"meta\"",
+				"build/deterministic_native_meta_2.meta.json.manifest.json",
+				"\"deterministic\":true",
+				"build/deterministic_native_meta_2.meta.json.manifest.json",
+				"\\\"size_bytes\\\":[1-9][0-9]*",
+				"build/deterministic_native_meta_2.meta.json.manifest.json",
 			),
 			log: "build/logs/deterministic_native_meta_hash.log",
 			ok:  func(rc int) bool { return rc == 0 },
@@ -528,10 +551,14 @@ func main() {
 				"build/deterministic_native_meta_1.meta.json",
 				"build/deterministic_native_meta_1.out",
 				"build/deterministic_native_meta_1.hash",
+				"build/deterministic_native_meta_1.manifest.json",
+				"build/deterministic_native_meta_1.meta.json.manifest.json",
 				"build/deterministic_native_meta_2",
 				"build/deterministic_native_meta_2.meta.json",
 				"build/deterministic_native_meta_2.out",
 				"build/deterministic_native_meta_2.hash",
+				"build/deterministic_native_meta_2.manifest.json",
+				"build/deterministic_native_meta_2.meta.json.manifest.json",
 			},
 		},
 		{
