@@ -1923,6 +1923,78 @@ OrenValue oren_buf_gemm_f64_4x4_slice_into(
     double c20 = 0.0, c21 = 0.0, c22 = 0.0, c23 = 0.0;
     double c30 = 0.0, c31 = 0.0, c32 = 0.0, c33 = 0.0;
 
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 2u) {
+        const double* pa0 = (const double*)(const void*)(buf_data(ba) + a0_off * 8u);
+        const double* pa1 = (const double*)(const void*)(buf_data(ba) + a1_off * 8u);
+        const double* pa2 = (const double*)(const void*)(buf_data(ba) + a2_off * 8u);
+        const double* pa3 = (const double*)(const void*)(buf_data(ba) + a3_off * 8u);
+        const double* pb0 = (const double*)(const void*)(buf_data(bb) + b0_off * 8u);
+        const double* pb1 = (const double*)(const void*)(buf_data(bb) + b1_off * 8u);
+        const double* pb2 = (const double*)(const void*)(buf_data(bb) + b2_off * 8u);
+        const double* pb3 = (const double*)(const void*)(buf_data(bb) + b3_off * 8u);
+
+        uint32_t i = 0;
+        for (; i + 2u <= n; i += 2u) {
+            float64x2_t va0 = vld1q_f64(pa0 + i);
+            float64x2_t va1 = vld1q_f64(pa1 + i);
+            float64x2_t va2 = vld1q_f64(pa2 + i);
+            float64x2_t va3 = vld1q_f64(pa3 + i);
+
+            float64x2_t vb0 = vld1q_f64(pb0 + i);
+            float64x2_t vb1 = vld1q_f64(pb1 + i);
+            float64x2_t vb2 = vld1q_f64(pb2 + i);
+            float64x2_t vb3 = vld1q_f64(pb3 + i);
+
+            // Preserve scalar accumulation order: element i then i+1 for every accumulator.
+            // Row 0
+            { float64x2_t p = vmulq_f64(va0, vb0); c00 += vgetq_lane_f64(p, 0); c00 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va0, vb1); c01 += vgetq_lane_f64(p, 0); c01 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va0, vb2); c02 += vgetq_lane_f64(p, 0); c02 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va0, vb3); c03 += vgetq_lane_f64(p, 0); c03 += vgetq_lane_f64(p, 1); }
+            // Row 1
+            { float64x2_t p = vmulq_f64(va1, vb0); c10 += vgetq_lane_f64(p, 0); c10 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va1, vb1); c11 += vgetq_lane_f64(p, 0); c11 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va1, vb2); c12 += vgetq_lane_f64(p, 0); c12 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va1, vb3); c13 += vgetq_lane_f64(p, 0); c13 += vgetq_lane_f64(p, 1); }
+            // Row 2
+            { float64x2_t p = vmulq_f64(va2, vb0); c20 += vgetq_lane_f64(p, 0); c20 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va2, vb1); c21 += vgetq_lane_f64(p, 0); c21 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va2, vb2); c22 += vgetq_lane_f64(p, 0); c22 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va2, vb3); c23 += vgetq_lane_f64(p, 0); c23 += vgetq_lane_f64(p, 1); }
+            // Row 3
+            { float64x2_t p = vmulq_f64(va3, vb0); c30 += vgetq_lane_f64(p, 0); c30 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va3, vb1); c31 += vgetq_lane_f64(p, 0); c31 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va3, vb2); c32 += vgetq_lane_f64(p, 0); c32 += vgetq_lane_f64(p, 1); }
+            { float64x2_t p = vmulq_f64(va3, vb3); c33 += vgetq_lane_f64(p, 0); c33 += vgetq_lane_f64(p, 1); }
+        }
+        for (; i < n; i++) {
+            uint64_t ua0 = load_u64_le(buf_data(ba) + (a0_off + i) * 8u);
+            uint64_t ua1 = load_u64_le(buf_data(ba) + (a1_off + i) * 8u);
+            uint64_t ua2 = load_u64_le(buf_data(ba) + (a2_off + i) * 8u);
+            uint64_t ua3 = load_u64_le(buf_data(ba) + (a3_off + i) * 8u);
+            uint64_t ub0 = load_u64_le(buf_data(bb) + (b0_off + i) * 8u);
+            uint64_t ub1 = load_u64_le(buf_data(bb) + (b1_off + i) * 8u);
+            uint64_t ub2 = load_u64_le(buf_data(bb) + (b2_off + i) * 8u);
+            uint64_t ub3 = load_u64_le(buf_data(bb) + (b3_off + i) * 8u);
+            double a0v = 0.0, a1v = 0.0, a2v = 0.0, a3v = 0.0;
+            double b0v = 0.0, b1v = 0.0, b2v = 0.0, b3v = 0.0;
+            memcpy(&a0v, &ua0, sizeof(a0v));
+            memcpy(&a1v, &ua1, sizeof(a1v));
+            memcpy(&a2v, &ua2, sizeof(a2v));
+            memcpy(&a3v, &ua3, sizeof(a3v));
+            memcpy(&b0v, &ub0, sizeof(b0v));
+            memcpy(&b1v, &ub1, sizeof(b1v));
+            memcpy(&b2v, &ub2, sizeof(b2v));
+            memcpy(&b3v, &ub3, sizeof(b3v));
+
+            c00 += a0v * b0v; c01 += a0v * b1v; c02 += a0v * b2v; c03 += a0v * b3v;
+            c10 += a1v * b0v; c11 += a1v * b1v; c12 += a1v * b2v; c13 += a1v * b3v;
+            c20 += a2v * b0v; c21 += a2v * b1v; c22 += a2v * b2v; c23 += a2v * b3v;
+            c30 += a3v * b0v; c31 += a3v * b1v; c32 += a3v * b2v; c33 += a3v * b3v;
+        }
+    } else
+#endif
     for (uint32_t i = 0; i < n; i++) {
         uint64_t ua0 = load_u64_le(buf_data(ba) + (a0_off + i) * 8u);
         uint64_t ua1 = load_u64_le(buf_data(ba) + (a1_off + i) * 8u);
