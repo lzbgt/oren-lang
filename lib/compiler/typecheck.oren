@@ -37,13 +37,22 @@ fn _err(errors, tok, msg) {
 }
 
 fn _ann_to_cat(ann) {
-    // Categories: int|float|bool|unknown
+    // Categories: int|float|bool|string|bytes|list|map|buf|unknown
     if ann == nil { return "unknown" }
 
     // Strip optional namespace prefix.
     if oren_string_len(ann) > 5 && oren_string_slice(ann, 0, 5) == "oren." {
         ann = oren_string_slice(ann, 5, oren_string_len(ann))
     }
+
+    // Common non-numeric builtins (not keyword tokens; still appear in type annotations).
+    if ann == "string" { return "string" }
+    if ann == "bytes" { return "bytes" }
+
+    // Typed buffers and views (rolling HPC): `[]i32`, `[]f32`, `[]u8`, ...
+    // We treat these as a distinct category so obviously-invalid casts can be rejected
+    // in `--typecheck` mode.
+    if oren_string_len(ann) >= 2 && oren_string_slice(ann, 0, 2) == "[]" { return "buf" }
 
     // Endian types are scalar ints for value-level typechecking.
     if ann == "u16be" || ann == "u16le" || ann == "i16be" || ann == "i16le" { return "int" }
@@ -134,6 +143,8 @@ fn _cat(expr, env) {
         if op == "&&" || op == "||" { return "bool" }
         return "unknown"
     }
+    if t == "Array" { return "list" }
+    if t == "Hash" { return "map" }
     if t == "If" { return "unknown" }
     if t == "Call" {
         var fn_expr = expr["fn"]
@@ -165,12 +176,18 @@ fn _check_cast_call(errors, call, env) {
     var arg_cat = _cat(args[0], env)
     var tgt_cat = _ann_to_cat(nm)
 
-    // bool(...) is allowed for all categories (it is the explicit normalization).
-    if tgt_cat == "bool" { return nil }
+    // bool(...) is an explicit normalization in v0, but in typecheck mode we still
+    // reject obviously-invalid inputs (e.g. strings/bytes).
+    if tgt_cat == "bool" {
+        if arg_cat == "string" || arg_cat == "bytes" || arg_cat == "list" || arg_cat == "map" {
+            _err(errors, call["token"], "invalid cast: bool(...) expects bool|numeric|nil input")
+        }
+        return nil
+    }
 
     // f32/f64 casts require a numeric (int|float) input in v0.
     if tgt_cat == "float" {
-        if arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
+        if arg_cat == "string" || arg_cat == "bytes" || arg_cat == "bool" || arg_cat == "nil" || arg_cat == "list" || arg_cat == "map" || arg_cat == "buf" {
             _err(errors, call["token"], "invalid cast: " + nm + "(...) expects numeric input")
         }
         return nil
@@ -178,7 +195,7 @@ fn _check_cast_call(errors, call, env) {
 
     // int casts accept int|float input (float truncation is deterministic).
     if tgt_cat == "int" {
-        if arg_cat == "string" || arg_cat == "bool" || arg_cat == "nil" {
+        if arg_cat == "string" || arg_cat == "bytes" || arg_cat == "bool" || arg_cat == "nil" || arg_cat == "list" || arg_cat == "map" || arg_cat == "buf" {
             _err(errors, call["token"], "invalid cast: " + nm + "(...) expects numeric input")
         }
         return nil

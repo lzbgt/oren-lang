@@ -85,6 +85,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - invalid `as` casts across categories (e.g. `bytes as i32` without a defined cast rule)
      - Ensure diagnostics are stable and point at user spans (not compiler-generated lowering).
      - Add/merge into the integration suite (no explosion of tiny tests).
+   - Status:
+     - **done:** numeric casts reject `string/bytes/list/map/buf` inputs when statically known.
+     - **done:** `bool(...)` rejects `string/bytes/list/map` inputs when statically known (still allows numeric/bool/nil/unknown).
+     - **done:** `as` casts are already desugared to cast calls and thus follow the same checks.
 
 ### B) AVM (evolves alongside language/compiler)
 

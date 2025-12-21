@@ -4,5 +4,23 @@ fn main() {
     // f32(...) requires numeric (int|float) input in v0.
     var x = f32("not a float")
     print(x)
+
+    // integer casts also require numeric inputs.
+    var y = u8("not an int")
+    print(y)
+
+    // bool(...) rejects obviously invalid inputs in typecheck mode.
+    var z = bool("not bool")
+    print(z)
+
+    // bytes (when annotated) are not numeric and cannot be cast to ints/floats.
+    var b: bytes = [1, 2, 3]
+    var w = i32(b)
+    print(w)
+
+    // `as` casts desugar to cast sugar calls; should be rejected for bytes too.
+    var w2 = b as i32
+    print(w2)
+
     exit(0)
 }

@@ -90,6 +90,17 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `tests/modules/test_integration_suite.oren` adds `MyRange` + `Iterable.iter_next` and sums values via `for-in`.
 - Verified: `make stage1` then `./oretest --target macos` passes.
 
+## Archived (2025-12-21) — Typecheck v0: reject non-numeric cast inputs (HPC signal)
+
+- Strengthened `--typecheck` to catch obvious invalid casts when the input category is statically known:
+  - numeric casts (`u8/i32/f32/...`) reject `string`, `bytes`, `list`, `map`, and typed buffers (`[]T`) as inputs.
+  - `bool(...)` rejects `string/bytes/list/map` (still permits numeric/bool/nil/unknown).
+  - `as` casts are desugared to cast sugar calls and follow the same rules.
+- Extended the existing `tests/fixtures/typecheck_bad_cast.oren` to cover:
+  - `f32("...")`, `u8("...")`, `bool("...")`
+  - `bytes` annotated value cast via `i32(b)` and `b as i32`
+- Verified: `make stage1` then `./oretest --target macos` passes.
+
 ## Archived (2025-12-21) — Generic trait constraints (static-first)
 
 - Generic type parameters now support trait constraints:
