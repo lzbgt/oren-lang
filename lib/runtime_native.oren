@@ -8181,6 +8181,177 @@ fn oren_fd_wait_writable(fd, timeout_ms) {
 }
 
 @cap.requires(domain="NET")
+fn oren_fd_wait_any_kqueue(fds, filter, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    // Wait for any fd in `fds` to be ready for `filter`.
+    // Returns 1 if ready (writes ready fd to out_fd_ptr), 0 if timed out, or negative errno.
+    if fds == nil { return 0 - 22 } // EINVAL
+    if out_fd_ptr == 0 { return 0 - 22 } // EINVAL
+    var nfds = oren_list_len(fds)
+    if nfds <= 0 { return 0 - 22 } // EINVAL
+
+    // Match existing NET wait semantics: negative timeout means "no wait" (avoid hangs).
+    if timeout_ms < 0 { timeout_ms = 0 }
+    if g_net_has_kqueue == 0 { return 0 - 78 } // ENOSYS (no kqueue backend)
+
+    var kq = sys_kqueue()
+    if g_net_has_kqueue == -1 {
+        // First-time detection.
+        if kq < 0 {
+            g_net_has_kqueue = 0
+            return 0 - 78 // ENOSYS
+        }
+        g_net_has_kqueue = 1
+    } else {
+        if kq < 0 { return kq }
+    }
+
+    // struct kevent size is 32 bytes on Darwin.
+    var change = malloc(nfds * 32)
+    if change == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(change, nfds * 32, 0)
+    var ev = malloc(32)
+    if ev == 0 { sys_close(kq); free(change); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 32, 0)
+
+    // Zero-fill changelist and event buffer.
+    var zi = 0
+    while zi < nfds * 32 {
+        ptr_set_byte(change + zi, 0)
+        zi = zi + 1
+    }
+    zi = 0
+    while zi < 32 {
+        ptr_set_byte(ev + zi, 0)
+        zi = zi + 1
+    }
+
+    // struct kevent layout:
+    // ident (u64) @0
+    // filter (i16) @8
+    // flags (u16)  @10
+    // fflags (u32) @12
+    // data (i64)   @16
+    // udata (ptr)  @24
+    var kflags = 1 | 4 | 16 // EV_ADD | EV_ENABLE | EV_ONESHOT
+    var i = 0
+    while i < nfds {
+        var fd = oren_list_get(fds, i)
+        var base = change + i * 32
+        ptr_set(base + 0, fd)
+        ptr_set_byte(base + 8, filter & 255)
+        ptr_set_byte(base + 9, (filter >> 8) & 255)
+        ptr_set_byte(base + 10, kflags & 255)
+        ptr_set_byte(base + 11, (kflags >> 8) & 255)
+        ptr_set(base + 16, 0)
+        ptr_set(base + 24, 0)
+        i = i + 1
+    }
+
+    // timespec*
+    var ts = malloc(16)
+    if ts == 0 { sys_close(kq); free(change); free(ev); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ts, 16, 0)
+    var sec = timeout_ms / 1000
+    var nsec = (timeout_ms - sec * 1000) * 1000000
+    ptr_set(ts + 0, sec)
+    ptr_set(ts + 8, nsec)
+
+    var n = sys_kevent(kq, change, nfds, ev, 1, ts)
+    sys_close(kq)
+    if n > 0 {
+        // ready ident is a u64 at ev[0].
+        var ready_fd = ptr_get(ev + 0)
+        ptr_set(out_fd_ptr, ready_fd)
+        n = 1
+    }
+    free(change)
+    free(ev)
+    free(ts)
+    return n
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    // Returns 1 if ready (writes ready fd to out_fd_ptr), 0 if timed out, or negative errno.
+    // Linux only. Darwin does not have epoll.
+    if g_target_os == 1 { return 0 - 78 } // ENOSYS
+    if fds == nil { return 0 - 22 } // EINVAL
+    if out_fd_ptr == 0 { return 0 - 22 } // EINVAL
+    var nfds = oren_list_len(fds)
+    if nfds <= 0 { return 0 - 22 } // EINVAL
+
+    if timeout_ms < 0 { timeout_ms = -1 } // epoll uses -1 for infinite
+    var epfd = sys_epoll_create1(0)
+    if epfd < 0 { return epfd }
+
+    // struct epoll_event (Linux arm64):
+    //   u32 events @0
+    //   u32 pad    @4
+    //   u64 data   @8
+    var ev = malloc(16)
+    if ev == 0 { sys_close(epfd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 16, 0)
+    var out = malloc(16)
+    if out == 0 { sys_close(epfd); free(ev); return 0 - 12 } // ENOMEM
+    oren_track_alloc(out, 16, 0)
+
+    var zi = 0
+    while zi < 16 {
+        ptr_set_byte(ev + zi, 0)
+        ptr_set_byte(out + zi, 0)
+        zi = zi + 1
+    }
+
+    // Register all fds.
+    var i = 0
+    while i < nfds {
+        var fd = oren_list_get(fds, i)
+        // Set per-fd data so the returned event includes the ready fd.
+        oren_ptr_set_u32_le(ev + 0, events_mask)
+        oren_ptr_set_u64_le(ev + 8, fd)
+        var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, fd, ev)
+        if rc < 0 {
+            sys_close(epfd)
+            free(ev)
+            free(out)
+            return rc
+        }
+        i = i + 1
+    }
+
+    var n = sys_epoll_pwait(epfd, out, 1, timeout_ms, 0, 0)
+    sys_close(epfd)
+    if n > 0 {
+        var ready_fd = oren_ptr_get_u64_le(out + 8)
+        ptr_set(out_fd_ptr, ready_fd)
+        n = 1
+    }
+    free(ev)
+    free(out)
+    return n
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_fd_wait_any_kqueue(fds, -1, timeout_ms, out_fd_ptr) // EVFILT_READ
+    }
+    return oren_fd_wait_any_epoll(fds, OREN_EPOLLIN, timeout_ms, out_fd_ptr)
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_fd_wait_any_kqueue(fds, -2, timeout_ms, out_fd_ptr) // EVFILT_WRITE
+    }
+    return oren_fd_wait_any_epoll(fds, OREN_EPOLLOUT, timeout_ms, out_fd_ptr)
+}
+
+@cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
     native_capsule_require_net_connect(ip, port)
     var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)

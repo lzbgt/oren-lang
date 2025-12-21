@@ -65,6 +65,40 @@ fn wait_writable(fd, timeout_ms) {
     return oren_fd_wait_writable(fd, timeout_ms)
 }
 
+fn wait_any_readable(fds, timeout_ms) {
+    // Wait for any fd in `fds` to become readable.
+    //
+    // Returns:
+    // - ready fd (>= 0) on success
+    // - -ETIMEDOUT (-60) on timeout
+    // - negative errno on failure
+    var out = malloc(8)
+    if out == 0 { return 0 - 12 } // ENOMEM
+    var rc = oren_fd_wait_any_readable(fds, timeout_ms, out)
+    if rc == 0 { free(out); return 0 - 60 } // ETIMEDOUT
+    if rc < 0 { free(out); return rc }
+    var fd = ptr_get(out)
+    free(out)
+    return fd
+}
+
+fn wait_any_writable(fds, timeout_ms) {
+    // Wait for any fd in `fds` to become writable.
+    //
+    // Returns:
+    // - ready fd (>= 0) on success
+    // - -ETIMEDOUT (-60) on timeout
+    // - negative errno on failure
+    var out = malloc(8)
+    if out == 0 { return 0 - 12 } // ENOMEM
+    var rc = oren_fd_wait_any_writable(fds, timeout_ms, out)
+    if rc == 0 { free(out); return 0 - 60 } // ETIMEDOUT
+    if rc < 0 { free(out); return rc }
+    var fd = ptr_get(out)
+    free(out)
+    return fd
+}
+
 // --- Structured Result helpers (optional) ---
 
 fn connect_ok(ip, port, timeout_ms) {
@@ -87,3 +121,10 @@ fn write_from_ok(fd, buf, len, timeout_ms) {
     return result.ok_or_errno(write_from(fd, buf, len, timeout_ms), "tcp.write_from")
 }
 
+fn wait_any_readable_ok(fds, timeout_ms) {
+    return result.ok_or_errno(wait_any_readable(fds, timeout_ms), "tcp.wait_any_readable")
+}
+
+fn wait_any_writable_ok(fds, timeout_ms) {
+    return result.ok_or_errno(wait_any_writable(fds, timeout_ms), "tcp.wait_any_writable")
+}

@@ -107,6 +107,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Current rolling note:
      - Added `std/net/tcp` module (`lib/std/net/tcp.oren`) exposing the syscall-first TCP substrate as a stable stdlib surface.
      - `std/net/http` now implements `http.get_text(url, timeout_ms)` on top of `std/net/tcp` (no hidden runtime-only helper).
+     - Multi-fd readiness wait is available via `oren_fd_wait_any_{readable,writable}` (kqueue on macOS, epoll on Linux), and wrapped by `tcp.wait_any_{readable,writable}`.
 
 ### B) AVM (evolves alongside language/compiler)
 

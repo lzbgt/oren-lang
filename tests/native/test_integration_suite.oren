@@ -700,25 +700,50 @@ fn test_net_loopback_minimal() {
         sys_close(r)
 
         // Try a small port range to avoid flakiness (port in use).
-        var port = 40100
-        var lfd = -1
+        // Create two listening sockets so we can test multi-fd readiness wait.
+        var port1 = 40100
+        var port2 = 40150
+        var lfd1 = -1
+        var lfd2 = -1
         var tries = 0
         while tries < 10 {
-            lfd = oren_tcp_listen_local(port)
-            if lfd >= 0 { break }
-            port = port + 1
+            lfd1 = oren_tcp_listen_local(port1)
+            if lfd1 >= 0 { break }
+            port1 = port1 + 1
             tries = tries + 1
         }
-        if lfd < 0 { exit(801) }
+        if lfd1 < 0 { exit(801) }
+        tries = 0
+        while tries < 10 {
+            lfd2 = oren_tcp_listen_local(port2)
+            if lfd2 >= 0 { break }
+            port2 = port2 + 1
+            tries = tries + 1
+        }
+        if lfd2 < 0 { exit(801) }
 
         var pbuf = malloc(8)
         if pbuf == 0 { exit(802) }
-        ptr_set(pbuf, port)
+        ptr_set(pbuf, port1)
         var wn0 = sys_write(w, pbuf, 8)
         if wn0 != 8 { exit(803) }
+        ptr_set(pbuf, port2)
+        var wn1 = sys_write(w, pbuf, 8)
+        if wn1 != 8 { exit(803) }
+        free(pbuf)
         sys_close(w)
 
-        var cfd = oren_tcp_accept(lfd, 2000)
+        // Wait until either listen fd becomes readable (incoming connection).
+        var fds = [lfd1, lfd2]
+        var out_fd = malloc(8)
+        if out_fd == 0 { exit(804) }
+        ptr_set(out_fd, 0)
+        var wr = oren_fd_wait_any_readable(fds, 2000, out_fd)
+        if wr != 1 { exit(804) }
+        if ptr_get(out_fd) != lfd2 { exit(804) } // parent connects to port2 below
+        free(out_fd)
+
+        var cfd = oren_tcp_accept(lfd2, 2000)
         if cfd < 0 { exit(804) }
 
         var inb = malloc(1)
@@ -734,7 +759,8 @@ fn test_net_loopback_minimal() {
         if wn != 1 { exit(809) }
 
         oren_tcp_close(cfd)
-        oren_tcp_close(lfd)
+        oren_tcp_close(lfd1)
+        oren_tcp_close(lfd2)
         exit(0)
     }
 
@@ -748,12 +774,31 @@ fn test_net_loopback_minimal() {
         if n <= 0 { fail(811) }
         got = got + n
     }
+    var port1 = ptr_get(pbuf2)
+    if port1 < 1 { fail(812) }
+    got = 0
+    while got < 8 {
+        var n2 = sys_read(r, pbuf2 + got, 8 - got)
+        if n2 <= 0 { fail(811) }
+        got = got + n2
+    }
     var port2 = ptr_get(pbuf2)
     if port2 < 1 { fail(812) }
+    free(pbuf2)
     sys_close(r)
 
     var cfd2 = oren_tcp_connect("127.0.0.1", port2, 2000)
     if cfd2 < 0 { fail(813) }
+
+    // Multi-fd writable wait should return immediately on a connected socket.
+    var wfds = [cfd2]
+    var wout = malloc(8)
+    if wout == 0 { fail(813) }
+    ptr_set(wout, 0)
+    var ww = oren_fd_wait_any_writable(wfds, 2000, wout)
+    if ww != 1 { fail(813) }
+    if ptr_get(wout) != cfd2 { fail(813) }
+    free(wout)
 
     // getsockname / getpeername sanity: AF_INET + len >= 8.
     var sa = malloc(32)
