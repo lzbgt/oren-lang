@@ -80,6 +80,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - **done:** native `oren_buf_dot_i32` NEON fast path via intrinsic `simd_dot_i32_ptr(a_ptr,b_ptr,n)->i64` + scalar tail.
      - **next:** add native NEON for `i32_buf` add/mul into (in-place destination) and extend regression tests.
      - **next:** add native NEON for `f32_buf` add/mul/dot with deterministic semantics (likely f64 accumulation for dot).
+     - **done:** native NEON for `i32_buf` add/mul into via intrinsics `simd_add_i32_ptr` / `simd_mul_i32_ptr` + scalar tail; validated by native test (`tests/native/test_simd_i32_buf_ops_native.oren`).
+     - **done:** native NEON for `f32_buf` add/mul into via intrinsics `simd_add_f32_ptr` / `simd_mul_f32_ptr` + scalar tail; validated by native test (`tests/native/test_simd_f32_buf_ops_native.oren`).
 
 2) **[lang][perf] Typed views: slice + stride (HPC + syscall-first parsing)**
    - DoD:

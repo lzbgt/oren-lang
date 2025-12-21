@@ -1,0 +1,78 @@
+fn fail(code, msg) {
+    oren_fail(code, "test_simd_f32_buf_ops_native: " + msg)
+    return 1
+}
+
+fn f32_bits_at(buf, idx) {
+    return oren_f32_to_u32_bits(oren_buf_load_f32(buf, idx))
+}
+
+fn hash_u32_mix(h, x) {
+    // Simple wrap-around mixer (deterministic).
+    return (h * 16777619) + x
+}
+
+fn main() {
+    var n = 1024
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(n)
+    var out_add = oren_f32_buf_new(n)
+    var out_mul = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(100, "alloc a") }
+    if oren_is_err(b) { return fail(101, "alloc b") }
+    if oren_is_err(out_add) { return fail(102, "alloc out_add") }
+    if oren_is_err(out_mul) { return fail(103, "alloc out_mul") }
+
+    // Fill with values that are exactly representable in f32 (small integers as floats).
+    var i = 0
+    while i < n {
+        // Use small magnitudes to avoid Inf/NaN and keep deterministic bit patterns.
+        // `f64(i)` is exact and representable; store rounds to f32 deterministically.
+        oren_buf_store_f32(a, i, f64(i % 97) - 41.0)
+        oren_buf_store_f32(b, i, f64((i * 3) % 89) - 22.0)
+        i = i + 1
+    }
+
+    // Compute reference by explicit scalar loop (using the same store semantics).
+    i = 0
+    while i < n {
+        var xa = oren_buf_load_f32(a, i)
+        var xb = oren_buf_load_f32(b, i)
+        oren_buf_store_f32(out_add, i, xa + xb)
+        oren_buf_store_f32(out_mul, i, xa * xb)
+        i = i + 1
+    }
+
+    // Run the APIs under test (may dispatch to SIMD).
+    var out2_add = oren_f32_buf_new(n)
+    var out2_mul = oren_f32_buf_new(n)
+    if oren_is_err(out2_add) { return fail(104, "alloc out2_add") }
+    if oren_is_err(out2_mul) { return fail(105, "alloc out2_mul") }
+
+    var r1 = oren_buf_add_f32_into(out2_add, a, b)
+    if oren_is_err(r1) { return fail(106, "buf_add_f32_into err") }
+    var r2 = oren_buf_mul_f32_into(out2_mul, a, b)
+    if oren_is_err(r2) { return fail(107, "buf_mul_f32_into err") }
+
+    // Compare bit patterns exactly and compute stable hashes (so runner can compare scalar vs SIMD).
+    var h_add = 2166136261
+    var h_mul = 2166136261
+    i = 0
+    while i < n {
+        var refA = f32_bits_at(out_add, i)
+        var gotA = f32_bits_at(out2_add, i)
+        if refA != gotA { return fail(200, "add bits mismatch") }
+        var refM = f32_bits_at(out_mul, i)
+        var gotM = f32_bits_at(out2_mul, i)
+        if refM != gotM { return fail(201, "mul bits mismatch") }
+        h_add = hash_u32_mix(h_add, gotA)
+        h_mul = hash_u32_mix(h_mul, gotM)
+        i = i + 1
+    }
+
+    print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
+    print("ADD_HASH=" + oren_int_to_string(h_add))
+    print("MUL_HASH=" + oren_int_to_string(h_mul))
+    return 0
+}
+

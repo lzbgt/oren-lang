@@ -623,6 +623,38 @@ fn insn_add_4s(vd, vn, vm) {
     return 1319142400 + (vm * 65536) + (vn * 32) + vd
 }
 
+fn insn_fadd_4s(vd, vn, vm) {
+    // FADD Vd.4S, Vn.4S, Vm.4S
+    // Verified via clang:
+    //   fadd v0.4s, v0.4s, v1.4s => 0x4E21D400
+    // Base: 0x4E20D400
+    return 1310774272 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_fmul_4s(vd, vn, vm) {
+    // FMUL Vd.4S, Vn.4S, Vm.4S
+    // Verified via clang:
+    //   fmul v0.4s, v0.4s, v1.4s => 0x6E21DC00
+    // Base: 0x6E20DC00
+    return 1847647232 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_fadd_s(sd, sn, sm) {
+    // FADD Sd, Sn, Sm
+    // Verified via clang:
+    //   fadd s0, s0, s1 => 0x1E212800
+    // Base: 0x1E202800
+    return 505423872 + (sm * 65536) + (sn * 32) + sd
+}
+
+fn insn_fmul_s(sd, sn, sm) {
+    // FMUL Sd, Sn, Sm
+    // Verified via clang:
+    //   fmul s0, s0, s1 => 0x1E210800
+    // Base: 0x1E200800
+    return 505415680 + (sm * 65536) + (sn * 32) + sd
+}
+
 fn insn_smull_2d(vd, vn, vm) {
     // SMULL Vd.2D, Vn.2S, Vm.2S
     // Verified via clang:
