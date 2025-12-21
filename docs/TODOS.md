@@ -86,7 +86,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - C runtime + native runtime + AVM parity for any new kernel boundary.
      - A small correctness-only integration test (no perf thresholds) in the fast suite.
    - Next milestone (suggested):
-     - Add a small **tile GEMM microkernel** (e.g. 4×4 or 2×4) for f32 and wire it into `lib/std/linalg.oren` packed path.
+     - Add a **NEON-backed f64 4×4 microkernel intrinsic** (bit-exact vs scalar reference; preserves strict k-order), and wire it into the new `oren_buf_gemm_f64_4x4_slice_into` boundary.
    - Current rolling note:
       - Matmul now avoids per-k-block dot calls when **not packed** (Bt is contiguous per column, so we do a single dot/dot_4 across full `n`).
       - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
@@ -96,6 +96,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - Added `oren_buf_gemm_i32_4x4_slice_into` (native_id=129): 4×4 i32 GEMM boundary returning 16 i64 results, with C runtime + native runtime + AVM parity.
       - Added `oren_buf_dot_f64_4_slice_into` (native_id=130): 1×4 f64 dot microkernel boundary returning 4 f64 results, used by `matmul_f64_buf` packed/non-packed paths to reduce interpreter/native overhead.
         - Native runtime now uses a **true single-pass** intrinsic `simd_dot_f64_4_ptr` (bit-exact vs scalar reference; preserves strict k-order).
+      - Added `oren_buf_gemm_f64_4x4_slice_into` (native_id=131): 4×4 f64 GEMM microkernel boundary returning 16 f64 results, with C runtime + native runtime + AVM parity.
+        - `matmul_f64_buf` now uses a 4-row/4-col block path (packed and non-packed) to reuse packed-B across 4 rows and reduce call overhead.
       - Tail columns are covered in both packed and non-packed 4-row paths (`p % 4 != 0`).
       - Added `linalg.matmul_f32_buf_into(out, a, b, m, n, p)` to enable allocation-free HPC loops (caller owns output buffer).
       - Added `linalg.matmul_i32_buf_into(out, a, b, m, n, p)` for the same allocation-free pattern in integer GEMM paths.

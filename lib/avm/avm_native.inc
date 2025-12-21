@@ -3784,11 +3784,11 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 		            }
 		            break;
 		        }
-		        case 130: { // oren_buf_dot_f64_4_slice_into(out:f64_buf, out_off:int, a:f64_buf, a_off:int, b:f64_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
-		            if (nargs > 9
-		                && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT
-		                && args[2].type == AVM_VAL_F64_BUF && args[3].type == AVM_VAL_INT
-		                && args[4].type == AVM_VAL_F64_BUF
+			        case 130: { // oren_buf_dot_f64_4_slice_into(out:f64_buf, out_off:int, a:f64_buf, a_off:int, b:f64_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+			            if (nargs > 9
+			                && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT
+			                && args[2].type == AVM_VAL_F64_BUF && args[3].type == AVM_VAL_INT
+			                && args[4].type == AVM_VAL_F64_BUF
 		                && args[5].type == AVM_VAL_INT && args[6].type == AVM_VAL_INT && args[7].type == AVM_VAL_INT && args[8].type == AVM_VAL_INT
 		                && args[9].type == AVM_VAL_INT) {
 		                AvmBuf* out = args[0].as.buf;
@@ -4021,13 +4021,175 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 		                res = args[0];
 		            } else {
 		                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_f64_4_slice_into expects (f64_buf,int,f64_buf,int,f64_buf,int,int,int,int,int)");
-		            }
-		            break;
-		        }
-		        case 128: { // oren_buf_gemm_f32_4x4_slice_into(out:f64_buf, out_off:int, a:f32_buf, a0_off:int, a1_off:int, a2_off:int, a3_off:int, b:f32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
-		            if (nargs > 12
-		                && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT
-		                && args[2].type == AVM_VAL_F32_BUF
+			            }
+			            break;
+			        }
+			        case 131: { // oren_buf_gemm_f64_4x4_slice_into(out:f64_buf, out_off:int, a:f64_buf, a0_off:int, a1_off:int, a2_off:int, a3_off:int, b:f64_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+			            if (nargs > 12
+			                && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT
+			                && args[2].type == AVM_VAL_F64_BUF
+			                && args[3].type == AVM_VAL_INT && args[4].type == AVM_VAL_INT && args[5].type == AVM_VAL_INT && args[6].type == AVM_VAL_INT
+			                && args[7].type == AVM_VAL_F64_BUF
+			                && args[8].type == AVM_VAL_INT && args[9].type == AVM_VAL_INT && args[10].type == AVM_VAL_INT && args[11].type == AVM_VAL_INT
+			                && args[12].type == AVM_VAL_INT) {
+			                AvmBuf* out = args[0].as.buf;
+			                AvmBuf* a = args[2].as.buf;
+			                AvmBuf* b = args[7].as.buf;
+			                int64_t out_off_ll = args[1].as.i;
+			                int64_t a0_off_ll = args[3].as.i;
+			                int64_t a1_off_ll = args[4].as.i;
+			                int64_t a2_off_ll = args[5].as.i;
+			                int64_t a3_off_ll = args[6].as.i;
+			                int64_t b0_off_ll = args[8].as.i;
+			                int64_t b1_off_ll = args[9].as.i;
+			                int64_t b2_off_ll = args[10].as.i;
+			                int64_t b3_off_ll = args[11].as.i;
+			                int64_t n_ll = args[12].as.i;
+			                if (!out || !a || !b || out->elem_size != 8u || a->elem_size != 8u || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_f64_4x4_slice_into: invalid buffers"); break; }
+			                if (out_off_ll < 0 || a0_off_ll < 0 || a1_off_ll < 0 || a2_off_ll < 0 || a3_off_ll < 0 || b0_off_ll < 0 || b1_off_ll < 0 || b2_off_ll < 0 || b3_off_ll < 0 || n_ll < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_f64_4x4_slice_into: negative arg"); break; }
+			                if ((uint64_t)out_off_ll > (uint64_t)out->len || (uint64_t)out->len - (uint64_t)out_off_ll < 16u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_f64_4x4_slice_into: out range out of bounds"); break; }
+			                if ((uint64_t)a0_off_ll > (uint64_t)a->len || (uint64_t)a1_off_ll > (uint64_t)a->len || (uint64_t)a2_off_ll > (uint64_t)a->len || (uint64_t)a3_off_ll > (uint64_t)a->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_f64_4x4_slice_into: a_off out of bounds"); break; }
+			                if ((uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a0_off_ll
+			                    || (uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a1_off_ll
+			                    || (uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a2_off_ll
+			                    || (uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a3_off_ll) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_f64_4x4_slice_into: a range out of bounds"); break; }
+			                if ((uint64_t)b0_off_ll > (uint64_t)b->len || (uint64_t)b1_off_ll > (uint64_t)b->len || (uint64_t)b2_off_ll > (uint64_t)b->len || (uint64_t)b3_off_ll > (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_f64_4x4_slice_into: b_off out of bounds"); break; }
+			                if ((uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b0_off_ll
+			                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b1_off_ll
+			                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b2_off_ll
+			                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b3_off_ll) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_f64_4x4_slice_into: b range out of bounds"); break; }
+			
+			                uint32_t out_off = (uint32_t)out_off_ll;
+			                uint32_t a0_off = (uint32_t)a0_off_ll;
+			                uint32_t a1_off = (uint32_t)a1_off_ll;
+			                uint32_t a2_off = (uint32_t)a2_off_ll;
+			                uint32_t a3_off = (uint32_t)a3_off_ll;
+			                uint32_t b0_off = (uint32_t)b0_off_ll;
+			                uint32_t b1_off = (uint32_t)b1_off_ll;
+			                uint32_t b2_off = (uint32_t)b2_off_ll;
+			                uint32_t b3_off = (uint32_t)b3_off_ll;
+			                uint32_t n = (uint32_t)n_ll;
+			
+			                double c00 = 0.0, c01 = 0.0, c02 = 0.0, c03 = 0.0;
+			                double c10 = 0.0, c11 = 0.0, c12 = 0.0, c13 = 0.0;
+			                double c20 = 0.0, c21 = 0.0, c22 = 0.0, c23 = 0.0;
+			                double c30 = 0.0, c31 = 0.0, c32 = 0.0, c33 = 0.0;
+			
+			                for (uint32_t i = 0; i < n; i++) {
+			                    uint32_t oa0 = (a0_off + i) * 8u;
+			                    uint32_t oa1 = (a1_off + i) * 8u;
+			                    uint32_t oa2 = (a2_off + i) * 8u;
+			                    uint32_t oa3 = (a3_off + i) * 8u;
+			                    uint32_t ob0 = (b0_off + i) * 8u;
+			                    uint32_t ob1 = (b1_off + i) * 8u;
+			                    uint32_t ob2 = (b2_off + i) * 8u;
+			                    uint32_t ob3 = (b3_off + i) * 8u;
+			
+			                    uint64_t ua0 = (uint64_t)a->data[oa0]
+			                                 | ((uint64_t)a->data[oa0 + 1] << 8)
+			                                 | ((uint64_t)a->data[oa0 + 2] << 16)
+			                                 | ((uint64_t)a->data[oa0 + 3] << 24)
+			                                 | ((uint64_t)a->data[oa0 + 4] << 32)
+			                                 | ((uint64_t)a->data[oa0 + 5] << 40)
+			                                 | ((uint64_t)a->data[oa0 + 6] << 48)
+			                                 | ((uint64_t)a->data[oa0 + 7] << 56);
+			                    uint64_t ua1 = (uint64_t)a->data[oa1]
+			                                 | ((uint64_t)a->data[oa1 + 1] << 8)
+			                                 | ((uint64_t)a->data[oa1 + 2] << 16)
+			                                 | ((uint64_t)a->data[oa1 + 3] << 24)
+			                                 | ((uint64_t)a->data[oa1 + 4] << 32)
+			                                 | ((uint64_t)a->data[oa1 + 5] << 40)
+			                                 | ((uint64_t)a->data[oa1 + 6] << 48)
+			                                 | ((uint64_t)a->data[oa1 + 7] << 56);
+			                    uint64_t ua2 = (uint64_t)a->data[oa2]
+			                                 | ((uint64_t)a->data[oa2 + 1] << 8)
+			                                 | ((uint64_t)a->data[oa2 + 2] << 16)
+			                                 | ((uint64_t)a->data[oa2 + 3] << 24)
+			                                 | ((uint64_t)a->data[oa2 + 4] << 32)
+			                                 | ((uint64_t)a->data[oa2 + 5] << 40)
+			                                 | ((uint64_t)a->data[oa2 + 6] << 48)
+			                                 | ((uint64_t)a->data[oa2 + 7] << 56);
+			                    uint64_t ua3 = (uint64_t)a->data[oa3]
+			                                 | ((uint64_t)a->data[oa3 + 1] << 8)
+			                                 | ((uint64_t)a->data[oa3 + 2] << 16)
+			                                 | ((uint64_t)a->data[oa3 + 3] << 24)
+			                                 | ((uint64_t)a->data[oa3 + 4] << 32)
+			                                 | ((uint64_t)a->data[oa3 + 5] << 40)
+			                                 | ((uint64_t)a->data[oa3 + 6] << 48)
+			                                 | ((uint64_t)a->data[oa3 + 7] << 56);
+			                    uint64_t ub0 = (uint64_t)b->data[ob0]
+			                                 | ((uint64_t)b->data[ob0 + 1] << 8)
+			                                 | ((uint64_t)b->data[ob0 + 2] << 16)
+			                                 | ((uint64_t)b->data[ob0 + 3] << 24)
+			                                 | ((uint64_t)b->data[ob0 + 4] << 32)
+			                                 | ((uint64_t)b->data[ob0 + 5] << 40)
+			                                 | ((uint64_t)b->data[ob0 + 6] << 48)
+			                                 | ((uint64_t)b->data[ob0 + 7] << 56);
+			                    uint64_t ub1 = (uint64_t)b->data[ob1]
+			                                 | ((uint64_t)b->data[ob1 + 1] << 8)
+			                                 | ((uint64_t)b->data[ob1 + 2] << 16)
+			                                 | ((uint64_t)b->data[ob1 + 3] << 24)
+			                                 | ((uint64_t)b->data[ob1 + 4] << 32)
+			                                 | ((uint64_t)b->data[ob1 + 5] << 40)
+			                                 | ((uint64_t)b->data[ob1 + 6] << 48)
+			                                 | ((uint64_t)b->data[ob1 + 7] << 56);
+			                    uint64_t ub2 = (uint64_t)b->data[ob2]
+			                                 | ((uint64_t)b->data[ob2 + 1] << 8)
+			                                 | ((uint64_t)b->data[ob2 + 2] << 16)
+			                                 | ((uint64_t)b->data[ob2 + 3] << 24)
+			                                 | ((uint64_t)b->data[ob2 + 4] << 32)
+			                                 | ((uint64_t)b->data[ob2 + 5] << 40)
+			                                 | ((uint64_t)b->data[ob2 + 6] << 48)
+			                                 | ((uint64_t)b->data[ob2 + 7] << 56);
+			                    uint64_t ub3 = (uint64_t)b->data[ob3]
+			                                 | ((uint64_t)b->data[ob3 + 1] << 8)
+			                                 | ((uint64_t)b->data[ob3 + 2] << 16)
+			                                 | ((uint64_t)b->data[ob3 + 3] << 24)
+			                                 | ((uint64_t)b->data[ob3 + 4] << 32)
+			                                 | ((uint64_t)b->data[ob3 + 5] << 40)
+			                                 | ((uint64_t)b->data[ob3 + 6] << 48)
+			                                 | ((uint64_t)b->data[ob3 + 7] << 56);
+			
+			                    double a0v = 0.0, a1v = 0.0, a2v = 0.0, a3v = 0.0;
+			                    double b0v = 0.0, b1v = 0.0, b2v = 0.0, b3v = 0.0;
+			                    memcpy(&a0v, &ua0, 8); memcpy(&a1v, &ua1, 8); memcpy(&a2v, &ua2, 8); memcpy(&a3v, &ua3, 8);
+			                    memcpy(&b0v, &ub0, 8); memcpy(&b1v, &ub1, 8); memcpy(&b2v, &ub2, 8); memcpy(&b3v, &ub3, 8);
+			
+			                    c00 += a0v * b0v; c01 += a0v * b1v; c02 += a0v * b2v; c03 += a0v * b3v;
+			                    c10 += a1v * b0v; c11 += a1v * b1v; c12 += a1v * b2v; c13 += a1v * b3v;
+			                    c20 += a2v * b0v; c21 += a2v * b1v; c22 += a2v * b2v; c23 += a2v * b3v;
+			                    c30 += a3v * b0v; c31 += a3v * b1v; c32 += a3v * b2v; c33 += a3v * b3v;
+			                }
+			
+			                uint64_t u[16] = {0};
+			                memcpy(&u[0], &c00, 8); memcpy(&u[1], &c01, 8); memcpy(&u[2], &c02, 8); memcpy(&u[3], &c03, 8);
+			                memcpy(&u[4], &c10, 8); memcpy(&u[5], &c11, 8); memcpy(&u[6], &c12, 8); memcpy(&u[7], &c13, 8);
+			                memcpy(&u[8], &c20, 8); memcpy(&u[9], &c21, 8); memcpy(&u[10], &c22, 8); memcpy(&u[11], &c23, 8);
+			                memcpy(&u[12], &c30, 8); memcpy(&u[13], &c31, 8); memcpy(&u[14], &c32, 8); memcpy(&u[15], &c33, 8);
+			
+			                for (uint32_t j = 0; j < 16u; j++) {
+			                    uint64_t uj = u[j];
+			                    uint32_t oj = (out_off + j) * 8u;
+			                    out->data[oj + 0] = (uint8_t)(uj & 0xFFu);
+			                    out->data[oj + 1] = (uint8_t)((uj >> 8) & 0xFFu);
+			                    out->data[oj + 2] = (uint8_t)((uj >> 16) & 0xFFu);
+			                    out->data[oj + 3] = (uint8_t)((uj >> 24) & 0xFFu);
+			                    out->data[oj + 4] = (uint8_t)((uj >> 32) & 0xFFu);
+			                    out->data[oj + 5] = (uint8_t)((uj >> 40) & 0xFFu);
+			                    out->data[oj + 6] = (uint8_t)((uj >> 48) & 0xFFu);
+			                    out->data[oj + 7] = (uint8_t)((uj >> 56) & 0xFFu);
+			                }
+			
+			                res = args[0];
+			            } else {
+			                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_gemm_f64_4x4_slice_into expects (f64_buf,int,f64_buf,int,int,int,int,f64_buf,int,int,int,int,int)");
+			            }
+			            break;
+			        }
+			        case 128: { // oren_buf_gemm_f32_4x4_slice_into(out:f64_buf, out_off:int, a:f32_buf, a0_off:int, a1_off:int, a2_off:int, a3_off:int, b:f32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+			            if (nargs > 12
+			                && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT
+			                && args[2].type == AVM_VAL_F32_BUF
 	                && args[3].type == AVM_VAL_INT && args[4].type == AVM_VAL_INT && args[5].type == AVM_VAL_INT && args[6].type == AVM_VAL_INT
 	                && args[7].type == AVM_VAL_F32_BUF
 	                && args[8].type == AVM_VAL_INT && args[9].type == AVM_VAL_INT && args[10].type == AVM_VAL_INT && args[11].type == AVM_VAL_INT

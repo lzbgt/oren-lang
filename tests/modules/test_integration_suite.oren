@@ -263,6 +263,56 @@ assert_true(!oren_is_err(mor), 174, "matmul_f64_buf_into ok")
 assert_eq(oren_buf_load_f64(mo2, 0), 58.0, 175, "matmul_f64_buf_into[0]")
 assert_eq(oren_buf_load_f64(mo2, 3), 154.0, 176, "matmul_f64_buf_into[3]")
 
+// f64 matmul (4x4 microkernel coverage, non-packed)
+// A: 4x4, B: 4x4 identity => Out == A
+var f64_a4: []f64 = buffer.f64_new(16)
+var f64_b4: []f64 = buffer.f64_new(16)
+var r4 = 0
+while r4 < 4 {
+    var c4 = 0
+    while c4 < 4 {
+        oren_buf_store_f64(f64_a4, r4 * 4 + c4, (r4 + 1) * 10.0 + (c4 + 1) * 1.0)
+        var iv = 0.0
+        if r4 == c4 { iv = 1.0 }
+        oren_buf_store_f64(f64_b4, r4 * 4 + c4, iv)
+        c4 = c4 + 1
+    }
+    r4 = r4 + 1
+}
+var f64_o4: []f64 = linalg.matmul_f64_buf(f64_a4, f64_b4, 4, 4, 4)
+assert_eq(oren_buf_load_f64(f64_o4, 0), 11.0, 180, "matmul_f64_buf 4x4[0]")
+assert_eq(oren_buf_load_f64(f64_o4, 5), 22.0, 181, "matmul_f64_buf 4x4[5]")
+assert_eq(oren_buf_load_f64(f64_o4, 15), 44.0, 182, "matmul_f64_buf 4x4[15]")
+
+// f64 matmul (packed-B + 4x4 microkernel coverage)
+// A: 4x64, B: 64x64 identity => Out == A
+var f64_pa: []f64 = buffer.f64_new(4 * 64)
+var f64_pb: []f64 = buffer.f64_new(64 * 64)
+var pk64 = 0
+while pk64 < 64 {
+    // Fill A rows with distinct values.
+    var rr64 = 0
+    while rr64 < 4 {
+        oren_buf_store_f64(f64_pa, rr64 * 64 + pk64, (rr64 + 1) * 100.0 + (pk64 + 1) * 1.0)
+        rr64 = rr64 + 1
+    }
+
+    // Identity B.
+    var pj64 = 0
+    while pj64 < 64 {
+        var vv = 0.0
+        if pk64 == pj64 { vv = 1.0 }
+        oren_buf_store_f64(f64_pb, pk64 * 64 + pj64, vv)
+        pj64 = pj64 + 1
+    }
+    pk64 = pk64 + 1
+}
+var f64_po: []f64 = linalg.matmul_f64_buf(f64_pa, f64_pb, 4, 64, 64)
+assert_eq(oren_buf_load_f64(f64_po, 0), 101.0, 183, "matmul_f64_buf packed[0]")
+assert_eq(oren_buf_load_f64(f64_po, 63), 164.0, 184, "matmul_f64_buf packed[63]")
+assert_eq(oren_buf_load_f64(f64_po, 64), 201.0, 185, "matmul_f64_buf packed[64]")
+assert_eq(oren_buf_load_f64(f64_po, 64 + 63), 264.0, 186, "matmul_f64_buf packed[127]")
+
 // i64 typed-buffer ops (wrap semantics, but keep values small here)
 var i64a: []i64 = buffer.i64_new(3)
 var i64b: []i64 = buffer.i64_new(3)

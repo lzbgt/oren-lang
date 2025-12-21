@@ -1319,6 +1319,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_dot_f64_4_slice_into" { native_id = 130 }
         if name == "oren_buf_gemm_f32_4x4_slice_into" { native_id = 128 }
         if name == "oren_buf_gemm_i32_4x4_slice_into" { native_id = 129 }
+        if name == "oren_buf_gemm_f64_4x4_slice_into" { native_id = 131 }
 
         if native_id != -1 {
             var args = expr["args"]

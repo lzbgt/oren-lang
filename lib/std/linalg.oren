@@ -802,8 +802,168 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
     var tmp4: []f64 = buffer.f64_new(4)
     if oren_is_err(tmp4) { return tmp4 }
 
+    // Reusable scratch for the 4x4 GEMM microkernel (reduces boundary overhead for 4-row blocks).
+    var tmp16: []f64 = nil
+    if m >= 4 && p >= 4 {
+        tmp16 = buffer.f64_new(16)
+        if oren_is_err(tmp16) { return tmp16 }
+    }
+
     var i = 0
     while i < m {
+        // 4x4 microkernel: reuse B across 4 rows when we have a full 4-row block.
+        if i + 3 < m && tmp16 != nil {
+            // Packed-B path: compute per k-tile so we preserve deterministic k-block order.
+            if use_packed {
+                var bj_blk = 0
+                while bj_blk < tiles_j {
+                    var base_j_blk = bj_blk * JB
+
+                    // Accumulators for 4x4 block.
+                    var s00 = 0.0; var s01 = 0.0; var s02 = 0.0; var s03 = 0.0
+                    var s10 = 0.0; var s11 = 0.0; var s12 = 0.0; var s13 = 0.0
+                    var s20 = 0.0; var s21 = 0.0; var s22 = 0.0; var s23 = 0.0
+                    var s30 = 0.0; var s31 = 0.0; var s32 = 0.0; var s33 = 0.0
+
+                    var bk_blk = 0
+                    while bk_blk < tiles_k {
+                        var kbase_blk = bk_blk * KB
+                        var kn_blk = n - kbase_blk
+                        if kn_blk > KB { kn_blk = KB }
+                        var base_tile_blk = (bj_blk * tiles_k + bk_blk) * JB * KB
+
+                        // Packed B is zero-padded for out-of-range cols; safe to call even for tail columns.
+                        var rr = oren_buf_gemm_f64_4x4_slice_into(
+                            tmp16, 0,
+                            a,
+                            (i + 0) * n + kbase_blk,
+                            (i + 1) * n + kbase_blk,
+                            (i + 2) * n + kbase_blk,
+                            (i + 3) * n + kbase_blk,
+                            bp,
+                            base_tile_blk + 0 * KB,
+                            base_tile_blk + 1 * KB,
+                            base_tile_blk + 2 * KB,
+                            base_tile_blk + 3 * KB,
+                            kn_blk)
+                        if oren_is_err(rr) { return rr }
+
+                        // Accumulate partials in deterministic increasing-k order (per k-block).
+                        s00 = s00 + oren_buf_load_f64(tmp16, 0)
+                        s01 = s01 + oren_buf_load_f64(tmp16, 1)
+                        s02 = s02 + oren_buf_load_f64(tmp16, 2)
+                        s03 = s03 + oren_buf_load_f64(tmp16, 3)
+
+                        s10 = s10 + oren_buf_load_f64(tmp16, 4)
+                        s11 = s11 + oren_buf_load_f64(tmp16, 5)
+                        s12 = s12 + oren_buf_load_f64(tmp16, 6)
+                        s13 = s13 + oren_buf_load_f64(tmp16, 7)
+
+                        s20 = s20 + oren_buf_load_f64(tmp16, 8)
+                        s21 = s21 + oren_buf_load_f64(tmp16, 9)
+                        s22 = s22 + oren_buf_load_f64(tmp16, 10)
+                        s23 = s23 + oren_buf_load_f64(tmp16, 11)
+
+                        s30 = s30 + oren_buf_load_f64(tmp16, 12)
+                        s31 = s31 + oren_buf_load_f64(tmp16, 13)
+                        s32 = s32 + oren_buf_load_f64(tmp16, 14)
+                        s33 = s33 + oren_buf_load_f64(tmp16, 15)
+
+                        bk_blk = bk_blk + 1
+                    }
+
+                    // Store only in-range columns (packed B may include zero-padded columns).
+                    if base_j_blk + 0 < p {
+                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 0), s00)
+                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 0), s10)
+                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 0), s20)
+                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 0), s30)
+                    }
+                    if base_j_blk + 1 < p {
+                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 1), s01)
+                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 1), s11)
+                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 1), s21)
+                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 1), s31)
+                    }
+                    if base_j_blk + 2 < p {
+                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 2), s02)
+                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 2), s12)
+                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 2), s22)
+                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 2), s32)
+                    }
+                    if base_j_blk + 3 < p {
+                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 3), s03)
+                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 3), s13)
+                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 3), s23)
+                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 3), s33)
+                    }
+
+                    bj_blk = bj_blk + 1
+                }
+
+                i = i + 4
+                continue
+            }
+
+            // Non-packed path: Bt columns are contiguous, so compute a full 4x4 block over the
+            // entire n in a single call (no k-tiling needed).
+            var bj_blk2 = 0
+            while bj_blk2 < tiles_j {
+                var base_j_blk2 = bj_blk2 * JB
+                if base_j_blk2 + 3 < p {
+                    var rr2 = oren_buf_gemm_f64_4x4_slice_into(
+                        tmp16, 0,
+                        a,
+                        (i + 0) * n,
+                        (i + 1) * n,
+                        (i + 2) * n,
+                        (i + 3) * n,
+                        bt,
+                        (base_j_blk2 + 0) * n,
+                        (base_j_blk2 + 1) * n,
+                        (base_j_blk2 + 2) * n,
+                        (base_j_blk2 + 3) * n,
+                        n)
+                    if oren_is_err(rr2) { return rr2 }
+
+                    // Store 4x4 block.
+                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 0))
+                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 1))
+                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 2))
+                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 3))
+
+                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 4))
+                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 5))
+                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 6))
+                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 7))
+
+                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 8))
+                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 9))
+                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 10))
+                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 11))
+
+                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 12))
+                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 13))
+                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 14))
+                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 15))
+                } else {
+                    // Tail columns: fall back to the existing per-row dot kernels below.
+                    var row2 = 0
+                    while row2 < 4 {
+                        if base_j_blk2 + 0 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 0), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 0) * n, n)) }
+                        if base_j_blk2 + 1 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 1), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 1) * n, n)) }
+                        if base_j_blk2 + 2 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 2), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 2) * n, n)) }
+                        if base_j_blk2 + 3 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 3), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 3) * n, n)) }
+                        row2 = row2 + 1
+                    }
+                }
+                bj_blk2 = bj_blk2 + 1
+            }
+
+            i = i + 4
+            continue
+        }
+
         var bj2 = 0
         while bj2 < tiles_j {
             var base_j = bj2 * JB

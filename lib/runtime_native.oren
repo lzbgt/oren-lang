@@ -6797,6 +6797,77 @@ fn oren_buf_gemm_i32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
     return out
 }
 
+fn oren_buf_gemm_f64_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_off, b, b0_off, b1_off, b2_off, b3_off, n) {
+    // Compute a 4x4 block of dot-products in one pass over the shared k range.
+    //
+    // Writes 16 f64 results into `out` starting at `out_off`, row-major:
+    //   out[out_off + (r*4 + c)] = dot_f64(a[a_r_off..a_r_off+n), b[b_c_off..b_c_off+n))
+    //
+    // Semantics / determinism:
+    // - multiply in f64
+    // - accumulate in fixed increasing-k order (no reassociation)
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    if out_off < 0 || a0_off < 0 || a1_off < 0 || a2_off < 0 || a3_off < 0 || b0_off < 0 || b1_off < 0 || b2_off < 0 || b3_off < 0 || n < 0 { return oren_err(4, "buf_gemm_f64_4x4_slice_into: negative arg") }
+
+    var no = ptr_get(out + 0)
+    if out_off > no || no - out_off < 16 { return oren_err(4, "buf_gemm_f64_4x4_slice_into: out range out of bounds") }
+
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a0_off > na || a1_off > na || a2_off > na || a3_off > na { return oren_err(4, "buf_gemm_f64_4x4_slice_into: a_off out of bounds") }
+    if n > na - a0_off || n > na - a1_off || n > na - a2_off || n > na - a3_off { return oren_err(4, "buf_gemm_f64_4x4_slice_into: a range out of bounds") }
+    if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_gemm_f64_4x4_slice_into: b_off out of bounds") }
+    if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_gemm_f64_4x4_slice_into: b range out of bounds") }
+
+    // Scalar core (native backend will compile this to tight loops; SIMD may be added later behind intrinsics).
+    var c00 = 0.0; var c01 = 0.0; var c02 = 0.0; var c03 = 0.0
+    var c10 = 0.0; var c11 = 0.0; var c12 = 0.0; var c13 = 0.0
+    var c20 = 0.0; var c21 = 0.0; var c22 = 0.0; var c23 = 0.0
+    var c30 = 0.0; var c31 = 0.0; var c32 = 0.0; var c33 = 0.0
+
+    var i = 0
+    while i < n {
+        var a0v = oren_buf_load_f64(a, a0_off + i)
+        var a1v = oren_buf_load_f64(a, a1_off + i)
+        var a2v = oren_buf_load_f64(a, a2_off + i)
+        var a3v = oren_buf_load_f64(a, a3_off + i)
+        var b0v = oren_buf_load_f64(b, b0_off + i)
+        var b1v = oren_buf_load_f64(b, b1_off + i)
+        var b2v = oren_buf_load_f64(b, b2_off + i)
+        var b3v = oren_buf_load_f64(b, b3_off + i)
+
+        c00 = c00 + a0v * b0v; c01 = c01 + a0v * b1v; c02 = c02 + a0v * b2v; c03 = c03 + a0v * b3v
+        c10 = c10 + a1v * b0v; c11 = c11 + a1v * b1v; c12 = c12 + a1v * b2v; c13 = c13 + a1v * b3v
+        c20 = c20 + a2v * b0v; c21 = c21 + a2v * b1v; c22 = c22 + a2v * b2v; c23 = c23 + a2v * b3v
+        c30 = c30 + a3v * b0v; c31 = c31 + a3v * b1v; c32 = c32 + a3v * b2v; c33 = c33 + a3v * b3v
+
+        i = i + 1
+    }
+
+    oren_buf_store_f64(out, out_off + 0, c00)
+    oren_buf_store_f64(out, out_off + 1, c01)
+    oren_buf_store_f64(out, out_off + 2, c02)
+    oren_buf_store_f64(out, out_off + 3, c03)
+    oren_buf_store_f64(out, out_off + 4, c10)
+    oren_buf_store_f64(out, out_off + 5, c11)
+    oren_buf_store_f64(out, out_off + 6, c12)
+    oren_buf_store_f64(out, out_off + 7, c13)
+    oren_buf_store_f64(out, out_off + 8, c20)
+    oren_buf_store_f64(out, out_off + 9, c21)
+    oren_buf_store_f64(out, out_off + 10, c22)
+    oren_buf_store_f64(out, out_off + 11, c23)
+    oren_buf_store_f64(out, out_off + 12, c30)
+    oren_buf_store_f64(out, out_off + 13, c31)
+    oren_buf_store_f64(out, out_off + 14, c32)
+    oren_buf_store_f64(out, out_off + 15, c33)
+    return out
+}
+
 fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_off, b, b0_off, b1_off, b2_off, b3_off, n) {
     // Compute a 4x4 block of dot-products in one pass over the shared k range.
     //

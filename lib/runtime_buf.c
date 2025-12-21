@@ -1799,6 +1799,134 @@ OrenValue oren_buf_dot_f64_4_slice_into(
     return out;
 }
 
+OrenValue oren_buf_gemm_f64_4x4_slice_into(
+    OrenValue out, OrenValue out_offv,
+    OrenValue a, OrenValue a0_offv, OrenValue a1_offv, OrenValue a2_offv, OrenValue a3_offv,
+    OrenValue b, OrenValue b0_offv, OrenValue b1_offv, OrenValue b2_offv, OrenValue b3_offv,
+    OrenValue nv) {
+    if (!buf_is_f64(out) || out_offv.type != OREN_TYPE_INT
+        || !buf_is_f64(a) || a0_offv.type != OREN_TYPE_INT || a1_offv.type != OREN_TYPE_INT || a2_offv.type != OREN_TYPE_INT || a3_offv.type != OREN_TYPE_INT
+        || !buf_is_f64(b)
+        || b0_offv.type != OREN_TYPE_INT || b1_offv.type != OREN_TYPE_INT || b2_offv.type != OREN_TYPE_INT || b3_offv.type != OREN_TYPE_INT
+        || nv.type != OREN_TYPE_INT) {
+        return buf_err("oren_buf_gemm_f64_4x4_slice_into expects (f64_buf,int,f64_buf,int,int,int,int,f64_buf,int,int,int,int,int)");
+    }
+
+    OrenBuf* bout = out.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    long long out_off_ll = out_offv.as.int_val;
+    long long a0_off_ll = a0_offv.as.int_val;
+    long long a1_off_ll = a1_offv.as.int_val;
+    long long a2_off_ll = a2_offv.as.int_val;
+    long long a3_off_ll = a3_offv.as.int_val;
+    long long b0_off_ll = b0_offv.as.int_val;
+    long long b1_off_ll = b1_offv.as.int_val;
+    long long b2_off_ll = b2_offv.as.int_val;
+    long long b3_off_ll = b3_offv.as.int_val;
+    long long n_ll = nv.as.int_val;
+
+    if (out_off_ll < 0 || a0_off_ll < 0 || a1_off_ll < 0 || a2_off_ll < 0 || a3_off_ll < 0
+        || b0_off_ll < 0 || b1_off_ll < 0 || b2_off_ll < 0 || b3_off_ll < 0 || n_ll < 0) {
+        return buf_err("buf_gemm_f64_4x4_slice_into: negative arg");
+    }
+    if ((uint64_t)out_off_ll > (uint64_t)bout->len || (uint64_t)bout->len - (uint64_t)out_off_ll < 16u) {
+        return buf_err("buf_gemm_f64_4x4_slice_into: out range out of bounds");
+    }
+
+    if ((uint64_t)a0_off_ll > (uint64_t)ba->len || (uint64_t)a1_off_ll > (uint64_t)ba->len
+        || (uint64_t)a2_off_ll > (uint64_t)ba->len || (uint64_t)a3_off_ll > (uint64_t)ba->len) {
+        return buf_err("buf_gemm_f64_4x4_slice_into: a_off out of bounds");
+    }
+    if ((uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a0_off_ll
+        || (uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a1_off_ll
+        || (uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a2_off_ll
+        || (uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a3_off_ll) {
+        return buf_err("buf_gemm_f64_4x4_slice_into: a range out of bounds");
+    }
+
+    if ((uint64_t)b0_off_ll > (uint64_t)bb->len || (uint64_t)b1_off_ll > (uint64_t)bb->len
+        || (uint64_t)b2_off_ll > (uint64_t)bb->len || (uint64_t)b3_off_ll > (uint64_t)bb->len) {
+        return buf_err("buf_gemm_f64_4x4_slice_into: b_off out of bounds");
+    }
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b0_off_ll
+        || (uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b1_off_ll
+        || (uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b2_off_ll
+        || (uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b3_off_ll) {
+        return buf_err("buf_gemm_f64_4x4_slice_into: b range out of bounds");
+    }
+
+    uint32_t n = (uint32_t)n_ll;
+    uint32_t out_off = (uint32_t)out_off_ll;
+    uint32_t a0_off = (uint32_t)a0_off_ll;
+    uint32_t a1_off = (uint32_t)a1_off_ll;
+    uint32_t a2_off = (uint32_t)a2_off_ll;
+    uint32_t a3_off = (uint32_t)a3_off_ll;
+    uint32_t b0_off = (uint32_t)b0_off_ll;
+    uint32_t b1_off = (uint32_t)b1_off_ll;
+    uint32_t b2_off = (uint32_t)b2_off_ll;
+    uint32_t b3_off = (uint32_t)b3_off_ll;
+
+    // Accumulate in deterministic increasing-k order.
+    double c00 = 0.0, c01 = 0.0, c02 = 0.0, c03 = 0.0;
+    double c10 = 0.0, c11 = 0.0, c12 = 0.0, c13 = 0.0;
+    double c20 = 0.0, c21 = 0.0, c22 = 0.0, c23 = 0.0;
+    double c30 = 0.0, c31 = 0.0, c32 = 0.0, c33 = 0.0;
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint64_t ua0 = load_u64_le(buf_data(ba) + (a0_off + i) * 8u);
+        uint64_t ua1 = load_u64_le(buf_data(ba) + (a1_off + i) * 8u);
+        uint64_t ua2 = load_u64_le(buf_data(ba) + (a2_off + i) * 8u);
+        uint64_t ua3 = load_u64_le(buf_data(ba) + (a3_off + i) * 8u);
+        uint64_t ub0 = load_u64_le(buf_data(bb) + (b0_off + i) * 8u);
+        uint64_t ub1 = load_u64_le(buf_data(bb) + (b1_off + i) * 8u);
+        uint64_t ub2 = load_u64_le(buf_data(bb) + (b2_off + i) * 8u);
+        uint64_t ub3 = load_u64_le(buf_data(bb) + (b3_off + i) * 8u);
+        double a0v = 0.0, a1v = 0.0, a2v = 0.0, a3v = 0.0;
+        double b0v = 0.0, b1v = 0.0, b2v = 0.0, b3v = 0.0;
+        memcpy(&a0v, &ua0, sizeof(a0v));
+        memcpy(&a1v, &ua1, sizeof(a1v));
+        memcpy(&a2v, &ua2, sizeof(a2v));
+        memcpy(&a3v, &ua3, sizeof(a3v));
+        memcpy(&b0v, &ub0, sizeof(b0v));
+        memcpy(&b1v, &ub1, sizeof(b1v));
+        memcpy(&b2v, &ub2, sizeof(b2v));
+        memcpy(&b3v, &ub3, sizeof(b3v));
+
+        c00 += a0v * b0v; c01 += a0v * b1v; c02 += a0v * b2v; c03 += a0v * b3v;
+        c10 += a1v * b0v; c11 += a1v * b1v; c12 += a1v * b2v; c13 += a1v * b3v;
+        c20 += a2v * b0v; c21 += a2v * b1v; c22 += a2v * b2v; c23 += a2v * b3v;
+        c30 += a3v * b0v; c31 += a3v * b1v; c32 += a3v * b2v; c33 += a3v * b3v;
+    }
+
+    uint64_t u00 = 0, u01 = 0, u02 = 0, u03 = 0;
+    uint64_t u10 = 0, u11 = 0, u12 = 0, u13 = 0;
+    uint64_t u20 = 0, u21 = 0, u22 = 0, u23 = 0;
+    uint64_t u30 = 0, u31 = 0, u32 = 0, u33 = 0;
+    memcpy(&u00, &c00, sizeof(u00)); memcpy(&u01, &c01, sizeof(u01)); memcpy(&u02, &c02, sizeof(u02)); memcpy(&u03, &c03, sizeof(u03));
+    memcpy(&u10, &c10, sizeof(u10)); memcpy(&u11, &c11, sizeof(u11)); memcpy(&u12, &c12, sizeof(u12)); memcpy(&u13, &c13, sizeof(u13));
+    memcpy(&u20, &c20, sizeof(u20)); memcpy(&u21, &c21, sizeof(u21)); memcpy(&u22, &c22, sizeof(u22)); memcpy(&u23, &c23, sizeof(u23));
+    memcpy(&u30, &c30, sizeof(u30)); memcpy(&u31, &c31, sizeof(u31)); memcpy(&u32, &c32, sizeof(u32)); memcpy(&u33, &c33, sizeof(u33));
+
+    store_u64_le(buf_data(bout) + (out_off + 0u) * 8u, u00);
+    store_u64_le(buf_data(bout) + (out_off + 1u) * 8u, u01);
+    store_u64_le(buf_data(bout) + (out_off + 2u) * 8u, u02);
+    store_u64_le(buf_data(bout) + (out_off + 3u) * 8u, u03);
+    store_u64_le(buf_data(bout) + (out_off + 4u) * 8u, u10);
+    store_u64_le(buf_data(bout) + (out_off + 5u) * 8u, u11);
+    store_u64_le(buf_data(bout) + (out_off + 6u) * 8u, u12);
+    store_u64_le(buf_data(bout) + (out_off + 7u) * 8u, u13);
+    store_u64_le(buf_data(bout) + (out_off + 8u) * 8u, u20);
+    store_u64_le(buf_data(bout) + (out_off + 9u) * 8u, u21);
+    store_u64_le(buf_data(bout) + (out_off + 10u) * 8u, u22);
+    store_u64_le(buf_data(bout) + (out_off + 11u) * 8u, u23);
+    store_u64_le(buf_data(bout) + (out_off + 12u) * 8u, u30);
+    store_u64_le(buf_data(bout) + (out_off + 13u) * 8u, u31);
+    store_u64_le(buf_data(bout) + (out_off + 14u) * 8u, u32);
+    store_u64_le(buf_data(bout) + (out_off + 15u) * 8u, u33);
+    return out;
+}
+
 OrenValue oren_buf_gemm_i32_4x4_slice_into(
     OrenValue out, OrenValue out_offv,
     OrenValue a, OrenValue a0_offv, OrenValue a1_offv, OrenValue a2_offv, OrenValue a3_offv,
