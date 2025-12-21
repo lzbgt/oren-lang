@@ -105,6 +105,41 @@ oren_buf_store_i32(bj, 1, 5)
 oren_buf_store_i32(bj, 2, 6)
 assert_eq(linalg.dot_i32_buf(bi, bj), 32, 60, "dot_i32_buf")
 
+// --- trait-based iterables (v1 extension over v0 hook) ---
+
+trait Iterable {
+    // Signature matches `oren_iter_next(container, idx) -> [ok, value]`.
+    fn iter_next(self, idx)
+}
+
+struct MyRange {
+    start: i32,
+    end: i32,
+    step: i32
+}
+
+impl Iterable for MyRange {
+    fn iter_next(self, idx) {
+        if idx < 0 { return [0, nil] }
+        if self.step == 0 { return [0, nil] }
+        var v = self.start + idx * self.step
+        if (self.step > 0 && v < self.end) || (self.step < 0 && v > self.end) {
+            return [1, v]
+        }
+        return [0, nil]
+    }
+}
+
+var r: MyRange = MyRange(0, 10, 1)
+var sum = 0
+for x: i32 in r { sum = sum + x }
+assert_eq(sum, 45, 65, "Iterable iter_next sum")
+
+var r2: MyRange = MyRange(5, -1, -1)
+var sum2 = 0
+for x2: i32 in r2 { sum2 = sum2 + x2 }
+assert_eq(sum2, 15, 66, "Iterable negative step")
+
 // --- regex ---
 
 assert_true(re.is_match("a(b|c)d", "xxacdyy"), 70, "regex group/alt")

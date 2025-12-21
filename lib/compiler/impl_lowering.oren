@@ -329,6 +329,39 @@ fn rewrite_builtin_container_call(expr, kind_env) {
 fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
     if expr == nil || expr["type"] != "Call" { return expr }
 
+    // Iterator extension hook (rolling v1):
+    //
+    // `for x in y { ... }` desugars to `oren_iter_next(y, idx)` for identifier iterables.
+    //
+    // If `y` has an explicit type annotation and that type implements the `Iterable` trait,
+    // rewrite the call to the trait impl method:
+    //
+    //   impl Iterable for MyIter { fn iter_next(self, idx) { ... } }
+    //
+    // This preserves v0 behavior for built-in containers and untyped code, while allowing
+    // custom deterministic iterables without introducing runtime vtables.
+    var fn0 = expr["fn"]
+    if fn0 != nil && fn0["type"] == "Identifier" && fn0["value"] == "oren_iter_next" {
+        var args0 = expr["args"]
+        if args0 != nil && oren_list_len(args0) >= 2 {
+            var recv0 = args0[0]
+            if recv0 != nil && recv0["type"] == "Identifier" {
+                var recv_type0 = type_env_get(env, recv0["value"])
+                if recv_type0 != nil {
+                    var qm0 = impl_trait_method_lookup(regs["impl_trait_methods"], "Iterable", recv_type0, "iter_next")
+                    if qm0 == "__AMBIG__" {
+                        err_push(errs, expr["token"], "ambiguous Iterable.iter_next for type '" + recv_type0 + "'")
+                        return expr
+                    }
+                    if qm0 != nil {
+                        expr["fn"] = {"type": "Identifier", "token": nil, "value": qm0}
+                        return expr
+                    }
+                }
+            }
+        }
+    }
+
     // Builtin container method sugar first (does not require impl/type annotations).
     expr = rewrite_builtin_container_call(expr, kind_env)
 

@@ -37,6 +37,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 5) **Verify before declaring done** `[quality]`
    - If code changes: run the canonical suite (preferred) `./oretest --target macos` (or `make test`).
+   - If the change touches the **compiler itself** (`oren.oren`, `lib/compiler/*`):
+     - rebuild stage1 first: `make stage1`
+     - then run: `./oretest --target macos`
    - If **docs-only** changes (only documentation files modified): tests are not required.
      - Allowed docs-only set: `docs/*`, `README.md`, `LICENSE`.
 
@@ -74,15 +77,14 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][arch] Iteration model v1: trait-based iterables (without breaking v0)**
-   - Goal: keep `for x in ...` deterministic, fast, and extensible for custom containers/streams.
+1) **[lang][quality] Typecheck mode v0: make `--typecheck` high-signal for HPC**
+   - Goal: get production-grade errors early for typed code, without blocking rolling v0 code.
    - DoD:
-     - Document the v0 contract clearly (still uses `oren_iter_next(container, idx)`).
-     - Decide a v1 direction:
-       - keep the builtin hook forever (simple), or
-       - introduce an `Iterable` trait as the *source-level* abstraction and lower `for-in` to method calls when present.
-     - If `Iterable` is added, ensure it preserves determinism and avoids runtime vtables in hot loops.
-     - Add one small stdlib iterable example (e.g. a stream/range adapter) that does not require host effects.
+     - Strengthen `./oren build --typecheck` to reject obviously invalid operations at annotated boundaries:
+       - casts like `u8("x")`, `f32("x")`, `bool("x")` (unless explicit coercion is defined)
+       - invalid `as` casts across categories (e.g. `bytes as i32` without a defined cast rule)
+     - Ensure diagnostics are stable and point at user spans (not compiler-generated lowering).
+     - Add/merge into the integration suite (no explosion of tiny tests).
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -100,15 +102,12 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-1) **[stdlib][perf] `std/linalg` v0.4: packed tiles + NEON matmul kernels**
+1) **[stdlib][perf] SIMD and numeric kernels (arm64 NEON first)**
+   - Goal: keep scalar reference semantics, add NEON fast paths behind intrinsic boundaries.
    - DoD:
-     - Add optional packed-B tiles for large matmul (keep per-output k-order determinism)
-     - Add NEON kernels for the hot dot/matmul inner loops behind the existing intrinsic boundary
-     - Keep scalar reference path as the spec baseline; add correctness tests (small shapes) + perf smoke (no thresholds)
-   - Status:
-     - **done:** matmul now uses `oren_buf_dot_*_slice` in k-block order (enables native NEON dot kernels while preserving increasing-k determinism)
-     - **done:** packed-B tile layout for f32 (Bt→Bp) for larger matrices to improve locality
-     - **done:** regression tests include packed-path triggers (`tests/modules/test_linalg.oren`)
+     - Keep deterministic rounding/order guarantees (increasing-k accumulation for matmul).
+     - Expand NEON kernels beyond dot (e.g. axpy / small GEMM tiles) where safe.
+     - Perf smoke stays “no thresholds”; correctness tests stay small and deterministic.
 
 ## Recently Completed (high signal)
 

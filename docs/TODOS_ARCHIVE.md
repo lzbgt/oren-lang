@@ -75,6 +75,21 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `std/linalg` view helpers (`dot_*_view`) and strided matrix-view matmul (`matmul_f32_mat_view`)
 - Verified: `./oretest --target macos` and `./oretest --full --target macos` pass.
 
+## Archived (2025-12-21) — Iteration model v1: `Iterable` trait extension (static-first, no vtables)
+
+- Kept the v0 iteration ABI/hook intact:
+  - `for x in it { ... }` still relies on the `oren_iter_next(container, idx)` contract.
+- Added a v1 extension point for **custom deterministic iterables** without runtime vtables:
+  - If the iterable is a **bare identifier** and has a known type annotation, the compiler may rewrite:
+    - `oren_iter_next(it, idx)` → `__oren_impl__Iterable__<Type>__iter_next(it, idx)` when an impl exists.
+  - This is implemented as a whole-program lowering rule (impl lowering pass), so it works across modules.
+- For-loop desugaring optimization:
+  - For identifier iterables, the compiler no longer stashes the container inside the internal `@forin_*` state list,
+    preserving the identifier in the call site so type-based rewriting is possible.
+- Added integration coverage to ensure it works end-to-end:
+  - `tests/modules/test_integration_suite.oren` adds `MyRange` + `Iterable.iter_next` and sums values via `for-in`.
+- Verified: `make stage1` then `./oretest --target macos` passes.
+
 ## Archived (2025-12-21) — Generic trait constraints (static-first)
 
 - Generic type parameters now support trait constraints:

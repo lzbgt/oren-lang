@@ -529,6 +529,17 @@ Implementation note (current compiler):
         - `step == 0`: yields an empty sequence (deterministic; avoids hangs)
       - Representation (implementation detail, rolling):
         - `{"__iter":"range","start":0,"end":N,"step":1}`
+  - Trait-based iterable extension (rolling v1, static-first, no vtables):
+    - If the loop iterable is a **bare identifier** (e.g. `for x in it { ... }`) and `it` has a known
+      type annotation in scope, the compiler may rewrite the underlying iterator hook call:
+      - source desugaring: `oren_iter_next(it, idx)`
+      - rewrite (if available): `__oren_impl__Iterable__<Type>__iter_next(it, idx)`
+    - To opt in, define:
+      - `trait Iterable { fn iter_next(self, idx); }`
+      - `impl Iterable for MyType { fn iter_next(self, idx) { ... } }`
+    - This allows custom deterministic iterables (streams/ranges/adaptors) without adding runtime value kinds,
+      and without runtime vtables in hot loops.
+    - If no `Iterable` impl is present, behavior falls back to the normal v0 hook (`oren_iter_next`).
 - `break` exits the nearest enclosing loop (`while`/`for`).
 - `continue` skips to the next loop iteration.
 - `return expr` returns from the current function. A return value is always required; use `return nil` if needed.
