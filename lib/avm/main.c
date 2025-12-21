@@ -356,7 +356,7 @@ static VerifyResult verify_program_region(
             if (!decode_u16(code, code_len, pc + 1, &idx)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated STORE_GLOBAL"); }
             if (idx >= MAX_GLOBALS) { free(depth_at); free(queue); free(qdepth); return err_result("verify: global index out of bounds"); }
             pop = 1;
-        } else if (op >= 0x10 && op <= 0x1E) { // binary numeric ops + shifts + comparisons
+        } else if (op >= 0x10 && op <= 0x1F) { // binary numeric ops + shifts + comparisons (incl MUL/DIV/MOD)
             len = 1;
             pop = 2;
             push = 1;
@@ -1617,6 +1617,9 @@ static const char* op_name(uint8_t op) {
         case 0x07: return "STORE_GLOBAL";
         case 0x10: return "ADD";
         case 0x11: return "SUB";
+        case 0x1D: return "MUL";
+        case 0x1E: return "DIV";
+        case 0x1F: return "MOD";
         case 0x12: return "LT";
         case 0x13: return "EQ";
         case 0x14: return "NEQ";

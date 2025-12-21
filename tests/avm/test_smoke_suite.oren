@@ -475,6 +475,77 @@ fn test_typed_buffers() {
         rr = rr + 1
     }
 
+    // 4x4 f64 GEMM microkernel: determinism guard (bitwise compare vs scalar reference).
+    // This is also used by oretest's SIMD determinism guard for AVM when AVM_ENABLE_SIMD=1 (arm64).
+    var nmk64 = 9 // odd to exercise tail
+    var g64a = oren_f64_buf_new(4 * nmk64)
+    var g64b = oren_f64_buf_new(4 * nmk64)
+    var g64out = oren_f64_buf_new(16)
+    var g64ref = oren_f64_buf_new(16)
+    rr = 0
+    while rr < 4 {
+        var kk = 0
+        while kk < nmk64 {
+            // Non-power-of-two fractions so any accidental reassociation/FMA shows up.
+            var v = (f64(rr + 1) * 0.125) + 0.1 + (f64(kk % 3) * 0.2)
+            oren_buf_store_f64(g64a, rr * nmk64 + kk, v)
+            kk = kk + 1
+        }
+        rr = rr + 1
+    }
+    cc = 0
+    while cc < 4 {
+        var kk2 = 0
+        while kk2 < nmk64 {
+            var w = (f64(cc + 1) * 0.25) + 0.2 + (f64(kk2 % 5) * 0.1)
+            oren_buf_store_f64(g64b, cc * nmk64 + kk2, w)
+            kk2 = kk2 + 1
+        }
+        cc = cc + 1
+    }
+    rr = 0
+    while rr < 4 {
+        cc = 0
+        while cc < 4 {
+            var s = 0.0
+            var kk = 0
+            while kk < nmk64 {
+                s = s + oren_buf_load_f64(g64a, rr * nmk64 + kk) * oren_buf_load_f64(g64b, cc * nmk64 + kk)
+                kk = kk + 1
+            }
+            oren_buf_store_f64(g64ref, rr * 4 + cc, s)
+            cc = cc + 1
+        }
+        rr = rr + 1
+    }
+    oren_buf_gemm_f64_4x4_slice_into(
+        g64out,
+        0,
+        g64a,
+        0 * nmk64,
+        1 * nmk64,
+        2 * nmk64,
+        3 * nmk64,
+        g64b,
+        0 * nmk64,
+        1 * nmk64,
+        2 * nmk64,
+        3 * nmk64,
+        nmk64
+    )
+    rr = 0
+    while rr < 4 {
+        cc = 0
+        while cc < 4 {
+            var idx = rr * 4 + cc
+            var ref_bits = oren_f64_to_u64_bits(oren_buf_load_f64(g64ref, idx))
+            var got_bits = oren_f64_to_u64_bits(oren_buf_load_f64(g64out, idx))
+            assert_eq(got_bits, ref_bits)
+            cc = cc + 1
+        }
+        rr = rr + 1
+    }
+
     var tmpi = oren_i32_buf_new(3)
     oren_buf_add_i32_into(tmpi, a, b)
     assert_eq(oren_buf_load_i32(tmpi, 1), 7)

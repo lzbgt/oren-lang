@@ -4075,90 +4075,245 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 			                double c20 = 0.0, c21 = 0.0, c22 = 0.0, c23 = 0.0;
 			                double c30 = 0.0, c31 = 0.0, c32 = 0.0, c33 = 0.0;
 			
-			                for (uint32_t i = 0; i < n; i++) {
-			                    uint32_t oa0 = (a0_off + i) * 8u;
-			                    uint32_t oa1 = (a1_off + i) * 8u;
-			                    uint32_t oa2 = (a2_off + i) * 8u;
-			                    uint32_t oa3 = (a3_off + i) * 8u;
-			                    uint32_t ob0 = (b0_off + i) * 8u;
-			                    uint32_t ob1 = (b1_off + i) * 8u;
-			                    uint32_t ob2 = (b2_off + i) * 8u;
-			                    uint32_t ob3 = (b3_off + i) * 8u;
+			#if AVM_HAS_NEON
+			                if (vm && vm->enable_simd && n >= 2u) {
+			                    // NEON fast path (arm64 only), determinism-safe:
+			                    // - multiply in f64
+			                    // - accumulate in strict increasing-k order (lane0 then lane1; no reassociation; no FMA)
+			                    uint32_t i = 0;
+			                    for (; i + 2u <= n; i += 2u) {
+			                        uint32_t oa0 = (a0_off + i) * 8u;
+			                        uint32_t oa1 = (a1_off + i) * 8u;
+			                        uint32_t oa2 = (a2_off + i) * 8u;
+			                        uint32_t oa3 = (a3_off + i) * 8u;
+			                        uint32_t ob0 = (b0_off + i) * 8u;
+			                        uint32_t ob1 = (b1_off + i) * 8u;
+			                        uint32_t ob2 = (b2_off + i) * 8u;
+			                        uint32_t ob3 = (b3_off + i) * 8u;
+
+			                        uint64_t wa0[2], wa1[2], wa2[2], wa3[2];
+			                        uint64_t wb0[2], wb1[2], wb2[2], wb3[2];
+			                        memcpy(wa0, a->data + oa0, 16);
+			                        memcpy(wa1, a->data + oa1, 16);
+			                        memcpy(wa2, a->data + oa2, 16);
+			                        memcpy(wa3, a->data + oa3, 16);
+			                        memcpy(wb0, b->data + ob0, 16);
+			                        memcpy(wb1, b->data + ob1, 16);
+			                        memcpy(wb2, b->data + ob2, 16);
+			                        memcpy(wb3, b->data + ob3, 16);
+
+			                        float64x2_t va0 = vreinterpretq_f64_u64(vld1q_u64(wa0));
+			                        float64x2_t va1 = vreinterpretq_f64_u64(vld1q_u64(wa1));
+			                        float64x2_t va2 = vreinterpretq_f64_u64(vld1q_u64(wa2));
+			                        float64x2_t va3 = vreinterpretq_f64_u64(vld1q_u64(wa3));
+			                        float64x2_t vb0 = vreinterpretq_f64_u64(vld1q_u64(wb0));
+			                        float64x2_t vb1 = vreinterpretq_f64_u64(vld1q_u64(wb1));
+			                        float64x2_t vb2 = vreinterpretq_f64_u64(vld1q_u64(wb2));
+			                        float64x2_t vb3 = vreinterpretq_f64_u64(vld1q_u64(wb3));
+
+			                        // Row 0
+			                        {
+			                            float64x2_t p = vmulq_f64(va0, vb0); c00 += vgetq_lane_f64(p, 0); c00 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va0, vb1); c01 += vgetq_lane_f64(p, 0); c01 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va0, vb2); c02 += vgetq_lane_f64(p, 0); c02 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va0, vb3); c03 += vgetq_lane_f64(p, 0); c03 += vgetq_lane_f64(p, 1);
+			                        }
+			                        // Row 1
+			                        {
+			                            float64x2_t p = vmulq_f64(va1, vb0); c10 += vgetq_lane_f64(p, 0); c10 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va1, vb1); c11 += vgetq_lane_f64(p, 0); c11 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va1, vb2); c12 += vgetq_lane_f64(p, 0); c12 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va1, vb3); c13 += vgetq_lane_f64(p, 0); c13 += vgetq_lane_f64(p, 1);
+			                        }
+			                        // Row 2
+			                        {
+			                            float64x2_t p = vmulq_f64(va2, vb0); c20 += vgetq_lane_f64(p, 0); c20 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va2, vb1); c21 += vgetq_lane_f64(p, 0); c21 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va2, vb2); c22 += vgetq_lane_f64(p, 0); c22 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va2, vb3); c23 += vgetq_lane_f64(p, 0); c23 += vgetq_lane_f64(p, 1);
+			                        }
+			                        // Row 3
+			                        {
+			                            float64x2_t p = vmulq_f64(va3, vb0); c30 += vgetq_lane_f64(p, 0); c30 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va3, vb1); c31 += vgetq_lane_f64(p, 0); c31 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va3, vb2); c32 += vgetq_lane_f64(p, 0); c32 += vgetq_lane_f64(p, 1);
+			                            p = vmulq_f64(va3, vb3); c33 += vgetq_lane_f64(p, 0); c33 += vgetq_lane_f64(p, 1);
+			                        }
+			                    }
+			                    for (; i < n; i++) {
+			                        uint32_t oa0 = (a0_off + i) * 8u;
+			                        uint32_t oa1 = (a1_off + i) * 8u;
+			                        uint32_t oa2 = (a2_off + i) * 8u;
+			                        uint32_t oa3 = (a3_off + i) * 8u;
+			                        uint32_t ob0 = (b0_off + i) * 8u;
+			                        uint32_t ob1 = (b1_off + i) * 8u;
+			                        uint32_t ob2 = (b2_off + i) * 8u;
+			                        uint32_t ob3 = (b3_off + i) * 8u;
+			                        uint64_t ua0 = 0, ua1 = 0, ua2 = 0, ua3 = 0;
+			                        uint64_t ub0 = 0, ub1 = 0, ub2 = 0, ub3 = 0;
+			                        ua0 = (uint64_t)a->data[oa0]
+			                             | ((uint64_t)a->data[oa0 + 1] << 8)
+			                             | ((uint64_t)a->data[oa0 + 2] << 16)
+			                             | ((uint64_t)a->data[oa0 + 3] << 24)
+			                             | ((uint64_t)a->data[oa0 + 4] << 32)
+			                             | ((uint64_t)a->data[oa0 + 5] << 40)
+			                             | ((uint64_t)a->data[oa0 + 6] << 48)
+			                             | ((uint64_t)a->data[oa0 + 7] << 56);
+			                        ua1 = (uint64_t)a->data[oa1]
+			                             | ((uint64_t)a->data[oa1 + 1] << 8)
+			                             | ((uint64_t)a->data[oa1 + 2] << 16)
+			                             | ((uint64_t)a->data[oa1 + 3] << 24)
+			                             | ((uint64_t)a->data[oa1 + 4] << 32)
+			                             | ((uint64_t)a->data[oa1 + 5] << 40)
+			                             | ((uint64_t)a->data[oa1 + 6] << 48)
+			                             | ((uint64_t)a->data[oa1 + 7] << 56);
+			                        ua2 = (uint64_t)a->data[oa2]
+			                             | ((uint64_t)a->data[oa2 + 1] << 8)
+			                             | ((uint64_t)a->data[oa2 + 2] << 16)
+			                             | ((uint64_t)a->data[oa2 + 3] << 24)
+			                             | ((uint64_t)a->data[oa2 + 4] << 32)
+			                             | ((uint64_t)a->data[oa2 + 5] << 40)
+			                             | ((uint64_t)a->data[oa2 + 6] << 48)
+			                             | ((uint64_t)a->data[oa2 + 7] << 56);
+			                        ua3 = (uint64_t)a->data[oa3]
+			                             | ((uint64_t)a->data[oa3 + 1] << 8)
+			                             | ((uint64_t)a->data[oa3 + 2] << 16)
+			                             | ((uint64_t)a->data[oa3 + 3] << 24)
+			                             | ((uint64_t)a->data[oa3 + 4] << 32)
+			                             | ((uint64_t)a->data[oa3 + 5] << 40)
+			                             | ((uint64_t)a->data[oa3 + 6] << 48)
+			                             | ((uint64_t)a->data[oa3 + 7] << 56);
+			                        ub0 = (uint64_t)b->data[ob0]
+			                             | ((uint64_t)b->data[ob0 + 1] << 8)
+			                             | ((uint64_t)b->data[ob0 + 2] << 16)
+			                             | ((uint64_t)b->data[ob0 + 3] << 24)
+			                             | ((uint64_t)b->data[ob0 + 4] << 32)
+			                             | ((uint64_t)b->data[ob0 + 5] << 40)
+			                             | ((uint64_t)b->data[ob0 + 6] << 48)
+			                             | ((uint64_t)b->data[ob0 + 7] << 56);
+			                        ub1 = (uint64_t)b->data[ob1]
+			                             | ((uint64_t)b->data[ob1 + 1] << 8)
+			                             | ((uint64_t)b->data[ob1 + 2] << 16)
+			                             | ((uint64_t)b->data[ob1 + 3] << 24)
+			                             | ((uint64_t)b->data[ob1 + 4] << 32)
+			                             | ((uint64_t)b->data[ob1 + 5] << 40)
+			                             | ((uint64_t)b->data[ob1 + 6] << 48)
+			                             | ((uint64_t)b->data[ob1 + 7] << 56);
+			                        ub2 = (uint64_t)b->data[ob2]
+			                             | ((uint64_t)b->data[ob2 + 1] << 8)
+			                             | ((uint64_t)b->data[ob2 + 2] << 16)
+			                             | ((uint64_t)b->data[ob2 + 3] << 24)
+			                             | ((uint64_t)b->data[ob2 + 4] << 32)
+			                             | ((uint64_t)b->data[ob2 + 5] << 40)
+			                             | ((uint64_t)b->data[ob2 + 6] << 48)
+			                             | ((uint64_t)b->data[ob2 + 7] << 56);
+			                        ub3 = (uint64_t)b->data[ob3]
+			                             | ((uint64_t)b->data[ob3 + 1] << 8)
+			                             | ((uint64_t)b->data[ob3 + 2] << 16)
+			                             | ((uint64_t)b->data[ob3 + 3] << 24)
+			                             | ((uint64_t)b->data[ob3 + 4] << 32)
+			                             | ((uint64_t)b->data[ob3 + 5] << 40)
+			                             | ((uint64_t)b->data[ob3 + 6] << 48)
+			                             | ((uint64_t)b->data[ob3 + 7] << 56);
+
+			                        double a0v = 0.0, a1v = 0.0, a2v = 0.0, a3v = 0.0;
+			                        double b0v = 0.0, b1v = 0.0, b2v = 0.0, b3v = 0.0;
+			                        memcpy(&a0v, &ua0, 8); memcpy(&a1v, &ua1, 8); memcpy(&a2v, &ua2, 8); memcpy(&a3v, &ua3, 8);
+			                        memcpy(&b0v, &ub0, 8); memcpy(&b1v, &ub1, 8); memcpy(&b2v, &ub2, 8); memcpy(&b3v, &ub3, 8);
+
+			                        c00 += a0v * b0v; c01 += a0v * b1v; c02 += a0v * b2v; c03 += a0v * b3v;
+			                        c10 += a1v * b0v; c11 += a1v * b1v; c12 += a1v * b2v; c13 += a1v * b3v;
+			                        c20 += a2v * b0v; c21 += a2v * b1v; c22 += a2v * b2v; c23 += a2v * b3v;
+			                        c30 += a3v * b0v; c31 += a3v * b1v; c32 += a3v * b2v; c33 += a3v * b3v;
+			                    }
+			                } else
+			#endif
+			                {
+			                    for (uint32_t i = 0; i < n; i++) {
+			                        uint32_t oa0 = (a0_off + i) * 8u;
+			                        uint32_t oa1 = (a1_off + i) * 8u;
+			                        uint32_t oa2 = (a2_off + i) * 8u;
+			                        uint32_t oa3 = (a3_off + i) * 8u;
+			                        uint32_t ob0 = (b0_off + i) * 8u;
+			                        uint32_t ob1 = (b1_off + i) * 8u;
+			                        uint32_t ob2 = (b2_off + i) * 8u;
+			                        uint32_t ob3 = (b3_off + i) * 8u;
 			
-			                    uint64_t ua0 = (uint64_t)a->data[oa0]
-			                                 | ((uint64_t)a->data[oa0 + 1] << 8)
-			                                 | ((uint64_t)a->data[oa0 + 2] << 16)
-			                                 | ((uint64_t)a->data[oa0 + 3] << 24)
-			                                 | ((uint64_t)a->data[oa0 + 4] << 32)
-			                                 | ((uint64_t)a->data[oa0 + 5] << 40)
-			                                 | ((uint64_t)a->data[oa0 + 6] << 48)
-			                                 | ((uint64_t)a->data[oa0 + 7] << 56);
-			                    uint64_t ua1 = (uint64_t)a->data[oa1]
-			                                 | ((uint64_t)a->data[oa1 + 1] << 8)
-			                                 | ((uint64_t)a->data[oa1 + 2] << 16)
-			                                 | ((uint64_t)a->data[oa1 + 3] << 24)
-			                                 | ((uint64_t)a->data[oa1 + 4] << 32)
-			                                 | ((uint64_t)a->data[oa1 + 5] << 40)
-			                                 | ((uint64_t)a->data[oa1 + 6] << 48)
-			                                 | ((uint64_t)a->data[oa1 + 7] << 56);
-			                    uint64_t ua2 = (uint64_t)a->data[oa2]
-			                                 | ((uint64_t)a->data[oa2 + 1] << 8)
-			                                 | ((uint64_t)a->data[oa2 + 2] << 16)
-			                                 | ((uint64_t)a->data[oa2 + 3] << 24)
-			                                 | ((uint64_t)a->data[oa2 + 4] << 32)
-			                                 | ((uint64_t)a->data[oa2 + 5] << 40)
-			                                 | ((uint64_t)a->data[oa2 + 6] << 48)
-			                                 | ((uint64_t)a->data[oa2 + 7] << 56);
-			                    uint64_t ua3 = (uint64_t)a->data[oa3]
-			                                 | ((uint64_t)a->data[oa3 + 1] << 8)
-			                                 | ((uint64_t)a->data[oa3 + 2] << 16)
-			                                 | ((uint64_t)a->data[oa3 + 3] << 24)
-			                                 | ((uint64_t)a->data[oa3 + 4] << 32)
-			                                 | ((uint64_t)a->data[oa3 + 5] << 40)
-			                                 | ((uint64_t)a->data[oa3 + 6] << 48)
-			                                 | ((uint64_t)a->data[oa3 + 7] << 56);
-			                    uint64_t ub0 = (uint64_t)b->data[ob0]
-			                                 | ((uint64_t)b->data[ob0 + 1] << 8)
-			                                 | ((uint64_t)b->data[ob0 + 2] << 16)
-			                                 | ((uint64_t)b->data[ob0 + 3] << 24)
-			                                 | ((uint64_t)b->data[ob0 + 4] << 32)
-			                                 | ((uint64_t)b->data[ob0 + 5] << 40)
-			                                 | ((uint64_t)b->data[ob0 + 6] << 48)
-			                                 | ((uint64_t)b->data[ob0 + 7] << 56);
-			                    uint64_t ub1 = (uint64_t)b->data[ob1]
-			                                 | ((uint64_t)b->data[ob1 + 1] << 8)
-			                                 | ((uint64_t)b->data[ob1 + 2] << 16)
-			                                 | ((uint64_t)b->data[ob1 + 3] << 24)
-			                                 | ((uint64_t)b->data[ob1 + 4] << 32)
-			                                 | ((uint64_t)b->data[ob1 + 5] << 40)
-			                                 | ((uint64_t)b->data[ob1 + 6] << 48)
-			                                 | ((uint64_t)b->data[ob1 + 7] << 56);
-			                    uint64_t ub2 = (uint64_t)b->data[ob2]
-			                                 | ((uint64_t)b->data[ob2 + 1] << 8)
-			                                 | ((uint64_t)b->data[ob2 + 2] << 16)
-			                                 | ((uint64_t)b->data[ob2 + 3] << 24)
-			                                 | ((uint64_t)b->data[ob2 + 4] << 32)
-			                                 | ((uint64_t)b->data[ob2 + 5] << 40)
-			                                 | ((uint64_t)b->data[ob2 + 6] << 48)
-			                                 | ((uint64_t)b->data[ob2 + 7] << 56);
-			                    uint64_t ub3 = (uint64_t)b->data[ob3]
-			                                 | ((uint64_t)b->data[ob3 + 1] << 8)
-			                                 | ((uint64_t)b->data[ob3 + 2] << 16)
-			                                 | ((uint64_t)b->data[ob3 + 3] << 24)
-			                                 | ((uint64_t)b->data[ob3 + 4] << 32)
-			                                 | ((uint64_t)b->data[ob3 + 5] << 40)
-			                                 | ((uint64_t)b->data[ob3 + 6] << 48)
-			                                 | ((uint64_t)b->data[ob3 + 7] << 56);
+			                        uint64_t ua0 = (uint64_t)a->data[oa0]
+			                                     | ((uint64_t)a->data[oa0 + 1] << 8)
+			                                     | ((uint64_t)a->data[oa0 + 2] << 16)
+			                                     | ((uint64_t)a->data[oa0 + 3] << 24)
+			                                     | ((uint64_t)a->data[oa0 + 4] << 32)
+			                                     | ((uint64_t)a->data[oa0 + 5] << 40)
+			                                     | ((uint64_t)a->data[oa0 + 6] << 48)
+			                                     | ((uint64_t)a->data[oa0 + 7] << 56);
+			                        uint64_t ua1 = (uint64_t)a->data[oa1]
+			                                     | ((uint64_t)a->data[oa1 + 1] << 8)
+			                                     | ((uint64_t)a->data[oa1 + 2] << 16)
+			                                     | ((uint64_t)a->data[oa1 + 3] << 24)
+			                                     | ((uint64_t)a->data[oa1 + 4] << 32)
+			                                     | ((uint64_t)a->data[oa1 + 5] << 40)
+			                                     | ((uint64_t)a->data[oa1 + 6] << 48)
+			                                     | ((uint64_t)a->data[oa1 + 7] << 56);
+			                        uint64_t ua2 = (uint64_t)a->data[oa2]
+			                                     | ((uint64_t)a->data[oa2 + 1] << 8)
+			                                     | ((uint64_t)a->data[oa2 + 2] << 16)
+			                                     | ((uint64_t)a->data[oa2 + 3] << 24)
+			                                     | ((uint64_t)a->data[oa2 + 4] << 32)
+			                                     | ((uint64_t)a->data[oa2 + 5] << 40)
+			                                     | ((uint64_t)a->data[oa2 + 6] << 48)
+			                                     | ((uint64_t)a->data[oa2 + 7] << 56);
+			                        uint64_t ua3 = (uint64_t)a->data[oa3]
+			                                     | ((uint64_t)a->data[oa3 + 1] << 8)
+			                                     | ((uint64_t)a->data[oa3 + 2] << 16)
+			                                     | ((uint64_t)a->data[oa3 + 3] << 24)
+			                                     | ((uint64_t)a->data[oa3 + 4] << 32)
+			                                     | ((uint64_t)a->data[oa3 + 5] << 40)
+			                                     | ((uint64_t)a->data[oa3 + 6] << 48)
+			                                     | ((uint64_t)a->data[oa3 + 7] << 56);
+			                        uint64_t ub0 = (uint64_t)b->data[ob0]
+			                                     | ((uint64_t)b->data[ob0 + 1] << 8)
+			                                     | ((uint64_t)b->data[ob0 + 2] << 16)
+			                                     | ((uint64_t)b->data[ob0 + 3] << 24)
+			                                     | ((uint64_t)b->data[ob0 + 4] << 32)
+			                                     | ((uint64_t)b->data[ob0 + 5] << 40)
+			                                     | ((uint64_t)b->data[ob0 + 6] << 48)
+			                                     | ((uint64_t)b->data[ob0 + 7] << 56);
+			                        uint64_t ub1 = (uint64_t)b->data[ob1]
+			                                     | ((uint64_t)b->data[ob1 + 1] << 8)
+			                                     | ((uint64_t)b->data[ob1 + 2] << 16)
+			                                     | ((uint64_t)b->data[ob1 + 3] << 24)
+			                                     | ((uint64_t)b->data[ob1 + 4] << 32)
+			                                     | ((uint64_t)b->data[ob1 + 5] << 40)
+			                                     | ((uint64_t)b->data[ob1 + 6] << 48)
+			                                     | ((uint64_t)b->data[ob1 + 7] << 56);
+			                        uint64_t ub2 = (uint64_t)b->data[ob2]
+			                                     | ((uint64_t)b->data[ob2 + 1] << 8)
+			                                     | ((uint64_t)b->data[ob2 + 2] << 16)
+			                                     | ((uint64_t)b->data[ob2 + 3] << 24)
+			                                     | ((uint64_t)b->data[ob2 + 4] << 32)
+			                                     | ((uint64_t)b->data[ob2 + 5] << 40)
+			                                     | ((uint64_t)b->data[ob2 + 6] << 48)
+			                                     | ((uint64_t)b->data[ob2 + 7] << 56);
+			                        uint64_t ub3 = (uint64_t)b->data[ob3]
+			                                     | ((uint64_t)b->data[ob3 + 1] << 8)
+			                                     | ((uint64_t)b->data[ob3 + 2] << 16)
+			                                     | ((uint64_t)b->data[ob3 + 3] << 24)
+			                                     | ((uint64_t)b->data[ob3 + 4] << 32)
+			                                     | ((uint64_t)b->data[ob3 + 5] << 40)
+			                                     | ((uint64_t)b->data[ob3 + 6] << 48)
+			                                     | ((uint64_t)b->data[ob3 + 7] << 56);
 			
-			                    double a0v = 0.0, a1v = 0.0, a2v = 0.0, a3v = 0.0;
-			                    double b0v = 0.0, b1v = 0.0, b2v = 0.0, b3v = 0.0;
-			                    memcpy(&a0v, &ua0, 8); memcpy(&a1v, &ua1, 8); memcpy(&a2v, &ua2, 8); memcpy(&a3v, &ua3, 8);
-			                    memcpy(&b0v, &ub0, 8); memcpy(&b1v, &ub1, 8); memcpy(&b2v, &ub2, 8); memcpy(&b3v, &ub3, 8);
+			                        double a0v = 0.0, a1v = 0.0, a2v = 0.0, a3v = 0.0;
+			                        double b0v = 0.0, b1v = 0.0, b2v = 0.0, b3v = 0.0;
+			                        memcpy(&a0v, &ua0, 8); memcpy(&a1v, &ua1, 8); memcpy(&a2v, &ua2, 8); memcpy(&a3v, &ua3, 8);
+			                        memcpy(&b0v, &ub0, 8); memcpy(&b1v, &ub1, 8); memcpy(&b2v, &ub2, 8); memcpy(&b3v, &ub3, 8);
 			
-			                    c00 += a0v * b0v; c01 += a0v * b1v; c02 += a0v * b2v; c03 += a0v * b3v;
-			                    c10 += a1v * b0v; c11 += a1v * b1v; c12 += a1v * b2v; c13 += a1v * b3v;
-			                    c20 += a2v * b0v; c21 += a2v * b1v; c22 += a2v * b2v; c23 += a2v * b3v;
-			                    c30 += a3v * b0v; c31 += a3v * b1v; c32 += a3v * b2v; c33 += a3v * b3v;
+			                        c00 += a0v * b0v; c01 += a0v * b1v; c02 += a0v * b2v; c03 += a0v * b3v;
+			                        c10 += a1v * b0v; c11 += a1v * b1v; c12 += a1v * b2v; c13 += a1v * b3v;
+			                        c20 += a2v * b0v; c21 += a2v * b1v; c22 += a2v * b2v; c23 += a2v * b3v;
+			                        c30 += a3v * b0v; c31 += a3v * b1v; c32 += a3v * b2v; c33 += a3v * b3v;
+			                    }
 			                }
 			
 			                uint64_t u[16] = {0};

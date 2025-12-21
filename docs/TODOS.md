@@ -88,6 +88,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Next milestone (suggested):
      - Add **optional C-AVM NEON kernels** (behind build+runtime flags) for the hottest typed-buffer ops:
        - `dot_f64_4` and `gemm_f64_4x4` first (bit-exact vs scalar; preserves strict k-order).
+       - then extend to `gemm_f32_4x4` and `gemm_i32_4x4` (still determinism-safe; scalar fallback remains authoritative).
    - Current rolling note:
       - Matmul now avoids per-k-block dot calls when **not packed** (Bt is contiguous per column, so we do a single dot/dot_4 across full `n`).
       - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
@@ -99,6 +100,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
         - Native runtime now uses a **true single-pass** intrinsic `simd_dot_f64_4_ptr` (bit-exact vs scalar reference; preserves strict k-order).
       - Added `oren_buf_gemm_f64_4x4_slice_into` (native_id=131): 4×4 f64 GEMM microkernel boundary returning 16 f64 results, with C runtime + native runtime + AVM parity.
         - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f64_4x4_ptr` (bit-exact vs scalar reference; preserves strict k-order).
+        - C AVM now has an optional **NEON** fast path for `native_id=131` when `AVM_ENABLE_SIMD=1` (bit-exact; lane-ordered accumulation).
         - `matmul_f64_buf` now uses a 4-row/4-col block path (packed and non-packed) to reuse packed-B across 4 rows and reduce call overhead.
       - Tail columns are covered in both packed and non-packed 4-row paths (`p % 4 != 0`).
       - Added `linalg.matmul_f32_buf_into(out, a, b, m, n, p)` to enable allocation-free HPC loops (caller owns output buffer).
