@@ -292,6 +292,22 @@ OrenValue oren_buf_dot_f32_4_slice_into(
     OrenValue b, OrenValue b0_off, OrenValue b1_off, OrenValue b2_off, OrenValue b3_off,
     OrenValue n);
 
+// 4x4 i32 GEMM microkernel: compute a 4x4 block of dot products in one pass.
+//
+// Writes 16 i64 results into `out` (an i64 typed buffer) starting at `out_off`,
+// in row-major order:
+//   out[out_off + (r*4 + c)] = dot_i32(a[a_r_off..a_r_off+n), b[b_c_off..b_c_off+n))
+// for r,c in 0..3.
+//
+// Semantics:
+// - integer multiplication uses i64, accumulation is modulo 2^64 then reinterpreted as signed i64
+// - deterministic for all backends; NEON paths are allowed because wrap addition is associative
+OrenValue oren_buf_gemm_i32_4x4_slice_into(
+    OrenValue out, OrenValue out_off,
+    OrenValue a, OrenValue a0_off, OrenValue a1_off, OrenValue a2_off, OrenValue a3_off,
+    OrenValue b, OrenValue b0_off, OrenValue b1_off, OrenValue b2_off, OrenValue b3_off,
+    OrenValue n);
+
 // 4x4 f32 GEMM microkernel: compute a 4x4 block of dot products in one pass.
 //
 // Writes 16 f64 results into `out` (an f64 typed buffer) starting at `out_off`,

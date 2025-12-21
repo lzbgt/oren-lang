@@ -404,6 +404,58 @@ fn test_typed_buffers() {
         rr = rr + 1
     }
 
+    // 4x4 i32 GEMM microkernel: 16 dot products (4 rows x 4 cols) in one call.
+    // Writes i64 results (wrap semantics), which are exact for this test.
+    var iga = oren_i32_buf_new(4 * nmk)
+    var igb = oren_i32_buf_new(4 * nmk)
+    var igout = oren_i64_buf_new(16)
+    rr = 0
+    while rr < 4 {
+        var v = rr + 1
+        var kk = 0
+        while kk < nmk {
+            oren_buf_store_i32(iga, rr * nmk + kk, v)
+            kk = kk + 1
+        }
+        rr = rr + 1
+    }
+    cc = 0
+    while cc < 4 {
+        var w = 10 * (cc + 1)
+        var kk2 = 0
+        while kk2 < nmk {
+            oren_buf_store_i32(igb, cc * nmk + kk2, w)
+            kk2 = kk2 + 1
+        }
+        cc = cc + 1
+    }
+    oren_buf_gemm_i32_4x4_slice_into(
+        igout,
+        0,
+        iga,
+        0 * nmk,
+        1 * nmk,
+        2 * nmk,
+        3 * nmk,
+        igb,
+        0 * nmk,
+        1 * nmk,
+        2 * nmk,
+        3 * nmk,
+        nmk
+    )
+    rr = 0
+    while rr < 4 {
+        cc = 0
+        while cc < 4 {
+            var idx = rr * 4 + cc
+            var want = nmk * (rr + 1) * (10 * (cc + 1))
+            assert_eq(oren_buf_load_i64(igout, idx), want)
+            cc = cc + 1
+        }
+        rr = rr + 1
+    }
+
     var tmpi = oren_i32_buf_new(3)
     oren_buf_add_i32_into(tmpi, a, b)
     assert_eq(oren_buf_load_i32(tmpi, 1), 7)

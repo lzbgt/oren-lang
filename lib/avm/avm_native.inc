@@ -3899,6 +3899,107 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 	            }
 	            break;
 	        }
+	        case 129: { // oren_buf_gemm_i32_4x4_slice_into(out:i64_buf, out_off:int, a:i32_buf, a0_off:int, a1_off:int, a2_off:int, a3_off:int, b:i32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> i64_buf
+	            if (nargs > 12
+	                && args[0].type == AVM_VAL_I64_BUF && args[1].type == AVM_VAL_INT
+	                && args[2].type == AVM_VAL_I32_BUF
+	                && args[3].type == AVM_VAL_INT && args[4].type == AVM_VAL_INT && args[5].type == AVM_VAL_INT && args[6].type == AVM_VAL_INT
+	                && args[7].type == AVM_VAL_I32_BUF
+	                && args[8].type == AVM_VAL_INT && args[9].type == AVM_VAL_INT && args[10].type == AVM_VAL_INT && args[11].type == AVM_VAL_INT
+	                && args[12].type == AVM_VAL_INT) {
+	                AvmBuf* out = args[0].as.buf;
+	                AvmBuf* a = args[2].as.buf;
+	                AvmBuf* b = args[7].as.buf;
+	                int64_t out_off_ll = args[1].as.i;
+	                int64_t a0_off_ll = args[3].as.i;
+	                int64_t a1_off_ll = args[4].as.i;
+	                int64_t a2_off_ll = args[5].as.i;
+	                int64_t a3_off_ll = args[6].as.i;
+	                int64_t b0_off_ll = args[8].as.i;
+	                int64_t b1_off_ll = args[9].as.i;
+	                int64_t b2_off_ll = args[10].as.i;
+	                int64_t b3_off_ll = args[11].as.i;
+	                int64_t n_ll = args[12].as.i;
+	                if (!out || !a || !b || out->elem_size != 8u || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_i32_4x4_slice_into: invalid buffers"); break; }
+	                if (out_off_ll < 0 || a0_off_ll < 0 || a1_off_ll < 0 || a2_off_ll < 0 || a3_off_ll < 0 || b0_off_ll < 0 || b1_off_ll < 0 || b2_off_ll < 0 || b3_off_ll < 0 || n_ll < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_i32_4x4_slice_into: negative arg"); break; }
+	                if ((uint64_t)out_off_ll > (uint64_t)out->len || (uint64_t)out->len - (uint64_t)out_off_ll < 16u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_i32_4x4_slice_into: out range out of bounds"); break; }
+	                if ((uint64_t)a0_off_ll > (uint64_t)a->len || (uint64_t)a1_off_ll > (uint64_t)a->len || (uint64_t)a2_off_ll > (uint64_t)a->len || (uint64_t)a3_off_ll > (uint64_t)a->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_i32_4x4_slice_into: a_off out of bounds"); break; }
+	                if ((uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a0_off_ll
+	                    || (uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a1_off_ll
+	                    || (uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a2_off_ll
+	                    || (uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a3_off_ll) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_i32_4x4_slice_into: a range out of bounds"); break; }
+	                if ((uint64_t)b0_off_ll > (uint64_t)b->len || (uint64_t)b1_off_ll > (uint64_t)b->len || (uint64_t)b2_off_ll > (uint64_t)b->len || (uint64_t)b3_off_ll > (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_i32_4x4_slice_into: b_off out of bounds"); break; }
+	                if ((uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b0_off_ll
+	                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b1_off_ll
+	                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b2_off_ll
+	                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b3_off_ll) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_gemm_i32_4x4_slice_into: b range out of bounds"); break; }
+
+	                uint32_t out_off = (uint32_t)out_off_ll;
+	                uint32_t a0_off = (uint32_t)a0_off_ll;
+	                uint32_t a1_off = (uint32_t)a1_off_ll;
+	                uint32_t a2_off = (uint32_t)a2_off_ll;
+	                uint32_t a3_off = (uint32_t)a3_off_ll;
+	                uint32_t b0_off = (uint32_t)b0_off_ll;
+	                uint32_t b1_off = (uint32_t)b1_off_ll;
+	                uint32_t b2_off = (uint32_t)b2_off_ll;
+	                uint32_t b3_off = (uint32_t)b3_off_ll;
+	                uint32_t n = (uint32_t)n_ll;
+
+	                uint64_t c00 = 0, c01 = 0, c02 = 0, c03 = 0;
+	                uint64_t c10 = 0, c11 = 0, c12 = 0, c13 = 0;
+	                uint64_t c20 = 0, c21 = 0, c22 = 0, c23 = 0;
+	                uint64_t c30 = 0, c31 = 0, c32 = 0, c33 = 0;
+
+	                for (uint32_t i = 0; i < n; i++) {
+	                    uint32_t oa0 = (a0_off + i) * 4u;
+	                    uint32_t oa1 = (a1_off + i) * 4u;
+	                    uint32_t oa2 = (a2_off + i) * 4u;
+	                    uint32_t oa3 = (a3_off + i) * 4u;
+	                    uint32_t ob0 = (b0_off + i) * 4u;
+	                    uint32_t ob1 = (b1_off + i) * 4u;
+	                    uint32_t ob2 = (b2_off + i) * 4u;
+	                    uint32_t ob3 = (b3_off + i) * 4u;
+
+	                    int64_t a0v = (int64_t)(int32_t)((uint32_t)a->data[oa0] | ((uint32_t)a->data[oa0 + 1] << 8) | ((uint32_t)a->data[oa0 + 2] << 16) | ((uint32_t)a->data[oa0 + 3] << 24));
+	                    int64_t a1v = (int64_t)(int32_t)((uint32_t)a->data[oa1] | ((uint32_t)a->data[oa1 + 1] << 8) | ((uint32_t)a->data[oa1 + 2] << 16) | ((uint32_t)a->data[oa1 + 3] << 24));
+	                    int64_t a2v = (int64_t)(int32_t)((uint32_t)a->data[oa2] | ((uint32_t)a->data[oa2 + 1] << 8) | ((uint32_t)a->data[oa2 + 2] << 16) | ((uint32_t)a->data[oa2 + 3] << 24));
+	                    int64_t a3v = (int64_t)(int32_t)((uint32_t)a->data[oa3] | ((uint32_t)a->data[oa3 + 1] << 8) | ((uint32_t)a->data[oa3 + 2] << 16) | ((uint32_t)a->data[oa3 + 3] << 24));
+	                    int64_t b0v = (int64_t)(int32_t)((uint32_t)b->data[ob0] | ((uint32_t)b->data[ob0 + 1] << 8) | ((uint32_t)b->data[ob0 + 2] << 16) | ((uint32_t)b->data[ob0 + 3] << 24));
+	                    int64_t b1v = (int64_t)(int32_t)((uint32_t)b->data[ob1] | ((uint32_t)b->data[ob1 + 1] << 8) | ((uint32_t)b->data[ob1 + 2] << 16) | ((uint32_t)b->data[ob1 + 3] << 24));
+	                    int64_t b2v = (int64_t)(int32_t)((uint32_t)b->data[ob2] | ((uint32_t)b->data[ob2 + 1] << 8) | ((uint32_t)b->data[ob2 + 2] << 16) | ((uint32_t)b->data[ob2 + 3] << 24));
+	                    int64_t b3v = (int64_t)(int32_t)((uint32_t)b->data[ob3] | ((uint32_t)b->data[ob3 + 1] << 8) | ((uint32_t)b->data[ob3 + 2] << 16) | ((uint32_t)b->data[ob3 + 3] << 24));
+
+	                    c00 += (uint64_t)(a0v * b0v); c01 += (uint64_t)(a0v * b1v); c02 += (uint64_t)(a0v * b2v); c03 += (uint64_t)(a0v * b3v);
+	                    c10 += (uint64_t)(a1v * b0v); c11 += (uint64_t)(a1v * b1v); c12 += (uint64_t)(a1v * b2v); c13 += (uint64_t)(a1v * b3v);
+	                    c20 += (uint64_t)(a2v * b0v); c21 += (uint64_t)(a2v * b1v); c22 += (uint64_t)(a2v * b2v); c23 += (uint64_t)(a2v * b3v);
+	                    c30 += (uint64_t)(a3v * b0v); c31 += (uint64_t)(a3v * b1v); c32 += (uint64_t)(a3v * b2v); c33 += (uint64_t)(a3v * b3v);
+	                }
+
+	                uint64_t u[16] = {0};
+	                u[0] = c00; u[1] = c01; u[2] = c02; u[3] = c03;
+	                u[4] = c10; u[5] = c11; u[6] = c12; u[7] = c13;
+	                u[8] = c20; u[9] = c21; u[10] = c22; u[11] = c23;
+	                u[12] = c30; u[13] = c31; u[14] = c32; u[15] = c33;
+
+	                for (uint32_t j = 0; j < 16u; j++) {
+	                    uint64_t uj = u[j];
+	                    uint32_t oj = (out_off + j) * 8u;
+	                    out->data[oj + 0] = (uint8_t)(uj & 0xFFu);
+	                    out->data[oj + 1] = (uint8_t)((uj >> 8) & 0xFFu);
+	                    out->data[oj + 2] = (uint8_t)((uj >> 16) & 0xFFu);
+	                    out->data[oj + 3] = (uint8_t)((uj >> 24) & 0xFFu);
+	                    out->data[oj + 4] = (uint8_t)((uj >> 32) & 0xFFu);
+	                    out->data[oj + 5] = (uint8_t)((uj >> 40) & 0xFFu);
+	                    out->data[oj + 6] = (uint8_t)((uj >> 48) & 0xFFu);
+	                    out->data[oj + 7] = (uint8_t)((uj >> 56) & 0xFFu);
+	                }
+
+	                res = args[0];
+	            } else {
+	                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_gemm_i32_4x4_slice_into expects (i64_buf,int,i32_buf,int,int,int,int,i32_buf,int,int,int,int,int)");
+	            }
+	            break;
+	        }
 	        case 118: { // oren_char(code:int) -> string(1)
 	            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
 	                int64_t v = args[0].as.i;
