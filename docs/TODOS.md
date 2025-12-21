@@ -100,7 +100,16 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
    - Status: **done** (see archive for details).
 
-3) **[stdlib][hpc] Math foundations for scientific/HPC code (no host libm)**
+3) **[lang][hpc] Scientific notation float literals (`1e-12`)**
+   - Why: modern HPC/math code needs scientific notation for tolerances and constants; decimal expansions are noisy and error-prone.
+   - DoD:
+     - Lexer accepts `e/E` suffix with optional sign for float literals (both `1e3` and `1.5e-2`).
+     - Invalid forms (`1e`, `1e+`) produce a deterministic lexer error.
+     - Coverage in `tests/modules/test_integration_suite.oren` uses `1e-12` (and a couple of exact cases like `1e3`).
+     - Spec updated in `docs/LANGUAGE_SPEC.md`.
+   - Status: **done**.
+
+4) **[stdlib][hpc] Math foundations for scientific/HPC code (no host libm)**
    - Goal: provide deterministic “libm-lite” primitives so HPC/ML libraries can be written in Oren.
    - DoD (rolling):
      - Provide correct, deterministic `sqrt(x)` + `powi(x,n)` and float classification helpers.

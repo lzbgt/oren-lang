@@ -154,7 +154,9 @@ index_suffix    = "[" expression "]" ;
 	hex_int         = "0x" hex_digit (hex_digit | "_")* ;
 	bin_int         = "0b" ("0" | "1") (("0" | "1") | "_")* ;
 	oct_int         = "0o" oct_digit (oct_digit | "_")* ;
-	float_lit       = dec_int "." dec_int ; // no exponent yet
+	float_lit       = dec_int "." dec_int [ exp_suffix ]
+	              | dec_int exp_suffix ;
+	exp_suffix      = ("e" | "E") [ "+" | "-" ] dec_int ;
 
 	literal         = int_lit | float_lit | string_lit | "true" | "false" | "nil" ;
 	ident           = /[A-Za-z_][A-Za-z0-9_]*/ ;

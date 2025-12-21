@@ -127,6 +127,17 @@ fn read_number(l) {
     return out
 }
 
+fn read_exponent(l) {
+    // Read scientific exponent digits (after optional +/-, allowing `_` separators).
+    // Caller has already consumed the 'e'/'E' and optional sign, and expects at least one digit.
+    var out = ""
+    while token.is_digit(l["ch"]) || l["ch"] == "_" {
+        if l["ch"] != "_" { out = out + l["ch"] }
+        read_char(l)
+    }
+    return out
+}
+
 fn is_hex_digit(ch) {
     if token.is_digit(ch) { return true }
     if ch >= "a" && ch <= "f" { return true }
@@ -380,12 +391,38 @@ fn next_token(l) {
         }
 
         var num = read_number(l)
+
+        var lit = num
+        var is_float = false
+
+        // Decimal fraction: 123.456
         if l["ch"] == "." && token.is_digit(peek_char(l)) {
+            is_float = true
             read_char(l)
             var frac = read_number(l)
-            return tok_lc(l, token.TOK_FLOAT, num + "." + frac, start, l["position"], start_line, start_col)
+            lit = lit + "." + frac
         }
-        return tok_lc(l, token.TOK_INT, num, start, l["position"], start_line, start_col)
+
+        // Scientific notation: 1e3, 1e-12, 12.5E+2
+        if l["ch"] == "e" || l["ch"] == "E" {
+            is_float = true
+            var e = l["ch"]
+            read_char(l) // consume e/E
+            var sign = ""
+            if l["ch"] == "+" || l["ch"] == "-" {
+                sign = l["ch"]
+                read_char(l)
+            }
+            if !token.is_digit(l["ch"]) {
+                // Reject invalid forms like `1e` / `1e+` deterministically.
+                return tok_lc(l, token.TOK_ILLEGAL, lit + e + sign, start, l["position"], start_line, start_col)
+            }
+            var exp = read_exponent(l)
+            lit = lit + e + sign + exp
+        }
+
+        if is_float { return tok_lc(l, token.TOK_FLOAT, lit, start, l["position"], start_line, start_col) }
+        return tok_lc(l, token.TOK_INT, lit, start, l["position"], start_line, start_col)
     }
     read_char(l)
     return tok_lc(l, token.TOK_ILLEGAL, ch, start, l["position"], start_line, start_col)
