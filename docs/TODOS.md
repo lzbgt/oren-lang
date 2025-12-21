@@ -119,7 +119,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - **done:** baseline typed-buffer matmul (`matmul_f32_buf`, `matmul_i32_buf`, `matmul_i32_buf_wide`) + module tests (`tests/modules/test_linalg.oren`)
      - **done:** initial kernel dispatch: matmul uses `B` transpose + `oren_buf_dot_*_slice` so native backend can hit NEON dot kernels without a full GEMM microkernel.
      - **next:** add tiling + packed-B layout for cache efficiency (keep determinism; no re-association for dot paths)
-     - **next:** consider `dot_strided` primitive to avoid explicit transpose for some shapes
+     - **done:** `dot_strided` primitive exists (`oren_buf_dot_*_strided`) for columnar access without transpose (still scalar today).
 
 2) **[stdlib][api] Serde annotations remain stable while language evolves**
    - DoD:
