@@ -1114,6 +1114,108 @@ OrenValue oren_buf_dot_f64(OrenValue a, OrenValue b) {
     return oren_float(acc);
 }
 
+OrenValue oren_buf_dot_f64_slice(OrenValue a, OrenValue a_offv, OrenValue b, OrenValue b_offv, OrenValue nv) {
+    if (!buf_is_f64(a) || !buf_is_f64(b) || a_offv.type != OREN_TYPE_INT || b_offv.type != OREN_TYPE_INT || nv.type != OREN_TYPE_INT) {
+        return buf_err("oren_buf_dot_f64_slice expects (f64_buf, int, f64_buf, int, int)");
+    }
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    long long a_off_ll = a_offv.as.int_val;
+    long long b_off_ll = b_offv.as.int_val;
+    long long n_ll = nv.as.int_val;
+    if (a_off_ll < 0 || b_off_ll < 0 || n_ll < 0) return buf_err("buf_dot_f64_slice: negative arg");
+    if ((uint64_t)a_off_ll > (uint64_t)ba->len) return buf_err("buf_dot_f64_slice: a_off out of bounds");
+    if ((uint64_t)b_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_f64_slice: b_off out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a_off_ll) return buf_err("buf_dot_f64_slice: a range out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b_off_ll) return buf_err("buf_dot_f64_slice: b range out of bounds");
+
+    uint32_t n = (uint32_t)n_ll;
+    uint32_t a_off = (uint32_t)a_off_ll;
+    uint32_t b_off = (uint32_t)b_off_ll;
+
+    double acc = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 2u) {
+        const double* pa = (const double*)(const void*)(buf_data(ba) + a_off * 8u);
+        const double* pb = (const double*)(const void*)(buf_data(bb) + b_off * 8u);
+        uint32_t i = 0;
+        for (; i + 2u <= n; i += 2u) {
+            float64x2_t va = vld1q_f64(pa + i);
+            float64x2_t vb = vld1q_f64(pb + i);
+            float64x2_t p = vmulq_f64(va, vb);
+            acc = acc + vgetq_lane_f64(p, 0);
+            acc = acc + vgetq_lane_f64(p, 1);
+        }
+        for (; i < n; i++) {
+            uint64_t ua = load_u64_le(buf_data(ba) + (a_off + i) * 8u);
+            uint64_t ub = load_u64_le(buf_data(bb) + (b_off + i) * 8u);
+            double da = 0.0, dbv = 0.0;
+            memcpy(&da, &ua, sizeof(da));
+            memcpy(&dbv, &ub, sizeof(dbv));
+            acc += da * dbv;
+        }
+        return oren_float(acc);
+    }
+#endif
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint64_t ua = load_u64_le(buf_data(ba) + (a_off + i) * 8u);
+        uint64_t ub = load_u64_le(buf_data(bb) + (b_off + i) * 8u);
+        double da = 0.0, dbv = 0.0;
+        memcpy(&da, &ua, sizeof(da));
+        memcpy(&dbv, &ub, sizeof(dbv));
+        acc += da * dbv;
+    }
+    return oren_float(acc);
+}
+
+OrenValue oren_buf_dot_f64_strided(OrenValue a, OrenValue a_offv, OrenValue a_stridev, OrenValue b, OrenValue b_offv, OrenValue b_stridev, OrenValue nv) {
+    if (!buf_is_f64(a) || !buf_is_f64(b)
+        || a_offv.type != OREN_TYPE_INT || a_stridev.type != OREN_TYPE_INT
+        || b_offv.type != OREN_TYPE_INT || b_stridev.type != OREN_TYPE_INT
+        || nv.type != OREN_TYPE_INT) {
+        return buf_err("oren_buf_dot_f64_strided expects (f64_buf, int, int, f64_buf, int, int, int)");
+    }
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    long long a_off_ll = a_offv.as.int_val;
+    long long a_stride_ll = a_stridev.as.int_val;
+    long long b_off_ll = b_offv.as.int_val;
+    long long b_stride_ll = b_stridev.as.int_val;
+    long long n_ll = nv.as.int_val;
+
+    if (a_off_ll < 0 || b_off_ll < 0 || n_ll < 0) return buf_err("buf_dot_f64_strided: negative arg");
+    if (a_stride_ll <= 0 || b_stride_ll <= 0) return buf_err("buf_dot_f64_strided: stride must be > 0");
+    if ((uint64_t)a_off_ll > (uint64_t)ba->len) return buf_err("buf_dot_f64_strided: a_off out of bounds");
+    if ((uint64_t)b_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_f64_strided: b_off out of bounds");
+    if (n_ll > 0) {
+        uint64_t alast = (uint64_t)a_off_ll + (uint64_t)(n_ll - 1) * (uint64_t)a_stride_ll;
+        uint64_t blast = (uint64_t)b_off_ll + (uint64_t)(n_ll - 1) * (uint64_t)b_stride_ll;
+        if (alast >= (uint64_t)ba->len) return buf_err("buf_dot_f64_strided: a range out of bounds");
+        if (blast >= (uint64_t)bb->len) return buf_err("buf_dot_f64_strided: b range out of bounds");
+    }
+
+    uint32_t n = (uint32_t)n_ll;
+    uint32_t a_off = (uint32_t)a_off_ll;
+    uint32_t b_off = (uint32_t)b_off_ll;
+    uint32_t a_stride = (uint32_t)a_stride_ll;
+    uint32_t b_stride = (uint32_t)b_stride_ll;
+
+    double acc = 0.0;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t ai = a_off + i * a_stride;
+        uint32_t bi = b_off + i * b_stride;
+        uint64_t ua = load_u64_le(buf_data(ba) + ai * 8u);
+        uint64_t ub = load_u64_le(buf_data(bb) + bi * 8u);
+        double da = 0.0, dbv = 0.0;
+        memcpy(&da, &ua, sizeof(da));
+        memcpy(&dbv, &ub, sizeof(dbv));
+        acc += da * dbv;
+    }
+    return oren_float(acc);
+}
+
 OrenValue oren_buf_dot_f32_slice(OrenValue a, OrenValue a_offv, OrenValue b, OrenValue b_offv, OrenValue nv) {
     if (!buf_is_f32(a) || !buf_is_f32(b) || a_offv.type != OREN_TYPE_INT || b_offv.type != OREN_TYPE_INT || nv.type != OREN_TYPE_INT) {
         return buf_err("oren_buf_dot_f32_slice expects (f32_buf, int, f32_buf, int, int)");

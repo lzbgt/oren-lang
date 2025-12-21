@@ -88,6 +88,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - DONE: f64 SIMD paths are working end-to-end (native backend + C backend):
        - `oren_buf_add_f64_into`, `oren_buf_mul_f64_into`, `oren_buf_dot_f64`, `oren_buf_reduce_sum_f64`
        - NOTE: native backend relies on correct opcode tables in `lib/compiler/arm64_core.oren` (fixed `insn_fadd_2d`, `insn_umov_x_d1`).
+     - DONE: f64 view + matmul building blocks are now available and covered in the fast suite:
+       - runtime: `oren_buf_dot_f64_slice`, `oren_buf_dot_f64_strided` (C + native runtime)
+       - stdlib: `dot_f64_view`, `matmul_f64_buf` (dot-based; deterministic increasing-k semantics)
+       - tests: `tests/modules/test_integration_suite.oren` asserts slice/strided dot + a small matmul result
      - DONE: native SIMD integration coverage lives in `tests/native/test_simd_suite.oren` (hash/bits checks; SIMD enabled/disabled runs).
      - NOTE: scalar-multiply “scale i32/f32” SIMD fast paths are intentionally **not** enabled in the native backend yet (prior attempt had correctness issues; removed to keep the repo green).
      - Implemented (code present, needs explicit C-backend coverage): additional NEON kernels in `lib/runtime_buf.c` (i32 axpy + scale/add/mul variants).
