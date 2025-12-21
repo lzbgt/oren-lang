@@ -90,8 +90,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Keep views non-owning and bounds-checked; no host-endian dependence
      - Implement across backends (C/native/bytecode) as a stable surface
    - Status:
-     - **done:** `std/buffer` slice views (`slice_new`, `slice_load/store_{u8,i32,f32}`) + matrix views (`mat_view_new`, `mat_load/store_{f32,i32}`)
-     - **next:** add view helpers for `f64` and `i64` where needed (serde/CBOR + wide math)
+     - **done:** `std/buffer` slice views (`slice_new`, `slice_load/store_{u8,i32,f32,i64,f64}`) + matrix views (`mat_view_new`, `mat_load/store_{f32,i32,i64,f64}`)
+     - **done:** backend primitives for dot over slices (`oren_buf_dot_*_slice`) to enable zero-copy kernels
+     - **done:** backend primitives for dot over strided slices (`oren_buf_dot_*_strided`) to enable columnar views without transpose
 
 3) **[lang][perf] Allocator control for large numeric buffers (no-GC-scanned region)**
    - DoD:

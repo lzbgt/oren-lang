@@ -3104,6 +3104,107 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 116: { // oren_buf_dot_i32_strided(a:i32_buf, a_off:int, a_stride:int, b:i32_buf, b_off:int, b_stride:int, n:int) -> int
+            if (nargs > 6
+                && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT
+                && args[3].type == AVM_VAL_I32_BUF && args[4].type == AVM_VAL_INT && args[5].type == AVM_VAL_INT
+                && args[6].type == AVM_VAL_INT) {
+                AvmBuf* a = args[0].as.buf;
+                AvmBuf* b = args[3].as.buf;
+                int64_t a_off_ll = args[1].as.i;
+                int64_t a_stride_ll = args[2].as.i;
+                int64_t b_off_ll = args[4].as.i;
+                int64_t b_stride_ll = args[5].as.i;
+                int64_t n_ll = args[6].as.i;
+                if (!a || !b || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_strided: invalid buffers"); break; }
+                if (a_off_ll < 0 || b_off_ll < 0 || n_ll < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_strided: negative arg"); break; }
+                if (a_stride_ll <= 0 || b_stride_ll <= 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_strided: stride must be > 0"); break; }
+                if ((uint64_t)a_off_ll > (uint64_t)a->len || (uint64_t)b_off_ll > (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_strided: offset out of bounds"); break; }
+                if (n_ll > 0) {
+                    uint64_t alast = (uint64_t)a_off_ll + (uint64_t)(n_ll - 1) * (uint64_t)a_stride_ll;
+                    uint64_t blast = (uint64_t)b_off_ll + (uint64_t)(n_ll - 1) * (uint64_t)b_stride_ll;
+                    if (alast >= (uint64_t)a->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_strided: a range out of bounds"); break; }
+                    if (blast >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_strided: b range out of bounds"); break; }
+                }
+                uint32_t a_off = (uint32_t)a_off_ll;
+                uint32_t b_off = (uint32_t)b_off_ll;
+                uint32_t a_stride = (uint32_t)a_stride_ll;
+                uint32_t b_stride = (uint32_t)b_stride_ll;
+                uint32_t n = (uint32_t)n_ll;
+
+                uint64_t acc_u = 0;
+                for (uint32_t i = 0; i < n; i++) {
+                    uint32_t offa = (a_off + i * a_stride) * 4u;
+                    uint32_t offb = (b_off + i * b_stride) * 4u;
+                    uint32_t ua = (uint32_t)a->data[offa]
+                                | ((uint32_t)a->data[offa + 1] << 8)
+                                | ((uint32_t)a->data[offa + 2] << 16)
+                                | ((uint32_t)a->data[offa + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[offb]
+                                | ((uint32_t)b->data[offb + 1] << 8)
+                                | ((uint32_t)b->data[offb + 2] << 16)
+                                | ((uint32_t)b->data[offb + 3] << 24);
+                    int64_t prod = (int64_t)(int32_t)ua * (int64_t)(int32_t)ub;
+                    acc_u += avm_u64_bits_i64_native(prod);
+                }
+                res = avm_int(avm_i64_from_u64_bits_native(acc_u));
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_i32_strided expects (i32_buf,int,int,i32_buf,int,int,int)");
+            }
+            break;
+        }
+        case 117: { // oren_buf_dot_f32_strided(a:f32_buf, a_off:int, a_stride:int, b:f32_buf, b_off:int, b_stride:int, n:int) -> float
+            if (nargs > 6
+                && args[0].type == AVM_VAL_F32_BUF && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT
+                && args[3].type == AVM_VAL_F32_BUF && args[4].type == AVM_VAL_INT && args[5].type == AVM_VAL_INT
+                && args[6].type == AVM_VAL_INT) {
+                AvmBuf* a = args[0].as.buf;
+                AvmBuf* b = args[3].as.buf;
+                int64_t a_off_ll = args[1].as.i;
+                int64_t a_stride_ll = args[2].as.i;
+                int64_t b_off_ll = args[4].as.i;
+                int64_t b_stride_ll = args[5].as.i;
+                int64_t n_ll = args[6].as.i;
+                if (!a || !b || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_strided: invalid buffers"); break; }
+                if (a_off_ll < 0 || b_off_ll < 0 || n_ll < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_strided: negative arg"); break; }
+                if (a_stride_ll <= 0 || b_stride_ll <= 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_strided: stride must be > 0"); break; }
+                if ((uint64_t)a_off_ll > (uint64_t)a->len || (uint64_t)b_off_ll > (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_strided: offset out of bounds"); break; }
+                if (n_ll > 0) {
+                    uint64_t alast = (uint64_t)a_off_ll + (uint64_t)(n_ll - 1) * (uint64_t)a_stride_ll;
+                    uint64_t blast = (uint64_t)b_off_ll + (uint64_t)(n_ll - 1) * (uint64_t)b_stride_ll;
+                    if (alast >= (uint64_t)a->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_strided: a range out of bounds"); break; }
+                    if (blast >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_strided: b range out of bounds"); break; }
+                }
+                uint32_t a_off = (uint32_t)a_off_ll;
+                uint32_t b_off = (uint32_t)b_off_ll;
+                uint32_t a_stride = (uint32_t)a_stride_ll;
+                uint32_t b_stride = (uint32_t)b_stride_ll;
+                uint32_t n = (uint32_t)n_ll;
+
+                double acc = 0.0;
+                for (uint32_t i = 0; i < n; i++) {
+                    uint32_t offa = (a_off + i * a_stride) * 4u;
+                    uint32_t offb = (b_off + i * b_stride) * 4u;
+                    uint32_t ua = (uint32_t)a->data[offa]
+                                | ((uint32_t)a->data[offa + 1] << 8)
+                                | ((uint32_t)a->data[offa + 2] << 16)
+                                | ((uint32_t)a->data[offa + 3] << 24);
+                    uint32_t ub = (uint32_t)b->data[offb]
+                                | ((uint32_t)b->data[offb + 1] << 8)
+                                | ((uint32_t)b->data[offb + 2] << 16)
+                                | ((uint32_t)b->data[offb + 3] << 24);
+                    float fa = 0.0f, fb = 0.0f;
+                    memcpy(&fa, &ua, sizeof(fa));
+                    memcpy(&fb, &ub, sizeof(fb));
+                    acc += (double)fa * (double)fb;
+                }
+                res.type = AVM_VAL_FLOAT;
+                res.as.f = acc;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_f32_strided expects (f32_buf,int,int,f32_buf,int,int,int)");
+            }
+            break;
+        }
         default:
             printf("Unknown native id: %d\n", id);
             break;

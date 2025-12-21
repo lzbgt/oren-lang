@@ -137,5 +137,11 @@ assert_eq(oren_buf_load_f32(Cf, 1), f32(64.0), 82)
 assert_eq(oren_buf_load_f32(Cf, 2), f32(139.0), 83)
 assert_eq(oren_buf_load_f32(Cf, 3), f32(154.0), 84)
 
+// dot strided: pick B column 0 (stride = p)
+var ds = oren_buf_dot_i32_strided(Ai, 0, 1, Bi, 0, 2, 3) // A row0 dot B col0
+assert_eq(ds, 58, 90)
+var dsf = oren_buf_dot_f32_strided(Af, 0, 1, Bf, 0, 2, 3)
+assert_eq(f32(dsf), f32(58.0), 91)
+
 print("module linalg OK")
 exit(0)

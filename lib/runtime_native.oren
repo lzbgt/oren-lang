@@ -6209,6 +6209,58 @@ fn oren_buf_dot_f32_slice(a, a_off, b, b_off, n): f64 {
     return sum
 }
 
+fn oren_buf_dot_i32_strided(a, a_off, a_stride, b, b_off, b_stride, n) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    if a_off < 0 || b_off < 0 || n < 0 { return oren_err(4, "buf_dot_i32_strided: negative arg") }
+    if a_stride <= 0 || b_stride <= 0 { return oren_err(4, "buf_dot_i32_strided: stride must be > 0") }
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na || b_off > nb { return oren_err(4, "buf_dot_i32_strided: offset out of bounds") }
+    if n > 0 {
+        var alast = a_off + (n - 1) * a_stride
+        var blast = b_off + (n - 1) * b_stride
+        if alast < 0 || alast >= na { return oren_err(4, "buf_dot_i32_strided: a range out of bounds") }
+        if blast < 0 || blast >= nb { return oren_err(4, "buf_dot_i32_strided: b range out of bounds") }
+    }
+
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_i32(a, a_off + i * a_stride) * oren_buf_load_i32(b, b_off + i * b_stride))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_f32_strided(a, a_off, a_stride, b, b_off, b_stride, n): f64 {
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    if a_off < 0 || b_off < 0 || n < 0 { return oren_err(4, "buf_dot_f32_strided: negative arg") }
+    if a_stride <= 0 || b_stride <= 0 { return oren_err(4, "buf_dot_f32_strided: stride must be > 0") }
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na || b_off > nb { return oren_err(4, "buf_dot_f32_strided: offset out of bounds") }
+    if n > 0 {
+        var alast = a_off + (n - 1) * a_stride
+        var blast = b_off + (n - 1) * b_stride
+        if alast < 0 || alast >= na { return oren_err(4, "buf_dot_f32_strided: a range out of bounds") }
+        if blast < 0 || blast >= nb { return oren_err(4, "buf_dot_f32_strided: b range out of bounds") }
+    }
+
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_f32(a, a_off + i * a_stride) * oren_buf_load_f32(b, b_off + i * b_stride))
+        i = i + 1
+    }
+    return sum
+}
+
 fn oren_buf_dot_i32_into(out, a, b) {
     var eo = native_buf_check(out, BUF_TAG_I64, 8)
     if oren_is_err(eo) { return eo }

@@ -1203,6 +1203,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_dot_f32" { native_id = 74 }
         if name == "oren_buf_dot_i32_slice" { native_id = 114 }
         if name == "oren_buf_dot_f32_slice" { native_id = 115 }
+        if name == "oren_buf_dot_i32_strided" { native_id = 116 }
+        if name == "oren_buf_dot_f32_strided" { native_id = 117 }
         if name == "oren_buf_dot_f32_into" { native_id = 86 }
         if name == "oren_buf_add_i32_into" { native_id = 75 }
         if name == "oren_buf_add_f32_into" { native_id = 76 }

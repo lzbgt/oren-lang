@@ -252,6 +252,11 @@ OrenValue oren_buf_dot_f32(OrenValue a, OrenValue b);
 // Semantics match `oren_buf_dot_*` but allow specifying offsets + length explicitly.
 OrenValue oren_buf_dot_i32_slice(OrenValue a, OrenValue a_off, OrenValue b, OrenValue b_off, OrenValue n);
 OrenValue oren_buf_dot_f32_slice(OrenValue a, OrenValue a_off, OrenValue b, OrenValue b_off, OrenValue n);
+// Dot over strided slices (no allocation):
+// - element i in a: a[a_off + i * a_stride]
+// - element i in b: b[b_off + i * b_stride]
+OrenValue oren_buf_dot_i32_strided(OrenValue a, OrenValue a_off, OrenValue a_stride, OrenValue b, OrenValue b_off, OrenValue b_stride, OrenValue n);
+OrenValue oren_buf_dot_f32_strided(OrenValue a, OrenValue a_off, OrenValue a_stride, OrenValue b, OrenValue b_off, OrenValue b_stride, OrenValue n);
 
 OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b);
 OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b);
