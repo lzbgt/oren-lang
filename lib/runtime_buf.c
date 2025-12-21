@@ -411,6 +411,30 @@ OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b) {
     OrenBuf* ba = a.as.buf_val;
     OrenBuf* bb = b.as.buf_val;
     if (od->len != ba->len || od->len != bb->len) return buf_err("buf_add_i32_into: length mismatch");
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 4u) {
+        const int32_t* pa = (const int32_t*)(const void*)buf_data(ba);
+        const int32_t* pb = (const int32_t*)(const void*)buf_data(bb);
+        int32_t* pd = (int32_t*)(void*)buf_data(od);
+        uint32_t i = 0;
+        for (; i + 4u <= od->len; i += 4u) {
+            int32x4_t va = vld1q_s32(pa + i);
+            int32x4_t vb = vld1q_s32(pb + i);
+            int32x4_t vs = vaddq_s32(va, vb); // wrap
+            vst1q_s32(pd + i, vs);
+        }
+        // Tail uses endian-safe scalar path.
+        for (; i < od->len; i++) {
+            uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
+            uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
+            uint32_t us = ua + ub; // wrap
+            store_u32_le(buf_data(od) + i * 4u, us);
+        }
+        return dst;
+    }
+#endif
+
     for (uint32_t i = 0; i < od->len; i++) {
         uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
         uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
@@ -434,6 +458,35 @@ OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b) {
     OrenBuf* ba = a.as.buf_val;
     OrenBuf* bb = b.as.buf_val;
     if (od->len != ba->len || od->len != bb->len) return buf_err("buf_add_f32_into: length mismatch");
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 4u) {
+        const float* pa = (const float*)(const void*)buf_data(ba);
+        const float* pb = (const float*)(const void*)buf_data(bb);
+        float* pd = (float*)(void*)buf_data(od);
+        uint32_t i = 0;
+        for (; i + 4u <= od->len; i += 4u) {
+            float32x4_t va = vld1q_f32(pa + i);
+            float32x4_t vb = vld1q_f32(pb + i);
+            float32x4_t vs = vaddq_f32(va, vb);
+            vst1q_f32(pd + i, vs);
+        }
+        // Tail uses endian-safe scalar path.
+        for (; i < od->len; i++) {
+            uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
+            uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
+            float fa = 0.0f, fb = 0.0f;
+            memcpy(&fa, &ua, sizeof(fa));
+            memcpy(&fb, &ub, sizeof(fb));
+            float fs = fa + fb;
+            uint32_t us = 0;
+            memcpy(&us, &fs, sizeof(us));
+            store_u32_le(buf_data(od) + i * 4u, us);
+        }
+        return dst;
+    }
+#endif
+
     for (uint32_t i = 0; i < od->len; i++) {
         uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
         uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
@@ -462,6 +515,30 @@ OrenValue oren_buf_mul_i32_into(OrenValue dst, OrenValue a, OrenValue b) {
     OrenBuf* ba = a.as.buf_val;
     OrenBuf* bb = b.as.buf_val;
     if (od->len != ba->len || od->len != bb->len) return buf_err("buf_mul_i32_into: length mismatch");
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 4u) {
+        const int32_t* pa = (const int32_t*)(const void*)buf_data(ba);
+        const int32_t* pb = (const int32_t*)(const void*)buf_data(bb);
+        int32_t* pd = (int32_t*)(void*)buf_data(od);
+        uint32_t i = 0;
+        for (; i + 4u <= od->len; i += 4u) {
+            int32x4_t va = vld1q_s32(pa + i);
+            int32x4_t vb = vld1q_s32(pb + i);
+            int32x4_t vp = vmulq_s32(va, vb); // wrap (low 32 bits)
+            vst1q_s32(pd + i, vp);
+        }
+        for (; i < od->len; i++) {
+            int32_t va = (int32_t)load_u32_le(buf_data(ba) + i * 4u);
+            int32_t vb = (int32_t)load_u32_le(buf_data(bb) + i * 4u);
+            int64_t prod = (int64_t)va * (int64_t)vb;
+            int32_t vp = (int32_t)prod; // wrap
+            store_u32_le(buf_data(od) + i * 4u, (uint32_t)vp);
+        }
+        return dst;
+    }
+#endif
+
     for (uint32_t i = 0; i < od->len; i++) {
         int32_t va = (int32_t)load_u32_le(buf_data(ba) + i * 4u);
         int32_t vb = (int32_t)load_u32_le(buf_data(bb) + i * 4u);
@@ -486,6 +563,35 @@ OrenValue oren_buf_mul_f32_into(OrenValue dst, OrenValue a, OrenValue b) {
     OrenBuf* ba = a.as.buf_val;
     OrenBuf* bb = b.as.buf_val;
     if (od->len != ba->len || od->len != bb->len) return buf_err("buf_mul_f32_into: length mismatch");
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 4u) {
+        const float* pa = (const float*)(const void*)buf_data(ba);
+        const float* pb = (const float*)(const void*)buf_data(bb);
+        float* pd = (float*)(void*)buf_data(od);
+        uint32_t i = 0;
+        for (; i + 4u <= od->len; i += 4u) {
+            float32x4_t va = vld1q_f32(pa + i);
+            float32x4_t vb = vld1q_f32(pb + i);
+            float32x4_t vp = vmulq_f32(va, vb);
+            vst1q_f32(pd + i, vp);
+        }
+        // Tail uses endian-safe scalar path.
+        for (; i < od->len; i++) {
+            uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
+            uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
+            float fa = 0.0f, fb = 0.0f;
+            memcpy(&fa, &ua, sizeof(fa));
+            memcpy(&fb, &ub, sizeof(fb));
+            float fp = fa * fb;
+            uint32_t up = 0;
+            memcpy(&up, &fp, sizeof(up));
+            store_u32_le(buf_data(od) + i * 4u, up);
+        }
+        return dst;
+    }
+#endif
+
     for (uint32_t i = 0; i < od->len; i++) {
         uint32_t ua = load_u32_le(buf_data(ba) + i * 4u);
         uint32_t ub = load_u32_le(buf_data(bb) + i * 4u);
@@ -530,6 +636,31 @@ OrenValue oren_buf_scale_f32_into(OrenValue dst, OrenValue a, OrenValue scalar) 
     OrenBuf* ba = a.as.buf_val;
     if (od->len != ba->len) return buf_err("buf_scale_f32_into: length mismatch");
     float s = (float)scalar.as.float_val;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 4u) {
+        const float* pa = (const float*)(const void*)buf_data(ba);
+        float* pd = (float*)(void*)buf_data(od);
+        uint32_t i = 0;
+        float32x4_t vs = vdupq_n_f32(s);
+        for (; i + 4u <= od->len; i += 4u) {
+            float32x4_t va = vld1q_f32(pa + i);
+            float32x4_t vo = vmulq_f32(va, vs);
+            vst1q_f32(pd + i, vo);
+        }
+        for (; i < od->len; i++) {
+            uint32_t u = load_u32_le(buf_data(ba) + i * 4u);
+            float f = 0.0f;
+            memcpy(&f, &u, sizeof(f));
+            float outv = f * s;
+            uint32_t outu = 0;
+            memcpy(&outu, &outv, sizeof(outu));
+            store_u32_le(buf_data(od) + i * 4u, outu);
+        }
+        return dst;
+    }
+#endif
+
     for (uint32_t i = 0; i < od->len; i++) {
         uint32_t u = load_u32_le(buf_data(ba) + i * 4u);
         float f = 0.0f;
@@ -550,6 +681,28 @@ OrenValue oren_buf_scale_i32_into(OrenValue dst, OrenValue a, OrenValue scalar) 
     long long sv = scalar.as.int_val;
     if (sv < (long long)INT32_MIN || sv > (long long)INT32_MAX) return buf_err("buf_scale_i32_into: scalar out of range");
     int32_t s = (int32_t)sv;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 4u) {
+        const int32_t* pa = (const int32_t*)(const void*)buf_data(ba);
+        int32_t* pd = (int32_t*)(void*)buf_data(od);
+        uint32_t i = 0;
+        int32x4_t vs = vdupq_n_s32(s);
+        for (; i + 4u <= od->len; i += 4u) {
+            int32x4_t va = vld1q_s32(pa + i);
+            int32x4_t vp = vmulq_s32(va, vs); // wrap (low 32 bits)
+            vst1q_s32(pd + i, vp);
+        }
+        for (; i < od->len; i++) {
+            int32_t v = (int32_t)load_u32_le(buf_data(ba) + i * 4u);
+            int64_t prod = (int64_t)v * (int64_t)s;
+            int32_t vp = (int32_t)prod;
+            store_u32_le(buf_data(od) + i * 4u, (uint32_t)vp);
+        }
+        return dst;
+    }
+#endif
+
     for (uint32_t i = 0; i < od->len; i++) {
         int32_t v = (int32_t)load_u32_le(buf_data(ba) + i * 4u);
         int64_t prod = (int64_t)v * (int64_t)s;
@@ -1216,6 +1369,31 @@ OrenValue oren_buf_axpy_i32_into(OrenValue dst, OrenValue alpha, OrenValue x, Or
 
     int32_t a = (int32_t)alpha.as.int_val;
     uint32_t n = od->len;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        const int32_t* px = (const int32_t*)(const void*)buf_data(bx);
+        const int32_t* py = (const int32_t*)(const void*)buf_data(by);
+        int32_t* pd = (int32_t*)(void*)buf_data(od);
+        uint32_t i = 0;
+        int32x4_t va = vdupq_n_s32(a);
+        for (; i + 4u <= n; i += 4u) {
+            int32x4_t vx = vld1q_s32(px + i);
+            int32x4_t vy = vld1q_s32(py + i);
+            int32x4_t vm = vmulq_s32(va, vx); // wrap
+            int32x4_t vo = vaddq_s32(vm, vy); // wrap
+            vst1q_s32(pd + i, vo);
+        }
+        for (; i < n; i++) {
+            int32_t xi = (int32_t)load_u32_le(buf_data(bx) + i * 4u);
+            int32_t yi = (int32_t)load_u32_le(buf_data(by) + i * 4u);
+            int32_t outv = (int32_t)((int64_t)a * (int64_t)xi + (int64_t)yi);
+            store_u32_le(buf_data(od) + i * 4u, (uint32_t)outv);
+        }
+        return dst;
+    }
+#endif
+
     for (uint32_t i = 0; i < n; i++) {
         int32_t xi = (int32_t)load_u32_le(buf_data(bx) + i * 4u);
         int32_t yi = (int32_t)load_u32_le(buf_data(by) + i * 4u);

@@ -147,6 +147,7 @@ fn insn_str_reg_pre(i) { return core.insn_str_reg_pre(i) }
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 
 fn insn_dup_2d(vd, rn) { return core.insn_dup_2d(vd, rn) }
+fn insn_dup_4s(vd, rn) { return core.insn_dup_4s(vd, rn) }
 fn insn_add_2d(vd, vn, vm) { return core.insn_add_2d(vd, vn, vm) }
 fn insn_sub_2d(vd, vn, vm) { return core.insn_sub_2d(vd, vn, vm) }
 fn insn_and_16b(vd, vn, vm) { return core.insn_and_16b(vd, vn, vm) }

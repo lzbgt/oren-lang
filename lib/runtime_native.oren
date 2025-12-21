@@ -6512,9 +6512,12 @@ fn oren_buf_scale_f32(buf, scalar: f64) {
     var err = native_buf_check(buf, BUF_TAG_F32, 4)
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
+    // f32 scalar boundary (matches AVM/C runtime semantics).
+    var sbits = oren_f32_to_u32_bits(scalar)
+    var s32 = oren_u32_bits_to_f32(sbits)
     var i = 0
     while i < n {
-        oren_buf_store_f32(buf, i, oren_buf_load_f32(buf, i) * scalar)
+        oren_buf_store_f32(buf, i, oren_buf_load_f32(buf, i) * s32)
         i = i + 1
     }
     return buf
@@ -6527,9 +6530,12 @@ fn oren_buf_scale_f32_into(dst, a, scalar: f64) {
     if oren_is_err(ea) { return ea }
     var n = ptr_get(a + 0)
     if n != ptr_get(dst + 0) { return oren_err(4, "buf_scale_f32_into: length mismatch") }
+    var sbits = oren_f32_to_u32_bits(scalar)
+    var s32 = oren_u32_bits_to_f32(sbits)
+
     var i = 0
     while i < n {
-        oren_buf_store_f32(dst, i, oren_buf_load_f32(a, i) * scalar)
+        oren_buf_store_f32(dst, i, oren_buf_load_f32(a, i) * s32)
         i = i + 1
     }
     return dst
@@ -6542,12 +6548,60 @@ fn oren_buf_scale_i32_into(dst, a, scalar) {
     if oren_is_err(ea) { return ea }
     var n = ptr_get(a + 0)
     if n != ptr_get(dst + 0) { return oren_err(4, "buf_scale_i32_into: length mismatch") }
+
     var i = 0
     while i < n {
         oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) * scalar)
         i = i + 1
     }
     return dst
+}
+
+fn oren_buf_axpy_f32_into(dst, alpha: f64, x, y) {
+    // y := alpha*x + y (into dst)
+    var ed = native_buf_check(dst, BUF_TAG_F32, 4)
+    if oren_is_err(ed) { return ed }
+    var ex = native_buf_check(x, BUF_TAG_F32, 4)
+    if oren_is_err(ex) { return ex }
+    var ey = native_buf_check(y, BUF_TAG_F32, 4)
+    if oren_is_err(ey) { return ey }
+    var n = ptr_get(dst + 0)
+    if n != ptr_get(x + 0) || n != ptr_get(y + 0) { return oren_err(4, "buf_axpy_f32_into: length mismatch") }
+
+    // NOTE: no SIMD fast path yet because f32 axpy semantics are defined as f64 fused op
+    // followed by one f32 rounding on store. We can add a deterministic SIMD strategy later.
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(dst, i, (oren_buf_load_f32(x, i) * alpha) + oren_buf_load_f32(y, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_axpy_f32_in_place(alpha: f64, x, y) {
+    return oren_buf_axpy_f32_into(y, alpha, x, y)
+}
+
+fn oren_buf_axpy_i32_into(dst, alpha, x, y) {
+    var ed = native_buf_check(dst, BUF_TAG_I32, 4)
+    if oren_is_err(ed) { return ed }
+    var ex = native_buf_check(x, BUF_TAG_I32, 4)
+    if oren_is_err(ex) { return ex }
+    var ey = native_buf_check(y, BUF_TAG_I32, 4)
+    if oren_is_err(ey) { return ey }
+    var n = ptr_get(dst + 0)
+    if n != ptr_get(x + 0) || n != ptr_get(y + 0) { return oren_err(4, "buf_axpy_i32_into: length mismatch") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(dst, i, (alpha * oren_buf_load_i32(x, i)) + oren_buf_load_i32(y, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_axpy_i32_in_place(alpha, x, y) {
+    return oren_buf_axpy_i32_into(y, alpha, x, y)
 }
 
 fn oren_buf_reduce_sum_f32(buf): f64 {

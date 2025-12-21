@@ -85,6 +85,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Perf smoke stays “no thresholds”; correctness tests stay small and deterministic.
    - Status (rolling):
      - DONE: f32 reductions now have deterministic NEON paths in C runtime (`oren_buf_dot_f32*`, `oren_buf_reduce_sum_f32*`) matching AVM semantics.
+     - DONE: native SIMD integration coverage lives in `tests/native/test_simd_suite.oren` (hash/bits checks; SIMD enabled/disabled runs).
+     - NOTE: scalar-multiply “scale i32/f32” SIMD fast paths are intentionally **not** enabled in the native backend yet (prior attempt had correctness issues; removed to keep the repo green).
+     - Implemented (code present, needs explicit C-backend coverage): additional NEON kernels in `lib/runtime_buf.c` (i32 axpy + scale/add/mul variants).
      - NEXT: add a small deterministic GEMM microkernel (start with `i32` matmul tiles; keep `f32` on dot-based path until a stable FP strategy is agreed).
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**

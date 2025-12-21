@@ -196,6 +196,218 @@ fn run_dot_f32() {
     return 0
 }
 
+fn run_reduce_sum_f32() {
+    var n = 2048
+    var a = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(500, "alloc a (reduce_sum f32)") }
+
+    var i = 0
+    while i < n {
+        // Keep values modest to reduce overflow/NaN risk while still exercising SIMD.
+        oren_buf_store_f32(a, i, (f64(i % 257) - 100.0) * 0.125)
+        i = i + 1
+    }
+
+    var ref = 0.0
+    i = 0
+    while i < n {
+        ref = ref + oren_buf_load_f32(a, i)
+        i = i + 1
+    }
+
+    var sum = oren_buf_reduce_sum_f32(a)
+    if oren_is_err(sum) { return fail(501, "reduce_sum returned err (f32)") }
+
+    var ref_bits = oren_f64_to_u64_bits(ref)
+    var sum_bits = oren_f64_to_u64_bits(sum)
+    if ref_bits != sum_bits { return fail(520, "reduce_sum mismatch (f32)") }
+
+    print("SUM_F32_BITS=" + oren_int_to_string(sum_bits))
+    return 0
+}
+
+fn run_axpy_f32() {
+    var n = 1024
+    var x = oren_f32_buf_new(n)
+    var y = oren_f32_buf_new(n)
+    var out_ref = oren_f32_buf_new(n)
+    var out_got = oren_f32_buf_new(n)
+    if oren_is_err(x) { return fail(600, "alloc x (axpy f32)") }
+    if oren_is_err(y) { return fail(601, "alloc y (axpy f32)") }
+    if oren_is_err(out_ref) { return fail(602, "alloc out_ref (axpy f32)") }
+    if oren_is_err(out_got) { return fail(603, "alloc out_got (axpy f32)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(x, i, f64(i % 97) - 41.0)
+        oren_buf_store_f32(y, i, f64((i * 5) % 113) - 55.0)
+        i = i + 1
+    }
+
+    var alpha = 1.25 // exactly representable in IEEE-754
+    i = 0
+    while i < n {
+        var xv = oren_buf_load_f32(x, i)
+        var yv = oren_buf_load_f32(y, i)
+        oren_buf_store_f32(out_ref, i, alpha * xv + yv)
+        i = i + 1
+    }
+
+    var r = oren_buf_axpy_f32_into(out_got, alpha, x, y)
+    if oren_is_err(r) { return fail(604, "axpy_f32_into returned err") }
+
+    var h = 2166136261
+    i = 0
+    while i < n {
+        var refB = f32_bits_at(out_ref, i)
+        var gotB = f32_bits_at(out_got, i)
+        if refB != gotB { return fail(620, "axpy bits mismatch (f32)") }
+        h = hash_u32_mix(h, gotB)
+        i = i + 1
+    }
+
+    print("AXPY_F32_HASH=" + oren_int_to_string(h))
+    return 0
+}
+
+fn run_axpy_i32() {
+    var n = 1024
+    var x = oren_i32_buf_new(n)
+    var y = oren_i32_buf_new(n)
+    var out_ref = oren_i32_buf_new(n)
+    var out_got = oren_i32_buf_new(n)
+    if oren_is_err(x) { return fail(700, "alloc x (axpy i32)") }
+    if oren_is_err(y) { return fail(701, "alloc y (axpy i32)") }
+    if oren_is_err(out_ref) { return fail(702, "alloc out_ref (axpy i32)") }
+    if oren_is_err(out_got) { return fail(703, "alloc out_got (axpy i32)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(x, i, (i * 13) - 999)
+        oren_buf_store_i32(y, i, (i * 7) + 12345)
+        i = i + 1
+    }
+
+    var alpha = 7
+    i = 0
+    while i < n {
+        var xv = oren_buf_load_i32(x, i)
+        var yv = oren_buf_load_i32(y, i)
+        // i32 wrap semantics
+        oren_buf_store_i32(out_ref, i, (alpha * xv) + yv)
+        i = i + 1
+    }
+
+    var r = oren_buf_axpy_i32_into(out_got, alpha, x, y)
+    if oren_is_err(r) { return fail(704, "axpy_i32_into returned err") }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        var refV = oren_buf_load_i32(out_ref, i)
+        var gotV = oren_buf_load_i32(out_got, i)
+        if refV != gotV {
+            print("AXPY_I32_MISMATCH_IDX=" + oren_int_to_string(i))
+            print("AXPY_I32_REF=" + oren_int_to_string(refV))
+            print("AXPY_I32_GOT=" + oren_int_to_string(gotV))
+            return fail(720, "axpy mismatch (i32)")
+        }
+        sum = sum + gotV
+        i = i + 1
+    }
+
+    print("AXPY_I32_SUM=" + oren_int_to_string(sum))
+    return 0
+}
+
+fn run_scale_f32_into() {
+    var n = 1024
+    var a = oren_f32_buf_new(n)
+    var out_ref = oren_f32_buf_new(n)
+    var out_got = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(800, "alloc a (scale f32)") }
+    if oren_is_err(out_ref) { return fail(801, "alloc out_ref (scale f32)") }
+    if oren_is_err(out_got) { return fail(802, "alloc out_got (scale f32)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(a, i, f64(i % 97) - 41.0)
+        i = i + 1
+    }
+
+    var s = 0.5 // exactly representable
+    i = 0
+    while i < n {
+        oren_buf_store_f32(out_ref, i, oren_buf_load_f32(a, i) * s)
+        i = i + 1
+    }
+
+    var r = oren_buf_scale_f32_into(out_got, a, s)
+    if oren_is_err(r) { return fail(803, "scale_f32_into returned err") }
+
+    var h = 2166136261
+    i = 0
+    while i < n {
+        var refB = f32_bits_at(out_ref, i)
+        var gotB = f32_bits_at(out_got, i)
+        if refB != gotB {
+            print("SCALE_F32_MISMATCH_IDX=" + oren_int_to_string(i))
+            print("SCALE_F32_REF_BITS=" + oren_int_to_string(refB))
+            print("SCALE_F32_GOT_BITS=" + oren_int_to_string(gotB))
+            return fail(820, "scale bits mismatch (f32)")
+        }
+        h = hash_u32_mix(h, gotB)
+        i = i + 1
+    }
+
+    print("SCALE_F32_HASH=" + oren_int_to_string(h))
+    return 0
+}
+
+fn run_scale_i32_into() {
+    var n = 1024
+    var a = oren_i32_buf_new(n)
+    var out_ref = oren_i32_buf_new(n)
+    var out_got = oren_i32_buf_new(n)
+    if oren_is_err(a) { return fail(900, "alloc a (scale i32)") }
+    if oren_is_err(out_ref) { return fail(901, "alloc out_ref (scale i32)") }
+    if oren_is_err(out_got) { return fail(902, "alloc out_got (scale i32)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(a, i, (i * 13) - 999)
+        i = i + 1
+    }
+
+    var s = 7
+    i = 0
+    while i < n {
+        oren_buf_store_i32(out_ref, i, oren_buf_load_i32(a, i) * s)
+        i = i + 1
+    }
+
+    var r = oren_buf_scale_i32_into(out_got, a, s)
+    if oren_is_err(r) { return fail(903, "scale_i32_into returned err") }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        var refV = oren_buf_load_i32(out_ref, i)
+        var gotV = oren_buf_load_i32(out_got, i)
+        if refV != gotV {
+            print("SCALE_I32_MISMATCH_IDX=" + oren_int_to_string(i))
+            print("SCALE_I32_REF=" + oren_int_to_string(refV))
+            print("SCALE_I32_GOT=" + oren_int_to_string(gotV))
+            return fail(920, "scale mismatch (i32)")
+        }
+        sum = sum + gotV
+        i = i + 1
+    }
+
+    print("SCALE_I32_SUM=" + oren_int_to_string(sum))
+    return 0
+}
+
 fn main() {
     // Runner compares scalar vs SIMD output; keep stable, parseable key/value lines.
     print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
@@ -204,7 +416,11 @@ fn main() {
     if run_i32_buf_ops() != 0 { return 1 }
     if run_f32_buf_ops() != 0 { return 1 }
     if run_dot_f32() != 0 { return 1 }
+    if run_reduce_sum_f32() != 0 { return 1 }
+    if run_axpy_f32() != 0 { return 1 }
+    if run_axpy_i32() != 0 { return 1 }
+    if run_scale_f32_into() != 0 { return 1 }
+    if run_scale_i32_into() != 0 { return 1 }
 
     return 0
 }
-
