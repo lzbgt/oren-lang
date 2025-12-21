@@ -291,5 +291,11 @@ assert_eq(5e-1, 0.5, 114, "float literal sci: 5e-1")
 assert_true(math.abs_f(math.log2(1024.0) - 10.0) < 1e-12, 115, "log2(1024) ~ 10")
 assert_true(math.abs_f(math.exp(math.ln(3.0)) - 3.0) < 1e-10, 116, "exp(ln(3)) ~ 3")
 
+// trig (deterministic approximations)
+assert_true(math.abs_f(math.sin(0.0) - 0.0) < 1e-15, 117, "sin(0)")
+assert_true(math.abs_f(math.cos(0.0) - 1.0) < 1e-15, 118, "cos(0)")
+assert_true(math.abs_f(math.sin(math.pi() / 2.0) - 1.0) < 1e-10, 119, "sin(pi/2) ~ 1")
+assert_true(math.abs_f(math.cos(math.pi()) - -1.0) < 1e-10, 120, "cos(pi) ~ -1")
+
 print("module integration_suite OK")
 exit(0)

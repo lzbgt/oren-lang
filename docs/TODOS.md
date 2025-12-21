@@ -119,7 +119,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Status (rolling):
      - DONE: `math.sqrt`, `math.powi`, `math.is_inf/is_finite/signbit/copysign` (covered in `tests/modules/test_integration_suite.oren`).
      - DONE: `math.exp2/exp/log2/ln` (range-reduced, fixed-iteration, no host libm; covered in `tests/modules/test_integration_suite.oren` with tight deterministic tolerances).
-     - NEXT: trig (`sin/cos/atan2`) with a documented error model + property tests in `./oretest --full`.
+     - DONE: `math.sin/math.cos` (range-reduced, fixed polynomial; guarded for huge |x|; covered in `tests/modules/test_integration_suite.oren`).
+     - NEXT: `atan2` + improved range reduction (Payne–Hanek) so trig works for huge |x| without errors; property tests in `./oretest --full`.
 
 ### B) AVM (evolves alongside language/compiler)
 
