@@ -1668,6 +1668,137 @@ OrenValue oren_buf_dot_f32_4_slice_into(
     return out;
 }
 
+OrenValue oren_buf_dot_f64_4_slice_into(
+    OrenValue out, OrenValue out_offv,
+    OrenValue a, OrenValue a_offv,
+    OrenValue b, OrenValue b0_offv, OrenValue b1_offv, OrenValue b2_offv, OrenValue b3_offv,
+    OrenValue nv) {
+    if (!buf_is_f64(out) || out_offv.type != OREN_TYPE_INT
+        || !buf_is_f64(a) || a_offv.type != OREN_TYPE_INT
+        || !buf_is_f64(b)
+        || b0_offv.type != OREN_TYPE_INT || b1_offv.type != OREN_TYPE_INT || b2_offv.type != OREN_TYPE_INT || b3_offv.type != OREN_TYPE_INT
+        || nv.type != OREN_TYPE_INT) {
+        return buf_err("oren_buf_dot_f64_4_slice_into expects (f64_buf,int,f64_buf,int,f64_buf,int,int,int,int,int)");
+    }
+
+    OrenBuf* bout = out.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    long long out_off_ll = out_offv.as.int_val;
+    long long a_off_ll = a_offv.as.int_val;
+    long long b0_off_ll = b0_offv.as.int_val;
+    long long b1_off_ll = b1_offv.as.int_val;
+    long long b2_off_ll = b2_offv.as.int_val;
+    long long b3_off_ll = b3_offv.as.int_val;
+    long long n_ll = nv.as.int_val;
+
+    if (out_off_ll < 0 || a_off_ll < 0 || b0_off_ll < 0 || b1_off_ll < 0 || b2_off_ll < 0 || b3_off_ll < 0 || n_ll < 0) {
+        return buf_err("buf_dot_f64_4_slice_into: negative arg");
+    }
+    if ((uint64_t)out_off_ll > (uint64_t)bout->len || (uint64_t)bout->len - (uint64_t)out_off_ll < 4u) {
+        return buf_err("buf_dot_f64_4_slice_into: out range out of bounds");
+    }
+    if ((uint64_t)a_off_ll > (uint64_t)ba->len) return buf_err("buf_dot_f64_4_slice_into: a_off out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a_off_ll) return buf_err("buf_dot_f64_4_slice_into: a range out of bounds");
+
+    if ((uint64_t)b0_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_f64_4_slice_into: b0_off out of bounds");
+    if ((uint64_t)b1_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_f64_4_slice_into: b1_off out of bounds");
+    if ((uint64_t)b2_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_f64_4_slice_into: b2_off out of bounds");
+    if ((uint64_t)b3_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_f64_4_slice_into: b3_off out of bounds");
+
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b0_off_ll) return buf_err("buf_dot_f64_4_slice_into: b0 range out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b1_off_ll) return buf_err("buf_dot_f64_4_slice_into: b1 range out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b2_off_ll) return buf_err("buf_dot_f64_4_slice_into: b2 range out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b3_off_ll) return buf_err("buf_dot_f64_4_slice_into: b3 range out of bounds");
+
+    uint32_t n = (uint32_t)n_ll;
+    uint32_t out_off = (uint32_t)out_off_ll;
+    uint32_t a_off = (uint32_t)a_off_ll;
+    uint32_t b0_off = (uint32_t)b0_off_ll;
+    uint32_t b1_off = (uint32_t)b1_off_ll;
+    uint32_t b2_off = (uint32_t)b2_off_ll;
+    uint32_t b3_off = (uint32_t)b3_off_ll;
+
+    double s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 2u) {
+        const double* pa = (const double*)(const void*)(buf_data(ba) + a_off * 8u);
+        const double* pb0 = (const double*)(const void*)(buf_data(bb) + b0_off * 8u);
+        const double* pb1 = (const double*)(const void*)(buf_data(bb) + b1_off * 8u);
+        const double* pb2 = (const double*)(const void*)(buf_data(bb) + b2_off * 8u);
+        const double* pb3 = (const double*)(const void*)(buf_data(bb) + b3_off * 8u);
+
+        uint32_t i = 0;
+        for (; i + 2u <= n; i += 2u) {
+            float64x2_t va = vld1q_f64(pa + i);
+            float64x2_t vb0 = vld1q_f64(pb0 + i);
+            float64x2_t vb1 = vld1q_f64(pb1 + i);
+            float64x2_t vb2 = vld1q_f64(pb2 + i);
+            float64x2_t vb3 = vld1q_f64(pb3 + i);
+
+            float64x2_t p0 = vmulq_f64(va, vb0);
+            float64x2_t p1 = vmulq_f64(va, vb1);
+            float64x2_t p2 = vmulq_f64(va, vb2);
+            float64x2_t p3 = vmulq_f64(va, vb3);
+
+            // Preserve scalar accumulation order: element i then i+1.
+            s0 += vgetq_lane_f64(p0, 0); s0 += vgetq_lane_f64(p0, 1);
+            s1 += vgetq_lane_f64(p1, 0); s1 += vgetq_lane_f64(p1, 1);
+            s2 += vgetq_lane_f64(p2, 0); s2 += vgetq_lane_f64(p2, 1);
+            s3 += vgetq_lane_f64(p3, 0); s3 += vgetq_lane_f64(p3, 1);
+        }
+        for (; i < n; i++) {
+            uint64_t ua = load_u64_le(buf_data(ba) + (a_off + i) * 8u);
+            uint64_t ub0 = load_u64_le(buf_data(bb) + (b0_off + i) * 8u);
+            uint64_t ub1 = load_u64_le(buf_data(bb) + (b1_off + i) * 8u);
+            uint64_t ub2 = load_u64_le(buf_data(bb) + (b2_off + i) * 8u);
+            uint64_t ub3 = load_u64_le(buf_data(bb) + (b3_off + i) * 8u);
+            double da = 0.0, db0 = 0.0, db1 = 0.0, db2 = 0.0, db3 = 0.0;
+            memcpy(&da, &ua, sizeof(da));
+            memcpy(&db0, &ub0, sizeof(db0));
+            memcpy(&db1, &ub1, sizeof(db1));
+            memcpy(&db2, &ub2, sizeof(db2));
+            memcpy(&db3, &ub3, sizeof(db3));
+            s0 += da * db0;
+            s1 += da * db1;
+            s2 += da * db2;
+            s3 += da * db3;
+        }
+    } else
+#endif
+    {
+        for (uint32_t i = 0; i < n; i++) {
+            uint64_t ua = load_u64_le(buf_data(ba) + (a_off + i) * 8u);
+            uint64_t ub0 = load_u64_le(buf_data(bb) + (b0_off + i) * 8u);
+            uint64_t ub1 = load_u64_le(buf_data(bb) + (b1_off + i) * 8u);
+            uint64_t ub2 = load_u64_le(buf_data(bb) + (b2_off + i) * 8u);
+            uint64_t ub3 = load_u64_le(buf_data(bb) + (b3_off + i) * 8u);
+            double da = 0.0, db0 = 0.0, db1 = 0.0, db2 = 0.0, db3 = 0.0;
+            memcpy(&da, &ua, sizeof(da));
+            memcpy(&db0, &ub0, sizeof(db0));
+            memcpy(&db1, &ub1, sizeof(db1));
+            memcpy(&db2, &ub2, sizeof(db2));
+            memcpy(&db3, &ub3, sizeof(db3));
+            s0 += da * db0;
+            s1 += da * db1;
+            s2 += da * db2;
+            s3 += da * db3;
+        }
+    }
+
+    uint64_t u0 = 0, u1 = 0, u2 = 0, u3 = 0;
+    memcpy(&u0, &s0, sizeof(u0));
+    memcpy(&u1, &s1, sizeof(u1));
+    memcpy(&u2, &s2, sizeof(u2));
+    memcpy(&u3, &s3, sizeof(u3));
+    store_u64_le(buf_data(bout) + (out_off + 0u) * 8u, u0);
+    store_u64_le(buf_data(bout) + (out_off + 1u) * 8u, u1);
+    store_u64_le(buf_data(bout) + (out_off + 2u) * 8u, u2);
+    store_u64_le(buf_data(bout) + (out_off + 3u) * 8u, u3);
+    return out;
+}
+
 OrenValue oren_buf_gemm_i32_4x4_slice_into(
     OrenValue out, OrenValue out_offv,
     OrenValue a, OrenValue a0_offv, OrenValue a1_offv, OrenValue a2_offv, OrenValue a3_offv,

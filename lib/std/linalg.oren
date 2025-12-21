@@ -798,6 +798,10 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
         }
     }
 
+    // Reusable scratch for the 1x4 dot microkernel (avoid 4 passes over A in tight loops).
+    var tmp4: []f64 = buffer.f64_new(4)
+    if oren_is_err(tmp4) { return tmp4 }
+
     var i = 0
     while i < m {
         var bj2 = 0
@@ -814,17 +818,52 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
                 var kn = n - kbase
                 if kn > KB { kn = KB }
 
-                if use_packed {
-                    var base_tile = (bj2 * tiles_k + bk2) * JB * KB
-                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile + 0 * KB, kn) }
-                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile + 1 * KB, kn) }
-                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile + 2 * KB, kn) }
-                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile + 3 * KB, kn) }
+                if base_j + 3 < p {
+                    if use_packed {
+                        var base_tile = (bj2 * tiles_k + bk2) * JB * KB
+                        var r = oren_buf_dot_f64_4_slice_into(
+                            tmp4, 0,
+                            a, i * n + kbase,
+                            bp,
+                            base_tile + 0 * KB,
+                            base_tile + 1 * KB,
+                            base_tile + 2 * KB,
+                            base_tile + 3 * KB,
+                            kn)
+                        if oren_is_err(r) { return r }
+                        s0 = s0 + oren_buf_load_f64(tmp4, 0)
+                        s1 = s1 + oren_buf_load_f64(tmp4, 1)
+                        s2 = s2 + oren_buf_load_f64(tmp4, 2)
+                        s3 = s3 + oren_buf_load_f64(tmp4, 3)
+                    } else {
+                        var r2 = oren_buf_dot_f64_4_slice_into(
+                            tmp4, 0,
+                            a, i * n + kbase,
+                            bt,
+                            (base_j + 0) * n + kbase,
+                            (base_j + 1) * n + kbase,
+                            (base_j + 2) * n + kbase,
+                            (base_j + 3) * n + kbase,
+                            kn)
+                        if oren_is_err(r2) { return r2 }
+                        s0 = s0 + oren_buf_load_f64(tmp4, 0)
+                        s1 = s1 + oren_buf_load_f64(tmp4, 1)
+                        s2 = s2 + oren_buf_load_f64(tmp4, 2)
+                        s3 = s3 + oren_buf_load_f64(tmp4, 3)
+                    }
                 } else {
-                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn) }
-                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn) }
-                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn) }
-                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn) }
+                    if use_packed {
+                        var base_tile2 = (bj2 * tiles_k + bk2) * JB * KB
+                        if base_j + 0 < p { s0 = s0 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile2 + 0 * KB, kn) }
+                        if base_j + 1 < p { s1 = s1 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile2 + 1 * KB, kn) }
+                        if base_j + 2 < p { s2 = s2 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile2 + 2 * KB, kn) }
+                        if base_j + 3 < p { s3 = s3 + oren_buf_dot_f64_slice(a, i * n + kbase, bp, base_tile2 + 3 * KB, kn) }
+                    } else {
+                        if base_j + 0 < p { s0 = s0 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn) }
+                        if base_j + 1 < p { s1 = s1 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn) }
+                        if base_j + 2 < p { s2 = s2 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn) }
+                        if base_j + 3 < p { s3 = s3 + oren_buf_dot_f64_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn) }
+                    }
                 }
                 bk2 = bk2 + 1
             }
