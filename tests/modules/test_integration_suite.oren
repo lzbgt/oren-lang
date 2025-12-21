@@ -303,5 +303,10 @@ assert_true(math.abs_f(math.atan2(1.0, 1.0) - (math.pi() / 4.0)) < 1e-12, 122, "
 assert_true(math.abs_f(math.atan2(1.0, 0.0) - (math.pi() / 2.0)) < 1e-12, 123, "atan2(1,0) ~ pi/2")
 assert_true(math.abs_f(math.atan2(0.0, -1.0) - math.pi()) < 1e-12, 124, "atan2(0,-1) ~ pi")
 
+// else-if (parser sugar): must work and preserve semantics
+var ei = 0
+if false { ei = 1 } else if true { ei = 2 } else { ei = 3 }
+assert_eq(ei, 2, 125, "else-if chain")
+
 print("module integration_suite OK")
 exit(0)

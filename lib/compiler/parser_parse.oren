@@ -1203,8 +1203,19 @@ fn parse_if(p) {
     var alt = nil
     if peek_is(p, token.TOK_ELSE) {
         parser_next_token(p)
-        if expect_peek(p, token.TOK_LBRACE) {
-            alt = parse_block(p)
+        // Support `else if ... { ... }` as syntax sugar for:
+        //   else { if ... { ... } }
+        // so backends can keep the simple `alt: Block | nil` invariant.
+        if peek_is(p, token.TOK_IF) {
+            parser_next_token(p) // 'if'
+            var if_expr = parse_if(p)
+            if if_expr == nil { return nil }
+            alt = ast.new_block(token.new_token(token.TOK_ELSE, "else"))
+            oren_list_push(alt["stmts"], ast.new_expr_stmt(token.new_token(token.TOK_IF, "if"), if_expr))
+        } else {
+            if expect_peek(p, token.TOK_LBRACE) {
+                alt = parse_block(p)
+            }
         }
     }
     return ast.new_if(tok, cond, consq, alt)

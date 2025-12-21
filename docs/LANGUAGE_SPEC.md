@@ -128,7 +128,7 @@ infix_tail      = infix_op expression
                 | index_suffix
                 | cast_suffix ;
 
-if_expr         = "if" expression block [ "else" block ] ;
+if_expr         = "if" expression block [ "else" ( block | if_expr ) ] ;
 fn_lit          = "fn" [ ident ] "(" [ param_list ] ")" block ;
 lambda_lit      = "|" [ ident { "," ident } ] "|" ( expression | block ) ;
                 // Note: for empty parameter lists, the source form `|| expr` is allowed (lexer emits a single `||` token).

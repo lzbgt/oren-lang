@@ -123,6 +123,14 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - DONE: `math.atan/math.atan2` (fdlibm-style range reduction + polynomial; covered in `tests/modules/test_integration_suite.oren`).
      - NEXT: improved trig range reduction (Payne–Hanek) so trig works for huge |x| without errors; property tests in `./oretest --full`.
 
+5) **[lang][ux] `else if` chains (no extra braces)**
+   - Why: modern ergonomics; avoids noisy `else { if ... }` indentation in real code.
+   - DoD:
+     - Parser accepts `else if <cond> { ... }` and lowers to existing `else { if ... }` AST form.
+     - Coverage exists in `tests/modules/test_integration_suite.oren`.
+     - Spec updated in `docs/LANGUAGE_SPEC.md`.
+   - Status: **done**.
+
 ### B) AVM (evolves alongside language/compiler)
 
 1) **[boot][arch] Compiler-in-AVM (close the loop)**
