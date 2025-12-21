@@ -105,6 +105,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - module: `tests/modules/test_integration_suite.oren` covers `add/mul/scale/axpy` on i32 typed buffers
        - native: `tests/native/test_integration_suite.oren` covers `*_into` forms and `axpy` (`oren_buf_add_i32_into`, `oren_buf_mul_i32_into`, `oren_buf_scale_i32_into`, `oren_buf_axpy_i32_into`)
      - DONE: AVM parity: `oren_buf_axpy_{i32,f32}_{into,in_place}` are implemented as AVM natives and covered by `tests/avm/test_smoke_suite.oren`.
+     - DONE: f32 axpy coverage exists in fast suites (module + native + AVM) using exact inputs to avoid tolerance flakiness.
      - NEXT: add an f32 microkernel variant once FP strategy is stabilized; consider f64 after deciding error model vs bitwise determinism.
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**

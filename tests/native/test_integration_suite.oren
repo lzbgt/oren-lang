@@ -496,6 +496,20 @@ fn test_typed_buffers_native() {
     assert_eq(oren_buf_load_f32(fc, 0), 3.5, 463)
     assert_eq(oren_buf_dot_f32(fa, fb), 9.0, 464)
 
+    // f32 axpy: out = alpha*x + y (exact values; deterministic).
+    var fdst = oren_f32_buf_new(3)
+    assert_true(oren_is_err(fdst) == 0, 467)
+    var rc_ax_f = oren_buf_axpy_f32_into(fdst, 2.0, fa, fb) // 2*1.5 + 2.0 = 5.0
+    assert_true(oren_is_err(rc_ax_f) == 0, 468)
+    assert_eq(oren_buf_load_f32(fdst, 0), 5.0, 469)
+
+    var fy2 = oren_f32_buf_new(3)
+    assert_true(oren_is_err(fy2) == 0, 470)
+    oren_buf_fill_f32(fy2, 2.0)
+    var rc_ax_f2 = oren_buf_axpy_f32_in_place(2.0, fa, fy2)
+    assert_true(oren_is_err(rc_ax_f2) == 0, 471)
+    assert_eq(oren_buf_load_f32(fy2, 2), 5.0, 472)
+
     // f32 rounding boundary: 16777217 (2^24+1) rounds to 16777216 in float32.
     var fr = oren_f32_buf_new(1)
     assert_true(oren_is_err(fr) == 0, 465)

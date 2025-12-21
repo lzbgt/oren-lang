@@ -257,6 +257,28 @@ if oren_is_err(ax) { fail(180, "linalg.axpy_i32_buf") }
 assert_eq(oren_buf_load_i32(ax, 0), 12, 181, "i32 axpy[0]")
 assert_eq(oren_buf_load_i32(ax, 7), 96, 182, "i32 axpy[7]")
 
+// f32 typed-buffer ops (axpy) - covers kernel surface for BLAS-like building blocks.
+var xf: []f32 = buffer.f32_new(8)
+var yf: []f32 = buffer.f32_new(8)
+var zf: []f32 = buffer.f32_new(8)
+if oren_is_err(xf) { fail(183, "f32_new xf") }
+if oren_is_err(yf) { fail(184, "f32_new yf") }
+if oren_is_err(zf) { fail(185, "f32_new zf") }
+oren_buf_fill_f32(xf, 1.5)
+oren_buf_fill_f32(yf, 2.0)
+
+var r_axf = oren_buf_axpy_f32_into(zf, 2.0, xf, yf) // 2*1.5 + 2.0 = 5.0
+if oren_is_err(r_axf) { fail(186, "oren_buf_axpy_f32_into") }
+assert_eq(oren_buf_load_f32(zf, 0), 5.0, 187, "f32 axpy[0]")
+assert_eq(oren_buf_load_f32(zf, 7), 5.0, 188, "f32 axpy[7]")
+
+var yf2: []f32 = buffer.f32_new(8)
+if oren_is_err(yf2) { fail(189, "f32_new yf2") }
+oren_buf_fill_f32(yf2, 2.0)
+var r_axf2 = oren_buf_axpy_f32_in_place(2.0, xf, yf2)
+if oren_is_err(r_axf2) { fail(190, "oren_buf_axpy_f32_in_place") }
+assert_eq(oren_buf_load_f32(yf2, 3), 5.0, 191, "f32 axpy in_place")
+
 // --- trait-based iterables (v1 extension over v0 hook) ---
 
 trait Iterable {
