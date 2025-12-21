@@ -4392,7 +4392,84 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 	                double c20 = 0.0, c21 = 0.0, c22 = 0.0, c23 = 0.0;
 	                double c30 = 0.0, c31 = 0.0, c32 = 0.0, c33 = 0.0;
 
-	                for (uint32_t i = 0; i < n; i++) {
+	                uint32_t i = 0;
+#if AVM_HAS_NEON
+	                // Optional SIMD (arm64 NEON) fast path.
+	                //
+	                // Determinism rule:
+	                // - We must match scalar exactly.
+	                // - Scalar semantics are: load f32 bits -> float -> cast to double -> multiply in double -> accumulate in strict i order.
+	                // - Here, we process i in blocks of 2, but we still add lane0 then lane1 so the total accumulation order is identical.
+	                if (vm && vm->enable_simd && n >= 2) {
+	                    for (; i + 1 < n; i += 2) {
+	                        uint32_t a0_bits[2] = {0}, a1_bits[2] = {0}, a2_bits[2] = {0}, a3_bits[2] = {0};
+	                        uint32_t b0_bits[2] = {0}, b1_bits[2] = {0}, b2_bits[2] = {0}, b3_bits[2] = {0};
+
+	                        memcpy(a0_bits, a->data + (a0_off + i) * 4u, 8);
+	                        memcpy(a1_bits, a->data + (a1_off + i) * 4u, 8);
+	                        memcpy(a2_bits, a->data + (a2_off + i) * 4u, 8);
+	                        memcpy(a3_bits, a->data + (a3_off + i) * 4u, 8);
+	                        memcpy(b0_bits, b->data + (b0_off + i) * 4u, 8);
+	                        memcpy(b1_bits, b->data + (b1_off + i) * 4u, 8);
+	                        memcpy(b2_bits, b->data + (b2_off + i) * 4u, 8);
+	                        memcpy(b3_bits, b->data + (b3_off + i) * 4u, 8);
+
+	                        float32x2_t fa0 = vreinterpret_f32_u32(vld1_u32(a0_bits));
+	                        float32x2_t fa1 = vreinterpret_f32_u32(vld1_u32(a1_bits));
+	                        float32x2_t fa2 = vreinterpret_f32_u32(vld1_u32(a2_bits));
+	                        float32x2_t fa3 = vreinterpret_f32_u32(vld1_u32(a3_bits));
+	                        float32x2_t fb0 = vreinterpret_f32_u32(vld1_u32(b0_bits));
+	                        float32x2_t fb1 = vreinterpret_f32_u32(vld1_u32(b1_bits));
+	                        float32x2_t fb2 = vreinterpret_f32_u32(vld1_u32(b2_bits));
+	                        float32x2_t fb3 = vreinterpret_f32_u32(vld1_u32(b3_bits));
+
+	                        float64x2_t da0 = vcvt_f64_f32(fa0);
+	                        float64x2_t da1 = vcvt_f64_f32(fa1);
+	                        float64x2_t da2 = vcvt_f64_f32(fa2);
+	                        float64x2_t da3 = vcvt_f64_f32(fa3);
+	                        float64x2_t db0 = vcvt_f64_f32(fb0);
+	                        float64x2_t db1 = vcvt_f64_f32(fb1);
+	                        float64x2_t db2 = vcvt_f64_f32(fb2);
+	                        float64x2_t db3 = vcvt_f64_f32(fb3);
+
+	                        float64x2_t p00 = vmulq_f64(da0, db0);
+	                        float64x2_t p01 = vmulq_f64(da0, db1);
+	                        float64x2_t p02 = vmulq_f64(da0, db2);
+	                        float64x2_t p03 = vmulq_f64(da0, db3);
+	                        float64x2_t p10 = vmulq_f64(da1, db0);
+	                        float64x2_t p11 = vmulq_f64(da1, db1);
+	                        float64x2_t p12 = vmulq_f64(da1, db2);
+	                        float64x2_t p13 = vmulq_f64(da1, db3);
+	                        float64x2_t p20 = vmulq_f64(da2, db0);
+	                        float64x2_t p21 = vmulq_f64(da2, db1);
+	                        float64x2_t p22 = vmulq_f64(da2, db2);
+	                        float64x2_t p23 = vmulq_f64(da2, db3);
+	                        float64x2_t p30 = vmulq_f64(da3, db0);
+	                        float64x2_t p31 = vmulq_f64(da3, db1);
+	                        float64x2_t p32 = vmulq_f64(da3, db2);
+	                        float64x2_t p33 = vmulq_f64(da3, db3);
+
+	                        c00 += vgetq_lane_f64(p00, 0); c00 += vgetq_lane_f64(p00, 1);
+	                        c01 += vgetq_lane_f64(p01, 0); c01 += vgetq_lane_f64(p01, 1);
+	                        c02 += vgetq_lane_f64(p02, 0); c02 += vgetq_lane_f64(p02, 1);
+	                        c03 += vgetq_lane_f64(p03, 0); c03 += vgetq_lane_f64(p03, 1);
+	                        c10 += vgetq_lane_f64(p10, 0); c10 += vgetq_lane_f64(p10, 1);
+	                        c11 += vgetq_lane_f64(p11, 0); c11 += vgetq_lane_f64(p11, 1);
+	                        c12 += vgetq_lane_f64(p12, 0); c12 += vgetq_lane_f64(p12, 1);
+	                        c13 += vgetq_lane_f64(p13, 0); c13 += vgetq_lane_f64(p13, 1);
+	                        c20 += vgetq_lane_f64(p20, 0); c20 += vgetq_lane_f64(p20, 1);
+	                        c21 += vgetq_lane_f64(p21, 0); c21 += vgetq_lane_f64(p21, 1);
+	                        c22 += vgetq_lane_f64(p22, 0); c22 += vgetq_lane_f64(p22, 1);
+	                        c23 += vgetq_lane_f64(p23, 0); c23 += vgetq_lane_f64(p23, 1);
+	                        c30 += vgetq_lane_f64(p30, 0); c30 += vgetq_lane_f64(p30, 1);
+	                        c31 += vgetq_lane_f64(p31, 0); c31 += vgetq_lane_f64(p31, 1);
+	                        c32 += vgetq_lane_f64(p32, 0); c32 += vgetq_lane_f64(p32, 1);
+	                        c33 += vgetq_lane_f64(p33, 0); c33 += vgetq_lane_f64(p33, 1);
+	                    }
+	                }
+#endif
+
+	                for (; i < n; i++) {
 	                    uint32_t oa0 = (a0_off + i) * 4u;
 	                    uint32_t oa1 = (a1_off + i) * 4u;
 	                    uint32_t oa2 = (a2_off + i) * 4u;
@@ -4507,7 +4584,74 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 	                uint64_t c20 = 0, c21 = 0, c22 = 0, c23 = 0;
 	                uint64_t c30 = 0, c31 = 0, c32 = 0, c33 = 0;
 
-	                for (uint32_t i = 0; i < n; i++) {
+	                uint32_t i = 0;
+#if AVM_HAS_NEON
+	                // Optional SIMD (arm64 NEON) fast path.
+	                //
+	                // Determinism rule:
+	                // - Scalar semantics are: load i32 -> sign-extend to i64 -> multiply -> cast to u64 -> accumulate in strict i order.
+	                // - Here, we process i in blocks of 2, but we still add lane0 then lane1 so the total accumulation order is identical.
+	                if (vm && vm->enable_simd && n >= 2) {
+	                    for (; i + 1 < n; i += 2) {
+	                        int32_t a0_i32[2] = {0}, a1_i32[2] = {0}, a2_i32[2] = {0}, a3_i32[2] = {0};
+	                        int32_t b0_i32[2] = {0}, b1_i32[2] = {0}, b2_i32[2] = {0}, b3_i32[2] = {0};
+
+	                        memcpy(a0_i32, a->data + (a0_off + i) * 4u, 8);
+	                        memcpy(a1_i32, a->data + (a1_off + i) * 4u, 8);
+	                        memcpy(a2_i32, a->data + (a2_off + i) * 4u, 8);
+	                        memcpy(a3_i32, a->data + (a3_off + i) * 4u, 8);
+	                        memcpy(b0_i32, b->data + (b0_off + i) * 4u, 8);
+	                        memcpy(b1_i32, b->data + (b1_off + i) * 4u, 8);
+	                        memcpy(b2_i32, b->data + (b2_off + i) * 4u, 8);
+	                        memcpy(b3_i32, b->data + (b3_off + i) * 4u, 8);
+
+	                        int32x2_t va0 = vld1_s32(a0_i32);
+	                        int32x2_t va1 = vld1_s32(a1_i32);
+	                        int32x2_t va2 = vld1_s32(a2_i32);
+	                        int32x2_t va3 = vld1_s32(a3_i32);
+	                        int32x2_t vb0 = vld1_s32(b0_i32);
+	                        int32x2_t vb1 = vld1_s32(b1_i32);
+	                        int32x2_t vb2 = vld1_s32(b2_i32);
+	                        int32x2_t vb3 = vld1_s32(b3_i32);
+
+	                        int64x2_t p00 = vmull_s32(va0, vb0);
+	                        int64x2_t p01 = vmull_s32(va0, vb1);
+	                        int64x2_t p02 = vmull_s32(va0, vb2);
+	                        int64x2_t p03 = vmull_s32(va0, vb3);
+	                        int64x2_t p10 = vmull_s32(va1, vb0);
+	                        int64x2_t p11 = vmull_s32(va1, vb1);
+	                        int64x2_t p12 = vmull_s32(va1, vb2);
+	                        int64x2_t p13 = vmull_s32(va1, vb3);
+	                        int64x2_t p20 = vmull_s32(va2, vb0);
+	                        int64x2_t p21 = vmull_s32(va2, vb1);
+	                        int64x2_t p22 = vmull_s32(va2, vb2);
+	                        int64x2_t p23 = vmull_s32(va2, vb3);
+	                        int64x2_t p30 = vmull_s32(va3, vb0);
+	                        int64x2_t p31 = vmull_s32(va3, vb1);
+	                        int64x2_t p32 = vmull_s32(va3, vb2);
+	                        int64x2_t p33 = vmull_s32(va3, vb3);
+
+	                        c00 += (uint64_t)vgetq_lane_s64(p00, 0); c00 += (uint64_t)vgetq_lane_s64(p00, 1);
+	                        c01 += (uint64_t)vgetq_lane_s64(p01, 0); c01 += (uint64_t)vgetq_lane_s64(p01, 1);
+	                        c02 += (uint64_t)vgetq_lane_s64(p02, 0); c02 += (uint64_t)vgetq_lane_s64(p02, 1);
+	                        c03 += (uint64_t)vgetq_lane_s64(p03, 0); c03 += (uint64_t)vgetq_lane_s64(p03, 1);
+	                        c10 += (uint64_t)vgetq_lane_s64(p10, 0); c10 += (uint64_t)vgetq_lane_s64(p10, 1);
+	                        c11 += (uint64_t)vgetq_lane_s64(p11, 0); c11 += (uint64_t)vgetq_lane_s64(p11, 1);
+	                        c12 += (uint64_t)vgetq_lane_s64(p12, 0); c12 += (uint64_t)vgetq_lane_s64(p12, 1);
+	                        c13 += (uint64_t)vgetq_lane_s64(p13, 0); c13 += (uint64_t)vgetq_lane_s64(p13, 1);
+	                        c20 += (uint64_t)vgetq_lane_s64(p20, 0); c20 += (uint64_t)vgetq_lane_s64(p20, 1);
+	                        c21 += (uint64_t)vgetq_lane_s64(p21, 0); c21 += (uint64_t)vgetq_lane_s64(p21, 1);
+	                        c22 += (uint64_t)vgetq_lane_s64(p22, 0); c22 += (uint64_t)vgetq_lane_s64(p22, 1);
+	                        c23 += (uint64_t)vgetq_lane_s64(p23, 0); c23 += (uint64_t)vgetq_lane_s64(p23, 1);
+	                        c30 += (uint64_t)vgetq_lane_s64(p30, 0); c30 += (uint64_t)vgetq_lane_s64(p30, 1);
+	                        c31 += (uint64_t)vgetq_lane_s64(p31, 0); c31 += (uint64_t)vgetq_lane_s64(p31, 1);
+	                        c32 += (uint64_t)vgetq_lane_s64(p32, 0); c32 += (uint64_t)vgetq_lane_s64(p32, 1);
+	                        c33 += (uint64_t)vgetq_lane_s64(p33, 0); c33 += (uint64_t)vgetq_lane_s64(p33, 1);
+	                    }
+	                }
+#endif
+
+	                for (; i < n; i++) {
 	                    uint32_t oa0 = (a0_off + i) * 4u;
 	                    uint32_t oa1 = (a1_off + i) * 4u;
 	                    uint32_t oa2 = (a2_off + i) * 4u;
