@@ -122,6 +122,7 @@ func main() {
 	nativeTests := []string{
 		"tests/native/test_integration_suite.oren",
 		"tests/native/test_simd_dot_i32_native.oren",
+		"tests/native/test_simd_i32_buf_ops_native.oren",
 		"tests/native/test_sys_execve_fail_safe.oren",
 		"tests/native/test_debug_panic.oren",
 	}
@@ -991,6 +992,62 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 					_ = appendFileLine(simdLog, "simd   DOT "+strings.TrimSpace(simdDOT))
 					rc = 1
 					runLog = simdLog
+					break
+				}
+			}
+		case "test_simd_i32_buf_ops_native":
+			// Same pattern as simd_dot: run scalar vs SIMD and compare stable outputs.
+			scalarLog := log
+			_ = os.Remove(scalarLog)
+			scalarCmd := fmt.Sprintf("env OREN_NO_SIMD=1 ./%s", out)
+			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
+			runLog = scalarLog
+			if rc != 0 {
+				break
+			}
+			sAdd, okA := extractValueFromLog(scalarLog, "ADD_SUM=")
+			sMul, okM := extractValueFromLog(scalarLog, "MUL_SUM=")
+			sSIMD, okS := extractValueFromLog(scalarLog, "SIMD_ENABLED=")
+			if !okA || !okM || !okS {
+				_ = appendFileLine(scalarLog, "oretest: missing ADD_SUM=/MUL_SUM=/SIMD_ENABLED= output in scalar run")
+				rc = 1
+				break
+			}
+			if strings.TrimSpace(sSIMD) != "0" {
+				_ = appendFileLine(scalarLog, "oretest: expected SIMD_ENABLED=0 in scalar run (OREN_NO_SIMD=1)")
+				rc = 1
+				break
+			}
+
+			if shouldValidateSIMD() {
+				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
+				_ = os.Remove(simdLog)
+				simdCmd := fmt.Sprintf("env OREN_ENABLE_SIMD=1 ./%s", out)
+				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
+				runLog = simdLog
+				if rc != 0 {
+					break
+				}
+				tAdd, okA2 := extractValueFromLog(simdLog, "ADD_SUM=")
+				tMul, okM2 := extractValueFromLog(simdLog, "MUL_SUM=")
+				tSIMD, okS2 := extractValueFromLog(simdLog, "SIMD_ENABLED=")
+				if !okA2 || !okM2 || !okS2 {
+					_ = appendFileLine(simdLog, "oretest: missing ADD_SUM=/MUL_SUM=/SIMD_ENABLED= output in SIMD run")
+					rc = 1
+					break
+				}
+				if strings.TrimSpace(tSIMD) != "1" {
+					_ = appendFileLine(simdLog, "oretest: expected SIMD_ENABLED=1 in SIMD run (OREN_ENABLE_SIMD=1)")
+					rc = 1
+					break
+				}
+				if strings.TrimSpace(tAdd) != strings.TrimSpace(sAdd) || strings.TrimSpace(tMul) != strings.TrimSpace(sMul) {
+					_ = appendFileLine(simdLog, "oretest: native SIMD i32 buf ops mismatch")
+					_ = appendFileLine(simdLog, "scalar ADD_SUM "+strings.TrimSpace(sAdd))
+					_ = appendFileLine(simdLog, "simd   ADD_SUM "+strings.TrimSpace(tAdd))
+					_ = appendFileLine(simdLog, "scalar MUL_SUM "+strings.TrimSpace(sMul))
+					_ = appendFileLine(simdLog, "simd   MUL_SUM "+strings.TrimSpace(tMul))
+					rc = 1
 					break
 				}
 			}

@@ -615,6 +615,14 @@ fn insn_mul_4s(vd, vn, vm) {
     return 1319148544 + (vm * 65536) + (vn * 32) + vd
 }
 
+fn insn_add_4s(vd, vn, vm) {
+    // ADD Vd.4S, Vn.4S, Vm.4S
+    // Verified via clang:
+    //   add v0.4s, v0.4s, v1.4s => 0x4EA18400
+    // Base: 0x4EA08400
+    return 1319142400 + (vm * 65536) + (vn * 32) + vd
+}
+
 fn insn_smull_2d(vd, vn, vm) {
     // SMULL Vd.2D, Vn.2S, Vm.2S
     // Verified via clang:
@@ -648,6 +656,14 @@ fn insn_ldr_q(vt, rn) {
     return 1035993088 + (rn * 32) + vt
 }
 
+fn insn_str_q(vt, rn) {
+    // STR Qt, [Xn] (unsigned offset imm=0)
+    // Verified via clang:
+    //   str q0, [x2] => 0x3D800040
+    // Base: 0x3D800000
+    return 1031798784 + (rn * 32) + vt
+}
+
 fn insn_ldr_ptr(rd, rn) {
     return 4181721088 + (rn * 32) + rd
 }
@@ -659,6 +675,15 @@ fn insn_str_ptr(rd, rn) {
 fn insn_ldr_w(rt, rn, offset) {
     // LDR Wt, [Xn, #imm12<<2] (unsigned offset encoding, scaled by 4)
     return 3107989504 + ((offset / 4) * 1024) + (rn * 32) + rt // base 0xB9400000
+}
+
+fn insn_str_w(rt, rn, offset) {
+    // STR Wt, [Xn, #imm12<<2] (unsigned offset encoding, scaled by 4)
+    // Verified via clang:
+    //   str w0, [x2]      => 0xB9000040
+    //   str w3, [x4,#12]  => 0xB9000C83
+    // Base: 0xB9000000
+    return 3103784960 + ((offset / 4) * 1024) + (rn * 32) + rt
 }
 
 fn insn_ldrsw(rt, rn, offset) {

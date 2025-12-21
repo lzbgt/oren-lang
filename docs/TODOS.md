@@ -71,17 +71,27 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
+1) **[lang][perf] Native-backend arm64 NEON kernels: typed buffers (Eigen/BLAS driver)**
    - DoD:
-     - Define a stable intrinsic boundary (compiler-known names) for vector kernels
-     - Add feature gating + scalar fallback (deterministic)
-     - Expand `std/linalg` kernels safely (keep reference implementations)
+     - Add native-backend NEON kernels for `i32_buf` / `f32_buf` hot loops with scalar fallback
+     - Validate scalar vs SIMD equivalence under env toggles (`OREN_ENABLE_SIMD=1`, `OREN_NO_SIMD=1`)
+     - Keep compiler intrinsics as the stable “dispatch boundary” (no libc, no SDK headers)
    - Status:
-     - **done (C backend):** NEON fast paths for typed-buffer kernels are gated by env (`OREN_ENABLE_SIMD=1`, `OREN_NO_SIMD=1`) and preserve scalar semantics.
-     - **done (AVM):** `oren_buf_dot_i32` is wrap-safe (no signed overflow UB) and gains a NEON fast path behind `AVM_ENABLE_SIMD=1`.
-     - **done (native runtime config):** `OREN_ENABLE_SIMD` is parsed once at startup and stored in native globals (future native NEON kernels can key off it).
-     - **done (native backend, arm64):** `oren_buf_dot_i32` uses a NEON fast path when `native_simd_enabled()==1` (env `OREN_ENABLE_SIMD=1`, `OREN_NO_SIMD=1`), implemented as a compiler intrinsic `simd_dot_i32_ptr(a_ptr,b_ptr,n)->i64` with scalar tail.
-     - **done (native test):** native SIMD dot is validated by running the same test binary twice (scalar vs SIMD) and comparing output (`tests/native/test_simd_dot_i32_native.oren`).
+     - **done:** native `oren_buf_dot_i32` NEON fast path via intrinsic `simd_dot_i32_ptr(a_ptr,b_ptr,n)->i64` + scalar tail.
+     - **next:** add native NEON for `i32_buf` add/mul into (in-place destination) and extend regression tests.
+     - **next:** add native NEON for `f32_buf` add/mul/dot with deterministic semantics (likely f64 accumulation for dot).
+
+2) **[lang][perf] Typed views: slice + stride (HPC + syscall-first parsing)**
+   - DoD:
+     - Define a minimal `slice`/`view` shape (`ptr + len`), then a `stride` matrix view (`ptr + rows + cols + stride`)
+     - Keep views non-owning and bounds-checked; no host-endian dependence
+     - Implement across backends (C/native/bytecode) as a stable surface
+
+3) **[lang][perf] Allocator control for large numeric buffers (no-GC-scanned region)**
+   - DoD:
+     - Expose an allocation mode for large typed-buffer payloads that avoids GC scanning (mmap/arena backing)
+     - Ensure alignment guarantees (cacheline + NEON-friendly) remain a performance property (no semantic change)
+     - Add stress tests for fragmentation + OOM behavior
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -92,6 +102,18 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - produced `.obc` is hash-addressable for swarm validation
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
+
+1) **[stdlib][perf] `std/linalg` v0.3: matmul baseline + kernel dispatch**
+   - DoD:
+     - Provide baseline `matmul_f32` / `matmul_i32` using typed buffers + views
+     - Pluggable kernel dispatch (scalar vs NEON) via intrinsic boundary
+     - Add correctness tests (small shapes) + perf smoke test (no hard perf thresholds)
+
+2) **[stdlib][api] Serde annotations remain stable while language evolves**
+   - DoD:
+     - Keep attribute syntax short (`@pack`, `@json(...)`, `@yaml(...)`, `@cbor(...)`)
+     - Ensure unknown attrs are deterministic (ignored unless explicitly consumed)
+     - Add one integration test that roundtrips nested arrays/maps for JSON/YAML/CBOR
 
 ## Recently Completed (high signal)
 

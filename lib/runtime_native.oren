@@ -6064,6 +6064,15 @@ fn oren_buf_add_i32_into(dst, a, b) {
     if oren_is_err(eb) { return eb }
     var n = ptr_get(a + 0)
     if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_add_i32_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd = native_buf_data_ptr(dst)
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        simd_add_i32_ptr(pd, pa, pb, n)
+        return dst
+    }
+
     var i = 0
     while i < n {
         oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) + oren_buf_load_i32(b, i))
@@ -6185,6 +6194,15 @@ fn oren_buf_mul_i32_into(dst, a, b) {
     if oren_is_err(eb) { return eb }
     var n = ptr_get(a + 0)
     if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_mul_i32_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd2 = native_buf_data_ptr(dst)
+        var pa2 = native_buf_data_ptr(a)
+        var pb2 = native_buf_data_ptr(b)
+        simd_mul_i32_ptr(pd2, pa2, pb2, n)
+        return dst
+    }
+
     var i = 0
     while i < n {
         oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))

@@ -1,0 +1,69 @@
+fn fail(code, msg) {
+    oren_fail(code, "test_simd_i32_buf_ops_native: " + msg)
+    return 1
+}
+
+fn main() {
+    var n = 1024
+    var a = oren_i32_buf_new(n)
+    var b = oren_i32_buf_new(n)
+    var out_add = oren_i32_buf_new(n)
+    var out_mul = oren_i32_buf_new(n)
+    if oren_is_err(a) { return fail(100, "alloc a") }
+    if oren_is_err(b) { return fail(101, "alloc b") }
+    if oren_is_err(out_add) { return fail(102, "alloc out_add") }
+    if oren_is_err(out_mul) { return fail(103, "alloc out_mul") }
+
+    var i = 0
+    while i < n {
+        // Include negatives to ensure correct two's-complement wrapping semantics.
+        oren_buf_store_i32(a, i, (i * 7) - 12345)
+        oren_buf_store_i32(b, i, (i * 11) + 999)
+        i = i + 1
+    }
+
+    // Compute reference sums (scalar), and run the APIs (which may dispatch to SIMD).
+    var ref_add_sum = 0
+    var ref_mul_sum = 0
+    i = 0
+    while i < n {
+        var xa = oren_buf_load_i32(a, i)
+        var xb = oren_buf_load_i32(b, i)
+        // Mirror buf_store_i32 semantics (wrap to i32) by storing and reloading.
+        oren_buf_store_i32(out_add, i, xa + xb)
+        oren_buf_store_i32(out_mul, i, xa * xb)
+        ref_add_sum = ref_add_sum + oren_buf_load_i32(out_add, i)
+        ref_mul_sum = ref_mul_sum + oren_buf_load_i32(out_mul, i)
+        i = i + 1
+    }
+
+    // Now run the in-place ops under test.
+    var out2_add = oren_i32_buf_new(n)
+    var out2_mul = oren_i32_buf_new(n)
+    if oren_is_err(out2_add) { return fail(104, "alloc out2_add") }
+    if oren_is_err(out2_mul) { return fail(105, "alloc out2_mul") }
+
+    var r1 = oren_buf_add_i32_into(out2_add, a, b)
+    if oren_is_err(r1) { return fail(106, "buf_add_i32_into err") }
+    var r2 = oren_buf_mul_i32_into(out2_mul, a, b)
+    if oren_is_err(r2) { return fail(107, "buf_mul_i32_into err") }
+
+    var got_add_sum = 0
+    var got_mul_sum = 0
+    i = 0
+    while i < n {
+        got_add_sum = got_add_sum + oren_buf_load_i32(out2_add, i)
+        got_mul_sum = got_mul_sum + oren_buf_load_i32(out2_mul, i)
+        i = i + 1
+    }
+
+    if got_add_sum != ref_add_sum { return fail(200, "add sum mismatch") }
+    if got_mul_sum != ref_mul_sum { return fail(201, "mul sum mismatch") }
+
+    // Runner validates scalar-vs-simd output by running this binary twice with env toggles.
+    print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
+    print("ADD_SUM=" + oren_int_to_string(got_add_sum))
+    print("MUL_SUM=" + oren_int_to_string(got_mul_sum))
+    return 0
+}
+
