@@ -89,6 +89,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Add a small **tile GEMM microkernel** (e.g. 4×4 or 2×4) for f32 and wire it into `lib/std/linalg.oren` packed path.
    - Current rolling note:
      - Matmul now avoids per-k-block dot calls when **not packed** (Bt is contiguous per column, so we do a single dot/dot_4 across full `n`).
+     - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
 
 2) **[stdlib][hpc] Trig for huge |x|: Payne–Hanek range reduction**
    - DoD:

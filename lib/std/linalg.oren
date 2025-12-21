@@ -301,28 +301,6 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
     var out: []f32 = buffer.f32_new(m * p)
     if oren_is_err(out) { return out }
 
-    // Kernel dispatch boundary (v0):
-    //
-    // We transpose B so that each column becomes a contiguous row in Bt.
-    // Then each output element is a dot product between two contiguous slices,
-    // which enables NEON dot kernels via `oren_buf_dot_f32_slice` without
-    // needing a full matmul microkernel yet.
-    //
-    // Bt is p x n, indexed Bt[j*n + k] = B[k*p + j].
-    var bt: []f32 = buffer.f32_new(n * p)
-    if oren_is_err(bt) { return bt }
-    var k0 = 0
-    while k0 < n {
-        var j0 = 0
-        while j0 < p {
-            var v = oren_buf_load_f32(b, k0 * p + j0)
-            if oren_is_err(v) { return v }
-            oren_buf_store_f32(bt, j0 * n + k0, v)
-            j0 = j0 + 1
-        }
-        k0 = k0 + 1
-    }
-
     // Packed tiles + dot-kernel dispatch (rolling v0.4):
     //
     // - Keep Bt (transpose) as the canonical layout.
@@ -342,6 +320,9 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
     var tiles_k = (n + KB - 1) / KB
     var use_packed = (n >= KB) && (p >= JB) && (n * p >= 4096)
 
+    // If we are packing, pack directly from B without materializing Bt.
+    // If we are not packing, build Bt (transpose) so each column is contiguous.
+    var bt: []f32 = nil
     var bp: []f32 = nil
     if use_packed {
         bp = buffer.f32_new(tiles_j * tiles_k * JB * KB)
@@ -358,7 +339,7 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
                         var global_k = bk * KB + k_in
                         var v = 0.0
                         if global_j < p && global_k < n {
-                            v = oren_buf_load_f32(bt, global_j * n + global_k)
+                            v = oren_buf_load_f32(b, global_k * p + global_j)
                             if oren_is_err(v) { return v }
                         }
                         var dst = (((bj * tiles_k + bk) * JB + j_in) * KB + k_in)
@@ -370,6 +351,21 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
                 bk = bk + 1
             }
             bj = bj + 1
+        }
+    } else {
+        // Bt is p x n, indexed Bt[j*n + k] = B[k*p + j].
+        bt = buffer.f32_new(n * p)
+        if oren_is_err(bt) { return bt }
+        var k0 = 0
+        while k0 < n {
+            var j0 = 0
+            while j0 < p {
+                var v2 = oren_buf_load_f32(b, k0 * p + j0)
+                if oren_is_err(v2) { return v2 }
+                oren_buf_store_f32(bt, j0 * n + k0, v2)
+                j0 = j0 + 1
+            }
+            k0 = k0 + 1
         }
     }
 
@@ -647,21 +643,6 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
     var out: []i32 = buffer.i32_new(m * p)
     if oren_is_err(out) { return out }
 
-    // Transpose B to enable contiguous slice dot kernels.
-    var bt: []i32 = buffer.i32_new(n * p)
-    if oren_is_err(bt) { return bt }
-    var k0 = 0
-    while k0 < n {
-        var j0 = 0
-        while j0 < p {
-            var v = oren_buf_load_i32(b, k0 * p + j0)
-            if oren_is_err(v) { return v }
-            oren_buf_store_i32(bt, j0 * n + k0, v)
-            j0 = j0 + 1
-        }
-        k0 = k0 + 1
-    }
-
     // Optional packed-B layout (tile-major) for cache locality.
     // Mirrors the f32 matmul packing strategy, but for i32.
     var JB = 4
@@ -670,6 +651,9 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
     var tiles_k = (n + KB - 1) / KB
     var use_packed = (n >= KB) && (p >= JB) && (n * p >= 4096)
 
+    // If we are packing, pack directly from B without materializing Bt.
+    // If we are not packing, build Bt (transpose) so each column is contiguous.
+    var bt: []i32 = nil
     var bp: []i32 = nil
     if use_packed {
         bp = buffer.i32_new(tiles_j * tiles_k * JB * KB)
@@ -686,7 +670,7 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                         var global_k0 = bk0 * KB + k_in0
                         var v0 = 0
                         if global_j0 < p && global_k0 < n {
-                            v0 = oren_buf_load_i32(bt, global_j0 * n + global_k0)
+                            v0 = oren_buf_load_i32(b, global_k0 * p + global_j0)
                             if oren_is_err(v0) { return v0 }
                         }
                         var dst0 = (((bj0 * tiles_k + bk0) * JB + j_in0) * KB + k_in0)
@@ -698,6 +682,21 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                 bk0 = bk0 + 1
             }
             bj0 = bj0 + 1
+        }
+    } else {
+        // Transpose B to enable contiguous slice dot kernels.
+        bt = buffer.i32_new(n * p)
+        if oren_is_err(bt) { return bt }
+        var k0 = 0
+        while k0 < n {
+            var j0 = 0
+            while j0 < p {
+                var v = oren_buf_load_i32(b, k0 * p + j0)
+                if oren_is_err(v) { return v }
+                oren_buf_store_i32(bt, j0 * n + k0, v)
+                j0 = j0 + 1
+            }
+            k0 = k0 + 1
         }
     }
 
