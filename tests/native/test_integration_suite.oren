@@ -188,6 +188,22 @@ fn test_syscall_errno() {
     assert_eq(sys_close(-1), 0 - 9, 113)
 }
 
+fn test_sys_execve_fail_safe() {
+    // Regression: sys_execve failure must be safe (must not crash).
+    // Expect: return -ENOENT for a missing executable.
+    // ENOENT is 2 on macOS and Linux.
+    var argvp = malloc(16) // 2 pointers
+    if argvp == 0 { fail(114) }
+    ptr_set(argvp + 0, "no_such_file_hopefully")
+    ptr_set(argvp + 8, 0)
+
+    var rc = sys_execve("no_such_file_hopefully", argvp, 0)
+    if rc != (0 - 2) {
+        print("sys_execve rc=" + oren_int_to_string(rc))
+        fail(115)
+    }
+}
+
 fn test_time_proc() {
     // TIME substrate: should return and not hang; monotonic should not go backwards.
     var r = oren_sleep_ms(1)
@@ -786,6 +802,7 @@ fn main() {
     test_core_smoke()
     test_malloc_bump()
     test_syscall_errno()
+    test_sys_execve_fail_safe()
     test_time_proc()
     test_spawn_join_timeout()
     test_err_predicate_and_bytes_safety()

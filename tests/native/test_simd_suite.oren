@@ -1,0 +1,210 @@
+fn fail(code, msg) {
+    oren_fail(code, "test_simd_suite: " + msg)
+    return 1
+}
+
+fn assert_eq_i64(got, want, code, msg) {
+    if got == want { return 0 }
+    print("assert_eq failed: code=" + oren_int_to_string(code))
+    print("  got=" + oren_int_to_string(got))
+    print("  want=" + oren_int_to_string(want))
+    return fail(code, msg)
+}
+
+fn f32_bits_at(buf, idx) {
+    return oren_f32_to_u32_bits(oren_buf_load_f32(buf, idx))
+}
+
+fn hash_u32_mix(h, x) {
+    // Simple wrap-around mixer (deterministic).
+    return (h * 16777619) + x
+}
+
+fn run_dot_i32() {
+    var n = 1024
+    var a = oren_i32_buf_new(n)
+    var b = oren_i32_buf_new(n)
+    if oren_is_err(a) { return fail(100, "alloc a (i32 dot)") }
+    if oren_is_err(b) { return fail(101, "alloc b (i32 dot)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(a, i, (i * 3) - 7)
+        oren_buf_store_i32(b, i, (i * 5) + 11)
+        i = i + 1
+    }
+
+    var ref = 0
+    i = 0
+    while i < n {
+        ref = ref + (oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+
+    var dot = oren_buf_dot_i32(a, b)
+    if oren_is_err(dot) { return fail(102, "dot returned err (i32)") }
+    if assert_eq_i64(dot, ref, 103, "dot mismatch (i32)") != 0 { return 1 }
+
+    print("DOT_I32=" + oren_int_to_string(dot))
+    return 0
+}
+
+fn run_i32_buf_ops() {
+    var n = 1024
+    var a = oren_i32_buf_new(n)
+    var b = oren_i32_buf_new(n)
+    var out_add = oren_i32_buf_new(n)
+    var out_mul = oren_i32_buf_new(n)
+    if oren_is_err(a) { return fail(200, "alloc a (i32 ops)") }
+    if oren_is_err(b) { return fail(201, "alloc b (i32 ops)") }
+    if oren_is_err(out_add) { return fail(202, "alloc out_add (i32 ops)") }
+    if oren_is_err(out_mul) { return fail(203, "alloc out_mul (i32 ops)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(a, i, (i * 7) - 12345)
+        oren_buf_store_i32(b, i, (i * 11) + 999)
+        i = i + 1
+    }
+
+    var ref_add_sum = 0
+    var ref_mul_sum = 0
+    i = 0
+    while i < n {
+        var xa = oren_buf_load_i32(a, i)
+        var xb = oren_buf_load_i32(b, i)
+        oren_buf_store_i32(out_add, i, xa + xb)
+        oren_buf_store_i32(out_mul, i, xa * xb)
+        ref_add_sum = ref_add_sum + oren_buf_load_i32(out_add, i)
+        ref_mul_sum = ref_mul_sum + oren_buf_load_i32(out_mul, i)
+        i = i + 1
+    }
+
+    var out2_add = oren_i32_buf_new(n)
+    var out2_mul = oren_i32_buf_new(n)
+    if oren_is_err(out2_add) { return fail(204, "alloc out2_add (i32 ops)") }
+    if oren_is_err(out2_mul) { return fail(205, "alloc out2_mul (i32 ops)") }
+
+    var r1 = oren_buf_add_i32_into(out2_add, a, b)
+    if oren_is_err(r1) { return fail(206, "buf_add_i32_into err") }
+    var r2 = oren_buf_mul_i32_into(out2_mul, a, b)
+    if oren_is_err(r2) { return fail(207, "buf_mul_i32_into err") }
+
+    var got_add_sum = 0
+    var got_mul_sum = 0
+    i = 0
+    while i < n {
+        got_add_sum = got_add_sum + oren_buf_load_i32(out2_add, i)
+        got_mul_sum = got_mul_sum + oren_buf_load_i32(out2_mul, i)
+        i = i + 1
+    }
+
+    if got_add_sum != ref_add_sum { return fail(220, "add sum mismatch (i32)") }
+    if got_mul_sum != ref_mul_sum { return fail(221, "mul sum mismatch (i32)") }
+
+    print("I32_ADD_SUM=" + oren_int_to_string(got_add_sum))
+    print("I32_MUL_SUM=" + oren_int_to_string(got_mul_sum))
+    return 0
+}
+
+fn run_f32_buf_ops() {
+    var n = 1024
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(n)
+    var out_add = oren_f32_buf_new(n)
+    var out_mul = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(300, "alloc a (f32 ops)") }
+    if oren_is_err(b) { return fail(301, "alloc b (f32 ops)") }
+    if oren_is_err(out_add) { return fail(302, "alloc out_add (f32 ops)") }
+    if oren_is_err(out_mul) { return fail(303, "alloc out_mul (f32 ops)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(a, i, f64(i % 97) - 41.0)
+        oren_buf_store_f32(b, i, f64((i * 3) % 89) - 22.0)
+        i = i + 1
+    }
+
+    i = 0
+    while i < n {
+        var xa = oren_buf_load_f32(a, i)
+        var xb = oren_buf_load_f32(b, i)
+        oren_buf_store_f32(out_add, i, xa + xb)
+        oren_buf_store_f32(out_mul, i, xa * xb)
+        i = i + 1
+    }
+
+    var out2_add = oren_f32_buf_new(n)
+    var out2_mul = oren_f32_buf_new(n)
+    if oren_is_err(out2_add) { return fail(304, "alloc out2_add (f32 ops)") }
+    if oren_is_err(out2_mul) { return fail(305, "alloc out2_mul (f32 ops)") }
+
+    var r1 = oren_buf_add_f32_into(out2_add, a, b)
+    if oren_is_err(r1) { return fail(306, "buf_add_f32_into err") }
+    var r2 = oren_buf_mul_f32_into(out2_mul, a, b)
+    if oren_is_err(r2) { return fail(307, "buf_mul_f32_into err") }
+
+    var h_add = 2166136261
+    var h_mul = 2166136261
+    i = 0
+    while i < n {
+        var refA = f32_bits_at(out_add, i)
+        var gotA = f32_bits_at(out2_add, i)
+        if refA != gotA { return fail(320, "add bits mismatch (f32)") }
+        var refM = f32_bits_at(out_mul, i)
+        var gotM = f32_bits_at(out2_mul, i)
+        if refM != gotM { return fail(321, "mul bits mismatch (f32)") }
+        h_add = hash_u32_mix(h_add, gotA)
+        h_mul = hash_u32_mix(h_mul, gotM)
+        i = i + 1
+    }
+
+    print("F32_ADD_HASH=" + oren_int_to_string(h_add))
+    print("F32_MUL_HASH=" + oren_int_to_string(h_mul))
+    return 0
+}
+
+fn run_dot_f32() {
+    var n = 1024
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(400, "alloc a (f32 dot)") }
+    if oren_is_err(b) { return fail(401, "alloc b (f32 dot)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(a, i, f64(i % 97) - 41.0)
+        oren_buf_store_f32(b, i, f64((i * 3) % 89) - 22.0)
+        i = i + 1
+    }
+
+    var ref = 0.0
+    i = 0
+    while i < n {
+        ref = ref + (oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+
+    var dot = oren_buf_dot_f32(a, b)
+    if oren_is_err(dot) { return fail(402, "dot returned err (f32)") }
+
+    var ref_bits = oren_f64_to_u64_bits(ref)
+    var dot_bits = oren_f64_to_u64_bits(dot)
+    if ref_bits != dot_bits { return fail(420, "dot mismatch (f32)") }
+
+    print("DOT_F32_BITS=" + oren_int_to_string(dot_bits))
+    return 0
+}
+
+fn main() {
+    // Runner compares scalar vs SIMD output; keep stable, parseable key/value lines.
+    print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
+
+    if run_dot_i32() != 0 { return 1 }
+    if run_i32_buf_ops() != 0 { return 1 }
+    if run_f32_buf_ops() != 0 { return 1 }
+    if run_dot_f32() != 0 { return 1 }
+
+    return 0
+}
+

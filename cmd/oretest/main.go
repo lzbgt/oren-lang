@@ -121,68 +121,17 @@ func main() {
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
 		"tests/native/test_integration_suite.oren",
-		"tests/native/test_simd_dot_i32_native.oren",
-		"tests/native/test_simd_i32_buf_ops_native.oren",
-		"tests/native/test_simd_f32_buf_ops_native.oren",
-		"tests/native/test_simd_dot_f32_native.oren",
-		"tests/native/test_sys_execve_fail_safe.oren",
+		"tests/native/test_simd_suite.oren",
 		"tests/native/test_debug_panic.oren",
 	}
 	moduleTestsFast := []string{
-		// Core language / execution sanity (C backend).
+		// Keep fast suite small: prefer a few integration-first programs.
+		"tests/modules/test_integration_suite.oren",
+		// Spawn/join timeout is a critical "no hangs" guard.
 		"tests/modules/test_spawn_join_timeout.oren",
-		"tests/modules/test_lambda_multiline.oren",
-		"tests/modules/test_trait_impl.oren",
-		"tests/modules/test_trait_qualified_calls.oren",
-		"tests/modules/test_trait_cross_module_calls.oren",
-		"tests/modules/test_trait_blanket_impl_any.oren",
-		"tests/modules/test_optimizer_baseline.oren",
-		"tests/modules/test_match_enum.oren",
-		"tests/modules/test_int_ops_wrap.oren",
-		"tests/modules/test_mod.oren",
-		// Typed annotations and packed views (critical for syscall-first parsing).
-		"tests/modules/test_type_ann_fn_boundaries.oren",
-		"tests/modules/test_typed_struct_fields.oren",
-		"tests/modules/test_pack_view.oren",
-		"tests/modules/test_cast_sugar.oren",
-		"tests/modules/test_cast_overflow.oren",
-		"tests/modules/test_as_cast.oren",
-		"tests/modules/test_bitcast.oren",
-		"tests/modules/test_iter_buffers.oren",
-		"tests/modules/test_iter_range.oren",
-		"tests/modules/test_container_methods.oren",
-		"tests/modules/test_int_literal_bases.oren",
-		"tests/modules/test_generic_call_specialization.oren",
-		"tests/modules/test_generic_fn_monomorph_dot.oren",
-		// ABI layouts (curated, no host headers).
-		"tests/modules/test_abi_layout.oren",
-		"tests/modules/test_abi_ptr_access.oren",
-		"tests/modules/test_abi_socket_structs_v5.oren",
-		// Stdlib building blocks.
-		"tests/modules/test_result.oren",
-		"tests/modules/test_argparse.oren",
-		"tests/modules/test_math.oren",
-		"tests/modules/test_math_rounding.oren",
-		"tests/modules/test_linalg.oren",
-		"tests/modules/test_time_std.oren",
-		"tests/modules/test_buffer_views.oren",
-		"tests/modules/test_buffer_alignment.oren",
-		"tests/modules/test_buffer_alloc_stress.oren",
-		"tests/modules/test_u8_buf_bytes_helpers.oren",
-		"tests/modules/test_alloc_gc_scale.oren",
-		"tests/modules/test_regex.oren",
-		"tests/modules/test_json.oren",
-		"tests/modules/test_json_comments.oren",
-		"tests/modules/test_json_serde_attrs.oren",
-		"tests/modules/test_yaml_serde_attrs.oren",
-		"tests/modules/test_yaml_comments.oren",
-		"tests/modules/test_cbor_serde_attrs.oren",
-		"tests/modules/test_cbor_sequence.oren",
-		"tests/modules/test_cbor_serde_streaming.oren",
-		"tests/modules/test_format_nested_roundtrip.oren",
-		"tests/modules/test_varargs.oren",
 	}
 	moduleTestsFull := []string{
+		"tests/modules/test_integration_suite.oren",
 		"tests/modules/test_shapes.oren",
 		"tests/modules/test_spawn.oren",
 		"tests/modules/test_spawn_join_timeout.oren",
@@ -256,25 +205,16 @@ func main() {
 		"tests/modules/test_varargs.oren",
 	}
 	avmTestsFast := []string{
+		// Broad smoke covers the common surface area quickly.
 		"tests/avm/test_smoke_suite.oren",
-		"tests/avm/test_map_iter_deterministic.oren",
-		"tests/avm/test_iter_range.oren",
-		"tests/avm/test_int_literal_bases.oren",
-		"tests/avm/test_generic_call_specialization.oren",
-		"tests/avm/test_snapshot_resume.oren",
-		"tests/avm/test_snapshot_resume_record_log.oren",
-		"tests/avm/test_snapshot_vfs_resume.oren",
-		"tests/avm/test_state_hash_includes_vfs.oren",
+		// Snapshot/resume and multiverse are core AVM differentiators.
 		"tests/avm/test_snapshot_tasks_resume.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
+		// Determinism + sandbox guards.
 		"tests/avm/test_time_rng_deterministic.oren",
-		"tests/avm/test_budget_timeout.oren",
-		"tests/avm/test_call_depth_limit.oren",
-		"tests/avm/test_arith_invalid.oren",
 		"tests/avm/test_vfs_no_host_fs.oren",
 		"tests/avm/test_vproc_no_host_proc.oren",
 		"tests/avm/test_vnet_no_host_net.oren",
-		"tests/avm/test_varargs_spawn.oren",
 	}
 	avmTestsFull := []string{
 		"tests/avm/test_smoke_suite.oren",
@@ -1004,6 +944,84 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 		runLog := log
 
 		switch name {
+		case "test_simd_suite":
+			// Validate scalar vs SIMD results by running the same binary twice with env toggles,
+			// and comparing stable key/value outputs.
+			scalarLog := log
+			_ = os.Remove(scalarLog)
+			scalarCmd := fmt.Sprintf("%s OREN_NO_SIMD=1 ./%s", envPrefix, out)
+			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
+			runLog = scalarLog
+			if rc != 0 {
+				break
+			}
+
+			sSIMD, okSIMD := extractValueFromLog(scalarLog, "SIMD_ENABLED=")
+			if !okSIMD {
+				_ = appendFileLine(scalarLog, "oretest: missing SIMD_ENABLED= output in scalar run")
+				rc = 1
+				break
+			}
+			if strings.TrimSpace(sSIMD) != "0" {
+				_ = appendFileLine(scalarLog, "oretest: expected SIMD_ENABLED=0 in scalar run (OREN_NO_SIMD=1)")
+				rc = 1
+				break
+			}
+
+			wantKeys := []string{"DOT_I32=", "I32_ADD_SUM=", "I32_MUL_SUM=", "F32_ADD_HASH=", "F32_MUL_HASH=", "DOT_F32_BITS="}
+			wantVals := map[string]string{}
+			for _, k := range wantKeys {
+				v, ok := extractValueFromLog(scalarLog, k)
+				if !ok {
+					_ = appendFileLine(scalarLog, "oretest: missing "+k+" output in scalar run")
+					rc = 1
+					break
+				}
+				wantVals[k] = strings.TrimSpace(v)
+			}
+			if rc != 0 {
+				break
+			}
+
+			if shouldValidateSIMD() {
+				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
+				_ = os.Remove(simdLog)
+				simdCmd := fmt.Sprintf("%s OREN_ENABLE_SIMD=1 ./%s", envPrefix, out)
+				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
+				runLog = simdLog
+				if rc != 0 {
+					break
+				}
+
+				tSIMD, okSIMD2 := extractValueFromLog(simdLog, "SIMD_ENABLED=")
+				if !okSIMD2 {
+					_ = appendFileLine(simdLog, "oretest: missing SIMD_ENABLED= output in SIMD run")
+					rc = 1
+					break
+				}
+				if strings.TrimSpace(tSIMD) != "1" {
+					_ = appendFileLine(simdLog, "oretest: expected SIMD_ENABLED=1 in SIMD run (OREN_ENABLE_SIMD=1)")
+					rc = 1
+					break
+				}
+
+				for _, k := range wantKeys {
+					tv, ok := extractValueFromLog(simdLog, k)
+					if !ok {
+						_ = appendFileLine(simdLog, "oretest: missing "+k+" output in SIMD run")
+						rc = 1
+						break
+					}
+					tv = strings.TrimSpace(tv)
+					if tv != wantVals[k] {
+						_ = appendFileLine(simdLog, "oretest: native SIMD mismatch for "+k)
+						_ = appendFileLine(simdLog, "scalar "+k+wantVals[k])
+						_ = appendFileLine(simdLog, "simd   "+k+tv)
+						rc = 1
+						break
+					}
+				}
+			}
 		case "test_simd_dot_i32_native":
 			// Validate scalar vs SIMD results by running the same binary twice with env toggles.
 			//

@@ -45,6 +45,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Avoid “infinite P0s” like “harden everything” without a crisp deliverable.
    - Keep the list *short and top-down prioritized* (target ~10–20 items max); merge and archive aggressively.
    - Repo must build from a clean clone: ignore build outputs only (do not accidentally ignore source dirs like `cmd/oren/` or `cmd/oretest/`).
+   - Test policy guard:
+     - Default (fast) suite must stay **integration-first** and **small** (goal: ≤ ~3 module tests + ≤ ~8 AVM tests).
+     - New fine-grained tests should go to `./oretest --full` unless they catch a regression that cannot be represented in an integration suite.
 
 7) **Linux Docker runner is persistent** `[maint]`
    - Use a long-lived linux/arm64 container for smoke tests (avoid `docker run --rm` + repeated installs).
@@ -114,6 +117,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Test runner: fast suite is now integration-first (added `tests/modules/test_integration_suite.oren` + merged native SIMD tests into `tests/native/test_simd_suite.oren`).
 - Struct unification: `struct` values are map-shaped + mutable across backends (see archive entry).
 - AVM snapshots v7: snapshot/restore now includes scheduler state (tasks + channels + queues) so spawned workloads can be paused/resumed.
 - Bytecode backend: `oren_yield()` now returns canonical `nil` (stack-balanced as an expression), preventing verifier stack-height mismatches.

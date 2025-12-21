@@ -1,0 +1,173 @@
+// Integration-first smoke suite (C backend).
+//
+// Goal: keep `make test` fast by exercising many high-signal features in one
+// compilation+run, instead of dozens of tiny "atomic" tests.
+//
+// NOTE: Deeper/edge-case coverage lives in the curated `--full` suite.
+
+import buffer "../../lib/std/buffer.oren"
+import linalg "../../lib/std/linalg.oren"
+import re "../../lib/std/regex.oren"
+import json "../../lib/std/json.oren"
+import yaml "../../lib/std/yaml.oren"
+import cbor "../../lib/std/cbor.oren"
+import time "../../lib/std/time.oren"
+import result "../../lib/std/result.oren"
+
+fn fail(code, msg) {
+    print("module integration_suite FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_eq(a, b, code, msg) {
+    if a == b { return 0 }
+    fail(code, msg)
+}
+
+// --- casts + typed primitives ---
+
+assert_eq(u8(256 + 5), 5, 10, "u8 wrap")
+assert_eq(i8(255), -1, 11, "i8 wrap")
+assert_eq(u16(65536 + 7), 7, 12, "u16 wrap")
+assert_eq(i16(65535), -1, 13, "i16 wrap")
+assert_eq(u32(4294967296 + 9), 9, 14, "u32 wrap")
+assert_eq(i32(4294967295), -1, 15, "i32 wrap")
+
+// float -> int casts: truncate toward zero, then wrap/truncate to width.
+assert_eq(u8(1.9), 1, 16, "u8 trunc")
+assert_eq(u8(-1.9), 255, 17, "u8 trunc negative")
+assert_eq(i32(1.9), 1, 18, "i32 trunc")
+assert_eq(i32(-1.9), -1, 19, "i32 trunc negative")
+
+// int -> f32: accept integer input (implicit int->f64 then f64->f32 is OK).
+assert_eq(f32(16777217), 16777216.0, 20, "f32 rounding boundary")
+
+// --- ABI layout (no host headers) ---
+
+@abi
+struct ABI1 {
+    a: u8,
+    b: u32,
+    c: u16
+}
+assert_eq(oren_abi_alignof("ABI1"), 4, 30, "ABI1 align")
+assert_eq(oren_abi_offsetof("ABI1", "a"), 0, 31, "ABI1 a offset")
+assert_eq(oren_abi_offsetof("ABI1", "b"), 4, 32, "ABI1 b offset")
+assert_eq(oren_abi_offsetof("ABI1", "c"), 8, 33, "ABI1 c offset")
+assert_eq(oren_abi_sizeof("ABI1"), 12, 34, "ABI1 sizeof")
+
+// --- packed views (network-order parsing story) ---
+
+@pack
+struct H {
+    v: u8,
+    t: u8,
+    len: u16be,
+    src: u32be,
+    dst: u32be
+}
+
+var hb = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+assert_eq(pack_view("H", hb, 0).v, 69, 40, "pack_view read v")
+assert_eq(pack_view("H", hb, 0).len, 84, 41, "pack_view read len")
+assert_eq(pack_view("H", hb, 0).src, 3232235521, 42, "pack_view read src")
+assert_eq(pack_view("H", hb, 0).dst, 134744072, 43, "pack_view read dst")
+
+var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+pack_view("H", out, 0).v = 69
+pack_view("H", out, 0).len = 84
+pack_view("H", out, 0).src = 3232235521
+pack_view("H", out, 0).dst = 134744072
+assert_eq(pack_view("H", out, 0).dst, 134744072, 44, "pack_view write dst")
+
+// --- typed buffers (alignment + compute) ---
+
+var b0: []i32 = buffer.i32_new(0)
+assert_eq(oren_buf_data_mod(b0, 64), 0, 50, "buf align 0 len")
+var b1: []i32 = buffer.i32_new(8)
+assert_eq(oren_buf_data_mod(b1, 64), 0, 51, "buf align i32")
+var b2: []f32 = buffer.f32_new(8)
+assert_eq(oren_buf_data_mod(b2, 64), 0, 52, "buf align f32")
+
+// linalg typed-buffer dot (smoke)
+var bi: []i32 = buffer.i32_new(3)
+var bj: []i32 = buffer.i32_new(3)
+oren_buf_store_i32(bi, 0, 1)
+oren_buf_store_i32(bi, 1, 2)
+oren_buf_store_i32(bi, 2, 3)
+oren_buf_store_i32(bj, 0, 4)
+oren_buf_store_i32(bj, 1, 5)
+oren_buf_store_i32(bj, 2, 6)
+assert_eq(linalg.dot_i32_buf(bi, bj), 32, 60, "dot_i32_buf")
+
+// --- regex ---
+
+assert_true(re.is_match("a(b|c)d", "xxacdyy"), 70, "regex group/alt")
+assert_true(re.is_match("^[a-z]+$", "abc"), 71, "regex class+anchor")
+assert_true(re.is_match("a\\*b", "a*b"), 72, "regex escape")
+
+// --- json / yaml comments decode ---
+
+var js = "// leading\n{\"a\":1,/*c*/\"b\":true}// tail\n"
+var jr = json.decode(js)
+assert_true(jr["ok"] == 1, 80, "json.decode ok")
+assert_eq(json.encode(jr["v"]), "{\"a\":1,\"b\":true}", 81, "json canonical")
+
+var ys = "# header\nactive: true # tail\nname: bob // tail2\n"
+var yr = yaml.decode(ys)
+assert_true(yr != nil && yr["ok"] == 1, 82, "yaml.decode ok")
+assert_eq(yr["v"]["o"]["active"]["b"], 1, 83, "yaml active")
+assert_eq(yr["v"]["o"]["name"]["s"], "bob", 84, "yaml name")
+
+// --- CBOR streaming typed roundtrip ---
+
+@serde(format="cbor", tag="User")
+struct User {
+    @serde(rename="user_id")
+    id: i32,
+    active: bool,
+    name: string,
+    @serde(skip=true, default=0)
+    internal: i32
+}
+
+var users = [
+    User(1, true, "a", 123),
+    User(2, false, "b", 456)
+]
+var bs = cbor.encode_sequence_typed(users, User__cbor_encode)
+var cr = cbor.decode_sequence_typed(bs, User__cbor_decode)
+assert_true(cr["ok"] == 1, 90, "cbor decode_sequence_typed ok")
+assert_eq(oren_list_len(cr["v"]), 2, 91, "cbor len")
+assert_eq(cr["v"][0].id, 1, 92, "cbor user0 id")
+assert_eq(cr["v"][0].internal, 0, 93, "cbor default internal")
+assert_eq(cr["v"][1].id, 2, 94, "cbor user1 id")
+
+var pos = 0
+var c0 = cbor.decode_next_typed(bs, pos, User__cbor_decode)
+assert_true(c0["ok"] == 1, 95, "cbor decode_next #0")
+pos = c0["pos"]
+var c1 = cbor.decode_next_typed(bs, pos, User__cbor_decode)
+assert_true(c1["ok"] == 1, 96, "cbor decode_next #1")
+pos = c1["pos"]
+assert_eq(pos, oren_list_len(bs), 97, "cbor fully consumed")
+
+// --- time std (UTC parse/format + monotonic) ---
+
+var s0 = "2025-01-02T03:04:05Z"
+var dt0 = time.parse_iso8601_utc(s0)
+if result.is_err(dt0) { fail(100, "time parse") }
+assert_eq(time.format_iso8601_utc(dt0), s0, 101, "time format")
+
+var a = time.mono_raw()
+time.sleep_ms(1)
+var b = time.mono_raw()
+assert_true(b >= a, 102, "mono nondecreasing")
+
+print("module integration_suite OK")
+exit(0)
