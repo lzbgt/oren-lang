@@ -674,8 +674,55 @@ OrenValue oren_buf_dot_i32_slice(OrenValue a, OrenValue a_offv, OrenValue b, Ore
 OrenValue oren_buf_dot_f32(OrenValue a, OrenValue b) {
     if (!buf_is_f32(a) || !buf_is_f32(b)) return buf_err("oren_buf_dot_f32 expects (f32_buf, f32_buf)");
     if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_f32: length mismatch");
-    double acc = 0.0;
     uint32_t n = a.as.buf_val->len;
+
+    // Determinism hardening:
+    // - Accumulate in double in a fixed element order.
+    // - Avoid FMA drift in SIMD paths by using explicit f64 ops (no contraction).
+    double acc = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        const uint32_t* pa = (const uint32_t*)(const void*)buf_data(a.as.buf_val);
+        const uint32_t* pb = (const uint32_t*)(const void*)buf_data(b.as.buf_val);
+        uint32_t i = 0;
+        for (; i + 4u <= n; i += 4u) {
+            uint32x4_t va_u = vld1q_u32(pa + i);
+            uint32x4_t vb_u = vld1q_u32(pb + i);
+            float32x4_t va_f = vreinterpretq_f32_u32(va_u);
+            float32x4_t vb_f = vreinterpretq_f32_u32(vb_u);
+
+            float32x2_t va_lo = vget_low_f32(va_f);
+            float32x2_t va_hi = vget_high_f32(va_f);
+            float32x2_t vb_lo = vget_low_f32(vb_f);
+            float32x2_t vb_hi = vget_high_f32(vb_f);
+
+            float64x2_t da0 = vcvt_f64_f32(va_lo);
+            float64x2_t da1 = vcvt_f64_f32(va_hi);
+            float64x2_t db0 = vcvt_f64_f32(vb_lo);
+            float64x2_t db1 = vcvt_f64_f32(vb_hi);
+
+            float64x2_t p0 = vmulq_f64(da0, db0);
+            float64x2_t p1 = vmulq_f64(da1, db1);
+
+            // Fixed order: i,i+1,i+2,i+3 (matches scalar loop).
+            acc = acc + vgetq_lane_f64(p0, 0);
+            acc = acc + vgetq_lane_f64(p0, 1);
+            acc = acc + vgetq_lane_f64(p1, 0);
+            acc = acc + vgetq_lane_f64(p1, 1);
+        }
+        for (; i < n; i++) {
+            uint32_t ua = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+            uint32_t ub = load_u32_le(buf_data(b.as.buf_val) + i * 4u);
+            float fa = 0.0f, fb = 0.0f;
+            memcpy(&fa, &ua, sizeof(fa));
+            memcpy(&fb, &ub, sizeof(fb));
+            acc += (double)fa * (double)fb;
+        }
+        return oren_float(acc);
+    }
+#endif
+
     for (uint32_t i = 0; i < n; i++) {
         uint32_t ua = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
         uint32_t ub = load_u32_le(buf_data(b.as.buf_val) + i * 4u);
@@ -707,6 +754,48 @@ OrenValue oren_buf_dot_f32_slice(OrenValue a, OrenValue a_offv, OrenValue b, Ore
     uint32_t b_off = (uint32_t)b_off_ll;
 
     double acc = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        const uint32_t* pa = (const uint32_t*)(const void*)(buf_data(ba) + a_off * 4u);
+        const uint32_t* pb = (const uint32_t*)(const void*)(buf_data(bb) + b_off * 4u);
+        uint32_t i = 0;
+        for (; i + 4u <= n; i += 4u) {
+            uint32x4_t va_u = vld1q_u32(pa + i);
+            uint32x4_t vb_u = vld1q_u32(pb + i);
+            float32x4_t va_f = vreinterpretq_f32_u32(va_u);
+            float32x4_t vb_f = vreinterpretq_f32_u32(vb_u);
+
+            float32x2_t va_lo = vget_low_f32(va_f);
+            float32x2_t va_hi = vget_high_f32(va_f);
+            float32x2_t vb_lo = vget_low_f32(vb_f);
+            float32x2_t vb_hi = vget_high_f32(vb_f);
+
+            float64x2_t da0 = vcvt_f64_f32(va_lo);
+            float64x2_t da1 = vcvt_f64_f32(va_hi);
+            float64x2_t db0 = vcvt_f64_f32(vb_lo);
+            float64x2_t db1 = vcvt_f64_f32(vb_hi);
+
+            float64x2_t p0 = vmulq_f64(da0, db0);
+            float64x2_t p1 = vmulq_f64(da1, db1);
+
+            acc = acc + vgetq_lane_f64(p0, 0);
+            acc = acc + vgetq_lane_f64(p0, 1);
+            acc = acc + vgetq_lane_f64(p1, 0);
+            acc = acc + vgetq_lane_f64(p1, 1);
+        }
+        for (; i < n; i++) {
+            uint32_t ua = load_u32_le(buf_data(ba) + (a_off + i) * 4u);
+            uint32_t ub = load_u32_le(buf_data(bb) + (b_off + i) * 4u);
+            float fa = 0.0f, fb = 0.0f;
+            memcpy(&fa, &ua, sizeof(fa));
+            memcpy(&fb, &ub, sizeof(fb));
+            acc += (double)fa * (double)fb;
+        }
+        return oren_float(acc);
+    }
+#endif
+
     for (uint32_t i = 0; i < n; i++) {
         uint32_t ua = load_u32_le(buf_data(ba) + (a_off + i) * 4u);
         uint32_t ub = load_u32_le(buf_data(bb) + (b_off + i) * 4u);
@@ -848,8 +937,38 @@ OrenValue oren_buf_reduce_sum_i32(OrenValue buf) {
 
 OrenValue oren_buf_reduce_sum_f32(OrenValue buf) {
     if (!buf_is_f32(buf)) return buf_err("oren_buf_reduce_sum_f32 expects (f32_buf)");
-    double acc = 0.0;
     uint32_t n = buf.as.buf_val->len;
+    double acc = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        // Preserve scalar semantics: convert f32 -> f64 and add to scalar acc in fixed order.
+        const uint32_t* pu = (const uint32_t*)(const void*)buf_data(buf.as.buf_val);
+        uint32_t i = 0;
+        for (; i + 4u <= n; i += 4u) {
+            uint32x4_t vu_u = vld1q_u32(pu + i);
+            float32x4_t vf = vreinterpretq_f32_u32(vu_u);
+
+            float32x2_t v_lo = vget_low_f32(vf);
+            float32x2_t v_hi = vget_high_f32(vf);
+            float64x2_t d0 = vcvt_f64_f32(v_lo);
+            float64x2_t d1 = vcvt_f64_f32(v_hi);
+
+            acc = acc + vgetq_lane_f64(d0, 0);
+            acc = acc + vgetq_lane_f64(d0, 1);
+            acc = acc + vgetq_lane_f64(d1, 0);
+            acc = acc + vgetq_lane_f64(d1, 1);
+        }
+        for (; i < n; i++) {
+            uint32_t u = load_u32_le(buf_data(buf.as.buf_val) + i * 4u);
+            float f = 0.0f;
+            memcpy(&f, &u, sizeof(f));
+            acc += (double)f;
+        }
+        return oren_float(acc);
+    }
+#endif
+
     for (uint32_t i = 0; i < n; i++) {
         uint32_t u = load_u32_le(buf_data(buf.as.buf_val) + i * 4u);
         float f = 0.0f;
@@ -892,6 +1011,48 @@ OrenValue oren_buf_dot_f32_into(OrenValue out, OrenValue a, OrenValue b) {
     if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_f32_into: length mismatch");
     double acc = 0.0;
     uint32_t n = a.as.buf_val->len;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        const uint32_t* pa = (const uint32_t*)(const void*)buf_data(a.as.buf_val);
+        const uint32_t* pb = (const uint32_t*)(const void*)buf_data(b.as.buf_val);
+        uint32_t i = 0;
+        for (; i + 4u <= n; i += 4u) {
+            uint32x4_t va_u = vld1q_u32(pa + i);
+            uint32x4_t vb_u = vld1q_u32(pb + i);
+            float32x4_t va_f = vreinterpretq_f32_u32(va_u);
+            float32x4_t vb_f = vreinterpretq_f32_u32(vb_u);
+
+            float32x2_t va_lo = vget_low_f32(va_f);
+            float32x2_t va_hi = vget_high_f32(va_f);
+            float32x2_t vb_lo = vget_low_f32(vb_f);
+            float32x2_t vb_hi = vget_high_f32(vb_f);
+
+            float64x2_t da0 = vcvt_f64_f32(va_lo);
+            float64x2_t da1 = vcvt_f64_f32(va_hi);
+            float64x2_t db0 = vcvt_f64_f32(vb_lo);
+            float64x2_t db1 = vcvt_f64_f32(vb_hi);
+
+            float64x2_t p0 = vmulq_f64(da0, db0);
+            float64x2_t p1 = vmulq_f64(da1, db1);
+
+            acc = acc + vgetq_lane_f64(p0, 0);
+            acc = acc + vgetq_lane_f64(p0, 1);
+            acc = acc + vgetq_lane_f64(p1, 0);
+            acc = acc + vgetq_lane_f64(p1, 1);
+        }
+        for (; i < n; i++) {
+            uint32_t ua = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+            uint32_t ub = load_u32_le(buf_data(b.as.buf_val) + i * 4u);
+            float fa = 0.0f, fb = 0.0f;
+            memcpy(&fa, &ua, sizeof(fa));
+            memcpy(&fb, &ub, sizeof(fb));
+            acc += (double)fa * (double)fb;
+        }
+        return buf_store_f64_at0(out, acc, "oren_buf_dot_f32_into expects (f64_buf, f32_buf, f32_buf)");
+    }
+#endif
+
     for (uint32_t i = 0; i < n; i++) {
         uint32_t ua = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
         uint32_t ub = load_u32_le(buf_data(b.as.buf_val) + i * 4u);
@@ -907,6 +1068,35 @@ OrenValue oren_buf_reduce_sum_f32_into(OrenValue out, OrenValue a) {
     if (!buf_is_f64(out) || !buf_is_f32(a)) return buf_err("oren_buf_reduce_sum_f32_into expects (f64_buf, f32_buf)");
     double acc = 0.0;
     uint32_t n = a.as.buf_val->len;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        const uint32_t* pu = (const uint32_t*)(const void*)buf_data(a.as.buf_val);
+        uint32_t i = 0;
+        for (; i + 4u <= n; i += 4u) {
+            uint32x4_t vu_u = vld1q_u32(pu + i);
+            float32x4_t vf = vreinterpretq_f32_u32(vu_u);
+
+            float32x2_t v_lo = vget_low_f32(vf);
+            float32x2_t v_hi = vget_high_f32(vf);
+            float64x2_t d0 = vcvt_f64_f32(v_lo);
+            float64x2_t d1 = vcvt_f64_f32(v_hi);
+
+            acc = acc + vgetq_lane_f64(d0, 0);
+            acc = acc + vgetq_lane_f64(d0, 1);
+            acc = acc + vgetq_lane_f64(d1, 0);
+            acc = acc + vgetq_lane_f64(d1, 1);
+        }
+        for (; i < n; i++) {
+            uint32_t u = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+            float f = 0.0f;
+            memcpy(&f, &u, sizeof(f));
+            acc += (double)f;
+        }
+        return buf_store_f64_at0(out, acc, "oren_buf_reduce_sum_f32_into expects (f64_buf, f32_buf)");
+    }
+#endif
+
     for (uint32_t i = 0; i < n; i++) {
         uint32_t u = load_u32_le(buf_data(a.as.buf_val) + i * 4u);
         float f = 0.0f;

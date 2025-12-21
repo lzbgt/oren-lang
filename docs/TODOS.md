@@ -83,6 +83,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Keep deterministic rounding/order guarantees (increasing-k accumulation for matmul).
      - Expand NEON kernels beyond dot (e.g. axpy / small GEMM tiles) where safe.
      - Perf smoke stays “no thresholds”; correctness tests stay small and deterministic.
+   - Status (rolling):
+     - DONE: f32 reductions now have deterministic NEON paths in C runtime (`oren_buf_dot_f32*`, `oren_buf_reduce_sum_f32*`) matching AVM semantics.
+     - NEXT: add a small deterministic GEMM microkernel (start with `i32` matmul tiles; keep `f32` on dot-based path until a stable FP strategy is agreed).
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
    - Status: **done** (see archive for details).
