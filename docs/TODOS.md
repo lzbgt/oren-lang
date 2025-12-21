@@ -79,17 +79,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
-   - DoD:
-     - `u8/i32/u64/f32/f64` are first-class tokens in the language (not attribute hacks).
-     - Float→int cast semantics: truncate toward zero (C-like), with explicit `round/floor/ceil` helpers as separate ops.
-     - Cast lowering avoids runtime helper calls in provably-int-only paths.
-   - Current rolling note:
-      - Cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, endian spellings) is lowered by `type_ann_lowering.oren` into deterministic bit ops.
-      - Integer-only cast sites now skip the `oren_trunc_int(...)` helper when the expression is provably-int (reduces overhead in tight loops).
-      - Stdlib cast helpers (`lib/std/ints.oren`, `lib/std/casts.oren`) now accept float inputs (truncate toward zero) and `casts.f32(int)` coerces via `x + 0.0` before rounding, matching cast-sugar semantics.
-
-2) **[stdlib][perf] SIMD + GEMM kernels (arm64 NEON first)**
+1) **[stdlib][perf] SIMD + GEMM kernels (arm64 NEON first)**
    - Goal: keep scalar semantics; add NEON behind stable intrinsic/runtime boundaries.
    - DoD:
      - A f32/i32 matmul path that scales beyond “dot per element” while preserving deterministic k-order semantics.
@@ -111,7 +101,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - Added `linalg.matmul_i32_buf_into(out, a, b, m, n, p)` for the same allocation-free pattern in integer GEMM paths.
       - Added `linalg.matmul_f64_buf_into(out, a, b, m, n, p)` and `linalg.matmul_i32_buf_wide_into(out, a, b, m, n, p)` so long-running HPC loops can reuse output buffers (even when keeping full i64 accumulators).
 
-3) **[lang][meta] Attribute system v1 (serde + docs tooling)**
+2) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:
      - Syntax is short and ergonomic (prefer `@pack`, `@serde(...)`, `@json(...)` without `@oren.` prefixes).
      - Unknown user-defined attributes are preserved deterministically in meta output.
@@ -120,7 +110,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Serde codegen now supports multi-format derive via `@serde(formats="json,yaml,cbor", ...)` (generates all requested `__{fmt}_encode/__{fmt}_decode` pairs).
      - `oren meta` normalized schema includes `serde.formats` when present (while keeping `serde.format` as the primary backward-compatible field).
 
-4) **[stdlib][net] Native networking foundations**
+3) **[stdlib][net] Native networking foundations**
    - DoD:
      - Minimal syscall-first TCP stack surface (connect/listen/accept/read/write) + select/poll abstraction (`kqueue` on macOS; `epoll` later).
      - Clear separation between VirtualNET (pure) and HostNET (capability-gated).

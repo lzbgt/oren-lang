@@ -17,6 +17,20 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Reduced allocation pressure by reusing the 1×4 dot scratch buffer in `matmul_f32_buf` and `matmul_i32_buf` (avoid per-row scratch allocation).
 - Verified: `make stage1` + `./oretest --target macos` pass.
 
+## Archived (2025-12-21) — Explicit fixed-width types + cast sugar (HPC/FFI baseline)
+
+- Language + compiler:
+  - Fixed-width numeric types are first-class reserved tokens (`u8/i8/u16/i16/u32/i32/u64/i64/u128/i128/f32/f64`, plus endian forms like `u16be`).
+  - Cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, endian spellings) is lowered by `type_ann_lowering.oren` into deterministic wrap/truncate/bitcast ops.
+  - Float→int cast semantics are C-like (truncate toward zero), with `round/floor/ceil` being separate math ops.
+  - Integer-only cast sites skip the float truncation helper when provably-int (avoid overhead in tight loops).
+- Stdlib:
+  - `std/ints` and `std/casts` accept float inputs consistently (truncate toward zero).
+  - `casts.f32(int)` accepts integer input (coerce int->f64->f32 boundary deterministically).
+- Coverage:
+  - `tests/modules/test_integration_suite.oren` exercises wrap/truncate, endian casts, and f32 rounding boundary.
+- Verified: `make stage1` + `./oretest --target macos` pass at the time this was moved out of the active TODO list.
+
 ## Archived (2025-12-21) — Trig for huge |x|: Payne–Hanek range reduction
 
 - Stdlib math:
