@@ -433,6 +433,24 @@ fn test_typed_buffers() {
     oren_buf_reduce_sum_f64_into(fd_out, fd_a)
     assert_eq(oren_buf_load_f64(fd_out, 0), 15.0)
 
+    // f64 elementwise ops (add/mul) must exist in AVM as native ops (bytecode backend mapping),
+    // and remain deterministic under AVM_ENABLE_SIMD=1 (NEON fast paths are allowed but must be bit-stable).
+    var fd_add = oren_buf_add_f64(fd_a, fd_b)
+    assert_eq(oren_buf_load_f64(fd_add, 0), 11.0)
+    assert_eq(oren_buf_load_f64(fd_add, 4), 55.0)
+    var fd_add_into = oren_f64_buf_new(5)
+    oren_buf_add_f64_into(fd_add_into, fd_a, fd_b)
+    assert_eq(oren_buf_load_f64(fd_add_into, 0), 11.0)
+    assert_eq(oren_buf_load_f64(fd_add_into, 4), 55.0)
+
+    var fd_mul = oren_buf_mul_f64(fd_a, fd_b)
+    assert_eq(oren_buf_load_f64(fd_mul, 0), 10.0)
+    assert_eq(oren_buf_load_f64(fd_mul, 4), 250.0)
+    var fd_mul_into = oren_f64_buf_new(5)
+    oren_buf_mul_f64_into(fd_mul_into, fd_a, fd_b)
+    assert_eq(oren_buf_load_f64(fd_mul_into, 0), 10.0)
+    assert_eq(oren_buf_load_f64(fd_mul_into, 4), 250.0)
+
     // 4x4 f32 GEMM microkernel: 16 dot products (4 rows x 4 cols) in one call.
     // Layout contract:
     // - A rows are contiguous slices (row-major): row r at offset r*n

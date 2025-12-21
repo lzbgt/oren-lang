@@ -1279,6 +1279,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_fill_f64" { native_id = 70 }
         if name == "oren_buf_add_i32" { native_id = 71 }
         if name == "oren_buf_add_f32" { native_id = 72 }
+        if name == "oren_buf_add_f64" { native_id = 138 }
         if name == "oren_buf_dot_i32" { native_id = 73 }
         if name == "oren_buf_dot_f32" { native_id = 74 }
         // f64 reductions (rolling HPC): make these available to bytecode/AVM as native ops.
@@ -1292,6 +1293,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_dot_f32_into" { native_id = 86 }
         if name == "oren_buf_add_i32_into" { native_id = 75 }
         if name == "oren_buf_add_f32_into" { native_id = 76 }
+        if name == "oren_buf_add_f64_into" { native_id = 139 }
         if name == "oren_buf_scale_f32" { native_id = 77 }
         if name == "oren_buf_reduce_sum_f32" { native_id = 78 }
         if name == "oren_buf_reduce_sum_f32_into" { native_id = 87 }
@@ -1299,6 +1301,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_mul_f32" { native_id = 80 }
         if name == "oren_buf_mul_i32_into" { native_id = 81 }
         if name == "oren_buf_mul_i32" { native_id = 82 }
+        if name == "oren_buf_mul_f64_into" { native_id = 140 }
+        if name == "oren_buf_mul_f64" { native_id = 141 }
         if name == "oren_buf_reduce_sum_i32" { native_id = 83 }
         if name == "oren_buf_reduce_sum_f64" { native_id = 135 }
         if name == "oren_buf_scale_f32_into" { native_id = 84 }
