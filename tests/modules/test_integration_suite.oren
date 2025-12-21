@@ -107,6 +107,33 @@ oren_buf_store_i32(bj, 1, 5)
 oren_buf_store_i32(bj, 2, 6)
 assert_eq(linalg.dot_i32_buf(bi, bj), 32, 60, "dot_i32_buf")
 
+// i32 matmul (exercise 1x4 dot microkernel path in std/linalg)
+// A: 1x4 [1,2,3,4]
+// B: 4x4 identity => Out == A
+var mi_a: []i32 = buffer.i32_new(4)
+var mi_b: []i32 = buffer.i32_new(16)
+oren_buf_store_i32(mi_a, 0, 1)
+oren_buf_store_i32(mi_a, 1, 2)
+oren_buf_store_i32(mi_a, 2, 3)
+oren_buf_store_i32(mi_a, 3, 4)
+// identity matrix 4x4
+var ii = 0
+while ii < 4 {
+    var jj = 0
+    while jj < 4 {
+        var v = 0
+        if ii == jj { v = 1 }
+        oren_buf_store_i32(mi_b, ii * 4 + jj, v)
+        jj = jj + 1
+    }
+    ii = ii + 1
+}
+var mi_o: []i32 = linalg.matmul_i32_buf(mi_a, mi_b, 1, 4, 4)
+assert_eq(oren_buf_load_i32(mi_o, 0), 1, 61, "matmul_i32_buf[0]")
+assert_eq(oren_buf_load_i32(mi_o, 1), 2, 62, "matmul_i32_buf[1]")
+assert_eq(oren_buf_load_i32(mi_o, 2), 3, 63, "matmul_i32_buf[2]")
+assert_eq(oren_buf_load_i32(mi_o, 3), 4, 64, "matmul_i32_buf[3]")
+
 // f64 typed-buffer ops (64-bit SIMD targets)
 var bf: []f64 = buffer.f64_new(5) // odd length to exercise tail handling
 var bg: []f64 = buffer.f64_new(5)

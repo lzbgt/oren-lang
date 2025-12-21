@@ -95,7 +95,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - DONE: native SIMD integration coverage lives in `tests/native/test_simd_suite.oren` (hash/bits checks; SIMD enabled/disabled runs).
      - NOTE: scalar-multiply “scale i32/f32” SIMD fast paths are intentionally **not** enabled in the native backend yet (prior attempt had correctness issues; removed to keep the repo green).
      - Implemented (code present, needs explicit C-backend coverage): additional NEON kernels in `lib/runtime_buf.c` (i32 axpy + scale/add/mul variants).
-     - NEXT: add a small deterministic GEMM microkernel (start with `i32` matmul tiles; keep `f32` on dot-based path until a stable FP strategy is agreed).
+     - DONE: initial i32 GEMM microkernel boundary (1x4) is implemented and used by `std/linalg.matmul_i32_buf`:
+       - runtime: `oren_buf_dot_i32_4_slice_into` (C runtime has a NEON path; native runtime scalar; AVM scalar)
+       - stdlib: `matmul_i32_buf` uses 4-way dot dispatch when computing 4 columns
+       - tests: `tests/modules/test_integration_suite.oren` includes a 1x4×4 identity matmul smoke to exercise the microkernel
+     - NEXT: extend microkernel to packed-B path (reuse already-packed Bt tiles) and add an f32 variant once FP strategy is stabilized.
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
    - Status: **done** (see archive for details).

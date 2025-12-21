@@ -609,6 +609,10 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
 
     var i = 0
     while i < m {
+        // Reusable scratch for the 1x4 dot microkernel (reduces overhead and enables NEON-friendly runtime impls).
+        var tmp4: []i64 = buffer.i64_new(4)
+        if oren_is_err(tmp4) { return tmp4 }
+
         // Kernel dispatch: use dot-slice per k-block to allow native NEON dot kernels,
         // while preserving deterministic k order (k blocks in increasing order; dot slice iterates k in order).
         var JB = 4
@@ -629,10 +633,36 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                 var kbase = bk * KB
                 var kn = n - kbase
                 if kn > KB { kn = KB }
-                if base_j + 0 < p { s0 = s0 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn)) }
-                if base_j + 1 < p { s1 = s1 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn)) }
-                if base_j + 2 < p { s2 = s2 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn)) }
-                if base_j + 3 < p { s3 = s3 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn)) }
+
+                if base_j + 3 < p {
+                    var r = oren_buf_dot_i32_4_slice_into(
+                        tmp4, 0,
+                        a, i * n + kbase,
+                        bt,
+                        (base_j + 0) * n + kbase,
+                        (base_j + 1) * n + kbase,
+                        (base_j + 2) * n + kbase,
+                        (base_j + 3) * n + kbase,
+                        kn)
+                    if oren_is_err(r) { return r }
+                    var t0 = oren_buf_load_i64(tmp4, 0)
+                    var t1 = oren_buf_load_i64(tmp4, 1)
+                    var t2 = oren_buf_load_i64(tmp4, 2)
+                    var t3 = oren_buf_load_i64(tmp4, 3)
+                    if oren_is_err(t0) { return t0 }
+                    if oren_is_err(t1) { return t1 }
+                    if oren_is_err(t2) { return t2 }
+                    if oren_is_err(t3) { return t3 }
+                    s0 = s0 + t0
+                    s1 = s1 + t1
+                    s2 = s2 + t2
+                    s3 = s3 + t3
+                } else {
+                    if base_j + 0 < p { s0 = s0 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn)) }
+                    if base_j + 1 < p { s1 = s1 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn)) }
+                    if base_j + 2 < p { s2 = s2 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn)) }
+                    if base_j + 3 < p { s3 = s3 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn)) }
+                }
                 bk = bk + 1
             }
 

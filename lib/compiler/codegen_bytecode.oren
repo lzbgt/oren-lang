@@ -1310,6 +1310,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_string_to_float_bits" { native_id = 119 }
         if name == "oren_sha256_range" { native_id = 120 }
         if name == "oren_fail" { native_id = 121 }
+        if name == "oren_buf_dot_i32_4_slice_into" { native_id = 122 }
 
         if native_id != -1 {
             var args = expr["args"]

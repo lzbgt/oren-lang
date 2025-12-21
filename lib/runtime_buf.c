@@ -1333,6 +1333,144 @@ OrenValue oren_buf_dot_i32_strided(OrenValue a, OrenValue a_offv, OrenValue a_st
     return oren_int((long long)i64_from_u64(acc));
 }
 
+OrenValue oren_buf_dot_i32_4_slice_into(
+    OrenValue out, OrenValue out_offv,
+    OrenValue a, OrenValue a_offv,
+    OrenValue b, OrenValue b0_offv, OrenValue b1_offv, OrenValue b2_offv, OrenValue b3_offv,
+    OrenValue nv) {
+    if (!buf_is_i64(out) || out_offv.type != OREN_TYPE_INT
+        || !buf_is_i32(a) || a_offv.type != OREN_TYPE_INT
+        || !buf_is_i32(b)
+        || b0_offv.type != OREN_TYPE_INT || b1_offv.type != OREN_TYPE_INT || b2_offv.type != OREN_TYPE_INT || b3_offv.type != OREN_TYPE_INT
+        || nv.type != OREN_TYPE_INT) {
+        return buf_err("oren_buf_dot_i32_4_slice_into expects (i64_buf,int,i32_buf,int,i32_buf,int,int,int,int,int)");
+    }
+
+    OrenBuf* bout = out.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    long long out_off_ll = out_offv.as.int_val;
+    long long a_off_ll = a_offv.as.int_val;
+    long long b0_off_ll = b0_offv.as.int_val;
+    long long b1_off_ll = b1_offv.as.int_val;
+    long long b2_off_ll = b2_offv.as.int_val;
+    long long b3_off_ll = b3_offv.as.int_val;
+    long long n_ll = nv.as.int_val;
+
+    if (out_off_ll < 0 || a_off_ll < 0 || b0_off_ll < 0 || b1_off_ll < 0 || b2_off_ll < 0 || b3_off_ll < 0 || n_ll < 0) {
+        return buf_err("buf_dot_i32_4_slice_into: negative arg");
+    }
+    if ((uint64_t)out_off_ll > (uint64_t)bout->len || (uint64_t)bout->len - (uint64_t)out_off_ll < 4u) {
+        return buf_err("buf_dot_i32_4_slice_into: out range out of bounds");
+    }
+    if ((uint64_t)a_off_ll > (uint64_t)ba->len) return buf_err("buf_dot_i32_4_slice_into: a_off out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a_off_ll) return buf_err("buf_dot_i32_4_slice_into: a range out of bounds");
+
+    if ((uint64_t)b0_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_i32_4_slice_into: b0_off out of bounds");
+    if ((uint64_t)b1_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_i32_4_slice_into: b1_off out of bounds");
+    if ((uint64_t)b2_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_i32_4_slice_into: b2_off out of bounds");
+    if ((uint64_t)b3_off_ll > (uint64_t)bb->len) return buf_err("buf_dot_i32_4_slice_into: b3_off out of bounds");
+
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b0_off_ll) return buf_err("buf_dot_i32_4_slice_into: b0 range out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b1_off_ll) return buf_err("buf_dot_i32_4_slice_into: b1 range out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b2_off_ll) return buf_err("buf_dot_i32_4_slice_into: b2 range out of bounds");
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b3_off_ll) return buf_err("buf_dot_i32_4_slice_into: b3 range out of bounds");
+
+    uint32_t n = (uint32_t)n_ll;
+    uint32_t out_off = (uint32_t)out_off_ll;
+    uint32_t a_off = (uint32_t)a_off_ll;
+    uint32_t b0_off = (uint32_t)b0_off_ll;
+    uint32_t b1_off = (uint32_t)b1_off_ll;
+    uint32_t b2_off = (uint32_t)b2_off_ll;
+    uint32_t b3_off = (uint32_t)b3_off_ll;
+
+    uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        const int32_t* pa = (const int32_t*)(const void*)(buf_data(ba) + a_off * 4u);
+        const int32_t* pb0 = (const int32_t*)(const void*)(buf_data(bb) + b0_off * 4u);
+        const int32_t* pb1 = (const int32_t*)(const void*)(buf_data(bb) + b1_off * 4u);
+        const int32_t* pb2 = (const int32_t*)(const void*)(buf_data(bb) + b2_off * 4u);
+        const int32_t* pb3 = (const int32_t*)(const void*)(buf_data(bb) + b3_off * 4u);
+
+        uint32_t i = 0;
+        uint64x2_t vacc0 = vdupq_n_u64(0);
+        uint64x2_t vacc1 = vdupq_n_u64(0);
+        uint64x2_t vacc2 = vdupq_n_u64(0);
+        uint64x2_t vacc3 = vdupq_n_u64(0);
+        for (; i + 4u <= n; i += 4u) {
+            int32x4_t va = vld1q_s32(pa + i);
+
+            int32x4_t vb0 = vld1q_s32(pb0 + i);
+            int32x4_t vb1 = vld1q_s32(pb1 + i);
+            int32x4_t vb2 = vld1q_s32(pb2 + i);
+            int32x4_t vb3 = vld1q_s32(pb3 + i);
+
+            int64x2_t p0_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb0));
+            int64x2_t p0_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb0));
+            vacc0 = vaddq_u64(vacc0, vreinterpretq_u64_s64(p0_lo));
+            vacc0 = vaddq_u64(vacc0, vreinterpretq_u64_s64(p0_hi));
+
+            int64x2_t p1_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb1));
+            int64x2_t p1_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb1));
+            vacc1 = vaddq_u64(vacc1, vreinterpretq_u64_s64(p1_lo));
+            vacc1 = vaddq_u64(vacc1, vreinterpretq_u64_s64(p1_hi));
+
+            int64x2_t p2_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb2));
+            int64x2_t p2_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb2));
+            vacc2 = vaddq_u64(vacc2, vreinterpretq_u64_s64(p2_lo));
+            vacc2 = vaddq_u64(vacc2, vreinterpretq_u64_s64(p2_hi));
+
+            int64x2_t p3_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb3));
+            int64x2_t p3_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb3));
+            vacc3 = vaddq_u64(vacc3, vreinterpretq_u64_s64(p3_lo));
+            vacc3 = vaddq_u64(vacc3, vreinterpretq_u64_s64(p3_hi));
+        }
+
+        uint64_t t0[2], t1[2], t2[2], t3[2];
+        vst1q_u64(t0, vacc0);
+        vst1q_u64(t1, vacc1);
+        vst1q_u64(t2, vacc2);
+        vst1q_u64(t3, vacc3);
+        s0 = t0[0] + t0[1];
+        s1 = t1[0] + t1[1];
+        s2 = t2[0] + t2[1];
+        s3 = t3[0] + t3[1];
+
+        for (; i < n; i++) {
+            int64_t av = pa[i];
+            s0 += u64_from_i64(av * (int64_t)pb0[i]);
+            s1 += u64_from_i64(av * (int64_t)pb1[i]);
+            s2 += u64_from_i64(av * (int64_t)pb2[i]);
+            s3 += u64_from_i64(av * (int64_t)pb3[i]);
+        }
+    } else
+#endif
+    {
+        for (uint32_t i = 0; i < n; i++) {
+            int32_t av = (int32_t)load_u32_le(buf_data(ba) + (a_off + i) * 4u);
+            int32_t b0v = (int32_t)load_u32_le(buf_data(bb) + (b0_off + i) * 4u);
+            int32_t b1v = (int32_t)load_u32_le(buf_data(bb) + (b1_off + i) * 4u);
+            int32_t b2v = (int32_t)load_u32_le(buf_data(bb) + (b2_off + i) * 4u);
+            int32_t b3v = (int32_t)load_u32_le(buf_data(bb) + (b3_off + i) * 4u);
+            int64_t av64 = (int64_t)av;
+            s0 += u64_from_i64(av64 * (int64_t)b0v);
+            s1 += u64_from_i64(av64 * (int64_t)b1v);
+            s2 += u64_from_i64(av64 * (int64_t)b2v);
+            s3 += u64_from_i64(av64 * (int64_t)b3v);
+        }
+    }
+
+    // Store as i64 elements (little-endian).
+    uint64_t u0 = s0, u1 = s1, u2 = s2, u3 = s3;
+    store_u64_le(buf_data(bout) + (out_off + 0u) * 8u, u0);
+    store_u64_le(buf_data(bout) + (out_off + 1u) * 8u, u1);
+    store_u64_le(buf_data(bout) + (out_off + 2u) * 8u, u2);
+    store_u64_le(buf_data(bout) + (out_off + 3u) * 8u, u3);
+    return out;
+}
+
 OrenValue oren_buf_dot_f32_strided(OrenValue a, OrenValue a_offv, OrenValue a_stridev, OrenValue b, OrenValue b_offv, OrenValue b_stridev, OrenValue nv) {
     if (!buf_is_f32(a) || !buf_is_f32(b)
         || a_offv.type != OREN_TYPE_INT || a_stridev.type != OREN_TYPE_INT

@@ -263,6 +263,20 @@ OrenValue oren_buf_dot_i32_strided(OrenValue a, OrenValue a_off, OrenValue a_str
 OrenValue oren_buf_dot_f32_strided(OrenValue a, OrenValue a_off, OrenValue a_stride, OrenValue b, OrenValue b_off, OrenValue b_stride, OrenValue n);
 OrenValue oren_buf_dot_f64_strided(OrenValue a, OrenValue a_off, OrenValue a_stride, OrenValue b, OrenValue b_off, OrenValue b_stride, OrenValue n);
 
+// 1x4 i32 dot microkernel: compute four dot products that share the same `a` slice.
+//
+// Writes 4 i64 results into `out` (an i64 typed buffer) starting at `out_off`:
+//   out[out_off + j] = dot_i32(a[a_off..a_off+n), b[bj_off..bj_off+n))  for j=0..3
+//
+// Semantics:
+// - integer multiplication uses i64, accumulation is modulo 2^64 then reinterpreted as signed i64
+// - deterministic for all backends; NEON paths are allowed because wrap addition is associative
+OrenValue oren_buf_dot_i32_4_slice_into(
+    OrenValue out, OrenValue out_off,
+    OrenValue a, OrenValue a_off,
+    OrenValue b, OrenValue b0_off, OrenValue b1_off, OrenValue b2_off, OrenValue b3_off,
+    OrenValue n);
+
 	OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b);
 	OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b);
 	OrenValue oren_buf_add_i64_into(OrenValue dst, OrenValue a, OrenValue b);
