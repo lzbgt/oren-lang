@@ -337,7 +337,7 @@ The `std/math` module provides deterministic “libm-lite” functions implement
 
 - rounding: `floor`, `ceil`, `round` (as float outputs)
 - core: `sqrt`, `powi`, `exp2`, `exp`, `log2`, `ln`
-- trig: `sin`, `cos`, `atan`, `atan2` (range-reduced, deterministic; some functions may error for huge |x| until Payne–Hanek reduction is added)
+- trig: `sin`, `cos`, `atan`, `atan2` (range-reduced, deterministic; `sin/cos` use Payne–Hanek-style reduction for huge |x|)
 
 For exactness and determinism, tests often prefer:
 

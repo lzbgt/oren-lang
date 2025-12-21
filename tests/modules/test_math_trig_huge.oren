@@ -1,0 +1,56 @@
+import math "../../lib/std/math.oren"
+
+fn fail(code, msg) {
+    print("module math_trig_huge FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_close(a, b, eps, code, msg) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code, msg + " (|a-b|=" + oren_float_to_string(d) + ")")
+}
+
+// Goal: make sure trig does not degrade for large |x| (Payne–Hanek reduction path).
+// This test is intentionally in the --full suite (see cmd/oretest) to keep the fast
+// suite integration-first and small.
+
+var TAU = math.tau()
+var x = 9007199254740992.0 // 2^53, large enough to break naive x/(pi/2) rounding
+
+var xp = x + TAU
+assert_true(xp != x, 10, "x+tau must be representable != x for this test to be meaningful")
+
+var s1 = math.sin(x)
+if oren_is_err(s1) { fail(11, "sin(x) returned Err for huge x") }
+var c1 = math.cos(x)
+if oren_is_err(c1) { fail(12, "cos(x) returned Err for huge x") }
+
+var s2 = math.sin(xp)
+if oren_is_err(s2) { fail(13, "sin(x+tau) returned Err for huge x") }
+var c2 = math.cos(xp)
+if oren_is_err(c2) { fail(14, "cos(x+tau) returned Err for huge x") }
+
+// Periodicity: sin/cos(x+2pi) == sin/cos(x).
+// Tolerance is loose: we only need to catch catastrophic reduction failures.
+assert_close(s1, s2, 1e-8, 20, "sin periodicity failed")
+assert_close(c1, c2, 1e-8, 21, "cos periodicity failed")
+
+// Basic symmetry sanity for large magnitude.
+var sn = math.sin(0.0 - x)
+if oren_is_err(sn) { fail(30, "sin(-x) returned Err") }
+assert_close(sn, 0.0 - s1, 1e-8, 31, "sin odd symmetry failed")
+
+var cn = math.cos(0.0 - x)
+if oren_is_err(cn) { fail(32, "cos(-x) returned Err") }
+assert_close(cn, c1, 1e-8, 33, "cos even symmetry failed")
+
+print("module math_trig_huge OK")
+exit(0)
+

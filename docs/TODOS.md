@@ -92,24 +92,19 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
      - `matmul_i32_buf_wide` now matches the same packed/non-packed strategy, but stores full i64 accumulators.
 
-2) **[stdlib][hpc] Trig for huge |x|: Payne–Hanek range reduction**
-   - DoD:
-     - `math.sin/cos` remain deterministic but no longer degrade for large-magnitude inputs.
-     - Property tests go under `./oretest --full` (fast suite stays small).
-
-3) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
+2) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
    - DoD:
      - `u8/i32/u64/f32/f64` are first-class tokens in the language (not attribute hacks).
      - Float→int cast semantics: truncate toward zero (C-like), with explicit `round/floor/ceil` helpers as separate ops.
      - Cast lowering avoids runtime helper calls in provably-int-only paths.
 
-4) **[lang][meta] Attribute system v1 (serde + docs tooling)**
+3) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:
      - Syntax is short and ergonomic (prefer `@pack`, `@serde(...)`, `@json(...)` without `@oren.` prefixes).
      - Unknown user-defined attributes are preserved deterministically in meta output.
      - A stable “meta emission” tool path exists (no ad-hoc print_meta stubs).
 
-5) **[stdlib][net] Native networking foundations**
+4) **[stdlib][net] Native networking foundations**
    - DoD:
      - Minimal syscall-first TCP stack surface (connect/listen/accept/read/write) + select/poll abstraction (`kqueue` on macOS; `epoll` later).
      - Clear separation between VirtualNET (pure) and HostNET (capability-gated).

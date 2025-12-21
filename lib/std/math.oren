@@ -409,9 +409,9 @@ fn ln(x) {
 // v0 design:
 // - Provide `sin(x)` / `cos(x)` for moderate |x| (range-reduced).
 // - Deterministic: fixed reduction strategy + fixed polynomial degrees.
-// - For very large |x|, range reduction without a big-precision Payne–Hanek
-//   implementation becomes inaccurate; we currently return Err to avoid silently
-//   returning garbage.
+// - For very large |x|, range reduction must avoid losing integer bits in
+//   `x/(pi/2)`; we use a Payne–Hanek-style reduction adapted from fdlibm
+//   (see `docs/refs/fdlibm/{e_rem_pio2.c,k_rem_pio2.c}`) to stay correct.
 //
 // Range reduction:
 // - k = round(x / (pi/2))  (half away from zero; deterministic via math.round)
@@ -451,21 +451,360 @@ fn _cos_poly(r) {
     return 1.0 + r2 * p
 }
 
+fn _reduce_pio2_medium(x) {
+    // Cody-Waite style reduction (good up to ~2^20 * (pi/2)).
+    // Returns [r, n_mod8] where r ~ x - n*pi/2, and n_mod8 is in [0..7].
+    //
+    // Constants from fdlibm `e_rem_pio2.c`.
+    var invpio2 = 6.36619772367581382433e-01 // 2/pi (53 bits)
+    var pio2_1 = 1.57079632673412561417e+00
+    var pio2_1t = 6.07710050650619224932e-11
+    var pio2_2 = 6.07710050630396597660e-11
+    var pio2_2t = 2.02226624879595063154e-21
+    var pio2_3 = 2.02226624871116645580e-21
+    var pio2_3t = 8.47842766036889956997e-32
+
+    var kf = round(x * invpio2)
+    if oren_is_err(kf) { return kf }
+    var n = trunc_i64_from_f(kf)
+    if oren_is_err(n) { return n }
+
+    var r = x - kf * pio2_1
+    var w = kf * pio2_1t // 1st round good to ~85 bits
+    var y0 = r - w
+    var y1 = (r - y0) - w
+
+    // Cancellation detection: if reduction nearly cancels, run extra rounds.
+    // Use exponent-only check (fdlibm uses a slightly tighter bit trick).
+    var ax = abs_f(x)
+    var bx = _f64_bits(ax)
+    if oren_is_err(bx) { return bx }
+    var by0 = _f64_bits(abs_f(y0))
+    if oren_is_err(by0) { return by0 }
+    var xexp = (bx >> 52) & 2047
+    var yexp = (by0 >> 52) & 2047
+    var i = xexp - yexp
+
+    if i > 16 {
+        var t = r
+        w = kf * pio2_2
+        r = t - w
+        w = kf * pio2_2t - ((t - r) - w)
+        y0 = r - w
+        y1 = (r - y0) - w
+
+        by0 = _f64_bits(abs_f(y0))
+        if oren_is_err(by0) { return by0 }
+        yexp = (by0 >> 52) & 2047
+        i = xexp - yexp
+
+        if i > 49 {
+            t = r
+            w = kf * pio2_3
+            r = t - w
+            w = kf * pio2_3t - ((t - r) - w)
+            y0 = r - w
+            y1 = (r - y0) - w
+        }
+    }
+
+    return [y0 + y1, (n & 7)]
+}
+
+fn _kernel_rem_pio2(tx, e0, nx) {
+    // Port of fdlibm `__kernel_rem_pio2(..., prec=1)` (double precision).
+    // Returns [r, n_mod8] for positive input x represented in tx[] digits.
+    //
+    // Note: this is performance-sensitive for huge |x|, but huge trig is not
+    // expected on every hot path. The medium reducer covers the common case.
+
+    var jk = 4
+    var jp = jk
+    var jx = nx - 1
+    if jx < 0 { return oren_err(4, "_kernel_rem_pio2: nx") }
+
+    // ipio2 table for double (first block from fdlibm, 24-bit chunks).
+    // Each entry is an integer representing bits of 2/pi after the binary point.
+    var ipio2 = [
+        0xA2F983, 0x6E4E44, 0x1529FC, 0x2757D1, 0xF534DD, 0xC0DB62,
+        0x95993C, 0x439041, 0xFE5163, 0xABDEBB, 0xC561B7, 0x246E3A,
+        0x424DD2, 0xE00649, 0x2EEA09, 0xD1921C, 0xFE1DEB, 0x1CB129,
+        0xA73EE8, 0x8235F5, 0x2EBB44, 0x84E99C, 0x7026B4, 0x5F7E41,
+        0x3991D6, 0x398353, 0x39F49C, 0x845F8B, 0xBDF928, 0x3B1FF8,
+        0x97FFDE, 0x05980F, 0xEF2F11, 0x8B5A0A, 0x6D1F6D, 0x367ECF,
+        0x27CB09, 0xB74F46, 0x3F669E, 0x5FEA2D, 0x7527BA, 0xC7EBE5,
+        0xF17B3D, 0x0739F7, 0x8A5292, 0xEA6BFB, 0x5FB11F, 0x8D5D08,
+        0x560330, 0x46FC7B, 0x6BABF0, 0xCFBC20, 0x9AF436, 0x1DA9E3,
+        0x91615E, 0xE61B08, 0x659985, 0x5F14A0, 0x68408D, 0xFFD880,
+        0x4D7327, 0x310606, 0x1556CA, 0x73A8C9, 0x60E27B, 0xC08C6B
+    ]
+
+    // PI/2 cut into 24-bit chunks (double precision).
+    var PIo2 = [
+        1.57079625129699707031e+00,
+        7.54978941586159635335e-08,
+        5.39030252995776476554e-15,
+        3.28200341580791294123e-22,
+        1.27065575308067607349e-29,
+        1.22933308981111328932e-36,
+        2.73370053816464559624e-44,
+        2.16741683877804819444e-51
+    ]
+
+    var two24 = 16777216.0
+    var twon24 = 5.9604644775390625e-08 // 2^-24
+
+    // determine jv and q0
+    var jv = (e0 - 3) / 24
+    if jv < 0 { jv = 0 }
+    var q0 = e0 - 24 * (jv + 1)
+
+    // f[0..m] where m=jx+jk
+    var m = jx + jk
+    if m > 19 { return oren_err(4, "_kernel_rem_pio2: nx too large") }
+    var f = []
+    var i = 0
+    while i <= m { oren_list_push(f, 0.0); i = i + 1 }
+    var j = jv - jx
+    i = 0
+    while i <= m {
+        var fv = 0.0
+        if j >= 0 {
+            // ipio2 table is long enough for f64 exponent range.
+            fv = f64(ipio2[j])
+        }
+        f[i] = fv
+        i = i + 1
+        j = j + 1
+    }
+
+    // compute q[0..jk]
+    var q = []
+    i = 0
+    while i <= jk { oren_list_push(q, 0.0); i = i + 1 }
+
+    i = 0
+    while i <= jk {
+        var fw = 0.0
+        j = 0
+        while j <= jx {
+            fw = fw + tx[j] * f[jx + i - j]
+            j = j + 1
+        }
+        q[i] = fw
+        i = i + 1
+    }
+
+    // distill q into iq[]
+    var jz = jk
+    // iq stores 24-bit chunks in reverse order.
+    var iq = []
+    i = 0
+    while i < 20 { oren_list_push(iq, 0); i = i + 1 }
+
+    var z = q[jz]
+    i = 0
+    j = jz
+    while j > 0 {
+        var fw2 = trunc_i64_from_f(twon24 * z)
+        if oren_is_err(fw2) { return fw2 }
+        var fwf = f64(fw2)
+        iq[i] = trunc_i64_from_f(z - two24 * fwf)
+        if oren_is_err(iq[i]) { return iq[i] }
+        z = q[j - 1] + fwf
+        i = i + 1
+        j = j - 1
+    }
+
+    // compute n and fractional z
+    z = ldexp(z, q0)
+    var t = floor(z * 0.125)
+    if oren_is_err(t) { return t }
+    z = z - 8.0 * t
+
+    var n = trunc_i64_from_f(z)
+    if oren_is_err(n) { return n }
+    z = z - f64(n)
+
+    var ih = 0
+    if q0 > 0 {
+        var idx = jz - 1
+        var shift = 24 - q0
+        var add = iq[idx] >> shift
+        n = n + add
+        iq[idx] = iq[idx] - (add << shift)
+        ih = iq[idx] >> (23 - q0)
+    } else {
+        if q0 == 0 {
+            ih = iq[jz - 1] >> 23
+        } else {
+            if z >= 0.5 { ih = 2 }
+        }
+    }
+
+    if ih > 0 {
+        // q > 0.5: compute 1-q
+        n = n + 1
+        var carry = 0
+        i = 0
+        while i < jz {
+            var v = iq[i]
+            if carry == 0 {
+                if v != 0 {
+                    carry = 1
+                    iq[i] = 0x1000000 - v
+                }
+            } else {
+                iq[i] = 0xffffff - v
+            }
+            i = i + 1
+        }
+        if q0 > 0 {
+            if q0 == 1 { iq[jz - 1] = iq[jz - 1] & 0x7fffff }
+            if q0 == 2 { iq[jz - 1] = iq[jz - 1] & 0x3fffff }
+        }
+        if ih == 2 {
+            z = 1.0 - z
+            if carry != 0 { z = z - ldexp(1.0, q0) }
+        }
+    }
+
+    // If z==0, kernel may need to recompute with more terms; for f64 and our
+    // limited nx, this is extremely rare. We treat it as zero remainder.
+    // (Full fdlibm recomputation is long and depends on larger ipio2 tables.)
+
+    // Break z into 24-bit chunk if needed.
+    if z != 0.0 {
+        z = ldexp(z, -q0)
+        if z >= two24 {
+            var fw3 = trunc_i64_from_f(twon24 * z)
+            if oren_is_err(fw3) { return fw3 }
+            iq[jz] = trunc_i64_from_f(z - two24 * f64(fw3))
+            if oren_is_err(iq[jz]) { return iq[jz] }
+            jz = jz + 1
+            q0 = q0 + 24
+            iq[jz] = fw3
+        } else {
+            iq[jz] = trunc_i64_from_f(z)
+            if oren_is_err(iq[jz]) { return iq[jz] }
+        }
+    }
+
+    // Convert iq into q floats (scaled).
+    var qv = []
+    i = 0
+    while i < 20 { oren_list_push(qv, 0.0); i = i + 1 }
+    var fw4 = ldexp(1.0, q0)
+    i = jz
+    while i >= 0 {
+        qv[i] = fw4 * f64(iq[i])
+        fw4 = fw4 * twon24
+        i = i - 1
+    }
+
+    // Compute fq
+    var fq = []
+    i = 0
+    while i < 20 { oren_list_push(fq, 0.0); i = i + 1 }
+    i = jz
+    while i >= 0 {
+        var fw5 = 0.0
+        var k = 0
+        while k <= jp && k <= (jz - i) {
+            fw5 = fw5 + PIo2[k] * qv[i + k]
+            k = k + 1
+        }
+        fq[jz - i] = fw5
+        i = i - 1
+    }
+
+    // Compress fq into y0/y1 (double precision).
+    var fw6 = 0.0
+    i = jz
+    while i >= 0 { fw6 = fw6 + fq[i]; i = i - 1 }
+    var y0 = fw6
+    var fw7 = fq[0] - fw6
+    i = 1
+    while i <= jz { fw7 = fw7 + fq[i]; i = i + 1 }
+    var y1 = fw7
+
+    // If ih>0 we flipped sign implicitly; apply it here.
+    if ih != 0 {
+        y0 = 0.0 - y0
+        y1 = 0.0 - y1
+    }
+
+    return [y0 + y1, (n & 7)]
+}
+
+fn _reduce_pio2_payne_hanek(x) {
+    // Payne–Hanek reduction for large |x|.
+    // Returns [r, q] where r in ~[-pi/4,pi/4], q in [0..3].
+    if is_nan(x) { return oren_err(4, "_reduce_pio2: NaN") }
+    if is_inf(x) { return oren_err(4, "_reduce_pio2: inf") }
+    if x == 0.0 { return [x, 0] }
+
+    var ax = abs_f(x)
+    var fe = frexp(ax)
+    if oren_is_err(fe) { return fe }
+    var m = fe[0]
+    var e = fe[1]
+    // ilogb(ax) is e-1 for frexp's [0.5,1) mantissa.
+    var ilogb = e - 1
+    var e0 = ilogb - 23
+
+    // z = scalbn(ax, -e0)  (so z ~ mantissa * 2^23 in [2^23,2^24))
+    var z = ldexp(ax, 0 - e0)
+
+    var two24 = 16777216.0
+    var tx = []
+    // 3 chunks (like fdlibm).
+    var i = 0
+    while i < 3 { oren_list_push(tx, 0.0); i = i + 1 }
+    i = 0
+    while i < 2 {
+        var ti = trunc_i64_from_f(z)
+        if oren_is_err(ti) { return ti }
+        tx[i] = f64(ti)
+        z = (z - tx[i]) * two24
+        i = i + 1
+    }
+    tx[2] = z
+
+    var nx = 3
+    while nx > 1 && tx[nx - 1] == 0.0 { nx = nx - 1 }
+
+    var kr = _kernel_rem_pio2(tx, e0, nx)
+    if oren_is_err(kr) { return kr }
+    var r = kr[0]
+    var nmod8 = kr[1]
+    // Apply sign: fdlibm returns negative remainder and negative n for negative x.
+    if x < 0.0 {
+        r = 0.0 - r
+        nmod8 = (0 - nmod8) & 7
+    }
+    var q = nmod8 & 3
+    return [r, q]
+}
+
 fn _reduce_pio2(x) {
     // Returns [r, q] or Err where q in [0..3].
     if is_nan(x) { return oren_err(4, "_reduce_pio2: NaN") }
     if is_inf(x) { return oren_err(4, "_reduce_pio2: inf") }
-    // Conservative bound: avoids inaccurate reduction for huge magnitude.
-    if abs_f(x) > 1000000.0 { return oren_err(4, "_reduce_pio2: |x| too large") }
+    // |x| <= pi/4: no reduction needed.
+    var ax = abs_f(x)
+    if ax <= (pi() / 4.0) { return [x, 0] }
 
-    var PIO2 = 1.5707963267948966
-    var kf = round(x / PIO2)
-    if oren_is_err(kf) { return kf }
-    var ki = trunc_i64_from_f(kf)
-    if oren_is_err(ki) { return ki }
-    var r = x - f64(ki) * PIO2
-    var q = ki & 3
-    return [r, q]
+    // Medium threshold from fdlibm: |x| < 2^20 * (pi/2).
+    // Beyond this, Cody-Waite begins losing bits and Payne-Hanek is needed.
+    var MED = 1644934.0
+    if ax < MED {
+        var rr = _reduce_pio2_medium(x)
+        if oren_is_err(rr) { return rr }
+        return [rr[0], rr[1] & 3]
+    }
+
+    return _reduce_pio2_payne_hanek(x)
 }
 
 fn sin(x) {

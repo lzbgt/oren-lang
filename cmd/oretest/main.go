@@ -189,6 +189,7 @@ func main() {
 		"tests/modules/test_string_from_bytes.oren",
 		"tests/modules/test_math.oren",
 		"tests/modules/test_math_rounding.oren",
+		"tests/modules/test_math_trig_huge.oren",
 		"tests/modules/test_linalg.oren",
 		"tests/modules/test_time_std.oren",
 		"tests/modules/test_buffer_views.oren",

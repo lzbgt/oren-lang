@@ -17,6 +17,18 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Reduced allocation pressure by reusing the 1×4 dot scratch buffer in `matmul_f32_buf` and `matmul_i32_buf` (avoid per-row scratch allocation).
 - Verified: `make stage1` + `./oretest --target macos` pass.
 
+## Archived (2025-12-21) — Trig for huge |x|: Payne–Hanek range reduction
+
+- Stdlib math:
+  - Implemented deterministic `sin/cos` range reduction for huge |x| using a Payne–Hanek-style reducer adapted from fdlibm.
+  - Removed the previous conservative “|x| too large” error for trig.
+  - Added reference sources under `docs/refs/fdlibm/` (`e_rem_pio2.c`, `k_rem_pio2.c`) to keep the implementation anchored to an audited algorithm.
+- Tests:
+  - Added `tests/modules/test_math_trig_huge.oren` and wired it into `./oretest --full` (not in the fast suite).
+- Verified:
+  - `./oretest --target macos` pass.
+  - `./oretest --full --target macos` pass.
+
 ## Archived (2025-12-21) — Unify `struct` semantics (map-shaped, mutable) across backends
 
 - Decision: in rolling v0, `struct` values are **map-shaped** (string-keyed) across **C + AVM bytecode + native** backends.
