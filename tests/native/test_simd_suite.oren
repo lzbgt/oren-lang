@@ -364,12 +364,17 @@ fn run_axpy_f32() {
         i = i + 1
     }
 
-    var alpha = 1.25 // exactly representable in IEEE-754
+    // Use a non-exact float to ensure we match true float32 mul+add semantics (not f64 fused math).
+    var alpha = 0.1
+    var alpha_bits = oren_f32_to_u32_bits(alpha)
+    var alpha32 = oren_u32_bits_to_f32(alpha_bits)
     i = 0
     while i < n {
         var xv = oren_buf_load_f32(x, i)
         var yv = oren_buf_load_f32(y, i)
-        oren_buf_store_f32(out_ref, i, alpha * xv + yv)
+        var m = oren_u32_bits_to_f32(oren_f32_to_u32_bits(alpha32 * xv))
+        var outv = oren_u32_bits_to_f32(oren_f32_to_u32_bits(m + yv))
+        oren_buf_store_f32(out_ref, i, outv)
         i = i + 1
     }
 
@@ -381,7 +386,12 @@ fn run_axpy_f32() {
     while i < n {
         var refB = f32_bits_at(out_ref, i)
         var gotB = f32_bits_at(out_got, i)
-        if refB != gotB { return fail(620, "axpy bits mismatch (f32)") }
+        if refB != gotB {
+            print("AXPY_F32_MISMATCH_IDX=" + oren_int_to_string(i))
+            print("AXPY_F32_REF_BITS=" + oren_int_to_string(refB))
+            print("AXPY_F32_GOT_BITS=" + oren_int_to_string(gotB))
+            return fail(620, "axpy bits mismatch (f32)")
+        }
         h = hash_u32_mix(h, gotB)
         i = i + 1
     }
@@ -455,10 +465,15 @@ fn run_scale_f32_into() {
         i = i + 1
     }
 
-    var s = 0.5 // exactly representable
+    // Use a non-exact float to ensure scalar boundary + SIMD use the same float32 semantics.
+    var s = 0.1
+    var sbits = oren_f32_to_u32_bits(s)
+    var s32 = oren_u32_bits_to_f32(sbits)
     i = 0
     while i < n {
-        oren_buf_store_f32(out_ref, i, oren_buf_load_f32(a, i) * s)
+        var av = oren_buf_load_f32(a, i)
+        var outv = oren_u32_bits_to_f32(oren_f32_to_u32_bits(av * s32))
+        oren_buf_store_f32(out_ref, i, outv)
         i = i + 1
     }
 

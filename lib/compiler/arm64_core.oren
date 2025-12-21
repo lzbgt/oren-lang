@@ -507,7 +507,7 @@ fn insn_dup_4s(vd, rn) {
     // Verified via clang:
     //   dup v4.4s, w0 => 0x4E040C04
     // Base: 0x4E040C00
-    return 1308895232 + (rn * 32) + vd
+    return 1308888064 + (rn * 32) + vd
 }
 
 fn insn_add_2d(vd, vn, vm) {

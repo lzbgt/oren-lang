@@ -95,7 +95,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - stdlib: `dot_f64_view`, `matmul_f64_buf` (dot-based; deterministic increasing-k semantics)
        - tests: `tests/modules/test_integration_suite.oren` asserts slice/strided dot + a small matmul result
      - DONE: native SIMD integration coverage lives in `tests/native/test_simd_suite.oren` (hash/bits checks; SIMD enabled/disabled runs).
-     - NOTE: scalar-multiply “scale i32/f32” SIMD fast paths are intentionally **not** enabled in the native backend yet (prior attempt had correctness issues; removed to keep the repo green).
+     - DONE: native backend SIMD “scale” + “axpy” fast paths are enabled and parity-tested:
+       - i32: `simd_scale_i32_ptr`, `simd_axpy_i32_ptr` (wrap semantics)
+       - f32: `simd_scale_f32_ptr`, `simd_axpy_f32_ptr` (float32 boundary + mul-then-add; no FMA)
+       - NOTE: fixed `arm64_core.insn_dup_4s` encoding (was emitting `trn1`, causing incorrect scalar SIMD ops).
      - Implemented (code present, needs explicit C-backend coverage): additional NEON kernels in `lib/runtime_buf.c` (i32 axpy + scale/add/mul variants).
      - DONE: initial i32 GEMM microkernel boundary (1x4) is implemented and used by `std/linalg.matmul_i32_buf`:
        - runtime: `oren_buf_dot_i32_4_slice_into` (C runtime has a NEON path; native runtime scalar; AVM scalar)
