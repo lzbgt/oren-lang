@@ -6714,10 +6714,11 @@ fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
         var pb2 = native_buf_data_ptr(b) + b2_off * 4
         var pb3 = native_buf_data_ptr(b) + b3_off * 4
 
-        simd_dot_f32_4_ptr(outp + 0 * 32, pa0, pb0, pb1, pb2, pb3, n)
-        simd_dot_f32_4_ptr(outp + 1 * 32, pa1, pb0, pb1, pb2, pb3, n)
-        simd_dot_f32_4_ptr(outp + 2 * 32, pa2, pb0, pb1, pb2, pb3, n)
-        simd_dot_f32_4_ptr(outp + 3 * 32, pa3, pb0, pb1, pb2, pb3, n)
+        // True single-pass 4x4 GEMM microkernel:
+        // - loads/widens each B column once per k-block
+        // - widens A rows to f64
+        // - multiplies in f64 and accumulates in deterministic increasing-k order
+        simd_gemm_f32_4x4_ptr(outp, pa0, pa1, pa2, pa3, pb0, pb1, pb2, pb3, n)
         return out
     }
 

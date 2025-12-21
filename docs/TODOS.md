@@ -93,7 +93,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - `matmul_i32_buf_wide` now matches the same packed/non-packed strategy, but stores full i64 accumulators.
       - Added `oren_buf_gemm_f32_4x4_slice_into` (native_id=128): 4×4 dot microkernel boundary returning 16 f64 results, with C runtime + native runtime + AVM parity.
         - Native runtime SIMD path currently composes 4× `simd_dot_f32_4_ptr` (bit-exact, deterministic).
-        - Next perf step (still missing): reintroduce a **true single-pass** native microkernel (load B once per k, reuse across 4 rows) *only after* it is proven bit-exact (previous attempts mismatched bitwise).
+        - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f32_4x4_ptr`:
+          - loads/widens each B column once per k-block and reuses across 4 rows
+          - still widens to f64 and accumulates in deterministic increasing-k order (bit-exact vs scalar reference)
         - `lib/std/linalg.oren` packed matmul uses this boundary for 4-row blocks.
 
 2) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
