@@ -128,6 +128,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Still no host FS effects when running compiler in a child universe (VirtualFS only).
    - Current rolling note:
      - `oren build` / `oren meta` now support `--manifest` to emit `<out>.manifest.json` with a stable `sha256` record (use with `--deterministic` for content-addressed builds).
+     - When `oren build --backend native --metadata` is used, `--manifest` also emits a manifest for the metadata sidecar (`<out>.meta.json.manifest.json`).
+     - `./oretest` now has integration fixtures that assert `--manifest` output exists for both bytecode builds and `oren meta`.
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 

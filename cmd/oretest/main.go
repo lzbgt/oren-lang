@@ -270,6 +270,48 @@ func main() {
 		cleanup []string
 	}{
 		{
+			name: "manifest_bytecode",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend bytecode --target %s --deterministic --manifest -o %q > %q && "+
+					"test -s %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/modules/test_strings.oren",
+				*target,
+				"build/manifest_bytecode.obc",
+				"build/manifest_bytecode.out",
+				"build/manifest_bytecode.obc.manifest.json",
+				"\"kind\":\"bytecode\"",
+				"build/manifest_bytecode.obc.manifest.json",
+				"\"deterministic\":true",
+				"build/manifest_bytecode.obc.manifest.json",
+			),
+			log:     "build/logs/manifest_bytecode.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/manifest_bytecode.obc", "build/manifest_bytecode.out", "build/manifest_bytecode.obc.manifest.json"},
+		},
+		{
+			name: "manifest_meta",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s --deterministic --manifest -o %q > %q && "+
+					"test -s %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/fixtures/meta_attrs_src.oren",
+				*target,
+				"build/manifest_meta.meta.json",
+				"build/manifest_meta.out",
+				"build/manifest_meta.meta.json.manifest.json",
+				"\"kind\":\"meta\"",
+				"build/manifest_meta.meta.json.manifest.json",
+				"\"deterministic\":true",
+				"build/manifest_meta.meta.json.manifest.json",
+			),
+			log:     "build/logs/manifest_meta.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/manifest_meta.meta.json", "build/manifest_meta.out", "build/manifest_meta.meta.json.manifest.json"},
+		},
+		{
 			name: "bytecode_negative_int_constants",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
