@@ -1,0 +1,27 @@
+// Deterministic allocation failure test (typed buffer payload limit).
+//
+// Rationale:
+// - Real OOM is non-deterministic across hosts (overcommit, VM limits, etc.).
+// - We still need a stable signal that the runtime returns an error value
+//   instead of crashing or hanging when a typed-buffer allocation cannot be satisfied.
+//
+// This test is run by `cmd/oretest` with:
+//   OREN_BUF_PAYLOAD_LIMIT_BYTES=1024
+
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module buffer_payload_limit FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+// 1024 i32 -> 4096 bytes payload, must exceed limit and return an error.
+var b: []i32 = buffer.i32_new(1024)
+if oren_is_err(b) == 0 { fail(10) }
+
+// Ensure error code is budget (OREN_ERR_BUDGET=9).
+if oren_err_code(b) != 9 { fail(11) }
+
+print("module buffer_payload_limit OK")
+exit(0)
+

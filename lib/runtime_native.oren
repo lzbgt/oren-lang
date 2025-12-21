@@ -206,6 +206,7 @@ fn oren_pipe() {
 //   272:raw_mmap_threshold_bytes (>=0; 0 disables mmap; rolling)
 //   280:buf_align (8|16|32|64; rolling)
 //   288:buf_force_mmap (0|1; rolling)
+//   296:buf_payload_limit_bytes (0 means unlimited; rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -254,6 +255,7 @@ var GLOBAL_OFF_ENABLE_SIMD = 264
 var GLOBAL_OFF_RAW_MMAP_THRESHOLD = 272
 var GLOBAL_OFF_BUF_ALIGN = 280
 var GLOBAL_OFF_BUF_FORCE_MMAP = 288
+var GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
@@ -299,6 +301,9 @@ fn global_set_buf_align(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_ALIGN),
 
 fn global_get_buf_force_mmap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP)) }
 fn global_set_buf_force_mmap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP), v) }
+
+fn global_get_buf_payload_limit() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT)) }
+fn global_set_buf_payload_limit(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT), v) }
 
 fn native_simd_enabled() { return global_get_enable_simd() }
 
@@ -543,6 +548,7 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_RAW_MMAP_THRESHOLD = 272
     GLOBAL_OFF_BUF_ALIGN = 280
     GLOBAL_OFF_BUF_FORCE_MMAP = 288
+    GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
     GLOBAL_SLOTS_RESERVED = 56
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -609,9 +615,11 @@ fn native_runtime_init(target_os) {
     // - threshold: 1 MiB (matches C runtime)
     // - align: 64 bytes (cache-line / NEON friendly)
     // - force_mmap: off
+    // - payload_limit: unlimited (0)
     global_set_raw_mmap_threshold(1048576)
     global_set_buf_align(64)
     global_set_buf_force_mmap(0)
+    global_set_buf_payload_limit(0)
 
     // NET per-fd capability tags (rolling; capsule hardening).
     // We intentionally keep this simple: a byte-per-fd kind table.
@@ -880,6 +888,7 @@ fn native_runtime_capsule_init() {
     // - OREN_RAW_MMAP_THRESHOLD=<bytes>  (0 disables mmap path; default 1 MiB)
     // - OREN_BUF_ALIGN=8|16|32|64        (default 64)
     // - OREN_BUF_FORCE_MMAP=1            (force mmap for any non-empty typed buffer payload)
+    // - OREN_BUF_PAYLOAD_LIMIT_BYTES=<bytes> (0 means unlimited; caps typed-buffer payload bytes)
     var v_thr = native_envp_get_value_ptr("OREN_RAW_MMAP_THRESHOLD")
     if v_thr != 0 {
         var thr = native_parse_i64_dec_cstr_or_neg1(v_thr)
@@ -896,6 +905,12 @@ fn native_runtime_capsule_init() {
         if ptr_get_byte(v_force) != 0 {
             if ptr_get_byte(v_force) != 48 { global_set_buf_force_mmap(1) } // not '0'
         }
+    }
+    global_set_buf_payload_limit(0)
+    var v_lim = native_envp_get_value_ptr("OREN_BUF_PAYLOAD_LIMIT_BYTES")
+    if v_lim != 0 {
+        var lim = native_parse_i64_dec_cstr_or_neg1(v_lim)
+        if lim >= 0 { global_set_buf_payload_limit(lim) }
     }
 
     var k_capsule = "OREN_CAPSULE"
@@ -5760,6 +5775,8 @@ fn native_buf_new(len, elem_size, tag) {
     var data = 0
     var data_ptr = 0
     if bytes_len > 0 {
+        var lim2 = global_get_buf_payload_limit()
+        if lim2 != 0 && bytes_len > lim2 { return oren_err(9, "buf_new: payload limit exceeded") }
         var thr = raw_mmap_threshold()
         var force_mmap = global_get_buf_force_mmap()
         if force_mmap != 0 || (thr != 0 && bytes_len >= thr) {

@@ -30,6 +30,19 @@ static size_t buf_align_cached(void) {
     return cached;
 }
 
+static size_t buf_payload_limit_cached(void) {
+    // Deterministic, testable safety knob:
+    // - 0 means "unlimited" (default)
+    // - otherwise caps typed-buffer payload bytes (not counting header)
+    //
+    // This enables a deterministic "OOM-like" test without relying on host memory
+    // pressure or platform-specific mmap behavior.
+    static size_t cached = (size_t)-1;
+    if (cached != (size_t)-1) return cached;
+    cached = parse_env_size_local(getenv("OREN_BUF_PAYLOAD_LIMIT_BYTES"), 0u);
+    return cached;
+}
+
 #if defined(__aarch64__) && defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #include <arm_neon.h>
 #define OREN_BUF_HAVE_NEON 1
@@ -98,6 +111,10 @@ static OrenValue buf_new(uint32_t elem_size, OrenValue lenv, OrenType ty) {
     uint64_t bytes_len = (uint64_t)len * (uint64_t)elem_size;
     if (bytes_len > (uint64_t)SIZE_MAX) {
         return buf_err("buf_new: size overflow");
+    }
+    size_t lim = buf_payload_limit_cached();
+    if (lim != 0u && bytes_len > (uint64_t)lim) {
+        return oren_err(oren_int(OREN_ERR_BUDGET), oren_string("buf_new: payload limit exceeded"));
     }
 
     // Allocate:

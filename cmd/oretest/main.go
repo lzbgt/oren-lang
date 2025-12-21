@@ -129,12 +129,15 @@ func main() {
 		"tests/modules/test_integration_suite.oren",
 		// Spawn/join timeout is a critical "no hangs" guard.
 		"tests/modules/test_spawn_join_timeout.oren",
+		// Deterministic "OOM-like" behavior guard for typed buffers.
+		"tests/modules/test_buffer_payload_limit.oren",
 	}
 	moduleTestsFull := []string{
 		"tests/modules/test_integration_suite.oren",
 		"tests/modules/test_shapes.oren",
 		"tests/modules/test_spawn.oren",
 		"tests/modules/test_spawn_join_timeout.oren",
+		"tests/modules/test_buffer_payload_limit.oren",
 		"tests/modules/test_read_bytes.oren",
 		"tests/modules/test_bytes_set_endian.oren",
 		"tests/modules/test_int_casts.oren",
@@ -913,7 +916,7 @@ func sanitizedAllocatorEnvPrefix() string {
 	// Keep allocator policy stable unless a test explicitly opts in.
 	//
 	// Note: `env VAR=` sets VAR to empty string, which our runtimes treat as "unset".
-	return "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP="
+	return "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES="
 }
 
 type suiteResult struct {
@@ -1311,7 +1314,12 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}
-		if rc := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("%s %q", envPrefix, out), log); rc != 0 {
+		runEnvPrefix := envPrefix
+		if name == "test_buffer_payload_limit" {
+			// Deterministic allocation failure without relying on host memory pressure.
+			runEnvPrefix = "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES=1024"
+		}
+		if rc := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("%s %q", runEnvPrefix, out), log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}
 		_ = os.Remove(out)

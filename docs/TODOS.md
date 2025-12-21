@@ -85,7 +85,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - **done:** optional typed-buffer force-mmap via `OREN_BUF_FORCE_MMAP=1` (native)
      - **done:** `cmd/oretest` sanitizes these env vars to keep tests stable across user shells
      - **done:** stress/integration test `tests/modules/test_buffer_alloc_stress.oren` (fragmentation-style churn + explicit GC; covers RAW + RAW_MMAP)
-     - **next:** add a deterministic “OOM/too-large” failure test only if we can catch/report allocation failure without crashing the whole process
+     - **done:** deterministic payload limit knob `OREN_BUF_PAYLOAD_LIMIT_BYTES` + test `tests/modules/test_buffer_payload_limit.oren` (budget error, no crash)
 
 ### B) AVM (evolves alongside language/compiler)
 
