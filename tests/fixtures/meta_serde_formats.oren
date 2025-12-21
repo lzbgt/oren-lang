@@ -1,0 +1,17 @@
+// Meta fixture: multi-format serde derive in schema.
+//
+// This file is used by `cmd/oretest` to validate that `oren meta` exports
+// normalized serde schema fields deterministically.
+
+@serde(formats="json,yaml", tag="User")
+struct User {
+    @serde(rename="user_id")
+    id: i32,
+    name: string
+}
+
+fn main() {
+    // no-op
+    exit(0)
+}
+

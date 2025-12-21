@@ -113,6 +113,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - A stable “meta emission” tool path exists (no ad-hoc print_meta stubs).
    - Current rolling note:
      - Serde codegen now supports multi-format derive via `@serde(formats="json,yaml,cbor", ...)` (generates all requested `__{fmt}_encode/__{fmt}_decode` pairs).
+     - `oren meta` normalized schema includes `serde.formats` when present (while keeping `serde.format` as the primary backward-compatible field).
 
 4) **[stdlib][net] Native networking foundations**
    - DoD:

@@ -382,6 +382,24 @@ func main() {
 			cleanup: []string{"build/serde_schema.meta.json"},
 		},
 		{
+			name: "oren_meta_serde_formats",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s -o %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/fixtures/meta_serde_formats.oren",
+				*target,
+				"build/serde_formats.meta.json",
+				"\"serde\": {\"version\": 1, \"format\": \"json\", \"tag\": \"User\"",
+				"build/serde_formats.meta.json",
+				"\"formats\": [\"json\", \"yaml\"]",
+				"build/serde_formats.meta.json",
+			),
+			log:     "build/logs/oren_meta_serde_formats.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/serde_formats.meta.json"},
+		},
+		{
 			name: "oredoc_openapi_export",
 			cmd: fmt.Sprintf(
 				"./oren meta %q --target %s -o %q && "+

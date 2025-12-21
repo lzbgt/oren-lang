@@ -188,7 +188,7 @@ This generates the corresponding pairs for each requested format:
 - `User__yaml_encode` / `User__yaml_decode`
 - `User__cbor_encode` / `User__cbor_decode`
 
-Note: the **normalized** `meta.serde` schema is still single-format today; tooling that needs multi-format should read raw `attrs` until the schema is extended.
+Note: the normalized `meta.serde` schema now includes `"formats": [...]` when `@serde(formats=...)` is used. Tooling should still read raw `attrs` if it needs to preserve unknown/custom attributes.
 
 Other supported serde formats (rolling, v1):
 
