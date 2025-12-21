@@ -99,6 +99,12 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Expose an allocation mode for large typed-buffer payloads that avoids GC scanning (mmap/arena backing)
      - Ensure alignment guarantees (cacheline + NEON-friendly) remain a performance property (no semantic change)
      - Add stress tests for fragmentation + OOM behavior
+   - Status:
+     - **done:** env-configurable raw mmap threshold (C + native) via `OREN_RAW_MMAP_THRESHOLD` (0 disables)
+     - **done:** env-configurable typed-buffer alignment via `OREN_BUF_ALIGN=8|16|32|64` (default 64)
+     - **done:** optional typed-buffer force-mmap via `OREN_BUF_FORCE_MMAP=1` (native)
+     - **done:** `cmd/oretest` sanitizes these env vars to keep tests stable across user shells
+     - **next:** add a single stress/integration test (fragmentation + OOM) that runs fast (<5s) and covers both RAW and RAW_MMAP paths
 
 ### B) AVM (evolves alongside language/compiler)
 

@@ -5,7 +5,30 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define OREN_BUF_ALIGN 64u
+static size_t parse_env_size_local(const char* s, size_t def) {
+    if (!s || !s[0]) return def;
+    size_t out = 0;
+    for (size_t i = 0; s[i]; i++) {
+        char c = s[i];
+        if (c < '0' || c > '9') return def;
+        size_t d = (size_t)(c - '0');
+        if (out > (SIZE_MAX - d) / 10) return def;
+        out = out * 10 + d;
+    }
+    return out;
+}
+
+static size_t buf_align_cached(void) {
+    static size_t cached = 0;
+    if (cached) return cached;
+    size_t a = parse_env_size_local(getenv("OREN_BUF_ALIGN"), 64u);
+    // For now, keep alignment <= 64 because the RAW header size is fixed at 64 bytes
+    // and the allocator contract assumes the payload pointer is header+64.
+    // NEON/cache-line friendliness is satisfied by 64.
+    if (a != 8u && a != 16u && a != 32u && a != 64u) a = 64u;
+    cached = a;
+    return cached;
+}
 
 #if defined(__aarch64__) && defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #include <arm_neon.h>
@@ -94,7 +117,7 @@ static OrenValue buf_new(uint32_t elem_size, OrenValue lenv, OrenType ty) {
     hdr->elem_size = elem_size;
     hdr->data = NULL;
     if (bytes_len > 0) {
-        uint64_t dp = oren_alloc_raw_aligned((size_t)bytes_len, (size_t)OREN_BUF_ALIGN);
+        uint64_t dp = oren_alloc_raw_aligned((size_t)bytes_len, (size_t)buf_align_cached());
         if (dp == 0) {
             return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("buf_new: payload alloc failed"));
         }

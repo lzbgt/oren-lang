@@ -203,6 +203,9 @@ fn oren_pipe() {
 //   248:proc_allowed_pids_len (count) (rolling)
 //   256:proc_allowed_pids_cap (capacity) (rolling)
 //   264:enable_simd (0|1) (rolling; runtime opt-in for SIMD fast paths)
+//   272:raw_mmap_threshold_bytes (>=0; 0 disables mmap; rolling)
+//   280:buf_align (8|16|32|64; rolling)
+//   288:buf_force_mmap (0|1; rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -248,6 +251,9 @@ var GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR = 240
 var GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN = 248
 var GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP = 256
 var GLOBAL_OFF_ENABLE_SIMD = 264
+var GLOBAL_OFF_RAW_MMAP_THRESHOLD = 272
+var GLOBAL_OFF_BUF_ALIGN = 280
+var GLOBAL_OFF_BUF_FORCE_MMAP = 288
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
@@ -284,6 +290,15 @@ fn global_set_envp(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENVP), v) }
 
 fn global_get_enable_simd() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD)) }
 fn global_set_enable_simd(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD), v) }
+
+fn global_get_raw_mmap_threshold() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_RAW_MMAP_THRESHOLD)) }
+fn global_set_raw_mmap_threshold(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_RAW_MMAP_THRESHOLD), v) }
+
+fn global_get_buf_align() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_ALIGN)) }
+fn global_set_buf_align(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_ALIGN), v) }
+
+fn global_get_buf_force_mmap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP)) }
+fn global_set_buf_force_mmap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP), v) }
 
 fn native_simd_enabled() { return global_get_enable_simd() }
 
@@ -525,6 +540,9 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN = 248
     GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP = 256
     GLOBAL_OFF_ENABLE_SIMD = 264
+    GLOBAL_OFF_RAW_MMAP_THRESHOLD = 272
+    GLOBAL_OFF_BUF_ALIGN = 280
+    GLOBAL_OFF_BUF_FORCE_MMAP = 288
     GLOBAL_SLOTS_RESERVED = 56
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -586,6 +604,14 @@ fn native_runtime_init(target_os) {
         ptr_set(iadd(g_storage, i * GLOBAL_SLOT_BYTES), 0)
         i = i + 1
     }
+
+    // Defaults for allocator policy (rolling):
+    // - threshold: 1 MiB (matches C runtime)
+    // - align: 64 bytes (cache-line / NEON friendly)
+    // - force_mmap: off
+    global_set_raw_mmap_threshold(1048576)
+    global_set_buf_align(64)
+    global_set_buf_force_mmap(0)
 
     // NET per-fd capability tags (rolling; capsule hardening).
     // We intentionally keep this simple: a byte-per-fd kind table.
@@ -845,6 +871,30 @@ fn native_runtime_capsule_init() {
             if ptr_get_byte(v_simd) != 0 {
                 if ptr_get_byte(v_simd) != 48 { global_set_enable_simd(1) } // not '0'
             }
+        }
+    }
+
+    // Allocator policy (rolling; affects typed buffers + raw blocks).
+    //
+    // Env:
+    // - OREN_RAW_MMAP_THRESHOLD=<bytes>  (0 disables mmap path; default 1 MiB)
+    // - OREN_BUF_ALIGN=8|16|32|64        (default 64)
+    // - OREN_BUF_FORCE_MMAP=1            (force mmap for any non-empty typed buffer payload)
+    var v_thr = native_envp_get_value_ptr("OREN_RAW_MMAP_THRESHOLD")
+    if v_thr != 0 {
+        var thr = native_parse_i64_dec_cstr_or_neg1(v_thr)
+        if thr >= 0 { global_set_raw_mmap_threshold(thr) }
+    }
+    var v_align = native_envp_get_value_ptr("OREN_BUF_ALIGN")
+    if v_align != 0 {
+        var a = native_parse_i64_dec_cstr_or_neg1(v_align)
+        if a == 8 || a == 16 || a == 32 || a == 64 { global_set_buf_align(a) }
+    }
+    global_set_buf_force_mmap(0)
+    var v_force = native_envp_get_value_ptr("OREN_BUF_FORCE_MMAP")
+    if v_force != 0 {
+        if ptr_get_byte(v_force) != 0 {
+            if ptr_get_byte(v_force) != 48 { global_set_buf_force_mmap(1) } // not '0'
         }
     }
 
@@ -1829,6 +1879,29 @@ fn native_parse_u16_sub(s, start, end, out_ok_ptr) {
     }
     if digits == 0 { return 0 }
     if out_ok_ptr != 0 { ptr_set(out_ok_ptr, 1) }
+    return v
+}
+
+fn native_parse_i64_dec_cstr_or_neg1(s) {
+    // Parse a non-negative decimal integer from a NUL-terminated cstr.
+    // Returns parsed value on success; -1 on failure.
+    //
+    // Deterministic: decimal digits only (no spaces, signs, or suffixes).
+    if s == 0 { return -1 }
+    if ptr_get_byte(s) == 0 { return -1 }
+    var v = 0
+    var i = 0
+    while true {
+        var ch = ptr_get_byte(iadd(s, i))
+        if ch == 0 { break }
+        if ch < 48 || ch > 57 { return -1 }
+        var d = ch - 48
+        // Clamp to signed i64 max (9223372036854775807) to avoid overflow.
+        if v > 922337203685477580 { return -1 }
+        if v == 922337203685477580 && d > 7 { return -1 }
+        v = v * 10 + d
+        i = i + 1
+    }
     return v
 }
 
@@ -5612,11 +5685,19 @@ fn buf_magic() { return 4609346 } // 'BUF\0'
 // [magic:u64, total_len:u64, backend:u64, ...padding... ] (64 bytes)
 fn raw_magic() { return 5715707079776360240 } // 0x4f52454e52415730 ("ORENRAW0") as u64 (rolling)
 fn raw_hdr_size() { return 64 }
-fn raw_mmap_threshold() { return 1048576 } // 1 MiB
+fn raw_mmap_threshold() {
+    var v = global_get_raw_mmap_threshold()
+    if v < 0 { return 1048576 }
+    return v
+}
 
 // Default alignment for typed-buffer payload pointers (cache-line, NEON-friendly).
 // This is a performance property only; it must not change semantics.
-fn buf_align_default() { return 64 }
+fn buf_align_default() {
+    var v = global_get_buf_align()
+    if v != 8 && v != 16 && v != 32 && v != 64 { return 64 }
+    return v
+}
 
 fn native_align_up(p, align) {
     if align <= 1 { return p }
@@ -5679,7 +5760,9 @@ fn native_buf_new(len, elem_size, tag) {
     var data = 0
     var data_ptr = 0
     if bytes_len > 0 {
-        if bytes_len >= raw_mmap_threshold() {
+        var thr = raw_mmap_threshold()
+        var force_mmap = global_get_buf_force_mmap()
+        if force_mmap != 0 || (thr != 0 && bytes_len >= thr) {
             // Large payload: mmap-backed so GC/free can return memory to OS.
             var total = raw_hdr_size() + bytes_len
             var base = sys_mmap_private_anon(total)

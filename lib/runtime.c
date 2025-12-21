@@ -47,7 +47,33 @@ static OrenAllocNode* g_roots = NULL;
 
 // Large raw blocks: use mmap so memory can be returned to the OS on free/GC sweep.
 // Keep this conservative; below this threshold libc allocation is typically faster.
-#define OREN_RAW_MMAP_THRESHOLD ((size_t)(1u << 20)) // 1 MiB
+#define OREN_RAW_MMAP_THRESHOLD_DEFAULT ((size_t)(1u << 20)) // 1 MiB
+
+static size_t parse_env_size(const char* s, size_t def) {
+    if (!s || !s[0]) return def;
+    // Decimal only, no suffixes, deterministic.
+    size_t out = 0;
+    for (size_t i = 0; s[i]; i++) {
+        char c = s[i];
+        if (c < '0' || c > '9') return def;
+        size_t d = (size_t)(c - '0');
+        if (out > (SIZE_MAX - d) / 10) return def;
+        out = out * 10 + d;
+    }
+    return out;
+}
+
+static size_t raw_mmap_threshold_cached(void) {
+    // Cached to keep allocation hot path fast and deterministic.
+    static size_t cached = (size_t)-1;
+    if (cached != (size_t)-1) return cached;
+    size_t thr = parse_env_size(getenv("OREN_RAW_MMAP_THRESHOLD"), OREN_RAW_MMAP_THRESHOLD_DEFAULT);
+    // Allow:
+    // - 0: disable mmap path entirely (always posix_memalign/malloc backend)
+    // - 1: effectively "always mmap" for non-empty allocations
+    cached = thr;
+    return cached;
+}
 
 typedef struct {
     uint64_t magic;
@@ -4008,7 +4034,8 @@ uint64_t oren_alloc_raw_aligned(size_t bytes, size_t align) {
 
     // Large allocation: prefer mmap so free/GC sweep can return memory to OS.
     // `mmap` returns page-aligned memory, which satisfies any <= page alignment.
-    if (bytes >= OREN_RAW_MMAP_THRESHOLD) {
+    size_t thr = raw_mmap_threshold_cached();
+    if (thr != 0 && bytes >= thr) {
         size_t hdr_size = sizeof(OrenRawHdr); // 64 bytes; keeps payload 64B-aligned
         size_t total = hdr_size + bytes;
         base = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);

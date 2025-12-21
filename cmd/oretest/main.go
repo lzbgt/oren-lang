@@ -910,6 +910,14 @@ func shouldValidateSIMD() bool {
 	return runtime.GOARCH == "arm64"
 }
 
+func sanitizedAllocatorEnvPrefix() string {
+	// Tests must not be sensitive to a user's shell env.
+	// Keep allocator policy stable unless a test explicitly opts in.
+	//
+	// Note: `env VAR=` sets VAR to empty string, which our runtimes treat as "unset".
+	return "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP="
+}
+
 type suiteResult struct {
 	ok     bool
 	pass   int
@@ -919,6 +927,7 @@ type suiteResult struct {
 
 func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
+	envPrefix := sanitizedAllocatorEnvPrefix()
 	for _, path := range tests {
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		if verbose {
@@ -944,7 +953,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			// preserve scalar semantics exactly.
 			scalarLog := log
 			_ = os.Remove(scalarLog)
-			scalarCmd := fmt.Sprintf("env OREN_NO_SIMD=1 ./%s", out)
+			scalarCmd := fmt.Sprintf("%s OREN_NO_SIMD=1 ./%s", envPrefix, out)
 			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
 			if rc != 0 {
 				runLog = scalarLog
@@ -968,7 +977,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			if shouldValidateSIMD() {
 				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
 				_ = os.Remove(simdLog)
-				simdCmd := fmt.Sprintf("env OREN_ENABLE_SIMD=1 ./%s", out)
+				simdCmd := fmt.Sprintf("%s OREN_ENABLE_SIMD=1 ./%s", envPrefix, out)
 				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
 				if rc != 0 {
 					runLog = simdLog
@@ -1001,7 +1010,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			// Same pattern as simd_dot: run scalar vs SIMD and compare stable outputs.
 			scalarLog := log
 			_ = os.Remove(scalarLog)
-			scalarCmd := fmt.Sprintf("env OREN_NO_SIMD=1 ./%s", out)
+			scalarCmd := fmt.Sprintf("%s OREN_NO_SIMD=1 ./%s", envPrefix, out)
 			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
 			runLog = scalarLog
 			if rc != 0 {
@@ -1024,7 +1033,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			if shouldValidateSIMD() {
 				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
 				_ = os.Remove(simdLog)
-				simdCmd := fmt.Sprintf("env OREN_ENABLE_SIMD=1 ./%s", out)
+				simdCmd := fmt.Sprintf("%s OREN_ENABLE_SIMD=1 ./%s", envPrefix, out)
 				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
 				runLog = simdLog
 				if rc != 0 {
@@ -1057,7 +1066,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			// Same pattern: run scalar vs SIMD and compare stable outputs.
 			scalarLog := log
 			_ = os.Remove(scalarLog)
-			scalarCmd := fmt.Sprintf("env OREN_NO_SIMD=1 ./%s", out)
+			scalarCmd := fmt.Sprintf("%s OREN_NO_SIMD=1 ./%s", envPrefix, out)
 			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
 			runLog = scalarLog
 			if rc != 0 {
@@ -1080,7 +1089,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			if shouldValidateSIMD() {
 				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
 				_ = os.Remove(simdLog)
-				simdCmd := fmt.Sprintf("env OREN_ENABLE_SIMD=1 ./%s", out)
+				simdCmd := fmt.Sprintf("%s OREN_ENABLE_SIMD=1 ./%s", envPrefix, out)
 				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
 				runLog = simdLog
 				if rc != 0 {
@@ -1113,7 +1122,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			// Scalar vs SIMD determinism check for f32 dot (returns f64 bits).
 			scalarLog := log
 			_ = os.Remove(scalarLog)
-			scalarCmd := fmt.Sprintf("env OREN_NO_SIMD=1 ./%s", out)
+			scalarCmd := fmt.Sprintf("%s OREN_NO_SIMD=1 ./%s", envPrefix, out)
 			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
 			runLog = scalarLog
 			if rc != 0 {
@@ -1135,7 +1144,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			if shouldValidateSIMD() {
 				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
 				_ = os.Remove(simdLog)
-				simdCmd := fmt.Sprintf("env OREN_ENABLE_SIMD=1 ./%s", out)
+				simdCmd := fmt.Sprintf("%s OREN_ENABLE_SIMD=1 ./%s", envPrefix, out)
 				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
 				runLog = simdLog
 				if rc != 0 {
@@ -1162,7 +1171,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 				}
 			}
 		default:
-			rc = runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("./%s", out), log)
+			rc = runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("%s ./%s", envPrefix, out), log)
 			runLog = log
 		}
 
@@ -1208,6 +1217,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 
 func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
+	envPrefix := sanitizedAllocatorEnvPrefix()
 	results := runParallel(jobs, tests, func(path string) testResult {
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		if verbose {
@@ -1225,7 +1235,7 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}
-		if rc := runWithTimeout(timeoutBin, runTimeout, out, log); rc != 0 {
+		if rc := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("%s %q", envPrefix, out), log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}
 		_ = os.Remove(out)
