@@ -123,6 +123,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - DoD:
      - Minimal syscall-first TCP stack surface (connect/listen/accept/read/write) + select/poll abstraction (`kqueue` on macOS; `epoll` later).
      - Clear separation between VirtualNET (pure) and HostNET (capability-gated).
+   - Current rolling note:
+     - Added `std/net/tcp` module (`lib/std/net/tcp.oren`) exposing the syscall-first TCP substrate as a stable stdlib surface.
 
 ### B) AVM (evolves alongside language/compiler)
 

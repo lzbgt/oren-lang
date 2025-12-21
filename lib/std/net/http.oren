@@ -11,4 +11,3 @@
 fn get(url) {
     return oren_net_get(url)
 }
-

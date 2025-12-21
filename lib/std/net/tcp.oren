@@ -1,0 +1,89 @@
+// std/net/tcp (rolling)
+//
+// Goal:
+// - Expose the syscall-first TCP substrate as a stable stdlib surface.
+// - Keep the API small and predictable (no DNS/TLS here; those can be layered later).
+//
+// Notes:
+// - All operations are capability-gated by the runtime capsule (`domain="NET"`).
+// - All potentially-blocking operations accept `timeout_ms` to avoid hangs.
+//   - `timeout_ms < 0` means "no timeout" (backend-dependent); avoid this in tests.
+// - Return convention (rolling):
+//   - `fd` / byte-count: `>= 0` on success
+//   - negative errno: `< 0` on failure
+//
+// If you prefer structured errors, wrap with `std/result.ok_or_errno`.
+
+import result "result.oren"
+
+// --- Raw syscall-style wrappers (recommended for performance) ---
+
+fn connect(ip, port, timeout_ms) {
+    return oren_tcp_connect(ip, port, timeout_ms)
+}
+
+fn listen_local(port) {
+    // Binds to 127.0.0.1:<port> and listens with a small backlog.
+    // Returns listening fd or -errno.
+    return oren_tcp_listen_local(port)
+}
+
+fn accept(listen_fd, timeout_ms) {
+    // Returns accepted fd or -errno.
+    return oren_tcp_accept(listen_fd, timeout_ms)
+}
+
+fn read_into(fd, buf, len, timeout_ms) {
+    // Reads up to len bytes into buf.
+    // Returns number of bytes read, or -errno.
+    return oren_tcp_read_into(fd, buf, len, timeout_ms)
+}
+
+fn write_from(fd, buf, len, timeout_ms) {
+    // Writes len bytes from buf.
+    // Returns number of bytes written, or -errno.
+    return oren_tcp_write_from(fd, buf, len, timeout_ms)
+}
+
+fn close(fd) {
+    return oren_tcp_close(fd)
+}
+
+fn wait_readable(fd, timeout_ms) {
+    // Returns:
+    // - 1: ready
+    // - 0: timeout
+    // - <0: error
+    return oren_fd_wait_readable(fd, timeout_ms)
+}
+
+fn wait_writable(fd, timeout_ms) {
+    // Returns:
+    // - 1: ready
+    // - 0: timeout
+    // - <0: error
+    return oren_fd_wait_writable(fd, timeout_ms)
+}
+
+// --- Structured Result helpers (optional) ---
+
+fn connect_ok(ip, port, timeout_ms) {
+    return result.ok_or_errno(connect(ip, port, timeout_ms), "tcp.connect")
+}
+
+fn listen_local_ok(port) {
+    return result.ok_or_errno(listen_local(port), "tcp.listen_local")
+}
+
+fn accept_ok(listen_fd, timeout_ms) {
+    return result.ok_or_errno(accept(listen_fd, timeout_ms), "tcp.accept")
+}
+
+fn read_into_ok(fd, buf, len, timeout_ms) {
+    return result.ok_or_errno(read_into(fd, buf, len, timeout_ms), "tcp.read_into")
+}
+
+fn write_from_ok(fd, buf, len, timeout_ms) {
+    return result.ok_or_errno(write_from(fd, buf, len, timeout_ms), "tcp.write_from")
+}
+
