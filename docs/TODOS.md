@@ -112,7 +112,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - runtime: `oren_buf_dot_f32_4_slice_into` (C runtime has a deterministic NEON path; native runtime scalar; AVM has deterministic NEON path)
        - bytecode backend: mapped as CORE native id `127`
        - tests: module + native SIMD + AVM smoke cover the microkernel via direct calls and matmul
-     - NEXT: decide whether to add a native-backend SIMD fast path for 4-way f32 dot (must preserve deterministic widening/order; avoid FMA).
+     - DONE: native runtime now has a SIMD fast path for `oren_buf_dot_f32_4_slice_into` by reusing `simd_dot_f32_ptr` 4× (still deterministic; not a single-pass microkernel).
+     - NEXT: consider a true single-pass 1×4 f32 microkernel intrinsic (reduce A loads) once we decide how to keep strict determinism vs performance.
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
    - Status: **done** (see archive for details).

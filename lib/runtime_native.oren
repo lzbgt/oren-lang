@@ -6624,7 +6624,30 @@ fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_f32_4_slice_into: b_off out of bounds") }
     if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_f32_4_slice_into: b range out of bounds") }
 
-    // NOTE: no native SIMD fast path for 4-way f32 dot yet; keep scalar and deterministic.
+    // Native SIMD fast path:
+    //
+    // We reuse the existing `simd_dot_f32_ptr` intrinsic to compute each column dot in SIMD.
+    // This is not a single-pass microkernel (A is read 4 times), but it:
+    // - preserves deterministic widening/order guarantees of `simd_dot_f32_ptr`
+    // - keeps the intrinsic boundary stable for future 1-pass 1×4 kernels
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pa = native_buf_data_ptr(a) + a_off * 4
+        var pb0 = native_buf_data_ptr(b) + b0_off * 4
+        var pb1 = native_buf_data_ptr(b) + b1_off * 4
+        var pb2 = native_buf_data_ptr(b) + b2_off * 4
+        var pb3 = native_buf_data_ptr(b) + b3_off * 4
+        var s0s = simd_dot_f32_ptr(pa, pb0, n)
+        var s1s = simd_dot_f32_ptr(pa, pb1, n)
+        var s2s = simd_dot_f32_ptr(pa, pb2, n)
+        var s3s = simd_dot_f32_ptr(pa, pb3, n)
+        oren_buf_store_f64(out, out_off + 0, s0s)
+        oren_buf_store_f64(out, out_off + 1, s1s)
+        oren_buf_store_f64(out, out_off + 2, s2s)
+        oren_buf_store_f64(out, out_off + 3, s3s)
+        return out
+    }
+
+    // Scalar fallback: deterministic, fixed increasing-k order.
     var s0 = 0.0
     var s1 = 0.0
     var s2 = 0.0
