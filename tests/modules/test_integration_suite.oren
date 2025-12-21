@@ -297,5 +297,11 @@ assert_true(math.abs_f(math.cos(0.0) - 1.0) < 1e-15, 118, "cos(0)")
 assert_true(math.abs_f(math.sin(math.pi() / 2.0) - 1.0) < 1e-10, 119, "sin(pi/2) ~ 1")
 assert_true(math.abs_f(math.cos(math.pi()) - -1.0) < 1e-10, 120, "cos(pi) ~ -1")
 
+// atan / atan2 (deterministic, no host libm)
+assert_true(math.abs_f(math.atan(1.0) - (math.pi() / 4.0)) < 1e-12, 121, "atan(1) ~ pi/4")
+assert_true(math.abs_f(math.atan2(1.0, 1.0) - (math.pi() / 4.0)) < 1e-12, 122, "atan2(1,1) ~ pi/4")
+assert_true(math.abs_f(math.atan2(1.0, 0.0) - (math.pi() / 2.0)) < 1e-12, 123, "atan2(1,0) ~ pi/2")
+assert_true(math.abs_f(math.atan2(0.0, -1.0) - math.pi()) < 1e-12, 124, "atan2(0,-1) ~ pi")
+
 print("module integration_suite OK")
 exit(0)
