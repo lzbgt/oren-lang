@@ -388,17 +388,17 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
             var s2 = 0.0
             var s3 = 0.0
 
-            var bk2 = 0
-            while bk2 < tiles_k {
-                var kbase = bk2 * KB
-                var kn = n - kbase
-                if kn > KB { kn = KB }
+            if use_packed {
+                // Packed tile-major B: keep k blocking for cache locality.
+                var bk2 = 0
+                while bk2 < tiles_k {
+                    var kbase = bk2 * KB
+                    var kn = n - kbase
+                    if kn > KB { kn = KB }
 
-                if base_j + 3 < p {
-                    var r = nil
-                    if use_packed {
+                    if base_j + 3 < p {
                         var base_tile = (bj2 * tiles_k + bk2) * JB * KB
-                        r = oren_buf_dot_f32_4_slice_into(
+                        var r = oren_buf_dot_f32_4_slice_into(
                             tmp4, 0,
                             a, i * n + kbase,
                             bp,
@@ -407,43 +407,56 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
                             base_tile + 2 * KB,
                             base_tile + 3 * KB,
                             kn)
+                        if oren_is_err(r) { return r }
+                        var t0 = oren_buf_load_f64(tmp4, 0)
+                        var t1 = oren_buf_load_f64(tmp4, 1)
+                        var t2 = oren_buf_load_f64(tmp4, 2)
+                        var t3 = oren_buf_load_f64(tmp4, 3)
+                        if oren_is_err(t0) { return t0 }
+                        if oren_is_err(t1) { return t1 }
+                        if oren_is_err(t2) { return t2 }
+                        if oren_is_err(t3) { return t3 }
+                        s0 = s0 + t0
+                        s1 = s1 + t1
+                        s2 = s2 + t2
+                        s3 = s3 + t3
                     } else {
-                        r = oren_buf_dot_f32_4_slice_into(
-                            tmp4, 0,
-                            a, i * n + kbase,
-                            bt,
-                            (base_j + 0) * n + kbase,
-                            (base_j + 1) * n + kbase,
-                            (base_j + 2) * n + kbase,
-                            (base_j + 3) * n + kbase,
-                            kn)
+                        // Tail columns: dot per column.
+                        var base_tile2 = (bj2 * tiles_k + bk2) * JB * KB
+                        if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 0 * KB, kn) }
+                        if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 1 * KB, kn) }
+                        if base_j + 2 < p { s2 = s2 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 2 * KB, kn) }
+                        if base_j + 3 < p { s3 = s3 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 3 * KB, kn) }
                     }
-                    if oren_is_err(r) { return r }
-                    var t0 = oren_buf_load_f64(tmp4, 0)
-                    var t1 = oren_buf_load_f64(tmp4, 1)
-                    var t2 = oren_buf_load_f64(tmp4, 2)
-                    var t3 = oren_buf_load_f64(tmp4, 3)
-                    if oren_is_err(t0) { return t0 }
-                    if oren_is_err(t1) { return t1 }
-                    if oren_is_err(t2) { return t2 }
-                    if oren_is_err(t3) { return t3 }
-                    s0 = s0 + t0
-                    s1 = s1 + t1
-                    s2 = s2 + t2
-                    s3 = s3 + t3
-                } else if use_packed {
-                    var base_tile2 = (bj2 * tiles_k + bk2) * JB * KB
-                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 0 * KB, kn) }
-                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 1 * KB, kn) }
-                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 2 * KB, kn) }
-                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 3 * KB, kn) }
-                } else {
-                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn) }
-                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn) }
-                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn) }
-                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn) }
+                    bk2 = bk2 + 1
                 }
-                bk2 = bk2 + 1
+            } else {
+                // Non-packed Bt is fully contiguous per column, so do a single dot over full n.
+                if base_j + 3 < p {
+                    var r2 = oren_buf_dot_f32_4_slice_into(
+                        tmp4, 0,
+                        a, i * n,
+                        bt,
+                        (base_j + 0) * n,
+                        (base_j + 1) * n,
+                        (base_j + 2) * n,
+                        (base_j + 3) * n,
+                        n)
+                    if oren_is_err(r2) { return r2 }
+                    s0 = oren_buf_load_f64(tmp4, 0)
+                    s1 = oren_buf_load_f64(tmp4, 1)
+                    s2 = oren_buf_load_f64(tmp4, 2)
+                    s3 = oren_buf_load_f64(tmp4, 3)
+                    if oren_is_err(s0) { return s0 }
+                    if oren_is_err(s1) { return s1 }
+                    if oren_is_err(s2) { return s2 }
+                    if oren_is_err(s3) { return s3 }
+                } else {
+                    if base_j + 0 < p { s0 = oren_buf_dot_f32_slice(a, i * n, bt, (base_j + 0) * n, n) }
+                    if base_j + 1 < p { s1 = oren_buf_dot_f32_slice(a, i * n, bt, (base_j + 1) * n, n) }
+                    if base_j + 2 < p { s2 = oren_buf_dot_f32_slice(a, i * n, bt, (base_j + 2) * n, n) }
+                    if base_j + 3 < p { s3 = oren_buf_dot_f32_slice(a, i * n, bt, (base_j + 3) * n, n) }
+                }
             }
 
             if base_j + 0 < p { oren_buf_store_f32(out, i * p + (base_j + 0), f32(s0)) }
@@ -705,17 +718,16 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
             var s2 = 0
             var s3 = 0
 
-            var bk = 0
-            while bk < tiles_k {
-                var kbase = bk * KB
-                var kn = n - kbase
-                if kn > KB { kn = KB }
+            if use_packed {
+                var bk = 0
+                while bk < tiles_k {
+                    var kbase = bk * KB
+                    var kn = n - kbase
+                    if kn > KB { kn = KB }
 
-                if base_j + 3 < p {
-                    var r = nil
-                    if use_packed {
+                    if base_j + 3 < p {
                         var base_tile = (bj * tiles_k + bk) * JB * KB
-                        r = oren_buf_dot_i32_4_slice_into(
+                        var r = oren_buf_dot_i32_4_slice_into(
                             tmp4, 0,
                             a, i * n + kbase,
                             bp,
@@ -724,37 +736,56 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                             base_tile + 2 * KB,
                             base_tile + 3 * KB,
                             kn)
+                        if oren_is_err(r) { return r }
+                        var t0 = oren_buf_load_i64(tmp4, 0)
+                        var t1 = oren_buf_load_i64(tmp4, 1)
+                        var t2 = oren_buf_load_i64(tmp4, 2)
+                        var t3 = oren_buf_load_i64(tmp4, 3)
+                        if oren_is_err(t0) { return t0 }
+                        if oren_is_err(t1) { return t1 }
+                        if oren_is_err(t2) { return t2 }
+                        if oren_is_err(t3) { return t3 }
+                        s0 = s0 + t0
+                        s1 = s1 + t1
+                        s2 = s2 + t2
+                        s3 = s3 + t3
                     } else {
-                        r = oren_buf_dot_i32_4_slice_into(
-                            tmp4, 0,
-                            a, i * n + kbase,
-                            bt,
-                            (base_j + 0) * n + kbase,
-                            (base_j + 1) * n + kbase,
-                            (base_j + 2) * n + kbase,
-                            (base_j + 3) * n + kbase,
-                            kn)
+                        // Tail columns: dot per column.
+                        var base_tile2 = (bj * tiles_k + bk) * JB * KB
+                        if base_j + 0 < p { s0 = s0 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 0 * KB, kn) }
+                        if base_j + 1 < p { s1 = s1 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 1 * KB, kn) }
+                        if base_j + 2 < p { s2 = s2 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 2 * KB, kn) }
+                        if base_j + 3 < p { s3 = s3 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 3 * KB, kn) }
                     }
-                    if oren_is_err(r) { return r }
-                    var t0 = oren_buf_load_i64(tmp4, 0)
-                    var t1 = oren_buf_load_i64(tmp4, 1)
-                    var t2 = oren_buf_load_i64(tmp4, 2)
-                    var t3 = oren_buf_load_i64(tmp4, 3)
-                    if oren_is_err(t0) { return t0 }
-                    if oren_is_err(t1) { return t1 }
-                    if oren_is_err(t2) { return t2 }
-                    if oren_is_err(t3) { return t3 }
-                    s0 = s0 + t0
-                    s1 = s1 + t1
-                    s2 = s2 + t2
-                    s3 = s3 + t3
-                } else {
-                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn) }
-                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn) }
-                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn) }
-                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn) }
+                    bk = bk + 1
                 }
-                bk = bk + 1
+            } else {
+                // Non-packed Bt is fully contiguous per column, so do a single dot over full n.
+                if base_j + 3 < p {
+                    var r2 = oren_buf_dot_i32_4_slice_into(
+                        tmp4, 0,
+                        a, i * n,
+                        bt,
+                        (base_j + 0) * n,
+                        (base_j + 1) * n,
+                        (base_j + 2) * n,
+                        (base_j + 3) * n,
+                        n)
+                    if oren_is_err(r2) { return r2 }
+                    s0 = oren_buf_load_i64(tmp4, 0)
+                    s1 = oren_buf_load_i64(tmp4, 1)
+                    s2 = oren_buf_load_i64(tmp4, 2)
+                    s3 = oren_buf_load_i64(tmp4, 3)
+                    if oren_is_err(s0) { return s0 }
+                    if oren_is_err(s1) { return s1 }
+                    if oren_is_err(s2) { return s2 }
+                    if oren_is_err(s3) { return s3 }
+                } else {
+                    if base_j + 0 < p { s0 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 0) * n, n) }
+                    if base_j + 1 < p { s1 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 1) * n, n) }
+                    if base_j + 2 < p { s2 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 2) * n, n) }
+                    if base_j + 3 < p { s3 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 3) * n, n) }
+                }
             }
 
             if base_j + 0 < p { oren_buf_store_i32(out, i * p + (base_j + 0), i32(s0)) }
