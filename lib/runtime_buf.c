@@ -2123,6 +2123,85 @@ OrenValue oren_buf_gemm_i32_4x4_slice_into(
     uint64_t c20 = 0, c21 = 0, c22 = 0, c23 = 0;
     uint64_t c30 = 0, c31 = 0, c32 = 0, c33 = 0;
 
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 2u) {
+        const int32_t* pa0 = (const int32_t*)(const void*)(buf_data(ba) + a0_off * 4u);
+        const int32_t* pa1 = (const int32_t*)(const void*)(buf_data(ba) + a1_off * 4u);
+        const int32_t* pa2 = (const int32_t*)(const void*)(buf_data(ba) + a2_off * 4u);
+        const int32_t* pa3 = (const int32_t*)(const void*)(buf_data(ba) + a3_off * 4u);
+        const int32_t* pb0 = (const int32_t*)(const void*)(buf_data(bb) + b0_off * 4u);
+        const int32_t* pb1 = (const int32_t*)(const void*)(buf_data(bb) + b1_off * 4u);
+        const int32_t* pb2 = (const int32_t*)(const void*)(buf_data(bb) + b2_off * 4u);
+        const int32_t* pb3 = (const int32_t*)(const void*)(buf_data(bb) + b3_off * 4u);
+
+        uint32_t i = 0;
+        uint64x2_t acc00 = vdupq_n_u64(0), acc01 = vdupq_n_u64(0), acc02 = vdupq_n_u64(0), acc03 = vdupq_n_u64(0);
+        uint64x2_t acc10 = vdupq_n_u64(0), acc11 = vdupq_n_u64(0), acc12 = vdupq_n_u64(0), acc13 = vdupq_n_u64(0);
+        uint64x2_t acc20 = vdupq_n_u64(0), acc21 = vdupq_n_u64(0), acc22 = vdupq_n_u64(0), acc23 = vdupq_n_u64(0);
+        uint64x2_t acc30 = vdupq_n_u64(0), acc31 = vdupq_n_u64(0), acc32 = vdupq_n_u64(0), acc33 = vdupq_n_u64(0);
+
+        for (; i + 2u <= n; i += 2u) {
+            int32x2_t va0 = vld1_s32(pa0 + i);
+            int32x2_t va1 = vld1_s32(pa1 + i);
+            int32x2_t va2 = vld1_s32(pa2 + i);
+            int32x2_t va3 = vld1_s32(pa3 + i);
+
+            int32x2_t vb0 = vld1_s32(pb0 + i);
+            int32x2_t vb1 = vld1_s32(pb1 + i);
+            int32x2_t vb2 = vld1_s32(pb2 + i);
+            int32x2_t vb3 = vld1_s32(pb3 + i);
+
+            // Wrap semantics match scalar by accumulating in u64 lanes.
+            acc00 = vaddq_u64(acc00, vreinterpretq_u64_s64(vmull_s32(va0, vb0)));
+            acc01 = vaddq_u64(acc01, vreinterpretq_u64_s64(vmull_s32(va0, vb1)));
+            acc02 = vaddq_u64(acc02, vreinterpretq_u64_s64(vmull_s32(va0, vb2)));
+            acc03 = vaddq_u64(acc03, vreinterpretq_u64_s64(vmull_s32(va0, vb3)));
+
+            acc10 = vaddq_u64(acc10, vreinterpretq_u64_s64(vmull_s32(va1, vb0)));
+            acc11 = vaddq_u64(acc11, vreinterpretq_u64_s64(vmull_s32(va1, vb1)));
+            acc12 = vaddq_u64(acc12, vreinterpretq_u64_s64(vmull_s32(va1, vb2)));
+            acc13 = vaddq_u64(acc13, vreinterpretq_u64_s64(vmull_s32(va1, vb3)));
+
+            acc20 = vaddq_u64(acc20, vreinterpretq_u64_s64(vmull_s32(va2, vb0)));
+            acc21 = vaddq_u64(acc21, vreinterpretq_u64_s64(vmull_s32(va2, vb1)));
+            acc22 = vaddq_u64(acc22, vreinterpretq_u64_s64(vmull_s32(va2, vb2)));
+            acc23 = vaddq_u64(acc23, vreinterpretq_u64_s64(vmull_s32(va2, vb3)));
+
+            acc30 = vaddq_u64(acc30, vreinterpretq_u64_s64(vmull_s32(va3, vb0)));
+            acc31 = vaddq_u64(acc31, vreinterpretq_u64_s64(vmull_s32(va3, vb1)));
+            acc32 = vaddq_u64(acc32, vreinterpretq_u64_s64(vmull_s32(va3, vb2)));
+            acc33 = vaddq_u64(acc33, vreinterpretq_u64_s64(vmull_s32(va3, vb3)));
+        }
+
+        uint64_t t00[2], t01[2], t02[2], t03[2];
+        uint64_t t10[2], t11[2], t12[2], t13[2];
+        uint64_t t20[2], t21[2], t22[2], t23[2];
+        uint64_t t30[2], t31[2], t32[2], t33[2];
+        vst1q_u64(t00, acc00); vst1q_u64(t01, acc01); vst1q_u64(t02, acc02); vst1q_u64(t03, acc03);
+        vst1q_u64(t10, acc10); vst1q_u64(t11, acc11); vst1q_u64(t12, acc12); vst1q_u64(t13, acc13);
+        vst1q_u64(t20, acc20); vst1q_u64(t21, acc21); vst1q_u64(t22, acc22); vst1q_u64(t23, acc23);
+        vst1q_u64(t30, acc30); vst1q_u64(t31, acc31); vst1q_u64(t32, acc32); vst1q_u64(t33, acc33);
+        c00 = t00[0] + t00[1]; c01 = t01[0] + t01[1]; c02 = t02[0] + t02[1]; c03 = t03[0] + t03[1];
+        c10 = t10[0] + t10[1]; c11 = t11[0] + t11[1]; c12 = t12[0] + t12[1]; c13 = t13[0] + t13[1];
+        c20 = t20[0] + t20[1]; c21 = t21[0] + t21[1]; c22 = t22[0] + t22[1]; c23 = t23[0] + t23[1];
+        c30 = t30[0] + t30[1]; c31 = t31[0] + t31[1]; c32 = t32[0] + t32[1]; c33 = t33[0] + t33[1];
+
+        for (; i < n; i++) {
+            int64_t a0v = (int64_t)pa0[i];
+            int64_t a1v = (int64_t)pa1[i];
+            int64_t a2v = (int64_t)pa2[i];
+            int64_t a3v = (int64_t)pa3[i];
+            int64_t b0v = (int64_t)pb0[i];
+            int64_t b1v = (int64_t)pb1[i];
+            int64_t b2v = (int64_t)pb2[i];
+            int64_t b3v = (int64_t)pb3[i];
+            c00 += (uint64_t)(a0v * b0v); c01 += (uint64_t)(a0v * b1v); c02 += (uint64_t)(a0v * b2v); c03 += (uint64_t)(a0v * b3v);
+            c10 += (uint64_t)(a1v * b0v); c11 += (uint64_t)(a1v * b1v); c12 += (uint64_t)(a1v * b2v); c13 += (uint64_t)(a1v * b3v);
+            c20 += (uint64_t)(a2v * b0v); c21 += (uint64_t)(a2v * b1v); c22 += (uint64_t)(a2v * b2v); c23 += (uint64_t)(a2v * b3v);
+            c30 += (uint64_t)(a3v * b0v); c31 += (uint64_t)(a3v * b1v); c32 += (uint64_t)(a3v * b2v); c33 += (uint64_t)(a3v * b3v);
+        }
+    } else
+#endif
     for (uint32_t i = 0; i < n; i++) {
         int64_t a0v = (int64_t)(int32_t)load_u32_le(buf_data(ba) + (a0_off + i) * 4u);
         int64_t a1v = (int64_t)(int32_t)load_u32_le(buf_data(ba) + (a1_off + i) * 4u);
