@@ -53,6 +53,69 @@ fn trunc_int_expr(x) {
     return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_trunc_int"}, [x])
 }
 
+fn expr_is_definitely_int(expr) {
+    // Conservative “definitely int” predicate.
+    //
+    // Why we need this:
+    // - v0 values are dynamically typed; an Identifier can hold int OR float at runtime.
+    // - `i64(x)` / `u64(x)` must still truncate if `x` is a float.
+    // - BUT: in hot HPC loops we often see patterns where the value is obviously int
+    //   (integer literals, integer-only arithmetic, known int-return intrinsics).
+    //
+    // We only return true when we are confident the runtime value is an int.
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Integer" { return true }
+    if t == "Float" { return false }
+    if t == "Identifier" { return false } // unknown at runtime in v0
+
+    if t == "Prefix" {
+        return expr_is_definitely_int(expr["right"])
+    }
+
+    if t == "Infix" {
+        var op = expr["operator"]
+        // Integer-only operators.
+        if op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" || op == "%" {
+            return expr_is_definitely_int(expr["left"]) && expr_is_definitely_int(expr["right"])
+        }
+        // Arithmetic is int if both sides are definitely int (float would require a float literal
+        // or an explicit float boundary).
+        if op == "+" || op == "-" || op == "*" {
+            return expr_is_definitely_int(expr["left"]) && expr_is_definitely_int(expr["right"])
+        }
+        return false
+    }
+
+    if t == "Call" {
+        var fn0 = expr["function"]
+        if fn0 != nil && fn0["type"] == "Identifier" {
+            var nm = fn0["value"]
+            // Explicit float boundaries are not int.
+            if nm == "f32" || nm == "f64" { return false }
+            if nm == "oren_f32_round" { return false }
+            if nm == "oren_u32_bits_to_f32" { return false }
+            if nm == "oren_u64_bits_to_f64" { return false }
+
+            // Known int-return intrinsics used heavily in HPC code.
+            if nm == "oren_buf_len" { return true }
+
+            // Dot products over i32 buffers return int in v0.
+            if nm == "oren_buf_dot_i32_slice" { return true }
+            if nm == "oren_buf_dot_i32_strided" { return true }
+            if nm == "oren_buf_dot_i32" { return true }
+
+            // Treat cast sugar targets (u8/i32/etc) as int-return at this stage.
+            // (They will be lowered to int expressions later in this pass.)
+            var kk = normalize_kind_for_value_cast(nm)
+            if kk == "u8" || kk == "i8" || kk == "u16" || kk == "i16" || kk == "u32" || kk == "i32" || kk == "i64" || kk == "u64" {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 fn bitcast_expr_for_kind(kind, expr) {
     // bitcast[T](x) lowering (rolling):
     //
@@ -144,8 +207,14 @@ fn cast_expr_for_kind(kind, expr) {
         return sub_expr(xor_expr(mask_expr(x6, "4294967295"), "2147483648"), "2147483648")
     }
 
-    // v0 ints are machine-sized signed. Normalize to int64 container via truncation.
-    if k == "i64" || k == "u64" { return trunc_int_expr(expr) }
+    // v0 ints are machine-sized signed.
+    //
+    // For `i64/u64`, the only semantic change we need is float->int truncation.
+    // We can skip `oren_trunc_int` when we can prove the expression is already int.
+    if k == "i64" || k == "u64" {
+        if expr_is_definitely_int(expr) { return expr }
+        return trunc_int_expr(expr)
+    }
 
     // bool is normalized to a boolean value.
     if k == "bool" { return neq_zero_expr(expr) }
@@ -188,7 +257,10 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
                     var nm = pid["value"]
                     var lhs = {"type": "Identifier", "token": nil, "value": nm}
                     var rhs = cast_expr_for_kind(pid["ann_type"], {"type": "Identifier", "token": nil, "value": nm})
-                    oren_list_push(pre, ast.new_assign(nil, lhs, rhs))
+                    // Avoid inserting no-op normalizations like `x = x` (common for `: i64`).
+                    if !(rhs != nil && rhs["type"] == "Identifier" && rhs["value"] == nm) {
+                        oren_list_push(pre, ast.new_assign(nil, lhs, rhs))
+                    }
                 }
                 i0 = i0 + 1
             }
