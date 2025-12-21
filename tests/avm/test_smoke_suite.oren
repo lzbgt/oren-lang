@@ -158,6 +158,16 @@ fn test_int_casts() {
     assert_eq(ints.u32(-1), 4294967295)
     assert_eq(ints.i32(4294967295), -1)
     assert_eq(ints.i32(2147483648), -2147483648)
+
+    // Cast sugar (compiler-lowered) must work without stdlib imports.
+    // Float -> int truncates toward zero (C-like).
+    assert_eq(u8(1.9), 1)
+    assert_eq(i32(-1.9), -1)
+    assert_eq(u16(65536 + 7), 7)
+
+    // Int -> float cast sugar must accept ints (via coercion in lowering).
+    // We only check a couple values here; float ops are exercised elsewhere.
+    assert_eq(f64(1), 1.0)
 }
 
 fn test_int_casts_checked() {

@@ -100,6 +100,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - `u8/i32/u64/f32/f64` are first-class tokens in the language (not attribute hacks).
      - Float→int cast semantics: truncate toward zero (C-like), with explicit `round/floor/ceil` helpers as separate ops.
      - Cast lowering avoids runtime helper calls in provably-int-only paths.
+   - Current rolling note:
+      - Cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, endian spellings) is lowered by `type_ann_lowering.oren` into deterministic bit ops.
+      - Integer-only cast sites now skip the `oren_trunc_int(...)` helper when the expression is provably-int (reduces overhead in tight loops).
 
 3) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:

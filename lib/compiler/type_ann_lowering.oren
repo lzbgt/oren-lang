@@ -181,29 +181,35 @@ fn cast_expr_for_kind(kind, expr) {
     if k == nil { return expr }
 
     if k == "u8" {
-        var x = trunc_int_expr(expr)
+        var x = expr
+        if !expr_is_definitely_int(expr) { x = trunc_int_expr(expr) }
         return mask_expr(x, "255")
     }
     if k == "i8" {
-        var x2 = trunc_int_expr(expr)
+        var x2 = expr
+        if !expr_is_definitely_int(expr) { x2 = trunc_int_expr(expr) }
         return sub_expr(xor_expr(mask_expr(x2, "255"), "128"), "128")
     }
 
     if k == "u16" {
-        var x3 = trunc_int_expr(expr)
+        var x3 = expr
+        if !expr_is_definitely_int(expr) { x3 = trunc_int_expr(expr) }
         return mask_expr(x3, "65535")
     }
     if k == "i16" {
-        var x4 = trunc_int_expr(expr)
+        var x4 = expr
+        if !expr_is_definitely_int(expr) { x4 = trunc_int_expr(expr) }
         return sub_expr(xor_expr(mask_expr(x4, "65535"), "32768"), "32768")
     }
 
     if k == "u32" {
-        var x5 = trunc_int_expr(expr)
+        var x5 = expr
+        if !expr_is_definitely_int(expr) { x5 = trunc_int_expr(expr) }
         return mask_expr(x5, "4294967295")
     }
     if k == "i32" {
-        var x6 = trunc_int_expr(expr)
+        var x6 = expr
+        if !expr_is_definitely_int(expr) { x6 = trunc_int_expr(expr) }
         return sub_expr(xor_expr(mask_expr(x6, "4294967295"), "2147483648"), "2147483648")
     }
 
