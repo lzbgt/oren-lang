@@ -94,7 +94,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - Bytecode/AVM now also supports f64 reduction ops (`oren_buf_dot_f64*`, `oren_buf_reduce_sum_f64*`) as native ops, so HPC-style `linalg` kernels can run inside AVM without falling back to slow per-element interpreter loops.
       - Bytecode/AVM also supports f64 elementwise ops (`oren_buf_add_f64*`, `oren_buf_mul_f64*`) as native ops for AVM-side vector math building blocks.
       - C runtime: `oren_buf_gemm_f64_4x4_slice_into` now has an optional NEON fast path (still strict-k deterministic; scalar fallback authoritative).
+      - C runtime: `oren_buf_gemm_f32_4x4_slice_into` has an optional NEON fast path (vectorizes across columns with f64 lanes; still strict-k deterministic; scalar fallback authoritative).
       - C runtime: `oren_buf_gemm_i32_4x4_slice_into` now has an optional NEON fast path (wrap semantics; scalar fallback authoritative).
+      - Native runtime (macOS arm64): `simd_dot_f32_ptr` is validated; `simd_dot_f32_4_ptr` / `simd_gemm_f32_4x4_ptr` are still disabled pending correctness fixes (scalar fallback remains authoritative).
       - For the authoritative implementation details and native_id mapping, see:
         - `docs/AVM_NEON_MAPPING_PLAN.md`
         - `lib/std/linalg.oren`

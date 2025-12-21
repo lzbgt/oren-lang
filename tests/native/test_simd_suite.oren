@@ -250,7 +250,11 @@ fn run_dot_f32() {
 
     var ref_bits = oren_f64_to_u64_bits(ref)
     var dot_bits = oren_f64_to_u64_bits(dot)
-    if ref_bits != dot_bits { return fail(420, "dot mismatch (f32)") }
+    if ref_bits != dot_bits {
+        print("DOT_F32_REF_BITS=" + oren_int_to_string(ref_bits))
+        print("DOT_F32_GOT_BITS=" + oren_int_to_string(dot_bits))
+        return fail(420, "dot mismatch (f32)")
+    }
 
     print("DOT_F32_BITS=" + oren_int_to_string(dot_bits))
     return 0
@@ -378,7 +382,7 @@ fn run_dot_f64_4_microkernel() {
 
 fn run_gemm_f32_4x4_microkernel() {
     // 4x4 GEMM microkernel boundary for f32: compute 16 dot products (4 rows x 4 cols) in one pass.
-    var n = 128
+    var n = 129 // odd to exercise tail
     var a = oren_f32_buf_new(4 * n)
     var b = oren_f32_buf_new(4 * n)
     var out = oren_f64_buf_new(16)

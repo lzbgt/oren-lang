@@ -307,6 +307,19 @@ fn global_set_buf_payload_limit(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF
 
 fn native_simd_enabled() { return global_get_enable_simd() }
 
+// SIMD feature gates (rolling):
+//
+// We keep SIMD globally toggleable via `global_get_enable_simd()`, but we also
+// gate known-problematic kernels so correctness stays non-negotiable.
+//
+// Status (2025-12-22):
+// - `simd_dot_f32_ptr` is validated by `tests/native/test_simd_suite.oren` and
+//   can stay enabled (bit-exact vs scalar reference).
+// - `simd_dot_f32_4_ptr` / `simd_gemm_f32_4x4_ptr` are still failing for some
+//   fractional f32 vectors. Keep the 1x4 / 4x4 kernels disabled until fixed.
+fn native_simd_f32_dot_enabled() { return 1 }
+fn native_simd_f32_dot4_enabled() { return 0 }
+
 fn global_get_capsule_mode() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE)) }
 fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE), v) }
 
@@ -6636,15 +6649,27 @@ fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_f32_4_slice_into: b_off out of bounds") }
     if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_f32_4_slice_into: b range out of bounds") }
 
-    // Native SIMD fast path: 1×4 dot microkernel intrinsic (single-pass over A).
-    if native_simd_enabled() != 0 && n >= 4 {
-        var outp = native_buf_data_ptr(out) + out_off * 8
+    // Native SIMD fast path (native backend only):
+    // Use the already-validated `simd_dot_f32_ptr` 4 times, one per column.
+    //
+    // NOTE: `simd_dot_f32_4_ptr` exists but has known correctness issues for some f32 inputs
+    // (caught by GEMM+fractional test vectors). Keep it disabled until it is fixed in the
+    // arm64 intrinsic emitter.
+    if native_simd_enabled() != 0 && native_simd_f32_dot4_enabled() != 0 && n >= 4 {
         var pa = native_buf_data_ptr(a) + a_off * 4
         var pb0 = native_buf_data_ptr(b) + b0_off * 4
         var pb1 = native_buf_data_ptr(b) + b1_off * 4
         var pb2 = native_buf_data_ptr(b) + b2_off * 4
         var pb3 = native_buf_data_ptr(b) + b3_off * 4
-        simd_dot_f32_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
+
+        var s0 = simd_dot_f32_ptr(pa, pb0, n)
+        var s1 = simd_dot_f32_ptr(pa, pb1, n)
+        var s2 = simd_dot_f32_ptr(pa, pb2, n)
+        var s3 = simd_dot_f32_ptr(pa, pb3, n)
+        oren_buf_store_f64(out, out_off + 0, s0)
+        oren_buf_store_f64(out, out_off + 1, s1)
+        oren_buf_store_f64(out, out_off + 2, s2)
+        oren_buf_store_f64(out, out_off + 3, s3)
         return out
     }
 
@@ -6912,14 +6937,11 @@ fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
     if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_gemm_f32_4x4_slice_into: b_off out of bounds") }
     if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_gemm_f32_4x4_slice_into: b range out of bounds") }
 
-    // Native fast path (rolling):
-    // Reuse the existing, already bit-exact 1x4 dot microkernel to fill 4 rows.
-    //
-    // This is not a "true" single-pass 4x4 GEMM microkernel yet, but it preserves:
-    // - correctness (bitwise match to scalar reference)
-    // - deterministic k-order semantics (each dot accumulates k=0..n-1 in order)
-    if native_simd_enabled() != 0 && n >= 4 {
-        var outp = native_buf_data_ptr(out) + out_off * 8
+    if native_simd_enabled() != 0 && native_simd_f32_dot4_enabled() != 0 && n >= 4 {
+        // Native fast path (native backend only):
+        // Build GEMM from 16 dot products using the validated `simd_dot_f32_ptr`.
+        //
+        // NOTE: `simd_gemm_f32_4x4_ptr` exists but is currently disabled due to correctness issues.
         var pa0 = native_buf_data_ptr(a) + a0_off * 4
         var pa1 = native_buf_data_ptr(a) + a1_off * 4
         var pa2 = native_buf_data_ptr(a) + a2_off * 4
@@ -6929,11 +6951,15 @@ fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
         var pb2 = native_buf_data_ptr(b) + b2_off * 4
         var pb3 = native_buf_data_ptr(b) + b3_off * 4
 
-        // True single-pass 4x4 GEMM microkernel:
-        // - loads/widens each B column once per k-block
-        // - widens A rows to f64
-        // - multiplies in f64 and accumulates in deterministic increasing-k order
-        simd_gemm_f32_4x4_ptr(outp, pa0, pa1, pa2, pa3, pb0, pb1, pb2, pb3, n)
+        var c00 = simd_dot_f32_ptr(pa0, pb0, n); var c01 = simd_dot_f32_ptr(pa0, pb1, n); var c02 = simd_dot_f32_ptr(pa0, pb2, n); var c03 = simd_dot_f32_ptr(pa0, pb3, n)
+        var c10 = simd_dot_f32_ptr(pa1, pb0, n); var c11 = simd_dot_f32_ptr(pa1, pb1, n); var c12 = simd_dot_f32_ptr(pa1, pb2, n); var c13 = simd_dot_f32_ptr(pa1, pb3, n)
+        var c20 = simd_dot_f32_ptr(pa2, pb0, n); var c21 = simd_dot_f32_ptr(pa2, pb1, n); var c22 = simd_dot_f32_ptr(pa2, pb2, n); var c23 = simd_dot_f32_ptr(pa2, pb3, n)
+        var c30 = simd_dot_f32_ptr(pa3, pb0, n); var c31 = simd_dot_f32_ptr(pa3, pb1, n); var c32 = simd_dot_f32_ptr(pa3, pb2, n); var c33 = simd_dot_f32_ptr(pa3, pb3, n)
+
+        oren_buf_store_f64(out, out_off + 0, c00); oren_buf_store_f64(out, out_off + 1, c01); oren_buf_store_f64(out, out_off + 2, c02); oren_buf_store_f64(out, out_off + 3, c03)
+        oren_buf_store_f64(out, out_off + 4, c10); oren_buf_store_f64(out, out_off + 5, c11); oren_buf_store_f64(out, out_off + 6, c12); oren_buf_store_f64(out, out_off + 7, c13)
+        oren_buf_store_f64(out, out_off + 8, c20); oren_buf_store_f64(out, out_off + 9, c21); oren_buf_store_f64(out, out_off + 10, c22); oren_buf_store_f64(out, out_off + 11, c23)
+        oren_buf_store_f64(out, out_off + 12, c30); oren_buf_store_f64(out, out_off + 13, c31); oren_buf_store_f64(out, out_off + 14, c32); oren_buf_store_f64(out, out_off + 15, c33)
         return out
     }
 
@@ -6975,7 +7001,7 @@ fn oren_buf_dot_f32(a, b): f64 {
 
     // SIMD fast path (native backend only): NEON dot over raw f32 pointers.
     // Must preserve scalar semantics: widen to f64 and accumulate in scalar order.
-    if native_simd_enabled() != 0 && n >= 4 {
+    if native_simd_enabled() != 0 && native_simd_f32_dot_enabled() != 0 && n >= 4 {
         var pa = native_buf_data_ptr(a)
         var pb = native_buf_data_ptr(b)
         return simd_dot_f32_ptr(pa, pb, n)
@@ -7001,7 +7027,7 @@ fn oren_buf_dot_f32_slice(a, a_off, b, b_off, n): f64 {
     if a_off > na || b_off > nb { return oren_err(4, "buf_dot_f32_slice: offset out of bounds") }
     if a_off + n > na || b_off + n > nb { return oren_err(4, "buf_dot_f32_slice: range out of bounds") }
 
-    if native_simd_enabled() != 0 && n >= 4 {
+    if native_simd_enabled() != 0 && native_simd_f32_dot_enabled() != 0 && n >= 4 {
         var pa = native_buf_data_ptr(a) + a_off * 4
         var pb = native_buf_data_ptr(b) + b_off * 4
         return simd_dot_f32_ptr(pa, pb, n)
