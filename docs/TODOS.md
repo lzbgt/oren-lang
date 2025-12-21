@@ -114,6 +114,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - C AVM now has optional **NEON** fast paths (lane-ordered float accumulation) for:
         - `native_id=115` (`oren_buf_dot_f32_slice`) when `AVM_ENABLE_SIMD=1`
         - `native_id=117` (`oren_buf_dot_f32_strided`) when `AVM_ENABLE_SIMD=1` (fast path when strides are contiguous)
+      - C runtime now has **NEON** fast paths (lane-ordered float accumulation) for:
+        - `oren_buf_dot_f32_strided` when both strides are contiguous
+        - `oren_buf_dot_f64_strided` when both strides are contiguous
       - Tail columns are covered in both packed and non-packed 4-row paths (`p % 4 != 0`).
       - Added `linalg.matmul_f32_buf_into(out, a, b, m, n, p)` to enable allocation-free HPC loops (caller owns output buffer).
       - Added `linalg.matmul_i32_buf_into(out, a, b, m, n, p)` for the same allocation-free pattern in integer GEMM paths.
