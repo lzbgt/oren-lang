@@ -116,7 +116,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Add correctness tests (small shapes) + perf smoke test (no hard perf thresholds)
    - Status:
      - **done:** baseline typed-buffer matmul (`matmul_f32_buf`, `matmul_i32_buf`, `matmul_i32_buf_wide`) + module tests (`tests/modules/test_linalg.oren`)
-     - **next:** add kernel boundary for `matmul_f32_buf` inner loop (tile + optional NEON microkernel for `k`-loop)
+     - **done:** initial kernel dispatch: matmul uses `B` transpose + `oren_buf_dot_*_slice` so native backend can hit NEON dot kernels without a full GEMM microkernel.
+     - **next:** add tiling + packed-B layout for cache efficiency (keep determinism; no re-association for dot paths)
+     - **next:** consider `dot_strided` primitive to avoid explicit transpose for some shapes
 
 2) **[stdlib][api] Serde annotations remain stable while language evolves**
    - DoD:

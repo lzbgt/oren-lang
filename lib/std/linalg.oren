@@ -204,19 +204,34 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
     var out: []f32 = buffer.f32_new(m * p)
     if oren_is_err(out) { return out }
 
+    // Kernel dispatch boundary (v0):
+    //
+    // We transpose B so that each column becomes a contiguous row in Bt.
+    // Then each output element is a dot product between two contiguous slices,
+    // which enables NEON dot kernels via `oren_buf_dot_f32_slice` without
+    // needing a full matmul microkernel yet.
+    //
+    // Bt is p x n, indexed Bt[j*n + k] = B[k*p + j].
+    var bt: []f32 = buffer.f32_new(n * p)
+    if oren_is_err(bt) { return bt }
+    var k0 = 0
+    while k0 < n {
+        var j0 = 0
+        while j0 < p {
+            var v = oren_buf_load_f32(b, k0 * p + j0)
+            if oren_is_err(v) { return v }
+            oren_buf_store_f32(bt, j0 * n + k0, v)
+            j0 = j0 + 1
+        }
+        k0 = k0 + 1
+    }
+
     var i = 0
     while i < m {
         var j = 0
         while j < p {
-            var k = 0
-            var s = 0.0
-            while k < n {
-                // Load f32 values (already rounded to f32 boundary), compute in f64, accumulate in scalar order.
-                var av = oren_buf_load_f32(a, i * n + k)
-                var bv = oren_buf_load_f32(b, k * p + j)
-                s = s + av * bv
-                k = k + 1
-            }
+            var s = oren_buf_dot_f32_slice(a, i * n, bt, j * n, n)
+            if oren_is_err(s) { return s }
             oren_buf_store_f32(out, i * p + j, f32(s))
             j = j + 1
         }
@@ -239,19 +254,27 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
     var out: []i32 = buffer.i32_new(m * p)
     if oren_is_err(out) { return out }
 
+    // Transpose B to enable contiguous slice dot kernels.
+    var bt: []i32 = buffer.i32_new(n * p)
+    if oren_is_err(bt) { return bt }
+    var k0 = 0
+    while k0 < n {
+        var j0 = 0
+        while j0 < p {
+            var v = oren_buf_load_i32(b, k0 * p + j0)
+            if oren_is_err(v) { return v }
+            oren_buf_store_i32(bt, j0 * n + k0, v)
+            j0 = j0 + 1
+        }
+        k0 = k0 + 1
+    }
+
     var i = 0
     while i < m {
         var j = 0
         while j < p {
-            var k = 0
-            var s = 0
-            while k < n {
-                var av = oren_buf_load_i32(a, i * n + k)
-                var bv = oren_buf_load_i32(b, k * p + j)
-                // Cast to i64 to avoid intermediate truncation (still within v0 int range for typical workloads).
-                s = s + i64(av) * i64(bv)
-                k = k + 1
-            }
+            var s = oren_buf_dot_i32_slice(a, i * n, bt, j * n, n)
+            if oren_is_err(s) { return s }
             oren_buf_store_i32(out, i * p + j, i32(s))
             j = j + 1
         }
@@ -273,18 +296,26 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
     var out: []i64 = buffer.i64_new(m * p)
     if oren_is_err(out) { return out }
 
+    var bt: []i32 = buffer.i32_new(n * p)
+    if oren_is_err(bt) { return bt }
+    var k0 = 0
+    while k0 < n {
+        var j0 = 0
+        while j0 < p {
+            var v = oren_buf_load_i32(b, k0 * p + j0)
+            if oren_is_err(v) { return v }
+            oren_buf_store_i32(bt, j0 * n + k0, v)
+            j0 = j0 + 1
+        }
+        k0 = k0 + 1
+    }
+
     var i = 0
     while i < m {
         var j = 0
         while j < p {
-            var k = 0
-            var s = 0
-            while k < n {
-                var av = oren_buf_load_i32(a, i * n + k)
-                var bv = oren_buf_load_i32(b, k * p + j)
-                s = s + i64(av) * i64(bv)
-                k = k + 1
-            }
+            var s = oren_buf_dot_i32_slice(a, i * n, bt, j * n, n)
+            if oren_is_err(s) { return s }
             oren_buf_store_i64(out, i * p + j, s)
             j = j + 1
         }

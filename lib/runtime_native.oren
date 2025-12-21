@@ -6132,6 +6132,32 @@ fn oren_buf_dot_i32(a, b) {
     return sum
 }
 
+fn oren_buf_dot_i32_slice(a, a_off, b, b_off, n) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    if a_off < 0 || b_off < 0 || n < 0 { return oren_err(4, "buf_dot_i32_slice: negative arg") }
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na || b_off > nb { return oren_err(4, "buf_dot_i32_slice: offset out of bounds") }
+    if a_off + n > na || b_off + n > nb { return oren_err(4, "buf_dot_i32_slice: range out of bounds") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pa = native_buf_data_ptr(a) + a_off * 4
+        var pb = native_buf_data_ptr(b) + b_off * 4
+        return simd_dot_i32_ptr(pa, pb, n)
+    }
+
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_i32(a, a_off + i) * oren_buf_load_i32(b, b_off + i))
+        i = i + 1
+    }
+    return sum
+}
+
 fn oren_buf_dot_f32(a, b): f64 {
     var ea = native_buf_check(a, BUF_TAG_F32, 4)
     if oren_is_err(ea) { return ea }
@@ -6152,6 +6178,32 @@ fn oren_buf_dot_f32(a, b): f64 {
     var i = 0
     while i < n {
         sum = sum + (oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_f32_slice(a, a_off, b, b_off, n): f64 {
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    if a_off < 0 || b_off < 0 || n < 0 { return oren_err(4, "buf_dot_f32_slice: negative arg") }
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na || b_off > nb { return oren_err(4, "buf_dot_f32_slice: offset out of bounds") }
+    if a_off + n > na || b_off + n > nb { return oren_err(4, "buf_dot_f32_slice: range out of bounds") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pa = native_buf_data_ptr(a) + a_off * 4
+        var pb = native_buf_data_ptr(b) + b_off * 4
+        return simd_dot_f32_ptr(pa, pb, n)
+    }
+
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_f32(a, a_off + i) * oren_buf_load_f32(b, b_off + i))
         i = i + 1
     }
     return sum
