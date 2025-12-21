@@ -597,28 +597,46 @@ fn collect_impl_pairs(linked) {
 
 fn validate_type_param_constraint(template_fn, tp, concrete_type, impl_pairs, errs) {
     if tp == nil { return nil }
-    var c = tp["constraint"]
-    if c == nil { return nil }
-    // Constraint must be an identifier-like trait name for v0 (no pointers/arrays).
-    var parts = split_type_string(c)
-    if parts["prefix"] != "" || parts["suffix"] != "" || parts["base"] != c {
-        err_push(errs, template_fn["token"], "generic constraint must be a trait name (e.g. T: Foo), got '" + c + "'")
-        return nil
+    var cs = tp["constraints"]
+    if cs == nil {
+        // Back-compat: older shape `constraint: "Trait"` (single).
+        var c = tp["constraint"]
+        if c == nil { return nil }
+        cs = [c]
     }
-    var trait_name = parts["base"]
+
     var cparts = split_type_string(concrete_type)
     var ty = cparts["base"]
     if ty == nil || ty == "" {
         err_push(errs, template_fn["token"], "generic instantiation has invalid type argument '" + concrete_type + "'")
         return nil
     }
-    if impl_pairs[trait_name] == nil {
-        err_push(errs, template_fn["token"], "missing impl for trait '" + trait_name + "' on type '" + ty + "' (no impl blocks for this trait in program)")
-        return nil
+
+    var i = 0
+    while cs != nil && i < oren_list_len(cs) {
+        var c = cs[i]
+        if c == nil || c == "" {
+            err_push(errs, template_fn["token"], "generic constraint must be a trait name (e.g. T: Foo), got empty constraint")
+            return nil
+        }
+        // Constraint must be an identifier-like trait name (no pointers/arrays/slices).
+        var parts = split_type_string(c)
+        if parts["prefix"] != "" || parts["suffix"] != "" || parts["base"] != c {
+            err_push(errs, template_fn["token"], "generic constraint must be a trait name (e.g. T: Foo), got '" + c + "'")
+            return nil
+        }
+        var trait_name = parts["base"]
+
+        if impl_pairs[trait_name] == nil {
+            err_push(errs, template_fn["token"], "missing impl for trait '" + trait_name + "' on type '" + ty + "' (no impl blocks for this trait in program)")
+            return nil
+        }
+        if impl_pairs[trait_name][ty] != true && impl_pairs[trait_name]["any"] != true {
+            err_push(errs, template_fn["token"], "missing impl for trait '" + trait_name + "' on type '" + ty + "'")
+            return nil
+        }
+        i = i + 1
     }
-    if impl_pairs[trait_name][ty] == true { return nil }
-    if impl_pairs[trait_name]["any"] == true { return nil }
-    err_push(errs, template_fn["token"], "missing impl for trait '" + trait_name + "' on type '" + ty + "'")
     return nil
 }
 

@@ -1,0 +1,23 @@
+// This fixture is expected to FAIL compilation (non-zero exit).
+//
+// It validates that generic trait constraints are enforced:
+//   fn f[T: Trait](...) cannot be instantiated with a type that lacks an impl.
+
+trait NeedsZ {
+    fn z(self);
+}
+
+impl NeedsZ for i32 {
+    fn z(self) { return 7 }
+}
+
+fn need_z[T: NeedsZ](x: T) {
+    return x.z()
+}
+
+// Missing `impl NeedsZ for u32` should be caught at monomorphization time.
+var a: u32 = 1
+var r = need_z[u32](a)
+print(r)
+exit(0)
+

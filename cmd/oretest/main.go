@@ -155,6 +155,7 @@ func main() {
 		"tests/modules/test_int_literal_bases.oren",
 		"tests/modules/test_generic_call_specialization.oren",
 		"tests/modules/test_generic_fn_monomorph_dot.oren",
+		"tests/modules/test_generic_trait_constraints.oren",
 		"tests/modules/test_mod.oren",
 		"tests/modules/test_type_ann_fn_boundaries.oren",
 		"tests/modules/test_abi_layout.oren",
@@ -777,7 +778,45 @@ func main() {
 				"build/compiler_in_avm_vfs_harness.obc",
 				"build/fixture_compiler_in_avm_smoke.run.out",
 			},
-		})
+			})
+
+			// Generic trait constraints must be enforced at monomorphization time.
+			// This fixture expects compilation to fail with a clear diagnostic.
+			fixtures = append(fixtures, struct {
+				name    string
+				cmd     string
+				timeout time.Duration
+				log     string
+				ok      func(rc int) bool
+				cleanup []string
+			}{
+				name: "generic_constraint_missing_impl",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"out=%q; "+
+						"rm -f \"$out\"; "+
+						"set +e; "+
+						"%s ./oren build %q --backend bytecode --target %s -o %q%s > \"$out\" 2>&1; "+
+						"rc=$?; "+
+						"set -e; "+
+						"if [ $rc -eq 0 ]; then echo \"[fixture] expected non-zero exit\"; cat \"$out\"; exit 1; fi; "+
+						"grep -Fq %q \"$out\"",
+					"build/fixture_generic_constraint_missing_impl.out",
+					fixtureEnv,
+					"tests/fixtures/generic_constraint_missing_impl.oren",
+					*target,
+					"build/tmp_generic_constraint_missing_impl.obc",
+					gcArg,
+					"missing impl for trait",
+				),
+				timeout: 2 * time.Minute,
+				log:     "build/logs/fixture_generic_constraint_missing_impl.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/fixture_generic_constraint_missing_impl.out",
+					"build/tmp_generic_constraint_missing_impl.obc",
+				},
+			})
 	}
 
 	// Runtime diagnostics fixtures (expected non-zero exit, machine-readable header).

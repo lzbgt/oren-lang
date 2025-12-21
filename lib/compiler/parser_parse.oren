@@ -1320,10 +1320,27 @@ fn parse_function(p) {
             // Optional constraint:
             //   T: TraitName
             if peek_is(p, token.TOK_COLON) {
+                // NOTE: in generic type parameter position we treat the constraint as a trait list,
+                // not a general type name:
+                //   T: Foo + bar.Baz
+                //
+                // This keeps the surface modern and avoids allowing pointer/array prefixes here.
                 parser_next_token(p) // ':'
-                var c = parse_type_name_after_colon(p)
-                if c == nil { return nil }
-                tp["constraint"] = c
+                if !expect_peek_ident_like(p, "trait constraint name") { return nil }
+                var cs = []
+                // Parse first dotted trait name.
+                var c0 = parse_dotted_name(p)
+                if c0 == nil { return nil }
+                oren_list_push(cs, c0)
+                // Parse optional `+`-separated trait names.
+                while peek_is(p, token.TOK_PLUS) {
+                    parser_next_token(p) // '+'
+                    if !expect_peek_ident_like(p, "trait constraint name") { return nil }
+                    var cn = parse_dotted_name(p)
+                    if cn == nil { return nil }
+                    oren_list_push(cs, cn)
+                }
+                tp["constraints"] = cs
             }
             oren_list_push(type_params, tp)
 

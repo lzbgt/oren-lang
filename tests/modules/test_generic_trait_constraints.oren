@@ -1,0 +1,52 @@
+// Generic trait constraints (rolling).
+//
+// Goal: ensure `fn f[T: Trait](...)` is accepted and enforced by the monomorphizer.
+//
+// This test covers the "happy path" where:
+// - a trait exists
+// - an impl exists for the concrete type
+// - a generic function requires that trait
+// - the specialization calls trait methods via method sugar
+
+fn fail(code) {
+    print("module generic_trait_constraints FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+trait Add1 {
+    fn add1(self, rhs);
+}
+
+trait Mul1 {
+    fn mul1(self, rhs);
+}
+
+impl Add1 for i32 {
+    fn add1(self, rhs) { return self + rhs }
+}
+
+impl Mul1 for i32 {
+    fn mul1(self, rhs) { return self * rhs }
+}
+
+// Generic fn with a constraint.
+fn plus_one[T: Add1](x: T): T {
+    return x.add1(1)
+}
+
+assert_eq(plus_one[i32](41), 42, 10)
+
+// Multiple constraints (modern surface): `T: Add1 + Mul1`
+fn mul2_plus1[T: Mul1 + Add1](x: T): T {
+    return x.mul1(2).add1(1)
+}
+
+assert_eq(mul2_plus1[i32](10), 21, 20)
+
+print("module generic_trait_constraints OK")
+exit(0)

@@ -75,6 +75,19 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `std/linalg` view helpers (`dot_*_view`) and strided matrix-view matmul (`matmul_f32_mat_view`)
 - Verified: `./oretest --target macos` and `./oretest --full --target macos` pass.
 
+## Archived (2025-12-21) — Generic trait constraints (static-first)
+
+- Generic type parameters now support trait constraints:
+  - single: `fn plus_one[T: Add1](x: T): T { ... }`
+  - multiple: `fn f[T: Mul1 + Add1](x: T): T { ... }`
+- Enforcement is done at monomorphization time (compile-time):
+  - instantiations require `impl Trait for <Type>` to exist (or `impl Trait for any` as a fallback)
+  - missing impls are surfaced as a deterministic compiler error: `missing impl for trait ...`
+- Tests:
+  - Added module coverage: `tests/modules/test_generic_trait_constraints.oren`
+  - Added compile-fail fixture (full suite only): `tests/fixtures/generic_constraint_missing_impl.oren`
+- Verified: `./oretest --full --target macos` passes.
+
 ## Archived (2025-12-19) — Previously in `docs/TODOS.md` “Recently Completed”
 
 - Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.

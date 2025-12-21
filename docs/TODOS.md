@@ -74,13 +74,14 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][arch] Trait constraints for generics (static-first, HPC)**
-   - Goal: allow stdlib to express generic algorithms without per-type boilerplate while keeping HPC hot-loops monomorphized.
+1) **[lang][perf] `for x:T in ...` iterator annotations + trait-based iterables**
+   - Why: HPC code and IO parsing want explicit element typing when iterating buffers/streams while keeping `for x in ...` generic.
    - DoD:
-     - Add syntax for constraints at generic boundaries (rolling direction): `fn dot[T: Add+Mul](...)` or equivalent
-     - Enforce constraint satisfaction at compile-time (monomorphization still generates concrete functions)
-     - Keep runtime trait objects explicitly out-of-scope (defer; avoid perf cliffs + determinism complexity)
-     - Keep this as an additive feature: existing `trait`/`impl`/blanket `impl ... for any` continue to work
+     - Ensure `for x: T in iterable { ... }` is supported across backends (already parsed; harden semantics)
+     - Define a clear rule for what iterables are supported:
+       - list / map / string / bytes / typed buffers
+       - view lists (`[buf,off,len]`, `[buf,off,len,stride]`)
+     - Decide if/when trait-based iteration replaces the current `oren_iter_next(container, idx)` hook (keep v0 stable)
 
 ### B) AVM (evolves alongside language/compiler)
 
