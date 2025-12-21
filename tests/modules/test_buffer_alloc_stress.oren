@@ -1,0 +1,108 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module buffer_alloc_stress FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+// Integration-style stress test for typed-buffer payload allocation.
+//
+// Goals:
+// - exercise both RAW and RAW_MMAP payload kinds under the default policy
+// - churn allocations + explicit GC to ensure:
+//   - payload pointers remain valid while retained
+//   - freed buffers don't crash GC sweep
+//   - repeated allocate/free doesn't regress (fragmentation pressure)
+//
+// Not timing-based: bounded loops only (should run <5s).
+
+// Small payload must be RAW (heap-backed).
+var small: []i32 = buffer.i32_new(8)
+assert_true(oren_buf_payload_is_raw(small), 10)
+assert_true(!oren_buf_payload_is_mmap(small), 11)
+
+// Large payload must be RAW_MMAP (mmap-backed) under default 1 MiB threshold.
+// 524288 * 4 = 2,097,152 bytes
+var big: []i32 = buffer.i32_new(524288)
+assert_true(oren_buf_payload_is_raw(big), 20)
+assert_true(oren_buf_payload_is_mmap(big), 21)
+
+// Churn pattern: keep a pool alive, drop half, collect, refill, repeat.
+var pool = []
+var pool_f = []
+
+// Seed pool with mixed small and large buffers.
+var i = 0
+while i < 400 {
+    var b: []i32 = buffer.i32_new(1024) // 4 KiB payload
+    oren_list_push(pool, b)
+    i = i + 1
+}
+var j = 0
+while j < 12 {
+    var m: []f32 = buffer.f32_new(262144) // 1 MiB payload (should mmap at >= threshold)
+    oren_list_push(pool_f, m)
+    j = j + 1
+}
+
+oren_gc_collect()
+
+// Drop every other item and collect.
+var k = 0
+while k < oren_list_len(pool) {
+    if (k % 2) == 1 { pool[k] = nil }
+    k = k + 1
+}
+var k2 = 0
+while k2 < oren_list_len(pool_f) {
+    if (k2 % 2) == 1 { pool_f[k2] = nil }
+    k2 = k2 + 1
+}
+oren_gc_collect()
+
+// Refill with some new buffers after GC.
+var r = 0
+while r < 200 {
+    var b2: []i32 = buffer.i32_new(2048)
+    oren_list_push(pool, b2)
+    r = r + 1
+}
+var r2 = 0
+while r2 < 6 {
+    var m2: []f32 = buffer.f32_new(262144)
+    oren_list_push(pool_f, m2)
+    r2 = r2 + 1
+}
+
+// Final validation: iterate pool and touch payloads for non-nil entries.
+var t = 0
+while t < oren_list_len(pool) {
+    var bi: []i32 = pool[t]
+    if bi != nil {
+        if buffer.len(bi) > 0 {
+            oren_buf_store_i32(bi, 0, 123)
+            assert_true(oren_buf_load_i32(bi, 0) == 123, 90)
+        }
+    }
+    t = t + 1
+}
+
+var tf = 0
+while tf < oren_list_len(pool_f) {
+    var bf: []f32 = pool_f[tf]
+    if bf != nil {
+        if buffer.len(bf) > 0 {
+            oren_buf_store_f32(bf, 0, 1.25)
+            assert_true(oren_buf_load_f32(bf, 0) == 1.25, 91)
+        }
+    }
+    tf = tf + 1
+}
+
+print("module buffer_alloc_stress OK")
+exit(0)

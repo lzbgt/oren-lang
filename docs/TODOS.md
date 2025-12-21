@@ -104,7 +104,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - **done:** env-configurable typed-buffer alignment via `OREN_BUF_ALIGN=8|16|32|64` (default 64)
      - **done:** optional typed-buffer force-mmap via `OREN_BUF_FORCE_MMAP=1` (native)
      - **done:** `cmd/oretest` sanitizes these env vars to keep tests stable across user shells
-     - **next:** add a single stress/integration test (fragmentation + OOM) that runs fast (<5s) and covers both RAW and RAW_MMAP paths
+     - **done:** stress/integration test `tests/modules/test_buffer_alloc_stress.oren` (fragmentation-style churn + explicit GC; covers RAW + RAW_MMAP)
+     - **next:** add a deterministic “OOM/too-large” failure test only if we can catch/report allocation failure without crashing the whole process
 
 ### B) AVM (evolves alongside language/compiler)
 
