@@ -1,8 +1,12 @@
 // std/math (rolling)
 //
-// Scope: small, deterministic, portable helpers.
-// - Int-first (works the same on all backends).
-// - Float helpers are provided only when semantics are stable enough (no host math lib calls).
+// Scope: deterministic, portable math building blocks.
+//
+// Design goals:
+// - No host `libm` dependency (works the same across C/native/AVM backends).
+// - Deterministic semantics (fixed iteration counts; no CPU-specific rounding modes).
+// - Provide HPC-relevant primitives incrementally (sqrt, powi, etc.) so higher-level
+//   linalg/scientific libraries can build on them.
 
 fn abs_i(x) {
     if x < 0 { return -x }
@@ -49,6 +53,45 @@ fn clamp_f(x, lo, hi) {
 fn is_nan(x) {
     // IEEE-ish: NaN != NaN
     return x != x
+}
+
+fn _f64_bits(x) {
+    return oren_f64_to_u64_bits(x)
+}
+
+fn _f64_from_bits(u) {
+    return oren_u64_bits_to_f64(u)
+}
+
+fn is_inf(x) {
+    if is_nan(x) { return false }
+    var b = _f64_bits(x)
+    if oren_is_err(b) { return false }
+    // exp==0x7ff and mantissa==0
+    return ((b >> 52) & 2047) == 2047 && (b & 4503599627370495) == 0
+}
+
+fn is_finite(x) {
+    if is_nan(x) { return false }
+    var b = _f64_bits(x)
+    if oren_is_err(b) { return false }
+    return ((b >> 52) & 2047) != 2047
+}
+
+fn signbit(x) {
+    var b = _f64_bits(x)
+    if oren_is_err(b) { return false }
+    return (b >> 63) != 0
+}
+
+fn copysign(x, y) {
+    var xb = _f64_bits(x)
+    if oren_is_err(xb) { return xb }
+    var yb = _f64_bits(y)
+    if oren_is_err(yb) { return yb }
+    var sign = yb & 9223372036854775808
+    var mag = xb & 9223372036854775807
+    return _f64_from_bits(mag | sign)
 }
 
 // --- rounding helpers (float, deterministic, no host libm) ---
@@ -123,4 +166,88 @@ fn round(x) {
     // exactly half: away from zero
     if x > 0.0 { return t + 1.0 }
     return t - 1.0
+}
+
+// --- sqrt / pow (HPC foundation) ---
+//
+// sqrt(x) semantics:
+// - If x < 0: Err(OREN_ERR_INVALID_ARG)
+// - If x is NaN: Err
+// - If x is +inf: +inf
+// - If x is +/-0.0: returns x (preserve sign of zero deterministically)
+//
+// Implementation:
+// - Uses exponent-only initial guess derived from IEEE-754 bits, plus an optional
+//   sqrt(2) correction for odd exponents.
+// - Uses a fixed number of Newton iterations for determinism.
+//
+// This is not a replacement for a tuned libm yet, but it is a correct, portable
+// building block for stdlib linalg/scientific code.
+
+fn sqrt(x) {
+    if is_nan(x) { return oren_err(4, "sqrt: NaN") }
+    if x < 0.0 { return oren_err(4, "sqrt: negative") }
+    if x == 0.0 { return x }
+    if is_inf(x) { return x }
+
+    var b0 = _f64_bits(x)
+    if oren_is_err(b0) { return b0 }
+    var exp0 = (b0 >> 52) & 2047
+
+    // Normalize subnormals by scaling. This keeps the exponent path well-defined.
+    var xn = x
+    var exp = exp0
+    var adjust = 0
+    if exp == 0 {
+        // x != 0.0 here, so it is subnormal.
+        // Multiply by 2^54 (exact in f64) and later subtract 54 from the exponent.
+        xn = x * 18014398509481984.0
+        var b1 = _f64_bits(xn)
+        if oren_is_err(b1) { return b1 }
+        exp = (b1 >> 52) & 2047
+        adjust = 54
+    }
+
+    // Unbias exponent.
+    var e = i64(exp) - 1023 - adjust
+    var ge = e / 2
+    // Initial guess: 2^ge (mantissa=0).
+    var gb = (u64(ge + 1023) << 52)
+    var g = _f64_from_bits(gb)
+    if oren_is_err(g) { return g }
+
+    // If exponent is odd, multiply guess by sqrt(2) to improve convergence.
+    if (e & 1) != 0 {
+        g = g * 1.4142135623730951
+    }
+
+    // Fixed-iteration Newton-Raphson: g_{n+1} = 0.5 * (g + xn/g)
+    // 8 iterations is ample for f64 from this guess and remains deterministic.
+    var i = 0
+    while i < 8 {
+        g = 0.5 * (g + xn / g)
+        i = i + 1
+    }
+    return g
+}
+
+fn powi(x, n) {
+    // Integer exponent power (deterministic, no libm).
+    // For negative n, we return 1/(x^(-n)).
+    if n == 0 { return 1.0 }
+    var nn = n
+    var inv = false
+    if nn < 0 {
+        inv = true
+        nn = 0 - nn
+    }
+    var base = x
+    var acc = 1.0
+    while nn > 0 {
+        if (nn & 1) != 0 { acc = acc * base }
+        base = base * base
+        nn = nn >> 1
+    }
+    if inv { return 1.0 / acc }
+    return acc
 }

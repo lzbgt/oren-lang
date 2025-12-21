@@ -100,6 +100,15 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
    - Status: **done** (see archive for details).
 
+3) **[stdlib][hpc] Math foundations for scientific/HPC code (no host libm)**
+   - Goal: provide deterministic “libm-lite” primitives so HPC/ML libraries can be written in Oren.
+   - DoD (rolling):
+     - Provide correct, deterministic `sqrt(x)` + `powi(x,n)` and float classification helpers.
+     - Keep implementations portable across C/native/AVM (no platform libm calls).
+     - Keep integration tests small and exact (avoid tolerance-based tests until an error model is documented).
+   - Status (rolling):
+     - DONE: `math.sqrt`, `math.powi`, `math.is_inf/is_finite/signbit/copysign` (covered in `tests/modules/test_integration_suite.oren`).
+
 ### B) AVM (evolves alongside language/compiler)
 
 1) **[boot][arch] Compiler-in-AVM (close the loop)**
