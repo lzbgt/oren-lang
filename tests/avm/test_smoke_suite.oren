@@ -376,6 +376,26 @@ fn test_typed_buffers() {
     var isdst = oren_i32_buf_new(3)
     oren_buf_scale_i32_into(isdst, a, 3) // 2 * 3 = 6
     assert_eq(oren_buf_load_i32(isdst, 0), 6)
+
+    // axpy kernels (y := alpha*x + y), needed for basic BLAS-like building blocks.
+    var axdst = oren_i32_buf_new(3)
+    oren_buf_axpy_i32_into(axdst, 2, a, b) // 2*2 + 5 = 9
+    assert_eq(oren_buf_load_i32(axdst, 1), 9)
+
+    // in_place form mutates y.
+    var y2 = oren_i32_buf_new(3)
+    oren_buf_fill_i32(y2, 5)
+    oren_buf_axpy_i32_in_place(2, a, y2)
+    assert_eq(oren_buf_load_i32(y2, 2), 9)
+
+    // f32 axpy: use exactly representable values.
+    var fydst = oren_f32_buf_new(3)
+    oren_buf_axpy_f32_into(fydst, 2.0, fa, fb) // 2*1.5 + 2.0 = 5.0
+    assert_eq(oren_buf_load_f32(fydst, 0), 5.0)
+    var fy2 = oren_f32_buf_new(3)
+    oren_buf_fill_f32(fy2, 2.0)
+    oren_buf_axpy_f32_in_place(2.0, fa, fy2)
+    assert_eq(oren_buf_load_f32(fy2, 2), 5.0)
 }
 
 fn inc2(x) { return x + 1 }

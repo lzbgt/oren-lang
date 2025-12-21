@@ -1300,6 +1300,10 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_scale_i32_into" { native_id = 85 }
         if name == "oren_buf_dot_i32_into" { native_id = 88 }
         if name == "oren_buf_reduce_sum_i32_into" { native_id = 89 }
+        if name == "oren_buf_axpy_i32_into" { native_id = 123 }
+        if name == "oren_buf_axpy_i32_in_place" { native_id = 124 }
+        if name == "oren_buf_axpy_f32_into" { native_id = 125 }
+        if name == "oren_buf_axpy_f32_in_place" { native_id = 126 }
 
         // Pure path normalization (portable across backends; implemented natively in each backend).
         if name == "oren_realpath" { native_id = 53 }

@@ -2818,6 +2818,145 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 123: { // oren_buf_axpy_i32_into(dst:i32_buf, alpha:int, x:i32_buf, y:i32_buf) -> i32_buf
+            if (nargs > 3 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_I32_BUF && args[3].type == AVM_VAL_I32_BUF) {
+                AvmBuf* dst = args[0].as.buf;
+                int64_t av = args[1].as.i;
+                AvmBuf* x = args[2].as.buf;
+                AvmBuf* y = args[3].as.buf;
+                if (!dst || !x || !y || dst->elem_size != 4u || x->elem_size != 4u || y->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_axpy_i32_into: invalid buffers"); break; }
+                if (dst->len != x->len || dst->len != y->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_axpy_i32_into: length mismatch"); break; }
+                if (av < (int64_t)INT32_MIN || av > (int64_t)INT32_MAX) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_axpy_i32_into: alpha out of range"); break; }
+                int32_t alpha = (int32_t)av;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd) {
+                    uint32_t i = 0;
+                    int32x4_t va = vdupq_n_s32(alpha);
+                    for (; i + 4u <= dst->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        int32_t wx[4], wy[4], wo[4];
+                        memcpy(wx, x->data + off, 16);
+                        memcpy(wy, y->data + off, 16);
+                        int32x4_t vx = vld1q_s32(wx);
+                        int32x4_t vy = vld1q_s32(wy);
+                        // out = alpha*x + y (wrap to i32)
+                        int32x4_t vout = vaddq_s32(vmulq_s32(vx, va), vy);
+                        vst1q_s32(wo, vout);
+                        memcpy(dst->data + off, wo, 16);
+                    }
+                    for (; i < dst->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ux = (uint32_t)x->data[off]
+                                    | ((uint32_t)x->data[off + 1] << 8)
+                                    | ((uint32_t)x->data[off + 2] << 16)
+                                    | ((uint32_t)x->data[off + 3] << 24);
+                        uint32_t uy = (uint32_t)y->data[off]
+                                    | ((uint32_t)y->data[off + 1] << 8)
+                                    | ((uint32_t)y->data[off + 2] << 16)
+                                    | ((uint32_t)y->data[off + 3] << 24);
+                        int32_t xi = (int32_t)ux;
+                        int32_t yi = (int32_t)uy;
+                        int64_t prod = (int64_t)alpha * (int64_t)xi;
+                        int64_t sum = prod + (int64_t)yi;
+                        uint32_t uo = (uint32_t)(int32_t)sum; // wrap to i32
+                        dst->data[off] = (uint8_t)(uo & 0xFFu);
+                        dst->data[off + 1] = (uint8_t)((uo >> 8) & 0xFFu);
+                        dst->data[off + 2] = (uint8_t)((uo >> 16) & 0xFFu);
+                        dst->data[off + 3] = (uint8_t)((uo >> 24) & 0xFFu);
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < dst->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ux = (uint32_t)x->data[off]
+                                    | ((uint32_t)x->data[off + 1] << 8)
+                                    | ((uint32_t)x->data[off + 2] << 16)
+                                    | ((uint32_t)x->data[off + 3] << 24);
+                        uint32_t uy = (uint32_t)y->data[off]
+                                    | ((uint32_t)y->data[off + 1] << 8)
+                                    | ((uint32_t)y->data[off + 2] << 16)
+                                    | ((uint32_t)y->data[off + 3] << 24);
+                        int32_t xi = (int32_t)ux;
+                        int32_t yi = (int32_t)uy;
+                        int64_t prod = (int64_t)alpha * (int64_t)xi;
+                        int64_t sum = prod + (int64_t)yi;
+                        uint32_t uo = (uint32_t)(int32_t)sum; // wrap to i32
+                        dst->data[off] = (uint8_t)(uo & 0xFFu);
+                        dst->data[off + 1] = (uint8_t)((uo >> 8) & 0xFFu);
+                        dst->data[off + 2] = (uint8_t)((uo >> 16) & 0xFFu);
+                        dst->data[off + 3] = (uint8_t)((uo >> 24) & 0xFFu);
+                    }
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_axpy_i32_into expects (i32_buf, int, i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 124: { // oren_buf_axpy_i32_in_place(alpha:int, x:i32_buf, y:i32_buf) -> i32_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_INT && args[1].type == AVM_VAL_I32_BUF && args[2].type == AVM_VAL_I32_BUF) {
+                AvmValue argv[4];
+                argv[0] = args[2]; // dst = y
+                argv[1] = args[0]; // alpha
+                argv[2] = args[1]; // x
+                argv[3] = args[2]; // y
+                res = avm_call_native(vm, 123, argv, 4);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_axpy_i32_in_place expects (int, i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 125: { // oren_buf_axpy_f32_into(dst:f32_buf, alpha:float, x:f32_buf, y:f32_buf) -> f32_buf
+            if (nargs > 3 && args[0].type == AVM_VAL_F32_BUF && args[1].type == AVM_VAL_FLOAT && args[2].type == AVM_VAL_F32_BUF && args[3].type == AVM_VAL_F32_BUF) {
+                AvmBuf* dst = args[0].as.buf;
+                AvmBuf* x = args[2].as.buf;
+                AvmBuf* y = args[3].as.buf;
+                if (!dst || !x || !y || dst->elem_size != 4u || x->elem_size != 4u || y->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_axpy_f32_into: invalid buffers"); break; }
+                if (dst->len != x->len || dst->len != y->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_axpy_f32_into: length mismatch"); break; }
+                float alpha = (float)args[1].as.f;
+                // Keep scalar order deterministic; avoid fused multiply-add (FMA) differences.
+                for (uint32_t i = 0; i < dst->len; i++) {
+                    uint32_t off = i * 4u;
+                    uint32_t ux = (uint32_t)x->data[off]
+                                | ((uint32_t)x->data[off + 1] << 8)
+                                | ((uint32_t)x->data[off + 2] << 16)
+                                | ((uint32_t)x->data[off + 3] << 24);
+                    uint32_t uy = (uint32_t)y->data[off]
+                                | ((uint32_t)y->data[off + 1] << 8)
+                                | ((uint32_t)y->data[off + 2] << 16)
+                                | ((uint32_t)y->data[off + 3] << 24);
+                    float fx = 0.0f, fy = 0.0f;
+                    memcpy(&fx, &ux, sizeof(fx));
+                    memcpy(&fy, &uy, sizeof(fy));
+                    float t = fx * alpha;
+                    float out = t + fy;
+                    uint32_t uo = 0;
+                    memcpy(&uo, &out, sizeof(uo));
+                    dst->data[off] = (uint8_t)(uo & 0xFFu);
+                    dst->data[off + 1] = (uint8_t)((uo >> 8) & 0xFFu);
+                    dst->data[off + 2] = (uint8_t)((uo >> 16) & 0xFFu);
+                    dst->data[off + 3] = (uint8_t)((uo >> 24) & 0xFFu);
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_axpy_f32_into expects (f32_buf, float, f32_buf, f32_buf)");
+            }
+            break;
+        }
+        case 126: { // oren_buf_axpy_f32_in_place(alpha:float, x:f32_buf, y:f32_buf) -> f32_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_FLOAT && args[1].type == AVM_VAL_F32_BUF && args[2].type == AVM_VAL_F32_BUF) {
+                AvmValue argv[4];
+                argv[0] = args[2]; // dst = y
+                argv[1] = args[0]; // alpha
+                argv[2] = args[1]; // x
+                argv[3] = args[2]; // y
+                res = avm_call_native(vm, 125, argv, 4);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_axpy_f32_in_place expects (float, f32_buf, f32_buf)");
+            }
+            break;
+        }
         case 86: { // oren_buf_dot_f32_into(out:f64_buf, a:f32_buf, b:f32_buf) -> f64_buf
             if (nargs > 2 && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_F32_BUF && args[2].type == AVM_VAL_F32_BUF) {
                 AvmBuf* out = args[0].as.buf;
