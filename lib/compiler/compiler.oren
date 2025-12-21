@@ -199,7 +199,7 @@ fn _json_escape(s) {
     return out
 }
 
-fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic) {
+fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic, size_bytes) {
     // Machine-readable artifact record for Compiler-in-AVM v2.
     //
     // Manifest path: <artifact_path>.manifest.json
@@ -207,9 +207,11 @@ fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic)
     var mp = path + ".manifest.json"
     var det = "false"
     if deterministic { det = "true" }
+    if size_bytes == nil { size_bytes = 0 }
     var s = "{\"version\":1," +
         "\"kind\":\"" + _json_escape(kind) + "\"," +
         "\"sha256\":\"" + _json_escape(sha256_hex) + "\"," +
+        "\"size_bytes\":" + oren_int_to_string(size_bytes) + "," +
         "\"path\":\"" + _json_escape(path) + "\"," +
         "\"target\":\"" + _json_escape(target) + "\"," +
         "\"arch\":\"" + _json_escape(arch) + "\"," +
@@ -1666,7 +1668,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("meta", out_meta, bs) }
             if emit_manifest {
                 var h = _sha256_hex(bs)
-                _write_artifact_manifest("meta", out_meta, h, target, arch, deterministic)
+                _write_artifact_manifest("meta", out_meta, h, target, arch, deterministic, oren_list_len(bs))
             }
         }
         return nil
@@ -1990,7 +1992,7 @@ fn compiler_main() {
         if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
         if emit_manifest {
             var h = _sha256_hex(out_bytes)
-            _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic)
+            _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic, oren_list_len(out_bytes))
         }
         return nil
     }
@@ -2090,7 +2092,7 @@ fn compiler_main() {
                 if deterministic { _emit_artifact_hash("meta", meta_path, bsM) }
                 if emit_manifest {
                     var h = _sha256_hex(bsM)
-                    _write_artifact_manifest("meta", meta_path, h, target, arch, deterministic)
+                    _write_artifact_manifest("meta", meta_path, h, target, arch, deterministic, oren_list_len(bsM))
                 }
             }
         }
@@ -2128,7 +2130,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("native", out_path, bs) }
             if emit_manifest {
                 var h = _sha256_hex(bs)
-                _write_artifact_manifest("native", out_path, h, target, arch, deterministic)
+                _write_artifact_manifest("native", out_path, h, target, arch, deterministic, oren_list_len(bs))
             }
         }
 
@@ -2243,7 +2245,7 @@ fn compiler_main() {
         if deterministic { _emit_artifact_hash("c", out_path, bsC) }
         if emit_manifest {
             var h = _sha256_hex(bsC)
-            _write_artifact_manifest("c", out_path, h, target, arch, deterministic)
+            _write_artifact_manifest("c", out_path, h, target, arch, deterministic, oren_list_len(bsC))
         }
     }
     return nil
