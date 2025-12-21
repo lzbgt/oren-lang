@@ -68,6 +68,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 9) ** Refactor in rolling **
   - when a file is over 3000 lines, refacotor to be SOLID principles applied modules
+  - every 20 turns, fix the parity btw code implemented and docuemnents under docs/
+  - every 10 turns, favor to prune this document of DONE tasks to TODOS_ARCHIVE.md, keep the todo list succint, if later tasks can be well deduced and tracked with context.
 
 10) **Tests must target public tool surfaces** `[maint]`
    - Avoid importing `lib/compiler/*` inside `.oren` tests (couples tests to compiler internals).
@@ -106,7 +108,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - native: `tests/native/test_integration_suite.oren` covers `*_into` forms and `axpy` (`oren_buf_add_i32_into`, `oren_buf_mul_i32_into`, `oren_buf_scale_i32_into`, `oren_buf_axpy_i32_into`)
      - DONE: AVM parity: `oren_buf_axpy_{i32,f32}_{into,in_place}` are implemented as AVM natives and covered by `tests/avm/test_smoke_suite.oren`.
      - DONE: f32 axpy coverage exists in fast suites (module + native + AVM) using exact inputs to avoid tolerance flakiness.
-     - NEXT: add an f32 microkernel variant once FP strategy is stabilized; consider f64 after deciding error model vs bitwise determinism.
+     - DONE: f32 1×4 dot microkernel boundary is implemented and used by `std/linalg.matmul_f32_buf`:
+       - runtime: `oren_buf_dot_f32_4_slice_into` (C runtime has a deterministic NEON path; native runtime scalar; AVM has deterministic NEON path)
+       - bytecode backend: mapped as CORE native id `127`
+       - tests: module + native SIMD + AVM smoke cover the microkernel via direct calls and matmul
+     - NEXT: decide whether to add a native-backend SIMD fast path for 4-way f32 dot (must preserve deterministic widening/order; avoid FMA).
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
    - Status: **done** (see archive for details).

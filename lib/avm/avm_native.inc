@@ -3524,6 +3524,266 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 127: { // oren_buf_dot_f32_4_slice_into(out:f64_buf, out_off:int, a:f32_buf, a_off:int, b:f32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+            if (nargs > 9
+                && args[0].type == AVM_VAL_F64_BUF && args[1].type == AVM_VAL_INT
+                && args[2].type == AVM_VAL_F32_BUF && args[3].type == AVM_VAL_INT
+                && args[4].type == AVM_VAL_F32_BUF
+                && args[5].type == AVM_VAL_INT && args[6].type == AVM_VAL_INT && args[7].type == AVM_VAL_INT && args[8].type == AVM_VAL_INT
+                && args[9].type == AVM_VAL_INT) {
+                AvmBuf* out = args[0].as.buf;
+                AvmBuf* a = args[2].as.buf;
+                AvmBuf* b = args[4].as.buf;
+                int64_t out_off_ll = args[1].as.i;
+                int64_t a_off_ll = args[3].as.i;
+                int64_t b0_off_ll = args[5].as.i;
+                int64_t b1_off_ll = args[6].as.i;
+                int64_t b2_off_ll = args[7].as.i;
+                int64_t b3_off_ll = args[8].as.i;
+                int64_t n_ll = args[9].as.i;
+                if (!out || !a || !b || out->elem_size != 8u || a->elem_size != 4u || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_4_slice_into: invalid buffers"); break; }
+                if (out_off_ll < 0 || a_off_ll < 0 || b0_off_ll < 0 || b1_off_ll < 0 || b2_off_ll < 0 || b3_off_ll < 0 || n_ll < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_4_slice_into: negative arg"); break; }
+                if ((uint64_t)out_off_ll > (uint64_t)out->len || (uint64_t)out->len - (uint64_t)out_off_ll < 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_4_slice_into: out range out of bounds"); break; }
+                if ((uint64_t)a_off_ll > (uint64_t)a->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_4_slice_into: a_off out of bounds"); break; }
+                if ((uint64_t)n_ll > (uint64_t)a->len - (uint64_t)a_off_ll) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_4_slice_into: a range out of bounds"); break; }
+                if ((uint64_t)b0_off_ll > (uint64_t)b->len || (uint64_t)b1_off_ll > (uint64_t)b->len || (uint64_t)b2_off_ll > (uint64_t)b->len || (uint64_t)b3_off_ll > (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_4_slice_into: b_off out of bounds"); break; }
+                if ((uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b0_off_ll
+                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b1_off_ll
+                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b2_off_ll
+                    || (uint64_t)n_ll > (uint64_t)b->len - (uint64_t)b3_off_ll) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_f32_4_slice_into: b range out of bounds"); break; }
+
+                uint32_t out_off = (uint32_t)out_off_ll;
+                uint32_t a_off = (uint32_t)a_off_ll;
+                uint32_t b0_off = (uint32_t)b0_off_ll;
+                uint32_t b1_off = (uint32_t)b1_off_ll;
+                uint32_t b2_off = (uint32_t)b2_off_ll;
+                uint32_t b3_off = (uint32_t)b3_off_ll;
+                uint32_t n = (uint32_t)n_ll;
+
+                double s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd && n >= 4u) {
+                    uint32_t i = 0;
+                    for (; i + 4u <= n; i += 4u) {
+                        uint32_t offa = (a_off + i) * 4u;
+                        uint32_t off0 = (b0_off + i) * 4u;
+                        uint32_t off1 = (b1_off + i) * 4u;
+                        uint32_t off2 = (b2_off + i) * 4u;
+                        uint32_t off3 = (b3_off + i) * 4u;
+                        uint32_t wa[4], wb0[4], wb1[4], wb2[4], wb3[4];
+                        memcpy(wa, a->data + offa, 16);
+                        memcpy(wb0, b->data + off0, 16);
+                        memcpy(wb1, b->data + off1, 16);
+                        memcpy(wb2, b->data + off2, 16);
+                        memcpy(wb3, b->data + off3, 16);
+
+                        uint32x4_t va_u = vld1q_u32(wa);
+                        float32x4_t va_f = vreinterpretq_f32_u32(va_u);
+                        float32x2_t va_lo = vget_low_f32(va_f);
+                        float32x2_t va_hi = vget_high_f32(va_f);
+                        float64x2_t da0 = vcvt_f64_f32(va_lo);
+                        float64x2_t da1 = vcvt_f64_f32(va_hi);
+
+                        uint32x4_t vb0_u = vld1q_u32(wb0);
+                        uint32x4_t vb1_u = vld1q_u32(wb1);
+                        uint32x4_t vb2_u = vld1q_u32(wb2);
+                        uint32x4_t vb3_u = vld1q_u32(wb3);
+
+                        float32x4_t vb0_f = vreinterpretq_f32_u32(vb0_u);
+                        float32x4_t vb1_f = vreinterpretq_f32_u32(vb1_u);
+                        float32x4_t vb2_f = vreinterpretq_f32_u32(vb2_u);
+                        float32x4_t vb3_f = vreinterpretq_f32_u32(vb3_u);
+
+                        // b0
+                        {
+                            float32x2_t vb_lo = vget_low_f32(vb0_f);
+                            float32x2_t vb_hi = vget_high_f32(vb0_f);
+                            float64x2_t db0 = vcvt_f64_f32(vb_lo);
+                            float64x2_t db1 = vcvt_f64_f32(vb_hi);
+                            float64x2_t p0 = vmulq_f64(da0, db0);
+                            float64x2_t p1 = vmulq_f64(da1, db1);
+                            s0 = s0 + vgetq_lane_f64(p0, 0);
+                            s0 = s0 + vgetq_lane_f64(p0, 1);
+                            s0 = s0 + vgetq_lane_f64(p1, 0);
+                            s0 = s0 + vgetq_lane_f64(p1, 1);
+                        }
+                        // b1
+                        {
+                            float32x2_t vb_lo = vget_low_f32(vb1_f);
+                            float32x2_t vb_hi = vget_high_f32(vb1_f);
+                            float64x2_t db0 = vcvt_f64_f32(vb_lo);
+                            float64x2_t db1 = vcvt_f64_f32(vb_hi);
+                            float64x2_t p0 = vmulq_f64(da0, db0);
+                            float64x2_t p1 = vmulq_f64(da1, db1);
+                            s1 = s1 + vgetq_lane_f64(p0, 0);
+                            s1 = s1 + vgetq_lane_f64(p0, 1);
+                            s1 = s1 + vgetq_lane_f64(p1, 0);
+                            s1 = s1 + vgetq_lane_f64(p1, 1);
+                        }
+                        // b2
+                        {
+                            float32x2_t vb_lo = vget_low_f32(vb2_f);
+                            float32x2_t vb_hi = vget_high_f32(vb2_f);
+                            float64x2_t db0 = vcvt_f64_f32(vb_lo);
+                            float64x2_t db1 = vcvt_f64_f32(vb_hi);
+                            float64x2_t p0 = vmulq_f64(da0, db0);
+                            float64x2_t p1 = vmulq_f64(da1, db1);
+                            s2 = s2 + vgetq_lane_f64(p0, 0);
+                            s2 = s2 + vgetq_lane_f64(p0, 1);
+                            s2 = s2 + vgetq_lane_f64(p1, 0);
+                            s2 = s2 + vgetq_lane_f64(p1, 1);
+                        }
+                        // b3
+                        {
+                            float32x2_t vb_lo = vget_low_f32(vb3_f);
+                            float32x2_t vb_hi = vget_high_f32(vb3_f);
+                            float64x2_t db0 = vcvt_f64_f32(vb_lo);
+                            float64x2_t db1 = vcvt_f64_f32(vb_hi);
+                            float64x2_t p0 = vmulq_f64(da0, db0);
+                            float64x2_t p1 = vmulq_f64(da1, db1);
+                            s3 = s3 + vgetq_lane_f64(p0, 0);
+                            s3 = s3 + vgetq_lane_f64(p0, 1);
+                            s3 = s3 + vgetq_lane_f64(p1, 0);
+                            s3 = s3 + vgetq_lane_f64(p1, 1);
+                        }
+                    }
+                    for (; i < n; i++) {
+                        uint32_t offa = (a_off + i) * 4u;
+                        uint32_t ua = (uint32_t)a->data[offa]
+                                    | ((uint32_t)a->data[offa + 1] << 8)
+                                    | ((uint32_t)a->data[offa + 2] << 16)
+                                    | ((uint32_t)a->data[offa + 3] << 24);
+                        float fa = 0.0f;
+                        memcpy(&fa, &ua, sizeof(fa));
+                        double da = (double)fa;
+
+                        uint32_t off0 = (b0_off + i) * 4u;
+                        uint32_t off1 = (b1_off + i) * 4u;
+                        uint32_t off2 = (b2_off + i) * 4u;
+                        uint32_t off3 = (b3_off + i) * 4u;
+                        uint32_t ub0 = (uint32_t)b->data[off0]
+                                     | ((uint32_t)b->data[off0 + 1] << 8)
+                                     | ((uint32_t)b->data[off0 + 2] << 16)
+                                     | ((uint32_t)b->data[off0 + 3] << 24);
+                        uint32_t ub1 = (uint32_t)b->data[off1]
+                                     | ((uint32_t)b->data[off1 + 1] << 8)
+                                     | ((uint32_t)b->data[off1 + 2] << 16)
+                                     | ((uint32_t)b->data[off1 + 3] << 24);
+                        uint32_t ub2 = (uint32_t)b->data[off2]
+                                     | ((uint32_t)b->data[off2 + 1] << 8)
+                                     | ((uint32_t)b->data[off2 + 2] << 16)
+                                     | ((uint32_t)b->data[off2 + 3] << 24);
+                        uint32_t ub3 = (uint32_t)b->data[off3]
+                                     | ((uint32_t)b->data[off3 + 1] << 8)
+                                     | ((uint32_t)b->data[off3 + 2] << 16)
+                                     | ((uint32_t)b->data[off3 + 3] << 24);
+                        float fb0 = 0.0f, fb1 = 0.0f, fb2 = 0.0f, fb3 = 0.0f;
+                        memcpy(&fb0, &ub0, sizeof(fb0));
+                        memcpy(&fb1, &ub1, sizeof(fb1));
+                        memcpy(&fb2, &ub2, sizeof(fb2));
+                        memcpy(&fb3, &ub3, sizeof(fb3));
+                        s0 += da * (double)fb0;
+                        s1 += da * (double)fb1;
+                        s2 += da * (double)fb2;
+                        s3 += da * (double)fb3;
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < n; i++) {
+                        uint32_t offa = (a_off + i) * 4u;
+                        uint32_t ua = (uint32_t)a->data[offa]
+                                    | ((uint32_t)a->data[offa + 1] << 8)
+                                    | ((uint32_t)a->data[offa + 2] << 16)
+                                    | ((uint32_t)a->data[offa + 3] << 24);
+                        float fa = 0.0f;
+                        memcpy(&fa, &ua, sizeof(fa));
+                        double da = (double)fa;
+
+                        uint32_t off0 = (b0_off + i) * 4u;
+                        uint32_t off1 = (b1_off + i) * 4u;
+                        uint32_t off2 = (b2_off + i) * 4u;
+                        uint32_t off3 = (b3_off + i) * 4u;
+                        uint32_t ub0 = (uint32_t)b->data[off0]
+                                     | ((uint32_t)b->data[off0 + 1] << 8)
+                                     | ((uint32_t)b->data[off0 + 2] << 16)
+                                     | ((uint32_t)b->data[off0 + 3] << 24);
+                        uint32_t ub1 = (uint32_t)b->data[off1]
+                                     | ((uint32_t)b->data[off1 + 1] << 8)
+                                     | ((uint32_t)b->data[off1 + 2] << 16)
+                                     | ((uint32_t)b->data[off1 + 3] << 24);
+                        uint32_t ub2 = (uint32_t)b->data[off2]
+                                     | ((uint32_t)b->data[off2 + 1] << 8)
+                                     | ((uint32_t)b->data[off2 + 2] << 16)
+                                     | ((uint32_t)b->data[off2 + 3] << 24);
+                        uint32_t ub3 = (uint32_t)b->data[off3]
+                                     | ((uint32_t)b->data[off3 + 1] << 8)
+                                     | ((uint32_t)b->data[off3 + 2] << 16)
+                                     | ((uint32_t)b->data[off3 + 3] << 24);
+                        float fb0 = 0.0f, fb1 = 0.0f, fb2 = 0.0f, fb3 = 0.0f;
+                        memcpy(&fb0, &ub0, sizeof(fb0));
+                        memcpy(&fb1, &ub1, sizeof(fb1));
+                        memcpy(&fb2, &ub2, sizeof(fb2));
+                        memcpy(&fb3, &ub3, sizeof(fb3));
+                        s0 += da * (double)fb0;
+                        s1 += da * (double)fb1;
+                        s2 += da * (double)fb2;
+                        s3 += da * (double)fb3;
+                    }
+                }
+
+                uint64_t u0 = 0, u1 = 0, u2 = 0, u3 = 0;
+                memcpy(&u0, &s0, sizeof(u0));
+                memcpy(&u1, &s1, sizeof(u1));
+                memcpy(&u2, &s2, sizeof(u2));
+                memcpy(&u3, &s3, sizeof(u3));
+                uint32_t o0 = (out_off + 0u) * 8u;
+                uint32_t o1 = (out_off + 1u) * 8u;
+                uint32_t o2 = (out_off + 2u) * 8u;
+                uint32_t o3 = (out_off + 3u) * 8u;
+
+                out->data[o0 + 0] = (uint8_t)(u0 & 0xFFu);
+                out->data[o0 + 1] = (uint8_t)((u0 >> 8) & 0xFFu);
+                out->data[o0 + 2] = (uint8_t)((u0 >> 16) & 0xFFu);
+                out->data[o0 + 3] = (uint8_t)((u0 >> 24) & 0xFFu);
+                out->data[o0 + 4] = (uint8_t)((u0 >> 32) & 0xFFu);
+                out->data[o0 + 5] = (uint8_t)((u0 >> 40) & 0xFFu);
+                out->data[o0 + 6] = (uint8_t)((u0 >> 48) & 0xFFu);
+                out->data[o0 + 7] = (uint8_t)((u0 >> 56) & 0xFFu);
+
+                out->data[o1 + 0] = (uint8_t)(u1 & 0xFFu);
+                out->data[o1 + 1] = (uint8_t)((u1 >> 8) & 0xFFu);
+                out->data[o1 + 2] = (uint8_t)((u1 >> 16) & 0xFFu);
+                out->data[o1 + 3] = (uint8_t)((u1 >> 24) & 0xFFu);
+                out->data[o1 + 4] = (uint8_t)((u1 >> 32) & 0xFFu);
+                out->data[o1 + 5] = (uint8_t)((u1 >> 40) & 0xFFu);
+                out->data[o1 + 6] = (uint8_t)((u1 >> 48) & 0xFFu);
+                out->data[o1 + 7] = (uint8_t)((u1 >> 56) & 0xFFu);
+
+                out->data[o2 + 0] = (uint8_t)(u2 & 0xFFu);
+                out->data[o2 + 1] = (uint8_t)((u2 >> 8) & 0xFFu);
+                out->data[o2 + 2] = (uint8_t)((u2 >> 16) & 0xFFu);
+                out->data[o2 + 3] = (uint8_t)((u2 >> 24) & 0xFFu);
+                out->data[o2 + 4] = (uint8_t)((u2 >> 32) & 0xFFu);
+                out->data[o2 + 5] = (uint8_t)((u2 >> 40) & 0xFFu);
+                out->data[o2 + 6] = (uint8_t)((u2 >> 48) & 0xFFu);
+                out->data[o2 + 7] = (uint8_t)((u2 >> 56) & 0xFFu);
+
+                out->data[o3 + 0] = (uint8_t)(u3 & 0xFFu);
+                out->data[o3 + 1] = (uint8_t)((u3 >> 8) & 0xFFu);
+                out->data[o3 + 2] = (uint8_t)((u3 >> 16) & 0xFFu);
+                out->data[o3 + 3] = (uint8_t)((u3 >> 24) & 0xFFu);
+                out->data[o3 + 4] = (uint8_t)((u3 >> 32) & 0xFFu);
+                out->data[o3 + 5] = (uint8_t)((u3 >> 40) & 0xFFu);
+                out->data[o3 + 6] = (uint8_t)((u3 >> 48) & 0xFFu);
+                out->data[o3 + 7] = (uint8_t)((u3 >> 56) & 0xFFu);
+
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_dot_f32_4_slice_into expects (f64_buf,int,f32_buf,int,f32_buf,int,int,int,int,int)");
+            }
+            break;
+        }
         case 118: { // oren_char(code:int) -> string(1)
             if (nargs > 0 && args[0].type == AVM_VAL_INT) {
                 int64_t v = args[0].as.i;

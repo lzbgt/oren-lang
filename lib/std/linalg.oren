@@ -375,6 +375,10 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
 
     var i = 0
     while i < m {
+        // Reusable scratch for the 1x4 dot microkernel (reduces overhead and enables NEON-friendly runtime impls).
+        var tmp4: []f64 = buffer.f64_new(4)
+        if oren_is_err(tmp4) { return tmp4 }
+
         var bj2 = 0
         while bj2 < tiles_j {
             var base_j = bj2 * JB
@@ -389,12 +393,49 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
                 var kn = n - kbase
                 if kn > KB { kn = KB }
 
-                if use_packed {
-                    var base_tile = (bj2 * tiles_k + bk2) * JB * KB
-                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 0 * KB, kn) }
-                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 1 * KB, kn) }
-                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 2 * KB, kn) }
-                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 3 * KB, kn) }
+                if base_j + 3 < p {
+                    var r = nil
+                    if use_packed {
+                        var base_tile = (bj2 * tiles_k + bk2) * JB * KB
+                        r = oren_buf_dot_f32_4_slice_into(
+                            tmp4, 0,
+                            a, i * n + kbase,
+                            bp,
+                            base_tile + 0 * KB,
+                            base_tile + 1 * KB,
+                            base_tile + 2 * KB,
+                            base_tile + 3 * KB,
+                            kn)
+                    } else {
+                        r = oren_buf_dot_f32_4_slice_into(
+                            tmp4, 0,
+                            a, i * n + kbase,
+                            bt,
+                            (base_j + 0) * n + kbase,
+                            (base_j + 1) * n + kbase,
+                            (base_j + 2) * n + kbase,
+                            (base_j + 3) * n + kbase,
+                            kn)
+                    }
+                    if oren_is_err(r) { return r }
+                    var t0 = oren_buf_load_f64(tmp4, 0)
+                    var t1 = oren_buf_load_f64(tmp4, 1)
+                    var t2 = oren_buf_load_f64(tmp4, 2)
+                    var t3 = oren_buf_load_f64(tmp4, 3)
+                    if oren_is_err(t0) { return t0 }
+                    if oren_is_err(t1) { return t1 }
+                    if oren_is_err(t2) { return t2 }
+                    if oren_is_err(t3) { return t3 }
+                    s0 = s0 + t0
+                    s1 = s1 + t1
+                    s2 = s2 + t2
+                    s3 = s3 + t3
+                } else if use_packed {
+                    var base_tile2 = (bj2 * tiles_k + bk2) * JB * KB
+                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 0 * KB, kn) }
+                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 1 * KB, kn) }
+                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 2 * KB, kn) }
+                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile2 + 3 * KB, kn) }
                 } else {
                     if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn) }
                     if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn) }

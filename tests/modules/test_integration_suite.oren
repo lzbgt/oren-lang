@@ -134,6 +134,32 @@ assert_eq(oren_buf_load_i32(mi_o, 1), 2, 62, "matmul_i32_buf[1]")
 assert_eq(oren_buf_load_i32(mi_o, 2), 3, 63, "matmul_i32_buf[2]")
 assert_eq(oren_buf_load_i32(mi_o, 3), 4, 64, "matmul_i32_buf[3]")
 
+// f32 matmul (exercise 1x4 dot microkernel path in std/linalg once available)
+// A: 1x4 [1,2,3,4]
+// B: 4x4 identity => Out == A
+var mf_a: []f32 = buffer.f32_new(4)
+var mf_b: []f32 = buffer.f32_new(16)
+oren_buf_store_f32(mf_a, 0, 1.0)
+oren_buf_store_f32(mf_a, 1, 2.0)
+oren_buf_store_f32(mf_a, 2, 3.0)
+oren_buf_store_f32(mf_a, 3, 4.0)
+var fi = 0
+while fi < 4 {
+    var fj = 0
+    while fj < 4 {
+        var fv = 0.0
+        if fi == fj { fv = 1.0 }
+        oren_buf_store_f32(mf_b, fi * 4 + fj, fv)
+        fj = fj + 1
+    }
+    fi = fi + 1
+}
+var mf_o: []f32 = linalg.matmul_f32_buf(mf_a, mf_b, 1, 4, 4)
+assert_eq(oren_buf_load_f32(mf_o, 0), 1.0, 67, "matmul_f32_buf[0]")
+assert_eq(oren_buf_load_f32(mf_o, 1), 2.0, 68, "matmul_f32_buf[1]")
+assert_eq(oren_buf_load_f32(mf_o, 2), 3.0, 69, "matmul_f32_buf[2]")
+assert_eq(oren_buf_load_f32(mf_o, 3), 4.0, 70, "matmul_f32_buf[3]")
+
 // i32 matmul packed-B path (triggers use_packed: n>=64, p>=4, n*p>=4096)
 // A: 1x64 with A[k]=k+1
 // B: 64x64 identity => Out == A (row)

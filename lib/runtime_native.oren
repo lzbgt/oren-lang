@@ -6599,6 +6599,52 @@ fn oren_buf_dot_i32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     return out
 }
 
+fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_off, b3_off, n) {
+    // Compute 4 dot-products sharing the same `a` slice and store into an f64 buffer.
+    //
+    // Semantics:
+    // - widen each f32 element to f64
+    // - multiply in f64
+    // - accumulate in fixed increasing-k order
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    if out_off < 0 || a_off < 0 || b0_off < 0 || b1_off < 0 || b2_off < 0 || b3_off < 0 || n < 0 { return oren_err(4, "buf_dot_f32_4_slice_into: negative arg") }
+
+    var no = ptr_get(out + 0)
+    if out_off > no || no - out_off < 4 { return oren_err(4, "buf_dot_f32_4_slice_into: out range out of bounds") }
+
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na { return oren_err(4, "buf_dot_f32_4_slice_into: a_off out of bounds") }
+    if n > na - a_off { return oren_err(4, "buf_dot_f32_4_slice_into: a range out of bounds") }
+    if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_f32_4_slice_into: b_off out of bounds") }
+    if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_f32_4_slice_into: b range out of bounds") }
+
+    // NOTE: no native SIMD fast path for 4-way f32 dot yet; keep scalar and deterministic.
+    var s0 = 0.0
+    var s1 = 0.0
+    var s2 = 0.0
+    var s3 = 0.0
+    var i = 0
+    while i < n {
+        var av = oren_buf_load_f32(a, a_off + i)
+        s0 = s0 + av * oren_buf_load_f32(b, b0_off + i)
+        s1 = s1 + av * oren_buf_load_f32(b, b1_off + i)
+        s2 = s2 + av * oren_buf_load_f32(b, b2_off + i)
+        s3 = s3 + av * oren_buf_load_f32(b, b3_off + i)
+        i = i + 1
+    }
+    oren_buf_store_f64(out, out_off + 0, s0)
+    oren_buf_store_f64(out, out_off + 1, s1)
+    oren_buf_store_f64(out, out_off + 2, s2)
+    oren_buf_store_f64(out, out_off + 3, s3)
+    return out
+}
+
 fn oren_buf_dot_f32(a, b): f64 {
     var ea = native_buf_check(a, BUF_TAG_F32, 4)
     if oren_is_err(ea) { return ea }

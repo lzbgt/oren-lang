@@ -277,6 +277,21 @@ OrenValue oren_buf_dot_i32_4_slice_into(
     OrenValue b, OrenValue b0_off, OrenValue b1_off, OrenValue b2_off, OrenValue b3_off,
     OrenValue n);
 
+// 1x4 f32 dot microkernel: compute four dot products that share the same `a` slice.
+//
+// Writes 4 f64 results into `out` (an f64 typed buffer) starting at `out_off`:
+//   out[out_off + j] = dot_f32(a[a_off..a_off+n), b[bj_off..bj_off+n))  for j=0..3
+//
+// Semantics:
+// - each element is widened to f64 and multiplied in f64
+// - accumulation is done in a fixed increasing-k order (deterministic)
+// - SIMD paths must preserve this ordering (no reassociation / FMA contraction)
+OrenValue oren_buf_dot_f32_4_slice_into(
+    OrenValue out, OrenValue out_off,
+    OrenValue a, OrenValue a_off,
+    OrenValue b, OrenValue b0_off, OrenValue b1_off, OrenValue b2_off, OrenValue b3_off,
+    OrenValue n);
+
 	OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b);
 	OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b);
 	OrenValue oren_buf_add_i64_into(OrenValue dst, OrenValue a, OrenValue b);
