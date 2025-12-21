@@ -99,7 +99,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - runtime: `oren_buf_dot_i32_4_slice_into` (C runtime has a NEON path; native runtime scalar; AVM scalar)
        - stdlib: `matmul_i32_buf` uses 4-way dot dispatch when computing 4 columns
        - tests: `tests/modules/test_integration_suite.oren` includes a 1x4×4 identity matmul smoke to exercise the microkernel
-     - NEXT: extend microkernel to packed-B path (reuse already-packed Bt tiles) and add an f32 variant once FP strategy is stabilized.
+     - DONE: packed-B path for i32 matmul is implemented (tile-major packed transpose for cache locality) and the 1×4 microkernel is used on packed tiles.
+       - tests: `tests/modules/test_integration_suite.oren` includes a 1×64 × 64×64 identity smoke to force the packed path
+     - NEXT: add an f32 microkernel variant once FP strategy is stabilized; consider f64 after deciding error model vs bitwise determinism.
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
    - Status: **done** (see archive for details).

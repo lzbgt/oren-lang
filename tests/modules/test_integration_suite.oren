@@ -134,6 +134,27 @@ assert_eq(oren_buf_load_i32(mi_o, 1), 2, 62, "matmul_i32_buf[1]")
 assert_eq(oren_buf_load_i32(mi_o, 2), 3, 63, "matmul_i32_buf[2]")
 assert_eq(oren_buf_load_i32(mi_o, 3), 4, 64, "matmul_i32_buf[3]")
 
+// i32 matmul packed-B path (triggers use_packed: n>=64, p>=4, n*p>=4096)
+// A: 1x64 with A[k]=k+1
+// B: 64x64 identity => Out == A (row)
+var pa: []i32 = buffer.i32_new(64)
+var pb: []i32 = buffer.i32_new(64 * 64)
+var pk = 0
+while pk < 64 {
+    oren_buf_store_i32(pa, pk, pk + 1)
+    var pj = 0
+    while pj < 64 {
+        var vv = 0
+        if pk == pj { vv = 1 }
+        oren_buf_store_i32(pb, pk * 64 + pj, vv)
+        pj = pj + 1
+    }
+    pk = pk + 1
+}
+var po: []i32 = linalg.matmul_i32_buf(pa, pb, 1, 64, 64)
+assert_eq(oren_buf_load_i32(po, 0), 1, 65, "matmul_i32_buf packed[0]")
+assert_eq(oren_buf_load_i32(po, 63), 64, 66, "matmul_i32_buf packed[63]")
+
 // f64 typed-buffer ops (64-bit SIMD targets)
 var bf: []f64 = buffer.f64_new(5) // odd length to exercise tail handling
 var bg: []f64 = buffer.f64_new(5)

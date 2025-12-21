@@ -607,6 +607,45 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
         k0 = k0 + 1
     }
 
+    // Optional packed-B layout (tile-major) for cache locality.
+    // Mirrors the f32 matmul packing strategy, but for i32.
+    var JB = 4
+    var KB = 64
+    var tiles_j = (p + JB - 1) / JB
+    var tiles_k = (n + KB - 1) / KB
+    var use_packed = (n >= KB) && (p >= JB) && (n * p >= 4096)
+
+    var bp: []i32 = nil
+    if use_packed {
+        bp = buffer.i32_new(tiles_j * tiles_k * JB * KB)
+        if oren_is_err(bp) { return bp }
+        var bj0 = 0
+        while bj0 < tiles_j {
+            var bk0 = 0
+            while bk0 < tiles_k {
+                var j_in0 = 0
+                while j_in0 < JB {
+                    var global_j0 = bj0 * JB + j_in0
+                    var k_in0 = 0
+                    while k_in0 < KB {
+                        var global_k0 = bk0 * KB + k_in0
+                        var v0 = 0
+                        if global_j0 < p && global_k0 < n {
+                            v0 = oren_buf_load_i32(bt, global_j0 * n + global_k0)
+                            if oren_is_err(v0) { return v0 }
+                        }
+                        var dst0 = (((bj0 * tiles_k + bk0) * JB + j_in0) * KB + k_in0)
+                        oren_buf_store_i32(bp, dst0, v0)
+                        k_in0 = k_in0 + 1
+                    }
+                    j_in0 = j_in0 + 1
+                }
+                bk0 = bk0 + 1
+            }
+            bj0 = bj0 + 1
+        }
+    }
+
     var i = 0
     while i < m {
         // Reusable scratch for the 1x4 dot microkernel (reduces overhead and enables NEON-friendly runtime impls).
@@ -615,11 +654,6 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
 
         // Kernel dispatch: use dot-slice per k-block to allow native NEON dot kernels,
         // while preserving deterministic k order (k blocks in increasing order; dot slice iterates k in order).
-        var JB = 4
-        var KB = 64
-        var tiles_j = (p + JB - 1) / JB
-        var tiles_k = (n + KB - 1) / KB
-
         var bj = 0
         while bj < tiles_j {
             var base_j = bj * JB
@@ -635,15 +669,29 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                 if kn > KB { kn = KB }
 
                 if base_j + 3 < p {
-                    var r = oren_buf_dot_i32_4_slice_into(
-                        tmp4, 0,
-                        a, i * n + kbase,
-                        bt,
-                        (base_j + 0) * n + kbase,
-                        (base_j + 1) * n + kbase,
-                        (base_j + 2) * n + kbase,
-                        (base_j + 3) * n + kbase,
-                        kn)
+                    var r = nil
+                    if use_packed {
+                        var base_tile = (bj * tiles_k + bk) * JB * KB
+                        r = oren_buf_dot_i32_4_slice_into(
+                            tmp4, 0,
+                            a, i * n + kbase,
+                            bp,
+                            base_tile + 0 * KB,
+                            base_tile + 1 * KB,
+                            base_tile + 2 * KB,
+                            base_tile + 3 * KB,
+                            kn)
+                    } else {
+                        r = oren_buf_dot_i32_4_slice_into(
+                            tmp4, 0,
+                            a, i * n + kbase,
+                            bt,
+                            (base_j + 0) * n + kbase,
+                            (base_j + 1) * n + kbase,
+                            (base_j + 2) * n + kbase,
+                            (base_j + 3) * n + kbase,
+                            kn)
+                    }
                     if oren_is_err(r) { return r }
                     var t0 = oren_buf_load_i64(tmp4, 0)
                     var t1 = oren_buf_load_i64(tmp4, 1)

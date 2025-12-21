@@ -41,6 +41,7 @@ Authoritative specs/strategy docs:
 - `docs/AVM_SWARM_CONSENSUS.md` (swarm validation + mobility model)
 - `docs/AVM_MULTIVERSE.md` (nested universes / AVM-in-AVM)
 - `docs/ROADMAP.md` and `docs/OREN_EVOLUTION.md`
+- Practical manual (what works today): `docs/LANGUAGE_MANUAL.md`
 
 ## Status (Current Reality)
 - **Backends**
@@ -60,6 +61,9 @@ This repo is intentionally syscall-first and “no libc shims” for native runt
 - `lib/std/cbor.oren`: deterministic CBOR subset + CBOR Sequences streaming helpers.
 - `lib/std/regex.oren`: deterministic Thompson NFA regex engine (no backtracking blowups).
 - `lib/std/math.oren`: small math helpers (`abs/min/max/clamp`, `is_nan`).
+- `lib/std/linalg.oren`: scalar-first + typed-buffer HPC kernels (dot/axpy/matmul), with deterministic order and NEON-ready boundaries.
+  - f64 buffer matmul is available (`matmul_f64_buf`) via dot-slice building blocks.
+  - i32 matmul uses a microkernel boundary (1×4) to reduce overhead and enable NEON-friendly implementations.
 
 ## Build, Test, Verify
 
@@ -167,7 +171,6 @@ Individual examples:
 - **AVM / `.obc` is rolling:** bytecode format, domains, and semantics are intentionally evolving quickly until a stability milestone is declared.
 - **Native backend Linux dynamic linking/FFI:** the ELF emitter currently stubs unresolved imports (no real dynamic linker integration yet).
 - **`--emit-c`:** only supported with `--backend c`.
-- **`oren test`:** currently supports `--backend native` only.
 - **`--metadata`:** currently emitted by the native backend (`<out>.meta.json`).
 - **macOS signing:** the compiler attempts to codesign outputs (configured Developer ID, with ad-hoc fallback); see `docs/CODESIGN.md`.
 
