@@ -3126,18 +3126,54 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_into: out data is null"); break; }
                 if (a->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_dot_i32_into: length mismatch"); break; }
                 uint64_t acc_u = 0;
-                for (uint32_t i = 0; i < a->len; i++) {
-                    uint32_t off = i * 4u;
-                    uint32_t ua = (uint32_t)a->data[off]
-                                | ((uint32_t)a->data[off + 1] << 8)
-                                | ((uint32_t)a->data[off + 2] << 16)
-                                | ((uint32_t)a->data[off + 3] << 24);
-                    uint32_t ub = (uint32_t)b->data[off]
-                                | ((uint32_t)b->data[off + 1] << 8)
-                                | ((uint32_t)b->data[off + 2] << 16)
-                                | ((uint32_t)b->data[off + 3] << 24);
-                    int64_t prod = (int64_t)(int32_t)ua * (int64_t)(int32_t)ub;
-                    acc_u += avm_u64_bits_i64_native(prod);
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd && a->len >= 4u) {
+                    uint64x2_t vacc = vdupq_n_u64(0);
+                    uint32_t i = 0;
+                    for (; i + 4u <= a->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        int32_t wa[4], wb[4];
+                        memcpy(wa, a->data + off, 16);
+                        memcpy(wb, b->data + off, 16);
+                        int32x4_t va = vld1q_s32(wa);
+                        int32x4_t vb = vld1q_s32(wb);
+                        int64x2_t prod_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb));
+                        int64x2_t prod_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb));
+                        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_lo));
+                        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_hi));
+                    }
+                    uint64_t tmp[2];
+                    vst1q_u64(tmp, vacc);
+                    acc_u += tmp[0] + tmp[1];
+                    for (; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        int64_t prod = (int64_t)(int32_t)ua * (int64_t)(int32_t)ub;
+                        acc_u += avm_u64_bits_i64_native(prod);
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t ua = (uint32_t)a->data[off]
+                                    | ((uint32_t)a->data[off + 1] << 8)
+                                    | ((uint32_t)a->data[off + 2] << 16)
+                                    | ((uint32_t)a->data[off + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[off]
+                                    | ((uint32_t)b->data[off + 1] << 8)
+                                    | ((uint32_t)b->data[off + 2] << 16)
+                                    | ((uint32_t)b->data[off + 3] << 24);
+                        int64_t prod = (int64_t)(int32_t)ua * (int64_t)(int32_t)ub;
+                        acc_u += avm_u64_bits_i64_native(prod);
+                    }
                 }
                 uint64_t u = acc_u;
                 out->data[0] = (uint8_t)(u & 0xFFu);
@@ -3162,13 +3198,42 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 if (out->len < 1u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_i32_into: out len must be >= 1"); break; }
                 if (!out->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_reduce_sum_i32_into: out data is null"); break; }
                 uint64_t acc_u = 0;
-                for (uint32_t i = 0; i < a->len; i++) {
-                    uint32_t off = i * 4u;
-                    uint32_t u = (uint32_t)a->data[off]
-                               | ((uint32_t)a->data[off + 1] << 8)
-                               | ((uint32_t)a->data[off + 2] << 16)
-                               | ((uint32_t)a->data[off + 3] << 24);
-                    acc_u += avm_u64_bits_i64_native((int64_t)(int32_t)u);
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd && a->len >= 4u) {
+                    uint64x2_t vacc = vdupq_n_u64(0);
+                    uint32_t i = 0;
+                    for (; i + 4u <= a->len; i += 4u) {
+                        uint32_t off = i * 4u;
+                        int32_t wa[4];
+                        memcpy(wa, a->data + off, 16);
+                        int32x4_t va = vld1q_s32(wa);
+                        int64x2_t lo = vmovl_s32(vget_low_s32(va));
+                        int64x2_t hi = vmovl_s32(vget_high_s32(va));
+                        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(lo));
+                        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(hi));
+                    }
+                    uint64_t tmp[2];
+                    vst1q_u64(tmp, vacc);
+                    acc_u += tmp[0] + tmp[1];
+                    for (; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t u = (uint32_t)a->data[off]
+                                   | ((uint32_t)a->data[off + 1] << 8)
+                                   | ((uint32_t)a->data[off + 2] << 16)
+                                   | ((uint32_t)a->data[off + 3] << 24);
+                        acc_u += avm_u64_bits_i64_native((int64_t)(int32_t)u);
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < a->len; i++) {
+                        uint32_t off = i * 4u;
+                        uint32_t u = (uint32_t)a->data[off]
+                                   | ((uint32_t)a->data[off + 1] << 8)
+                                   | ((uint32_t)a->data[off + 2] << 16)
+                                   | ((uint32_t)a->data[off + 3] << 24);
+                        acc_u += avm_u64_bits_i64_native((int64_t)(int32_t)u);
+                    }
                 }
                 uint64_t u = acc_u;
                 out->data[0] = (uint8_t)(u & 0xFFu);
