@@ -2173,15 +2173,11 @@ fn native_compile_expr(ctx, expr) {
 
         // NOTE: `simd_gemm_f32_4x4_ptr` is intentionally not supported yet.
         //
-        // We previously had a hand-written microkernel here, but it was not proven bit-exact
+        // A true single-pass 4x4 GEMM intrinsic was attempted, but has not been proven bit-exact
         // against the scalar reference across all inputs (which violates the determinism rule).
         //
         // The current production-safe fast path composes the already-verified `simd_dot_f32_4_ptr`
         // microkernel in `lib/runtime_native.oren`.
-        //
-        // TODO (tracked in docs/TODOS.md):
-        // - Reintroduce a true single-pass 4x4 microkernel once it is proven bit-exact and has
-        //   C runtime + native runtime + AVM parity + regression tests.
 
         if fn_name == "simd_add_i32_ptr" || fn_name == "simd_mul_i32_ptr" {
             // Intrinsic: elementwise i32 add/mul over raw pointers, writing to dst.

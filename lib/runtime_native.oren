@@ -6703,9 +6703,6 @@ fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
     // This is not a "true" single-pass 4x4 GEMM microkernel yet, but it preserves:
     // - correctness (bitwise match to scalar reference)
     // - deterministic k-order semantics (each dot accumulates k=0..n-1 in order)
-    //
-    // A future upgrade may switch this block to a true 4x4 single-pass intrinsic
-    // once its implementation is proven bit-exact across backends.
     if native_simd_enabled() != 0 && n >= 4 {
         var outp = native_buf_data_ptr(out) + out_off * 8
         var pa0 = native_buf_data_ptr(a) + a0_off * 4
@@ -6717,13 +6714,9 @@ fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
         var pb2 = native_buf_data_ptr(b) + b2_off * 4
         var pb3 = native_buf_data_ptr(b) + b3_off * 4
 
-        // Row 0 (out[0..3])
         simd_dot_f32_4_ptr(outp + 0 * 32, pa0, pb0, pb1, pb2, pb3, n)
-        // Row 1 (out[4..7])
         simd_dot_f32_4_ptr(outp + 1 * 32, pa1, pb0, pb1, pb2, pb3, n)
-        // Row 2 (out[8..11])
         simd_dot_f32_4_ptr(outp + 2 * 32, pa2, pb0, pb1, pb2, pb3, n)
-        // Row 3 (out[12..15])
         simd_dot_f32_4_ptr(outp + 3 * 32, pa3, pb0, pb1, pb2, pb3, n)
         return out
     }
