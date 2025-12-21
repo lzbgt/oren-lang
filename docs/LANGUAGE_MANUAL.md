@@ -117,6 +117,61 @@ for var i = 0; i < 10; i = i + 1 {
 }
 ```
 
+### `for x in iterable` (trait-based iteration sugar)
+
+Oren supports a higher-level iteration form:
+
+```oren
+for x in xs { ... }
+for x: i32 in xs { ... }
+```
+
+This is **source-level sugar** that desugars into repeated calls to the runtime hook:
+
+- `oren_iter_next(iterable, idx) -> [ok:int, value]`
+  - `ok == 1` means “yield `value`”
+  - `ok == 0` means “stop iteration”
+
+Iteration proceeds in deterministic **index order** (`idx = 0, 1, 2, ...`) and stops at the first `ok == 0`.
+
+#### Trait-based extension: `trait Iterable`
+
+In rolling mode, Oren also supports a static-first trait extension for iteration:
+
+```oren
+trait Iterable {
+    fn iter_next(self, idx)
+}
+```
+
+If the loop iterable is a bare identifier and an `impl Iterable for <Type>` exists, the compiler can rewrite the loop to call that impl (avoiding runtime vtables and keeping hot loops predictable).
+
+Practical example (range-like iterable):
+
+```oren
+trait Iterable { fn iter_next(self, idx) }
+
+struct MyRange { start: i32, end: i32, step: i32 }
+
+impl Iterable for MyRange {
+    fn iter_next(self, idx) {
+        if idx < 0 { return [0, nil] }
+        if self.step == 0 { return [0, nil] }
+        var v = self.start + idx * self.step
+        if (self.step > 0 && v < self.end) || (self.step < 0 && v > self.end) {
+            return [1, v]
+        }
+        return [0, nil]
+    }
+}
+
+var r: MyRange = MyRange(0, 10, 1)
+var sum = 0
+for x: i32 in r { sum = sum + x }
+```
+
+For deeper details and the long-term polymorphism plan (static-first, optional `dyn Trait` later), see `docs/TRAITS_AND_POLYMORPHISM.md`.
+
 ### `match` / `case` (pattern match sugar)
 
 Oren supports `match` with `case` patterns (especially for enum sugar).
@@ -185,6 +240,18 @@ var b = i32(-1.9)    // truncate toward zero then wrap to width
 ```
 
 The compiler lowers these to deterministic runtime primitives (not “user-level” function calls).
+
+### Traits and `impl` (practical)
+
+Oren supports `trait` declarations and `impl Trait for Type` blocks as a **compile-time** mechanism.
+Today, the most visible use is trait-based iteration for `for x in iterable { ... }` (see above).
+
+The broader design goal is:
+
+- **static dispatch by default** (good for HPC and deterministic AVM execution)
+- optional explicit runtime polymorphism later (e.g. `dyn Trait`) only where needed
+
+See `docs/TRAITS_AND_POLYMORPHISM.md` for the design rationale and constraints.
 
 ## 7) Structs, attributes, and deterministic metadata
 
@@ -310,4 +377,3 @@ timeout 900 ./oretest --target macos
 - Evolution narrative (day0 → “compiler-in-AVM”): `docs/EVOLUTION_GUIDE.md`
 - Roadmap/phases: `docs/ROADMAP.md`
 - Current task tracker (execution order): `docs/TODOS.md`
-
