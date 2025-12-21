@@ -183,6 +183,74 @@ assert_eq(oren_buf_load_i32(Ci2, 1), 128, 98)
 assert_eq(oren_buf_load_i32(Ci2, 2), 192, 99)
 assert_eq(oren_buf_load_i32(Ci2, 3), 256, 100)
 
+// Non-packed 4x4 microkernel tail columns: p not divisible by 4.
+// Use constant rows/cols so expected results are easy:
+// C[r,c] = (r+1) * (c+1) * n3.
+var m3 = 4
+var n3 = 8
+var p3 = 5
+
+var Af3: []f32 = buffer.f32_new(m3 * n3)
+var Bf3: []f32 = buffer.f32_new(n3 * p3)
+assert_true(!oren_is_err(Af3), 101)
+assert_true(!oren_is_err(Bf3), 102)
+
+var r3 = 0
+while r3 < m3 {
+    var k3 = 0
+    while k3 < n3 {
+        oren_buf_store_f32(Af3, r3 * n3 + k3, f32(r3 + 1))
+        k3 = k3 + 1
+    }
+    r3 = r3 + 1
+}
+k3 = 0
+while k3 < n3 {
+    var c3 = 0
+    while c3 < p3 {
+        oren_buf_store_f32(Bf3, k3 * p3 + c3, f32(c3 + 1))
+        c3 = c3 + 1
+    }
+    k3 = k3 + 1
+}
+var Cf3 = linalg.matmul_f32_buf(Af3, Bf3, m3, n3, p3)
+assert_true(!oren_is_err(Cf3), 103)
+assert_eq(oren_buf_load_f32(Cf3, 0 * p3 + 4), f32(1 * 5 * n3), 104) // tail col
+assert_eq(oren_buf_load_f32(Cf3, 3 * p3 + 4), f32(4 * 5 * n3), 105) // tail col last row
+
+var Ai3: []i32 = buffer.i32_new(m3 * n3)
+var Bi3: []i32 = buffer.i32_new(n3 * p3)
+assert_true(!oren_is_err(Ai3), 106)
+assert_true(!oren_is_err(Bi3), 107)
+
+r3 = 0
+while r3 < m3 {
+    k3 = 0
+    while k3 < n3 {
+        oren_buf_store_i32(Ai3, r3 * n3 + k3, r3 + 1)
+        k3 = k3 + 1
+    }
+    r3 = r3 + 1
+}
+k3 = 0
+while k3 < n3 {
+    var c3i = 0
+    while c3i < p3 {
+        oren_buf_store_i32(Bi3, k3 * p3 + c3i, c3i + 1)
+        c3i = c3i + 1
+    }
+    k3 = k3 + 1
+}
+var Ci3 = linalg.matmul_i32_buf(Ai3, Bi3, m3, n3, p3)
+assert_true(!oren_is_err(Ci3), 108)
+assert_eq(oren_buf_load_i32(Ci3, 0 * p3 + 4), 1 * 5 * n3, 109)
+assert_eq(oren_buf_load_i32(Ci3, 3 * p3 + 4), 4 * 5 * n3, 110)
+
+var Ciw3 = linalg.matmul_i32_buf_wide(Ai3, Bi3, m3, n3, p3)
+assert_true(!oren_is_err(Ciw3), 111)
+assert_eq(oren_buf_load_i64(Ciw3, 0 * p3 + 4), 1 * 5 * n3, 112)
+assert_eq(oren_buf_load_i64(Ciw3, 3 * p3 + 4), 4 * 5 * n3, 113)
+
 // dot strided: pick B column 0 (stride = p)
 var ds = oren_buf_dot_i32_strided(Ai, 0, 1, Bi, 0, 2, 3) // A row0 dot B col0
 assert_eq(ds, 58, 90)

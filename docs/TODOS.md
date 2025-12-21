@@ -98,6 +98,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
         - `lib/std/linalg.oren` uses this boundary for 4-row blocks in both packed and non-packed matmul paths.
       - Added `oren_buf_gemm_i32_4x4_slice_into` (native_id=129): 4×4 i32 GEMM boundary returning 16 i64 results, with C runtime + native runtime + AVM parity; used by packed `matmul_i32_buf` 4-row blocks.
       - `matmul_i32_buf_wide` now uses the same 4×4 i32 GEMM boundary for 4-row blocks (packed and non-packed), storing i64 results directly.
+      - Fixed correctness for the **non-packed 4-row fast path** when `p % 4 != 0` (tail columns were previously skipped); added a module test that asserts tail-column outputs for f32/i32/i64 matmul.
 
 2) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
    - DoD:

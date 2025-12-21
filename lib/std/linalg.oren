@@ -543,6 +543,34 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
                     oren_buf_store_f32(out, (i + 3) * p + (base_j_blk2 + 3), f32(oren_buf_load_f64(tmp16, 15)))
                 } else {
                     // Tail columns: fall back to the existing 1-row dot kernels below.
+                    var row2 = 0
+                    while row2 < 4 {
+                        if base_j_blk2 + 0 < p {
+                            oren_buf_store_f32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 0),
+                                f32(oren_buf_dot_f32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 0) * n, n)))
+                        }
+                        if base_j_blk2 + 1 < p {
+                            oren_buf_store_f32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 1),
+                                f32(oren_buf_dot_f32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 1) * n, n)))
+                        }
+                        if base_j_blk2 + 2 < p {
+                            oren_buf_store_f32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 2),
+                                f32(oren_buf_dot_f32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 2) * n, n)))
+                        }
+                        if base_j_blk2 + 3 < p {
+                            oren_buf_store_f32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 3),
+                                f32(oren_buf_dot_f32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 3) * n, n)))
+                        }
+                        row2 = row2 + 1
+                    }
                 }
                 bj_blk2 = bj_blk2 + 1
             }
@@ -1046,6 +1074,34 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                     oren_buf_store_i32(out, (i + 3) * p + (base_j_blk2 + 3), i32(oren_buf_load_i64(tmp16, 15)))
                 } else {
                     // Tail columns: fall back to the existing 1-row dot kernels below.
+                    var row2 = 0
+                    while row2 < 4 {
+                        if base_j_blk2 + 0 < p {
+                            oren_buf_store_i32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 0),
+                                i32(oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 0) * n, n)))
+                        }
+                        if base_j_blk2 + 1 < p {
+                            oren_buf_store_i32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 1),
+                                i32(oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 1) * n, n)))
+                        }
+                        if base_j_blk2 + 2 < p {
+                            oren_buf_store_i32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 2),
+                                i32(oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 2) * n, n)))
+                        }
+                        if base_j_blk2 + 3 < p {
+                            oren_buf_store_i32(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 3),
+                                i32(oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 3) * n, n)))
+                        }
+                        row2 = row2 + 1
+                    }
                 }
                 bj_blk2 = bj_blk2 + 1
             }
@@ -1388,6 +1444,34 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
                     oren_buf_store_i64(out, (i + 3) * p + (base_j_blk2 + 3), oren_buf_load_i64(tmp16, 15))
                 } else {
                     // Tail columns: fall back to the existing 1-row dot kernels below.
+                    var row2 = 0
+                    while row2 < 4 {
+                        if base_j_blk2 + 0 < p {
+                            oren_buf_store_i64(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 0),
+                                oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 0) * n, n))
+                        }
+                        if base_j_blk2 + 1 < p {
+                            oren_buf_store_i64(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 1),
+                                oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 1) * n, n))
+                        }
+                        if base_j_blk2 + 2 < p {
+                            oren_buf_store_i64(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 2),
+                                oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 2) * n, n))
+                        }
+                        if base_j_blk2 + 3 < p {
+                            oren_buf_store_i64(
+                                out,
+                                (i + row2) * p + (base_j_blk2 + 3),
+                                oren_buf_dot_i32_slice(a, (i + row2) * n, bt, (base_j_blk2 + 3) * n, n))
+                        }
+                        row2 = row2 + 1
+                    }
                 }
                 bj_blk2 = bj_blk2 + 1
             }
