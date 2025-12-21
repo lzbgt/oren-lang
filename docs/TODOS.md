@@ -77,18 +77,20 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][quality] Typecheck mode v0: make `--typecheck` high-signal for HPC**
-   - Goal: get production-grade errors early for typed code, without blocking rolling v0 code.
+1) **[lang][arch] Type namespacing v1: make type annotations + traits work across modules**
+   - Problem: whole-program lowerings (impl/method dispatch, `Iterable` hook) currently rely on type names being stable.
+     Imported modules rename types for uniqueness, but annotation spellings do not currently normalize through alias maps.
+   - Goal: allow users to write and type-annotate exported types from other modules without referring to internal prefixes.
    - DoD:
-     - Strengthen `./oren build --typecheck` to reject obviously invalid operations at annotated boundaries:
-       - casts like `u8("x")`, `f32("x")`, `bool("x")` (unless explicit coercion is defined)
-       - invalid `as` casts across categories (e.g. `bytes as i32` without a defined cast rule)
-     - Ensure diagnostics are stable and point at user spans (not compiler-generated lowering).
-     - Add/merge into the integration suite (no explosion of tiny tests).
-   - Status:
-     - **done:** numeric casts reject `string/bytes/list/map/buf` inputs when statically known.
-     - **done:** `bool(...)` rejects `string/bytes/list/map` inputs when statically known (still allows numeric/bool/nil/unknown).
-     - **done:** `as` casts are already desugared to cast calls and thus follow the same checks.
+     - Define a canonical surface spelling for imported types: `alias.Type` (or `alias.mod.Type` where needed).
+     - During linking, build a deterministic `type_aliases` map that resolves `alias.Type` → internal renamed type name.
+     - Normalize all `ann_type` strings using that map before running lowerings that consult types:
+       - impl lowering (method calls, `Iterable` iter_next hook)
+       - generic constraint validation
+       - typecheck (category inference from annotations)
+     - Add one integration-level test:
+       - a module defines `struct MyRange` + `impl Iterable for MyRange`
+       - root imports it, declares `var r: mod.MyRange`, iterates `for x in r`, and gets the expected sum
 
 ### B) AVM (evolves alongside language/compiler)
 
