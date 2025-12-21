@@ -655,6 +655,30 @@ fn insn_fmul_s(sd, sn, sm) {
     return 505415680 + (sm * 65536) + (sn * 32) + sd
 }
 
+fn insn_fcvtl_2d_from_2s(vd, vn) {
+    // FCVTL Vd.2D, Vn.2S (widen float32 -> float64, low lanes)
+    // Verified via clang:
+    //   fcvtl v2.2d, v0.2s => 0x0E617802
+    // Base: 0x0E617800
+    return 241268736 + (vn * 32) + vd
+}
+
+fn insn_fcvtl2_2d_from_4s(vd, vn) {
+    // FCVTL2 Vd.2D, Vn.4S (widen float32 -> float64, high lanes)
+    // Verified via clang:
+    //   fcvtl2 v3.2d, v0.4s => 0x4E617803
+    // Base: 0x4E617800
+    return 1315010560 + (vn * 32) + vd
+}
+
+fn insn_fmul_2d(vd, vn, vm) {
+    // FMUL Vd.2D, Vn.2D, Vm.2D
+    // Verified via clang:
+    //   fmul v2.2d, v2.2d, v4.2d => 0x6E64DC42
+    // Base: 0x6E60DC00
+    return 1851841536 + (vm * 65536) + (vn * 32) + vd
+}
+
 fn insn_smull_2d(vd, vn, vm) {
     // SMULL Vd.2D, Vn.2S, Vm.2S
     // Verified via clang:
@@ -694,6 +718,14 @@ fn insn_str_q(vt, rn) {
     //   str q0, [x2] => 0x3D800040
     // Base: 0x3D800000
     return 1031798784 + (rn * 32) + vt
+}
+
+fn insn_str_q_off(vt, rn, offset) {
+    // STR Qt, [Xn, #imm12<<4] (unsigned offset encoding, scaled by 16)
+    // Verified via clang:
+    //   str q2, [sp]      => 0x3D8003E2
+    //   str q3, [sp,#16]  => 0x3D8007E3
+    return 1031798784 + ((offset / 16) * 1024) + (rn * 32) + vt
 }
 
 fn insn_ldr_ptr(rd, rn) {

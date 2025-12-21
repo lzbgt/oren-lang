@@ -1,0 +1,44 @@
+fn fail(code, msg) {
+    oren_fail(code, "test_simd_dot_f32_native: " + msg)
+    return 1
+}
+
+fn main() {
+    var n = 1024
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(100, "alloc a") }
+    if oren_is_err(b) { return fail(101, "alloc b") }
+
+    // Fill with small f32-representable values (integers as floats).
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(a, i, f64(i % 97) - 41.0)
+        oren_buf_store_f32(b, i, f64((i * 3) % 89) - 22.0)
+        i = i + 1
+    }
+
+    // Scalar reference (explicit loop, f64 accumulate in order).
+    var ref = 0.0
+    i = 0
+    while i < n {
+        ref = ref + (oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+
+    var dot = oren_buf_dot_f32(a, b)
+    if oren_is_err(dot) { return fail(102, "dot returned err") }
+
+    // Compare bits exactly (native f64 container).
+    var ref_bits = oren_f64_to_u64_bits(ref)
+    var dot_bits = oren_f64_to_u64_bits(dot)
+    if ref_bits != dot_bits {
+        print("ref_bits=" + oren_int_to_string(ref_bits))
+        print("dot_bits=" + oren_int_to_string(dot_bits))
+        return fail(200, "dot mismatch")
+    }
+
+    print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
+    print("DOT_BITS=" + oren_int_to_string(dot_bits))
+    return 0
+}

@@ -124,6 +124,7 @@ func main() {
 		"tests/native/test_simd_dot_i32_native.oren",
 		"tests/native/test_simd_i32_buf_ops_native.oren",
 		"tests/native/test_simd_f32_buf_ops_native.oren",
+		"tests/native/test_simd_dot_f32_native.oren",
 		"tests/native/test_sys_execve_fail_safe.oren",
 		"tests/native/test_debug_panic.oren",
 	}
@@ -1104,6 +1105,58 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 					_ = appendFileLine(simdLog, "simd   ADD_HASH "+strings.TrimSpace(tAdd))
 					_ = appendFileLine(simdLog, "scalar MUL_HASH "+strings.TrimSpace(sMul))
 					_ = appendFileLine(simdLog, "simd   MUL_HASH "+strings.TrimSpace(tMul))
+					rc = 1
+					break
+				}
+			}
+		case "test_simd_dot_f32_native":
+			// Scalar vs SIMD determinism check for f32 dot (returns f64 bits).
+			scalarLog := log
+			_ = os.Remove(scalarLog)
+			scalarCmd := fmt.Sprintf("env OREN_NO_SIMD=1 ./%s", out)
+			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
+			runLog = scalarLog
+			if rc != 0 {
+				break
+			}
+			sDot, okD := extractValueFromLog(scalarLog, "DOT_BITS=")
+			sSIMD, okS := extractValueFromLog(scalarLog, "SIMD_ENABLED=")
+			if !okD || !okS {
+				_ = appendFileLine(scalarLog, "oretest: missing DOT_BITS=/SIMD_ENABLED= output in scalar run")
+				rc = 1
+				break
+			}
+			if strings.TrimSpace(sSIMD) != "0" {
+				_ = appendFileLine(scalarLog, "oretest: expected SIMD_ENABLED=0 in scalar run (OREN_NO_SIMD=1)")
+				rc = 1
+				break
+			}
+
+			if shouldValidateSIMD() {
+				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
+				_ = os.Remove(simdLog)
+				simdCmd := fmt.Sprintf("env OREN_ENABLE_SIMD=1 ./%s", out)
+				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
+				runLog = simdLog
+				if rc != 0 {
+					break
+				}
+				tDot, okD2 := extractValueFromLog(simdLog, "DOT_BITS=")
+				tSIMD, okS2 := extractValueFromLog(simdLog, "SIMD_ENABLED=")
+				if !okD2 || !okS2 {
+					_ = appendFileLine(simdLog, "oretest: missing DOT_BITS=/SIMD_ENABLED= output in SIMD run")
+					rc = 1
+					break
+				}
+				if strings.TrimSpace(tSIMD) != "1" {
+					_ = appendFileLine(simdLog, "oretest: expected SIMD_ENABLED=1 in SIMD run (OREN_ENABLE_SIMD=1)")
+					rc = 1
+					break
+				}
+				if strings.TrimSpace(tDot) != strings.TrimSpace(sDot) {
+					_ = appendFileLine(simdLog, "oretest: native SIMD f32 dot mismatch")
+					_ = appendFileLine(simdLog, "scalar DOT_BITS "+strings.TrimSpace(sDot))
+					_ = appendFileLine(simdLog, "simd   DOT_BITS "+strings.TrimSpace(tDot))
 					rc = 1
 					break
 				}
