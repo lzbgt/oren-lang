@@ -812,79 +812,152 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
     var out: []i64 = buffer.i64_new(m * p)
     if oren_is_err(out) { return out }
 
-    var bt: []i32 = buffer.i32_new(n * p)
-    if oren_is_err(bt) { return bt }
-    var k0 = 0
-    while k0 < n {
-        var j0 = 0
-        while j0 < p {
-            var v = oren_buf_load_i32(b, k0 * p + j0)
-            if oren_is_err(v) { return v }
-            oren_buf_store_i32(bt, j0 * n + k0, v)
-            j0 = j0 + 1
+    // Optional packed-B layout (tile-major) for cache locality.
+    // Mirrors `matmul_i32_buf`, but keeps full i64 results at the store boundary.
+    var JB = 4
+    var KB = 64
+    var tiles_j = (p + JB - 1) / JB
+    var tiles_k = (n + KB - 1) / KB
+    var use_packed = (n >= KB) && (p >= JB) && (n * p >= 4096)
+
+    // If we are packing, pack directly from B without materializing Bt.
+    // If we are not packing, build Bt (transpose) so each column is contiguous.
+    var bt: []i32 = nil
+    var bp: []i32 = nil
+    if use_packed {
+        bp = buffer.i32_new(tiles_j * tiles_k * JB * KB)
+        if oren_is_err(bp) { return bp }
+        var bj0 = 0
+        while bj0 < tiles_j {
+            var bk0 = 0
+            while bk0 < tiles_k {
+                var j_in0 = 0
+                while j_in0 < JB {
+                    var global_j0 = bj0 * JB + j_in0
+                    var k_in0 = 0
+                    while k_in0 < KB {
+                        var global_k0 = bk0 * KB + k_in0
+                        var v0 = 0
+                        if global_j0 < p && global_k0 < n {
+                            v0 = oren_buf_load_i32(b, global_k0 * p + global_j0)
+                            if oren_is_err(v0) { return v0 }
+                        }
+                        var dst0 = (((bj0 * tiles_k + bk0) * JB + j_in0) * KB + k_in0)
+                        oren_buf_store_i32(bp, dst0, v0)
+                        k_in0 = k_in0 + 1
+                    }
+                    j_in0 = j_in0 + 1
+                }
+                bk0 = bk0 + 1
+            }
+            bj0 = bj0 + 1
         }
-        k0 = k0 + 1
+    } else {
+        bt = buffer.i32_new(n * p)
+        if oren_is_err(bt) { return bt }
+        var k0 = 0
+        while k0 < n {
+            var j0 = 0
+            while j0 < p {
+                var v = oren_buf_load_i32(b, k0 * p + j0)
+                if oren_is_err(v) { return v }
+                oren_buf_store_i32(bt, j0 * n + k0, v)
+                j0 = j0 + 1
+            }
+            k0 = k0 + 1
+        }
     }
+
+    // Reusable scratch for the 1x4 dot microkernel.
+    var tmp4: []i64 = buffer.i64_new(4)
+    if oren_is_err(tmp4) { return tmp4 }
 
     var i = 0
     while i < m {
-        var j = 0
-        while j + 4 <= p {
+        var bj = 0
+        while bj < tiles_j {
+            var base_j = bj * JB
             var s0 = 0
             var s1 = 0
             var s2 = 0
             var s3 = 0
-            var KB = 64
-            var k0 = 0
-            while k0 < n {
-                var kend = k0 + KB
-                if kend > n { kend = n }
-                var k = k0
-                while k < kend {
-                    var av = oren_buf_load_i32(a, i * n + k)
-                    if oren_is_err(av) { return av }
-                    var b0 = oren_buf_load_i32(bt, (j + 0) * n + k)
-                    var b1 = oren_buf_load_i32(bt, (j + 1) * n + k)
-                    var b2 = oren_buf_load_i32(bt, (j + 2) * n + k)
-                    var b3 = oren_buf_load_i32(bt, (j + 3) * n + k)
-                    if oren_is_err(b0) { return b0 }
-                    if oren_is_err(b1) { return b1 }
-                    if oren_is_err(b2) { return b2 }
-                    if oren_is_err(b3) { return b3 }
-                    s0 = s0 + av * b0
-                    s1 = s1 + av * b1
-                    s2 = s2 + av * b2
-                    s3 = s3 + av * b3
-                    k = k + 1
+
+            if use_packed {
+                var bk = 0
+                while bk < tiles_k {
+                    var kbase = bk * KB
+                    var kn = n - kbase
+                    if kn > KB { kn = KB }
+
+                    if base_j + 3 < p {
+                        var base_tile = (bj * tiles_k + bk) * JB * KB
+                        var r = oren_buf_dot_i32_4_slice_into(
+                            tmp4, 0,
+                            a, i * n + kbase,
+                            bp,
+                            base_tile + 0 * KB,
+                            base_tile + 1 * KB,
+                            base_tile + 2 * KB,
+                            base_tile + 3 * KB,
+                            kn)
+                        if oren_is_err(r) { return r }
+                        var t0 = oren_buf_load_i64(tmp4, 0)
+                        var t1 = oren_buf_load_i64(tmp4, 1)
+                        var t2 = oren_buf_load_i64(tmp4, 2)
+                        var t3 = oren_buf_load_i64(tmp4, 3)
+                        if oren_is_err(t0) { return t0 }
+                        if oren_is_err(t1) { return t1 }
+                        if oren_is_err(t2) { return t2 }
+                        if oren_is_err(t3) { return t3 }
+                        s0 = s0 + t0
+                        s1 = s1 + t1
+                        s2 = s2 + t2
+                        s3 = s3 + t3
+                    } else {
+                        // Tail columns: dot per column.
+                        var base_tile2 = (bj * tiles_k + bk) * JB * KB
+                        if base_j + 0 < p { s0 = s0 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 0 * KB, kn) }
+                        if base_j + 1 < p { s1 = s1 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 1 * KB, kn) }
+                        if base_j + 2 < p { s2 = s2 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 2 * KB, kn) }
+                        if base_j + 3 < p { s3 = s3 + oren_buf_dot_i32_slice(a, i * n + kbase, bp, base_tile2 + 3 * KB, kn) }
+                    }
+                    bk = bk + 1
                 }
-                k0 = k0 + KB
-            }
-            oren_buf_store_i64(out, i * p + (j + 0), s0)
-            oren_buf_store_i64(out, i * p + (j + 1), s1)
-            oren_buf_store_i64(out, i * p + (j + 2), s2)
-            oren_buf_store_i64(out, i * p + (j + 3), s3)
-            j = j + 4
-        }
-        while j < p {
-            var s = 0
-            var KB2 = 64
-            var k02 = 0
-            while k02 < n {
-                var kend2 = k02 + KB2
-                if kend2 > n { kend2 = n }
-                var k2 = k02
-                while k2 < kend2 {
-                    var av2 = oren_buf_load_i32(a, i * n + k2)
-                    if oren_is_err(av2) { return av2 }
-                    var bv2 = oren_buf_load_i32(bt, j * n + k2)
-                    if oren_is_err(bv2) { return bv2 }
-                    s = s + av2 * bv2
-                    k2 = k2 + 1
+            } else {
+                // Non-packed Bt is fully contiguous per column, so do a single dot over full n.
+                if base_j + 3 < p {
+                    var r2 = oren_buf_dot_i32_4_slice_into(
+                        tmp4, 0,
+                        a, i * n,
+                        bt,
+                        (base_j + 0) * n,
+                        (base_j + 1) * n,
+                        (base_j + 2) * n,
+                        (base_j + 3) * n,
+                        n)
+                    if oren_is_err(r2) { return r2 }
+                    s0 = oren_buf_load_i64(tmp4, 0)
+                    s1 = oren_buf_load_i64(tmp4, 1)
+                    s2 = oren_buf_load_i64(tmp4, 2)
+                    s3 = oren_buf_load_i64(tmp4, 3)
+                    if oren_is_err(s0) { return s0 }
+                    if oren_is_err(s1) { return s1 }
+                    if oren_is_err(s2) { return s2 }
+                    if oren_is_err(s3) { return s3 }
+                } else {
+                    if base_j + 0 < p { s0 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 0) * n, n) }
+                    if base_j + 1 < p { s1 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 1) * n, n) }
+                    if base_j + 2 < p { s2 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 2) * n, n) }
+                    if base_j + 3 < p { s3 = oren_buf_dot_i32_slice(a, i * n, bt, (base_j + 3) * n, n) }
                 }
-                k02 = k02 + KB2
             }
-            oren_buf_store_i64(out, i * p + j, s)
-            j = j + 1
+
+            if base_j + 0 < p { oren_buf_store_i64(out, i * p + (base_j + 0), s0) }
+            if base_j + 1 < p { oren_buf_store_i64(out, i * p + (base_j + 1), s1) }
+            if base_j + 2 < p { oren_buf_store_i64(out, i * p + (base_j + 2), s2) }
+            if base_j + 3 < p { oren_buf_store_i64(out, i * p + (base_j + 3), s3) }
+
+            bj = bj + 1
         }
         i = i + 1
     }

@@ -90,6 +90,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Current rolling note:
      - Matmul now avoids per-k-block dot calls when **not packed** (Bt is contiguous per column, so we do a single dot/dot_4 across full `n`).
      - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
+     - `matmul_i32_buf_wide` now matches the same packed/non-packed strategy, but stores full i64 accumulators.
 
 2) **[stdlib][hpc] Trig for huge |x|: Payne–Hanek range reduction**
    - DoD:
