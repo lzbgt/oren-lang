@@ -886,6 +886,30 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
     var out: []i32 = buffer.i32_new(m * p)
     if oren_is_err(out) { return out }
 
+    var rc = matmul_i32_buf_into(out, a, b, m, n, p)
+    if oren_is_err(rc) { return rc }
+    return out
+}
+
+fn matmul_i32_buf_into(out: []i32, a: []i32, b: []i32, m, n, p) {
+    // In-place variant of i32 matmul for HPC workloads.
+    //
+    // Semantics: i64 accumulate, then truncate/wrap to i32 at store boundary.
+    if m < 0 || n < 0 || p < 0 { return _err_invalid_arg("matmul_i32_buf_into: negative dims") }
+    var na = buffer.len(a)
+    if oren_is_err(na) { return na }
+    var nb = buffer.len(b)
+    if oren_is_err(nb) { return nb }
+    var no = buffer.len(out)
+    if oren_is_err(no) { return no }
+    if na != m * n { return _err_invalid_arg("matmul_i32_buf_into: A length mismatch") }
+    if nb != n * p { return _err_invalid_arg("matmul_i32_buf_into: B length mismatch") }
+    if no != m * p { return _err_invalid_arg("matmul_i32_buf_into: out length mismatch") }
+    return _matmul_i32_buf_kernel(out, a, b, m, n, p)
+}
+
+fn _matmul_i32_buf_kernel(out: []i32, a: []i32, b: []i32, m, n, p) {
+
     // Optional packed-B layout (tile-major) for cache locality.
     // Mirrors the f32 matmul packing strategy, but for i32.
     var JB = 4
@@ -1282,7 +1306,7 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
         }
         i = i + 1
     }
-    return out
+    return 0
 }
 
 fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
