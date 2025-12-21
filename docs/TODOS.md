@@ -89,6 +89,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Define a minimal `slice`/`view` shape (`ptr + len`), then a `stride` matrix view (`ptr + rows + cols + stride`)
      - Keep views non-owning and bounds-checked; no host-endian dependence
      - Implement across backends (C/native/bytecode) as a stable surface
+   - Status:
+     - **done:** `std/buffer` slice views (`slice_new`, `slice_load/store_{u8,i32,f32}`) + matrix views (`mat_view_new`, `mat_load/store_{f32,i32}`)
+     - **next:** add view helpers for `f64` and `i64` where needed (serde/CBOR + wide math)
 
 3) **[lang][perf] Allocator control for large numeric buffers (no-GC-scanned region)**
    - DoD:
@@ -111,6 +114,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Provide baseline `matmul_f32` / `matmul_i32` using typed buffers + views
      - Pluggable kernel dispatch (scalar vs NEON) via intrinsic boundary
      - Add correctness tests (small shapes) + perf smoke test (no hard perf thresholds)
+   - Status:
+     - **done:** baseline typed-buffer matmul (`matmul_f32_buf`, `matmul_i32_buf`, `matmul_i32_buf_wide`) + module tests (`tests/modules/test_linalg.oren`)
+     - **next:** add kernel boundary for `matmul_f32_buf` inner loop (tile + optional NEON microkernel for `k`-loop)
 
 2) **[stdlib][api] Serde annotations remain stable while language evolves**
    - DoD:
