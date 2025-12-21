@@ -3441,40 +3441,144 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 uint32_t n = (uint32_t)n_ll;
 
                 uint64_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;
-                for (uint32_t i = 0; i < n; i++) {
-                    uint32_t offa = (a_off + i) * 4u;
-                    uint32_t ua = (uint32_t)a->data[offa]
-                                | ((uint32_t)a->data[offa + 1] << 8)
-                                | ((uint32_t)a->data[offa + 2] << 16)
-                                | ((uint32_t)a->data[offa + 3] << 24);
-                    int64_t av = (int64_t)(int32_t)ua;
 
-                    uint32_t off0 = (b0_off + i) * 4u;
-                    uint32_t off1 = (b1_off + i) * 4u;
-                    uint32_t off2 = (b2_off + i) * 4u;
-                    uint32_t off3 = (b3_off + i) * 4u;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd && n >= 4u) {
+                    uint32_t i = 0;
+                    uint64x2_t vacc0 = vdupq_n_u64(0);
+                    uint64x2_t vacc1 = vdupq_n_u64(0);
+                    uint64x2_t vacc2 = vdupq_n_u64(0);
+                    uint64x2_t vacc3 = vdupq_n_u64(0);
+                    for (; i + 4u <= n; i += 4u) {
+                        uint32_t offa = (a_off + i) * 4u;
+                        uint32_t off0 = (b0_off + i) * 4u;
+                        uint32_t off1 = (b1_off + i) * 4u;
+                        uint32_t off2 = (b2_off + i) * 4u;
+                        uint32_t off3 = (b3_off + i) * 4u;
 
-                    uint32_t ub0 = (uint32_t)b->data[off0]
-                                 | ((uint32_t)b->data[off0 + 1] << 8)
-                                 | ((uint32_t)b->data[off0 + 2] << 16)
-                                 | ((uint32_t)b->data[off0 + 3] << 24);
-                    uint32_t ub1 = (uint32_t)b->data[off1]
-                                 | ((uint32_t)b->data[off1 + 1] << 8)
-                                 | ((uint32_t)b->data[off1 + 2] << 16)
-                                 | ((uint32_t)b->data[off1 + 3] << 24);
-                    uint32_t ub2 = (uint32_t)b->data[off2]
-                                 | ((uint32_t)b->data[off2 + 1] << 8)
-                                 | ((uint32_t)b->data[off2 + 2] << 16)
-                                 | ((uint32_t)b->data[off2 + 3] << 24);
-                    uint32_t ub3 = (uint32_t)b->data[off3]
-                                 | ((uint32_t)b->data[off3 + 1] << 8)
-                                 | ((uint32_t)b->data[off3 + 2] << 16)
-                                 | ((uint32_t)b->data[off3 + 3] << 24);
+                        uint32_t wa[4], wb0[4], wb1[4], wb2[4], wb3[4];
+                        memcpy(wa, a->data + offa, 16);
+                        memcpy(wb0, b->data + off0, 16);
+                        memcpy(wb1, b->data + off1, 16);
+                        memcpy(wb2, b->data + off2, 16);
+                        memcpy(wb3, b->data + off3, 16);
 
-                    s0 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub0);
-                    s1 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub1);
-                    s2 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub2);
-                    s3 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub3);
+                        int32x4_t va = vreinterpretq_s32_u32(vld1q_u32(wa));
+                        int32x4_t vb0 = vreinterpretq_s32_u32(vld1q_u32(wb0));
+                        int32x4_t vb1 = vreinterpretq_s32_u32(vld1q_u32(wb1));
+                        int32x4_t vb2 = vreinterpretq_s32_u32(vld1q_u32(wb2));
+                        int32x4_t vb3 = vreinterpretq_s32_u32(vld1q_u32(wb3));
+
+                        // lane-ordered accumulation, preserved as u64 bits (wrap modulo 2^64)
+                        {
+                            int64x2_t p0_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb0));
+                            int64x2_t p0_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb0));
+                            vacc0 = vaddq_u64(vacc0, vreinterpretq_u64_s64(p0_lo));
+                            vacc0 = vaddq_u64(vacc0, vreinterpretq_u64_s64(p0_hi));
+                        }
+                        {
+                            int64x2_t p1_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb1));
+                            int64x2_t p1_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb1));
+                            vacc1 = vaddq_u64(vacc1, vreinterpretq_u64_s64(p1_lo));
+                            vacc1 = vaddq_u64(vacc1, vreinterpretq_u64_s64(p1_hi));
+                        }
+                        {
+                            int64x2_t p2_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb2));
+                            int64x2_t p2_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb2));
+                            vacc2 = vaddq_u64(vacc2, vreinterpretq_u64_s64(p2_lo));
+                            vacc2 = vaddq_u64(vacc2, vreinterpretq_u64_s64(p2_hi));
+                        }
+                        {
+                            int64x2_t p3_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb3));
+                            int64x2_t p3_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb3));
+                            vacc3 = vaddq_u64(vacc3, vreinterpretq_u64_s64(p3_lo));
+                            vacc3 = vaddq_u64(vacc3, vreinterpretq_u64_s64(p3_hi));
+                        }
+                    }
+
+                    uint64_t t0[2], t1[2], t2[2], t3[2];
+                    vst1q_u64(t0, vacc0);
+                    vst1q_u64(t1, vacc1);
+                    vst1q_u64(t2, vacc2);
+                    vst1q_u64(t3, vacc3);
+                    s0 = t0[0] + t0[1];
+                    s1 = t1[0] + t1[1];
+                    s2 = t2[0] + t2[1];
+                    s3 = t3[0] + t3[1];
+
+                    for (; i < n; i++) {
+                        uint32_t offa2 = (a_off + i) * 4u;
+                        uint32_t ua = (uint32_t)a->data[offa2]
+                                    | ((uint32_t)a->data[offa2 + 1] << 8)
+                                    | ((uint32_t)a->data[offa2 + 2] << 16)
+                                    | ((uint32_t)a->data[offa2 + 3] << 24);
+                        int64_t av = (int64_t)(int32_t)ua;
+
+                        uint32_t off0_2 = (b0_off + i) * 4u;
+                        uint32_t off1_2 = (b1_off + i) * 4u;
+                        uint32_t off2_2 = (b2_off + i) * 4u;
+                        uint32_t off3_2 = (b3_off + i) * 4u;
+
+                        uint32_t ub0 = (uint32_t)b->data[off0_2]
+                                     | ((uint32_t)b->data[off0_2 + 1] << 8)
+                                     | ((uint32_t)b->data[off0_2 + 2] << 16)
+                                     | ((uint32_t)b->data[off0_2 + 3] << 24);
+                        uint32_t ub1 = (uint32_t)b->data[off1_2]
+                                     | ((uint32_t)b->data[off1_2 + 1] << 8)
+                                     | ((uint32_t)b->data[off1_2 + 2] << 16)
+                                     | ((uint32_t)b->data[off1_2 + 3] << 24);
+                        uint32_t ub2 = (uint32_t)b->data[off2_2]
+                                     | ((uint32_t)b->data[off2_2 + 1] << 8)
+                                     | ((uint32_t)b->data[off2_2 + 2] << 16)
+                                     | ((uint32_t)b->data[off2_2 + 3] << 24);
+                        uint32_t ub3 = (uint32_t)b->data[off3_2]
+                                     | ((uint32_t)b->data[off3_2 + 1] << 8)
+                                     | ((uint32_t)b->data[off3_2 + 2] << 16)
+                                     | ((uint32_t)b->data[off3_2 + 3] << 24);
+
+                        s0 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub0);
+                        s1 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub1);
+                        s2 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub2);
+                        s3 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub3);
+                    }
+                } else
+#endif
+                {
+                    for (uint32_t i = 0; i < n; i++) {
+                        uint32_t offa = (a_off + i) * 4u;
+                        uint32_t ua = (uint32_t)a->data[offa]
+                                    | ((uint32_t)a->data[offa + 1] << 8)
+                                    | ((uint32_t)a->data[offa + 2] << 16)
+                                    | ((uint32_t)a->data[offa + 3] << 24);
+                        int64_t av = (int64_t)(int32_t)ua;
+
+                        uint32_t off0 = (b0_off + i) * 4u;
+                        uint32_t off1 = (b1_off + i) * 4u;
+                        uint32_t off2 = (b2_off + i) * 4u;
+                        uint32_t off3 = (b3_off + i) * 4u;
+
+                        uint32_t ub0 = (uint32_t)b->data[off0]
+                                     | ((uint32_t)b->data[off0 + 1] << 8)
+                                     | ((uint32_t)b->data[off0 + 2] << 16)
+                                     | ((uint32_t)b->data[off0 + 3] << 24);
+                        uint32_t ub1 = (uint32_t)b->data[off1]
+                                     | ((uint32_t)b->data[off1 + 1] << 8)
+                                     | ((uint32_t)b->data[off1 + 2] << 16)
+                                     | ((uint32_t)b->data[off1 + 3] << 24);
+                        uint32_t ub2 = (uint32_t)b->data[off2]
+                                     | ((uint32_t)b->data[off2 + 1] << 8)
+                                     | ((uint32_t)b->data[off2 + 2] << 16)
+                                     | ((uint32_t)b->data[off2 + 3] << 24);
+                        uint32_t ub3 = (uint32_t)b->data[off3]
+                                     | ((uint32_t)b->data[off3 + 1] << 8)
+                                     | ((uint32_t)b->data[off3 + 2] << 16)
+                                     | ((uint32_t)b->data[off3 + 3] << 24);
+
+                        s0 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub0);
+                        s1 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub1);
+                        s2 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub2);
+                        s3 += avm_u64_bits_i64_native(av * (int64_t)(int32_t)ub3);
+                    }
                 }
 
                 uint64_t u0 = s0, u1 = s1, u2 = s2, u3 = s3;
