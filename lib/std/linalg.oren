@@ -66,6 +66,70 @@ fn dot_f32_buf(a: []f32, b: []f32) {
     return oren_buf_dot_f32(a, b)
 }
 
+// --- zero-copy views (slice / strided) ---
+//
+// View shapes (portable list encodings; see std/buffer):
+// - slice:   [buf, off, len]
+// - strided: [buf, off, len, stride]
+//
+// These helpers exist so HPC code can keep data zero-copy while still using
+// backend-optimized dot kernels (`*_slice` / `*_strided`) where available.
+
+fn _view_len(v) {
+    if v == nil || oren_is_err(v) { return -1 }
+    var n = oren_list_len(v)
+    if oren_is_err(n) { return -1 }
+    return n
+}
+
+fn dot_i32_view(a, b) {
+    var al = _view_len(a)
+    var bl = _view_len(b)
+    if al < 0 || bl < 0 { return _err_invalid_arg("dot_i32_view: expects view lists") }
+    if (al != 3 && al != 4) || (bl != 3 && bl != 4) { return _err_invalid_arg("dot_i32_view: expects slice/strided") }
+
+    var a_buf: []i32 = a[0]
+    var b_buf: []i32 = b[0]
+    var a_off = a[1]
+    var b_off = b[1]
+    var n = a[2]
+    var bn = b[2]
+    if n != bn { return _err_invalid_arg("dot_i32_view: length mismatch") }
+    var a_stride = 1
+    var b_stride = 1
+    if al == 4 { a_stride = a[3] }
+    if bl == 4 { b_stride = b[3] }
+
+    if a_stride == 1 && b_stride == 1 {
+        return oren_buf_dot_i32_slice(a_buf, a_off, b_buf, b_off, n)
+    }
+    return oren_buf_dot_i32_strided(a_buf, a_off, a_stride, b_buf, b_off, b_stride, n)
+}
+
+fn dot_f32_view(a, b) {
+    var al = _view_len(a)
+    var bl = _view_len(b)
+    if al < 0 || bl < 0 { return _err_invalid_arg("dot_f32_view: expects view lists") }
+    if (al != 3 && al != 4) || (bl != 3 && bl != 4) { return _err_invalid_arg("dot_f32_view: expects slice/strided") }
+
+    var a_buf: []f32 = a[0]
+    var b_buf: []f32 = b[0]
+    var a_off = a[1]
+    var b_off = b[1]
+    var n = a[2]
+    var bn = b[2]
+    if n != bn { return _err_invalid_arg("dot_f32_view: length mismatch") }
+    var a_stride = 1
+    var b_stride = 1
+    if al == 4 { a_stride = a[3] }
+    if bl == 4 { b_stride = b[3] }
+
+    if a_stride == 1 && b_stride == 1 {
+        return oren_buf_dot_f32_slice(a_buf, a_off, b_buf, b_off, n)
+    }
+    return oren_buf_dot_f32_strided(a_buf, a_off, a_stride, b_buf, b_off, b_stride, n)
+}
+
 // --- axpy (y := a*x + y) ---
 
 fn axpy_f64(alpha, x, y) {
@@ -288,6 +352,58 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
                 k02 = k02 + KB2
             }
             oren_buf_store_f32(out, i * p + j, f32(s))
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// Matmul over matrix views (strided rows).
+//
+// View shape (see std/buffer):
+//   [buf, off, rows, cols, row_stride]
+//
+// This is a correctness + ergonomics baseline. Hot loops can later be replaced
+// by packed tiles/NEON microkernels while preserving semantics.
+fn matmul_f32_mat_view(a, b) {
+    if a == nil || b == nil { return _err_invalid_arg("matmul_f32_mat_view: nil view") }
+    if oren_list_len(a) != 5 || oren_list_len(b) != 5 { return _err_invalid_arg("matmul_f32_mat_view: expects mat views") }
+
+    var a_buf: []f32 = a[0]
+    var b_buf: []f32 = b[0]
+    var a_off = a[1]
+    var m = a[2]
+    var n = a[3]
+    var a_stride = a[4]
+
+    var b_off = b[1]
+    var bn = b[2]
+    var p = b[3]
+    var b_stride = b[4]
+
+    if bn != n { return _err_invalid_arg("matmul_f32_mat_view: dim mismatch") }
+    if m < 0 || n < 0 || p < 0 { return _err_invalid_arg("matmul_f32_mat_view: negative dims") }
+
+    var out: []f32 = buffer.f32_new(m * p)
+    if oren_is_err(out) { return out }
+
+    var i = 0
+    while i < m {
+        var j = 0
+        while j < p {
+            var s = 0.0
+            var k = 0
+            while k < n {
+                var av = oren_buf_load_f32(a_buf, a_off + i * a_stride + k)
+                var bv = oren_buf_load_f32(b_buf, b_off + k * b_stride + j)
+                if oren_is_err(av) { return av }
+                if oren_is_err(bv) { return bv }
+                s = s + av * bv
+                k = k + 1
+            }
+            var w = oren_buf_store_f32(out, i * p + j, s)
+            if oren_is_err(w) { return w }
             j = j + 1
         }
         i = i + 1

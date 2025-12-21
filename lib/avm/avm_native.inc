@@ -1363,9 +1363,48 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 AvmValue val = avm_nil();
 
                 if (idx >= 0) {
+                    // Typed buffer "view" lists (rolling, HPC):
+                    // - slice view:   [buf, off, len]
+                    // - strided view: [buf, off, len, stride]
+                    // These should iterate the underlying buffer elements rather than the metadata fields.
                     if (container.type == AVM_VAL_LIST && container.as.l) {
                         AvmList* l = container.as.l;
-                        if (idx < l->count) {
+                        if (l->count == 3 || l->count == 4) {
+                            AvmValue b = l->items[0];
+                            if (b.type == AVM_VAL_I32_BUF || b.type == AVM_VAL_I64_BUF || b.type == AVM_VAL_F32_BUF || b.type == AVM_VAL_F64_BUF) {
+                                AvmValue offv = l->items[1];
+                                AvmValue lenv = l->items[2];
+                                AvmValue stridev = (l->count == 4) ? l->items[3] : avm_int(1);
+                                if (offv.type == AVM_VAL_INT && lenv.type == AVM_VAL_INT && stridev.type == AVM_VAL_INT) {
+                                    int64_t off = offv.as.i;
+                                    int64_t n = lenv.as.i;
+                                    int64_t stride = stridev.as.i;
+                                    if (off >= 0 && n >= 0 && stride > 0 && idx < n) {
+                                        int64_t elem_idx = off + idx * stride;
+                                        AvmBuf* buf = b.as.buf;
+                                        if (buf && elem_idx >= 0 && (uint64_t)elem_idx < (uint64_t)buf->len) {
+                                            okv = avm_int(1);
+                                            if (b.type == AVM_VAL_I32_BUF) {
+                                                int32_t v; memcpy(&v, buf->data + (size_t)elem_idx * 4u, 4u);
+                                                val = avm_int((int64_t)v);
+                                            } else if (b.type == AVM_VAL_I64_BUF) {
+                                                int64_t v; memcpy(&v, buf->data + (size_t)elem_idx * 8u, 8u);
+                                                val = avm_int(v);
+                                            } else if (b.type == AVM_VAL_F32_BUF) {
+                                                float fv; memcpy(&fv, buf->data + (size_t)elem_idx * 4u, 4u);
+                                                val.type = AVM_VAL_FLOAT;
+                                                val.as.f = (double)fv;
+                                            } else {
+                                                double dv; memcpy(&dv, buf->data + (size_t)elem_idx * 8u, 8u);
+                                                val.type = AVM_VAL_FLOAT;
+                                                val.as.f = dv;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (okv.as.i == 0 && idx < l->count) {
                             okv = avm_int(1);
                             val = l->items[(int)idx];
                         }
@@ -1444,6 +1483,27 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                         if (idx < b->len) {
                             okv = avm_int(1);
                             val = avm_int((int64_t)b->data[(int)idx]);
+                        }
+                    } else if (container.type == AVM_VAL_I32_BUF || container.type == AVM_VAL_I64_BUF ||
+                               container.type == AVM_VAL_F32_BUF || container.type == AVM_VAL_F64_BUF) {
+                        AvmBuf* b = container.as.buf;
+                        if (b && idx < (int64_t)b->len) {
+                            okv = avm_int(1);
+                            if (container.type == AVM_VAL_I32_BUF) {
+                                int32_t v; memcpy(&v, b->data + (size_t)idx * 4u, 4u);
+                                val = avm_int((int64_t)v);
+                            } else if (container.type == AVM_VAL_I64_BUF) {
+                                int64_t v; memcpy(&v, b->data + (size_t)idx * 8u, 8u);
+                                val = avm_int(v);
+                            } else if (container.type == AVM_VAL_F32_BUF) {
+                                float fv; memcpy(&fv, b->data + (size_t)idx * 4u, 4u);
+                                val.type = AVM_VAL_FLOAT;
+                                val.as.f = (double)fv;
+                            } else {
+                                double dv; memcpy(&dv, b->data + (size_t)idx * 8u, 8u);
+                                val.type = AVM_VAL_FLOAT;
+                                val.as.f = dv;
+                            }
                         }
                     }
                 }

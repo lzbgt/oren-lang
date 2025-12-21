@@ -3082,6 +3082,50 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
         return oren_new_list(2, oren_int(0), OREN_NIL);
     }
 
+    // Typed buffer "view" lists (rolling, HPC):
+    // - slice view:   [buf, off, len]
+    // - strided view: [buf, off, len, stride]
+    //
+    // These are represented as normal lists for portability, but `for x in view`
+    // should iterate the underlying buffer elements, not the metadata fields.
+    if (container.type == OREN_TYPE_LIST && container.as.list_val) {
+        OrenList* l = container.as.list_val;
+        if (l->count == 3 || l->count == 4) {
+            OrenValue b = l->items[0];
+            if (b.type == OREN_TYPE_U8_BUF || b.type == OREN_TYPE_I32_BUF || b.type == OREN_TYPE_I64_BUF ||
+                b.type == OREN_TYPE_F32_BUF || b.type == OREN_TYPE_F64_BUF) {
+                OrenValue offv = l->items[1];
+                OrenValue lenv = l->items[2];
+                OrenValue stridev = (l->count == 4) ? l->items[3] : oren_int(1);
+                if (offv.type != OREN_TYPE_INT || lenv.type != OREN_TYPE_INT || stridev.type != OREN_TYPE_INT) {
+                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                }
+                long long off = offv.as.int_val;
+                long long n = lenv.as.int_val;
+                long long stride = stridev.as.int_val;
+                if (off < 0 || n < 0 || stride <= 0) {
+                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                }
+                if (i < n) {
+                    long long elem_idx = off + i * stride;
+                    OrenValue v = OREN_NIL;
+                    OrenValue idxv = oren_int(elem_idx);
+                    if (b.type == OREN_TYPE_U8_BUF) v = oren_buf_load_u8(b, idxv);
+                    else if (b.type == OREN_TYPE_I32_BUF) v = oren_buf_load_i32(b, idxv);
+                    else if (b.type == OREN_TYPE_I64_BUF) v = oren_buf_load_i64(b, idxv);
+                    else if (b.type == OREN_TYPE_F32_BUF) v = oren_buf_load_f32(b, idxv);
+                    else v = oren_buf_load_f64(b, idxv);
+                    if (oren_is_err(v).as.bool_val) {
+                        oren_panic("iter_next: buffer view load failed");
+                        return OREN_NIL;
+                    }
+                    return oren_new_list(2, oren_int(1), v);
+                }
+                return oren_new_list(2, oren_int(0), OREN_NIL);
+            }
+        }
+    }
+
     if (container.type == OREN_TYPE_LIST) {
         OrenList* l = container.as.list_val;
         if (i < l->count) {

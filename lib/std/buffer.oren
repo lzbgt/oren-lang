@@ -25,6 +25,7 @@ fn len(buf) { return oren_buf_len(buf) }
 // View representation (rolling, perf-oriented):
 //
 // - slice view: [buf, off, len]
+// - strided view: [buf, off, len, stride]
 // - matrix view: [buf, off, rows, cols, row_stride]
 //
 // We use a fixed-position list instead of a map to avoid hash/key overhead in hot loops.
@@ -46,6 +47,13 @@ fn _mat_is_list(m) {
     return ln == 5
 }
 
+fn _strided_is_list(s) {
+    if s == nil || oren_is_err(s) { return false }
+    var ln = _list_len_or_err(s)
+    if oren_is_err(ln) { return false }
+    return ln == 4
+}
+
 fn slice_new(buf, off, n) {
     if off == nil || n == nil { return _err_invalid("slice_new: nil off/len") }
     if off < 0 || n < 0 { return _err_invalid("slice_new: negative off/len") }
@@ -55,9 +63,107 @@ fn slice_new(buf, off, n) {
     return [buf, off, n]
 }
 
+fn slice_slice(s, off, n) {
+    if !_slice_is_list(s) { return _err_invalid("slice_slice: expects slice") }
+    if off == nil || n == nil { return _err_invalid("slice_slice: nil off/len") }
+    if off < 0 || n < 0 { return _err_invalid("slice_slice: negative off/len") }
+    var base_off = s[1]
+    var base_n = s[2]
+    if off + n > base_n { return _err_invalid("slice_slice: out of bounds") }
+    return [s[0], base_off + off, n]
+}
+
 fn slice_len(s) {
     if !_slice_is_list(s) { return _err_invalid("slice_len: expects slice") }
     return s[2]
+}
+
+fn strided_new(buf, off, n, stride) {
+    if off == nil || n == nil || stride == nil { return _err_invalid("strided_new: nil arg") }
+    if off < 0 || n < 0 { return _err_invalid("strided_new: negative off/len") }
+    if stride <= 0 { return _err_invalid("strided_new: stride must be > 0") }
+    var bl = oren_buf_len(buf)
+    if oren_is_err(bl) { return bl }
+    if n == 0 { return [buf, off, 0, stride] }
+    // Bounds: last element index = off + (n-1)*stride
+    var last = off + (n - 1) * stride
+    if off > bl || last < 0 || last >= bl { return _err_invalid("strided_new: out of bounds") }
+    return [buf, off, n, stride]
+}
+
+fn strided_len(s) {
+    if !_strided_is_list(s) { return _err_invalid("strided_len: expects strided") }
+    return s[2]
+}
+
+fn strided_load_i32(s, idx) {
+    if !_strided_is_list(s) { return _err_invalid("strided_load_i32: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_load_i32: index out of bounds") }
+    return oren_buf_load_i32(s[0], s[1] + idx * s[3])
+}
+
+fn strided_store_i32(s, idx, v) {
+    if !_strided_is_list(s) { return _err_invalid("strided_store_i32: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_store_i32: index out of bounds") }
+    return oren_buf_store_i32(s[0], s[1] + idx * s[3], v)
+}
+
+fn strided_load_u8(s, idx) {
+    if !_strided_is_list(s) { return _err_invalid("strided_load_u8: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_load_u8: index out of bounds") }
+    return oren_buf_load_u8(s[0], s[1] + idx * s[3])
+}
+
+fn strided_store_u8(s, idx, v) {
+    if !_strided_is_list(s) { return _err_invalid("strided_store_u8: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_store_u8: index out of bounds") }
+    return oren_buf_store_u8(s[0], s[1] + idx * s[3], v)
+}
+
+fn strided_load_f32(s, idx) {
+    if !_strided_is_list(s) { return _err_invalid("strided_load_f32: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_load_f32: index out of bounds") }
+    return oren_buf_load_f32(s[0], s[1] + idx * s[3])
+}
+
+fn strided_store_f32(s, idx, v) {
+    if !_strided_is_list(s) { return _err_invalid("strided_store_f32: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_store_f32: index out of bounds") }
+    return oren_buf_store_f32(s[0], s[1] + idx * s[3], v)
+}
+
+fn strided_load_i64(s, idx) {
+    if !_strided_is_list(s) { return _err_invalid("strided_load_i64: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_load_i64: index out of bounds") }
+    return oren_buf_load_i64(s[0], s[1] + idx * s[3])
+}
+
+fn strided_store_i64(s, idx, v) {
+    if !_strided_is_list(s) { return _err_invalid("strided_store_i64: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_store_i64: index out of bounds") }
+    return oren_buf_store_i64(s[0], s[1] + idx * s[3], v)
+}
+
+fn strided_load_f64(s, idx) {
+    if !_strided_is_list(s) { return _err_invalid("strided_load_f64: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_load_f64: index out of bounds") }
+    return oren_buf_load_f64(s[0], s[1] + idx * s[3])
+}
+
+fn strided_store_f64(s, idx, v) {
+    if !_strided_is_list(s) { return _err_invalid("strided_store_f64: expects strided") }
+    var n = s[2]
+    if idx < 0 || idx >= n { return _err_invalid("strided_store_f64: index out of bounds") }
+    return oren_buf_store_f64(s[0], s[1] + idx * s[3], v)
 }
 
 fn slice_load_i32(s, idx) {

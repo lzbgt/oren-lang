@@ -1,4 +1,5 @@
 import buffer "../../lib/std/buffer.oren"
+import linalg "../../lib/std/linalg.oren"
 
 fn fail(code) {
     print("module buffer_views FAIL " + oren_int_to_string(code))
@@ -45,6 +46,20 @@ assert_true(!oren_is_err(w), 34)
 var got = oren_buf_load_i32(b, 3)
 assert_eq(got, 99, 35)
 
+// Slice of slice (still zero-copy).
+var sub = buffer.slice_slice(slice, 1, 2)
+assert_true(!oren_is_err(sub), 36)
+assert_eq(buffer.slice_len(sub), 2, 37)
+assert_eq(buffer.slice_load_i32(sub, 0), 99, 38)
+assert_eq(buffer.slice_load_i32(sub, 1), 14, 39)
+
+// `for x in <typed-buffer view>` must iterate values (not the metadata list).
+var sum = 0
+for x in slice {
+    sum = sum + x
+}
+assert_eq(sum, 12 + 99 + 14, 40)
+
 // f32 matrix view over a flat buffer
 var fb: []f32 = buffer.f32_new(4)
 assert_true(!oren_is_err(fb), 40)
@@ -60,6 +75,25 @@ assert_eq(buffer.mat_load_f32(m, 1, 0), 3.0, 43)
 // Ensure store path works and preserves float32 boundary determinism (via runtime store_f32).
 buffer.mat_store_f32(m, 1, 1, 123.25)
 assert_eq(oren_buf_load_f32(fb, 3), f32(123.25), 44)
+
+// Strided view over a buffer (every 2nd element)
+var bs: []i32 = buffer.i32_new(8)
+assert_true(!oren_is_err(bs), 45)
+i = 0
+while i < 8 {
+    oren_buf_store_i32(bs, i, i + 1) // 1..8
+    i = i + 1
+}
+var st = buffer.strided_new(bs, 0, 4, 2) // [1,3,5,7]
+assert_true(!oren_is_err(st), 46)
+assert_eq(buffer.strided_len(st), 4, 47)
+assert_eq(buffer.strided_load_i32(st, 0), 1, 48)
+assert_eq(buffer.strided_load_i32(st, 3), 7, 49)
+var sum2 = 0
+for x in st {
+    sum2 = sum2 + x
+}
+assert_eq(sum2, 1 + 3 + 5 + 7, 50)
 
 // Buffer dot (i32)
 var b2 = buffer.i32_new(6)
@@ -83,6 +117,49 @@ if d != expected {
     print("module buffer_views dot_i32 mismatch got=" + oren_int_to_string(d) + " expected=" + oren_int_to_string(expected))
     exit(63)
 }
+
+// Dot over views (slice + strided) via std/linalg helpers.
+var d_view = linalg.dot_i32_view(slice, slice)
+assert_true(!oren_is_err(d_view), 64)
+assert_eq(d_view, 12 * 12 + 99 * 99 + 14 * 14, 65)
+
+var d_strided = linalg.dot_i32_view(st, st) // [1,3,5,7] dot itself
+assert_true(!oren_is_err(d_strided), 66)
+assert_eq(d_strided, 1 * 1 + 3 * 3 + 5 * 5 + 7 * 7, 67)
+
+// Matmul over strided matrix views (padding in row_stride).
+var Aback: []f32 = buffer.f32_new(9)
+var Bback: []f32 = buffer.f32_new(12)
+assert_true(!oren_is_err(Aback), 70)
+assert_true(!oren_is_err(Bback), 71)
+
+// A is 2x3, row_stride=4, off=1
+oren_buf_store_f32(Aback, 1 + 0 * 4 + 0, 1.0)
+oren_buf_store_f32(Aback, 1 + 0 * 4 + 1, 2.0)
+oren_buf_store_f32(Aback, 1 + 0 * 4 + 2, 3.0)
+oren_buf_store_f32(Aback, 1 + 1 * 4 + 0, 4.0)
+oren_buf_store_f32(Aback, 1 + 1 * 4 + 1, 5.0)
+oren_buf_store_f32(Aback, 1 + 1 * 4 + 2, 6.0)
+var A = buffer.mat_view_new(Aback, 1, 2, 3, 4)
+assert_true(!oren_is_err(A), 72)
+
+// B is 3x2, row_stride=3, off=2
+oren_buf_store_f32(Bback, 2 + 0 * 3 + 0, 7.0)
+oren_buf_store_f32(Bback, 2 + 0 * 3 + 1, 8.0)
+oren_buf_store_f32(Bback, 2 + 1 * 3 + 0, 9.0)
+oren_buf_store_f32(Bback, 2 + 1 * 3 + 1, 10.0)
+oren_buf_store_f32(Bback, 2 + 2 * 3 + 0, 11.0)
+oren_buf_store_f32(Bback, 2 + 2 * 3 + 1, 12.0)
+var B = buffer.mat_view_new(Bback, 2, 3, 2, 3)
+assert_true(!oren_is_err(B), 73)
+
+var C = linalg.matmul_f32_mat_view(A, B)
+assert_true(!oren_is_err(C), 74)
+assert_eq(oren_buf_len(C), 4, 75)
+assert_eq(oren_buf_load_f32(C, 0), 58.0, 76)
+assert_eq(oren_buf_load_f32(C, 1), 64.0, 77)
+assert_eq(oren_buf_load_f32(C, 2), 139.0, 78)
+assert_eq(oren_buf_load_f32(C, 3), 154.0, 79)
 
 print("module buffer_views OK")
 exit(0)

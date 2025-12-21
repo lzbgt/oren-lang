@@ -57,6 +57,24 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Wired into `./oretest --full` as fixture `compiler_in_avm_smoke` (host FS read restricted to `build/` only).
 - Verified: `./oretest --full --target macos` passes.
 
+## Archived (2025-12-21) — Typed buffer slice/strided views + iteration semantics
+
+- Standardized portable view encodings in `std/buffer`:
+  - slice view: `[buf, off, len]`
+  - strided view: `[buf, off, len, stride]`
+  - matrix view (existing): `[buf, off, rows, cols, row_stride]`
+- Added view helpers:
+  - `buffer.slice_slice(...)` (slice-of-slice)
+  - `buffer.strided_new(...)` plus load/store helpers per element kind
+- Made `for x in view` iterate *values*, not metadata, by teaching `oren_iter_next` to recognize these view lists:
+  - C runtime: `lib/runtime.c`
+  - AVM runtime: `lib/avm/avm_native.inc`
+  - Native runtime: `lib/runtime_native.oren`
+- Extended integration coverage in `tests/modules/test_buffer_views.oren`:
+  - slice, slice-of-slice, strided view, `for-in` over views
+  - `std/linalg` view helpers (`dot_*_view`) and strided matrix-view matmul (`matmul_f32_mat_view`)
+- Verified: `./oretest --target macos` and `./oretest --full --target macos` pass.
+
 ## Archived (2025-12-19) — Previously in `docs/TODOS.md` “Recently Completed”
 
 - Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.

@@ -74,22 +74,13 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Typed slice/stride views (HPC + syscall-first data parsing)**
-   - Why: enables BLAS/Eigen-like kernels and zero-copy packet/IO parsing without forcing everything into maps/lists.
-   - DoD:
-     - Define a stable v0 representation for `slice<T>` and `strided<T>` (ptr+len and ptr+len+stride)
-     - Expose constructors and bounds-checked indexing, with a clear story for `for x in ...`
-     - Teach bytecode + native backends the same semantics (deterministic, no hidden allocation)
-     - Add one integration test that exercises:
-       - slice creation, slicing, strided view
-       - dot/matmul consuming these views
-
-2) **[lang][arch] Traits & polymorphism v0 (compile-time first)**
+1) **[lang][arch] Trait constraints for generics (static-first, HPC)**
    - Goal: allow stdlib to express generic algorithms without per-type boilerplate while keeping HPC hot-loops monomorphized.
    - DoD:
-     - Compile-time trait constraints (monomorphization) for generics used by `std/linalg`
-     - Optional runtime trait objects are explicitly *not* required for v0 (avoid perf cliffs)
-     - Document the “compile-time vs runtime polymorphism” split in `docs/TRAITS_AND_POLYMORPHISM.md`
+     - Add syntax for constraints at generic boundaries (rolling direction): `fn dot[T: Add+Mul](...)` or equivalent
+     - Enforce constraint satisfaction at compile-time (monomorphization still generates concrete functions)
+     - Keep runtime trait objects explicitly out-of-scope (defer; avoid perf cliffs + determinism complexity)
+     - Keep this as an additive feature: existing `trait`/`impl`/blanket `impl ... for any` continue to work
 
 ### B) AVM (evolves alongside language/compiler)
 
