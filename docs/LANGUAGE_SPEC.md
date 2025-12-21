@@ -513,6 +513,10 @@ Implementation note (current compiler):
     - `string`: yields byte codepoints (`0..255`), stopping at NUL terminator
     - `bytes` (AVM): yields `u8` values (`0..255`)
     - typed numeric buffers: yields element values (`i32/i64/f32/f64`) in index order
+    - typed buffer view lists (portable stdlib encodings):
+      - slice view: `[buf, off, len]`
+      - strided view: `[buf, off, len, stride]`
+      - these iterate element values (not metadata fields)
   - Streams / iterators beyond these built-ins (rolling):
     - v0 supports a minimal, portable “data iterable” protocol: an **iterable map** with the marker key `__iter`.
     - Backends may recognize these objects inside `oren_iter_next` to implement stream-like iteration

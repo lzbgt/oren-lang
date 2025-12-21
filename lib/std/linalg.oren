@@ -290,69 +290,93 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
         k0 = k0 + 1
     }
 
+    // Packed tiles + dot-kernel dispatch (rolling v0.4):
+    //
+    // - Keep Bt (transpose) as the canonical layout.
+    // - For larger matrices, additionally pack Bt into a tile-major layout to improve cache locality:
+    //     Bp[(bj,bk,j_in,k_in)] where:
+    //       bj = j-block index (JB columns)
+    //       bk = k-block index (KB depth)
+    //       j_in in [0..JB)
+    //       k_in in [0..KB)
+    //
+    // Matmul then becomes a sum of dot slices, which:
+    // - preserves deterministic increasing-k semantics
+    // - can hit native NEON dot kernels through `oren_buf_dot_f32_slice`
+    var JB = 4
+    var KB = 64
+    var tiles_j = (p + JB - 1) / JB
+    var tiles_k = (n + KB - 1) / KB
+    var use_packed = (n >= KB) && (p >= JB) && (n * p >= 4096)
+
+    var bp: []f32 = nil
+    if use_packed {
+        bp = buffer.f32_new(tiles_j * tiles_k * JB * KB)
+        if oren_is_err(bp) { return bp }
+        var bj = 0
+        while bj < tiles_j {
+            var bk = 0
+            while bk < tiles_k {
+                var j_in = 0
+                while j_in < JB {
+                    var global_j = bj * JB + j_in
+                    var k_in = 0
+                    while k_in < KB {
+                        var global_k = bk * KB + k_in
+                        var v = 0.0
+                        if global_j < p && global_k < n {
+                            v = oren_buf_load_f32(bt, global_j * n + global_k)
+                            if oren_is_err(v) { return v }
+                        }
+                        var dst = (((bj * tiles_k + bk) * JB + j_in) * KB + k_in)
+                        oren_buf_store_f32(bp, dst, v)
+                        k_in = k_in + 1
+                    }
+                    j_in = j_in + 1
+                }
+                bk = bk + 1
+            }
+            bj = bj + 1
+        }
+    }
+
     var i = 0
     while i < m {
-        var j = 0
-        // j-blocked inner loop (4 columns at a time) while preserving per-output k-order determinism.
-        while j + 4 <= p {
+        var bj2 = 0
+        while bj2 < tiles_j {
+            var base_j = bj2 * JB
             var s0 = 0.0
             var s1 = 0.0
             var s2 = 0.0
             var s3 = 0.0
-            // k-block tiling improves cache behavior for larger matrices, but must not change semantics.
-            // We preserve determinism by iterating k in increasing order overall: k0=0..n, then k=k0..end.
-            var KB = 64
-            var k0 = 0
-            while k0 < n {
-                var kend = k0 + KB
-                if kend > n { kend = n }
-                var k = k0
-                while k < kend {
-                    var av = oren_buf_load_f32(a, i * n + k)
-                    if oren_is_err(av) { return av }
-                    var b0 = oren_buf_load_f32(bt, (j + 0) * n + k)
-                    var b1 = oren_buf_load_f32(bt, (j + 1) * n + k)
-                    var b2 = oren_buf_load_f32(bt, (j + 2) * n + k)
-                    var b3 = oren_buf_load_f32(bt, (j + 3) * n + k)
-                    if oren_is_err(b0) { return b0 }
-                    if oren_is_err(b1) { return b1 }
-                    if oren_is_err(b2) { return b2 }
-                    if oren_is_err(b3) { return b3 }
-                    s0 = s0 + av * b0
-                    s1 = s1 + av * b1
-                    s2 = s2 + av * b2
-                    s3 = s3 + av * b3
-                    k = k + 1
+
+            var bk2 = 0
+            while bk2 < tiles_k {
+                var kbase = bk2 * KB
+                var kn = n - kbase
+                if kn > KB { kn = KB }
+
+                if use_packed {
+                    var base_tile = (bj2 * tiles_k + bk2) * JB * KB
+                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 0 * KB, kn) }
+                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 1 * KB, kn) }
+                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 2 * KB, kn) }
+                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f32_slice(a, i * n + kbase, bp, base_tile + 3 * KB, kn) }
+                } else {
+                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn) }
+                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn) }
+                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn) }
+                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_f32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn) }
                 }
-                k0 = k0 + KB
+                bk2 = bk2 + 1
             }
-            oren_buf_store_f32(out, i * p + (j + 0), f32(s0))
-            oren_buf_store_f32(out, i * p + (j + 1), f32(s1))
-            oren_buf_store_f32(out, i * p + (j + 2), f32(s2))
-            oren_buf_store_f32(out, i * p + (j + 3), f32(s3))
-            j = j + 4
-        }
-        // tail (<=3 columns)
-        while j < p {
-            var s = 0.0
-            var KB2 = 64
-            var k02 = 0
-            while k02 < n {
-                var kend2 = k02 + KB2
-                if kend2 > n { kend2 = n }
-                var k2 = k02
-                while k2 < kend2 {
-                    var av2 = oren_buf_load_f32(a, i * n + k2)
-                    if oren_is_err(av2) { return av2 }
-                    var bv2 = oren_buf_load_f32(bt, j * n + k2)
-                    if oren_is_err(bv2) { return bv2 }
-                    s = s + av2 * bv2
-                    k2 = k2 + 1
-                }
-                k02 = k02 + KB2
-            }
-            oren_buf_store_f32(out, i * p + j, f32(s))
-            j = j + 1
+
+            if base_j + 0 < p { oren_buf_store_f32(out, i * p + (base_j + 0), f32(s0)) }
+            if base_j + 1 < p { oren_buf_store_f32(out, i * p + (base_j + 1), f32(s1)) }
+            if base_j + 2 < p { oren_buf_store_f32(out, i * p + (base_j + 2), f32(s2)) }
+            if base_j + 3 < p { oren_buf_store_f32(out, i * p + (base_j + 3), f32(s3)) }
+
+            bj2 = bj2 + 1
         }
         i = i + 1
     }
@@ -442,63 +466,39 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
 
     var i = 0
     while i < m {
-        var j = 0
-        while j + 4 <= p {
+        // Kernel dispatch: use dot-slice per k-block to allow native NEON dot kernels,
+        // while preserving deterministic k order (k blocks in increasing order; dot slice iterates k in order).
+        var JB = 4
+        var KB = 64
+        var tiles_j = (p + JB - 1) / JB
+        var tiles_k = (n + KB - 1) / KB
+
+        var bj = 0
+        while bj < tiles_j {
+            var base_j = bj * JB
             var s0 = 0
             var s1 = 0
             var s2 = 0
             var s3 = 0
-            var KB = 64
-            var k0 = 0
-            while k0 < n {
-                var kend = k0 + KB
-                if kend > n { kend = n }
-                var k = k0
-                while k < kend {
-                    var av = oren_buf_load_i32(a, i * n + k)
-                    if oren_is_err(av) { return av }
-                    var b0 = oren_buf_load_i32(bt, (j + 0) * n + k)
-                    var b1 = oren_buf_load_i32(bt, (j + 1) * n + k)
-                    var b2 = oren_buf_load_i32(bt, (j + 2) * n + k)
-                    var b3 = oren_buf_load_i32(bt, (j + 3) * n + k)
-                    if oren_is_err(b0) { return b0 }
-                    if oren_is_err(b1) { return b1 }
-                    if oren_is_err(b2) { return b2 }
-                    if oren_is_err(b3) { return b3 }
-                    s0 = s0 + i64(av) * i64(b0)
-                    s1 = s1 + i64(av) * i64(b1)
-                    s2 = s2 + i64(av) * i64(b2)
-                    s3 = s3 + i64(av) * i64(b3)
-                    k = k + 1
-                }
-                k0 = k0 + KB
+
+            var bk = 0
+            while bk < tiles_k {
+                var kbase = bk * KB
+                var kn = n - kbase
+                if kn > KB { kn = KB }
+                if base_j + 0 < p { s0 = s0 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn)) }
+                if base_j + 1 < p { s1 = s1 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn)) }
+                if base_j + 2 < p { s2 = s2 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn)) }
+                if base_j + 3 < p { s3 = s3 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn)) }
+                bk = bk + 1
             }
-            oren_buf_store_i32(out, i * p + (j + 0), i32(s0))
-            oren_buf_store_i32(out, i * p + (j + 1), i32(s1))
-            oren_buf_store_i32(out, i * p + (j + 2), i32(s2))
-            oren_buf_store_i32(out, i * p + (j + 3), i32(s3))
-            j = j + 4
-        }
-        while j < p {
-            var s = 0
-            var KB2 = 64
-            var k02 = 0
-            while k02 < n {
-                var kend2 = k02 + KB2
-                if kend2 > n { kend2 = n }
-                var k2 = k02
-                while k2 < kend2 {
-                    var av2 = oren_buf_load_i32(a, i * n + k2)
-                    if oren_is_err(av2) { return av2 }
-                    var bv2 = oren_buf_load_i32(bt, j * n + k2)
-                    if oren_is_err(bv2) { return bv2 }
-                    s = s + i64(av2) * i64(bv2)
-                    k2 = k2 + 1
-                }
-                k02 = k02 + KB2
-            }
-            oren_buf_store_i32(out, i * p + j, i32(s))
-            j = j + 1
+
+            if base_j + 0 < p { oren_buf_store_i32(out, i * p + (base_j + 0), i32(s0)) }
+            if base_j + 1 < p { oren_buf_store_i32(out, i * p + (base_j + 1), i32(s1)) }
+            if base_j + 2 < p { oren_buf_store_i32(out, i * p + (base_j + 2), i32(s2)) }
+            if base_j + 3 < p { oren_buf_store_i32(out, i * p + (base_j + 3), i32(s3)) }
+
+            bj = bj + 1
         }
         i = i + 1
     }

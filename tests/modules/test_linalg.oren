@@ -137,6 +137,52 @@ assert_eq(oren_buf_load_f32(Cf, 1), f32(64.0), 82)
 assert_eq(oren_buf_load_f32(Cf, 2), f32(139.0), 83)
 assert_eq(oren_buf_load_f32(Cf, 3), f32(154.0), 84)
 
+// Trigger packed-B + dot-kernel path: n>=64 and p>=4.
+// Use easy-to-check values: A is all 1.0, each B column is constant (j+1),
+// so output row is [64, 128, 192, 256].
+var m2 = 1
+var n2 = 64
+var p2 = 4
+var A2: []f32 = buffer.f32_new(m2 * n2)
+var B2: []f32 = buffer.f32_new(n2 * p2)
+assert_true(!oren_is_err(A2), 85)
+assert_true(!oren_is_err(B2), 86)
+var k = 0
+while k < n2 {
+    oren_buf_store_f32(A2, k, 1.0)
+    oren_buf_store_f32(B2, k * p2 + 0, 1.0)
+    oren_buf_store_f32(B2, k * p2 + 1, 2.0)
+    oren_buf_store_f32(B2, k * p2 + 2, 3.0)
+    oren_buf_store_f32(B2, k * p2 + 3, 4.0)
+    k = k + 1
+}
+var C2 = linalg.matmul_f32_buf(A2, B2, m2, n2, p2)
+assert_true(!oren_is_err(C2), 87)
+assert_eq(oren_buf_load_f32(C2, 0), f32(64.0), 88)
+assert_eq(oren_buf_load_f32(C2, 1), f32(128.0), 89)
+assert_eq(oren_buf_load_f32(C2, 2), f32(192.0), 92)
+assert_eq(oren_buf_load_f32(C2, 3), f32(256.0), 93)
+
+var Ai2: []i32 = buffer.i32_new(64)
+var Bi2: []i32 = buffer.i32_new(64 * 4)
+assert_true(!oren_is_err(Ai2), 94)
+assert_true(!oren_is_err(Bi2), 95)
+k = 0
+while k < 64 {
+    oren_buf_store_i32(Ai2, k, 1)
+    oren_buf_store_i32(Bi2, k * 4 + 0, 1)
+    oren_buf_store_i32(Bi2, k * 4 + 1, 2)
+    oren_buf_store_i32(Bi2, k * 4 + 2, 3)
+    oren_buf_store_i32(Bi2, k * 4 + 3, 4)
+    k = k + 1
+}
+var Ci2 = linalg.matmul_i32_buf(Ai2, Bi2, 1, 64, 4)
+assert_true(!oren_is_err(Ci2), 96)
+assert_eq(oren_buf_load_i32(Ci2, 0), 64, 97)
+assert_eq(oren_buf_load_i32(Ci2, 1), 128, 98)
+assert_eq(oren_buf_load_i32(Ci2, 2), 192, 99)
+assert_eq(oren_buf_load_i32(Ci2, 3), 256, 100)
+
 // dot strided: pick B column 0 (stride = p)
 var ds = oren_buf_dot_i32_strided(Ai, 0, 1, Bi, 0, 2, 3) // A row0 dot B col0
 assert_eq(ds, 58, 90)

@@ -105,6 +105,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Add optional packed-B tiles for large matmul (keep per-output k-order determinism)
      - Add NEON kernels for the hot dot/matmul inner loops behind the existing intrinsic boundary
      - Keep scalar reference path as the spec baseline; add correctness tests (small shapes) + perf smoke (no thresholds)
+   - Status:
+     - **done:** matmul now uses `oren_buf_dot_*_slice` in k-block order (enables native NEON dot kernels while preserving increasing-k determinism)
+     - **done:** packed-B tile layout for f32 (Bt→Bp) for larger matrices to improve locality
+     - **done:** regression tests include packed-path triggers (`tests/modules/test_linalg.oren`)
 
 ## Recently Completed (high signal)
 
