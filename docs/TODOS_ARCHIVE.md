@@ -5,6 +5,18 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2025-12-21) — Native SIMD scale/axpy + matmul scratch reuse (HPC)
+
+- Native backend:
+  - Added NEON intrinsics for `simd_scale_{i32,f32}_ptr` and `simd_axpy_{i32,f32}_ptr`.
+  - Fixed `arm64_core.insn_dup_4s` encoding (was emitting the wrong instruction, corrupting scalar SIMD kernels).
+- Native runtime:
+  - Enabled SIMD fast paths for `oren_buf_scale_{i32,f32}_into` and `oren_buf_axpy_{i32,f32}_into`.
+  - f32 axpy semantics: float32 boundary + mul-then-add (no FMA), matching C runtime + AVM determinism.
+- Stdlib linalg:
+  - Reduced allocation pressure by reusing the 1×4 dot scratch buffer in `matmul_f32_buf` and `matmul_i32_buf` (avoid per-row scratch allocation).
+- Verified: `make stage1` + `./oretest --target macos` pass.
+
 ## Archived (2025-12-21) — Unify `struct` semantics (map-shaped, mutable) across backends
 
 - Decision: in rolling v0, `struct` values are **map-shaped** (string-keyed) across **C + AVM bytecode + native** backends.

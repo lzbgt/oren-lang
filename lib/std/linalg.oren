@@ -373,12 +373,13 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
         }
     }
 
+    // Reusable scratch for the 1x4 dot microkernel.
+    // Allocate once (instead of per-row) to avoid O(m) allocations in HPC workloads.
+    var tmp4: []f64 = buffer.f64_new(4)
+    if oren_is_err(tmp4) { return tmp4 }
+
     var i = 0
     while i < m {
-        // Reusable scratch for the 1x4 dot microkernel (reduces overhead and enables NEON-friendly runtime impls).
-        var tmp4: []f64 = buffer.f64_new(4)
-        if oren_is_err(tmp4) { return tmp4 }
-
         var bj2 = 0
         while bj2 < tiles_j {
             var base_j = bj2 * JB
@@ -687,12 +688,13 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
         }
     }
 
+    // Reusable scratch for the 1x4 dot microkernel.
+    // Allocate once (instead of per-row) to avoid O(m) allocations in HPC workloads.
+    var tmp4: []i64 = buffer.i64_new(4)
+    if oren_is_err(tmp4) { return tmp4 }
+
     var i = 0
     while i < m {
-        // Reusable scratch for the 1x4 dot microkernel (reduces overhead and enables NEON-friendly runtime impls).
-        var tmp4: []i64 = buffer.i64_new(4)
-        if oren_is_err(tmp4) { return tmp4 }
-
         // Kernel dispatch: use dot-slice per k-block to allow native NEON dot kernels,
         // while preserving deterministic k order (k blocks in increasing order; dot slice iterates k in order).
         var bj = 0

@@ -79,123 +79,49 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[stdlib][perf] SIMD and numeric kernels (arm64 NEON first)**
-   - Goal: keep scalar reference semantics, add NEON fast paths behind intrinsic boundaries.
+1) **[stdlib][perf] SIMD + GEMM kernels (arm64 NEON first)**
+   - Goal: keep scalar semantics; add NEON behind stable intrinsic/runtime boundaries.
    - DoD:
-     - Keep deterministic rounding/order guarantees (increasing-k accumulation for matmul).
-     - Expand NEON kernels beyond dot (e.g. axpy / small GEMM tiles) where safe.
-     - Perf smoke stays “no thresholds”; correctness tests stay small and deterministic.
-   - Status (rolling):
-     - DONE: f32 reductions now have deterministic NEON paths in C runtime (`oren_buf_dot_f32*`, `oren_buf_reduce_sum_f32*`) matching AVM semantics.
-     - DONE: f64 SIMD paths are working end-to-end (native backend + C backend):
-       - `oren_buf_add_f64_into`, `oren_buf_mul_f64_into`, `oren_buf_dot_f64`, `oren_buf_reduce_sum_f64`
-       - NOTE: native backend relies on correct opcode tables in `lib/compiler/arm64_core.oren` (fixed `insn_fadd_2d`, `insn_umov_x_d1`).
-     - DONE: f64 view + matmul building blocks are now available and covered in the fast suite:
-       - runtime: `oren_buf_dot_f64_slice`, `oren_buf_dot_f64_strided` (C + native runtime)
-       - stdlib: `dot_f64_view`, `matmul_f64_buf` (dot-based; deterministic increasing-k semantics)
-       - tests: `tests/modules/test_integration_suite.oren` asserts slice/strided dot + a small matmul result
-     - DONE: native SIMD integration coverage lives in `tests/native/test_simd_suite.oren` (hash/bits checks; SIMD enabled/disabled runs).
-     - DONE: native backend SIMD “scale” + “axpy” fast paths are enabled and parity-tested:
-       - i32: `simd_scale_i32_ptr`, `simd_axpy_i32_ptr` (wrap semantics)
-       - f32: `simd_scale_f32_ptr`, `simd_axpy_f32_ptr` (float32 boundary + mul-then-add; no FMA)
-       - NOTE: fixed `arm64_core.insn_dup_4s` encoding (was emitting `trn1`, causing incorrect scalar SIMD ops).
-     - Implemented (code present, needs explicit C-backend coverage): additional NEON kernels in `lib/runtime_buf.c` (i32 axpy + scale/add/mul variants).
-     - DONE: initial i32 GEMM microkernel boundary (1x4) is implemented and used by `std/linalg.matmul_i32_buf`:
-       - runtime: `oren_buf_dot_i32_4_slice_into` (C runtime has a NEON path; native runtime scalar; AVM scalar)
-       - stdlib: `matmul_i32_buf` uses 4-way dot dispatch when computing 4 columns
-       - tests: `tests/modules/test_integration_suite.oren` includes a 1x4×4 identity matmul smoke to exercise the microkernel
-     - DONE: packed-B path for i32 matmul is implemented (tile-major packed transpose for cache locality) and the 1×4 microkernel is used on packed tiles.
-       - tests: `tests/modules/test_integration_suite.oren` includes a 1×64 × 64×64 identity smoke to force the packed path
-     - DONE: additional i32 SIMD kernel surfaces are now covered in the fast suites:
-       - module: `tests/modules/test_integration_suite.oren` covers `add/mul/scale/axpy` on i32 typed buffers
-       - native: `tests/native/test_integration_suite.oren` covers `*_into` forms and `axpy` (`oren_buf_add_i32_into`, `oren_buf_mul_i32_into`, `oren_buf_scale_i32_into`, `oren_buf_axpy_i32_into`)
-     - DONE: AVM parity: `oren_buf_axpy_{i32,f32}_{into,in_place}` are implemented as AVM natives and covered by `tests/avm/test_smoke_suite.oren`.
-     - DONE: f32 axpy coverage exists in fast suites (module + native + AVM) using exact inputs to avoid tolerance flakiness.
-     - DONE: f32 1×4 dot microkernel boundary is implemented and used by `std/linalg.matmul_f32_buf`:
-       - runtime: `oren_buf_dot_f32_4_slice_into` (C runtime has a deterministic NEON path; native runtime scalar; AVM has deterministic NEON path)
-       - bytecode backend: mapped as CORE native id `127`
-       - tests: module + native SIMD + AVM smoke cover the microkernel via direct calls and matmul
-     - DONE: native backend now has true single-pass SIMD 1×4 dot intrinsics:
-       - f32: `simd_dot_f32_4_ptr` used by `oren_buf_dot_f32_4_slice_into` (deterministic widening/order; no reassociation / no FMA)
-       - i32: `simd_dot_i32_4_ptr` used by `oren_buf_dot_i32_4_slice_into` (wrap semantics; safe SIMD reassociation)
-     - NEXT: extend the microkernel family beyond dot (e.g. small GEMM tiles) while preserving deterministic widening/order.
+     - A f32/i32 matmul path that scales beyond “dot per element” while preserving deterministic k-order semantics.
+     - C runtime + native runtime + AVM parity for any new kernel boundary.
+     - A small correctness-only integration test (no perf thresholds) in the fast suite.
+   - Next milestone (suggested):
+     - Add a small **tile GEMM microkernel** (e.g. 4×4 or 2×4) for f32 and wire it into `lib/std/linalg.oren` packed path.
 
-2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
-   - Status: **done** (see archive for details).
-
-3) **[lang][hpc] Scientific notation float literals (`1e-12`)**
-   - Why: modern HPC/math code needs scientific notation for tolerances and constants; decimal expansions are noisy and error-prone.
+2) **[stdlib][hpc] Trig for huge |x|: Payne–Hanek range reduction**
    - DoD:
-     - Lexer accepts `e/E` suffix with optional sign for float literals (both `1e3` and `1.5e-2`).
-     - Invalid forms (`1e`, `1e+`) produce a deterministic lexer error.
-     - Coverage in `tests/modules/test_integration_suite.oren` uses `1e-12` (and a couple of exact cases like `1e3`).
-     - Spec updated in `docs/LANGUAGE_SPEC.md`.
-   - Status: **done**.
+     - `math.sin/cos` remain deterministic but no longer degrade for large-magnitude inputs.
+     - Property tests go under `./oretest --full` (fast suite stays small).
 
-4) **[stdlib][hpc] Math foundations for scientific/HPC code (no host libm)**
-   - Goal: provide deterministic “libm-lite” primitives so HPC/ML libraries can be written in Oren.
-   - DoD (rolling):
-     - Provide correct, deterministic `sqrt(x)` + `powi(x,n)` and float classification helpers.
-     - Provide deterministic `exp2/exp/log2/ln` so probabilistic/ML/HPC code can proceed without host libm.
-     - Keep implementations portable across C/native/AVM (no platform libm calls).
-     - Keep integration tests small and exact (avoid tolerance-based tests until an error model is documented).
-   - Status (rolling):
-     - DONE: `math.sqrt`, `math.powi`, `math.is_inf/is_finite/signbit/copysign` (covered in `tests/modules/test_integration_suite.oren`).
-     - DONE: `math.exp2/exp/log2/ln` (range-reduced, fixed-iteration, no host libm; covered in `tests/modules/test_integration_suite.oren` with tight deterministic tolerances).
-     - DONE: `math.sin/math.cos` (range-reduced, fixed polynomial; guarded for huge |x|; covered in `tests/modules/test_integration_suite.oren`).
-     - DONE: `math.atan/math.atan2` (fdlibm-style range reduction + polynomial; covered in `tests/modules/test_integration_suite.oren`).
-     - NEXT: improved trig range reduction (Payne–Hanek) so trig works for huge |x| without errors; property tests in `./oretest --full`.
-
-5) **[lang][ux] `else if` chains (no extra braces)**
-   - Why: modern ergonomics; avoids noisy `else { if ... }` indentation in real code.
+3) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
    - DoD:
-     - Parser accepts `else if <cond> { ... }` and lowers to existing `else { if ... }` AST form.
-     - Coverage exists in `tests/modules/test_integration_suite.oren`.
-     - Spec updated in `docs/LANGUAGE_SPEC.md`.
-   - Status: **done**.
+     - `u8/i32/u64/f32/f64` are first-class tokens in the language (not attribute hacks).
+     - Float→int cast semantics: truncate toward zero (C-like), with explicit `round/floor/ceil` helpers as separate ops.
+     - Cast lowering avoids runtime helper calls in provably-int-only paths.
 
-6) **[docs][ux] Draft + maintain a practical Language Manual**
-   - Why: the spec is correct but not a beginner-friendly “how to write Oren”; we need a single narrative doc that matches reality.
+4) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:
-     - Manual exists and matches current rolling features (literals, else-if, match, lambdas, typed buffers, deterministic math).
-     - Manual links to canonical specs/docs for details.
-     - Keep it updated as features land; move large historical narrative to `docs/EVOLUTION_GUIDE.md`.
-   - Status: **done** (`docs/LANGUAGE_MANUAL.md`).
+     - Syntax is short and ergonomic (prefer `@pack`, `@serde(...)`, `@json(...)` without `@oren.` prefixes).
+     - Unknown user-defined attributes are preserved deterministically in meta output.
+     - A stable “meta emission” tool path exists (no ad-hoc print_meta stubs).
+
+5) **[stdlib][net] Native networking foundations**
+   - DoD:
+     - Minimal syscall-first TCP stack surface (connect/listen/accept/read/write) + select/poll abstraction (`kqueue` on macOS; `epoll` later).
+     - Clear separation between VirtualNET (pure) and HostNET (capability-gated).
 
 ### B) AVM (evolves alongside language/compiler)
 
-1) **[boot][arch] Compiler-in-AVM (close the loop)**
+1) **[boot][arch] Compiler-in-AVM v2: hash-addressed artifacts + governance hooks**
    - DoD:
-     - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
-     - sandboxed module loader rules + governance hooks
-     - produced `.obc` is hash-addressable for swarm validation
-   - Plan (split into tractable milestones):
-     - v0: compiler runs in AVM (host FS backend) to validate the loop (**DONE**: `compiler_in_avm_smoke` fixture)
-     - v1: compiler reads/writes via VirtualFS (no host effects), and can run inside a child universe deterministically
-       - **done:** `avm.run_obc_bytes` supports `cfg["argv"]` (argv-as-data) and returns `vfs_snapshot` (AVMVFS01 bytes)
-       - **done:** `./oretest --full` runs `compiler_in_avm_smoke` using a VirtualFS harness (no host FS in the nested compiler)
-     - v2: swarm governance + hash-addressed `.obc` artifacts
+     - `.obc` artifacts are content-addressed and verifiable (hash IDs + manifest).
+     - Governance hooks exist for module load policies (capsule-style).
+     - Still no host FS effects when running compiler in a child universe (VirtualFS only).
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-1) **[boot][arch] Compiler-in-AVM v2: hash-addressed artifacts + governance hooks**
-   - Goal: make `.obc` artifacts content-addressable and verifiable inside multiverse swarms.
+1) **[stdlib][serde] YAML + CBOR adaptors**
    - DoD:
-     - deterministic `.obc` hash IDs and module manifests
-     - governance hooks for module load policies (capsule-style)
-     - AVM can ingest `.oren` via VirtualFS and emit `.obc` without host FS effects
-
-## Recently Completed (high signal)
-
-- See `docs/TODOS_ARCHIVE.md` for detailed history.
-- Test runner: fast suite is now integration-first (added `tests/modules/test_integration_suite.oren` + merged native SIMD tests into `tests/native/test_simd_suite.oren`).
-- Struct unification: `struct` values are map-shaped + mutable across backends (see archive entry).
-- Cast lowering (HPC signal): `i64/u64` casts and `: i64` parameter annotations no longer inject `oren_trunc_int(...)` in provably-int paths (reduces dynamic checks in hot loops while preserving correctness for float→int truncation).
-- Stdlib cleanup (HPC signal): removed redundant `i64(...)` wrappers from `std/linalg` and `std/math` where values are already int-only, keeping semantics unchanged.
-- AVM snapshots v7: snapshot/restore now includes scheduler state (tasks + channels + queues) so spawned workloads can be paused/resumed.
-- Bytecode backend: `oren_yield()` now returns canonical `nil` (stack-balanced as an expression), preventing verifier stack-height mismatches.
-- Compiler-in-AVM v0 (host FS): self-hosted compiler builds to `.obc`, runs inside `./avm`, compiles a `.oren` fixture to `.obc`, and the result runs successfully.
-  - Bytecode widening: added `CALL32`/`PUSH_FUNC32` (u32 addrs) and `LOAD/STORE_LOCAL16` (u16 locals) so the compiler `.obc` can exceed 64KB safely.
-  - Import alias scoping: import aliases are now namespaced per-module in the linker so bytecode backends can resolve `alias.symbol` deterministically after merging modules.
-  - Capability hardening: FS allow-prefix checks now normalize paths lexically (blocks `build/../...` traversal and allows `./tests/...` ergonomics).
-- Native backend: arm64 NEON dot kernel is implemented and regression-tested under env-gated SIMD dispatch.
+     - YAML supports comments (`#`) and is strict-but-friendly for config use.
+     - CBOR supports arrays/maps and a streaming API suitable for large payloads.
+     - Both integrate with the attribute/serde v1 plan (Task A4).
