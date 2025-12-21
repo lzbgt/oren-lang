@@ -1,0 +1,14 @@
+// Generic constraints v0.1: `T: Trait` requires an `impl Trait for <T>` (or `any`) to exist.
+
+trait T {
+    fn f(self);
+}
+
+fn g[X: T](x: X): X {
+    return x
+}
+
+// Instantiation triggers constraint checking during monomorphization.
+var y = g[i64](1)
+exit(0)
+

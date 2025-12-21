@@ -934,6 +934,17 @@ fn link_program(entry_path, root_prog, config) {
     // This is a v0 stepping stone toward full generics + monomorphization, with zero runtime cost.
     if trace_passes { print("[trace] pass: generic_calls") }
     gen_calls.lower_linked_program_in_place(linked)
+    if linked["generic_call_errors"] != nil && oren_list_len(linked["generic_call_errors"]) > 0 {
+        var first_err = linked["generic_call_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Generic call errors:")
+        var ei0 = 0
+        while ei0 < oren_list_len(linked["generic_call_errors"]) {
+            print(linked["generic_call_errors"][ei0])
+            ei0 = ei0 + 1
+        }
+        oren_exit(1)
+    }
 
     // Compile-time lowering: generic function monomorphization (rolling v0).
     //   fn f[T](...) + f[T](...) calls  ->  fn f__T(...)

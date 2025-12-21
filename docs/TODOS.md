@@ -99,6 +99,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Keep v0 single-type-param generics, but enforce “unspecialized call to generic template is a compile error”
      - Add minimal constraint enforcement: `fn f[T: Trait]` requires an `impl Trait for <T>` (or `any`) to exist
      - Extend monomorph substitution to cover additional AST nodes encountered in real code
+   - Status:
+     - **done:** unspecialized `f(...)` call to `fn f[T](...)` is a compile-time error (diagnostic surfaced as `OREN_DIAG kind=compile`).
+     - **done:** `T: Trait` constraints are enforced at monomorphization time (requires `impl Trait for <T>` or `impl Trait for any`).
+     - **done:** monomorph cloning now covers `Switch` + `Type` statements, and Hash pair keys are handled consistently (`{key,value}`).
+     - **covered:** oretest fixtures `tests/native/fixtures/generic_unspecialized_call.oren` and `tests/native/fixtures/generic_constraint_missing_impl.oren`.
 
 ### B) AVM (evolves alongside language/compiler)
 

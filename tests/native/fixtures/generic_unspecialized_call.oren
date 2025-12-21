@@ -1,0 +1,9 @@
+// Generic v0.1: calling a generic template without specializing is a compile-time error.
+
+fn id[T](x: T): T {
+    return x
+}
+
+var y = id(1) // ERROR: must be id[i64](...) etc
+exit(0)
+

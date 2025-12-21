@@ -602,6 +602,32 @@ func main() {
 			cleanup: []string{"build/abi_layout_err"},
 		},
 		{
+			name: "compiler_generic_call_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"unspecialized call to generic function\"'",
+				"tests/native/fixtures/generic_unspecialized_call.oren",
+				*target,
+				"build/generic_unspecialized_call",
+				gcArg,
+			),
+			log:     "build/logs/compiler_generic_call_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/generic_unspecialized_call"},
+		},
+		{
+			name: "compiler_generic_constraint_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"missing impl for trait\"'",
+				"tests/native/fixtures/generic_constraint_missing_impl.oren",
+				*target,
+				"build/generic_constraint_missing_impl",
+				gcArg,
+			),
+			log:     "build/logs/compiler_generic_constraint_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/generic_constraint_missing_impl"},
+		},
+		{
 			name: "missing_file_diag",
 			cmd: fmt.Sprintf(
 				"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",

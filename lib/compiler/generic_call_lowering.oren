@@ -24,6 +24,28 @@ import ast "ast.oren"
 // This is shared by all backends because it rewrites the AST in-place during
 // `link_program`.
 
+fn tok_loc(tok) {
+    if tok == nil { return nil }
+    var file = tok["file"]
+    if file == nil { file = "<input>" }
+    var line = tok["line"]
+    var col = tok["col"]
+    if line != nil && col != nil {
+        return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+    }
+    var pos = tok["pos"]
+    if pos != nil { return file + ":" + oren_int_to_string(pos) }
+    return file
+}
+
+fn err_push(errs, tok, msg) {
+    if errs == nil { return nil }
+    var loc = tok_loc(tok)
+    if loc != nil { oren_list_push(errs, loc + ": " + msg) }
+    else { oren_list_push(errs, msg) }
+    return nil
+}
+
 fn expr_dotted_name(expr) {
     if expr == nil { return nil }
     if expr["type"] == "Identifier" { return expr["value"] }
@@ -56,11 +78,13 @@ fn collect_declared_functions(linked) {
     // Returns:
     // - out["declared"]: exact function names declared in the program
     // - out["bases"]: base names that have at least one specialization `base__T`
+    // - out["generic_templates"]: base names declared as `fn f[T](...)`
     var declared = {}
     var bases = {}
-    if linked == nil { return {"declared": declared, "bases": bases} }
+    var generic_templates = {}
+    if linked == nil { return {"declared": declared, "bases": bases, "generic_templates": generic_templates} }
     var ss = linked["statements"]
-    if ss == nil { return {"declared": declared, "bases": bases} }
+    if ss == nil { return {"declared": declared, "bases": bases, "generic_templates": generic_templates} }
     var i = 0
     while i < oren_list_len(ss) {
         var st = ss[i]
@@ -70,6 +94,9 @@ fn collect_declared_functions(linked) {
                 var name = e["name"]
                 if name != nil && name != "" {
                     declared[name] = true
+                    if e["type_params"] != nil && oren_list_len(e["type_params"]) > 0 {
+                        generic_templates[name] = true
+                    }
 
                     // If it's a specialization name like `foo__i32`, record `foo` as a base.
                     var j = 0
@@ -86,37 +113,37 @@ fn collect_declared_functions(linked) {
         }
         i = i + 1
     }
-    return {"declared": declared, "bases": bases}
+    return {"declared": declared, "bases": bases, "generic_templates": generic_templates}
 }
 
-fn lower_expr(expr, declared) {
+fn lower_expr(expr, declared, errs) {
     if expr == nil { return nil }
     var t = expr["type"]
 
     if t == "Function" {
-        lower_stmt(expr["body"], declared)
+        lower_stmt(expr["body"], declared, errs)
         return expr
     }
     if t == "Prefix" {
-        expr["right"] = lower_expr(expr["right"], declared)
+        expr["right"] = lower_expr(expr["right"], declared, errs)
         return expr
     }
     if t == "Infix" {
-        expr["left"] = lower_expr(expr["left"], declared)
-        expr["right"] = lower_expr(expr["right"], declared)
+        expr["left"] = lower_expr(expr["left"], declared, errs)
+        expr["right"] = lower_expr(expr["right"], declared, errs)
         return expr
     }
     if t == "If" {
-        expr["cond"] = lower_expr(expr["cond"], declared)
-        lower_stmt(expr["consq"], declared)
-        if expr["alt"] != nil { lower_stmt(expr["alt"], declared) }
+        expr["cond"] = lower_expr(expr["cond"], declared, errs)
+        lower_stmt(expr["consq"], declared, errs)
+        if expr["alt"] != nil { lower_stmt(expr["alt"], declared, errs) }
         return expr
     }
     if t == "Array" {
         var xs = expr["elements"]
         var i0 = 0
         while i0 < oren_list_len(xs) {
-            xs[i0] = lower_expr(xs[i0], declared)
+            xs[i0] = lower_expr(xs[i0], declared, errs)
             i0 = i0 + 1
         }
         return expr
@@ -125,35 +152,35 @@ fn lower_expr(expr, declared) {
         var ps = expr["pairs"]
         var i1 = 0
         while i1 < oren_list_len(ps) {
-            ps[i1]["key"] = lower_expr(ps[i1]["key"], declared)
-            ps[i1]["value"] = lower_expr(ps[i1]["value"], declared)
+            ps[i1]["key"] = lower_expr(ps[i1]["key"], declared, errs)
+            ps[i1]["value"] = lower_expr(ps[i1]["value"], declared, errs)
             i1 = i1 + 1
         }
         return expr
     }
     if t == "Index" {
-        expr["left"] = lower_expr(expr["left"], declared)
-        expr["index"] = lower_expr(expr["index"], declared)
+        expr["left"] = lower_expr(expr["left"], declared, errs)
+        expr["index"] = lower_expr(expr["index"], declared, errs)
         return expr
     }
     if t == "Member" {
-        expr["left"] = lower_expr(expr["left"], declared)
+        expr["left"] = lower_expr(expr["left"], declared, errs)
         return expr
     }
     if t == "SpawnExpr" {
-        expr["call"] = lower_expr(expr["call"], declared)
+        expr["call"] = lower_expr(expr["call"], declared, errs)
         return expr
     }
     if t == "Call" {
         // Descend first (in case args contain specializations too).
-        expr["fn"] = lower_expr(expr["fn"], declared)
+        expr["fn"] = lower_expr(expr["fn"], declared, errs)
         var args = expr["args"]
         var i2 = 0
         while i2 < oren_list_len(args) {
-            args[i2] = lower_expr(args[i2], declared)
+            args[i2] = lower_expr(args[i2], declared, errs)
             i2 = i2 + 1
         }
-        if expr["spread"] != nil { expr["spread"] = lower_expr(expr["spread"], declared) }
+        if expr["spread"] != nil { expr["spread"] = lower_expr(expr["spread"], declared, errs) }
 
         // Rewrite specialization call:
         //   f[T](...) -> f__T(...)
@@ -180,7 +207,20 @@ fn lower_expr(expr, declared) {
                         expr["generic_type_arg"] = dotted
                         expr["generic_type_arg_mangled"] = suff
                         expr["fn"] = ast.new_identifier({"literal": base + "__" + suff})
+                    } else {
+                        err_push(errs, expr["token"], "generic specialization type argument must be an identifier-like type name")
                     }
+                }
+            }
+        } else {
+            // Enforce v0 rule: generic templates must always be called with an explicit type argument.
+            // `fn f[T](...)` + `f(...)` is a compile-time error (it would otherwise become a missing symbol
+            // after templates are removed from backend unit programs).
+            var fn_id = expr["fn"]
+            if fn_id != nil && fn_id["type"] == "Identifier" {
+                var nm = fn_id["value"]
+                if nm != nil && declared != nil && declared["generic_templates"] != nil && declared["generic_templates"][nm] == true {
+                    err_push(errs, expr["token"], "unspecialized call to generic function '" + nm + "': use " + nm + "[T](...)")
                 }
             }
         }
@@ -190,7 +230,7 @@ fn lower_expr(expr, declared) {
     return expr
 }
 
-fn lower_stmt(stmt, declared) {
+fn lower_stmt(stmt, declared, errs) {
     if stmt == nil { return nil }
     var t = stmt["type"]
 
@@ -200,68 +240,68 @@ fn lower_stmt(stmt, declared) {
         if xs == nil { return nil }
         var i = 0
         while i < oren_list_len(xs) {
-            lower_stmt(xs[i], declared)
+            lower_stmt(xs[i], declared, errs)
             i = i + 1
         }
         return nil
     }
     if t == "Var" {
-        stmt["value"] = lower_expr(stmt["value"], declared)
+        stmt["value"] = lower_expr(stmt["value"], declared, errs)
         return nil
     }
     if t == "Assign" {
-        stmt["value"] = lower_expr(stmt["value"], declared)
+        stmt["value"] = lower_expr(stmt["value"], declared, errs)
         return nil
     }
     if t == "Set" {
-        stmt["left"] = lower_expr(stmt["left"], declared)
-        stmt["value"] = lower_expr(stmt["value"], declared)
+        stmt["left"] = lower_expr(stmt["left"], declared, errs)
+        stmt["value"] = lower_expr(stmt["value"], declared, errs)
         return nil
     }
     if t == "Return" {
-        stmt["value"] = lower_expr(stmt["value"], declared)
+        stmt["value"] = lower_expr(stmt["value"], declared, errs)
         return nil
     }
     if t == "ExprStmt" {
-        stmt["expr"] = lower_expr(stmt["expr"], declared)
+        stmt["expr"] = lower_expr(stmt["expr"], declared, errs)
         return nil
     }
     if t == "While" {
-        stmt["cond"] = lower_expr(stmt["cond"], declared)
-        lower_stmt(stmt["body"], declared)
+        stmt["cond"] = lower_expr(stmt["cond"], declared, errs)
+        lower_stmt(stmt["body"], declared, errs)
         return nil
     }
     if t == "For" {
-        if stmt["init"] != nil { lower_stmt(stmt["init"], declared) }
-        if stmt["cond"] != nil { stmt["cond"] = lower_expr(stmt["cond"], declared) }
-        if stmt["post"] != nil { lower_stmt(stmt["post"], declared) }
-        lower_stmt(stmt["body"], declared)
+        if stmt["init"] != nil { lower_stmt(stmt["init"], declared, errs) }
+        if stmt["cond"] != nil { stmt["cond"] = lower_expr(stmt["cond"], declared, errs) }
+        if stmt["post"] != nil { lower_stmt(stmt["post"], declared, errs) }
+        lower_stmt(stmt["body"], declared, errs)
         return nil
     }
     if t == "Spawn" {
-        stmt["call"] = lower_expr(stmt["call"], declared)
+        stmt["call"] = lower_expr(stmt["call"], declared, errs)
         return nil
     }
     if t == "Switch" {
-        stmt["value"] = lower_expr(stmt["value"], declared)
+        stmt["value"] = lower_expr(stmt["value"], declared, errs)
         var cases = stmt["cases"]
         var ci = 0
         while ci < oren_list_len(cases) {
             var vals = cases[ci]["values"]
             var vi = 0
             while vi < oren_list_len(vals) {
-                vals[vi] = lower_expr(vals[vi], declared)
+                vals[vi] = lower_expr(vals[vi], declared, errs)
                 vi = vi + 1
             }
-            lower_stmt(cases[ci]["body"], declared)
+            lower_stmt(cases[ci]["body"], declared, errs)
             ci = ci + 1
         }
-        if stmt["default"] != nil { lower_stmt(stmt["default"], declared) }
+        if stmt["default"] != nil { lower_stmt(stmt["default"], declared, errs) }
         return nil
     }
     if t == "Function" {
         // Some passes treat Function nodes as statements (rare, but supported).
-        lower_expr(stmt, declared)
+        lower_expr(stmt, declared, errs)
         return nil
     }
     return nil
@@ -272,15 +312,21 @@ fn lower_linked_program_in_place(linked) {
     var reg = collect_declared_functions(linked)
     var declared = reg["declared"]
     var bases = reg["bases"]
+    var generic_templates = reg["generic_templates"]
     if declared == nil { declared = {} }
     if bases == nil { bases = {} }
+    if generic_templates == nil { generic_templates = {} }
     var ss = linked["statements"]
+    var errs = []
     var i = 0
     while i < oren_list_len(ss) {
         // Pass both sets through a merged view:
         // treat a name as eligible if it is declared directly OR has specializations.
-        lower_stmt(ss[i], {"declared": declared, "bases": bases})
+        lower_stmt(ss[i], {"declared": declared, "bases": bases, "generic_templates": generic_templates}, errs)
         i = i + 1
+    }
+    if oren_list_len(errs) > 0 {
+        linked["generic_call_errors"] = errs
     }
     return linked
 }
