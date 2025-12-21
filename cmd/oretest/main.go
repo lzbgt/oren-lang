@@ -1037,7 +1037,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 				break
 			}
 
-			wantKeys := []string{"DOT_I32=", "I32_ADD_SUM=", "I32_MUL_SUM=", "F32_ADD_HASH=", "F32_MUL_HASH=", "DOT_F32_BITS="}
+			wantKeys := []string{"DOT_I32=", "I32_ADD_SUM=", "I32_MUL_SUM=", "F32_ADD_HASH=", "F32_MUL_HASH=", "DOT_F32_BITS=", "GEMM_F64_4X4_HASH="}
 			wantVals := map[string]string{}
 			for _, k := range wantKeys {
 				v, ok := extractValueFromLog(scalarLog, k)

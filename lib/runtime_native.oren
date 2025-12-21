@@ -6824,7 +6824,23 @@ fn oren_buf_gemm_f64_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
     if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_gemm_f64_4x4_slice_into: b_off out of bounds") }
     if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_gemm_f64_4x4_slice_into: b range out of bounds") }
 
-    // Scalar core (native backend will compile this to tight loops; SIMD may be added later behind intrinsics).
+    // Native SIMD fast path: true single-pass 4x4 GEMM microkernel intrinsic.
+    // Determinism rule: must be bit-exact vs scalar reference (no reassociation, no FMA).
+    if native_simd_enabled() != 0 && n >= 2 {
+        var outp = native_buf_data_ptr(out) + out_off * 8
+        var pa0 = native_buf_data_ptr(a) + a0_off * 8
+        var pa1 = native_buf_data_ptr(a) + a1_off * 8
+        var pa2 = native_buf_data_ptr(a) + a2_off * 8
+        var pa3 = native_buf_data_ptr(a) + a3_off * 8
+        var pb0 = native_buf_data_ptr(b) + b0_off * 8
+        var pb1 = native_buf_data_ptr(b) + b1_off * 8
+        var pb2 = native_buf_data_ptr(b) + b2_off * 8
+        var pb3 = native_buf_data_ptr(b) + b3_off * 8
+        simd_gemm_f64_4x4_ptr(outp, pa0, pa1, pa2, pa3, pb0, pb1, pb2, pb3, n)
+        return out
+    }
+
+    // Scalar fallback.
     var c00 = 0.0; var c01 = 0.0; var c02 = 0.0; var c03 = 0.0
     var c10 = 0.0; var c11 = 0.0; var c12 = 0.0; var c13 = 0.0
     var c20 = 0.0; var c21 = 0.0; var c22 = 0.0; var c23 = 0.0
