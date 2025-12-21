@@ -45,6 +45,7 @@ fn darwin_sys_rename() { return 128 }
 fn darwin_sys_mkdir() { return 136 }
 fn darwin_sys_rmdir() { return 137 }
 fn darwin_sys_mmap() { return 197 }
+fn darwin_sys_munmap() { return 73 }
 fn darwin_sys_pipe() { return 42 }
 
 // Repo-owned open(2) flag constants (Darwin).

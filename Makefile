@@ -200,8 +200,9 @@ tests/native/test_gc.oren \
 tests/native/test_gc_reuse_tracking.oren \
 tests/native/test_getenv_malformed_key.oren \
 tests/native/test_indexing.oren \
-tests/native/test_list_append_grow.oren \
-tests/native/test_nested_containers.oren \
+	tests/native/test_list_append_grow.oren \
+	tests/native/test_buffer_payload_mmap_native.oren \
+	tests/native/test_nested_containers.oren \
 tests/native/test_net_suite.oren \
 tests/native/test_smoke_suite.oren \
 tests/native/test_syscall_errno.oren \

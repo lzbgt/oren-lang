@@ -81,7 +81,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - “Unscanned / raw bytes” typed buffers: **done** (payload allocations are explicitly tagged RAW/opaque across C runtime + native runtime + AVM); covered by `test_buffer_payload_raw.oren`
       - Arena/mmap options:
         - **done (C runtime + AVM):** large RAW/BUF allocations use `mmap` so memory can be returned to OS; covered by `test_buffer_payload_mmap.oren`
-        - **still needed (native backend):** add a `sys_munmap`-backed release path (native heap is currently monotonic; return-to-OS is not implemented yet)
+        - **done (native backend):** large typed-buffer payloads use `sys_mmap_private_anon` and are released via `sys_munmap` (free + GC sweep); covered by `tests/native/test_buffer_payload_mmap_native.oren`
 
 2) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
    - DoD:

@@ -323,6 +323,82 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
             }
             return true
         }
+
+    if fn_name == "sys_mmap_private_anon" {
+            // sys_mmap_private_anon(len) -> ptr (>=0) or -errno
+            // mmap(0, len, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON(YMOUS), -1, 0)
+            compile_expr(ctx, args[0]) // len -> X0
+            push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = len
+            push_u32_le(ctx["code"], insn_movz(0, 0))    // X0 = addr = 0
+
+            var mmap_prot = abi.darwin_mmap_prot_read_write()
+            var mmap_flags = abi.darwin_mmap_flags_private_anon()
+            var sys_mmap = abi.darwin_sys_mmap()
+            var svc_imm = abi.darwin_svc_imm()
+            var sys_reg = abi.darwin_syscall_reg()
+            if ctx["platform"]["os"] == "linux" {
+                mmap_prot = labi.linux_mmap_prot_read_write()
+                mmap_flags = labi.linux_mmap_flags_private_anon()
+                sys_mmap = labi.linux_sys_mmap()
+                svc_imm = labi.linux_svc_imm()
+                sys_reg = labi.linux_syscall_reg()
+            }
+
+            push_u32_le(ctx["code"], insn_movz(2, mmap_prot))  // X2 = prot
+            push_u32_le(ctx["code"], insn_movz(3, mmap_flags)) // X3 = flags
+            push_u32_le(ctx["code"], insn_movn(4, 0))          // X4 = -1 (fd)
+            push_u32_le(ctx["code"], insn_movz(5, 0))          // X5 = 0 (off)
+
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_mmap))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
+                // Normalize to X0 = -errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return true
+        }
+
+    if fn_name == "sys_munmap" {
+            // sys_munmap(addr, len) -> 0 or -errno
+            compile_expr(ctx, args[0]) // addr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // len -> X0
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // addr -> X1
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Arrange: X0=addr, X1=len
+            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = len
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = addr
+            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // X1 = len
+
+            var sys_munmap = abi.darwin_sys_munmap()
+            var svc_imm = abi.darwin_svc_imm()
+            var sys_reg = abi.darwin_syscall_reg()
+            if ctx["platform"]["os"] == "linux" {
+                sys_munmap = labi.linux_sys_munmap()
+                svc_imm = labi.linux_svc_imm()
+                sys_reg = labi.linux_syscall_reg()
+            }
+
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_munmap))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return true
+        }
         
     if fn_name == "sys_write" {
             // sys_write(fd, ptr, len)

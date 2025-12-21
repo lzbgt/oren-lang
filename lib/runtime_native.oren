@@ -64,6 +64,8 @@ fn sys_getdirentries64(fd, buf, bufsize, pos_ptr) { return 0 }
 fn sys_fork() { return 0 }
 fn sys_execve(path, argv, envp) { return 0 }
 fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
+fn sys_mmap_private_anon(len) { return 0 }
+fn sys_munmap(addr, len) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
 fn sys_gettid() { return 0 }
 fn sys_fcntl(fd, cmd, arg) { return 0 }
@@ -3355,8 +3357,33 @@ fn native_gc_collect() {
                 ptr_set(iadd(prev, 32), next_node)
             }
 
-            ptr_set(iadd(cur, 32), global_get_free_blocks())
-            global_set_free_blocks(cur)
+            var kind = ptr_get(iadd(cur, 16))
+            if kind == 9 {
+                // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
+                var p = ptr_get(cur)
+                if p != 0 {
+                    var base = p - raw_hdr_size()
+                    if ptr_get(base + 0) == raw_magic() {
+                        var total = ptr_get(base + 8)
+                        var backend = ptr_get(base + 16)
+                        if backend == 1 && total > 0 {
+                            // best-effort
+                            sys_munmap(base, total)
+                        }
+                    }
+                }
+
+                // Reuse the tracking node storage via free_nodes list.
+                ptr_set(cur, 0)
+                ptr_set(iadd(cur, 8), 40)
+                ptr_set(iadd(cur, 16), 0)
+                ptr_set(iadd(cur, 24), 0)
+                ptr_set(iadd(cur, 32), global_get_free_nodes())
+                global_set_free_nodes(cur)
+            } else {
+                ptr_set(iadd(cur, 32), global_get_free_blocks())
+                global_set_free_blocks(cur)
+            }
         }
         cur = next_node
     }
@@ -5551,6 +5578,12 @@ fn oren_index_set(container, index, value) {
 fn buf_magic() { return 4609346 } // 'BUF\0'
 // BUF_TAG_* are defined near global constants (used by iterator and native codegen).
 
+// RAW mmap header for large typed-buffer payloads:
+// [magic:u64, total_len:u64, backend:u64, ...padding... ] (64 bytes)
+fn raw_magic() { return 5715707079776360240 } // 0x4f52454e52415730 ("ORENRAW0") as u64 (rolling)
+fn raw_hdr_size() { return 64 }
+fn raw_mmap_threshold() { return 1048576 } // 1 MiB
+
 // Default alignment for typed-buffer payload pointers (cache-line, NEON-friendly).
 // This is a performance property only; it must not change semantics.
 fn buf_align_default() { return 64 }
@@ -5588,6 +5621,18 @@ fn native_buf_check(buf, tag, elem_size) {
     return 0
 }
 
+fn native_buf_payload_is_mmap(buf) {
+    if native_buf_as_node(buf) == 0 { return 0 }
+    var len = ptr_get(buf + 0)
+    if len == 0 { return 0 }
+    var p = ptr_get(buf + 16)
+    if p == 0 { return 0 }
+    var base = p - raw_hdr_size()
+    if ptr_get(base + 0) != raw_magic() { return 0 }
+    if ptr_get(base + 16) != 1 { return 0 }
+    return 1
+}
+
 fn native_buf_new(len, elem_size, tag) {
     if len < 0 { return oren_err(4, "buf_new: negative length") }
     if len > 2147483647 { return oren_err(4, "buf_new: length too large") }
@@ -5604,19 +5649,44 @@ fn native_buf_new(len, elem_size, tag) {
     var data = 0
     var data_ptr = 0
     if bytes_len > 0 {
-        // Over-allocate so we can align the working payload pointer while keeping the GC anchor stable.
-        var cap = bytes_len + (buf_align_default() - 1)
-        data = malloc(cap)
-        if data == 0 || data == -1 { return oren_err(8, "buf_new: payload alloc failed") }
-        // Mark payload kind=8 (RAW) so GC never treats it as pointer-containing memory.
-        // This is an explicit contract for typed buffers (HPC).
-        oren_track_alloc(data, cap, 8)
-        data_ptr = native_align_up(data, buf_align_default())
-        // Zero-fill (malloc does not promise zeroed memory).
-        var i = 0
-        while i < bytes_len {
-            ptr_set_byte(data_ptr + i, 0)
-            i = i + 1
+        if bytes_len >= raw_mmap_threshold() {
+            // Large payload: mmap-backed so GC/free can return memory to OS.
+            var total = raw_hdr_size() + bytes_len
+            var base = sys_mmap_private_anon(total)
+            if base < 0 { return oren_err(8, "buf_new: mmap failed") }
+
+            // Write header.
+            ptr_set(base + 0, raw_magic())
+            ptr_set(base + 8, total)
+            ptr_set(base + 16, 1) // backend=1 (mmap)
+
+            data = base + raw_hdr_size()
+            data_ptr = data // already aligned due to 64-byte header
+            // Mark payload kind=9 (RAW_MMAP).
+            oren_track_alloc(data, bytes_len, 9)
+
+            // Zero-fill (mmap does not guarantee zero? In practice anonymous is zeroed, but keep explicit).
+            var i = 0
+            while i < bytes_len {
+                ptr_set_byte(data + i, 0)
+                i = i + 1
+            }
+        } else {
+            // Small payload: heap allocate and align within the block.
+            // Over-allocate so we can align the working payload pointer while keeping the GC anchor stable.
+            var cap = bytes_len + (buf_align_default() - 1)
+            data = malloc(cap)
+            if data == 0 || data == -1 { return oren_err(8, "buf_new: payload alloc failed") }
+            // Mark payload kind=8 (RAW) so GC never treats it as pointer-containing memory.
+            // This is an explicit contract for typed buffers (HPC).
+            oren_track_alloc(data, cap, 8)
+            data_ptr = native_align_up(data, buf_align_default())
+            // Zero-fill (malloc does not promise zeroed memory).
+            var i2 = 0
+            while i2 < bytes_len {
+                ptr_set_byte(data_ptr + i2, 0)
+                i2 = i2 + 1
+            }
         }
     }
 
@@ -7587,9 +7657,30 @@ fn free(ptr) {
             } else {
                 ptr_set(iadd(prev, 32), next)
             }
+            var kind = ptr_get(iadd(cur, 16))
             ptr_set(iadd(cur, 24), 0) // clear freed/mark flags
-            ptr_set(iadd(cur, 32), global_get_free_blocks())
-            global_set_free_blocks(cur)
+
+            if kind == 9 {
+                // RAW_MMAP: return to OS now; do not keep for reuse.
+                var base = ptr - raw_hdr_size()
+                if ptr_get(base + 0) == raw_magic() {
+                    var total = ptr_get(base + 8)
+                    var backend = ptr_get(base + 16)
+                    if backend == 1 && total > 0 {
+                        sys_munmap(base, total)
+                    }
+                }
+                // Reuse tracking node storage.
+                ptr_set(cur, 0)
+                ptr_set(iadd(cur, 8), 40)
+                ptr_set(iadd(cur, 16), 0)
+                ptr_set(iadd(cur, 24), 0)
+                ptr_set(iadd(cur, 32), global_get_free_nodes())
+                global_set_free_nodes(cur)
+            } else {
+                ptr_set(iadd(cur, 32), global_get_free_blocks())
+                global_set_free_blocks(cur)
+            }
             release_lock()
             return 0
         }

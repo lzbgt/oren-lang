@@ -1,0 +1,16 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    exit(code)
+}
+
+// Native backend: large typed-buffer payloads should be mmap-backed so GC/free can return memory to OS.
+// Threshold is 1 MiB; allocate 2 MiB via i32 buffer.
+var n = 524288
+var b: []i32 = buffer.i32_new(n)
+assert_eq(native_buf_payload_is_mmap(b), 1, 10)
+
+print("native buffer_payload_mmap OK")
+exit(0)
+

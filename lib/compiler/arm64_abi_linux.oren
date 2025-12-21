@@ -54,6 +54,7 @@ fn linux_sys_gettid() { return 178 }
 fn linux_sys_exit() { return 93 }
 fn linux_sys_exit_group() { return 94 }
 fn linux_sys_mmap() { return 222 }
+fn linux_sys_munmap() { return 215 }
 
 // Repo-owned open(2) flag constants (Linux).
 // Used by syscall-first native backend; do not rely on glibc headers at build time.
