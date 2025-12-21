@@ -2,6 +2,7 @@
 
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define OREN_BUF_ALIGN 64u
@@ -12,6 +13,25 @@
 #else
 #define OREN_BUF_HAVE_NEON 0
 #endif
+
+// SIMD runtime opt-in (rolling):
+//
+// - SIMD must never change semantics. Scalar behavior is authoritative.
+// - Off-by-default so determinism validation remains explicit.
+//
+// Env:
+// - OREN_ENABLE_SIMD=1 enables SIMD fast paths (when compiled in).
+// - OREN_NO_SIMD=1 disables SIMD fast paths (wins over OREN_ENABLE_SIMD).
+static int oren_simd_enabled_cached(void) {
+    static int cached = -1;
+    if (cached != -1) return cached;
+    cached = 0;
+    const char* v_no = getenv("OREN_NO_SIMD");
+    if (v_no && v_no[0] && v_no[0] != '0') { cached = 0; return cached; }
+    const char* v = getenv("OREN_ENABLE_SIMD");
+    if (v && v[0] && v[0] != '0') cached = 1;
+    return cached;
+}
 
 static OrenValue buf_err(const char* msg) {
     return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(msg));
@@ -509,24 +529,33 @@ OrenValue oren_buf_dot_i32(OrenValue a, OrenValue b) {
     uint64_t acc = 0;
 
 #if OREN_BUF_HAVE_NEON
-    const int32_t* pa = (const int32_t*)(const void*)buf_data(a.as.buf_val);
-    const int32_t* pb = (const int32_t*)(const void*)buf_data(b.as.buf_val);
-    uint32_t i = 0;
-    uint64x2_t vacc = vdupq_n_u64(0);
-    for (; i + 4u <= n; i += 4u) {
-        int32x4_t va = vld1q_s32(pa + i);
-        int32x4_t vb = vld1q_s32(pb + i);
-        int64x2_t prod_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb));
-        int64x2_t prod_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb));
-        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_lo));
-        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_hi));
-    }
-    uint64_t tmp[2];
-    vst1q_u64(tmp, vacc);
-    acc = tmp[0] + tmp[1];
-    for (; i < n; i++) {
-        int64_t prod = (int64_t)pa[i] * (int64_t)pb[i];
-        acc += u64_from_i64(prod);
+    if (oren_simd_enabled_cached()) {
+        const int32_t* pa = (const int32_t*)(const void*)buf_data(a.as.buf_val);
+        const int32_t* pb = (const int32_t*)(const void*)buf_data(b.as.buf_val);
+        uint32_t i = 0;
+        uint64x2_t vacc = vdupq_n_u64(0);
+        for (; i + 4u <= n; i += 4u) {
+            int32x4_t va = vld1q_s32(pa + i);
+            int32x4_t vb = vld1q_s32(pb + i);
+            int64x2_t prod_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb));
+            int64x2_t prod_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb));
+            vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_lo));
+            vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_hi));
+        }
+        uint64_t tmp[2];
+        vst1q_u64(tmp, vacc);
+        acc = tmp[0] + tmp[1];
+        for (; i < n; i++) {
+            int64_t prod = (int64_t)pa[i] * (int64_t)pb[i];
+            acc += u64_from_i64(prod);
+        }
+    } else {
+        for (uint32_t i = 0; i < n; i++) {
+            int32_t va = (int32_t)load_u32_le(buf_data(a.as.buf_val) + i * 4u);
+            int32_t vb = (int32_t)load_u32_le(buf_data(b.as.buf_val) + i * 4u);
+            int64_t prod = (int64_t)va * (int64_t)vb;
+            acc += u64_from_i64(prod);
+        }
     }
 #else
     for (uint32_t i = 0; i < n; i++) {
@@ -562,21 +591,28 @@ OrenValue oren_buf_reduce_sum_i32(OrenValue buf) {
     uint64_t acc = 0;
 
 #if OREN_BUF_HAVE_NEON
-    const int32_t* p = (const int32_t*)(const void*)buf_data(buf.as.buf_val);
-    uint32_t i = 0;
-    uint64x2_t vacc = vdupq_n_u64(0);
-    for (; i + 4u <= n; i += 4u) {
-        int32x4_t v = vld1q_s32(p + i);
-        int64x2_t lo = vmovl_s32(vget_low_s32(v));
-        int64x2_t hi = vmovl_s32(vget_high_s32(v));
-        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(lo));
-        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(hi));
-    }
-    uint64_t tmp[2];
-    vst1q_u64(tmp, vacc);
-    acc = tmp[0] + tmp[1];
-    for (; i < n; i++) {
-        acc += u64_from_i64((int64_t)p[i]);
+    if (oren_simd_enabled_cached()) {
+        const int32_t* p = (const int32_t*)(const void*)buf_data(buf.as.buf_val);
+        uint32_t i = 0;
+        uint64x2_t vacc = vdupq_n_u64(0);
+        for (; i + 4u <= n; i += 4u) {
+            int32x4_t v = vld1q_s32(p + i);
+            int64x2_t lo = vmovl_s32(vget_low_s32(v));
+            int64x2_t hi = vmovl_s32(vget_high_s32(v));
+            vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(lo));
+            vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(hi));
+        }
+        uint64_t tmp[2];
+        vst1q_u64(tmp, vacc);
+        acc = tmp[0] + tmp[1];
+        for (; i < n; i++) {
+            acc += u64_from_i64((int64_t)p[i]);
+        }
+    } else {
+        for (uint32_t i = 0; i < n; i++) {
+            int32_t v = (int32_t)load_u32_le(buf_data(buf.as.buf_val) + i * 4u);
+            acc += u64_from_i64((int64_t)v);
+        }
     }
 #else
     for (uint32_t i = 0; i < n; i++) {
@@ -694,32 +730,48 @@ OrenValue oren_buf_axpy_f32_into(OrenValue dst, OrenValue alpha, OrenValue x, Or
 
     float a = (float)alpha.as.float_val; // float32 boundary
 #if OREN_BUF_HAVE_NEON
-    const float* px = (const float*)(const void*)buf_data(bx);
-    const float* py = (const float*)(const void*)buf_data(by);
-    float* pd = (float*)(void*)buf_data(od);
-    uint32_t n = od->len;
-    uint32_t i = 0;
-    float32x4_t va = vdupq_n_f32(a);
-    for (; i + 4u <= n; i += 4u) {
-        float32x4_t vx = vld1q_f32(px + i);
-        float32x4_t vy = vld1q_f32(py + i);
-        float32x4_t vm = vmulq_f32(va, vx);
-        float32x4_t vo = vaddq_f32(vm, vy);
-        vst1q_f32(pd + i, vo);
+    if (oren_simd_enabled_cached()) {
+        const float* px = (const float*)(const void*)buf_data(bx);
+        const float* py = (const float*)(const void*)buf_data(by);
+        float* pd = (float*)(void*)buf_data(od);
+        uint32_t n = od->len;
+        uint32_t i = 0;
+        float32x4_t va = vdupq_n_f32(a);
+        for (; i + 4u <= n; i += 4u) {
+            float32x4_t vx = vld1q_f32(px + i);
+            float32x4_t vy = vld1q_f32(py + i);
+            float32x4_t vm = vmulq_f32(va, vx);
+            float32x4_t vo = vaddq_f32(vm, vy);
+            vst1q_f32(pd + i, vo);
+        }
+        // Tail uses endian-safe scalar path.
+        for (; i < n; i++) {
+            uint32_t ux = load_u32_le(buf_data(bx) + i * 4u);
+            uint32_t uy = load_u32_le(buf_data(by) + i * 4u);
+            float fx = 0.0f, fy = 0.0f;
+            memcpy(&fx, &ux, sizeof(fx));
+            memcpy(&fy, &uy, sizeof(fy));
+            float outv = a * fx + fy;
+            uint32_t uo = 0;
+            memcpy(&uo, &outv, sizeof(uo));
+            store_u32_le(buf_data(od) + i * 4u, uo);
+        }
+        return dst;
+    } else {
+        uint32_t n = od->len;
+        for (uint32_t i = 0; i < n; i++) {
+            uint32_t ux = load_u32_le(buf_data(bx) + i * 4u);
+            uint32_t uy = load_u32_le(buf_data(by) + i * 4u);
+            float fx = 0.0f, fy = 0.0f;
+            memcpy(&fx, &ux, sizeof(fx));
+            memcpy(&fy, &uy, sizeof(fy));
+            float outv = a * fx + fy;
+            uint32_t uo = 0;
+            memcpy(&uo, &outv, sizeof(uo));
+            store_u32_le(buf_data(od) + i * 4u, uo);
+        }
+        return dst;
     }
-    // Tail uses endian-safe scalar path.
-    for (; i < n; i++) {
-        uint32_t ux = load_u32_le(buf_data(bx) + i * 4u);
-        uint32_t uy = load_u32_le(buf_data(by) + i * 4u);
-        float fx = 0.0f, fy = 0.0f;
-        memcpy(&fx, &ux, sizeof(fx));
-        memcpy(&fy, &uy, sizeof(fy));
-        float outv = a * fx + fy;
-        uint32_t uo = 0;
-        memcpy(&uo, &outv, sizeof(uo));
-        store_u32_le(buf_data(od) + i * 4u, uo);
-    }
-    return dst;
 #else
     uint32_t n = od->len;
     for (uint32_t i = 0; i < n; i++) {

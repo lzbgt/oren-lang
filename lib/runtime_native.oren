@@ -202,6 +202,7 @@ fn oren_pipe() {
 //   240:proc_allowed_pids_ptr (u64[] raw, len=cap; 0 means empty slot) (rolling)
 //   248:proc_allowed_pids_len (count) (rolling)
 //   256:proc_allowed_pids_cap (capacity) (rolling)
+//   264:enable_simd (0|1) (rolling; runtime opt-in for SIMD fast paths)
 var g_storage = 0
 
 fn oren_globals() {
@@ -246,6 +247,7 @@ var GLOBAL_OFF_PROC_ALLOW_ARGV_PTR = 200
 var GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR = 240
 var GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN = 248
 var GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP = 256
+var GLOBAL_OFF_ENABLE_SIMD = 264
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
@@ -279,6 +281,11 @@ fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECUR
 
 fn global_get_envp() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENVP)) }
 fn global_set_envp(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENVP), v) }
+
+fn global_get_enable_simd() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD)) }
+fn global_set_enable_simd(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD), v) }
+
+fn native_simd_enabled() { return global_get_enable_simd() }
 
 fn global_get_capsule_mode() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE)) }
 fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE), v) }
@@ -517,6 +524,7 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR = 240
     GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN = 248
     GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP = 256
+    GLOBAL_OFF_ENABLE_SIMD = 264
     GLOBAL_SLOTS_RESERVED = 56
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -817,6 +825,28 @@ fn native_runtime_capsule_init() {
     // Defaults (non-capsule): allow everything (mask ignored).
     global_set_capsule_mode(0)
     global_set_cap_allow_mask(0)
+
+    // SIMD runtime opt-in (rolling):
+    // - Must never change semantics; scalar behavior is authoritative.
+    // - Default off; enable explicitly via env.
+    //
+    // Env:
+    // - OREN_ENABLE_SIMD=1 enables SIMD fast paths (when implemented).
+    // - OREN_NO_SIMD=1 disables SIMD (wins over enable).
+    global_set_enable_simd(0)
+    var v_no_simd = native_envp_get_value_ptr("OREN_NO_SIMD")
+    if v_no_simd != 0 {
+        if ptr_get_byte(v_no_simd) != 0 {
+            if ptr_get_byte(v_no_simd) != 48 { global_set_enable_simd(0) } // not '0'
+        }
+    } else {
+        var v_simd = native_envp_get_value_ptr("OREN_ENABLE_SIMD")
+        if v_simd != 0 {
+            if ptr_get_byte(v_simd) != 0 {
+                if ptr_get_byte(v_simd) != 48 { global_set_enable_simd(1) } // not '0'
+            }
+        }
+    }
 
     var k_capsule = "OREN_CAPSULE"
     var v_capsule = native_envp_get_value_ptr(k_capsule)

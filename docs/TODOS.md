@@ -88,6 +88,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Define a stable intrinsic boundary (compiler-known names) for vector kernels
      - Add feature gating + scalar fallback (deterministic)
      - Expand `std/linalg` kernels safely (keep reference implementations)
+   - Status:
+     - **done (C backend):** NEON fast paths for typed-buffer kernels are gated by env (`OREN_ENABLE_SIMD=1`, `OREN_NO_SIMD=1`) and preserve scalar semantics.
+     - **done (AVM):** `oren_buf_dot_i32` is wrap-safe (no signed overflow UB) and gains a NEON fast path behind `AVM_ENABLE_SIMD=1`.
+     - **done (native runtime config):** `OREN_ENABLE_SIMD` is parsed once at startup and stored in native globals (future native NEON kernels can key off it).
+     - **todo:** add native-backend NEON kernels (requires arm64 SIMD load/store + loop emission in the native codegen).
 
 3) **[lang][perf] Expand generics v0.1 (constraints + hygiene)**
    - DoD:
