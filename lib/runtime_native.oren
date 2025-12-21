@@ -6096,6 +6096,15 @@ fn oren_buf_dot_i32(a, b) {
     if oren_is_err(eb) { return eb }
     var n = ptr_get(a + 0)
     if n != ptr_get(b + 0) { return oren_err(4, "buf_dot_i32: length mismatch") }
+
+    // SIMD fast path (native backend only): NEON dot over raw pointers.
+    // Gated by startup-parsed env (OREN_ENABLE_SIMD / OREN_NO_SIMD).
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        return simd_dot_i32_ptr(pa, pb, n)
+    }
+
     var sum = 0
     var i = 0
     while i < n {

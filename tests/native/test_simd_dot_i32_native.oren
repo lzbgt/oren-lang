@@ -1,0 +1,47 @@
+fn fail(code, msg) {
+    oren_fail(code, "test_simd_dot_i32_native: " + msg)
+    return 1
+}
+
+fn assert_eq_i64(got, want, code) {
+    if got == want { return 0 }
+    print("assert_eq failed: code=" + oren_int_to_string(code))
+    print("  got=" + oren_int_to_string(got))
+    print("  want=" + oren_int_to_string(want))
+    return fail(code, "mismatch")
+}
+
+fn main() {
+    // Large enough to hit the vector loop (n >= 4).
+    var n = 1024
+    var a = oren_i32_buf_new(n)
+    var b = oren_i32_buf_new(n)
+    if oren_is_err(a) { return fail(100, "alloc a") }
+    if oren_is_err(b) { return fail(101, "alloc b") }
+
+    var i = 0
+    while i < n {
+        // Deterministic pattern (includes negatives).
+        oren_buf_store_i32(a, i, (i * 3) - 7)
+        oren_buf_store_i32(b, i, (i * 5) + 11)
+        i = i + 1
+    }
+
+    // Compute reference with explicit scalar loop (do not call dot).
+    var ref = 0
+    i = 0
+    while i < n {
+        ref = ref + (oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+
+    var dot = oren_buf_dot_i32(a, b)
+    if oren_is_err(dot) { return fail(102, "dot returned err") }
+    if assert_eq_i64(dot, ref, 103) != 0 { return 1 }
+
+    // The runner validates scalar-vs-simd output by running this binary twice with env toggles.
+    print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
+    print("DOT=" + oren_int_to_string(dot))
+    return 0
+}
+

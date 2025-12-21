@@ -495,15 +495,27 @@ fn insn_str_reg_sp(reg, offset) {
 }
 
 fn insn_dup_2d(vd, rn) {
-    return 1309147136 + (rn * 32) + vd
+    // DUP Vd.2D, Xn
+    // Verified via clang:
+    //   dup v4.2d, x0 => 0x4E080C04
+    // Base: 0x4E080C00
+    return 1309150208 + (rn * 32) + vd
 }
 
 fn insn_add_2d(vd, vn, vm) {
-    return 1310753792 + (vm * 65536) + (vn * 32) + vd
+    // ADD Vd.2D, Vn.2D, Vm.2D
+    // Verified via clang:
+    //   add v4.2d, v2.2d, v3.2d => 0x4EE38444
+    // Base: 0x4EE08400
+    return 1323336704 + (vm * 65536) + (vn * 32) + vd
 }
 
 fn insn_sub_2d(vd, vn, vm) {
-    return 1847624704 + (vm * 65536) + (vn * 32) + vd
+    // SUB Vd.2D, Vn.2D, Vm.2D
+    // Verified via clang:
+    //   sub v4.2d, v2.2d, v3.2d => 0x6EE38444
+    // Base: 0x6EE08400
+    return 1860207616 + (vm * 65536) + (vn * 32) + vd
 }
 
 fn insn_and_16b(vd, vn, vm) {
@@ -603,6 +615,39 @@ fn insn_mul_4s(vd, vn, vm) {
     return 1319148544 + (vm * 65536) + (vn * 32) + vd
 }
 
+fn insn_smull_2d(vd, vn, vm) {
+    // SMULL Vd.2D, Vn.2S, Vm.2S
+    // Verified via clang:
+    //   smull v2.2d, v0.2s, v1.2s => 0x0EA1C002
+    // Base: 0x0EA0C000
+    return 245415936 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_smull2_2d(vd, vn, vm) {
+    // SMULL2 Vd.2D, Vn.4S, Vm.4S
+    // Verified via clang:
+    //   smull2 v3.2d, v0.4s, v1.4s => 0x4EA1C003
+    // Base: 0x4EA0C000
+    return 1319157760 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_addp_2d(vd, vn, vm) {
+    // ADDP Vd.2D, Vn.2D, Vm.2D (pairwise add)
+    // Verified via clang:
+    //   addp v5.2d, v4.2d, v4.2d => 0x4EE4BC85
+    // Base: 0x4EE0BC00
+    return 1323351040 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_ldr_q(vt, rn) {
+    // LDR Qt, [Xn] (unsigned offset imm=0)
+    // Verified via clang:
+    //   ldr q0, [x0] => 0x3DC00000
+    //   ldr q1, [x1] => 0x3DC00021
+    // Base: 0x3DC00000
+    return 1035993088 + (rn * 32) + vt
+}
+
 fn insn_ldr_ptr(rd, rn) {
     return 4181721088 + (rn * 32) + rd
 }
@@ -614,6 +659,15 @@ fn insn_str_ptr(rd, rn) {
 fn insn_ldr_w(rt, rn, offset) {
     // LDR Wt, [Xn, #imm12<<2] (unsigned offset encoding, scaled by 4)
     return 3107989504 + ((offset / 4) * 1024) + (rn * 32) + rt // base 0xB9400000
+}
+
+fn insn_ldrsw(rt, rn, offset) {
+    // LDRSW Xt, [Xn, #imm12<<2] (signed load 32-bit, sign-extend to 64-bit)
+    // Verified via clang:
+    //   ldrsw x2, [x3]      => 0xB9800062
+    //   ldrsw x4, [x5, #12] => 0xB9800CA4
+    // Base: 0xB9800000
+    return 3112173568 + ((offset / 4) * 1024) + (rn * 32) + rt
 }
 
 fn insn_strb(rt, rn) {

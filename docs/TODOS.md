@@ -80,7 +80,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - **done (C backend):** NEON fast paths for typed-buffer kernels are gated by env (`OREN_ENABLE_SIMD=1`, `OREN_NO_SIMD=1`) and preserve scalar semantics.
      - **done (AVM):** `oren_buf_dot_i32` is wrap-safe (no signed overflow UB) and gains a NEON fast path behind `AVM_ENABLE_SIMD=1`.
      - **done (native runtime config):** `OREN_ENABLE_SIMD` is parsed once at startup and stored in native globals (future native NEON kernels can key off it).
-     - **todo:** add native-backend NEON kernels (requires arm64 SIMD load/store + loop emission in the native codegen).
+     - **done (native backend, arm64):** `oren_buf_dot_i32` uses a NEON fast path when `native_simd_enabled()==1` (env `OREN_ENABLE_SIMD=1`, `OREN_NO_SIMD=1`), implemented as a compiler intrinsic `simd_dot_i32_ptr(a_ptr,b_ptr,n)->i64` with scalar tail.
+     - **done (native test):** native SIMD dot is validated by running the same test binary twice (scalar vs SIMD) and comparing output (`tests/native/test_simd_dot_i32_native.oren`).
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -97,3 +98,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - AVM snapshots v7: snapshot/restore now includes scheduler state (tasks + channels + queues) so spawned workloads can be paused/resumed.
 - Bytecode backend: `oren_yield()` now returns canonical `nil` (stack-balanced as an expression), preventing verifier stack-height mismatches.
+- Native backend: arm64 NEON dot kernel is implemented and regression-tested under env-gated SIMD dispatch.

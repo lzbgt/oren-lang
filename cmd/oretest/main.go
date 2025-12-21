@@ -121,6 +121,7 @@ func main() {
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
 		"tests/native/test_integration_suite.oren",
+		"tests/native/test_simd_dot_i32_native.oren",
 		"tests/native/test_sys_execve_fail_safe.oren",
 		"tests/native/test_debug_panic.oren",
 	}
@@ -928,32 +929,101 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log})
 			continue
 		}
-		rc := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("./%s", out), log)
+
+		rc := 0
+		runLog := log
+
+		switch name {
+		case "test_simd_dot_i32_native":
+			// Validate scalar vs SIMD results by running the same binary twice with env toggles.
+			//
+			// This is the native-backend analogue of the AVM SIMD determinism guard: the SIMD path must
+			// preserve scalar semantics exactly.
+			scalarLog := log
+			_ = os.Remove(scalarLog)
+			scalarCmd := fmt.Sprintf("env OREN_NO_SIMD=1 ./%s", out)
+			rc = runWithTimeout(timeoutBin, runTimeout, scalarCmd, scalarLog)
+			if rc != 0 {
+				runLog = scalarLog
+				break
+			}
+			scalarDOT, okDOT := extractValueFromLog(scalarLog, "DOT=")
+			scalarSIMD, okSIMD := extractValueFromLog(scalarLog, "SIMD_ENABLED=")
+			if !okDOT || !okSIMD {
+				_ = appendFileLine(scalarLog, "oretest: missing DOT=/SIMD_ENABLED= output in scalar run")
+				rc = 1
+				runLog = scalarLog
+				break
+			}
+			if strings.TrimSpace(scalarSIMD) != "0" {
+				_ = appendFileLine(scalarLog, "oretest: expected SIMD_ENABLED=0 in scalar run (OREN_NO_SIMD=1)")
+				rc = 1
+				runLog = scalarLog
+				break
+			}
+
+			if shouldValidateSIMD() {
+				simdLog := filepath.Join("build", "logs", "native_"+name+"_simd.log")
+				_ = os.Remove(simdLog)
+				simdCmd := fmt.Sprintf("env OREN_ENABLE_SIMD=1 ./%s", out)
+				rc = runWithTimeout(timeoutBin, runTimeout, simdCmd, simdLog)
+				if rc != 0 {
+					runLog = simdLog
+					break
+				}
+				simdDOT, okDOT2 := extractValueFromLog(simdLog, "DOT=")
+				simdSIMD, okSIMD2 := extractValueFromLog(simdLog, "SIMD_ENABLED=")
+				if !okDOT2 || !okSIMD2 {
+					_ = appendFileLine(simdLog, "oretest: missing DOT=/SIMD_ENABLED= output in SIMD run")
+					rc = 1
+					runLog = simdLog
+					break
+				}
+				if strings.TrimSpace(simdSIMD) != "1" {
+					_ = appendFileLine(simdLog, "oretest: expected SIMD_ENABLED=1 in SIMD run (OREN_ENABLE_SIMD=1)")
+					rc = 1
+					runLog = simdLog
+					break
+				}
+				if strings.TrimSpace(simdDOT) != strings.TrimSpace(scalarDOT) {
+					_ = appendFileLine(simdLog, "oretest: native SIMD dot mismatch")
+					_ = appendFileLine(simdLog, "scalar DOT "+strings.TrimSpace(scalarDOT))
+					_ = appendFileLine(simdLog, "simd   DOT "+strings.TrimSpace(simdDOT))
+					rc = 1
+					runLog = simdLog
+					break
+				}
+			}
+		default:
+			rc = runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("./%s", out), log)
+			runLog = log
+		}
+
 		_ = os.Remove(out)
 		if name == "test_debug_panic" {
 			// Expected-failure regression: panic output must be readable and include a stack trace.
 			// We accept any non-zero exit except external timeout.
 			if rc == 0 || rc == 124 {
 				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log})
+				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
 				continue
 			}
-			outb, err := os.ReadFile(log)
+			outb, err := os.ReadFile(runLog)
 			if err != nil {
 				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log})
+				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
 				continue
 			}
 			s := string(outb)
 			if !strings.Contains(s, "Traceback") || !strings.Contains(s, "crash_me") {
 				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log})
+				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
 				continue
 			}
 		} else {
 			if rc != 0 {
 				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log})
+				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
 				continue
 			}
 		}
@@ -1838,6 +1908,20 @@ func extractHashFromLog(logPath string, prefix string) (string, bool) {
 		ln = strings.TrimSpace(ln)
 		if strings.HasPrefix(ln, want) {
 			return strings.TrimSpace(strings.TrimPrefix(ln, want)), true
+		}
+	}
+	return "", false
+}
+
+func extractValueFromLog(logPath string, prefix string) (string, bool) {
+	b, err := os.ReadFile(logPath)
+	if err != nil {
+		return "", false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(line, prefix)), true
 		}
 	}
 	return "", false

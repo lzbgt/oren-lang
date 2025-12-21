@@ -167,9 +167,14 @@ fn insn_fdiv(rd, rn, rm) { return core.insn_fdiv(rd, rn, rm) }
 fn insn_scvtf(rd, rn) { return core.insn_scvtf(rd, rn) }
 fn insn_fcvtzs(rd, rn) { return core.insn_fcvtzs(rd, rn) }
 fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
+fn insn_smull_2d(vd, vn, vm) { return core.insn_smull_2d(vd, vn, vm) }
+fn insn_smull2_2d(vd, vn, vm) { return core.insn_smull2_2d(vd, vn, vm) }
+fn insn_addp_2d(vd, vn, vm) { return core.insn_addp_2d(vd, vn, vm) }
+fn insn_ldr_q(vt, rn) { return core.insn_ldr_q(vt, rn) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
 fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
+fn insn_ldrsw(rt, rn, offset) { return core.insn_ldrsw(rt, rn, offset) }
 
 fn native_expr_is_floaty(ctx, expr) {
     // Heuristic, rolling "float propagation" for the native backend.
@@ -1362,6 +1367,130 @@ fn native_compile_expr(ctx, expr) {
             
             return nil
         }
+
+        if fn_name == "simd_dot_i32_ptr" {
+            // Intrinsic: dot product over raw i32 pointers, returning i64 (wrap-around).
+            // Signature: simd_dot_i32_ptr(a_ptr, b_ptr, n) -> i64
+            //
+            // This is a native-backend-only acceleration boundary (arm64 NEON).
+            // It must not depend on libc and must preserve scalar semantics.
+            var args3 = expr["args"]
+            if args3 == nil || oren_list_len(args3) != 3 {
+                native_error(ctx, expr["token"], "native backend: simd_dot_i32_ptr expects 3 arguments")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+
+            // Compile args: a_ptr, b_ptr, n
+            native_compile_expr(ctx, args3[0]) // a_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args3[1]) // b_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args3[2]) // n -> X0
+
+            // Pop b_ptr -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop a_ptr -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Register assignment:
+            //   X3 = a_ptr
+            //   X4 = b_ptr
+            //   X2 = n
+            push_u32_le(ctx["code"], insn_mov_reg(3, 2))
+            push_u32_le(ctx["code"], insn_mov_reg(4, 1))
+            push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+
+            // X0 = 0 accumulator
+            push_u32_le(ctx["code"], insn_movz(0, 0))
+
+            // V4.2D = 0 (duplicate X0 into both lanes)
+            push_u32_le(ctx["code"], insn_dup_2d(4, 0))
+
+            // X5 = n / 4 (vector groups of 4 i32s)
+            push_u32_le(ctx["code"], insn_mov_reg(5, 2))
+            push_u32_le(ctx["code"], insn_movz(6, 2))         // X6 = 2
+            push_u32_le(ctx["code"], insn_lsrv(5, 5, 6))       // X5 = X5 >> 2
+            push_u32_le(ctx["code"], insn_mov_reg(7, 5))       // X7 = groups (save for remainder)
+
+            // If groups == 0, skip vector loop.
+            push_u32_le(ctx["code"], insn_cmp_reg(5, 31))      // CMP X5, XZR
+            var br_skip_vec = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var vec_loop = oren_list_len(ctx["code"])
+            // Load 16 bytes (4x i32) from each pointer.
+            push_u32_le(ctx["code"], insn_ldr_q(0, 3))         // Q0 = *(u128*)a_ptr
+            push_u32_le(ctx["code"], insn_ldr_q(1, 4))         // Q1 = *(u128*)b_ptr
+            push_u32_le(ctx["code"], insn_add_imm(3, 3, 16))   // a_ptr += 16
+            push_u32_le(ctx["code"], insn_add_imm(4, 4, 16))   // b_ptr += 16
+
+            // Multiply-accumulate:
+            //   smull  v2.2d, v0.2s, v1.2s
+            //   smull2 v3.2d, v0.4s, v1.4s
+            //   v2 += v3
+            //   v4 += v2
+            push_u32_le(ctx["code"], insn_smull_2d(2, 0, 1))
+            push_u32_le(ctx["code"], insn_smull2_2d(3, 0, 1))
+            push_u32_le(ctx["code"], insn_add_2d(2, 2, 3))
+            push_u32_le(ctx["code"], insn_add_2d(4, 4, 2))
+
+            // groups--
+            push_u32_le(ctx["code"], insn_sub_imm(5, 5, 1))
+            push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
+            var br_vec_loop = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var vec_end = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_skip_vec, insn_b_cond((vec_end - br_skip_vec) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_vec_loop, insn_b_cond((vec_loop - br_vec_loop) / 4, 1)) // NE
+
+            // Reduce V4.2D -> X0:
+            //   addp v4.2d, v4.2d, v4.2d
+            //   umov x0, v4.d[0]
+            push_u32_le(ctx["code"], insn_addp_2d(4, 4, 4))
+            push_u32_le(ctx["code"], insn_umov_x_d(0, 4))
+
+            // Remainder count: n - (groups_saved * 4)
+            push_u32_le(ctx["code"], insn_lslv(7, 7, 6))       // X7 = groups * 4
+            push_u32_le(ctx["code"], insn_sub_reg(2, 2, 7))    // X2 = rem
+
+            // If rem == 0, done.
+            push_u32_le(ctx["code"], insn_cmp_reg(2, 31))
+            var br_done = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            // Scalar tail loop (sign-extended i32 loads).
+            var tail_loop = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], insn_ldrsw(9, 3, 0))       // X9 = (i64)*(i32*)a_ptr
+            push_u32_le(ctx["code"], insn_add_imm(3, 3, 4))
+            push_u32_le(ctx["code"], insn_ldrsw(10, 4, 0))      // X10 = (i64)*(i32*)b_ptr
+            push_u32_le(ctx["code"], insn_add_imm(4, 4, 4))
+            push_u32_le(ctx["code"], insn_mul(9, 9, 10))
+            push_u32_le(ctx["code"], insn_add_reg(0, 0, 9))
+            push_u32_le(ctx["code"], insn_sub_imm(2, 2, 1))
+            push_u32_le(ctx["code"], insn_cmp_reg(2, 31))
+            var br_tail = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var done_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_done, insn_b_cond((done_pos - br_done) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_tail, insn_b_cond((tail_loop - br_tail) / 4, 1)) // NE
+
+            return nil
+        }
+
         if fn_name == "oren_f32_round" {
             // Intrinsic: round a float64 value to float32 and back to float64 bits.
             // This is the semantic core of `f32` annotations in the native backend.
