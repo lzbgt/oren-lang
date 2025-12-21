@@ -1,0 +1,63 @@
+// std/net/udp (rolling)
+//
+// Goal:
+// - Expose a minimal syscall-first UDP substrate as a stable stdlib surface.
+// - Keep the API small and predictable (no DNS, no TLS, no multicast yet).
+//
+// Notes:
+// - All operations are capability-gated by the runtime capsule (`domain="NET"`).
+// - All potentially-blocking operations accept `timeout_ms` to avoid hangs.
+//   - `timeout_ms < 0` means "no timeout" (backend-dependent); avoid this in tests.
+// - Return convention (rolling):
+//   - `fd` / byte-count: `>= 0` on success
+//   - negative errno: `< 0` on failure
+
+import result "result.oren"
+
+// --- Raw syscall-style wrappers (recommended for performance) ---
+
+fn bind_local(port) {
+    // Bind a UDP socket to 127.0.0.1:<port>.
+    // `port` may be 0 to request an ephemeral port.
+    return oren_udp_bind_local(port)
+}
+
+fn sockname_port(fd) {
+    // Returns the local bound port (>=1) or -errno.
+    return oren_udp_sockname_port(fd)
+}
+
+fn send_to(fd, ip, port, buf, len, timeout_ms) {
+    // Send a datagram to (ip, port).
+    // Returns bytes written, or -errno.
+    return oren_udp_sendto(fd, ip, port, buf, len, timeout_ms)
+}
+
+fn recv_into(fd, buf, len, timeout_ms) {
+    // Receive a datagram into buf.
+    // Returns bytes read, or -errno.
+    return oren_udp_recvfrom_into(fd, buf, len, timeout_ms)
+}
+
+fn close(fd) {
+    return oren_udp_close(fd)
+}
+
+// --- Structured Result helpers (optional) ---
+
+fn bind_local_ok(port) {
+    return result.ok_or_errno(bind_local(port), "udp.bind_local")
+}
+
+fn sockname_port_ok(fd) {
+    return result.ok_or_errno(sockname_port(fd), "udp.sockname_port")
+}
+
+fn send_to_ok(fd, ip, port, buf, len, timeout_ms) {
+    return result.ok_or_errno(send_to(fd, ip, port, buf, len, timeout_ms), "udp.send_to")
+}
+
+fn recv_into_ok(fd, buf, len, timeout_ms) {
+    return result.ok_or_errno(recv_into(fd, buf, len, timeout_ms), "udp.recv_into")
+}
+

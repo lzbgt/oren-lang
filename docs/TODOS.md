@@ -105,10 +105,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 2) **[stdlib][net] Native networking foundations**
    - DoD:
-     - Minimal syscall-first TCP stack surface (connect/listen/accept/read/write) + select/poll abstraction (`kqueue` on macOS; `epoll` later).
+     - Minimal syscall-first TCP + UDP surface (connect/listen/accept/read/write, sendto/recvfrom) + readiness wait abstraction (`kqueue` on macOS; `epoll` on Linux).
      - Clear separation between VirtualNET (pure) and HostNET (capability-gated).
    - Current rolling note:
      - Added `std/net/tcp` module (`lib/std/net/tcp.oren`) exposing the syscall-first TCP substrate as a stable stdlib surface.
+     - Added `std/net/udp` module (`lib/std/net/udp.oren`) exposing the syscall-first UDP substrate (loopback bind + send/recv with timeouts).
      - `std/net/http` now implements `http.get_text(url, timeout_ms)` on top of `std/net/tcp` (no hidden runtime-only helper).
      - Multi-fd readiness wait is available via `oren_fd_wait_any_{readable,writable}` (kqueue on macOS, epoll on Linux), and wrapped by `tcp.wait_any_{readable,writable}`.
 
