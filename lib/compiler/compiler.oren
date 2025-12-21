@@ -50,6 +50,7 @@ fn cli_spec() {
     argparse.cmd_option(build, "--notary-profile", nil, "string", "", "(macOS) notarytool keychain profile")
     argparse.cmd_flag(build, "--no-gc", nil, "Disable GC scanning (also via env OREN_NO_GC=1)")
     argparse.cmd_flag(build, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds")
+    argparse.cmd_flag(build, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed builds)")
     var emitc = argparse.add_command(p, "emit-c", "Alias for: build --backend c --emit-c")
     argparse.cmd_positional(emitc, "file.oren", true, "Input source file")
 
@@ -61,6 +62,7 @@ fn cli_spec() {
     argparse.cmd_flag(meta, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
     argparse.cmd_option(meta, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
     argparse.cmd_flag(meta, "--deterministic", nil, "Deterministic mode: emit stable artifact hash (sha256) for metadata output")
+    argparse.cmd_flag(meta, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed metadata)")
 
     var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
     argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
@@ -166,6 +168,61 @@ fn _sha256_hex(bs) {
 fn _emit_artifact_hash(kind, path, bs) {
     var h = _sha256_hex(bs)
     print("OREN_ARTIFACT kind=" + kind + " sha256=" + h + " path=" + path)
+    return nil
+}
+
+fn _json_escape(s) {
+    // Minimal JSON string escaping for deterministic manifest emission.
+    // Escapes: backslash and double-quote, plus \n/\r/\t.
+    if s == nil { return "" }
+    var bs = oren_bytes_from_string(s)
+    var out = ""
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 92 { out = out + "\\\\" } // '\'
+        else {
+            if b == 34 { out = out + "\\\"" } // '"'
+            else {
+                if b == 10 { out = out + "\\n" }
+                else {
+                    if b == 13 { out = out + "\\r" }
+                    else {
+                        if b == 9 { out = out + "\\t" }
+                        else { out = out + oren_string_char_at(s, i) }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic) {
+    // Machine-readable artifact record for Compiler-in-AVM v2.
+    //
+    // Manifest path: <artifact_path>.manifest.json
+    // Determinism note: the manifest itself is emitted deterministically (stable key order).
+    var mp = path + ".manifest.json"
+    var det = "false"
+    if deterministic { det = "true" }
+    var s = "{\"version\":1," +
+        "\"kind\":\"" + _json_escape(kind) + "\"," +
+        "\"sha256\":\"" + _json_escape(sha256_hex) + "\"," +
+        "\"path\":\"" + _json_escape(path) + "\"," +
+        "\"target\":\"" + _json_escape(target) + "\"," +
+        "\"arch\":\"" + _json_escape(arch) + "\"," +
+        "\"deterministic\":" + det +
+        "}\n"
+    var w = oren_write_file(mp, s)
+    if oren_is_err(w) {
+        print("Failed to write manifest: " + mp)
+        var msg = oren_err_msg(w)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
+    print("Wrote manifest: " + mp)
     return nil
 }
 
@@ -1483,6 +1540,7 @@ fn compiler_main() {
         var out_meta = strip_suffix(path, ".oren") + ".meta.json"
 
         var deterministic = false
+        var emit_manifest = false
         var env_det = oren_env("OREN_DETERMINISTIC")
         if env_det != nil { deterministic = true }
 
@@ -1536,9 +1594,14 @@ fn compiler_main() {
                                     deterministic = true
                                     i = i + 1
                                 } else {
-                                    emit_diag("compile", 2, "Unknown arg: " + args[i])
-                                    print("Unknown arg: " + args[i])
-                                    oren_exit(2)
+                                    if args[i] == "--manifest" {
+                                        emit_manifest = true
+                                        i = i + 1
+                                    } else {
+                                        emit_diag("compile", 2, "Unknown arg: " + args[i])
+                                        print("Unknown arg: " + args[i])
+                                        oren_exit(2)
+                                    }
                                 }
                             }
                         }
@@ -1589,7 +1652,7 @@ fn compiler_main() {
             oren_exit(1)
         }
         print("Wrote metadata: " + out_meta)
-        if deterministic {
+        if deterministic || emit_manifest {
             var bs = oren_read_bytes(out_meta)
             if oren_is_err(bs) {
                 var emsgH = "Failed to read artifact for hashing: " + out_meta
@@ -1600,7 +1663,11 @@ fn compiler_main() {
                 if msgH != nil { print(msgH) }
                 oren_exit(1)
             }
-            _emit_artifact_hash("meta", out_meta, bs)
+            if deterministic { _emit_artifact_hash("meta", out_meta, bs) }
+            if emit_manifest {
+                var h = _sha256_hex(bs)
+                _write_artifact_manifest("meta", out_meta, h, target, arch, deterministic)
+            }
         }
         return nil
     }
@@ -1624,6 +1691,7 @@ fn compiler_main() {
     var emit_meta = false
     var is_shared_lib = false
     var deterministic = false
+    var emit_manifest = false
     var do_typecheck = false
     // Rolling mode: default native builds to embed debug info so panics produce readable stack traces.
     // Users can still disable by explicitly setting OREN_NATIVE_NO_DEBUG=1 (kept as an env knob so we
@@ -1790,9 +1858,14 @@ fn compiler_main() {
                                                                             deterministic = true
                                                                             i = i + 1
                                                                         } else {
+                                                                            if args[i] == "--manifest" {
+                                                                                emit_manifest = true
+                                                                                i = i + 1
+                                                                            } else {
                                                                             emit_diag("compile", 2, "Unknown arg: " + args[i])
                                                                             print("Unknown arg: " + args[i])
                                                                             oren_exit(2)
+                                                                            }
                                         }
                                     }
                                 }
@@ -1915,6 +1988,10 @@ fn compiler_main() {
         var out_bytes = codegen_bytecode.bytecode_emit_program(out_path, ctx)
         print("Bytecode emitted: " + out_path)
         if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
+        if emit_manifest {
+            var h = _sha256_hex(out_bytes)
+            _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic)
+        }
         return nil
     }
 
@@ -2036,7 +2113,7 @@ fn compiler_main() {
             }
         }
         
-        if deterministic {
+        if deterministic || emit_manifest {
             var bs = oren_read_bytes(out_path)
             if oren_is_err(bs) {
                 print("Failed to read artifact for hashing: " + out_path)
@@ -2044,7 +2121,11 @@ fn compiler_main() {
                 if msgH != nil { print(msgH) }
                 oren_exit(1)
             }
-            _emit_artifact_hash("native", out_path, bs)
+            if deterministic { _emit_artifact_hash("native", out_path, bs) }
+            if emit_manifest {
+                var h = _sha256_hex(bs)
+                _write_artifact_manifest("native", out_path, h, target, arch, deterministic)
+            }
         }
 
         print("Build successful: " + out_path)
@@ -2147,7 +2228,7 @@ fn compiler_main() {
         }
     }
     print("Build successful: " + out_path)
-    if deterministic {
+    if deterministic || emit_manifest {
         var bsC = oren_read_bytes(out_path)
         if oren_is_err(bsC) {
             print("Failed to read artifact for hashing: " + out_path)
@@ -2155,7 +2236,11 @@ fn compiler_main() {
             if msgHC != nil { print(msgHC) }
             oren_exit(1)
         }
-        _emit_artifact_hash("c", out_path, bsC)
+        if deterministic { _emit_artifact_hash("c", out_path, bsC) }
+        if emit_manifest {
+            var h = _sha256_hex(bsC)
+            _write_artifact_manifest("c", out_path, h, target, arch, deterministic)
+        }
     }
     return nil
 }

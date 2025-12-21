@@ -365,6 +365,47 @@ fn test_typed_buffers() {
     assert_eq(oren_buf_load_f64(mk_out64, 2), 3.0)
     assert_eq(oren_buf_load_f64(mk_out64, 3), 4.0)
 
+    // 1x4 f64 dot microkernel: determinism guard (bitwise compare vs scalar reference).
+    // This must stay stable even when AVM_ENABLE_SIMD=1 enables optional NEON fast paths.
+    var ndot = 9 // odd to exercise tail
+    var da = oren_f64_buf_new(ndot)
+    var db = oren_f64_buf_new(4 * ndot)
+    var dout = oren_f64_buf_new(4)
+    var dref = oren_f64_buf_new(4)
+    var i = 0
+    while i < ndot {
+        // Non-power-of-two fractions so reassociation/FMA shows up.
+        var av = 0.1 + (f64(i) * 0.125) + (f64(i % 3) * 0.2)
+        oren_buf_store_f64(da, i, av)
+        // Four columns, each with a different pattern.
+        oren_buf_store_f64(db, 0 * ndot + i, 0.3 + (f64(i) * 0.25) + (f64(i % 5) * 0.1))
+        oren_buf_store_f64(db, 1 * ndot + i, 0.5 + (f64(i) * 0.125) - (f64(i % 2) * 0.05))
+        oren_buf_store_f64(db, 2 * ndot + i, 0.7 + (f64(i) * 0.0625) + (f64(i % 7) * 0.03))
+        oren_buf_store_f64(db, 3 * ndot + i, 0.9 + (f64(i) * 0.03125) - (f64(i % 4) * 0.02))
+        i = i + 1
+    }
+    // Scalar reference
+    var col = 0
+    while col < 4 {
+        var s = 0.0
+        i = 0
+        while i < ndot {
+            s = s + oren_buf_load_f64(da, i) * oren_buf_load_f64(db, col * ndot + i)
+            i = i + 1
+        }
+        oren_buf_store_f64(dref, col, s)
+        col = col + 1
+    }
+    // Kernel
+    oren_buf_dot_f64_4_slice_into(dout, 0, da, 0, db, 0 * ndot, 1 * ndot, 2 * ndot, 3 * ndot, ndot)
+    col = 0
+    while col < 4 {
+        var got_bits = oren_f64_to_u64_bits(oren_buf_load_f64(dout, col))
+        var ref_bits = oren_f64_to_u64_bits(oren_buf_load_f64(dref, col))
+        assert_eq(got_bits, ref_bits)
+        col = col + 1
+    }
+
     // 4x4 f32 GEMM microkernel: 16 dot products (4 rows x 4 cols) in one call.
     // Layout contract:
     // - A rows are contiguous slices (row-major): row r at offset r*n

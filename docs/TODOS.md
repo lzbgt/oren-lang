@@ -102,6 +102,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
         - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f64_4x4_ptr` (bit-exact vs scalar reference; preserves strict k-order).
         - C AVM now has an optional **NEON** fast path for `native_id=131` when `AVM_ENABLE_SIMD=1` (bit-exact; lane-ordered accumulation).
       - C AVM now has optional **NEON** fast paths (bit-exact; lane-ordered accumulation) for:
+        - `native_id=130` (`oren_buf_dot_f64_4_slice_into`) when `AVM_ENABLE_SIMD=1`
         - `native_id=128` (`oren_buf_gemm_f32_4x4_slice_into`) when `AVM_ENABLE_SIMD=1`
         - `native_id=129` (`oren_buf_gemm_i32_4x4_slice_into`) when `AVM_ENABLE_SIMD=1`
         - `matmul_f64_buf` now uses a 4-row/4-col block path (packed and non-packed) to reuse packed-B across 4 rows and reduce call overhead.
@@ -125,6 +126,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - `.obc` artifacts are content-addressed and verifiable (hash IDs + manifest).
      - Governance hooks exist for module load policies (capsule-style).
      - Still no host FS effects when running compiler in a child universe (VirtualFS only).
+   - Current rolling note:
+     - `oren build` / `oren meta` now support `--manifest` to emit `<out>.manifest.json` with a stable `sha256` record (use with `--deterministic` for content-addressed builds).
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
