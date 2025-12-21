@@ -95,6 +95,18 @@ static uint64_t u64_from_i64(int64_t v) {
     return out;
 }
 
+static float f32_from_u32_bits(uint32_t u) {
+    float out = 0.0f;
+    memcpy(&out, &u, sizeof(out));
+    return out;
+}
+
+static uint64_t f64_to_u64_bits(double v) {
+    uint64_t out = 0;
+    memcpy(&out, &v, sizeof(out));
+    return out;
+}
+
 static OrenValue buf_new(uint32_t elem_size, OrenValue lenv, OrenType ty) {
     if (lenv.type != OREN_TYPE_INT) {
         return buf_err("buf_new expects (int)");
@@ -1653,6 +1665,196 @@ OrenValue oren_buf_dot_f32_4_slice_into(
     store_u64_le(buf_data(bout) + (out_off + 1u) * 8u, u1);
     store_u64_le(buf_data(bout) + (out_off + 2u) * 8u, u2);
     store_u64_le(buf_data(bout) + (out_off + 3u) * 8u, u3);
+    return out;
+}
+
+OrenValue oren_buf_gemm_f32_4x4_slice_into(
+    OrenValue out, OrenValue out_offv,
+    OrenValue a, OrenValue a0_offv, OrenValue a1_offv, OrenValue a2_offv, OrenValue a3_offv,
+    OrenValue b, OrenValue b0_offv, OrenValue b1_offv, OrenValue b2_offv, OrenValue b3_offv,
+    OrenValue nv) {
+    if (!buf_is_f64(out) || out_offv.type != OREN_TYPE_INT
+        || !buf_is_f32(a) || a0_offv.type != OREN_TYPE_INT || a1_offv.type != OREN_TYPE_INT || a2_offv.type != OREN_TYPE_INT || a3_offv.type != OREN_TYPE_INT
+        || !buf_is_f32(b)
+        || b0_offv.type != OREN_TYPE_INT || b1_offv.type != OREN_TYPE_INT || b2_offv.type != OREN_TYPE_INT || b3_offv.type != OREN_TYPE_INT
+        || nv.type != OREN_TYPE_INT) {
+        return buf_err("oren_buf_gemm_f32_4x4_slice_into expects (f64_buf,int,f32_buf,int,int,int,int,f32_buf,int,int,int,int,int)");
+    }
+
+    OrenBuf* bout = out.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    long long out_off_ll = out_offv.as.int_val;
+    long long a0_off_ll = a0_offv.as.int_val;
+    long long a1_off_ll = a1_offv.as.int_val;
+    long long a2_off_ll = a2_offv.as.int_val;
+    long long a3_off_ll = a3_offv.as.int_val;
+    long long b0_off_ll = b0_offv.as.int_val;
+    long long b1_off_ll = b1_offv.as.int_val;
+    long long b2_off_ll = b2_offv.as.int_val;
+    long long b3_off_ll = b3_offv.as.int_val;
+    long long n_ll = nv.as.int_val;
+
+    if (out_off_ll < 0 || a0_off_ll < 0 || a1_off_ll < 0 || a2_off_ll < 0 || a3_off_ll < 0
+        || b0_off_ll < 0 || b1_off_ll < 0 || b2_off_ll < 0 || b3_off_ll < 0 || n_ll < 0) {
+        return buf_err("buf_gemm_f32_4x4_slice_into: negative arg");
+    }
+    if ((uint64_t)out_off_ll > (uint64_t)bout->len || (uint64_t)bout->len - (uint64_t)out_off_ll < 16u) {
+        return buf_err("buf_gemm_f32_4x4_slice_into: out range out of bounds");
+    }
+
+    if ((uint64_t)a0_off_ll > (uint64_t)ba->len || (uint64_t)a1_off_ll > (uint64_t)ba->len
+        || (uint64_t)a2_off_ll > (uint64_t)ba->len || (uint64_t)a3_off_ll > (uint64_t)ba->len) {
+        return buf_err("buf_gemm_f32_4x4_slice_into: a_off out of bounds");
+    }
+    if ((uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a0_off_ll
+        || (uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a1_off_ll
+        || (uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a2_off_ll
+        || (uint64_t)n_ll > (uint64_t)ba->len - (uint64_t)a3_off_ll) {
+        return buf_err("buf_gemm_f32_4x4_slice_into: a range out of bounds");
+    }
+
+    if ((uint64_t)b0_off_ll > (uint64_t)bb->len || (uint64_t)b1_off_ll > (uint64_t)bb->len
+        || (uint64_t)b2_off_ll > (uint64_t)bb->len || (uint64_t)b3_off_ll > (uint64_t)bb->len) {
+        return buf_err("buf_gemm_f32_4x4_slice_into: b_off out of bounds");
+    }
+    if ((uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b0_off_ll
+        || (uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b1_off_ll
+        || (uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b2_off_ll
+        || (uint64_t)n_ll > (uint64_t)bb->len - (uint64_t)b3_off_ll) {
+        return buf_err("buf_gemm_f32_4x4_slice_into: b range out of bounds");
+    }
+
+    uint32_t n = (uint32_t)n_ll;
+    uint32_t out_off = (uint32_t)out_off_ll;
+    uint32_t a0_off = (uint32_t)a0_off_ll;
+    uint32_t a1_off = (uint32_t)a1_off_ll;
+    uint32_t a2_off = (uint32_t)a2_off_ll;
+    uint32_t a3_off = (uint32_t)a3_off_ll;
+    uint32_t b0_off = (uint32_t)b0_off_ll;
+    uint32_t b1_off = (uint32_t)b1_off_ll;
+    uint32_t b2_off = (uint32_t)b2_off_ll;
+    uint32_t b3_off = (uint32_t)b3_off_ll;
+
+    // Accumulate in f64, deterministic k order.
+    double c00 = 0.0, c01 = 0.0, c02 = 0.0, c03 = 0.0;
+    double c10 = 0.0, c11 = 0.0, c12 = 0.0, c13 = 0.0;
+    double c20 = 0.0, c21 = 0.0, c22 = 0.0, c23 = 0.0;
+    double c30 = 0.0, c31 = 0.0, c32 = 0.0, c33 = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 4u) {
+        const uint32_t* pa0 = (const uint32_t*)(const void*)(buf_data(ba) + a0_off * 4u);
+        const uint32_t* pa1 = (const uint32_t*)(const void*)(buf_data(ba) + a1_off * 4u);
+        const uint32_t* pa2 = (const uint32_t*)(const void*)(buf_data(ba) + a2_off * 4u);
+        const uint32_t* pa3 = (const uint32_t*)(const void*)(buf_data(ba) + a3_off * 4u);
+
+        const uint32_t* pb0 = (const uint32_t*)(const void*)(buf_data(bb) + b0_off * 4u);
+        const uint32_t* pb1 = (const uint32_t*)(const void*)(buf_data(bb) + b1_off * 4u);
+        const uint32_t* pb2 = (const uint32_t*)(const void*)(buf_data(bb) + b2_off * 4u);
+        const uint32_t* pb3 = (const uint32_t*)(const void*)(buf_data(bb) + b3_off * 4u);
+
+        // Vectorize across columns (pairs) using f64 lanes; no FMA to avoid contraction.
+        for (uint32_t i = 0; i < n; i++) {
+            float64_t a0d = (float64_t)f32_from_u32_bits(pa0[i]);
+            float64_t a1d = (float64_t)f32_from_u32_bits(pa1[i]);
+            float64_t a2d = (float64_t)f32_from_u32_bits(pa2[i]);
+            float64_t a3d = (float64_t)f32_from_u32_bits(pa3[i]);
+
+            float64_t b0d = (float64_t)f32_from_u32_bits(pb0[i]);
+            float64_t b1d = (float64_t)f32_from_u32_bits(pb1[i]);
+            float64_t b2d = (float64_t)f32_from_u32_bits(pb2[i]);
+            float64_t b3d = (float64_t)f32_from_u32_bits(pb3[i]);
+
+            float64x2_t vb01 = {b0d, b1d};
+            float64x2_t vb23 = {b2d, b3d};
+
+            // row 0
+            {
+                float64x2_t va = vdupq_n_f64(a0d);
+                float64x2_t p01 = vmulq_f64(va, vb01);
+                float64x2_t p23 = vmulq_f64(va, vb23);
+                c00 += vgetq_lane_f64(p01, 0);
+                c01 += vgetq_lane_f64(p01, 1);
+                c02 += vgetq_lane_f64(p23, 0);
+                c03 += vgetq_lane_f64(p23, 1);
+            }
+            // row 1
+            {
+                float64x2_t va = vdupq_n_f64(a1d);
+                float64x2_t p01 = vmulq_f64(va, vb01);
+                float64x2_t p23 = vmulq_f64(va, vb23);
+                c10 += vgetq_lane_f64(p01, 0);
+                c11 += vgetq_lane_f64(p01, 1);
+                c12 += vgetq_lane_f64(p23, 0);
+                c13 += vgetq_lane_f64(p23, 1);
+            }
+            // row 2
+            {
+                float64x2_t va = vdupq_n_f64(a2d);
+                float64x2_t p01 = vmulq_f64(va, vb01);
+                float64x2_t p23 = vmulq_f64(va, vb23);
+                c20 += vgetq_lane_f64(p01, 0);
+                c21 += vgetq_lane_f64(p01, 1);
+                c22 += vgetq_lane_f64(p23, 0);
+                c23 += vgetq_lane_f64(p23, 1);
+            }
+            // row 3
+            {
+                float64x2_t va = vdupq_n_f64(a3d);
+                float64x2_t p01 = vmulq_f64(va, vb01);
+                float64x2_t p23 = vmulq_f64(va, vb23);
+                c30 += vgetq_lane_f64(p01, 0);
+                c31 += vgetq_lane_f64(p01, 1);
+                c32 += vgetq_lane_f64(p23, 0);
+                c33 += vgetq_lane_f64(p23, 1);
+            }
+        }
+    } else
+#endif
+    {
+        for (uint32_t i = 0; i < n; i++) {
+            float a0v = f32_from_u32_bits(load_u32_le(buf_data(ba) + (a0_off + i) * 4u));
+            float a1v = f32_from_u32_bits(load_u32_le(buf_data(ba) + (a1_off + i) * 4u));
+            float a2v = f32_from_u32_bits(load_u32_le(buf_data(ba) + (a2_off + i) * 4u));
+            float a3v = f32_from_u32_bits(load_u32_le(buf_data(ba) + (a3_off + i) * 4u));
+
+            float b0v = f32_from_u32_bits(load_u32_le(buf_data(bb) + (b0_off + i) * 4u));
+            float b1v = f32_from_u32_bits(load_u32_le(buf_data(bb) + (b1_off + i) * 4u));
+            float b2v = f32_from_u32_bits(load_u32_le(buf_data(bb) + (b2_off + i) * 4u));
+            float b3v = f32_from_u32_bits(load_u32_le(buf_data(bb) + (b3_off + i) * 4u));
+
+            double da0 = (double)a0v, da1 = (double)a1v, da2 = (double)a2v, da3 = (double)a3v;
+            double db0 = (double)b0v, db1 = (double)b1v, db2 = (double)b2v, db3 = (double)b3v;
+
+            c00 += da0 * db0; c01 += da0 * db1; c02 += da0 * db2; c03 += da0 * db3;
+            c10 += da1 * db0; c11 += da1 * db1; c12 += da1 * db2; c13 += da1 * db3;
+            c20 += da2 * db0; c21 += da2 * db1; c22 += da2 * db2; c23 += da2 * db3;
+            c30 += da3 * db0; c31 += da3 * db1; c32 += da3 * db2; c33 += da3 * db3;
+        }
+    }
+
+    // Store as f64 elements (little-endian), row-major.
+    store_u64_le(buf_data(bout) + (out_off + 0u) * 8u, f64_to_u64_bits(c00));
+    store_u64_le(buf_data(bout) + (out_off + 1u) * 8u, f64_to_u64_bits(c01));
+    store_u64_le(buf_data(bout) + (out_off + 2u) * 8u, f64_to_u64_bits(c02));
+    store_u64_le(buf_data(bout) + (out_off + 3u) * 8u, f64_to_u64_bits(c03));
+
+    store_u64_le(buf_data(bout) + (out_off + 4u) * 8u, f64_to_u64_bits(c10));
+    store_u64_le(buf_data(bout) + (out_off + 5u) * 8u, f64_to_u64_bits(c11));
+    store_u64_le(buf_data(bout) + (out_off + 6u) * 8u, f64_to_u64_bits(c12));
+    store_u64_le(buf_data(bout) + (out_off + 7u) * 8u, f64_to_u64_bits(c13));
+
+    store_u64_le(buf_data(bout) + (out_off + 8u) * 8u, f64_to_u64_bits(c20));
+    store_u64_le(buf_data(bout) + (out_off + 9u) * 8u, f64_to_u64_bits(c21));
+    store_u64_le(buf_data(bout) + (out_off + 10u) * 8u, f64_to_u64_bits(c22));
+    store_u64_le(buf_data(bout) + (out_off + 11u) * 8u, f64_to_u64_bits(c23));
+
+    store_u64_le(buf_data(bout) + (out_off + 12u) * 8u, f64_to_u64_bits(c30));
+    store_u64_le(buf_data(bout) + (out_off + 13u) * 8u, f64_to_u64_bits(c31));
+    store_u64_le(buf_data(bout) + (out_off + 14u) * 8u, f64_to_u64_bits(c32));
+    store_u64_le(buf_data(bout) + (out_off + 15u) * 8u, f64_to_u64_bits(c33));
+
     return out;
 }
 

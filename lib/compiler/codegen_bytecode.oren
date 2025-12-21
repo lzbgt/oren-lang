@@ -1316,6 +1316,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_fail" { native_id = 121 }
         if name == "oren_buf_dot_i32_4_slice_into" { native_id = 122 }
         if name == "oren_buf_dot_f32_4_slice_into" { native_id = 127 }
+        if name == "oren_buf_gemm_f32_4x4_slice_into" { native_id = 128 }
 
         if native_id != -1 {
             var args = expr["args"]

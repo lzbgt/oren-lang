@@ -6669,6 +6669,93 @@ fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     return out
 }
 
+fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_off, b, b0_off, b1_off, b2_off, b3_off, n) {
+    // Compute a 4x4 block of dot-products in one pass over the shared k range.
+    //
+    // Writes 16 f64 results into `out` starting at `out_off`, row-major:
+    //   out[out_off + (r*4 + c)] = dot_f32(a[a_r_off..a_r_off+n), b[b_c_off..b_c_off+n))
+    //
+    // Semantics:
+    // - widen f32 -> f64
+    // - multiply in f64
+    // - accumulate in fixed increasing-k order (deterministic)
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    if out_off < 0 || a0_off < 0 || a1_off < 0 || a2_off < 0 || a3_off < 0 || b0_off < 0 || b1_off < 0 || b2_off < 0 || b3_off < 0 || n < 0 { return oren_err(4, "buf_gemm_f32_4x4_slice_into: negative arg") }
+
+    var no = ptr_get(out + 0)
+    if out_off > no || no - out_off < 16 { return oren_err(4, "buf_gemm_f32_4x4_slice_into: out range out of bounds") }
+
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a0_off > na || a1_off > na || a2_off > na || a3_off > na { return oren_err(4, "buf_gemm_f32_4x4_slice_into: a_off out of bounds") }
+    if n > na - a0_off || n > na - a1_off || n > na - a2_off || n > na - a3_off { return oren_err(4, "buf_gemm_f32_4x4_slice_into: a range out of bounds") }
+    if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_gemm_f32_4x4_slice_into: b_off out of bounds") }
+    if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_gemm_f32_4x4_slice_into: b range out of bounds") }
+
+    // Native fast path (rolling):
+    // Reuse the existing, already bit-exact 1x4 dot microkernel to fill 4 rows.
+    //
+    // This is not a "true" single-pass 4x4 GEMM microkernel yet, but it preserves:
+    // - correctness (bitwise match to scalar reference)
+    // - deterministic k-order semantics (each dot accumulates k=0..n-1 in order)
+    //
+    // A future upgrade may switch this block to a true 4x4 single-pass intrinsic
+    // once its implementation is proven bit-exact across backends.
+    if native_simd_enabled() != 0 && n >= 4 {
+        var outp = native_buf_data_ptr(out) + out_off * 8
+        var pa0 = native_buf_data_ptr(a) + a0_off * 4
+        var pa1 = native_buf_data_ptr(a) + a1_off * 4
+        var pa2 = native_buf_data_ptr(a) + a2_off * 4
+        var pa3 = native_buf_data_ptr(a) + a3_off * 4
+        var pb0 = native_buf_data_ptr(b) + b0_off * 4
+        var pb1 = native_buf_data_ptr(b) + b1_off * 4
+        var pb2 = native_buf_data_ptr(b) + b2_off * 4
+        var pb3 = native_buf_data_ptr(b) + b3_off * 4
+
+        // Row 0 (out[0..3])
+        simd_dot_f32_4_ptr(outp + 0 * 32, pa0, pb0, pb1, pb2, pb3, n)
+        // Row 1 (out[4..7])
+        simd_dot_f32_4_ptr(outp + 1 * 32, pa1, pb0, pb1, pb2, pb3, n)
+        // Row 2 (out[8..11])
+        simd_dot_f32_4_ptr(outp + 2 * 32, pa2, pb0, pb1, pb2, pb3, n)
+        // Row 3 (out[12..15])
+        simd_dot_f32_4_ptr(outp + 3 * 32, pa3, pb0, pb1, pb2, pb3, n)
+        return out
+    }
+
+    // Scalar fallback (deterministic).
+    var c00 = 0.0; var c01 = 0.0; var c02 = 0.0; var c03 = 0.0
+    var c10 = 0.0; var c11 = 0.0; var c12 = 0.0; var c13 = 0.0
+    var c20 = 0.0; var c21 = 0.0; var c22 = 0.0; var c23 = 0.0
+    var c30 = 0.0; var c31 = 0.0; var c32 = 0.0; var c33 = 0.0
+    var i = 0
+    while i < n {
+        var a0 = oren_buf_load_f32(a, a0_off + i)
+        var a1 = oren_buf_load_f32(a, a1_off + i)
+        var a2 = oren_buf_load_f32(a, a2_off + i)
+        var a3 = oren_buf_load_f32(a, a3_off + i)
+        var b0 = oren_buf_load_f32(b, b0_off + i)
+        var b1 = oren_buf_load_f32(b, b1_off + i)
+        var b2 = oren_buf_load_f32(b, b2_off + i)
+        var b3 = oren_buf_load_f32(b, b3_off + i)
+        c00 = c00 + a0 * b0; c01 = c01 + a0 * b1; c02 = c02 + a0 * b2; c03 = c03 + a0 * b3
+        c10 = c10 + a1 * b0; c11 = c11 + a1 * b1; c12 = c12 + a1 * b2; c13 = c13 + a1 * b3
+        c20 = c20 + a2 * b0; c21 = c21 + a2 * b1; c22 = c22 + a2 * b2; c23 = c23 + a2 * b3
+        c30 = c30 + a3 * b0; c31 = c31 + a3 * b1; c32 = c32 + a3 * b2; c33 = c33 + a3 * b3
+        i = i + 1
+    }
+    oren_buf_store_f64(out, out_off + 0, c00); oren_buf_store_f64(out, out_off + 1, c01); oren_buf_store_f64(out, out_off + 2, c02); oren_buf_store_f64(out, out_off + 3, c03)
+    oren_buf_store_f64(out, out_off + 4, c10); oren_buf_store_f64(out, out_off + 5, c11); oren_buf_store_f64(out, out_off + 6, c12); oren_buf_store_f64(out, out_off + 7, c13)
+    oren_buf_store_f64(out, out_off + 8, c20); oren_buf_store_f64(out, out_off + 9, c21); oren_buf_store_f64(out, out_off + 10, c22); oren_buf_store_f64(out, out_off + 11, c23)
+    oren_buf_store_f64(out, out_off + 12, c30); oren_buf_store_f64(out, out_off + 13, c31); oren_buf_store_f64(out, out_off + 14, c32); oren_buf_store_f64(out, out_off + 15, c33)
+    return out
+}
+
 fn oren_buf_dot_f32(a, b): f64 {
     var ea = native_buf_check(a, BUF_TAG_F32, 4)
     if oren_is_err(ea) { return ea }

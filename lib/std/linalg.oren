@@ -374,8 +374,132 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
     var tmp4: []f64 = buffer.f64_new(4)
     if oren_is_err(tmp4) { return tmp4 }
 
+    // Reusable scratch for the 4x4 GEMM microkernel (packed path only).
+    var tmp16: []f64 = nil
+    if use_packed {
+        tmp16 = buffer.f64_new(16)
+        if oren_is_err(tmp16) { return tmp16 }
+    }
+
     var i = 0
     while i < m {
+        // Packed 4x4 microkernel: reuse B across 4 rows.
+        // Only applies when:
+        // - we are using packed-B layout
+        // - we have at least 4 rows remaining
+        if use_packed && i + 3 < m {
+            var bj_blk = 0
+            while bj_blk < tiles_j {
+                var base_j_blk = bj_blk * JB
+
+                if base_j_blk + 3 < p {
+                    // Full 4-column block: use the 4x4 microkernel per k-block.
+                    var s00 = 0.0; var s01 = 0.0; var s02 = 0.0; var s03 = 0.0
+                    var s10 = 0.0; var s11 = 0.0; var s12 = 0.0; var s13 = 0.0
+                    var s20 = 0.0; var s21 = 0.0; var s22 = 0.0; var s23 = 0.0
+                    var s30 = 0.0; var s31 = 0.0; var s32 = 0.0; var s33 = 0.0
+
+                    var bk_blk = 0
+                    while bk_blk < tiles_k {
+                        var kbase_blk = bk_blk * KB
+                        var kn_blk = n - kbase_blk
+                        if kn_blk > KB { kn_blk = KB }
+                        var base_tile_blk = (bj_blk * tiles_k + bk_blk) * JB * KB
+
+                        var rr = oren_buf_gemm_f32_4x4_slice_into(
+                            tmp16, 0,
+                            a,
+                            (i + 0) * n + kbase_blk,
+                            (i + 1) * n + kbase_blk,
+                            (i + 2) * n + kbase_blk,
+                            (i + 3) * n + kbase_blk,
+                            bp,
+                            base_tile_blk + 0 * KB,
+                            base_tile_blk + 1 * KB,
+                            base_tile_blk + 2 * KB,
+                            base_tile_blk + 3 * KB,
+                            kn_blk)
+                        if oren_is_err(rr) { return rr }
+
+                        // Accumulate partials in deterministic increasing-k order (per k-block).
+                        s00 = s00 + oren_buf_load_f64(tmp16, 0)
+                        s01 = s01 + oren_buf_load_f64(tmp16, 1)
+                        s02 = s02 + oren_buf_load_f64(tmp16, 2)
+                        s03 = s03 + oren_buf_load_f64(tmp16, 3)
+
+                        s10 = s10 + oren_buf_load_f64(tmp16, 4)
+                        s11 = s11 + oren_buf_load_f64(tmp16, 5)
+                        s12 = s12 + oren_buf_load_f64(tmp16, 6)
+                        s13 = s13 + oren_buf_load_f64(tmp16, 7)
+
+                        s20 = s20 + oren_buf_load_f64(tmp16, 8)
+                        s21 = s21 + oren_buf_load_f64(tmp16, 9)
+                        s22 = s22 + oren_buf_load_f64(tmp16, 10)
+                        s23 = s23 + oren_buf_load_f64(tmp16, 11)
+
+                        s30 = s30 + oren_buf_load_f64(tmp16, 12)
+                        s31 = s31 + oren_buf_load_f64(tmp16, 13)
+                        s32 = s32 + oren_buf_load_f64(tmp16, 14)
+                        s33 = s33 + oren_buf_load_f64(tmp16, 15)
+
+                        bk_blk = bk_blk + 1
+                    }
+
+                    // Store 4x4 block (round to f32 boundary at store).
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk + 0), f32(s00))
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk + 1), f32(s01))
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk + 2), f32(s02))
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk + 3), f32(s03))
+
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk + 0), f32(s10))
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk + 1), f32(s11))
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk + 2), f32(s12))
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk + 3), f32(s13))
+
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk + 0), f32(s20))
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk + 1), f32(s21))
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk + 2), f32(s22))
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk + 3), f32(s23))
+
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk + 0), f32(s30))
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk + 1), f32(s31))
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk + 2), f32(s32))
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk + 3), f32(s33))
+                } else {
+                    // Tail columns: use the existing per-row dot-slice path.
+                    var row = 0
+                    while row < 4 {
+                        var s0t = 0.0
+                        var s1t = 0.0
+                        var s2t = 0.0
+                        var s3t = 0.0
+                        var bk_t = 0
+                        while bk_t < tiles_k {
+                            var kbase_t = bk_t * KB
+                            var kn_t = n - kbase_t
+                            if kn_t > KB { kn_t = KB }
+                            var base_tile_t = (bj_blk * tiles_k + bk_t) * JB * KB
+                            if base_j_blk + 0 < p { s0t = s0t + oren_buf_dot_f32_slice(a, (i + row) * n + kbase_t, bp, base_tile_t + 0 * KB, kn_t) }
+                            if base_j_blk + 1 < p { s1t = s1t + oren_buf_dot_f32_slice(a, (i + row) * n + kbase_t, bp, base_tile_t + 1 * KB, kn_t) }
+                            if base_j_blk + 2 < p { s2t = s2t + oren_buf_dot_f32_slice(a, (i + row) * n + kbase_t, bp, base_tile_t + 2 * KB, kn_t) }
+                            if base_j_blk + 3 < p { s3t = s3t + oren_buf_dot_f32_slice(a, (i + row) * n + kbase_t, bp, base_tile_t + 3 * KB, kn_t) }
+                            bk_t = bk_t + 1
+                        }
+                        if base_j_blk + 0 < p { oren_buf_store_f32(out, (i + row) * p + (base_j_blk + 0), f32(s0t)) }
+                        if base_j_blk + 1 < p { oren_buf_store_f32(out, (i + row) * p + (base_j_blk + 1), f32(s1t)) }
+                        if base_j_blk + 2 < p { oren_buf_store_f32(out, (i + row) * p + (base_j_blk + 2), f32(s2t)) }
+                        if base_j_blk + 3 < p { oren_buf_store_f32(out, (i + row) * p + (base_j_blk + 3), f32(s3t)) }
+                        row = row + 1
+                    }
+                }
+
+                bj_blk = bj_blk + 1
+            }
+
+            i = i + 4
+            continue
+        }
+
         var bj2 = 0
         while bj2 < tiles_j {
             var base_j = bj2 * JB
