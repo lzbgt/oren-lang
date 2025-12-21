@@ -130,12 +130,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - **next:** optional packed-B tiles for larger matrices (still preserve per-output k-order determinism)
      - **done:** `dot_strided` primitive exists (`oren_buf_dot_*_strided`) for columnar access without transpose (still scalar today).
 
-2) **[stdlib][api] Serde annotations remain stable while language evolves**
-   - DoD:
-     - Keep attribute syntax short (`@pack`, `@json(...)`, `@yaml(...)`, `@cbor(...)`)
-     - Ensure unknown attrs are deterministic (ignored unless explicitly consumed)
-     - Add one integration test that roundtrips nested arrays/maps for JSON/YAML/CBOR
-
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.

@@ -1,0 +1,116 @@
+import json "../../lib/std/json.oren"
+import yaml "../../lib/std/yaml.oren"
+import cbor "../../lib/std/cbor.oren"
+
+fn fail(code) {
+    print("module format_nested_roundtrip FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_bytes_eq(got, exp, code) {
+    if oren_list_len(got) != oren_list_len(exp) { fail(code) }
+    var i = 0
+    while i < oren_list_len(got) {
+        if got[i] != exp[i] { fail(code) }
+        i = i + 1
+    }
+}
+
+// Integration test: nested arrays + maps must roundtrip deterministically across:
+// - JSON (string)
+// - YAML (string)
+// - CBOR (bytes, canonical)
+//
+// We intentionally build objects with keys inserted out-of-order to validate
+// the encoder emits canonical ordering (determinism requirement).
+
+fn test_json_nested_roundtrip() {
+    var inner = {}
+    inner["b"] = json.jint(2)
+    inner["a"] = json.jint(1)
+
+    var arr = [
+        json.jbool(true),
+        json.jnull(),
+        json.jarray([json.jint(3), json.jint(4)]),
+        json.jobject(inner),
+        json.jstring("x")
+    ]
+
+    var root = {}
+    root["z"] = json.jstring("last")
+    root["x"] = json.jarray(arr)
+    root["m"] = json.jobject({"k2": json.jint(2), "k1": json.jint(1)})
+
+    var v = json.jobject(root)
+    var s1 = json.encode(v)
+    var r = json.decode(s1)
+    assert_true(r != nil && r["ok"] == 1, 10)
+    var s2 = json.encode(r["v"])
+    assert_true(s1 == s2, 11)
+}
+
+fn test_yaml_nested_roundtrip() {
+    var inner = {}
+    inner["b"] = yaml.yint(2)
+    inner["a"] = yaml.yint(1)
+
+    var arr = [
+        yaml.ybool(true),
+        yaml.ynull(),
+        yaml.yarray([yaml.yint(3), yaml.yint(4)]),
+        yaml.yobject(inner),
+        yaml.ystring("x")
+    ]
+
+    var root = {}
+    root["z"] = yaml.ystring("last")
+    root["x"] = yaml.yarray(arr)
+    root["m"] = yaml.yobject({"k2": yaml.yint(2), "k1": yaml.yint(1)})
+
+    var v = yaml.yobject(root)
+    var s1 = yaml.encode(v)
+    var r = yaml.decode(s1)
+    assert_true(r != nil && r["ok"] == 1, 20)
+    var s2 = yaml.encode(r["v"])
+    assert_true(s1 == s2, 21)
+}
+
+fn test_cbor_nested_roundtrip() {
+    var inner = {}
+    inner["b"] = cbor.cint(2)
+    inner["a"] = cbor.cint(1)
+
+    var arr = [
+        cbor.cbool(1),
+        cbor.cnull(),
+        cbor.carray([cbor.cint(3), cbor.cint(4)]),
+        cbor.cmap(inner),
+        cbor.cstring("x")
+    ]
+
+    var root = {}
+    root["z"] = cbor.cstring("last")
+    root["x"] = cbor.carray(arr)
+    root["m"] = cbor.cmap({"k2": cbor.cint(2), "k1": cbor.cint(1)})
+
+    var v = cbor.cmap(root)
+    var bs1 = cbor.encode(v)
+    var r = cbor.decode(bs1)
+    assert_true(r != nil && r["ok"] == 1, 30)
+    var bs2 = cbor.encode(r["v"])
+    assert_bytes_eq(bs1, bs2, 31)
+}
+
+test_json_nested_roundtrip()
+test_yaml_nested_roundtrip()
+test_cbor_nested_roundtrip()
+
+print("module format_nested_roundtrip OK")
+exit(0)
+

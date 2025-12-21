@@ -731,3 +731,7 @@ Focus statement (to avoid roadmap thrash):
 - `oretest`: added a repeated-run determinism guard for `tests/avm/test_smoke_suite.oren` (rerun scalar mode, require `RESULT_HASH` + `TRACE_HASH` match).
 - Docs: clarified that AVM FLOAT constants are wired end-to-end and documented const tag `3` as float64 bit-pattern in the bootstrap spec (`docs/AVM_SPEC.md`).
 - Compiler: added `///` doc comments (lexer/parser) and exported docs in metadata JSON for functions/structs/traits (covered by `tests/modules/test_metadata_attrs.oren`).
+
+## 2025-12-21 (Recent)
+
+- Serde/format integration: added nested arrays+maps deterministic roundtrip coverage for JSON/YAML/CBOR (`tests/modules/test_format_nested_roundtrip.oren`).
