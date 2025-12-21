@@ -899,3 +899,28 @@ Focus statement (to avoid roadmap thrash):
 ## 2025-12-21 (Recent)
 
 - Serde/format integration: added nested arrays+maps deterministic roundtrip coverage for JSON/YAML/CBOR (`tests/modules/test_format_nested_roundtrip.oren`).
+
+## 2025-12-21 (Archived Summary Addendum)
+
+### Attribute system v1 + meta tooling (complete)
+
+- Unified attribute model (decorators + field annotations):
+  - ergonomic spellings like `@pack` and `@serde(...)` (no `@oren.` prefixes required)
+  - dotted namespaces (`@myorg.tag(...)`) and deterministic preservation of unknown attributes in metadata
+  - strict attribute mode (`--strict-attrs`, allow-prefixes) for governance/auditing
+- Tooling:
+  - `./oren meta` emits stable JSON metadata including `attrs` and a normalized `meta.serde` schema for serde-related annotations.
+  - Deterministic meta artifact hash (`--deterministic`) is wired into `cmd/oretest`.
+
+### YAML + CBOR adaptors (comments + streaming)
+
+- YAML (`std/yaml`) supports a deterministic YAML 1.2 subset suitable for config, including comment tolerance:
+  - `# ...` YAML comments (whitespace-start)
+  - `// ...` and `/* ... */` (C/JSON-style) with newline preservation for stable line numbers
+  - deterministic object key ordering on encode (sorted)
+- CBOR (`std/cbor`) supports:
+  - arrays/maps and canonical map ordering (RFC 8949 §4.2.1)
+  - CBOR sequences for streaming (RFC 8742): `decode_next` / `decode_sequence` (+ typed helpers for serde)
+- Tests:
+  - `tests/modules/test_yaml_comments.oren`
+  - `tests/modules/test_cbor_serde_streaming.oren`

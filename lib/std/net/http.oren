@@ -8,6 +8,194 @@
 // The goal is to provide a stable module path for native Oren libraries to build on,
 // while the syscall-first NET substrate evolves.
 
+import tcp "tcp.oren"
+
+fn _starts_with(s, prefix) {
+    if s == nil || prefix == nil { return 0 }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return 0 }
+    var i = 0
+    while i < pl {
+        if ptr_get_byte(s + i) != ptr_get_byte(prefix + i) { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
+fn _parse_http_url(url) {
+    // Supported:
+    //   http://<ipv4>[:port][/path]
+    //
+    // Returns {ok:1, host:string, port:int, path:string} or {ok:0, err:string}.
+    if url == nil { return {"ok": 0, "err": "url is nil"} }
+    if _starts_with(url, "http://") == 0 { return {"ok": 0, "err": "only http:// is supported"} }
+
+    var ul = oren_string_len(url)
+    var pos = 7 // len("http://")
+
+    // Find '/' for path start
+    var slash = -1
+    var i = pos
+    while i < ul {
+        if ptr_get_byte(url + i) == 47 { slash = i; break } // '/'
+        i = i + 1
+    }
+    if slash == -1 { slash = ul }
+
+    // Find ':' for port separator (only within host segment)
+    var colon = -1
+    i = pos
+    while i < slash {
+        if ptr_get_byte(url + i) == 58 { colon = i; break } // ':'
+        i = i + 1
+    }
+
+    var host_end = slash
+    if colon != -1 { host_end = colon }
+    if host_end <= pos { return {"ok": 0, "err": "missing host"} }
+
+    var host = oren_string_slice(url, pos, host_end)
+    if host == 0 { return {"ok": 0, "err": "host slice failed"} }
+
+    var port = 80
+    if colon != -1 {
+        var port_s = oren_string_slice(url, colon + 1, slash)
+        if port_s == 0 { return {"ok": 0, "err": "port slice failed"} }
+        var pv = oren_int_from_string(port_s)
+        if pv <= 0 { return {"ok": 0, "err": "invalid port"} }
+        port = pv
+    }
+
+    var path = "/"
+    if slash < ul {
+        path = oren_string_slice(url, slash, ul)
+        if path == 0 { return {"ok": 0, "err": "path slice failed"} }
+    }
+
+    return {"ok": 1, "host": host, "port": port, "path": path}
+}
+
+fn _build_get_request(host, path) {
+    // "GET <path> HTTP/1.0\r\nHost: <host>\r\nConnection: close\r\n\r\n"
+    var r0 = string_concat("GET ", path)
+    var r1 = string_concat(r0, " HTTP/1.0\r\nHost: ")
+    var r2 = string_concat(r1, host)
+    var r3 = string_concat(r2, "\r\nConnection: close\r\n\r\n")
+    // Free intermediates to avoid growth on repeated calls.
+    free(r0)
+    free(r1)
+    free(r2)
+    return r3
+}
+
+fn _find_header_body_split(buf, used) {
+    // Returns offset of body start, or 0 if not found.
+    var i = 0
+    while i + 3 < used {
+        if ptr_get_byte(buf + i) == 13 {
+            if ptr_get_byte(buf + i + 1) == 10 {
+                if ptr_get_byte(buf + i + 2) == 13 {
+                    if ptr_get_byte(buf + i + 3) == 10 {
+                        return i + 4
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn get_text(url, timeout_ms) {
+    // Returns:
+    //   {"ok":1,"v":string} on success
+    //   {"ok":0,"err":string} on failure
+    //
+    // v0 constraints:
+    // - no TLS/DNS
+    // - reads until close (no chunked decoding)
+    if timeout_ms == nil { timeout_ms = 5000 }
+
+    var pu = _parse_http_url(url)
+    if pu["ok"] != 1 { return {"ok": 0, "err": "http.get_text: " + pu["err"]} }
+
+    var host = pu["host"]
+    var port = pu["port"]
+    var path = pu["path"]
+
+    var fd = tcp.connect(host, port, timeout_ms)
+    if fd < 0 { return {"ok": 0, "err": "http.get_text: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"} }
+
+    var req = _build_get_request(host, path)
+    if req == 0 {
+        tcp.close(fd)
+        return {"ok": 0, "err": "http.get_text: request build failed"}
+    }
+
+    var req_len = oren_string_len(req)
+    var wr = tcp.write_from(fd, req, req_len, timeout_ms)
+    free(req)
+    if wr < 0 {
+        tcp.close(fd)
+        return {"ok": 0, "err": "http.get_text: write failed (errno=" + oren_int_to_string(0 - wr) + ")"} }
+
+    // Read full response into a growing buffer.
+    var cap = 4096
+    var used = 0
+    var buf = malloc(cap)
+    if buf == 0 {
+        tcp.close(fd)
+        return {"ok": 0, "err": "http.get_text: malloc failed"}
+    }
+
+    while 1 {
+        var tmp = malloc(1024)
+        if tmp == 0 { break }
+        var n = tcp.read_into(fd, tmp, 1024, timeout_ms)
+        if n <= 0 {
+            free(tmp)
+            break
+        }
+
+        while used + n > cap {
+            var new_cap = cap * 2
+            if new_cap < used + n { new_cap = used + n }
+            var new_buf = malloc(new_cap)
+            if new_buf == 0 { break }
+            oren_memcpy(new_buf, buf, used)
+            free(buf)
+            buf = new_buf
+            cap = new_cap
+        }
+
+        oren_memcpy(buf + used, tmp, n)
+        used = used + n
+        free(tmp)
+    }
+
+    tcp.close(fd)
+
+    // Split headers and body.
+    var body_off = _find_header_body_split(buf, used)
+    if body_off > used { body_off = used }
+    var body_len = used - body_off
+
+    var out = malloc(body_len + 1)
+    if out == 0 {
+        free(buf)
+        return {"ok": 0, "err": "http.get_text: malloc body failed"}
+    }
+    oren_memcpy(out, buf + body_off, body_len)
+    ptr_set_byte(out + body_len, 0)
+    free(buf)
+    return {"ok": 1, "v": out}
+}
+
 fn get(url) {
-    return oren_net_get(url)
+    // Legacy convenience API: return body string pointer, or 0 on failure.
+    // Prefer `get_text(url, timeout_ms)` for errors.
+    var r = get_text(url, 5000)
+    if r["ok"] != 1 { return 0 }
+    return r["v"]
 }

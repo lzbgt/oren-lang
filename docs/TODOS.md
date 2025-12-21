@@ -110,21 +110,13 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - Added `linalg.matmul_i32_buf_into(out, a, b, m, n, p)` for the same allocation-free pattern in integer GEMM paths.
       - Added `linalg.matmul_f64_buf_into(out, a, b, m, n, p)` and `linalg.matmul_i32_buf_wide_into(out, a, b, m, n, p)` so long-running HPC loops can reuse output buffers (even when keeping full i64 accumulators).
 
-2) **[lang][meta] Attribute system v1 (serde + docs tooling)**
-   - DoD:
-     - Syntax is short and ergonomic (prefer `@pack`, `@serde(...)`, `@json(...)` without `@oren.` prefixes).
-     - Unknown user-defined attributes are preserved deterministically in meta output.
-     - A stable “meta emission” tool path exists (no ad-hoc print_meta stubs).
-   - Current rolling note:
-     - Serde codegen now supports multi-format derive via `@serde(formats="json,yaml,cbor", ...)` (generates all requested `__{fmt}_encode/__{fmt}_decode` pairs).
-     - `oren meta` normalized schema includes `serde.formats` when present (while keeping `serde.format` as the primary backward-compatible field).
-
-3) **[stdlib][net] Native networking foundations**
+2) **[stdlib][net] Native networking foundations**
    - DoD:
      - Minimal syscall-first TCP stack surface (connect/listen/accept/read/write) + select/poll abstraction (`kqueue` on macOS; `epoll` later).
      - Clear separation between VirtualNET (pure) and HostNET (capability-gated).
    - Current rolling note:
      - Added `std/net/tcp` module (`lib/std/net/tcp.oren`) exposing the syscall-first TCP substrate as a stable stdlib surface.
+     - `std/net/http` now implements `http.get_text(url, timeout_ms)` on top of `std/net/tcp` (no hidden runtime-only helper).
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -136,8 +128,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-1) **[stdlib][serde] YAML + CBOR adaptors**
+1) **[stdlib][serde] Serde adaptors: tighten v1 surfaces**
+   - Goal: keep the current JSON/YAML/CBOR v1 useful for real apps without pulling in a heavy toolchain.
    - DoD:
-     - YAML supports comments (`#`) and is strict-but-friendly for config use.
-     - CBOR supports arrays/maps and a streaming API suitable for large payloads.
-     - Both integrate with the attribute/serde v1 plan (Task A4).
+     - JSON/YAML decode: comment tolerance stays deterministic (already supported); improve diagnostics on malformed inputs.
+     - CBOR: keep canonical map ordering and RFC 8742 sequence support; add roundtrip fixtures for nested shapes.
+     - Ensure serde-generated helpers cover nested arrays/maps and preserve deterministic ordering.
