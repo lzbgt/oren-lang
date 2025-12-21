@@ -1,0 +1,290 @@
+// Type name resolution pass (rolling v1).
+//
+// Purpose:
+// - Normalize type annotation strings (`ann_type`, `ret_ann_type`) so they resolve
+//   across module boundaries after the module renamer/linker has prefixed symbols.
+//
+// Problem:
+// - The renamer prefixes top-level symbols and import aliases, but annotations are stored
+//   as plain strings.
+// - After renaming, cross-module annotations look like:
+//     <alias_ns>.<Type>
+//   where `<alias_ns>` is the *namespaced import alias* in the owning module, and
+//   `<Type>` is the *source-level* type name.
+//
+// Resolution rule:
+// - If `<alias_ns>` exists in linked["aliases"] (alias_ns -> dep_prefix), rewrite:
+//     <alias_ns>.<Type>  ->  <dep_prefix><Type>
+//
+// This enables:
+// - method-call sugar resolution via annotated receivers
+// - `Iterable` for-in hook lowering across modules
+// - future typecheck improvements based on annotations
+//
+// Non-goals:
+// - full type checking or name lookup for arbitrary dotted paths
+// - resolving nested module namespaces beyond one dot
+
+fn _split_base_and_suffix(s) {
+    // Split `T[16][4]` into base=`T` and suffix=`[16][4]`.
+    if s == nil { return {"base": nil, "suffix": ""} }
+    var i = 0
+    while i < oren_string_len(s) {
+        if oren_string_char_at(s, i) == "[" {
+            return {"base": oren_string_slice(s, 0, i), "suffix": oren_string_slice(s, i, oren_string_len(s))}
+        }
+        i = i + 1
+    }
+    return {"base": s, "suffix": ""}
+}
+
+fn _resolve_ann_type(ann, aliases, type_ns, errors, tok) {
+    if ann == nil || ann == "" { return ann }
+
+    // Preserve leading pointer stars.
+    var stars = ""
+    while oren_string_len(ann) > 0 && oren_string_char_at(ann, 0) == "*" {
+        stars = stars + "*"
+        ann = oren_string_slice(ann, 1, oren_string_len(ann))
+    }
+
+    var sp = _split_base_and_suffix(ann)
+    var base = sp["base"]
+    var suffix = sp["suffix"]
+
+    // Only handle one-dot `alias.Type` forms.
+    var dot = -1
+    var i = 0
+    while i < oren_string_len(base) {
+        if oren_string_char_at(base, i) == "." {
+            dot = i
+            break
+        }
+        i = i + 1
+    }
+    if dot < 0 {
+        return stars + base + suffix
+    }
+
+    var head = oren_string_slice(base, 0, dot)
+    var tail = oren_string_slice(base, dot + 1, oren_string_len(base))
+    if head == nil || tail == nil || head == "" || tail == "" {
+        return stars + base + suffix
+    }
+
+    var dep_prefix = aliases[head]
+    if dep_prefix == nil {
+        return stars + base + suffix
+    }
+
+    // Compute internal renamed type.
+    var resolved = dep_prefix + tail
+
+    // Validate that the resolved type exists as a declared type in the linked program,
+    // when we have a type namespace map. This catches obvious user mistakes like
+    // `net.Foo` where `Foo` isn't a type.
+    if type_ns != nil {
+        if type_ns[resolved] != true {
+            if errors != nil && tok != nil {
+                oren_list_push(errors, tok["file"] + ":" + oren_int_to_string(tok["line"]) + ":" + oren_int_to_string(tok["col"]) + ": unknown imported type '" + base + "' (resolved '" + resolved + "')")
+            }
+        }
+    }
+
+    return stars + resolved + suffix
+}
+
+fn _walk_expr(expr, aliases, type_ns, errors) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Function" {
+        var ps = expr["params"]
+        var i = 0
+        while i < oren_list_len(ps) {
+            if ps[i] != nil && ps[i]["ann_type"] != nil {
+                ps[i]["ann_type"] = _resolve_ann_type(ps[i]["ann_type"], aliases, type_ns, errors, ps[i]["token"])
+            }
+            i = i + 1
+        }
+        if expr["ret_ann_type"] != nil {
+            expr["ret_ann_type"] = _resolve_ann_type(expr["ret_ann_type"], aliases, type_ns, errors, expr["token"])
+        }
+        _walk_stmt(expr["body"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Call" {
+        _walk_expr(expr["fn"], aliases, type_ns, errors)
+        var args = expr["args"]
+        var i2 = 0
+        while i2 < oren_list_len(args) {
+            _walk_expr(args[i2], aliases, type_ns, errors)
+            i2 = i2 + 1
+        }
+        if expr["spread"] != nil { _walk_expr(expr["spread"], aliases, type_ns, errors) }
+        return nil
+    }
+    if t == "Prefix" {
+        _walk_expr(expr["right"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Infix" {
+        _walk_expr(expr["left"], aliases, type_ns, errors)
+        _walk_expr(expr["right"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "If" {
+        _walk_expr(expr["cond"], aliases, type_ns, errors)
+        _walk_stmt(expr["consq"], aliases, type_ns, errors)
+        if expr["alt"] != nil { _walk_stmt(expr["alt"], aliases, type_ns, errors) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        var i3 = 0
+        while i3 < oren_list_len(xs) {
+            _walk_expr(xs[i3], aliases, type_ns, errors)
+            i3 = i3 + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps2 = expr["pairs"]
+        var i4 = 0
+        while i4 < oren_list_len(ps2) {
+            _walk_expr(ps2[i4]["key"], aliases, type_ns, errors)
+            _walk_expr(ps2[i4]["value"], aliases, type_ns, errors)
+            i4 = i4 + 1
+        }
+        return nil
+    }
+    if t == "Member" {
+        _walk_expr(expr["left"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Index" {
+        _walk_expr(expr["left"], aliases, type_ns, errors)
+        _walk_expr(expr["index"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "SpawnExpr" {
+        _walk_expr(expr["call"], aliases, type_ns, errors)
+        return nil
+    }
+    return nil
+}
+
+fn _walk_stmt(stmt, aliases, type_ns, errors) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { xs = stmt["statements"] }
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            _walk_stmt(xs[i], aliases, type_ns, errors)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        if stmt["name"] != nil && stmt["name"]["ann_type"] != nil {
+            stmt["name"]["ann_type"] = _resolve_ann_type(stmt["name"]["ann_type"], aliases, type_ns, errors, stmt["name"]["token"])
+        }
+        _walk_expr(stmt["value"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Assign" {
+        _walk_expr(stmt["value"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Set" {
+        _walk_expr(stmt["left"], aliases, type_ns, errors)
+        _walk_expr(stmt["value"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Return" {
+        _walk_expr(stmt["value"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "ExprStmt" {
+        _walk_expr(stmt["expr"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "If" {
+        _walk_expr(stmt["cond"], aliases, type_ns, errors)
+        _walk_stmt(stmt["consq"], aliases, type_ns, errors)
+        if stmt["alt"] != nil { _walk_stmt(stmt["alt"], aliases, type_ns, errors) }
+        return nil
+    }
+    if t == "While" {
+        _walk_expr(stmt["cond"], aliases, type_ns, errors)
+        _walk_stmt(stmt["body"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _walk_stmt(stmt["init"], aliases, type_ns, errors) }
+        if stmt["cond"] != nil { _walk_expr(stmt["cond"], aliases, type_ns, errors) }
+        if stmt["post"] != nil { _walk_stmt(stmt["post"], aliases, type_ns, errors) }
+        _walk_stmt(stmt["body"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Function" {
+        _walk_expr(stmt, aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Type" {
+        // Field annotations are Identifier nodes in `fields`.
+        var fs = stmt["fields"]
+        var i2 = 0
+        while i2 < oren_list_len(fs) {
+            var f = fs[i2]
+            if f != nil && f["ann_type"] != nil {
+                f["ann_type"] = _resolve_ann_type(f["ann_type"], aliases, type_ns, errors, f["token"])
+            }
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Spawn" {
+        _walk_expr(stmt["call"], aliases, type_ns, errors)
+        return nil
+    }
+    if t == "Switch" {
+        _walk_expr(stmt["value"], aliases, type_ns, errors)
+        var cases = stmt["cases"]
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            var vals = cases[ci]["values"]
+            var vi = 0
+            while vi < oren_list_len(vals) {
+                _walk_expr(vals[vi], aliases, type_ns, errors)
+                vi = vi + 1
+            }
+            _walk_stmt(cases[ci]["body"], aliases, type_ns, errors)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { _walk_stmt(stmt["default"], aliases, type_ns, errors) }
+        return nil
+    }
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    if linked == nil { return nil }
+    var aliases = linked["aliases"]
+    if aliases == nil { return nil }
+    var type_ns = linked["type_ns"]
+    var errors = []
+    var ss = linked["statements"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        _walk_stmt(ss[i], aliases, type_ns, errors)
+        i = i + 1
+    }
+    if oren_list_len(errors) > 0 {
+        linked["type_name_errors"] = errors
+    }
+    return nil
+}
+

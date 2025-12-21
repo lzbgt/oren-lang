@@ -77,20 +77,15 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][arch] Type namespacing v1: make type annotations + traits work across modules**
-   - Problem: whole-program lowerings (impl/method dispatch, `Iterable` hook) currently rely on type names being stable.
-     Imported modules rename types for uniqueness, but annotation spellings do not currently normalize through alias maps.
-   - Goal: allow users to write and type-annotate exported types from other modules without referring to internal prefixes.
+1) **[stdlib][perf] SIMD and numeric kernels (arm64 NEON first)**
+   - Goal: keep scalar reference semantics, add NEON fast paths behind intrinsic boundaries.
    - DoD:
-     - Define a canonical surface spelling for imported types: `alias.Type` (or `alias.mod.Type` where needed).
-     - During linking, build a deterministic `type_aliases` map that resolves `alias.Type` → internal renamed type name.
-     - Normalize all `ann_type` strings using that map before running lowerings that consult types:
-       - impl lowering (method calls, `Iterable` iter_next hook)
-       - generic constraint validation
-       - typecheck (category inference from annotations)
-     - Add one integration-level test:
-       - a module defines `struct MyRange` + `impl Iterable for MyRange`
-       - root imports it, declares `var r: mod.MyRange`, iterates `for x in r`, and gets the expected sum
+     - Keep deterministic rounding/order guarantees (increasing-k accumulation for matmul).
+     - Expand NEON kernels beyond dot (e.g. axpy / small GEMM tiles) where safe.
+     - Perf smoke stays “no thresholds”; correctness tests stay small and deterministic.
+
+2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**
+   - Status: **done** (see archive for details).
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -108,12 +103,12 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-1) **[stdlib][perf] SIMD and numeric kernels (arm64 NEON first)**
-   - Goal: keep scalar reference semantics, add NEON fast paths behind intrinsic boundaries.
+1) **[boot][arch] Compiler-in-AVM v2: hash-addressed artifacts + governance hooks**
+   - Goal: make `.obc` artifacts content-addressable and verifiable inside multiverse swarms.
    - DoD:
-     - Keep deterministic rounding/order guarantees (increasing-k accumulation for matmul).
-     - Expand NEON kernels beyond dot (e.g. axpy / small GEMM tiles) where safe.
-     - Perf smoke stays “no thresholds”; correctness tests stay small and deterministic.
+     - deterministic `.obc` hash IDs and module manifests
+     - governance hooks for module load policies (capsule-style)
+     - AVM can ingest `.oren` via VirtualFS and emit `.obc` without host FS effects
 
 ## Recently Completed (high signal)
 

@@ -1,0 +1,28 @@
+// Test helper module for cross-module typed iteration.
+//
+// This module intentionally does not declare `trait Iterable` itself; it relies on
+// the root module to declare it. In rolling v0, traits are metadata-only and `impl`
+// blocks are lowered to plain functions, so this is a valid pattern.
+
+struct MyRange {
+    start: i32,
+    end: i32,
+    step: i32
+}
+
+fn new_range(start, end, step) {
+    return MyRange(start, end, step)
+}
+
+impl Iterable for MyRange {
+    fn iter_next(self, idx) {
+        if idx < 0 { return [0, nil] }
+        if self.step == 0 { return [0, nil] }
+        var v = self.start + idx * self.step
+        if (self.step > 0 && v < self.end) || (self.step < 0 && v > self.end) {
+            return [1, v]
+        }
+        return [0, nil]
+    }
+}
+

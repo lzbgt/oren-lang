@@ -207,6 +207,7 @@ Where type annotations can appear today:
 - typed short var: `x: u64 := ...`
 - function params: `fn f(x: u64) { ... }`
 - struct/class fields: `struct S { len: u16be, bytes: u8[16] }`
+- imported types (alias-qualified): `import it \"mod.oren\"; var r: it.MyRange = it.new_range(...)`
 
 Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved tokens** intended to
 become true explicit types as the v1 type system is stabilized (see later sections in this spec).

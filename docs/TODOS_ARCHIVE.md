@@ -101,6 +101,21 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `bytes` annotated value cast via `i32(b)` and `b as i32`
 - Verified: `make stage1` then `./oretest --target macos` passes.
 
+## Archived (2025-12-21) — Type namespacing v1: `alias.Type` annotations resolve across modules
+
+- Extended the module renamer so it also rewrites *type annotation strings*:
+  - local type annotations like `MyType` become `M<N>_MyType` inside imported modules (keeps annotations consistent with prefixed symbols).
+  - import-alias type annotations like `buffer.MyType` become `<alias_ns>.MyType` (e.g. `M5_buffer.MyType` or `R_buffer.MyType`).
+  - impl-block metadata `impl_type` is renamed too (prevents cross-module impl collisions).
+- Added a dedicated linked-program pass that resolves alias-qualified annotations:
+  - `<alias_ns>.Type` → `<dep_prefix>Type` using `linked["aliases"]`.
+  - validates the resolved type exists in `linked["type_ns"]` and errors early if not.
+  - this enables annotation-driven dispatch decisions (method sugar, `Iterable` for-in hook) across modules.
+- Added cross-module integration coverage:
+  - `tests/modules/iterable_mod.oren` defines `struct MyRange` + `impl Iterable for MyRange`.
+  - `tests/modules/test_integration_suite.oren` imports it and iterates `for x in r3` where `r3: itmod.MyRange`.
+- Verified: `make stage1` then `./oretest --target macos` passes.
+
 ## Archived (2025-12-21) — Generic trait constraints (static-first)
 
 - Generic type parameters now support trait constraints:

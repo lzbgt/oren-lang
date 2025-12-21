@@ -13,6 +13,7 @@ import yaml "../../lib/std/yaml.oren"
 import cbor "../../lib/std/cbor.oren"
 import time "../../lib/std/time.oren"
 import result "../../lib/std/result.oren"
+import itmod "iterable_mod.oren"
 
 fn fail(code, msg) {
     print("module integration_suite FAIL " + oren_int_to_string(code) + ": " + msg)
@@ -139,6 +140,13 @@ var r2: MyRange = MyRange(5, -1, -1)
 var sum2 = 0
 for x2: i32 in r2 { sum2 = sum2 + x2 }
 assert_eq(sum2, 15, 66, "Iterable negative step")
+
+// Cross-module typed iterable: annotation uses `alias.Type` and must resolve through
+// the linker alias map so the `Iterable` hook can find the correct impl.
+var r3: itmod.MyRange = itmod.new_range(0, 6, 1)
+var sum3 = 0
+for x3: i32 in r3 { sum3 = sum3 + x3 }
+assert_eq(sum3, 15, 67, "Iterable cross-module alias.Type")
 
 // --- regex ---
 

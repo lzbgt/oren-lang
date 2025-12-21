@@ -17,6 +17,7 @@ import gen_mono "generic_monomorph.oren"
 import abi_layout "abi_layout_lowering.oren"
 import impl_lowering "impl_lowering.oren"
 import optimizer "optimizer.oren"
+import type_resolve "type_name_resolve.oren"
 import dump "dump.oren"
 import argparse "../std/argparse.oren"
 
@@ -904,6 +905,24 @@ fn link_program(entry_path, root_prog, config) {
         "type_ns": type_ns,
         "config": config,
         "module_graph": {"entry": entry_path, "imports": root_imports, "modules": module_summaries}
+    }
+
+    // Normalize cross-module type annotation spellings:
+    //   <alias_ns>.Type -> <dep_prefix>Type
+    //
+    // Must run before lowerings that consult annotations for dispatch decisions.
+    if trace_passes { print("[trace] pass: type_name_resolve") }
+    type_resolve.lower_linked_program_in_place(linked)
+    if linked["type_name_errors"] != nil && oren_list_len(linked["type_name_errors"]) > 0 {
+        var first_err = linked["type_name_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Type name resolution errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["type_name_errors"]) {
+            print(linked["type_name_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
     }
 
     // Whole-program impl/method-call lowering:

@@ -6,6 +6,63 @@
 //
 // This is used by the compiler module loader/linker. It is intentionally backend-agnostic.
 
+fn _rename_ann_type(pairs, ann) {
+    // Rename a type annotation string using the same `pairs` map used for identifier renaming.
+    //
+    // This is intentionally conservative:
+    // - builtins (u8/i32/f64/bool/...) are not in `pairs` and remain unchanged
+    // - local declared types (struct/class names) are in `pairs` and get prefixed
+    // - module import aliases are in `pairs` and the *first segment* of `alias.Type` gets namespaced
+    //
+    // NOTE: imported type names still need a later resolution step:
+    //   <alias_ns>.Type  ->  <dep_prefix>Type
+    // because the renamer doesn't know which module an alias refers to.
+    if ann == nil || ann == "" { return ann }
+
+    // Preserve leading pointer stars.
+    var stars = ""
+    while oren_string_len(ann) > 0 && oren_string_char_at(ann, 0) == "*" {
+        stars = stars + "*"
+        ann = oren_string_slice(ann, 1, oren_string_len(ann))
+    }
+
+    // Split base name vs array suffixes like `T[16][4]`.
+    var base = ann
+    var suffix = ""
+    var i = 0
+    while i < oren_string_len(ann) {
+        if oren_string_char_at(ann, i) == "[" {
+            base = oren_string_slice(ann, 0, i)
+            suffix = oren_string_slice(ann, i, oren_string_len(ann))
+            break
+        }
+        i = i + 1
+    }
+
+    // Fast path: plain name.
+    var mapped = rename_lookup(pairs, base)
+    if mapped != "" {
+        return stars + mapped + suffix
+    }
+
+    // Dotted: rename only the leftmost segment (alias).
+    i = 0
+    while i < oren_string_len(base) {
+        if oren_string_char_at(base, i) == "." {
+            var head = oren_string_slice(base, 0, i)
+            var tail = oren_string_slice(base, i, oren_string_len(base))
+            var head2 = rename_lookup(pairs, head)
+            if head2 != "" {
+                return stars + head2 + tail + suffix
+            }
+            break
+        }
+        i = i + 1
+    }
+
+    return stars + base + suffix
+}
+
 fn collect_toplevel_rename_pairs(prog, prefix) {
     var pairs = {}
     var i = 0
@@ -88,6 +145,9 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
         } else {
             scope_declare(stack, name)
         }
+        if stmt["name"] != nil && stmt["name"]["ann_type"] != nil {
+            stmt["name"]["ann_type"] = _rename_ann_type(pairs, stmt["name"]["ann_type"])
+        }
         rename_expr(stmt["value"], pairs, stack)
         return nil
     }
@@ -121,8 +181,14 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
         var next = scope_push(stack)
         var i = 0
         while i < oren_list_len(stmt["params"]) {
+            if stmt["params"][i]["ann_type"] != nil {
+                stmt["params"][i]["ann_type"] = _rename_ann_type(pairs, stmt["params"][i]["ann_type"])
+            }
             scope_declare(next, stmt["params"][i]["value"])
             i = i + 1
+        }
+        if stmt["ret_ann_type"] != nil {
+            stmt["ret_ann_type"] = _rename_ann_type(pairs, stmt["ret_ann_type"])
         }
         rename_stmt(stmt["body"], pairs, next, false)
         return nil
@@ -143,6 +209,11 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
                 if stmt["expr"]["name"] != "" {
                     var new_name4 = rename_lookup(pairs, stmt["expr"]["name"])
                     if new_name4 != "" { stmt["expr"]["name"] = new_name4 }
+                }
+                // Impl blocks are lowered to plain functions with metadata fields.
+                // Ensure their recorded impl type name stays consistent with renaming.
+                if stmt["expr"]["impl_type"] != nil {
+                    stmt["expr"]["impl_type"] = _rename_ann_type(pairs, stmt["expr"]["impl_type"])
                 }
             }
             rename_expr(stmt["expr"], pairs, stack)
@@ -173,6 +244,18 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
             var new_name5 = rename_lookup(pairs, stmt["name"]["value"])
             if new_name5 != "" { stmt["name"]["value"] = new_name5 }
         }
+        // Field annotations are stored on Identifier nodes in `fields`.
+        var fs = stmt["fields"]
+        if fs != nil {
+            var fi = 0
+            while fi < oren_list_len(fs) {
+                var f = fs[fi]
+                if f != nil && f["ann_type"] != nil {
+                    f["ann_type"] = _rename_ann_type(pairs, f["ann_type"])
+                }
+                fi = fi + 1
+            }
+        }
         return nil
     }
     return nil
@@ -194,8 +277,14 @@ fn rename_expr(expr, pairs, stack) {
         var next = scope_push(stack)
         var i = 0
         while i < oren_list_len(expr["params"]) {
+            if expr["params"][i]["ann_type"] != nil {
+                expr["params"][i]["ann_type"] = _rename_ann_type(pairs, expr["params"][i]["ann_type"])
+            }
             scope_declare(next, expr["params"][i]["value"])
             i = i + 1
+        }
+        if expr["ret_ann_type"] != nil {
+            expr["ret_ann_type"] = _rename_ann_type(pairs, expr["ret_ann_type"])
         }
         rename_stmt(expr["body"], pairs, next, false)
         return nil
