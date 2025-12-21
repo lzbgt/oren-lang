@@ -23,12 +23,16 @@ static size_t trace_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     uint8_t op = code[pc];
     if (op == 0x02) return 3;                 // PUSH_CONST u16
     if (op == 0x04 || op == 0x05) return 2;   // LOAD/STORE_LOCAL u8
+    if (op == 0x52 || op == 0x53) return 3;   // LOAD/STORE_LOCAL16 u16
     if (op == 0x06 || op == 0x07) return 3;   // LOAD/STORE_GLOBAL u16
     if (op == 0x30 || op == 0x31) return 3;   // JMP/JMP_IF i16
+    if (op == 0x4E || op == 0x4F) return 5;   // JMP32/JMP_IF32 i32
     if (op == 0x38) return 4;                 // CALL u16 u8
+    if (op == 0x50) return 6;                 // CALL32 u32 u8
     if (op == 0x3A) return 4;                 // CALL_NATIVE u16 u8
     if (op == 0x3B) return 5;                 // CALL_NATIVE2 u8 u16 u8
     if (op == 0x3C) return 3;                 // PUSH_FUNC u16
+    if (op == 0x51) return 5;                 // PUSH_FUNC32 u32
     if (op == 0x3D) return 2;                 // CALL_INDIRECT u8
     if (op == 0x3E) return 2;                 // MAKE_CLOSURE u8
     if (op == 0x3F) return 2;                 // LOAD_ENV u8

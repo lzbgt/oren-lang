@@ -3093,16 +3093,89 @@ int avm_path_allowed(AvmVM* vm, const char* path) {
     if (!vm) return 0;
     if (vm->fs_allow_prefix_count <= 0) return 1;
     if (!path) return 0;
+
+    // Normalize paths before allowlist checks.
+    //
+    // Security: prevent trivial traversal like "build/../secret" from matching "build/".
+    // Ergonomics: accept "./tests/..." when allow prefixes are "tests/...".
+    //
+    // This is a purely lexical normalization (no host FS effects).
+    const char* chk = path;
+    char norm[4096];
+    int seg_starts[1024];
+    int seg_count = 0;
+
+    size_t plen = strlen(path);
+    if (plen >= sizeof(norm)) return 0; // deny overly long paths (avoid truncation bugs)
+
+    int is_abs = (path[0] == '/');
+    size_t wi = 0;
+    if (is_abs) norm[wi++] = '/';
+
+    size_t i = 0;
+    while (i <= plen) {
+        while (i < plen && path[i] == '/') i++;
+        if (i >= plen) break;
+
+        size_t start = i;
+        while (i < plen && path[i] != '/') i++;
+        size_t end = i;
+        size_t sl = end - start;
+        const char* seg = path + start;
+
+        // "."
+        if (sl == 1 && seg[0] == '.') continue;
+
+        // ".."
+        if (sl == 2 && seg[0] == '.' && seg[1] == '.') {
+            if (seg_count > 0) {
+                // Pop last segment.
+                wi = (size_t)seg_starts[seg_count - 1];
+                seg_count--;
+                // Keep root slash if absolute.
+                if (is_abs && wi == 0) { norm[wi++] = '/'; }
+                continue;
+            }
+            if (!is_abs) {
+                // Preserve leading ".." for relative paths.
+                if (seg_count < (int)(sizeof(seg_starts) / sizeof(seg_starts[0]))) {
+                    seg_starts[seg_count++] = (int)wi;
+                }
+                if (wi > 0 && norm[wi - 1] != '/') norm[wi++] = '/';
+                if (wi + 2 >= sizeof(norm)) return 0;
+                norm[wi++] = '.';
+                norm[wi++] = '.';
+            }
+            continue;
+        }
+
+        if (seg_count < (int)(sizeof(seg_starts) / sizeof(seg_starts[0]))) {
+            seg_starts[seg_count++] = (int)wi;
+        }
+
+        if (wi > 0 && norm[wi - 1] != '/') norm[wi++] = '/';
+        if (wi + sl >= sizeof(norm)) return 0;
+        memcpy(norm + wi, seg, sl);
+        wi += sl;
+    }
+
+    if (wi == 0) {
+        // Rootless relative empty path => "." (won't match most prefixes; conservative).
+        norm[wi++] = '.';
+    }
+    norm[wi] = 0;
+    chk = norm;
+
     for (int i = 0; i < vm->fs_allow_prefix_count; i++) {
         const char* pref = vm->fs_allow_prefixes[i];
         if (!pref) continue;
         size_t n = strlen(pref);
         if (n == 0) continue;
-        if (strncmp(path, pref, n) == 0) {
+        if (strncmp(chk, pref, n) == 0) {
             // Boundary check when prefix does not end with '/':
             // Avoid accidental matches like "build" matching "build2".
             if (n > 0 && pref[n - 1] != '/') {
-                char nextc = path[n];
+                char nextc = chk[n];
                 if (nextc != 0 && nextc != '/') continue;
             }
             return 1;

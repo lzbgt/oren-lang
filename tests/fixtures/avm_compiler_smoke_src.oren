@@ -1,0 +1,10 @@
+// Smoke source for "compiler-in-AVM" bootstrap.
+//
+// The compiled output is executed under AVM to confirm the full loop:
+//   (oren compiler bytecode) -> compile source -> (program obc) -> run program
+
+fn main() {
+    print("avm compiler smoke OK")
+    exit(0)
+}
+

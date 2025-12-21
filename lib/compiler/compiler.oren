@@ -647,19 +647,22 @@ fn load_module(base, path) {
     MODULES[full] = mod
 
     var dir = dirname(full)
+    var seen_alias = {}
     var i = 0
     while i < oren_list_len(prog["statements"]) {
         var s = prog["statements"][i]
         if s["type"] == "Import" {
             var alias = s["name"]["value"]
-            if mod["aliases"][alias] != nil {
+            if seen_alias[alias] != nil {
                 print("Duplicate import alias: " + alias + " in " + full)
                 oren_exit(1)
             }
+            seen_alias[alias] = true
             var dep = load_module(dir, s["path"])
-            mod["aliases"][alias] = dep["prefix"]
+            var alias_ns = mod["prefix"] + alias
+            mod["aliases"][alias_ns] = dep["prefix"]
             // Preserve import edges in deterministic source order for graph export.
-            oren_list_push(mod["imports"], {"alias": alias, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"]})
+            oren_list_push(mod["imports"], {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"]})
         }
         i = i + 1
     }
@@ -679,6 +682,20 @@ fn load_module(base, path) {
                 print("Import alias conflicts with top-level name: " + alias2 + " in " + full)
                 oren_exit(1)
             }
+        }
+        i = i + 1
+    }
+
+    // Namespace import aliases with the *owning* module prefix so after linking/merging
+    // all statements into one program, alias resolution remains unambiguous and scoped.
+    //
+    // Example: within module prefix "M5_", `lexer.new_lexer(...)` becomes `M5_lexer.new_lexer(...)`.
+    i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s3 = prog["statements"][i]
+        if s3["type"] == "Import" {
+            var a3 = s3["name"]["value"]
+            pairs[a3] = mod["prefix"] + a3
         }
         i = i + 1
     }
@@ -727,6 +744,7 @@ fn link_program(entry_path, root_prog, config) {
     MODULE_ID_COUNTER = 0
     
     var base = dirname(entry_path)
+    var root_prefix = "R_"
     var root_aliases = {}
     var root_imports = []
     
@@ -736,12 +754,27 @@ fn link_program(entry_path, root_prog, config) {
         if s["type"] == "Import" {
             var alias = s["name"]["value"]
             var mod = load_module(base, s["path"])
-            root_aliases[alias] = mod["prefix"]
+            var alias_ns = root_prefix + alias
+            root_aliases[alias_ns] = mod["prefix"]
             // Preserve root import edges in source order.
-            oren_list_push(root_imports, {"alias": alias, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"]})
+            oren_list_push(root_imports, {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"]})
         }
         i = i + 1
     }
+
+    // Apply the same alias namespacing rule to the root module so its imports are
+    // scoped and do not collide with nested module imports after linking.
+    var root_pairs = {}
+    i = 0
+    while i < oren_list_len(root_prog["statements"]) {
+        var s0 = root_prog["statements"][i]
+        if s0["type"] == "Import" {
+            var a0 = s0["name"]["value"]
+            root_pairs[a0] = root_prefix + a0
+        }
+        i = i + 1
+    }
+    renamer.rename_program_in_place(root_prog, root_pairs)
 
     // Attribute-driven JSON serde codegen for the root module.
     // Root is not renamed, so prefix is empty.
@@ -860,10 +893,56 @@ fn link_program(entry_path, root_prog, config) {
         i = i + 1
     }
 
+    // Global alias map for whole-program codegen.
+    //
+    // `load_module()` keeps `mod["aliases"]` per-module, but after we merge all
+    // statements into one linked program, backends need a single alias lookup
+    // table to resolve `alias.symbol` member calls (e.g. `lexer.new_lexer`).
+    //
+    // Rolling rule:
+    // - import aliases are namespaced per-module (see `load_module` and root module renaming)
+    // - after namespacing, aliases must be globally unique; any collision is a bug
+    var all_aliases = {}
+    // root aliases first
+    var ri = 0
+    while ri < oren_list_len(root_imports) {
+        var e = root_imports[ri]
+        if e != nil {
+            all_aliases[e["alias_ns"]] = e["prefix"]
+        }
+        ri = ri + 1
+    }
+    // merge module aliases in deterministic order (MODULE_ORDER, then per-module import order)
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m2 = MODULE_ORDER[i]
+        var imps = m2["imports"]
+        if imps != nil {
+            var ii = 0
+            while ii < oren_list_len(imps) {
+                var ie = imps[ii]
+                var a2 = ie["alias_ns"]
+                var p2 = ie["prefix"]
+                if all_aliases[a2] == nil {
+                    all_aliases[a2] = p2
+                } else {
+                    if all_aliases[a2] != p2 {
+                        var msgA = "Import alias conflict: '" + a2 + "' maps to both '" + all_aliases[a2] + "' and '" + p2 + "'"
+                        emit_diag("compile", 1, msgA)
+                        print(msgA)
+                        oren_exit(1)
+                    }
+                }
+                ii = ii + 1
+            }
+        }
+        i = i + 1
+    }
+
     var linked = {
         "statements": merged_stmts,
         "traits": merged_traits,
-        "aliases": root_aliases,
+        "aliases": all_aliases,
         "type_ns": type_ns,
         "field_offsets": field_offsets,
         "config": config,

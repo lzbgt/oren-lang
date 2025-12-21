@@ -7,6 +7,8 @@
 
 #include <dirent.h>
 
+#include <sys/stat.h>
+
 #include <unistd.h>
 
 // SIMD build-time gating (rolling; runtime opt-in via AVM_ENABLE_SIMD=1):

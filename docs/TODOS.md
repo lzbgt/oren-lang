@@ -114,6 +114,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
      - produced `.obc` is hash-addressable for swarm validation
+   - Plan (split into tractable milestones):
+     - v0: compiler runs in AVM (host FS backend) to validate the loop (**DONE**: `compiler_in_avm_smoke` fixture)
+     - v1: compiler reads/writes via VirtualFS (no host effects), and can run inside a child universe deterministically
+     - v2: swarm governance + hash-addressed `.obc` artifacts
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
@@ -135,4 +139,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
 - AVM snapshots v7: snapshot/restore now includes scheduler state (tasks + channels + queues) so spawned workloads can be paused/resumed.
 - Bytecode backend: `oren_yield()` now returns canonical `nil` (stack-balanced as an expression), preventing verifier stack-height mismatches.
+- Compiler-in-AVM v0 (host FS): self-hosted compiler builds to `.obc`, runs inside `./avm`, compiles a `.oren` fixture to `.obc`, and the result runs successfully.
+  - Bytecode widening: added `CALL32`/`PUSH_FUNC32` (u32 addrs) and `LOAD/STORE_LOCAL16` (u16 locals) so the compiler `.obc` can exceed 64KB safely.
+  - Import alias scoping: import aliases are now namespaced per-module in the linker so bytecode backends can resolve `alias.symbol` deterministically after merging modules.
+  - Capability hardening: FS allow-prefix checks now normalize paths lexically (blocks `build/../...` traversal and allows `./tests/...` ergonomics).
 - Native backend: arm64 NEON dot kernel is implemented and regression-tested under env-gated SIMD dispatch.

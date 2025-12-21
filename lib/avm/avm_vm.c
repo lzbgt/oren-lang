@@ -542,6 +542,8 @@ const char* avm_op_name(uint8_t op) {
         case 0x03: return "POP";
         case 0x04: return "LOAD_LOCAL";
         case 0x05: return "STORE_LOCAL";
+        case 0x52: return "LOAD_LOCAL16";
+        case 0x53: return "STORE_LOCAL16";
         case 0x06: return "LOAD_GLOBAL";
         case 0x07: return "STORE_GLOBAL";
         case 0x10: return "ADD";
@@ -564,11 +566,15 @@ const char* avm_op_name(uint8_t op) {
         case 0x21: return "PRINT_LIST";
         case 0x30: return "JMP";
         case 0x31: return "JMP_IF";
+        case 0x4E: return "JMP32";
+        case 0x4F: return "JMP_IF32";
         case 0x38: return "CALL";
+        case 0x50: return "CALL32";
         case 0x39: return "RET";
         case 0x3A: return "CALL_NATIVE";
         case 0x3B: return "CALL_NATIVE2";
         case 0x3C: return "PUSH_FUNC";
+        case 0x51: return "PUSH_FUNC32";
         case 0x3D: return "CALL_INDIRECT";
         case 0x3E: return "MAKE_CLOSURE";
         case 0x3F: return "LOAD_ENV";
@@ -604,6 +610,24 @@ static void avm_print_value_no_nl(AvmValue v) {
     else if (v.type == AVM_VAL_F32_BUF) printf("<f32_buf>");
     else if (v.type == AVM_VAL_F64_BUF) printf("<f64_buf>");
     else printf("<?>");
+}
+
+static const char* avm_val_type_short(AvmValue v) {
+    switch (v.type) {
+        case AVM_VAL_INT: return "INT";
+        case AVM_VAL_FLOAT: return "FLOAT";
+        case AVM_VAL_STRING: return "STRING";
+        case AVM_VAL_BOOL: return "BOOL";
+        case AVM_VAL_NIL: return "NIL";
+        case AVM_VAL_LIST: return "LIST";
+        case AVM_VAL_MAP: return "MAP";
+        case AVM_VAL_FUNC: return "FUNC";
+        case AVM_VAL_I32_BUF: return "I32_BUF";
+        case AVM_VAL_I64_BUF: return "I64_BUF";
+        case AVM_VAL_F32_BUF: return "F32_BUF";
+        case AVM_VAL_F64_BUF: return "F64_BUF";
+        default: return "VAL?";
+    }
 }
 
 uint32_t avm_gas_cost(uint8_t op) {
@@ -939,6 +963,28 @@ void avm_run(AvmVM* vm) {
                 vm->stack[vm->fp + idx] = vm->stack[--vm->sp];
                 break;
             }
+            case 0x52: { // LOAD_LOCAL16 u16
+                uint16_t idx = code[vm->pc++];
+                idx |= (uint16_t)code[vm->pc++] << 8;
+                int pos = vm->fp + (int)idx;
+                if (pos < 0 || pos >= (int)AVM_STACK_SIZE) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "LOAD_LOCAL16 out of range"));
+                    break;
+                }
+                vm->stack[vm->sp++] = vm->stack[pos];
+                break;
+            }
+            case 0x53: { // STORE_LOCAL16 u16
+                uint16_t idx = code[vm->pc++];
+                idx |= (uint16_t)code[vm->pc++] << 8;
+                int pos = vm->fp + (int)idx;
+                if (pos < 0 || pos >= (int)AVM_STACK_SIZE) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "STORE_LOCAL16 out of range"));
+                    break;
+                }
+                vm->stack[pos] = vm->stack[--vm->sp];
+                break;
+            }
             case 0x06: { // LOAD_GLOBAL u16
                 uint16_t idx = code[vm->pc++];
                 idx |= (uint16_t)code[vm->pc++] << 8;
@@ -1262,6 +1308,34 @@ void avm_run(AvmVM* vm) {
                 if (truthy) vm->pc = (int)(vm->pc + off);
                 break;
             }
+            case 0x4E: { // JMP32 i32
+                uint32_t u = 0;
+                u |= (uint32_t)code[vm->pc++];
+                u |= (uint32_t)code[vm->pc++] << 8;
+                u |= (uint32_t)code[vm->pc++] << 16;
+                u |= (uint32_t)code[vm->pc++] << 24;
+                int32_t off = 0;
+                memcpy(&off, &u, sizeof(off));
+                vm->pc = (int)((int64_t)vm->pc + (int64_t)off);
+                break;
+            }
+            case 0x4F: { // JMP_IF32 i32
+                uint32_t u = 0;
+                u |= (uint32_t)code[vm->pc++];
+                u |= (uint32_t)code[vm->pc++] << 8;
+                u |= (uint32_t)code[vm->pc++] << 16;
+                u |= (uint32_t)code[vm->pc++] << 24;
+                int32_t off = 0;
+                memcpy(&off, &u, sizeof(off));
+                AvmValue cond = vm->stack[--vm->sp];
+                int truthy = 0;
+                if (cond.type == AVM_VAL_BOOL) truthy = cond.as.i != 0;
+                else if (cond.type == AVM_VAL_INT) truthy = cond.as.i != 0;
+                else if (cond.type == AVM_VAL_NIL) truthy = 0;
+                else truthy = 1;
+                if (truthy) vm->pc = (int)((int64_t)vm->pc + (int64_t)off);
+                break;
+            }
             case 0x38: { // CALL u16 u8
                 uint16_t addr = code[vm->pc++];
                 addr |= (uint16_t)code[vm->pc++] << 8;
@@ -1279,6 +1353,28 @@ void avm_run(AvmVM* vm) {
                 vm->fp = vm->sp - argc;
                 vm->env = avm_nil();
                 vm->pc = addr;
+                break;
+            }
+            case 0x50: { // CALL32 u32 u8
+                uint32_t addr = 0;
+                addr |= (uint32_t)code[vm->pc++];
+                addr |= (uint32_t)code[vm->pc++] << 8;
+                addr |= (uint32_t)code[vm->pc++] << 16;
+                addr |= (uint32_t)code[vm->pc++] << 24;
+                uint8_t argc = code[vm->pc++];
+                uint32_t fl = vm->frame_limit ? vm->frame_limit : (uint32_t)MAX_FRAMES;
+                if (fl > (uint32_t)MAX_FRAMES) fl = (uint32_t)MAX_FRAMES;
+                if (vm->frame_count >= (int)fl) {
+                    avm_abort(vm, avm_err(AVM_ERR_BUDGET, "call stack overflow (depth limit)"));
+                    break;
+                }
+                vm->frames[vm->frame_count].return_pc = vm->pc;
+                vm->frames[vm->frame_count].fp = vm->fp;
+                vm->frames[vm->frame_count].env = vm->env;
+                vm->frame_count++;
+                vm->fp = vm->sp - argc;
+                vm->env = avm_nil();
+                vm->pc = (int)addr;
                 break;
             }
             case 0x39: { // RET
@@ -1360,6 +1456,17 @@ void avm_run(AvmVM* vm) {
                 vm->stack[vm->sp++] = fv;
                 break;
             }
+            case 0x51: { // PUSH_FUNC32 u32
+                uint32_t addr = 0;
+                addr |= (uint32_t)code[vm->pc++];
+                addr |= (uint32_t)code[vm->pc++] << 8;
+                addr |= (uint32_t)code[vm->pc++] << 16;
+                addr |= (uint32_t)code[vm->pc++] << 24;
+                AvmValue fv = avm_func_new(vm, addr, avm_nil());
+                if (avm_is_err_val(fv)) { avm_abort(vm, fv); break; }
+                vm->stack[vm->sp++] = fv;
+                break;
+            }
             case 0x3D: { // CALL_INDIRECT u8
                 uint8_t argc = code[vm->pc++];
                 if (vm->sp < (int)argc + 1) {
@@ -1369,7 +1476,11 @@ void avm_run(AvmVM* vm) {
                 int fn_idx = vm->sp - (int)argc - 1;
                 AvmValue fv = vm->stack[fn_idx];
                 if (fv.type != AVM_VAL_FUNC || !fv.as.fn) {
-                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CALL_INDIRECT expects function value"));
+                    char msg[160];
+                    snprintf(msg, sizeof(msg),
+                        "CALL_INDIRECT expects function value (pc=%d argc=%u got=%s)",
+                        op_pc, (unsigned)argc, avm_val_type_short(fv));
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, msg));
                     break;
                 }
                 uint32_t addr = fv.as.fn->addr;

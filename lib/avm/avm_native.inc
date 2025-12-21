@@ -3205,6 +3205,89 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 118: { // oren_char(code:int) -> string(1)
+            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+                int64_t v = args[0].as.i;
+                if (v < 0 || v > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "oren_char: code out of range (0..255)"); break; }
+                char* buf = (char*)avm_heap_malloc_k(2, AVM_ALLOC_KIND_STRING);
+                if (!buf) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                buf[0] = (char)(unsigned char)v;
+                buf[1] = 0;
+                res.type = AVM_VAL_STRING;
+                res.as.p = buf;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_char expects (int)");
+            }
+            break;
+        }
+        case 119: { // oren_string_to_float_bits(s:string) -> int (u64 bits stored in i64 container)
+            if (nargs > 0 && args[0].type == AVM_VAL_STRING && args[0].as.p) {
+                double d = strtod((const char*)args[0].as.p, NULL);
+                uint64_t bits = 0;
+                memcpy(&bits, &d, sizeof(bits));
+                res = avm_int((int64_t)bits);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_string_to_float_bits expects (string)");
+            }
+            break;
+        }
+        case 120: { // oren_sha256_range(bytes:list<int>, start:int, len:int) -> list<int 32>
+            if (nargs > 2 && args[0].type == AVM_VAL_LIST && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+                AvmList* bytes = args[0].as.l;
+                int64_t start = args[1].as.i;
+                int64_t len = args[2].as.i;
+                if (!bytes || bytes->count < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: invalid list"); break; }
+                if (start < 0 || len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: negative range"); break; }
+                if (start + len > (int64_t)bytes->count) { res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: out of bounds"); break; }
+
+                AvmSha256Ctx ctx;
+                avm_sha256_init(&ctx);
+                for (int64_t i = 0; i < len; i++) {
+                    AvmValue it = bytes->items[(int)(start + i)];
+                    if (it.type != AVM_VAL_INT || it.as.i < 0 || it.as.i > 255) {
+                        res = avm_err(AVM_ERR_INVALID_ARG, "sha256_range: expected list<int 0..255>");
+                        break;
+                    }
+                    uint8_t b = (uint8_t)it.as.i;
+                    avm_sha256_update(&ctx, &b, 1);
+                }
+                if (avm_is_err_val(res)) break;
+
+                uint8_t digest[32];
+                avm_sha256_final(&ctx, digest);
+
+                AvmList* out = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                out->count = 32;
+                out->capacity = 32;
+                out->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * 32u, AVM_ALLOC_KIND_LIST);
+                if (!out->items) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                for (int i = 0; i < 32; i++) out->items[i] = avm_int((int64_t)digest[i]);
+                res.type = AVM_VAL_LIST;
+                res.as.l = out;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_sha256_range expects (list,int,int)");
+            }
+            break;
+        }
+        case 121: { // oren_fail(code:int, msg:string) -> abort VM run
+            if (nargs > 1 && args[0].type == AVM_VAL_INT && args[1].type == AVM_VAL_STRING) {
+                int64_t code = args[0].as.i;
+                const char* msg = (const char*)args[1].as.p;
+                AvmValue e = avm_err((int)code, msg ? msg : "oren_fail");
+                if (vm) {
+                    vm->last_error = e;
+                    vm->exit_code = (int)code;
+                    vm->running = 0;
+                }
+                res = avm_nil();
+            } else {
+                AvmValue e = avm_err(AVM_ERR_INVALID_ARG, "oren_fail expects (int, string)");
+                if (vm) avm_abort(vm, e);
+                res = e;
+            }
+            break;
+        }
         default:
             printf("Unknown native id: %d\n", id);
             break;
@@ -3952,7 +4035,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
     // Domain 1: FS (filesystem). Map op -> legacy ids for now.
     // This is a rolling ABI: domain/op tables may evolve quickly.
     if (domain == 1) {
-        int is_write = (op == 1 || op == 2) ? 1 : 0;
+        int is_write = (op == 1 || op == 2 || op == 6) ? 1 : 0;
         int mounts_mode = 0;
         if (vm && vm->fs_backend_kind == 0) {
             // If any mounts are configured on the host FS backend, mounts become the explicit enrollment mechanism.
@@ -4160,6 +4243,16 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
                     return ret;
                 }
+                case 6: { // chmod(path, mode) -> NIL
+                    // VirtualFS has no host effects and does not model POSIX permissions yet.
+                    // Accept the call to keep compiler flows portable; record/replay still captures the call.
+                    if (nargs < 2 || args[1].type != AVM_VAL_INT) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: chmod expects (path, int)", domain, op);
+                    if (!avm_io_charge(vm, 0, (int)domain, (int)op)) return vm->last_error;
+                    AvmValue ret = avm_nil();
+                    if (vm->record_log_bytes) { uint32_t ppos = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &ppos, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
 
                 default:
                     return avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "unsupported capability domain/op", domain, op);
@@ -4349,6 +4442,51 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     return ret;
                 }
                 return avm_err_domop(AVM_ERR_INVALID_ARG, "readdir expects (string)", domain, op);
+            }
+            case 6: { // chmod(path, mode) -> NIL
+                if (nargs > 1 && args && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_INT) {
+                    AvmValue* use_args = args;
+                    AvmValue tmp_args[2];
+                    char* mapped = NULL;
+                    if (vm && vm->fs_backend_kind == 0 && mounts_mode && args[0].as.p) {
+                        int matched = 0;
+                        mapped = avm_fs_map_path(vm, (const char*)args[0].as.p, is_write, &matched);
+                        if (!matched) return avm_err_fs_mount_denied(domain, op, (const char*)args[0].as.p, is_write);
+                        if (!mapped) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                        tmp_args[0] = args[0];
+                        tmp_args[0].as.p = mapped;
+                        tmp_args[1] = args[1];
+                        use_args = tmp_args;
+                    }
+
+                    // Preflight: ensure record log can store this entry BEFORE performing any filesystem effects.
+                    if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
+                        if (!avm_log_can_fit(vm, 81ull)) {
+                            if (mapped) free(mapped);
+                            AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)domain, (int)op);
+                            avm_abort(vm, e);
+                            return e;
+                        }
+                    }
+
+                    const char* path2 = (use_args[0].as.p) ? (const char*)use_args[0].as.p : "";
+                    mode_t mode = (mode_t)use_args[1].as.i;
+                    if (chmod(path2, mode) != 0) {
+                        int err = errno;
+                        if (mapped) free(mapped);
+                        return avm_err_domop(avm_err_from_errno(err), "chmod failed", domain, op);
+                    }
+
+                    if (mapped) free(mapped);
+
+                    if (!avm_io_charge(vm, 0, (int)domain, (int)op)) return vm->last_error;
+
+                    AvmValue ret = avm_nil();
+                    if (vm->record_log_bytes) { uint32_t ppos = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &ppos, domain, op, args, nargs, ret); }
+                    if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                    return ret;
+                }
+                return avm_err_domop(AVM_ERR_INVALID_ARG, "chmod expects (string, int)", domain, op);
             }
             default: break;
         }

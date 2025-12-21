@@ -202,9 +202,33 @@ static int decode_i16(const uint8_t* code, size_t code_len, size_t pos, int16_t*
     return 1;
 }
 
+static int decode_i32(const uint8_t* code, size_t code_len, size_t pos, int32_t* out) {
+    if (pos + 4 > code_len) return 0;
+    uint32_t u = 0;
+    u |= (uint32_t)code[pos];
+    u |= (uint32_t)code[pos + 1] << 8;
+    u |= (uint32_t)code[pos + 2] << 16;
+    u |= (uint32_t)code[pos + 3] << 24;
+    int32_t v = 0;
+    memcpy(&v, &u, sizeof(v));
+    *out = v;
+    return 1;
+}
+
 static int decode_u16(const uint8_t* code, size_t code_len, size_t pos, uint16_t* out) {
     if (pos + 2 > code_len) return 0;
     uint16_t v = (uint16_t)code[pos] | ((uint16_t)code[pos + 1] << 8);
+    *out = v;
+    return 1;
+}
+
+static int decode_u32(const uint8_t* code, size_t code_len, size_t pos, uint32_t* out) {
+    if (pos + 4 > code_len) return 0;
+    uint32_t v = 0;
+    v |= (uint32_t)code[pos];
+    v |= (uint32_t)code[pos + 1] << 8;
+    v |= (uint32_t)code[pos + 2] << 16;
+    v |= (uint32_t)code[pos + 3] << 24;
     *out = v;
     return 1;
 }
@@ -224,9 +248,9 @@ static VerifyResult verify_program_region(
     const AvmProgram* prog,
     size_t start_pc,
     int start_depth,
-    uint16_t region_id,
+    uint32_t region_id,
     uint64_t* used_domains_io,
-    uint16_t* callees_out,
+    uint32_t* callees_out,
     uint8_t* callee_nargs_out,
     size_t* callee_count_io,
     size_t callee_cap,
@@ -314,6 +338,12 @@ static VerifyResult verify_program_region(
         } else if (op == 0x05) { // STORE_LOCAL u8
             len = 2;
             pop = 1;
+        } else if (op == 0x52) { // LOAD_LOCAL16 u16
+            len = 3;
+            push = 1;
+        } else if (op == 0x53) { // STORE_LOCAL16 u16
+            len = 3;
+            pop = 1;
         } else if (op == 0x06) { // LOAD_GLOBAL u16
             len = 3;
             uint16_t idx = 0;
@@ -341,6 +371,11 @@ static VerifyResult verify_program_region(
         } else if (op == 0x31) { // JMP_IF i16
             len = 3;
             pop = 1;
+        } else if (op == 0x4E) { // JMP32 i32
+            len = 5;
+        } else if (op == 0x4F) { // JMP_IF32 i32
+            len = 5;
+            pop = 1;
         } else if (op == 0x38) { // CALL u16_addr u8_nargs
             len = 4;
             uint16_t addr = 0;
@@ -352,6 +387,21 @@ static VerifyResult verify_program_region(
             push = 1;
 
             // Record callee for outer verifier (call graph).
+            if (callees_out && callee_nargs_out && callee_count_io && *callee_count_io < callee_cap) {
+                callees_out[*callee_count_io] = (uint32_t)addr;
+                callee_nargs_out[*callee_count_io] = nargs;
+                (*callee_count_io)++;
+            }
+        } else if (op == 0x50) { // CALL32 u32_addr u8_nargs
+            len = 6;
+            uint32_t addr = 0;
+            if (!decode_u32(code, code_len, pc + 1, &addr)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated CALL32"); }
+            if (addr >= code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL32 addr out of bounds"); }
+            uint8_t nargs = code[pc + 5];
+            if (nargs > 16) { free(depth_at); free(queue); free(qdepth); return err_result("verify: CALL32 nargs too large"); }
+            pop = (int)nargs;
+            push = 1;
+
             if (callees_out && callee_nargs_out && callee_count_io && *callee_count_io < callee_cap) {
                 callees_out[*callee_count_io] = addr;
                 callee_nargs_out[*callee_count_io] = nargs;
@@ -402,6 +452,13 @@ static VerifyResult verify_program_region(
             uint16_t addr = 0;
             if (!decode_u16(code, code_len, pc + 1, &addr)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated PUSH_FUNC"); }
             if (addr >= code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: PUSH_FUNC addr out of bounds"); }
+            pop = 0;
+            push = 1;
+        } else if (op == 0x51) { // PUSH_FUNC32 u32_addr
+            len = 5;
+            uint32_t addr = 0;
+            if (!decode_u32(code, code_len, pc + 1, &addr)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated PUSH_FUNC32"); }
+            if (addr >= code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: PUSH_FUNC32 addr out of bounds"); }
             pop = 0;
             push = 1;
         } else if (op == 0x3D) { // CALL_INDIRECT u8_nargs
@@ -498,7 +555,9 @@ static VerifyResult verify_program_region(
 
         if (depth < pop) {
             free(depth_at); free(queue); free(qdepth);
-            return err_result("verify: stack underflow");
+            char buf[256];
+            snprintf(buf, sizeof(buf), "verify: stack underflow at pc=%zu op=0x%02x (need pop=%d, have depth=%d)", pc, (unsigned)op, pop, depth);
+            return err_result(buf);
         }
         int next_depth = depth - pop + push;
         if (next_depth < 0 || next_depth > AVM_STACK_SIZE) {
@@ -561,6 +620,55 @@ static VerifyResult verify_program_region(
             continue;
         }
 
+        if (op == 0x4E || op == 0x4F) { // JMP32/JMP_IF32
+            int32_t off = 0;
+            if (!decode_i32(code, code_len, pc + 1, &off)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated JMP32"); }
+            int64_t target64 = (int64_t)pc_after + (int64_t)off;
+            if (target64 < 0 || target64 >= (int64_t)code_len) { free(depth_at); free(queue); free(qdepth); return err_result("verify: jump target out of bounds"); }
+            size_t target = (size_t)target64;
+
+            if (qt >= qcap) {
+                size_t nc = qcap * 2;
+                size_t* nq = (size_t*)realloc(queue, sizeof(size_t) * nc);
+                int* nd = (int*)realloc(qdepth, sizeof(int) * nc);
+                if (!nq || !nd) {
+                    free(nq ? nq : queue);
+                    free(nd ? nd : qdepth);
+                    free(depth_at);
+                    return err_result("verify: out of memory");
+                }
+                queue = nq;
+                qdepth = nd;
+                qcap = nc;
+            }
+            queue[qt] = target;
+            qdepth[qt] = next_depth;
+            qt++;
+
+            if (op == 0x4F) {
+                if (pc_after < code_len) {
+                    if (qt >= qcap) {
+                        size_t nc = qcap * 2;
+                        size_t* nq = (size_t*)realloc(queue, sizeof(size_t) * nc);
+                        int* nd = (int*)realloc(qdepth, sizeof(int) * nc);
+                        if (!nq || !nd) {
+                            free(nq ? nq : queue);
+                            free(nd ? nd : qdepth);
+                            free(depth_at);
+                            return err_result("verify: out of memory");
+                        }
+                        queue = nq;
+                        qdepth = nd;
+                        qcap = nc;
+                    }
+                    queue[qt] = pc_after;
+                    qdepth[qt] = next_depth;
+                    qt++;
+                }
+            }
+            continue;
+        }
+
         // default fallthrough
         if (pc_after < code_len) {
             if (qt >= qcap) {
@@ -593,12 +701,12 @@ static VerifyResult verify_program_region(
 }
 
 typedef struct {
-    uint16_t addr;
+    uint32_t addr;
     uint8_t nargs;
     uint8_t verified;
 } VerifyFunc;
 
-static int find_func(VerifyFunc* funcs, size_t n, uint16_t addr) {
+static int find_func(VerifyFunc* funcs, size_t n, uint32_t addr) {
     for (size_t i = 0; i < n; i++) if (funcs[i].addr == addr) return (int)i;
     return -1;
 }
@@ -616,7 +724,7 @@ static VerifyResult ensure_funcs_cap(VerifyFunc** funcs_io, size_t* cap_io, size
 }
 
 static VerifyResult ensure_worklist_cap(
-    uint16_t** wl_io,
+    uint32_t** wl_io,
     uint8_t** wl_nargs_io,
     size_t* cap_io,
     size_t need
@@ -625,7 +733,7 @@ static VerifyResult ensure_worklist_cap(
     if (need <= *cap_io) return ok_result();
     size_t nc = (*cap_io) ? (*cap_io) * 2 : 16;
     while (nc < need) nc *= 2;
-    uint16_t* nw = (uint16_t*)realloc(*wl_io, sizeof(uint16_t) * nc);
+    uint32_t* nw = (uint32_t*)realloc(*wl_io, sizeof(uint32_t) * nc);
     if (!nw) return err_result("verify: out of memory");
     uint8_t* nn = (uint8_t*)realloc(*wl_nargs_io, sizeof(uint8_t) * nc);
     if (!nn) {
@@ -642,12 +750,12 @@ static VerifyResult enqueue_func(
     VerifyFunc** funcs_io,
     size_t* funcs_len_io,
     size_t* funcs_cap_io,
-    uint16_t** wl_io,
+    uint32_t** wl_io,
     uint8_t** wl_nargs_io,
     size_t* wl_t_io,
     size_t* wl_cap_io,
     uint64_t used_domains_mask,
-    uint16_t addr,
+    uint32_t addr,
     uint8_t nargs
 ) {
     if (!funcs_io || !funcs_len_io || !funcs_cap_io || !wl_io || !wl_nargs_io || !wl_t_io || !wl_cap_io) {
@@ -698,7 +806,7 @@ static VerifyResult verify_program(const AvmProgram* prog, int strict_legacy) {
     size_t funcs_len = 0;
     size_t funcs_cap = 0;
 
-    uint16_t* wl = NULL;
+    uint32_t* wl = NULL;
     uint8_t* wl_nargs = NULL;
     size_t wl_h = 0, wl_t = 0, wl_cap = 0;
 
@@ -706,12 +814,12 @@ static VerifyResult verify_program(const AvmProgram* prog, int strict_legacy) {
     {
         // Use local buffers for callee discovery (worst-case: code_len CALL sites).
         size_t cap = prog->code_len;
-        uint16_t* callees = (uint16_t*)malloc(sizeof(uint16_t) * cap);
+        uint32_t* callees = (uint32_t*)malloc(sizeof(uint32_t) * cap);
         uint8_t* cnargs = (uint8_t*)malloc(sizeof(uint8_t) * cap);
         size_t ccnt = 0;
         if ((!callees || !cnargs) && cap > 0) { free(callees); free(cnargs); free(funcs); free(wl); free(wl_nargs); return err_result("verify: out of memory"); }
 
-        VerifyResult vr = verify_program_region(prog, 0, 0, 0xFFFFu, &used_domains, callees, cnargs, &ccnt, cap, strict_legacy);
+        VerifyResult vr = verify_program_region(prog, 0, 0, 0xFFFFFFFFu, &used_domains, callees, cnargs, &ccnt, cap, strict_legacy);
         for (size_t i = 0; i < ccnt && vr.ok; i++) {
             VerifyResult er = enqueue_func(&funcs, &funcs_len, &funcs_cap, &wl, &wl_nargs, &wl_t, &wl_cap, used_domains, callees[i], cnargs[i]);
             if (!er.ok) vr = er;
@@ -724,7 +832,7 @@ static VerifyResult verify_program(const AvmProgram* prog, int strict_legacy) {
 
     // Verify each reachable function region once.
     while (wl_h < wl_t) {
-        uint16_t addr = wl[wl_h];
+        uint32_t addr = wl[wl_h];
         uint8_t nargs = wl_nargs[wl_h];
         wl_h++;
 
@@ -733,7 +841,7 @@ static VerifyResult verify_program(const AvmProgram* prog, int strict_legacy) {
         if (funcs[idx].verified) continue;
 
         size_t cap = prog->code_len;
-        uint16_t* callees = (uint16_t*)malloc(sizeof(uint16_t) * cap);
+        uint32_t* callees = (uint32_t*)malloc(sizeof(uint32_t) * cap);
         uint8_t* cnargs = (uint8_t*)malloc(sizeof(uint8_t) * cap);
         size_t ccnt = 0;
         if ((!callees || !cnargs) && cap > 0) { free(callees); free(cnargs); free(funcs); free(wl); free(wl_nargs); return err_result("verify: out of memory"); }
@@ -1193,11 +1301,20 @@ static int policy_scan_program(const AvmProgram* prog, uint64_t* used_domains_ma
 
         if (op == 0x02) len = 3;
         else if (op == 0x04 || op == 0x05) len = 2;
+        else if (op == 0x52 || op == 0x53) len = 3;
         else if (op == 0x06 || op == 0x07) len = 3;
         else if (op == 0x30 || op == 0x31) len = 3;
+        else if (op == 0x4E || op == 0x4F) len = 5;
         else if (op == 0x38) len = 4;
+        else if (op == 0x50) len = 6;
         else if (op == 0x3A) len = 4;
         else if (op == 0x3B) len = 5;
+        else if (op == 0x3C) len = 3;
+        else if (op == 0x51) len = 5;
+        else if (op == 0x3D) len = 2;
+        else if (op == 0x44) len = 2;
+        else if (op == 0x3E) len = 2;
+        else if (op == 0x3F) len = 2;
         else if (op == 0x40 || op == 0x41) len = 3;
 
         if (pc + len > code_len) { free(ops); return 0; }
@@ -1494,6 +1611,8 @@ static const char* op_name(uint8_t op) {
         case 0x03: return "POP";
         case 0x04: return "LOAD_LOCAL";
         case 0x05: return "STORE_LOCAL";
+        case 0x52: return "LOAD_LOCAL16";
+        case 0x53: return "STORE_LOCAL16";
         case 0x06: return "LOAD_GLOBAL";
         case 0x07: return "STORE_GLOBAL";
         case 0x10: return "ADD";
@@ -1513,11 +1632,15 @@ static const char* op_name(uint8_t op) {
         case 0x21: return "PRINT_LIST";
         case 0x30: return "JMP";
         case 0x31: return "JMP_IF";
+        case 0x4E: return "JMP32";
+        case 0x4F: return "JMP_IF32";
         case 0x38: return "CALL";
+        case 0x50: return "CALL32";
         case 0x39: return "RET";
         case 0x3A: return "CALL_NATIVE";
         case 0x3B: return "CALL_NATIVE2";
         case 0x3C: return "PUSH_FUNC";
+        case 0x51: return "PUSH_FUNC32";
         case 0x3D: return "CALL_INDIRECT";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x3E: return "MAKE_CLOSURE";
@@ -1591,12 +1714,16 @@ static size_t disasm_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     uint8_t op = code[pc];
     if (op == 0x02) return 3;                 // PUSH_CONST u16
     if (op == 0x04 || op == 0x05) return 2;   // LOAD/STORE_LOCAL u8
+    if (op == 0x52 || op == 0x53) return 3;   // LOAD/STORE_LOCAL16 u16
     if (op == 0x06 || op == 0x07) return 3;   // LOAD/STORE_GLOBAL u16
     if (op == 0x30 || op == 0x31) return 3;   // JMP/JMP_IF i16
+    if (op == 0x4E || op == 0x4F) return 5;   // JMP32/JMP_IF32 i32
     if (op == 0x38) return 4;                 // CALL u16 u8
+    if (op == 0x50) return 6;                 // CALL32 u32 u8
     if (op == 0x3A) return 4;                 // CALL_NATIVE u16 u8
     if (op == 0x3B) return 5;                 // CALL_NATIVE2 u8 u16 u8
     if (op == 0x3C) return 3;                 // PUSH_FUNC u16
+    if (op == 0x51) return 5;                 // PUSH_FUNC32 u32
     if (op == 0x3D) return 2;                 // CALL_INDIRECT u8
     if (op == 0x44) return 2;                 // CALL_INDIRECT_SPREAD u8
     if (op == 0x3E) return 2;                 // MAKE_CLOSURE u8
@@ -1665,6 +1792,9 @@ static void disasm_program_json(FILE* out, const AvmProgram* prog, int show_cons
                 fprintf(out, ",\"operands\":{\"const_idx\":%u}", (unsigned)idx);
             } else if (op == 0x04 || op == 0x05) { // LOAD/STORE_LOCAL u8
                 fprintf(out, ",\"operands\":{\"local\":%u}", (unsigned)code[pc + 1]);
+            } else if (op == 0x52 || op == 0x53) { // LOAD/STORE_LOCAL16 u16
+                uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                fprintf(out, ",\"operands\":{\"local\":%u}", (unsigned)idx);
             } else if (op == 0x06 || op == 0x07) { // LOAD/STORE_GLOBAL u16
                 uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
                 fprintf(out, ",\"operands\":{\"global\":%u}", (unsigned)idx);
@@ -1673,9 +1803,26 @@ static void disasm_program_json(FILE* out, const AvmProgram* prog, int show_cons
                 size_t pc_after = pc + 3;
                 int64_t target = (int64_t)pc_after + (int64_t)off;
                 fprintf(out, ",\"operands\":{\"off\":%d,\"target\":%lld}", (int)off, (long long)target);
+            } else if (op == 0x4E || op == 0x4F) { // JMP32/JMP_IF32 i32
+                uint32_t u = (uint32_t)code[pc + 1]
+                           | ((uint32_t)code[pc + 2] << 8)
+                           | ((uint32_t)code[pc + 3] << 16)
+                           | ((uint32_t)code[pc + 4] << 24);
+                int32_t off = 0;
+                memcpy(&off, &u, sizeof(off));
+                size_t pc_after = pc + 5;
+                int64_t target = (int64_t)pc_after + (int64_t)off;
+                fprintf(out, ",\"operands\":{\"off\":%d,\"target\":%lld}", (int)off, (long long)target);
             } else if (op == 0x38) { // CALL u16_addr u8_nargs
                 uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
                 uint8_t nargs = code[pc + 3];
+                fprintf(out, ",\"operands\":{\"addr\":%u,\"nargs\":%u}", (unsigned)addr, (unsigned)nargs);
+            } else if (op == 0x50) { // CALL32 u32_addr u8_nargs
+                uint32_t addr = (uint32_t)code[pc + 1]
+                              | ((uint32_t)code[pc + 2] << 8)
+                              | ((uint32_t)code[pc + 3] << 16)
+                              | ((uint32_t)code[pc + 4] << 24);
+                uint8_t nargs = code[pc + 5];
                 fprintf(out, ",\"operands\":{\"addr\":%u,\"nargs\":%u}", (unsigned)addr, (unsigned)nargs);
             } else if (op == 0x3A) { // CALL_NATIVE u16 id u8 nargs
                 uint16_t id = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
@@ -1688,6 +1835,12 @@ static void disasm_program_json(FILE* out, const AvmProgram* prog, int show_cons
                 fprintf(out, ",\"operands\":{\"domain\":%u,\"capop\":%u,\"nargs\":%u}", (unsigned)dom, (unsigned)nop, (unsigned)nargs);
             } else if (op == 0x3C) { // PUSH_FUNC u16 addr
                 uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+                fprintf(out, ",\"operands\":{\"addr\":%u}", (unsigned)addr);
+            } else if (op == 0x51) { // PUSH_FUNC32 u32 addr
+                uint32_t addr = (uint32_t)code[pc + 1]
+                              | ((uint32_t)code[pc + 2] << 8)
+                              | ((uint32_t)code[pc + 3] << 16)
+                              | ((uint32_t)code[pc + 4] << 24);
                 fprintf(out, ",\"operands\":{\"addr\":%u}", (unsigned)addr);
             } else if (op == 0x3D) { // CALL_INDIRECT u8 nargs
                 uint8_t nargs = code[pc + 1];
@@ -1744,6 +1897,14 @@ static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
         } else if (op == 0x05 && pc + 2 <= prog->code_len) { // STORE_LOCAL u8
             fprintf(out, " l%u", (unsigned)code[pc + 1]);
             pc += 2;
+        } else if (op == 0x52 && pc + 3 <= prog->code_len) { // LOAD_LOCAL16 u16
+            uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            fprintf(out, " l%u", (unsigned)idx);
+            pc += 3;
+        } else if (op == 0x53 && pc + 3 <= prog->code_len) { // STORE_LOCAL16 u16
+            uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            fprintf(out, " l%u", (unsigned)idx);
+            pc += 3;
         } else if (op == 0x06 && pc + 3 <= prog->code_len) { // LOAD_GLOBAL u16
             uint16_t idx = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
             fprintf(out, " g%u", (unsigned)idx);
@@ -1758,11 +1919,30 @@ static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
             int64_t target = (int64_t)pc_after + (int64_t)off;
             fprintf(out, " off=%d -> %lld", (int)off, (long long)target);
             pc += 3;
+        } else if ((op == 0x4E || op == 0x4F) && pc + 5 <= prog->code_len) { // JMP32/JMP_IF32 i32
+            uint32_t u = (uint32_t)code[pc + 1]
+                       | ((uint32_t)code[pc + 2] << 8)
+                       | ((uint32_t)code[pc + 3] << 16)
+                       | ((uint32_t)code[pc + 4] << 24);
+            int32_t off = 0;
+            memcpy(&off, &u, sizeof(off));
+            size_t pc_after = pc + 5;
+            int64_t target = (int64_t)pc_after + (int64_t)off;
+            fprintf(out, " off=%d -> %lld", (int)off, (long long)target);
+            pc += 5;
         } else if (op == 0x38 && pc + 4 <= prog->code_len) { // CALL u16_addr u8_nargs
             uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
             uint8_t nargs = code[pc + 3];
             fprintf(out, " addr=%u nargs=%u", (unsigned)addr, (unsigned)nargs);
             pc += 4;
+        } else if (op == 0x50 && pc + 6 <= prog->code_len) { // CALL32 u32_addr u8_nargs
+            uint32_t addr = (uint32_t)code[pc + 1]
+                          | ((uint32_t)code[pc + 2] << 8)
+                          | ((uint32_t)code[pc + 3] << 16)
+                          | ((uint32_t)code[pc + 4] << 24);
+            uint8_t nargs = code[pc + 5];
+            fprintf(out, " addr=%u nargs=%u", (unsigned)addr, (unsigned)nargs);
+            pc += 6;
         } else if ((op == 0x3A) && pc + 4 <= prog->code_len) { // CALL_NATIVE u16 id u8 nargs
             uint16_t id = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
             uint8_t nargs = code[pc + 3];
@@ -1778,6 +1958,13 @@ static void disasm_program(FILE* out, const AvmProgram* prog, int show_consts) {
             uint16_t addr = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
             fprintf(out, " addr=%u", (unsigned)addr);
             pc += 3;
+        } else if ((op == 0x51) && pc + 5 <= prog->code_len) { // PUSH_FUNC32 u32 addr
+            uint32_t addr = (uint32_t)code[pc + 1]
+                          | ((uint32_t)code[pc + 2] << 8)
+                          | ((uint32_t)code[pc + 3] << 16)
+                          | ((uint32_t)code[pc + 4] << 24);
+            fprintf(out, " addr=%u", (unsigned)addr);
+            pc += 5;
         } else if ((op == 0x3D) && pc + 2 <= prog->code_len) { // CALL_INDIRECT u8 nargs
             uint8_t nargs = code[pc + 1];
             fprintf(out, " nargs=%u", (unsigned)nargs);

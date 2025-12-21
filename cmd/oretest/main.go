@@ -318,6 +318,7 @@ func main() {
 	fixtures := []struct {
 		name    string
 		cmd     string
+		timeout time.Duration
 		log     string
 		ok      func(rc int) bool
 		cleanup []string
@@ -778,6 +779,59 @@ func main() {
 		},
 	}
 
+		if *full {
+		// Compiler-in-AVM bootstrap smoke:
+		//
+		// Run the compiler itself inside AVM (host FS backend), then run the produced program.
+		//
+		// This is NOT yet "deterministic multiverse compilation" (still host-effectful),
+		// but it validates the core milestone: "compiler runs in AVM and produces OBC".
+		//
+		// Note: AVM supports passing program args after `--`.
+			fixtures = append(fixtures, struct {
+				name    string
+				cmd     string
+				timeout time.Duration
+				log     string
+				ok      func(rc int) bool
+				cleanup []string
+			}{
+				name: "compiler_in_avm_smoke",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"echo \"[fixture] build compiler obc\"; "+
+					"./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] run compiler inside avm\"; "+
+					"./avm --fs-backend host --fs-allow-prefixes %q %q -- build %q --backend bytecode --target %s -o %q; "+
+					"echo \"[fixture] run compiled program\"; "+
+					"./avm %q > %q; "+
+					"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
+				"oren.oren",
+				*target,
+				"build/oren_compiler.obc",
+				gcArg,
+				"build/,tests/fixtures/,lib/",
+				"build/oren_compiler.obc",
+				"tests/fixtures/avm_compiler_smoke_src.oren",
+				*target,
+				"build/avm_compiler_smoke_out.obc",
+				"build/avm_compiler_smoke_out.obc",
+				"build/fixture_compiler_in_avm_smoke.run.out",
+				"avm compiler smoke OK",
+				"build/fixture_compiler_in_avm_smoke.run.out",
+				"build/fixture_compiler_in_avm_smoke.run.out",
+				),
+				timeout: 8 * time.Minute,
+				log: "build/logs/fixture_compiler_in_avm_smoke.log",
+				ok:  func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/oren_compiler.obc",
+				"build/avm_compiler_smoke_out.obc",
+				"build/fixture_compiler_in_avm_smoke.run.out",
+			},
+		})
+	}
+
 	// Runtime diagnostics fixtures (expected non-zero exit, machine-readable header).
 	runtimeFixtures := []struct {
 		name    string
@@ -809,14 +863,18 @@ func main() {
 		},
 	}
 
-	// Run fixtures sequentially (fast, high-signal).
-	for _, fx := range fixtures {
-		vprintln("fixture: " + fx.name)
-		rc := runWithTimeout(timeoutBin, buildTimeout, fx.cmd, fx.log)
-		for _, c := range fx.cleanup {
-			_ = os.Remove(c)
-		}
-		if !fx.ok(rc) {
+		// Run fixtures sequentially (fast, high-signal).
+		for _, fx := range fixtures {
+			vprintln("fixture: " + fx.name)
+			t := buildTimeout
+			if fx.timeout != 0 {
+				t = fx.timeout
+			}
+			rc := runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
+			for _, c := range fx.cleanup {
+				_ = os.Remove(c)
+			}
+			if !fx.ok(rc) {
 			fmt.Fprintf(os.Stderr, "fixture failed: %s (log: %s)\n", fx.name, fx.log)
 			_ = catFile(os.Stderr, fx.log)
 			os.Exit(1)
