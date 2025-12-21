@@ -1281,10 +1281,14 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_add_f32" { native_id = 72 }
         if name == "oren_buf_dot_i32" { native_id = 73 }
         if name == "oren_buf_dot_f32" { native_id = 74 }
+        // f64 reductions (rolling HPC): make these available to bytecode/AVM as native ops.
+        if name == "oren_buf_dot_f64" { native_id = 132 }
         if name == "oren_buf_dot_i32_slice" { native_id = 114 }
         if name == "oren_buf_dot_f32_slice" { native_id = 115 }
+        if name == "oren_buf_dot_f64_slice" { native_id = 133 }
         if name == "oren_buf_dot_i32_strided" { native_id = 116 }
         if name == "oren_buf_dot_f32_strided" { native_id = 117 }
+        if name == "oren_buf_dot_f64_strided" { native_id = 134 }
         if name == "oren_buf_dot_f32_into" { native_id = 86 }
         if name == "oren_buf_add_i32_into" { native_id = 75 }
         if name == "oren_buf_add_f32_into" { native_id = 76 }
@@ -1296,10 +1300,13 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_mul_i32_into" { native_id = 81 }
         if name == "oren_buf_mul_i32" { native_id = 82 }
         if name == "oren_buf_reduce_sum_i32" { native_id = 83 }
+        if name == "oren_buf_reduce_sum_f64" { native_id = 135 }
         if name == "oren_buf_scale_f32_into" { native_id = 84 }
         if name == "oren_buf_scale_i32_into" { native_id = 85 }
         if name == "oren_buf_dot_i32_into" { native_id = 88 }
         if name == "oren_buf_reduce_sum_i32_into" { native_id = 89 }
+        if name == "oren_buf_dot_f64_into" { native_id = 136 }
+        if name == "oren_buf_reduce_sum_f64_into" { native_id = 137 }
         if name == "oren_buf_axpy_i32_into" { native_id = 123 }
         if name == "oren_buf_axpy_i32_in_place" { native_id = 124 }
         if name == "oren_buf_axpy_f32_into" { native_id = 125 }

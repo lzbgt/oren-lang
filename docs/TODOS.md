@@ -91,6 +91,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - then extend to `gemm_f32_4x4` and `gemm_i32_4x4` (still determinism-safe; scalar fallback remains authoritative).
    - Status (rolling, short):
       - SIMD + GEMM baseline is implemented across **native runtime + C runtime + AVM** with determinism-safe NEON fast paths where possible.
+      - Bytecode/AVM now also supports f64 reduction ops (`oren_buf_dot_f64*`, `oren_buf_reduce_sum_f64*`) as native ops, so HPC-style `linalg` kernels can run inside AVM without falling back to slow per-element interpreter loops.
       - For the authoritative implementation details and native_id mapping, see:
         - `docs/AVM_NEON_MAPPING_PLAN.md`
         - `lib/std/linalg.oren`
