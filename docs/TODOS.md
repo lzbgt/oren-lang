@@ -86,7 +86,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - C runtime + native runtime + AVM parity for any new kernel boundary.
      - A small correctness-only integration test (no perf thresholds) in the fast suite.
    - Next milestone (suggested):
-     - Add a **NEON-backed f64 4×4 microkernel intrinsic** (bit-exact vs scalar reference; preserves strict k-order), and wire it into the new `oren_buf_gemm_f64_4x4_slice_into` boundary.
+     - Add **optional C-AVM NEON kernels** (behind build+runtime flags) for the hottest typed-buffer ops:
+       - `dot_f64_4` and `gemm_f64_4x4` first (bit-exact vs scalar; preserves strict k-order).
    - Current rolling note:
       - Matmul now avoids per-k-block dot calls when **not packed** (Bt is contiguous per column, so we do a single dot/dot_4 across full `n`).
       - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
