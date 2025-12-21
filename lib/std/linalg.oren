@@ -235,23 +235,32 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
             var s1 = 0.0
             var s2 = 0.0
             var s3 = 0.0
-            var k = 0
-            while k < n {
-                var av = oren_buf_load_f32(a, i * n + k)
-                if oren_is_err(av) { return av }
-                var b0 = oren_buf_load_f32(bt, (j + 0) * n + k)
-                var b1 = oren_buf_load_f32(bt, (j + 1) * n + k)
-                var b2 = oren_buf_load_f32(bt, (j + 2) * n + k)
-                var b3 = oren_buf_load_f32(bt, (j + 3) * n + k)
-                if oren_is_err(b0) { return b0 }
-                if oren_is_err(b1) { return b1 }
-                if oren_is_err(b2) { return b2 }
-                if oren_is_err(b3) { return b3 }
-                s0 = s0 + av * b0
-                s1 = s1 + av * b1
-                s2 = s2 + av * b2
-                s3 = s3 + av * b3
-                k = k + 1
+            // k-block tiling improves cache behavior for larger matrices, but must not change semantics.
+            // We preserve determinism by iterating k in increasing order overall: k0=0..n, then k=k0..end.
+            var KB = 64
+            var k0 = 0
+            while k0 < n {
+                var kend = k0 + KB
+                if kend > n { kend = n }
+                var k = k0
+                while k < kend {
+                    var av = oren_buf_load_f32(a, i * n + k)
+                    if oren_is_err(av) { return av }
+                    var b0 = oren_buf_load_f32(bt, (j + 0) * n + k)
+                    var b1 = oren_buf_load_f32(bt, (j + 1) * n + k)
+                    var b2 = oren_buf_load_f32(bt, (j + 2) * n + k)
+                    var b3 = oren_buf_load_f32(bt, (j + 3) * n + k)
+                    if oren_is_err(b0) { return b0 }
+                    if oren_is_err(b1) { return b1 }
+                    if oren_is_err(b2) { return b2 }
+                    if oren_is_err(b3) { return b3 }
+                    s0 = s0 + av * b0
+                    s1 = s1 + av * b1
+                    s2 = s2 + av * b2
+                    s3 = s3 + av * b3
+                    k = k + 1
+                }
+                k0 = k0 + KB
             }
             oren_buf_store_f32(out, i * p + (j + 0), f32(s0))
             oren_buf_store_f32(out, i * p + (j + 1), f32(s1))
@@ -262,14 +271,21 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
         // tail (<=3 columns)
         while j < p {
             var s = 0.0
-            var k2 = 0
-            while k2 < n {
-                var av2 = oren_buf_load_f32(a, i * n + k2)
-                if oren_is_err(av2) { return av2 }
-                var bv2 = oren_buf_load_f32(bt, j * n + k2)
-                if oren_is_err(bv2) { return bv2 }
-                s = s + av2 * bv2
-                k2 = k2 + 1
+            var KB2 = 64
+            var k02 = 0
+            while k02 < n {
+                var kend2 = k02 + KB2
+                if kend2 > n { kend2 = n }
+                var k2 = k02
+                while k2 < kend2 {
+                    var av2 = oren_buf_load_f32(a, i * n + k2)
+                    if oren_is_err(av2) { return av2 }
+                    var bv2 = oren_buf_load_f32(bt, j * n + k2)
+                    if oren_is_err(bv2) { return bv2 }
+                    s = s + av2 * bv2
+                    k2 = k2 + 1
+                }
+                k02 = k02 + KB2
             }
             oren_buf_store_f32(out, i * p + j, f32(s))
             j = j + 1
@@ -316,23 +332,30 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
             var s1 = 0
             var s2 = 0
             var s3 = 0
-            var k = 0
-            while k < n {
-                var av = oren_buf_load_i32(a, i * n + k)
-                if oren_is_err(av) { return av }
-                var b0 = oren_buf_load_i32(bt, (j + 0) * n + k)
-                var b1 = oren_buf_load_i32(bt, (j + 1) * n + k)
-                var b2 = oren_buf_load_i32(bt, (j + 2) * n + k)
-                var b3 = oren_buf_load_i32(bt, (j + 3) * n + k)
-                if oren_is_err(b0) { return b0 }
-                if oren_is_err(b1) { return b1 }
-                if oren_is_err(b2) { return b2 }
-                if oren_is_err(b3) { return b3 }
-                s0 = s0 + i64(av) * i64(b0)
-                s1 = s1 + i64(av) * i64(b1)
-                s2 = s2 + i64(av) * i64(b2)
-                s3 = s3 + i64(av) * i64(b3)
-                k = k + 1
+            var KB = 64
+            var k0 = 0
+            while k0 < n {
+                var kend = k0 + KB
+                if kend > n { kend = n }
+                var k = k0
+                while k < kend {
+                    var av = oren_buf_load_i32(a, i * n + k)
+                    if oren_is_err(av) { return av }
+                    var b0 = oren_buf_load_i32(bt, (j + 0) * n + k)
+                    var b1 = oren_buf_load_i32(bt, (j + 1) * n + k)
+                    var b2 = oren_buf_load_i32(bt, (j + 2) * n + k)
+                    var b3 = oren_buf_load_i32(bt, (j + 3) * n + k)
+                    if oren_is_err(b0) { return b0 }
+                    if oren_is_err(b1) { return b1 }
+                    if oren_is_err(b2) { return b2 }
+                    if oren_is_err(b3) { return b3 }
+                    s0 = s0 + i64(av) * i64(b0)
+                    s1 = s1 + i64(av) * i64(b1)
+                    s2 = s2 + i64(av) * i64(b2)
+                    s3 = s3 + i64(av) * i64(b3)
+                    k = k + 1
+                }
+                k0 = k0 + KB
             }
             oren_buf_store_i32(out, i * p + (j + 0), i32(s0))
             oren_buf_store_i32(out, i * p + (j + 1), i32(s1))
@@ -342,14 +365,21 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
         }
         while j < p {
             var s = 0
-            var k2 = 0
-            while k2 < n {
-                var av2 = oren_buf_load_i32(a, i * n + k2)
-                if oren_is_err(av2) { return av2 }
-                var bv2 = oren_buf_load_i32(bt, j * n + k2)
-                if oren_is_err(bv2) { return bv2 }
-                s = s + i64(av2) * i64(bv2)
-                k2 = k2 + 1
+            var KB2 = 64
+            var k02 = 0
+            while k02 < n {
+                var kend2 = k02 + KB2
+                if kend2 > n { kend2 = n }
+                var k2 = k02
+                while k2 < kend2 {
+                    var av2 = oren_buf_load_i32(a, i * n + k2)
+                    if oren_is_err(av2) { return av2 }
+                    var bv2 = oren_buf_load_i32(bt, j * n + k2)
+                    if oren_is_err(bv2) { return bv2 }
+                    s = s + i64(av2) * i64(bv2)
+                    k2 = k2 + 1
+                }
+                k02 = k02 + KB2
             }
             oren_buf_store_i32(out, i * p + j, i32(s))
             j = j + 1
@@ -394,23 +424,30 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
             var s1 = 0
             var s2 = 0
             var s3 = 0
-            var k = 0
-            while k < n {
-                var av = oren_buf_load_i32(a, i * n + k)
-                if oren_is_err(av) { return av }
-                var b0 = oren_buf_load_i32(bt, (j + 0) * n + k)
-                var b1 = oren_buf_load_i32(bt, (j + 1) * n + k)
-                var b2 = oren_buf_load_i32(bt, (j + 2) * n + k)
-                var b3 = oren_buf_load_i32(bt, (j + 3) * n + k)
-                if oren_is_err(b0) { return b0 }
-                if oren_is_err(b1) { return b1 }
-                if oren_is_err(b2) { return b2 }
-                if oren_is_err(b3) { return b3 }
-                s0 = s0 + i64(av) * i64(b0)
-                s1 = s1 + i64(av) * i64(b1)
-                s2 = s2 + i64(av) * i64(b2)
-                s3 = s3 + i64(av) * i64(b3)
-                k = k + 1
+            var KB = 64
+            var k0 = 0
+            while k0 < n {
+                var kend = k0 + KB
+                if kend > n { kend = n }
+                var k = k0
+                while k < kend {
+                    var av = oren_buf_load_i32(a, i * n + k)
+                    if oren_is_err(av) { return av }
+                    var b0 = oren_buf_load_i32(bt, (j + 0) * n + k)
+                    var b1 = oren_buf_load_i32(bt, (j + 1) * n + k)
+                    var b2 = oren_buf_load_i32(bt, (j + 2) * n + k)
+                    var b3 = oren_buf_load_i32(bt, (j + 3) * n + k)
+                    if oren_is_err(b0) { return b0 }
+                    if oren_is_err(b1) { return b1 }
+                    if oren_is_err(b2) { return b2 }
+                    if oren_is_err(b3) { return b3 }
+                    s0 = s0 + i64(av) * i64(b0)
+                    s1 = s1 + i64(av) * i64(b1)
+                    s2 = s2 + i64(av) * i64(b2)
+                    s3 = s3 + i64(av) * i64(b3)
+                    k = k + 1
+                }
+                k0 = k0 + KB
             }
             oren_buf_store_i64(out, i * p + (j + 0), s0)
             oren_buf_store_i64(out, i * p + (j + 1), s1)
@@ -420,14 +457,21 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
         }
         while j < p {
             var s = 0
-            var k2 = 0
-            while k2 < n {
-                var av2 = oren_buf_load_i32(a, i * n + k2)
-                if oren_is_err(av2) { return av2 }
-                var bv2 = oren_buf_load_i32(bt, j * n + k2)
-                if oren_is_err(bv2) { return bv2 }
-                s = s + i64(av2) * i64(bv2)
-                k2 = k2 + 1
+            var KB2 = 64
+            var k02 = 0
+            while k02 < n {
+                var kend2 = k02 + KB2
+                if kend2 > n { kend2 = n }
+                var k2 = k02
+                while k2 < kend2 {
+                    var av2 = oren_buf_load_i32(a, i * n + k2)
+                    if oren_is_err(av2) { return av2 }
+                    var bv2 = oren_buf_load_i32(bt, j * n + k2)
+                    if oren_is_err(bv2) { return bv2 }
+                    s = s + i64(av2) * i64(bv2)
+                    k2 = k2 + 1
+                }
+                k02 = k02 + KB2
             }
             oren_buf_store_i64(out, i * p + j, s)
             j = j + 1
