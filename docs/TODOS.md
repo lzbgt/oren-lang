@@ -79,7 +79,17 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[stdlib][perf] SIMD + GEMM kernels (arm64 NEON first)**
+1) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
+   - DoD:
+     - `u8/i32/u64/f32/f64` are first-class tokens in the language (not attribute hacks).
+     - Float→int cast semantics: truncate toward zero (C-like), with explicit `round/floor/ceil` helpers as separate ops.
+     - Cast lowering avoids runtime helper calls in provably-int-only paths.
+   - Current rolling note:
+      - Cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, endian spellings) is lowered by `type_ann_lowering.oren` into deterministic bit ops.
+      - Integer-only cast sites now skip the `oren_trunc_int(...)` helper when the expression is provably-int (reduces overhead in tight loops).
+      - Stdlib cast helpers (`lib/std/ints.oren`, `lib/std/casts.oren`) now accept float inputs (truncate toward zero) and `casts.f32(int)` coerces via `x + 0.0` before rounding, matching cast-sugar semantics.
+
+2) **[stdlib][perf] SIMD + GEMM kernels (arm64 NEON first)**
    - Goal: keep scalar semantics; add NEON behind stable intrinsic/runtime boundaries.
    - DoD:
      - A f32/i32 matmul path that scales beyond “dot per element” while preserving deterministic k-order semantics.
@@ -92,24 +102,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
       - `matmul_i32_buf_wide` now matches the same packed/non-packed strategy, but stores full i64 accumulators.
       - Added `oren_buf_gemm_f32_4x4_slice_into` (native_id=128): 4×4 dot microkernel boundary returning 16 f64 results, with C runtime + native runtime + AVM parity.
-        - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f32_4x4_ptr`:
-          - loads/widens each B column once per k-block and reuses across 4 rows
-          - still widens to f64 and accumulates in deterministic increasing-k order (bit-exact vs scalar reference)
-        - `lib/std/linalg.oren` uses this boundary for 4-row blocks in both packed and non-packed matmul paths.
-      - Added `oren_buf_gemm_i32_4x4_slice_into` (native_id=129): 4×4 i32 GEMM boundary returning 16 i64 results, with C runtime + native runtime + AVM parity; used by packed `matmul_i32_buf` 4-row blocks.
-      - `matmul_i32_buf_wide` now uses the same 4×4 i32 GEMM boundary for 4-row blocks (packed and non-packed), storing i64 results directly.
-      - Fixed correctness for the **non-packed 4-row fast path** when `p % 4 != 0` (tail columns were previously skipped); added a module test that asserts tail-column outputs for f32/i32/i64 matmul.
-      - Simplified **packed tail columns**: packed-B already zero-pads out-of-range cols, so packed matmul always uses 4-wide dot/4×4 GEMM and only conditionally stores in-range columns; added a packed-tail test (`p=65`).
-
-2) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
-   - DoD:
-     - `u8/i32/u64/f32/f64` are first-class tokens in the language (not attribute hacks).
-     - Float→int cast semantics: truncate toward zero (C-like), with explicit `round/floor/ceil` helpers as separate ops.
-     - Cast lowering avoids runtime helper calls in provably-int-only paths.
-   - Current rolling note:
-      - Cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, endian spellings) is lowered by `type_ann_lowering.oren` into deterministic bit ops.
-      - Integer-only cast sites now skip the `oren_trunc_int(...)` helper when the expression is provably-int (reduces overhead in tight loops).
-      - Stdlib cast helpers (`lib/std/ints.oren`, `lib/std/casts.oren`) now accept float inputs (truncate toward zero) and `casts.f32(int)` coerces via `x + 0.0` before rounding, matching cast-sugar semantics.
+        - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f32_4x4_ptr` (bit-exact vs scalar reference).
+      - Added `oren_buf_gemm_i32_4x4_slice_into` (native_id=129): 4×4 i32 GEMM boundary returning 16 i64 results, with C runtime + native runtime + AVM parity.
+      - Tail columns are covered in both packed and non-packed 4-row paths (`p % 4 != 0`).
 
 3) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:
