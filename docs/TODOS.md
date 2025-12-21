@@ -89,38 +89,13 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Add **optional C-AVM NEON kernels** (behind build+runtime flags) for the hottest typed-buffer ops:
        - `dot_f64_4` and `gemm_f64_4x4` first (bit-exact vs scalar; preserves strict k-order).
        - then extend to `gemm_f32_4x4` and `gemm_i32_4x4` (still determinism-safe; scalar fallback remains authoritative).
-   - Current rolling note:
-      - Matmul now avoids per-k-block dot calls when **not packed** (Bt is contiguous per column, so we do a single dot/dot_4 across full `n`).
-      - Packed-B matmul now packs directly from B (skips materializing full Bt transpose).
-      - `matmul_i32_buf_wide` now matches the same packed/non-packed strategy, but stores full i64 accumulators.
-      - Added `oren_buf_gemm_f32_4x4_slice_into` (native_id=128): 4×4 dot microkernel boundary returning 16 f64 results, with C runtime + native runtime + AVM parity.
-        - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f32_4x4_ptr` (bit-exact vs scalar reference).
-      - Added `oren_buf_gemm_i32_4x4_slice_into` (native_id=129): 4×4 i32 GEMM boundary returning 16 i64 results, with C runtime + native runtime + AVM parity.
-      - Added `oren_buf_dot_f64_4_slice_into` (native_id=130): 1×4 f64 dot microkernel boundary returning 4 f64 results, used by `matmul_f64_buf` packed/non-packed paths to reduce interpreter/native overhead.
-        - Native runtime now uses a **true single-pass** intrinsic `simd_dot_f64_4_ptr` (bit-exact vs scalar reference; preserves strict k-order).
-      - Added `oren_buf_gemm_f64_4x4_slice_into` (native_id=131): 4×4 f64 GEMM microkernel boundary returning 16 f64 results, with C runtime + native runtime + AVM parity.
-        - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f64_4x4_ptr` (bit-exact vs scalar reference; preserves strict k-order).
-        - C AVM now has an optional **NEON** fast path for `native_id=131` when `AVM_ENABLE_SIMD=1` (bit-exact; lane-ordered accumulation).
-      - C AVM now has optional **NEON** fast paths (bit-exact; lane-ordered accumulation) for:
-        - `native_id=130` (`oren_buf_dot_f64_4_slice_into`) when `AVM_ENABLE_SIMD=1`
-        - `native_id=122` (`oren_buf_dot_i32_4_slice_into`) when `AVM_ENABLE_SIMD=1`
-        - `native_id=128` (`oren_buf_gemm_f32_4x4_slice_into`) when `AVM_ENABLE_SIMD=1`
-        - `native_id=129` (`oren_buf_gemm_i32_4x4_slice_into`) when `AVM_ENABLE_SIMD=1`
-        - `matmul_f64_buf` now uses a 4-row/4-col block path (packed and non-packed) to reuse packed-B across 4 rows and reduce call overhead.
-      - C AVM now has optional **NEON** fast paths (wrap-safe integer accumulation) for:
-        - `native_id=88` (`oren_buf_dot_i32_into`) when `AVM_ENABLE_SIMD=1`
-        - `native_id=89` (`oren_buf_reduce_sum_i32_into`) when `AVM_ENABLE_SIMD=1`
-        - `native_id=116` (`oren_buf_dot_i32_strided`) when `AVM_ENABLE_SIMD=1` (fast path when strides are contiguous)
-      - C AVM now has optional **NEON** fast paths (lane-ordered float accumulation) for:
-        - `native_id=115` (`oren_buf_dot_f32_slice`) when `AVM_ENABLE_SIMD=1`
-        - `native_id=117` (`oren_buf_dot_f32_strided`) when `AVM_ENABLE_SIMD=1` (fast path when strides are contiguous)
-      - C runtime now has **NEON** fast paths (lane-ordered float accumulation) for:
-        - `oren_buf_dot_f32_strided` when both strides are contiguous
-        - `oren_buf_dot_f64_strided` when both strides are contiguous
-      - Tail columns are covered in both packed and non-packed 4-row paths (`p % 4 != 0`).
-      - Added `linalg.matmul_f32_buf_into(out, a, b, m, n, p)` to enable allocation-free HPC loops (caller owns output buffer).
-      - Added `linalg.matmul_i32_buf_into(out, a, b, m, n, p)` for the same allocation-free pattern in integer GEMM paths.
-      - Added `linalg.matmul_f64_buf_into(out, a, b, m, n, p)` and `linalg.matmul_i32_buf_wide_into(out, a, b, m, n, p)` so long-running HPC loops can reuse output buffers (even when keeping full i64 accumulators).
+   - Status (rolling, short):
+      - SIMD + GEMM baseline is implemented across **native runtime + C runtime + AVM** with determinism-safe NEON fast paths where possible.
+      - For the authoritative implementation details and native_id mapping, see:
+        - `docs/AVM_NEON_MAPPING_PLAN.md`
+        - `lib/std/linalg.oren`
+        - `lib/runtime_buf.c`
+        - `lib/avm/avm_native.inc`
 
 2) **[stdlib][net] Native networking foundations**
    - DoD:
