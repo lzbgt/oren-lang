@@ -66,6 +66,15 @@ fn dot_f32_buf(a: []f32, b: []f32) {
     return oren_buf_dot_f32(a, b)
 }
 
+fn dot_f64_buf(a: []f64, b: []f64) {
+    // Semantics: deterministic dot in strict increasing-index accumulation order.
+    return oren_buf_dot_f64(a, b)
+}
+
+fn reduce_sum_f64_buf(a: []f64) {
+    return oren_buf_reduce_sum_f64(a)
+}
+
 // --- zero-copy views (slice / strided) ---
 //
 // View shapes (portable list encodings; see std/buffer):

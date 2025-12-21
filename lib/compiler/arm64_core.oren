@@ -568,6 +568,14 @@ fn insn_umov_x_d(rd, rn) {
     return 1309162496 + (rn * 32) + rd
 }
 
+fn insn_umov_x_d1(rd, rn) {
+    // UMOV Xd, Vn.D[1]
+    // Verified via clang:
+    //   umov x1, v4.d[1] => 0x4E183C81
+    // Base: 0x4E183C00
+    return 1310211072 + (rn * 32) + rd
+}
+
 fn insn_fadd(rd, rn, rm) {
     // FADD Dd, Dn, Dm: 0x1E602800 = 509618176
     return 509618176 + (rm * 65536) + (rn * 32) + rd
@@ -639,12 +647,28 @@ fn insn_fadd_4s(vd, vn, vm) {
     return 1310774272 + (vm * 65536) + (vn * 32) + vd
 }
 
+fn insn_fadd_2d(vd, vn, vm) {
+    // FADD Vd.2D, Vn.2D, Vm.2D
+    // Verified via clang:
+    //   fadd v3.2d, v1.2d, v2.2d => 0x4E62D423
+    // Base: 0x4E60D400
+    return 1314968576 + (vm * 65536) + (vn * 32) + vd
+}
+
 fn insn_fmul_4s(vd, vn, vm) {
     // FMUL Vd.4S, Vn.4S, Vm.4S
     // Verified via clang:
     //   fmul v0.4s, v0.4s, v1.4s => 0x6E21DC00
     // Base: 0x6E20DC00
     return 1847647232 + (vm * 65536) + (vn * 32) + vd
+}
+
+fn insn_fmul_2d(vd, vn, vm) {
+    // FMUL Vd.2D, Vn.2D, Vm.2D
+    // Verified via clang:
+    //   fmul v4.2d, v1.2d, v2.2d => 0x6E62DC24
+    // Base: 0x6E60DC00
+    return 1851841536 + (vm * 65536) + (vn * 32) + vd
 }
 
 fn insn_fadd_s(sd, sn, sm) {
@@ -677,14 +701,6 @@ fn insn_fcvtl2_2d_from_4s(vd, vn) {
     //   fcvtl2 v3.2d, v0.4s => 0x4E617803
     // Base: 0x4E617800
     return 1315010560 + (vn * 32) + vd
-}
-
-fn insn_fmul_2d(vd, vn, vm) {
-    // FMUL Vd.2D, Vn.2D, Vm.2D
-    // Verified via clang:
-    //   fmul v2.2d, v2.2d, v4.2d => 0x6E64DC42
-    // Base: 0x6E60DC00
-    return 1851841536 + (vm * 65536) + (vn * 32) + vd
 }
 
 fn insn_smull_2d(vd, vn, vm) {

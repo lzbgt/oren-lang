@@ -15,9 +15,18 @@ fn f32_bits_at(buf, idx) {
     return oren_f32_to_u32_bits(oren_buf_load_f32(buf, idx))
 }
 
+fn f64_bits_at(buf, idx) {
+    return oren_f64_to_u64_bits(oren_buf_load_f64(buf, idx))
+}
+
 fn hash_u32_mix(h, x) {
     // Simple wrap-around mixer (deterministic).
     return (h * 16777619) + x
+}
+
+fn hash_u64_mix(h, x) {
+    // Same idea as hash_u32_mix, but for 64-bit words.
+    return (h * 1099511628211) + x
 }
 
 fn run_dot_i32() {
@@ -408,6 +417,130 @@ fn run_scale_i32_into() {
     return 0
 }
 
+fn run_i64_buf_ops() {
+    var n = 513 // odd length
+    var a = oren_i64_buf_new(n)
+    var b = oren_i64_buf_new(n)
+    var out_ref = oren_i64_buf_new(n)
+    var out_got = oren_i64_buf_new(n)
+    if oren_is_err(a) { return fail(950, "alloc a (i64)") }
+    if oren_is_err(b) { return fail(951, "alloc b (i64)") }
+    if oren_is_err(out_ref) { return fail(952, "alloc out_ref (i64)") }
+    if oren_is_err(out_got) { return fail(953, "alloc out_got (i64)") }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i64(a, i, (i * 7) - 123456)
+        oren_buf_store_i64(b, i, (i * 11) + 7777)
+        i = i + 1
+    }
+
+    i = 0
+    while i < n {
+        oren_buf_store_i64(out_ref, i, oren_buf_load_i64(a, i) + oren_buf_load_i64(b, i))
+        i = i + 1
+    }
+
+    var r = oren_buf_add_i64_into(out_got, a, b)
+    if oren_is_err(r) { return fail(954, "buf_add_i64_into err") }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        var refV = oren_buf_load_i64(out_ref, i)
+        var gotV = oren_buf_load_i64(out_got, i)
+        if refV != gotV { return fail(960, "add mismatch (i64)") }
+        sum = sum + gotV
+        i = i + 1
+    }
+    print("I64_ADD_SUM=" + oren_int_to_string(sum))
+    return 0
+}
+
+fn run_f64_buf_ops() {
+    var n = 513 // odd length to test tail handling
+    var a = oren_f64_buf_new(n)
+    var b = oren_f64_buf_new(n)
+    var out_add_ref = oren_f64_buf_new(n)
+    var out_mul_ref = oren_f64_buf_new(n)
+    var out_add_got = oren_f64_buf_new(n)
+    var out_mul_got = oren_f64_buf_new(n)
+    if oren_is_err(a) { return fail(1000, "alloc a (f64)") }
+    if oren_is_err(b) { return fail(1001, "alloc b (f64)") }
+    if oren_is_err(out_add_ref) { return fail(1002, "alloc out_add_ref (f64)") }
+    if oren_is_err(out_mul_ref) { return fail(1003, "alloc out_mul_ref (f64)") }
+    if oren_is_err(out_add_got) { return fail(1004, "alloc out_add_got (f64)") }
+    if oren_is_err(out_mul_got) { return fail(1005, "alloc out_mul_got (f64)") }
+
+    var i = 0
+    while i < n {
+        // Integers are exactly representable in f64, keeps bitwise comparisons stable.
+        oren_buf_store_f64(a, i, f64(i % 97) - 41.0)
+        oren_buf_store_f64(b, i, f64((i * 3) % 89) - 22.0)
+        i = i + 1
+    }
+
+    i = 0
+    while i < n {
+        var xa = oren_buf_load_f64(a, i)
+        var xb = oren_buf_load_f64(b, i)
+        oren_buf_store_f64(out_add_ref, i, xa + xb)
+        oren_buf_store_f64(out_mul_ref, i, xa * xb)
+        i = i + 1
+    }
+
+    var r1 = oren_buf_add_f64_into(out_add_got, a, b)
+    if oren_is_err(r1) { return fail(1006, "buf_add_f64_into err") }
+    var r2 = oren_buf_mul_f64_into(out_mul_got, a, b)
+    if oren_is_err(r2) { return fail(1007, "buf_mul_f64_into err") }
+
+    var h_add = 1469598103934665603
+    var h_mul = 1469598103934665603
+    i = 0
+    while i < n {
+        var refA = f64_bits_at(out_add_ref, i)
+        var gotA = f64_bits_at(out_add_got, i)
+        if refA != gotA {
+            print("F64_ADD_MISMATCH_IDX=" + oren_int_to_string(i))
+            print("F64_ADD_REF_BITS=" + oren_int_to_string(refA))
+            print("F64_ADD_GOT_BITS=" + oren_int_to_string(gotA))
+            return fail(1020, "add bits mismatch (f64)")
+        }
+        var refM = f64_bits_at(out_mul_ref, i)
+        var gotM = f64_bits_at(out_mul_got, i)
+        if refM != gotM {
+            print("F64_MUL_MISMATCH_IDX=" + oren_int_to_string(i))
+            print("F64_MUL_REF_BITS=" + oren_int_to_string(refM))
+            print("F64_MUL_GOT_BITS=" + oren_int_to_string(gotM))
+            return fail(1021, "mul bits mismatch (f64)")
+        }
+        h_add = hash_u64_mix(h_add, gotA)
+        h_mul = hash_u64_mix(h_mul, gotM)
+        i = i + 1
+    }
+    print("F64_ADD_HASH=" + oren_int_to_string(h_add))
+    print("F64_MUL_HASH=" + oren_int_to_string(h_mul))
+
+    // dot + reduce_sum (f64): compare bitwise.
+    var ref_dot = 0.0
+    var ref_sum = 0.0
+    i = 0
+    while i < n {
+        ref_dot = ref_dot + (oren_buf_load_f64(a, i) * oren_buf_load_f64(b, i))
+        ref_sum = ref_sum + oren_buf_load_f64(a, i)
+        i = i + 1
+    }
+    var got_dot = oren_buf_dot_f64(a, b)
+    if oren_is_err(got_dot) { return fail(1030, "dot_f64 err") }
+    var got_sum = oren_buf_reduce_sum_f64(a)
+    if oren_is_err(got_sum) { return fail(1031, "reduce_sum_f64 err") }
+    if oren_f64_to_u64_bits(ref_dot) != oren_f64_to_u64_bits(got_dot) { return fail(1032, "dot mismatch (f64)") }
+    if oren_f64_to_u64_bits(ref_sum) != oren_f64_to_u64_bits(got_sum) { return fail(1033, "reduce_sum mismatch (f64)") }
+    print("DOT_F64_BITS=" + oren_int_to_string(oren_f64_to_u64_bits(got_dot)))
+    print("SUM_F64_BITS=" + oren_int_to_string(oren_f64_to_u64_bits(got_sum)))
+    return 0
+}
+
 fn main() {
     // Runner compares scalar vs SIMD output; keep stable, parseable key/value lines.
     print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
@@ -421,6 +554,8 @@ fn main() {
     if run_axpy_i32() != 0 { return 1 }
     if run_scale_f32_into() != 0 { return 1 }
     if run_scale_i32_into() != 0 { return 1 }
+    if run_i64_buf_ops() != 0 { return 1 }
+    if run_f64_buf_ops() != 0 { return 1 }
 
     return 0
 }

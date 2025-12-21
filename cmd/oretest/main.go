@@ -1361,11 +1361,16 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}
-		runEnvPrefix := envPrefix
-		if name == "test_buffer_payload_limit" {
-			// Deterministic allocation failure without relying on host memory pressure.
-			runEnvPrefix = "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES=1024"
-		}
+			runEnvPrefix := envPrefix
+			if name == "test_integration_suite" {
+				// Keep C-backend SIMD exercised in the fast suite.
+				// Semantics must remain identical with/without SIMD.
+				runEnvPrefix = runEnvPrefix + " OREN_ENABLE_SIMD=1"
+			}
+			if name == "test_buffer_payload_limit" {
+				// Deterministic allocation failure without relying on host memory pressure.
+				runEnvPrefix = "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES=1024"
+			}
 		if rc := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("%s %q", runEnvPrefix, out), log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}

@@ -244,10 +244,13 @@ OrenValue oren_buf_fill_i64(OrenValue buf, OrenValue v);
 OrenValue oren_buf_fill_f32(OrenValue buf, OrenValue v);
 OrenValue oren_buf_fill_f64(OrenValue buf, OrenValue v);
 
-OrenValue oren_buf_add_i32(OrenValue a, OrenValue b);
-OrenValue oren_buf_add_f32(OrenValue a, OrenValue b);
-OrenValue oren_buf_dot_i32(OrenValue a, OrenValue b);
-OrenValue oren_buf_dot_f32(OrenValue a, OrenValue b);
+	OrenValue oren_buf_add_i32(OrenValue a, OrenValue b);
+	OrenValue oren_buf_add_f32(OrenValue a, OrenValue b);
+	OrenValue oren_buf_add_i64(OrenValue a, OrenValue b);
+	OrenValue oren_buf_add_f64(OrenValue a, OrenValue b);
+	OrenValue oren_buf_dot_i32(OrenValue a, OrenValue b);
+	OrenValue oren_buf_dot_f32(OrenValue a, OrenValue b);
+	OrenValue oren_buf_dot_f64(OrenValue a, OrenValue b);
 // Dot over contiguous slices (no allocation).
 // Semantics match `oren_buf_dot_*` but allow specifying offsets + length explicitly.
 OrenValue oren_buf_dot_i32_slice(OrenValue a, OrenValue a_off, OrenValue b, OrenValue b_off, OrenValue n);
@@ -258,22 +261,31 @@ OrenValue oren_buf_dot_f32_slice(OrenValue a, OrenValue a_off, OrenValue b, Oren
 OrenValue oren_buf_dot_i32_strided(OrenValue a, OrenValue a_off, OrenValue a_stride, OrenValue b, OrenValue b_off, OrenValue b_stride, OrenValue n);
 OrenValue oren_buf_dot_f32_strided(OrenValue a, OrenValue a_off, OrenValue a_stride, OrenValue b, OrenValue b_off, OrenValue b_stride, OrenValue n);
 
-OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b);
-OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b);
-OrenValue oren_buf_mul_i32(OrenValue a, OrenValue b);
-OrenValue oren_buf_mul_f32(OrenValue a, OrenValue b);
-OrenValue oren_buf_mul_i32_into(OrenValue dst, OrenValue a, OrenValue b);
-OrenValue oren_buf_mul_f32_into(OrenValue dst, OrenValue a, OrenValue b);
-OrenValue oren_buf_scale_i32_into(OrenValue dst, OrenValue a, OrenValue scalar);
-OrenValue oren_buf_scale_f32(OrenValue buf, OrenValue scalar);
-OrenValue oren_buf_scale_f32_into(OrenValue dst, OrenValue a, OrenValue scalar);
+	OrenValue oren_buf_add_i32_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_add_f32_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_add_i64_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_add_f64_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_i32(OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_f32(OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_i64(OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_f64(OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_i32_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_f32_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_i64_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_mul_f64_into(OrenValue dst, OrenValue a, OrenValue b);
+	OrenValue oren_buf_scale_i32_into(OrenValue dst, OrenValue a, OrenValue scalar);
+	OrenValue oren_buf_scale_f32(OrenValue buf, OrenValue scalar);
+	OrenValue oren_buf_scale_f32_into(OrenValue dst, OrenValue a, OrenValue scalar);
 
 	OrenValue oren_buf_reduce_sum_i32(OrenValue buf);
 	OrenValue oren_buf_reduce_sum_f32(OrenValue buf);
+	OrenValue oren_buf_reduce_sum_f64(OrenValue buf);
 	OrenValue oren_buf_dot_i32_into(OrenValue out, OrenValue a, OrenValue b);
 	OrenValue oren_buf_dot_f32_into(OrenValue out, OrenValue a, OrenValue b);
+	OrenValue oren_buf_dot_f64_into(OrenValue out, OrenValue a, OrenValue b);
 	OrenValue oren_buf_reduce_sum_i32_into(OrenValue out, OrenValue a);
 	OrenValue oren_buf_reduce_sum_f32_into(OrenValue out, OrenValue a);
+	OrenValue oren_buf_reduce_sum_f64_into(OrenValue out, OrenValue a);
 
 	// AXPY: y := alpha*x + y (in-place) and dst := alpha*x + y (into).
 	//

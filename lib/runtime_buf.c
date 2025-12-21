@@ -509,6 +509,106 @@ OrenValue oren_buf_add_f32(OrenValue a, OrenValue b) {
     return oren_buf_add_f32_into(out, a, b);
 }
 
+OrenValue oren_buf_add_i64_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_i64(dst) || !buf_is_i64(a) || !buf_is_i64(b)) return buf_err("oren_buf_add_i64_into expects (i64_buf, i64_buf, i64_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_add_i64_into: length mismatch");
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 2u) {
+        const uint64_t* pa = (const uint64_t*)(const void*)buf_data(ba);
+        const uint64_t* pb = (const uint64_t*)(const void*)buf_data(bb);
+        uint64_t* pd = (uint64_t*)(void*)buf_data(od);
+        uint32_t i = 0;
+        for (; i + 2u <= od->len; i += 2u) {
+            uint64x2_t va = vld1q_u64(pa + i);
+            uint64x2_t vb = vld1q_u64(pb + i);
+            uint64x2_t vs = vaddq_u64(va, vb); // wrap
+            vst1q_u64(pd + i, vs);
+        }
+        for (; i < od->len; i++) {
+            uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
+            uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
+            store_u64_le(buf_data(od) + i * 8u, ua + ub);
+        }
+        return dst;
+    }
+#endif
+
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
+        uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
+        store_u64_le(buf_data(od) + i * 8u, ua + ub);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_add_i64(OrenValue a, OrenValue b) {
+    if (!buf_is_i64(a) || !buf_is_i64(b)) return buf_err("oren_buf_add_i64 expects (i64_buf, i64_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_add_i64: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_add_i64_into(out, a, b);
+}
+
+OrenValue oren_buf_add_f64_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_f64(dst) || !buf_is_f64(a) || !buf_is_f64(b)) return buf_err("oren_buf_add_f64_into expects (f64_buf, f64_buf, f64_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_add_f64_into: length mismatch");
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 2u) {
+        const double* pa = (const double*)(const void*)buf_data(ba);
+        const double* pb = (const double*)(const void*)buf_data(bb);
+        double* pd = (double*)(void*)buf_data(od);
+        uint32_t i = 0;
+        for (; i + 2u <= od->len; i += 2u) {
+            float64x2_t va = vld1q_f64(pa + i);
+            float64x2_t vb = vld1q_f64(pb + i);
+            float64x2_t vs = vaddq_f64(va, vb);
+            vst1q_f64(pd + i, vs);
+        }
+        for (; i < od->len; i++) {
+            uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
+            uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
+            double da = 0.0, dbv = 0.0;
+            memcpy(&da, &ua, sizeof(da));
+            memcpy(&dbv, &ub, sizeof(dbv));
+            double ds = da + dbv;
+            uint64_t us = 0;
+            memcpy(&us, &ds, sizeof(us));
+            store_u64_le(buf_data(od) + i * 8u, us);
+        }
+        return dst;
+    }
+#endif
+
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
+        uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
+        double da = 0.0, dbv = 0.0;
+        memcpy(&da, &ua, sizeof(da));
+        memcpy(&dbv, &ub, sizeof(dbv));
+        double ds = da + dbv;
+        uint64_t us = 0;
+        memcpy(&us, &ds, sizeof(us));
+        store_u64_le(buf_data(od) + i * 8u, us);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_add_f64(OrenValue a, OrenValue b) {
+    if (!buf_is_f64(a) || !buf_is_f64(b)) return buf_err("oren_buf_add_f64 expects (f64_buf, f64_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_add_f64: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_add_f64_into(out, a, b);
+}
+
 OrenValue oren_buf_mul_i32_into(OrenValue dst, OrenValue a, OrenValue b) {
     if (!buf_is_i32(dst) || !buf_is_i32(a) || !buf_is_i32(b)) return buf_err("oren_buf_mul_i32_into expects (i32_buf, i32_buf, i32_buf)");
     OrenBuf* od = dst.as.buf_val;
@@ -612,6 +712,88 @@ OrenValue oren_buf_mul_f32(OrenValue a, OrenValue b) {
     OrenValue out = buf_new_like(a);
     if (oren_is_err(out).as.bool_val) return out;
     return oren_buf_mul_f32_into(out, a, b);
+}
+
+OrenValue oren_buf_mul_i64_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_i64(dst) || !buf_is_i64(a) || !buf_is_i64(b)) return buf_err("oren_buf_mul_i64_into expects (i64_buf, i64_buf, i64_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_mul_i64_into: length mismatch");
+
+    // NEON does not have a 2x i64 lane multiply in AArch64 NEON, so this is scalar.
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
+        uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
+        __uint128_t prod = ((__uint128_t)ua) * ((__uint128_t)ub);
+        uint64_t up = (uint64_t)prod; // wrap low 64
+        store_u64_le(buf_data(od) + i * 8u, up);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_mul_i64(OrenValue a, OrenValue b) {
+    if (!buf_is_i64(a) || !buf_is_i64(b)) return buf_err("oren_buf_mul_i64 expects (i64_buf, i64_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_mul_i64: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_mul_i64_into(out, a, b);
+}
+
+OrenValue oren_buf_mul_f64_into(OrenValue dst, OrenValue a, OrenValue b) {
+    if (!buf_is_f64(dst) || !buf_is_f64(a) || !buf_is_f64(b)) return buf_err("oren_buf_mul_f64_into expects (f64_buf, f64_buf, f64_buf)");
+    OrenBuf* od = dst.as.buf_val;
+    OrenBuf* ba = a.as.buf_val;
+    OrenBuf* bb = b.as.buf_val;
+    if (od->len != ba->len || od->len != bb->len) return buf_err("buf_mul_f64_into: length mismatch");
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && od->len >= 2u) {
+        const double* pa = (const double*)(const void*)buf_data(ba);
+        const double* pb = (const double*)(const void*)buf_data(bb);
+        double* pd = (double*)(void*)buf_data(od);
+        uint32_t i = 0;
+        for (; i + 2u <= od->len; i += 2u) {
+            float64x2_t va = vld1q_f64(pa + i);
+            float64x2_t vb = vld1q_f64(pb + i);
+            float64x2_t vp = vmulq_f64(va, vb);
+            vst1q_f64(pd + i, vp);
+        }
+        for (; i < od->len; i++) {
+            uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
+            uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
+            double da = 0.0, dbv = 0.0;
+            memcpy(&da, &ua, sizeof(da));
+            memcpy(&dbv, &ub, sizeof(dbv));
+            double dp = da * dbv;
+            uint64_t up = 0;
+            memcpy(&up, &dp, sizeof(up));
+            store_u64_le(buf_data(od) + i * 8u, up);
+        }
+        return dst;
+    }
+#endif
+
+    for (uint32_t i = 0; i < od->len; i++) {
+        uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
+        uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
+        double da = 0.0, dbv = 0.0;
+        memcpy(&da, &ua, sizeof(da));
+        memcpy(&dbv, &ub, sizeof(dbv));
+        double dp = da * dbv;
+        uint64_t up = 0;
+        memcpy(&up, &dp, sizeof(up));
+        store_u64_le(buf_data(od) + i * 8u, up);
+    }
+    return dst;
+}
+
+OrenValue oren_buf_mul_f64(OrenValue a, OrenValue b) {
+    if (!buf_is_f64(a) || !buf_is_f64(b)) return buf_err("oren_buf_mul_f64 expects (f64_buf, f64_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_mul_f64: length mismatch");
+    OrenValue out = buf_new_like(a);
+    if (oren_is_err(out).as.bool_val) return out;
+    return oren_buf_mul_f64_into(out, a, b);
 }
 
 OrenValue oren_buf_scale_f32(OrenValue buf, OrenValue scalar) {
@@ -887,6 +1069,51 @@ OrenValue oren_buf_dot_f32(OrenValue a, OrenValue b) {
     return oren_float(acc);
 }
 
+OrenValue oren_buf_dot_f64(OrenValue a, OrenValue b) {
+    if (!buf_is_f64(a) || !buf_is_f64(b)) return buf_err("oren_buf_dot_f64 expects (f64_buf, f64_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_f64: length mismatch");
+    uint32_t n = a.as.buf_val->len;
+
+    // Determinism hardening:
+    // - Accumulate in double in fixed element order.
+    // - SIMD path uses lane extraction in the same order (i,i+1,...).
+    double acc = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 2u) {
+        const double* pa = (const double*)(const void*)buf_data(a.as.buf_val);
+        const double* pb = (const double*)(const void*)buf_data(b.as.buf_val);
+        uint32_t i = 0;
+        for (; i + 2u <= n; i += 2u) {
+            float64x2_t va = vld1q_f64(pa + i);
+            float64x2_t vb = vld1q_f64(pb + i);
+            float64x2_t p = vmulq_f64(va, vb);
+            acc = acc + vgetq_lane_f64(p, 0);
+            acc = acc + vgetq_lane_f64(p, 1);
+        }
+        for (; i < n; i++) {
+            uint64_t ua = load_u64_le(buf_data(a.as.buf_val) + i * 8u);
+            uint64_t ub = load_u64_le(buf_data(b.as.buf_val) + i * 8u);
+            double da = 0.0, dbv = 0.0;
+            memcpy(&da, &ua, sizeof(da));
+            memcpy(&dbv, &ub, sizeof(dbv));
+            acc += da * dbv;
+        }
+        return oren_float(acc);
+    }
+#endif
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint64_t ua = load_u64_le(buf_data(a.as.buf_val) + i * 8u);
+        uint64_t ub = load_u64_le(buf_data(b.as.buf_val) + i * 8u);
+        double da = 0.0, dbv = 0.0;
+        memcpy(&da, &ua, sizeof(da));
+        memcpy(&dbv, &ub, sizeof(dbv));
+        acc += da * dbv;
+    }
+    return oren_float(acc);
+}
+
 OrenValue oren_buf_dot_f32_slice(OrenValue a, OrenValue a_offv, OrenValue b, OrenValue b_offv, OrenValue nv) {
     if (!buf_is_f32(a) || !buf_is_f32(b) || a_offv.type != OREN_TYPE_INT || b_offv.type != OREN_TYPE_INT || nv.type != OREN_TYPE_INT) {
         return buf_err("oren_buf_dot_f32_slice expects (f32_buf, int, f32_buf, int, int)");
@@ -1157,6 +1384,54 @@ static OrenValue buf_store_u64_at0(OrenValue out, uint64_t u, const char* expect
     if (!b || b->len < 1u || !b->data) return buf_err("buf_store_u64_at0: out must have len>=1");
     store_u64_le(buf_data(b), u);
     return out;
+}
+
+OrenValue oren_buf_dot_f64_into(OrenValue out, OrenValue a, OrenValue b) {
+    if (!buf_is_f64(out) || !buf_is_f64(a) || !buf_is_f64(b)) return buf_err("oren_buf_dot_f64_into expects (f64_buf, f64_buf, f64_buf)");
+    if (a.as.buf_val->len != b.as.buf_val->len) return buf_err("buf_dot_f64_into: length mismatch");
+    OrenValue s = oren_buf_dot_f64(a, b);
+    if (oren_is_err(s).as.bool_val) return s;
+    return buf_store_f64_at0(out, s.as.float_val, "oren_buf_dot_f64_into expects (f64_buf, f64_buf, f64_buf)");
+}
+
+OrenValue oren_buf_reduce_sum_f64(OrenValue buf) {
+    if (!buf_is_f64(buf)) return buf_err("oren_buf_reduce_sum_f64 expects (f64_buf)");
+    uint32_t n = buf.as.buf_val->len;
+    double acc = 0.0;
+
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && n >= 2u) {
+        const double* p = (const double*)(const void*)buf_data(buf.as.buf_val);
+        uint32_t i = 0;
+        for (; i + 2u <= n; i += 2u) {
+            float64x2_t v = vld1q_f64(p + i);
+            acc = acc + vgetq_lane_f64(v, 0);
+            acc = acc + vgetq_lane_f64(v, 1);
+        }
+        for (; i < n; i++) {
+            uint64_t u = load_u64_le(buf_data(buf.as.buf_val) + i * 8u);
+            double d = 0.0;
+            memcpy(&d, &u, sizeof(d));
+            acc += d;
+        }
+        return oren_float(acc);
+    }
+#endif
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint64_t u = load_u64_le(buf_data(buf.as.buf_val) + i * 8u);
+        double d = 0.0;
+        memcpy(&d, &u, sizeof(d));
+        acc += d;
+    }
+    return oren_float(acc);
+}
+
+OrenValue oren_buf_reduce_sum_f64_into(OrenValue out, OrenValue a) {
+    if (!buf_is_f64(out) || !buf_is_f64(a)) return buf_err("oren_buf_reduce_sum_f64_into expects (f64_buf, f64_buf)");
+    OrenValue s = oren_buf_reduce_sum_f64(a);
+    if (oren_is_err(s).as.bool_val) return s;
+    return buf_store_f64_at0(out, s.as.float_val, "oren_buf_reduce_sum_f64_into expects (f64_buf, f64_buf)");
 }
 
 OrenValue oren_buf_dot_f32_into(OrenValue out, OrenValue a, OrenValue b) {

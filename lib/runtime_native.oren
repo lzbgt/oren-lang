@@ -6210,6 +6210,62 @@ fn oren_buf_add_f32(a, b) {
     return out
 }
 
+fn oren_buf_add_i64(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_I64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_add_i64: length mismatch") }
+    var out = oren_i64_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_add_i64_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
+fn oren_buf_add_f64(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_add_f64: length mismatch") }
+    var out = oren_f64_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_add_f64_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
+fn oren_buf_mul_i64(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_I64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_mul_i64: length mismatch") }
+    var out = oren_i64_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_mul_i64_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
+fn oren_buf_mul_f64(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_mul_f64: length mismatch") }
+    var out = oren_f64_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_mul_f64_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
 fn oren_buf_add_i32_into(dst, a, b) {
     var ed = native_buf_check(dst, BUF_TAG_I32, 4)
     if oren_is_err(ed) { return ed }
@@ -6262,6 +6318,115 @@ fn oren_buf_add_f32_into(dst, a, b) {
     return dst
 }
 
+fn oren_buf_add_i64_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_I64, 8)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_I64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_add_i64_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pd = native_buf_data_ptr(dst)
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        simd_add_i64_ptr(pd, pa, pb, n)
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i64(dst, i, oren_buf_load_i64(a, i) + oren_buf_load_i64(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_add_f64_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_F64, 8)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_add_f64_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pd = native_buf_data_ptr(dst)
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        var n2 = n - (n % 2)
+        if n2 >= 2 {
+            simd_add_f64_ptr(pd, pa, pb, n2)
+        }
+        if n2 != n {
+            oren_buf_store_f64(dst, n2, oren_buf_load_f64(a, n2) + oren_buf_load_f64(b, n2))
+        }
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f64(dst, i, oren_buf_load_f64(a, i) + oren_buf_load_f64(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_mul_i64_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_I64, 8)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_I64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_mul_i64_into: length mismatch") }
+
+    // NOTE: no native SIMD fast path for i64 mul today (NEON does not support 2x i64 lane mul).
+    var i = 0
+    while i < n {
+        oren_buf_store_i64(dst, i, oren_buf_load_i64(a, i) * oren_buf_load_i64(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_mul_f64_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_F64, 8)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_mul_f64_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pd = native_buf_data_ptr(dst)
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        var n2 = n - (n % 2)
+        if n2 >= 2 {
+            simd_mul_f64_ptr(pd, pa, pb, n2)
+        }
+        if n2 != n {
+            oren_buf_store_f64(dst, n2, oren_buf_load_f64(a, n2) * oren_buf_load_f64(b, n2))
+        }
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f64(dst, i, oren_buf_load_f64(a, i) * oren_buf_load_f64(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
 fn oren_buf_dot_i32(a, b) {
     var ea = native_buf_check(a, BUF_TAG_I32, 4)
     if oren_is_err(ea) { return ea }
@@ -6282,6 +6447,31 @@ fn oren_buf_dot_i32(a, b) {
     var i = 0
     while i < n {
         sum = sum + (oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_f64(a, b): f64 {
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_dot_f64: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        // Native SIMD returns f64 bits in an integer register (X0) for a pure ABI boundary.
+        // Convert back to f64 at the Oren level so call sites see a real float.
+        return oren_u64_bits_to_f64(simd_dot_f64_ptr(pa, pb, n))
+    }
+
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_f64(a, i) * oren_buf_load_f64(b, i))
         i = i + 1
     }
     return sum
@@ -6364,6 +6554,15 @@ fn oren_buf_dot_f32_slice(a, a_off, b, b_off, n): f64 {
     return sum
 }
 
+fn oren_buf_dot_f64_into(out, a, b) {
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_dot_f64(a, b)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_f64(out, 0, sum)
+    return out
+}
+
 fn oren_buf_dot_i32_strided(a, a_off, a_stride, b, b_off, b_stride, n) {
     var ea = native_buf_check(a, BUF_TAG_I32, 4)
     if oren_is_err(ea) { return ea }
@@ -6429,6 +6628,36 @@ fn oren_buf_dot_f32_into(out, a, b) {
     var eo = native_buf_check(out, BUF_TAG_F64, 8)
     if oren_is_err(eo) { return eo }
     var sum = oren_buf_dot_f32(a, b)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_f64(out, 0, sum)
+    return out
+}
+
+fn oren_buf_reduce_sum_f64(buf): f64 {
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pa = native_buf_data_ptr(buf)
+        // Native SIMD returns f64 bits in an integer register (X0) for a pure ABI boundary.
+        // Convert back to f64 at the Oren level so call sites see a real float.
+        return oren_u64_bits_to_f64(simd_reduce_sum_f64_ptr(pa, n))
+    }
+
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + oren_buf_load_f64(buf, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_reduce_sum_f64_into(out, buf) {
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_reduce_sum_f64(buf)
     if oren_is_err(sum) { return sum }
     oren_buf_store_f64(out, 0, sum)
     return out

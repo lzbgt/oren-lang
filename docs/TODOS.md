@@ -67,7 +67,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - If you *did* create `*.oren.c` artifacts, delete them before running `make test` (keep `oren.oren.c` only).
 
 9) ** Refactor in rolling **
-  - when a file is over 2000 lines, refacotor to be SOLID principles applied modules
+  - when a file is over 3000 lines, refacotor to be SOLID principles applied modules
 
 10) **Tests must target public tool surfaces** `[maint]`
    - Avoid importing `lib/compiler/*` inside `.oren` tests (couples tests to compiler internals).
@@ -85,6 +85,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Perf smoke stays “no thresholds”; correctness tests stay small and deterministic.
    - Status (rolling):
      - DONE: f32 reductions now have deterministic NEON paths in C runtime (`oren_buf_dot_f32*`, `oren_buf_reduce_sum_f32*`) matching AVM semantics.
+     - DONE: f64 SIMD paths are working end-to-end (native backend + C backend):
+       - `oren_buf_add_f64_into`, `oren_buf_mul_f64_into`, `oren_buf_dot_f64`, `oren_buf_reduce_sum_f64`
+       - NOTE: native backend relies on correct opcode tables in `lib/compiler/arm64_core.oren` (fixed `insn_fadd_2d`, `insn_umov_x_d1`).
      - DONE: native SIMD integration coverage lives in `tests/native/test_simd_suite.oren` (hash/bits checks; SIMD enabled/disabled runs).
      - NOTE: scalar-multiply “scale i32/f32” SIMD fast paths are intentionally **not** enabled in the native backend yet (prior attempt had correctness issues; removed to keep the repo green).
      - Implemented (code present, needs explicit C-backend coverage): additional NEON kernels in `lib/runtime_buf.c` (i32 axpy + scale/add/mul variants).
