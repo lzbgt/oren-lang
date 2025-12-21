@@ -94,6 +94,14 @@ fn copysign(x, y) {
     return _f64_from_bits(mag | sign)
 }
 
+fn inf() {
+    return _f64_from_bits(9218868437227405312) // +inf: 0x7ff0000000000000
+}
+
+fn neg_inf() {
+    return _f64_from_bits(18442240474082181120) // -inf: 0xfff0000000000000
+}
+
 // --- rounding helpers (float, deterministic, no host libm) ---
 //
 // Semantics (rolling, v0):
@@ -250,4 +258,148 @@ fn powi(x, n) {
     }
     if inv { return 1.0 / acc }
     return acc
+}
+
+// --- exponent helpers (frexp/ldexp equivalents) ---
+
+fn pow2i(e) {
+    // Return 2^e as an f64 (deterministic via bit construction).
+    // - for e > 1023: +inf
+    // - for e < -1074: 0.0
+    if e > 1023 { return inf() }
+    if e < -1074 { return 0.0 }
+    if e >= -1022 {
+        // normal
+        return _f64_from_bits(u64(e + 1023) << 52)
+    }
+    // subnormal: mantissa = 2^(e+1074)
+    return _f64_from_bits(u64(1) << u64(e + 1074))
+}
+
+fn ldexp(x, e) {
+    // x * 2^e
+    if is_nan(x) { return oren_err(4, "ldexp: NaN") }
+    if x == 0.0 { return x }
+    if is_inf(x) { return x }
+    return x * pow2i(e)
+}
+
+fn frexp(x) {
+    // Returns [mantissa, exp] where x = mantissa * 2^exp and mantissa in [0.5, 1).
+    // For x==0: returns [0.0, 0].
+    if is_nan(x) { return oren_err(4, "frexp: NaN") }
+    if x == 0.0 { return [x, 0] }
+    if is_inf(x) { return [x, 0] }
+
+    var b0 = _f64_bits(x)
+    if oren_is_err(b0) { return b0 }
+    var sign = b0 & 9223372036854775808
+    var exp0 = (b0 >> 52) & 2047
+    var mant = b0 & 4503599627370495
+
+    var xn = x
+    var exp = exp0
+    var adjust = 0
+    if exp == 0 {
+        // subnormal: scale by 2^54 (exact), then compensate exponent by -54
+        xn = x * 18014398509481984.0
+        var b1 = _f64_bits(xn)
+        if oren_is_err(b1) { return b1 }
+        exp = (b1 >> 52) & 2047
+        mant = b1 & 4503599627370495
+        adjust = 54
+    }
+
+    // x = (1.mant)*2^(exp-1023-adjust)
+    // We want m in [0.5,1): m = (1.mant)*2^-1, exp_out = (exp-1023-adjust)+1 = exp-1022-adjust
+    var exp_out = i64(exp) - 1022 - adjust
+    var mb = sign | (u64(1022) << 52) | mant
+    var m = _f64_from_bits(mb)
+    if oren_is_err(m) { return m }
+    return [m, exp_out]
+}
+
+// --- exp/log (deterministic, no host libm) ---
+
+fn _exp_taylor(z) {
+    // exp(z) for z in [0, ln2] via fixed-term Taylor series.
+    // 12 terms is enough for good accuracy on this small interval.
+    var term = 1.0
+    var sum = 1.0
+    var i = 1
+    while i <= 12 {
+        term = term * z / f64(i)
+        sum = sum + term
+        i = i + 1
+    }
+    return sum
+}
+
+fn exp2(x) {
+    // 2^x via integer+fraction decomposition.
+    if is_nan(x) { return oren_err(4, "exp2: NaN") }
+    if x == 0.0 { return 1.0 }
+    if is_inf(x) {
+        if signbit(x) { return 0.0 }
+        return x
+    }
+    if x > 1024.0 { return inf() }
+    if x < -1075.0 { return 0.0 }
+
+    var fx = floor(x)
+    if oren_is_err(fx) { return fx }
+    var ni = trunc_i64_from_f(fx)
+    if oren_is_err(ni) { return ni }
+    var f = x - f64(ni) // in [0,1)
+
+    var LN2 = 0.6931471805599453
+    var frac = _exp_taylor(f * LN2)
+    var scale = pow2i(ni)
+    return scale * frac
+}
+
+fn exp(x) {
+    if is_nan(x) { return oren_err(4, "exp: NaN") }
+    if x == 0.0 { return 1.0 }
+    // exp(x) = 2^(x / ln2)
+    var INV_LN2 = 1.4426950408889634
+    return exp2(x * INV_LN2)
+}
+
+fn log2(x) {
+    // Returns log2(x) for x > 0.
+    if is_nan(x) { return oren_err(4, "log2: NaN") }
+    if x == 0.0 { return neg_inf() }
+    if x < 0.0 { return oren_err(4, "log2: negative") }
+    if is_inf(x) { return x }
+
+    var fe = frexp(x)
+    if oren_is_err(fe) { return fe }
+    var m = fe[0]
+    var e = fe[1]
+
+    // ln(m) using atanh series: ln(m) = 2 * (t + t^3/3 + t^5/5 + ...)
+    // where t = (m-1)/(m+1), |t| <= 1/3 for m in [0.5,1)
+    var t = (m - 1.0) / (m + 1.0)
+    var t2 = t * t
+    var term = t
+    var s = t
+    // Use enough odd terms to be accurate even at the worst-case `m=0.5` (t=-1/3).
+    // This is still deterministic (fixed iteration count).
+    var k = 3
+    while k <= 41 {
+        term = term * t2
+        s = s + term / f64(k)
+        k = k + 2
+    }
+    var ln_m = 2.0 * s
+    var INV_LN2 = 1.4426950408889634
+    return f64(e) + ln_m * INV_LN2
+}
+
+fn ln(x) {
+    var v = log2(x)
+    if oren_is_err(v) { return v }
+    var LN2 = 0.6931471805599453
+    return v * LN2
 }

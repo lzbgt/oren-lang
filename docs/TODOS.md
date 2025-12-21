@@ -104,10 +104,13 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Goal: provide deterministic “libm-lite” primitives so HPC/ML libraries can be written in Oren.
    - DoD (rolling):
      - Provide correct, deterministic `sqrt(x)` + `powi(x,n)` and float classification helpers.
+     - Provide deterministic `exp2/exp/log2/ln` so probabilistic/ML/HPC code can proceed without host libm.
      - Keep implementations portable across C/native/AVM (no platform libm calls).
      - Keep integration tests small and exact (avoid tolerance-based tests until an error model is documented).
    - Status (rolling):
      - DONE: `math.sqrt`, `math.powi`, `math.is_inf/is_finite/signbit/copysign` (covered in `tests/modules/test_integration_suite.oren`).
+     - DONE: `math.exp2/exp/log2/ln` (range-reduced, fixed-iteration, no host libm; covered in `tests/modules/test_integration_suite.oren` with tight deterministic tolerances).
+     - NEXT: trig (`sin/cos/atan2`) with a documented error model + property tests in `./oretest --full`.
 
 ### B) AVM (evolves alongside language/compiler)
 

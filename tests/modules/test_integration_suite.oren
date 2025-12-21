@@ -283,6 +283,11 @@ assert_true(b >= a, 102, "mono nondecreasing")
 // --- deterministic math (no host libm) ---
 assert_eq(math.sqrt(4.0), 2.0, 110, "sqrt(4)")
 assert_eq(math.powi(2.0, 10), 1024.0, 111, "powi(2,10)")
+assert_eq(math.exp2(10.0), 1024.0, 112, "exp2(10)")
+
+// log/exp are approximate; use tight deterministic tolerances.
+assert_true(math.abs_f(math.log2(1024.0) - 10.0) < 0.000000000001, 113, "log2(1024) ~ 10")
+assert_true(math.abs_f(math.exp(math.ln(3.0)) - 3.0) < 0.0000000001, 114, "exp(ln(3)) ~ 3")
 
 print("module integration_suite OK")
 exit(0)
