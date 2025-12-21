@@ -706,10 +706,10 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                     s2 = s2 + t2
                     s3 = s3 + t3
                 } else {
-                    if base_j + 0 < p { s0 = s0 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn)) }
-                    if base_j + 1 < p { s1 = s1 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn)) }
-                    if base_j + 2 < p { s2 = s2 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn)) }
-                    if base_j + 3 < p { s3 = s3 + i64(oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn)) }
+                    if base_j + 0 < p { s0 = s0 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 0) * n + kbase, kn) }
+                    if base_j + 1 < p { s1 = s1 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 1) * n + kbase, kn) }
+                    if base_j + 2 < p { s2 = s2 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 2) * n + kbase, kn) }
+                    if base_j + 3 < p { s3 = s3 + oren_buf_dot_i32_slice(a, i * n + kbase, bt, (base_j + 3) * n + kbase, kn) }
                 }
                 bk = bk + 1
             }
@@ -778,10 +778,10 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
                     if oren_is_err(b1) { return b1 }
                     if oren_is_err(b2) { return b2 }
                     if oren_is_err(b3) { return b3 }
-                    s0 = s0 + i64(av) * i64(b0)
-                    s1 = s1 + i64(av) * i64(b1)
-                    s2 = s2 + i64(av) * i64(b2)
-                    s3 = s3 + i64(av) * i64(b3)
+                    s0 = s0 + av * b0
+                    s1 = s1 + av * b1
+                    s2 = s2 + av * b2
+                    s3 = s3 + av * b3
                     k = k + 1
                 }
                 k0 = k0 + KB
@@ -805,7 +805,7 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
                     if oren_is_err(av2) { return av2 }
                     var bv2 = oren_buf_load_i32(bt, j * n + k2)
                     if oren_is_err(bv2) { return bv2 }
-                    s = s + i64(av2) * i64(bv2)
+                    s = s + av2 * bv2
                     k2 = k2 + 1
                 }
                 k02 = k02 + KB2

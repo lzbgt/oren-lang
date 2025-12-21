@@ -174,6 +174,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - Test runner: fast suite is now integration-first (added `tests/modules/test_integration_suite.oren` + merged native SIMD tests into `tests/native/test_simd_suite.oren`).
 - Struct unification: `struct` values are map-shaped + mutable across backends (see archive entry).
 - Cast lowering (HPC signal): `i64/u64` casts and `: i64` parameter annotations no longer inject `oren_trunc_int(...)` in provably-int paths (reduces dynamic checks in hot loops while preserving correctness for float→int truncation).
+- Stdlib cleanup (HPC signal): removed redundant `i64(...)` wrappers from `std/linalg` and `std/math` where values are already int-only, keeping semantics unchanged.
 - AVM snapshots v7: snapshot/restore now includes scheduler state (tasks + channels + queues) so spawned workloads can be paused/resumed.
 - Bytecode backend: `oren_yield()` now returns canonical `nil` (stack-balanced as an expression), preventing verifier stack-height mismatches.
 - Compiler-in-AVM v0 (host FS): self-hosted compiler builds to `.obc`, runs inside `./avm`, compiles a `.oren` fixture to `.obc`, and the result runs successfully.

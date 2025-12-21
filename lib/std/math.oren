@@ -217,7 +217,7 @@ fn sqrt(x) {
     }
 
     // Unbias exponent.
-    var e = i64(exp) - 1023 - adjust
+    var e = exp - 1023 - adjust
     var ge = e / 2
     // Initial guess: 2^ge (mantissa=0).
     var gb = (u64(ge + 1023) << 52)
@@ -312,7 +312,7 @@ fn frexp(x) {
 
     // x = (1.mant)*2^(exp-1023-adjust)
     // We want m in [0.5,1): m = (1.mant)*2^-1, exp_out = (exp-1023-adjust)+1 = exp-1022-adjust
-    var exp_out = i64(exp) - 1022 - adjust
+    var exp_out = exp - 1022 - adjust
     var mb = sign | (u64(1022) << 52) | mant
     var m = _f64_from_bits(mb)
     if oren_is_err(m) { return m }
