@@ -32,6 +32,31 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Bytecode backend fix: `oren_yield()` now returns a canonical `nil` value (stack-balanced as an expression), preventing verifier stack-height mismatches in real programs.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
+## Archived (2025-12-21) — Allocator control for large typed buffers (HPC)
+
+- Implemented env-configurable allocation policy for large numeric payloads (bootstrap-friendly, rolling):
+  - `OREN_RAW_MMAP_THRESHOLD` (0 disables) for raw typed-buffer payload mmap threshold (C + native).
+  - `OREN_BUF_ALIGN=8|16|32|64` (default 64) for typed-buffer alignment (NEON/cacheline-friendly).
+  - `OREN_BUF_FORCE_MMAP=1` (native) to force typed buffers to mmap (debug/benchmark).
+  - `OREN_BUF_PAYLOAD_LIMIT_BYTES` to bound payload size deterministically and fail with a budget error.
+- Test runner hardening:
+  - `cmd/oretest` sanitizes allocator env vars (prevents user shell env from changing test behavior).
+- Tests:
+  - Added churn-style fragmentation stress: `tests/modules/test_buffer_alloc_stress.oren`.
+  - Added payload-budget regression: `tests/modules/test_buffer_payload_limit.oren`.
+- Verified: `make test` on macOS passes.
+
+## Archived (2025-12-21) — Compiler-in-AVM v1 (VirtualFS + argv-as-data)
+
+- Extended AVM nested-universe interface `avm.run_obc_bytes` (Domain 8, op 0):
+  - Accepts `cfg["argv"]` as `LIST<string>` and injects it into the child VM (`argc/argv`).
+  - Returns `vfs_snapshot` as AVMVFS01 bytes so the parent can read files produced in the child’s VirtualFS.
+- Added integration harness `tests/avm/fixtures/compiler_in_avm_vfs_harness.oren`:
+  - Runs the compiler `.obc` in a nested universe with VirtualFS fixtures (no host effects).
+  - Extracts `out.obc` from returned `vfs_snapshot` and runs it in another nested universe.
+- Wired into `./oretest --full` as fixture `compiler_in_avm_smoke` (host FS read restricted to `build/` only).
+- Verified: `./oretest --full --target macos` passes.
+
 ## Archived (2025-12-19) — Previously in `docs/TODOS.md` “Recently Completed”
 
 - Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.

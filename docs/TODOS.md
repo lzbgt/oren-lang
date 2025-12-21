@@ -74,18 +74,22 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Allocator control for large numeric buffers (no-GC-scanned region)**
+1) **[lang][perf] Typed slice/stride views (HPC + syscall-first data parsing)**
+   - Why: enables BLAS/Eigen-like kernels and zero-copy packet/IO parsing without forcing everything into maps/lists.
    - DoD:
-     - Expose an allocation mode for large typed-buffer payloads that avoids GC scanning (mmap/arena backing)
-     - Ensure alignment guarantees (cacheline + NEON-friendly) remain a performance property (no semantic change)
-     - Add stress tests for fragmentation + OOM behavior
-   - Status:
-     - **done:** env-configurable raw mmap threshold (C + native) via `OREN_RAW_MMAP_THRESHOLD` (0 disables)
-     - **done:** env-configurable typed-buffer alignment via `OREN_BUF_ALIGN=8|16|32|64` (default 64)
-     - **done:** optional typed-buffer force-mmap via `OREN_BUF_FORCE_MMAP=1` (native)
-     - **done:** `cmd/oretest` sanitizes these env vars to keep tests stable across user shells
-     - **done:** stress/integration test `tests/modules/test_buffer_alloc_stress.oren` (fragmentation-style churn + explicit GC; covers RAW + RAW_MMAP)
-     - **done:** deterministic payload limit knob `OREN_BUF_PAYLOAD_LIMIT_BYTES` + test `tests/modules/test_buffer_payload_limit.oren` (budget error, no crash)
+     - Define a stable v0 representation for `slice<T>` and `strided<T>` (ptr+len and ptr+len+stride)
+     - Expose constructors and bounds-checked indexing, with a clear story for `for x in ...`
+     - Teach bytecode + native backends the same semantics (deterministic, no hidden allocation)
+     - Add one integration test that exercises:
+       - slice creation, slicing, strided view
+       - dot/matmul consuming these views
+
+2) **[lang][arch] Traits & polymorphism v0 (compile-time first)**
+   - Goal: allow stdlib to express generic algorithms without per-type boilerplate while keeping HPC hot-loops monomorphized.
+   - DoD:
+     - Compile-time trait constraints (monomorphization) for generics used by `std/linalg`
+     - Optional runtime trait objects are explicitly *not* required for v0 (avoid perf cliffs)
+     - Document the “compile-time vs runtime polymorphism” split in `docs/TRAITS_AND_POLYMORPHISM.md`
 
 ### B) AVM (evolves alongside language/compiler)
 
@@ -97,22 +101,17 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Plan (split into tractable milestones):
      - v0: compiler runs in AVM (host FS backend) to validate the loop (**DONE**: `compiler_in_avm_smoke` fixture)
      - v1: compiler reads/writes via VirtualFS (no host effects), and can run inside a child universe deterministically
+       - **done:** `avm.run_obc_bytes` supports `cfg["argv"]` (argv-as-data) and returns `vfs_snapshot` (AVMVFS01 bytes)
+       - **done:** `./oretest --full` runs `compiler_in_avm_smoke` using a VirtualFS harness (no host FS in the nested compiler)
      - v2: swarm governance + hash-addressed `.obc` artifacts
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)
 
-1) **[stdlib][perf] `std/linalg` v0.3: matmul baseline + kernel dispatch**
+1) **[stdlib][perf] `std/linalg` v0.4: packed tiles + NEON matmul kernels**
    - DoD:
-     - Provide baseline `matmul_f32` / `matmul_i32` using typed buffers + views
-     - Pluggable kernel dispatch (scalar vs NEON) via intrinsic boundary
-     - Add correctness tests (small shapes) + perf smoke test (no hard perf thresholds)
-   - Status:
-     - **done:** baseline typed-buffer matmul (`matmul_f32_buf`, `matmul_i32_buf`, `matmul_i32_buf_wide`) + module tests (`tests/modules/test_linalg.oren`)
-     - **done:** initial kernel dispatch: matmul uses `B` transpose + `oren_buf_dot_*_slice` so native backend can hit NEON dot kernels without a full GEMM microkernel.
-     - **done:** cache-aware scalar dispatch: matmul transposes `B` once and computes 4 columns at a time (j-block), reusing `A[i,k]` across columns while preserving per-output k-order determinism.
-     - **done:** deterministic k-block tiling (KB=64) layered under the same per-output k-order semantics
-     - **next:** optional packed-B tiles for larger matrices (still preserve per-output k-order determinism)
-     - **done:** `dot_strided` primitive exists (`oren_buf_dot_*_strided`) for columnar access without transpose (still scalar today).
+     - Add optional packed-B tiles for large matmul (keep per-output k-order determinism)
+     - Add NEON kernels for the hot dot/matmul inner loops behind the existing intrinsic boundary
+     - Keep scalar reference path as the spec baseline; add correctness tests (small shapes) + perf smoke (no thresholds)
 
 ## Recently Completed (high signal)
 

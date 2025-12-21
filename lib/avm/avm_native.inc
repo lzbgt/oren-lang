@@ -3483,6 +3483,53 @@ static AvmBytes* avm_new_log_bytes() {
     return b;
 }
 
+static AvmValue avm_vfs_snapshot_bytes_value(AvmVM* child) {
+    // Serialize child's VirtualFS into AVMVFS01 bytes (as data), so parent universes
+    // can consume child-produced artifacts without host filesystem effects.
+    //
+    // Format:
+    //   magic[8] = "AVMVFS01"
+    //   u32 count
+    //   repeated:
+    //     u32 path_len, path bytes (utf-8/bytes)
+    //     u32 body_len, body bytes
+    if (!child || child->fs_backend_kind != 1 || !child->vfs) return avm_nil();
+    AvmVfs* v = (AvmVfs*)child->vfs;
+    uint32_t cnt = v ? (uint32_t)v->count : 0u;
+
+    AvmBytes* blob = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_TMP);
+    if (!blob) return avm_alloc_fail_value();
+    blob->data = NULL;
+    blob->len = 0;
+    blob->capacity = 0;
+    uint32_t p = 0;
+
+    if (!bytes_ensure_cap(blob, 12)) { avm_heap_free(blob); return avm_alloc_fail_value(); }
+    const uint8_t magic[8] = {'A','V','M','V','F','S','0','1'};
+    if (!mem_write_bytes(blob, &p, magic, 8)) { if (blob->data) avm_heap_free(blob->data); avm_heap_free(blob); return avm_alloc_fail_value(); }
+    if (!mem_write_u32_le(blob, &p, cnt)) { if (blob->data) avm_heap_free(blob->data); avm_heap_free(blob); return avm_alloc_fail_value(); }
+
+    for (uint32_t i = 0; i < cnt; i++) {
+        AvmVfsEntry* e = v ? &v->entries[i] : NULL;
+        const char* path = (e && e->path) ? e->path : "";
+        uint64_t pl64 = (uint64_t)strlen(path);
+        if (pl64 > 0xFFFFFFFEu) { if (blob->data) avm_heap_free(blob->data); avm_heap_free(blob); return avm_alloc_fail_value(); }
+        uint32_t pl = (uint32_t)pl64;
+        if (!mem_write_u32_le(blob, &p, pl)) { if (blob->data) avm_heap_free(blob->data); avm_heap_free(blob); return avm_alloc_fail_value(); }
+        if (pl > 0 && !mem_write_bytes(blob, &p, (const uint8_t*)path, pl)) { if (blob->data) avm_heap_free(blob->data); avm_heap_free(blob); return avm_alloc_fail_value(); }
+
+        uint32_t bl = (e && e->len > 0) ? (uint32_t)e->len : 0u;
+        if (!mem_write_u32_le(blob, &p, bl)) { if (blob->data) avm_heap_free(blob->data); avm_heap_free(blob); return avm_alloc_fail_value(); }
+        if (bl > 0 && !mem_write_bytes(blob, &p, e ? e->data : NULL, bl)) { if (blob->data) avm_heap_free(blob->data); avm_heap_free(blob); return avm_alloc_fail_value(); }
+    }
+
+    blob->len = (int)p;
+    AvmValue out;
+    out.type = AVM_VAL_BYTES;
+    out.as.b = blob;
+    return out;
+}
+
 static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
     if (!obc || !out) return 0;
     if (!obc->data || obc->len < 4) return 0;
@@ -4726,6 +4773,8 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 AvmVM* child = avm_new();
                 child->argc = 0;
                 child->argv = NULL;
+                char** child_argv = NULL;
+                int child_argc = 0;
                 // Nested universes must not touch the host filesystem by default.
                 // If FS is allowed and record/replay is not configured, VirtualFS prevents accidental host effects.
                 child->fs_backend_kind = 1;
@@ -4931,6 +4980,45 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     child->replay_log_pos = 8;
                 }
 
+                // argv (optional): list<string>
+                // Needed to run CLI-like bytecode programs (compiler-in-AVM bootstrap).
+                if (avm_map_get_key(cfg, "argv", &v) && v.type == AVM_VAL_LIST && v.as.l) {
+                    AvmList* l = v.as.l;
+                    if (l->count < 0 || l->count > 1024) {
+                        avm_free(child);
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "argv too large", domain, op);
+                    }
+                    child_argc = l->count;
+                    if (child_argc > 0) {
+                        child_argv = (char**)malloc(sizeof(char*) * (size_t)child_argc);
+                        if (!child_argv) { avm_free(child); return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op); }
+                        for (int i = 0; i < child_argc; i++) child_argv[i] = NULL;
+                        for (int i = 0; i < child_argc; i++) {
+                            AvmValue a = l->items[i];
+                            if (a.type != AVM_VAL_STRING || !a.as.p) {
+                                for (int j = 0; j < child_argc; j++) if (child_argv[j]) free(child_argv[j]);
+                                free(child_argv);
+                                avm_free(child);
+                                return avm_err_domop(AVM_ERR_INVALID_ARG, "argv expects list<string>", domain, op);
+                            }
+                            const char* s = (const char*)a.as.p;
+                            size_t sl = strlen(s);
+                            char* c = (char*)malloc(sl + 1);
+                            if (!c) {
+                                for (int j = 0; j < child_argc; j++) if (child_argv[j]) free(child_argv[j]);
+                                free(child_argv);
+                                avm_free(child);
+                                return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                            }
+                            memcpy(c, s, sl);
+                            c[sl] = 0;
+                            child_argv[i] = c;
+                        }
+                    }
+                    child->argc = child_argc;
+                    child->argv = child_argv;
+                }
+
                 avm_load(child, prog);
                 avm_run(child);
 
@@ -4944,13 +5032,33 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 if (v_rh.type == AVM_VAL_BYTES && v_rh.as.b && v_rh.as.b->data) memcpy(v_rh.as.b->data, rh, 32);
                 if (v_sh.type == AVM_VAL_BYTES && v_sh.as.b && v_sh.as.b->data) memcpy(v_sh.as.b->data, sh, 32);
 
+                // Capture VirtualFS snapshot as data (optional).
+                AvmValue v_vfs = avm_vfs_snapshot_bytes_value(child);
+                if (v_vfs.type == AVM_VAL_BYTES && v_vfs.as.b == NULL) {
+                    // Alloc fail sentinel; treat as internal error.
+                    if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); }
+                    avm_free(child);
+                    return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                }
+
                 AvmMap* out = (AvmMap*)malloc(sizeof(AvmMap));
-                if (!out) { avm_free(child); return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op); }
-                out->count = 5;
+                if (!out) {
+                    if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); }
+                    avm_free(child);
+                    return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                }
+                out->count = 6;
                 out->capacity = 8;
                 out->keys = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
                 out->values = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
-                if (!out->keys || !out->values) { avm_free(child); return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op); }
+                if (!out->keys || !out->values) {
+                    if (out->keys) free(out->keys);
+                    if (out->values) free(out->values);
+                    free(out);
+                    if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); }
+                    avm_free(child);
+                    return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                }
 
                 out->keys[0] = avm_string("exit_code");
                 out->values[0] = avm_int((int64_t)child->exit_code);
@@ -4965,8 +5073,13 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 out->values[3] = avm_clone_value(v_log);
                 out->keys[4] = avm_string("last_error");
                 out->values[4] = avm_clone_value(child->last_error);
+                out->keys[5] = avm_string("vfs_snapshot");
+                // v_vfs was constructed in the parent VM heap; keep it directly to avoid
+                // double-allocation and to keep the snapshot reachable.
+                out->values[5] = v_vfs;
 
                 AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
+                if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); child->argv = NULL; child->argc = 0; }
                 avm_free(child);
                 // `prog->constants` may include malloc-allocated STRING/BYTES values; those were
                 // freed by `avm_free(child)` via `avm_release_heap_all` (constants are roots).

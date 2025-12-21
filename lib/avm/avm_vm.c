@@ -715,6 +715,8 @@ AvmVM* avm_new() {
     vm->break_pcs = NULL;
     vm->break_pc_count = 0;
     vm->sched = NULL;
+    vm->argc = 0;
+    vm->argv = NULL;
     for (int i = 0; i < MAX_GLOBALS; i++) vm->globals[i].type = AVM_VAL_NIL;
     return vm;
 }

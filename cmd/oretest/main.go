@@ -723,14 +723,16 @@ func main() {
 	}
 
 		if *full {
-		// Compiler-in-AVM bootstrap smoke:
+			fixtureEnv := sanitizedAllocatorEnvPrefix()
+		// Compiler-in-AVM v1 smoke (VirtualFS, argv-as-data):
 		//
-		// Run the compiler itself inside AVM (host FS backend), then run the produced program.
+		// Build the compiler to `.obc`, then run a small AVM harness which:
+		// - runs the compiler as a *nested* universe via `avm.run_obc_bytes`
+		// - feeds source via VirtualFS fixtures (no host FS reads inside the child)
+		// - reads the produced `.obc` back via returned `vfs_snapshot` bytes
+		// - runs the produced program as another nested universe
 		//
-		// This is NOT yet "deterministic multiverse compilation" (still host-effectful),
-		// but it validates the core milestone: "compiler runs in AVM and produces OBC".
-		//
-		// Note: AVM supports passing program args after `--`.
+		// This closes the "no host effects" loop for compilation while staying bootstrap-friendly.
 			fixtures = append(fixtures, struct {
 				name    string
 				cmd     string
@@ -740,27 +742,30 @@ func main() {
 				cleanup []string
 			}{
 				name: "compiler_in_avm_smoke",
-			cmd: fmt.Sprintf(
-				"set -e; "+
-					"echo \"[fixture] build compiler obc\"; "+
-					"./oren build %q --backend bytecode --target %s -o %q%s; "+
-					"echo \"[fixture] run compiler inside avm\"; "+
-					"./avm --fs-backend host --fs-allow-prefixes %q %q -- build %q --backend bytecode --target %s -o %q; "+
-					"echo \"[fixture] run compiled program\"; "+
-					"./avm %q > %q; "+
-					"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
-				"oren.oren",
-				*target,
-				"build/oren_compiler.obc",
-				gcArg,
-				"build/,tests/fixtures/,lib/",
-				"build/oren_compiler.obc",
-				"tests/fixtures/avm_compiler_smoke_src.oren",
-				*target,
-				"build/avm_compiler_smoke_out.obc",
-				"build/avm_compiler_smoke_out.obc",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"echo \"[fixture] build compiler obc\"; "+
+						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] build harness obc\"; "+
+						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] run harness (host read build/ only)\"; "+
+						"%s ./avm --deny-by-default --allow-domains \"0,1,6,8\" --fs-backend host --fs-allow-prefixes %q %q > %q; "+
+						"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
+					fixtureEnv,
+					"oren.oren",
+					*target,
+					"build/oren_compiler.obc",
+					gcArg,
+					fixtureEnv,
+					"tests/avm/fixtures/compiler_in_avm_vfs_harness.oren",
+					*target,
+					"build/compiler_in_avm_vfs_harness.obc",
+					gcArg,
+					fixtureEnv,
+					"build/",
+					"build/compiler_in_avm_vfs_harness.obc",
 				"build/fixture_compiler_in_avm_smoke.run.out",
-				"avm compiler smoke OK",
+				"compiler in avm vfs OK",
 				"build/fixture_compiler_in_avm_smoke.run.out",
 				"build/fixture_compiler_in_avm_smoke.run.out",
 				),
@@ -769,7 +774,7 @@ func main() {
 				ok:  func(rc int) bool { return rc == 0 },
 				cleanup: []string{
 					"build/oren_compiler.obc",
-				"build/avm_compiler_smoke_out.obc",
+				"build/compiler_in_avm_vfs_harness.obc",
 				"build/fixture_compiler_in_avm_smoke.run.out",
 			},
 		})
@@ -916,7 +921,9 @@ func sanitizedAllocatorEnvPrefix() string {
 	// Keep allocator policy stable unless a test explicitly opts in.
 	//
 	// Note: `env VAR=` sets VAR to empty string, which our runtimes treat as "unset".
-	return "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES="
+	//
+	// Also clear noisy debugging toggles so `oretest` output stays high-signal.
+	return "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES= OREN_TRACE_PASSES= AVM_TRACE_BYTES="
 }
 
 type suiteResult struct {
