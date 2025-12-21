@@ -220,6 +220,8 @@ OrenValue oren_buf_len(OrenValue buf);
 // Diagnostic helper: return true if the buffer payload is tracked as RAW bytes.
 // Useful for ensuring buffer payloads are unscanned and not treated as pointer-containing memory.
 OrenValue oren_buf_payload_is_raw(OrenValue buf);
+// Diagnostic helper: return true if the buffer payload was mmap-allocated (and can be returned to OS).
+OrenValue oren_buf_payload_is_mmap(OrenValue buf);
 
 // Debug/diagnostic helper (C backend): returns (uintptr_t)buf->data % mod.
 // Does not expose the full pointer value, but enables alignment assertions in tests.

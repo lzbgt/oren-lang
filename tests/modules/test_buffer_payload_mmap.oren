@@ -1,0 +1,25 @@
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module buffer_payload_mmap FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// Exercise the "large raw allocation" policy:
+// payload should be mmap-backed so it can be returned to the OS under bursty workloads.
+//
+// Threshold is currently 1 MiB; allocate 2 MiB payload via i32 buffer:
+// 512k * 4 = 2,097,152 bytes
+var n = 524288
+var b: []i32 = buffer.i32_new(n)
+assert_eq(oren_buf_payload_is_raw(b), true, 10)
+assert_eq(oren_buf_payload_is_mmap(b), true, 20)
+
+print("module buffer_payload_mmap OK")
+exit(0)
+

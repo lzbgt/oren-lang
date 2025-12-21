@@ -7,6 +7,12 @@
 #include <time.h>
 #include <sys/time.h>
 #include <limits.h>
+#include <sys/mman.h>
+
+// Some platforms name the anonymous-map flag MAP_ANON instead of MAP_ANONYMOUS.
+#if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 
 OrenValue OREN_NIL;
 OrenValue OREN_TRUE;
@@ -23,7 +29,9 @@ typedef enum {
     OREN_ALLOC_MAP = 3,
     OREN_ALLOC_STRUCT = 4,
     // Opaque raw bytes (no pointers). Used for typed buffer payloads and other HPC blobs.
-    OREN_ALLOC_RAW = 5
+    OREN_ALLOC_RAW = 5,
+    // mmap-backed opaque raw bytes (returned to OS via munmap on free/GC sweep).
+    OREN_ALLOC_RAW_MMAP = 6
 } OrenAllocKind;
 
 typedef struct OrenAllocNode {
@@ -36,6 +44,19 @@ typedef struct OrenAllocNode {
 static OrenAllocNode* g_allocs = NULL;
 static pthread_mutex_t g_alloc_mutex = PTHREAD_MUTEX_INITIALIZER;
 static OrenAllocNode* g_roots = NULL;
+
+// Large raw blocks: use mmap so memory can be returned to the OS on free/GC sweep.
+// Keep this conservative; below this threshold libc allocation is typically faster.
+#define OREN_RAW_MMAP_THRESHOLD ((size_t)(1u << 20)) // 1 MiB
+
+typedef struct {
+    uint64_t magic;
+    uint64_t total_size;   // bytes mapped/allocated for base (including this header)
+    uint8_t backend;       // 0=malloc/posix_memalign, 1=mmap
+    uint8_t _pad[47];
+} OrenRawHdr;
+
+static const uint64_t OREN_RAW_MAGIC = 0x4f52454e52415730ull; // "ORENRAW0"
 
 // Allocation registry acceleration:
 //
@@ -457,7 +478,7 @@ static void oren_mark_value(OrenValue v) {
             // Payload is a separate RAW allocation (aligned); keep it alive too.
             if (b->data) {
                 OrenAllocNode* dn = oren_find_node(b->data);
-                if (dn && dn->freed == 0 && dn->kind == OREN_ALLOC_RAW) dn->freed = -1;
+                if (dn && dn->freed == 0 && (dn->kind == OREN_ALLOC_RAW || dn->kind == OREN_ALLOC_RAW_MMAP)) dn->freed = -1;
             }
         }
         return;
@@ -577,6 +598,23 @@ void oren_gc_collect() {
                 if (mp->keys) free(mp->keys);
                 if (mp->values) free(mp->values);
                 free(mp);
+            } else if (n->kind == OREN_ALLOC_RAW_MMAP) {
+                // munmap-backed raw bytes (header is stored immediately before payload).
+                OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
+                if (h->magic == OREN_RAW_MAGIC && h->backend == 1 && h->total_size > 0) {
+                    (void)munmap((void*)h, (size_t)h->total_size);
+                } else {
+                    // Fallback to free if something is inconsistent (best-effort).
+                    free(n->ptr);
+                }
+            } else if (n->kind == OREN_ALLOC_RAW) {
+                // aligned raw bytes allocated as base+header via posix_memalign.
+                OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
+                if (h->magic == OREN_RAW_MAGIC && h->backend == 0 && h->total_size > 0) {
+                    free((void*)h);
+                } else {
+                    free(n->ptr);
+                }
             } else {
                 free(n->ptr);
             }
@@ -3875,6 +3913,20 @@ void oren_shutdown() {
                 free(mp);
             } else if (n->kind == OREN_ALLOC_STRUCT) {
                 free(n->ptr);
+            } else if (n->kind == OREN_ALLOC_RAW_MMAP) {
+                OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
+                if (h->magic == OREN_RAW_MAGIC && h->backend == 1 && h->total_size > 0) {
+                    (void)munmap((void*)h, (size_t)h->total_size);
+                } else {
+                    free(n->ptr);
+                }
+            } else if (n->kind == OREN_ALLOC_RAW) {
+                OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
+                if (h->magic == OREN_RAW_MAGIC && h->backend == 0 && h->total_size > 0) {
+                    free((void*)h);
+                } else {
+                    free(n->ptr);
+                }
             } else {
                 free(n->ptr);
             }
@@ -3945,38 +3997,90 @@ void oren_free_struct(uint64_t ptr) {
 }
 
 uint64_t oren_alloc_raw_aligned(size_t bytes, size_t align) {
+    void* base = NULL;
     void* p = NULL;
+    int used_mmap = 0;
     if (align == 0) align = sizeof(void*);
     if ((align & (align - 1)) != 0 || align < sizeof(void*)) {
         oren_panic("raw alloc align invalid");
         return 0;
     }
-    int er = posix_memalign(&p, align, bytes);
-    if (er != 0 || !p) {
-        oren_panic("raw alloc failed");
-        return 0;
+
+    // Large allocation: prefer mmap so free/GC sweep can return memory to OS.
+    // `mmap` returns page-aligned memory, which satisfies any <= page alignment.
+    if (bytes >= OREN_RAW_MMAP_THRESHOLD) {
+        size_t hdr_size = sizeof(OrenRawHdr); // 64 bytes; keeps payload 64B-aligned
+        size_t total = hdr_size + bytes;
+        base = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (base == MAP_FAILED) {
+            oren_panic("raw mmap alloc failed");
+            return 0;
+        }
+        OrenRawHdr* h = (OrenRawHdr*)base;
+        h->magic = OREN_RAW_MAGIC;
+        h->total_size = (uint64_t)total;
+        h->backend = 1;
+        p = (uint8_t*)base + hdr_size;
+        used_mmap = 1;
+    } else {
+        size_t hdr_size = sizeof(OrenRawHdr);
+        size_t total = hdr_size + bytes;
+        int er = posix_memalign(&base, align, total);
+        if (er != 0 || !base) {
+            oren_panic("raw alloc failed");
+            return 0;
+        }
+        OrenRawHdr* h = (OrenRawHdr*)base;
+        h->magic = OREN_RAW_MAGIC;
+        h->total_size = (uint64_t)total;
+        h->backend = 0;
+        p = (uint8_t*)base + hdr_size;
     }
-#ifndef OREN_NO_GC
-    oren_register_alloc(p, OREN_ALLOC_RAW);
-#endif
     if (!p) {
         oren_panic("raw alloc failed");
         return 0;
     }
+#ifndef OREN_NO_GC
+    oren_register_alloc(p, used_mmap ? OREN_ALLOC_RAW_MMAP : OREN_ALLOC_RAW);
+#endif
     return (uint64_t)p;
 }
 
 void oren_free_raw(uint64_t ptr) {
+    void* p = (void*)ptr;
+    if (!p) return;
+
+    // Raw blocks always store a 64-byte header immediately before the returned pointer.
+    OrenRawHdr* h = ((OrenRawHdr*)p) - 1;
+
 #ifdef OREN_NO_GC
-    free((void*)ptr);
+    if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+        if (h->backend == 1) {
+            (void)munmap((void*)h, (size_t)h->total_size);
+            return;
+        }
+        free((void*)h);
+        return;
+    }
+    // Fallback: unknown pointer.
+    free(p);
     return;
 #endif
-    void* p = (void*)ptr;
+
     pthread_mutex_lock(&g_alloc_mutex);
     OrenAllocNode* n = oren_find_node(p);
     if (n && !n->freed) {
         n->freed = 1;
-        free(p);
+        if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+            if (h->backend == 1) {
+                (void)munmap((void*)h, (size_t)h->total_size);
+            } else {
+                free((void*)h);
+            }
+        } else {
+            // Corrupt/mismatched header; best-effort fallback.
+            free(p);
+        }
     }
     if (n) {
         OrenAllocNode* prev = NULL;
@@ -4008,14 +4112,46 @@ OrenValue oren_buf_payload_is_raw(OrenValue buf) {
     if (b->len == 0) return OREN_TRUE;
     if (!b->data) return OREN_FALSE;
 
-#ifdef OREN_NO_GC
-    // In no-GC mode we don't track allocations; payload is still raw bytes by definition.
-    return OREN_TRUE;
-#endif
+    // Typed buffer payloads allocated by `oren_alloc_raw_aligned` always have a header.
+    OrenRawHdr* h = ((OrenRawHdr*)b->data) - 1;
+    if (h->magic == OREN_RAW_MAGIC) return OREN_TRUE;
 
+#ifndef OREN_NO_GC
     pthread_mutex_lock(&g_alloc_mutex);
     OrenAllocNode* n = oren_find_node(b->data);
-    int ok = (n && n->freed == 0 && n->kind == OREN_ALLOC_RAW);
+    int ok = (n && n->freed == 0 && (n->kind == OREN_ALLOC_RAW || n->kind == OREN_ALLOC_RAW_MMAP));
     pthread_mutex_unlock(&g_alloc_mutex);
     return oren_bool(ok);
+#else
+    return OREN_TRUE;
+#endif
+}
+
+OrenValue oren_buf_payload_is_mmap(OrenValue buf) {
+    if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
+        oren_panic("buf_payload_is_mmap expects (buf)");
+        return OREN_NIL;
+    }
+    OrenBuf* b = buf.as.buf_val;
+    if (!b) {
+        oren_panic("buf_payload_is_mmap: invalid buffer");
+        return OREN_NIL;
+    }
+    if (b->len == 0) return OREN_FALSE;
+    if (!b->data) return OREN_FALSE;
+
+    // Typed buffer payloads allocated by `oren_alloc_raw_aligned` always have a header.
+    OrenRawHdr* h = ((OrenRawHdr*)b->data) - 1;
+    if (h->magic == OREN_RAW_MAGIC && h->backend == 1) return OREN_TRUE;
+
+#ifndef OREN_NO_GC
+    // Fallback to registry classification (for debug / mixed alloc cases).
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_find_node(b->data);
+    int ok = (n && n->freed == 0 && n->kind == OREN_ALLOC_RAW_MMAP);
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return oren_bool(ok);
+#else
+    return OREN_FALSE;
+#endif
 }

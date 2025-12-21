@@ -3,6 +3,14 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+
+#if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
+// Large RAW/BUF blocks: prefer mmap so memory can be returned to OS on free.
+#define AVM_RAW_MMAP_THRESHOLD ((size_t)(1u << 20)) // 1 MiB
 
 typedef struct AvmAllocHdr {
     uint64_t magic;
@@ -12,9 +20,10 @@ typedef struct AvmAllocHdr {
     uint32_t alloc_id;   // 0 if untracked/unowned
     uint32_t alloc_pc;   // best-effort VM pc at allocation time (rolling)
     uint8_t alloc_kind;  // best-effort classification (rolling)
+    uint8_t alloc_backend; // 0=malloc, 1=mmap (rolling)
     // Pad so `sizeof(AvmAllocHdr)` is 64 bytes.
     // This enables 64-byte-aligned user pointers for BUF allocations when using posix_memalign.
-    uint8_t _pad0[15];
+    uint8_t _pad0[6];
     struct AvmAllocHdr* prev;
     struct AvmAllocHdr* next;
 } AvmAllocHdr;
@@ -69,19 +78,31 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
     // Typed buffers are hot in HPC-style workloads; align to cache line for NEON-friendly kernels.
     // We keep this deterministic and portable by using `posix_memalign` (free-able with `free`).
     if (kind == AVM_ALLOC_KIND_BUF || kind == AVM_ALLOC_KIND_RAW) {
-        void* p = NULL;
-        int er = posix_memalign(&p, 64u, total);
-        if (er != 0 || !p) {
-            g_last_alloc_err = (er == ENOMEM) ? AVM_ERR_INTERNAL : AVM_ERR_INTERNAL;
-            return NULL;
+        if (size >= AVM_RAW_MMAP_THRESHOLD) {
+            void* base = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            if (base == MAP_FAILED) {
+                g_last_alloc_err = AVM_ERR_INTERNAL;
+                return NULL;
+            }
+            h = (AvmAllocHdr*)base;
+            h->alloc_backend = 1;
+        } else {
+            void* p = NULL;
+            int er = posix_memalign(&p, 64u, total);
+            if (er != 0 || !p) {
+                g_last_alloc_err = AVM_ERR_INTERNAL;
+                return NULL;
+            }
+            h = (AvmAllocHdr*)p;
+            h->alloc_backend = 0;
         }
-        h = (AvmAllocHdr*)p;
     } else {
         h = (AvmAllocHdr*)malloc(total);
         if (!h) {
             g_last_alloc_err = AVM_ERR_INTERNAL;
             return NULL;
         }
+        h->alloc_backend = 0;
     }
     h->magic = AVM_ALLOC_MAGIC;
     h->owner = owner;
@@ -90,6 +111,7 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
     h->alloc_id = 0;
     h->alloc_pc = owner ? (uint32_t)owner->pc : 0;
     h->alloc_kind = kind;
+    // alloc_backend is already set in the allocation path above.
     h->prev = NULL;
     h->next = NULL;
     if (owner) {
@@ -137,7 +159,12 @@ void avm_heap_free(void* p) {
         else if (h->charged_size) h->owner->heap_used_bytes = 0;
     }
     h->magic = 0;
-    free(h);
+    if (h->alloc_backend == 1) {
+        size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
+        (void)munmap((void*)h, total);
+    } else {
+        free(h);
+    }
 }
 
 void* avm_heap_realloc_k(void* p, size_t new_size, uint8_t kind) {
