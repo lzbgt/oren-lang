@@ -74,14 +74,15 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] `for x:T in ...` iterator annotations + trait-based iterables**
-   - Why: HPC code and IO parsing want explicit element typing when iterating buffers/streams while keeping `for x in ...` generic.
+1) **[lang][arch] Iteration model v1: trait-based iterables (without breaking v0)**
+   - Goal: keep `for x in ...` deterministic, fast, and extensible for custom containers/streams.
    - DoD:
-     - Ensure `for x: T in iterable { ... }` is supported across backends (already parsed; harden semantics)
-     - Define a clear rule for what iterables are supported:
-       - list / map / string / bytes / typed buffers
-       - view lists (`[buf,off,len]`, `[buf,off,len,stride]`)
-     - Decide if/when trait-based iteration replaces the current `oren_iter_next(container, idx)` hook (keep v0 stable)
+     - Document the v0 contract clearly (still uses `oren_iter_next(container, idx)`).
+     - Decide a v1 direction:
+       - keep the builtin hook forever (simple), or
+       - introduce an `Iterable` trait as the *source-level* abstraction and lower `for-in` to method calls when present.
+     - If `Iterable` is added, ensure it preserves determinism and avoids runtime vtables in hot loops.
+     - Add one small stdlib iterable example (e.g. a stream/range adapter) that does not require host effects.
 
 ### B) AVM (evolves alongside language/compiler)
 

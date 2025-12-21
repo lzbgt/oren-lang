@@ -148,6 +148,7 @@ func main() {
 		"tests/modules/test_cast_overflow.oren",
 		"tests/modules/test_as_cast.oren",
 		"tests/modules/test_bitcast.oren",
+		"tests/modules/test_for_in_bytes_typed.oren",
 		"tests/modules/test_iter_buffers.oren",
 		"tests/modules/test_iter_range.oren",
 		"tests/modules/test_typed_struct_fields.oren",

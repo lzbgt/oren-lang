@@ -1,0 +1,39 @@
+// `for x:T in <iterable>` typed iterator annotations should work for
+// bytes/string iteration as well as lists.
+//
+// This is a high-signal integration test:
+// - validates parser supports `for x: u8 in ...`
+// - validates type-annotation lowering applies to the iterator binding
+// - ensures semantics are deterministic across backends
+
+import buffer "../../lib/std/buffer.oren"
+
+fn fail(code) {
+    print("module for_in_bytes_typed FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+// Bytes from a string: iterates byte codepoints.
+var bytes_list = oren_bytes_from_string("ABC") // [65,66,67]
+var sum_u8 = 0
+for b: u8 in bytes_list { sum_u8 = sum_u8 + b }
+assert_eq(sum_u8, 65 + 66 + 67, 10)
+
+// Same but via bytes buffer view (typed buffer).
+var bb: []u8 = buffer.u8_new(3)
+if oren_is_err(bb) { fail(20) }
+oren_buf_store_u8(bb, 0, 65)
+oren_buf_store_u8(bb, 1, 66)
+oren_buf_store_u8(bb, 2, 67)
+var sum2 = 0
+for b: u8 in bb { sum2 = sum2 + b }
+assert_eq(sum2, 65 + 66 + 67, 21)
+
+print("module for_in_bytes_typed OK")
+exit(0)
+

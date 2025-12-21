@@ -88,6 +88,17 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Added compile-fail fixture (full suite only): `tests/fixtures/generic_constraint_missing_impl.oren`
 - Verified: `./oretest --full --target macos` passes.
 
+## Archived (2025-12-21) — Typed `for x:T in ...` iterator variable annotations
+
+- Hardened the typed iterator-variable form:
+  - `for x: i32 in buf { ... }`
+  - `for b: u8 in bytes_list_or_u8_buf { ... }`
+  - `for y: f32 in f32_buf { ... }`
+- Coverage:
+  - Updated typed-buffer iteration module test: `tests/modules/test_iter_buffers.oren`.
+  - Added integration test for bytes/strings + typed annotation: `tests/modules/test_for_in_bytes_typed.oren`.
+- Verified: `./oretest --full --target macos` passes.
+
 ## Archived (2025-12-19) — Previously in `docs/TODOS.md` “Recently Completed”
 
 - Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.

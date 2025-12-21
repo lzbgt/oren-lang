@@ -23,6 +23,12 @@ var si = 0
 for x in bi { si = si + x }
 assert_eq(si, 10, 11)
 
+// With explicit iterator variable annotation:
+// `for x: i32 in buf { ... }` must compile and behave the same.
+var si2 = 0
+for x: i32 in bi { si2 = si2 + x }
+assert_eq(si2, 10, 12)
+
 // f32_buf
 var bf = oren_f32_buf_new(4)
 if oren_is_err(bf) { fail(20) }
@@ -34,6 +40,10 @@ var sf = 0.0
 for y in bf { sf = sf + y }
 assert_eq(sf, 10.0, 21)
 
+// Annotation form must also work for floats.
+var sf2 = 0.0
+for y: f32 in bf { sf2 = sf2 + y }
+assert_eq(sf2, 10.0, 22)
+
 print("module iter_buffers OK")
 exit(0)
-
