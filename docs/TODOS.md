@@ -111,6 +111,8 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Syntax is short and ergonomic (prefer `@pack`, `@serde(...)`, `@json(...)` without `@oren.` prefixes).
      - Unknown user-defined attributes are preserved deterministically in meta output.
      - A stable “meta emission” tool path exists (no ad-hoc print_meta stubs).
+   - Current rolling note:
+     - Serde codegen now supports multi-format derive via `@serde(formats="json,yaml,cbor", ...)` (generates all requested `__{fmt}_encode/__{fmt}_decode` pairs).
 
 4) **[stdlib][net] Native networking foundations**
    - DoD:

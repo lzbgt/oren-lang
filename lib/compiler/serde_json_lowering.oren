@@ -311,6 +311,77 @@ fn struct_derive_value_any(type_stmt) {
     return nil
 }
 
+fn _serde_split_formats(s) {
+    // Split a formats string like:
+    //   "json,yaml,cbor"
+    //   "json yaml"
+    //   " json, yaml ,cbor "
+    // into a list of non-empty tokens.
+    //
+    // Keep it deterministic and avoid relying on stdlib helpers from the compiler.
+    var out = []
+    if s == nil { return out }
+    var cur = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        var is_sep = (ch == ",") || (ch == " ") || (ch == "\t") || (ch == "\n") || (ch == "\r")
+        if is_sep {
+            if cur != "" { oren_list_push(out, cur) }
+            cur = ""
+        } else {
+            cur = cur + ch
+        }
+        i = i + 1
+    }
+    if cur != "" { oren_list_push(out, cur) }
+    return out
+}
+
+fn _serde_list_contains(xs, v) {
+    if xs == nil { return false }
+    var i = 0
+    while i < oren_list_len(xs) {
+        if xs[i] == v { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _serde_list_push_unique(xs, v) {
+    if xs == nil { return nil }
+    if v == nil || v == "" { return nil }
+    if _serde_list_contains(xs, v) { return nil }
+    oren_list_push(xs, v)
+    return nil
+}
+
+fn struct_derive_formats_any(type_stmt) {
+    // Returns a list of formats ("json"|"yaml"|"cbor") or nil if no derive requested.
+    //
+    // New (rolling): multi-format opt-in.
+    //   @serde(formats="json,yaml,cbor")
+    //
+    // Existing single-format opt-ins remain supported:
+    //   @serde(format="json")
+    //   @serde("json")
+    //   @serde.derive("json") / @serde.derive()
+    //   @serde(derive="json") / @serde(derive=true)
+    var b = get_attr(type_stmt, "serde")
+    if b != nil {
+        var fmts = attr_kw_string(b, "formats")
+        if fmts != nil {
+            var parts = _serde_split_formats(fmts)
+            if parts != nil && oren_list_len(parts) > 0 { return parts }
+            return nil
+        }
+    }
+
+    var one = struct_derive_value_any(type_stmt)
+    if one == nil { return nil }
+    return [one]
+}
+
 fn ensure_bool_to_int_helper(stmts, prefix) {
     // Insert once per program. The helper is pure and deterministic.
     //
@@ -527,6 +598,11 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     var fields = type_stmt["fields"]
     if fields == nil { return nil }
 
+    // Normalize prefix to a string for safe concatenation.
+    // (Some callers pass nil to mean "no prefix".)
+    var pfx = prefix
+    if pfx == nil { pfx = "" }
+
     // Serde lowering is opt-in via an explicit derive attribute.
     //
     // This keeps `@json.*` usable as pure metadata (docs/tooling) without forcing
@@ -540,11 +616,29 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     //   @serde.derive("json")   // or @json.derive("json")
     //   @serde.derive()         // defaults to json in v0
     //   @serde(derive="json")   // previous compact form
-    var fmt = struct_derive_value_any(type_stmt)
-    if fmt == nil { return nil }
-    if fmt != "json" && fmt != "yaml" && fmt != "cbor" {
-        serde_json_error("serde: unknown derive format '" + fmt + "' (supported: \"json\"|\"yaml\"|\"cbor\") (struct " + tname + ")")
-        return nil
+    //
+    // Rolling addition:
+    //   @serde(formats="json,yaml,cbor")
+    // which generates multiple encode/decode pairs for the same type.
+    var fmts0 = struct_derive_formats_any(type_stmt)
+    if fmts0 == nil { return nil }
+    var fmts = []
+    var fi0 = 0
+    while fi0 < oren_list_len(fmts0) {
+        _serde_list_push_unique(fmts, fmts0[fi0])
+        fi0 = fi0 + 1
+    }
+    if fmts == nil || oren_list_len(fmts) == 0 { return nil }
+
+    // Validate formats early (and deterministically) so we don't partially-generate.
+    fi0 = 0
+    while fi0 < oren_list_len(fmts) {
+        var fmt0 = fmts[fi0]
+        if fmt0 != "json" && fmt0 != "yaml" && fmt0 != "cbor" {
+            serde_json_error("serde: unknown derive format '" + fmt0 + "' (supported: \"json\"|\"yaml\"|\"cbor\") (struct " + tname + ")")
+            return nil
+        }
+        fi0 = fi0 + 1
     }
 
     // Validate fields: every non-skipped field must have a supported type annotation.
@@ -581,205 +675,219 @@ fn lower_one_type(type_stmt, stmts, prefix) {
         i = i + 1
     }
 
-    if fmt == "cbor" {
-        lower_one_type_cbor(type_stmt, stmts, prefix, field_info)
-        return nil
-    }
-
-    var is_yaml = false
-    if fmt == "yaml" { is_yaml = true }
-    var enc_name = tname + "__json_encode"
-    var dec_name = tname + "__json_decode"
-    var kind_label = "JsonValue"
-    if is_yaml {
-        enc_name = tname + "__yaml_encode"
-        dec_name = tname + "__yaml_decode"
-        kind_label = "YamlValue"
-    }
-
-    // Encode: build {"t":"object","o":{...}} literal.
-    var obj_pairs = []
-
     var tagv = struct_tag_value_any(type_stmt)
-    if tagv != nil {
-        // Use fixed key "t" for now (rolling). (Matches existing fixture usage.)
-        oren_list_push(obj_pairs, {"key": str_lit("t"), "value": json_string(str_lit(tagv))})
-    }
 
-    i = 0
-    while i < oren_list_len(field_info) {
-        var fi = field_info[i]
-        if fi != nil && fi["skip"] != true {
-            var wire = fi["wire"]
-            var k = fi["kind"]
-            var val_expr = member(ident("x"), fi["fname"])
-            if k == "int" {
-                oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_int(val_expr)})
-            } else {
-                if k == "string" {
-                    oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_string(val_expr)})
-                } else {
-                if k == "bool" {
-                        ensure_bool_to_int_helper(stmts, prefix)
-                        var helper = prefix + "__oren_serde_bool_to_int"
-                        oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_bool_int(call0(helper, [val_expr]))})
-                    }
-                }
-            }
+    // Emit requested serde formats in one pass.
+    var fmt_i = 0
+    while fmt_i < oren_list_len(fmts) {
+        var fmt = fmts[fmt_i]
+        if fmt == "cbor" {
+            lower_one_type_cbor(type_stmt, stmts, pfx, field_info)
+            fmt_i = fmt_i + 1
+            continue
         }
-        i = i + 1
-    }
 
-    var enc_body = ast.new_block(nil)
-    enc_body["stmts"] = [
-        ast.new_return(nil, json_object(ast.new_hash(nil, obj_pairs)))
-    ]
-    var enc_fn = {"type": "Function", "token": nil, "name": enc_name, "params": [ident("x")], "body": enc_body}
+        var is_yaml = false
+        if fmt == "yaml" { is_yaml = true }
+        var enc_name = tname + "__json_encode"
+        var dec_name = tname + "__json_decode"
+        var kind_label = "JsonValue"
+        if is_yaml {
+            enc_name = tname + "__yaml_encode"
+            dec_name = tname + "__yaml_decode"
+            kind_label = "YamlValue"
+        }
+        if pfx != "" {
+            enc_name = pfx + enc_name
+            dec_name = pfx + dec_name
+        }
 
-    // Decode: validate object + extract fields by kind.
-    var dec_stmts = []
+        // Encode: build {"t":"object","o":{...}} literal.
+        var obj_pairs = []
 
-    // if jv == nil { return err }
-    var if_jv_nil = ast.new_if(nil, ast.new_infix(nil, ident("jv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
-    if_jv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " (got nil)"))]
-    if_jv_nil["alt"]["stmts"] = []
-    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_jv_nil))
+        if tagv != nil {
+            // Use fixed key "t" for now (rolling). (Matches existing fixture usage.)
+            oren_list_push(obj_pairs, {"key": str_lit("t"), "value": json_string(str_lit(tagv))})
+        }
 
-    // if jv["t"] != "object" { return err }
-    var if_not_obj = ast.new_if(nil, ast.new_infix(nil, index(ident("jv"), "t"), "!=", str_lit("object")), ast.new_block(nil), ast.new_block(nil))
-    if_not_obj["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " object"))]
-    if_not_obj["alt"]["stmts"] = []
-    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_not_obj))
-
-    // var o = jv["o"]
-    oren_list_push(dec_stmts, ast.new_var(nil, ident("o"), index(ident("jv"), "o")))
-    // if o == nil { return err }
-    var if_o_nil = ast.new_if(nil, ast.new_infix(nil, ident("o"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
-    if_o_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " object.o map"))]
-    if_o_nil["alt"]["stmts"] = []
-    oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_o_nil))
-
-    // Tag check (if enabled).
-    if tagv != nil {
-        // var tv = o["t"]
-        oren_list_push(dec_stmts, ast.new_var(nil, ident("tv"), index(ident("o"), "t")))
-        // if tv == nil { err }
-        var if_tv_nil = ast.new_if(nil, ast.new_infix(nil, ident("tv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
-        if_tv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("missing tag field t"))]
-        if_tv_nil["alt"]["stmts"] = []
-        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_nil))
-        // if tv["t"] != "string" { err }
-        var if_tv_kind = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
-        if_tv_kind["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag field t must be a string"))]
-        if_tv_kind["alt"]["stmts"] = []
-        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_kind))
-        // if tv["s"] != <tag> { err }
-        var if_tv_mismatch = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "s"), "!=", str_lit(tagv)), ast.new_block(nil), ast.new_block(nil))
-        if_tv_mismatch["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag mismatch"))]
-        if_tv_mismatch["alt"]["stmts"] = []
-        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_mismatch))
-    }
-
-    // Extract fields in declaration order.
-    var ctor_args = []
-    i = 0
-    while i < oren_list_len(field_info) {
-        var fi2 = field_info[i]
-        if fi2 != nil {
-            var fname2 = fi2["fname"]
-            var wire2 = fi2["wire"]
-            var kind2 = fi2["kind"]
-            var skip2 = fi2["skip"]
-            var def2 = fi2["default"]
-
-            // Declare the output local in the function scope so both branches can assign.
-            oren_list_push(dec_stmts, ast.new_var(nil, ident(fname2), {"type": "Nil", "token": nil}))
-
-            // var fv_<n> = o["wire"]
-            var tmp = "__fv_" + oren_int_to_string(i)
-            oren_list_push(dec_stmts, ast.new_var(nil, ident(tmp), index(ident("o"), wire2)))
-
-            // if missing:
-            //   if default -> use default
-            //   else -> err
-            var miss_if = ast.new_if(nil, ast.new_infix(nil, ident(tmp), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
-            var miss_consq = []
-            if def2 != nil {
-                // Use literal default directly.
-                // Note: for bool fields, default should be true/false or 0/1; value semantics are handled by type_ann casts at constructor.
-                miss_consq = [ast.new_assign(nil, ident(fname2), def2)]
-            } else {
-                if skip2 == true {
-                    // Skip requires default; already validated, but keep safe.
-                    miss_consq = [ast.new_return(nil, make_result_err("missing skipped field default"))]
+        i = 0
+        while i < oren_list_len(field_info) {
+            var fi = field_info[i]
+            if fi != nil && fi["skip"] != true {
+                var wire = fi["wire"]
+                var k = fi["kind"]
+                var val_expr = member(ident("x"), fi["fname"])
+                if k == "int" {
+                    oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_int(val_expr)})
                 } else {
-                    miss_consq = [ast.new_return(nil, make_result_err("missing field: " + wire2))]
-                }
-            }
-            miss_if["consq"]["stmts"] = miss_consq
-
-            // present branch: validate tag and extract
-            var pres = []
-            if def2 == nil && skip2 == true {
-                // unreachable (validated), but stay safe
-                pres = [ast.new_return(nil, make_result_err("skipped field must not appear without default"))]
-            } else {
-                if skip2 == true {
-                    // Ignore serialized value and use default.
-                    pres = [ast.new_assign(nil, ident(fname2), def2)]
-                } else {
-                    // Validate + extract based on kind.
-                    if kind2 == "int" {
-                        // if fv["t"] != "int" { err }
-                        var if_kind_int = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("int")), ast.new_block(nil), ast.new_block(nil))
-                        if_kind_int["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected int"))]
-                        if_kind_int["alt"]["stmts"] = []
-                        oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_int))
-                        // var fname = fv["i"]
-                        oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "i")))
+                    if k == "string" {
+                        oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_string(val_expr)})
                     } else {
-                        if kind2 == "string" {
-                            var if_kind_str = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
-                            if_kind_str["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected string"))]
-                            if_kind_str["alt"]["stmts"] = []
-                            oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_str))
-                            oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "s")))
-                        } else {
-                            if kind2 == "bool" {
-                                var if_kind_bool = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("bool")), ast.new_block(nil), ast.new_block(nil))
-                                if_kind_bool["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected bool"))]
-                                if_kind_bool["alt"]["stmts"] = []
-                                oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_bool))
-                                oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "b")))
-                            } else {
-                                // Should have been validated.
-                                oren_list_push(pres, ast.new_return(nil, make_result_err("unsupported kind")))
-                            }
+                        if k == "bool" {
+                            ensure_bool_to_int_helper(stmts, pfx)
+                            var helper = pfx + "__oren_serde_bool_to_int"
+                            oren_list_push(obj_pairs, {"key": str_lit(wire), "value": json_bool_int(call0(helper, [val_expr]))})
                         }
                     }
                 }
             }
-            miss_if["alt"]["stmts"] = pres
-            oren_list_push(dec_stmts, ast.new_expr_stmt(nil, miss_if))
-
-            // ctor arg: local variable `fname2`
-            oren_list_push(ctor_args, ident(fname2))
+            i = i + 1
         }
-        i = i + 1
+
+        var enc_body = ast.new_block(nil)
+        enc_body["stmts"] = [
+            ast.new_return(nil, json_object(ast.new_hash(nil, obj_pairs)))
+        ]
+        var enc_fn = {"type": "Function", "token": nil, "name": enc_name, "params": [ident("x")], "body": enc_body}
+
+        // Decode: validate object + extract fields by kind.
+        var dec_stmts = []
+
+        // if jv == nil { return err }
+        var if_jv_nil = ast.new_if(nil, ast.new_infix(nil, ident("jv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+        if_jv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " (got nil)"))]
+        if_jv_nil["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_jv_nil))
+
+        // if jv["t"] != "object" { return err }
+        var if_not_obj = ast.new_if(nil, ast.new_infix(nil, index(ident("jv"), "t"), "!=", str_lit("object")), ast.new_block(nil), ast.new_block(nil))
+        if_not_obj["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " object"))]
+        if_not_obj["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_not_obj))
+
+        // var o = jv["o"]
+        oren_list_push(dec_stmts, ast.new_var(nil, ident("o"), index(ident("jv"), "o")))
+        // if o == nil { return err }
+        var if_o_nil = ast.new_if(nil, ast.new_infix(nil, ident("o"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+        if_o_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("expected " + kind_label + " object.o map"))]
+        if_o_nil["alt"]["stmts"] = []
+        oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_o_nil))
+
+        // Tag check (if enabled).
+        if tagv != nil {
+            // var tv = o["t"]
+            oren_list_push(dec_stmts, ast.new_var(nil, ident("tv"), index(ident("o"), "t")))
+            // if tv == nil { err }
+            var if_tv_nil = ast.new_if(nil, ast.new_infix(nil, ident("tv"), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+            if_tv_nil["consq"]["stmts"] = [ast.new_return(nil, make_result_err("missing tag field t"))]
+            if_tv_nil["alt"]["stmts"] = []
+            oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_nil))
+            // if tv["t"] != "string" { err }
+            var if_tv_kind = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
+            if_tv_kind["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag field t must be a string"))]
+            if_tv_kind["alt"]["stmts"] = []
+            oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_kind))
+            // if tv["s"] != <tag> { err }
+            var if_tv_mismatch = ast.new_if(nil, ast.new_infix(nil, index(ident("tv"), "s"), "!=", str_lit(tagv)), ast.new_block(nil), ast.new_block(nil))
+            if_tv_mismatch["consq"]["stmts"] = [ast.new_return(nil, make_result_err("tag mismatch"))]
+            if_tv_mismatch["alt"]["stmts"] = []
+            oren_list_push(dec_stmts, ast.new_expr_stmt(nil, if_tv_mismatch))
+        }
+
+        // Extract fields in declaration order.
+        var ctor_args = []
+        i = 0
+        while i < oren_list_len(field_info) {
+            var fi2 = field_info[i]
+            if fi2 != nil {
+                var fname2 = fi2["fname"]
+                var wire2 = fi2["wire"]
+                var kind2 = fi2["kind"]
+                var skip2 = fi2["skip"]
+                var def2 = fi2["default"]
+
+                // Declare the output local in the function scope so both branches can assign.
+                oren_list_push(dec_stmts, ast.new_var(nil, ident(fname2), {"type": "Nil", "token": nil}))
+
+                // var fv_<n> = o["wire"]
+                var tmp = "__fv_" + oren_int_to_string(i)
+                oren_list_push(dec_stmts, ast.new_var(nil, ident(tmp), index(ident("o"), wire2)))
+
+                // if missing:
+                //   if default -> use default
+                //   else -> err
+                var miss_if = ast.new_if(nil, ast.new_infix(nil, ident(tmp), "==", {"type": "Nil", "token": nil}), ast.new_block(nil), ast.new_block(nil))
+                var miss_consq = []
+                if def2 != nil {
+                    // Use literal default directly.
+                    // Note: for bool fields, default should be true/false or 0/1; value semantics are handled by type_ann casts at constructor.
+                    miss_consq = [ast.new_assign(nil, ident(fname2), def2)]
+                } else {
+                    if skip2 == true {
+                        // Skip requires default; already validated, but keep safe.
+                        miss_consq = [ast.new_return(nil, make_result_err("missing skipped field default"))]
+                    } else {
+                        miss_consq = [ast.new_return(nil, make_result_err("missing field: " + wire2))]
+                    }
+                }
+                miss_if["consq"]["stmts"] = miss_consq
+
+                // present branch: validate tag and extract
+                var pres = []
+                if def2 == nil && skip2 == true {
+                    // unreachable (validated), but stay safe
+                    pres = [ast.new_return(nil, make_result_err("skipped field must not appear without default"))]
+                } else {
+                    if skip2 == true {
+                        // Ignore serialized value and use default.
+                        pres = [ast.new_assign(nil, ident(fname2), def2)]
+                    } else {
+                        // Validate + extract based on kind.
+                        if kind2 == "int" {
+                            // if fv["t"] != "int" { err }
+                            var if_kind_int = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("int")), ast.new_block(nil), ast.new_block(nil))
+                            if_kind_int["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected int"))]
+                            if_kind_int["alt"]["stmts"] = []
+                            oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_int))
+                            // var fname = fv["i"]
+                            oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "i")))
+                        } else {
+                            if kind2 == "string" {
+                                var if_kind_str = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("string")), ast.new_block(nil), ast.new_block(nil))
+                                if_kind_str["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected string"))]
+                                if_kind_str["alt"]["stmts"] = []
+                                oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_str))
+                                oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "s")))
+                            } else {
+                                if kind2 == "bool" {
+                                    var if_kind_bool = ast.new_if(nil, ast.new_infix(nil, index(ident(tmp), "t"), "!=", str_lit("bool")), ast.new_block(nil), ast.new_block(nil))
+                                    if_kind_bool["consq"]["stmts"] = [ast.new_return(nil, make_result_err("field " + wire2 + ": expected bool"))]
+                                    if_kind_bool["alt"]["stmts"] = []
+                                    oren_list_push(pres, ast.new_expr_stmt(nil, if_kind_bool))
+                                    oren_list_push(pres, ast.new_assign(nil, ident(fname2), index(ident(tmp), "b")))
+                                } else {
+                                    // Should have been validated.
+                                    oren_list_push(pres, ast.new_return(nil, make_result_err("unsupported kind")))
+                                }
+                            }
+                        }
+                    }
+                }
+                miss_if["alt"]["stmts"] = pres
+                oren_list_push(dec_stmts, ast.new_expr_stmt(nil, miss_if))
+
+                // ctor arg: local variable `fname2`
+                oren_list_push(ctor_args, ident(fname2))
+            }
+            i = i + 1
+        }
+
+        // Construct and return ok.
+        var ctor_call = ast.new_call(nil, ident(tname), ctor_args)
+        oren_list_push(dec_stmts, ast.new_return(nil, make_result_ok(ctor_call)))
+
+        var dec_body = ast.new_block(nil)
+        dec_body["stmts"] = dec_stmts
+        var dec_fn = {"type": "Function", "token": nil, "name": dec_name, "params": [ident("jv")], "body": dec_body}
+
+        // Append generated functions to the program (end).
+        // Keep top-level named functions as ExprStmt(Function) for C backend compatibility.
+        oren_list_push(stmts, ast.new_expr_stmt(nil, enc_fn))
+        oren_list_push(stmts, ast.new_expr_stmt(nil, dec_fn))
+
+        fmt_i = fmt_i + 1
     }
 
-    // Construct and return ok.
-    var ctor_call = ast.new_call(nil, ident(tname), ctor_args)
-    oren_list_push(dec_stmts, ast.new_return(nil, make_result_ok(ctor_call)))
-
-    var dec_body = ast.new_block(nil)
-    dec_body["stmts"] = dec_stmts
-    var dec_fn = {"type": "Function", "token": nil, "name": dec_name, "params": [ident("jv")], "body": dec_body}
-
-    // Append generated functions to the program (end).
-    // Keep top-level named functions as ExprStmt(Function) for C backend compatibility.
-    oren_list_push(stmts, ast.new_expr_stmt(nil, enc_fn))
-    oren_list_push(stmts, ast.new_expr_stmt(nil, dec_fn))
     return nil
 }
 

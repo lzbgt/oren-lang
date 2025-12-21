@@ -407,45 +407,67 @@ assert_true(c1["ok"] == 1, 96, "cbor decode_next #1")
 pos = c1["pos"]
 assert_eq(pos, oren_list_len(bs), 97, "cbor fully consumed")
 
+// --- multi-format serde derive (rolling) ---
+
+@serde(formats="json,yaml", tag="MF")
+struct MF {
+    id: i32,
+    name: string
+}
+
+var mf = MF(7, "x")
+var mjv = MF__json_encode(mf)
+var myv = MF__yaml_encode(mf)
+
+assert_eq(mjv["o"]["id"]["i"], 7, 98, "MF json encode id")
+assert_eq(mjv["o"]["name"]["s"], "x", 99, "MF json encode name")
+assert_eq(myv["o"]["id"]["i"], 7, 100, "MF yaml encode id")
+assert_eq(myv["o"]["name"]["s"], "x", 101, "MF yaml encode name")
+
+var mdr = MF__json_decode(mjv)
+assert_true(mdr["ok"] == 1, 102, "MF json decode ok")
+assert_eq(mdr["v"].id, 7, 103, "MF json decode id")
+assert_eq(mdr["v"].name, "x", 104, "MF json decode name")
+
 // --- time std (UTC parse/format + monotonic) ---
 
 var s0 = "2025-01-02T03:04:05Z"
 var dt0 = time.parse_iso8601_utc(s0)
-if result.is_err(dt0) { fail(100, "time parse") }
-assert_eq(time.format_iso8601_utc(dt0), s0, 101, "time format")
+if result.is_err(dt0) { fail(110, "time parse") }
+assert_eq(time.format_iso8601_utc(dt0), s0, 111, "time format")
 
 var a = time.mono_raw()
 time.sleep_ms(1)
 var b = time.mono_raw()
-assert_true(b >= a, 102, "mono nondecreasing")
+assert_true(b >= a, 112, "mono nondecreasing")
 
 // --- deterministic math (no host libm) ---
-assert_eq(math.sqrt(4.0), 2.0, 110, "sqrt(4)")
-assert_eq(math.powi(2.0, 10), 1024.0, 111, "powi(2,10)")
-assert_eq(math.exp2(10.0), 1024.0, 112, "exp2(10)")
+assert_eq(math.sqrt(4.0), 2.0, 120, "sqrt(4)")
+assert_eq(math.powi(2.0, 10), 1024.0, 121, "powi(2,10)")
+assert_eq(math.exp2(10.0), 1024.0, 122, "exp2(10)")
 
 // log/exp are approximate; use tight deterministic tolerances.
-assert_eq(1e3, 1000.0, 113, "float literal sci: 1e3")
-assert_eq(5e-1, 0.5, 114, "float literal sci: 5e-1")
-assert_true(math.abs_f(math.log2(1024.0) - 10.0) < 1e-12, 115, "log2(1024) ~ 10")
-assert_true(math.abs_f(math.exp(math.ln(3.0)) - 3.0) < 1e-10, 116, "exp(ln(3)) ~ 3")
+assert_eq(1e3, 1000.0, 123, "float literal sci: 1e3")
+assert_eq(5e-1, 0.5, 124, "float literal sci: 5e-1")
+assert_true(math.abs_f(math.log2(1024.0) - 10.0) < 1e-12, 125, "log2(1024) ~ 10")
+assert_true(math.abs_f(math.exp(math.ln(3.0)) - 3.0) < 1e-10, 126, "exp(ln(3)) ~ 3")
 
 // trig (deterministic approximations)
-assert_true(math.abs_f(math.sin(0.0) - 0.0) < 1e-15, 117, "sin(0)")
-assert_true(math.abs_f(math.cos(0.0) - 1.0) < 1e-15, 118, "cos(0)")
-assert_true(math.abs_f(math.sin(math.pi() / 2.0) - 1.0) < 1e-10, 119, "sin(pi/2) ~ 1")
-assert_true(math.abs_f(math.cos(math.pi()) - -1.0) < 1e-10, 120, "cos(pi) ~ -1")
+assert_true(math.abs_f(math.sin(0.0) - 0.0) < 1e-15, 127, "sin(0)")
+assert_true(math.abs_f(math.cos(0.0) - 1.0) < 1e-15, 128, "cos(0)")
+assert_true(math.abs_f(math.sin(math.pi() / 2.0) - 1.0) < 1e-10, 129, "sin(pi/2) ~ 1")
+assert_true(math.abs_f(math.cos(math.pi()) - -1.0) < 1e-10, 130, "cos(pi) ~ -1")
 
 // atan / atan2 (deterministic, no host libm)
-assert_true(math.abs_f(math.atan(1.0) - (math.pi() / 4.0)) < 1e-12, 121, "atan(1) ~ pi/4")
-assert_true(math.abs_f(math.atan2(1.0, 1.0) - (math.pi() / 4.0)) < 1e-12, 122, "atan2(1,1) ~ pi/4")
-assert_true(math.abs_f(math.atan2(1.0, 0.0) - (math.pi() / 2.0)) < 1e-12, 123, "atan2(1,0) ~ pi/2")
-assert_true(math.abs_f(math.atan2(0.0, -1.0) - math.pi()) < 1e-12, 124, "atan2(0,-1) ~ pi")
+assert_true(math.abs_f(math.atan(1.0) - (math.pi() / 4.0)) < 1e-12, 131, "atan(1) ~ pi/4")
+assert_true(math.abs_f(math.atan2(1.0, 1.0) - (math.pi() / 4.0)) < 1e-12, 132, "atan2(1,1) ~ pi/4")
+assert_true(math.abs_f(math.atan2(1.0, 0.0) - (math.pi() / 2.0)) < 1e-12, 133, "atan2(1,0) ~ pi/2")
+assert_true(math.abs_f(math.atan2(0.0, -1.0) - math.pi()) < 1e-12, 134, "atan2(0,-1) ~ pi")
 
 // else-if (parser sugar): must work and preserve semantics
 var ei = 0
 if false { ei = 1 } else if true { ei = 2 } else { ei = 3 }
-assert_eq(ei, 2, 125, "else-if chain")
+assert_eq(ei, 2, 140, "else-if chain")
 
 print("module integration_suite OK")
 exit(0)

@@ -172,6 +172,24 @@ This generates (rolling names):
 - `User__json_encode(x)` → JsonValue
 - `User__json_decode(jv)` → `{ok, err?, v?}`
 
+Multi-format derive (rolling):
+
+```oren
+@serde(formats="json,yaml,cbor", tag="User")
+struct User {
+    id: i32,
+    name: string
+}
+```
+
+This generates the corresponding pairs for each requested format:
+
+- `User__json_encode` / `User__json_decode`
+- `User__yaml_encode` / `User__yaml_decode`
+- `User__cbor_encode` / `User__cbor_decode`
+
+Note: the **normalized** `meta.serde` schema is still single-format today; tooling that needs multi-format should read raw `attrs` until the schema is extended.
+
 Other supported serde formats (rolling, v1):
 
 - `@serde(format="cbor")` generates:
