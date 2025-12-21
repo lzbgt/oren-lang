@@ -3397,6 +3397,42 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 uint32_t n = (uint32_t)n_ll;
 
                 uint64_t acc_u = 0;
+#if AVM_HAS_NEON
+                if (vm && vm->enable_simd && a_stride == 1u && b_stride == 1u && n >= 4u) {
+                    uint64x2_t vacc = vdupq_n_u64(0);
+                    uint32_t i = 0;
+                    for (; i + 4u <= n; i += 4u) {
+                        uint32_t offa = (a_off + i) * 4u;
+                        uint32_t offb = (b_off + i) * 4u;
+                        int32_t wa[4], wb[4];
+                        memcpy(wa, a->data + offa, 16);
+                        memcpy(wb, b->data + offb, 16);
+                        int32x4_t va = vld1q_s32(wa);
+                        int32x4_t vb = vld1q_s32(wb);
+                        int64x2_t prod_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb));
+                        int64x2_t prod_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb));
+                        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_lo));
+                        vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(prod_hi));
+                    }
+                    uint64_t tmp[2];
+                    vst1q_u64(tmp, vacc);
+                    acc_u += tmp[0] + tmp[1];
+                    for (; i < n; i++) {
+                        uint32_t offa = (a_off + i) * 4u;
+                        uint32_t offb = (b_off + i) * 4u;
+                        uint32_t ua = (uint32_t)a->data[offa]
+                                    | ((uint32_t)a->data[offa + 1] << 8)
+                                    | ((uint32_t)a->data[offa + 2] << 16)
+                                    | ((uint32_t)a->data[offa + 3] << 24);
+                        uint32_t ub = (uint32_t)b->data[offb]
+                                    | ((uint32_t)b->data[offb + 1] << 8)
+                                    | ((uint32_t)b->data[offb + 2] << 16)
+                                    | ((uint32_t)b->data[offb + 3] << 24);
+                        int64_t prod = (int64_t)(int32_t)ua * (int64_t)(int32_t)ub;
+                        acc_u += avm_u64_bits_i64_native(prod);
+                    }
+                } else
+#endif
                 for (uint32_t i = 0; i < n; i++) {
                     uint32_t offa = (a_off + i * a_stride) * 4u;
                     uint32_t offb = (b_off + i * b_stride) * 4u;

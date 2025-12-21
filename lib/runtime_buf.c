@@ -1336,6 +1336,30 @@ OrenValue oren_buf_dot_i32_strided(OrenValue a, OrenValue a_offv, OrenValue a_st
     uint32_t b_stride = (uint32_t)b_stride_ll;
 
     uint64_t acc = 0;
+#if OREN_BUF_HAVE_NEON
+    if (oren_simd_enabled_cached() && a_stride == 1u && b_stride == 1u && n >= 4u) {
+        const int32_t* pa = (const int32_t*)(const void*)(buf_data(ba) + a_off * 4u);
+        const int32_t* pb = (const int32_t*)(const void*)(buf_data(bb) + b_off * 4u);
+        uint32_t i = 0;
+        uint64x2_t vacc = vdupq_n_u64(0);
+        for (; i + 4u <= n; i += 4u) {
+            int32x4_t va = vld1q_s32(pa + i);
+            int32x4_t vb = vld1q_s32(pb + i);
+            int64x2_t p_lo = vmull_s32(vget_low_s32(va), vget_low_s32(vb));
+            int64x2_t p_hi = vmull_s32(vget_high_s32(va), vget_high_s32(vb));
+            vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(p_lo));
+            vacc = vaddq_u64(vacc, vreinterpretq_u64_s64(p_hi));
+        }
+        uint64_t tmp[2];
+        vst1q_u64(tmp, vacc);
+        acc = tmp[0] + tmp[1];
+        for (; i < n; i++) {
+            int64_t prod = (int64_t)pa[i] * (int64_t)pb[i];
+            acc += u64_from_i64(prod);
+        }
+        return oren_int((long long)i64_from_u64(acc));
+    }
+#endif
     for (uint32_t i = 0; i < n; i++) {
         int32_t va = (int32_t)load_u32_le(buf_data(ba) + (a_off + i * a_stride) * 4u);
         int32_t vb = (int32_t)load_u32_le(buf_data(bb) + (b_off + i * b_stride) * 4u);
