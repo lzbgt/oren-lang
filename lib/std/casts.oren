@@ -42,7 +42,9 @@ fn bool(x) {
 //
 // v0 float is f64 at runtime. `f32` is a deterministic rounding boundary.
 fn f32(x) {
-    return oren_f32_round(x)
+    // Coerce ints to float container first (x + 0.0), then round deterministically.
+    // This matches `type_ann_lowering.oren` behavior for the `f32(x)` cast sugar.
+    return oren_f32_round(x + 0.0)
 }
 
 fn f64(x) {
@@ -50,4 +52,3 @@ fn f64(x) {
     // Adding 0.0 forces floaty behavior in the runtime arithmetic.
     return x + 0.0
 }
-

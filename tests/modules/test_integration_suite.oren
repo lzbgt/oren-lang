@@ -13,6 +13,8 @@ import yaml "../../lib/std/yaml.oren"
 import cbor "../../lib/std/cbor.oren"
 import time "../../lib/std/time.oren"
 import math "../../lib/std/math.oren"
+import ints "../../lib/std/ints.oren"
+import casts "../../lib/std/casts.oren"
 import result "../../lib/std/result.oren"
 import itmod "iterable_mod.oren"
 
@@ -48,6 +50,12 @@ assert_eq(i32(-1.9), -1, 19, "i32 trunc negative")
 
 // int -> f32: accept integer input (implicit int->f64 then f64->f32 is OK).
 assert_eq(f32(16777217), 16777216.0, 20, "f32 rounding boundary")
+
+// Stdlib casts must accept float inputs too (not only the cast-sugar lowering).
+assert_eq(ints.u8(1.9), 1, 21, "ints.u8 trunc float")
+assert_eq(ints.i32(-1.9), -1, 22, "ints.i32 trunc float")
+assert_eq(casts.u8(1.9), 1, 23, "casts.u8 trunc float")
+assert_eq(casts.f32(16777217), 16777216.0, 24, "casts.f32 accepts int input")
 
 // --- ABI layout (no host headers) ---
 

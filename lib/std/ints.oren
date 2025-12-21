@@ -7,30 +7,36 @@
 // Semantics are "wrap/truncate" (two's complement) rather than checked.
 
 fn u8(x) {
+    x = oren_trunc_int(x)
     return x & 255
 }
 
 fn i8(x) {
+    x = oren_trunc_int(x)
     var u = x & 255
     if u >= 128 { return u - 256 }
     return u
 }
 
 fn u16(x) {
+    x = oren_trunc_int(x)
     return x & 65535
 }
 
 fn i16(x) {
+    x = oren_trunc_int(x)
     var u = x & 65535
     if u >= 32768 { return u - 65536 }
     return u
 }
 
 fn u32(x) {
+    x = oren_trunc_int(x)
     return x & 4294967295
 }
 
 fn i32(x) {
+    x = oren_trunc_int(x)
     var u = x & 4294967295
     if u >= 2147483648 { return u - 4294967296 }
     return u
@@ -74,11 +80,8 @@ fn try_i32(x) {
 // - `u64`/`try_u64` therefore only support 0..MAX_I64 in v0.
 var MAX_I64 = 9223372036854775807
 
-fn i64(x) { return x }
-fn u64(x) {
-    if x < 0 { return 0 } // wrap semantics for negative values are not meaningful for u64 in v0
-    return x
-}
+fn i64(x) { return oren_trunc_int(x) }
+fn u64(x) { return oren_trunc_int(x) }
 
 fn try_i64(x) { return x }
 fn try_u64(x) {

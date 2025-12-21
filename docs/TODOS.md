@@ -109,6 +109,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Current rolling note:
       - Cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, endian spellings) is lowered by `type_ann_lowering.oren` into deterministic bit ops.
       - Integer-only cast sites now skip the `oren_trunc_int(...)` helper when the expression is provably-int (reduces overhead in tight loops).
+      - Stdlib cast helpers (`lib/std/ints.oren`, `lib/std/casts.oren`) now accept float inputs (truncate toward zero) and `casts.f32(int)` coerces via `x + 0.0` before rounding, matching cast-sugar semantics.
 
 3) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:
