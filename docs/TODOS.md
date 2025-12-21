@@ -71,19 +71,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Allocator control for large numeric buffers**
-   - DoD:
-     - Add an explicit “unscanned / raw bytes” allocation mode for typed buffers (avoid GC scanning and pointer false-positives)
-     - Support aligned allocation (arm64 NEON-friendly)
-     - Expose as `std/buffer` API (portable across C/native/AVM where feasible)
-   - Status:
-      - Aligned typed-buffer payloads: **done** (64-byte) in native runtime + AVM allocator; covered by `test_buffer_alignment.oren` and verified on macOS + Linux docker
-      - “Unscanned / raw bytes” typed buffers: **done** (payload allocations are explicitly tagged RAW/opaque across C runtime + native runtime + AVM); covered by `test_buffer_payload_raw.oren`
-      - Arena/mmap options:
-        - **done (C runtime + AVM):** large RAW/BUF allocations use `mmap` so memory can be returned to OS; covered by `test_buffer_payload_mmap.oren`
-        - **done (native backend):** large typed-buffer payloads use `sys_mmap_private_anon` and are released via `sys_munmap` (free + GC sweep); covered by `tests/native/test_buffer_payload_mmap_native.oren`
-
-2) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
+1) **[lang][perf] SIMD surface + dispatch boundary (arm64 NEON first)**
    - DoD:
      - Define a stable intrinsic boundary (compiler-known names) for vector kernels
      - Add feature gating + scalar fallback (deterministic)
@@ -94,31 +82,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - **done (native runtime config):** `OREN_ENABLE_SIMD` is parsed once at startup and stored in native globals (future native NEON kernels can key off it).
      - **todo:** add native-backend NEON kernels (requires arm64 SIMD load/store + loop emission in the native codegen).
 
-3) **[lang][perf] Expand generics v0.1 (constraints + hygiene)**
-   - DoD:
-     - Keep v0 single-type-param generics, but enforce “unspecialized call to generic template is a compile error”
-     - Add minimal constraint enforcement: `fn f[T: Trait]` requires an `impl Trait for <T>` (or `any`) to exist
-     - Extend monomorph substitution to cover additional AST nodes encountered in real code
-   - Status:
-     - **done:** unspecialized `f(...)` call to `fn f[T](...)` is a compile-time error (diagnostic surfaced as `OREN_DIAG kind=compile`).
-     - **done:** `T: Trait` constraints are enforced at monomorphization time (requires `impl Trait for <T>` or `impl Trait for any`).
-     - **done:** monomorph cloning now covers `Switch` + `Type` statements, and Hash pair keys are handled consistently (`{key,value}`).
-     - **covered:** oretest fixtures `tests/native/fixtures/generic_unspecialized_call.oren` and `tests/native/fixtures/generic_constraint_missing_impl.oren`.
-
 ### B) AVM (evolves alongside language/compiler)
 
-1) **[vm][safety] Snapshot/restore format hardening + stability knobs**
-   - DoD:
-     - snapshot includes full VM state and validates on load
-     - hash-friendly, chunkable layout (for swarm consensus + dedupe)
-     - clear “rolling vs stable” policy for snapshots (separate from `.obc`)
-     - include record/replay-bytes state + log budget counters so pause/resume does not lose determinism data (**done**)
-     - include VM configuration + virtual backend state (e.g. `fs_backend_kind` + VirtualFS contents) so resume does not accidentally touch host (**done**)
-     - tasks/channels:
-       - **v0:** explicitly forbid snapshot when `vm->sched != NULL` (**done**, exit code becomes `3` when `--snapshot-out` is requested on a paused run)
-       - **v1:** add full scheduler snapshot support (tasks + channels) so spawned workloads can be paused/resumed
-
-2) **[boot][arch] Compiler-in-AVM (close the loop)**
+1) **[boot][arch] Compiler-in-AVM (close the loop)**
    - DoD:
      - AVM ingests `.oren` (BYTES/VirtualFS), compiles to `.obc`, executes in a child universe
      - sandboxed module loader rules + governance hooks
@@ -129,26 +95,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
-- Typed buffers: 64-byte aligned payloads across native runtime + AVM allocator; added `oren_buf_data_mod` (C runtime) and module coverage `tests/modules/test_buffer_alignment.oren`; verified on macOS + Linux docker.
-- Generics v0: added `fn f[T](...)` parsing + whole-program monomorphization (`f[T](...) -> f__T(...)`), plus an integration module test `test_generic_fn_monomorph_dot` for `i32` + `f32`; verified on macOS + Linux docker.
-- C backend: added `u8_buf` type and made `oren_bytes_get_*` / `oren_bytes_set_*` accept both `list<int>` and `u8_buf`; added module coverage (`test_u8_buf_bytes_helpers`) and verified on macOS + Linux docker.
-- Numeric literals: added `_` separators and `0x`/`0b`/`0o` base-prefixed int literals across lexer + optimizer + bytecode + native backend + C backend; added module + AVM coverage; verified on macOS + Linux docker.
-- `std/buffer` views: switched slice/matrix views from map-based records to fixed-position lists to reduce hot-loop overhead; verified on macOS + Linux docker.
-- Generic-call specialization sugar v0: added `f[T](...) -> f__T(...)` lowering (conservative: only for declared functions) with module + AVM coverage; verified on macOS + Linux docker.
-- AVM: added `test_map_iter_deterministic` to pin deterministic map key iteration under deny-by-default mode.
-- Casting overflow semantics: made `oren_trunc_int` deterministic clamp (`NaN→0`, `+inf/overflow→INT64_MAX`, `-inf/overflow→INT64_MIN`) across C runtime + AVM native intrinsics; updated docs and added module coverage.
-- Iteration: added `for x in <typed_buf>` support for `i32/i64/f32/f64` buffers in C runtime + native runtime; added module coverage and wired it into oretest curated lists.
-- Attributes v1: allow `@pack`/`@abi` and canonicalize `@json.*` to `serde.*`; preserve unknown attrs; support attrs + doc comments on vars; accept attrs inside blocks; `oren meta` now exports `globals[]` with attrs; covered by oretest meta fixture + native integration suite; verified on macOS + Linux docker.
-- `bitcast[T](x)` v0: added lowering + runtime helpers for `u32/f32/u64/f64` bit reinterpretation; fixed unary `-` lowering to preserve float `-0.0`; covered by a module test; verified on macOS + Linux docker.
-- `std/math` rounding v0: added deterministic `floor/ceil/round` (half-away-from-zero, NaN->Err); covered by a module test including `-0.0` bit preservation.
-- `std/time` v0: added `lib/std/time.oren` (UTC ISO-8601 parse/format, epoch conversions, monotonic/unix clocks, sleep); added runtime TIME primitives and a module test; verified on macOS.
-- AVM record/replay v1: portable log format with file + in-memory logs; effectful domains replay from logs (no host effects); deterministic TIME/RNG supported; covered by AVM tests.
-- AVM deterministic cooperative tasks: task scheduler + `yield`/spawn/join/select primitives; deterministic step-quantum via `AVM_TASK_QUANTUM`; covered by AVM tests.
-- AVM snapshots v5: snapshot now preserves in-memory record/replay logs + budget counters; snapshot explicitly rejects tasks/channels state (until scheduler snapshot is implemented); covered by AVM tests.
-- AVM state hash: `STATE_HASH` now incorporates policy/config + virtual backend fixtures (VFS/VPROC/VNET) so host vs virtual execution cannot collide; covered by an AVM test and an oretest assertion; verified on macOS + Linux docker.
-- Casting: allow float→int cast sugar (`u8(1.9)`) via `oren_trunc_int`; allow `f32(16777217)` via numeric coercion; updated typecheck + tests; verified on macOS + Linux docker.
-- Typed buffers + views: C backend runtime primitives in `lib/runtime_buf.c`, `std/buffer`, and an integration module test; fixed top-level var init ordering in the C backend; verified on macOS + Linux docker.
-- `std/linalg` v0.2: added typed-buffer APIs + runtime AXPY intrinsics; arm64 NEON fast paths for i32 dot/reduce; fixed signed-overflow UB in i32 dot/reduce; verified on macOS + Linux docker.
-- GC registry scaling: replaced linear `oren_find_node()` lookup with a pointer-indexed hash table and added a GC stress module test; verified on macOS + Linux docker.
-- Iteration (stream-like): added `lib/std/iter.oren` (`range` / `range3`) implemented via an “iterable map” protocol in `oren_iter_next` across C runtime, native runtime, and AVM native; covered by module + AVM tests; verified on macOS + Linux docker.
-- Bytecode correctness: fixed negative integer constant parsing in the bytecode backend; restored optimizer folding for `-` and added an oretest fixture to assert `-4`/`-3` appear in `.obc` constants.
+- AVM snapshots v7: snapshot/restore now includes scheduler state (tasks + channels + queues) so spawned workloads can be paused/resumed.
+- Bytecode backend: `oren_yield()` now returns canonical `nil` (stack-balanced as an expression), preventing verifier stack-height mismatches.

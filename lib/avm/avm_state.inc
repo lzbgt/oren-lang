@@ -1867,17 +1867,7 @@ static uint8_t* snap_read_bytes(FILE* f, uint32_t* out_len, int* ok) {
 int avm_snapshot(AvmVM* vm, const char* path) {
     if (!vm || !vm->prog || !path) return 1;
 
-    // Cooperative tasks/channels (rolling): snapshot support is not implemented yet.
-    // Rather than silently producing an incomplete snapshot (which would break determinism),
-    // explicitly refuse snapshot when the scheduler is non-trivial.
-    //
-    // Note: AVM currently initializes the scheduler even for single-task programs.
-    // We allow snapshots when the scheduler is "trivial" (main task only, no chans/queues).
-    if (vm->sched && !avm_sched_is_trivial(vm)) {
-        // best effort; crash is acceptable for now in snapshotting path
-        fprintf(stderr, "snapshot: tasks/channels snapshot is not supported yet (non-trivial scheduler)\n");
-        return 1;
-    }
+    // Cooperative tasks/channels (rolling): AVMSNAP7 adds scheduler snapshot support.
 
     ObjTable objs = {0};
 
@@ -1898,6 +1888,57 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     if (vm->record_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->record_log_bytes; collect_value_objects(&objs, v); }
     if (vm->replay_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes; collect_value_objects(&objs, v); }
 
+    // Cooperative tasks + channels (rolling; AVMSNAP7+):
+    // Snapshot must include all values reachable from other tasks' stacks/envs and from channel queues.
+    if (vm->sched) {
+        AvmSched* s = (AvmSched*)vm->sched;
+        if (s && s->init) {
+            int cur = s->current_tid;
+            // Tasks
+            for (int ti = 0; ti < s->task_cap; ti++) {
+                AvmTask* t = &s->tasks[ti];
+                if (!t->used) continue;
+
+                // Current task state may be newer in vm registers than in the stored task snapshot.
+                if (ti == cur) {
+                    collect_value_objects(&objs, vm->env);
+                    for (int fi = 0; fi < vm->frame_count; fi++) collect_value_objects(&objs, vm->frames[fi].env);
+                    for (int si = 0; si < vm->sp; si++) collect_value_objects(&objs, vm->stack[si]);
+                } else {
+                    collect_value_objects(&objs, t->env);
+                    if (t->frames) {
+                        int fc = t->frame_count;
+                        if (fc < 0) fc = 0;
+                        if (fc > (int)MAX_FRAMES) fc = (int)MAX_FRAMES;
+                        for (int fi = 0; fi < fc; fi++) collect_value_objects(&objs, t->frames[fi].env);
+                    }
+                    if (t->stack) {
+                        int sp = t->sp;
+                        if (sp < 0) sp = 0;
+                        if (sp > (int)AVM_STACK_SIZE) sp = (int)AVM_STACK_SIZE;
+                        for (int si = 0; si < sp; si++) collect_value_objects(&objs, t->stack[si]);
+                    }
+                }
+
+                collect_value_objects(&objs, t->wait_list);
+                collect_value_objects(&objs, t->wake_value);
+                collect_value_objects(&objs, t->ret);
+            }
+
+            // Channels: only queued message values are part of the VM semantic heap graph.
+            for (int ci = 0; ci < s->chan_cap; ci++) {
+                AvmChan* ch = &s->chans[ci];
+                if (!ch->used) continue;
+                if (ch->q && ch->q_len > 0) {
+                    int qn = ch->q_len;
+                    if (qn < 0) qn = 0;
+                    if (qn > 4096) qn = 4096;
+                    for (int qi = 0; qi < qn; qi++) collect_value_objects(&objs, ch->q[qi]);
+                }
+            }
+        }
+    }
+
     FILE* f = fopen(path, "wb");
     if (!f) {
         objtable_free(&objs);
@@ -1905,7 +1946,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     }
 
     // Magic (8 bytes)
-    const uint8_t magic[8] = {'A','V','M','S','N','A','P','6'};
+    const uint8_t magic[8] = {'A','V','M','S','N','A','P','7'};
     if (fwrite(magic, 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
 
     if (!write_u32_le(f, (uint32_t)objs.count)) { fclose(f); objtable_free(&objs); return 1; }
@@ -2025,6 +2066,10 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     if (!write_u32_le(f, (uint32_t)vm->net_backend_kind)) { fclose(f); objtable_free(&objs); return 1; }
     if (!write_u32_le(f, (uint32_t)vm->proc_exit_code)) { fclose(f); objtable_free(&objs); return 1; }
 
+    // Additional VM configuration (rolling; AVMSNAP7+)
+    if (!write_u8(f, (uint8_t)(vm->enable_simd ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+    if (!write_u32_le(f, (uint32_t)vm->task_quantum_steps)) { fclose(f); objtable_free(&objs); return 1; }
+
     // FS allow prefixes
     uint32_t apc = (vm->fs_allow_prefix_count > 0 && vm->fs_allow_prefixes) ? (uint32_t)vm->fs_allow_prefix_count : 0u;
     if (!write_u32_le(f, apc)) { fclose(f); objtable_free(&objs); return 1; }
@@ -2126,6 +2171,125 @@ int avm_snapshot(AvmVM* vm, const char* path) {
         if (fwrite("AVMNET0B", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
     }
 
+    // Scheduler snapshot (rolling; AVMSNAP7+): tasks + channels + queues.
+    //
+    // Layout: tagged chunk appended at end so older readers can ignore (they won't accept AVMSNAP7 anyway).
+    if (vm->sched) {
+        AvmSched* s = (AvmSched*)vm->sched;
+        if (!s || !s->init) {
+            if (fwrite("AVMSCH00", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
+        } else {
+            if (fwrite("AVMSCH01", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
+
+            // Header
+            if (!write_u32_le(f, (uint32_t)s->current_tid)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!write_u32_le(f, (uint32_t)s->quantum_steps)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!write_u32_le(f, (uint32_t)s->task_cap)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!write_u32_le(f, (uint32_t)s->task_count)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!write_u32_le(f, (uint32_t)s->ready_len)) { fclose(f); objtable_free(&objs); return 1; }
+            for (int i = 0; i < s->ready_len; i++) {
+                if (!write_u32_le(f, (uint32_t)s->ready[i])) { fclose(f); objtable_free(&objs); return 1; }
+            }
+            if (!write_u32_le(f, (uint32_t)s->select_len)) { fclose(f); objtable_free(&objs); return 1; }
+            for (int i = 0; i < s->select_len; i++) {
+                if (!write_u32_le(f, (uint32_t)s->select_waiters[i])) { fclose(f); objtable_free(&objs); return 1; }
+            }
+            if (!write_u32_le(f, (uint32_t)s->chan_cap)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!write_u32_le(f, (uint32_t)s->chan_count)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!write_u64_le(f, (uint64_t)s->next_chan_id)) { fclose(f); objtable_free(&objs); return 1; }
+
+            int cur = s->current_tid;
+
+            // Tasks
+            for (int ti = 0; ti < s->task_cap; ti++) {
+                AvmTask* t = &s->tasks[ti];
+                if (!write_u8(f, (uint8_t)(t->used ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+                if (!t->used) continue;
+
+                if (!write_u8(f, (uint8_t)(t->done ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u8(f, (uint8_t)(t->blocked ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)t->wait_kind)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)t->wait_id)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)t->wait_chan)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!encode_value(f, &objs, t->wait_list)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u64_le(f, t->join_deadline_ns)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u8(f, (uint8_t)(t->wake_pending ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+                if (!encode_value(f, &objs, t->wake_value)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)t->slice_remaining)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)t->select_cursor)) { fclose(f); objtable_free(&objs); return 1; }
+
+                // Task machine state: for the current task, prefer the live vm registers.
+                int pc = t->pc;
+                int sp = t->sp;
+                int fp = t->fp;
+                int fc = t->frame_count;
+                AvmValue env = t->env;
+                AvmValue* stack = t->stack;
+                AvmFrame* frames = t->frames;
+                if (ti == cur) {
+                    pc = vm->pc;
+                    sp = vm->sp;
+                    fp = vm->fp;
+                    fc = vm->frame_count;
+                    env = vm->env;
+                    stack = vm->stack;
+                    frames = vm->frames;
+                }
+                if (sp < 0) sp = 0;
+                if (sp > (int)AVM_STACK_SIZE) sp = (int)AVM_STACK_SIZE;
+                if (fc < 0) fc = 0;
+                if (fc > (int)MAX_FRAMES) fc = (int)MAX_FRAMES;
+
+                if (!write_u32_le(f, (uint32_t)pc)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)sp)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)fp)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)fc)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!encode_value(f, &objs, env)) { fclose(f); objtable_free(&objs); return 1; }
+
+                for (int fi = 0; fi < fc; fi++) {
+                    int rpc = 0;
+                    int fpp = 0;
+                    AvmValue fenv = avm_nil();
+                    if (frames) {
+                        rpc = frames[fi].return_pc;
+                        fpp = frames[fi].fp;
+                        fenv = frames[fi].env;
+                    }
+                    if (!write_u32_le(f, (uint32_t)rpc)) { fclose(f); objtable_free(&objs); return 1; }
+                    if (!write_u32_le(f, (uint32_t)fpp)) { fclose(f); objtable_free(&objs); return 1; }
+                    if (!encode_value(f, &objs, fenv)) { fclose(f); objtable_free(&objs); return 1; }
+                }
+
+                for (int si = 0; si < sp; si++) {
+                    AvmValue sv = avm_nil();
+                    if (stack) sv = stack[si];
+                    if (!encode_value(f, &objs, sv)) { fclose(f); objtable_free(&objs); return 1; }
+                }
+
+                if (!write_u8(f, (uint8_t)(t->has_ret ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+                if (!encode_value(f, &objs, t->ret)) { fclose(f); objtable_free(&objs); return 1; }
+            }
+
+            // Channels
+            for (int ci = 0; ci < s->chan_cap; ci++) {
+                AvmChan* ch = &s->chans[ci];
+                if (!write_u8(f, (uint8_t)(ch->used ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+                if (!ch->used) continue;
+                if (!write_u64_le(f, (uint64_t)ch->id)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u32_le(f, (uint32_t)ch->recv_count)) { fclose(f); objtable_free(&objs); return 1; }
+                for (int wi = 0; wi < ch->recv_count; wi++) {
+                    if (!write_u32_le(f, (uint32_t)ch->recv_waiters[wi])) { fclose(f); objtable_free(&objs); return 1; }
+                }
+                if (!write_u32_le(f, (uint32_t)ch->q_len)) { fclose(f); objtable_free(&objs); return 1; }
+                for (int qi = 0; qi < ch->q_len; qi++) {
+                    if (!encode_value(f, &objs, ch->q[qi])) { fclose(f); objtable_free(&objs); return 1; }
+                }
+            }
+        }
+    } else {
+        if (fwrite("AVMSCH00", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
+    }
+
     fclose(f);
     objtable_free(&objs);
     return 0;
@@ -2144,12 +2308,14 @@ int avm_restore(AvmVM* vm, const char* path) {
     const uint8_t want4[8] = {'A','V','M','S','N','A','P','4'};
     const uint8_t want5[8] = {'A','V','M','S','N','A','P','5'};
     const uint8_t want6[8] = {'A','V','M','S','N','A','P','6'};
+    const uint8_t want7[8] = {'A','V','M','S','N','A','P','7'};
     int snap_ver = 0;
     if (memcmp(magic, want2, 8) == 0) snap_ver = 2;
     if (memcmp(magic, want3, 8) == 0) snap_ver = 3;
     if (memcmp(magic, want4, 8) == 0) snap_ver = 4;
     if (memcmp(magic, want5, 8) == 0) snap_ver = 5;
     if (memcmp(magic, want6, 8) == 0) snap_ver = 6;
+    if (memcmp(magic, want7, 8) == 0) snap_ver = 7;
     if (snap_ver == 0) { fclose(f); return 1; }
 
     int ok = 1;
@@ -2480,6 +2646,16 @@ int avm_restore(AvmVM* vm, const char* path) {
         vm->net_backend_kind = (int)net_kind;
         vm->proc_exit_code = (int)proc_ec;
 
+        // Additional VM configuration (rolling; AVMSNAP7+)
+        if (snap_ver >= 7) {
+            uint8_t en_simd = 0;
+            if (fread(&en_simd, 1, 1, f) != 1) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            vm->enable_simd = (en_simd != 0) ? 1 : 0;
+            uint32_t tq = read_u32_le(f, &okc);
+            if (!okc) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            vm->task_quantum_steps = tq;
+        }
+
         // FS allow prefixes
         uint32_t apc = read_u32_le(f, &okc);
         if (!okc || apc > 100000u) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
@@ -2611,6 +2787,298 @@ int avm_restore(AvmVM* vm, const char* path) {
             vm->vnet = NULL;
         } else {
             fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+        }
+
+        // Scheduler chunk (rolling; AVMSNAP7+)
+        if (snap_ver >= 7) {
+            if (fread(tag, 1, 8, f) != 8) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+            if (memcmp(tag, "AVMSCH00", 8) == 0) {
+                vm->sched = NULL;
+                vm->stack = vm->stack_base;
+            } else if (memcmp(tag, "AVMSCH01", 8) == 0) {
+                int oks = 1;
+                uint32_t cur_tid = read_u32_le(f, &oks);
+                uint32_t quantum_steps = read_u32_le(f, &oks);
+                uint32_t task_cap = read_u32_le(f, &oks);
+                uint32_t task_count = read_u32_le(f, &oks);
+                uint32_t ready_len = read_u32_le(f, &oks);
+                if (!oks) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (task_cap == 0 || task_cap > 1000000u) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (task_count > task_cap) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (ready_len > 1000000u) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+
+                uint32_t* ready = NULL;
+                if (ready_len > 0) {
+                    ready = (uint32_t*)calloc(ready_len, sizeof(uint32_t));
+                    if (!ready) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                    for (uint32_t i = 0; i < ready_len; i++) ready[i] = read_u32_le(f, &oks);
+                    if (!oks) { fclose(f); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                }
+
+                uint32_t select_len = read_u32_le(f, &oks);
+                if (!oks || select_len > 1000000u) { fclose(f); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                uint32_t* select_waiters = NULL;
+                if (select_len > 0) {
+                    select_waiters = (uint32_t*)calloc(select_len, sizeof(uint32_t));
+                    if (!select_waiters) { fclose(f); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                    for (uint32_t i = 0; i < select_len; i++) select_waiters[i] = read_u32_le(f, &oks);
+                    if (!oks) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                }
+
+                uint32_t chan_cap = read_u32_le(f, &oks);
+                uint32_t chan_count = read_u32_le(f, &oks);
+                uint64_t next_chan_id_u64 = read_u64_le(f, &oks);
+                if (!oks) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (chan_cap > 1000000u) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                if (chan_cap > 0 && chan_count > chan_cap) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+
+                // Create scheduler
+                AvmSched* s = (AvmSched*)calloc(1, sizeof(AvmSched));
+                if (!s) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
+                s->init = 1;
+                s->current_tid = (int)cur_tid;
+                s->quantum_steps = (int)quantum_steps;
+                s->task_cap = (int)task_cap;
+                s->task_count = (int)task_count;
+                s->ready = NULL;
+                s->ready_len = (int)ready_len;
+                s->ready_cap = (int)ready_len;
+                s->select_waiters = NULL;
+                s->select_len = (int)select_len;
+                s->select_cap = (int)select_len;
+                s->chan_cap = (int)chan_cap;
+                s->chan_count = (int)chan_count;
+                s->next_chan_id = (int64_t)next_chan_id_u64;
+
+                s->tasks = (AvmTask*)calloc((size_t)s->task_cap, sizeof(AvmTask));
+                if (!s->tasks) {
+                    free(s);
+                    fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                }
+                if (s->chan_cap > 0) {
+                    s->chans = (AvmChan*)calloc((size_t)s->chan_cap, sizeof(AvmChan));
+                    if (!s->chans) {
+                        free(s->tasks);
+                        free(s);
+                        fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                    }
+                } else {
+                    s->chans = NULL;
+                }
+
+                if (ready_len > 0) {
+                    s->ready = (int*)calloc(ready_len, sizeof(int));
+                    if (!s->ready) {
+                        free(s->chans);
+                        free(s->tasks);
+                        free(s);
+                        fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                    }
+                    for (uint32_t i = 0; i < ready_len; i++) s->ready[i] = (int)ready[i];
+                }
+                if (select_len > 0) {
+                    s->select_waiters = (int*)calloc(select_len, sizeof(int));
+                    if (!s->select_waiters) {
+                        if (s->ready) free(s->ready);
+                        free(s->chans);
+                        free(s->tasks);
+                        free(s);
+                        fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                    }
+                    for (uint32_t i = 0; i < select_len; i++) s->select_waiters[i] = (int)select_waiters[i];
+                }
+                free(select_waiters);
+                free(ready);
+
+                // Tasks
+                for (int ti = 0; ti < s->task_cap; ti++) {
+                    uint8_t used = 0;
+                    if (fread(&used, 1, 1, f) != 1) { oks = 0; break; }
+                    if (!used) {
+                        s->tasks[ti].used = 0;
+                        continue;
+                    }
+                    AvmTask* t = &s->tasks[ti];
+                    memset(t, 0, sizeof(*t));
+                    t->used = 1;
+                    uint8_t done = 0, blocked = 0;
+                    if (fread(&done, 1, 1, f) != 1) { oks = 0; break; }
+                    if (fread(&blocked, 1, 1, f) != 1) { oks = 0; break; }
+                    t->done = done ? 1 : 0;
+                    t->blocked = blocked ? 1 : 0;
+                    t->wait_kind = (int)read_u32_le(f, &oks);
+                    t->wait_id = (int)read_u32_le(f, &oks);
+                    t->wait_chan = (int)read_u32_le(f, &oks);
+                    if (!oks) break;
+                    if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->wait_list)) { oks = 0; break; }
+                    t->join_deadline_ns = read_u64_le(f, &oks);
+                    if (!oks) break;
+                    uint8_t wakep = 0;
+                    if (fread(&wakep, 1, 1, f) != 1) { oks = 0; break; }
+                    t->wake_pending = wakep ? 1 : 0;
+                    if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->wake_value)) { oks = 0; break; }
+                    t->slice_remaining = (int)read_u32_le(f, &oks);
+                    t->select_cursor = (int)read_u32_le(f, &oks);
+                    if (!oks) break;
+
+                    t->pc = (int)read_u32_le(f, &oks);
+                    t->sp = (int)read_u32_le(f, &oks);
+                    t->fp = (int)read_u32_le(f, &oks);
+                    t->frame_count = (int)read_u32_le(f, &oks);
+                    if (!oks) break;
+                    if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->env)) { oks = 0; break; }
+
+                    if (t->sp < 0) t->sp = 0;
+                    if (t->sp > (int)AVM_STACK_SIZE) t->sp = (int)AVM_STACK_SIZE;
+                    if (t->frame_count < 0) t->frame_count = 0;
+                    if (t->frame_count > (int)MAX_FRAMES) t->frame_count = (int)MAX_FRAMES;
+
+                    // Allocate task stack + frames.
+                    if (ti == 0) {
+                        t->stack = vm->stack_base;
+                    } else {
+                        t->stack = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)AVM_STACK_SIZE);
+                        if (!t->stack) { oks = 0; break; }
+                    }
+                    t->frames = (AvmFrame*)malloc(sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+                    if (!t->frames) { oks = 0; break; }
+                    memset(t->frames, 0, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+
+                    for (int fi = 0; fi < t->frame_count; fi++) {
+                        uint32_t rpc = read_u32_le(f, &oks);
+                        uint32_t fpp = read_u32_le(f, &oks);
+                        if (!oks) break;
+                        t->frames[fi].return_pc = (int)rpc;
+                        t->frames[fi].fp = (int)fpp;
+                        if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->frames[fi].env)) { oks = 0; break; }
+                    }
+                    if (!oks) break;
+
+                    for (int si = 0; si < t->sp; si++) {
+                        if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->stack[si])) { oks = 0; break; }
+                    }
+                    if (!oks) break;
+
+                    uint8_t has_ret = 0;
+                    if (fread(&has_ret, 1, 1, f) != 1) { oks = 0; break; }
+                    t->has_ret = has_ret ? 1 : 0;
+                    if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->ret)) { oks = 0; break; }
+                }
+                if (!oks) {
+                    // Best-effort cleanup on parse failure.
+                    if (s->tasks) {
+                        for (int i = 0; i < s->task_cap; i++) {
+                            if (!s->tasks[i].used) continue;
+                            if (s->tasks[i].frames) free(s->tasks[i].frames);
+                            if (i != 0 && s->tasks[i].stack) free(s->tasks[i].stack);
+                        }
+                    }
+                    if (s->ready) free(s->ready);
+                    if (s->select_waiters) free(s->select_waiters);
+                    if (s->chans) free(s->chans);
+                    if (s->tasks) free(s->tasks);
+                    free(s);
+                    fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                }
+
+                // Channels
+                for (int ci = 0; ci < s->chan_cap; ci++) {
+                    uint8_t used = 0;
+                    if (fread(&used, 1, 1, f) != 1) { oks = 0; break; }
+                    if (!used) {
+                        s->chans[ci].used = 0;
+                        continue;
+                    }
+                    AvmChan* ch = &s->chans[ci];
+                    memset(ch, 0, sizeof(*ch));
+                    ch->used = 1;
+                    ch->id = (int64_t)read_u64_le(f, &oks);
+                    uint32_t recv_count = read_u32_le(f, &oks);
+                    if (!oks || recv_count > 1000000u) { oks = 0; break; }
+                    ch->recv_count = (int)recv_count;
+                    ch->recv_cap = (int)recv_count;
+                    ch->recv_waiters = NULL;
+                    if (recv_count > 0) {
+                        ch->recv_waiters = (int*)calloc(recv_count, sizeof(int));
+                        if (!ch->recv_waiters) { oks = 0; break; }
+                        for (uint32_t i = 0; i < recv_count; i++) ch->recv_waiters[i] = (int)read_u32_le(f, &oks);
+                        if (!oks) break;
+                    }
+                    uint32_t q_len = read_u32_le(f, &oks);
+                    if (!oks || q_len > 1000000u) { oks = 0; break; }
+                    ch->q_len = (int)q_len;
+                    ch->q_cap = (int)q_len;
+                    ch->q = NULL;
+                    if (q_len > 0) {
+                        ch->q = (AvmValue*)calloc(q_len, sizeof(AvmValue));
+                        if (!ch->q) { oks = 0; break; }
+                        for (uint32_t i = 0; i < q_len; i++) {
+                            if (!decode_value(f, obj_types, obj_ptrs, obj_count, &ch->q[i])) { oks = 0; break; }
+                        }
+                        if (!oks) break;
+                    }
+                }
+                if (!oks) {
+                    if (s->tasks) {
+                        for (int i = 0; i < s->task_cap; i++) {
+                            if (!s->tasks[i].used) continue;
+                            if (s->tasks[i].frames) free(s->tasks[i].frames);
+                            if (i != 0 && s->tasks[i].stack) free(s->tasks[i].stack);
+                        }
+                    }
+                    if (s->chans) {
+                        for (int i = 0; i < s->chan_cap; i++) {
+                            if (!s->chans[i].used) continue;
+                            if (s->chans[i].recv_waiters) free(s->chans[i].recv_waiters);
+                            if (s->chans[i].q) free(s->chans[i].q);
+                        }
+                        free(s->chans);
+                    }
+                    if (s->ready) free(s->ready);
+                    if (s->select_waiters) free(s->select_waiters);
+                    if (s->tasks) free(s->tasks);
+                    free(s);
+                    fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                }
+
+                // Attach scheduler and load current task state into VM.
+                if (vm->sched) {
+                    // Restore expects a fresh VM; be conservative.
+                    fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                }
+                // Best-effort sanity: ensure quantum is consistent with VM config.
+                if (vm->task_quantum_steps > 0 && quantum_steps != 0 && vm->task_quantum_steps != quantum_steps) {
+                    // If mismatch occurs, prefer snapshot scheduler quantum (semantics) and overwrite vm config.
+                    vm->task_quantum_steps = quantum_steps;
+                }
+                vm->sched = s;
+
+                int cur = s->current_tid;
+                if (cur < 0 || cur >= s->task_cap || !s->tasks[cur].used) {
+                    fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                }
+                AvmTask* ct = &s->tasks[cur];
+                vm->stack = ct->stack ? ct->stack : vm->stack_base;
+                vm->pc = ct->pc;
+                vm->sp = ct->sp;
+                vm->fp = ct->fp;
+                vm->frame_count = ct->frame_count;
+                vm->env = ct->env;
+                if (ct->frames) memcpy(vm->frames, ct->frames, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+                else memset(vm->frames, 0, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
+
+                if (ct->wake_pending) {
+                    if (vm->sp < (int)AVM_STACK_SIZE) {
+                        vm->stack[vm->sp++] = ct->wake_value;
+                    } else {
+                        fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+                    }
+                    ct->wake_pending = 0;
+                    ct->wake_value = avm_nil();
+                }
+            } else {
+                fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
+            }
         }
     }
 

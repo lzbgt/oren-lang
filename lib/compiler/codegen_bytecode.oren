@@ -1069,6 +1069,13 @@ fn bytecode_compile_expr(ctx, expr) {
             return nil
             }
             emit_byte(ctx, AVM_YIELD)
+            // `oren_yield()` is a statement-like primitive, but the bytecode expression
+            // model expects every expression to leave exactly one value on the stack.
+            // Return a canonical `nil` so surrounding contexts (ExprStmt -> POP, Assign, etc.)
+            // remain stack-balanced.
+            var idx = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
             return nil
         }
         

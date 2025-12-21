@@ -1,0 +1,40 @@
+// AVM snapshot v1 (rolling): scheduler state (tasks + channels) must be snapshot/restore-able.
+//
+// oretest harness:
+// - run 1) `./avm --step-limit ... --snapshot-out ...` expects pause (rc=2)
+// - run 2) `./avm --snapshot-in ...` expects success (rc=0)
+
+fn worker_send(ch, n) {
+    var i = 0
+    while i < n {
+        // rendezvous send or enqueue (bounded); should be safe across snapshot/resume
+        oren_chan_send(ch, i)
+        i = i + 1
+        // Yield unconditionally to keep the schedule non-trivial before the pause snapshot.
+        oren_yield()
+    }
+    return n - 1
+}
+
+fn main() {
+    var n = 1000
+    var ch = oren_new_channel()
+    var h = spawn worker_send(ch, n)
+
+    var sum = 0
+    var i = 0
+    while i < n {
+        var v = oren_chan_recv(ch)
+        sum = sum + v
+        i = i + 1
+        // Yield unconditionally to ensure snapshot captures runnable/blocked states deterministically.
+        oren_yield()
+    }
+    var r = oren_join(h)
+    if r != n - 1 { oren_exit(10) }
+    if sum != 499500 { oren_exit(11) }
+
+    oren_set_result(sum)
+}
+
+main()

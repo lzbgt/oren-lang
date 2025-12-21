@@ -5,6 +5,15 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2025-12-21) — AVM snapshot v7: scheduler pause/resume
+
+- AVM snapshots: added **AVMSNAP7** with full scheduler snapshot/restore (tasks + channels + ready/select queues).
+  - `--snapshot-out` now works even when `spawn`/channels are active (pause/resume of non-trivial scheduler).
+  - Updated AVM test from “forbidden” to “resume” (`tests/avm/test_snapshot_tasks_resume.oren`) and oretest wiring.
+- Internal refactor: moved scheduler structs (`AvmTask`, `AvmChan`, `AvmSched`) into `lib/avm/avm_internal.h` so snapshot code can serialize them.
+- Bytecode backend fix: `oren_yield()` now returns a canonical `nil` value (stack-balanced as an expression), preventing verifier stack-height mismatches in real programs.
+- Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
+
 ## Archived (2025-12-19) — Previously in `docs/TODOS.md` “Recently Completed”
 
 - Native backend spawn intrinsic: removed remaining hardcoded `svc #0`/`svc #0x80` + numeric syscall IDs; now uses `arm64_abi_{macos,linux}.oren` tables.
