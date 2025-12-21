@@ -6693,6 +6693,19 @@ fn oren_buf_dot_f64_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_f64_4_slice_into: b_off out of bounds") }
     if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_f64_4_slice_into: b range out of bounds") }
 
+    // Native SIMD fast path: 1×4 dot microkernel intrinsic (single-pass over A).
+    // Uses strict lane extraction + scalar accumulation to preserve deterministic k-order semantics.
+    if native_simd_enabled() != 0 && n >= 2 {
+        var outp = native_buf_data_ptr(out) + out_off * 8
+        var pa = native_buf_data_ptr(a) + a_off * 8
+        var pb0 = native_buf_data_ptr(b) + b0_off * 8
+        var pb1 = native_buf_data_ptr(b) + b1_off * 8
+        var pb2 = native_buf_data_ptr(b) + b2_off * 8
+        var pb3 = native_buf_data_ptr(b) + b3_off * 8
+        simd_dot_f64_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
+        return out
+    }
+
     // Scalar fallback: deterministic, fixed increasing-k order.
     var s0 = 0.0
     var s1 = 0.0
