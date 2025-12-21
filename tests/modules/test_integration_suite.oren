@@ -222,6 +222,41 @@ oren_buf_add_i64_into(i64c, i64a, i64b)
 assert_eq(oren_buf_load_i64(i64c, 0), 107, 166, "i64 add[0]")
 assert_eq(oren_buf_load_i64(i64c, 2), 309, 167, "i64 add[2]")
 
+// i32 typed-buffer ops (add/mul/scale/axpy) - foundation for NEON kernel coverage.
+var xi: []i32 = buffer.i32_new(8)
+var yi: []i32 = buffer.i32_new(8)
+var zi: []i32 = buffer.i32_new(8)
+if oren_is_err(xi) { fail(168, "i32_new xi") }
+if oren_is_err(yi) { fail(169, "i32_new yi") }
+if oren_is_err(zi) { fail(170, "i32_new zi") }
+
+var ii = 0
+while ii < 8 {
+    oren_buf_store_i32(xi, ii, ii + 1)      // 1..8
+    oren_buf_store_i32(yi, ii, (ii + 1) * 10) // 10..80
+    ii = ii + 1
+}
+
+var r_add = oren_buf_add_i32_into(zi, xi, yi)
+if oren_is_err(r_add) { fail(171, "oren_buf_add_i32_into") }
+assert_eq(oren_buf_load_i32(zi, 0), 11, 172, "i32 add[0]")
+assert_eq(oren_buf_load_i32(zi, 7), 88, 173, "i32 add[7]")
+
+var r_mul = oren_buf_mul_i32_into(zi, xi, yi)
+if oren_is_err(r_mul) { fail(174, "oren_buf_mul_i32_into") }
+assert_eq(oren_buf_load_i32(zi, 0), 10, 175, "i32 mul[0]")
+assert_eq(oren_buf_load_i32(zi, 7), 640, 176, "i32 mul[7]")
+
+var r_scale = oren_buf_scale_i32_into(zi, xi, 3)
+if oren_is_err(r_scale) { fail(177, "oren_buf_scale_i32_into") }
+assert_eq(oren_buf_load_i32(zi, 0), 3, 178, "i32 scale[0]")
+assert_eq(oren_buf_load_i32(zi, 7), 24, 179, "i32 scale[7]")
+
+var ax = linalg.axpy_i32_buf(2, xi, yi) // out = 2*x + y
+if oren_is_err(ax) { fail(180, "linalg.axpy_i32_buf") }
+assert_eq(oren_buf_load_i32(ax, 0), 12, 181, "i32 axpy[0]")
+assert_eq(oren_buf_load_i32(ax, 7), 96, 182, "i32 axpy[7]")
+
 // --- trait-based iterables (v1 extension over v0 hook) ---
 
 trait Iterable {

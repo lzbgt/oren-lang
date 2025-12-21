@@ -101,6 +101,9 @@ These are “project laws”. If a task can’t follow these, we *change the tas
        - tests: `tests/modules/test_integration_suite.oren` includes a 1x4×4 identity matmul smoke to exercise the microkernel
      - DONE: packed-B path for i32 matmul is implemented (tile-major packed transpose for cache locality) and the 1×4 microkernel is used on packed tiles.
        - tests: `tests/modules/test_integration_suite.oren` includes a 1×64 × 64×64 identity smoke to force the packed path
+     - DONE: additional i32 SIMD kernel surfaces are now covered in the fast suites:
+       - module: `tests/modules/test_integration_suite.oren` covers `add/mul/scale/axpy` on i32 typed buffers
+       - native: `tests/native/test_integration_suite.oren` covers `*_into` forms and `axpy` (`oren_buf_add_i32_into`, `oren_buf_mul_i32_into`, `oren_buf_scale_i32_into`, `oren_buf_axpy_i32_into`)
      - NEXT: add an f32 microkernel variant once FP strategy is stabilized; consider f64 after deciding error model vs bitwise determinism.
 
 2) **[lang][arch] Type namespacing v1: `alias.Type` annotations work across modules**

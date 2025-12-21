@@ -445,6 +445,39 @@ fn test_typed_buffers_native() {
     assert_true(oren_is_err(c) == 0, 453)
     assert_eq(oren_buf_load_i32(c, 2), 7, 454)
 
+    // Also cover the in-place/into forms (these map to SIMD kernels in native runtime).
+    var c2 = oren_i32_buf_new(3)
+    assert_true(oren_is_err(c2) == 0, 458)
+    var rc_add_into = oren_buf_add_i32_into(c2, a, b)
+    assert_true(oren_is_err(rc_add_into) == 0, 459)
+    assert_eq(oren_buf_load_i32(c2, 2), 7, 460)
+
+    var m0 = oren_buf_mul_i32(a, b)
+    assert_true(oren_is_err(m0) == 0, 461)
+    assert_eq(oren_buf_load_i32(m0, 0), 10, 462) // 2*5
+    assert_eq(oren_buf_load_i32(m0, 2), 10, 463)
+
+    var m1 = oren_i32_buf_new(3)
+    assert_true(oren_is_err(m1) == 0, 464)
+    var rc_mul_into = oren_buf_mul_i32_into(m1, a, b)
+    assert_true(oren_is_err(rc_mul_into) == 0, 465)
+    assert_eq(oren_buf_load_i32(m1, 1), 10, 466)
+
+    var sc = oren_i32_buf_new(3)
+    assert_true(oren_is_err(sc) == 0, 467)
+    var rc_scale = oren_buf_scale_i32_into(sc, a, 3)
+    assert_true(oren_is_err(rc_scale) == 0, 468)
+    assert_eq(oren_buf_load_i32(sc, 0), 6, 469)
+    assert_eq(oren_buf_load_i32(sc, 2), 6, 470)
+
+    // axpy: out = alpha*x + y
+    var ax = oren_i32_buf_new(3)
+    assert_true(oren_is_err(ax) == 0, 471)
+    var rc_ax = oren_buf_axpy_i32_into(ax, 2, a, b)
+    assert_true(oren_is_err(rc_ax) == 0, 472)
+    assert_eq(oren_buf_load_i32(ax, 0), 9, 473) // 2*2 + 5
+    assert_eq(oren_buf_load_i32(ax, 2), 9, 474)
+
     assert_eq(oren_buf_dot_i32(a, b), 30, 455) // 3 * (2*5)
     var dot_out = oren_i64_buf_new(1)
     assert_true(oren_is_err(dot_out) == 0, 456)
