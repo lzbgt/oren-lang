@@ -71,30 +71,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 ### A) Language + Compiler (primary focus)
 
-1) **[lang][perf] Native-backend arm64 NEON kernels: typed buffers (Eigen/BLAS driver)**
-   - DoD:
-     - Add native-backend NEON kernels for `i32_buf` / `f32_buf` hot loops with scalar fallback
-     - Validate scalar vs SIMD equivalence under env toggles (`OREN_ENABLE_SIMD=1`, `OREN_NO_SIMD=1`)
-     - Keep compiler intrinsics as the stable “dispatch boundary” (no libc, no SDK headers)
-   - Status:
-     - **done:** native `oren_buf_dot_i32` NEON fast path via intrinsic `simd_dot_i32_ptr(a_ptr,b_ptr,n)->i64` + scalar tail.
-     - **next:** add native NEON for `i32_buf` add/mul into (in-place destination) and extend regression tests.
-     - **next:** add native NEON for `f32_buf` add/mul/dot with deterministic semantics (likely f64 accumulation for dot).
-     - **done:** native NEON for `i32_buf` add/mul into via intrinsics `simd_add_i32_ptr` / `simd_mul_i32_ptr` + scalar tail; validated by native test (`tests/native/test_simd_i32_buf_ops_native.oren`).
-     - **done:** native NEON for `f32_buf` add/mul into via intrinsics `simd_add_f32_ptr` / `simd_mul_f32_ptr` + scalar tail; validated by native test (`tests/native/test_simd_f32_buf_ops_native.oren`).
-     - **done:** native NEON for `f32_buf` dot via intrinsic `simd_dot_f32_ptr(a_ptr,b_ptr,n)->f64bits` (widen to f64 + scalar-ordered accumulate); validated by native test (`tests/native/test_simd_dot_f32_native.oren`).
-
-2) **[lang][perf] Typed views: slice + stride (HPC + syscall-first parsing)**
-   - DoD:
-     - Define a minimal `slice`/`view` shape (`ptr + len`), then a `stride` matrix view (`ptr + rows + cols + stride`)
-     - Keep views non-owning and bounds-checked; no host-endian dependence
-     - Implement across backends (C/native/bytecode) as a stable surface
-   - Status:
-     - **done:** `std/buffer` slice views (`slice_new`, `slice_load/store_{u8,i32,f32,i64,f64}`) + matrix views (`mat_view_new`, `mat_load/store_{f32,i32,i64,f64}`)
-     - **done:** backend primitives for dot over slices (`oren_buf_dot_*_slice`) to enable zero-copy kernels
-     - **done:** backend primitives for dot over strided slices (`oren_buf_dot_*_strided`) to enable columnar views without transpose
-
-3) **[lang][perf] Allocator control for large numeric buffers (no-GC-scanned region)**
+1) **[lang][perf] Allocator control for large numeric buffers (no-GC-scanned region)**
    - DoD:
      - Expose an allocation mode for large typed-buffer payloads that avoids GC scanning (mmap/arena backing)
      - Ensure alignment guarantees (cacheline + NEON-friendly) remain a performance property (no semantic change)
@@ -137,6 +114,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Recently Completed (high signal)
 
 - See `docs/TODOS_ARCHIVE.md` for detailed history.
+- Struct unification: `struct` values are map-shaped + mutable across backends (see archive entry).
 - AVM snapshots v7: snapshot/restore now includes scheduler state (tasks + channels + queues) so spawned workloads can be paused/resumed.
 - Bytecode backend: `oren_yield()` now returns canonical `nil` (stack-balanced as an expression), preventing verifier stack-height mismatches.
 - Compiler-in-AVM v0 (host FS): self-hosted compiler builds to `.obc`, runs inside `./avm`, compiles a `.oren` fixture to `.obc`, and the result runs successfully.

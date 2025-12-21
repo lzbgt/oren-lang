@@ -679,7 +679,9 @@ fn native_compile_program_arm64(linked, platform) {
         "platform": platform,
         "aliases": linked["aliases"],
         "type_ns": linked["type_ns"],
-        "field_offsets": linked["field_offsets"]
+        // Rolling v0: structs are map-shaped across backends, so member access uses map_get/map_set.
+        // Keep the field_offsets knob for future layout-stable structs, but default to empty for now.
+        "field_offsets": {}
     }
     
     if platform["debug"] == true {

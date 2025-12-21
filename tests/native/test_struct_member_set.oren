@@ -1,0 +1,45 @@
+struct Inner { x, y }
+struct Outer { a, b }
+
+fn fail() {
+    // Force a non-zero exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a != b { fail() }
+}
+
+fn main() {
+    var i = Inner(1, 2)
+    assert_eq(i.x, 1)
+    assert_eq(i.y, 2)
+
+    i.x = 10
+    i.y = 20
+    assert_eq(i.x, 10)
+    assert_eq(i.y, 20)
+
+    var o = Outer(i, Inner(3, 4))
+    assert_eq(o.a.x, 10)
+    assert_eq(o.b.y, 4)
+
+    o.a.y = 99
+    assert_eq(i.y, 99)
+    assert_eq(o.a.y, 99)
+
+    o.b = Inner(7, 8)
+    assert_eq(o.b.x, 7)
+    assert_eq(o.b.y, 8)
+
+    assert_eq(o["a"]["x"], o.a.x)
+    assert_eq(o["b"]["y"], o.b.y)
+
+    print("native struct member set OK")
+    exit(0)
+}
+
+main()
+

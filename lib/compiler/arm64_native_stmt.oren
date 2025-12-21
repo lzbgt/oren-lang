@@ -460,18 +460,24 @@ fn native_compile_stmt(ctx, stmt) {
         return nil
     }
     
-        if stmt["type"] == "Type" {
+    if stmt["type"] == "Type" {
         var name = stmt["name"]["value"]
         var fields = stmt["fields"]
         var n_fields = oren_list_len(fields)
-        
+
+        // Emit the constructor as a real function symbol so type constructors remain
+        // first-class callables in native codegen.
+        //
+        // Rolling v0 decision: structs are map-shaped across backends.
+        // Constructor returns a map with string keys:
+        //   struct User { id, name }  =>  fn User(id, name) { return {"id":id,"name":name} }
         var jump_skip_pos = oren_list_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        
+
         var func_start = oren_list_len(ctx["code"])
         ctx["functions"][name] = func_start
         oren_list_push(ctx["function_names"], name)
-        
+
         var old_locals = ctx["locals"]
         var old_locals_floaty = ctx["locals_floaty"]
         var old_locals_stringy = ctx["locals_stringy"]
@@ -482,13 +488,14 @@ fn native_compile_stmt(ctx, stmt) {
         ctx["locals_stringy"] = {}
         ctx["locals_list_stringy"] = {}
         ctx["stack_size"] = 0
-        
+
         ctx["in_function"] = true
-        
+
         push_u32_le(ctx["code"], insn_stp_pre())
         push_u32_le(ctx["code"], insn_mov_fp_sp())
-        ctx["stack_size"] = ctx["stack_size"] + 16 
-        
+        ctx["stack_size"] = ctx["stack_size"] + 16
+
+        // Save args to stack locals for uniform access.
         var i = 0
         while i < n_fields {
             var f_name = fields[i]["value"]
@@ -498,49 +505,88 @@ fn native_compile_stmt(ctx, stmt) {
             ctx["stack_size"] = ctx["stack_size"] + 16
             i = i + 1
         }
-        
-        var size_bytes = n_fields * 8
-        push_u32_le(ctx["code"], insn_movz(0, size_bytes))
-        var bl_pos_alloc = oren_list_len(ctx["code"])
+
+        // m = oren_new_map(n_fields)
+        push_u32_le(ctx["code"], insn_movz(0, n_fields))
+        var bl_new_map = oren_list_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_alloc, "name": "oren_alloc_struct"})
-        
-        var struct_ptr_off = ctx["stack_size"]
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_map, "name": "oren_new_map"})
+
+        var map_ptr_off = ctx["stack_size"]
         push_u32_le(ctx["code"], insn_sub_sp(16))
         push_u32_le(ctx["code"], insn_str_x0_sp(0))
         ctx["stack_size"] = ctx["stack_size"] + 16
-        
+
+        // For each field: oren_map_set(m, "field", value)
         i = 0
         while i < n_fields {
             var f_name2 = fields[i]["value"]
+
+            // Push obj (m) on stack.
+            var m_sp_off = ctx["stack_size"] - map_ptr_off - 16
+            emit_ldr_reg_sp_any(ctx, 0, m_sp_off) // X0 = m
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // Build key string in data and push it on stack (adr_data loads into X0).
+            var bytes = oren_bytes_from_string(f_name2)
+            bytes_push(bytes, 0)
+            while int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+            var data_off = oren_list_len(ctx["data"])
+            bytes_extend(ctx["data"], bytes)
+            var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // Load value -> X0 (from saved local slot).
             var off = ctx["locals"][f_name2]
             var current_sp_off = ctx["stack_size"] - off - 16
             emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
-            var ptr_sp_off = ctx["stack_size"] - struct_ptr_off - 16
-            emit_ldr_reg_sp_any(ctx, 1, ptr_sp_off)
-            if i > 0 {
-                var byte_off2 = i * 8
-                push_u32_le(ctx["code"], insn_add_imm(1, 1, byte_off2))
-            }
-            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+
+            // Pop key -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop obj -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Need X0=obj, X1=key, X2=val (currently X0=val, X1=key, X2=obj).
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+            push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // obj -> X0
+            // X1 is key (ok)
+            push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+
+            var bl_set = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set, "name": "oren_map_set"})
+
             i = i + 1
         }
-        
-        var ptr_sp_off2 = ctx["stack_size"] - struct_ptr_off - 16
-        emit_ldr_reg_sp_any(ctx, 0, ptr_sp_off2)
+
+        // return m
+        var m_sp_off2 = ctx["stack_size"] - map_ptr_off - 16
+        emit_ldr_reg_sp_any(ctx, 0, m_sp_off2)
         push_u32_le(ctx["code"], insn_add_sp(16))
         ctx["stack_size"] = ctx["stack_size"] - 16
-        
+
         push_u32_le(ctx["code"], insn_mov_sp_fp())
         push_u32_le(ctx["code"], insn_ldp_post())
         push_u32_le(ctx["code"], insn_ret())
-        
+
         var func_end = oren_list_len(ctx["code"])
         var skip_off = (func_end - jump_skip_pos) / 4
         set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
-        
+
         ctx["in_function"] = false
-        
+
         ctx["locals"] = old_locals
         ctx["locals_floaty"] = old_locals_floaty
         ctx["locals_stringy"] = old_locals_stringy

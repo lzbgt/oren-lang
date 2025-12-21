@@ -794,7 +794,6 @@ fn link_program(entry_path, root_prog, config) {
     var merged_stmts = []
     var merged_traits = []
     var type_ns = {}
-    var field_offsets = {}
     
     i = 0
     while i < oren_list_len(MODULE_ORDER) {
@@ -812,30 +811,6 @@ fn link_program(entry_path, root_prog, config) {
             var st = stmts[j]
             if st["type"] == "Type" {
                 type_ns[st["name"]["value"]] = true
-                // Rolling: v0 structs are represented as NEW_LIST (positional) so we
-                // require consistent field indices *across types* for member access.
-                //
-                // ABI structs (`@abi`, canonical: `@oren.abi`) are layout-only helpers for FFI and are not
-                // meant to participate in v0 member-access semantics. Skip them so we can
-                // define OS-specific structs (sockaddr, kevent, stat) with different field
-                // orders without breaking non-ABI code.
-                if has_attr_list(st, "oren.abi") != true {
-                    var fi = 0
-                    while fi < oren_list_len(st["fields"]) {
-                        var fname = st["fields"][fi]["value"]
-                        if field_offsets[fname] == nil {
-                            field_offsets[fname] = fi
-                        } else {
-                            if field_offsets[fname] != fi {
-                                var msgF = "Inconsistent field offset for '" + fname + "'"
-                                emit_diag("compile", 1, msgF)
-                                print(msgF)
-                                oren_exit(1)
-                            }
-                        }
-                        fi = fi + 1
-                    }
-                }
             }
             if st["type"] != "Import" {
                 oren_list_push(merged_stmts, st)
@@ -850,23 +825,6 @@ fn link_program(entry_path, root_prog, config) {
         var st = root_prog["statements"][i]
         if st["type"] == "Type" {
             type_ns[st["name"]["value"]] = true
-            if has_attr_list(st, "oren.abi") != true {
-                var fi2 = 0
-                while fi2 < oren_list_len(st["fields"]) {
-                    var fname2 = st["fields"][fi2]["value"]
-                    if field_offsets[fname2] == nil {
-                        field_offsets[fname2] = fi2
-                    } else {
-                        if field_offsets[fname2] != fi2 {
-                            var msgF2 = "Inconsistent field offset for '" + fname2 + "'"
-                            emit_diag("compile", 1, msgF2)
-                            print(msgF2)
-                            oren_exit(1)
-                        }
-                    }
-                    fi2 = fi2 + 1
-                }
-            }
         }
         if st["type"] != "Import" {
             oren_list_push(merged_stmts, st)
@@ -944,7 +902,6 @@ fn link_program(entry_path, root_prog, config) {
         "traits": merged_traits,
         "aliases": all_aliases,
         "type_ns": type_ns,
-        "field_offsets": field_offsets,
         "config": config,
         "module_graph": {"entry": entry_path, "imports": root_imports, "modules": module_summaries}
     }

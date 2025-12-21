@@ -5,6 +5,24 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2025-12-21) — Unify `struct` semantics (map-shaped, mutable) across backends
+
+- Decision: in rolling v0, `struct` values are **map-shaped** (string-keyed) across **C + AVM bytecode + native** backends.
+  - `x.field` lowers to `x["field"]` semantics (map key lookup).
+  - `x.field = v` mutates the field (map key set).
+  - Layout-stable use-cases remain `@pack` (byte views) and `@abi` (layout-only), not v0 structs.
+- Compiler/linker: removed the global “field name → index must match across all types” constraint (was a v0 hack for positional struct layouts).
+- Bytecode backend:
+  - type constructors emit `NEW_MAP` with string keys (not `NEW_LIST`)
+  - member read/write compile to `GET_INDEX`/`SET_INDEX` with string keys
+- Native backend:
+  - type constructors now build maps via `oren_new_map` + `oren_map_set` (no raw `oren_alloc_struct` field buffers)
+  - member reads use `oren_map_get` (no field-offset fast path in v0)
+- Tests:
+  - added `tests/avm/test_struct_member_set.oren`
+  - added `tests/native/test_struct_member_set.oren`
+- Verified: `make test` on macOS passes.
+
 ## Archived (2025-12-21) — AVM snapshot v7: scheduler pause/resume
 
 - AVM snapshots: added **AVMSNAP7** with full scheduler snapshot/restore (tasks + channels + ready/select queues).

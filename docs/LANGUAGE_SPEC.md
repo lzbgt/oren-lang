@@ -693,15 +693,16 @@ Non-goal:
 - Field access:
   - `p.a` reads field `a`.
 - Field assignment:
-  - **Not supported.** Struct/class fields are **immutable** in Oren’s rolling design.
-  - Use maps/lists when you need mutation (`m[key] = v`, `xs[i] = v`), or construct a new value.
+  - Supported in v0:
+    - `p.a = v` mutates the field (equivalent to `p["a"] = v` at runtime).
 
 Notes (rolling reality):
 
-- Backends differ today:
-  - **C backend:** `struct` construction lowers to a map-like runtime object (convenient, but not layout-stable).
-  - **Native backend:** `struct` construction uses a contiguous field buffer (fast, but still rolling).
-- Treat struct/class values as **opaque immutable handles** until a layout is stabilized across backends.
+- **v0 representation is map-shaped across backends**:
+  - `struct` values behave like maps keyed by field name (`string`), but retain a nominal type name for tooling/metadata.
+  - This avoids backend-dependent field-offset tricks until a stable static layout exists.
+- For deterministic layout/view use-cases (FFI / packet parsing / HPC views):
+  - use `@abi` (layout-only) and `@pack` (packed byte views); do not rely on v0 struct layout.
 
 ### Object Model (recommended direction)
 
@@ -834,58 +835,27 @@ Future direction (syntax sugar; no rewrite required):
 
 Until fixed-width scalar types are stabilized across all backends, these helpers are the portable, production-friendly way to parse protocol headers.
 
-## Value Model: “Immutable Values”, Structs, and Escape (Design)
+## Value Model: v0 “Mutable Handles” (and the future direction)
 
-Oren’s long-term direction is **pass-by-value with immutability-by-default**. That does *not* imply “copy entire structs on every call”.
+Oren v0 is **dynamically typed at runtime** and uses a pragmatic value model:
 
-The production-friendly model (especially for syscall-first networking and agentic workloads) is:
+- Scalar values (`int`, `bool`, `float`) are immediate.
+- Compound values (`string`, `bytes`, `list`, `map`, `struct`, `closure`) are **handles** to heap objects.
+  - Passing a value copies the handle (pointer-sized), not a deep copy.
+  - Lists/maps/structs are **mutable** in v0 (mutation is observable through shared handles).
+  - Strings are immutable (treat them as values).
 
-- Scalar values (ints/bools) are immediate values.
-- Compound values (strings/lists/maps/structs/closures) are **immutable handles** to heap objects.
-  - The “value” passed to a function is the handle (typically a pointer-sized value), not a deep copy.
-  - Immutability is what makes this model safe and intuitive.
+This makes v0 productive and keeps the compiler/backends simple while the language is still rolling.
 
-### Current v0 reality (rolling)
+### Long-term direction (not enforced in v0)
 
-- The language is still dynamically typed at runtime.
-- Backends differ today:
-  - **C backend**: `struct` constructors currently lower to **maps** (`oren_new_map(...)`). This is convenient but not layout-stable.
-  - **Native backend**: `struct` constructors allocate a **contiguous field buffer** via `oren_alloc_struct(n_fields * 8)` and treat field access as `base + field_index*8`.
+For large-scale agentic and HPC workloads, we may evolve toward:
 
-This mismatch is acceptable for rolling bootstrapping, but it must be unified before treating “struct layout” as stable.
+- “immutability-by-default” at the language level (opt-in mutability), and/or
+- compiler-driven copy elision / uniqueness optimization, and/or
+- specialized layout-stable structs for FFI/HPC (separate from v0 map-shaped structs).
 
-### The target semantics (what you described)
-
-You want the following (this is the correct design for performance and safety):
-
-1) Parameters are passed by immutable value.
-2) A struct “value” is an **immutable address/handle** (pointer-sized), not a stack-cloned blob.
-3) If a struct value would otherwise refer to stack storage (e.g. a temporary), the compiler must ensure it does not escape:
-   - If it escapes (returned, stored into heap, captured by closure, stored globally), allocate it on the heap and return the heap address.
-   - If it does not escape, it may be stack-allocated for performance.
-
-This is classic **escape analysis**:
-
-- returning a local address ⇒ escape ⇒ heap allocate
-- passing to an unknown function ⇒ conservative escape (until interprocedural analysis exists)
-
-### Why “stack semantics” + “heap representation” is valid
-
-Programmer-facing semantics can stay “value-like” (immutable, safe), while the compiler chooses:
-
-- stack placement (fast, no GC pressure) for non-escaping temporaries
-- heap placement (stable lifetime) when the address must outlive the frame
-
-### Copy-on-write (COW) vs compiler optimizations (design note)
-
-Immutability does not imply “always copy”.
-
-Two implementation strategies are compatible with the immutable-handle model:
-
-1) **Always-copy persistent update** (simple baseline): updating a struct/list produces a new object and copies data.
-2) **Compiler AOT copy-elision / uniqueness optimization** (preferred “no rewrite” path): when the compiler can prove a value is not shared/aliased, it may update in place without violating immutability semantics (no other reference can observe the mutation).
-
-A runtime refcount-based COW scheme is possible later, but it is intentionally not the first step in a GC-based runtime because it complicates memory ownership and (eventually) concurrency.
+Those are orthogonal milestones and should not block making v0 correct and consistent across backends.
 
 ### Implications for networking and endian casting
 

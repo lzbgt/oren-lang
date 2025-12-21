@@ -102,10 +102,14 @@ fn new_bytecode_ctx() {
         // Named function varargs mapping (name -> fixed param count).
         // Presence means the function has a trailing `...rest` parameter.
         "func_varargs_fixed": {},
+        // Type registry for constructor lowering:
+        //   types["User"] = ["id","name","active"]
+        // so `User(1,"a",true)` can be lowered to a map literal deterministically.
+        //
+        // Rolling v0 decision: struct values are map-shaped (string-keyed) across backends.
         "types": {},
         "fixups": [],
         "fun_fixups": [],
-        "field_offsets": {},
         "aliases": {},
         "loop_ctx": nil,
         "lambda_counter": 0,
@@ -688,15 +692,14 @@ fn bytecode_compile_expr(ctx, expr) {
             }
         }
         
+        // General member access lowers to string-key indexing:
+        //   x.field  ->  x["field"]
         bytecode_compile_expr(ctx, expr["left"])
         var prop = expr["prop"]["value"]
-        var offset = ctx["field_offsets"][prop]
-        if offset != nil {
-            var idx = add_constant(ctx, {"type": "Integer", "value": offset})
-            emit_byte(ctx, AVM_PUSH_CONST)
-            emit_u16(ctx, idx)
-            emit_byte(ctx, AVM_GET_INDEX)
-        }
+        var idx = add_constant(ctx, {"type": "String", "value": prop})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        emit_byte(ctx, AVM_GET_INDEX)
         return nil
     }
 
@@ -1038,28 +1041,35 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if name == "" { indirect = true }
 
-        // Type constructor calls (rolling): represent a type value as a LIST of its
-        // field values, in declared order. Member access uses field offsets (indexing).
+        // Type constructor calls (rolling): represent a type value as a MAP:
+        //   {"field": value, ...}
         //
-        // This keeps the VM portable (no implicit runtime functions for types).
+        // This keeps member access portable without requiring a full typechecker in
+        // the bytecode backend (member access compiles to string-key indexing).
         if indirect == false {
-            var targc = ctx["types"][name]
-            if targc != nil {
+            var tfields = ctx["types"][name]
+            if tfields != nil {
                 if expr["spread"] != nil {
             bytecode_error(ctx, "bytecode backend: type constructor does not support spread args yet: " + name)
             return nil
                 }
                 var args0 = expr["args"]
+                var targc = oren_list_len(tfields)
                 if oren_list_len(args0) != targc {
             bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
             return nil
                 }
                 var ai0 = 0
                 while ai0 < oren_list_len(args0) {
+                    // key
+                    var key_idx = add_constant(ctx, {"type": "String", "value": tfields[ai0]})
+                    emit_byte(ctx, AVM_PUSH_CONST)
+                    emit_u16(ctx, key_idx)
+                    // value
                     bytecode_compile_expr(ctx, args0[ai0])
                     ai0 = ai0 + 1
                 }
-                emit_byte(ctx, AVM_NEW_LIST)
+                emit_byte(ctx, AVM_NEW_MAP)
                 emit_u16(ctx, targc)
                 return nil
             }
@@ -1590,15 +1600,13 @@ fn bytecode_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Type" {
         var tname = stmt["name"]["value"]
         var fields = stmt["fields"]
-        ctx["types"][tname] = oren_list_len(fields)
+        var fns = []
         var i = 0
         while i < oren_list_len(fields) {
-            var f = fields[i]["value"]
-            if ctx["field_offsets"][f] == nil {
-                ctx["field_offsets"][f] = i
-            }
+            oren_list_push(fns, fields[i]["value"])
             i = i + 1
         }
+        ctx["types"][tname] = fns
         return nil
     }
 
@@ -1713,16 +1721,15 @@ fn bytecode_compile_stmt(ctx, stmt) {
             return nil
         }
         if left["type"] == "Member" {
+            // Member assignment lowers to string-key indexing:
+            //   x.field = v  ->  x["field"] = v
             bytecode_compile_expr(ctx, left["left"])
             var prop = left["prop"]["value"]
-            var offset = ctx["field_offsets"][prop]
-            if offset != nil {
-                var idx = add_constant(ctx, {"type": "Integer", "value": offset})
-                emit_byte(ctx, AVM_PUSH_CONST)
-                emit_u16(ctx, idx)
-                bytecode_compile_expr(ctx, stmt["value"])
-                emit_byte(ctx, AVM_SET_INDEX)
-            }
+            var idx = add_constant(ctx, {"type": "String", "value": prop})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
+            bytecode_compile_expr(ctx, stmt["value"])
+            emit_byte(ctx, AVM_SET_INDEX)
             return nil
         }
         return nil
@@ -1866,13 +1873,13 @@ fn bytecode_compile_program(linked) {
         if st != nil && st["type"] == "Type" {
             var tname = st["name"]["value"]
             var fields = st["fields"]
-            ctx["types"][tname] = oren_list_len(fields)
+            var fns = []
             var fi = 0
             while fi < oren_list_len(fields) {
-                var f = fields[fi]["value"]
-                if ctx["field_offsets"][f] == nil { ctx["field_offsets"][f] = fi }
+                oren_list_push(fns, fields[fi]["value"])
                 fi = fi + 1
             }
+            ctx["types"][tname] = fns
         }
         if st != nil && st["type"] == "Function" {
             var nm = st["name"]

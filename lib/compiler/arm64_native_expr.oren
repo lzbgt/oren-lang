@@ -1009,20 +1009,8 @@ fn native_compile_expr(ctx, expr) {
         }
 
         var prop_name = expr["prop"]["value"]
-        var off_idx = ctx["field_offsets"][prop_name]
-        if off_idx != nil {
-            native_compile_expr(ctx, expr["left"]) // obj ptr in X0
-            if off_idx > 0 {
-                var byte_off = off_idx * 8
-                push_u32_le(ctx["code"], insn_add_imm(1, 0, byte_off))
-                push_u32_le(ctx["code"], insn_ldr_ptr(0, 1))
-            } else {
-                push_u32_le(ctx["code"], insn_ldr_ptr(0, 0))
-            }
-            return nil
-        }
-        
-        // Fallback: a.x -> oren_map_get(a, "x")
+
+        // a.x -> oren_map_get(a, "x")
         native_compile_expr(ctx, expr["left"]) // a -> X0
         push_u32_le(ctx["code"], insn_sub_sp(16))
         push_u32_le(ctx["code"], insn_str_x0_sp(0))
