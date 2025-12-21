@@ -131,6 +131,14 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - Spec updated in `docs/LANGUAGE_SPEC.md`.
    - Status: **done**.
 
+6) **[docs][ux] Draft + maintain a practical Language Manual**
+   - Why: the spec is correct but not a beginner-friendly “how to write Oren”; we need a single narrative doc that matches reality.
+   - DoD:
+     - Manual exists and matches current rolling features (literals, else-if, match, lambdas, typed buffers, deterministic math).
+     - Manual links to canonical specs/docs for details.
+     - Keep it updated as features land; move large historical narrative to `docs/EVOLUTION_GUIDE.md`.
+   - Status: **done** (`docs/LANGUAGE_MANUAL.md`).
+
 ### B) AVM (evolves alongside language/compiler)
 
 1) **[boot][arch] Compiler-in-AVM (close the loop)**
