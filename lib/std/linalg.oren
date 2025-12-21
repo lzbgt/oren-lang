@@ -374,19 +374,18 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
     var tmp4: []f64 = buffer.f64_new(4)
     if oren_is_err(tmp4) { return tmp4 }
 
-    // Reusable scratch for the 4x4 GEMM microkernel (packed path only).
+    // Reusable scratch for the 4x4 GEMM microkernel (used by packed and non-packed paths).
+    // Allocate once to avoid repeated allocs in HPC workloads.
     var tmp16: []f64 = nil
-    if use_packed {
+    if m >= 4 && p >= 4 {
         tmp16 = buffer.f64_new(16)
         if oren_is_err(tmp16) { return tmp16 }
     }
 
     var i = 0
     while i < m {
-        // Packed 4x4 microkernel: reuse B across 4 rows.
-        // Only applies when:
-        // - we are using packed-B layout
-        // - we have at least 4 rows remaining
+        // 4x4 microkernel: reuse B across 4 rows when we have a full 4-row block.
+        // This reduces interpreter/native boundary overhead in HPC workloads.
         if use_packed && i + 3 < m {
             var bj_blk = 0
             while bj_blk < tiles_j {
@@ -496,6 +495,57 @@ fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
                 bj_blk = bj_blk + 1
             }
 
+            i = i + 4
+            continue
+        }
+
+        // Non-packed 4x4 microkernel: Bt columns are contiguous, so we can compute a full 4x4
+        // block over the entire n in a single call.
+        if use_packed == 0 && i + 3 < m && tmp16 != nil {
+            var bj_blk2 = 0
+            while bj_blk2 < tiles_j {
+                var base_j_blk2 = bj_blk2 * JB
+                if base_j_blk2 + 3 < p {
+                    var rr2 = oren_buf_gemm_f32_4x4_slice_into(
+                        tmp16, 0,
+                        a,
+                        (i + 0) * n,
+                        (i + 1) * n,
+                        (i + 2) * n,
+                        (i + 3) * n,
+                        bt,
+                        (base_j_blk2 + 0) * n,
+                        (base_j_blk2 + 1) * n,
+                        (base_j_blk2 + 2) * n,
+                        (base_j_blk2 + 3) * n,
+                        n)
+                    if oren_is_err(rr2) { return rr2 }
+
+                    // Store 4x4 block (round to f32 boundary at store).
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk2 + 0), f32(oren_buf_load_f64(tmp16, 0)))
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk2 + 1), f32(oren_buf_load_f64(tmp16, 1)))
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk2 + 2), f32(oren_buf_load_f64(tmp16, 2)))
+                    oren_buf_store_f32(out, (i + 0) * p + (base_j_blk2 + 3), f32(oren_buf_load_f64(tmp16, 3)))
+
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk2 + 0), f32(oren_buf_load_f64(tmp16, 4)))
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk2 + 1), f32(oren_buf_load_f64(tmp16, 5)))
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk2 + 2), f32(oren_buf_load_f64(tmp16, 6)))
+                    oren_buf_store_f32(out, (i + 1) * p + (base_j_blk2 + 3), f32(oren_buf_load_f64(tmp16, 7)))
+
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk2 + 0), f32(oren_buf_load_f64(tmp16, 8)))
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk2 + 1), f32(oren_buf_load_f64(tmp16, 9)))
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk2 + 2), f32(oren_buf_load_f64(tmp16, 10)))
+                    oren_buf_store_f32(out, (i + 2) * p + (base_j_blk2 + 3), f32(oren_buf_load_f64(tmp16, 11)))
+
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk2 + 0), f32(oren_buf_load_f64(tmp16, 12)))
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk2 + 1), f32(oren_buf_load_f64(tmp16, 13)))
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk2 + 2), f32(oren_buf_load_f64(tmp16, 14)))
+                    oren_buf_store_f32(out, (i + 3) * p + (base_j_blk2 + 3), f32(oren_buf_load_f64(tmp16, 15)))
+                } else {
+                    // Tail columns: fall back to the existing 1-row dot kernels below.
+                }
+                bj_blk2 = bj_blk2 + 1
+            }
             i = i + 4
             continue
         }
@@ -829,19 +879,16 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
     var tmp4: []i64 = buffer.i64_new(4)
     if oren_is_err(tmp4) { return tmp4 }
 
-    // Reusable scratch for the 4x4 GEMM microkernel (packed path only).
+    // Reusable scratch for the 4x4 GEMM microkernel (used by packed and non-packed paths).
     var tmp16: []i64 = nil
-    if use_packed {
+    if m >= 4 && p >= 4 {
         tmp16 = buffer.i64_new(16)
         if oren_is_err(tmp16) { return tmp16 }
     }
 
     var i = 0
     while i < m {
-        // Packed 4x4 microkernel: reuse B across 4 rows.
-        // Only applies when:
-        // - we are using packed-B layout
-        // - we have at least 4 rows remaining
+        // 4x4 microkernel: reuse B across 4 rows when we have a full 4-row block.
         if use_packed && i + 3 < m {
             var bj_blk = 0
             while bj_blk < tiles_j {
@@ -951,6 +998,57 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
                 bj_blk = bj_blk + 1
             }
 
+            i = i + 4
+            continue
+        }
+
+        // Non-packed 4x4 microkernel: Bt columns are contiguous, so we can compute a full 4x4
+        // block over the entire n in a single call.
+        if use_packed == 0 && i + 3 < m && tmp16 != nil {
+            var bj_blk2 = 0
+            while bj_blk2 < tiles_j {
+                var base_j_blk2 = bj_blk2 * JB
+                if base_j_blk2 + 3 < p {
+                    var rr2 = oren_buf_gemm_i32_4x4_slice_into(
+                        tmp16, 0,
+                        a,
+                        (i + 0) * n,
+                        (i + 1) * n,
+                        (i + 2) * n,
+                        (i + 3) * n,
+                        bt,
+                        (base_j_blk2 + 0) * n,
+                        (base_j_blk2 + 1) * n,
+                        (base_j_blk2 + 2) * n,
+                        (base_j_blk2 + 3) * n,
+                        n)
+                    if oren_is_err(rr2) { return rr2 }
+
+                    // Store 4x4 block (truncate/wrap to i32 boundary at store).
+                    oren_buf_store_i32(out, (i + 0) * p + (base_j_blk2 + 0), i32(oren_buf_load_i64(tmp16, 0)))
+                    oren_buf_store_i32(out, (i + 0) * p + (base_j_blk2 + 1), i32(oren_buf_load_i64(tmp16, 1)))
+                    oren_buf_store_i32(out, (i + 0) * p + (base_j_blk2 + 2), i32(oren_buf_load_i64(tmp16, 2)))
+                    oren_buf_store_i32(out, (i + 0) * p + (base_j_blk2 + 3), i32(oren_buf_load_i64(tmp16, 3)))
+
+                    oren_buf_store_i32(out, (i + 1) * p + (base_j_blk2 + 0), i32(oren_buf_load_i64(tmp16, 4)))
+                    oren_buf_store_i32(out, (i + 1) * p + (base_j_blk2 + 1), i32(oren_buf_load_i64(tmp16, 5)))
+                    oren_buf_store_i32(out, (i + 1) * p + (base_j_blk2 + 2), i32(oren_buf_load_i64(tmp16, 6)))
+                    oren_buf_store_i32(out, (i + 1) * p + (base_j_blk2 + 3), i32(oren_buf_load_i64(tmp16, 7)))
+
+                    oren_buf_store_i32(out, (i + 2) * p + (base_j_blk2 + 0), i32(oren_buf_load_i64(tmp16, 8)))
+                    oren_buf_store_i32(out, (i + 2) * p + (base_j_blk2 + 1), i32(oren_buf_load_i64(tmp16, 9)))
+                    oren_buf_store_i32(out, (i + 2) * p + (base_j_blk2 + 2), i32(oren_buf_load_i64(tmp16, 10)))
+                    oren_buf_store_i32(out, (i + 2) * p + (base_j_blk2 + 3), i32(oren_buf_load_i64(tmp16, 11)))
+
+                    oren_buf_store_i32(out, (i + 3) * p + (base_j_blk2 + 0), i32(oren_buf_load_i64(tmp16, 12)))
+                    oren_buf_store_i32(out, (i + 3) * p + (base_j_blk2 + 1), i32(oren_buf_load_i64(tmp16, 13)))
+                    oren_buf_store_i32(out, (i + 3) * p + (base_j_blk2 + 2), i32(oren_buf_load_i64(tmp16, 14)))
+                    oren_buf_store_i32(out, (i + 3) * p + (base_j_blk2 + 3), i32(oren_buf_load_i64(tmp16, 15)))
+                } else {
+                    // Tail columns: fall back to the existing 1-row dot kernels below.
+                }
+                bj_blk2 = bj_blk2 + 1
+            }
             i = i + 4
             continue
         }

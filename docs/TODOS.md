@@ -95,7 +95,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
         - Native runtime now uses a **true single-pass** intrinsic `simd_gemm_f32_4x4_ptr`:
           - loads/widens each B column once per k-block and reuses across 4 rows
           - still widens to f64 and accumulates in deterministic increasing-k order (bit-exact vs scalar reference)
-        - `lib/std/linalg.oren` packed matmul uses this boundary for 4-row blocks.
+        - `lib/std/linalg.oren` uses this boundary for 4-row blocks in both packed and non-packed matmul paths.
       - Added `oren_buf_gemm_i32_4x4_slice_into` (native_id=129): 4×4 i32 GEMM boundary returning 16 i64 results, with C runtime + native runtime + AVM parity; used by packed `matmul_i32_buf` 4-row blocks.
 
 2) **[lang][hpc] Explicit numeric casts + fixed-width types (HPC/FFI-grade)**
