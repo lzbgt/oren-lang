@@ -107,6 +107,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - Tail columns are covered in both packed and non-packed 4-row paths (`p % 4 != 0`).
       - Added `linalg.matmul_f32_buf_into(out, a, b, m, n, p)` to enable allocation-free HPC loops (caller owns output buffer).
       - Added `linalg.matmul_i32_buf_into(out, a, b, m, n, p)` for the same allocation-free pattern in integer GEMM paths.
+      - Added `linalg.matmul_f64_buf_into(out, a, b, m, n, p)` and `linalg.matmul_i32_buf_wide_into(out, a, b, m, n, p)` so long-running HPC loops can reuse output buffers (even when keeping full i64 accumulators).
 
 3) **[lang][meta] Attribute system v1 (serde + docs tooling)**
    - DoD:

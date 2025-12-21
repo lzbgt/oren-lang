@@ -722,6 +722,27 @@ fn matmul_f64_buf(a: []f64, b: []f64, m, n, p) {
     var out: []f64 = buffer.f64_new(m * p)
     if oren_is_err(out) { return out }
 
+    var rc = matmul_f64_buf_into(out, a, b, m, n, p)
+    if oren_is_err(rc) { return rc }
+    return out
+}
+
+fn matmul_f64_buf_into(out: []f64, a: []f64, b: []f64, m, n, p) {
+    // In-place variant of f64 matmul for allocation-free HPC loops.
+    if m < 0 || n < 0 || p < 0 { return _err_invalid_arg("matmul_f64_buf_into: negative dims") }
+    var na = buffer.len(a)
+    if oren_is_err(na) { return na }
+    var nb = buffer.len(b)
+    if oren_is_err(nb) { return nb }
+    var no = buffer.len(out)
+    if oren_is_err(no) { return no }
+    if na != m * n { return _err_invalid_arg("matmul_f64_buf_into: A length mismatch") }
+    if nb != n * p { return _err_invalid_arg("matmul_f64_buf_into: B length mismatch") }
+    if no != m * p { return _err_invalid_arg("matmul_f64_buf_into: out length mismatch") }
+    return _matmul_f64_buf_kernel(out, a, b, m, n, p)
+}
+
+fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
     // Transpose B so each column becomes a contiguous row in Bt, then compute each
     // output as a sum of deterministic dot slices (increasing-k blocks).
     //
@@ -817,7 +838,7 @@ fn matmul_f64_buf(a: []f64, b: []f64, m, n, p) {
         }
         i = i + 1
     }
-    return out
+    return 0
 }
 
 // Matmul over matrix views (strided rows).
@@ -1322,6 +1343,27 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
     var out: []i64 = buffer.i64_new(m * p)
     if oren_is_err(out) { return out }
 
+    var rc = matmul_i32_buf_wide_into(out, a, b, m, n, p)
+    if oren_is_err(rc) { return rc }
+    return out
+}
+
+fn matmul_i32_buf_wide_into(out: []i64, a: []i32, b: []i32, m, n, p) {
+    // In-place variant of wide i32 matmul: keeps full i64 accumulators at the store boundary.
+    if m < 0 || n < 0 || p < 0 { return _err_invalid_arg("matmul_i32_buf_wide_into: negative dims") }
+    var na = buffer.len(a)
+    if oren_is_err(na) { return na }
+    var nb = buffer.len(b)
+    if oren_is_err(nb) { return nb }
+    var no = buffer.len(out)
+    if oren_is_err(no) { return no }
+    if na != m * n { return _err_invalid_arg("matmul_i32_buf_wide_into: A length mismatch") }
+    if nb != n * p { return _err_invalid_arg("matmul_i32_buf_wide_into: B length mismatch") }
+    if no != m * p { return _err_invalid_arg("matmul_i32_buf_wide_into: out length mismatch") }
+    return _matmul_i32_buf_wide_kernel(out, a, b, m, n, p)
+}
+
+fn _matmul_i32_buf_wide_kernel(out: []i64, a: []i32, b: []i32, m, n, p) {
     // Optional packed-B layout (tile-major) for cache locality.
     // Mirrors `matmul_i32_buf`, but keeps full i64 results at the store boundary.
     var JB = 4
@@ -1717,5 +1759,5 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
         }
         i = i + 1
     }
-    return out
+    return 0
 }

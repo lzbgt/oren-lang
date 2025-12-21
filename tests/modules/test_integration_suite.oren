@@ -256,6 +256,13 @@ assert_eq(oren_buf_load_f64(mo, 1), 64.0, 171, "matmul_f64_buf[1]")
 assert_eq(oren_buf_load_f64(mo, 2), 139.0, 172, "matmul_f64_buf[2]")
 assert_eq(oren_buf_load_f64(mo, 3), 154.0, 173, "matmul_f64_buf[3]")
 
+// in-place f64 matmul (allocation-free output buffer)
+var mo2: []f64 = buffer.f64_new(4)
+var mor = linalg.matmul_f64_buf_into(mo2, ma, mb, 2, 3, 2)
+assert_true(!oren_is_err(mor), 174, "matmul_f64_buf_into ok")
+assert_eq(oren_buf_load_f64(mo2, 0), 58.0, 175, "matmul_f64_buf_into[0]")
+assert_eq(oren_buf_load_f64(mo2, 3), 154.0, 176, "matmul_f64_buf_into[3]")
+
 // i64 typed-buffer ops (wrap semantics, but keep values small here)
 var i64a: []i64 = buffer.i64_new(3)
 var i64b: []i64 = buffer.i64_new(3)
@@ -269,6 +276,13 @@ var i64c: []i64 = buffer.i64_new(3)
 oren_buf_add_i64_into(i64c, i64a, i64b)
 assert_eq(oren_buf_load_i64(i64c, 0), 107, 166, "i64 add[0]")
 assert_eq(oren_buf_load_i64(i64c, 2), 309, 167, "i64 add[2]")
+
+// wide i32 matmul: store full i64 accumulators into caller-owned output buffer
+var mi_o64: []i64 = buffer.i64_new(4)
+var mi_o64r = linalg.matmul_i32_buf_wide_into(mi_o64, mi_a, mi_b, 1, 4, 4)
+assert_true(!oren_is_err(mi_o64r), 1671, "matmul_i32_buf_wide_into ok")
+assert_eq(oren_buf_load_i64(mi_o64, 0), 1, 1672, "matmul_i32_buf_wide_into[0]")
+assert_eq(oren_buf_load_i64(mi_o64, 3), 4, 1673, "matmul_i32_buf_wide_into[3]")
 
 // i32 typed-buffer ops (add/mul/scale/axpy) - foundation for NEON kernel coverage.
 var xi: []i32 = buffer.i32_new(8)
