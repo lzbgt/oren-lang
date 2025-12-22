@@ -291,9 +291,12 @@ fn compiler_main() {
         var path = args[i + 1]
         i = i + 2
 
-        var target = "macos"
-        var arch = "arm64"
+        // Modern CLI: options already parsed/validated by std/argparse.
+        // Keep env defaults but allow CLI flags to override.
+        var target = opts["target"]
+        var arch = opts["arch"]
         var outp = ""
+        if seen["out"] == true { outp = opts["out"] }
 
         var strict = false
         var allow = []
@@ -301,57 +304,8 @@ fn compiler_main() {
         if env_strict != nil { strict = true }
         var env_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
         if env_allow != nil { allow = split_csv(env_allow) }
-
-        while i < argc {
-            if args[i] == "--target" {
-                if i + 1 >= argc {
-                    emit_diag("compile", 2, "Missing value for --target")
-                    print("Missing value for --target")
-                    oren_exit(2)
-                }
-                target = args[i + 1]
-                i = i + 2
-            } else {
-                if args[i] == "--arch" {
-                    if i + 1 >= argc {
-                        emit_diag("compile", 2, "Missing value for --arch")
-                        print("Missing value for --arch")
-                        oren_exit(2)
-                    }
-                    arch = args[i + 1]
-                    i = i + 2
-                } else {
-                    if args[i] == "-o" {
-                        if i + 1 >= argc {
-                            emit_diag("compile", 2, "Missing value for -o")
-                            print("Missing value for -o")
-                            oren_exit(2)
-                        }
-                        outp = args[i + 1]
-                        i = i + 2
-                    } else {
-                        if args[i] == "--strict-attrs" {
-                            strict = true
-                            i = i + 1
-                        } else {
-                            if args[i] == "--attr-allow-prefixes" {
-                                if i + 1 >= argc {
-                                    emit_diag("compile", 2, "Missing value for --attr-allow-prefixes")
-                                    print("Missing value for --attr-allow-prefixes")
-                                    oren_exit(2)
-                                }
-                                allow = split_csv(args[i + 1])
-                                i = i + 2
-                            } else {
-                                emit_diag("compile", 2, "Unknown arg: " + args[i])
-                                print("Unknown arg: " + args[i])
-                                oren_exit(2)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        if seen["strict-attrs"] == true { strict = true }
+        if seen["attr-allow-prefixes"] == true { allow = split_csv(opts["attr-allow-prefixes"]) }
 
         if kind == "tokens" {
             var js = dump.dump_tokens_json(path, strict, allow)
@@ -460,80 +414,25 @@ fn compiler_main() {
         var path = args[i]
         i = i + 1
 
-        var target = "macos"
-        var arch = "arm64"
+        // Modern CLI: options already parsed/validated by std/argparse.
+        var target = opts["target"]
+        var arch = opts["arch"]
         var out_meta = strip_suffix(path, ".oren") + ".meta.json"
 
         var deterministic = false
         var emit_manifest = false
         var env_det = oren_env("OREN_DETERMINISTIC")
         if env_det != nil { deterministic = true }
+        if seen["deterministic"] == true { deterministic = true }
+        if seen["manifest"] == true { emit_manifest = true }
 
         var env_strict_attrs = oren_env("OREN_STRICT_ATTRS")
         if env_strict_attrs != nil { STRICT_ATTRS = true }
         var env_attr_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
         if env_attr_allow != nil { ATTR_ALLOW_PREFIXES = split_csv(env_attr_allow) }
-
-        while i < argc {
-            if args[i] == "--target" {
-                if i + 1 >= argc {
-                    emit_diag("compile", 2, "Missing value for --target")
-                    print("Missing value for --target")
-                    oren_exit(2)
-                }
-                target = args[i + 1]
-                i = i + 2
-            } else {
-                if args[i] == "--arch" {
-                    if i + 1 >= argc {
-                        emit_diag("compile", 2, "Missing value for --arch")
-                        print("Missing value for --arch")
-                        oren_exit(2)
-                    }
-                    arch = args[i + 1]
-                    i = i + 2
-                } else {
-                    if args[i] == "-o" {
-                        if i + 1 >= argc {
-                            emit_diag("compile", 2, "Missing value for -o")
-                            print("Missing value for -o")
-                            oren_exit(2)
-                        }
-                        out_meta = args[i + 1]
-                        i = i + 2
-                    } else {
-                        if args[i] == "--strict-attrs" {
-                            STRICT_ATTRS = true
-                            i = i + 1
-                        } else {
-                            if args[i] == "--attr-allow-prefixes" {
-                                if i + 1 >= argc {
-                                    emit_diag("compile", 2, "Missing value for --attr-allow-prefixes")
-                                    print("Missing value for --attr-allow-prefixes")
-                                    oren_exit(2)
-                                }
-                                ATTR_ALLOW_PREFIXES = split_csv(args[i + 1])
-                                i = i + 2
-                            } else {
-                                if args[i] == "--deterministic" {
-                                    deterministic = true
-                                    i = i + 1
-                                } else {
-                                    if args[i] == "--manifest" {
-                                        emit_manifest = true
-                                        i = i + 1
-                                    } else {
-                                        emit_diag("compile", 2, "Unknown arg: " + args[i])
-                                        print("Unknown arg: " + args[i])
-                                        oren_exit(2)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        if seen["strict-attrs"] == true { STRICT_ATTRS = true }
+        if seen["attr-allow-prefixes"] == true { ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"]) }
+        if seen["out"] == true { out_meta = opts["out"] }
 
         var src = expand_includes_file(path, [])
         if src == nil {
@@ -644,216 +543,44 @@ fn compiler_main() {
     var env_det = oren_env("OREN_DETERMINISTIC")
     if env_det != nil { deterministic = true }
 
-    while i < argc {
-        if args[i] == "--emit-c" {
-            emit_c = true
-            i = i + 1
-        } else {
-            if args[i] == "--debug" {
-                debug_mode = true
-                i = i + 1
-            } else {
-                if args[i] == "--lib" || args[i] == "--shared" {
-                    is_shared_lib = true
-                    i = i + 1
-                } else {
-                    if args[i] == "--analyze" {
-                        analyze = true
-                        i = i + 1
-                    } else {
-                        if args[i] == "--metadata" {
-                            emit_meta = true
-                            i = i + 1
-                        } else {
-                            if args[i] == "--strict-attrs" {
-                                STRICT_ATTRS = true
-                                i = i + 1
-                            } else {
-                                if args[i] == "--attr-allow-prefixes" {
-                                    if i + 1 >= argc {
-                                        emit_diag("compile", 2, "Missing value for --attr-allow-prefixes")
-                                        print("Missing value for --attr-allow-prefixes")
-                                        oren_exit(2)
-                                    }
-                                    ATTR_ALLOW_PREFIXES = split_csv(args[i + 1])
-                                    i = i + 2
-                                } else {
-                            if args[i] == "--capsule" {
-                                CAPSULE = true
-                                i = i + 1
-                            } else {
-                                if args[i] == "--cap-allow-domains" {
-                                    if i + 1 >= argc {
-                                        emit_diag("compile", 2, "Missing value for --cap-allow-domains")
-                                        print("Missing value for --cap-allow-domains")
-                                        oren_exit(2)
-                                    }
-                                    CAP_ALLOW_DOMAINS = split_csv(args[i + 1])
-                                    i = i + 2
-                                } else {
-                                if args[i] == "--python" {
-                                    enable_python = true
-                                    i = i + 1
-                                } else {
-                                    if args[i] == "--typecheck" {
-                                        do_typecheck = true
-                                        i = i + 1
-                                    } else {
-                                        if args[i] == "--obc-lib" {
-                                            obc_lib = true
-                                            i = i + 1
-                                        } else {
-                                            if args[i] == "--stdlib-mode" {
-                                                if i + 1 >= argc {
-                                                    emit_diag("compile", 2, "Missing value for --stdlib-mode")
-                                                    print("Missing value for --stdlib-mode")
-                                                    oren_exit(2)
-                                                }
-                                                stdlib_mode = args[i + 1]
-                                                i = i + 2
-                                            } else {
-                                                if args[i] == "--stdlib-obc" {
-                                                    if i + 1 >= argc {
-                                                        emit_diag("compile", 2, "Missing value for --stdlib-obc")
-                                                        print("Missing value for --stdlib-obc")
-                                                        oren_exit(2)
-                                                    }
-                                                    stdlib_obc = args[i + 1]
-                                                    i = i + 2
-                                                } else {
-                                                    if args[i] == "--link-obc" {
-                                                        if i + 1 >= argc {
-                                                            emit_diag("compile", 2, "Missing value for --link-obc")
-                                                            print("Missing value for --link-obc")
-                                                            oren_exit(2)
-                                                        }
-                                                        oren_list_push(link_obc, args[i + 1])
-                                                        i = i + 2
-                                                    } else {
-                                        if args[i] == "--link" || args[i] == "-l" {
-                                            if i + 1 >= argc {
-                                                emit_diag("compile", 2, "Missing value for --link")
-                                                print("Missing value for --link")
-                                        oren_exit(2)
-                                    }
-                                    oren_list_push(link_libs, args[i + 1])
-                                    i = i + 2
-                                } else {
-                                    if args[i] == "--backend" {
-                                        if i + 1 >= argc {
-                                            emit_diag("compile", 2, "Missing value for --backend")
-                                            print("Missing value for --backend")
-                                            oren_exit(2)
-                                        }
-                                        backend = args[i + 1]
-                                        i = i + 2
-                                    } else {
-                                        if args[i] == "--target" {
-                                            if i + 1 >= argc {
-                                                emit_diag("compile", 2, "Missing value for --target")
-                                                print("Missing value for --target")
-                                                oren_exit(2)
-                                            }
-                                            target = args[i + 1]
-                                            i = i + 2
-                                        } else {
-                                            if args[i] == "--arch" {
-                                                if i + 1 >= argc {
-                                                    emit_diag("compile", 2, "Missing value for --arch")
-                                                    print("Missing value for --arch")
-                                                    oren_exit(2)
-                                                }
-                                                arch = args[i + 1]
-                                                i = i + 2
-                                            } else {
-                                    if args[i] == "--disasm" {
-                                        disasm = true
-                                        i = i + 1
-                                    } else {
-                                                if args[i] == "--cc" {
-                                                    if i + 1 >= argc {
-                                                        emit_diag("compile", 2, "Missing value for --cc")
-                                                        print("Missing value for --cc")
-                                                        oren_exit(2)
-                                                    }
-                                                    cc = args[i + 1]
-                                                    i = i + 2
-                                                } else {
-                                                    if args[i] == "-o" {
-                                                        if i + 1 >= argc {
-                                                            emit_diag("compile", 2, "Missing value for -o")
-                                                            print("Missing value for -o")
-                                                            oren_exit(2)
-                                                        }
-                                                        out_path = args[i + 1]
-                                                        i = i + 2
-                                                        } else {
-                                                            if args[i] == "--codesign" {
-                                                            if i + 1 >= argc {
-                                                                emit_diag("compile", 2, "Missing value for --codesign")
-                                                                print("Missing value for --codesign")
-                                                                oren_exit(2)
-                                                            }
-                                                            codesign_id = args[i + 1]
-                                                            i = i + 2
-                                                        } else {
-                                                            if args[i] == "--notarize" {
-                                                                notarize = true
-                                                                i = i + 1
-                                                            } else {
-                                                                if args[i] == "--notary-profile" {
-                                                                    if i + 1 >= argc {
-                                                                        emit_diag("compile", 2, "Missing value for --notary-profile")
-                                                                        print("Missing value for --notary-profile")
-                                                                        oren_exit(2)
-                                                                    }
-                                                                    notary_profile = args[i + 1]
-                                                                    i = i + 2
-                                                                } else {
-                                                                    if args[i] == "--no-gc" {
-                                                                        no_gc = true
-                                                                        i = i + 1
-                                                                    } else {
-                                                                        if args[i] == "--deterministic" {
-                                                                            deterministic = true
-                                                                            i = i + 1
-                                                                        } else {
-                                                                            if args[i] == "--manifest" {
-                                                                                emit_manifest = true
-                                                                                i = i + 1
-                                                                            } else {
-                                                                            emit_diag("compile", 2, "Unknown arg: " + args[i])
-                                                                            print("Unknown arg: " + args[i])
-                                                                            oren_exit(2)
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-                                }
-                            }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // Modern CLI: options already parsed/validated by std/argparse; map parsed fields to vars.
+    if mode == "emit-c" {
+        backend = "c"
+        emit_c = true
+    } else {
+        backend = opts["backend"]
+        if seen["emit-c"] == true { emit_c = true }
     }
+    if seen["out"] == true { out_path = opts["out"] }
+    cc = opts["cc"]
+    target = opts["target"]
+    arch = opts["arch"]
+    disasm = seen["disasm"] == true
+    debug_mode = seen["debug"] == true
+    analyze = seen["analyze"] == true
+    emit_meta = seen["metadata"] == true
+    is_shared_lib = seen["lib"] == true || seen["shared"] == true
+    enable_python = seen["python"] == true
+    do_typecheck = seen["typecheck"] == true
+    obc_lib = seen["obc-lib"] == true
+    stdlib_mode = opts["stdlib-mode"]
+    stdlib_obc = opts["stdlib-obc"]
+    link_obc = opts["link-obc"]
+    link_libs = opts["link"]
+
+    if target == "macos" { codesign_id = "Developer ID Application: Zongbao Lu (US56HHF2Y4)" }
+    if seen["codesign"] == true { codesign_id = opts["codesign"] }
+    notarize = seen["notarize"] == true
+    if seen["notary-profile"] == true { notary_profile = opts["notary-profile"] }
+
+    if seen["no-gc"] == true { no_gc = true }
+    if seen["deterministic"] == true { deterministic = true }
+    if seen["manifest"] == true { emit_manifest = true }
+
+    if seen["strict-attrs"] == true { STRICT_ATTRS = true }
+    if seen["attr-allow-prefixes"] == true { ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"]) }
+    if seen["capsule"] == true { CAPSULE = true }
+    if seen["cap-allow-domains"] == true { CAP_ALLOW_DOMAINS = split_csv(opts["cap-allow-domains"]) }
 
     if deterministic {
         // Deterministic mode: avoid post-processing that can inject non-reproducible data.
