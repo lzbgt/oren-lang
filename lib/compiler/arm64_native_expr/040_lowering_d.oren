@@ -1,3 +1,37 @@
+        if fn_name == "simd_dot_f32_4_ptr" {
+            // Intrinsic: 1x4 f32 dot microkernel over raw pointers, writing 4 f64 results to out_ptr.
+            // Signature: simd_dot_f32_4_ptr(out_ptr, a_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) -> out_ptr
+            //
+            // Determinism rule:
+            // - widen f32 -> f64, multiply in f64
+            // - accumulate in scalar order matching the scalar loop (no reassociation)
+            var args7 = expr["args"]
+            if args7 == nil || oren_list_len(args7) != 7 {
+                native_error(ctx, expr["token"], "native backend: simd_dot_f32_4_ptr expects 7 arguments")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+
+            // Compile args: out_ptr, a_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n
+            //
+            // We stack-save pointers so we can evaluate expressions left-to-right safely.
+            native_compile_expr(ctx, args7[0]) // out_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args7[1]) // a_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args7[2]) // b0_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args7[3]) // b1_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
 

@@ -25,6 +25,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
 
 6) **Include chunk coherence** (M)
+   - Status: fixed one major boundary (`simd_dot_f32_4_ptr` lowering now starts in `040_lowering_d.oren` rather than splitting the `if` header across files).
    - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
 
 ### Notes
