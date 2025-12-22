@@ -3168,11 +3168,11 @@ func auditIncludeChunkCoherence() error {
 		return nil
 	}
 
-	visited := map[string]bool{}
 	var offenders []string
 	var allMissing []string
 
 	for _, root := range roots {
+		visited := map[string]bool{}
 		// Traverse include tree (relative to the including file's directory).
 		var stack []string
 		stack = append(stack, root)
