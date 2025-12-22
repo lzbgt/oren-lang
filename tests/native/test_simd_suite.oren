@@ -410,6 +410,46 @@ fn run_dot_f32_ptr_intrinsic_nan_inf() {
     return 0
 }
 
+fn run_dot_f32_ptr_intrinsic_large_n() {
+    // Large-n determinism check for `simd_dot_f32_ptr` (native backend).
+    // Purpose: exercise vector loop + scalar tail + longer accumulation path without overflow.
+    var n = 4097 // intentionally not divisible by 4
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(446, "alloc a (f32 dot intrinsic large)") }
+    if oren_is_err(b) { return fail(447, "alloc b (f32 dot intrinsic large)") }
+
+    var i = 0
+    while i < n {
+        // Keep magnitudes modest to avoid NaN/Inf while still making rounding interesting.
+        var av = (f64(i % 251) - 123.0) * 0.0078125 + 0.001 // /128 + bias
+        var bv = (f64((i * 17) % 239) - 119.0) * 0.00390625 - 0.002 // /256 + bias
+        oren_buf_store_f32(a, i, av)
+        oren_buf_store_f32(b, i, bv)
+        i = i + 1
+    }
+
+    var ref = 0.0
+    i = 0
+    while i < n {
+        ref = ref + (oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+
+    var pa = native_buf_data_ptr(a)
+    var pb = native_buf_data_ptr(b)
+    var got = oren_u64_bits_to_f64(simd_dot_f32_ptr(pa, pb, n))
+
+    var ref_bits = oren_f64_to_u64_bits(ref)
+    var got_bits = oren_f64_to_u64_bits(got)
+    if ref_bits != got_bits {
+        print("DOT_F32_INTR_LARGE_REF_BITS=" + oren_int_to_string(ref_bits))
+        print("DOT_F32_INTR_LARGE_GOT_BITS=" + oren_int_to_string(got_bits))
+        return fail(448, "dot mismatch (f32 intrinsic large)")
+    }
+    return 0
+}
+
 fn run_dot_f32_4_ptr_intrinsic_tail_fractional() {
     // Direct intrinsic determinism check for `simd_dot_f32_4_ptr` (native backend):
     // - odd `n` forces scalar tail
@@ -1282,6 +1322,7 @@ fn main() {
     if run_dot_f32_tail_fractional() != 0 { return 1 }
     if run_dot_f32_ptr_intrinsic_tail_fractional() != 0 { return 1 }
     if run_dot_f32_ptr_intrinsic_nan_inf() != 0 { return 1 }
+    if run_dot_f32_ptr_intrinsic_large_n() != 0 { return 1 }
     if run_dot_f32_4_ptr_intrinsic_tail_fractional() != 0 { return 1 }
     if run_dot_f32_4_microkernel() != 0 { return 1 }
     if run_dot_f64_4_microkernel() != 0 { return 1 }
