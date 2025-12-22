@@ -89,7 +89,8 @@ Public language syntax should remain stable where possible; internal runtime ABI
 ### Layer L0: Compiler + codegen (unchanged externally)
 
 - Codegen continues to call stable runtime entry points like `oren_*`.
-- Native backend continues to inject `lib/runtime_native.oren` (but it can be refactored internally).
+- Native backend continues to inject `lib/runtime_native.oren`.
+  - Internally, the injected runtime is allowed to be split into smaller files under `lib/runtime_native/*.oren` and composed via `// @include "..."` to keep the codebase maintainable while the project is rolling.
 
 ### Layer L1: Runtime services (`oren_*`)
 

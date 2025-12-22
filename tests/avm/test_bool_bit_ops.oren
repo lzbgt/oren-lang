@@ -47,8 +47,8 @@ fn main() {
     if box[0] != 0 { fail() }
 
     // BOOL comparisons must work
-    if (true == false) { fail() }
-    if (true != true) { fail() }
+    if true == false { fail() }
+    if true != true { fail() }
     if (false == false) != true { fail() }
 
     print("avm bool/bit ops OK")

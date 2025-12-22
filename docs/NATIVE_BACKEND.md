@@ -18,7 +18,7 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 
 - **Memory & Concurrency**:
   - **Allocation**: Bump-pointer heap (X28/X27) with on-demand `mmap` growth (max of request or 64KB) and a runtime hook `oren_alloc_struct` for struct buffers. Stack slots in inner blocks are released automatically to keep frames bounded across loops.
-  - **GC**: Conservative mark/sweep GC is implemented in `lib/runtime_native.oren` and can be triggered manually via `native_gc_collect()`.
+  - **GC**: Conservative mark/sweep GC lives in `lib/runtime_native.oren` (expanded from smaller parts under `lib/runtime_native/*.oren`) and can be triggered manually via `native_gc_collect()`.
   - **Access**: `ptr_get`, `ptr_set`, `ptr_get_byte`, `ptr_set_byte`.
   - **Lists**: `oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` (list-aware), plus array literal lowering in codegen.
 - **Atomics**: `atomic_add` (LDADD), `atomic_cas` (CAS).
@@ -46,7 +46,10 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
 - **String concatenation:** on the native backend, `+` lowers to the runtime helper `oren_add` and supports:
   - integer addition
   - string concatenation when *both* operands are strings (content-based), matching native `strcmp` semantics for comparisons.
-  Use `string_concat(a, b)` when you want explicit string concatenation semantics (useful while the type system is still rolling).
+
+  Rolling guidance:
+  - Prefer `+` everywhere.
+  - `string_concat(a, b)` exists as a low-level native runtime helper but is treated as an internal primitive; the repo’s curated tests and audits intentionally avoid using it in higher-level code.
 - **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).
 
 ## CLI Usage
