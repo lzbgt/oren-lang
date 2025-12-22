@@ -1,0 +1,213 @@
+fn fail(code, msg) {
+    print("FAIL " + oren_int_to_string(code))
+    print(msg)
+    oren_exit(code)
+}
+
+fn u8_at(bs, pos) {
+    var v = oren_bytes_get_u8(bs, pos)
+    if oren_is_err(v) { fail(9000 + pos, "bytes_get_u8 err") }
+    return v
+}
+
+fn u32_le_at(bs, pos) {
+    var b0 = u8_at(bs, pos + 0)
+    var b1 = u8_at(bs, pos + 1)
+    var b2 = u8_at(bs, pos + 2)
+    var b3 = u8_at(bs, pos + 3)
+    return (b0 & 255) | ((b1 & 255) << 8) | ((b2 & 255) << 16) | ((b3 & 255) << 24)
+}
+
+fn push_u32_le(out, v) {
+    var b0 = v & 255
+    var b1 = (v >> 8) & 255
+    var b2 = (v >> 16) & 255
+    var b3 = (v >> 24) & 255
+    oren_list_push(out, b0)
+    oren_list_push(out, b1)
+    oren_list_push(out, b2)
+    oren_list_push(out, b3)
+}
+
+fn append_list(out, xs) {
+    var n = oren_list_len(xs)
+    var i = 0
+    while i < n {
+        oren_list_push(out, xs[i])
+        i = i + 1
+    }
+}
+
+fn build_vfs_fixtures(files) {
+    // AVMVFS01 format:
+    //   magic[8]="AVMVFS01"
+    //   u32 count
+    //   repeated:
+    //     u32 path_len, path bytes
+    //     u32 body_len, body bytes
+    var out = []
+
+    // "AVMVFS01"
+    oren_list_push(out, 65) // A
+    oren_list_push(out, 86) // V
+    oren_list_push(out, 77) // M
+    oren_list_push(out, 86) // V
+    oren_list_push(out, 70) // F
+    oren_list_push(out, 83) // S
+    oren_list_push(out, 48) // 0
+    oren_list_push(out, 49) // 1
+
+    if files == nil { files = [] }
+    push_u32_le(out, oren_list_len(files))
+
+    var i = 0
+    while i < oren_list_len(files) {
+        var f = files[i]
+        var path = f["path"]
+        var body = f["body"]
+        if path == nil { path = "" }
+        if body == nil { body = [] }
+
+        var path_bytes = oren_bytes_from_string(path) // LIST<int>
+        push_u32_le(out, oren_list_len(path_bytes))
+        append_list(out, path_bytes)
+
+        push_u32_le(out, oren_list_len(body))
+        append_list(out, body)
+
+        i = i + 1
+    }
+
+    return oren_bytes_pack(out)
+}
+
+fn vfs_extract_body(snapshot_bytes, want_path_str) {
+    // Returns BYTES for body, or err via fail().
+    if oren_bytes_len(snapshot_bytes) < 12 { fail(100, "snapshot too short") }
+    // Magic "AVMVFS01"
+    if u8_at(snapshot_bytes, 0) != 65 { fail(101, "bad magic") } // A
+    if u8_at(snapshot_bytes, 7) != 49 { fail(102, "bad magic") } // 1
+
+    var pos = 8
+    var cnt = u32_le_at(snapshot_bytes, pos)
+    pos = pos + 4
+
+    var want = oren_bytes_from_string(want_path_str) // LIST<int>
+    var want_len = oren_list_len(want)
+
+    var i = 0
+    while i < cnt {
+        var pl = u32_le_at(snapshot_bytes, pos)
+        pos = pos + 4
+
+        var is_match = 0
+        if pl == want_len {
+            is_match = 1
+            var j = 0
+            while j < pl {
+                if u8_at(snapshot_bytes, pos + j) != want[j] { is_match = 0 }
+                j = j + 1
+            }
+        }
+        pos = pos + pl
+
+        var bl = u32_le_at(snapshot_bytes, pos)
+        pos = pos + 4
+
+        if is_match != 0 {
+            var out_list = []
+            var k = 0
+            while k < bl {
+                oren_list_push(out_list, u8_at(snapshot_bytes, pos + k))
+                k = k + 1
+            }
+            return oren_bytes_pack(out_list)
+        }
+
+        pos = pos + bl
+        i = i + 1
+    }
+
+    fail(110, "path not found in vfs snapshot: " + want_path_str)
+    return 0
+}
+
+fn main() {
+    // Parent (host) provides:
+    // - compiler `.obc`
+    // - stdlib bundle `.obc` (OBX exports)
+    var compiler_obc_list = oren_read_bytes("build/oren_compiler.obc")
+    var compiler_obc = oren_bytes_pack(compiler_obc_list)
+
+    var stdlib_obc_list = oren_read_bytes("build/stdlib_bundle.obc")
+    var stdlib_obc_bytes = oren_bytes_pack(stdlib_obc_list)
+
+    var src =
+        "import math \\\"std:math\\\"\\n" +
+        "fn main() {\\n" +
+        "    if math.sqrt(9) == 3 {\\n" +
+        "        oren_exit(7)\\n" +
+        "    } else {\\n" +
+        "        oren_exit(1)\\n" +
+        "    }\\n" +
+        "}\\n" +
+        "main()\\n"
+
+    var files = [
+        {"path": "src.oren", "body": oren_bytes_from_string(src)},
+        {"path": "stdlib.obc", "body": stdlib_obc_list}
+    ]
+    var vfs_fx = build_vfs_fixtures(files)
+
+    var cfg_compile = {
+        "deterministic": true,
+        "gas_limit": 40000000,
+        "fs_backend": 1,
+        "vfs_fixtures": vfs_fx,
+        "argv": [
+            "oren",
+            "build",
+            "src.oren",
+            "--backend", "bytecode",
+            "--target", "macos",
+            "--deterministic",
+            "--stdlib-mode", "obc",
+            "--stdlib-obc", "stdlib.obc",
+            "-o", "out.obc"
+        ]
+    }
+
+    var cr = oren_avm_run_obc_bytes(compiler_obc, cfg_compile)
+    if cr["exit_code"] != 0 {
+        print("compiler child exit_code=" + oren_int_to_string(cr["exit_code"]))
+        var e = cr["last_error"]
+        if oren_is_err(e) {
+            print("err_code=" + oren_int_to_string(oren_err_code(e)))
+            print("err_msg=" + oren_err_msg(e))
+        }
+        fail(200, "compiler child failed")
+    }
+
+    var snap = cr["vfs_snapshot"]
+    if oren_is_err(snap) { fail(201, "vfs_snapshot is err") }
+    if snap == nil { fail(202, "vfs_snapshot is nil") }
+
+    var program_obc = vfs_extract_body(snap, "out.obc")
+
+    var cfg_run = {
+        "deterministic": true,
+        "gas_limit": 1000000,
+        "allowed_domains": (1 << 0) + (1 << 6)
+    }
+    var pr = oren_avm_run_obc_bytes(program_obc, cfg_run)
+    if pr["exit_code"] != 7 {
+        print("program exit_code=" + oren_int_to_string(pr["exit_code"]))
+        fail(300, "compiled program exit_code mismatch")
+    }
+
+    print("compiler in avm vfs stdlib obc OK")
+    oren_exit(0)
+}
+
+main()
+

@@ -10,14 +10,16 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: migrated several stdlib modules to `list.*` wrappers (`argparse`, `strings`, `json`, `cbor`, `buffer`, `math`, plus `std/linalg` list helpers).
    - Next: migrate remaining `lib/std/yaml.oren` + `lib/std/regex.oren`, then add an `oretest` audit to forbid direct `oren_list_*` usage in `lib/std/` (except a tight allowlist like `lib/std/list.oren`).
 
-2) **Include chunk coherence (overflow-proofing)** (M)
+2) **Precompiled stdlib `.obc` linking (OBX) for AVM** (M)
+   - Status: implemented OBX module metadata (exports + relocations) embedded as an unused `BYTES` constant in `.obc` (`docs/OBC_MODULE_LINKING.md`, `docs/AVM_SPEC.md`).
+   - Status: added `--obc-lib` to emit exports, and `--stdlib-mode obc --stdlib-obc <bundle>` to compile with extern `std:` imports and link the bundle into a single output program.
+   - Status: added stdlib bundle root `lib/std/stdlib.oren` and stable std module prefixes (`STD_<path>_`) so symbols are deterministic for separate compilation.
+   - Status: added a full-suite AVM smoke that compiles with `std:math` using only a stdlib bundle `.obc` (no std sources inside the child universe).
+   - Next: add support for linking multiple non-stdlib packages via a formal search path (`OREN_PATH` / `--module-path`), and decide whether final `.obc` should strip OBX constants to reduce size.
+
+3) **Include chunk coherence (overflow-proofing)** (M)
    - Status: large `.oren` and C runtime hotspots are split into include-chunks/modules; `oretest` enforces 2000-line caps and include-chunk coherence for `// @include` roots.
    - Next: keep new refactors chunk-safe (top-level boundaries only) so files stay reviewable without context overflow.
-
-3) **Stdlib import UX + distribution model** (M)
-   - Status: added `std:` / `std/` module specifiers (compiler import resolver) so user code can import stdlib without `../../lib/std/...` paths.
-   - Status: documented the distribution + AVM story in `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`.
-   - Next: add an `oretest` audit ensuring docs/examples use `std:`; decide on a long-term stdlib packaging model (env `OREN_STDLIB_ROOT` vs embedded stdlib pack).
 
 4) **Compiler CLI + argparse modernization (click-style)** (M)
    - Status: upgraded `lib/std/argparse.oren` to support `--opt=value`, `-abc` chained short flags, `-ovalue` short-value forms, interspersed options/positionals, and global options before subcommand.

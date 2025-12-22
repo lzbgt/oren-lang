@@ -343,8 +343,11 @@ fn bytecode_compile_stmt(ctx, stmt) {
     
     return nil
 }
-fn bytecode_compile_program(linked) {
+fn bytecode_compile_program(linked, config) {
     var ctx = new_bytecode_ctx()
+    if config != nil {
+        if config["allow_undef"] == true { ctx["allow_undef"] = true }
+    }
     ctx["aliases"] = linked["aliases"]
     var stmts = linked["statements"]
 
@@ -423,7 +426,12 @@ fn bytecode_compile_program(linked) {
         if addr != nil {
             patch_u32(ctx, pos, addr)
         } else {
-            bytecode_error(ctx, "Undefined function: " + name)
+            if ctx["allow_undef"] == true {
+                // Leave placeholder 0 and record relocation for a later linker pass.
+                oren_list_push(ctx["relocs"], {"name": name, "pos": pos, "kind": 0})
+            } else {
+                bytecode_error(ctx, "Undefined function: " + name)
+            }
         }
         j = j + 1
     }
@@ -438,7 +446,12 @@ fn bytecode_compile_program(linked) {
         if addr2 != nil {
             patch_u32(ctx, pos2, addr2)
         } else {
-            bytecode_error(ctx, "Undefined function value: " + name2)
+            if ctx["allow_undef"] == true {
+                // Leave placeholder 0 and record relocation for a later linker pass.
+                oren_list_push(ctx["relocs"], {"name": name2, "pos": pos2, "kind": 1})
+            } else {
+                bytecode_error(ctx, "Undefined function value: " + name2)
+            }
         }
         k = k + 1
     }
@@ -476,6 +489,11 @@ fn bytecode_emit_program(out_path, ctx) {
     if meta != nil && oren_list_len(meta) > 0 {
         // Rolling: append as an unused BYTES constant.
         oren_list_push(consts, {"type": "Bytes", "value": meta})
+    }
+    var obx = ctx["obx_bytes"]
+    if obx != nil && oren_list_len(obx) > 0 {
+        // Rolling: append as an unused BYTES constant for module exports/relocs.
+        oren_list_push(consts, {"type": "Bytes", "value": obx})
     }
     var n_consts = oren_list_len(consts)
     // Count (u16)

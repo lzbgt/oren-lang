@@ -204,7 +204,7 @@ fn bytecode_compile_expr(ctx, expr) {
                     emit_u32(ctx, faddr)
                     return nil
                 }
-                if ctx["declared_funcs"][name] == true {
+                if ctx["declared_funcs"][name] == true || ctx["allow_undef"] == true {
                     emit_byte(ctx, AVM_PUSH_FUNC32)
                     var fpos = oren_list_len(ctx["code"])
                     emit_u32(ctx, 0)

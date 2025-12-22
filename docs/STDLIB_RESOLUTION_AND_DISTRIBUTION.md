@@ -183,6 +183,13 @@ Key observation:
 - The AVM can execute `.obc` directly.
 - So the stdlib can be shipped as bytecode and used without shipping sources.
 
+Rolling implementation note (current repo):
+
+- This repo implements compile-time linking via an “OBX” metadata payload embedded as an
+  unused `BYTES` constant in `.obc` (exports + relocations), then concatenates/patches
+  bytecode to produce a single self-contained program.
+- See `docs/OBC_MODULE_LINKING.md`.
+
 However, this requires a concrete “linking/loading” story:
 
 1) **Compile-time linking (simpler, recommended first)**

@@ -1,0 +1,24 @@
+// Stdlib bundle root (rolling)
+//
+// This file exists to build a precompiled stdlib `.obc` bundle for AVM/bytecode
+// workflows where shipping stdlib sources is undesirable.
+//
+// It contains only imports; linking removes Import statements, but loading this
+// module pulls all referenced std modules into the linked program.
+
+import argparse "std:argparse"
+import buffer "std:buffer"
+import casts "std:casts"
+import cbor "std:cbor"
+import ints "std:ints"
+import iter "std:iter"
+import json "std:json"
+import linalg "std:linalg"
+import list "std:list"
+import math "std:math"
+import regex "std:regex"
+import result "std:result"
+import strings "std:strings"
+import time "std:time"
+import yaml "std:yaml"
+

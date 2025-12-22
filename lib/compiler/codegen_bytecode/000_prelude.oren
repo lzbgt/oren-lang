@@ -110,6 +110,11 @@ fn new_bytecode_ctx() {
         "types": {},
         "fixups": [],
         "fun_fixups": [],
+        // Unresolved symbol strategy (rolling):
+        // - default: undefined calls are compile errors
+        // - when allow_undef=true: keep placeholders and emit OBX relocs for a later linker pass
+        "allow_undef": false,
+        "relocs": [],
         "aliases": {},
         "loop_ctx": nil,
         "lambda_counter": 0,
@@ -118,6 +123,9 @@ fn new_bytecode_ctx() {
         // Optional BYTES blob appended to the constant pool by the compiler driver
         // (tooling metadata, not referenced by program code).
         "meta_bytes": nil
+        // Optional OBX blob appended to the constant pool by the compiler driver
+        // (exports/relocs for `.obc` linking, not referenced by program code).
+        ,"obx_bytes": nil
         ,"errors": []
         ,"fatal": false
     }
@@ -474,4 +482,3 @@ fn str_starts_with(s, prefix) {
     if oren_string_len(s) < plen { return false }
     return oren_string_slice(s, 0, plen) == prefix
 }
-

@@ -908,6 +908,65 @@ func main() {
 			},
 			})
 
+			// Compiler-in-AVM v1 smoke (precompiled stdlib bundle `.obc` linking):
+			// - build `lib/std/stdlib.oren` as a `.obc` library bundle (OBX exports)
+			// - run the compiler as a nested universe using VFS fixtures
+			// - compile a program that imports `std:math` with `--stdlib-mode obc`
+			// - run the produced program as another nested universe
+			fixtures = append(fixtures, struct {
+				name    string
+				cmd     string
+				timeout time.Duration
+				log     string
+				ok      func(rc int) bool
+				cleanup []string
+			}{
+				name: "compiler_in_avm_stdlib_obc_smoke",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"echo \"[fixture] build stdlib bundle obc\"; "+
+						"%s ./oren build %q --backend bytecode --target %s -o %q --obc-lib%s; "+
+						"echo \"[fixture] build compiler obc\"; "+
+						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] build harness obc\"; "+
+						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] run harness\"; "+
+						"%s ./avm --deny-by-default --allow-domains \"0,1,6,8\" --fs-backend host --fs-allow-prefixes %q %q > %q; "+
+						"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
+					fixtureEnv,
+					"lib/std/stdlib.oren",
+					*target,
+					"build/stdlib_bundle.obc",
+					gcArg,
+					fixtureEnv,
+					"oren.oren",
+					*target,
+					"build/oren_compiler.obc",
+					gcArg,
+					fixtureEnv,
+					"tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren",
+					*target,
+					"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
+					gcArg,
+					fixtureEnv,
+					"build/",
+					"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
+					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+					"compiler in avm vfs stdlib obc OK",
+					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+				),
+				timeout: 10 * time.Minute,
+				log:     "build/logs/fixture_compiler_in_avm_stdlib_obc_smoke.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/stdlib_bundle.obc",
+					"build/oren_compiler.obc",
+					"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
+					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+				},
+			})
+
 			// Generic trait constraints must be enforced at monomorphization time.
 			// This fixture expects compilation to fail with a clear diagnostic.
 			fixtures = append(fixtures, struct {

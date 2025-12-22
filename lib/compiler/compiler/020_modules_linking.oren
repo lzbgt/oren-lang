@@ -1,5 +1,77 @@
-fn load_module(base, path) {
-    var full = resolve_import_path(base, path)
+fn _is_std_spec(path) {
+    if path == nil { return false }
+    if starts_with(path, "std:") { return true }
+    if starts_with(path, "std/") { return true }
+    return false
+}
+
+fn _strip_orext(p) {
+    if p == nil { return "" }
+    var n = oren_string_len(p)
+    if n >= 5 && oren_string_slice(p, n - 5, n) == ".oren" {
+        return oren_string_slice(p, 0, n - 5)
+    }
+    return p
+}
+
+fn _canonical_std_spec(path) {
+    // Normalize any std specifier to `std:<key>` (no extension, slash-separated).
+    if path == nil { return "std:" }
+    if starts_with(path, "std:") {
+        var key = oren_string_slice(path, 4, oren_string_len(path))
+        key = _strip_orext(key)
+        return "std:" + key
+    }
+    if starts_with(path, "std/") {
+        var key2 = oren_string_slice(path, 4, oren_string_len(path))
+        key2 = _strip_orext(key2)
+        return "std:" + key2
+    }
+    return path
+}
+
+fn _stable_std_prefix(path) {
+    // Stable prefix for stdlib modules, used to support separate compilation/linking.
+    // Example: "std:net/http" -> "STD_net_http_"
+    var spec = _canonical_std_spec(path)
+    var key = spec
+    if starts_with(spec, "std:") {
+        key = oren_string_slice(spec, 4, oren_string_len(spec))
+    }
+    if key == nil { key = "" }
+    var out = "STD_"
+    var i = 0
+    while i < oren_string_len(key) {
+        var c = oren_string_char_at(key, i)
+        // Keep [A-Za-z0-9_], map everything else to '_'
+        var ok = false
+        if c >= "a" && c <= "z" { ok = true }
+        if c >= "A" && c <= "Z" { ok = true }
+        if c >= "0" && c <= "9" { ok = true }
+        if c == "_" { ok = true }
+        if ok {
+            out = out + c
+        } else {
+            out = out + "_"
+        }
+        i = i + 1
+    }
+    return out + "_"
+}
+
+fn load_module(base, path, config) {
+    var std_mode = nil
+    if config != nil { std_mode = config["stdlib_mode"] }
+    var is_std = _is_std_spec(path)
+
+    // In stdlib `.obc` mode, avoid resolving stdlib source paths entirely.
+    // This keeps compiler-in-AVM viable without shipping std sources.
+    var full = nil
+    if is_std && std_mode == "obc" {
+        full = _canonical_std_spec(path)
+    } else {
+        full = resolve_import_path(base, path)
+    }
     if MODULES[full] != nil {
         return MODULES[full]
     }
@@ -18,6 +90,28 @@ fn load_module(base, path) {
         k = k + 1
     }
     oren_list_push(MODULE_STACK, full)
+
+    // Extern stdlib module (bytecode stdlib linking mode):
+    // - no parsing, no dependency walking
+    // - contributes no statements
+    if is_std && std_mode == "obc" {
+        var mod = {"prefix": _stable_std_prefix(path), "path": full, "program": {"statements": [], "traits": []}, "aliases": {}, "imports": [], "added": false}
+        MODULES[full] = mod
+        if mod["added"] != true {
+            mod["added"] = true
+            oren_list_push(MODULE_ORDER, mod)
+        }
+        // Pop cycle-check stack.
+        var new_stack = []
+        var si = 0
+        var sl = oren_list_len(MODULE_STACK)
+        while si + 1 < sl {
+            oren_list_push(new_stack, MODULE_STACK[si])
+            si = si + 1
+        }
+        MODULE_STACK = new_stack
+        return mod
+    }
 
     var src = expand_includes_file(full, [])
     if src == nil {
@@ -43,7 +137,9 @@ fn load_module(base, path) {
         oren_exit(1)
     }
 
-    var mod = {"prefix": new_module_prefix(), "path": full, "program": prog, "aliases": {}, "imports": [], "added": false}
+    var prefix = new_module_prefix()
+    if is_std { prefix = _stable_std_prefix(path) }
+    var mod = {"prefix": prefix, "path": full, "program": prog, "aliases": {}, "imports": [], "added": false}
     MODULES[full] = mod
 
     var dir = dirname(full)
@@ -58,7 +154,7 @@ fn load_module(base, path) {
                 oren_exit(1)
             }
             seen_alias[alias] = true
-            var dep = load_module(dir, s["path"])
+            var dep = load_module(dir, s["path"], config)
             var alias_ns = mod["prefix"] + alias
             mod["aliases"][alias_ns] = dep["prefix"]
             // Preserve import edges in deterministic source order for graph export.
@@ -152,7 +248,7 @@ fn link_program(entry_path, root_prog, config) {
         var s = root_prog["statements"][i]
         if s["type"] == "Import" {
             var alias = s["name"]["value"]
-            var mod = load_module(base, s["path"])
+            var mod = load_module(base, s["path"], config)
             var alias_ns = root_prefix + alias
             root_aliases[alias_ns] = mod["prefix"]
             // Preserve root import edges in source order.

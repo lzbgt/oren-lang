@@ -19,6 +19,7 @@ import impl_lowering "impl_lowering.oren"
 import optimizer "optimizer.oren"
 import type_resolve "type_name_resolve.oren"
 import dump "dump.oren"
+import obc_link "obc_link.oren"
 import argparse "../std/argparse.oren"
 
 fn cli_spec() {
@@ -51,6 +52,11 @@ fn cli_spec() {
     argparse.cmd_flag(build, "--no-gc", nil, "Disable GC scanning (also via env OREN_NO_GC=1)")
     argparse.cmd_flag(build, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds")
     argparse.cmd_flag(build, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed builds)")
+    // Bytecode/AVM packaging (rolling):
+    argparse.cmd_flag(build, "--obc-lib", nil, "(bytecode backend) emit OBX exports for linking (library/bundle)")
+    argparse.cmd_option(build, "--stdlib-mode", nil, "string", "source", "(bytecode backend) stdlib resolution: source|obc")
+    argparse.cmd_option(build, "--stdlib-obc", nil, "string", "", "(bytecode backend) path to stdlib bundle `.obc` (requires --stdlib-mode obc)")
+    argparse.cmd_option_multi(build, "--link-obc", nil, "string", "(bytecode backend) link extra `.obc` libraries (OBX)")
     var emitc = argparse.add_command(p, "emit-c", "Alias for: build --backend c --emit-c")
     argparse.cmd_positional(emitc, "file.oren", true, "Input source file")
     // Subset of build options that make sense for emit-c.

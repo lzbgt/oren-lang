@@ -143,6 +143,10 @@ fn compiler_main() {
         _cli_push_flag(args, seen, "--no-gc", "no-gc")
         _cli_push_flag(args, seen, "--deterministic", "deterministic")
         _cli_push_flag(args, seen, "--manifest", "manifest")
+        _cli_push_flag(args, seen, "--obc-lib", "obc-lib")
+        _cli_push_kv(args, seen, "--stdlib-mode", "stdlib-mode", opts["stdlib-mode"])
+        _cli_push_kv(args, seen, "--stdlib-obc", "stdlib-obc", opts["stdlib-obc"])
+        _cli_push_multi(args, seen, "--link-obc", "link-obc", opts["link-obc"])
     } else {
         if cmd_name == "emit-c" {
             // Alias for: build --backend c --emit-c
@@ -614,6 +618,10 @@ fn compiler_main() {
     var deterministic = false
     var emit_manifest = false
     var do_typecheck = false
+    var obc_lib = false
+    var stdlib_mode = "source"
+    var stdlib_obc = ""
+    var link_obc = []
     // Rolling mode: default native builds to embed debug info so panics produce readable stack traces.
     // Users can still disable by explicitly setting OREN_NATIVE_NO_DEBUG=1 (kept as an env knob so we
     // don't need to introduce a new CLI flag yet).
@@ -691,6 +699,37 @@ fn compiler_main() {
                                         do_typecheck = true
                                         i = i + 1
                                     } else {
+                                        if args[i] == "--obc-lib" {
+                                            obc_lib = true
+                                            i = i + 1
+                                        } else {
+                                            if args[i] == "--stdlib-mode" {
+                                                if i + 1 >= argc {
+                                                    emit_diag("compile", 2, "Missing value for --stdlib-mode")
+                                                    print("Missing value for --stdlib-mode")
+                                                    oren_exit(2)
+                                                }
+                                                stdlib_mode = args[i + 1]
+                                                i = i + 2
+                                            } else {
+                                                if args[i] == "--stdlib-obc" {
+                                                    if i + 1 >= argc {
+                                                        emit_diag("compile", 2, "Missing value for --stdlib-obc")
+                                                        print("Missing value for --stdlib-obc")
+                                                        oren_exit(2)
+                                                    }
+                                                    stdlib_obc = args[i + 1]
+                                                    i = i + 2
+                                                } else {
+                                                    if args[i] == "--link-obc" {
+                                                        if i + 1 >= argc {
+                                                            emit_diag("compile", 2, "Missing value for --link-obc")
+                                                            print("Missing value for --link-obc")
+                                                            oren_exit(2)
+                                                        }
+                                                        oren_list_push(link_obc, args[i + 1])
+                                                        i = i + 2
+                                                    } else {
                                         if args[i] == "--link" || args[i] == "-l" {
                                             if i + 1 >= argc {
                                                 emit_diag("compile", 2, "Missing value for --link")
@@ -748,8 +787,8 @@ fn compiler_main() {
                                                         }
                                                         out_path = args[i + 1]
                                                         i = i + 2
-                                                    } else {
-                                                        if args[i] == "--codesign" {
+                                                        } else {
+                                                            if args[i] == "--codesign" {
                                                             if i + 1 >= argc {
                                                                 emit_diag("compile", 2, "Missing value for --codesign")
                                                                 print("Missing value for --codesign")
@@ -786,21 +825,25 @@ fn compiler_main() {
                                                                             emit_diag("compile", 2, "Unknown arg: " + args[i])
                                                                             print("Unknown arg: " + args[i])
                                                                             oren_exit(2)
-                                                                            }
-                                        }
-                                    }
-                                }
-                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
+                                        }
+                                    }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
                                 }
                             }
                                 }
@@ -869,9 +912,13 @@ fn compiler_main() {
     }
 
     if backend == "bytecode" {
-        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck})
+        var allow_undef = false
+        if stdlib_mode == "obc" { allow_undef = true }
+        if oren_list_len(link_obc) > 0 { allow_undef = true }
 
-        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc)
+        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode})
+
+        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
         if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
             var first_err = ctx["errors"][0]
             emit_diag("codegen", 1, first_err)
@@ -907,12 +954,113 @@ fn compiler_main() {
         }
         ctx["meta_bytes"] = meta_bytes
 
-        var out_bytes = codegen_bytecode.bytecode_emit_program(out_path, ctx)
+        // Optional OBX (exports/relocs) for `.obc` module linking.
+        if allow_undef || obc_lib {
+            var exports = {}
+            if obc_lib {
+                for nm in ctx["functions"] {
+                    if nm != nil && nm != "" && nm != "main" && nm != "__top_level__" {
+                        exports[nm] = ctx["functions"][nm]
+                    }
+                }
+            }
+            ctx["obx_bytes"] = obc_link.obx_encode(path, exports, ctx["relocs"])
+        }
+
+        // Stdlib/extra library linking (rolling):
+        // - compile the main program with unresolved fixups enabled
+        // - link OBX-enabled libraries into a final, self-contained `.obc`
+        var need_link = false
+        if stdlib_mode == "obc" { need_link = true }
+        if oren_list_len(link_obc) > 0 { need_link = true }
+        if need_link {
+            var libs = []
+            if stdlib_mode == "obc" {
+                if stdlib_obc == "" {
+                    var env_std_obc = oren_env("OREN_STDLIB_OBC")
+                    if env_std_obc != nil { stdlib_obc = env_std_obc }
+                }
+                if stdlib_obc == "" {
+                    emit_diag("compile", 2, "Missing stdlib bundle: set --stdlib-obc or env OREN_STDLIB_OBC")
+                    print("Missing stdlib bundle: set --stdlib-obc or env OREN_STDLIB_OBC")
+                    oren_exit(2)
+                }
+                oren_list_push(libs, stdlib_obc)
+            }
+            var li = 0
+            while li < oren_list_len(link_obc) {
+                oren_list_push(libs, link_obc[li])
+                li = li + 1
+            }
+
+            var parsed = []
+            li = 0
+            while li < oren_list_len(libs) {
+                var p = obc_link.obc_read_file(libs[li])
+                if p["error"] != nil {
+                    emit_diag("compile", 2, "Failed to read/link obc: " + libs[li] + " (" + p["error"] + ")")
+                    print("Failed to read/link obc: " + libs[li])
+                    print(p["error"])
+                    oren_exit(2)
+                }
+                if p["obx"] == nil || p["obx"]["exports"] == nil {
+                    emit_diag("compile", 2, "OBC missing OBX exports: " + libs[li] + " (build it with --obc-lib)")
+                    print("OBC missing OBX exports: " + libs[li] + " (build it with --obc-lib)")
+                    oren_exit(2)
+                }
+                oren_list_push(parsed, p)
+                li = li + 1
+            }
+
+            // Build an in-memory OBC object from the just-compiled ctx.
+            var consts2 = []
+            var ci = 0
+            while ci < oren_list_len(ctx["constants"]) {
+                oren_list_push(consts2, ctx["constants"][ci])
+                ci = ci + 1
+            }
+            if ctx["meta_bytes"] != nil && oren_list_len(ctx["meta_bytes"]) > 0 {
+                oren_list_push(consts2, {"type": "Bytes", "value": ctx["meta_bytes"]})
+            }
+            if ctx["obx_bytes"] != nil && oren_list_len(ctx["obx_bytes"]) > 0 {
+                oren_list_push(consts2, {"type": "Bytes", "value": ctx["obx_bytes"]})
+            }
+            var main_obx = {"module": path, "exports": {}, "relocs": ctx["relocs"]}
+            var main_obc = {"constants": consts2, "code": ctx["code"], "obx": main_obx, "global_count": ctx["global_count"]}
+            oren_list_push(parsed, main_obc)
+
+            var linked = obc_link.obc_link(parsed)
+            if linked["error"] != nil {
+                emit_diag("compile", 2, "OBC link failed: " + linked["error"])
+                print("OBC link failed: " + linked["error"])
+                oren_exit(2)
+            }
+            var wr = obc_link.obc_write_file(out_path, linked)
+            if oren_is_err(wr["write"]) {
+                var emsgW = "Failed to write bytecode: " + out_path
+                var msgW = oren_err_msg(wr["write"])
+                if msgW != nil { emsgW = emsgW + " (" + msgW + ")" }
+                emit_diag("compile", 2, emsgW)
+                print(emsgW)
+                oren_exit(2)
+            }
+            var out_bytes = wr["bytes"]
+            print("Bytecode emitted: " + out_path)
+            if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
+            if emit_manifest {
+                var h = _sha256_hex(out_bytes)
+                _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic, oren_list_len(out_bytes))
+            }
+            return nil
+        }
+
+        // Default: no linking required, emit directly.
+        var out_bytes2 = codegen_bytecode.bytecode_emit_program(out_path, ctx)
         print("Bytecode emitted: " + out_path)
-        if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
+        if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes2) }
         if emit_manifest {
-            var h = _sha256_hex(out_bytes)
-            _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic, oren_list_len(out_bytes))
+            var h2 = _sha256_hex(out_bytes2)
+            _write_artifact_manifest("bytecode", out_path, h2, target, arch, deterministic, oren_list_len(out_bytes2))
         }
         return nil
     }

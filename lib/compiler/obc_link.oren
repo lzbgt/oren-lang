@@ -1,0 +1,598 @@
+import codegen_bytecode "codegen_bytecode.oren"
+
+// OBC linker (rolling)
+//
+// Purpose:
+// - Support precompiled bytecode libraries (e.g. stdlib as a `.obc` bundle) so
+//   AVM can compile user source without needing stdlib sources at runtime.
+//
+// Design:
+// - We keep `.obc` execution semantics unchanged: exports/relocs are carried in
+//   an unused BYTES constant ("OBX" metadata) and are ignored by the VM.
+// - A linker merges multiple `.obc` files into a single self-contained `.obc`,
+//   patching const/global indices and absolute code addresses.
+
+// OBX payload format (binary, little-endian), stored inside an unused BYTES constant:
+//
+//   prefix: ASCII "OREN_OBX\n1\n"
+//   u16 module_name_len, module_name bytes (UTF-8)
+//   u16 export_count
+//     repeated export_count:
+//       u16 name_len, name bytes (UTF-8)
+//       u32 addr (code offset within this module's code section)
+//   u16 reloc_count
+//     repeated reloc_count:
+//       u16 name_len, name bytes (UTF-8)
+//       u32 pos (byte offset into code where a u32 address must be patched)
+//       u8  kind (0=CALL32 target, 1=PUSH_FUNC32 target)
+//
+// Notes:
+// - `addr` and `pos` are always module-local, and are rebased by the linker.
+// - A library `.obc` intended for linking should include exports (via `--obc-lib`).
+// - A partially linked `.obc` intended to be later linked should include relocs
+//   (via `allow_undef` in the bytecode compiler).
+
+fn _u8_at(bs, pos) { return bs[pos] & 255 }
+
+fn _u16_le_at(bs, pos) {
+    var b0 = _u8_at(bs, pos + 0)
+    var b1 = _u8_at(bs, pos + 1)
+    return (b0 & 255) | ((b1 & 255) << 8)
+}
+
+fn _u32_le_at(bs, pos) {
+    var b0 = _u8_at(bs, pos + 0)
+    var b1 = _u8_at(bs, pos + 1)
+    var b2 = _u8_at(bs, pos + 2)
+    var b3 = _u8_at(bs, pos + 3)
+    return (b0 & 255) | ((b1 & 255) << 8) | ((b2 & 255) << 16) | ((b3 & 255) << 24)
+}
+
+fn _u64_le_at(bs, pos) {
+    // rolling: u64 is represented as int (fits in signed 64-bit)
+    var lo = _u32_le_at(bs, pos + 0)
+    var hi = _u32_le_at(bs, pos + 4)
+    // combine with unsigned semantics
+    if hi < 0 { hi = hi + 4294967296 }
+    if lo < 0 { lo = lo + 4294967296 }
+    return lo + hi * 4294967296
+}
+
+fn _push_u16_le(out, v) {
+    oren_list_push(out, v & 255)
+    oren_list_push(out, (v >> 8) & 255)
+    return nil
+}
+
+fn _push_u32_le(out, v) {
+    oren_list_push(out, v & 255)
+    oren_list_push(out, (v >> 8) & 255)
+    oren_list_push(out, (v >> 16) & 255)
+    oren_list_push(out, (v >> 24) & 255)
+    return nil
+}
+
+fn _push_u64_le(out, v) {
+    // Bit-exact for signed ints too (needed for float64 bit patterns).
+    var i = 0
+    while i < 8 {
+        oren_list_push(out, (v >> (i * 8)) & 255)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _bytes_starts_with(bs, prefix_str) {
+    if bs == nil { return false }
+    var p = oren_bytes_from_string(prefix_str)
+    if oren_list_len(bs) < oren_list_len(p) { return false }
+    var i = 0
+    while i < oren_list_len(p) {
+        if _u8_at(bs, i) != (p[i] & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _decode_string_u16(bs, pos) {
+    var len = _u16_le_at(bs, pos)
+    var start = pos + 2
+    var out = []
+    var i = 0
+    while i < len {
+        oren_list_push(out, _u8_at(bs, start + i))
+        i = i + 1
+    }
+    return {"value": oren_string_from_bytes(out), "next": start + len}
+}
+
+fn _encode_string_u16(out, s) {
+    if s == nil { s = "" }
+    var b = oren_bytes_from_string(s)
+    _push_u16_le(out, oren_list_len(b))
+    var i = 0
+    while i < oren_list_len(b) {
+        oren_list_push(out, b[i] & 255)
+        i = i + 1
+    }
+    return nil
+}
+
+fn obx_encode(module_name, exports, relocs) {
+    if module_name == nil { module_name = "" }
+    if exports == nil { exports = {} }
+    if relocs == nil { relocs = [] }
+
+    var out = []
+    // "OREN_OBX\n1\n"
+    var hdr = oren_bytes_from_string("OREN_OBX\n1\n")
+    var i = 0
+    while i < oren_list_len(hdr) {
+        oren_list_push(out, hdr[i] & 255)
+        i = i + 1
+    }
+
+    _encode_string_u16(out, module_name)
+
+    // Exports: deterministic order (map iteration is deterministic today, but sort keys anyway).
+    var keys = []
+    for k in exports {
+        oren_list_push(keys, k)
+    }
+    keys = _sort_strings(keys)
+
+    _push_u16_le(out, oren_list_len(keys))
+    var ki = 0
+    while ki < oren_list_len(keys) {
+        var name = keys[ki]
+        _encode_string_u16(out, name)
+        var addr = exports[name]
+        if addr == nil { addr = 0 }
+        _push_u32_le(out, addr)
+        ki = ki + 1
+    }
+
+    _push_u16_le(out, oren_list_len(relocs))
+    var ri = 0
+    while ri < oren_list_len(relocs) {
+        var r = relocs[ri]
+        var rname = r["name"]
+        var rpos = r["pos"]
+        var rkind = r["kind"]
+        if rname == nil { rname = "" }
+        if rpos == nil { rpos = 0 }
+        if rkind == nil { rkind = 0 }
+        _encode_string_u16(out, rname)
+        _push_u32_le(out, rpos)
+        oren_list_push(out, rkind & 255)
+        ri = ri + 1
+    }
+
+    return out
+}
+
+fn obx_decode(obx_bytes) {
+    if !_bytes_starts_with(obx_bytes, "OREN_OBX\n1\n") { return nil }
+    var pos = oren_list_len(oren_bytes_from_string("OREN_OBX\n1\n"))
+
+    var m = _decode_string_u16(obx_bytes, pos)
+    var module_name = m["value"]
+    pos = m["next"]
+
+    var exports = {}
+    var n_exports = _u16_le_at(obx_bytes, pos)
+    pos = pos + 2
+    var i = 0
+    while i < n_exports {
+        var dn = _decode_string_u16(obx_bytes, pos)
+        var name = dn["value"]
+        pos = dn["next"]
+        var addr = _u32_le_at(obx_bytes, pos)
+        pos = pos + 4
+        exports[name] = addr
+        i = i + 1
+    }
+
+    var relocs = []
+    var n_relocs = _u16_le_at(obx_bytes, pos)
+    pos = pos + 2
+    var j = 0
+    while j < n_relocs {
+        var dn2 = _decode_string_u16(obx_bytes, pos)
+        var rname = dn2["value"]
+        pos = dn2["next"]
+        var rpos = _u32_le_at(obx_bytes, pos)
+        pos = pos + 4
+        var kind = _u8_at(obx_bytes, pos)
+        pos = pos + 1
+        oren_list_push(relocs, {"name": rname, "pos": rpos, "kind": kind})
+        j = j + 1
+    }
+
+    return {"module": module_name, "exports": exports, "relocs": relocs}
+}
+
+fn _sort_strings(xs) {
+    // Insertion sort (small lists expected).
+    if xs == nil { return [] }
+    var i = 1
+    while i < oren_list_len(xs) {
+        var key = xs[i]
+        var j = i - 1
+        while j >= 0 && xs[j] > key {
+            xs[j + 1] = xs[j]
+            j = j - 1
+        }
+        xs[j + 1] = key
+        i = i + 1
+    }
+    return xs
+}
+
+fn _emit_constant(out, c) {
+    if c["type"] == "Nil" {
+        oren_list_push(out, 0)
+        return nil
+    }
+    if c["type"] == "Integer" {
+        oren_list_push(out, 1)
+        _push_u64_le(out, c["value"])
+        return nil
+    }
+    if c["type"] == "Bool" {
+        oren_list_push(out, 2)
+        var b = c["value"]
+        if b != 0 { b = 1 }
+        oren_list_push(out, b & 255)
+        return nil
+    }
+    if c["type"] == "Float" {
+        oren_list_push(out, 3)
+        _push_u64_le(out, c["value"])
+        return nil
+    }
+    if c["type"] == "String" {
+        oren_list_push(out, 4)
+        var s_bytes = oren_bytes_from_string(c["value"])
+        var len = oren_list_len(s_bytes)
+        _push_u16_le(out, len)
+        var i = 0
+        while i < len {
+            oren_list_push(out, s_bytes[i] & 255)
+            i = i + 1
+        }
+        return nil
+    }
+    if c["type"] == "Bytes" {
+        oren_list_push(out, 8)
+        var b = c["value"]
+        var blen = 0
+        if b != nil { blen = oren_list_len(b) }
+        _push_u32_le(out, blen)
+        var i = 0
+        while i < blen {
+            oren_list_push(out, b[i] & 255)
+            i = i + 1
+        }
+        return nil
+    }
+    // Unknown constant: encode as NIL (rolling best-effort).
+    oren_list_push(out, 0)
+    return nil
+}
+
+fn obc_encode_bytes(obc) {
+    var bytes = []
+    // Magic: 0x0ECD (CD 0E)
+    oren_list_push(bytes, 205)
+    oren_list_push(bytes, 14)
+
+    var consts = obc["constants"]
+    if consts == nil { consts = [] }
+    var n_consts = oren_list_len(consts)
+    _push_u16_le(bytes, n_consts)
+
+    var i = 0
+    while i < n_consts {
+        _emit_constant(bytes, consts[i])
+        i = i + 1
+    }
+
+    var code = obc["code"]
+    if code == nil { code = [] }
+    i = 0
+    while i < oren_list_len(code) {
+        oren_list_push(bytes, code[i] & 255)
+        i = i + 1
+    }
+    return bytes
+}
+
+fn obc_write_file(out_path, obc) {
+    var bs = obc_encode_bytes(obc)
+    var w = oren_write_bytes(out_path, bs)
+    return {"bytes": bs, "write": w}
+}
+
+fn obc_parse_bytes(bs) {
+    if bs == nil || oren_list_len(bs) < 4 { return {"error": "obc too short"} }
+    if _u8_at(bs, 0) != 205 || _u8_at(bs, 1) != 14 { return {"error": "bad obc magic"} }
+
+    var pos = 2
+    var n_consts = _u16_le_at(bs, pos)
+    pos = pos + 2
+    var consts = []
+    var obx = nil
+
+    var i = 0
+    while i < n_consts {
+        if pos >= oren_list_len(bs) { return {"error": "truncated constants"} }
+        var tag = _u8_at(bs, pos)
+        pos = pos + 1
+        if tag == 0 {
+            oren_list_push(consts, {"type": "Nil"})
+        } else {
+            if tag == 1 {
+                var v = _u64_le_at(bs, pos)
+                pos = pos + 8
+                oren_list_push(consts, {"type": "Integer", "value": v})
+            } else {
+                if tag == 2 {
+                    var b = _u8_at(bs, pos)
+                    pos = pos + 1
+                    oren_list_push(consts, {"type": "Bool", "value": b})
+                } else {
+                    if tag == 3 {
+                        var bits = _u64_le_at(bs, pos)
+                        pos = pos + 8
+                        oren_list_push(consts, {"type": "Float", "value": bits})
+                    } else {
+                        if tag == 4 {
+                            var sl = _u16_le_at(bs, pos)
+                            pos = pos + 2
+                            var sb = []
+                            var j = 0
+                            while j < sl {
+                                oren_list_push(sb, _u8_at(bs, pos + j))
+                                j = j + 1
+                            }
+                            pos = pos + sl
+                            oren_list_push(consts, {"type": "String", "value": oren_string_from_bytes(sb)})
+                        } else {
+                            if tag == 8 {
+                                var bl = _u32_le_at(bs, pos)
+                                pos = pos + 4
+                                var bb = []
+                                var j2 = 0
+                                while j2 < bl {
+                                    oren_list_push(bb, _u8_at(bs, pos + j2))
+                                    j2 = j2 + 1
+                                }
+                                pos = pos + bl
+                                // detect OBX payload
+                                var d = obx_decode(bb)
+                                if d != nil { obx = d }
+                                oren_list_push(consts, {"type": "Bytes", "value": bb})
+                            } else {
+                                return {"error": "unknown const tag: " + oren_int_to_string(tag)}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    var code = []
+    while pos < oren_list_len(bs) {
+        oren_list_push(code, _u8_at(bs, pos))
+        pos = pos + 1
+    }
+
+    var g = obc_global_count(code)
+    return {"constants": consts, "code": code, "obx": obx, "global_count": g}
+}
+
+fn obc_read_file(path) {
+    var bs = oren_read_bytes(path)
+    if oren_is_err(bs) { return {"error": "read failed: " + path, "err": bs} }
+    return obc_parse_bytes(bs)
+}
+
+fn obc_global_count(code) {
+    // MAX_GLOBALS is small; compute the max index used by LOAD/STORE_GLOBAL.
+    if code == nil { return 0 }
+    var i = 0
+    var max_idx = -1
+    while i < oren_list_len(code) {
+        var op = code[i] & 255
+        if op == codegen_bytecode.AVM_LOAD_GLOBAL || op == codegen_bytecode.AVM_STORE_GLOBAL {
+            if i + 2 >= oren_list_len(code) { break }
+            var idx = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
+            if idx > max_idx { max_idx = idx }
+            i = i + 3
+            continue
+        }
+        i = i + obc_opcode_len(code, i)
+    }
+    if max_idx < 0 { return 0 }
+    return max_idx + 1
+}
+
+fn obc_opcode_len(code, i) {
+    // Returns the total byte length of the instruction starting at `i`.
+    var op = code[i] & 255
+    if op == codegen_bytecode.AVM_PUSH_CONST { return 3 }
+    if op == codegen_bytecode.AVM_LOAD_LOCAL { return 2 }
+    if op == codegen_bytecode.AVM_STORE_LOCAL { return 2 }
+    if op == codegen_bytecode.AVM_LOAD_LOCAL16 { return 3 }
+    if op == codegen_bytecode.AVM_STORE_LOCAL16 { return 3 }
+    if op == codegen_bytecode.AVM_LOAD_GLOBAL { return 3 }
+    if op == codegen_bytecode.AVM_STORE_GLOBAL { return 3 }
+    if op == codegen_bytecode.AVM_JMP { return 3 }
+    if op == codegen_bytecode.AVM_JMP_IF { return 3 }
+    if op == codegen_bytecode.AVM_JMP32 { return 5 }
+    if op == codegen_bytecode.AVM_JMP_IF32 { return 5 }
+    if op == codegen_bytecode.AVM_CALL { return 4 }
+    if op == codegen_bytecode.AVM_CALL32 { return 6 }
+    if op == codegen_bytecode.AVM_CALL_NATIVE2 { return 5 }
+    if op == codegen_bytecode.AVM_PUSH_FUNC { return 3 }
+    if op == codegen_bytecode.AVM_PUSH_FUNC32 { return 5 }
+    if op == codegen_bytecode.AVM_CALL_INDIRECT { return 2 }
+    if op == codegen_bytecode.AVM_CALL_INDIRECT_SPREAD { return 2 }
+    if op == codegen_bytecode.AVM_MAKE_CLOSURE { return 2 }
+    if op == codegen_bytecode.AVM_LOAD_ENV { return 2 }
+    if op == codegen_bytecode.AVM_NEW_LIST { return 3 }
+    if op == codegen_bytecode.AVM_NEW_MAP { return 3 }
+    // most other opcodes are 1 byte
+    return 1
+}
+
+fn obc_patch_code_in_place(code, const_base, global_base, code_base) {
+    if code == nil { return nil }
+    var i = 0
+    while i < oren_list_len(code) {
+        var op = code[i] & 255
+        if op == codegen_bytecode.AVM_PUSH_CONST {
+            var idx = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
+            var n = idx + const_base
+            code[i + 1] = n & 255
+            code[i + 2] = (n >> 8) & 255
+            i = i + 3
+            continue
+        }
+        if op == codegen_bytecode.AVM_LOAD_GLOBAL || op == codegen_bytecode.AVM_STORE_GLOBAL {
+            var gidx = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
+            var ng = gidx + global_base
+            code[i + 1] = ng & 255
+            code[i + 2] = (ng >> 8) & 255
+            i = i + 3
+            continue
+        }
+        if op == codegen_bytecode.AVM_CALL32 || op == codegen_bytecode.AVM_PUSH_FUNC32 {
+            var a = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8) | ((code[i + 3] & 255) << 16) | ((code[i + 4] & 255) << 24)
+            var na = a + code_base
+            code[i + 1] = na & 255
+            code[i + 2] = (na >> 8) & 255
+            code[i + 3] = (na >> 16) & 255
+            code[i + 4] = (na >> 24) & 255
+            i = i + obc_opcode_len(code, i)
+            continue
+        }
+        if op == codegen_bytecode.AVM_CALL || op == codegen_bytecode.AVM_PUSH_FUNC {
+            var a16 = (code[i + 1] & 255) | ((code[i + 2] & 255) << 8)
+            var na16 = a16 + code_base
+            code[i + 1] = na16 & 255
+            code[i + 2] = (na16 >> 8) & 255
+            i = i + obc_opcode_len(code, i)
+            continue
+        }
+        i = i + obc_opcode_len(code, i)
+    }
+    return nil
+}
+
+fn obc_patch_u32_at(code, pos, v) {
+    if v < 0 { v = v + 4294967296 }
+    code[pos + 0] = v & 255
+    code[pos + 1] = (v >> 8) & 255
+    code[pos + 2] = (v >> 16) & 255
+    code[pos + 3] = (v >> 24) & 255
+    return nil
+}
+
+fn obc_link(obcs) {
+    // Link multiple parsed OBC objects into one:
+    // - merge constants
+    // - rebase and patch code (const/global/code addresses)
+    // - collect exports and patch relocs against the merged export map
+    if obcs == nil { obcs = [] }
+    var out_consts = []
+    var out_code = []
+    var export_map = {}
+    var all_relocs = []
+    var const_base = 0
+    var global_base = 0
+    var code_base = 0
+
+    var mi = 0
+    while mi < oren_list_len(obcs) {
+        var m = obcs[mi]
+        if m == nil { mi = mi + 1; continue }
+        var consts = m["constants"]
+        var code = m["code"]
+        if consts == nil { consts = [] }
+        if code == nil { code = [] }
+
+        // Merge constants first.
+        var ci = 0
+        while ci < oren_list_len(consts) {
+            oren_list_push(out_consts, consts[ci])
+            ci = ci + 1
+        }
+
+        // Patch code in place and append.
+        obc_patch_code_in_place(code, const_base, global_base, code_base)
+        var k = 0
+        while k < oren_list_len(code) {
+            oren_list_push(out_code, code[k] & 255)
+            k = k + 1
+        }
+
+        // Collect exports and relocs (if present).
+        var obx = m["obx"]
+        if obx != nil {
+            var ex = obx["exports"]
+            if ex != nil {
+                for name in ex {
+                    var addr = ex[name]
+                    if addr == nil { addr = 0 }
+                    var final = addr + code_base
+                    if export_map[name] != nil {
+                        return {"error": "duplicate export: " + name}
+                    }
+                    export_map[name] = final
+                }
+            }
+            var rs = obx["relocs"]
+            if rs != nil {
+                var ri = 0
+                while ri < oren_list_len(rs) {
+                    var r = rs[ri]
+                    var nm = r["name"]
+                    var pos = r["pos"]
+                    var kind = r["kind"]
+                    if nm == nil { nm = "" }
+                    if pos == nil { pos = 0 }
+                    if kind == nil { kind = 0 }
+                    oren_list_push(all_relocs, {"name": nm, "pos": pos + code_base, "kind": kind})
+                    ri = ri + 1
+                }
+            }
+        }
+
+        const_base = const_base + oren_list_len(consts)
+        var gc = m["global_count"]
+        if gc == nil { gc = 0 }
+        global_base = global_base + gc
+        code_base = code_base + oren_list_len(code)
+        mi = mi + 1
+    }
+
+    // Patch relocs.
+    var ri2 = 0
+    while ri2 < oren_list_len(all_relocs) {
+        var r2 = all_relocs[ri2]
+        var name2 = r2["name"]
+        var pos2 = r2["pos"]
+        var addr2 = export_map[name2]
+        if addr2 == nil {
+            return {"error": "undefined symbol: " + name2}
+        }
+        obc_patch_u32_at(out_code, pos2, addr2)
+        ri2 = ri2 + 1
+    }
+
+    return {"constants": out_consts, "code": out_code, "exports": export_map}
+}

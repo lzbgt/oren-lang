@@ -41,6 +41,11 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - payload prefix: ASCII `"OREN_META\n1\n"`
   - remainder: UTF-8 JSON metadata (same structure as native `--metadata` output)
   - this constant is intentionally not referenced by bytecode, so it does not affect execution semantics.
+- Rolling convention: the compiler may also append an **unused** `BYTES` constant containing “OBX” module metadata:
+  - payload prefix: ASCII `"OREN_OBX\n1\n"`
+  - payload is a binary table of exports + relocations used by a linker
+  - this constant is also intentionally not referenced by bytecode
+  - see `docs/OBC_MODULE_LINKING.md`
 - `FLOAT` constants are wired end-to-end (rolling): the bytecode backend emits float64 bit-pattern constants and the VM decodes them as `AVM_VAL_FLOAT`.
 
 ## Instruction Set (Version 0.1)
