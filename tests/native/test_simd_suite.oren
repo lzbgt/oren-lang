@@ -869,6 +869,89 @@ fn run_gemm_f32_4x4_ptr_intrinsic_tail_fractional() {
     return 0
 }
 
+fn run_gemm_f32_4x4_ptr_intrinsic_large_n() {
+    // Large-n determinism check for `simd_gemm_f32_4x4_ptr` (native backend).
+    // Exercises long accumulation paths + tail handling.
+    var n = 1025 // intentionally not divisible by 4
+    var a = oren_f32_buf_new(4 * n)
+    var b = oren_f32_buf_new(4 * n)
+    var out = oren_f64_buf_new(16)
+    if oren_is_err(a) { return fail(482, "alloc a (f32 gemm_4x4 intrinsic large)") }
+    if oren_is_err(b) { return fail(483, "alloc b (f32 gemm_4x4 intrinsic large)") }
+    if oren_is_err(out) { return fail(484, "alloc out (f32 gemm_4x4 intrinsic large)") }
+
+    var i = 0
+    while i < n {
+        // Keep magnitudes modest while preserving non-power-of-two fractions.
+        var a0 = (f64(i % 251) - 123.0) * 0.0078125 + 0.1
+        var a1 = (f64((i * 3) % 239) - 119.0) * 0.00390625 + 0.2
+        var a2 = (f64((i * 5) % 233) - 116.0) * 0.001953125 + 0.3
+        var a3 = (f64((i * 7) % 229) - 114.0) * 0.0009765625 + 0.4
+
+        var b0 = (f64((i * 11) % 227) - 113.0) * 0.0078125 + 0.125
+        var b1 = (f64((i * 13) % 223) - 111.0) * 0.00390625 + 0.25
+        var b2 = (f64((i * 17) % 221) - 110.0) * 0.001953125 + 0.5
+        var b3 = (f64((i * 19) % 211) - 105.0) * 0.0009765625 + 0.75
+
+        oren_buf_store_f32(a, 0 * n + i, a0)
+        oren_buf_store_f32(a, 1 * n + i, a1)
+        oren_buf_store_f32(a, 2 * n + i, a2)
+        oren_buf_store_f32(a, 3 * n + i, a3)
+
+        oren_buf_store_f32(b, 0 * n + i, b0)
+        oren_buf_store_f32(b, 1 * n + i, b1)
+        oren_buf_store_f32(b, 2 * n + i, b2)
+        oren_buf_store_f32(b, 3 * n + i, b3)
+        i = i + 1
+    }
+
+    // Reference (scalar, strict k-order).
+    var ref = oren_f64_buf_new(16)
+    if oren_is_err(ref) { return fail(485, "alloc ref (f32 gemm_4x4 intrinsic large)") }
+    var r = 0
+    while r < 4 {
+        var c = 0
+        while c < 4 {
+            var s = 0.0
+            i = 0
+            while i < n {
+                var av = oren_buf_load_f32(a, r * n + i)
+                var bv = oren_buf_load_f32(b, c * n + i)
+                s = s + av * bv
+                i = i + 1
+            }
+            oren_buf_store_f64(ref, r * 4 + c, s)
+            c = c + 1
+        }
+        r = r + 1
+    }
+
+    var outp = native_buf_data_ptr(out)
+    var a0p = native_buf_data_ptr(a) + 0 * n * 4
+    var a1p = native_buf_data_ptr(a) + 1 * n * 4
+    var a2p = native_buf_data_ptr(a) + 2 * n * 4
+    var a3p = native_buf_data_ptr(a) + 3 * n * 4
+    var b0p = native_buf_data_ptr(b) + 0 * n * 4
+    var b1p = native_buf_data_ptr(b) + 1 * n * 4
+    var b2p = native_buf_data_ptr(b) + 2 * n * 4
+    var b3p = native_buf_data_ptr(b) + 3 * n * 4
+    simd_gemm_f32_4x4_ptr(outp, a0p, a1p, a2p, a3p, b0p, b1p, b2p, b3p, n)
+
+    var idx = 0
+    while idx < 16 {
+        var ref_bits = f64_bits_at(ref, idx)
+        var got_bits = f64_bits_at(out, idx)
+        if ref_bits != got_bits {
+            print("GEMM_F32_4X4_INTR_LARGE_MISMATCH_IDX=" + oren_int_to_string(idx))
+            print("GEMM_F32_4X4_INTR_LARGE_REF_BITS=" + oren_int_to_string(ref_bits))
+            print("GEMM_F32_4X4_INTR_LARGE_GOT_BITS=" + oren_int_to_string(got_bits))
+            return fail(486, "gemm_f32_4x4 mismatch (f32 intrinsic large)")
+        }
+        idx = idx + 1
+    }
+    return 0
+}
+
 fn run_gemm_f64_4x4_microkernel() {
     // 4x4 GEMM microkernel boundary for f64: compute 16 dot products (4 rows x 4 cols) in one pass.
     //
@@ -1396,6 +1479,7 @@ fn main() {
     if run_dot_f64_4_microkernel() != 0 { return 1 }
     if run_gemm_f32_4x4_microkernel() != 0 { return 1 }
     if run_gemm_f32_4x4_ptr_intrinsic_tail_fractional() != 0 { return 1 }
+    if run_gemm_f32_4x4_ptr_intrinsic_large_n() != 0 { return 1 }
     if run_gemm_f64_4x4_microkernel() != 0 { return 1 }
     if run_gemm_i32_4x4_microkernel() != 0 { return 1 }
     if run_reduce_sum_f32() != 0 { return 1 }
