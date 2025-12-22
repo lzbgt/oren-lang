@@ -1,9 +1,11 @@
+import list "list.oren"
+
 fn starts_with(s, prefix) {
     if s == nil || prefix == nil { return false }
     var sb = oren_bytes_from_string(s)
     var pb = oren_bytes_from_string(prefix)
-    var sl = oren_list_len(sb)
-    var pl = oren_list_len(pb)
+    var sl = list.len(sb)
+    var pl = list.len(pb)
     if sl < pl { return false }
     var i = 0
     while i < pl {
@@ -17,8 +19,8 @@ fn ends_with(s, suffix) {
     if s == nil || suffix == nil { return false }
     var sb = oren_bytes_from_string(s)
     var pb = oren_bytes_from_string(suffix)
-    var sl = oren_list_len(sb)
-    var pl = oren_list_len(pb)
+    var sl = list.len(sb)
+    var pl = list.len(pb)
     if sl < pl { return false }
     var i = 0
     while i < pl {
@@ -37,8 +39,8 @@ fn index_of(s, sub) {
     if s == nil || sub == nil { return -1 }
     var sb = oren_bytes_from_string(s)
     var pb = oren_bytes_from_string(sub)
-    var sl = oren_list_len(sb)
-    var pl = oren_list_len(pb)
+    var sl = list.len(sb)
+    var pl = list.len(pb)
     if pl == 0 { return 0 }
     if sl < pl { return -1 }
     var i = 0
@@ -59,8 +61,8 @@ fn streq(a, b) {
     if a == nil || b == nil { return false }
     var ab = oren_bytes_from_string(a)
     var bb = oren_bytes_from_string(b)
-    var al = oren_list_len(ab)
-    var bl = oren_list_len(bb)
+    var al = list.len(ab)
+    var bl = list.len(bb)
     if al != bl { return false }
     var i = 0
     while i < al {
@@ -75,7 +77,7 @@ fn trim(s) {
     // Cross-backend: avoid relying on `oren_string_char_at` representation differences.
     // Normalize by trimming based on byte codes from `oren_bytes_from_string`.
     var bs = oren_bytes_from_string(s)
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     var i = 0
     while i < n {
         var b = bs[i]
@@ -92,7 +94,7 @@ fn trim(s) {
     var out_bytes = []
     var k = i
     while k < j {
-        oren_list_push(out_bytes, bs[k])
+        list.push(out_bytes, bs[k])
         k = k + 1
     }
     return oren_string_from_bytes(out_bytes)

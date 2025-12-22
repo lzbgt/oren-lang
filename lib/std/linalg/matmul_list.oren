@@ -1,6 +1,7 @@
 // std/linalg matmul (list baseline) (rolling)
 
 import common "common.oren"
+import list "../list.oren"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 
@@ -8,10 +9,10 @@ fn matmul_f64(a, b, m, n, p) {
     if m < 0 || n < 0 || p < 0 {
         return _err_invalid_arg("matmul_f64: negative dims")
     }
-    if oren_list_len(a) != m * n {
+    if list.len(a) != m * n {
         return _err_invalid_arg("matmul_f64: A length mismatch")
     }
-    if oren_list_len(b) != n * p {
+    if list.len(b) != n * p {
         return _err_invalid_arg("matmul_f64: B length mismatch")
     }
 
@@ -26,7 +27,7 @@ fn matmul_f64(a, b, m, n, p) {
                 s = s + a[i * n + k] * b[k * p + j]
                 k = k + 1
             }
-            oren_list_push(out, s)
+            list.push(out, s)
             j = j + 1
         }
         i = i + 1
@@ -38,7 +39,7 @@ fn matmul_f32(a, b, m, n, p) {
     var out = matmul_f64(a, b, m, n, p)
     if oren_is_err(out) { return out }
     var i = 0
-    while i < oren_list_len(out) {
+    while i < list.len(out) {
         out[i] = f32(out[i])
         i = i + 1
     }

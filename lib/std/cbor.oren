@@ -22,6 +22,8 @@
 // - maps are encoded with canonical key ordering (RFC 8949 §4.2.1):
 //     sort keys by (byte length, then bytewise lexicographic)
 
+import list "list.oren"
+
 fn cnull() { return {"t": "null"} }
 fn cbool(b) { return {"t": "bool", "b": b} }
 fn cint(i) { return {"t": "int", "i": i} }
@@ -34,8 +36,8 @@ fn _streq(a, b) {
     if a == nil || b == nil { return false }
     var ab = oren_bytes_from_string(a)
     var bb = oren_bytes_from_string(b)
-    var al = oren_list_len(ab)
-    var bl = oren_list_len(bb)
+    var al = list.len(ab)
+    var bl = list.len(bb)
     if al != bl { return false }
     var i = 0
     while i < al {
@@ -53,7 +55,7 @@ fn _ok(v, pos) {
     return {"ok": 1, "v": v, "pos": pos}
 }
 
-fn _push_u8(out, b) { oren_list_push(out, b & 255) }
+fn _push_u8(out, b) { list.push(out, b & 255) }
 
 fn _push_u16be(out, n) {
     _push_u8(out, (n >> 8) & 255)
@@ -109,8 +111,8 @@ fn _string_bytes(s) { return oren_bytes_from_string(s) }
 
 fn _bytes_cmp(a, b) {
     // Compare two byte lists lexicographically.
-    var al = oren_list_len(a)
-    var bl = oren_list_len(b)
+    var al = list.len(a)
+    var bl = list.len(b)
     var i = 0
     var n = al
     if bl < n { n = bl }
@@ -130,8 +132,8 @@ fn _key_lt(a, b) {
     // Canonical map key ordering (RFC 8949 §4.2.1): length, then bytewise.
     var ab = _string_bytes(a)
     var bb = _string_bytes(b)
-    var al = oren_list_len(ab)
-    var bl = oren_list_len(bb)
+    var al = list.len(ab)
+    var bl = list.len(bb)
     if al < bl { return true }
     if al > bl { return false }
     return _bytes_cmp(ab, bb) < 0
@@ -140,7 +142,7 @@ fn _key_lt(a, b) {
 fn _sort_keys_canonical(keys) {
     // Insertion sort (small N typical; deterministic).
     var i = 1
-    while i < oren_list_len(keys) {
+    while i < list.len(keys) {
         var k = keys[i]
         var j = i - 1
         while j >= 0 && _key_lt(k, keys[j]) {
@@ -176,22 +178,22 @@ fn _encode_value(out, v) {
     }
     if _streq(t, "bytes") {
         var bs = v["bs"]
-        _emit_uint(out, 2, oren_list_len(bs)) // major 2 byte string
+        _emit_uint(out, 2, list.len(bs)) // major 2 byte string
         for b in bs { _push_u8(out, b) }
         return nil
     }
     if _streq(t, "string") {
         var s = v["s"]
         var sb = _string_bytes(s)
-        _emit_uint(out, 3, oren_list_len(sb)) // major 3 text string (utf-8 bytes)
+        _emit_uint(out, 3, list.len(sb)) // major 3 text string (utf-8 bytes)
         for b2 in sb { _push_u8(out, b2) }
         return nil
     }
     if _streq(t, "array") {
         var a = v["a"]
-        _emit_uint(out, 4, oren_list_len(a))
+        _emit_uint(out, 4, list.len(a))
         var i4 = 0
-        while i4 < oren_list_len(a) {
+        while i4 < list.len(a) {
             _encode_value(out, a[i4])
             i4 = i4 + 1
         }
@@ -202,12 +204,12 @@ fn _encode_value(out, v) {
         // Collect keys then sort canonically.
         var keys = []
         for k in m {
-            oren_list_push(keys, k)
+            list.push(keys, k)
         }
         _sort_keys_canonical(keys)
-        _emit_uint(out, 5, oren_list_len(keys))
+        _emit_uint(out, 5, list.len(keys))
         var i5 = 0
-        while i5 < oren_list_len(keys) {
+        while i5 < list.len(keys) {
             var k2 = keys[i5]
             _encode_value(out, cstring(k2))
             _encode_value(out, m[k2])
@@ -227,7 +229,7 @@ fn encode(v) {
 }
 
 fn _need(bs, pos, n) {
-    if pos + n > oren_list_len(bs) { return 0 }
+    if pos + n > list.len(bs) { return 0 }
     return 1
 }
 
@@ -272,7 +274,7 @@ fn _read_uint_arg(bs, pos, ai) {
 }
 
 fn _decode_value(bs, pos) {
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     if pos >= n { return _err("unexpected EOF", pos) }
     var b = bs[pos] & 255
     pos = pos + 1
@@ -305,7 +307,7 @@ fn _decode_value(bs, pos) {
         var out = []
         var i2 = 0
         while i2 < arg {
-            oren_list_push(out, bs[pos + i2] & 255)
+            list.push(out, bs[pos + i2] & 255)
             i2 = i2 + 1
         }
         return _ok(cbytes(out), pos + arg)
@@ -316,7 +318,7 @@ fn _decode_value(bs, pos) {
         var out2 = []
         var i3 = 0
         while i3 < arg {
-            oren_list_push(out2, bs[pos + i3] & 255)
+            list.push(out2, bs[pos + i3] & 255)
             i3 = i3 + 1
         }
         var s = oren_string_from_bytes(out2)
@@ -331,7 +333,7 @@ fn _decode_value(bs, pos) {
         while i4 < arg {
             var rv = _decode_value(bs, p2)
             if rv["ok"] != 1 { return rv }
-            oren_list_push(items, rv["v"])
+            list.push(items, rv["v"])
             p2 = rv["pos"]
             i4 = i4 + 1
         }
@@ -361,7 +363,7 @@ fn _decode_value(bs, pos) {
 fn decode(bs) {
     var r = _decode_value(bs, 0)
     if r["ok"] != 1 { return r }
-    if r["pos"] != oren_list_len(bs) {
+    if r["pos"] != list.len(bs) {
         return _err("trailing input", r["pos"])
     }
     return r
@@ -384,10 +386,10 @@ fn decode_next(bs, pos) {
 fn decode_sequence(bs) {
     var out = []
     var pos = 0
-    while pos < oren_list_len(bs) {
+    while pos < list.len(bs) {
         var r = _decode_value(bs, pos)
         if r["ok"] != 1 { return r }
-        oren_list_push(out, r["v"])
+        list.push(out, r["v"])
         pos = r["pos"]
     }
     return {"ok": 1, "v": out, "pos": pos}
@@ -414,7 +416,7 @@ fn encode_sequence_typed(items, encode_fn) {
     if items != nil {
         for it2 in items {
             var cv = encode_fn(it2)
-            oren_list_push(cvs, cv)
+            list.push(cvs, cv)
         }
     }
     return encode_sequence(cvs)
@@ -434,10 +436,10 @@ fn decode_next_typed(bs, pos, decode_fn) {
 fn decode_sequence_typed(bs, decode_fn) {
     var out = []
     var pos = 0
-    while pos < oren_list_len(bs) {
+    while pos < list.len(bs) {
         var r = decode_next_typed(bs, pos, decode_fn)
         if r["ok"] != 1 { return r }
-        oren_list_push(out, r["v"])
+        list.push(out, r["v"])
         pos = r["pos"]
     }
     return {"ok": 1, "v": out, "pos": pos}

@@ -2,6 +2,7 @@
 
 import buffer "../buffer.oren"
 import common "common.oren"
+import list "../list.oren"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 
@@ -428,7 +429,7 @@ fn _matmul_f32_buf_kernel(out: []f32, a: []f32, b: []f32, m, n, p) {
 
 fn matmul_f32_mat_view(a, b) {
     if a == nil || b == nil { return _err_invalid_arg("matmul_f32_mat_view: nil view") }
-    if oren_list_len(a) != 5 || oren_list_len(b) != 5 { return _err_invalid_arg("matmul_f32_mat_view: expects mat views") }
+    if list.len(a) != 5 || list.len(b) != 5 { return _err_invalid_arg("matmul_f32_mat_view: expects mat views") }
 
     var a_buf: []f32 = a[0]
     var b_buf: []f32 = b[0]

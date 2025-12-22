@@ -12,6 +12,8 @@
 //   {"t":"array","a":[JsonValue...]}
 //   {"t":"object","o":{ string_key: JsonValue, ... }}  // map iteration yields keys in sorted order
 
+import list "list.oren"
+
 fn jnull() { return {"t": "null"} }
 fn jbool(b) { return {"t": "bool", "b": b} }
 fn jint(i) { return {"t": "int", "i": i} }
@@ -27,8 +29,8 @@ fn _streq(a, b) {
     if a == nil || b == nil { return false }
     var ab = oren_bytes_from_string(a)
     var bb = oren_bytes_from_string(b)
-    var al = oren_list_len(ab)
-    var bl = oren_list_len(bb)
+    var al = list.len(ab)
+    var bl = list.len(bb)
     if al != bl { return false }
     var i = 0
     while i < al {
@@ -44,7 +46,7 @@ fn _skip_ws(bs, pos) {
     //   - line comments: // ... (to end of line)
     //   - block comments: /* ... */
     // Comments are only recognized outside strings.
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     var i = pos
     while i < n {
         // whitespace
@@ -97,7 +99,7 @@ fn _ok(v, pos) {
 
 fn _match_lit(bs, pos, lit_bytes) {
     var i = 0
-    while i < oren_list_len(lit_bytes) {
+    while i < list.len(lit_bytes) {
         if bs[pos + i] != lit_bytes[i] { return 0 }
         i = i + 1
     }
@@ -105,7 +107,7 @@ fn _match_lit(bs, pos, lit_bytes) {
 }
 
 fn _parse_string(bs, pos) {
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     if pos >= n { return _err("unexpected EOF", pos) }
     if bs[pos] != 34 { return _err("expected '\"'", pos) }
     pos = pos + 1
@@ -125,21 +127,21 @@ fn _parse_string(bs, pos) {
             pos = pos + 1
             if pos >= n { return _err("unexpected EOF in escape", pos) }
             var e = bs[pos]
-            if e == 34 { oren_list_push(out, 34) }
+            if e == 34 { list.push(out, 34) }
             else {
-                if e == 92 { oren_list_push(out, 92) }
+                if e == 92 { list.push(out, 92) }
                 else {
-                    if e == 47 { oren_list_push(out, 47) }
+                    if e == 47 { list.push(out, 47) }
                     else {
-                        if e == 98 { oren_list_push(out, 8) }    // \b
+                        if e == 98 { list.push(out, 8) }    // \b
                         else {
-                            if e == 102 { oren_list_push(out, 12) }  // \f
+                            if e == 102 { list.push(out, 12) }  // \f
                             else {
-                                if e == 110 { oren_list_push(out, 10) }  // \n
+                                if e == 110 { list.push(out, 10) }  // \n
                                 else {
-                                    if e == 114 { oren_list_push(out, 13) }  // \r
+                                    if e == 114 { list.push(out, 13) }  // \r
                                     else {
-                                        if e == 116 { oren_list_push(out, 9) }   // \t
+                                        if e == 116 { list.push(out, 9) }   // \t
                                         else {
                                             if e == 117 {
                                                 // \uXXXX not supported in rolling v0 (no unicode scalar model yet).
@@ -158,7 +160,7 @@ fn _parse_string(bs, pos) {
             pos = pos + 1
         } else {
             // raw byte (UTF-8 passthrough)
-            oren_list_push(out, ch)
+            list.push(out, ch)
             pos = pos + 1
         }
     }
@@ -166,7 +168,7 @@ fn _parse_string(bs, pos) {
 }
 
 fn _parse_int(bs, pos) {
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     if pos >= n { return _err("unexpected EOF", pos) }
 
     var neg = 0
@@ -191,7 +193,7 @@ fn _parse_int(bs, pos) {
 }
 
 fn _parse_array(bs, pos) {
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     if pos >= n { return _err("unexpected EOF", pos) }
     if bs[pos] != 91 { return _err("expected '['", pos) }
     pos = pos + 1
@@ -206,7 +208,7 @@ fn _parse_array(bs, pos) {
         pos = _skip_ws(bs, pos)
         var r = _parse_value(bs, pos)
         if r["ok"] != 1 { return r }
-        oren_list_push(items, r["v"])
+        list.push(items, r["v"])
         pos = _skip_ws(bs, r["pos"])
         if pos >= n { return _err("unexpected EOF in array", pos) }
         if bs[pos] == 44 {
@@ -223,7 +225,7 @@ fn _parse_array(bs, pos) {
 }
 
 fn _parse_object(bs, pos) {
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     if pos >= n { return _err("unexpected EOF", pos) }
     if bs[pos] != 123 { return _err("expected '{'", pos) }
     pos = pos + 1
@@ -263,7 +265,7 @@ fn _parse_object(bs, pos) {
 }
 
 fn _parse_value(bs, pos) {
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     pos = _skip_ws(bs, pos)
     if pos >= n { return _err("unexpected EOF", pos) }
     var b = bs[pos]
@@ -305,7 +307,7 @@ fn decode(s) {
     var r = _parse_value(bs, 0)
     if r["ok"] != 1 { return r }
     var pos = _skip_ws(bs, r["pos"])
-    if pos != oren_list_len(bs) {
+    if pos != list.len(bs) {
         return _err("trailing input", pos)
     }
     return r
@@ -315,25 +317,25 @@ fn _escape_string(s) {
     var bs = oren_bytes_from_string(s)
     var out = []
     var i = 0
-    while i < oren_list_len(bs) {
+    while i < list.len(bs) {
         var b = bs[i]
         if b == 34 { // "
-            oren_list_push(out, 92); oren_list_push(out, 34)
+            list.push(out, 92); list.push(out, 34)
         } else {
             if b == 92 { // \
-                oren_list_push(out, 92); oren_list_push(out, 92)
+                list.push(out, 92); list.push(out, 92)
             } else {
                 if b == 10 { // \n
-                    oren_list_push(out, 92); oren_list_push(out, 110)
+                    list.push(out, 92); list.push(out, 110)
                 } else {
                     if b == 13 { // \r
-                        oren_list_push(out, 92); oren_list_push(out, 114)
+                        list.push(out, 92); list.push(out, 114)
                     } else {
                         if b == 9 { // \t
-                            oren_list_push(out, 92); oren_list_push(out, 116)
+                            list.push(out, 92); list.push(out, 116)
                         } else {
                             // pass through raw byte (UTF-8)
-                            oren_list_push(out, b)
+                            list.push(out, b)
                         }
                     }
                 }
@@ -361,7 +363,7 @@ fn encode(jv) {
         var a = jv["a"]
         var out = "["
         var i = 0
-        while i < oren_list_len(a) {
+        while i < list.len(a) {
             if i > 0 { out = out + "," }
             out = out + encode(a[i])
             i = i + 1

@@ -9,6 +9,8 @@
 // - Oren does not have full generics yet, so this module provides structural
 //   "views" that rely on passing the right load/store function.
 
+import list "list.oren"
+
 fn _err_invalid(msg) { return oren_err(4, msg) }
 
 // Constructors (thin wrappers)
@@ -31,7 +33,7 @@ fn len(buf) { return oren_buf_len(buf) }
 // We use a fixed-position list instead of a map to avoid hash/key overhead in hot loops.
 // (Still portable across C/native/AVM because lists are core values.)
 
-fn _list_len_or_err(v) { return oren_list_len(v) }
+fn _list_len_or_err(v) { return list.len(v) }
 
 fn _slice_is_list(s) {
     if s == nil || oren_is_err(s) { return false }

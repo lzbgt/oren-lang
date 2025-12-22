@@ -1,6 +1,7 @@
 // std/linalg dot + views (rolling)
 
 import common "common.oren"
+import list "../list.oren"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 fn _vec2_len(a, b, ctx) { return common._vec2_len(a, b, ctx) }
@@ -60,7 +61,7 @@ fn reduce_sum_f64_buf(a: []f64) {
 
 fn _view_len(v) {
     if v == nil || oren_is_err(v) { return -1 }
-    var n = oren_list_len(v)
+    var n = list.len(v)
     if oren_is_err(n) { return -1 }
     return n
 }

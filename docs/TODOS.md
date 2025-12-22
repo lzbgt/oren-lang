@@ -4,15 +4,11 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 ### P0 (Now)
 
-1) **ARM64 instruction encoder audit** (S)
-    - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).
-    - Status: migrated native `adr_{data,code}` + Mach-O GOT stubs from ADR (±1MB) to ADRP+ADD (±4GB) and added `oretest` audits to enforce 2-slot reservation (compiler fixups + debug hook + Mach-O GOT stubs).
-    - Status: expanded golden coverage to include basic atomic encoders (LDAXR/STLXR/CLREX/LDADD/CAS/STRB) with clang-verified constants.
-    - Status: added clang-verified goldens for basic integer loads/stores (LDR/STR X, LDRB W).
-    - Status: included `tests/native/test_arm64_encoding.oren` in the curated native suite so these goldens run on every `make test`.
-    - Status: expanded goldens to cover SP-relative scaled loads/stores (LDR/STR [SP,#imm12<<3]).
-    - Status: added parameterized pair load/store encoders (STP pre-index, LDP post-index) with clang-verified goldens for stack save/restore patterns.
-    - Next: add more golden cases for pair loads/stores and keep them small/deterministic (use clang/otool to confirm encodings).
+1) **Container ops modernization (generic + dyn)** (S)
+   - Status: documented the design in `docs/DESIGN_CONTAINER_OPS.md` (3-layer model: kernel `oren_*` intrinsics → std wrappers → language-level ops) including deterministic dispatch rules for generics + `dyn`.
+   - Status: introduced `lib/std/list.oren` wrapper module (and kept it bytecode-safe by implementing `get/set/last` via indexing rather than `oren_list_get/set`).
+   - Status: migrated several stdlib modules to `list.*` wrappers (`argparse`, `strings`, `json`, `cbor`, `buffer`, `math`, plus `std/linalg` list helpers).
+   - Next: migrate remaining `lib/std/yaml.oren` + `lib/std/regex.oren`, then add an `oretest` audit to forbid direct `oren_list_*` usage in `lib/std/` (except a tight allowlist like `lib/std/list.oren`).
 
 2) **Include chunk coherence (overflow-proofing)** (M)
    - Status: large `.oren` and C runtime hotspots are split into include-chunks/modules; `oretest` enforces 2000-line caps and include-chunk coherence for `// @include` roots.
@@ -24,10 +20,15 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added oretest regression to ensure equals-form flags + options-before-file keep working.
    - Next: remove the remaining legacy manual parsing in the compiler driver and dispatch directly from argparse results (less duplication, fewer edge cases).
 
-4) **Container ops modernization (generic + dyn)** (S)
-   - Status: added a dedicated design doc for container operations (`push/len/get`) with a 3-layer model (kernel `oren_*` intrinsics → std wrappers → language-level ops), including deterministic dispatch rules for generics + `dyn`.
-   - Status: added `lib/std/list.oren` wrapper module as the first incremental step away from direct `oren_list_*` in userland.
-   - Next: migrate selected stdlib modules to use `list.*` wrappers and add `oretest` audits to keep direct `oren_*` usage confined to allowlisted low-level modules.
+4) **ARM64 instruction encoder audit** (S)
+    - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).
+    - Status: migrated native `adr_{data,code}` + Mach-O GOT stubs from ADR (±1MB) to ADRP+ADD (±4GB) and added `oretest` audits to enforce 2-slot reservation (compiler fixups + debug hook + Mach-O GOT stubs).
+    - Status: expanded golden coverage to include basic atomic encoders (LDAXR/STLXR/CLREX/LDADD/CAS/STRB) with clang-verified constants.
+    - Status: added clang-verified goldens for basic integer loads/stores (LDR/STR X, LDRB W).
+    - Status: included `tests/native/test_arm64_encoding.oren` in the curated native suite so these goldens run on every `make test`.
+    - Status: expanded goldens to cover SP-relative scaled loads/stores (LDR/STR [SP,#imm12<<3]).
+    - Status: added parameterized pair load/store encoders (STP pre-index, LDP post-index) with clang-verified goldens for stack save/restore patterns.
+    - Next: add more golden cases for pair loads/stores and keep them small/deterministic (use clang/otool to confirm encodings).
 
 ### P1 (Soon)
 

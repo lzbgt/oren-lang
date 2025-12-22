@@ -17,16 +17,15 @@ fn push(xs, v) {
     return nil
 }
 
-fn get(xs, i) { return oren_list_get(xs, i) }
+fn get(xs, i) { return xs[i] }
 
 fn set(xs, i, v) {
-    oren_list_set(xs, i, v)
+    xs[i] = v
     return nil
 }
 
 fn last(xs) {
     var n = oren_list_len(xs)
     if n <= 0 { return nil }
-    return oren_list_get(xs, n - 1)
+    return xs[n - 1]
 }
-

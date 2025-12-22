@@ -8,6 +8,8 @@
 // - Provide HPC-relevant primitives incrementally (sqrt, powi, etc.) so higher-level
 //   linalg/scientific libraries can build on them.
 
+import list "list.oren"
+
 fn abs_i(x) {
     if x < 0 { return -x }
     return x
@@ -566,7 +568,7 @@ fn _kernel_rem_pio2(tx, e0, nx) {
     if m > 19 { return oren_err(4, "_kernel_rem_pio2: nx too large") }
     var f = []
     var i = 0
-    while i <= m { oren_list_push(f, 0.0); i = i + 1 }
+    while i <= m { list.push(f, 0.0); i = i + 1 }
     var j = jv - jx
     i = 0
     while i <= m {
@@ -583,7 +585,7 @@ fn _kernel_rem_pio2(tx, e0, nx) {
     // compute q[0..jk]
     var q = []
     i = 0
-    while i <= jk { oren_list_push(q, 0.0); i = i + 1 }
+    while i <= jk { list.push(q, 0.0); i = i + 1 }
 
     i = 0
     while i <= jk {
@@ -602,7 +604,7 @@ fn _kernel_rem_pio2(tx, e0, nx) {
     // iq stores 24-bit chunks in reverse order.
     var iq = []
     i = 0
-    while i < 20 { oren_list_push(iq, 0); i = i + 1 }
+    while i < 20 { list.push(iq, 0); i = i + 1 }
 
     var z = q[jz]
     i = 0
@@ -695,7 +697,7 @@ fn _kernel_rem_pio2(tx, e0, nx) {
     // Convert iq into q floats (scaled).
     var qv = []
     i = 0
-    while i < 20 { oren_list_push(qv, 0.0); i = i + 1 }
+    while i < 20 { list.push(qv, 0.0); i = i + 1 }
     var fw4 = ldexp(1.0, q0)
     i = jz
     while i >= 0 {
@@ -707,7 +709,7 @@ fn _kernel_rem_pio2(tx, e0, nx) {
     // Compute fq
     var fq = []
     i = 0
-    while i < 20 { oren_list_push(fq, 0.0); i = i + 1 }
+    while i < 20 { list.push(fq, 0.0); i = i + 1 }
     i = jz
     while i >= 0 {
         var fw5 = 0.0
@@ -762,7 +764,7 @@ fn _reduce_pio2_payne_hanek(x) {
     var tx = []
     // 3 chunks (like fdlibm).
     var i = 0
-    while i < 3 { oren_list_push(tx, 0.0); i = i + 1 }
+    while i < 3 { list.push(tx, 0.0); i = i + 1 }
     i = 0
     while i < 2 {
         var ti = trunc_i64_from_f(z)

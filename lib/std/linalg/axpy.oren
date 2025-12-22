@@ -2,6 +2,7 @@
 
 import buffer "../buffer.oren"
 import common "common.oren"
+import list "../list.oren"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 fn _vec2_len(a, b, ctx) { return common._vec2_len(a, b, ctx) }
@@ -12,7 +13,7 @@ fn axpy_f64(alpha, x, y) {
     var out = []
     var i = 0
     while i < n {
-        oren_list_push(out, alpha * x[i] + y[i])
+        list.push(out, alpha * x[i] + y[i])
         i = i + 1
     }
     return out
@@ -34,7 +35,7 @@ fn axpy_f32(alpha, x, y) {
     if oren_is_err(out) { return out }
     // Round each element to float32 boundary.
     var i = 0
-    while i < oren_list_len(out) {
+    while i < list.len(out) {
         out[i] = f32(out[i])
         i = i + 1
     }
