@@ -1,0 +1,41 @@
+import core "../../lib/compiler/arm64_core.oren"
+
+fn expect_u32(got, want, code) {
+    if got != want {
+        print("ARM64 encoding mismatch: got=" + oren_int_to_string(got) + " want=" + oren_int_to_string(want))
+        exit(code)
+    }
+}
+
+fn main() {
+    // Loads/stores (golden values documented in lib/compiler/arm64_core.oren).
+    expect_u32(core.insn_ldr_q(0, 0), 0x3DC00000, 100)
+    expect_u32(core.insn_ldr_q(1, 1), 0x3DC00021, 101)
+    expect_u32(core.insn_str_q(0, 2), 0x3D800040, 102)
+
+    // STR Q with unsigned-offset encoding scaled by 16.
+    // sp is register 31.
+    expect_u32(core.insn_str_q_off(2, 31, 0), 0x3D8003E2, 110)
+    expect_u32(core.insn_str_q_off(3, 31, 16), 0x3D8007E3, 111)
+
+    // 32-bit loads/stores (unsigned offset encoding scaled by 4).
+    expect_u32(core.insn_ldr_w(0, 2, 0), 0xB9400040, 120)
+    expect_u32(core.insn_ldr_w(3, 4, 12), 0xB9400C83, 121)
+    expect_u32(core.insn_str_w(0, 2, 0), 0xB9000040, 122)
+    expect_u32(core.insn_str_w(3, 4, 12), 0xB9000C83, 123)
+
+    // Signed 32->64 load (LDRSW) uses the same scaling as LDR W (imm12<<2).
+    expect_u32(core.insn_ldrsw(2, 3, 0), 0xB9800062, 130)
+    expect_u32(core.insn_ldrsw(4, 5, 12), 0xB9800CA4, 131)
+
+    // A couple of SIMD scalar/vector arithmetic encodings (also golden in arm64_core.oren).
+    expect_u32(core.insn_fadd_4s(0, 0, 1), 0x4E21D400, 200)
+    expect_u32(core.insn_fmul_4s(0, 0, 1), 0x6E21DC00, 201)
+    expect_u32(core.insn_fadd_s(0, 0, 1), 0x1E212800, 202)
+    expect_u32(core.insn_fmul_s(0, 0, 1), 0x1E210800, 203)
+
+    print("arm64 encoding OK")
+    exit(0)
+}
+
+main()
