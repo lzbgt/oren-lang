@@ -168,6 +168,55 @@ Pros:
 Cons:
 - more engineering: packaging, compression, versioning, potential size concerns.
 
+### Model C: Precompile stdlib to `.obc` (bytecode stdlib)
+
+This model targets the **AVM + bytecode** ecosystem track.
+
+Instead of distributing stdlib as `.oren` sources, distribute it as a set of precompiled
+bytecode modules (or a single bundled module graph), for example:
+
+- `std/strings.obc`, `std/json.obc`, ...
+- or one pack: `stdlib.obc` (containing multiple modules, see notes below)
+
+Key observation:
+
+- The AVM can execute `.obc` directly.
+- So the stdlib can be shipped as bytecode and used without shipping sources.
+
+However, this requires a concrete “linking/loading” story:
+
+1) **Compile-time linking (simpler, recommended first)**
+   - The compiler (outside or inside AVM) resolves `std:` imports to stdlib sources or to
+     “precompiled module artifacts” and produces a single output program.
+   - Result: the final `.obc` is self-contained (no runtime module loading needed).
+
+2) **Runtime module loading (more powerful, future)**
+   - The AVM supports importing/loading `.obc` modules at runtime.
+   - This enables smaller user artifacts, shared caches, and dynamic plugin loading.
+   - But it requires:
+     - a stable module identity scheme,
+     - a bytecode linking ABI (symbol export/import),
+     - capability policy decisions (what modules are allowed).
+
+For rolling mode, start with (1) and evolve toward (2) only when the module ABI is stable.
+
+### Model D: Native stdlib as a shared library (`.so`/`.dylib`)
+
+This model is relevant for **native backend builds**, where performance and binary size
+often motivate linking against shared libraries.
+
+- The stdlib (or parts of it) can be compiled to a shared library.
+- User programs link against it.
+
+Important constraints:
+
+- This does **not** automatically help AVM: the AVM executes bytecode and does not
+  load native `.so`/`.dylib` unless the AVM host explicitly implements a native extension
+  mechanism (which is a security/capability design problem).
+
+So: native shared-libraries are a valid distribution story for native builds, but are not the
+same thing as “stdlib usable by AVM”.
+
 ---
 
 ## 6) AVM interaction (important clarification)
@@ -190,6 +239,28 @@ This integrates cleanly with capability-based constraints:
 - stdlib reads come from VirtualFS (not host FS),
 - deterministic snapshots can hash the stdlib pack + user source.
 
+### FFI and AVM: what is and is not possible
+
+Oren has `ffi`, but the key question is **where the code runs**:
+
+- **Native backend**: `ffi` can map to C/OS symbols as part of native linking.
+- **Bytecode/AVM**: there is no implicit access to host symbols.
+
+So for AVM:
+
+- A “native stdlib library” (`.dylib`/`.so`) cannot be used directly by pure AVM bytecode.
+- The only safe way for AVM bytecode to interact with the outside world is via
+  explicit **host-provided domains** (VirtualFS/VirtualNET/VirtualPROC/…).
+
+If the AVM host later exposes an extension mechanism (a controlled “FFI bridge”), it must:
+
+- be capability-scoped (opt-in per domain),
+- be deterministic or explicitly marked non-deterministic,
+- be auditable (hashes/signatures),
+- preserve the security model (no ambient authority).
+
+Given Oren’s “agent-safe VM” goals, treat this as an advanced feature, not the baseline.
+
 ---
 
 ## 7) Open questions / next steps
@@ -198,4 +269,7 @@ This integrates cleanly with capability-based constraints:
 2) Add a standard “vendor” directory layout (`vendor/<pkg>/...`) for reproducible builds.
 3) Decide whether stdlib is versioned with the compiler or independently.
 4) Add oretest audits ensuring docs/examples do not regress to `../../lib/std/...`.
-
+5) Decide stdlib artifact format(s):
+   - source tree (`.oren`) for transparency + patchability
+   - precompiled `.obc` for AVM distribution
+   - optional native `.so`/`.dylib` for native backend deployments
