@@ -14,7 +14,9 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added oretest fixture to ensure signed `.obc` runs and unsigned fails under `--require-sig`.
    - Status: added oretest fixture for org→dev delegated signing chain and negative cases under `--require-cert-chain`.
    - Status: added pure-Oren SHA-256 (`std:crypto/sha256`) and AVM test vectors as the first step toward “bytecode crypto” (no libc/FFI).
+   - Status: documented AVM startup anti-tamper limits + practical trust anchors in `docs/AVM_ANTITAMPER.md`.
    - Next: embed a real root pubkey in AVM builds (public only), add root rotation support (trusted pubkey set), add cert constraints (namespace/policy allowlists), and port ed25519 verify to pure Oren to reduce host-crypto dependency.
+   - Next (security hardening): add an optional AVM “diagnostic self-hash” mode (corruption detection / telemetry, not a security promise) and explore codesigned release builds for AVM.
 
 2) **Container ops modernization (generic + dyn)** (S)
    - Status: documented the design in `docs/DESIGN_CONTAINER_OPS.md` (3-layer model: kernel `oren_*` intrinsics → std wrappers → language-level ops) including deterministic dispatch rules for generics + `dyn`.
