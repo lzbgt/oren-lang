@@ -12,6 +12,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
      - `native_compile_syscall_call()` is a small dispatcher; per-chunk helpers live in `lib/compiler/arm64_native_expr_syscalls/*`.
    - Status: added capsule prehook hooks + lowering calls for `sys_mmap_private_anon` / `sys_munmap` so AVM capsule audit passes.
    - Status: split `lib/std/linalg.oren` into smaller modules under `lib/std/linalg/*.oren` with a stable facade to avoid crossing the 2000-line refactor threshold.
+   - Status: split `lib/runtime_buf.c` into smaller include chunks under `lib/runtime_buf/*.inc` (single translation unit) to avoid >2000-line C hotspots.
    - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
    - Next: keep applying overflow-proofing to any single-file hotspots before they cross the 2000-line refactor threshold (use `wc -l` to track growth).
 
