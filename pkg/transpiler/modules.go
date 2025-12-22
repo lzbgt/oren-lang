@@ -5,7 +5,9 @@ import (
 	"oren/pkg/ast"
 	"oren/pkg/lexer"
 	"oren/pkg/parser"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 type transpileCtx struct {
@@ -38,10 +40,66 @@ func parseProgram(src string) (*ast.Program, []string) {
 }
 
 func (t *Transpiler) resolveImportPath(importerDir, importPath string) string {
+	// Bootstrap transpiler import resolver (rolling):
+	// - Supports absolute/relative filesystem imports (legacy).
+	// - Supports stdlib scheme imports:
+	//     import math "std:math"
+	//     import json "std/json"
+	//     import common "std:linalg/common"
+	//
+	// The stdlib root is resolved by:
+	// - OREN_STDLIB_ROOT, if set, else
+	// - searching upward from importerDir for a `lib/std` directory.
 	if filepath.IsAbs(importPath) {
 		return filepath.Clean(importPath)
 	}
+
+	if strings.HasPrefix(importPath, "std:") || strings.HasPrefix(importPath, "std/") {
+		rest := importPath
+		if strings.HasPrefix(importPath, "std:") {
+			rest = strings.TrimPrefix(importPath, "std:")
+		} else {
+			rest = strings.TrimPrefix(importPath, "std/")
+		}
+		rest = strings.TrimPrefix(rest, "/")
+		if !strings.HasSuffix(rest, ".oren") {
+			rest += ".oren"
+		}
+
+		root := os.Getenv("OREN_STDLIB_ROOT")
+		if root == "" {
+			root = findStdlibRoot(importerDir)
+		}
+		// If we still can't find it, keep a deterministic fallback so the error
+		// message points at the intended path.
+		if root == "" {
+			root = filepath.Join(importerDir, "lib", "std")
+		}
+		return filepath.Clean(filepath.Join(root, rest))
+	}
+
 	return filepath.Clean(filepath.Join(importerDir, importPath))
+}
+
+func findStdlibRoot(fromDir string) string {
+	dir := fromDir
+	for {
+		candidate := filepath.Join(dir, "lib", "std")
+		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
+			// Lightweight sanity check: stdlib root should contain stdlib.oren in this repo.
+			if _, err2 := os.Stat(filepath.Join(candidate, "stdlib.oren")); err2 == nil {
+				return candidate
+			}
+			// Allow stdlib roots without stdlib.oren as long as the directory exists (install layouts may differ).
+			return candidate
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 func (t *Transpiler) loadModule(importerDir, importPath string) (*moduleInfo, error) {

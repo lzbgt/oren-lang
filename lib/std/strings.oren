@@ -1,4 +1,4 @@
-import list "list.oren"
+import list "std:list"
 
 fn starts_with(s, prefix) {
     if s == nil || prefix == nil { return false }

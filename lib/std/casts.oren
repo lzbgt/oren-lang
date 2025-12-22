@@ -11,7 +11,7 @@
 //
 // NOTE: This is NOT yet a full static type system; it is an explicit, portable cast surface.
 
-import ints "ints.oren"
+import ints "std:ints"
 
 // Integer width casts (wrap/truncate semantics).
 fn u8(x) { return ints.u8(x) }

@@ -8,7 +8,7 @@
 // - We keep v0 UTC-only for DateTime formatting/parsing (ISO-8601 with 'Z').
 // - Locale and IANA time zones are explicitly deferred (need tzdb policy + determinism story).
 
-import result "result.oren"
+import result "std:result"
 
 struct Duration {
     ns: i64

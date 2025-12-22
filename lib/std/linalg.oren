@@ -3,13 +3,13 @@
 // This file is intentionally small.
 // Implementation lives under `lib/std/linalg/*.oren` to avoid context overflow.
 
-import common "linalg/common.oren"
-import dot "linalg/dot.oren"
-import axpy "linalg/axpy.oren"
-import ml "linalg/matmul_list.oren"
-import mf32 "linalg/matmul_f32.oren"
-import mf64 "linalg/matmul_f64.oren"
-import mi32 "linalg/matmul_i32.oren"
+import common "std:linalg/common"
+import dot "std:linalg/dot"
+import axpy "std:linalg/axpy"
+import ml "std:linalg/matmul_list"
+import mf32 "std:linalg/matmul_f32"
+import mf64 "std:linalg/matmul_f64"
+import mi32 "std:linalg/matmul_i32"
 
 fn dot_f64(a, b) {
     return dot.dot_f64(a, b)

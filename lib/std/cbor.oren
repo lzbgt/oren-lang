@@ -22,7 +22,7 @@
 // - maps are encoded with canonical key ordering (RFC 8949 §4.2.1):
 //     sort keys by (byte length, then bytewise lexicographic)
 
-import list "list.oren"
+import list "std:list"
 
 fn cnull() { return {"t": "null"} }
 fn cbool(b) { return {"t": "bool", "b": b} }

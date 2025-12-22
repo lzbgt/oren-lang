@@ -30,9 +30,9 @@
 // - objects are emitted with keys sorted lexicographically (bytewise)
 // - indentation is 2 spaces per level
 
-import json "json.oren"
+import json "std:json"
 
-import list "list.oren"
+import list "std:list"
 
 fn ynull() { return {"t": "null"} }
 fn ybool(b) { return {"t": "bool", "b": b} }

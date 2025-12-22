@@ -1,7 +1,7 @@
 // std/linalg matmul (list baseline) (rolling)
 
-import common "common.oren"
-import list "../list.oren"
+import common "std:linalg/common"
+import list "std:list"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 

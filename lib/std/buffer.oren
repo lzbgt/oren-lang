@@ -9,7 +9,7 @@
 // - Oren does not have full generics yet, so this module provides structural
 //   "views" that rely on passing the right load/store function.
 
-import list "list.oren"
+import list "std:list"
 
 fn _err_invalid(msg) { return oren_err(4, msg) }
 

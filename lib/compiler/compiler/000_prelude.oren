@@ -20,7 +20,7 @@ import optimizer "optimizer.oren"
 import type_resolve "type_name_resolve.oren"
 import dump "dump.oren"
 import obc_link "obc_link.oren"
-import argparse "../std/argparse.oren"
+import argparse "std:argparse"
 
 fn cli_spec() {
     var p = argparse.new_parser("oren", "Oren compiler / toolchain driver")

@@ -14,7 +14,7 @@
 //
 // If you prefer structured errors, wrap with `std/result.ok_or_errno`.
 
-import result "result.oren"
+import result "std:result"
 
 // --- Raw syscall-style wrappers (recommended for performance) ---
 

@@ -12,7 +12,7 @@
 //   {"t":"array","a":[JsonValue...]}
 //   {"t":"object","o":{ string_key: JsonValue, ... }}  // map iteration yields keys in sorted order
 
-import list "list.oren"
+import list "std:list"
 
 fn jnull() { return {"t": "null"} }
 fn jbool(b) { return {"t": "bool", "b": b} }

@@ -3,7 +3,7 @@
 // Goal: provide a crypto primitive that can run inside AVM bytecode without FFI/libc.
 // This is not optimized (v0); it is correctness-first and deterministic.
 
-import list "../list.oren"
+import list "std:list"
 
 fn _u32(x) { return x & 4294967295 } // 0xFFFFFFFF
 

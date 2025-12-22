@@ -14,7 +14,7 @@
 // Convenience:
 //   regex.is_match(pattern, text)
 
-import list "list.oren"
+import list "std:list"
 
 fn _err(msg) { return {"ok": 0, "err": msg} }
 fn _ok(v) { return {"ok": 1, "v": v} }

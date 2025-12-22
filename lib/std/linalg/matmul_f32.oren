@@ -1,8 +1,8 @@
 // std/linalg matmul f32 typed-buffer (rolling)
 
-import buffer "../buffer.oren"
-import common "common.oren"
-import list "../list.oren"
+import buffer "std:buffer"
+import common "std:linalg/common"
+import list "std:list"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 

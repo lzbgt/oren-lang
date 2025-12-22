@@ -12,7 +12,7 @@
 //   - `fd` / byte-count: `>= 0` on success
 //   - negative errno: `< 0` on failure
 
-import result "result.oren"
+import result "std:result"
 
 // --- Raw syscall-style wrappers (recommended for performance) ---
 

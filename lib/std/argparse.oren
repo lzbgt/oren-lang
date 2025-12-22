@@ -11,7 +11,7 @@
 //
 // This is intentionally small: evolve it as Oren's own tooling grows.
 
-import list "list.oren"
+import list "std:list"
 
 fn _starts_with(s, pref) {
     if s == nil || pref == nil { return false }

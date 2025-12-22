@@ -25,12 +25,16 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: migrated remaining `lib/std/yaml.oren`, `lib/std/regex.oren`, and `lib/std/crypto/sha256.oren` off direct `oren_list_*` usage (now uses `std/list` wrappers: `list.push`, `list.len`).
    - Status: added an `oretest` audit to forbid direct `oren_list_*` usage in `lib/std/` (allowlist: `lib/std/list.oren` only).
    - Status: improved compiler-side kind inference for builtin container method sugar to treat `oren_bytes_from_string` / `oren_bytes_unpack` results as list-like (helps user code and small local patterns).
+   - Status: standardized stdlib-internal imports to use the `std:` scheme (`import list "std:list"`, etc.) so prefixes are stable and separate compilation/linking stays deterministic.
+   - Status: compiler now inlines hot `std:list` wrappers (`list.push`, `list.len`) directly to `oren_list_*` via the linker alias map (removes wrapper call overhead in tight loops without relying on best-effort `.push/.len` receiver inference).
+   - Status: compiler recognizes rolling container-kind annotations (`: list|map|buf|string`) as hints for deterministic lowering of builtin container method sugar in native backends.
    - Next: make container method sugar robust for non-local flows (params, map-derived values) without relying on best-effort local inference (or keep stdlib on wrappers and document the rule clearly); then extend surface (pop/clear/extend?).
 
 3) **Precompiled stdlib `.obc` linking (OBX) for AVM** (M)
    - Status: implemented OBX module metadata (exports + relocations) embedded as an unused `BYTES` constant in `.obc` (`docs/OBC_MODULE_LINKING.md`, `docs/AVM_SPEC.md`).
    - Status: added `--obc-lib` to emit exports, and `--stdlib-mode obc --stdlib-obc <bundle>` to compile with extern `std:` imports and link the bundle into a single output program.
    - Status: added stdlib bundle root `lib/std/stdlib.oren` and stable std module prefixes (`STD_<path>_`) so symbols are deterministic for separate compilation.
+   - Status: updated stdlib modules to import each other via `std:` so stable prefixes apply in practice (and not only when imported from outside stdlib).
    - Status: added a full-suite AVM smoke that compiles with `std:math` using only a stdlib bundle `.obc` (no std sources inside the child universe).
    - Next: add support for linking multiple non-stdlib packages via a formal search path (`OREN_PATH` / `--module-path`), and decide whether final `.obc` should strip OBX constants to reduce size.
 

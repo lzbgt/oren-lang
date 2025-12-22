@@ -248,6 +248,61 @@ fn kind_env_get(env, name) {
     return nil
 }
 
+fn kind_from_ann_type(ann) {
+    if ann == nil { return nil }
+    // Rolling "kind annotations" to make builtin container method sugar deterministic
+    // in backends where runtime values are not safely tagged.
+    //
+    // This is intentionally not a full type system; it is a small hint layer:
+    //   - :list   enables xs.push(...) / xs.len() lowering to list intrinsics
+    //   - :map    enables m.len() lowering to map intrinsics
+    //   - :buf    enables b.len() lowering to buf intrinsics
+    //   - :string enables s.len() lowering to string intrinsics
+    if ann == "list" { return "list" }
+    if ann == "map" { return "map" }
+    if ann == "buf" { return "buf" }
+    if ann == "string" { return "string" }
+    return nil
+}
+
+fn _trim_trailing_underscores(s) {
+    if s == nil { return "" }
+    var n = oren_string_len(s)
+    while n > 0 && oren_string_char_at(s, n - 1) == "_" {
+        n = n - 1
+    }
+    return oren_string_slice(s, 0, n)
+}
+
+fn resolve_ns_name(aliases, expr) {
+    // Resolve a dotted/namespace expression for imported-module aliases, using the
+    // global alias map produced by module linking.
+    //
+    // Example:
+    //   expr = STD_yaml_list.push
+    //   aliases[STD_yaml_list] = "STD_list_"
+    //   => "STD_list_push"
+    //
+    // Returns a string name or nil if resolution fails.
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Identifier" {
+        var nm = expr["value"]
+        if aliases != nil && aliases[nm] != nil {
+            return aliases[nm]
+        }
+        return nil
+    }
+    if t == "Member" {
+        var left = resolve_ns_name(aliases, expr["left"])
+        if left == nil { return nil }
+        var base = _trim_trailing_underscores(left)
+        if expr["prop"] == nil || expr["prop"]["type"] != "Identifier" { return nil }
+        return base + "_" + expr["prop"]["value"]
+    }
+    return nil
+}
+
 fn infer_container_kind(expr, kind_env) {
     if expr == nil { return nil }
     var t = expr["type"]
@@ -333,6 +388,28 @@ fn rewrite_builtin_container_call(expr, kind_env) {
 
 fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
     if expr == nil || expr["type"] != "Call" { return expr }
+
+    // Inline stdlib "thin wrappers" for hot container ops (HPC/server).
+    //
+    // std:list provides ergonomic wrappers around `oren_list_*`, but treating them as
+    // normal functions adds avoidable call overhead inside tight loops. The module
+    // linker provides a global alias map that lets us safely recognize imported-module
+    // member calls without guessing about local variables.
+    var resolved = resolve_ns_name(regs["aliases"], expr["fn"])
+    if resolved != nil {
+        var argsR = expr["args"]
+        if argsR == nil { argsR = [] }
+        if resolved == "STD_list_len" {
+            if oren_list_len(argsR) == 1 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_len"}, [argsR[0]])
+            }
+        }
+        if resolved == "STD_list_push" {
+            if oren_list_len(argsR) == 2 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_push"}, [argsR[0], argsR[1]])
+            }
+        }
+    }
 
     // Iterator extension hook (rolling v1):
     //
@@ -467,7 +544,8 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
                 var id = params[pi]
                 if id != nil && id["type"] == "Identifier" && id["ann_type"] != nil {
                     type_env_set(env, id["value"], id["ann_type"])
-                    if id["ann_type"] == "string" { kind_env_set(kind_env, id["value"], "string") }
+                    var k = kind_from_ann_type(id["ann_type"])
+                    if k != nil { kind_env_set(kind_env, id["value"], k) }
                 }
                 pi = pi + 1
             }
@@ -559,6 +637,8 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
         var nm = stmt["name"]
         if nm != nil && nm["type"] == "Identifier" && nm["ann_type"] != nil {
             type_env_set(env, nm["value"], nm["ann_type"])
+            var kk = kind_from_ann_type(nm["ann_type"])
+            if kk != nil { kind_env_set(kind_env, nm["value"], kk) }
         }
         if nm != nil && nm["type"] == "Identifier" {
             var k = infer_container_kind(stmt["value"], kind_env)
@@ -636,6 +716,10 @@ fn lower_linked_program_in_place(linked) {
     var trait_set = collect_trait_set(linked)
     var env = type_env_new()
     var kind_env = kind_env_new()
+
+    // Alias map for imported namespaces (module linking output).
+    // Used by call rewrites like std:list fast-path inlining.
+    regs["aliases"] = linked["aliases"]
 
     // Whole-program traversal (top-level statements + nested functions).
     var ss = linked["statements"]

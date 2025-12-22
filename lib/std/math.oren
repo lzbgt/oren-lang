@@ -8,7 +8,7 @@
 // - Provide HPC-relevant primitives incrementally (sqrt, powi, etc.) so higher-level
 //   linalg/scientific libraries can build on them.
 
-import list "list.oren"
+import list "std:list"
 
 fn abs_i(x) {
     if x < 0 { return -x }

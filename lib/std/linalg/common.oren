@@ -1,6 +1,6 @@
 // std/linalg common helpers (rolling)
 
-import list "../list.oren"
+import list "std:list"
 
 fn _err_invalid_arg(msg) {
     // Code 4 matches existing stdlib convention (see std/ints).

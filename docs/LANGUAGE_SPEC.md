@@ -212,6 +212,21 @@ Where type annotations can appear today:
 - struct/class fields: `struct S { len: u16be, bytes: u8[16] }`
 - imported types (alias-qualified): `import it \"mod.oren\"; var r: it.MyRange = it.new_range(...)`
 
+#### Rolling v0 “kind annotations” for container sugar
+
+While the full type system is still rolling, some backends require additional information
+to lower builtin container method sugar deterministically (notably where runtime values are not
+safely tagged).
+
+Oren therefore allows a small set of *conventional* annotation spellings to act as container-kind hints:
+
+- `: list` — list receiver (enables `xs.push(v)` / `xs.len()` lowering)
+- `: map` — map receiver (enables `m.len()` lowering)
+- `: buf` — typed buffer receiver (enables `b.len()` lowering)
+- `: string` — string receiver (enables `s.len()` lowering)
+
+These are hints used by compiler lowerings in rolling v0; they are not yet “real types” in the v1 sense.
+
 Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved tokens** intended to
 become true explicit types as the v1 type system is stabilized (see later sections in this spec).
 

@@ -8,7 +8,7 @@
 // The goal is to provide a stable module path for native Oren libraries to build on,
 // while the syscall-first NET substrate evolves.
 
-import tcp "tcp.oren"
+import tcp "std:net/tcp"
 
 fn _starts_with(s, prefix) {
     if s == nil || prefix == nil { return 0 }
