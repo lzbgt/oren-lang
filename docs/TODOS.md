@@ -4,30 +4,37 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 ### P0 (Now)
 
-1) **Container ops modernization (generic + dyn)** (S)
+1) **Signed `.obc` + Root Trust (multiverse updates / “app store”)** (M)
+   - Status: added rolling design doc `docs/APPSTORE_ROOTCA_AND_UPDATES.md`.
+   - Status: added `orensign` tool (`cmd/orensign/main.go`) for ed25519 keygen + `.obc` signing/verifying (keys live outside repo, recommended `../oren-ca/`).
+   - Status: added AVM signature verification gate (`--require-sig`, `--trusted-pubkey`, nested cfg `require_sig` + `trusted_pubkey`), using `OREN_SIG\n1\n` BYTES constant.
+   - Status: added oretest fixture to ensure signed `.obc` runs and unsigned fails under `--require-sig`.
+   - Next: embed a real root pubkey in AVM builds (public only), add rotation support (trusted pubkey set), and specify update manifest format (name/version/hash/policy).
+
+2) **Container ops modernization (generic + dyn)** (S)
    - Status: documented the design in `docs/DESIGN_CONTAINER_OPS.md` (3-layer model: kernel `oren_*` intrinsics → std wrappers → language-level ops) including deterministic dispatch rules for generics + `dyn`.
    - Status: introduced `lib/std/list.oren` wrapper module (and kept it bytecode-safe by implementing `get/set/last` via indexing rather than `oren_list_get/set`).
    - Status: migrated several stdlib modules to `list.*` wrappers (`argparse`, `strings`, `json`, `cbor`, `buffer`, `math`, plus `std/linalg` list helpers).
    - Next: migrate remaining `lib/std/yaml.oren` + `lib/std/regex.oren`, then add an `oretest` audit to forbid direct `oren_list_*` usage in `lib/std/` (except a tight allowlist like `lib/std/list.oren`).
 
-2) **Precompiled stdlib `.obc` linking (OBX) for AVM** (M)
+3) **Precompiled stdlib `.obc` linking (OBX) for AVM** (M)
    - Status: implemented OBX module metadata (exports + relocations) embedded as an unused `BYTES` constant in `.obc` (`docs/OBC_MODULE_LINKING.md`, `docs/AVM_SPEC.md`).
    - Status: added `--obc-lib` to emit exports, and `--stdlib-mode obc --stdlib-obc <bundle>` to compile with extern `std:` imports and link the bundle into a single output program.
    - Status: added stdlib bundle root `lib/std/stdlib.oren` and stable std module prefixes (`STD_<path>_`) so symbols are deterministic for separate compilation.
    - Status: added a full-suite AVM smoke that compiles with `std:math` using only a stdlib bundle `.obc` (no std sources inside the child universe).
    - Next: add support for linking multiple non-stdlib packages via a formal search path (`OREN_PATH` / `--module-path`), and decide whether final `.obc` should strip OBX constants to reduce size.
 
-3) **Include chunk coherence (overflow-proofing)** (M)
+4) **Include chunk coherence (overflow-proofing)** (M)
    - Status: large `.oren` and C runtime hotspots are split into include-chunks/modules; `oretest` enforces 2000-line caps and include-chunk coherence for `// @include` roots.
    - Next: keep new refactors chunk-safe (top-level boundaries only) so files stay reviewable without context overflow.
 
-4) **Compiler CLI + argparse modernization (click-style)** (M)
+5) **Compiler CLI + argparse modernization (click-style)** (M)
    - Status: upgraded `lib/std/argparse.oren` to support `--opt=value`, `-abc` chained short flags, `-ovalue` short-value forms, interspersed options/positionals, and global options before subcommand.
    - Status: compiler driver now uses argparse to normalize argv, so the legacy driver logic accepts modern forms like `oren build --backend=native --out=... file.oren` without breaking existing `file first` invocations.
    - Status: added oretest regression to ensure equals-form flags + options-before-file keep working.
    - Next: remove the remaining legacy manual parsing in the compiler driver and dispatch directly from argparse results (less duplication, fewer edge cases).
 
-5) **ARM64 instruction encoder audit** (S)
+6) **ARM64 instruction encoder audit** (S)
     - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).
     - Status: migrated native `adr_{data,code}` + Mach-O GOT stubs from ADR (±1MB) to ADRP+ADD (±4GB) and added `oretest` audits to enforce 2-slot reservation (compiler fixups + debug hook + Mach-O GOT stubs).
     - Status: expanded golden coverage to include basic atomic encoders (LDAXR/STLXR/CLREX/LDADD/CAS/STRB) with clang-verified constants.

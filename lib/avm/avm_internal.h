@@ -7,6 +7,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Signed `.obc` verification (rolling).
+#include "avm_sig.h"
+
 // Error codes (must match the C runtime's rolling conventions in lib/runtime.h)
 #define AVM_ERR_PERM 1
 #define AVM_ERR_NOT_FOUND 2

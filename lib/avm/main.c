@@ -1,5 +1,6 @@
 #include "avm.h"
 #include "sha256.h"
+#include "avm_sig.h"
 #include "avm_help.inc"
 #include <stdio.h>
 #include <stdlib.h>
@@ -124,6 +125,12 @@ static AvmBytes* bytes_from_hex(const char* s) {
         b->data[i / 2] = (uint8_t)((hi << 4) | lo);
     }
     return b;
+}
+
+static void free_bytes_obj(AvmBytes* b) {
+    if (!b) return;
+    free(b->data);
+    free(b);
 }
 
 static char* bytes_to_hex(const uint8_t* data, size_t len) {
@@ -2098,6 +2105,9 @@ int main(int argc, char** argv) {
     const char* proc_fixtures_hex_cli = NULL;
     const char* net_backend_cli = NULL;
     const char* net_fixtures_hex_cli = NULL;
+    int require_sig = 0;
+    const char* trusted_pubkey_cli = NULL;
+    const char* trusted_pubkey_hex_cli = NULL;
     const char* timeout_ms_cli = NULL;
     const char* call_depth_max_cli = NULL;
     const char* task_quantum_cli = NULL;
@@ -2328,6 +2338,23 @@ int main(int argc, char** argv) {
             i += 2;
             continue;
         }
+        if (strcmp(argv[i], "--require-sig") == 0) {
+            require_sig = 1;
+            i += 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--trusted-pubkey") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --trusted-pubkey\n"); return 1; }
+            trusted_pubkey_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
+        if (strcmp(argv[i], "--trusted-pubkey-hex") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Missing value for --trusted-pubkey-hex\n"); return 1; }
+            trusted_pubkey_hex_cli = argv[i + 1];
+            i += 2;
+            continue;
+        }
         if (strcmp(argv[i], "--disasm") == 0) {
             disasm = 1;
             i += 1;
@@ -2430,6 +2457,59 @@ int main(int argc, char** argv) {
         printf("Failed to read file\n");
         free(break_pcs);
         return 1;
+    }
+
+    // Signature verification (rolling, opt-in for host CLI).
+    const char* require_sig_env = getenv("AVM_REQUIRE_SIG");
+    if (require_sig_env && require_sig_env[0] && require_sig_env[0] != '0') require_sig = 1;
+
+    uint8_t trusted_pk[32];
+    int has_trusted_pk = 0;
+    if (trusted_pubkey_hex_cli && trusted_pubkey_hex_cli[0]) {
+        AvmBytes* b = bytes_from_hex(trusted_pubkey_hex_cli);
+        if (!b || b->len != 32) {
+            fprintf(stderr, "Invalid --trusted-pubkey-hex (expected 64 hex chars)\n");
+            free(break_pcs);
+            free(data);
+            return 1;
+        }
+        memcpy(trusted_pk, b->data, 32);
+        has_trusted_pk = 1;
+        free_bytes_obj(b);
+    } else if (trusted_pubkey_cli && trusted_pubkey_cli[0]) {
+        size_t pklen = 0;
+        uint8_t* pkb = read_file(trusted_pubkey_cli, &pklen);
+        if (!pkb || pklen != 32) {
+            fprintf(stderr, "Invalid --trusted-pubkey (expected 32 raw bytes)\n");
+            free(break_pcs);
+            free(data);
+            free(pkb);
+            return 1;
+        }
+        memcpy(trusted_pk, pkb, 32);
+        has_trusted_pk = 1;
+        free(pkb);
+    } else {
+        const char* env_pk_hex = getenv("AVM_TRUSTED_PUBKEY_HEX");
+        if (env_pk_hex && env_pk_hex[0]) {
+            AvmBytes* b = bytes_from_hex(env_pk_hex);
+            if (b && b->len == 32) {
+                memcpy(trusted_pk, b->data, 32);
+                has_trusted_pk = 1;
+            }
+            if (b) free_bytes_obj(b);
+        }
+    }
+
+    if (require_sig) {
+        char emsg[256];
+        const uint8_t* pkptr = has_trusted_pk ? trusted_pk : NULL;
+        if (!avm_obc_verify_signature(data, len, pkptr, emsg, sizeof(emsg))) {
+            fprintf(stderr, "AVM signature verify failed: %s\n", emsg);
+            free(data);
+            free(break_pcs);
+            return 1;
+        }
     }
 
     // Verifier (rolling): reject malformed bytecode early to avoid crashes/hangs.

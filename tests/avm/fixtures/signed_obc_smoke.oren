@@ -1,0 +1,7 @@
+fn main() {
+    print("signed obc OK")
+    return 0
+}
+
+main()
+

@@ -46,6 +46,11 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - payload is a binary table of exports + relocations used by a linker
   - this constant is also intentionally not referenced by bytecode
   - see `docs/OBC_MODULE_LINKING.md`
+- Rolling convention: `.obc` may include an **unused** `BYTES` constant containing an “OREN_SIG” signature payload:
+  - payload prefix: ASCII `"OREN_SIG\n1\n"`
+  - payload contains an ed25519 signature over a canonical `.obc` hash (excluding OREN_SIG constants)
+  - AVM can optionally require this signature before executing bytecode
+  - see `docs/APPSTORE_ROOTCA_AND_UPDATES.md`
 - `FLOAT` constants are wired end-to-end (rolling): the bytecode backend emits float64 bit-pattern constants and the VM decodes them as `AVM_VAL_FLOAT`.
 
 ## Instruction Set (Version 0.1)

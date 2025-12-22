@@ -344,6 +344,47 @@ func main() {
 			cleanup: []string{"build/manifest_meta.meta.json", "build/manifest_meta.out", "build/manifest_meta.meta.json.manifest.json"},
 		},
 		{
+			name: "signed_obc_verify_cli",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"echo \"[fixture] build orensign\"; "+
+					"go build -o build/orensign ./cmd/orensign; "+
+					"echo \"[fixture] keygen (ephemeral)\"; "+
+					"rm -rf build/ca_test; mkdir -p build/ca_test; "+
+					"./build/orensign keygen --out build/ca_test; "+
+					"echo \"[fixture] build unsigned obc\"; "+
+					"./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] sign obc\"; "+
+					"./build/orensign sign-obc --sk build/ca_test/root_ed25519_sk.bin --in %q --out %q; "+
+					"echo \"[fixture] verify + run signed\"; "+
+					"./avm --require-sig --trusted-pubkey build/ca_test/root_ed25519_pk.bin %q > %q; "+
+					"grep -Fq %q %q; "+
+					"echo \"[fixture] verify unsigned must fail\"; "+
+					"set +e; ./avm --require-sig --trusted-pubkey build/ca_test/root_ed25519_pk.bin %q > /dev/null 2>&1; rc=$?; set -e; "+
+					"test $rc -ne 0",
+				"tests/avm/fixtures/signed_obc_smoke.oren",
+				*target,
+				"build/signed_obc_smoke.obc",
+				gcArg,
+				"build/signed_obc_smoke.obc",
+				"build/signed_obc_smoke.signed.obc",
+				"build/signed_obc_smoke.signed.obc",
+				"build/fixture_signed_obc_verify_cli.out",
+				"signed obc OK",
+				"build/fixture_signed_obc_verify_cli.out",
+				"build/signed_obc_smoke.obc",
+			),
+			log: "build/logs/fixture_signed_obc_verify_cli.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/orensign",
+				"build/ca_test",
+				"build/signed_obc_smoke.obc",
+				"build/signed_obc_smoke.signed.obc",
+				"build/fixture_signed_obc_verify_cli.out",
+			},
+		},
+		{
 			name: "bytecode_negative_int_constants",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+

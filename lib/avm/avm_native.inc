@@ -7317,6 +7317,27 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 AvmValue cfg = avm_nil();
                 if (nargs >= 2) cfg = args[1];
 
+                // Optional signature enforcement (rolling):
+                // - nested universes may require that the child program is signed by a trusted root
+                // - trusted_pubkey is passed as BYTES to avoid host filesystem reads in the child
+                int require_sig = 0;
+                const uint8_t* trusted_pk = NULL;
+                AvmValue sv;
+                if (avm_map_get_key(cfg, "require_sig", &sv)) require_sig = avm_value_truthy(sv) ? 1 : 0;
+                if (avm_map_get_key(cfg, "trusted_pubkey", &sv)) {
+                    if (sv.type == AVM_VAL_BYTES && sv.as.b && sv.as.b->len == 32 && sv.as.b->data) {
+                        trusted_pk = sv.as.b->data;
+                    }
+                }
+                if (require_sig) {
+                    char emsg[256];
+                    const uint8_t* pkptr = trusted_pk;
+                    if (!pkptr && avm_has_embedded_root_pubkey()) pkptr = NULL; // use embedded by passing NULL
+                    if (!avm_obc_verify_signature(args[0].as.b->data, (size_t)args[0].as.b->len, pkptr, emsg, sizeof(emsg))) {
+                        return avm_err_domop(AVM_ERR_PERM, emsg, domain, op);
+                    }
+                }
+
                 AvmProgram* prog = (AvmProgram*)malloc(sizeof(AvmProgram));
                 if (!prog) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 if (!avm_parse_obc_from_bytes(args[0].as.b, prog)) {
