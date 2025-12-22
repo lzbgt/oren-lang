@@ -257,6 +257,9 @@ fn insn_svc(imm) {
 }
 
 fn insn_add_sp(imm) {
+    // ADD SP, SP, #imm12 (shift=0)
+    // Verified via clang:
+    //   add sp, sp, #16 => 0x910043FF
     return 2432697343 + (imm * 1024)
 }
 
@@ -415,14 +418,23 @@ fn insn_add_reg(rd, rn, rm) {
 }
 
 fn insn_and_reg(rd, rn, rm) {
+    // AND Xd, Xn, Xm
+    // Verified via clang:
+    //   and x3, x4, x5 => 0x8A050083
     return 2315255808 + (rm * 65536) + (rn * 32) + rd
 }
 
 fn insn_orr_reg(rd, rn, rm) {
+    // ORR Xd, Xn, Xm
+    // Verified via clang:
+    //   orr x6, x7, x8 => 0xAA0800E6
     return 2852126720 + (rm * 65536) + (rn * 32) + rd
 }
 
 fn insn_eor_reg(rd, rn, rm) {
+    // EOR Xd, Xn, Xm
+    // Verified via clang:
+    //   eor x9, x10, x11 => 0xCA0B0149
     return 3388997632 + (rm * 65536) + (rn * 32) + rd
 }
 
@@ -435,11 +447,17 @@ fn insn_lsrv(rd, rn, rm) {
 }
 
 fn insn_cmp_reg(rn, rm) {
+    // CMP Xn, Xm (alias of SUBS XZR, Xn, Xm)
+    // Verified via clang:
+    //   cmp x12, x13 => 0xEB0D019F
     return 3942645791 + (rm * 65536) + (rn * 32)
 }
 
 fn insn_cset(rd, cond) {
     // Alias for CSINC Xd, XZR, XZR, invert(cond)
+    // Verified via clang:
+    //   cset x14, eq => 0x9A9F17EE
+    //   cset x15, ne => 0x9A9F07EF
     return 2594113504 + ((cond ^ 1) * 4096) + rd
 }
 
@@ -471,6 +489,9 @@ fn insn_blr(rn) {
 }
 
 fn insn_sub_sp(imm) {
+    // SUB SP, SP, #imm12 (shift=0)
+    // Verified via clang:
+    //   sub sp, sp, #32 => 0xD10083FF
     return 3506439167 + (imm * 1024)
 }
 

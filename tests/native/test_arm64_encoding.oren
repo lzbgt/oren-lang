@@ -45,13 +45,21 @@ fn main() {
     expect_u32(core.insn_sub_imm(3, 4, 9), 0xD1002483, 152)   // sub x3, x4, #9
     expect_u32(core.insn_add_reg(5, 6, 7), 0x8B0700C5, 153)   // add x5, x6, x7
     expect_u32(core.insn_sub_reg(8, 9, 10), 0xCB0A0128, 154)  // sub x8, x9, x10
-    expect_u32(core.insn_b(0), 0x14000000, 155)               // b .
-    expect_u32(core.insn_bl(0), 0x94000000, 156)              // bl .
-    expect_u32(core.insn_b_cond(0, 0), 0x54000000, 157)       // b.eq .
-    expect_u32(core.insn_blr(11), 0xD63F0160, 158)            // blr x11
-    expect_u32(core.insn_br(12), 0xD61F0180, 159)             // br x12
-    expect_u32(core.insn_b(-1), 0x17FFFFFF, 160)              // b back 1 insn
-    expect_u32(core.insn_b_cond(-1, 0), 0x54FFFFE0, 161)      // b.eq back 1 insn
+    expect_u32(core.insn_and_reg(3, 4, 5), 0x8A050083, 155)   // and x3, x4, x5
+    expect_u32(core.insn_orr_reg(6, 7, 8), 0xAA0800E6, 156)   // orr x6, x7, x8
+    expect_u32(core.insn_eor_reg(9, 10, 11), 0xCA0B0149, 157) // eor x9, x10, x11
+    expect_u32(core.insn_cmp_reg(12, 13), 0xEB0D019F, 158)    // cmp x12, x13
+    expect_u32(core.insn_cset(14, 0), 0x9A9F17EE, 159)        // cset x14, eq
+    expect_u32(core.insn_cset(15, 1), 0x9A9F07EF, 160)        // cset x15, ne
+    expect_u32(core.insn_add_sp(16), 0x910043FF, 161)         // add sp, sp, #16
+    expect_u32(core.insn_sub_sp(32), 0xD10083FF, 162)         // sub sp, sp, #32
+    expect_u32(core.insn_b(0), 0x14000000, 163)               // b .
+    expect_u32(core.insn_bl(0), 0x94000000, 164)              // bl .
+    expect_u32(core.insn_b_cond(0, 0), 0x54000000, 165)       // b.eq .
+    expect_u32(core.insn_blr(11), 0xD63F0160, 166)            // blr x11
+    expect_u32(core.insn_br(12), 0xD61F0180, 167)             // br x12
+    expect_u32(core.insn_b(-1), 0x17FFFFFF, 168)              // b back 1 insn
+    expect_u32(core.insn_b_cond(-1, 0), 0x54FFFFE0, 169)      // b.eq back 1 insn
 
     // PC-relative addressing.
     expect_u32(core.insn_adr(13, 0), 0x1000000D, 170) // adr x13, .
