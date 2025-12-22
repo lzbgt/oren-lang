@@ -346,10 +346,11 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_movz(sys_reg, sysno))
                 emit_svc_preserve_heap(ctx, svc_imm)
                 if ctx["platform"]["os"] != "linux" {
-                    // Normalize error to -1.
+                    // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
+                    // Normalize to X0 = -errno for syscall-first code (matches other syscalls).
                     var br_ok = oren_list_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
-                    push_u32_le(ctx["code"], insn_movn(0, 0)) // X0=-1
+                    push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = 0 - errno = -errno
                     var ok_pos = oren_list_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }

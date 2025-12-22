@@ -231,7 +231,9 @@ fn sha256_transform(state_ptr, data_ptr, k_ptr, w_ptr) {
 
 fn oren_sha256_range(bytes, start, length) {
     if bytes == 0 { oren_panic("sha256_range expects bytes") }
-    if start == nil || length == nil { oren_panic("sha256_range expects (bytes, int, int)") }
+    // NOTE (native backend / rolling semantics):
+    // `nil` is represented as 0, so `start == nil` would incorrectly reject valid `start=0`.
+    // Treat `start`/`length` as required integers and validate via numeric bounds below.
     if start < 0 || length < 0 { oren_panic("sha256_range: negative range") }
 
     var n_total = oren_bytes_len(bytes)

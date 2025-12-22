@@ -38,6 +38,23 @@ fn compiler_main() {
 
     var cli = cli_spec()
     var parsed = argparse.parse(cli, argv)
+
+    // Debug hook for native self-hosting bringup:
+    // Stage2 native sometimes exits early without emitting diagnostics.
+    // This print is gated behind an env var so it does not affect normal output.
+    var dbg_parse = oren_env("OREN_DEBUG_PARSE")
+    if dbg_parse != nil {
+        var ok_s = "false"
+        if parsed["ok"] == true { ok_s = "true" }
+        var code_v = parsed["code"]
+        if code_v == nil { code_v = -999 }
+        var cmd_s = parsed["cmd"]
+        if cmd_s == nil { cmd_s = "<nil>" }
+        print("DEBUG_PARSE ok=" + ok_s + " code=" + oren_int_to_string(code_v) + " cmd=" + cmd_s)
+        if parsed["err"] != nil { print("DEBUG_PARSE err=" + parsed["err"]) }
+        if parsed["help"] != nil { print("DEBUG_PARSE help_len=" + oren_int_to_string(oren_string_len(parsed["help"]))) }
+    }
+
     if parsed["help"] != nil && parsed["code"] == 0 {
         print(parsed["help"])
         return nil
@@ -49,6 +66,11 @@ fn compiler_main() {
             print(emsg)
         }
         if parsed["help"] != nil { print(parsed["help"]) }
+        if dbg_parse != nil {
+            var code_v2 = parsed["code"]
+            if code_v2 == nil { code_v2 = -999 }
+            print("DEBUG_PARSE exiting code=" + oren_int_to_string(code_v2))
+        }
         oren_exit(parsed["code"])
     }
     if parsed["cmd"] == nil || parsed["cmd"] == "" {
@@ -60,6 +82,10 @@ fn compiler_main() {
     var pos = parsed["pos"]
     var opts = parsed["opts"]
     var seen = parsed["seen"]
+    var dbg_flow = oren_env("OREN_DEBUG_FLOW")
+    if dbg_flow != nil {
+        print("DEBUG_FLOW cmd=" + cmd_name)
+    }
 
     if cmd_name == "scan" {
         var lib = pos[0]
@@ -130,8 +156,10 @@ fn compiler_main() {
     }
 
     if cmd_name == "dump" {
+        if dbg_flow != nil { print("DEBUG_FLOW enter dump") }
         var kind = pos[0]
         var path = pos[1]
+        if dbg_flow != nil { print("DEBUG_FLOW dump kind=" + kind + " path=" + path) }
 
         // Modern CLI: options already parsed/validated by std/argparse.
         // Keep env defaults but allow CLI flags to override.
@@ -150,11 +178,13 @@ fn compiler_main() {
         if seen["attr-allow-prefixes"] == true { allow = split_csv(opts["attr-allow-prefixes"]) }
 
         if kind == "tokens" {
+            if dbg_flow != nil { print("DEBUG_FLOW dump tokens start") }
             var js = dump.dump_tokens_json(path, strict, allow)
             if js == nil {
                 emit_diag("compile", 2, "dump tokens failed: " + path)
                 oren_exit(1)
             }
+            if dbg_flow != nil { print("DEBUG_FLOW dump tokens got_json") }
             var rc = dump.write_or_print(outp, js)
             if rc != 0 {
                 emit_diag("compile", 2, "Failed to write dump output: " + outp)
@@ -163,6 +193,7 @@ fn compiler_main() {
             return nil
         }
     if kind == "linked" {
+            if dbg_flow != nil { print("DEBUG_FLOW dump linked start") }
             var src = expand_includes_file(path, [])
             if src == nil {
                 var emsg = "Failed to read file: " + path
@@ -173,6 +204,7 @@ fn compiler_main() {
                 if msg != nil { print(msg) }
                 oren_exit(2)
             }
+            if dbg_flow != nil { print("DEBUG_FLOW dump linked got_src") }
             var l = lexer.new_lexer(src)
             l["file"] = path
             var p = parser.new_parser(l)
@@ -192,6 +224,7 @@ fn compiler_main() {
                 oren_exit(1)
             }
             var linked = link_program(path, prog, {"target": target, "arch": arch})
+            if dbg_flow != nil { print("DEBUG_FLOW dump linked linked_ok") }
             var js2 = dump.linked_summary_json(linked)
             var rc2 = dump.write_or_print(outp, js2)
             if rc2 != 0 {
@@ -201,6 +234,7 @@ fn compiler_main() {
             return nil
         }
     if kind == "graph" {
+            if dbg_flow != nil { print("DEBUG_FLOW dump graph start") }
             var srcg = expand_includes_file(path, [])
             if srcg == nil {
                 var emsgg = "Failed to read file: " + path
@@ -211,6 +245,7 @@ fn compiler_main() {
                 if msgg != nil { print(msgg) }
                 oren_exit(2)
             }
+            if dbg_flow != nil { print("DEBUG_FLOW dump graph got_src") }
             var lg = lexer.new_lexer(srcg)
             lg["file"] = path
             var pg = parser.new_parser(lg)
@@ -230,6 +265,7 @@ fn compiler_main() {
                 oren_exit(1)
             }
             var linkedg = link_program(path, progg, {"target": target, "arch": arch})
+            if dbg_flow != nil { print("DEBUG_FLOW dump graph linked_ok") }
             var graph = linkedg["module_graph"]
             var jsg = dump.module_graph_json(graph)
             var rcg = dump.write_or_print(outp, jsg)
@@ -246,6 +282,7 @@ fn compiler_main() {
     }
 
     if cmd_name == "meta" {
+        if dbg_flow != nil { print("DEBUG_FLOW enter meta") }
         var path = pos[0]
 
         // Modern CLI: options already parsed/validated by std/argparse.

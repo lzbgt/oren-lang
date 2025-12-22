@@ -272,6 +272,16 @@ fn native_expr_is_list_stringy(ctx, expr) {
         }
         return false
     }
+    if et == "Index" {
+        // Rolling heuristic: argparse parse results contain `pos: list<string>`.
+        // Without this, `pos[i]` loses stringiness and breaks path/string concatenation in the native compiler.
+        var idx = expr["index"]
+        if idx != nil && idx["type"] == "String" {
+            var k = idx["value"]
+            if k == "pos" { return true }
+        }
+        return false
+    }
     if et == "Call" {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
@@ -305,6 +315,22 @@ fn native_expr_is_stringy(ctx, expr) {
         return false
     }
     if et == "Index" {
+        // Rolling heuristic: map indexing for known string fields.
+        //
+        // The self-hosted compiler heavily represents data as maps (tokens/AST/namespaces/argparse results).
+        // When running via the native backend there is no runtime tagging, so we keep a narrow allowlist
+        // of common keys whose values are strings in the compiler data model.
+        var idx = expr["index"]
+        if idx != nil && idx["type"] == "String" {
+            var k = idx["value"]
+            if k == "cmd" || k == "err" || k == "help" { return true } // argparse parse results
+            if k == "type" || k == "literal" || k == "file" { return true } // lexer tokens
+            if k == "ch" || k == "input" { return true } // lexer internal state map (rolling; native backend needs string ops)
+            if k == "value" { return true } // common "string payload" field in AST nodes (Identifier/String/etc)
+            if k == "name" || k == "path" || k == "prefix" || k == "full" || k == "alias" { return true } // module/link structures
+            if k == "msg" || k == "kind" { return true } // diagnostics / errors
+            if k == "backend" || k == "target" || k == "arch" || k == "out" || k == "cc" { return true } // CLI opts
+        }
         if native_expr_is_list_stringy(ctx, expr["left"]) { return true }
         return false
     }
@@ -324,6 +350,7 @@ fn native_expr_is_stringy(ctx, expr) {
             // Known string-producing helpers in the injected runtime / stdlib.
             if nm == "oren_int_to_string" { return true }
             if nm == "oren_float_to_string" { return true }
+            if nm == "oren_char" { return true }
             if nm == "oren_string_char_at" { return true }
             if nm == "oren_string_slice" { return true }
             if nm == "oren_string_from_bytes" { return true }

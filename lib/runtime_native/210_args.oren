@@ -9,9 +9,18 @@ fn oren_args() {
     var i = 0
     while i < argc {
         var s = ptr_get(argv + i * 8)
-        oren_list_push(out, s)
+        // Copy argv strings into tracked heap strings so downstream code can reliably:
+        // - print them as strings (oren_print checks GC-kind=STRING)
+        // - concatenate them via `+` (native runtime `oren_add` concatenates only tracked strings)
+        //
+        // This also avoids "raw pointer treated as int" issues throughout the self-hosted compiler.
+        if s != 0 {
+            var ss = oren_string_slice(s, 0, oren_string_len(s))
+            oren_list_push(out, ss)
+        } else {
+            oren_list_push(out, 0)
+        }
         i = i + 1
     }
     return out
 }
-

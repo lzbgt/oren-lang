@@ -19,6 +19,9 @@ fn oren_is_err(v) {
     if v == 0 { return 0 }
     var node = oren_find_node(v)
     if node == 0 { return 0 }
+    // Prevent false positives: strings/lists/bufs are also tracked heap pointers, but do not
+    // share the map header layout. Only maps (kind=3) can be structured errors.
+    if ptr_get(iadd(node, 16)) != 3 { return 0 }
     if ptr_get(v + 24) != map_magic() { return 0 }
     var marker = oren_map_get(v, "__err")
     if marker == 0 { return 0 }
@@ -34,4 +37,3 @@ fn oren_err_msg(v) {
     if oren_is_err(v) == 0 { return 0 }
     return oren_map_get(v, "msg")
 }
-

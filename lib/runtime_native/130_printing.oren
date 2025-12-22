@@ -207,9 +207,10 @@ fn list_magic() { return 1279870019 } // 'LIST'
 fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
 
 fn oren_new_map(cap) {
-    // Map layout mirrors list layout for safety and future growth:
-    //   [count][cap][entries_ptr][magic]
-    // Where entries_ptr points to an array of `[key_ptr][value]` pairs (16 bytes each).
+    // Map header layout mirrors list layout for safety and future growth:
+    //   [count][cap][entries_ptr][magic][dirty_sort]
+    // Where entries_ptr points to an array of entries:
+    //   [key][key_kind][value]  (24 bytes each, 8-byte aligned)
     //
     // Rationale:
     // - The previous v0 layout stored entries inline after the header and attempted to
@@ -220,23 +221,37 @@ fn oren_new_map(cap) {
     if cap < 0 { cap = 0 }
     if cap > 0 && cap < 4 { cap = 4 }
 
-    var header = malloc(32)
+    // Header layout (40 bytes):
+    // - count      @ +0
+    // - cap        @ +8
+    // - entries ptr@ +16
+    // - magic      @ +24
+    // - dirty_sort @ +32  (0=sorted, 1=needs sort for deterministic iteration)
+    var header = malloc(40)
     if header == 0 { exit(1) }
     if header == -1 { exit(1) }
-    oren_track_alloc(header, 32, 0)
+    oren_track_alloc(header, 40, 0)
 
     var buf = 0
+    // Map entry layout (24 bytes, 8-byte aligned):
+    //   [0]  key
+    //   [8]  key_kind (0=int, 1=string)
+    //   [16] value
+    //
+    // This allows the native runtime to support int-keyed maps used by the compiler
+    // (e.g. `type_scopes: {0: {...}}`) without relying on unsafe `strcmp` on integers.
     if cap > 0 {
-        buf = malloc(cap * 16)
+        buf = malloc(cap * 24)
         if buf == 0 { exit(1) }
         if buf == -1 { exit(1) }
-        oren_track_alloc(buf, cap * 16, 0)
+        oren_track_alloc(buf, cap * 24, 0)
     }
 
     ptr_set(header + 0, 0)       // count
     ptr_set(header + 8, cap)     // cap
     ptr_set(header + 16, buf)    // entries_ptr
     ptr_set(header + 24, map_magic())
+    ptr_set(header + 32, 0)      // dirty_sort
 
     // Mark map header kind for GC traversal (kind=3 => MAP).
     var node = oren_find_node(header)
@@ -248,7 +263,6 @@ fn oren_map_set(m, k, v) {
     // stack_trace()
     if m == 0 { exit(110) }
     if m < 4096 { exit(111) }
-    if k == 0 { exit(112) }
     // if m > 4096 { exit(12) } 
     if ptr_get(m + 24) != map_magic() { exit(113) }
     
@@ -261,12 +275,41 @@ fn oren_map_set(m, k, v) {
     if buf == 0 && cap > 0 { exit(114) }
     if cap == 0 && buf != 0 { exit(114) }
 
+    // Key kind:
+    // - 0: integer key (safe for any int, including 0)
+    // - 1: string key (C-string pointer; may be tracked heap string or untracked literal/argv/env pointer)
+    var k_kind = 0
+    if k != 0 {
+        if k >= 4096 {
+            var kn = oren_find_node(k)
+            if kn != 0 {
+                var kk = ptr_get(iadd(kn, 16))
+                if kk == 1 { k_kind = 1 } else { k_kind = 0 }
+            } else {
+                // Untracked pointer (string literal / argv/env view) => treat as string key.
+                k_kind = 1
+            }
+        }
+    }
+
+    // Update existing entry if key already present.
     var i = 0
     while i < count {
-        var kp = ptr_get(buf + i * 16)
-        if strcmp(kp, k) == 0 {
-            ptr_set(buf + i * 16 + 8, v)
-            return m
+        var off = i * 24
+        var ek = ptr_get(buf + off + 0)
+        var ek_kind = ptr_get(buf + off + 8)
+        if ek_kind == k_kind {
+            if k_kind == 0 {
+                if ek == k {
+                    ptr_set(buf + off + 16, v)
+                    return m
+                }
+            } else {
+                if strcmp(ek, k) == 0 {
+                    ptr_set(buf + off + 16, v)
+                    return m
+                }
+            }
         }
         i = i + 1
     }
@@ -275,14 +318,17 @@ fn oren_map_set(m, k, v) {
     if count >= cap {
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
-        var new_buf = malloc(new_cap * 16)
+        var new_buf = malloc(new_cap * 24)
         if new_buf == 0 { exit(99) }
         if new_buf == -1 { exit(99) }
-        oren_track_alloc(new_buf, new_cap * 16, 0)
+        oren_track_alloc(new_buf, new_cap * 24, 0)
         var ci = 0
         while ci < count {
-            ptr_set(new_buf + ci * 16 + 0, ptr_get(buf + ci * 16 + 0))
-            ptr_set(new_buf + ci * 16 + 8, ptr_get(buf + ci * 16 + 8))
+            var from = buf + ci * 24
+            var to = new_buf + ci * 24
+            ptr_set(to + 0, ptr_get(from + 0))   // key
+            ptr_set(to + 8, ptr_get(from + 8))   // key_kind
+            ptr_set(to + 16, ptr_get(from + 16)) // value
             ci = ci + 1
         }
         buf = new_buf
@@ -291,29 +337,105 @@ fn oren_map_set(m, k, v) {
         ptr_set(m + 16, buf)
     }
 
-    // Deterministic ordered maps (rolling): keep keys sorted by strcmp (ascending).
-    // Keys are assumed to be string pointers; do not use non-string keys in v0.
-    var insert_at = 0
-    while insert_at < count {
-        var ek = ptr_get(buf + insert_at * 16)
-        if strcmp(ek, k) > 0 { break }
-        insert_at = insert_at + 1
-    }
-
-    // Shift entries right to make space.
-    var j = count
-    while j > insert_at {
-        var from = buf + (j - 1) * 16
-        var to = buf + j * 16
-        ptr_set(to + 0, ptr_get(from + 0))
-        ptr_set(to + 8, ptr_get(from + 8))
-        j = j - 1
-    }
-
-    ptr_set(buf + insert_at * 16, k)
-    ptr_set(buf + insert_at * 16 + 8, v)
+    // Append new entry (O(1)) and mark dirty; we sort lazily on iteration.
+    // This avoids O(n^2) insertion behavior for large maps while keeping deterministic iteration.
+    var offn = count * 24
+    ptr_set(buf + offn + 0, k)
+    ptr_set(buf + offn + 8, k_kind)
+    ptr_set(buf + offn + 16, v)
     ptr_set(m + 0, count + 1)
+    ptr_set(m + 32, 1)
     return m
+}
+
+fn map_cmp_keys(a_kind, a_key, b_kind, b_key) {
+    if a_kind == b_kind {
+        if a_kind == 0 {
+            if a_key < b_key { return -1 }
+            if a_key > b_key { return 1 }
+            return 0
+        }
+        return strcmp(a_key, b_key)
+    }
+    // int keys first
+    if a_kind == 0 { return -1 }
+    return 1
+}
+
+fn map_swap_entry(buf, i, j) {
+    if i == j { return 0 }
+    var offi = i * 24
+    var offj = j * 24
+
+    var ki = ptr_get(buf + offi + 0)
+    var ki_kind = ptr_get(buf + offi + 8)
+    var vi = ptr_get(buf + offi + 16)
+
+    ptr_set(buf + offi + 0, ptr_get(buf + offj + 0))
+    ptr_set(buf + offi + 8, ptr_get(buf + offj + 8))
+    ptr_set(buf + offi + 16, ptr_get(buf + offj + 16))
+
+    ptr_set(buf + offj + 0, ki)
+    ptr_set(buf + offj + 8, ki_kind)
+    ptr_set(buf + offj + 16, vi)
+    return 0
+}
+
+fn map_entry_cmp_to_pivot(buf, idx, pk, pk_kind) {
+    var off = idx * 24
+    var ek = ptr_get(buf + off + 0)
+    var ek_kind = ptr_get(buf + off + 8)
+    return map_cmp_keys(ek_kind, ek, pk_kind, pk)
+}
+
+fn map_qsort_entries(buf, lo, hi) {
+    if lo >= hi { return 0 }
+    var mid = lo + (hi - lo) / 2
+    var offp = mid * 24
+    var pk = ptr_get(buf + offp + 0)
+    var pk_kind = ptr_get(buf + offp + 8)
+
+    var i = lo
+    var j = hi
+    while i <= j {
+        while true {
+            if map_entry_cmp_to_pivot(buf, i, pk, pk_kind) < 0 {
+                i = i + 1
+            } else {
+                break
+            }
+        }
+        while true {
+            if map_entry_cmp_to_pivot(buf, j, pk, pk_kind) > 0 {
+                j = j - 1
+            } else {
+                break
+            }
+        }
+        if i <= j {
+            map_swap_entry(buf, i, j)
+            i = i + 1
+            j = j - 1
+        }
+    }
+    if lo < j { map_qsort_entries(buf, lo, j) }
+    if i < hi { map_qsort_entries(buf, i, hi) }
+    return 0
+}
+
+fn oren_map_ensure_sorted(m) {
+    if m == 0 { return 0 }
+    if ptr_get(m + 24) != map_magic() { return 0 }
+    if ptr_get(m + 32) == 0 { return 0 }
+    var count = ptr_get(m + 0)
+    if count <= 1 {
+        ptr_set(m + 32, 0)
+        return 0
+    }
+    var buf = ptr_get(m + 16)
+    map_qsort_entries(buf, 0, count - 1)
+    ptr_set(m + 32, 0)
+    return 0
 }
 
 fn oren_map_get(m, k) {
@@ -321,11 +443,30 @@ fn oren_map_get(m, k) {
     if ptr_get(m + 24) != map_magic() { return 0 }
     var count = ptr_get(m + 0)
     var buf = ptr_get(m + 16)
+    // Determine key kind using the same rule as `oren_map_set`.
+    var k_kind = 0
+    if k != 0 {
+        if k >= 4096 {
+            var kn = oren_find_node(k)
+            if kn != 0 {
+                var kk = ptr_get(iadd(kn, 16))
+                if kk == 1 { k_kind = 1 } else { k_kind = 0 }
+            } else {
+                k_kind = 1
+            }
+        }
+    }
     var i = 0
     while i < count {
-        var kp = ptr_get(buf + i * 16)
-        if strcmp(kp, k) == 0 {
-            return ptr_get(buf + i * 16 + 8)
+        var off = i * 24
+        var kp = ptr_get(buf + off + 0)
+        var kp_kind = ptr_get(buf + off + 8)
+        if kp_kind == k_kind {
+            if k_kind == 0 {
+                if kp == k { return ptr_get(buf + off + 16) }
+            } else {
+                if strcmp(kp, k) == 0 { return ptr_get(buf + off + 16) }
+            }
         }
         i = i + 1
     }
@@ -341,10 +482,10 @@ fn oren_map_len(m) {
 fn oren_map_key_at(m, idx) {
     if m == 0 { return 0 }
     if ptr_get(m + 24) != map_magic() { return 0 }
+    oren_map_ensure_sorted(m)
     var count = ptr_get(m + 0)
     if idx < 0 { return 0 }
     if idx >= count { return 0 }
     var buf = ptr_get(m + 16)
-    return ptr_get(buf + idx * 16)
+    return ptr_get(buf + idx * 24)
 }
-

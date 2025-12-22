@@ -62,5 +62,12 @@ fn oren_getenv(key) {
 // Returns a string pointer (value) or nil if not present.
 @cap.requires(domain="ENV")
 fn oren_env(name) {
-    return oren_getenv(name)
+    // Copy the returned env value into a tracked heap string so it can safely flow through:
+    // - `+` concatenation (`oren_add` only concatenates tracked strings in native mode)
+    // - printing (`oren_print` prints tracked strings; otherwise prints as int)
+    //
+    // `oren_getenv` remains a low-level "view into envp" helper.
+    var v = oren_getenv(name)
+    if v == 0 { return 0 }
+    return oren_string_slice(v, 0, oren_string_len(v))
 }

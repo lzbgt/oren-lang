@@ -1007,6 +1007,14 @@ fn native_compile_program_arm64(linked, platform) {
     // Inject Runtime (supports `// @include "..."` expansion for modular runtime sources).
     var runtime_src = runtime_expand_includes_file(ctx, "lib/runtime_native.oren", [])
     if runtime_src == nil { return ctx }
+    // Debug aid: dump expanded runtime after include expansion, before parsing.
+    // This is intentionally opt-in because the expanded runtime is large.
+    var dump_runtime = oren_env("OREN_DUMP_NATIVE_RUNTIME")
+    if dump_runtime != nil {
+        var p = dump_runtime
+        if p == "" { p = "build/runtime_native.expanded.oren" }
+        oren_write_file(p, runtime_src)
+    }
     var l = lexer.new_lexer(runtime_src)
     l["file"] = "lib/runtime_native.oren"
     var p = parser.new_parser(l)

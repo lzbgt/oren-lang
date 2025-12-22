@@ -451,9 +451,12 @@ fn oren_mark_value(val) {
                 var buf = ptr_get(iadd(val, 16))
                 var i = 0
                 while i < count {
-                    var k = ptr_get(iadd(buf, i * 16))
-                    var v = ptr_get(iadd(buf, i * 16 + 8))
-                    oren_mark_value(k)
+                    // Entry layout (24 bytes): [key][key_kind][value]
+                    var base = i * 24
+                    var k = ptr_get(iadd(buf, base + 0))
+                    var k_kind = ptr_get(iadd(buf, base + 8))
+                    var v = ptr_get(iadd(buf, base + 16))
+                    if k_kind == 1 { oren_mark_value(k) }
                     oren_mark_value(v)
                     i = i + 1
                 }
@@ -552,4 +555,3 @@ fn native_gc_collect() {
     }
     return 0
 }
-

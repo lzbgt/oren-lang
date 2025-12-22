@@ -489,9 +489,83 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 }
     
     
-                // String comparisons (rolling): only when BOTH sides are known-stringy.
-                // This avoids treating checks like `s == nil` as strcmp(s, 0), which would crash.
-                if native_expr_is_stringy(ctx, expr["left"]) && native_expr_is_stringy(ctx, expr["right"]) {
+                // String comparisons (rolling):
+                //
+                // Prefer `strcmp` when we have strong evidence that we are comparing strings,
+                // otherwise fall back to integer compare.
+                //
+                // IMPORTANT:
+                // - `strcmp` is nil-safe in the injected runtime.
+                // - But native values are untagged, so calling `strcmp` on an integer would crash.
+                // - Early in native self-hosting, stringiness inference can miss some identifiers
+                //   (notably function parameters like `ch` in `token.is_letter(ch)`).
+                //
+                // Pragmatic rule (for self-hosting correctness):
+                // - If either side is `nil`, never call strcmp (keep integer compare semantics).
+                // - Otherwise, call strcmp when BOTH sides are known-stringy, OR when either side is
+                //   a string literal and the other side is not an obvious numeric literal.
+                var l_is_nil = false
+                var r_is_nil = false
+                if expr["left"] != nil && expr["left"]["type"] == "Nil" { l_is_nil = true }
+                if expr["right"] != nil && expr["right"]["type"] == "Nil" { r_is_nil = true }
+
+                var allow_strcmp = false
+                if l_is_nil != true && r_is_nil != true {
+                    var ls = native_expr_is_stringy(ctx, expr["left"])
+                    var rs = native_expr_is_stringy(ctx, expr["right"])
+                    if ls && rs {
+                        allow_strcmp = true
+                    } else {
+                        // If either side is already known-stringy, prefer strcmp unless the other side
+                        // is an obvious numeric literal. This is critical for compiler/stdlib helpers
+                        // like `token.is_whitespace(ch)` where `ch` is a parameter (often not inferred),
+                        // but it is compared against known string constants (e.g. CH_LF/CH_CR).
+                        if ls && allow_strcmp != true {
+                            if expr["right"] != nil {
+                                var rt = expr["right"]["type"]
+                                if rt != "Integer" && rt != "Float" && rt != "Boolean" { allow_strcmp = true }
+                            }
+                        }
+                        if rs && allow_strcmp != true {
+                            if expr["left"] != nil {
+                                var lt = expr["left"]["type"]
+                                if lt != "Integer" && lt != "Float" && lt != "Boolean" { allow_strcmp = true }
+                            }
+                        }
+                        var l_lit = false
+                        var r_lit = false
+                        if expr["left"] != nil && expr["left"]["type"] == "String" { l_lit = true }
+                        if expr["right"] != nil && expr["right"]["type"] == "String" { r_lit = true }
+
+                        if allow_strcmp != true && (l_lit || r_lit) {
+                            var other = expr["left"]
+                            if l_lit { other = expr["right"] } else { other = expr["left"] }
+                            if other != nil {
+                                var ot = other["type"]
+                                if ot != "Integer" && ot != "Float" && ot != "Boolean" {
+                                    allow_strcmp = true
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if allow_strcmp {
+                    // Runtime safety guard:
+                    // - Native values are untagged; if either operand is a small int (e.g. bool=1),
+                    //   calling strcmp would crash by dereferencing near-null addresses.
+                    // - Treat values < 4096 as non-strings and fall back to integer compare.
+                    //
+                    // At this point: X1=left, X0=right (from the earlier push/pop sequence).
+                    push_u32_le(ctx["code"], insn_movz(3, 4096))
+                    push_u32_le(ctx["code"], insn_cmp_reg(1, 3))
+                    var br_lt_left = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.LT -> int_compare
+
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 3))
+                    var br_lt_right = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.LT -> int_compare
+
                     // Want strcmp(left, right): X0=left, X1=right. Currently X1=left, X0=right.
                     push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // right -> X2
                     push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // left  -> X0
@@ -509,6 +583,19 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     if op == "<=" { scond = 13 }
                     if op == ">=" { scond = 10 }
                     push_u32_le(ctx["code"], insn_cset(0, scond))
+
+                    var br_end = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B end
+
+                    // int_compare:
+                    var int_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_lt_left, insn_b_cond((int_pos - br_lt_left) / 4, 11)) // LT
+                    set_u32_le(ctx["code"], br_lt_right, insn_b_cond((int_pos - br_lt_right) / 4, 11)) // LT
+                    push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
+                    push_u32_le(ctx["code"], insn_cset(0, cond_code))
+
+                    var end_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
                     return true
                 }
                 

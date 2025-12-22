@@ -152,6 +152,81 @@ func runSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Duration) er
 	return nil
 }
 
+func runNativeSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Duration, target, arch string) error {
+	// Rolling stability gate (native backend):
+	// - Stage1 (./oren) builds Stage2 as a native binary (Mach-O/ELF)
+	// - Stage2 must be executable and responsive (basic smoke)
+	//
+	// This catches regressions in the syscall-first native runtime subset required to self-host.
+	if os.Getenv("OREN_SKIP_SELFHOST_NATIVE") != "" {
+		return nil
+	}
+
+	workdir := filepath.Join("build", "selfhost")
+	_ = os.MkdirAll(workdir, 0o755)
+
+	stage2Native := filepath.Join(workdir, "oren_stage2_native")
+
+	logBuildNative := filepath.Join("build", "logs", "selfhost_build_stage2_native.log")
+	logCodesign := filepath.Join("build", "logs", "selfhost_stage2_native_codesign.log")
+	logHelp := filepath.Join("build", "logs", "selfhost_stage2_native_help.log")
+
+	selfHostTimeout := buildTimeout
+	// Native stage2 operations can be significantly slower than AVM, even for a small entry, because
+	// the syscall-first native runtime currently has a larger constant-factor overhead (allocation,
+	// hashing, map ops, etc). Keep this gate reliable by using a more generous floor.
+	minTimeout := 600 * time.Second
+	if selfHostTimeout < minTimeout {
+		selfHostTimeout = minTimeout
+	}
+
+	// Build Stage2 native compiler (deterministic mode exercises hashing path too).
+	buildNative := fmt.Sprintf("./oren build oren.oren --backend native --target %s --arch %s --deterministic -o %q%s", target, arch, stage2Native, gcArg)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, buildNative, logBuildNative); rc != 0 {
+		return fmt.Errorf("native self-host gate: failed to build stage2 native (rc=%d), see %s", rc, logBuildNative)
+	}
+
+	// macOS: unsigned binaries may be killed at exec by Gatekeeper/AMFI policies even when built locally.
+	// Use ad-hoc signing (`-s -`) so the stage2 native binary can be executed reliably in CI/dev.
+	if runtime.GOOS == "darwin" {
+		sign := fmt.Sprintf("codesign -s - -f %q", stage2Native)
+		if rc := runWithTimeout(timeoutBin, selfHostTimeout, sign, logCodesign); rc != 0 {
+			return fmt.Errorf("native self-host gate: failed to ad-hoc codesign stage2 native (rc=%d), see %s", rc, logCodesign)
+		}
+	}
+
+	// Stage2 native must be executable and responsive. `--help` is intentionally fast and avoids
+	// pulling in heavy compiler pipelines (dump graph / meta) that are still too slow in the
+	// syscall-first runtime for a reliable gate.
+	help := fmt.Sprintf("%q --help", stage2Native)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, help, logHelp); rc != 0 {
+		return fmt.Errorf("native self-host gate: stage2(native) --help failed (rc=%d), see %s", rc, logHelp)
+	}
+	b, err := os.ReadFile(logHelp)
+	if err == nil {
+		if !bytes.Contains(b, []byte("Usage:")) {
+			return fmt.Errorf("native self-host gate: stage2(native) --help output missing Usage:, see %s", logHelp)
+		}
+	}
+
+	return nil
+}
+
+func hostNativeTarget() string {
+	if runtime.GOOS == "darwin" {
+		return "macos"
+	}
+	if runtime.GOOS == "linux" {
+		return "linux"
+	}
+	return ""
+}
+
+func hostNativeArch() string {
+	// Rolling policy: the native backend supports only arm64 today.
+	return "arm64"
+}
+
 func main() {
 	var (
 		target      = flag.String("target", "macos", "native backend target: macos|linux")
@@ -162,6 +237,7 @@ func main() {
 		full        = flag.Bool("full", envBool("OREN_TEST_FULL", false), "run the full curated suite (env OREN_TEST_FULL=1)")
 		verbose     = flag.Bool("verbose", envBool("OREN_TEST_VERBOSE", false), "print per-test progress (env OREN_TEST_VERBOSE=1)")
 		selfhost    = flag.Bool("selfhost", envBool("OREN_TEST_SELFHOST", false), "run self-hosting stability gate (env OREN_TEST_SELFHOST=1); implied by --full")
+		selfhostNative = flag.Bool("selfhost-native", envBool("OREN_TEST_SELFHOST_NATIVE", false), "also run the native self-hosting gate (build+run a stage2 native compiler) (env OREN_TEST_SELFHOST_NATIVE=1); implied by --full")
 	)
 	flag.Parse()
 
@@ -263,6 +339,23 @@ func main() {
 		if err := runSelfHostingGate(timeoutBin, gcArg, buildTimeout); err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
+		}
+
+		// Optional native self-hosting gate (rolling; slower). This is separate from the bytecode
+		// self-host gate because it requires the syscall-first native runtime surface to be present.
+		enableNative := *full || *selfhostNative
+		if enableNative {
+			nt := hostNativeTarget()
+			if nt == "" {
+				fmt.Fprintln(os.Stderr, "WARN: native self-host gate skipped: unsupported host OS:", runtime.GOOS)
+			} else if runtime.GOARCH != "arm64" {
+				fmt.Fprintln(os.Stderr, "WARN: native self-host gate skipped: unsupported host arch:", runtime.GOARCH)
+			} else {
+				if err := runNativeSelfHostingGate(timeoutBin, gcArg, buildTimeout, nt, hostNativeArch()); err != nil {
+					fmt.Fprintln(os.Stderr, err.Error())
+					os.Exit(1)
+				}
+			}
 		}
 	}
 	if err := auditRuntimeNativeModernStyle(); err != nil {

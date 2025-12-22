@@ -184,9 +184,22 @@ fn expand_includes_file(full_path, include_stack) {
     // On failure, returns nil and sets `INCLUDE_LAST_ERR` to a best-effort message.
     // Callers should format their own diagnostics so user-facing output stays stable.
     INCLUDE_LAST_ERR = nil
+    var dbg_inc = oren_env("OREN_DEBUG_INCLUDES")
+    if dbg_inc != nil {
+        print("DEBUG_INCLUDES open=" + full_path)
+        // Also print the raw pointer/int value for diagnosing native backend issues.
+        print("DEBUG_INCLUDES open_ptr=" + oren_int_to_string(full_path))
+    }
 
-    if full_path == nil || full_path == "" {
+    if full_path == nil {
         INCLUDE_LAST_ERR = "include: empty path"
+        if dbg_inc != nil { print("DEBUG_INCLUDES empty(nil)") }
+        return nil
+    }
+    // Use length check to avoid relying on string equality semantics for "" in early runtimes.
+    if oren_string_len(full_path) == 0 || full_path == "" {
+        INCLUDE_LAST_ERR = "include: empty path"
+        if dbg_inc != nil { print("DEBUG_INCLUDES empty(len==0)") }
         return nil
     }
 
@@ -208,6 +221,9 @@ fn expand_includes_file(full_path, include_stack) {
         if INCLUDE_LAST_ERR == nil { INCLUDE_LAST_ERR = "failed to read" }
         return nil
     }
+    if dbg_inc != nil {
+        print("DEBUG_INCLUDES read ok len=" + oren_int_to_string(oren_string_len(src)))
+    }
 
     var next_stack = []
     if include_stack != nil {
@@ -227,11 +243,15 @@ fn expand_includes_file(full_path, include_stack) {
         var ch = oren_string_char_at(src, i)
         if ch == "\n" {
             var inc = include_path_from_line(line)
-            if inc != "" {
+            // Avoid relying on `inc != ""` because the native backend may lower it as pointer compare
+            // if stringiness inference misses `inc`. Length check is robust across backends.
+            if inc != nil && oren_string_len(inc) > 0 {
+                if dbg_inc != nil { print("DEBUG_INCLUDES include raw=" + inc + " base=" + full_path) }
                 var inc_full = inc
                 if oren_string_len(inc) > 0 && oren_string_char_at(inc, 0) != "/" {
                     inc_full = resolve_path(dirname(full_path), inc)
                 }
+                if dbg_inc != nil { print("DEBUG_INCLUDES include full=" + inc_full) }
                 var child = expand_includes_file(inc_full, next_stack)
                 if child == nil { return nil }
                 oren_list_push(out_parts, child)
@@ -248,9 +268,9 @@ fn expand_includes_file(full_path, include_stack) {
     }
 
     // Last line if file doesn't end with '\n'
-    if line != "" {
+    if line != nil && oren_string_len(line) > 0 {
         var inc2 = include_path_from_line(line)
-        if inc2 != "" {
+        if inc2 != nil && oren_string_len(inc2) > 0 {
             var inc_full2 = inc2
             if oren_string_len(inc2) > 0 && oren_string_char_at(inc2, 0) != "/" {
                 inc_full2 = resolve_path(dirname(full_path), inc2)
