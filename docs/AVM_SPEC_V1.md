@@ -180,6 +180,7 @@ Core operations (rolling; not yet stabilized as a permanent `.obc` ABI):
   - returns `-60` (BSD `ETIMEDOUT`) on timeout
   - `timeout_ms < 0` behaves like `oren_join` (blocks)
   - `timeout_ms == 0` is a non-blocking probe (returns `ETIMEDOUT` if not done)
+  - Note: this `timeout_ms < 0` rule is specific to AVM task join; native NET wait helpers intentionally treat `timeout_ms < 0` as **no wait** (0ms) in rolling mode to avoid accidental hangs.
 - `oren_yield()`
   - yields to another runnable task (no-op if none)
 
