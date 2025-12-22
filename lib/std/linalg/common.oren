@@ -1,0 +1,19 @@
+// std/linalg common helpers (rolling)
+
+fn _err_invalid_arg(msg) {
+    // Code 4 matches existing stdlib convention (see std/ints).
+    return oren_err(4, msg)
+}
+
+fn _vec2_len(a, b, ctx) {
+    var na = oren_list_len(a)
+    var nb = oren_list_len(b)
+    if na != nb {
+        var where = ctx
+        if where == nil { where = "linalg" }
+        return _err_invalid_arg(where + ": length mismatch (" + oren_int_to_string(na) + " != " + oren_int_to_string(nb) + ")")
+    }
+    return na
+}
+
+// --- dot products ---

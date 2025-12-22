@@ -1,0 +1,57 @@
+// std/linalg matmul (list baseline) (rolling)
+
+import common "common.oren"
+
+fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
+
+fn matmul_f64(a, b, m, n, p) {
+    if m < 0 || n < 0 || p < 0 {
+        return _err_invalid_arg("matmul_f64: negative dims")
+    }
+    if oren_list_len(a) != m * n {
+        return _err_invalid_arg("matmul_f64: A length mismatch")
+    }
+    if oren_list_len(b) != n * p {
+        return _err_invalid_arg("matmul_f64: B length mismatch")
+    }
+
+    var out = []
+    var i = 0
+    while i < m {
+        var j = 0
+        while j < p {
+            var k = 0
+            var s = 0.0
+            while k < n {
+                s = s + a[i * n + k] * b[k * p + j]
+                k = k + 1
+            }
+            oren_list_push(out, s)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn matmul_f32(a, b, m, n, p) {
+    var out = matmul_f64(a, b, m, n, p)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < oren_list_len(out) {
+        out[i] = f32(out[i])
+        i = i + 1
+    }
+    return out
+}
+
+// --- typed-buffer matmul ---
+//
+// These are the baseline building blocks for HPC workloads. They are scalar-first
+// but designed so future NEON kernels can replace the hot loops behind a stable
+// intrinsic/runtime boundary.
+//
+// Row-major, flat buffers:
+// - A is m x n, length m*n, indexed as A[i*n + k]
+// - B is n x p, length n*p, indexed as B[k*p + j]
+// - Out is m x p, length m*p, indexed as Out[i*p + j]

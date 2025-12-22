@@ -1,0 +1,79 @@
+// std/linalg axpy (rolling)
+
+import buffer "../buffer.oren"
+import common "common.oren"
+
+fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
+fn _vec2_len(a, b, ctx) { return common._vec2_len(a, b, ctx) }
+
+fn axpy_f64(alpha, x, y) {
+    var n = _vec2_len(x, y, "axpy_f64")
+    if oren_is_err(n) { return n }
+    var out = []
+    var i = 0
+    while i < n {
+        oren_list_push(out, alpha * x[i] + y[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn axpy_f64_in_place(alpha, x, y) {
+    var n = _vec2_len(x, y, "axpy_f64_in_place")
+    if oren_is_err(n) { return n }
+    var i = 0
+    while i < n {
+        y[i] = alpha * x[i] + y[i]
+        i = i + 1
+    }
+    return y
+}
+
+fn axpy_f32(alpha, x, y) {
+    var out = axpy_f64(alpha, x, y)
+    if oren_is_err(out) { return out }
+    // Round each element to float32 boundary.
+    var i = 0
+    while i < oren_list_len(out) {
+        out[i] = f32(out[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn axpy_f32_buf_in_place(alpha, x: []f32, y: []f32) {
+    return oren_buf_axpy_f32_in_place(alpha, x, y)
+}
+
+fn axpy_f32_buf(alpha, x: []f32, y: []f32) {
+    var n = buffer.len(x)
+    if oren_is_err(n) { return n }
+    var ny = buffer.len(y)
+    if oren_is_err(ny) { return ny }
+    if n != ny { return _err_invalid_arg("axpy_f32_buf: length mismatch") }
+    var out: []f32 = buffer.f32_new(n)
+    if oren_is_err(out) { return out }
+    return oren_buf_axpy_f32_into(out, alpha, x, y)
+}
+
+fn axpy_i32_buf_in_place(alpha, x: []i32, y: []i32) {
+    return oren_buf_axpy_i32_in_place(alpha, x, y)
+}
+
+fn axpy_i32_buf(alpha, x: []i32, y: []i32) {
+    var n = buffer.len(x)
+    if oren_is_err(n) { return n }
+    var ny = buffer.len(y)
+    if oren_is_err(ny) { return ny }
+    if n != ny { return _err_invalid_arg("axpy_i32_buf: length mismatch") }
+    var out: []i32 = buffer.i32_new(n)
+    if oren_is_err(out) { return out }
+    return oren_buf_axpy_i32_into(out, alpha, x, y)
+}
+
+// --- matrix multiplication ---
+//
+// Row-major, flat arrays:
+// - A is m x n, length m*n, indexed as A[i*n + k]
+// - B is n x p, length n*p, indexed as B[k*p + j]
+// - Out is m x p, length m*p, indexed as Out[i*p + j]
