@@ -789,6 +789,8 @@ fn insn_ldrsw(rt, rn, offset) {
 
 fn insn_strb(rt, rn) {
     // STRB Wt, [Xn] with imm = 0 (unsigned offset encoding)
+    // Verified via clang:
+    //   strb w1, [x2] => 0x39000041
     return 956301312 + (rn * 32) + rt
 }
 
@@ -797,16 +799,24 @@ fn insn_add_imm(rd, rn, imm) {
 }
 
 fn insn_ldadd(rs, rt, rn) {
+    // LDADD Xs, Xt, [Xn]
+    // Verified via clang:
+    //   ldadd x8, x9, [x10] => 0xF8280149
     return 4162846720 + (rs * 65536) + (rn * 32) + rt
 }
 
 fn insn_cas(rs, rt, rn) {
+    // CAS Xs, Xt, [Xn]
+    // Verified via clang:
+    //   cas x11, x12, [x13] => 0xC8AB7DAC
     return 3365993472 + (rs * 65536) + (rn * 32) + rt
 }
 
 fn insn_ldaxr(rt, rn) {
     // LDAXR Xt, [Xn]
     // Encoding (arm64): 0xC85FFC00 | (rn << 5) | rt
+    // Verified via clang:
+    //   ldaxr x3, [x4] => 0xC85FFC83
     return 3361733632 + (rn * 32) + rt
 }
 
@@ -814,11 +824,15 @@ fn insn_stlxr(rs, rt, rn) {
     // STLXR Ws, Xt, [Xn]
     // Encoding (arm64): 0xC800FC00 | (rs << 16) | (rn << 5) | rt
     // Note: status register is a W-reg (lower 32 bits of Xrs).
+    // Verified via clang:
+    //   stlxr w5, x6, [x7] => 0xC805FCE6
     return 3355507712 + (rs * 65536) + (rn * 32) + rt
 }
 
 fn insn_clrex() {
     // CLREX
+    // Verified via clang:
+    //   clrex => 0xD5033F5F
     return 3573759839
 }
 

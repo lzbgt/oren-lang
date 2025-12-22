@@ -60,6 +60,14 @@ fn main() {
     expect_u32(core.insn_stur_reg(1, 2, -8), 0xF81F8041, 180) // stur x1, [x2, #-8]
     expect_u32(core.insn_ldur_reg(3, 4, -16), 0xF85F0083, 181) // ldur x3, [x4, #-16]
 
+    // Atomics / barriers (clang-assembled on arm64-darwin).
+    expect_u32(core.insn_strb(1, 2), 0x39000041, 210)        // strb w1, [x2]
+    expect_u32(core.insn_ldaxr(3, 4), 0xC85FFC83, 211)       // ldaxr x3, [x4]
+    expect_u32(core.insn_stlxr(5, 6, 7), 0xC805FCE6, 212)    // stlxr w5, x6, [x7]
+    expect_u32(core.insn_clrex(), 0xD5033F5F, 213)           // clrex
+    expect_u32(core.insn_ldadd(8, 9, 10), 0xF8280149, 214)   // ldadd x8, x9, [x10]
+    expect_u32(core.insn_cas(11, 12, 13), 0xC8AB7DAC, 215)   // cas x11, x12, [x13]
+
     // Load/patch immediates (MOVZ/MOVK/MOVN).
     expect_u32(core.insn_movz(5, 0x1234), 0xD2824685, 190)    // mov x5, #0x1234
     expect_u32(core.insn_movk(5, 0x5678, 1), 0xF2AACF05, 191) // movk x5, #0x5678, lsl #16
