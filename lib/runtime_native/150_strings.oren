@@ -39,6 +39,201 @@ fn oren_char(code) {
     return out
 }
 
+fn oren_string_to_float_bits(s) {
+    // Parse a decimal float literal string into IEEE-754 binary64 bits.
+    //
+    // Purpose: the self-hosted compiler uses this to lower float literals deterministically.
+    // Native backend runs without libc, so we cannot call `strtod`.
+    //
+    // Supported (rolling):
+    // - optional leading '+' or '-'
+    // - digits with optional '_' separators
+    // - optional decimal point
+    // - optional exponent: e/E with optional sign, digits with optional '_'
+    // - "inf", "infinity", "nan" (case-insensitive), with optional leading sign
+    //
+    // Notes:
+    // - This is a pragmatic parser for compiler use. It prioritizes determinism and
+    //   coverage of typical source literals over extreme edge-case performance.
+    if s == 0 { oren_panic("string_to_float_bits expects string") }
+
+    // Skip leading whitespace (best-effort).
+    var i = 0
+    while 1 {
+        var b = ptr_get_byte(s + i) & 255
+        if b == 32 || b == 9 || b == 10 || b == 13 {
+            i = i + 1
+        } else {
+            break
+        }
+    }
+
+    // Sign
+    var neg = 0
+    var b0 = ptr_get_byte(s + i) & 255
+    if b0 == 45 { neg = 1; i = i + 1 } // '-'
+    else {
+        if b0 == 43 { i = i + 1 } // '+'
+    }
+
+    // Special values (case-insensitive): inf/infinity/nan
+    // We only inspect ASCII letters; if the string is shorter, comparisons fail harmlessly.
+    var c0 = ptr_get_byte(s + i) & 255
+    if c0 >= 65 && c0 <= 90 { c0 = c0 + 32 } // A..Z -> a..z
+    if c0 == 105 { // 'i'
+        var c1 = ptr_get_byte(s + i + 1) & 255
+        var c2 = ptr_get_byte(s + i + 2) & 255
+        if c1 >= 65 && c1 <= 90 { c1 = c1 + 32 }
+        if c2 >= 65 && c2 <= 90 { c2 = c2 + 32 }
+        if c1 == 110 && c2 == 102 { // "inf"
+            var bits_inf = 9218868437227405312 // 0x7ff0000000000000
+            if neg == 1 { bits_inf = bits_inf | (1 << 63) }
+            return bits_inf
+        }
+        // "infinity"
+        var c3 = ptr_get_byte(s + i + 3) & 255
+        var c4 = ptr_get_byte(s + i + 4) & 255
+        var c5 = ptr_get_byte(s + i + 5) & 255
+        var c6 = ptr_get_byte(s + i + 6) & 255
+        var c7 = ptr_get_byte(s + i + 7) & 255
+        if c3 >= 65 && c3 <= 90 { c3 = c3 + 32 }
+        if c4 >= 65 && c4 <= 90 { c4 = c4 + 32 }
+        if c5 >= 65 && c5 <= 90 { c5 = c5 + 32 }
+        if c6 >= 65 && c6 <= 90 { c6 = c6 + 32 }
+        if c7 >= 65 && c7 <= 90 { c7 = c7 + 32 }
+        // "infinity" => i n f i n i t y
+        var c8 = ptr_get_byte(s + i + 8) & 255
+        if c8 >= 65 && c8 <= 90 { c8 = c8 + 32 }
+        if c1 == 110 && c2 == 102 && c3 == 105 && c4 == 110 && c5 == 105 && c6 == 116 && c7 == 121 {
+            var bits_inf2 = 9218868437227405312
+            if neg == 1 { bits_inf2 = bits_inf2 | (1 << 63) }
+            return bits_inf2
+        }
+    } else {
+        if c0 == 110 { // 'n'
+            var c1n = ptr_get_byte(s + i + 1) & 255
+            var c2n = ptr_get_byte(s + i + 2) & 255
+            if c1n >= 65 && c1n <= 90 { c1n = c1n + 32 }
+            if c2n >= 65 && c2n <= 90 { c2n = c2n + 32 }
+            if c1n == 97 && c2n == 110 { // "nan"
+                // Canonical quiet NaN payload.
+                var bits_nan = 9221120237041090560 // 0x7ff8000000000000
+                if neg == 1 { bits_nan = bits_nan | (1 << 63) }
+                return bits_nan
+            }
+        }
+    }
+
+    // Parse mantissa digits (+ optional fractional part) as an f64 value.
+    //
+    // IMPORTANT bootstrap rule (native backend):
+    // - Avoid float literals and `f64(...)` casts here.
+    //   The compiler lowers float literals by calling `oren_string_to_float_bits`,
+    //   so using float literals inside this function would be circular.
+    //
+    // Use exact IEEE-754 constants via bitcasts.
+    var f0 = oren_u64_bits_to_f64(0) // 0.0
+    var f1 = oren_u64_bits_to_f64(4607182418800017408) // 0x3ff0000000000000 => 1.0
+    var f10 = oren_u64_bits_to_f64(4621819117588971520) // 0x4024000000000000 => 10.0
+
+    // Keep fractional digit count so we can scale by 10^-frac.
+    var fv = f0
+    var saw_digit = 0
+    var saw_dot = 0
+    var frac_digits = 0
+
+    while 1 {
+        var b = ptr_get_byte(s + i) & 255
+        if b == 95 { // '_'
+            i = i + 1
+            continue
+        }
+        if b == 46 { // '.'
+            if saw_dot == 1 { break }
+            saw_dot = 1
+            i = i + 1
+            continue
+        }
+        if b >= 48 && b <= 57 {
+            saw_digit = 1
+            var d = b - 48
+            // `d` is an int; float arithmetic lowering will convert it via SCVTF.
+            fv = fv * f10 + d
+            if saw_dot == 1 { frac_digits = frac_digits + 1 }
+            i = i + 1
+            continue
+        }
+        break
+    }
+
+    if saw_digit == 0 {
+        // Keep behavior strict: the compiler should not be emitting invalid floats.
+        oren_panic("string_to_float_bits: invalid float literal")
+    }
+
+    // Scale by decimal point.
+    if frac_digits > 0 {
+        // pow10 via exponentiation by squaring (float domain).
+        var e = frac_digits
+        var p10 = f1
+        var base = f10
+        while e > 0 {
+            var odd = e & 1
+            if odd == 1 { p10 = p10 * base }
+            base = base * base
+            e = e >> 1
+        }
+        fv = fv / p10
+    }
+
+    // Optional exponent.
+    var exp10 = 0
+    var be = ptr_get_byte(s + i) & 255
+    if be == 101 || be == 69 { // 'e' or 'E'
+        i = i + 1
+        var eneg = 0
+        var bs = ptr_get_byte(s + i) & 255
+        if bs == 45 { eneg = 1; i = i + 1 }
+        else {
+            if bs == 43 { i = i + 1 }
+        }
+        var any_exp = 0
+        while 1 {
+            var bx = ptr_get_byte(s + i) & 255
+            if bx == 95 { i = i + 1; continue }
+            if bx >= 48 && bx <= 57 {
+                any_exp = 1
+                exp10 = exp10 * 10 + (bx - 48)
+                i = i + 1
+                continue
+            }
+            break
+        }
+        if any_exp == 0 { oren_panic("string_to_float_bits: missing exponent digits") }
+        if eneg == 1 { exp10 = 0 - exp10 }
+    }
+
+    if exp10 != 0 {
+        var ae = exp10
+        if ae < 0 { ae = 0 - ae }
+        var p10e = f1
+        var basee = f10
+        while ae > 0 {
+            var odd2 = ae & 1
+            if odd2 == 1 { p10e = p10e * basee }
+            basee = basee * basee
+            ae = ae >> 1
+        }
+        if exp10 > 0 { fv = fv * p10e } else { fv = fv / p10e }
+    }
+
+    if neg == 1 { fv = f0 - fv }
+
+    // Native backend stores float values as raw IEEE-754 bits in the same 64-bit carrier register.
+    // Returning `fv` directly therefore returns the desired u64 bit-pattern.
+    return fv
+}
+
 // Slice a C-string into a newly allocated, NUL-terminated string.
 // Semantics match the C-backend helper: out-of-range clamps, empty slice returns "".
 fn oren_string_slice(s, start, end) {

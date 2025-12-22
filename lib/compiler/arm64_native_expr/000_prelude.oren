@@ -372,4 +372,3 @@ fn native_compile_expr(ctx, expr) {
     push_u32_le(ctx["code"], insn_movz(0, 0))
     return nil
 }
-

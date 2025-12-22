@@ -16,6 +16,7 @@ fn linux_sys_mkdirat() { return 34 }
 fn linux_sys_unlinkat() { return 35 }
 fn linux_sys_renameat() { return 38 }
 fn linux_sys_faccessat() { return 48 }
+fn linux_sys_fchmodat() { return 53 }
 fn linux_sys_openat() { return 56 }
 fn linux_sys_close() { return 57 }
 fn linux_sys_pipe2() { return 59 }

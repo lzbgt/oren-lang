@@ -99,6 +99,15 @@ fn oren_write_file(path, content) {
     return 0
 }
 
+@cap.requires(domain="FS")
+fn oren_chmod(path, mode) {
+    // Set permissions on a file or directory.
+    //
+    // Used by the compiler to set the executable bit on generated binaries.
+    // Lowered to a syscall by the native backend (with capsule FS enforcement).
+    return sys_chmod(path, mode)
+}
+
 
 @cap.requires(domain="FS")
 fn oren_readdir(path) {

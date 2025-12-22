@@ -193,6 +193,15 @@ fn native_capsule_sys_mkdir_post(pair, rc) {
     return native_capsule_sys_open_post(pair, rc)
 }
 
+fn native_capsule_sys_chmod_pre(path) {
+    // chmod is a write op (mutates file metadata).
+    return native_capsule_fs_path_resolve_pair(path, 1)
+}
+
+fn native_capsule_sys_chmod_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
 fn native_capsule_sys_rename_pre(from, to) {
     // rename touches both paths and is a write op for both.
     var b = malloc(32)

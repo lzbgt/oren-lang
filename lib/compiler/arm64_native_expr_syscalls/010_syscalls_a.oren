@@ -471,6 +471,77 @@ fn native_syscalls_chunk_010_syscalls_a(ctx, fn_name, args, compile_expr) {
                 return true
             }
     
+            if fn_name == "sys_chmod" {
+                // sys_chmod(path, mode) -> 0 or negative errno
+                // macOS: chmod(path, mode) (15)
+                // Linux: fchmodat(AT_FDCWD=-100, path, mode, 0) (__NR_fchmodat=53)
+                //
+                // Capsule hardening: enforce FS at syscall boundary (no bypass), with mount resolution.
+                compile_expr(ctx, args[0]) // path -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[1]) // mode -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                // pre: native_capsule_sys_chmod_pre(path) -> pair
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
+                var bl_pre_c = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_c, "name": "native_capsule_sys_chmod_pre"})
+                // save pair
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                // X0 = resolved path, X1 = mode
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // pair
+                push_u32_le(ctx["code"], insn_ldr_ptr(0, 2))    // path_ptr
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // mode (below pair slot)
+    
+                var svc_imm = abi.darwin_svc_imm()
+                var sys_reg = abi.darwin_syscall_reg()
+                if ctx["platform"]["os"] == "linux" {
+                    svc_imm = labi.linux_svc_imm()
+                    sys_reg = labi.linux_syscall_reg()
+                }
+    
+                if ctx["platform"]["os"] != "linux" {
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_chmod()))
+                    emit_svc_preserve_heap(ctx, svc_imm)
+                    var br_ok = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
+                    var ok_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3))
+                } else {
+                    // fchmodat(AT_FDCWD=-100, path, mode, flags=0)
+                    push_u32_le(ctx["code"], insn_mov_reg(2, 1)) // X2=mode
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=path
+                    push_u32_le(ctx["code"], insn_movz(3, 0))    // flags=0
+                    emit_load_i64_imm(ctx, 0, labi.linux_at_fdcwd()) // X0 = AT_FDCWD (-100)
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_fchmodat()))
+                    emit_svc_preserve_heap(ctx, svc_imm)
+                }
+    
+                // post: native_capsule_sys_chmod_post(pair, rc) -> rc
+                push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pair
+                var bl_post_c = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_c, "name": "native_capsule_sys_chmod_post"})
+    
+                // Pop pair + mode + path
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 48
+                return true
+            }
+    
 
             if fn_name == "sys_rename" {
                 // sys_rename(from, to) -> 0 or negative errno

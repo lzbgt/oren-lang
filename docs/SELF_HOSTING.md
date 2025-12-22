@@ -91,6 +91,15 @@ go build -o oren_bootstrap ./cmd/oren
 ```sh
 ./oren build oren.oren -o oren_stage2
 ```
+
+Native backend option (syscall-first Mach-O/ELF emitter):
+```sh
+./oren build oren.oren --backend native --target macos -o build/oren_stage2_native
+```
+
+Notes:
+- The native backend path depends on a small “compiler subset” of the native runtime being present (e.g. `oren_string_to_float_bits`, `oren_sha256_range`, `oren_chmod`, `oren_env`). This repo treats that subset as a self-hosting stability gate.
+
 4) From here on, you can keep rebuilding without Go:
 ```sh
 ./oren_stage2 build oren.oren -o oren_stage3

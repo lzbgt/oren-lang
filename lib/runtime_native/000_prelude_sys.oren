@@ -57,6 +57,7 @@ fn sys_fstat(fd, st_ptr) { return 0 }
 fn sys_unlink(path) { return 0 }
 fn sys_rename(from, to) { return 0 }
 fn sys_mkdir(path, mode) { return 0 }
+fn sys_chmod(path, mode) { return 0 }
 fn sys_rmdir(path) { return 0 }
 fn sys_getdirentries64(fd, buf, bufsize, pos_ptr) { return 0 }
 fn sys_fork() { return 0 }

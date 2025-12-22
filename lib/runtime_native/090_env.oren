@@ -58,3 +58,9 @@ fn oren_getenv(key) {
     return 0
 }
 
+// Portable name used across backends (AVM/C/native).
+// Returns a string pointer (value) or nil if not present.
+@cap.requires(domain="ENV")
+fn oren_env(name) {
+    return oren_getenv(name)
+}
