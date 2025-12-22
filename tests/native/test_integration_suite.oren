@@ -722,6 +722,17 @@ fn test_net_loopback_minimal() {
         }
         if lfd2 < 0 { exit(801) }
 
+        // Deterministic argument validation for multi-fd wait helpers.
+        // These should return -EINVAL rather than hanging or crashing.
+        var out_bad = malloc(8)
+        if out_bad == 0 { exit(804) }
+        ptr_set(out_bad, 0)
+        if oren_fd_wait_any_readable([], 10, out_bad) != 0 - 22 { exit(804) }
+        if oren_fd_wait_any_writable([], 10, out_bad) != 0 - 22 { exit(804) }
+        if oren_fd_wait_any_readable(nil, 10, out_bad) != 0 - 22 { exit(804) }
+        if oren_fd_wait_any_writable(nil, 10, out_bad) != 0 - 22 { exit(804) }
+        free(out_bad)
+
         // Timeout correctness guard: accept should not hang when no clients connect.
         // (Child is the server; parent connects to port2 only.)
         var tacc = oren_tcp_accept(lfd1, 10)
