@@ -46,10 +46,15 @@ fn main() {
     expect_u32(core.insn_b_cond(0, 0), 0x54000000, 157)       // b.eq .
     expect_u32(core.insn_blr(11), 0xD63F0160, 158)            // blr x11
     expect_u32(core.insn_br(12), 0xD61F0180, 159)             // br x12
+    expect_u32(core.insn_b(-1), 0x17FFFFFF, 160)              // b back 1 insn
+    expect_u32(core.insn_b_cond(-1, 0), 0x54FFFFE0, 161)      // b.eq back 1 insn
 
     // PC-relative addressing.
     expect_u32(core.insn_adr(13, 0), 0x1000000D, 170) // adr x13, .
     expect_u32(core.insn_adrp(16, 0), 0x90000010, 171) // adrp x16, _sym@PAGE (page delta 0)
+    expect_u32(core.insn_adr(3, 8), 0x10000043, 172)  // adr x3, +8 bytes
+    expect_u32(core.insn_b(2), 0x14000002, 173)       // b forward 2 insns
+    expect_u32(core.insn_adr(5, -4), 0x10FFFFE5, 174) // adr x5, -4 bytes
 
     // Unscaled signed-byte offset loads/stores.
     expect_u32(core.insn_stur_reg(1, 2, -8), 0xF81F8041, 180) // stur x1, [x2, #-8]
