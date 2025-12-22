@@ -101,6 +101,12 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: initial matmul f32 benchmark harness exists under `tools/bench/` and now uses modern CLI forms.
    - DoD: expand bench coverage (dot/axpy/gemm variants), add result reporting, and validate SIMD kernels against a scalar reference for correctness + determinism.
 
+6) **Self-hosting hardening (rolling stability gates)** (S)
+   - Status: Stage0→Stage1→Stage2 pipeline exists and is exercised by `make test` (see `docs/SELF_HOSTING.md`).
+   - Status: Stage0 bootstrap transpiler now resolves `std:` imports (keeps the language/compiler evolution path unblocked).
+   - Next: define and freeze a “bootstrap subset” (syntax + stdlib surface) that Stage0 must support; treat changes as high-risk and gate them.
+   - Next: add a deterministic self-hosting gate (Stage1 builds Stage2; compare key artifacts / golden metadata) so regressions are caught immediately.
+
 ### Notes
 
 - Archived snapshot of the previous long TODO list is appended to `docs/TODOS_ARCHIVE.md` (dated 2025-12-22).
