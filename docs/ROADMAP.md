@@ -70,7 +70,7 @@ Higher-level libraries (HTTP/WebSocket, etc.) will be layered on top of the sysc
 This track is defined in `docs/OREN_EVOLUTION.md` and complements the phases above by targeting restricted environments (iOS/Web/Edge) where native exec toolchains may be unavailable.
 
 - **Phase A (AVM Core)**: Implement `libavm` (C) stack-machine interpreter; define OBC bytecode format + instruction set; validate with a hand-written OBC program.
-- **Phase B (Bytecode Backend)**: Add `lib/compiler/codegen_bytecode.oren` and a CLI target to emit `.obc` from the shared AST.
+- **Phase B (Bytecode Backend)**: Add `lib/compiler/codegen_bytecode.oren` (may be composed from smaller parts via `// @include "..."`) and a CLI target to emit `.obc` from the shared AST.
 - **Phase C (Inception / Self-Hosting on AVM)**: Stage0 produces `oren.obc`; run compiler-in-bytecode under `libavm` to compile and run user scripts (OBC → AVM).
 - **Phase D (`libagent`)**: Safe agent standard library (`fs`, `net/http`, `semantic`, `proc` where allowed) mapped to AVM host primitives.
 

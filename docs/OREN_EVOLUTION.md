@@ -52,7 +52,7 @@ graph TD
 
 ### Phase 2: The "Bytecode Backend"
 **Goal:** Enable the Oren Compiler to generate OBC.
-*   **Task:** Implement `lib/compiler/codegen_bytecode.oren`.
+*   **Task:** Implement `lib/compiler/codegen_bytecode.oren` (rolling note: this may be split into smaller files and composed via `// @include "..."`).
 *   **Logic:** Walk the AST and emit OBC instructions instead of ARM64 assembly.
 *   **Deliverable:** `oren build script.oren --target=bytecode` -> `script.obc`.
 

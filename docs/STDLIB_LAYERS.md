@@ -116,7 +116,8 @@ Encoders remain canonical and deterministic (they do not emit comments).
 
 Current implementation locations:
 
-- parser parses `@attr(...)` into `Attr` nodes with literal args (`lib/compiler/parser_core.oren` + `lib/compiler/parser_parse.oren`)
+- parser parses `@attr(...)` into `Attr` nodes with literal args (`lib/compiler/parser_core.oren` + `lib/compiler/parser_parse.oren`).
+  - Rolling note: large compiler sources may be split into smaller files and composed via `// @include "..."`; the top-level `.oren` file remains the stable entrypoint for tooling/docs.
 - native backend supports `--metadata` output (`<out>.meta.json`) for tooling
 - strict attribute mode is implemented and enforced at parse-time (`--strict-attrs` + `--attr-allow-prefixes`, see `./oren build --help`)
 
