@@ -1,6 +1,7 @@
 #include "avm_sig.h"
 
 #include "sha256.h"
+#include "avm_cert.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +14,8 @@
 
 static const char* SIG_PREFIX = "OREN_SIG\n1\n";
 static const size_t SIG_PREFIX_LEN = 11;
+static const char* CERTS_PREFIX = "OREN_CERTS\n1\n";
+static const size_t CERTS_PREFIX_LEN = 13;
 
 static int is_all_zero_32(const unsigned char k[32]) {
     unsigned char acc = 0;
@@ -42,8 +45,21 @@ static int bytes_starts_with(const uint8_t* b, size_t blen, const char* pref) {
 
 // Compute canonical hash:
 // magic + u16 kept_const_count + all kept const raw bytes + code bytes
-// where kept consts exclude OREN_SIG constants (BYTES constants with SIG_PREFIX).
-static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t out_hash[32], uint8_t out_sig[64], int* has_sig_out, uint8_t out_keyid8[8], char* err, size_t err_cap) {
+// where kept consts exclude signature/metadata constants:
+// - OREN_SIG (signature payload)
+// - OREN_CERTS (delegation chain payload)
+static int hash_obc_canonical_no_sig(
+    const uint8_t* data,
+    size_t len,
+    uint8_t out_hash[32],
+    uint8_t out_sig[64],
+    int* has_sig_out,
+    uint8_t out_keyid8[8],
+    const uint8_t** out_certs_payload,
+    size_t* out_certs_len,
+    char* err,
+    size_t err_cap
+) {
     if (!data || len < 4) { err_set(err, err_cap, "obc too short"); return 0; }
     if (data[0] != 0xCD || data[1] != 0x0E) { err_set(err, err_cap, "bad obc magic"); return 0; }
     size_t pos = 2;
@@ -52,8 +68,8 @@ static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t ou
     pos += 2;
     size_t code_pos = 0;
 
-    // First pass: identify constant byte ranges and signature payload.
-    typedef struct { size_t start, end; int is_sig; } Range;
+    // First pass: identify constant byte ranges and signature/metadata payloads.
+    typedef struct { size_t start, end; int skip; } Range;
     Range* ranges = NULL;
     if (n_consts > 0) {
         ranges = (Range*)malloc(sizeof(Range) * (size_t)n_consts);
@@ -61,11 +77,14 @@ static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t ou
     }
     int has_sig = 0;
     size_t kept = 0;
+    const uint8_t* certs_payload = NULL;
+    size_t certs_len = 0;
 
     for (uint16_t i = 0; i < n_consts; i++) {
         if (pos >= len) { free(ranges); err_set(err, err_cap, "truncated const pool"); return 0; }
         size_t start = pos;
         uint8_t typ = data[pos++];
+        int skip_range = 0;
         if (typ == 0) {
             // nil
         } else if (typ == 1) {
@@ -90,6 +109,7 @@ static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t ou
             if (pos + blen > len) { free(ranges); err_set(err, err_cap, "truncated bytes payload"); return 0; }
             const uint8_t* payload = data + pos;
             int is_sig = bytes_starts_with(payload, (size_t)blen, SIG_PREFIX);
+            int is_certs = bytes_starts_with(payload, (size_t)blen, CERTS_PREFIX);
             if (is_sig) {
                 // Parse payload:
                 // prefix + u8 algo + u8 hash + keyid[8] + sig[64]
@@ -114,6 +134,18 @@ static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t ou
                 memcpy(out_sig, payload + SIG_PREFIX_LEN + 2 + 8, 64);
                 has_sig = 1;
             }
+            // Also capture cert-chain payload if present (optional).
+            if (is_certs) {
+                if (certs_payload) {
+                    free(ranges);
+                    err_set(err, err_cap, "multiple OREN_CERTS constants not allowed");
+                    return 0;
+                }
+                certs_payload = payload;
+                certs_len = (size_t)blen;
+            }
+            // Exclude signature + metadata constants from canonical bytes.
+            if (is_sig || is_certs) skip_range = 1;
             pos += blen;
         } else {
             free(ranges);
@@ -121,22 +153,12 @@ static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t ou
             return 0;
         }
         size_t end = pos;
-        int is_sig_range = 0;
-        if (typ == 8) {
-            // For BYTES consts, check whether this range is signature (already parsed above if so).
-            // Safe to re-check via the payload slice (small).
-            // Range layout: [type][u32_len][payload]
-            const uint8_t* plenp = data + start + 1;
-            uint32_t blen = u32_le(plenp);
-            const uint8_t* payload = plenp + 4;
-            is_sig_range = bytes_starts_with(payload, (size_t)blen, SIG_PREFIX);
-        }
         if (ranges) {
             ranges[i].start = start;
             ranges[i].end = end;
-            ranges[i].is_sig = is_sig_range;
+            ranges[i].skip = skip_range;
         }
-        if (!is_sig_range) kept++;
+        if (!skip_range) kept++;
     }
     code_pos = pos;
 
@@ -148,7 +170,7 @@ static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t ou
     uint8_t cnt[2] = {(uint8_t)(kept & 255), (uint8_t)((kept >> 8) & 255)};
     avm_sha256_update(&h, cnt, 2);
     for (uint16_t i = 0; i < n_consts; i++) {
-        if (ranges && ranges[i].is_sig) continue;
+        if (ranges && ranges[i].skip) continue;
         if (ranges) avm_sha256_update(&h, data + ranges[i].start, ranges[i].end - ranges[i].start);
     }
     // Remaining bytes are code.
@@ -157,6 +179,8 @@ static int hash_obc_canonical_no_sig(const uint8_t* data, size_t len, uint8_t ou
 
     free(ranges);
     if (has_sig_out) *has_sig_out = has_sig;
+    if (out_certs_payload) *out_certs_payload = certs_payload;
+    if (out_certs_len) *out_certs_len = certs_len;
     return 1;
 }
 
@@ -176,7 +200,9 @@ int avm_obc_verify_signature(const uint8_t* data, size_t len, const uint8_t* tru
     uint8_t sig[64];
     uint8_t keyid[8];
     int has_sig = 0;
-    if (!hash_obc_canonical_no_sig(data, len, hash, sig, &has_sig, keyid, err, err_cap)) return 0;
+    const uint8_t* certs_payload = NULL;
+    size_t certs_len = 0;
+    if (!hash_obc_canonical_no_sig(data, len, hash, sig, &has_sig, keyid, &certs_payload, &certs_len, err, err_cap)) return 0;
     if (!has_sig) {
         err_set(err, err_cap, "missing OREN_SIG signature");
         return 0;
@@ -200,6 +226,64 @@ int avm_obc_verify_signature(const uint8_t* data, size_t len, const uint8_t* tru
     memcpy(sm, sig, 64);
     memcpy(sm + 64, hash, 32);
     if (crypto_sign_open(m, &mlen, sm, sizeof(sm), pk) != 0) {
+        err_set(err, err_cap, "ed25519 signature invalid");
+        return 0;
+    }
+    if (mlen != 32 || memcmp(m, hash, 32) != 0) {
+        err_set(err, err_cap, "signature message mismatch");
+        return 0;
+    }
+    return 1;
+}
+
+int avm_obc_verify_signature_with_chain(
+    const uint8_t* data,
+    size_t len,
+    const uint8_t* trusted_root_pubkey_32,
+    int require_chain,
+    char* err,
+    size_t err_cap
+) {
+    if (!trusted_root_pubkey_32 && !avm_has_embedded_root_pubkey()) {
+        err_set(err, err_cap, "missing trusted root pubkey");
+        return 0;
+    }
+    const uint8_t* root_pk = trusted_root_pubkey_32 ? trusted_root_pubkey_32 : AVM_ROOT_ED25519_PUBKEY_BYTES;
+
+    uint8_t hash[32];
+    uint8_t sig[64];
+    uint8_t keyid[8];
+    int has_sig = 0;
+    const uint8_t* certs_payload = NULL;
+    size_t certs_len = 0;
+    if (!hash_obc_canonical_no_sig(data, len, hash, sig, &has_sig, keyid, &certs_payload, &certs_len, err, err_cap)) return 0;
+    if (!has_sig) { err_set(err, err_cap, "missing OREN_SIG signature"); return 0; }
+
+    // If there is no cert chain, fall back to direct-root signature only when not required.
+    if (!certs_payload || certs_len == 0) {
+        if (require_chain) { err_set(err, err_cap, "missing OREN_CERTS chain"); return 0; }
+        return avm_obc_verify_signature(data, len, root_pk, err, err_cap);
+    }
+
+    // Verify cert chain, get leaf pubkey.
+    uint8_t leaf_pk[32];
+    if (!avm_cert_chain_verify_leaf_first(root_pk, certs_payload, certs_len, leaf_pk, err, err_cap)) return 0;
+
+    // Enforce that the signature keyid matches the leaf pubkey.
+    uint8_t leaf_hash[32];
+    AvmSha256Ctx hh;
+    avm_sha256_init(&hh);
+    avm_sha256_update(&hh, leaf_pk, 32);
+    avm_sha256_final(&hh, leaf_hash);
+    if (memcmp(keyid, leaf_hash, 8) != 0) { err_set(err, err_cap, "sig keyid does not match leaf cert"); return 0; }
+
+    // Verify signature with leaf pubkey.
+    unsigned char sm[64 + 32];
+    unsigned char m[64 + 32];
+    unsigned long long mlen = 0;
+    memcpy(sm, sig, 64);
+    memcpy(sm + 64, hash, 32);
+    if (crypto_sign_open(m, &mlen, sm, sizeof(sm), leaf_pk) != 0) {
         err_set(err, err_cap, "ed25519 signature invalid");
         return 0;
     }

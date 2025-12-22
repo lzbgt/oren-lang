@@ -7321,9 +7321,11 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 // - nested universes may require that the child program is signed by a trusted root
                 // - trusted_pubkey is passed as BYTES to avoid host filesystem reads in the child
                 int require_sig = 0;
+                int require_cert_chain = 0;
                 const uint8_t* trusted_pk = NULL;
                 AvmValue sv;
                 if (avm_map_get_key(cfg, "require_sig", &sv)) require_sig = avm_value_truthy(sv) ? 1 : 0;
+                if (avm_map_get_key(cfg, "require_cert_chain", &sv)) { if (avm_value_truthy(sv)) { require_sig = 1; require_cert_chain = 1; } }
                 if (avm_map_get_key(cfg, "trusted_pubkey", &sv)) {
                     if (sv.type == AVM_VAL_BYTES && sv.as.b && sv.as.b->len == 32 && sv.as.b->data) {
                         trusted_pk = sv.as.b->data;
@@ -7333,7 +7335,7 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     char emsg[256];
                     const uint8_t* pkptr = trusted_pk;
                     if (!pkptr && avm_has_embedded_root_pubkey()) pkptr = NULL; // use embedded by passing NULL
-                    if (!avm_obc_verify_signature(args[0].as.b->data, (size_t)args[0].as.b->len, pkptr, emsg, sizeof(emsg))) {
+                    if (!avm_obc_verify_signature_with_chain(args[0].as.b->data, (size_t)args[0].as.b->len, pkptr, require_cert_chain ? 1 : 0, emsg, sizeof(emsg))) {
                         return avm_err_domop(AVM_ERR_PERM, emsg, domain, op);
                     }
                 }

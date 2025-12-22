@@ -40,12 +40,42 @@ We define a signature payload stored inside `.obc` as an unused `BYTES` constant
 - prefix: `OREN_SIG\n1\n`
 - payload: algorithm id + key id + signature bytes
 
-The signature covers a canonical hash of the `.obc` **excluding** any `OREN_SIG\n1\n` constants.
+The signature covers a canonical hash of the `.obc` **excluding** signature/metadata constants:
+
+- `OREN_SIG\n1\n` (signature payload)
+- `OREN_CERTS\n1\n` (delegation chain payload)
 
 Rationale:
 
 - `.obc` can embed metadata constants (OREN_META, OREN_OBX). We must avoid circular signing.
 - The AVM must be able to verify with only `.obc` bytes (self-contained distribution).
+
+## Delegated Signing (Org / Developer Certificates)
+
+Root-signing every artifact does not scale operationally. Rolling mode supports a minimal
+delegation chain:
+
+- root → organization (may issue)
+- organization → developer (leaf signing key)
+
+The `.obc` embeds the cert chain inside an unused BYTES constant:
+
+- `OREN_CERTS\n1\n` (leaf-first chain)
+
+Important detail: `OREN_CERTS` is treated as **verification metadata** and is excluded from the
+canonical signature hash (along with `OREN_SIG`). This allows:
+
+- updating/repacking cert chains without re-signing the `.obc` payload bytes
+- keeping the leaf signature stable while rotating intermediate cert packaging
+
+The AVM verifies:
+
+1) chain signatures back to the trusted root pubkey
+2) issuer `can_issue` enforcement for intermediate certs
+3) `.obc` signature key id matches the leaf cert key id
+4) `.obc` signature verifies under the leaf pubkey
+
+Spec: `docs/CERT_CHAIN_FORMAT.md`.
 
 ## Verification Policy in AVM
 
@@ -107,6 +137,11 @@ Rolling recommendation:
 - Keep host crypto as the enforcement boundary for `avm.run_obc_bytes`.
 - Build bytecode crypto in parallel for portability/testing and to support more advanced “store logic as `.obc`” workflows.
 
+Bootstrapping note:
+
+- You can ship crypto code as `.obc` (pure Oren, no libc/FFI) and load it in AVM *after* the loader verifies its signature.
+- You cannot eliminate a small trusted verifier in the AVM binary if you want signature enforcement at the boundary; otherwise you have a “who verifies the verifier?” loop.
+
 ## Key Handling
 
 - Root private key: stored in `../oren-ca/` only (never in-repo).
@@ -118,3 +153,4 @@ Rolling recommendation:
 - Multiverse requirements: `docs/AVM_MULTIVERSE.md`
 - `.obc` module linking (OBX): `docs/OBC_MODULE_LINKING.md`
 - `.obc` format and metadata conventions: `docs/AVM_SPEC.md`
+- Delegated signing cert chains: `docs/CERT_CHAIN_FORMAT.md`

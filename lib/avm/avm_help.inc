@@ -45,6 +45,7 @@ static const char* AVM_HELP_TEXT =
 "  --capsule    Alias for: strict, deny-by-default (capability safe defaults)\n"
 "  --untrusted    Alias for: strict, deny-by-default (capability safe defaults)\n"
 "  --require-sig    Require a valid OREN_SIG signature (ed25519)\n"
+"  --require-cert-chain    Require OREN_CERTS chain delegated by trusted root (implies --require-sig)\n"
 "  --trusted-pubkey <str>    Trusted ed25519 pubkey file (32 raw bytes)\n"
 "  --trusted-pubkey-hex <str>    Trusted ed25519 pubkey (hex, 64 chars)\n"
 "  --deny-by-default    Deny all domains unless allowlisted\n"
@@ -66,7 +67,7 @@ static const char* AVM_HELP_TEXT =
 "Notes:\n"
 "  - Program args are passed after `--`, e.g. `avm prog.obc -- a b c`.\n"
 "  - Gas budget is controlled via env `AVM_GAS`.\n"
-"  - Signature verify env: `AVM_REQUIRE_SIG=1`, `AVM_TRUSTED_PUBKEY_HEX=<hex32>`.\n"
+"  - Signature verify env: `AVM_REQUIRE_SIG=1`, `AVM_REQUIRE_CERT_CHAIN=1`, `AVM_TRUSTED_PUBKEY_HEX=<hex32>`.\n"
 ;
 
 #endif

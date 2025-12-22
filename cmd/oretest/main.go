@@ -129,27 +129,27 @@ func main() {
 		fmt.Fprintln(os.Stderr, "repo style audit failed:", err)
 		os.Exit(1)
 	}
-		if err := auditIncludeChunkCoherence(); err != nil {
-			fmt.Fprintln(os.Stderr, "include chunk audit failed:", err)
-			os.Exit(1)
-		}
-		if err := auditArm64AdrFixupSlots(); err != nil {
-			fmt.Fprintln(os.Stderr, "arm64 adr fixup audit failed:", err)
-			os.Exit(1)
-		}
-		if err := auditArm64MachoGotStubSlots(); err != nil {
-			fmt.Fprintln(os.Stderr, "arm64 Mach-O GOT stub audit failed:", err)
-			os.Exit(1)
-		}
+	if err := auditIncludeChunkCoherence(); err != nil {
+		fmt.Fprintln(os.Stderr, "include chunk audit failed:", err)
+		os.Exit(1)
+	}
+	if err := auditArm64AdrFixupSlots(); err != nil {
+		fmt.Fprintln(os.Stderr, "arm64 adr fixup audit failed:", err)
+		os.Exit(1)
+	}
+	if err := auditArm64MachoGotStubSlots(); err != nil {
+		fmt.Fprintln(os.Stderr, "arm64 Mach-O GOT stub audit failed:", err)
+		os.Exit(1)
+	}
 
-		// Curated lists: keep small and integration-first.
-		nativeTests := []string{
-			"tests/native/test_integration_suite.oren",
-			"tests/native/test_simd_suite.oren",
-			"tests/native/test_debug_panic.oren",
-			// Pure-functional encoder goldens; no syscalls; should stay fast + deterministic.
-			"tests/native/test_arm64_encoding.oren",
-		}
+	// Curated lists: keep small and integration-first.
+	nativeTests := []string{
+		"tests/native/test_integration_suite.oren",
+		"tests/native/test_simd_suite.oren",
+		"tests/native/test_debug_panic.oren",
+		// Pure-functional encoder goldens; no syscalls; should stay fast + deterministic.
+		"tests/native/test_arm64_encoding.oren",
+	}
 	moduleTestsFast := []string{
 		// Keep fast suite small: prefer a few integration-first programs.
 		"tests/modules/test_integration_suite.oren",
@@ -385,6 +385,64 @@ func main() {
 				"build/signed_obc_smoke.obc",
 				"build/signed_obc_smoke.signed.obc",
 				"build/fixture_signed_obc_verify_cli.out",
+			},
+		},
+		{
+			name: "signed_obc_verify_cert_chain_cli",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"echo \"[fixture] build orensign\"; "+
+					"go build -o build/orensign ./cmd/orensign; "+
+					"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
+					"rm -rf build/ca_chain_test; mkdir -p build/ca_chain_test; "+
+					"./build/orensign keygen --out build/ca_chain_test/root; "+
+					"./build/orensign keygen --out build/ca_chain_test/org; "+
+					"./build/orensign keygen --out build/ca_chain_test/dev; "+
+					"echo \"[fixture] issue root->org (can_issue) and org->dev certs\"; "+
+					"./build/orensign issue-cert --issuer-sk build/ca_chain_test/root/root_ed25519_sk.bin --subject-pk build/ca_chain_test/org/root_ed25519_pk.bin --out build/ca_chain_test/org.cert --can-issue; "+
+					"./build/orensign issue-cert --issuer-sk build/ca_chain_test/org/root_ed25519_sk.bin --subject-pk build/ca_chain_test/dev/root_ed25519_pk.bin --out build/ca_chain_test/dev.cert; "+
+					"echo \"[fixture] build unsigned obc\"; "+
+					"./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
+					"./build/orensign sign-obc --sk build/ca_chain_test/dev/root_ed25519_sk.bin --cert build/ca_chain_test/dev.cert --cert build/ca_chain_test/org.cert --in %q --out %q; "+
+					"echo \"[fixture] verify + run (require chain)\"; "+
+					"./avm --require-sig --require-cert-chain --trusted-pubkey build/ca_chain_test/root/root_ed25519_pk.bin %q > %q; "+
+					"grep -Fq %q %q; "+
+					"echo \"[fixture] verify missing chain must fail\"; "+
+					"./build/orensign sign-obc --sk build/ca_chain_test/dev/root_ed25519_sk.bin --in %q --out %q; "+
+					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey build/ca_chain_test/root/root_ed25519_pk.bin %q > /dev/null 2>&1; rc=$?; set -e; "+
+					"test $rc -ne 0; "+
+					"echo \"[fixture] verify root-sign without chain must fail under require-cert-chain\"; "+
+					"./build/orensign sign-obc --sk build/ca_chain_test/root/root_ed25519_sk.bin --in %q --out %q; "+
+					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey build/ca_chain_test/root/root_ed25519_pk.bin %q > /dev/null 2>&1; rc=$?; set -e; "+
+					"test $rc -ne 0",
+				"tests/avm/fixtures/signed_obc_smoke.oren",
+				*target,
+				"build/signed_obc_chain_smoke.obc",
+				gcArg,
+				"build/signed_obc_chain_smoke.obc",
+				"build/signed_obc_chain_smoke.devchain.obc",
+				"build/signed_obc_chain_smoke.devchain.obc",
+				"build/fixture_signed_obc_verify_cert_chain_cli.out",
+				"signed obc OK",
+				"build/fixture_signed_obc_verify_cert_chain_cli.out",
+				"build/signed_obc_chain_smoke.obc",
+				"build/signed_obc_chain_smoke.dev_nocert.obc",
+				"build/signed_obc_chain_smoke.dev_nocert.obc",
+				"build/signed_obc_chain_smoke.obc",
+				"build/signed_obc_chain_smoke.root_nocert.obc",
+				"build/signed_obc_chain_smoke.root_nocert.obc",
+			),
+			log: "build/logs/fixture_signed_obc_verify_cert_chain_cli.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/orensign",
+				"build/ca_chain_test",
+				"build/signed_obc_chain_smoke.obc",
+				"build/signed_obc_chain_smoke.devchain.obc",
+				"build/signed_obc_chain_smoke.dev_nocert.obc",
+				"build/signed_obc_chain_smoke.root_nocert.obc",
+				"build/fixture_signed_obc_verify_cert_chain_cli.out",
 			},
 		},
 		{
@@ -895,8 +953,8 @@ func main() {
 		},
 	}
 
-		if *full {
-			fixtureEnv := sanitizedAllocatorEnvPrefix()
+	if *full {
+		fixtureEnv := sanitizedAllocatorEnvPrefix()
 		// Compiler-in-AVM v1 smoke (VirtualFS, argv-as-data):
 		//
 		// Build the compiler to `.obc`, then run a small AVM harness which:
@@ -906,148 +964,148 @@ func main() {
 		// - runs the produced program as another nested universe
 		//
 		// This closes the "no host effects" loop for compilation while staying bootstrap-friendly.
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "compiler_in_avm_smoke",
-				cmd: fmt.Sprintf(
-					"set -e; "+
-						"echo \"[fixture] build compiler obc\"; "+
-						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
-						"echo \"[fixture] build harness obc\"; "+
-						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
-						"echo \"[fixture] run harness (host read build/ only)\"; "+
-						"%s ./avm --deny-by-default --allow-domains \"0,1,6,8\" --fs-backend host --fs-allow-prefixes %q %q > %q; "+
-						"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
-					fixtureEnv,
-					"oren.oren",
-					*target,
-					"build/oren_compiler.obc",
-					gcArg,
-					fixtureEnv,
-					"tests/avm/fixtures/compiler_in_avm_vfs_harness.oren",
-					*target,
-					"build/compiler_in_avm_vfs_harness.obc",
-					gcArg,
-					fixtureEnv,
-					"build/",
-					"build/compiler_in_avm_vfs_harness.obc",
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "compiler_in_avm_smoke",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"echo \"[fixture] build compiler obc\"; "+
+					"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] build harness obc\"; "+
+					"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] run harness (host read build/ only)\"; "+
+					"%s ./avm --deny-by-default --allow-domains \"0,1,6,8\" --fs-backend host --fs-allow-prefixes %q %q > %q; "+
+					"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
+				fixtureEnv,
+				"oren.oren",
+				*target,
+				"build/oren_compiler.obc",
+				gcArg,
+				fixtureEnv,
+				"tests/avm/fixtures/compiler_in_avm_vfs_harness.oren",
+				*target,
+				"build/compiler_in_avm_vfs_harness.obc",
+				gcArg,
+				fixtureEnv,
+				"build/",
+				"build/compiler_in_avm_vfs_harness.obc",
 				"build/fixture_compiler_in_avm_smoke.run.out",
 				"compiler in avm vfs OK",
 				"build/fixture_compiler_in_avm_smoke.run.out",
 				"build/fixture_compiler_in_avm_smoke.run.out",
-				),
-				timeout: 8 * time.Minute,
-				log: "build/logs/fixture_compiler_in_avm_smoke.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/oren_compiler.obc",
+			),
+			timeout: 8 * time.Minute,
+			log:     "build/logs/fixture_compiler_in_avm_smoke.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/oren_compiler.obc",
 				"build/compiler_in_avm_vfs_harness.obc",
 				"build/fixture_compiler_in_avm_smoke.run.out",
 			},
-			})
+		})
 
-			// Compiler-in-AVM v1 smoke (precompiled stdlib bundle `.obc` linking):
-			// - build `lib/std/stdlib.oren` as a `.obc` library bundle (OBX exports)
-			// - run the compiler as a nested universe using VFS fixtures
-			// - compile a program that imports `std:math` with `--stdlib-mode obc`
-			// - run the produced program as another nested universe
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "compiler_in_avm_stdlib_obc_smoke",
-				cmd: fmt.Sprintf(
-					"set -e; "+
-						"echo \"[fixture] build stdlib bundle obc\"; "+
-						"%s ./oren build %q --backend bytecode --target %s -o %q --obc-lib%s; "+
-						"echo \"[fixture] build compiler obc\"; "+
-						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
-						"echo \"[fixture] build harness obc\"; "+
-						"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
-						"echo \"[fixture] run harness\"; "+
-						"%s ./avm --deny-by-default --allow-domains \"0,1,6,8\" --fs-backend host --fs-allow-prefixes %q %q > %q; "+
-						"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
-					fixtureEnv,
-					"lib/std/stdlib.oren",
-					*target,
-					"build/stdlib_bundle.obc",
-					gcArg,
-					fixtureEnv,
-					"oren.oren",
-					*target,
-					"build/oren_compiler.obc",
-					gcArg,
-					fixtureEnv,
-					"tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren",
-					*target,
-					"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
-					gcArg,
-					fixtureEnv,
-					"build/",
-					"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
-					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
-					"compiler in avm vfs stdlib obc OK",
-					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
-					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
-				),
-				timeout: 10 * time.Minute,
-				log:     "build/logs/fixture_compiler_in_avm_stdlib_obc_smoke.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/stdlib_bundle.obc",
-					"build/oren_compiler.obc",
-					"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
-					"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
-				},
-			})
+		// Compiler-in-AVM v1 smoke (precompiled stdlib bundle `.obc` linking):
+		// - build `lib/std/stdlib.oren` as a `.obc` library bundle (OBX exports)
+		// - run the compiler as a nested universe using VFS fixtures
+		// - compile a program that imports `std:math` with `--stdlib-mode obc`
+		// - run the produced program as another nested universe
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "compiler_in_avm_stdlib_obc_smoke",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"echo \"[fixture] build stdlib bundle obc\"; "+
+					"%s ./oren build %q --backend bytecode --target %s -o %q --obc-lib%s; "+
+					"echo \"[fixture] build compiler obc\"; "+
+					"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] build harness obc\"; "+
+					"%s ./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] run harness\"; "+
+					"%s ./avm --deny-by-default --allow-domains \"0,1,6,8\" --fs-backend host --fs-allow-prefixes %q %q > %q; "+
+					"grep -Fq %q %q || { echo \"[fixture] output:\"; cat %q; exit 1; }",
+				fixtureEnv,
+				"lib/std/stdlib.oren",
+				*target,
+				"build/stdlib_bundle.obc",
+				gcArg,
+				fixtureEnv,
+				"oren.oren",
+				*target,
+				"build/oren_compiler.obc",
+				gcArg,
+				fixtureEnv,
+				"tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren",
+				*target,
+				"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
+				gcArg,
+				fixtureEnv,
+				"build/",
+				"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
+				"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+				"compiler in avm vfs stdlib obc OK",
+				"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+				"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+			),
+			timeout: 10 * time.Minute,
+			log:     "build/logs/fixture_compiler_in_avm_stdlib_obc_smoke.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/stdlib_bundle.obc",
+				"build/oren_compiler.obc",
+				"build/compiler_in_avm_vfs_stdlib_obc_harness.obc",
+				"build/fixture_compiler_in_avm_stdlib_obc_smoke.run.out",
+			},
+		})
 
-			// Generic trait constraints must be enforced at monomorphization time.
-			// This fixture expects compilation to fail with a clear diagnostic.
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "generic_constraint_missing_impl",
-				cmd: fmt.Sprintf(
+		// Generic trait constraints must be enforced at monomorphization time.
+		// This fixture expects compilation to fail with a clear diagnostic.
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "generic_constraint_missing_impl",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"out=%q; "+
+					"rm -f \"$out\"; "+
+					"set +e; "+
+					"%s ./oren build %q --backend bytecode --target %s -o %q%s > \"$out\" 2>&1; "+
+					"rc=$?; "+
 					"set -e; "+
-						"out=%q; "+
-						"rm -f \"$out\"; "+
-						"set +e; "+
-						"%s ./oren build %q --backend bytecode --target %s -o %q%s > \"$out\" 2>&1; "+
-						"rc=$?; "+
-						"set -e; "+
-						"if [ $rc -eq 0 ]; then echo \"[fixture] expected non-zero exit\"; cat \"$out\"; exit 1; fi; "+
-						"grep -Fq %q \"$out\"",
-					"build/fixture_generic_constraint_missing_impl.out",
-					fixtureEnv,
-					"tests/fixtures/generic_constraint_missing_impl.oren",
-					*target,
-					"build/tmp_generic_constraint_missing_impl.obc",
-					gcArg,
-					"missing impl for trait",
-				),
-				timeout: 2 * time.Minute,
-				log:     "build/logs/fixture_generic_constraint_missing_impl.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/fixture_generic_constraint_missing_impl.out",
-					"build/tmp_generic_constraint_missing_impl.obc",
-				},
-			})
+					"if [ $rc -eq 0 ]; then echo \"[fixture] expected non-zero exit\"; cat \"$out\"; exit 1; fi; "+
+					"grep -Fq %q \"$out\"",
+				"build/fixture_generic_constraint_missing_impl.out",
+				fixtureEnv,
+				"tests/fixtures/generic_constraint_missing_impl.oren",
+				*target,
+				"build/tmp_generic_constraint_missing_impl.obc",
+				gcArg,
+				"missing impl for trait",
+			),
+			timeout: 2 * time.Minute,
+			log:     "build/logs/fixture_generic_constraint_missing_impl.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/fixture_generic_constraint_missing_impl.out",
+				"build/tmp_generic_constraint_missing_impl.obc",
+			},
+		})
 	}
 
 	// Runtime diagnostics fixtures (expected non-zero exit, machine-readable header).
@@ -1081,18 +1139,18 @@ func main() {
 		},
 	}
 
-		// Run fixtures sequentially (fast, high-signal).
-		for _, fx := range fixtures {
-			vprintln("fixture: " + fx.name)
-			t := buildTimeout
-			if fx.timeout != 0 {
-				t = fx.timeout
-			}
-			rc := runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
-			for _, c := range fx.cleanup {
-				_ = os.Remove(c)
-			}
-			if !fx.ok(rc) {
+	// Run fixtures sequentially (fast, high-signal).
+	for _, fx := range fixtures {
+		vprintln("fixture: " + fx.name)
+		t := buildTimeout
+		if fx.timeout != 0 {
+			t = fx.timeout
+		}
+		rc := runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
+		for _, c := range fx.cleanup {
+			_ = os.Remove(c)
+		}
+		if !fx.ok(rc) {
 			fmt.Fprintf(os.Stderr, "fixture failed: %s (log: %s)\n", fx.name, fx.log)
 			_ = catFile(os.Stderr, fx.log)
 			os.Exit(1)
@@ -1591,16 +1649,16 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}
-			runEnvPrefix := envPrefix
-			if name == "test_integration_suite" {
-				// Keep C-backend SIMD exercised in the fast suite.
-				// Semantics must remain identical with/without SIMD.
-				runEnvPrefix = runEnvPrefix + " OREN_ENABLE_SIMD=1"
-			}
-			if name == "test_buffer_payload_limit" {
-				// Deterministic allocation failure without relying on host memory pressure.
-				runEnvPrefix = "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES=1024"
-			}
+		runEnvPrefix := envPrefix
+		if name == "test_integration_suite" {
+			// Keep C-backend SIMD exercised in the fast suite.
+			// Semantics must remain identical with/without SIMD.
+			runEnvPrefix = runEnvPrefix + " OREN_ENABLE_SIMD=1"
+		}
+		if name == "test_buffer_payload_limit" {
+			// Deterministic allocation failure without relying on host memory pressure.
+			runEnvPrefix = "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES=1024"
+		}
 		if rc := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("%s %q", runEnvPrefix, out), log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
 		}
@@ -2704,7 +2762,7 @@ func auditNativeNoDirectSvcBypass() error {
 	// top-level entry file and skip the included parts directory. The entry file
 	// is expanded before scanning so policy checks still see the real code.
 	skipDirs := map[string]bool{
-		filepath.Join("lib", "compiler", "arm64_native_expr"): true,
+		filepath.Join("lib", "compiler", "arm64_native_expr"):          true,
 		filepath.Join("lib", "compiler", "arm64_native_expr_syscalls"): true,
 	}
 
@@ -2844,7 +2902,7 @@ func auditStdlibModernStyle() error {
 		pattern     string
 		allowInLine func(trimmedLine string) bool
 	}
-		rules := []rule{
+	rules := []rule{
 		{
 			name:    "no string_concat in stdlib (prefer `+`)",
 			pattern: "string_concat(",
@@ -2916,7 +2974,7 @@ func auditRuntimeNativeModernStyle() error {
 	// The runtime can contain low-level primitives, but we still want to avoid reintroducing
 	// legacy patterns in user-facing helpers (notably `string_concat` call-chains).
 	allowStringConcatIn := map[string]bool{
-		filepath.Join("lib", "runtime_native", "160_iteration.oren"):     true, // defines `string_concat`
+		filepath.Join("lib", "runtime_native", "160_iteration.oren"):      true, // defines `string_concat`
 		filepath.Join("lib", "runtime_native", "120_first_class_fn.oren"): true, // operator plumbing may rely on it
 	}
 
@@ -3134,7 +3192,7 @@ func auditRepoModernStyle() error {
 	// Exceptions:
 	// - `string_concat` exists as a low-level helper for the native runtime and for operator plumbing.
 	allowStringConcatIn := map[string]bool{
-		filepath.Join("lib", "runtime_native", "160_iteration.oren"):     true, // defines `string_concat`
+		filepath.Join("lib", "runtime_native", "160_iteration.oren"):      true, // defines `string_concat`
 		filepath.Join("lib", "runtime_native", "120_first_class_fn.oren"): true, // operator plumbing may rely on it
 	}
 
@@ -3479,20 +3537,20 @@ func auditIncludeChunkCoherence() error {
 				continue
 			}
 
-				bal, min := braceBalanceOren(b)
-				stats = append(stats, fileStat{path: cur, bal: bal, min: min})
-				if bal != 0 || min < 0 {
-					offenders = append(offenders, fmt.Sprintf("%s: unbalanced braces (bal=%d, min=%d) under root %s", cur, bal, min, root))
+			bal, min := braceBalanceOren(b)
+			stats = append(stats, fileStat{path: cur, bal: bal, min: min})
+			if bal != 0 || min < 0 {
+				offenders = append(offenders, fmt.Sprintf("%s: unbalanced braces (bal=%d, min=%d) under root %s", cur, bal, min, root))
+			}
+			if first := firstSignificantOrenLine(b); first != "" {
+				if !isAllowedIncludeChunkStart(first) {
+					offenders = append(offenders, fmt.Sprintf("%s: suspicious include chunk start %q under root %s (likely mid-block split)", cur, first, root))
 				}
-				if first := firstSignificantOrenLine(b); first != "" {
-					if !isAllowedIncludeChunkStart(first) {
-						offenders = append(offenders, fmt.Sprintf("%s: suspicious include chunk start %q under root %s (likely mid-block split)", cur, first, root))
-					}
-				}
+			}
 
-				// Parse include directives for recursion.
-				dir := filepath.Dir(cur)
-				lines := strings.Split(string(b), "\n")
+			// Parse include directives for recursion.
+			dir := filepath.Dir(cur)
+			lines := strings.Split(string(b), "\n")
 			for _, line := range lines {
 				trim := strings.TrimSpace(line)
 				if !strings.HasPrefix(trim, "// @include \"") {

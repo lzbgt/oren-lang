@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -26,6 +27,11 @@ const (
 	obcConstBytes  = 8
 
 	sigPrefix = "OREN_SIG\n1\n"
+
+	// Rolling cert chain payload embedded in `.obc` as an unused BYTES constant.
+	// The AVM uses this chain to verify that a developer/org key is delegated by the root.
+	certPrefix  = "OREN_CERT\n1\n"
+	certsPrefix = "OREN_CERTS\n1\n"
 )
 
 func main() {
@@ -36,6 +42,8 @@ func main() {
 	switch os.Args[1] {
 	case "keygen":
 		cmdKeygen(os.Args[2:])
+	case "issue-cert":
+		cmdIssueCert(os.Args[2:])
 	case "sign-obc":
 		cmdSignOBC(os.Args[2:])
 	case "verify-obc":
@@ -49,7 +57,8 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  orensign keygen --out <dir>")
-	fmt.Fprintln(os.Stderr, "  orensign sign-obc --sk <path> --in <file.obc> [--out <signed.obc>]")
+	fmt.Fprintln(os.Stderr, "  orensign issue-cert --issuer-sk <issuer_sk.bin> --subject-pk <subject_pk.bin> --out <cert.bin> [--can-issue]")
+	fmt.Fprintln(os.Stderr, "  orensign sign-obc --sk <path> --in <file.obc> [--cert <cert.bin> ...] [--out <signed.obc>]")
 	fmt.Fprintln(os.Stderr, "  orensign verify-obc --pk <path> --in <file.obc>")
 }
 
@@ -88,6 +97,8 @@ func cmdSignOBC(args []string) {
 	skPath := fs.String("sk", "", "ed25519 private key (root_ed25519_sk.bin)")
 	inPath := fs.String("in", "", "input .obc")
 	outPath := fs.String("out", "", "output signed .obc (default: overwrite input)")
+	var certPaths stringSliceFlag
+	fs.Var(&certPaths, "cert", "optional certificate to embed (repeatable, leaf-first)")
 	must(fs.Parse(args))
 	if *skPath == "" || *inPath == "" {
 		must(errors.New("missing --sk or --in"))
@@ -112,7 +123,18 @@ func cmdSignOBC(args []string) {
 	sig := ed25519.Sign(ed25519.PrivateKey(sk), h[:])
 	payload := buildSigPayload(pk, sig)
 
-	signed, err := obcWithSig(raw, payload)
+	var certsPayload []byte
+	if len(certPaths) > 0 {
+		certs := make([][]byte, 0, len(certPaths))
+		for _, p := range certPaths {
+			certBytes, err := os.ReadFile(p)
+			must(err)
+			certs = append(certs, certBytes)
+		}
+		certsPayload = buildCertsPayload(certs)
+	}
+
+	signed, err := obcWithSigAndCerts(raw, payload, certsPayload)
 	must(err)
 	must(os.WriteFile(*outPath, signed, 0o644))
 	fmt.Println("Signed:", *outPath)
@@ -151,6 +173,68 @@ func cmdVerifyOBC(args []string) {
 		must(errors.New("signature verification failed"))
 	}
 	fmt.Println("OK")
+}
+
+func cmdIssueCert(args []string) {
+	fs := flag.NewFlagSet("issue-cert", flag.ExitOnError)
+	issuerSKPath := fs.String("issuer-sk", "", "issuer ed25519 private key (root/org)")
+	subjectPKPath := fs.String("subject-pk", "", "subject ed25519 public key (org/dev)")
+	outPath := fs.String("out", "", "output cert file (raw bytes)")
+	canIssue := fs.Bool("can-issue", false, "allow subject to issue derived certs")
+	must(fs.Parse(args))
+	if *issuerSKPath == "" || *subjectPKPath == "" || *outPath == "" {
+		must(errors.New("missing --issuer-sk, --subject-pk, or --out"))
+	}
+	issuerSK, err := os.ReadFile(*issuerSKPath)
+	must(err)
+	if len(issuerSK) != ed25519.PrivateKeySize {
+		must(fmt.Errorf("bad issuer sk length: got %d want %d", len(issuerSK), ed25519.PrivateKeySize))
+	}
+	issuerPK := ed25519.PrivateKey(issuerSK).Public().(ed25519.PublicKey)
+
+	subjectPK, err := os.ReadFile(*subjectPKPath)
+	must(err)
+	if len(subjectPK) != ed25519.PublicKeySize {
+		must(fmt.Errorf("bad subject pk length: got %d want %d", len(subjectPK), ed25519.PublicKeySize))
+	}
+
+	flags := byte(0)
+	if *canIssue {
+		flags |= 0x01
+	}
+
+	bodyNoSig := buildCertBodyNoSig(flags, issuerPK, subjectPK)
+	bodyHash := sha256.Sum256(bodyNoSig)
+	sig := ed25519.Sign(ed25519.PrivateKey(issuerSK), bodyHash[:])
+	cert := append(bodyNoSig, sig...)
+
+	must(os.WriteFile(*outPath, cert, 0o644))
+	fmt.Println("Wrote cert:", *outPath)
+}
+
+func buildCertBodyNoSig(flags byte, issuerPK ed25519.PublicKey, subjectPK []byte) []byte {
+	var out bytes.Buffer
+	out.WriteString(certPrefix)
+	out.WriteByte(1) // algo=1 ed25519
+	out.WriteByte(flags)
+	// not_before, not_after (u64 LE). 0 means "unset" in rolling v0.
+	writeU64LE(&out, 0)
+	writeU64LE(&out, 0)
+	out.Write(subjectPK)
+	issuerKeyID := sha256.Sum256(issuerPK)
+	out.Write(issuerKeyID[:8])
+	return out.Bytes()
+}
+
+func buildCertsPayload(certs [][]byte) []byte {
+	var out bytes.Buffer
+	out.WriteString(certsPrefix)
+	writeU16LE(&out, uint16(len(certs)))
+	for _, c := range certs {
+		writeU16LE(&out, uint16(len(c)))
+		out.Write(c)
+	}
+	return out.Bytes()
 }
 
 func buildSigPayload(pub ed25519.PublicKey, sig []byte) []byte {
@@ -211,6 +295,9 @@ func obcCanonicalNoSig(obc []byte) ([]byte, error) {
 		if c.typ == obcConstBytes && bytes.HasPrefix(c.bytesPayload, []byte(sigPrefix)) {
 			continue
 		}
+		if c.typ == obcConstBytes && bytes.HasPrefix(c.bytesPayload, []byte(certsPrefix)) {
+			continue
+		}
 		kept = append(kept, c)
 	}
 
@@ -228,16 +315,26 @@ func obcCanonicalNoSig(obc []byte) ([]byte, error) {
 }
 
 func obcWithSig(obc []byte, sigPayload []byte) ([]byte, error) {
+	return obcWithSigAndCerts(obc, sigPayload, nil)
+}
+
+func obcWithSigAndCerts(obc []byte, sigPayload []byte, certsPayload []byte) ([]byte, error) {
 	code, consts, _, err := obcSplit(obc)
 	if err != nil {
 		return nil, err
 	}
-	kept := make([]obcConst, 0, len(consts)+1)
+	kept := make([]obcConst, 0, len(consts)+2)
 	for _, c := range consts {
 		if c.typ == obcConstBytes && bytes.HasPrefix(c.bytesPayload, []byte(sigPrefix)) {
 			continue
 		}
+		if c.typ == obcConstBytes && bytes.HasPrefix(c.bytesPayload, []byte(certsPrefix)) {
+			continue
+		}
 		kept = append(kept, c)
+	}
+	if certsPayload != nil && len(certsPayload) > 0 {
+		kept = append(kept, obcConst{typ: obcConstBytes, bytesPayload: certsPayload})
 	}
 	kept = append(kept, obcConst{typ: obcConstBytes, bytesPayload: sigPayload})
 
@@ -254,9 +351,23 @@ func obcWithSig(obc []byte, sigPayload []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+type stringSliceFlag []string
+
+func (s *stringSliceFlag) String() string {
+	if s == nil || len(*s) == 0 {
+		return ""
+	}
+	return strings.Join(*s, ",")
+}
+
+func (s *stringSliceFlag) Set(v string) error {
+	*s = append(*s, v)
+	return nil
+}
+
 type obcConst struct {
-	typ         byte
-	raw         []byte // full encoded constant bytes (type+payload)
+	typ          byte
+	raw          []byte // full encoded constant bytes (type+payload)
 	bytesPayload []byte
 }
 
@@ -357,3 +468,15 @@ func writeU32LE(w io.Writer, v uint32) {
 	_, _ = w.Write([]byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24)})
 }
 
+func writeU64LE(w io.Writer, v uint64) {
+	_, _ = w.Write([]byte{
+		byte(v),
+		byte(v >> 8),
+		byte(v >> 16),
+		byte(v >> 24),
+		byte(v >> 32),
+		byte(v >> 40),
+		byte(v >> 48),
+		byte(v >> 56),
+	})
+}

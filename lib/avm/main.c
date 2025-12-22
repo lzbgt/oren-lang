@@ -2106,6 +2106,7 @@ int main(int argc, char** argv) {
     const char* net_backend_cli = NULL;
     const char* net_fixtures_hex_cli = NULL;
     int require_sig = 0;
+    int require_cert_chain = 0;
     const char* trusted_pubkey_cli = NULL;
     const char* trusted_pubkey_hex_cli = NULL;
     const char* timeout_ms_cli = NULL;
@@ -2343,6 +2344,12 @@ int main(int argc, char** argv) {
             i += 1;
             continue;
         }
+        if (strcmp(argv[i], "--require-cert-chain") == 0) {
+            require_sig = 1;
+            require_cert_chain = 1;
+            i += 1;
+            continue;
+        }
         if (strcmp(argv[i], "--trusted-pubkey") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --trusted-pubkey\n"); return 1; }
             trusted_pubkey_cli = argv[i + 1];
@@ -2462,6 +2469,8 @@ int main(int argc, char** argv) {
     // Signature verification (rolling, opt-in for host CLI).
     const char* require_sig_env = getenv("AVM_REQUIRE_SIG");
     if (require_sig_env && require_sig_env[0] && require_sig_env[0] != '0') require_sig = 1;
+    const char* require_chain_env = getenv("AVM_REQUIRE_CERT_CHAIN");
+    if (require_chain_env && require_chain_env[0] && require_chain_env[0] != '0') { require_sig = 1; require_cert_chain = 1; }
 
     uint8_t trusted_pk[32];
     int has_trusted_pk = 0;
@@ -2504,13 +2513,24 @@ int main(int argc, char** argv) {
     if (require_sig) {
         char emsg[256];
         const uint8_t* pkptr = has_trusted_pk ? trusted_pk : NULL;
-        if (!avm_obc_verify_signature(data, len, pkptr, emsg, sizeof(emsg))) {
-            fprintf(stderr, "AVM signature verify failed: %s\n", emsg);
-            free(data);
-            free(break_pcs);
-            return 1;
+        if (require_cert_chain) {
+            if (!avm_obc_verify_signature_with_chain(data, len, pkptr, 1, emsg, sizeof(emsg))) {
+                fprintf(stderr, "AVM signature verify failed: %s\n", emsg);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
+        } else {
+            if (!avm_obc_verify_signature_with_chain(data, len, pkptr, 0, emsg, sizeof(emsg))) {
+                fprintf(stderr, "AVM signature verify failed: %s\n", emsg);
+                free(data);
+                free(break_pcs);
+                return 1;
+            }
         }
     }
+
+    // Signature verified above (if requested).
 
     // Verifier (rolling): reject malformed bytecode early to avoid crashes/hangs.
     // Disable only for debugging with AVM_VERIFY=0.

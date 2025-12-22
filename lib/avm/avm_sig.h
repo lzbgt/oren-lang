@@ -20,5 +20,10 @@ int avm_obc_verify_signature(const uint8_t* data, size_t len, const uint8_t* tru
 // Returns 1 if a non-zero embedded root pubkey is present.
 int avm_has_embedded_root_pubkey(void);
 
-#endif
+// Verify signature using an embedded cert chain (OREN_CERTS) delegated by a trusted root.
+//
+// If require_chain==1, the `.obc` must contain an OREN_CERTS chain and the signature must match the leaf cert.
+// If require_chain==0, falls back to direct-root signature verification when no chain is present.
+int avm_obc_verify_signature_with_chain(const uint8_t* data, size_t len, const uint8_t* trusted_root_pubkey_32, int require_chain, char* err, size_t err_cap);
 
+#endif
