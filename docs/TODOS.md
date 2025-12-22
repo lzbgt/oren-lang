@@ -96,6 +96,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: updated `docs/LANGUAGE_SPEC.md` EBNF to include `for <name>[:Type] in <expr> { ... }` iterator sugar (matches the parser implementation).
    - Status: updated `docs/LANGUAGE_MANUAL.md` examples to avoid legacy `if (...)` statement form.
    - Status: expanded `docs/LANGUAGE_MANUAL.md` with rolling features exercised by fixtures/tests: generics (`fn f[T]` + explicit specialization), trait method sugar + qualified calls, blanket `impl ... for any`, strict attributes mode, and capsule mode (`@cap.requires` + `--capsule`).
+   - Status: refreshed repo `AGENTS.md` with clearer rolling workflow rules (verification policy, large-file strategy, web research capture, secret handling).
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
 
 5) **HPC perf harness + linalg/math maturation** (M)
