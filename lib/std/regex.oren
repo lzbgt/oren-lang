@@ -62,12 +62,9 @@ fn _state(kind) {
 
 fn _patch(list, states, target) {
     // list items: {"s":idx,"which":0|1}
-    var i = 0
-    while i < oren_list_len(list) {
-        var p = list[i]
+    for p in list {
         var si = p["s"]
         if p["which"] == 0 { states[si]["out"] = target } else { states[si]["out1"] = target }
-        i = i + 1
     }
     return nil
 }
@@ -76,10 +73,8 @@ fn _append(a, b) {
     if a == nil { return b }
     if b == nil { return a }
     var out = []
-    var i = 0
-    while i < oren_list_len(a) { oren_list_push(out, a[i]); i = i + 1 }
-    i = 0
-    while i < oren_list_len(b) { oren_list_push(out, b[i]); i = i + 1 }
+    for x in a { oren_list_push(out, x) }
+    for y in b { oren_list_push(out, y) }
     return out
 }
 

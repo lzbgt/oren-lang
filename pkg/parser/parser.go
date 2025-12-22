@@ -493,21 +493,23 @@ func (p *Parser) parseForStatement() *ast.ForStatement {
 	// Iterator sugar: `for <ident> in <expr> { ... }`
 	//
 	// Desugars to a 3-clause `for` using an internal state list and a runtime iterator hook:
-	//   var @forin_N = [<expr>, 0, 1]
-	//   for ; @forin_N[2] != 0; @forin_N[1] = @forin_N[1] + 1 {
-	//       var @forinr_N = oren_iter_next(@forin_N[0], @forin_N[1]) // -> [ok, value]
-	//       @forin_N[2] = @forinr_N[0]
-	//       if @forin_N[2] != 0 {
-	//           var <ident> = @forinr_N[1]
+	//   var __oren_forin_N = [<expr>, 0, 1]
+	//   for ; __oren_forin_N[2] != 0; __oren_forin_N[1] = __oren_forin_N[1] + 1 {
+	//       var __oren_forinr_N = oren_iter_next(__oren_forin_N[0], __oren_forin_N[1]) // -> [ok, value]
+	//       __oren_forin_N[2] = __oren_forinr_N[0]
+	//       if __oren_forin_N[2] != 0 {
+	//           var <ident> = __oren_forinr_N[1]
 	//           <body>
 	//       }
 	//   }
 	//
-	// We use '@' in the internal name (not a valid identifier character), avoiding collisions.
+	// Internal temporaries:
+	// - Must be valid identifiers for all backends (including the C transpiler).
+	// - We use a reserved `__oren_` prefix to avoid collisions with user code.
 	if p.curTokenIs(token.IDENT) && p.peekTokenIs(token.IN) {
 		userVar := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-		stateName := fmt.Sprintf("@forin_%d", p.gensym())
-		resName := fmt.Sprintf("@forinr_%d", p.gensym())
+		stateName := fmt.Sprintf("__oren_forin_%d", p.gensym())
+		resName := fmt.Sprintf("__oren_forinr_%d", p.gensym())
 		stateIdent := &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: stateName}, Value: stateName}
 		resIdent := &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: resName}, Value: resName}
 

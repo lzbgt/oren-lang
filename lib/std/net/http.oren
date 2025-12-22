@@ -78,15 +78,10 @@ fn _parse_http_url(url) {
 
 fn _build_get_request(host, path) {
     // "GET <path> HTTP/1.0\r\nHost: <host>\r\nConnection: close\r\n\r\n"
-    var r0 = string_concat("GET ", path)
-    var r1 = string_concat(r0, " HTTP/1.0\r\nHost: ")
-    var r2 = string_concat(r1, host)
-    var r3 = string_concat(r2, "\r\nConnection: close\r\n\r\n")
-    // Free intermediates to avoid growth on repeated calls.
-    free(r0)
-    free(r1)
-    free(r2)
-    return r3
+    //
+    // Prefer `+` for string concatenation (native backend lowers to `oren_add`).
+    // This avoids manual lifetime management of intermediate concat results.
+    return "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
 }
 
 fn _find_header_body_split(buf, used) {

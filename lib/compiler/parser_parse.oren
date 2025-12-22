@@ -1799,19 +1799,19 @@ fn parse_for(p) {
     //   for <ident> in <expr> { <body> }
     //
     // Desugars to a 3-clause `for` using an internal state list and a runtime iterator hook:
-    //   var @forin_N = [<expr>, 0, 1]
-    //   for ; @forin_N[2] != 0; @forin_N[1] = @forin_N[1] + 1 {
-    //       var @forinr_N = oren_iter_next(@forin_N[0], @forin_N[1]) // -> [ok, value]
-    //       @forin_N[2] = @forinr_N[0]
-    //       if @forin_N[2] != 0 {
-    //           var <ident> = @forinr_N[1]
+    //   var __oren_forin_N = [<expr>, 0, 1]
+    //   for ; __oren_forin_N[2] != 0; __oren_forin_N[1] = __oren_forin_N[1] + 1 {
+    //       var __oren_forinr_N = oren_iter_next(__oren_forin_N[0], __oren_forin_N[1]) // -> [ok, value]
+    //       __oren_forin_N[2] = __oren_forinr_N[0]
+    //       if __oren_forin_N[2] != 0 {
+    //           var <ident> = __oren_forinr_N[1]
     //           <body>
     //       }
     //   }
     //
     // Notes:
-    // - The internal name contains '@' which is not a legal identifier character in the lexer,
-    //   so it cannot collide with source names.
+    // - The internal names use a reserved `__oren_` prefix. User code should not define
+    //   symbols with this prefix.
     // - This keeps backends minimal: it relies only on existing `for`, indexing, and `oren_list_len`.
     if cur_is(p, token.TOK_IDENT) && (peek_is(p, token.TOK_IN) || peek_is(p, token.TOK_COLON)) {
         var user_name = ast.new_identifier(p["cur"])
@@ -1828,8 +1828,8 @@ fn parse_for(p) {
                 return nil
             }
         }
-        var st_name = parser_gensym(p, "@forin_")
-        var res_name = parser_gensym(p, "@forinr_")
+        var st_name = parser_gensym(p, "__oren_forin_")
+        var res_name = parser_gensym(p, "__oren_forinr_")
         var st_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, st_name), "value": st_name}
         var res_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, res_name), "value": res_name}
 

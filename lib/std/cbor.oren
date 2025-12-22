@@ -177,22 +177,14 @@ fn _encode_value(out, v) {
     if _streq(t, "bytes") {
         var bs = v["bs"]
         _emit_uint(out, 2, oren_list_len(bs)) // major 2 byte string
-        var i2 = 0
-        while i2 < oren_list_len(bs) {
-            _push_u8(out, bs[i2])
-            i2 = i2 + 1
-        }
+        for b in bs { _push_u8(out, b) }
         return nil
     }
     if _streq(t, "string") {
         var s = v["s"]
         var sb = _string_bytes(s)
         _emit_uint(out, 3, oren_list_len(sb)) // major 3 text string (utf-8 bytes)
-        var i3 = 0
-        while i3 < oren_list_len(sb) {
-            _push_u8(out, sb[i3])
-            i3 = i3 + 1
-        }
+        for b2 in sb { _push_u8(out, b2) }
         return nil
     }
     if _streq(t, "array") {
@@ -403,11 +395,7 @@ fn decode_sequence(bs) {
 
 fn encode_sequence(items) {
     var out = []
-    var i = 0
-    while items != nil && i < oren_list_len(items) {
-        _encode_value(out, items[i])
-        i = i + 1
-    }
+    if items != nil { for it in items { _encode_value(out, it) } }
     return out
 }
 
@@ -423,11 +411,11 @@ fn encode_sequence(items) {
 fn encode_sequence_typed(items, encode_fn) {
     // encode_fn: T -> CborValue
     var cvs = []
-    var i = 0
-    while items != nil && i < oren_list_len(items) {
-        var cv = encode_fn(items[i])
-        oren_list_push(cvs, cv)
-        i = i + 1
+    if items != nil {
+        for it2 in items {
+            var cv = encode_fn(it2)
+            oren_list_push(cvs, cv)
+        }
     }
     return encode_sequence(cvs)
 }

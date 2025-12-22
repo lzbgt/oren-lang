@@ -15,7 +15,7 @@ import ast "ast.oren"
 //
 // - We intentionally avoid `for k in map` loops in the compiler implementation
 //   because stage-0 bootstrap currently cannot emit valid C for parser-generated
-//   internal identifiers like `@forin_*`.
+//   internal identifiers like `__oren_forin_*`.
 //
 // - v0 supports exactly 1 type parameter per generic function.
 

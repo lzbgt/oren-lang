@@ -159,39 +159,30 @@ fn cmd_positional(cmd, name, required, help) {
 }
 
 fn _find_cmd(p, name) {
-    var i = 0
-    while i < oren_list_len(p["commands"]) {
-        var c = p["commands"][i]
+    for c in p["commands"] {
         if _streq(c["name"], name) { return c }
-        i = i + 1
     }
     return nil
 }
 
 fn _find_opt(cmd, tok) {
     // tok is a flag token: "--foo" or "-f"
-    var i = 0
-    while i < oren_list_len(cmd["options"]) {
-        var o = cmd["options"][i]
+    for o in cmd["options"] {
         var ln = o[1]
         if _streq(ln, tok) { return o }
         var sh = o[2]
         if sh != nil && _streq(sh, tok) { return o }
-        i = i + 1
     }
     return nil
 }
 
 fn _opts_defaults(cmd) {
     var m = {}
-    var i = 0
-    while i < oren_list_len(cmd["options"]) {
-        var o = cmd["options"][i]
+    for o in cmd["options"] {
         var key = o[1]
         // Normalize key to strip leading '--' for storage.
         if _starts_with(key, "--") { key = oren_string_slice(key, 2, oren_string_len(key)) }
         m[key] = o[4]
-        i = i + 1
     }
     return m
 }
@@ -235,24 +226,19 @@ fn render_help_lines(p, cmd_name) {
 
     if cmd == p["root"] && oren_list_len(p["commands"]) > 0 {
         oren_list_push(lines, "Commands:")
-        var i = 0
-        while i < oren_list_len(p["commands"]) {
-            var c = p["commands"][i]
+        for c in p["commands"] {
             var line = "  " + c["name"]
             if c["desc"] != nil && c["desc"] != "" {
                 line = line + "    " + c["desc"]
             }
             oren_list_push(lines, line)
-            i = i + 1
         }
         oren_list_push(lines, "")
     }
 
     if cmd != nil && oren_list_len(cmd["options"]) > 0 {
         oren_list_push(lines, "Options:")
-        var oi = 0
-        while oi < oren_list_len(cmd["options"]) {
-            var o = cmd["options"][oi]
+        for o in cmd["options"] {
             var kind = o[0]
             var line2 = "  " + o[1]
             if o[2] != nil && o[2] != "" { line2 = line2 + ", " + o[2] }
@@ -260,21 +246,17 @@ fn render_help_lines(p, cmd_name) {
             if kind == 3 { line2 = line2 + " <int>" }
             if o[3] != nil && o[3] != "" { line2 = line2 + "    " + o[3] }
             oren_list_push(lines, line2)
-            oi = oi + 1
         }
         oren_list_push(lines, "")
     }
 
     if cmd != nil && oren_list_len(cmd["positionals"]) > 0 {
         oren_list_push(lines, "Args:")
-        var pi = 0
-        while pi < oren_list_len(cmd["positionals"]) {
-            var pos = cmd["positionals"][pi]
+        for pos in cmd["positionals"] {
             var line3 = "  " + pos[0]
             if pos[1] { line3 = line3 + " (required)" } else { line3 = line3 + " (optional)" }
             if pos[2] != nil && pos[2] != "" { line3 = line3 + "    " + pos[2] }
             oren_list_push(lines, line3)
-            pi = pi + 1
         }
         oren_list_push(lines, "")
     }
@@ -285,11 +267,7 @@ fn render_help_lines(p, cmd_name) {
 fn render_help(p, cmd_name) {
     var lines = render_help_lines(p, cmd_name)
     var out = ""
-    var i = 0
-    while i < oren_list_len(lines) {
-        out = out + lines[i] + "\n"
-        i = i + 1
-    }
+    for line in lines { out = out + line + "\n" }
     return out
 }
 
@@ -431,11 +409,7 @@ fn parse(p, argv) {
 
     // Validate positionals
     var required = 0
-    var pi = 0
-    while pi < oren_list_len(cmd["positionals"]) {
-        if cmd["positionals"][pi][1] { required = required + 1 }
-        pi = pi + 1
-    }
+    for ps in cmd["positionals"] { if ps[1] { required = required + 1 } }
     if oren_list_len(pos) < required {
         res["err"] = "missing required args"
         res["help"] = render_help(p, cmd_name)
