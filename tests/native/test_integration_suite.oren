@@ -772,6 +772,10 @@ fn test_net_loopback_minimal() {
         free(out_to)
         if wr_to2 != 0 { exit(804) }
 
+        // Same for single-fd wait helper.
+        var wr_to3 = oren_fd_wait_readable(lfd1, 0 - 1)
+        if wr_to3 != 0 { exit(804) }
+
         // Wait until either listen fd becomes readable (incoming connection).
         var fds = [lfd1, lfd2]
         var out_fd = malloc(8)

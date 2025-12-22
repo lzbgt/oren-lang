@@ -51,6 +51,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: extended arg-validation coverage for `oren_fd_wait_any_{readable,writable}` to require `out_fd_ptr != 0` (null out pointer => `-EINVAL`).
    - Status: made negative `timeout_ms` non-blocking across kqueue+epoll wait paths (`timeout_ms < 0` treated as 0ms) to avoid backend-dependent hangs; added regression coverage in native integration suite.
    - Status: normalized kqueue wait failure return to `-ENOSYS` instead of `-1` (keeps errno-style consistency across wait helpers).
+   - Status: added regression coverage ensuring single-fd waits (`oren_fd_wait_readable(fd, -1)`) also treat negative timeouts as 0ms (no wait).
    - DoD: expand syscall-first TCP/UDP readiness + timeouts, keep capsule gating comprehensive on both macOS and Linux.
 
 4) **Docs parity pass** (S)
