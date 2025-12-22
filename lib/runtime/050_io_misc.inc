@@ -1,0 +1,921 @@
+OrenValue oren_read_file(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        oren_panic("read_file expects string path");
+        return OREN_NIL; // Should not be reached
+    }
+    FILE *f = fopen(path.as.string_val, "rb");
+    if (!f) {
+        return oren_err_from_errno("cannot open file", path.as.string_val, errno);
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 0) {
+        fclose(f);
+        return oren_err_from_errno("cannot stat file", path.as.string_val, errno);
+    }
+    char *buf = malloc(size + 1);
+    if (!buf) {
+        fclose(f);
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("out of memory"));
+    }
+    size_t n = fread(buf, 1, (size_t)size, f);
+    buf[size] = '\0';
+    fclose(f);
+    if (n != (size_t)size) {
+        return oren_err_from_errno("cannot read file", path.as.string_val, errno);
+    }
+    return oren_string(buf);
+}
+
+OrenValue oren_write_file(OrenValue path, OrenValue content) {
+    if (path.type != OREN_TYPE_STRING || content.type != OREN_TYPE_STRING) {
+        oren_panic("write_file expects (string, string)");
+        return OREN_NIL; // Should not be reached
+    }
+    FILE *f = fopen(path.as.string_val, "wb");
+    if (!f) {
+        return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
+    }
+    size_t len = strlen(content.as.string_val);
+    size_t n = fwrite(content.as.string_val, 1, len, f);
+    fclose(f);
+    if (n != len) {
+        return oren_err_from_errno("cannot write file", path.as.string_val, errno);
+    }
+    return OREN_NIL;
+}
+
+OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
+    if (path.type != OREN_TYPE_STRING || bytes.type != OREN_TYPE_LIST) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects (string, list<int>)"));
+    }
+    FILE *f = fopen(path.as.string_val, "wb");
+    if (!f) {
+        return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
+    }
+    for (int i = 0; i < bytes.as.list_val->count; i++) {
+        OrenValue b = bytes.as.list_val->items[i];
+        if (b.type != OREN_TYPE_INT) {
+            fclose(f);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects list of ints"));
+        }
+        long long v = b.as.int_val;
+        if (v < 0 || v > 255) {
+            fclose(f);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes byte out of range"));
+        }
+        if (fputc((unsigned char)v, f) == EOF) {
+            fclose(f);
+            return oren_err_from_errno("cannot write bytes", path.as.string_val, errno);
+        }
+    }
+    fclose(f);
+    return OREN_NIL;
+}
+
+OrenValue oren_read_bytes(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        oren_panic("read_bytes expects string path");
+        return OREN_NIL; // Should not be reached
+    }
+
+    FILE *f = fopen(path.as.string_val, "rb");
+    if (!f) {
+        return oren_err_from_errno("cannot open file", path.as.string_val, errno);
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return oren_err_from_errno("read_bytes: fseek failed", path.as.string_val, errno);
+    }
+    long size_long = ftell(f);
+    if (size_long < 0) {
+        fclose(f);
+        return oren_err_from_errno("read_bytes: ftell failed", path.as.string_val, errno);
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return oren_err_from_errno("read_bytes: fseek failed", path.as.string_val, errno);
+    }
+
+    // Oren lists use int counts; reject files too large for the current runtime representation.
+    if (size_long > (long)INT32_MAX) {
+        fclose(f);
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("read_bytes: file too large"));
+    }
+
+    int size = (int)size_long;
+
+    unsigned char* buf = NULL;
+    if (size > 0) {
+        buf = (unsigned char*)malloc((size_t)size);
+        if (!buf) {
+            fclose(f);
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
+        }
+        size_t nread = fread(buf, 1, (size_t)size, f);
+        if ((int)nread != size) {
+            free(buf);
+            fclose(f);
+            return oren_err_from_errno("read_bytes: short read", path.as.string_val, errno);
+        }
+    }
+
+    fclose(f);
+
+    lock_collections();
+    OrenList* list = malloc(sizeof(OrenList));
+    if (!list) {
+        unlock_collections();
+        free(buf);
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
+    }
+    oren_register_alloc(list, OREN_ALLOC_LIST);
+
+    list->count = size;
+    list->capacity = size;
+    list->items = NULL;
+    if (size > 0) {
+        list->items = malloc(sizeof(OrenValue) * (size_t)size);
+        if (!list->items) {
+            unlock_collections();
+            free(buf);
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_bytes: alloc failed"));
+        }
+        for (int i = 0; i < size; i++) {
+            list->items[i] = oren_int((unsigned char)buf[i]);
+        }
+    }
+
+    unlock_collections();
+    free(buf);
+
+    OrenValue v;
+    v.type = OREN_TYPE_LIST;
+    v.as.list_val = list;
+    return v;
+}
+
+OrenValue oren_bytes_from_string(OrenValue s) {
+    if (s.type != OREN_TYPE_STRING) {
+        oren_panic("bytes_from_string expects string");
+        return OREN_NIL; // Should not be reached
+    }
+    size_t n = strlen(s.as.string_val);
+    OrenList* list = malloc(sizeof(OrenList));
+    list->count = (int)n;
+    list->capacity = (int)n;
+    list->items = malloc(sizeof(OrenValue) * n);
+    for (size_t i = 0; i < n; i++) {
+        list->items[i] = oren_int((unsigned char)s.as.string_val[i]);
+    }
+    OrenValue v;
+    v.type = OREN_TYPE_LIST;
+    v.as.list_val = list;
+    return v;
+}
+
+OrenValue oren_string_from_bytes(OrenValue bytes) {
+    if (bytes.type != OREN_TYPE_LIST) {
+        oren_panic("string_from_bytes expects list<int 0..255>");
+        return OREN_NIL; // Should not be reached
+    }
+    OrenList* list = bytes.as.list_val;
+    if (!list || list->count < 0) {
+        oren_panic("string_from_bytes: invalid list");
+        return OREN_NIL; // Should not be reached
+    }
+    size_t n = (size_t)list->count;
+    char* buf = (char*)malloc(n + 1);
+    if (!buf) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_from_bytes: out of memory"));
+    }
+    for (size_t i = 0; i < n; i++) {
+        OrenValue it = list->items[i];
+        if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
+            free(buf);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes: expected list<int 0..255>"));
+        }
+        buf[i] = (char)(unsigned char)it.as.int_val;
+    }
+    buf[n] = 0;
+    OrenValue v;
+    v.type = OREN_TYPE_STRING;
+    v.as.string_val = buf;
+    oren_register_alloc(buf, OREN_ALLOC_STRING);
+    return v;
+}
+
+typedef struct {
+    uint8_t data[64];
+    uint32_t datalen;
+    uint64_t bitlen;
+    uint32_t state[8];
+} OrenSha256Ctx;
+
+static uint32_t oren_sha256_rotr(uint32_t x, uint32_t n) { return (x >> n) | (x << (32 - n)); }
+static uint32_t oren_sha256_ch(uint32_t x, uint32_t y, uint32_t z) { return (x & y) ^ (~x & z); }
+static uint32_t oren_sha256_maj(uint32_t x, uint32_t y, uint32_t z) { return (x & y) ^ (x & z) ^ (y & z); }
+static uint32_t oren_sha256_ep0(uint32_t x) { return oren_sha256_rotr(x, 2) ^ oren_sha256_rotr(x, 13) ^ oren_sha256_rotr(x, 22); }
+static uint32_t oren_sha256_ep1(uint32_t x) { return oren_sha256_rotr(x, 6) ^ oren_sha256_rotr(x, 11) ^ oren_sha256_rotr(x, 25); }
+static uint32_t oren_sha256_sig0(uint32_t x) { return oren_sha256_rotr(x, 7) ^ oren_sha256_rotr(x, 18) ^ (x >> 3); }
+static uint32_t oren_sha256_sig1(uint32_t x) { return oren_sha256_rotr(x, 17) ^ oren_sha256_rotr(x, 19) ^ (x >> 10); }
+
+static const uint32_t OREN_SHA256_K[64] = {
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+    0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+    0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+    0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+    0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+};
+
+static void oren_sha256_transform(OrenSha256Ctx* ctx, const uint8_t data[64]) {
+    uint32_t m[64];
+    for (int i = 0; i < 16; i++) {
+        int j = i * 4;
+        m[i] = ((uint32_t)data[j] << 24) | ((uint32_t)data[j + 1] << 16) | ((uint32_t)data[j + 2] << 8) | (uint32_t)data[j + 3];
+    }
+    for (int i = 16; i < 64; i++) {
+        m[i] = oren_sha256_sig1(m[i - 2]) + m[i - 7] + oren_sha256_sig0(m[i - 15]) + m[i - 16];
+    }
+
+    uint32_t a = ctx->state[0];
+    uint32_t b = ctx->state[1];
+    uint32_t c = ctx->state[2];
+    uint32_t d = ctx->state[3];
+    uint32_t e = ctx->state[4];
+    uint32_t f = ctx->state[5];
+    uint32_t g = ctx->state[6];
+    uint32_t h = ctx->state[7];
+
+    for (int i = 0; i < 64; i++) {
+        uint32_t t1 = h + oren_sha256_ep1(e) + oren_sha256_ch(e, f, g) + OREN_SHA256_K[i] + m[i];
+        uint32_t t2 = oren_sha256_ep0(a) + oren_sha256_maj(a, b, c);
+        h = g;
+        g = f;
+        f = e;
+        e = d + t1;
+        d = c;
+        c = b;
+        b = a;
+        a = t1 + t2;
+    }
+
+    ctx->state[0] += a;
+    ctx->state[1] += b;
+    ctx->state[2] += c;
+    ctx->state[3] += d;
+    ctx->state[4] += e;
+    ctx->state[5] += f;
+    ctx->state[6] += g;
+    ctx->state[7] += h;
+}
+
+static void oren_sha256_init(OrenSha256Ctx* ctx) {
+    ctx->datalen = 0;
+    ctx->bitlen = 0;
+    ctx->state[0] = 0x6a09e667;
+    ctx->state[1] = 0xbb67ae85;
+    ctx->state[2] = 0x3c6ef372;
+    ctx->state[3] = 0xa54ff53a;
+    ctx->state[4] = 0x510e527f;
+    ctx->state[5] = 0x9b05688c;
+    ctx->state[6] = 0x1f83d9ab;
+    ctx->state[7] = 0x5be0cd19;
+}
+
+static void oren_sha256_update(OrenSha256Ctx* ctx, const uint8_t* data, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        ctx->data[ctx->datalen] = data[i];
+        ctx->datalen++;
+        if (ctx->datalen == 64) {
+            oren_sha256_transform(ctx, ctx->data);
+            ctx->bitlen += 512;
+            ctx->datalen = 0;
+        }
+    }
+}
+
+static void oren_sha256_final(OrenSha256Ctx* ctx, uint8_t out[32]) {
+    uint32_t i = ctx->datalen;
+
+    // Pad with a single 1 bit then zeros.
+    if (ctx->datalen < 56) {
+        ctx->data[i++] = 0x80;
+        while (i < 56) ctx->data[i++] = 0x00;
+    } else {
+        ctx->data[i++] = 0x80;
+        while (i < 64) ctx->data[i++] = 0x00;
+        oren_sha256_transform(ctx, ctx->data);
+        memset(ctx->data, 0, 56);
+    }
+
+    ctx->bitlen += (uint64_t)ctx->datalen * 8;
+    ctx->data[63] = (uint8_t)(ctx->bitlen);
+    ctx->data[62] = (uint8_t)(ctx->bitlen >> 8);
+    ctx->data[61] = (uint8_t)(ctx->bitlen >> 16);
+    ctx->data[60] = (uint8_t)(ctx->bitlen >> 24);
+    ctx->data[59] = (uint8_t)(ctx->bitlen >> 32);
+    ctx->data[58] = (uint8_t)(ctx->bitlen >> 40);
+    ctx->data[57] = (uint8_t)(ctx->bitlen >> 48);
+    ctx->data[56] = (uint8_t)(ctx->bitlen >> 56);
+    oren_sha256_transform(ctx, ctx->data);
+
+    for (i = 0; i < 4; i++) {
+        out[i]      = (uint8_t)((ctx->state[0] >> (24 - i * 8)) & 0xff);
+        out[i + 4]  = (uint8_t)((ctx->state[1] >> (24 - i * 8)) & 0xff);
+        out[i + 8]  = (uint8_t)((ctx->state[2] >> (24 - i * 8)) & 0xff);
+        out[i + 12] = (uint8_t)((ctx->state[3] >> (24 - i * 8)) & 0xff);
+        out[i + 16] = (uint8_t)((ctx->state[4] >> (24 - i * 8)) & 0xff);
+        out[i + 20] = (uint8_t)((ctx->state[5] >> (24 - i * 8)) & 0xff);
+        out[i + 24] = (uint8_t)((ctx->state[6] >> (24 - i * 8)) & 0xff);
+        out[i + 28] = (uint8_t)((ctx->state[7] >> (24 - i * 8)) & 0xff);
+    }
+}
+
+OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) {
+    if (bytes.type != OREN_TYPE_LIST || start.type != OREN_TYPE_INT || length.type != OREN_TYPE_INT) {
+        oren_panic("sha256_range expects (list, int, int)");
+        return OREN_NIL; // Should not be reached
+    }
+    long long s = start.as.int_val;
+    long long n = length.as.int_val;
+    if (s < 0 || n < 0 || s + n > bytes.as.list_val->count) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "sha256_range out of bounds (s=%lld, n=%lld, count=%d)", s, n, bytes.as.list_val->count);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
+    }
+
+    OrenSha256Ctx ctx;
+    oren_sha256_init(&ctx);
+
+    for (long long i = 0; i < n; i++) {
+        OrenValue b = bytes.as.list_val->items[(int)(s + i)];
+        if (b.type != OREN_TYPE_INT) {
+            oren_panic("sha256_range expects list of ints");
+            return OREN_NIL; // Should not be reached
+        }
+        long long v = b.as.int_val;
+        if (v < 0 || v > 255) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "sha256_range byte out of range (val=%lld)", v);
+            oren_panic(buf);
+            return OREN_NIL; // Should not be reached
+        }
+        uint8_t byte = (uint8_t)v;
+        oren_sha256_update(&ctx, &byte, 1);
+    }
+
+    uint8_t digest[32];
+    oren_sha256_final(&ctx, digest);
+
+    OrenList* out = malloc(sizeof(OrenList));
+    out->count = 32;
+    out->capacity = 32;
+    out->items = malloc(sizeof(OrenValue) * 32);
+    for (int i = 0; i < 32; i++) {
+        out->items[i] = oren_int(digest[i]);
+    }
+    OrenValue v;
+    v.type = OREN_TYPE_LIST;
+    v.as.list_val = out;
+    return v;
+}
+
+OrenValue oren_chmod(OrenValue path, OrenValue mode) {
+    if (path.type != OREN_TYPE_STRING || mode.type != OREN_TYPE_INT) {
+        oren_panic("chmod expects (string, int)");
+        return OREN_NIL; // Should not be reached
+    }
+    if (chmod(path.as.string_val, (mode_t)mode.as.int_val) != 0) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "chmod failed for %s", path.as.string_val);
+        oren_panic(buf);
+        return OREN_NIL; // Should not be reached
+    }
+    return OREN_NIL;
+}
+
+OrenValue oren_system(OrenValue cmd) {
+    if (cmd.type != OREN_TYPE_STRING) {
+        oren_panic("system expects string");
+        return OREN_NIL; // Should not be reached
+    }
+    int res = system(cmd.as.string_val);
+    return oren_int((long long)res);
+}
+
+OrenValue oren_net_get(OrenValue url) {
+    (void)url;
+    // Native/C backend runtime does not implement host networking in bootstrap.
+    // Agentic networking is intended to run via AVM NET domain virtualization.
+    return oren_err(oren_int(7), oren_string("net not implemented (use AVM)"));
+}
+
+OrenValue oren_exit(OrenValue code) {
+    if (code.type != OREN_TYPE_INT) {
+        oren_panic("exit expects int");
+        return OREN_NIL; // Should not be reached
+    }
+    exit((int)code.as.int_val);
+    return OREN_NIL;
+}
+
+OrenValue oren_int_to_string(OrenValue v) {
+    if (v.type != OREN_TYPE_INT) {
+        oren_panic("int_to_string expects int");
+        return OREN_NIL; // Should not be reached
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%lld", v.as.int_val);
+    return oren_string(buf);
+}
+
+OrenValue oren_float_to_string(OrenValue v) {
+    if (v.type != OREN_TYPE_FLOAT) {
+        oren_panic("float_to_string expects float");
+        return OREN_NIL; // Should not be reached
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%f", v.as.float_val);
+    return oren_string(buf);
+}
+
+OrenValue oren_string_to_float_bits(OrenValue s) {
+    if (s.type != OREN_TYPE_STRING) {
+        oren_panic("string_to_float_bits expects string");
+        return OREN_NIL;
+    }
+    double d = strtod(s.as.string_val, NULL);
+    uint64_t bits;
+    memcpy(&bits, &d, sizeof(bits));
+    return oren_int((long long)bits);
+}
+
+OrenValue oren_f32_round(OrenValue v) {
+    if (v.type != OREN_TYPE_FLOAT) {
+        // In rolling mode, avoid UB: return a structured error rather than panicking.
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("f32_round expects float"));
+    }
+    float f = (float)v.as.float_val;
+    return oren_float((double)f);
+}
+
+OrenValue oren_f32_to_u32_bits(OrenValue v) {
+    // Unsafe bitcast: float32 bits -> u32 (returned as int64 container).
+    //
+    // Input is a float (f64 container); we first round to float32 semantics, then extract bits.
+    if (v.type != OREN_TYPE_FLOAT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("f32_to_u32_bits expects float"));
+    }
+    float f = (float)v.as.float_val;
+    uint32_t bits = 0;
+    memcpy(&bits, &f, sizeof(bits));
+    return oren_int((int64_t)(uint64_t)bits);
+}
+
+OrenValue oren_u32_bits_to_f32(OrenValue v) {
+    // Unsafe bitcast: interpret low 32 bits of int as float32.
+    if (v.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u32_bits_to_f32 expects int"));
+    }
+    uint32_t bits = (uint32_t)(uint64_t)v.as.int_val;
+    float f = 0.0f;
+    memcpy(&f, &bits, sizeof(bits));
+    // Return in the v0 float container (f64) while preserving float32 rounding boundary.
+    return oren_float((double)f);
+}
+
+OrenValue oren_f64_to_u64_bits(OrenValue v) {
+    // Unsafe bitcast: float64 bits -> u64 (returned as int64 container).
+    if (v.type != OREN_TYPE_FLOAT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("f64_to_u64_bits expects float"));
+    }
+    uint64_t bits = 0;
+    double d = v.as.float_val;
+    memcpy(&bits, &d, sizeof(bits));
+    return oren_int((int64_t)bits);
+}
+
+OrenValue oren_u64_bits_to_f64(OrenValue v) {
+    // Unsafe bitcast: int64 bits -> float64.
+    if (v.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u64_bits_to_f64 expects int"));
+    }
+    uint64_t bits = (uint64_t)v.as.int_val;
+    double d = 0.0;
+    memcpy(&d, &bits, sizeof(bits));
+    return oren_float(d);
+}
+
+OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end) {
+    if (s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || end.type != OREN_TYPE_INT) {
+        oren_panic("string_slice type mismatch");
+        return OREN_NIL; // Should not be reached
+    }
+    char* str = s.as.string_val;
+    long long len = strlen(str);
+    long long i = start.as.int_val;
+    long long j = end.as.int_val;
+    if (i < 0) i = 0;
+    if (j > len) j = len;
+    if (i >= j) {
+        return oren_string("");
+    }
+    long long n = j - i;
+    char* sub = malloc(n + 1);
+    strncpy(sub, str + i, n);
+    sub[n] = '\0';
+    
+    OrenValue v;
+    v.type = OREN_TYPE_STRING;
+    v.as.string_val = sub;
+    return v;
+}
+
+// getenv wrapper: returns string or NIL
+OrenValue oren_env(OrenValue name) {
+    if (name.type != OREN_TYPE_STRING || name.as.string_val == NULL) {
+        return OREN_NIL;
+    }
+    const char* key = name.as.string_val;
+    const char* val = getenv(key);
+    if (val == NULL) {
+        return OREN_NIL;
+    }
+    return oren_string(val);
+}
+
+// Recursive free for compound objects; skips primitives.
+void oren_free(OrenValue v) {
+    if (v.type == OREN_TYPE_STRING) {
+        pthread_mutex_lock(&g_alloc_mutex);
+        OrenAllocNode* n = oren_find_node(v.as.string_val);
+        if (n && !n->freed) {
+            n->freed = 1;
+            free(n->ptr);
+        }
+        // Remove tracking node to keep registry bounded.
+        // (Leaving freed nodes around makes `g_allocs` grow without bound under manual frees.)
+        if (n) {
+            void* p = n->ptr;
+            // unlink from list
+            OrenAllocNode* prev = NULL;
+            OrenAllocNode* cur = g_allocs;
+            while (cur) {
+                if (cur == n) {
+                    if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                    break;
+                }
+                prev = cur;
+                cur = cur->next;
+            }
+            if (p) oren_alloc_index_remove_locked(p);
+            free(n);
+        }
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+    if (v.type == OREN_TYPE_LIST) {
+        OrenList* lst = v.as.list_val;
+        if (lst == NULL) return;
+        for (int i = 0; i < lst->count; i++) {
+            oren_free(lst->items[i]);
+        }
+        pthread_mutex_lock(&g_alloc_mutex);
+        OrenAllocNode* n = oren_find_node(lst);
+        if (n && !n->freed) {
+            n->freed = 1;
+            if (lst->items) free(lst->items);
+            free(lst);
+        }
+        if (n) {
+            void* p = n->ptr;
+            OrenAllocNode* prev = NULL;
+            OrenAllocNode* cur = g_allocs;
+            while (cur) {
+                if (cur == n) {
+                    if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                    break;
+                }
+                prev = cur;
+                cur = cur->next;
+            }
+            if (p) oren_alloc_index_remove_locked(p);
+            free(n);
+        }
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+    if (v.type == OREN_TYPE_MAP) {
+        OrenMap* mp = v.as.map_val;
+        if (mp == NULL) return;
+        for (int i = 0; i < mp->count; i++) {
+            oren_free(mp->keys[i]);
+            oren_free(mp->values[i]);
+        }
+        pthread_mutex_lock(&g_alloc_mutex);
+        OrenAllocNode* n = oren_find_node(mp);
+        if (n && !n->freed) {
+            n->freed = 1;
+            if (mp->keys) free(mp->keys);
+            if (mp->values) free(mp->values);
+            free(mp);
+        }
+        if (n) {
+            void* p = n->ptr;
+            OrenAllocNode* prev = NULL;
+            OrenAllocNode* cur = g_allocs;
+            while (cur) {
+                if (cur == n) {
+                    if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                    break;
+                }
+                prev = cur;
+                cur = cur->next;
+            }
+            if (p) oren_alloc_index_remove_locked(p);
+            free(n);
+        }
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+}
+
+void oren_shutdown() {
+    // Ensure no threads are running while tearing down runtime allocations.
+    oren_join_all();
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = g_allocs;
+    while (n != NULL) {
+        OrenAllocNode* next = n->next;
+        if (!n->freed) {
+            if (n->kind == OREN_ALLOC_STRING) {
+                free(n->ptr);
+            } else if (n->kind == OREN_ALLOC_LIST) {
+                OrenList* lst = (OrenList*)n->ptr;
+                if (lst->items) free(lst->items);
+                free(lst);
+            } else if (n->kind == OREN_ALLOC_MAP) {
+                OrenMap* mp = (OrenMap*)n->ptr;
+                if (mp->keys) free(mp->keys);
+                if (mp->values) free(mp->values);
+                free(mp);
+            } else if (n->kind == OREN_ALLOC_STRUCT) {
+                free(n->ptr);
+            } else if (n->kind == OREN_ALLOC_RAW_MMAP) {
+                OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
+                if (h->magic == OREN_RAW_MAGIC && h->backend == 1 && h->total_size > 0) {
+                    (void)munmap((void*)h, (size_t)h->total_size);
+                } else {
+                    free(n->ptr);
+                }
+            } else if (n->kind == OREN_ALLOC_RAW) {
+                OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
+                if (h->magic == OREN_RAW_MAGIC && h->backend == 0 && h->total_size > 0) {
+                    free((void*)h);
+                } else {
+                    free(n->ptr);
+                }
+            } else {
+                free(n->ptr);
+            }
+        }
+        free(n);
+        n = next;
+    }
+    g_allocs = NULL;
+    if (g_alloc_index) {
+        free(g_alloc_index);
+        g_alloc_index = NULL;
+        g_alloc_index_cap = 0;
+        g_alloc_index_len = 0;
+    }
+    // Clear registered roots to release bookkeeping nodes
+    OrenAllocNode* r = g_roots;
+    while (r != NULL) {
+        OrenAllocNode* next_r = r->next;
+        free(r);
+        r = next_r;
+    }
+    g_roots = NULL;
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+uint64_t oren_alloc_struct(size_t bytes) {
+#ifdef OREN_NO_GC
+    void* p = malloc(bytes);
+#else
+    void* p = malloc(bytes);
+    oren_register_alloc(p, OREN_ALLOC_STRUCT);
+#endif
+    if (!p) {
+        oren_panic("struct alloc failed");
+        return (uint64_t)p; // Should not be reached, but needed for compiler
+    }
+    return (uint64_t)p;
+}
+
+void oren_free_struct(uint64_t ptr) {
+#ifdef OREN_NO_GC
+    free((void*)ptr);
+    return;
+#endif
+    void* p = (void*)ptr;
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_find_node(p);
+    if (n && !n->freed) {
+        n->freed = 1;
+        free(p);
+    }
+    if (n) {
+        // Remove tracking node to keep registry bounded under explicit frees.
+        OrenAllocNode* prev = NULL;
+        OrenAllocNode* cur = g_allocs;
+        while (cur) {
+            if (cur == n) {
+                if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                break;
+            }
+            prev = cur;
+            cur = cur->next;
+        }
+        oren_alloc_index_remove_locked(p);
+        free(n);
+    }
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+uint64_t oren_alloc_raw_aligned(size_t bytes, size_t align) {
+    void* base = NULL;
+    void* p = NULL;
+    int used_mmap = 0;
+    if (align == 0) align = sizeof(void*);
+    if ((align & (align - 1)) != 0 || align < sizeof(void*)) {
+        oren_panic("raw alloc align invalid");
+        return 0;
+    }
+
+    // Large allocation: prefer mmap so free/GC sweep can return memory to OS.
+    // `mmap` returns page-aligned memory, which satisfies any <= page alignment.
+    size_t thr = raw_mmap_threshold_cached();
+    if (thr != 0 && bytes >= thr) {
+        size_t hdr_size = sizeof(OrenRawHdr); // 64 bytes; keeps payload 64B-aligned
+        size_t total = hdr_size + bytes;
+        base = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (base == MAP_FAILED) {
+            oren_panic("raw mmap alloc failed");
+            return 0;
+        }
+        OrenRawHdr* h = (OrenRawHdr*)base;
+        h->magic = OREN_RAW_MAGIC;
+        h->total_size = (uint64_t)total;
+        h->backend = 1;
+        p = (uint8_t*)base + hdr_size;
+        used_mmap = 1;
+    } else {
+        size_t hdr_size = sizeof(OrenRawHdr);
+        size_t total = hdr_size + bytes;
+        int er = posix_memalign(&base, align, total);
+        if (er != 0 || !base) {
+            oren_panic("raw alloc failed");
+            return 0;
+        }
+        OrenRawHdr* h = (OrenRawHdr*)base;
+        h->magic = OREN_RAW_MAGIC;
+        h->total_size = (uint64_t)total;
+        h->backend = 0;
+        p = (uint8_t*)base + hdr_size;
+    }
+    if (!p) {
+        oren_panic("raw alloc failed");
+        return 0;
+    }
+#ifndef OREN_NO_GC
+    oren_register_alloc(p, used_mmap ? OREN_ALLOC_RAW_MMAP : OREN_ALLOC_RAW);
+#endif
+    return (uint64_t)p;
+}
+
+void oren_free_raw(uint64_t ptr) {
+    void* p = (void*)ptr;
+    if (!p) return;
+
+    // Raw blocks always store a 64-byte header immediately before the returned pointer.
+    OrenRawHdr* h = ((OrenRawHdr*)p) - 1;
+
+#ifdef OREN_NO_GC
+    if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+        if (h->backend == 1) {
+            (void)munmap((void*)h, (size_t)h->total_size);
+            return;
+        }
+        free((void*)h);
+        return;
+    }
+    // Fallback: unknown pointer.
+    free(p);
+    return;
+#endif
+
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_find_node(p);
+    if (n && !n->freed) {
+        n->freed = 1;
+        if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+            if (h->backend == 1) {
+                (void)munmap((void*)h, (size_t)h->total_size);
+            } else {
+                free((void*)h);
+            }
+        } else {
+            // Corrupt/mismatched header; best-effort fallback.
+            free(p);
+        }
+    }
+    if (n) {
+        OrenAllocNode* prev = NULL;
+        OrenAllocNode* cur = g_allocs;
+        while (cur) {
+            if (cur == n) {
+                if (prev) prev->next = cur->next; else g_allocs = cur->next;
+                break;
+            }
+            prev = cur;
+            cur = cur->next;
+        }
+        oren_alloc_index_remove_locked(p);
+        free(n);
+    }
+    pthread_mutex_unlock(&g_alloc_mutex);
+}
+
+OrenValue oren_buf_payload_is_raw(OrenValue buf) {
+    if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
+        oren_panic("buf_payload_is_raw expects (buf)");
+        return OREN_NIL;
+    }
+    OrenBuf* b = buf.as.buf_val;
+    if (!b) {
+        oren_panic("buf_payload_is_raw: invalid buffer");
+        return OREN_NIL;
+    }
+    if (b->len == 0) return OREN_TRUE;
+    if (!b->data) return OREN_FALSE;
+
+    // Typed buffer payloads allocated by `oren_alloc_raw_aligned` always have a header.
+    OrenRawHdr* h = ((OrenRawHdr*)b->data) - 1;
+    if (h->magic == OREN_RAW_MAGIC) return OREN_TRUE;
+
+#ifndef OREN_NO_GC
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_find_node(b->data);
+    int ok = (n && n->freed == 0 && (n->kind == OREN_ALLOC_RAW || n->kind == OREN_ALLOC_RAW_MMAP));
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return oren_bool(ok);
+#else
+    return OREN_TRUE;
+#endif
+}
+
+OrenValue oren_buf_payload_is_mmap(OrenValue buf) {
+    if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
+        oren_panic("buf_payload_is_mmap expects (buf)");
+        return OREN_NIL;
+    }
+    OrenBuf* b = buf.as.buf_val;
+    if (!b) {
+        oren_panic("buf_payload_is_mmap: invalid buffer");
+        return OREN_NIL;
+    }
+    if (b->len == 0) return OREN_FALSE;
+    if (!b->data) return OREN_FALSE;
+
+    // Typed buffer payloads allocated by `oren_alloc_raw_aligned` always have a header.
+    OrenRawHdr* h = ((OrenRawHdr*)b->data) - 1;
+    if (h->magic == OREN_RAW_MAGIC && h->backend == 1) return OREN_TRUE;
+
+#ifndef OREN_NO_GC
+    // Fallback to registry classification (for debug / mixed alloc cases).
+    pthread_mutex_lock(&g_alloc_mutex);
+    OrenAllocNode* n = oren_find_node(b->data);
+    int ok = (n && n->freed == 0 && n->kind == OREN_ALLOC_RAW_MMAP);
+    pthread_mutex_unlock(&g_alloc_mutex);
+    return oren_bool(ok);
+#else
+    return OREN_FALSE;
+#endif
+}
