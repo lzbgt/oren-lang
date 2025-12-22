@@ -727,6 +727,8 @@ fn test_net_loopback_minimal() {
         var out_bad = malloc(8)
         if out_bad == 0 { exit(804) }
         ptr_set(out_bad, 0)
+        if oren_fd_wait_any_readable([lfd1], 10, 0) != 0 - 22 { exit(804) }
+        if oren_fd_wait_any_writable([lfd1], 10, 0) != 0 - 22 { exit(804) }
         if oren_fd_wait_any_readable([], 10, out_bad) != 0 - 22 { exit(804) }
         if oren_fd_wait_any_writable([], 10, out_bad) != 0 - 22 { exit(804) }
         if oren_fd_wait_any_readable(nil, 10, out_bad) != 0 - 22 { exit(804) }
