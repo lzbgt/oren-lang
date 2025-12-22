@@ -815,7 +815,8 @@ fn insn_cas(rs, rt, rn) {
     // CAS Xs, Xt, [Xn]
     // Verified via clang:
     //   cas x11, x12, [x13] => 0xC8AB7DAC
-    return 3365993472 + (rs * 65536) + (rn * 32) + rt
+    // Base: 0xC8A07C00
+    return 3365960704 + (rs * 65536) + (rn * 32) + rt
 }
 
 fn insn_ldaxr(rt, rn) {

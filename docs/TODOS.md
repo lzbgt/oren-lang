@@ -9,6 +9,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
     - Status: migrated native `adr_{data,code}` + Mach-O GOT stubs from ADR (±1MB) to ADRP+ADD (±4GB) and added `oretest` audits to enforce 2-slot reservation (compiler fixups + debug hook + Mach-O GOT stubs).
     - Status: expanded golden coverage to include basic atomic encoders (LDAXR/STLXR/CLREX/LDADD/CAS/STRB) with clang-verified constants.
     - Status: added clang-verified goldens for basic integer loads/stores (LDR/STR X, LDRB W).
+    - Status: included `tests/native/test_arm64_encoding.oren` in the curated native suite so these goldens run on every `make test`.
     - Next: add more golden cases for pair loads/stores and keep them small/deterministic (use clang/otool to confirm encodings).
 
 2) **Include chunk coherence (overflow-proofing)** (M)

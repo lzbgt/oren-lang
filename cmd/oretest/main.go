@@ -145,9 +145,11 @@ func main() {
 		// Curated lists: keep small and integration-first.
 		nativeTests := []string{
 			"tests/native/test_integration_suite.oren",
-		"tests/native/test_simd_suite.oren",
-		"tests/native/test_debug_panic.oren",
-	}
+			"tests/native/test_simd_suite.oren",
+			"tests/native/test_debug_panic.oren",
+			// Pure-functional encoder goldens; no syscalls; should stay fast + deterministic.
+			"tests/native/test_arm64_encoding.oren",
+		}
 	moduleTestsFast := []string{
 		// Keep fast suite small: prefer a few integration-first programs.
 		"tests/modules/test_integration_suite.oren",
