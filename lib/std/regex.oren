@@ -14,19 +14,21 @@
 // Convenience:
 //   regex.is_match(pattern, text)
 
+import list "list.oren"
+
 fn _err(msg) { return {"ok": 0, "err": msg} }
 fn _ok(v) { return {"ok": 1, "v": v} }
 
 fn _slice(xs, start, end) {
     if xs == nil { return nil }
-    var n = oren_list_len(xs)
+    var n = list.len(xs)
     if start < 0 { start = 0 }
     if end > n { end = n }
     if end < start { end = start }
     var out = []
     var i = start
     while i < end {
-        oren_list_push(out, xs[i])
+        list.push(out, xs[i])
         i = i + 1
     }
     return out
@@ -36,8 +38,8 @@ fn _streq(a, b) {
     if a == nil || b == nil { return false }
     var ab = oren_bytes_from_string(a)
     var bb = oren_bytes_from_string(b)
-    var al = oren_list_len(ab)
-    var bl = oren_list_len(bb)
+    var al = list.len(ab)
+    var bl = list.len(bb)
     if al != bl { return false }
     var i = 0
     while i < al {
@@ -73,8 +75,8 @@ fn _append(a, b) {
     if a == nil { return b }
     if b == nil { return a }
     var out = []
-    for x in a { oren_list_push(out, x) }
-    for y in b { oren_list_push(out, y) }
+    for x in a { list.push(out, x) }
+    for y in b { list.push(out, y) }
     return out
 }
 
@@ -100,25 +102,25 @@ fn _re2post(pattern) {
     var natom = []
 
     var i = 0
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
     var esc = false
 
     // init
-    oren_list_push(nalt, 0)
-    oren_list_push(natom, 0)
+    list.push(nalt, 0)
+    list.push(natom, 0)
 
     while i < n {
         var c = bs[i]
         if esc {
             // escaped literal
-            if natom[oren_list_len(natom)-1] > 1 {
+            if natom[list.len(natom)-1] > 1 {
                 // emit concat
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46) // '.' concat marker
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46) // '.' concat marker
             }
             // emit literal token as negative byte marker: 1000 + byte
-            oren_list_push(out, 1000 + c)
-            natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] + 1
+            list.push(out, 1000 + c)
+            natom[list.len(natom)-1] = natom[list.len(natom)-1] + 1
             esc = false
             i = i + 1
             continue
@@ -130,55 +132,55 @@ fn _re2post(pattern) {
         }
 
         if c == 40 { // (
-            if natom[oren_list_len(natom)-1] > 1 {
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46)
+            if natom[list.len(natom)-1] > 1 {
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46)
             }
-            oren_list_push(nalt, 0)
-            oren_list_push(natom, 0)
+            list.push(nalt, 0)
+            list.push(natom, 0)
             i = i + 1
             continue
         }
         if c == 41 { // )
-            if oren_list_len(natom) <= 1 { return _err("unmatched )") }
+            if list.len(natom) <= 1 { return _err("unmatched )") }
             // close concat
-            while natom[oren_list_len(natom)-1] > 1 {
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46)
+            while natom[list.len(natom)-1] > 1 {
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46)
             }
             // close alternations
-            while nalt[oren_list_len(nalt)-1] > 0 {
-                oren_list_push(out, 124)
-                nalt[oren_list_len(nalt)-1] = nalt[oren_list_len(nalt)-1] - 1
+            while nalt[list.len(nalt)-1] > 0 {
+                list.push(out, 124)
+                nalt[list.len(nalt)-1] = nalt[list.len(nalt)-1] - 1
             }
-            nalt = _slice(nalt, 0, oren_list_len(nalt)-1)
-            natom = _slice(natom, 0, oren_list_len(natom)-1)
-            natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] + 1
+            nalt = _slice(nalt, 0, list.len(nalt)-1)
+            natom = _slice(natom, 0, list.len(natom)-1)
+            natom[list.len(natom)-1] = natom[list.len(natom)-1] + 1
             i = i + 1
             continue
         }
         if c == 124 { // |
             // close concat
-            while natom[oren_list_len(natom)-1] > 1 {
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46)
+            while natom[list.len(natom)-1] > 1 {
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46)
             }
-            nalt[oren_list_len(nalt)-1] = nalt[oren_list_len(nalt)-1] + 1
-            natom[oren_list_len(natom)-1] = 0
+            nalt[list.len(nalt)-1] = nalt[list.len(nalt)-1] + 1
+            natom[list.len(natom)-1] = 0
             i = i + 1
             continue
         }
         if c == 42 || c == 43 || c == 63 { // * + ?
-            if natom[oren_list_len(natom)-1] == 0 { return _err("nothing to repeat") }
-            oren_list_push(out, c)
+            if natom[list.len(natom)-1] == 0 { return _err("nothing to repeat") }
+            list.push(out, c)
             i = i + 1
             continue
         }
         // char class
         if c == 91 { // '['
-            if natom[oren_list_len(natom)-1] > 1 {
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46)
+            if natom[list.len(natom)-1] > 1 {
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46)
             }
             i = i + 1
             if i >= n { return _err("unterminated [") }
@@ -205,90 +207,90 @@ fn _re2post(pattern) {
                         if i >= n { return _err("unterminated escape in range") }
                         hi = bs[i]
                     }
-                    oren_list_push(ranges, [prev, hi])
+                    list.push(ranges, [prev, hi])
                     prev = -1
                     i = i + 1
                     continue
                 }
                 if prev != -1 {
-                    oren_list_push(ranges, [prev, prev])
+                    list.push(ranges, [prev, prev])
                 }
                 prev = cc
                 i = i + 1
             }
             if prev != -1 {
-                oren_list_push(ranges, [prev, prev])
+                list.push(ranges, [prev, prev])
             }
             if i >= n || bs[i] != 93 { return _err("unterminated []") }
             // token encoding: 2000 + neg flag, then count, then ranges pairs
-            oren_list_push(out, 2000 + neg)
-            oren_list_push(out, oren_list_len(ranges))
+            list.push(out, 2000 + neg)
+            list.push(out, list.len(ranges))
             var ri = 0
-            while ri < oren_list_len(ranges) {
-                oren_list_push(out, ranges[ri][0])
-                oren_list_push(out, ranges[ri][1])
+            while ri < list.len(ranges) {
+                list.push(out, ranges[ri][0])
+                list.push(out, ranges[ri][1])
                 ri = ri + 1
             }
-            natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] + 1
+            natom[list.len(natom)-1] = natom[list.len(natom)-1] + 1
             i = i + 1
             continue
         }
 
         // anchors
         if c == 94 { // ^
-            if natom[oren_list_len(natom)-1] > 1 {
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46)
+            if natom[list.len(natom)-1] > 1 {
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46)
             }
-            oren_list_push(out, 3000) // bol
-            natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] + 1
+            list.push(out, 3000) // bol
+            natom[list.len(natom)-1] = natom[list.len(natom)-1] + 1
             i = i + 1
             continue
         }
         if c == 36 { // $
-            if natom[oren_list_len(natom)-1] > 1 {
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46)
+            if natom[list.len(natom)-1] > 1 {
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46)
             }
-            oren_list_push(out, 3001) // eol
-            natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] + 1
+            list.push(out, 3001) // eol
+            natom[list.len(natom)-1] = natom[list.len(natom)-1] + 1
             i = i + 1
             continue
         }
 
         // any '.'
         if c == 46 {
-            if natom[oren_list_len(natom)-1] > 1 {
-                natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-                oren_list_push(out, 46)
+            if natom[list.len(natom)-1] > 1 {
+                natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+                list.push(out, 46)
             }
-            oren_list_push(out, 4000) // any token
-            natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] + 1
+            list.push(out, 4000) // any token
+            natom[list.len(natom)-1] = natom[list.len(natom)-1] + 1
             i = i + 1
             continue
         }
 
         // literal
-        if natom[oren_list_len(natom)-1] > 1 {
-            natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-            oren_list_push(out, 46)
+        if natom[list.len(natom)-1] > 1 {
+            natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+            list.push(out, 46)
         }
-        oren_list_push(out, 1000 + c)
-        natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] + 1
+        list.push(out, 1000 + c)
+        natom[list.len(natom)-1] = natom[list.len(natom)-1] + 1
         i = i + 1
     }
 
     if esc { return _err("dangling escape") }
 
-    while natom[oren_list_len(natom)-1] > 1 {
-        natom[oren_list_len(natom)-1] = natom[oren_list_len(natom)-1] - 1
-        oren_list_push(out, 46)
+    while natom[list.len(natom)-1] > 1 {
+        natom[list.len(natom)-1] = natom[list.len(natom)-1] - 1
+        list.push(out, 46)
     }
-    while nalt[oren_list_len(nalt)-1] > 0 {
-        oren_list_push(out, 124)
-        nalt[oren_list_len(nalt)-1] = nalt[oren_list_len(nalt)-1] - 1
+    while nalt[list.len(nalt)-1] > 0 {
+        list.push(out, 124)
+        nalt[list.len(nalt)-1] = nalt[list.len(nalt)-1] - 1
     }
-    if oren_list_len(natom) != 1 { return _err("unmatched (") }
+    if list.len(natom) != 1 { return _err("unmatched (") }
     return _ok(out)
 }
 
@@ -297,88 +299,88 @@ fn _post2nfa(post) {
 
     var stack = []
     var i = 0
-    while i < oren_list_len(post) {
+    while i < list.len(post) {
         var tok = post[i]
         if tok == 46 { // concat
-            var e2 = stack[oren_list_len(stack)-1]
-            stack = _slice(stack, 0, oren_list_len(stack)-1)
-            var e1 = stack[oren_list_len(stack)-1]
-            stack = _slice(stack, 0, oren_list_len(stack)-1)
+            var e2 = stack[list.len(stack)-1]
+            stack = _slice(stack, 0, list.len(stack)-1)
+            var e1 = stack[list.len(stack)-1]
+            stack = _slice(stack, 0, list.len(stack)-1)
             _patch(e1["out"], states, e2["start"])
-            oren_list_push(stack, _frag(e1["start"], e2["out"]))
+            list.push(stack, _frag(e1["start"], e2["out"]))
             i = i + 1
             continue
         }
         if tok == 124 { // alt
-            var e4 = stack[oren_list_len(stack)-1]
-            stack = _slice(stack, 0, oren_list_len(stack)-1)
-            var e3 = stack[oren_list_len(stack)-1]
-            stack = _slice(stack, 0, oren_list_len(stack)-1)
+            var e4 = stack[list.len(stack)-1]
+            stack = _slice(stack, 0, list.len(stack)-1)
+            var e3 = stack[list.len(stack)-1]
+            stack = _slice(stack, 0, list.len(stack)-1)
             var s = _state("split")
-            oren_list_push(states, s)
-            var si = oren_list_len(states) - 1
+            list.push(states, s)
+            var si = list.len(states) - 1
             states[si]["out"] = e3["start"]
             states[si]["out1"] = e4["start"]
-            oren_list_push(stack, _frag(si, _append(e3["out"], e4["out"])))
+            list.push(stack, _frag(si, _append(e3["out"], e4["out"])))
             i = i + 1
             continue
         }
         if tok == 42 { // *
-            var e = stack[oren_list_len(stack)-1]
-            stack = _slice(stack, 0, oren_list_len(stack)-1)
+            var e = stack[list.len(stack)-1]
+            stack = _slice(stack, 0, list.len(stack)-1)
             var s2 = _state("split")
-            oren_list_push(states, s2)
-            var si2 = oren_list_len(states) - 1
+            list.push(states, s2)
+            var si2 = list.len(states) - 1
             states[si2]["out"] = e["start"]
             _patch(e["out"], states, si2)
-            oren_list_push(stack, _frag(si2, _list1(si2, 1)))
+            list.push(stack, _frag(si2, _list1(si2, 1)))
             i = i + 1
             continue
         }
         if tok == 43 { // +
-            var e5 = stack[oren_list_len(stack)-1]
-            stack = _slice(stack, 0, oren_list_len(stack)-1)
+            var e5 = stack[list.len(stack)-1]
+            stack = _slice(stack, 0, list.len(stack)-1)
             var s3 = _state("split")
-            oren_list_push(states, s3)
-            var si3 = oren_list_len(states) - 1
+            list.push(states, s3)
+            var si3 = list.len(states) - 1
             states[si3]["out"] = e5["start"]
             _patch(e5["out"], states, si3)
-            oren_list_push(stack, _frag(e5["start"], _list1(si3, 1)))
+            list.push(stack, _frag(e5["start"], _list1(si3, 1)))
             i = i + 1
             continue
         }
         if tok == 63 { // ?
-            var e6 = stack[oren_list_len(stack)-1]
-            stack = _slice(stack, 0, oren_list_len(stack)-1)
+            var e6 = stack[list.len(stack)-1]
+            stack = _slice(stack, 0, list.len(stack)-1)
             var s4 = _state("split")
-            oren_list_push(states, s4)
-            var si4 = oren_list_len(states) - 1
+            list.push(states, s4)
+            var si4 = list.len(states) - 1
             states[si4]["out"] = e6["start"]
-            oren_list_push(stack, _frag(si4, _append(e6["out"], _list1(si4, 1))))
+            list.push(stack, _frag(si4, _append(e6["out"], _list1(si4, 1))))
             i = i + 1
             continue
         }
         if tok == 3000 {
             var st = _state("bol")
-            oren_list_push(states, st)
-            var si = oren_list_len(states) - 1
-            oren_list_push(stack, _frag(si, _list1(si, 0)))
+            list.push(states, st)
+            var si = list.len(states) - 1
+            list.push(stack, _frag(si, _list1(si, 0)))
             i = i + 1
             continue
         }
         if tok == 3001 {
             var st2 = _state("eol")
-            oren_list_push(states, st2)
-            var si2 = oren_list_len(states) - 1
-            oren_list_push(stack, _frag(si2, _list1(si2, 0)))
+            list.push(states, st2)
+            var si2 = list.len(states) - 1
+            list.push(stack, _frag(si2, _list1(si2, 0)))
             i = i + 1
             continue
         }
         if tok == 4000 {
             var st3 = _state("any")
-            oren_list_push(states, st3)
-            var si3 = oren_list_len(states) - 1
-            oren_list_push(stack, _frag(si3, _list1(si3, 0)))
+            list.push(states, st3)
+            var si3 = list.len(states) - 1
+            list.push(stack, _frag(si3, _list1(si3, 0)))
             i = i + 1
             continue
         }
@@ -391,15 +393,15 @@ fn _post2nfa(post) {
             while ri < count {
                 var lo = post[base + ri*2]
                 var hi = post[base + ri*2 + 1]
-                oren_list_push(ranges, [lo, hi])
+                list.push(ranges, [lo, hi])
                 ri = ri + 1
             }
             var stc = _state("class")
             stc["neg"] = neg
             stc["ranges"] = ranges
-            oren_list_push(states, stc)
-            var sic = oren_list_len(states) - 1
-            oren_list_push(stack, _frag(sic, _list1(sic, 0)))
+            list.push(states, stc)
+            var sic = list.len(states) - 1
+            list.push(stack, _frag(sic, _list1(sic, 0)))
             i = base + count*2
             continue
         }
@@ -407,20 +409,20 @@ fn _post2nfa(post) {
             var ch = tok - 1000
             var st4 = _state("char")
             st4["c"] = ch
-            oren_list_push(states, st4)
-            var si4 = oren_list_len(states) - 1
-            oren_list_push(stack, _frag(si4, _list1(si4, 0)))
+            list.push(states, st4)
+            var si4 = list.len(states) - 1
+            list.push(stack, _frag(si4, _list1(si4, 0)))
             i = i + 1
             continue
         }
         return _err("bad postfix token")
     }
 
-    if oren_list_len(stack) != 1 { return _err("invalid regex") }
+    if list.len(stack) != 1 { return _err("invalid regex") }
     var e = stack[0]
     var m = _state("match")
-    oren_list_push(states, m)
-    var mi = oren_list_len(states) - 1
+    list.push(states, m)
+    var mi = list.len(states) - 1
     _patch(e["out"], states, mi)
     return _ok({"start": e["start"], "states": states})
 }
@@ -435,7 +437,7 @@ fn _class_match(st, b) {
     var ranges = st["ranges"]
     var i = 0
     var hit = false
-    while ranges != nil && i < oren_list_len(ranges) {
+    while ranges != nil && i < list.len(ranges) {
         var lo = ranges[i][0]
         var hi = ranges[i][1]
         if b >= lo && b <= hi { hit = true; break }
@@ -465,7 +467,7 @@ fn _add_state(states, lst, si, visited, pos, endpos) {
         return nil
     }
     // normal consuming or match
-    oren_list_push(lst, si)
+    list.push(lst, si)
     return nil
 }
 
@@ -474,7 +476,7 @@ fn _step(nfa, clist, b, pos, endpos) {
     var nlist = []
     var visited = {}
     var i = 0
-    while i < oren_list_len(clist) {
+    while i < list.len(clist) {
         var si = clist[i]
         var st = states[si]
         var k = st["kind"]
@@ -496,7 +498,7 @@ fn _step(nfa, clist, b, pos, endpos) {
 
 fn is_match_compiled(nfa, text) {
     var bs = oren_bytes_from_string(text)
-    var n = oren_list_len(bs)
+    var n = list.len(bs)
 
     // search anywhere: start simulation at each position.
     var startpos = 0
@@ -508,18 +510,18 @@ fn is_match_compiled(nfa, text) {
         while true {
             // check match state present
             var mi = 0
-            while mi < oren_list_len(clist) {
+            while mi < list.len(clist) {
                 if nfa["states"][clist[mi]]["kind"] == "match" { return true }
                 mi = mi + 1
             }
             if i >= n { break }
             clist = _step(nfa, clist, bs[i], i + 1, n)
             i = i + 1
-            if oren_list_len(clist) == 0 { break }
+            if list.len(clist) == 0 { break }
         }
         // one more check at end
         var mi2 = 0
-        while mi2 < oren_list_len(clist) {
+        while mi2 < list.len(clist) {
             if nfa["states"][clist[mi2]]["kind"] == "match" { return true }
             mi2 = mi2 + 1
         }

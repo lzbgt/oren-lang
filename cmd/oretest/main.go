@@ -2900,12 +2900,25 @@ func auditStdlibModernStyle() error {
 	type rule struct {
 		name        string
 		pattern     string
+		allowInFile func(path string) bool
 		allowInLine func(trimmedLine string) bool
 	}
 	rules := []rule{
 		{
 			name:    "no string_concat in stdlib (prefer `+`)",
 			pattern: "string_concat(",
+			allowInLine: func(trimmedLine string) bool {
+				// Allow mention in comments/docstrings, but not in code.
+				return strings.HasPrefix(trimmedLine, "//")
+			},
+		},
+		{
+			name:    "no direct oren_list_* in stdlib (prefer container methods / std:list)",
+			pattern: "oren_list_",
+			allowInFile: func(path string) bool {
+				// std/list.oren is the single allowlisted wrapper module.
+				return filepath.Clean(path) == filepath.Join("lib", "std", "list.oren")
+			},
 			allowInLine: func(trimmedLine string) bool {
 				// Allow mention in comments/docstrings, but not in code.
 				return strings.HasPrefix(trimmedLine, "//")
@@ -2943,6 +2956,9 @@ func auditStdlibModernStyle() error {
 			trim := strings.TrimSpace(line)
 			for _, r := range rules {
 				if !strings.Contains(line, r.pattern) {
+					continue
+				}
+				if r.allowInFile != nil && r.allowInFile(path) {
 					continue
 				}
 				if r.allowInLine != nil && r.allowInLine(trim) {

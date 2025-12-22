@@ -20,7 +20,10 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: documented the design in `docs/DESIGN_CONTAINER_OPS.md` (3-layer model: kernel `oren_*` intrinsics → std wrappers → language-level ops) including deterministic dispatch rules for generics + `dyn`.
    - Status: introduced `lib/std/list.oren` wrapper module (and kept it bytecode-safe by implementing `get/set/last` via indexing rather than `oren_list_get/set`).
    - Status: migrated several stdlib modules to `list.*` wrappers (`argparse`, `strings`, `json`, `cbor`, `buffer`, `math`, plus `std/linalg` list helpers).
-   - Next: migrate remaining `lib/std/yaml.oren` + `lib/std/regex.oren`, then add an `oretest` audit to forbid direct `oren_list_*` usage in `lib/std/` (except a tight allowlist like `lib/std/list.oren`).
+   - Status: migrated remaining `lib/std/yaml.oren`, `lib/std/regex.oren`, and `lib/std/crypto/sha256.oren` off direct `oren_list_*` usage (now uses `std/list` wrappers: `list.push`, `list.len`).
+   - Status: added an `oretest` audit to forbid direct `oren_list_*` usage in `lib/std/` (allowlist: `lib/std/list.oren` only).
+   - Status: improved compiler-side kind inference for builtin container method sugar to treat `oren_bytes_from_string` / `oren_bytes_unpack` results as list-like (helps user code and small local patterns).
+   - Next: make container method sugar robust for non-local flows (params, map-derived values) without relying on best-effort local inference (or keep stdlib on wrappers and document the rule clearly); then extend surface (pop/clear/extend?).
 
 3) **Precompiled stdlib `.obc` linking (OBX) for AVM** (M)
    - Status: implemented OBX module metadata (exports + relocations) embedded as an unused `BYTES` constant in `.obc` (`docs/OBC_MODULE_LINKING.md`, `docs/AVM_SPEC.md`).
@@ -31,6 +34,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 4) **Include chunk coherence (overflow-proofing)** (M)
    - Status: large `.oren` and C runtime hotspots are split into include-chunks/modules; `oretest` enforces 2000-line caps and include-chunk coherence for `// @include` roots.
+   - Status: documented the native runtime chunk layout and editing workflow in `docs/RUNTIME_NATIVE_LAYOUT.md`.
    - Next: keep new refactors chunk-safe (top-level boundaries only) so files stay reviewable without context overflow.
 
 5) **Compiler CLI + argparse modernization (click-style)** (M)

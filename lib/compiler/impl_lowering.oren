@@ -265,6 +265,11 @@ fn infer_container_kind(expr, kind_env) {
             if nm == "oren_i64_buf_new" { return "buf" }
             if nm == "oren_f32_buf_new" { return "buf" }
             if nm == "oren_f64_buf_new" { return "buf" }
+            // Bytes helpers in native mode are list-backed today. We treat these as
+            // list constructors for the purpose of container method sugar lowering.
+            if nm == "oren_bytes_from_string" { return "list" }
+            if nm == "oren_bytes_from_string_ptr" { return "list" }
+            if nm == "oren_bytes_unpack" { return "list" }
         }
     }
     return nil

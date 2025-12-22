@@ -3,6 +3,8 @@
 // Goal: provide a crypto primitive that can run inside AVM bytecode without FFI/libc.
 // This is not optimized (v0); it is correctness-first and deterministic.
 
+import list "../list.oren"
+
 fn _u32(x) { return x & 4294967295 } // 0xFFFFFFFF
 
 fn _rotr32(x, n) {
@@ -37,10 +39,10 @@ fn _u32_be_at(xs, pos) {
 
 fn _push_u32_be(out, x) {
     x = _u32(x)
-    oren_list_push(out, (x >> 24) & 255)
-    oren_list_push(out, (x >> 16) & 255)
-    oren_list_push(out, (x >> 8) & 255)
-    oren_list_push(out, x & 255)
+    list.push(out, (x >> 24) & 255)
+    list.push(out, (x >> 16) & 255)
+    list.push(out, (x >> 8) & 255)
+    list.push(out, x & 255)
     return nil
 }
 
@@ -51,21 +53,21 @@ fn sha256_bytes(input_bytes) {
     }
 
     var msg = oren_bytes_unpack(input_bytes) // list<u8>
-    var orig_len = oren_list_len(msg)
+    var orig_len = list.len(msg)
     var bit_len = orig_len * 8
 
     // Padding: append 0x80, then 0x00 until (len + 8) % 64 == 0, then append bit_len (u64 BE)
-    oren_list_push(msg, 128)
-    var pad = (oren_list_len(msg) + 8) % 64
+    list.push(msg, 128)
+    var pad = (list.len(msg) + 8) % 64
     while pad != 0 {
-        oren_list_push(msg, 0)
+        list.push(msg, 0)
         pad = (pad + 1) % 64
     }
 
     // u64 big-endian bit length
     var i = 7
     while i >= 0 {
-        oren_list_push(msg, (bit_len >> (i * 8)) & 255)
+        list.push(msg, (bit_len >> (i * 8)) & 255)
         i = i - 1
     }
 
@@ -100,17 +102,17 @@ fn sha256_bytes(input_bytes) {
     ]
 
     var off = 0
-    while off < oren_list_len(msg) {
+    while off < list.len(msg) {
         // message schedule
         var w = []
         var t = 0
         while t < 16 {
-            oren_list_push(w, _u32_be_at(msg, off + t * 4))
+            list.push(w, _u32_be_at(msg, off + t * 4))
             t = t + 1
         }
         while t < 64 {
             var v = _u32(_ssig1(w[t - 2]) + w[t - 7] + _ssig0(w[t - 15]) + w[t - 16])
-            oren_list_push(w, v)
+            list.push(w, v)
             t = t + 1
         }
 
