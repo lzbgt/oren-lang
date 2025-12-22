@@ -203,6 +203,25 @@ fn add(a, b) {
 }
 ```
 
+### Generic functions (rolling v0.1)
+
+Oren supports **generic templates** with bracket type parameters:
+
+```oren
+fn id[T](x: T): T {
+    return x
+}
+```
+
+In the current rolling model, **generic calls must be explicitly specialized**:
+
+```oren
+var a = id[i64](1)
+var b = id[u32](7)
+```
+
+Calling `id(1)` without `[...]` is a compile-time error (see `tests/native/fixtures/generic_unspecialized_call.oren`).
+
 ### Lambdas
 
 Lambdas use `|params| expr` or `|params| { block }`.
@@ -250,6 +269,59 @@ The broader design goal is:
 - **static dispatch by default** (good for HPC and deterministic AVM execution)
 - optional explicit runtime polymorphism later (e.g. `dyn Trait`) only where needed
 
+#### Method call sugar + qualified calls
+
+Trait methods are lowered to deterministic symbol names like:
+
+- `__oren_impl__<Trait>__<Type>__<method>(...)`
+
+The compiler also supports **method-call sugar**:
+
+- `Type.method(args...)` calls the impl for that `Type`
+- `x.method(args...)` calls the impl if `x` has a known type annotation in scope
+
+When multiple traits define the same method name for the same receiver type, unqualified `x.method(...)` is **ambiguous** and rejected.
+
+In that case (and in general for clarity), use a **trait-qualified call**:
+
+```oren
+trait AddLike { fn op(self, x); }
+trait MulLike { fn op(self, x); }
+
+impl AddLike for i64 { fn op(self, x) { return self + x } }
+impl MulLike for i64 { fn op(self, x) { return self * x } }
+
+var a: i64 = 3
+var r0 = AddLike.op(a, 4) // 7
+var r1 = MulLike.op(a, 4) // 12
+```
+
+See `tests/modules/test_trait_qualified_calls.oren` and `tests/native/fixtures/trait_impl_ambiguous_method.oren`.
+
+#### Coherence (one impl per Trait×Type)
+
+Rolling coherence rules enforced by the compiler:
+
+- A given `(Trait, Type)` pair must have **exactly one** `impl` block.
+- Duplicate impls are rejected.
+- Splitting methods across multiple impl blocks is rejected deterministically.
+
+See `tests/native/fixtures/trait_impl_duplicate.oren` and `tests/native/fixtures/trait_impl_split_blocks.oren`.
+
+#### Blanket impls (`any`)
+
+Rolling v0 supports a minimal blanket impl form:
+
+```oren
+trait Z { fn z(self); }
+
+impl Z for any { fn z(self) { return 0 } }
+impl Z for i64 { fn z(self) { return 7 } }
+```
+
+Exact impls (like `i64`) override blanket `any` impls deterministically.
+See `tests/modules/test_trait_blanket_impl_any.oren`.
+
 See `docs/TRAITS_AND_POLYMORPHISM.md` for the design rationale and constraints.
 
 ## 7) Structs, attributes, and deterministic metadata
@@ -267,11 +339,42 @@ struct Point {
 
 Attributes are compile-time metadata annotations. Unknown attributes are inert in rolling mode, but preserved for tooling.
 
+Attribute syntax:
+
+- `@name`
+- `@ns.name(...)` (dotted names are allowed)
+
+They can appear on:
+
+- declarations (`struct`, `fn`, `var`)
+- struct fields
+- parameters
+
+Example (parameter attribute):
+
+```oren
+fn f(@json(rename="x") a) { return a }
+```
+
 Common builtins:
 
 - `@abi` for ABI/layout metadata
 - `@pack` for packed “view over bytes” structs (network packet parsing)
 - `@serde(...)` for serialization metadata (json/yaml/cbor)
+- `@cap.requires(domain="...")` for capsule/capability gating of host-effectful APIs (see below)
+
+#### Strict attribute mode (compiler option)
+
+For “lint-like” strictness (useful for production toolchains and schema-driven metadata), the compiler supports:
+
+- `./oren build ... --strict-attrs`
+- `./oren build ... --attr-allow-prefixes myorg.` (repeatable allowlist of custom namespaces)
+
+In strict mode:
+
+- unknown/forbidden attribute prefixes are rejected at compile time
+
+See `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren` and the oretest fixture harness in `cmd/oretest/main.go`.
 
 #### ABI layout example
 
@@ -291,6 +394,8 @@ oren_abi_sizeof("ABI1")
 oren_abi_offsetof("ABI1", "b")
 ```
 
+Invalid ABI queries (unknown type/field) are compile-time errors and emit machine-readable `OREN_DIAG` lines (see `tests/native/fixtures/abi_layout_error.oren`).
+
 #### Packed view example (network parsing story)
 
 ```oren
@@ -309,6 +414,35 @@ print(oren_int_to_string(h.src))
 ```
 
 Packed views are designed to avoid heap pressure: they are “structured access over bytes”, not per-packet struct allocations.
+
+## 7.5) Capsule mode and capability-gated APIs (native backend)
+
+Oren has a rolling “capsule” model to make **host effects explicit**.
+This is primarily a **compiler mode** plus a convention for annotating runtime APIs:
+
+- In capsule mode, calls to functions annotated with `@cap.requires(domain="FS|NET|PROC|ENV|TIME")`
+  are rejected unless that domain is explicitly allowlisted.
+- Direct syscall intrinsics (`sys_*`) are always rejected from user code in capsule mode.
+- `ffi` declarations are rejected in capsule mode (FFI bypasses capability gating).
+
+Enable capsule mode at compile time:
+
+```sh
+./oren build your_prog.oren --backend native --capsule
+```
+
+Allow domains explicitly (comma-separated list):
+
+```sh
+./oren build your_prog.oren --backend native --capsule --cap-allow-domains FS,NET
+```
+
+Fixtures showing expected behavior:
+
+- Capsule OK (pure compute): `tests/native/fixtures/capsule_ok.oren`
+- Capsule BAD (direct syscall): `tests/native/fixtures/capsule_bad_syscall.oren`
+- Capsule BAD (FS not enrolled): `tests/native/fixtures/capsule_bad_fs.oren`
+- Capsule OK with FS enrolled: `tests/native/fixtures/capsule_ok_fs_allow.oren`
 
 ## 8) Typed buffers and HPC building blocks
 
