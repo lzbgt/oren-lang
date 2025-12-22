@@ -110,6 +110,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: `oretest` has a deterministic self-hosting gate (enabled via `--full` or `--selfhost`): Stage1 emits Stage2 compiler as `.obc`, then Stage2 reproduces Stage1 `dump graph` + `meta --deterministic` outputs (hash-checked).
    - Status: `oretest` now parallelizes fixtures (`--fixture-jobs`) and native tests (`--native-jobs`) to reduce `make test` wall time.
    - Status: `make test-native-all` now supports parallel builds via `NATIVE_TEST_JOBS=...` and per-test logs (`build/logs/native_all_*.log`).
+   - Status: `make selfhost` target added; `OREN_TEST_SELFHOST=1 make test` now passes `--selfhost` through to `oretest`.
    - Next: define and freeze a “bootstrap subset” (syntax + stdlib surface) that Stage0 must support; treat changes as high-risk and gate them.
    - Next: fix Stage1→Stage2 C-backend rebuild OOM risk (clang compiling a giant single-TU generated C file can be SIGKILL on dev machines); likely needs multi-TU emission or smaller generated C.
    - Next: complete the native runtime “compiler subset” surface (e.g. `oren_string_to_float_bits`) so the compiler can self-host via `--backend native` without libc.

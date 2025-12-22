@@ -148,8 +148,14 @@ test-inner: oren avm oretest oredoc
 	@# IMPORTANT: `./oretest` runs the full suite; it must not be constrained by BUILD_TIMEOUT_SECS.
 	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG)"; \
 		if [ "$$OREN_TEST_FULL" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --full"; fi; \
+		if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
 		if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
 		$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS
+
+# Self-hosting stability gate (Stage1 -> Stage2 determinism checks).
+# This runs the curated suite plus the `oretest --selfhost` gate.
+selfhost:
+	@OREN_TEST_SELFHOST=1 $(MAKE) test
 
 # Legacy suite: historical Makefile-driven runner.
 # Keep it for “extra coverage” during rolling refactors, but do not make it the default.
