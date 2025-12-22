@@ -5,7 +5,6 @@ import (
 	"oren/pkg/ast"
 	"oren/pkg/lexer"
 	"oren/pkg/parser"
-	"os"
 	"path/filepath"
 )
 
@@ -58,12 +57,12 @@ func (t *Transpiler) loadModule(importerDir, importPath string) (*moduleInfo, er
 		return mod, nil
 	}
 
-	data, err := os.ReadFile(absPath)
+	src, err := ExpandIncludes(absPath)
 	if err != nil {
 		return nil, fmt.Errorf("read import %q: %w", absPath, err)
 	}
 
-	prog, errs := parseProgram(string(data))
+	prog, errs := parseProgram(src)
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("parse import %q: %s", absPath, errs[0])
 	}

@@ -66,11 +66,11 @@ func main() {
 		// Simple file runner
 		if os.Args[1] == "run" {
 			// Read file
-			dat, err := os.ReadFile(os.Args[2])
+			src, err := transpiler.ExpandIncludes(os.Args[2])
 			if err != nil {
 				panic(err)
 			}
-			l := lexer.New(string(dat))
+			l := lexer.New(src)
 			p := parser.New(l)
 			program := p.ParseProgram()
 			if len(p.Errors()) != 0 {
@@ -158,11 +158,11 @@ func main() {
 				}
 			}
 
-			dat, err := os.ReadFile(filename)
+			src, err := transpiler.ExpandIncludes(filename)
 			if err != nil {
 				panic(err)
 			}
-			l := lexer.New(string(dat))
+			l := lexer.New(src)
 			p := parser.New(l)
 			program := p.ParseProgram()
 			if len(p.Errors()) != 0 {

@@ -420,10 +420,10 @@ fn syscall_allow(list, name) {
 }
 
 fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
-    var src = oren_read_file(file)
-    if oren_is_err(src) {
+    var src = expand_includes_file(file, [])
+    if src == nil {
         print("ERROR: failed to read for syscall-policy check: " + file)
-        var msg = oren_err_msg(src)
+        var msg = include_last_err()
         if msg != nil { print(msg) }
         oren_exit(2)
     }
@@ -500,10 +500,10 @@ fn count_substring_in_src(src, needle) {
 }
 
 fn enforce_svc_emit_policy(file, allowed_svc_emits) {
-    var src = oren_read_file(file)
-    if oren_is_err(src) {
+    var src = expand_includes_file(file, [])
+    if src == nil {
         print("ERROR: failed to read for svc-policy check: " + file)
-        var msg = oren_err_msg(src)
+        var msg = include_last_err()
         if msg != nil { print(msg) }
         oren_exit(2)
     }
@@ -545,6 +545,153 @@ fn starts_with(s, prefix) {
         i = i + 1
     }
     return true
+}
+
+fn trim_left_ws(s) {
+    if s == nil { return "" }
+    var i = 0
+    var n = oren_string_len(s)
+    while i < n {
+        var c = oren_string_char_at(s, i)
+        if c != " " && c != "\t" && c != "\r" { break }
+        i = i + 1
+    }
+    if i == 0 { return s }
+    return oren_string_slice(s, i, n)
+}
+
+fn ends_with_newline(s) {
+    if s == nil { return false }
+    var n = oren_string_len(s)
+    if n == 0 { return false }
+    return oren_string_char_at(s, n - 1) == "\n"
+}
+
+fn include_path_from_line(line) {
+    // Purpose-built textual include for repo-owned Oren sources.
+    //
+    // Directive form (must be in a single line comment):
+    //   // @include "relative/or/absolute/path.oren"
+    //
+    // This is *not* the language `import` system. It is used to split large files
+    // into smaller ones while keeping all symbols in the same module namespace.
+    if line == nil { return "" }
+    var t = trim_left_ws(line)
+    if !starts_with(t, "// @include") { return "" }
+    var n = oren_string_len(t)
+    var i = 0
+    while i < n {
+        if oren_string_char_at(t, i) == "\"" { break }
+        i = i + 1
+    }
+    if i >= n { return "" }
+    var j = i + 1
+    while j < n {
+        if oren_string_char_at(t, j) == "\"" { break }
+        j = j + 1
+    }
+    if j >= n { return "" }
+    return oren_string_slice(t, i + 1, j)
+}
+
+var INCLUDE_LAST_ERR = nil
+
+fn include_last_err() { return INCLUDE_LAST_ERR }
+
+fn expand_includes_file(full_path, include_stack) {
+    // Expand `// @include "..."` directives recursively and return the concatenated source.
+    //
+    // On failure, returns nil and sets `INCLUDE_LAST_ERR` to a best-effort message.
+    // Callers should format their own diagnostics so user-facing output stays stable.
+    INCLUDE_LAST_ERR = nil
+
+    if full_path == nil || full_path == "" {
+        INCLUDE_LAST_ERR = "include: empty path"
+        return nil
+    }
+
+    // Include-cycle check.
+    if include_stack != nil {
+        var si = 0
+        while si < oren_list_len(include_stack) {
+            if include_stack[si] == full_path {
+                INCLUDE_LAST_ERR = "include cycle detected: " + full_path
+                return nil
+            }
+            si = si + 1
+        }
+    }
+
+    var src = oren_read_file(full_path)
+    if oren_is_err(src) {
+        INCLUDE_LAST_ERR = oren_err_msg(src)
+        if INCLUDE_LAST_ERR == nil { INCLUDE_LAST_ERR = "failed to read" }
+        return nil
+    }
+
+    var next_stack = []
+    if include_stack != nil {
+        var ci = 0
+        while ci < oren_list_len(include_stack) {
+            oren_list_push(next_stack, include_stack[ci])
+            ci = ci + 1
+        }
+    }
+    oren_list_push(next_stack, full_path)
+
+    var out_parts = []
+    var line = ""
+    var i = 0
+    var n = oren_string_len(src)
+    while i < n {
+        var ch = oren_string_char_at(src, i)
+        if ch == "\n" {
+            var inc = include_path_from_line(line)
+            if inc != "" {
+                var inc_full = inc
+                if oren_string_len(inc) > 0 && oren_string_char_at(inc, 0) != "/" {
+                    inc_full = resolve_path(dirname(full_path), inc)
+                }
+                var child = expand_includes_file(inc_full, next_stack)
+                if child == nil { return nil }
+                oren_list_push(out_parts, child)
+                if !ends_with_newline(child) { oren_list_push(out_parts, "\n") }
+            } else {
+                oren_list_push(out_parts, line)
+                oren_list_push(out_parts, "\n")
+            }
+            line = ""
+        } else {
+            line = line + ch
+        }
+        i = i + 1
+    }
+
+    // Last line if file doesn't end with '\n'
+    if line != "" {
+        var inc2 = include_path_from_line(line)
+        if inc2 != "" {
+            var inc_full2 = inc2
+            if oren_string_len(inc2) > 0 && oren_string_char_at(inc2, 0) != "/" {
+                inc_full2 = resolve_path(dirname(full_path), inc2)
+            }
+            var child2 = expand_includes_file(inc_full2, next_stack)
+            if child2 == nil { return nil }
+            oren_list_push(out_parts, child2)
+            if !ends_with_newline(child2) { oren_list_push(out_parts, "\n") }
+        } else {
+            oren_list_push(out_parts, line)
+            oren_list_push(out_parts, "\n")
+        }
+    }
+
+    var out = ""
+    var pi = 0
+    while pi < oren_list_len(out_parts) {
+        out = out + out_parts[pi]
+        pi = pi + 1
+    }
+    return out
 }
 
 fn default_output_path(path) {
@@ -681,10 +828,10 @@ fn load_module(base, path) {
     }
     oren_list_push(MODULE_STACK, full)
 
-    var src = oren_read_file(full)
-    if oren_is_err(src) {
+    var src = expand_includes_file(full, [])
+    if src == nil {
         print("Failed to read file: " + full)
-        var msg = oren_err_msg(src)
+        var msg = include_last_err()
         if msg != nil { print(msg) }
         oren_exit(1)
     }
@@ -1444,11 +1591,11 @@ fn compiler_main() {
             }
             return nil
         }
-        if kind == "linked" {
-            var src = oren_read_file(path)
-            if oren_is_err(src) {
+    if kind == "linked" {
+            var src = expand_includes_file(path, [])
+            if src == nil {
                 var emsg = "Failed to read file: " + path
-                var msg = oren_err_msg(src)
+                var msg = include_last_err()
                 if msg != nil { emsg = emsg + " (" + msg + ")" }
                 emit_diag("compile", 2, emsg)
                 print("Failed to read file: " + path)
@@ -1482,11 +1629,11 @@ fn compiler_main() {
             }
             return nil
         }
-        if kind == "graph" {
-            var srcg = oren_read_file(path)
-            if oren_is_err(srcg) {
+    if kind == "graph" {
+            var srcg = expand_includes_file(path, [])
+            if srcg == nil {
                 var emsgg = "Failed to read file: " + path
-                var msgg = oren_err_msg(srcg)
+                var msgg = include_last_err()
                 if msgg != nil { emsgg = emsgg + " (" + msgg + ")" }
                 emit_diag("compile", 2, emsgg)
                 print("Failed to read file: " + path)
@@ -1612,10 +1759,10 @@ fn compiler_main() {
             }
         }
 
-        var src = oren_read_file(path)
-        if oren_is_err(src) {
+        var src = expand_includes_file(path, [])
+        if src == nil {
             var emsg = "Failed to read file: " + path
-            var msg = oren_err_msg(src)
+            var msg = include_last_err()
             if msg != nil { emsg = emsg + " (" + msg + ")" }
             emit_diag("compile", 2, emsg)
             print("Failed to read file: " + path)
@@ -1915,10 +2062,10 @@ fn compiler_main() {
         oren_exit(2)
     }
 
-    var src = oren_read_file(path)
-    if oren_is_err(src) {
+    var src = expand_includes_file(path, [])
+    if src == nil {
         var emsg = "Failed to read file: " + path
-        var msg = oren_err_msg(src)
+        var msg = include_last_err()
         if msg != nil { emsg = emsg + " (" + msg + ")" }
         emit_diag("compile", 2, emsg)
         print("Failed to read file: " + path)

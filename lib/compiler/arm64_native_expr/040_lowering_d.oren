@@ -1,0 +1,550 @@
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args7[4]) // b2_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args7[5]) // b3_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args7[6]) // n -> X0
+
+            // Pop b3_ptr -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop b2_ptr -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop b1_ptr -> X3
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop b0_ptr -> X4
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop a_ptr -> X5
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop out_ptr -> X6
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(6, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Preserve inputs:
+            // - X7 = n (compiled into X0)
+            // - X0 = out_ptr (return value)
+            push_u32_le(ctx["code"], insn_mov_reg(7, 0)) // X7 = n
+            push_u32_le(ctx["code"], insn_mov_reg(0, 6)) // X0 = out_ptr
+
+            // Registers:
+            // - X7 = n (working), X8 = groups (n>>2), X9 = shift(2), X10 = groups_saved
+            // - X11.. used as temps for scalar loads/stores
+            // - X5 = a_ptr, X4=b0, X3=b1, X2=b2, X1=b3, X6=out_ptr
+            push_u32_le(ctx["code"], insn_mov_reg(8, 7))  // X8 = n
+            push_u32_le(ctx["code"], insn_movz(9, 2))     // X9 = 2
+            push_u32_le(ctx["code"], insn_lsrv(8, 8, 9))  // X8 = groups = n>>2
+            push_u32_le(ctx["code"], insn_mov_reg(10, 8)) // X10 = groups_saved
+
+            // Accumulators: D12..D15 = 0.0
+            push_u32_le(ctx["code"], insn_movz(0, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(12, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(13, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(14, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(15, 0))
+
+            // Reserve 32-byte stack scratch for 4 f64 products (2 q regs).
+            push_u32_le(ctx["code"], insn_sub_sp(32))
+            ctx["stack_size"] = ctx["stack_size"] + 32
+
+            // If groups == 0, skip vector loop.
+            push_u32_le(ctx["code"], insn_cmp_reg(8, 31))
+            var br_skip_vec4 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var vec_loop4 = oren_list_len(ctx["code"])
+            // Load A lanes (Q0) and widen A -> V2/V3 (f64 vectors).
+            push_u32_le(ctx["code"], insn_ldr_q(0, 5))
+            push_u32_le(ctx["code"], insn_add_imm(5, 5, 16)) // a_ptr += 16
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(2, 0))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(3, 0))
+
+            // Helper macro (inlined): accumulate one column pointed by Xn_ptr into Dacc (Vd).
+            // Column 0: b0 (X4) into D12
+            push_u32_le(ctx["code"], insn_ldr_q(1, 4))
+            push_u32_le(ctx["code"], insn_add_imm(4, 4, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(4, 1))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(5, 1))
+            push_u32_le(ctx["code"], insn_fmul_2d(4, 2, 4))
+            push_u32_le(ctx["code"], insn_fmul_2d(5, 3, 5))
+            push_u32_le(ctx["code"], insn_str_q_off(4, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(5, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(12, 12, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(12, 12, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(12, 12, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(12, 12, 1))
+
+            // Column 1: b1 (X3) into D13
+            push_u32_le(ctx["code"], insn_ldr_q(1, 3))
+            push_u32_le(ctx["code"], insn_add_imm(3, 3, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(4, 1))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(5, 1))
+            push_u32_le(ctx["code"], insn_fmul_2d(4, 2, 4))
+            push_u32_le(ctx["code"], insn_fmul_2d(5, 3, 5))
+            push_u32_le(ctx["code"], insn_str_q_off(4, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(5, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(13, 13, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(13, 13, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(13, 13, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(13, 13, 1))
+
+            // Column 2: b2 (X2) into D14
+            push_u32_le(ctx["code"], insn_ldr_q(1, 2))
+            push_u32_le(ctx["code"], insn_add_imm(2, 2, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(4, 1))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(5, 1))
+            push_u32_le(ctx["code"], insn_fmul_2d(4, 2, 4))
+            push_u32_le(ctx["code"], insn_fmul_2d(5, 3, 5))
+            push_u32_le(ctx["code"], insn_str_q_off(4, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(5, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(14, 14, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(14, 14, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(14, 14, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(14, 14, 1))
+
+            // Column 3: b3 (X1) into D15
+            push_u32_le(ctx["code"], insn_ldr_q(1, 1))
+            push_u32_le(ctx["code"], insn_add_imm(1, 1, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(4, 1))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(5, 1))
+            push_u32_le(ctx["code"], insn_fmul_2d(4, 2, 4))
+            push_u32_le(ctx["code"], insn_fmul_2d(5, 3, 5))
+            push_u32_le(ctx["code"], insn_str_q_off(4, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(5, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(15, 15, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(15, 15, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(15, 15, 1))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fadd(15, 15, 1))
+
+            // groups--
+            push_u32_le(ctx["code"], insn_sub_imm(8, 8, 1))
+            push_u32_le(ctx["code"], insn_cmp_reg(8, 31))
+            var br_vec_loop4b = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var vec_end4 = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_skip_vec4, insn_b_cond((vec_end4 - br_skip_vec4) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_vec_loop4b, insn_b_cond((vec_loop4 - br_vec_loop4b) / 4, 1)) // NE
+
+            // rem = n - (groups_saved * 4)
+            push_u32_le(ctx["code"], insn_lslv(10, 10, 9))    // X10 = groups_saved * 4
+            push_u32_le(ctx["code"], insn_sub_reg(7, 7, 10))  // X7 = rem
+
+            // Tail loop if rem != 0.
+            push_u32_le(ctx["code"], insn_cmp_reg(7, 31))
+            var br_done4 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var tail_loop4 = oren_list_len(ctx["code"])
+            // Load a f32 -> D1
+            push_u32_le(ctx["code"], insn_ldr_w(11, 5, 0))
+            push_u32_le(ctx["code"], insn_add_imm(5, 5, 4))
+            push_u32_le(ctx["code"], insn_fmov_s_w(1, 11))
+            push_u32_le(ctx["code"], insn_fcvt_d_from_s(1, 1))
+
+            // b0
+            push_u32_le(ctx["code"], insn_ldr_w(11, 4, 0))
+            push_u32_le(ctx["code"], insn_add_imm(4, 4, 4))
+            push_u32_le(ctx["code"], insn_fmov_s_w(2, 11))
+            push_u32_le(ctx["code"], insn_fcvt_d_from_s(2, 2))
+            push_u32_le(ctx["code"], insn_fmul(2, 1, 2))
+            push_u32_le(ctx["code"], insn_fadd(12, 12, 2))
+
+            // b1
+            push_u32_le(ctx["code"], insn_ldr_w(11, 3, 0))
+            push_u32_le(ctx["code"], insn_add_imm(3, 3, 4))
+            push_u32_le(ctx["code"], insn_fmov_s_w(2, 11))
+            push_u32_le(ctx["code"], insn_fcvt_d_from_s(2, 2))
+            push_u32_le(ctx["code"], insn_fmul(2, 1, 2))
+            push_u32_le(ctx["code"], insn_fadd(13, 13, 2))
+
+            // b2
+            push_u32_le(ctx["code"], insn_ldr_w(11, 2, 0))
+            push_u32_le(ctx["code"], insn_add_imm(2, 2, 4))
+            push_u32_le(ctx["code"], insn_fmov_s_w(2, 11))
+            push_u32_le(ctx["code"], insn_fcvt_d_from_s(2, 2))
+            push_u32_le(ctx["code"], insn_fmul(2, 1, 2))
+            push_u32_le(ctx["code"], insn_fadd(14, 14, 2))
+
+            // b3
+            push_u32_le(ctx["code"], insn_ldr_w(11, 1, 0))
+            push_u32_le(ctx["code"], insn_add_imm(1, 1, 4))
+            push_u32_le(ctx["code"], insn_fmov_s_w(2, 11))
+            push_u32_le(ctx["code"], insn_fcvt_d_from_s(2, 2))
+            push_u32_le(ctx["code"], insn_fmul(2, 1, 2))
+            push_u32_le(ctx["code"], insn_fadd(15, 15, 2))
+
+            push_u32_le(ctx["code"], insn_sub_imm(7, 7, 1))
+            push_u32_le(ctx["code"], insn_cmp_reg(7, 31))
+            var br_tail4 = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var done_pos4 = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_done4, insn_b_cond((done_pos4 - br_done4) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_tail4, insn_b_cond((tail_loop4 - br_tail4) / 4, 1)) // NE
+
+            // Store results to out_ptr as f64 bits (little-endian).
+            // Use X16 as the running out pointer; X0 still holds the original out_ptr for return.
+            push_u32_le(ctx["code"], insn_mov_reg(16, 6))
+            push_u32_le(ctx["code"], insn_umov_x_d(11, 12))
+            push_u32_le(ctx["code"], insn_str_ptr(11, 16))
+            push_u32_le(ctx["code"], insn_add_imm(16, 16, 8))
+
+            push_u32_le(ctx["code"], insn_umov_x_d(11, 13))
+            push_u32_le(ctx["code"], insn_str_ptr(11, 16))
+            push_u32_le(ctx["code"], insn_add_imm(16, 16, 8))
+
+            push_u32_le(ctx["code"], insn_umov_x_d(11, 14))
+            push_u32_le(ctx["code"], insn_str_ptr(11, 16))
+            push_u32_le(ctx["code"], insn_add_imm(16, 16, 8))
+
+            push_u32_le(ctx["code"], insn_umov_x_d(11, 15))
+            push_u32_le(ctx["code"], insn_str_ptr(11, 16))
+
+            // Pop scratch and return out_ptr (X0).
+            push_u32_le(ctx["code"], insn_add_sp(32))
+            ctx["stack_size"] = ctx["stack_size"] - 32
+            return nil
+        }
+
+        if fn_name == "simd_gemm_f32_4x4_ptr" {
+            // Intrinsic: true single-pass 4x4 f32 GEMM microkernel over raw pointers.
+            // Signature:
+            //   simd_gemm_f32_4x4_ptr(
+            //     out_ptr,
+            //     a0_ptr, a1_ptr, a2_ptr, a3_ptr,
+            //     b0_ptr, b1_ptr, b2_ptr, b3_ptr,
+            //     n
+            //   ) -> out_ptr
+            //
+            // Semantics / determinism rule (must be bit-exact vs scalar reference):
+            // - widen f32 -> f64
+            // - multiply in f64
+            // - accumulate in fixed increasing-k order (no reassociation, no FMA)
+            //
+            // Performance goal:
+            // - load/convert each B column vector once per k-block and reuse across 4 rows
+            var args10 = expr["args"]
+            if args10 == nil || oren_list_len(args10) != 10 {
+                native_error(ctx, expr["token"], "native backend: simd_gemm_f32_4x4_ptr expects 10 arguments")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+
+            // Compile args left-to-right and stack-save pointers so evaluation order is preserved.
+            // out_ptr, a0..a3, b0..b3, n
+            native_compile_expr(ctx, args10[0]) // out_ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[1]) // a0_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[2]) // a1_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[3]) // a2_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[4]) // a3_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[5]) // b0_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[6]) // b1_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[7]) // b2_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[8]) // b3_ptr
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            native_compile_expr(ctx, args10[9]) // n -> X0
+
+            // Pop in reverse into working regs.
+            // b3 -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // b2 -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // b1 -> X3
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // b0 -> X4
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // a3 -> X8
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(8, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // a2 -> X7
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(7, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // a1 -> X6
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(6, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // a0 -> X5
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // out_ptr -> X9
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Preserve inputs:
+            // - X10 = n (compiled into X0)
+            // - X0 = out_ptr (return value)
+            push_u32_le(ctx["code"], insn_mov_reg(10, 0)) // X10 = n
+            push_u32_le(ctx["code"], insn_mov_reg(0, 9))  // X0 = out_ptr
+
+            // groups = n >> 2
+            push_u32_le(ctx["code"], insn_mov_reg(13, 10)) // X13 = n
+            push_u32_le(ctx["code"], insn_movz(12, 2))     // X12 = 2
+            push_u32_le(ctx["code"], insn_lsrv(13, 13, 12)) // X13 = groups
+            push_u32_le(ctx["code"], insn_mov_reg(14, 13))  // X14 = groups_saved
+
+            // Accumulators: D0..D15 = 0.0
+            push_u32_le(ctx["code"], insn_movz(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(0, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(1, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(2, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(3, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(4, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(5, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(6, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(7, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(8, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(9, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(10, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(11, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(12, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(13, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(14, 11))
+            push_u32_le(ctx["code"], insn_fmov_d_x(15, 11))
+
+            // Reserve 32-byte scratch for 4 f64 products (2 q regs).
+            push_u32_le(ctx["code"], insn_sub_sp(32))
+            ctx["stack_size"] = ctx["stack_size"] + 32
+
+            // If groups == 0, skip vector loop.
+            push_u32_le(ctx["code"], insn_cmp_reg(13, 31))
+            var br_skip_vec_gemm = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var vec_loop_gemm = oren_list_len(ctx["code"])
+
+            // Load B vectors once and widen to f64:
+            //   B0 -> V16/V17, B1 -> V18/V19, B2 -> V20/V21, B3 -> V22/V23
+            //
+            // IMPORTANT: do not clobber V0..V15 because we keep accumulators in D0..D15.
+            // Use V28 as the temporary f32 load register.
+            push_u32_le(ctx["code"], insn_ldr_q(28, 4))
+            push_u32_le(ctx["code"], insn_add_imm(4, 4, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(16, 28))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(17, 28))
+
+            push_u32_le(ctx["code"], insn_ldr_q(28, 3))
+            push_u32_le(ctx["code"], insn_add_imm(3, 3, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(18, 28))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(19, 28))
+
+            push_u32_le(ctx["code"], insn_ldr_q(28, 2))
+            push_u32_le(ctx["code"], insn_add_imm(2, 2, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(20, 28))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(21, 28))
+
+            push_u32_le(ctx["code"], insn_ldr_q(28, 1))
+            push_u32_le(ctx["code"], insn_add_imm(1, 1, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(22, 28))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(23, 28))
+
+            // Helper macro (inlined) for one row: load A, widen to V24/V25, then update 4 columns.
+            //
+            // Row 0 (a0_ptr in X5) -> accumulators D0..D3
+            // Use V29 as the temporary f32 load register for A rows.
+            push_u32_le(ctx["code"], insn_ldr_q(29, 5))
+            push_u32_le(ctx["code"], insn_add_imm(5, 5, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(24, 29))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(25, 29))
+
+            // col0: (V24/V25) * (V16/V17) -> D0
+            push_u32_le(ctx["code"], insn_fmul_2d(26, 24, 16))
+            push_u32_le(ctx["code"], insn_fmul_2d(27, 25, 17))
+            push_u32_le(ctx["code"], insn_str_q_off(26, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(27, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(0, 0, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(0, 0, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(0, 0, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(0, 0, 28))
+
+            // col1 -> D1
+            push_u32_le(ctx["code"], insn_fmul_2d(26, 24, 18))
+            push_u32_le(ctx["code"], insn_fmul_2d(27, 25, 19))
+            push_u32_le(ctx["code"], insn_str_q_off(26, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(27, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(1, 1, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(1, 1, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(1, 1, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(1, 1, 28))
+
+            // col2 -> D2
+            push_u32_le(ctx["code"], insn_fmul_2d(26, 24, 20))
+            push_u32_le(ctx["code"], insn_fmul_2d(27, 25, 21))
+            push_u32_le(ctx["code"], insn_str_q_off(26, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(27, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(2, 2, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(2, 2, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(2, 2, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(2, 2, 28))
+
+            // col3 -> D3
+            push_u32_le(ctx["code"], insn_fmul_2d(26, 24, 22))
+            push_u32_le(ctx["code"], insn_fmul_2d(27, 25, 23))
+            push_u32_le(ctx["code"], insn_str_q_off(26, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(27, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(3, 3, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(3, 3, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(3, 3, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 24))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(3, 3, 28))
+
+            // Row 1 (a1_ptr in X6) -> D4..D7
+            push_u32_le(ctx["code"], insn_ldr_q(29, 6))
+            push_u32_le(ctx["code"], insn_add_imm(6, 6, 16))
+            push_u32_le(ctx["code"], insn_fcvtl_2d_from_2s(24, 29))
+            push_u32_le(ctx["code"], insn_fcvtl2_2d_from_4s(25, 29))
+
+            // col0 -> D4
+            push_u32_le(ctx["code"], insn_fmul_2d(26, 24, 16))
+            push_u32_le(ctx["code"], insn_fmul_2d(27, 25, 17))
+            push_u32_le(ctx["code"], insn_str_q_off(26, 31, 0))
+            push_u32_le(ctx["code"], insn_str_q_off(27, 31, 16))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 0))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(4, 4, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 8))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(4, 4, 28))
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16))
+            push_u32_le(ctx["code"], insn_fmov_d_x(28, 11))
+            push_u32_le(ctx["code"], insn_fadd(4, 4, 28))

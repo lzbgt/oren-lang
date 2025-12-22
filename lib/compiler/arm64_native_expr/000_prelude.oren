@@ -1,0 +1,550 @@
+import core "arm64_core.oren"
+import sysm "arm64_native_expr_syscalls.oren"
+import abi "arm64_abi_macos.oren"
+import labi "arm64_abi_linux.oren"
+import token "token.oren"
+
+fn native_src_line_col(src, pos) {
+    // Map byte offset -> (line, col), 1-based.
+    var line = 1
+    var col = 1
+    var i = 0
+    while i < pos && i < oren_string_len(src) {
+        var ch = oren_string_char_at(src, i)
+        if ch == token.CH_LF {
+            line = line + 1
+            col = 1
+        } else {
+            col = col + 1
+        }
+        i = i + 1
+    }
+    return {"line": line, "col": col}
+}
+
+fn native_tok_loc(tok) {
+    if tok == nil { return nil }
+    var file = tok["file"]
+    var pos = tok["pos"]
+    if file == nil || pos == nil { return nil }
+
+    var src = oren_read_file(file)
+    if oren_is_err(src) {
+        return file + ":" + oren_int_to_string(pos)
+    }
+    var lc = native_src_line_col(src, pos)
+    return file + ":" + oren_int_to_string(lc["line"]) + ":" + oren_int_to_string(lc["col"])
+}
+
+fn native_error(ctx, tok, msg) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    var loc = native_tok_loc(tok)
+    if loc != nil {
+        oren_list_push(ctx["errors"], loc + ": " + msg)
+    } else {
+        oren_list_push(ctx["errors"], msg)
+    }
+    return nil
+}
+
+// Re-export core helpers locally so the native expr compiler stays readable.
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn align_up(n, align) { return core.align_up(n, align) }
+fn ceil_div(a, b) { return core.ceil_div(a, b) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
+fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
+fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+fn int_from_string(s) { return core.int_from_string(s) }
+fn contains_curly_braces(s) { return core.contains_curly_braces(s) }
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+
+fn trim_trailing_underscores(s) {
+    var end = oren_string_len(s)
+    while end > 0 {
+        if oren_string_char_at(s, end - 1) != "_" { break }
+        end = end - 1
+    }
+    return oren_string_slice(s, 0, end)
+}
+
+// Resolve module/type namespace paths (import aliases + type namespaces) into
+// flattened symbol names, matching the C-backend's `ns_resolve` convention.
+//
+// Examples:
+// - `http.get` => `http_get` (if `http` is an import alias mapping to `http_`)
+// - `math.PI`  => `math_PI`
+// - returns nil if the expression is not a namespace path.
+fn native_ns_resolve(ctx, exp) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        var name = exp["value"]
+        if ctx["aliases"][name] != nil { return {"name": ctx["aliases"][name], "is_ns": true} }
+        if ctx["type_ns"] != nil {
+            if ctx["type_ns"][name] == true { return {"name": name, "is_ns": true} }
+        }
+        return nil
+    }
+    if et == "Member" {
+        var left = native_ns_resolve(ctx, exp["left"])
+        if left == nil { return nil }
+        if left["is_ns"] != true { return nil }
+        var base = trim_trailing_underscores(left["name"])
+        var name2 = base + "_" + exp["prop"]["value"]
+        var is_ns2 = false
+        if ctx["type_ns"] != nil {
+            if ctx["type_ns"][name2] == true { is_ns2 = true }
+        }
+        return {"name": name2, "is_ns": is_ns2}
+    }
+    return nil
+}
+
+fn insn_ret() { return core.insn_ret() }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_movn(rd, imm) { return core.insn_movn(rd, imm) }
+fn insn_svc(imm) { return core.insn_svc(imm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_ldr_x0_sp(offset) { return core.insn_ldr_x0_sp(offset) }
+fn insn_sub_imm(rd, rn, imm) { return core.insn_sub_imm(rd, rn, imm) }
+fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
+fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
+fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
+fn emit_add_sp_offset_to_reg(ctx, reg, offset) { return core.emit_add_sp_offset_to_reg(ctx, reg, offset) }
+fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
+fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+
+fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
+fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
+fn insn_orr_reg(rd, rn, rm) { return core.insn_orr_reg(rd, rn, rm) }
+fn insn_eor_reg(rd, rn, rm) { return core.insn_eor_reg(rd, rn, rm) }
+fn insn_lslv(rd, rn, rm) { return core.insn_lslv(rd, rn, rm) }
+fn insn_lsrv(rd, rn, rm) { return core.insn_lsrv(rd, rn, rm) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_cset(rd, cond) { return core.insn_cset(rd, cond) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn insn_bl(off) { return core.insn_bl(off) }
+fn insn_blr(rn) { return core.insn_blr(rn) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
+fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_ldp_post() { return core.insn_ldp_post() }
+fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
+fn insn_str_reg_pre(i) { return core.insn_str_reg_pre(i) }
+fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+
+fn insn_dup_2d(vd, rn) { return core.insn_dup_2d(vd, rn) }
+fn insn_dup_4s(vd, rn) { return core.insn_dup_4s(vd, rn) }
+fn insn_add_2d(vd, vn, vm) { return core.insn_add_2d(vd, vn, vm) }
+fn insn_sub_2d(vd, vn, vm) { return core.insn_sub_2d(vd, vn, vm) }
+fn insn_and_16b(vd, vn, vm) { return core.insn_and_16b(vd, vn, vm) }
+fn insn_orr_16b(vd, vn, vm) { return core.insn_orr_16b(vd, vn, vm) }
+fn insn_eor_16b(vd, vn, vm) { return core.insn_eor_16b(vd, vn, vm) }
+fn insn_umov_d0(rd, vn) { return core.insn_umov_d0(rd, vn) }
+fn insn_fmov_d_x(rd, rn) { return core.insn_fmov_d_x(rd, rn) }
+fn insn_fmov_s_w(sd, rn) { return core.insn_fmov_s_w(sd, rn) }
+fn insn_fmov_w_s(rd, sn) { return core.insn_fmov_w_s(rd, sn) }
+fn insn_fcvt_s_from_d(sd, dn) { return core.insn_fcvt_s_from_d(sd, dn) }
+fn insn_fcvt_d_from_s(dd, sn) { return core.insn_fcvt_d_from_s(dd, sn) }
+fn insn_umov_x_d(rd, rn) { return core.insn_umov_x_d(rd, rn) }
+fn insn_umov_x_d1(rd, rn) { return core.insn_umov_x_d1(rd, rn) }
+fn insn_fadd(rd, rn, rm) { return core.insn_fadd(rd, rn, rm) }
+fn insn_fcmp(rn, rm) { return core.insn_fcmp(rn, rm) }
+fn insn_fsub(rd, rn, rm) { return core.insn_fsub(rd, rn, rm) }
+fn insn_fmul(rd, rn, rm) { return core.insn_fmul(rd, rn, rm) }
+fn insn_fdiv(rd, rn, rm) { return core.insn_fdiv(rd, rn, rm) }
+fn insn_scvtf(rd, rn) { return core.insn_scvtf(rd, rn) }
+fn insn_fcvtzs(rd, rn) { return core.insn_fcvtzs(rd, rn) }
+fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
+fn insn_add_4s(vd, vn, vm) { return core.insn_add_4s(vd, vn, vm) }
+fn insn_fadd_4s(vd, vn, vm) { return core.insn_fadd_4s(vd, vn, vm) }
+fn insn_fmul_4s(vd, vn, vm) { return core.insn_fmul_4s(vd, vn, vm) }
+fn insn_fadd_2d(vd, vn, vm) { return core.insn_fadd_2d(vd, vn, vm) }
+fn insn_fadd_s(sd, sn, sm) { return core.insn_fadd_s(sd, sn, sm) }
+fn insn_fmul_s(sd, sn, sm) { return core.insn_fmul_s(sd, sn, sm) }
+fn insn_fcvtl_2d_from_2s(vd, vn) { return core.insn_fcvtl_2d_from_2s(vd, vn) }
+fn insn_fcvtl2_2d_from_4s(vd, vn) { return core.insn_fcvtl2_2d_from_4s(vd, vn) }
+fn insn_fmul_2d(vd, vn, vm) { return core.insn_fmul_2d(vd, vn, vm) }
+fn insn_smull_2d(vd, vn, vm) { return core.insn_smull_2d(vd, vn, vm) }
+fn insn_smull2_2d(vd, vn, vm) { return core.insn_smull2_2d(vd, vn, vm) }
+fn insn_addp_2d(vd, vn, vm) { return core.insn_addp_2d(vd, vn, vm) }
+fn insn_ldr_q(vt, rn) { return core.insn_ldr_q(vt, rn) }
+fn insn_str_q(vt, rn) { return core.insn_str_q(vt, rn) }
+fn insn_str_q_off(vt, rn, offset) { return core.insn_str_q_off(vt, rn, offset) }
+fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
+fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
+fn insn_str_w(rt, rn, offset) { return core.insn_str_w(rt, rn, offset) }
+fn insn_ldrsw(rt, rn, offset) { return core.insn_ldrsw(rt, rn, offset) }
+
+fn native_expr_is_floaty(ctx, expr) {
+    // Heuristic, rolling "float propagation" for the native backend.
+    //
+    // Native float values are raw IEEE-754 f64 bits in a 64-bit register.
+    // Without a tagged dynamic value, we cannot decide "float vs int" at runtime,
+    // so we conservatively decide based on AST + local assignment tracking.
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "Float" { return true }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_floaty"] != nil {
+                if ctx["locals_floaty"][name] == true { return true }
+            }
+            if ctx["globals_floaty"] != nil {
+                if ctx["globals_floaty"][name] == true { return true }
+            }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "fadd" || nm == "fsub" || nm == "fmul" || nm == "fdiv" { return true }
+            // Native runtime/library functions that are known to return float bits.
+            if nm == "oren_f32_round" { return true }
+            if nm == "oren_u32_bits_to_f32" { return true }
+            if nm == "oren_u64_bits_to_f64" { return true }
+            if nm == "oren_buf_load_f32" { return true }
+            if nm == "oren_buf_load_f64" { return true }
+            if nm == "oren_buf_dot_f32" { return true }
+            if nm == "oren_buf_dot_f64" { return true }
+            if nm == "oren_buf_reduce_sum_f32" { return true }
+            if nm == "oren_buf_reduce_sum_f64" { return true }
+        }
+        return false
+    }
+    if et == "Prefix" {
+        if expr["op"] == "-" { return native_expr_is_floaty(ctx, expr["right"]) }
+        return false
+    }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "+" || op == "-" || op == "*" || op == "/" {
+            if native_expr_is_floaty(ctx, expr["left"]) { return true }
+            if native_expr_is_floaty(ctx, expr["right"]) { return true }
+        }
+        return false
+    }
+    return false
+}
+
+fn native_expr_is_list_stringy(ctx, expr) {
+    // Heuristic for "list of strings" propagation in the native backend.
+    // This is used to make `xs[i] == "lit"` work when `xs` comes from known APIs like `oren_readdir`.
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "Array" {
+        // Array literal -> runtime list. If all elements are stringy, treat as list-of-strings.
+        var els = expr["elements"]
+        if els == nil { return false }
+        var i = 0
+        while i < oren_list_len(els) {
+            if native_expr_is_stringy(ctx, els[i]) != true { return false }
+            i = i + 1
+        }
+        return true
+    }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_list_stringy"] != nil {
+                if ctx["locals_list_stringy"][name] == true { return true }
+            }
+            if ctx["globals_list_stringy"] != nil {
+                if ctx["globals_list_stringy"][name] == true { return true }
+            }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "oren_readdir" { return true }
+            if nm == "oren_args" { return true }
+        }
+        return false
+    }
+    return false
+}
+
+fn native_expr_is_stringy(ctx, expr) {
+    // Heuristic "string propagation" for the native backend.
+    //
+    // Native values are raw pointers; without a tagged value type we cannot decide at runtime,
+    // so comparisons are lowered based on compile-time evidence.
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "String" { return true }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_stringy"] != nil {
+                if ctx["locals_stringy"][name] == true { return true }
+            }
+            if ctx["globals_stringy"] != nil {
+                if ctx["globals_stringy"][name] == true { return true }
+            }
+        }
+        return false
+    }
+    if et == "Index" {
+        if native_expr_is_list_stringy(ctx, expr["left"]) { return true }
+        return false
+    }
+    if et == "Infix" {
+        // String concat uses `+` and only returns STRING when BOTH operands are strings.
+        // This must not propagate stringiness from a single-side string, otherwise
+        // later `==` lowering may call strcmp on non-strings.
+        if expr["op"] == "+" {
+            if native_expr_is_stringy(ctx, expr["left"]) && native_expr_is_stringy(ctx, expr["right"]) { return true }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            // Known string-producing helpers in the injected runtime / stdlib.
+            if nm == "oren_int_to_string" { return true }
+            if nm == "oren_float_to_string" { return true }
+            if nm == "oren_string_char_at" { return true }
+            if nm == "oren_string_slice" { return true }
+            if nm == "oren_string_from_bytes" { return true }
+            if nm == "oren_realpath" { return true }
+            if nm == "oren_realpath_checked" { return true }
+            if nm == "oren_getcwd" { return true }
+            if nm == "oren_env" { return true }
+            if nm == "oren_read_file" { return true }
+            if nm == "string_concat" { return true }
+            // Propagate string from list_get when the list is known to contain strings.
+            if nm == "oren_list_get" {
+                var args = expr["args"]
+                if args != nil {
+                    if oren_list_len(args) >= 1 {
+                        if native_expr_is_list_stringy(ctx, args[0]) { return true }
+                    }
+                }
+            }
+        }
+        return false
+    }
+    return false
+}
+fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_ldadd(rs, rt, rn) { return core.insn_ldadd(rs, rt, rn) }
+fn insn_cas(rs, rt, rn) { return core.insn_cas(rs, rt, rn) }
+fn insn_ldaxr(rt, rn) { return core.insn_ldaxr(rt, rn) }
+fn insn_stlxr(rs, rt, rn) { return core.insn_stlxr(rs, rt, rn) }
+fn insn_clrex() { return core.insn_clrex() }
+fn insn_ldrb(rt, rn) { return core.insn_ldrb(rt, rn) }
+fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
+fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
+fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
+fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
+
+fn native_compile_expr(ctx, expr) {
+    if expr == nil {
+        native_error(ctx, nil, "native backend: expr is nil")
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        return nil
+    }
+    
+    // Lambda literal: parser lowers `|...| { ... }` into an anonymous Function node (name="").
+    // Lower to a first-class callable object via `oren_func(code_ptr, env_ptr)`.
+    if expr["type"] == "Function" {
+        if expr["name"] == "" {
+            var lname = expr["lambda_name"]
+            if lname == nil {
+                native_error(ctx, expr["token"], "native backend: lambda not collected (missing lambda_name)")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return nil
+            }
+
+            var caps = expr["captures"]
+            if caps == nil { caps = [] }
+            var cap_count = oren_list_len(caps)
+
+            if cap_count == 0 {
+                push_u32_le(ctx["code"], insn_movz(1, 0)) // env_ptr = 0
+            } else {
+                // env_list = oren_new_list(0)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var bl_new_list = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list, "name": "oren_new_list"})
+
+                // Save env_list on stack across capture evals/pushes.
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                var i_cap = 0
+                while i_cap < cap_count {
+                    native_compile_expr(ctx, {"type": "Identifier", "value": caps[i_cap]})
+
+                    // Save value
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    // X0 = env_list, X1 = value
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+
+                    var bl_push = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push, "name": "oren_list_push"})
+                    i_cap = i_cap + 1
+                }
+
+                // Load env_list into X1 and pop it from the stack.
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+            }
+
+            // X0 = code_ptr (lambda wrapper), X1 = env_ptr
+            var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos, "name": lname, "reg": 0})
+
+            var bl_make = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_make, "name": "oren_func"})
+            return nil
+        }
+
+        native_error(ctx, expr["token"], "native backend: unexpected Function expression (name=" + expr["name"] + ")")
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        return nil
+    }
+
+    if expr["type"] == "String" {
+        var s = expr["value"]
+        var bytes = oren_bytes_from_string(s)
+        bytes_push(bytes, 0) // Null terminator
+        
+        while int_mod(oren_list_len(ctx["data"]), 8) != 0 {
+            bytes_push(ctx["data"], 0)
+        }
+        
+        var data_off = oren_list_len(ctx["data"])
+        bytes_extend(ctx["data"], bytes)
+        
+        var adr_pos = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+        
+        push_u32_le(ctx["code"], insn_movz(1, 1))
+        var bl_ensure = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_ensure, "name": "oren_ensure_tracked"})
+        return nil
+    }
+	    if expr["type"] == "SpawnExpr" {
+	        // Spawn-callable v0: lower to a runtime helper so callee can be a first-class callable
+	        // (function value, closure, or variable holding a callable).
+	        //
+	        // This keeps the spawn semantics in `lib/runtime_native.oren` and avoids duplicating
+	        // per-OS fork/pipe details in the code generator.
+	        var call2 = expr["call"]
+	        var args2 = call2["args"]
+	        var nargs2 = oren_list_len(args2)
+
+	        // args_list = oren_new_list(0)
+	        push_u32_le(ctx["code"], insn_movz(0, 0))
+	        var bl_new_list2 = oren_list_len(ctx["code"])
+	        push_u32_le(ctx["code"], 0)
+	        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list2, "name": "oren_new_list"})
+
+	        // Save args_list on stack across arg evals.
+	        push_u32_le(ctx["code"], insn_sub_sp(16))
+	        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+	        ctx["stack_size"] = ctx["stack_size"] + 16
+
+	        var i_arg2 = 0
+	        while i_arg2 < nargs2 {
+	            native_compile_expr(ctx, args2[i_arg2]) // value -> X0
+	            push_u32_le(ctx["code"], insn_sub_sp(16))
+	            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+	            ctx["stack_size"] = ctx["stack_size"] + 16
+
+	            // X0=args_list, X1=value
+	            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+	            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+	            push_u32_le(ctx["code"], insn_add_sp(16))
+	            ctx["stack_size"] = ctx["stack_size"] - 16
+
+	            var bl_push2 = oren_list_len(ctx["code"])
+	            push_u32_le(ctx["code"], 0)
+	            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push2, "name": "oren_list_push"})
+	            i_arg2 = i_arg2 + 1
+	        }
+
+	        // fn_obj -> X0
+	        native_compile_expr(ctx, call2["fn"])
+
+	        // X1=args_list, pop stack
+	        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+	        push_u32_le(ctx["code"], insn_add_sp(16))
+	        ctx["stack_size"] = ctx["stack_size"] - 16
+
+		        var bl_spawn2 = oren_list_len(ctx["code"])
+		        push_u32_le(ctx["code"], 0)
+		        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_spawn2, "name": "oren_spawn_call_list"})
+		        return nil
+		    }
+
+	    if expr["type"] == "Array" {
+	        var elements = expr["elements"]
+	        var count = oren_list_len(elements)
+        
+        // Build runtime list: call oren_new_list(0) then push elements (runtime grows as needed)
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        var bl_pos_list = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_list, "name": "oren_new_list"})
+        
+        // Stack: list in X0, push to preserve across pushes
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        
+        var i_arr = 0
+        while i_arr < count {
+            native_compile_expr(ctx, elements[i_arr]) // -> X0 (value)
+            // save value on stack
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // load list -> X0
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // list is 16 bytes above current SP after push
+            // load value -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            // pop value slot
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Call oren_list_push(list, elem)
+            var bl_pos_push = oren_list_len(ctx["code"])

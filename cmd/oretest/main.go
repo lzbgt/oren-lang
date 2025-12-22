@@ -2558,6 +2558,13 @@ func auditNativeNoDirectSvcBypass() error {
 		"sys_mmap": true,
 	}
 
+	// When a large compiler module is split via `// @include`, we scan only the
+	// top-level entry file and skip the included parts directory. The entry file
+	// is expanded before scanning so policy checks still see the real code.
+	skipDirs := map[string]bool{
+		filepath.Join("lib", "compiler", "arm64_native_expr"): true,
+	}
+
 	var offenders []string
 
 	err := filepath.WalkDir(filepath.Join("lib", "compiler"), func(path string, d os.DirEntry, err error) error {
@@ -2565,17 +2572,19 @@ func auditNativeNoDirectSvcBypass() error {
 			return err
 		}
 		if d.IsDir() {
+			if skipDirs[path] {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(path, ".oren") {
 			return nil
 		}
 
-		b, rerr := os.ReadFile(path)
+		src, rerr := expandOrenIncludes(path)
 		if rerr != nil {
 			return rerr
 		}
-		src := string(b)
 		if !strings.Contains(src, "insn_svc(") && !strings.Contains(src, "abi.darwin_sys_") && !strings.Contains(src, "labi.linux_sys_") {
 			return nil
 		}
