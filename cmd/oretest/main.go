@@ -125,6 +125,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "runtime_native audit failed:", err)
 		os.Exit(1)
 	}
+	if err := auditRepoModernStyle(); err != nil {
+		fmt.Fprintln(os.Stderr, "repo style audit failed:", err)
+		os.Exit(1)
+	}
 
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
@@ -2829,6 +2833,106 @@ func auditRuntimeNativeModernStyle() error {
 			offenders = append(offenders[:30], fmt.Sprintf("... (%d more)", len(offenders)-30))
 		}
 		return fmt.Errorf("runtime_native style violations:\n%s", strings.Join(offenders, "\n"))
+	}
+	return nil
+}
+
+func auditRepoModernStyle() error {
+	// Purpose: keep the repo moving toward a consistent modern surface syntax.
+	//
+	// This is intentionally a simple textual scan, enforced via oretest, to prevent
+	// reintroducing deprecated patterns during rolling refactors.
+	//
+	// Exceptions:
+	// - `string_concat` exists as a low-level helper for the native runtime and for operator plumbing.
+	allowStringConcatIn := map[string]bool{
+		filepath.Join("lib", "runtime_native", "160_iteration.oren"):     true, // defines `string_concat`
+		filepath.Join("lib", "runtime_native", "120_first_class_fn.oren"): true, // operator plumbing may rely on it
+	}
+
+	type rule struct {
+		name        string
+		pattern     string
+		allowInFile func(path string) bool
+		allowInLine func(trimmedLine string) bool
+	}
+	rules := []rule{
+		{
+			name:    "no string_concat callsites (prefer `+`)",
+			pattern: "string_concat(",
+			allowInFile: func(path string) bool {
+				return allowStringConcatIn[path]
+			},
+			allowInLine: func(trimmedLine string) bool {
+				return strings.HasPrefix(trimmedLine, "//")
+			},
+		},
+		{
+			name:    "no legacy @forin internal identifiers",
+			pattern: "@forin_",
+			allowInLine: func(trimmedLine string) bool {
+				return strings.HasPrefix(trimmedLine, "//")
+			},
+		},
+		{
+			name:    "no legacy @forinr internal identifiers",
+			pattern: "@forinr_",
+			allowInLine: func(trimmedLine string) bool {
+				return strings.HasPrefix(trimmedLine, "//")
+			},
+		},
+	}
+
+	var offenders []string
+	roots := []string{filepath.Join("lib"), filepath.Join("tests"), filepath.Join("examples")}
+	for _, root := range roots {
+		if _, err := os.Stat(root); err != nil {
+			continue
+		}
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(path, ".oren") {
+				return nil
+			}
+
+			b, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			lines := strings.Split(string(b), "\n")
+			for i, line := range lines {
+				trim := strings.TrimSpace(line)
+				for _, r := range rules {
+					if !strings.Contains(line, r.pattern) {
+						continue
+					}
+					if r.allowInFile != nil && r.allowInFile(path) {
+						continue
+					}
+					if r.allowInLine != nil && r.allowInLine(trim) {
+						continue
+					}
+					offenders = append(offenders, fmt.Sprintf("%s:%d: %s (found %q)", path, i+1, r.name, r.pattern))
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(offenders) > 0 {
+		sort.Strings(offenders)
+		if len(offenders) > 50 {
+			offenders = append(offenders[:50], fmt.Sprintf("... (%d more)", len(offenders)-50))
+		}
+		return fmt.Errorf("repo style violations:\n%s", strings.Join(offenders, "\n"))
 	}
 	return nil
 }

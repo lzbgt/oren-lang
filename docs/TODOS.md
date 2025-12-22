@@ -8,6 +8,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - DoD: standardize on current grammar idioms across `lib/std/*.oren` (prefer `for x in ...` where semantics match; prefer string `+` over `string_concat`).
    - Guardrails: keep `cmd/oretest` audits updated (e.g. `auditStdlibModernStyle`) to prevent regressions (reintroducing `string_concat`, legacy `@forin_*`, etc.).
    - Also keep `lib/runtime_native` user-facing helpers on modern idioms (guarded by `auditRuntimeNativeModernStyle`).
+   - Also keep the whole repo moving (tests/examples too) via `auditRepoModernStyle`.
 
 ### P1 (Soon)
 
