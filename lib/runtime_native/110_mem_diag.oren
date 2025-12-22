@@ -222,28 +222,16 @@ fn debug_value_to_string(val) {
             return val
         }
         if kind == 2 { // LIST
-            var s0 = "<list ptr="
-            var s1 = string_concat(s0, oren_int_to_string(val))
-            return string_concat(s1, ">"
-            )
+            return "<list ptr=" + oren_int_to_string(val) + ">"
         }
         if kind == 3 { // MAP
-            var s0 = "<map ptr="
-            var s1 = string_concat(s0, oren_int_to_string(val))
-            return string_concat(s1, ">"
-            )
+            return "<map ptr=" + oren_int_to_string(val) + ">"
         }
         if kind == 4 { // STRUCT
-            var s0 = "<struct ptr="
-            var s1 = string_concat(s0, oren_int_to_string(val))
-            return string_concat(s1, ">"
-            )
+            return "<struct ptr=" + oren_int_to_string(val) + ">"
         }
         if kind == 6 { // FUNC
-            var s0 = "<func ptr="
-            var s1 = string_concat(s0, oren_int_to_string(val))
-            return string_concat(s1, ">"
-            )
+            return "<func ptr=" + oren_int_to_string(val) + ">"
         }
     }
     return oren_int_to_string(val)
@@ -294,20 +282,11 @@ fn stack_trace_debug() {
 
             // Print stable shape:
             //   at func file:line:col +off (pc=...)
-            var s0 = string_concat("  at ", name)
+            var s0 = "  at " + name
             if line != 0 && col != 0 {
-                var sF = string_concat(s0, " ")
-                sF = string_concat(sF, file)
-                sF = string_concat(sF, ":")
-                sF = string_concat(sF, oren_int_to_string(line))
-                sF = string_concat(sF, ":")
-                s0 = string_concat(sF, oren_int_to_string(col))
+                s0 = s0 + " " + file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
             }
-            var s1 = string_concat(s0, " +")
-            var s2 = string_concat(s1, oren_int_to_string(off_in_func))
-            var s3 = string_concat(s2, " (pc=")
-            var s4 = string_concat(s3, oren_int_to_string(pc))
-            print(string_concat(s4, ")"))
+            print(s0 + " +" + oren_int_to_string(off_in_func) + " (pc=" + oren_int_to_string(pc) + ")")
 
             var p_count = ptr_get_u64(ptr)
             ptr = ptr + 8
@@ -324,9 +303,7 @@ fn stack_trace_debug() {
                 if caller_fp != 0 {
                     var val_ptr = caller_fp - offset
                     var val = ptr_get(val_ptr)
-                    var s1 = string_concat("    ", pname)
-                    var s2 = string_concat(s1, " = ")
-                    print(string_concat(s2, debug_value_to_string(val)))
+                    print("    " + pname + " = " + debug_value_to_string(val))
                 }
                 j = j + 1
             }
@@ -343,10 +320,7 @@ fn stack_trace_debug() {
                     name = "<unknown host>"
                 }
             }
-            var s0 = string_concat("  at ", name)
-            var s1 = string_concat(s0, " (pc=")
-            var s2 = string_concat(s1, oren_int_to_string(pc))
-            print(string_concat(s2, ")"))
+            print("  at " + name + " (pc=" + oren_int_to_string(pc) + ")")
         }
         
         fp = caller_fp
@@ -425,13 +399,7 @@ fn oren_diag_emit(kind, code, msg) {
     //
     // Keep this best-effort and non-fatal; diagnostics must not crash.
     var m = oren_diag_sanitize(msg)
-    var s0 = "OREN_DIAG kind="
-    var s1 = string_concat(s0, kind)
-    var s2 = string_concat(s1, " code=")
-    var s3 = string_concat(s2, oren_int_to_string(code))
-    var s4 = string_concat(s3, " msg=")
-    var s5 = string_concat(s4, m)
-    print(s5)
+    print("OREN_DIAG kind=" + kind + " code=" + oren_int_to_string(code) + " msg=" + m)
     return 0
 }
 
@@ -462,4 +430,3 @@ fn oren_panic(msg) {
     exit(1)
     return 0
 }
-

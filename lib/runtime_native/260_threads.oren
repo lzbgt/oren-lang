@@ -336,18 +336,11 @@ fn oren_net_get(url) {
     if fd < 0 { return 0 }
 
     // Build request: "GET <path> HTTP/1.0\r\nHost: <host>\r\nConnection: close\r\n\r\n"
-    var r0 = string_concat("GET ", path)
-    var r1 = string_concat(r0, " HTTP/1.0\r\nHost: ")
-    var r2 = string_concat(r1, host)
-    var r3 = string_concat(r2, "\r\nConnection: close\r\n\r\n")
-    // Free intermediate concatenation buffers to avoid unbounded growth on repeated calls.
-    free(r0)
-    free(r1)
-    free(r2)
-
-    var req_len = oren_string_len(r3)
-    var wr = oren_tcp_write_from(fd, r3, req_len, 5000)
-    free(r3)
+    //
+    // Prefer language-level string `+` (modern grammar) over manual `string_concat` chains.
+    var req = "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
+    var req_len = oren_string_len(req)
+    var wr = oren_tcp_write_from(fd, req, req_len, 5000)
     if wr < 0 {
         oren_tcp_close(fd)
         return 0

@@ -121,6 +121,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "stdlib audit failed:", err)
 		os.Exit(1)
 	}
+	if err := auditRuntimeNativeModernStyle(); err != nil {
+		fmt.Fprintln(os.Stderr, "runtime_native audit failed:", err)
+		os.Exit(1)
+	}
 
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
@@ -2769,6 +2773,63 @@ func auditStdlibModernStyle() error {
 		return fmt.Errorf("stdlib style violations:\n%s", strings.Join(offenders, "\n"))
 	}
 
+	return nil
+}
+
+func auditRuntimeNativeModernStyle() error {
+	// Purpose: keep `lib/runtime_native` in sync with rolling language idioms for higher-level helpers.
+	//
+	// The runtime can contain low-level primitives, but we still want to avoid reintroducing
+	// legacy patterns in user-facing helpers (notably `string_concat` call-chains).
+	allowStringConcatIn := map[string]bool{
+		filepath.Join("lib", "runtime_native", "160_iteration.oren"):     true, // defines `string_concat`
+		filepath.Join("lib", "runtime_native", "120_first_class_fn.oren"): true, // operator plumbing may rely on it
+	}
+
+	var offenders []string
+	err := filepath.WalkDir(filepath.Join("lib", "runtime_native"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".oren") {
+			return nil
+		}
+
+		b, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		src := string(b)
+		lines := strings.Split(src, "\n")
+		for i, line := range lines {
+			if !strings.Contains(line, "string_concat(") {
+				continue
+			}
+			trim := strings.TrimSpace(line)
+			if strings.HasPrefix(trim, "//") {
+				continue
+			}
+			if allowStringConcatIn[path] {
+				continue
+			}
+			offenders = append(offenders, fmt.Sprintf("%s:%d: no string_concat callsites in runtime_native (prefer `+`) (found %q)", path, i+1, "string_concat("))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(offenders) > 0 {
+		sort.Strings(offenders)
+		if len(offenders) > 30 {
+			offenders = append(offenders[:30], fmt.Sprintf("... (%d more)", len(offenders)-30))
+		}
+		return fmt.Errorf("runtime_native style violations:\n%s", strings.Join(offenders, "\n"))
+	}
 	return nil
 }
 

@@ -28,10 +28,8 @@ fn stack_trace() {
         }
         var lr = ptr_get(iadd(fp, 8))
         var name = resolve_symbol(lr)
-        var s0 = string_concat("  at ", name)
-        var s1 = string_concat(s0, " (pc=")
-        var s2 = string_concat(s1, oren_int_to_string(lr))
-        print(string_concat(s2, ")"))
+        // Prefer language-level string `+` over manual `string_concat` chains.
+        print("  at " + name + " (pc=" + oren_int_to_string(lr) + ")")
         // print_hex(lr)
         fp = ptr_get(fp)
         i = i + 1
@@ -122,4 +120,3 @@ fn oren_memcpy(dst, src, len) {
     }
     return 0
 }
-
