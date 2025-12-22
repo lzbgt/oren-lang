@@ -1,5 +1,5 @@
 fn load_module(base, path) {
-    var full = resolve_path(base, path)
+    var full = resolve_import_path(base, path)
     if MODULES[full] != nil {
         return MODULES[full]
     }

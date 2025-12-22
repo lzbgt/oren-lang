@@ -32,8 +32,8 @@ fn main() {
 Import with an alias:
 
 ```oren
-import math "../../lib/std/math.oren"
-import buffer "../../lib/std/buffer.oren"
+import math "std:math"
+import buffer "std:buffer"
 ```
 
 Imported names can be qualified as `alias.symbol`.
@@ -315,8 +315,8 @@ Packed views are designed to avoid heap pressure: they are “structured access 
 Typed buffers are the canonical HPC container in Oren today:
 
 ```oren
-import buffer "../../lib/std/buffer.oren"
-import linalg "../../lib/std/linalg.oren"
+import buffer "std:buffer"
+import linalg "std:linalg"
 
 var a: []f64 = buffer.f64_new(6)
 var b: []f64 = buffer.f64_new(6)

@@ -386,3 +386,123 @@ fn resolve_path(base, path) {
     if oren_string_len(path) > 0 && oren_string_char_at(path, 0) == "/" { return path_norm(path) }
     return path_norm(base + "/" + path)
 }
+
+fn _path_last_segment(path) {
+    // Return substring after the last '/' (or whole string if no '/').
+    if path == nil { return "" }
+    var n = oren_string_len(path)
+    var i = n - 1
+    while i >= 0 {
+        if oren_string_char_at(path, i) == "/" {
+            return oren_string_slice(path, i + 1, n)
+        }
+        i = i - 1
+    }
+    return path
+}
+
+fn _segment_has_dot(seg) {
+    if seg == nil { return false }
+    var i = 0
+    while i < oren_string_len(seg) {
+        if oren_string_char_at(seg, i) == "." { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _ensure_oren_ext(path) {
+    // If the last segment has no '.', append ".oren".
+    // This enables ergonomic imports like:
+    //   import math "std/math"
+    //   import linalg "std/linalg/common"
+    // without forcing ".oren" in user code.
+    if path == nil { return "" }
+    var seg = _path_last_segment(path)
+    if _segment_has_dot(seg) { return path }
+    return path + ".oren"
+}
+
+fn _starts_with2(s, pref) {
+    if s == nil || pref == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(pref)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(pref, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _stdlib_root_from_dir(start_dir) {
+    // Resolve the stdlib source root directory.
+    //
+    // Priority:
+    // 1) env OREN_STDLIB_ROOT (absolute or relative)
+    // 2) walk up from start_dir looking for "lib/std/argparse.oren"
+    // 3) fallback: "lib/std" in current working directory
+    var env_root = oren_env("OREN_STDLIB_ROOT")
+    if env_root != nil && env_root != "" {
+        var r = path_norm(env_root)
+        if file_exists(r + "/argparse.oren") { return r }
+        // If user passed the repo root, accept "<root>/lib/std".
+        if file_exists(r + "/lib/std/argparse.oren") { return path_norm(r + "/lib/std") }
+        // Keep going: env_root might be set but wrong; fall through for dev convenience.
+    }
+
+    var d = start_dir
+    var hops = 0
+    while d != nil && d != "" && hops < 20 {
+        var cand = path_norm(d + "/lib/std")
+        if file_exists(cand + "/argparse.oren") { return cand }
+        if d == "/" { break }
+        d = dirname(d)
+        hops = hops + 1
+    }
+
+    var cwd_cand = path_norm("lib/std")
+    if file_exists(cwd_cand + "/argparse.oren") { return cwd_cand }
+    return nil
+}
+
+fn resolve_import_path(base_dir, import_path) {
+    // Import resolver (rolling):
+    //
+    // - Backward compatible: relative and absolute filesystem imports still work.
+    // - New stdlib scheme:
+    //     import math "std:math"
+    //     import json "std/json"
+    //     import common "std/linalg/common"
+    //   These resolve to <STDLIB_ROOT>/<path>.oren where STDLIB_ROOT defaults to repo lib/std.
+    //
+    // This is a compile-time resolution mechanism (not runtime).
+    if import_path == nil { return "" }
+
+    // std:... (preferred explicit scheme)
+    if _starts_with2(import_path, "std:") {
+        var rest = oren_string_slice(import_path, 4, oren_string_len(import_path))
+        var root = _stdlib_root_from_dir(base_dir)
+        if root == nil {
+            print("ERROR: cannot resolve stdlib root (set OREN_STDLIB_ROOT or run from an Oren repo/install).")
+            oren_exit(1)
+        }
+        return path_norm(_ensure_oren_ext(root + "/" + rest))
+    }
+
+    // std/... (file-like scheme; friendly for users migrating from paths)
+    if _starts_with2(import_path, "std/") {
+        var rest2 = oren_string_slice(import_path, 4, oren_string_len(import_path))
+        var root2 = _stdlib_root_from_dir(base_dir)
+        if root2 == nil {
+            print("ERROR: cannot resolve stdlib root (set OREN_STDLIB_ROOT or run from an Oren repo/install).")
+            oren_exit(1)
+        }
+        return path_norm(_ensure_oren_ext(root2 + "/" + rest2))
+    }
+
+    // Default: filesystem path resolved relative to base_dir (existing semantics).
+    var full = resolve_path(base_dir, import_path)
+    return _ensure_oren_ext(full)
+}

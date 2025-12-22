@@ -787,7 +787,12 @@ match v {
 - Accessing module members uses member syntax:
   - `math.PI`
   - `math.sqrt(2.0)`
-- Import paths are resolved relative to the directory of the importing file; absolute paths are allowed.
+- Import paths are resolved at compile time using the compiler’s module resolver:
+  - **Filesystem imports**: relative to the directory of the importing file; absolute paths are allowed.
+  - **Stdlib imports (recommended for users)**:
+    - `import math "std:math"` (scheme form)
+    - `import json "std/json"` (path form)
+    - The `.oren` extension is optional (e.g. `"std/json"` resolves to `std/json.oren`).
 - Imports are resolved recursively at compile time; cyclic imports are an error.
 - All top-level `var`, named `fn`, and `struct`/`class` declarations in an imported file are treated as module members.
 
