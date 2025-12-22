@@ -64,9 +64,9 @@ fn instant_now() { return Instant(mono_raw()) }
 
 fn is_leap_year(y) {
     // Gregorian
-    if (y % 4) != 0 { return false }
-    if (y % 100) != 0 { return true }
-    if (y % 400) != 0 { return false }
+    if y % 4 != 0 { return false }
+    if y % 100 != 0 { return true }
+    if y % 400 != 0 { return false }
     return true
 }
 

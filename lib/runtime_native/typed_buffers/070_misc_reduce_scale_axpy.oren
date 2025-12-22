@@ -1,0 +1,290 @@
+// Split from lib/runtime_native/200_typed_buffers.oren (1367-1655)
+fn oren_buf_reduce_sum_f64(buf): f64 {
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pa = native_buf_data_ptr(buf)
+        // Native SIMD returns f64 bits in an integer register (X0) for a pure ABI boundary.
+        // Convert back to f64 at the Oren level so call sites see a real float.
+        return oren_u64_bits_to_f64(simd_reduce_sum_f64_ptr(pa, n))
+    }
+
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + oren_buf_load_f64(buf, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_reduce_sum_f64_into(out, buf) {
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_reduce_sum_f64(buf)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_f64(out, 0, sum)
+    return out
+}
+
+fn oren_buf_mul_f32_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_F32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_mul_f32_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd2 = native_buf_data_ptr(dst)
+        var pa2 = native_buf_data_ptr(a)
+        var pb2 = native_buf_data_ptr(b)
+        simd_mul_f32_ptr(pd2, pa2, pb2, n)
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(dst, i, oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_mul_f32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    var out = oren_f32_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_mul_f32_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
+fn oren_buf_mul_i32_into(dst, a, b) {
+    var ed = native_buf_check(dst, BUF_TAG_I32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) || n != ptr_get(dst + 0) { return oren_err(4, "buf_mul_i32_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd2 = native_buf_data_ptr(dst)
+        var pa2 = native_buf_data_ptr(a)
+        var pb2 = native_buf_data_ptr(b)
+        simd_mul_i32_ptr(pd2, pa2, pb2, n)
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_mul_i32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    var out = oren_i32_buf_new(n)
+    if oren_is_err(out) { return out }
+    var r = oren_buf_mul_i32_into(out, a, b)
+    if oren_is_err(r) { return r }
+    return out
+}
+
+fn oren_buf_scale_f32(buf, scalar: f64) {
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    // f32 scalar boundary (matches AVM/C runtime semantics).
+    var sbits = oren_f32_to_u32_bits(scalar)
+    var s32 = oren_u32_bits_to_f32(sbits)
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd = native_buf_data_ptr(buf)
+        // In-place scale is safe (dst_ptr == a_ptr).
+        simd_scale_f32_ptr(pd, pd, sbits, n)
+        return buf
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(buf, i, oren_buf_load_f32(buf, i) * s32)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_scale_f32_into(dst, a, scalar: f64) {
+    var ed = native_buf_check(dst, BUF_TAG_F32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(dst + 0) { return oren_err(4, "buf_scale_f32_into: length mismatch") }
+    var sbits = oren_f32_to_u32_bits(scalar)
+    var s32 = oren_u32_bits_to_f32(sbits)
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd2 = native_buf_data_ptr(dst)
+        var pa2 = native_buf_data_ptr(a)
+        simd_scale_f32_ptr(pd2, pa2, sbits, n)
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(dst, i, oren_buf_load_f32(a, i) * s32)
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_scale_i32_into(dst, a, scalar) {
+    var ed = native_buf_check(dst, BUF_TAG_I32, 4)
+    if oren_is_err(ed) { return ed }
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(dst + 0) { return oren_err(4, "buf_scale_i32_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd2 = native_buf_data_ptr(dst)
+        var pa2 = native_buf_data_ptr(a)
+        simd_scale_i32_ptr(pd2, pa2, scalar, n)
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(dst, i, oren_buf_load_i32(a, i) * scalar)
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_axpy_f32_into(dst, alpha: f64, x, y) {
+    // y := alpha*x + y (into dst)
+    var ed = native_buf_check(dst, BUF_TAG_F32, 4)
+    if oren_is_err(ed) { return ed }
+    var ex = native_buf_check(x, BUF_TAG_F32, 4)
+    if oren_is_err(ex) { return ex }
+    var ey = native_buf_check(y, BUF_TAG_F32, 4)
+    if oren_is_err(ey) { return ey }
+    var n = ptr_get(dst + 0)
+    if n != ptr_get(x + 0) || n != ptr_get(y + 0) { return oren_err(4, "buf_axpy_f32_into: length mismatch") }
+
+    // Semantics: alpha is rounded to float32 once, then each element does float32 mul then float32 add.
+    // This matches the C runtime / AVM behavior and keeps deterministic results (no FMA).
+    var abits = oren_f32_to_u32_bits(alpha)
+    var a32 = oren_u32_bits_to_f32(abits)
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd2 = native_buf_data_ptr(dst)
+        var px2 = native_buf_data_ptr(x)
+        var py2 = native_buf_data_ptr(y)
+        simd_axpy_f32_ptr(pd2, abits, px2, py2, n)
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        var xv = oren_buf_load_f32(x, i)
+        var yv = oren_buf_load_f32(y, i)
+        // Force float32 rounding points explicitly for scalar semantics parity.
+        var m = oren_u32_bits_to_f32(oren_f32_to_u32_bits(a32 * xv))
+        var outv = oren_u32_bits_to_f32(oren_f32_to_u32_bits(m + yv))
+        oren_buf_store_f32(dst, i, outv)
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_axpy_f32_in_place(alpha: f64, x, y) {
+    return oren_buf_axpy_f32_into(y, alpha, x, y)
+}
+
+fn oren_buf_axpy_i32_into(dst, alpha, x, y) {
+    var ed = native_buf_check(dst, BUF_TAG_I32, 4)
+    if oren_is_err(ed) { return ed }
+    var ex = native_buf_check(x, BUF_TAG_I32, 4)
+    if oren_is_err(ex) { return ex }
+    var ey = native_buf_check(y, BUF_TAG_I32, 4)
+    if oren_is_err(ey) { return ey }
+    var n = ptr_get(dst + 0)
+    if n != ptr_get(x + 0) || n != ptr_get(y + 0) { return oren_err(4, "buf_axpy_i32_into: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pd2 = native_buf_data_ptr(dst)
+        var px2 = native_buf_data_ptr(x)
+        var py2 = native_buf_data_ptr(y)
+        simd_axpy_i32_ptr(pd2, alpha, px2, py2, n)
+        return dst
+    }
+
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(dst, i, (alpha * oren_buf_load_i32(x, i)) + oren_buf_load_i32(y, i))
+        i = i + 1
+    }
+    return dst
+}
+
+fn oren_buf_axpy_i32_in_place(alpha, x, y) {
+    return oren_buf_axpy_i32_into(y, alpha, x, y)
+}
+
+fn oren_buf_reduce_sum_f32(buf): f64 {
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + oren_buf_load_f32(buf, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_reduce_sum_f32_into(out, buf) {
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_reduce_sum_f32(buf)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_f64(out, 0, sum)
+    return out
+}
+
+fn oren_buf_reduce_sum_i32(buf) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + oren_buf_load_i32(buf, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_reduce_sum_i32_into(out, buf) {
+    var eo = native_buf_check(out, BUF_TAG_I64, 8)
+    if oren_is_err(eo) { return eo }
+    var sum = oren_buf_reduce_sum_i32(buf)
+    if oren_is_err(sum) { return sum }
+    oren_buf_store_i64(out, 0, sum)
+    return out
+}

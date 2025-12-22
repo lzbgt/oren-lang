@@ -166,11 +166,11 @@ attr            = "@" dotted_name [ "(" { /* literal args only (v0) */ } ")" ] ;
 param           = { attr } [ "..." ] ident [ ":" type_name ] ;
 param_list      = param { "," param } ;
 match_pattern   = dotted_name [ "(" [ ident { "," ident } ] ")" ] ;
-infix_op        = "+" | "-" | "*" | "/"
-                | "<<" | ">>"
-                | "==" | "!=" | "<" | ">" | "<=" | ">="
-                | "&" | "^" | "|"
-                | "&&" | "||" ;
+	infix_op        = "+" | "-" | "*" | "/" | "%"
+	                | "<<" | ">>"
+	                | "==" | "!=" | "<" | ">" | "<=" | ">="
+	                | "&" | "^" | "|"
+	                | "&&" | "||" ;
 cast_suffix     = "as" type_name ;
 ```
 
@@ -179,7 +179,7 @@ cast_suffix     = "as" type_name ;
 2. Call: `()`
 3. Cast: `as <type>`
 4. Prefix: `!` `-` `~`
-5. Multiplicative: `*` `/`
+5. Multiplicative: `*` `/` `%`
 6. Additive: `+` `-`
 7. Shift: `<<` `>>`
 8. Comparisons: `<` `>` `<=` `>=`

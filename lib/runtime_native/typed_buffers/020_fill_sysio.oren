@@ -1,0 +1,86 @@
+// Split from lib/runtime_native/200_typed_buffers.oren (355-439)
+fn oren_buf_fill_u8(buf, v) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    if v < 0 || v > 255 { return oren_err(4, "buf_fill_u8: byte out of range") }
+    var n = ptr_get(buf + 0)
+    var data = native_buf_data_ptr(buf)
+    var i = 0
+    while i < n {
+        ptr_set_byte(data + i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn sys_read_u8_buf(fd, buf, off, nbytes) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    if off < 0 || nbytes < 0 { return oren_err(4, "sys_read_u8_buf: negative offset/len") }
+    var n = ptr_get(buf + 0)
+    if off > n { return oren_err(4, "sys_read_u8_buf: offset out of bounds") }
+    if off + nbytes > n { return oren_err(4, "sys_read_u8_buf: length out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    return sys_read(fd, data + off, nbytes)
+}
+
+fn sys_write_u8_buf(fd, buf, off, nbytes) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    if off < 0 || nbytes < 0 { return oren_err(4, "sys_write_u8_buf: negative offset/len") }
+    var n = ptr_get(buf + 0)
+    if off > n { return oren_err(4, "sys_write_u8_buf: offset out of bounds") }
+    if off + nbytes > n { return oren_err(4, "sys_write_u8_buf: length out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    return sys_write(fd, data + off, nbytes)
+}
+
+// Bulk helpers (scalar baseline; SIMD can replace later).
+fn oren_buf_fill_i32(buf, v) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_fill_i64(buf, v) {
+    var err = native_buf_check(buf, BUF_TAG_I64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_i64(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_fill_f32(buf, v: f64) {
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_f32(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_fill_f64(buf, v: f64) {
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    var i = 0
+    while i < n {
+        oren_buf_store_f64(buf, i, v)
+        i = i + 1
+    }
+    return buf
+}
+

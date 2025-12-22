@@ -5,6 +5,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 ### P0 (Now)
 
 1) **Repo-wide grammar modernization + audits** (L)
+   - Status: cleaned up a first batch of legacy-style condition parentheses in `lib/std` (kept required parens for bitwise-vs-equality precedence).
    - DoD: update remaining `.oren` sources (especially `lib/std/*.oren`) to the current grammar/idioms (e.g. `for x in ...`, modern `if`/`else`, `match` where applicable), removing known legacy syntax.
    - Guardrails: extend `cmd/oretest` audits to ban additional legacy constructs once confirmed from `docs/` (keep the allowlist tiny and explicit).
    - Keep the modernization rolling: new code must not regress into legacy syntax.
@@ -23,11 +24,13 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - DoD: expand syscall-first TCP/UDP readiness + timeouts, keep capsule gating comprehensive on both macOS and Linux.
 
 5) **Docs parity pass** (S)
+   - Status: fixed `docs/LANGUAGE_SPEC.md` to include `%` (modulo) in the infix operator grammar + precedence list (matches the compiler’s token set).
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
 
 6) **Include chunk coherence** (M)
    - Status: fixed one major boundary (`simd_dot_f32_4_ptr` lowering now starts in `040_lowering_d.oren` rather than splitting the `if` header across files).
-   - Status: fixed another boundary in compiler driver includes (moved `load_module` to live wholly in `020_modules_linking.oren`, and moved `_unit_prefix_from_function_name` wholly into `030_commands_dump_meta_scan.oren`).
+   - Status: compiler driver include chunks are now brace-balanced (all of `compiler_main()` consolidated into `040_build_pipeline.oren` so individual include files are coherent in isolation).
+   - Status: native runtime typed buffers split further (`lib/runtime_native/200_typed_buffers.oren` now includes smaller parts under `lib/runtime_native/typed_buffers/`) to avoid context overflow.
    - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
 
 ### Notes

@@ -1,0 +1,162 @@
+// Split from lib/runtime_native/200_typed_buffers.oren (194-354)
+fn oren_i32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_I32) }
+fn oren_i64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_I64) }
+fn oren_f32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_F32) }
+fn oren_f64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_F64) }
+fn oren_u8_buf_new(len) { return native_buf_new(len, 1, BUF_TAG_U8) }
+fn oren_u8_buf_wrap_ptr(ptr, len) { return native_buf_wrap_ptr(ptr, len, 1, BUF_TAG_U8) }
+
+fn oren_buf_len(buf) {
+    if native_buf_as_node(buf) == 0 { return oren_err(4, "buf_len expects (buf)") }
+    return ptr_get(buf + 0)
+}
+
+fn oren_buf_load_i32(buf, idx) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_i32: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 4
+    var b0 = ptr_get_byte(data + off + 0)
+    var b1 = ptr_get_byte(data + off + 1)
+    var b2 = ptr_get_byte(data + off + 2)
+    var b3 = ptr_get_byte(data + off + 3)
+    var u = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn oren_buf_load_u8(buf, idx) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_u8: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    return ptr_get_byte(data + idx) & 255
+}
+
+fn oren_buf_store_i32(buf, idx, v) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_i32: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 4
+    var u = v & 4294967295
+    ptr_set_byte(data + off + 0, u & 255)
+    ptr_set_byte(data + off + 1, (u >> 8) & 255)
+    ptr_set_byte(data + off + 2, (u >> 16) & 255)
+    ptr_set_byte(data + off + 3, (u >> 24) & 255)
+    return buf
+}
+
+fn oren_buf_store_u8(buf, idx, v) {
+    var err = native_buf_check(buf, BUF_TAG_U8, 1)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_u8: index out of bounds") }
+    if v < 0 || v > 255 { return oren_err(4, "buf_store_u8: byte out of range") }
+    var data = native_buf_data_ptr(buf)
+    ptr_set_byte(data + idx, v)
+    return buf
+}
+
+fn oren_buf_load_i64(buf, idx) {
+    var err = native_buf_check(buf, BUF_TAG_I64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_i64: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 8
+    var u = 0
+    var i = 0
+    while i < 8 {
+        var b = ptr_get_byte(data + off + i)
+        u = u | (b << (i * 8))
+        i = i + 1
+    }
+    return u
+}
+
+fn oren_buf_store_i64(buf, idx, v) {
+    var err = native_buf_check(buf, BUF_TAG_I64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_i64: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 8
+    var i = 0
+    while i < 8 {
+        ptr_set_byte(data + off + i, (v >> (i * 8)) & 255)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_load_f64(buf, idx): f64 {
+    // Returns f64 as raw bits (native backend float container).
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_f64: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 8
+    var bits = 0
+    var i = 0
+    while i < 8 {
+        var b = ptr_get_byte(data + off + i)
+        bits = bits | (b << (i * 8))
+        i = i + 1
+    }
+    return bits
+}
+
+fn oren_buf_store_f64(buf, idx, v: f64) {
+    // `v` is f64 bits (native backend float container).
+    var err = native_buf_check(buf, BUF_TAG_F64, 8)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_f64: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 8
+    var i = 0
+    while i < 8 {
+        ptr_set_byte(data + off + i, (v >> (i * 8)) & 255)
+        i = i + 1
+    }
+    return buf
+}
+
+fn oren_buf_load_f32(buf, idx): f64 {
+    // Load f32 bits from payload and widen to f64 bits (native float container).
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_load_f32: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 4
+    var b0 = ptr_get_byte(data + off + 0)
+    var b1 = ptr_get_byte(data + off + 1)
+    var b2 = ptr_get_byte(data + off + 2)
+    var b3 = ptr_get_byte(data + off + 3)
+    var bits = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+    return oren_u32_bits_to_f32(bits)
+}
+
+fn oren_buf_store_f32(buf, idx, v: f64) {
+    // Store f32 bits (rounded) into payload.
+    var err = native_buf_check(buf, BUF_TAG_F32, 4)
+    if oren_is_err(err) { return err }
+    var n = ptr_get(buf + 0)
+    if idx < 0 || idx >= n { return oren_err(4, "buf_store_f32: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    var off = idx * 4
+    var bits = oren_f32_to_u32_bits(v)
+    ptr_set_byte(data + off + 0, bits & 255)
+    ptr_set_byte(data + off + 1, (bits >> 8) & 255)
+    ptr_set_byte(data + off + 2, (bits >> 16) & 255)
+    ptr_set_byte(data + off + 3, (bits >> 24) & 255)
+    return buf
+}
+

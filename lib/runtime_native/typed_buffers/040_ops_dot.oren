@@ -1,0 +1,315 @@
+// Split from lib/runtime_native/200_typed_buffers.oren (695-1008)
+fn oren_buf_dot_i32(a, b) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_dot_i32: length mismatch") }
+
+    // SIMD fast path (native backend only): NEON dot over raw pointers.
+    // Gated by startup-parsed env (OREN_ENABLE_SIMD / OREN_NO_SIMD).
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        return simd_dot_i32_ptr(pa, pb, n)
+    }
+
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_f64(a, b): f64 {
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    var n = ptr_get(a + 0)
+    if n != ptr_get(b + 0) { return oren_err(4, "buf_dot_f64: length mismatch") }
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pa = native_buf_data_ptr(a)
+        var pb = native_buf_data_ptr(b)
+        // Native SIMD returns f64 bits in an integer register (X0) for a pure ABI boundary.
+        // Convert back to f64 at the Oren level so call sites see a real float.
+        return oren_u64_bits_to_f64(simd_dot_f64_ptr(pa, pb, n))
+    }
+
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_f64(a, i) * oren_buf_load_f64(b, i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_f64_slice(a, a_off, b, b_off, n): f64 {
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    if a_off < 0 || b_off < 0 || n < 0 { return oren_err(4, "buf_dot_f64_slice: negative arg") }
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na || b_off > nb { return oren_err(4, "buf_dot_f64_slice: offset out of bounds") }
+    if a_off + n > na || b_off + n > nb { return oren_err(4, "buf_dot_f64_slice: range out of bounds") }
+
+    if native_simd_enabled() != 0 && n >= 2 {
+        var pa = native_buf_data_ptr(a) + a_off * 8
+        var pb = native_buf_data_ptr(b) + b_off * 8
+        return oren_u64_bits_to_f64(simd_dot_f64_ptr(pa, pb, n))
+    }
+
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_f64(a, a_off + i) * oren_buf_load_f64(b, b_off + i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_f64_strided(a, a_off, a_stride, b, b_off, b_stride, n): f64 {
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    if a_off < 0 || b_off < 0 || n < 0 { return oren_err(4, "buf_dot_f64_strided: negative arg") }
+    if a_stride <= 0 || b_stride <= 0 { return oren_err(4, "buf_dot_f64_strided: stride must be > 0") }
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na || b_off > nb { return oren_err(4, "buf_dot_f64_strided: offset out of bounds") }
+    if n > 0 {
+        var alast = a_off + (n - 1) * a_stride
+        var blast = b_off + (n - 1) * b_stride
+        if alast < 0 || alast >= na { return oren_err(4, "buf_dot_f64_strided: a range out of bounds") }
+        if blast < 0 || blast >= nb { return oren_err(4, "buf_dot_f64_strided: b range out of bounds") }
+    }
+
+    // NOTE: no SIMD fast path for strided access today (requires gather).
+    var sum = 0.0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_f64(a, a_off + i * a_stride) * oren_buf_load_f64(b, b_off + i * b_stride))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_i32_slice(a, a_off, b, b_off, n) {
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    if a_off < 0 || b_off < 0 || n < 0 { return oren_err(4, "buf_dot_i32_slice: negative arg") }
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na || b_off > nb { return oren_err(4, "buf_dot_i32_slice: offset out of bounds") }
+    if a_off + n > na || b_off + n > nb { return oren_err(4, "buf_dot_i32_slice: range out of bounds") }
+
+    if native_simd_enabled() != 0 && n >= 4 {
+        var pa = native_buf_data_ptr(a) + a_off * 4
+        var pb = native_buf_data_ptr(b) + b_off * 4
+        return simd_dot_i32_ptr(pa, pb, n)
+    }
+
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_buf_load_i32(a, a_off + i) * oren_buf_load_i32(b, b_off + i))
+        i = i + 1
+    }
+    return sum
+}
+
+fn oren_buf_dot_i32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_off, b3_off, n) {
+    // Compute 4 dot-products sharing the same `a` slice and store into an i64 buffer.
+    //
+    // Semantics: i64 wrap accumulation (via Oren's integer wrap rules).
+    var eo = native_buf_check(out, BUF_TAG_I64, 8)
+    if oren_is_err(eo) { return eo }
+    var ea = native_buf_check(a, BUF_TAG_I32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_I32, 4)
+    if oren_is_err(eb) { return eb }
+    if out_off < 0 || a_off < 0 || b0_off < 0 || b1_off < 0 || b2_off < 0 || b3_off < 0 || n < 0 { return oren_err(4, "buf_dot_i32_4_slice_into: negative arg") }
+
+    var no = ptr_get(out + 0)
+    if out_off > no || no - out_off < 4 { return oren_err(4, "buf_dot_i32_4_slice_into: out range out of bounds") }
+
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na { return oren_err(4, "buf_dot_i32_4_slice_into: a_off out of bounds") }
+    if n > na - a_off { return oren_err(4, "buf_dot_i32_4_slice_into: a range out of bounds") }
+    if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_i32_4_slice_into: b_off out of bounds") }
+    if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_i32_4_slice_into: b range out of bounds") }
+
+    // Native SIMD fast path: 1×4 i32 dot microkernel intrinsic (single-pass over A).
+    if native_simd_enabled() != 0 && n >= 4 {
+        var outp = native_buf_data_ptr(out) + out_off * 8
+        var pa = native_buf_data_ptr(a) + a_off * 4
+        var pb0 = native_buf_data_ptr(b) + b0_off * 4
+        var pb1 = native_buf_data_ptr(b) + b1_off * 4
+        var pb2 = native_buf_data_ptr(b) + b2_off * 4
+        var pb3 = native_buf_data_ptr(b) + b3_off * 4
+        simd_dot_i32_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
+        return out
+    }
+
+    // Scalar fallback.
+    var s0 = 0
+    var s1 = 0
+    var s2 = 0
+    var s3 = 0
+    var i = 0
+    while i < n {
+        var av = oren_buf_load_i32(a, a_off + i)
+        s0 = s0 + av * oren_buf_load_i32(b, b0_off + i)
+        s1 = s1 + av * oren_buf_load_i32(b, b1_off + i)
+        s2 = s2 + av * oren_buf_load_i32(b, b2_off + i)
+        s3 = s3 + av * oren_buf_load_i32(b, b3_off + i)
+        i = i + 1
+    }
+    oren_buf_store_i64(out, out_off + 0, s0)
+    oren_buf_store_i64(out, out_off + 1, s1)
+    oren_buf_store_i64(out, out_off + 2, s2)
+    oren_buf_store_i64(out, out_off + 3, s3)
+    return out
+}
+
+fn native_dot_f32_ptr_tail_safe(a_ptr, b_ptr, n): f64 {
+    // Tail-safe wrapper around the `simd_dot_f32_ptr` intrinsic.
+    //
+    // Rolling note:
+    // - The intrinsic now includes a verified scalar tail path for `n % 4 != 0`,
+    //   so this wrapper is effectively a semantic "bitcast" (u64 bits -> f64).
+    //
+    // Semantics:
+    // - widen f32 -> f64, multiply in f64, accumulate in increasing-k order.
+    if n <= 0 { return 0.0 }
+    return oren_u64_bits_to_f64(simd_dot_f32_ptr(a_ptr, b_ptr, n))
+}
+
+fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_off, b3_off, n) {
+    // Compute 4 dot-products sharing the same `a` slice and store into an f64 buffer.
+    //
+    // Semantics:
+    // - widen each f32 element to f64
+    // - multiply in f64
+    // - accumulate in fixed increasing-k order
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var ea = native_buf_check(a, BUF_TAG_F32, 4)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F32, 4)
+    if oren_is_err(eb) { return eb }
+    if out_off < 0 || a_off < 0 || b0_off < 0 || b1_off < 0 || b2_off < 0 || b3_off < 0 || n < 0 { return oren_err(4, "buf_dot_f32_4_slice_into: negative arg") }
+
+    var no = ptr_get(out + 0)
+    if out_off > no || no - out_off < 4 { return oren_err(4, "buf_dot_f32_4_slice_into: out range out of bounds") }
+
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na { return oren_err(4, "buf_dot_f32_4_slice_into: a_off out of bounds") }
+    if n > na - a_off { return oren_err(4, "buf_dot_f32_4_slice_into: a range out of bounds") }
+    if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_f32_4_slice_into: b_off out of bounds") }
+    if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_f32_4_slice_into: b range out of bounds") }
+
+    // Native SIMD fast path (native backend only): true single-pass 1×4 dot microkernel.
+    // Writes 4 f64 results to the out buffer payload in little-endian u64 bits.
+    if native_simd_enabled() != 0 && native_simd_f32_dot4_enabled() != 0 && n >= 4 {
+        var outp = native_buf_data_ptr(out) + out_off * 8
+        var pa = native_buf_data_ptr(a) + a_off * 4
+        var pb0 = native_buf_data_ptr(b) + b0_off * 4
+        var pb1 = native_buf_data_ptr(b) + b1_off * 4
+        var pb2 = native_buf_data_ptr(b) + b2_off * 4
+        var pb3 = native_buf_data_ptr(b) + b3_off * 4
+        simd_dot_f32_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
+        return out
+    }
+
+    // Scalar fallback: deterministic, fixed increasing-k order.
+    var s0 = 0.0
+    var s1 = 0.0
+    var s2 = 0.0
+    var s3 = 0.0
+    var i = 0
+    while i < n {
+        var av = oren_buf_load_f32(a, a_off + i)
+        s0 = s0 + av * oren_buf_load_f32(b, b0_off + i)
+        s1 = s1 + av * oren_buf_load_f32(b, b1_off + i)
+        s2 = s2 + av * oren_buf_load_f32(b, b2_off + i)
+        s3 = s3 + av * oren_buf_load_f32(b, b3_off + i)
+        i = i + 1
+    }
+    oren_buf_store_f64(out, out_off + 0, s0)
+    oren_buf_store_f64(out, out_off + 1, s1)
+    oren_buf_store_f64(out, out_off + 2, s2)
+    oren_buf_store_f64(out, out_off + 3, s3)
+    return out
+}
+
+fn oren_buf_dot_f64_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_off, b3_off, n) {
+    // Compute 4 dot-products sharing the same `a` slice and store into an f64 buffer.
+    //
+    // Semantics:
+    // - multiply in f64
+    // - accumulate in fixed increasing-k order
+    var eo = native_buf_check(out, BUF_TAG_F64, 8)
+    if oren_is_err(eo) { return eo }
+    var ea = native_buf_check(a, BUF_TAG_F64, 8)
+    if oren_is_err(ea) { return ea }
+    var eb = native_buf_check(b, BUF_TAG_F64, 8)
+    if oren_is_err(eb) { return eb }
+    if out_off < 0 || a_off < 0 || b0_off < 0 || b1_off < 0 || b2_off < 0 || b3_off < 0 || n < 0 { return oren_err(4, "buf_dot_f64_4_slice_into: negative arg") }
+
+    var no = ptr_get(out + 0)
+    if out_off > no || no - out_off < 4 { return oren_err(4, "buf_dot_f64_4_slice_into: out range out of bounds") }
+
+    var na = ptr_get(a + 0)
+    var nb = ptr_get(b + 0)
+    if a_off > na { return oren_err(4, "buf_dot_f64_4_slice_into: a_off out of bounds") }
+    if n > na - a_off { return oren_err(4, "buf_dot_f64_4_slice_into: a range out of bounds") }
+    if b0_off > nb || b1_off > nb || b2_off > nb || b3_off > nb { return oren_err(4, "buf_dot_f64_4_slice_into: b_off out of bounds") }
+    if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_f64_4_slice_into: b range out of bounds") }
+
+    // Native SIMD fast path: 1×4 dot microkernel intrinsic (single-pass over A).
+    // Uses strict lane extraction + scalar accumulation to preserve deterministic k-order semantics.
+    if native_simd_enabled() != 0 && n >= 2 {
+        var outp = native_buf_data_ptr(out) + out_off * 8
+        var pa = native_buf_data_ptr(a) + a_off * 8
+        var pb0 = native_buf_data_ptr(b) + b0_off * 8
+        var pb1 = native_buf_data_ptr(b) + b1_off * 8
+        var pb2 = native_buf_data_ptr(b) + b2_off * 8
+        var pb3 = native_buf_data_ptr(b) + b3_off * 8
+        simd_dot_f64_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
+        return out
+    }
+
+    // Scalar fallback: deterministic, fixed increasing-k order.
+    var s0 = 0.0
+    var s1 = 0.0
+    var s2 = 0.0
+    var s3 = 0.0
+    var i = 0
+    while i < n {
+        var av = oren_buf_load_f64(a, a_off + i)
+        s0 = s0 + av * oren_buf_load_f64(b, b0_off + i)
+        s1 = s1 + av * oren_buf_load_f64(b, b1_off + i)
+        s2 = s2 + av * oren_buf_load_f64(b, b2_off + i)
+        s3 = s3 + av * oren_buf_load_f64(b, b3_off + i)
+        i = i + 1
+    }
+    oren_buf_store_f64(out, out_off + 0, s0)
+    oren_buf_store_f64(out, out_off + 1, s1)
+    oren_buf_store_f64(out, out_off + 2, s2)
+    oren_buf_store_f64(out, out_off + 3, s3)
+    return out
+}
+
