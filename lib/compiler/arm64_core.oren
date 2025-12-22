@@ -762,7 +762,11 @@ fn insn_str_ptr(rd, rn) {
 
 fn insn_ldr_w(rt, rn, offset) {
     // LDR Wt, [Xn, #imm12<<2] (unsigned offset encoding, scaled by 4)
-    return 3107989504 + ((offset / 4) * 1024) + (rn * 32) + rt // base 0xB9400000
+    // Verified via clang:
+    //   ldr w0, [x2]      => 0xB9400040
+    //   ldr w3, [x4,#12]  => 0xB9400C83
+    // Base: 0xB9400000
+    return 3107979264 + ((offset / 4) * 1024) + (rn * 32) + rt
 }
 
 fn insn_str_w(rt, rn, offset) {

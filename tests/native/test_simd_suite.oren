@@ -299,6 +299,46 @@ fn run_dot_f32_tail_fractional() {
     return 0
 }
 
+fn run_dot_f32_ptr_intrinsic_tail_fractional() {
+    // Direct intrinsic determinism check for `simd_dot_f32_ptr` (native backend):
+    // This bypasses Oren-level tail workarounds so we can validate and eventually
+    // remove scalar tail cleanup in wrappers.
+    var n = 129 // odd to force tail
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(425, "alloc a (f32 dot intrinsic tail)") }
+    if oren_is_err(b) { return fail(426, "alloc b (f32 dot intrinsic tail)") }
+
+    var i = 0
+    while i < n {
+        var av = (f64(i % 97) - 41.0) * 0.125 + 0.1
+        var bv = (f64((i * 11) % 73) - 9.0) * 0.1 + 0.2
+        oren_buf_store_f32(a, i, av)
+        oren_buf_store_f32(b, i, bv)
+        i = i + 1
+    }
+
+    var ref = 0.0
+    i = 0
+    while i < n {
+        ref = ref + (oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+
+    var pa = native_buf_data_ptr(a)
+    var pb = native_buf_data_ptr(b)
+    var got = oren_u64_bits_to_f64(simd_dot_f32_ptr(pa, pb, n))
+
+    var ref_bits = oren_f64_to_u64_bits(ref)
+    var got_bits = oren_f64_to_u64_bits(got)
+    if ref_bits != got_bits {
+        print("DOT_F32_INTR_TAIL_REF_BITS=" + oren_int_to_string(ref_bits))
+        print("DOT_F32_INTR_TAIL_GOT_BITS=" + oren_int_to_string(got_bits))
+        return fail(427, "dot mismatch (f32 intrinsic tail)")
+    }
+    return 0
+}
+
 fn run_dot_f32_4_microkernel() {
     // 1x4 dot microkernel boundary for f32: compute 4 dot products at once into an f64 buffer.
     var n = 256
@@ -1016,6 +1056,7 @@ fn main() {
     if run_f32_buf_ops() != 0 { return 1 }
     if run_dot_f32() != 0 { return 1 }
     if run_dot_f32_tail_fractional() != 0 { return 1 }
+    if run_dot_f32_ptr_intrinsic_tail_fractional() != 0 { return 1 }
     if run_dot_f32_4_microkernel() != 0 { return 1 }
     if run_dot_f64_4_microkernel() != 0 { return 1 }
     if run_gemm_f32_4x4_microkernel() != 0 { return 1 }

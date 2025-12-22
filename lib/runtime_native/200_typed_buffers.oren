@@ -879,38 +879,14 @@ fn oren_buf_dot_i32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
 fn native_dot_f32_ptr_tail_safe(a_ptr, b_ptr, n): f64 {
     // Tail-safe wrapper around the `simd_dot_f32_ptr` intrinsic.
     //
-    // Motivation:
-    // - The intrinsic is validated for `n` divisible by 4 (vector-only path).
-    // - For rolling correctness, we keep tails in Oren scalar code until the
-    //   intrinsic tail path is proven bit-exact for all f32 inputs.
+    // Rolling note:
+    // - The intrinsic now includes a verified scalar tail path for `n % 4 != 0`,
+    //   so this wrapper is effectively a semantic "bitcast" (u64 bits -> f64).
     //
     // Semantics:
     // - widen f32 -> f64, multiply in f64, accumulate in increasing-k order.
     if n <= 0 { return 0.0 }
-    if n < 4 {
-        var s = 0.0
-        var i = 0
-        while i < n {
-            var a32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(a_ptr + i * 4))
-            var b32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(b_ptr + i * 4))
-            s = s + a32 * b32
-            i = i + 1
-        }
-        return s
-    }
-
-    var n_vec = (n / 4) * 4
-    // `simd_dot_f32_ptr` returns f64 bits in the native float container.
-    // Use an explicit bitcast helper to keep later `+`/`*` in float semantics.
-    var s = oren_u64_bits_to_f64(simd_dot_f32_ptr(a_ptr, b_ptr, n_vec))
-    var i = n_vec
-    while i < n {
-        var a32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(a_ptr + i * 4))
-        var b32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(b_ptr + i * 4))
-        s = s + a32 * b32
-        i = i + 1
-    }
-    return s
+    return oren_u64_bits_to_f64(simd_dot_f32_ptr(a_ptr, b_ptr, n))
 }
 
 fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_off, b3_off, n) {
