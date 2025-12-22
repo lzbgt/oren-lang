@@ -949,23 +949,36 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/codegen_error"},
 		},
-		{
-			name: "compiler_bytecode_codegen_diag",
-			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend bytecode --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\n\" \"$out\"; test $rc -ne 0; printf \"%%s\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"; printf \"%%s\n\" \"$out\" | grep -F \"Bytecode codegen errors:\"'",
-				"tests/native/fixtures/bytecode_codegen_error.oren",
-				*target,
-				"build/bytecode_codegen_err.obc",
-				gcArg,
-			),
-			log:     "build/logs/compiler_bytecode_codegen_diag.log",
-			ok:      func(rc int) bool { return rc == 0 },
-			cleanup: []string{"build/bytecode_codegen_err.obc"},
-		},
-		{
-			name: "compiler_impl_diag",
-			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"'",
+			{
+				name: "compiler_bytecode_codegen_diag",
+				cmd: fmt.Sprintf(
+					"sh -c 'out=$(./oren build %q --backend bytecode --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\n\" \"$out\"; test $rc -ne 0; printf \"%%s\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"; printf \"%%s\n\" \"$out\" | grep -F \"Bytecode codegen errors:\"'",
+					"tests/native/fixtures/bytecode_codegen_error.oren",
+					*target,
+					"build/bytecode_codegen_err.obc",
+					gcArg,
+				),
+				log:     "build/logs/compiler_bytecode_codegen_diag.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/bytecode_codegen_err.obc"},
+			},
+			{
+				name: "compiler_bytecode_assign_undefined_diag",
+				cmd: fmt.Sprintf(
+					"sh -c 'out=$(./oren build %q --backend bytecode --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\n\" \"$out\"; test $rc -ne 0; printf \"%%s\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"; printf \"%%s\n\" \"$out\" | grep -F \"Bytecode codegen errors:\"; printf \"%%s\n\" \"$out\" | grep -F \"undefined variable in assignment\"'",
+					"tests/fixtures/bytecode_assign_undefined.oren",
+					*target,
+					"build/bytecode_assign_undefined.obc",
+					gcArg,
+				),
+				log:     "build/logs/compiler_bytecode_assign_undefined_diag.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/bytecode_assign_undefined.obc"},
+			},
+			{
+				name: "compiler_impl_diag",
+				cmd: fmt.Sprintf(
+					"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"'",
 				"tests/native/fixtures/trait_impl_duplicate.oren",
 				*target,
 				"build/impl_err",

@@ -444,6 +444,58 @@ Fixtures showing expected behavior:
 - Capsule BAD (FS not enrolled): `tests/native/fixtures/capsule_bad_fs.oren`
 - Capsule OK with FS enrolled: `tests/native/fixtures/capsule_ok_fs_allow.oren`
 
+### Runtime policy knobs (env var driven)
+
+Capsule mode is a **compile-time** capability gate, but the syscall-first native runtime also has a
+**runtime** allowlist layer for “what exactly is permitted inside each domain”.
+
+This is intentionally configured via environment variables so parent processes / “multiverse”
+parents can safely constrain child universes without recompiling the child program.
+
+These knobs are exercised by the “capsule runtime” fixtures under `tests/native/fixtures/`:
+
+- **FS mounts**
+  - `OREN_FS_MOUNTS="v/=build/mnt/"` (legacy: applies to both read+write)
+  - `OREN_FS_MOUNTS_READ="v/=build/mnt/"` (read-only mounts)
+  - `OREN_FS_MOUNTS_WRITE="v/=build/mnt/"` (write-enabled mounts)
+  - The `v/` prefix is a *virtual path prefix*; the runtime rewrites `v/...` into the mounted host path.
+  - Examples: `tests/native/fixtures/capsule_runtime_fs_prog.oren`,
+    `tests/native/fixtures/capsule_runtime_fs_syscall_open_read_prog.oren`,
+    `tests/native/fixtures/capsule_runtime_fs_syscall_open_write_prog.oren`.
+
+- **FS allow prefixes** (alternative to mounts)
+  - `OREN_FS_ALLOW_PREFIXES="build/mnt/,/tmp/"` (legacy: applies to both)
+  - `OREN_FS_ALLOW_READ_PREFIXES="..."`, `OREN_FS_ALLOW_WRITE_PREFIXES="..."`
+  - Use mounts when you want stable virtual paths; use allow-prefixes when you want direct host paths.
+
+- **NET allowlists**
+  - `OREN_NET_ALLOW_LOOPBACK=1` enables loopback endpoints (for local services / tests).
+  - `OREN_NET_ALLOW_TCP_CONNECT="127.0.0.1:8080,10.0.0.1:*"`
+  - `OREN_NET_ALLOW_TCP_LISTEN="127.0.0.1:*"`
+  - Map-driven variants exist for multiverse use cases (see `OREN_NET_TCP_CONNECT_MAP` / `OREN_NET_TCP_LISTEN_MAP`).
+  - Examples: `tests/native/fixtures/capsule_runtime_net_connect_prog.oren`,
+    `tests/native/fixtures/capsule_runtime_net_listen_prog.oren`,
+    `tests/native/fixtures/capsule_runtime_net_syscall_map_prog.oren`.
+
+- **PROC allowlists**
+  - `OREN_PROC_ALLOW_EXEC_PREFIXES="/usr/bin/,/bin/"` (CSV path prefixes)
+  - `OREN_PROC_ALLOW_SYSTEM=1` (enables `/bin/sh` only; convenience for bootstrapping)
+  - Env inheritance controls:
+    - `OREN_PROC_INHERIT_ENV=1` inherit all parent env vars (**dangerous**, use sparingly)
+    - `OREN_PROC_ALLOW_ENV_KEYS="PATH,HOME,OREN_TEST_SECRET"` only allow specific keys
+  - Argv allowlists:
+    - `OREN_PROC_ALLOW_ARGV="<path>|<argv0>[|<arg1>...],<path>|..."`
+    - `|` is used as the argv delimiter inside each spec.
+  - Examples: `tests/native/fixtures/capsule_runtime_proc_spawn_prog.oren`,
+    `tests/native/fixtures/capsule_runtime_proc_spawn_join_prog.oren`,
+    `tests/native/fixtures/capsule_runtime_proc_env_prog.oren`,
+    `tests/native/fixtures/capsule_runtime_proc_system_prog.oren`.
+
+Notes:
+
+- The runtime prints “CAPSULE DENY: ...” errors with hints pointing at these env vars when a call is blocked.
+- In AVM/bytecode mode, the same high-level domains exist, but the allowlists are modeled as VM config rather than host env vars.
+
 ## 8) Typed buffers and HPC building blocks
 
 Typed buffers are the canonical HPC container in Oren today:

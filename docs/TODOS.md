@@ -96,6 +96,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: fixed `docs/LANGUAGE_SPEC.md` to include `%` (modulo) in the infix operator grammar + precedence list (matches the compiler’s token set).
    - Status: updated `docs/LANGUAGE_SPEC.md` EBNF to include `for <name>[:Type] in <expr> { ... }` iterator sugar (matches the parser implementation).
    - Status: updated `docs/LANGUAGE_MANUAL.md` examples to avoid legacy `if (...)` statement form.
+   - Status: documented capsule runtime policy env vars (FS/NET/PROC/ENV gates and mount lists) in `docs/LANGUAGE_MANUAL.md` so fixture-driven behavior is discoverable.
    - Status: expanded `docs/LANGUAGE_MANUAL.md` with rolling features exercised by fixtures/tests: generics (`fn f[T]` + explicit specialization), trait method sugar + qualified calls, blanket `impl ... for any`, strict attributes mode, and capsule mode (`@cap.requires` + `--capsule`).
    - Status: refreshed repo `AGENTS.md` with clearer rolling workflow rules (verification policy, large-file strategy, web research capture, secret handling).
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
@@ -107,12 +108,14 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 6) **Self-hosting hardening (rolling stability gates)** (S)
    - Status: Stage0→Stage1→Stage2 pipeline exists and is exercised by `make test` (see `docs/SELF_HOSTING.md`).
    - Status: Stage0 bootstrap transpiler now resolves `std:` imports (keeps the language/compiler evolution path unblocked).
+   - Status: Stage0 bootstrap lexer now supports modern numeric literals (`0x`/`0b`/`0o`, `_` separators, scientific notation) to avoid bootstrap breakage when Stage1 sources use them.
    - Status: `oretest` has a deterministic self-hosting gate (enabled via `--full` or `--selfhost`): Stage1 emits Stage2 compiler as `.obc`, then Stage2 reproduces Stage1 `dump graph` + `meta --deterministic` outputs (hash-checked).
    - Status: `oretest` now parallelizes fixtures (`--fixture-jobs`) and native tests (`--native-jobs`) to reduce `make test` wall time.
    - Status: `make test-native-all` now supports parallel builds via `NATIVE_TEST_JOBS=...` and per-test logs (`build/logs/native_all_*.log`).
    - Status: `make selfhost` target added; `OREN_TEST_SELFHOST=1 make test` now passes `--selfhost` through to `oretest`.
    - Status: native backend can now build the compiler itself: `./oren build oren.oren --backend native --target macos -o build/oren_stage2_native` (required native runtime subset filled: `oren_string_to_float_bits`, `oren_sha256_range`, `oren_chmod`, `oren_env`).
    - Status: native self-host gate validates that the Stage2 native compiler binary is buildable + runs `selftest-native` (fast runtime surface check; no compiler pipelines), because Stage2(native) `dump graph` / `meta` are still too slow to be a reliable CI gate.
+   - Status: bytecode backend now rejects assignment to undeclared vars deterministically (aligns native/bytecode semantics; prevents AVM verifier stack mismatches).
    - Next: define and freeze a “bootstrap subset” (syntax + stdlib surface) that Stage0 must support; treat changes as high-risk and gate them.
    - Next: fix Stage1→Stage2 C-backend rebuild OOM risk (clang compiling a giant single-TU generated C file can be SIGKILL on dev machines); likely needs multi-TU emission or smaller generated C.
    - Next: expand `oren selftest-native` coverage (map/string/sha256/env/args) as runtime primitives stabilize; then re-enable `meta --deterministic` (and eventually `dump graph`) behind env toggles once performance is acceptable.

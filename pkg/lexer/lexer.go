@@ -1,6 +1,10 @@
 package lexer
 
-import "oren/pkg/token"
+import (
+	"strings"
+
+	"oren/pkg/token"
+)
 
 type Lexer struct {
 	input        string
@@ -91,11 +95,15 @@ func (l *Lexer) NextToken() token.Token {
 			tok = newToken(token.BANG, l.ch, startLine, startCol)
 		}
 	case '/':
-		// TODO: Handle comments // and /* */ here if needed, or in skipWhitespace?
-		// For simplicity, let's assume comments are stripped or handled here.
-		// Let's implement single line comment //
 		if l.peekChar() == '/' {
 			l.skipSingleLineComment()
+			return l.NextToken()
+		} else if l.peekChar() == '*' {
+			// Consume '/' then '*', then skip until closing '*/'.
+			l.readChar() // move to '*'
+			l.readChar() // move to first char inside comment
+			l.skipBlockComment()
+			l.skipWhitespace()
 			return l.NextToken()
 		} else {
 			tok = newToken(token.SLASH, l.ch, startLine, startCol)
@@ -162,15 +170,13 @@ func (l *Lexer) NextToken() token.Token {
 			tok.Column = startCol
 			return tok
 		} else if isDigit(l.ch) {
-			num := l.readNumber()
-			if l.ch == '.' {
-				l.readChar() // consume dot
-				frac := l.readNumber()
+			lit, isFloat := l.readNumberLiteral()
+			if isFloat {
 				tok.Type = token.FLOAT
-				tok.Literal = num + "." + frac
+				tok.Literal = lit
 			} else {
 				tok.Type = token.INT
-				tok.Literal = num
+				tok.Literal = lit
 			}
 			tok.Line = startLine
 			tok.Column = startCol
@@ -197,6 +203,19 @@ func (l *Lexer) skipSingleLineComment() {
 	l.skipWhitespace()
 }
 
+func (l *Lexer) skipBlockComment() {
+	// Assumes current l.ch is '*' and the previous char was '/'.
+	// Leaves l.ch at the first char after the closing '*/' or EOF.
+	for l.ch != 0 {
+		if l.ch == '*' && l.peekChar() == '/' {
+			l.readChar() // consume '*'
+			l.readChar() // consume '/'
+			return
+		}
+		l.readChar()
+	}
+}
+
 func (l *Lexer) readIdentifier() string {
 	position := l.position
 	for isLetter(l.ch) || isDigit(l.ch) {
@@ -205,12 +224,112 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[position:l.position]
 }
 
-func (l *Lexer) readNumber() string {
-	position := l.position
-	for isDigit(l.ch) {
+func (l *Lexer) readDecimalDigitsUnderscore() string {
+	// Read [0-9_]+ and return digits with '_' removed.
+	var b strings.Builder
+	for isDigit(l.ch) || l.ch == '_' {
+		if l.ch != '_' {
+			b.WriteByte(l.ch)
+		}
 		l.readChar()
 	}
-	return l.input[position:l.position]
+	return b.String()
+}
+
+func (l *Lexer) readBaseDigitsUnderscore(isValid func(byte) bool) string {
+	// Read base digits with optional '_' separators.
+	var b strings.Builder
+	for isValid(l.ch) || l.ch == '_' {
+		if l.ch != '_' {
+			b.WriteByte(l.ch)
+		}
+		l.readChar()
+	}
+	return b.String()
+}
+
+func (l *Lexer) readNumberLiteral() (lit string, isFloat bool) {
+	// Matches self-hosted lexer behavior (subset):
+	// - decimal int/float with '_' separators (ignored)
+	// - base-prefixed ints: 0x.., 0b.., 0o.. with '_' separators
+	// - scientific notation: 1e3, 1e-12, 12.5E+2
+	//
+	// NOTE: negative numbers remain a prefix expression (MINUS + INT/FLOAT).
+
+	// Base prefixes.
+	if l.ch == '0' {
+		p := l.peekChar()
+		if p == 'x' || p == 'X' {
+			l.readChar() // consume '0'
+			l.readChar() // consume 'x'/'X'
+			digits := l.readBaseDigitsUnderscore(func(c byte) bool {
+				return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+			})
+			if digits == "" {
+				return "0x", false
+			}
+			return "0x" + digits, false
+		}
+		if p == 'b' || p == 'B' {
+			l.readChar() // consume '0'
+			l.readChar() // consume 'b'/'B'
+			digits := l.readBaseDigitsUnderscore(func(c byte) bool { return c == '0' || c == '1' })
+			if digits == "" {
+				return "0b", false
+			}
+			return "0b" + digits, false
+		}
+		if p == 'o' || p == 'O' {
+			l.readChar() // consume '0'
+			l.readChar() // consume 'o'/'O'
+			digits := l.readBaseDigitsUnderscore(func(c byte) bool { return '0' <= c && c <= '7' })
+			if digits == "" {
+				return "0o", false
+			}
+			return "0o" + digits, false
+		}
+	}
+
+	num := l.readDecimalDigitsUnderscore()
+	lit = num
+
+	// Decimal fraction: 123.456 (only if '.' is followed by a digit to avoid
+	// interfering with member access / '..' / '...').
+	if l.ch == '.' && isDigit(l.peekChar()) {
+		isFloat = true
+		l.readChar() // consume '.'
+		frac := l.readDecimalDigitsUnderscore()
+		lit = lit + "." + frac
+	}
+
+	// Scientific notation: 1e3, 1e-12, 12.5E+2
+	if l.ch == 'e' || l.ch == 'E' {
+		isFloat = true
+		e := l.ch
+		l.readChar() // consume e/E
+		sign := byte(0)
+		if l.ch == '+' || l.ch == '-' {
+			sign = l.ch
+			l.readChar()
+		}
+		// Require at least one digit after exponent marker/sign to keep the
+		// form deterministic.
+		if !isDigit(l.ch) {
+			// Return the best-effort literal; parser will surface an error.
+			if sign != 0 {
+				return lit + string([]byte{e, sign}), true
+			}
+			return lit + string(e), true
+		}
+		exp := l.readDecimalDigitsUnderscore()
+		if sign != 0 {
+			lit = lit + string([]byte{e, sign}) + exp
+		} else {
+			lit = lit + string(e) + exp
+		}
+	}
+
+	return lit, isFloat
 }
 
 func (l *Lexer) readString() string {

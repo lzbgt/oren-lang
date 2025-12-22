@@ -1,0 +1,5 @@
+// Bytecode backend should reject assignment to an undefined variable.
+fn main() {
+    x = 1
+    exit(0)
+}

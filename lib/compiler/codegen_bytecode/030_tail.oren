@@ -190,6 +190,12 @@ fn bytecode_compile_stmt(ctx, stmt) {
                 emit_u16(ctx, glob)
                 return nil
             }
+            // Rolling: assignments must target an existing var slot (local or global).
+            // If we can't resolve the target, treat it as a compile error and discard the value
+            // to keep stack depth consistent for verifier/CFG joins.
+            bytecode_error(ctx, "bytecode backend: undefined variable in assignment: " + name)
+            emit_byte(ctx, AVM_POP)
+            return nil
         }
         return nil
     }
