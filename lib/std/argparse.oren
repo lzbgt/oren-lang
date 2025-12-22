@@ -3,7 +3,10 @@
 // Goals:
 // - deterministic help text (stable ordering)
 // - supports: long/short flags, --opt value, --opt=value, bool flags
+// - supports: -abc (chained short flags), -ovalue (short value), -o=value
 // - supports: subcommands + positionals
+// - supports: global options before subcommand (click-style)
+// - supports: interspersed options/args (options after positionals)
 // - returns structured results (no implicit global state)
 //
 // This is intentionally small: evolve it as Oren's own tooling grows.
@@ -59,9 +62,15 @@ fn _split_once(s, sep) {
 }
 
 fn _to_int(s) {
-    // v0: accept only base-10, non-negative.
+    // v1: accept base-10, optional leading '-'.
     if s == nil || s == "" { return nil }
     var i = 0
+    var sign = 1
+    if oren_string_len(s) > 0 && oren_string_slice(s, 0, 1) == "-" {
+        sign = -1
+        i = 1
+        if i >= oren_string_len(s) { return nil }
+    }
     var n = 0
     while i < oren_string_len(s) {
         var c = oren_string_slice(s, i, i + 1)
@@ -98,7 +107,20 @@ fn _to_int(s) {
         n = n * 10 + d
         i = i + 1
     }
-    return n
+    return n * sign
+}
+
+fn _normalize_key(name) {
+    // Normalize option storage keys:
+    // - "--backend" => "backend"
+    // - "-o" => "o"
+    // - "---weird" => "weird"
+    if name == nil { return "" }
+    var k = name
+    while _starts_with(k, "-") {
+        k = oren_string_slice(k, 1, oren_string_len(k))
+    }
+    return k
 }
 
 fn new_parser(name, desc) {
@@ -107,10 +129,31 @@ fn new_parser(name, desc) {
         "desc": desc,
         "root": new_command("", ""), // for CLIs without subcommands
         "commands": [],
+        "settings": {
+            // Click-style defaults:
+            // - allow global options before subcommand
+            // - allow options after positionals (interspersed)
+            "allow_opts_before_cmd": true,
+            "allow_interspersed_args": true,
+        },
     }
     // Always provide help on root as well.
     cmd_flag(p["root"], "--help", "-h", "Show help and exit")
     return p
+}
+
+fn set_allow_opts_before_cmd(p, v) {
+    if p == nil { return nil }
+    if p["settings"] == nil { p["settings"] = {} }
+    p["settings"]["allow_opts_before_cmd"] = v
+    return nil
+}
+
+fn set_allow_interspersed_args(p, v) {
+    if p == nil { return nil }
+    if p["settings"] == nil { p["settings"] = {} }
+    p["settings"]["allow_interspersed_args"] = v
+    return nil
 }
 
 fn new_command(name, desc) {
@@ -134,8 +177,8 @@ fn add_command(p, name, desc) {
 
 fn cmd_flag(cmd, long_name, short_name, help) {
     // Option spec is a list to avoid map-key lookup pitfalls in early runtimes:
-    // [kind, long, short, help, default]
-    var opt = [1, long_name, short_name, help, false]
+    // [kind, long, short, help, default, required, multiple]
+    var opt = [1, long_name, short_name, help, false, false, false]
     oren_list_push(cmd["options"], opt)
     return nil
 }
@@ -146,7 +189,20 @@ fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     if kind == "string" { kind_code = 2 }
     if kind == "int" { kind_code = 3 }
     if kind_code == nil { kind_code = 2 }
-    var opt = [kind_code, long_name, short_name, help, default_value]
+    // [kind, long, short, help, default, required, multiple]
+    var opt = [kind_code, long_name, short_name, help, default_value, false, false]
+    oren_list_push(cmd["options"], opt)
+    return nil
+}
+
+fn cmd_option_multi(cmd, long_name, short_name, kind, help) {
+    // Repeatable option; collects values into a list.
+    // Default is [].
+    var kind_code = nil
+    if kind == "string" { kind_code = 2 }
+    if kind == "int" { kind_code = 3 }
+    if kind_code == nil { kind_code = 2 }
+    var opt = [kind_code, long_name, short_name, help, [], false, true]
     oren_list_push(cmd["options"], opt)
     return nil
 }
@@ -179,10 +235,15 @@ fn _find_opt(cmd, tok) {
 fn _opts_defaults(cmd) {
     var m = {}
     for o in cmd["options"] {
-        var key = o[1]
-        // Normalize key to strip leading '--' for storage.
-        if _starts_with(key, "--") { key = oren_string_slice(key, 2, oren_string_len(key)) }
-        m[key] = o[4]
+        var key = _normalize_key(o[1])
+        var defv = o[4]
+        // If marked repeatable, ensure default is a list.
+        var multiple = false
+        if oren_list_len(o) >= 7 { multiple = o[6] }
+        if multiple {
+            defv = []
+        }
+        m[key] = defv
     }
     return m
 }
@@ -271,6 +332,210 @@ fn render_help(p, cmd_name) {
     return out
 }
 
+fn _tokenize_short(tok) {
+    // Classify a non-long token starting with '-' (but not '--').
+    // Returns:
+    // - {"kind":"short", "flag":"-o", "tail":""} for "-o" or "-ovalue"
+    // - {"kind":"chain", "flags":["-a","-b","-c"]} for "-abc"
+    // - {"kind":"invalid"} for "-" (just dash)
+    if tok == nil { return {"kind": "invalid"} }
+    if !_starts_with(tok, "-") { return {"kind": "invalid"} }
+    if _starts_with(tok, "--") { return {"kind": "invalid"} }
+    if oren_string_len(tok) == 1 { return {"kind": "invalid"} } // "-"
+
+    // First short flag is always tok[0:2].
+    var flag = oren_string_slice(tok, 0, 2)
+    var tail = ""
+    if oren_string_len(tok) > 2 { tail = oren_string_slice(tok, 2, oren_string_len(tok)) }
+    return {"kind": "short", "flag": flag, "tail": tail}
+}
+
+fn _set_opt_value(res, key, opt, value) {
+    // Stores option value into res["opts"] and tracks seen-ness.
+    // Repeatable options collect values into a list.
+    if res["seen"] == nil { res["seen"] = {} }
+    res["seen"][key] = true
+
+    var multiple = false
+    if opt != nil && oren_list_len(opt) >= 7 { multiple = opt[6] }
+    if multiple {
+        var cur = res["opts"][key]
+        // Repeatable options always store a list (defaults ensure list-typed storage).
+        if cur == nil { cur = [] }
+        oren_list_push(cur, value)
+        res["opts"][key] = cur
+        return nil
+    }
+    res["opts"][key] = value
+    return nil
+}
+
+fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
+    // Parses argv[i] as an option token for cmd; mutates res and returns:
+    // {"ok":true, "next_i": <int>} or {"ok":false, "res": <res>}
+    var tok = argv[i]
+
+    // Long form: --opt or --opt=value
+    if _starts_with(tok, "--") {
+        var flag = tok
+        var value_inline = nil
+        if _contains(tok, "=") {
+            var parts = _split_once(tok, "=")
+            flag = parts[0]
+            value_inline = parts[1]
+        }
+
+        var opt = _find_opt(cmd, flag)
+        if opt == nil {
+            res["err"] = "unknown option: " + tok
+            res["help"] = render_help(p, cmd_name)
+            return {"ok": false, "res": res}
+        }
+
+        var key = _normalize_key(opt[1])
+        var kind = opt[0]
+        var is_value_opt = (kind == 2 || kind == 3)
+
+        if !is_value_opt {
+            _set_opt_value(res, key, opt, true)
+            if _streq(key, "help") {
+                res["ok"] = false
+                res["code"] = 0
+                res["help"] = render_help(p, cmd_name)
+                res["err"] = nil
+                return {"ok": false, "res": res}
+            }
+            return {"ok": true, "next_i": i + 1}
+        }
+
+        var val = value_inline
+        var next_i = i + 1
+        if val == nil {
+            if i + 1 >= oren_list_len(argv) {
+                res["err"] = "Missing value for " + flag
+                res["help"] = render_help(p, cmd_name)
+                return {"ok": false, "res": res}
+            }
+            val = argv[i + 1]
+            next_i = i + 2
+        }
+
+        if kind == 2 {
+            _set_opt_value(res, key, opt, val)
+        } else {
+            var n = _to_int(val)
+            if n == nil {
+                res["err"] = "invalid int for " + flag + ": " + val
+                res["help"] = render_help(p, cmd_name)
+                return {"ok": false, "res": res}
+            }
+            _set_opt_value(res, key, opt, n)
+        }
+        return {"ok": true, "next_i": next_i}
+    }
+
+    // Short form: -o, -o=value, -ovalue, -abc
+    var tok_short = tok
+    if _contains(tok_short, "=") {
+        var partsS = _split_once(tok_short, "=")
+        tok_short = partsS[0] + partsS[1]
+    }
+
+    var t = _tokenize_short(tok_short)
+    if t["kind"] != "short" {
+        res["err"] = "unknown option: " + tok
+        res["help"] = render_help(p, cmd_name)
+        return {"ok": false, "res": res}
+    }
+
+    var flag0 = t["flag"]
+    var tail = t["tail"]
+
+    var opt0 = _find_opt(cmd, flag0)
+    if opt0 == nil {
+        res["err"] = "unknown option: " + flag0
+        res["help"] = render_help(p, cmd_name)
+        return {"ok": false, "res": res}
+    }
+
+    var key0 = _normalize_key(opt0[1])
+    var kind0 = opt0[0]
+    var is_value0 = (kind0 == 2 || kind0 == 3)
+
+    if is_value0 {
+        var val0 = nil
+        var next_i0 = i + 1
+        if tail != nil && tail != "" {
+            val0 = tail
+        } else {
+            if i + 1 >= oren_list_len(argv) {
+                res["err"] = "Missing value for " + flag0
+                res["help"] = render_help(p, cmd_name)
+                return {"ok": false, "res": res}
+            }
+            val0 = argv[i + 1]
+            next_i0 = i + 2
+        }
+        if kind0 == 2 {
+            _set_opt_value(res, key0, opt0, val0)
+        } else {
+            var n0 = _to_int(val0)
+            if n0 == nil {
+                res["err"] = "invalid int for " + flag0 + ": " + val0
+                res["help"] = render_help(p, cmd_name)
+                return {"ok": false, "res": res}
+            }
+            _set_opt_value(res, key0, opt0, n0)
+        }
+        return {"ok": true, "next_i": next_i0}
+    }
+
+    // Bool flags: allow -abc chaining (tail is remaining letters).
+    _set_opt_value(res, key0, opt0, true)
+    if _streq(key0, "help") {
+        res["ok"] = false
+        res["code"] = 0
+        res["help"] = render_help(p, cmd_name)
+        res["err"] = nil
+        return {"ok": false, "res": res}
+    }
+
+    if tail == nil || tail == "" {
+        return {"ok": true, "next_i": i + 1}
+    }
+
+    // Chain remaining chars.
+    var ci = 0
+    while ci < oren_string_len(tail) {
+        var ch = oren_string_slice(tail, ci, ci + 1)
+        var f = "-" + ch
+        var o = _find_opt(cmd, f)
+        if o == nil {
+            res["err"] = "unknown option: " + f
+            res["help"] = render_help(p, cmd_name)
+            return {"ok": false, "res": res}
+        }
+        var k = _normalize_key(o[1])
+        var kk = o[0]
+        if kk == 2 || kk == 3 {
+            res["err"] = "option requires a value: " + f
+            res["help"] = render_help(p, cmd_name)
+            return {"ok": false, "res": res}
+        }
+        _set_opt_value(res, k, o, true)
+        if _streq(k, "help") {
+            res["ok"] = false
+            res["code"] = 0
+            res["help"] = render_help(p, cmd_name)
+            res["err"] = nil
+            return {"ok": false, "res": res}
+        }
+        ci = ci + 1
+    }
+
+    return {"ok": true, "next_i": i + 1}
+}
+
 fn parse(p, argv) {
     // Returns:
     // {
@@ -279,42 +544,78 @@ fn parse(p, argv) {
     //   "err": string|nil,
     //   "help": string|nil,
     //   "cmd": string|nil,
+    //   "root_opts": map,
     //   "opts": map,
+    //   "seen": map,        // which opts were explicitly set
     //   "pos": list,
     //   "rest": list
     // }
 
-    var res = { "ok": false, "code": 2, "err": nil, "help": nil, "cmd": nil, "opts": {}, "pos": [], "rest": [] }
+    var res = { "ok": false, "code": 2, "err": nil, "help": nil, "cmd": nil, "root_opts": {}, "opts": {}, "seen": {}, "pos": [], "rest": [] }
     if argv == nil { argv = [] }
 
-    // Determine mode: command-based or root-based.
-    // If there are commands and the first token is a known command name, use it.
-    // Otherwise parse as root.
-    var cmd = p["root"]
+    // Read settings (default to click-style).
+    var allow_opts_before_cmd = true
+    var allow_interspersed = true
+    if p != nil && p["settings"] != nil {
+        if p["settings"]["allow_opts_before_cmd"] == false { allow_opts_before_cmd = false }
+        if p["settings"]["allow_interspersed_args"] == false { allow_interspersed = false }
+    }
+
+    // Root parsing phase (global options + command selection).
+    var root_cmd = p["root"]
+    res["root_opts"] = _opts_defaults(root_cmd)
+    // During root parsing, write option values into root_opts (click-style global options).
+    res["opts"] = res["root_opts"]
+
+    var cmd = root_cmd
     var cmd_name = ""
     var i = 0
 
-    if oren_list_len(argv) > 0 {
-        var first = argv[0]
-        var maybe_cmd = _find_cmd(p, first)
-        if maybe_cmd != nil {
-            cmd = maybe_cmd
-            cmd_name = first
-            i = 1
-        } else {
-            cmd = p["root"]
-            cmd_name = ""
-            i = 0
+    while i < oren_list_len(argv) {
+        var tok0 = argv[i]
+        if _streq(tok0, "--") {
+            // End of option parsing on root; remaining tokens are treated as root args (no command).
+            i = i + 1
+            break
         }
+
+        if allow_opts_before_cmd && _starts_with(tok0, "-") {
+            // Parse a root option token.
+            var parsed0 = _parse_one_option(root_cmd, p, "", argv, i, res)
+            if parsed0["ok"] != true { return parsed0["res"] }
+            i = parsed0["next_i"]
+            continue
+        }
+
+        // Non-option token: either a command or a root positional.
+        var maybe_cmd0 = _find_cmd(p, tok0)
+        if maybe_cmd0 != nil {
+            cmd = maybe_cmd0
+            cmd_name = tok0
+            i = i + 1
+            break
+        }
+
+        // If there are commands, this is an unknown command.
+        if p != nil && p["commands"] != nil && oren_list_len(p["commands"]) > 0 {
+            res["err"] = "unknown command: " + tok0
+            res["help"] = render_help(p, nil)
+            return res
+        }
+
+        // No commands defined => treat as root positional.
+        break
     }
 
     res["cmd"] = cmd_name
     res["opts"] = _opts_defaults(cmd)
 
-    // Parse options
+    // Command args parsing phase.
     var pos = []
     var rest = []
     var stop_opts = false
+
     while i < oren_list_len(argv) {
         var tok = argv[i]
         if stop_opts != true && _streq(tok, "--") {
@@ -324,81 +625,20 @@ fn parse(p, argv) {
         }
 
         if stop_opts != true && _starts_with(tok, "-") {
-            // Handle --opt=value
-            var flag = tok
-            var value_inline = nil
-            if _starts_with(tok, "--") && _contains(tok, "=") {
-                var parts = _split_once(tok, "=")
-                flag = parts[0]
-                value_inline = parts[1]
-            }
-
-            var opt = _find_opt(cmd, flag)
-            if opt == nil {
-                res["err"] = "unknown option: " + tok
-                res["help"] = render_help(p, cmd_name)
-                return res
-            }
-
-            // Normalize key (strip leading --)
-            var key = opt[1]
-            if _starts_with(key, "--") { key = oren_string_slice(key, 2, oren_string_len(key)) }
-
-            // Robustness rule:
-            // - kind 2/3 => expects a value (string/int)
-            // - anything else => treat as a bool flag (value-less)
-            var kind = opt[0]
-            var is_value_opt = false
-            if kind == 2 { is_value_opt = true }
-            if kind == 3 { is_value_opt = true }
-
-            if !is_value_opt {
-                res["opts"][key] = true
-                // `--help` is handled as a successful early-exit.
-                if _streq(key, "help") {
-                    res["ok"] = false
-                    res["code"] = 0
-                    res["help"] = render_help(p, cmd_name)
-                    res["err"] = nil
-                    return res
-                }
+            // In non-interspersed mode, once we have positionals, stop parsing options.
+            if allow_interspersed == false && oren_list_len(pos) > 0 {
+                oren_list_push(pos, tok)
                 i = i + 1
-            } else {
-                var val = value_inline
-                if val == nil {
-                    if i + 1 >= oren_list_len(argv) {
-                        res["err"] = "missing value for: " + flag
-                        res["help"] = render_help(p, cmd_name)
-                        return res
-                    }
-                    val = argv[i + 1]
-                    i = i + 2
-                } else {
-                    i = i + 1
-                }
-
-                if kind == 2 {
-                    res["opts"][key] = val
-                } else {
-                    if kind == 3 {
-                        var n = _to_int(val)
-                        if n == nil {
-                            res["err"] = "invalid int for " + flag + ": " + val
-                            res["help"] = render_help(p, cmd_name)
-                            return res
-                        }
-                        res["opts"][key] = n
-                    } else {
-                        res["err"] = "unsupported option kind for: " + flag
-                        res["help"] = render_help(p, cmd_name)
-                        return res
-                    }
-                }
+                continue
             }
+
+            var parsed = _parse_one_option(cmd, p, cmd_name, argv, i, res)
+            if parsed["ok"] != true { return parsed["res"] }
+            i = parsed["next_i"]
             continue
         }
 
-        // Positional or rest
+        // Positional or rest.
         if stop_opts {
             oren_list_push(rest, tok)
         } else {
@@ -407,11 +647,21 @@ fn parse(p, argv) {
         i = i + 1
     }
 
-    // Validate positionals
+    // Validate positionals (required + max count).
     var required = 0
     for ps in cmd["positionals"] { if ps[1] { required = required + 1 } }
     if oren_list_len(pos) < required {
         res["err"] = "missing required args"
+        res["help"] = render_help(p, cmd_name)
+        return res
+    }
+    if oren_list_len(cmd["positionals"]) > 0 && oren_list_len(pos) > oren_list_len(cmd["positionals"]) {
+        res["err"] = "too many args"
+        res["help"] = render_help(p, cmd_name)
+        return res
+    }
+    if oren_list_len(cmd["positionals"]) == 0 && cmd_name != "" && oren_list_len(pos) > 0 {
+        res["err"] = "unexpected args"
         res["help"] = render_help(p, cmd_name)
         return res
     }

@@ -18,6 +18,12 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: large `.oren` and C runtime hotspots are split into include-chunks/modules; `oretest` enforces 2000-line caps and include-chunk coherence for `// @include` roots.
    - Next: keep new refactors chunk-safe (top-level boundaries only) so files stay reviewable without context overflow.
 
+3) **Compiler CLI + argparse modernization (click-style)** (M)
+   - Status: upgraded `lib/std/argparse.oren` to support `--opt=value`, `-abc` chained short flags, `-ovalue` short-value forms, interspersed options/positionals, and global options before subcommand.
+   - Status: compiler driver now uses argparse to normalize argv, so the legacy driver logic accepts modern forms like `oren build --backend=native --out=... file.oren` without breaking existing `file first` invocations.
+   - Status: added oretest regression to ensure equals-form flags + options-before-file keep working.
+   - Next: remove the remaining legacy manual parsing in the compiler driver and dispatch directly from argparse results (less duplication, fewer edge cases).
+
 ### P1 (Soon)
 
 1) **SIMD intrinsic tail + microkernel correctness** (M)
@@ -52,6 +58,10 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: updated `docs/LANGUAGE_SPEC.md` EBNF to include `for <name>[:Type] in <expr> { ... }` iterator sugar (matches the parser implementation).
    - Status: updated `docs/LANGUAGE_MANUAL.md` examples to avoid legacy `if (...)` statement form.
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
+
+5) **HPC perf harness + linalg/math maturation** (M)
+   - Status: initial matmul f32 benchmark harness exists under `tools/bench/` and now uses modern CLI forms.
+   - DoD: expand bench coverage (dot/axpy/gemm variants), add result reporting, and validate SIMD kernels against a scalar reference for correctness + determinism.
 
 ### Notes
 

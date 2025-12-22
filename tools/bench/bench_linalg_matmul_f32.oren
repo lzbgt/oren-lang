@@ -1,0 +1,60 @@
+// Benchmark: std/linalg matmul_f32_buf_into
+//
+// This is intentionally deterministic (no RNG dependency) so regressions are comparable.
+// Use `time.mono_raw()` (compare-only clock; units may be platform-dependent).
+
+import time "../../lib/std/time.oren"
+import linalg "../../lib/std/linalg.oren"
+
+fn fill_f32(buf: []f32, seed0) {
+    // Simple LCG-ish deterministic fill.
+    // Values are kept small to avoid overflow/Inf and keep determinism stable.
+    var n = oren_buf_len(buf)
+    var s = seed0
+    var i = 0
+    while i < n {
+        // LCG: s = (a*s + c) mod 2^31-ish
+        s = int_mod(s * 1664525 + 1013904223, 2147483647)
+        var v = f32(int_mod(s, 1024)) / 1024.0
+        oren_buf_store_f32(buf, i, v)
+        i = i + 1
+    }
+    return nil
+}
+
+fn main() {
+    // Default sizes: moderate GEMM that should exercise SIMD kernels without taking forever.
+    var m = 256
+    var n = 256
+    var p = 256
+    var reps = 3
+
+    var a = oren_f32_buf_new(m * n)
+    var b = oren_f32_buf_new(n * p)
+    var out = oren_f32_buf_new(m * p)
+
+    fill_f32(a, 1)
+    fill_f32(b, 2)
+
+    // Warmup.
+    linalg.matmul_f32_buf_into(out, a, b, m, n, p)
+
+    var t0 = time.mono_raw()
+    var r = 0
+    while r < reps {
+        linalg.matmul_f32_buf_into(out, a, b, m, n, p)
+        r = r + 1
+    }
+    var t1 = time.mono_raw()
+    var dt = t1 - t0
+
+    // Prevent dead-code elimination by computing a checksum.
+    var sum = oren_buf_reduce_sum_f32(out)
+
+    print("bench linalg.matmul_f32_buf_into m=" + oren_int_to_string(m) + " n=" + oren_int_to_string(n) + " p=" + oren_int_to_string(p))
+    print("reps=" + oren_int_to_string(reps) + " mono_raw_delta=" + oren_int_to_string(dt) + " checksum=" + oren_int_to_string(i64(sum)))
+    exit(0)
+}
+
+main()
+

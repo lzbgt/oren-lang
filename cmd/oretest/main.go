@@ -719,6 +719,19 @@ func main() {
 			cleanup: []string{"build/unknown_backend"},
 		},
 		{
+			name: "build_cli_modern_equals_and_ordering",
+			cmd: fmt.Sprintf(
+				"./oren build --backend=native --target=%s --out=%q %q%s",
+				*target,
+				"build/cli_modern_eq",
+				"tests/native/fixtures/struct_field_assign_ok.oren",
+				gcArg,
+			),
+			log:     "build/logs/build_cli_modern_equals_and_ordering.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/cli_modern_eq"},
+		},
+		{
 			name: "dump_tokens_missing_file_diag",
 			cmd: fmt.Sprintf(
 				"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",

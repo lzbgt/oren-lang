@@ -1,34 +1,190 @@
-fn compiler_main() {
-    var args = oren_args()
-    var argc = oren_list_len(args)
-    if argc < 2 { usage(); return nil }
+fn _cli_seen(seen, key) {
+    if seen == nil { return false }
+    if key == nil { return false }
+    return seen[key] == true
+}
 
-    // Help behavior (rolling):
-    // - `oren --help` / `oren -h` shows root help.
-    // - `oren <cmd> --help` / `oren <cmd> -h` shows command-specific help.
-    //
-    // NOTE: We keep the existing manual CLI parsing below (rolling, no huge rewrite),
-    // but we should not let a global help scan swallow subcommand help.
-    var first_cmd = args[1]
-    if first_cmd == "build" || first_cmd == "emit-c" || first_cmd == "meta" || first_cmd == "scan" || first_cmd == "dump" {
-        var hi_cmd = 2
-        while hi_cmd < argc {
-            if args[hi_cmd] == "--help" || args[hi_cmd] == "-h" {
-                usage_cmd(first_cmd)
-                return nil
-            }
-            hi_cmd = hi_cmd + 1
+fn _cli_push_flag(out, seen, name, key) {
+    if key == nil { key = name }
+    if _cli_seen(seen, key) { oren_list_push(out, name) }
+    return nil
+}
+
+fn _cli_push_kv(out, seen, name, key, val) {
+    if key == nil { key = name }
+    if _cli_seen(seen, key) {
+        if val == nil { val = "" }
+        oren_list_push(out, name)
+        oren_list_push(out, val)
+    }
+    return nil
+}
+
+fn _cli_push_multi(out, seen, name, key, vals) {
+    if key == nil { key = name }
+    if _cli_seen(seen, key) {
+        if vals == nil { vals = [] }
+        var mi = 0
+        while mi < oren_list_len(vals) {
+            oren_list_push(out, name)
+            oren_list_push(out, vals[mi])
+            mi = mi + 1
+        }
+    }
+    return nil
+}
+
+fn compiler_main() {
+    // Modern CLI parsing (click-style):
+    // - supports `--opt=value` and interspersed options/args
+    // - allows options before the positional file (`oren build --backend=native file.oren`)
+    // - still feeds the legacy driver logic below via a normalized argv
+    var raw_args = oren_args()
+    if raw_args == nil { usage(); return nil }
+    var raw_argc = oren_list_len(raw_args)
+    if raw_argc < 2 { usage(); return nil }
+
+    var dbg_args = oren_env("OREN_DEBUG_ARGS")
+    if dbg_args != nil {
+        var di0 = 0
+        while di0 < raw_argc {
+            print("RAW_ARG[" + oren_int_to_string(di0) + "] = " + raw_args[di0])
+            di0 = di0 + 1
         }
     }
 
-    // Root help (no subcommand).
-    var hi = 1
-    while hi < argc {
-        if args[hi] == "--help" || args[hi] == "-h" {
-            usage()
-            return nil
+    // argv excludes the program name.
+    var argv = []
+    var ai = 1
+    while ai < raw_argc {
+        oren_list_push(argv, raw_args[ai])
+        ai = ai + 1
+    }
+
+    // Rolling legacy alias: `oren --emit-c <file>` is treated as `oren emit-c <file>`.
+    if oren_list_len(argv) > 0 && argv[0] == "--emit-c" {
+        var argv2 = ["emit-c"]
+        var j = 1
+        while j < oren_list_len(argv) {
+            oren_list_push(argv2, argv[j])
+            j = j + 1
         }
-        hi = hi + 1
+        argv = argv2
+    }
+
+    var cli = cli_spec()
+    var parsed = argparse.parse(cli, argv)
+    if parsed["help"] != nil && parsed["code"] == 0 {
+        print(parsed["help"])
+        return nil
+    }
+    if parsed["ok"] != true {
+        var emsg = parsed["err"]
+        if emsg != nil {
+            emit_diag("compile", 2, emsg)
+            print(emsg)
+        }
+        if parsed["help"] != nil { print(parsed["help"]) }
+        oren_exit(parsed["code"])
+    }
+    if parsed["cmd"] == nil || parsed["cmd"] == "" {
+        usage()
+        return nil
+    }
+
+    // Normalize argv into the legacy shape the driver below expects:
+    //   oren <cmd> <required positionals...> <options...>
+    var cmd_name = parsed["cmd"]
+    var pos = parsed["pos"]
+    var opts = parsed["opts"]
+    var seen = parsed["seen"]
+
+    var args = ["oren", cmd_name]
+
+    if cmd_name == "build" || cmd_name == "emit-c" || cmd_name == "meta" || cmd_name == "scan" {
+        // One required positional.
+        oren_list_push(args, pos[0])
+    } else {
+        if cmd_name == "dump" {
+            // Two required positionals.
+            oren_list_push(args, pos[0])
+            oren_list_push(args, pos[1])
+        } else {
+            // Should not happen: argparse parse() already validated commands.
+            emit_diag("compile", 2, "unknown command: " + cmd_name)
+            print("unknown command: " + cmd_name)
+            oren_exit(2)
+        }
+    }
+
+    if cmd_name == "build" {
+        _cli_push_kv(args, seen, "--backend", "backend", opts["backend"])
+        _cli_push_kv(args, seen, "-o", "out", opts["out"])
+        _cli_push_flag(args, seen, "--emit-c", "emit-c")
+        _cli_push_kv(args, seen, "--cc", "cc", opts["cc"])
+        _cli_push_kv(args, seen, "--target", "target", opts["target"])
+        _cli_push_kv(args, seen, "--arch", "arch", opts["arch"])
+        _cli_push_flag(args, seen, "--disasm", "disasm")
+        _cli_push_flag(args, seen, "--debug", "debug")
+        // Canonicalize `--shared`/`--lib` into `--lib` for legacy driver.
+        if _cli_seen(seen, "lib") || _cli_seen(seen, "shared") { oren_list_push(args, "--lib") }
+        _cli_push_multi(args, seen, "--link", "link", opts["link"])
+        _cli_push_flag(args, seen, "--metadata", "metadata")
+        _cli_push_flag(args, seen, "--analyze", "analyze")
+        _cli_push_flag(args, seen, "--typecheck", "typecheck")
+        _cli_push_flag(args, seen, "--python", "python")
+        _cli_push_flag(args, seen, "--strict-attrs", "strict-attrs")
+        _cli_push_kv(args, seen, "--attr-allow-prefixes", "attr-allow-prefixes", opts["attr-allow-prefixes"])
+        _cli_push_flag(args, seen, "--capsule", "capsule")
+        _cli_push_kv(args, seen, "--cap-allow-domains", "cap-allow-domains", opts["cap-allow-domains"])
+        _cli_push_kv(args, seen, "--codesign", "codesign", opts["codesign"])
+        _cli_push_flag(args, seen, "--notarize", "notarize")
+        _cli_push_kv(args, seen, "--notary-profile", "notary-profile", opts["notary-profile"])
+        _cli_push_flag(args, seen, "--no-gc", "no-gc")
+        _cli_push_flag(args, seen, "--deterministic", "deterministic")
+        _cli_push_flag(args, seen, "--manifest", "manifest")
+    } else {
+        if cmd_name == "emit-c" {
+            // Alias for: build --backend c --emit-c
+            _cli_push_kv(args, seen, "-o", "out", opts["out"])
+            _cli_push_kv(args, seen, "--cc", "cc", opts["cc"])
+            _cli_push_flag(args, seen, "--python", "python")
+            _cli_push_flag(args, seen, "--analyze", "analyze")
+            _cli_push_flag(args, seen, "--typecheck", "typecheck")
+            _cli_push_flag(args, seen, "--strict-attrs", "strict-attrs")
+            _cli_push_kv(args, seen, "--attr-allow-prefixes", "attr-allow-prefixes", opts["attr-allow-prefixes"])
+            _cli_push_flag(args, seen, "--deterministic", "deterministic")
+            _cli_push_flag(args, seen, "--manifest", "manifest")
+        } else {
+            if cmd_name == "meta" {
+                _cli_push_kv(args, seen, "-o", "out", opts["out"])
+                _cli_push_kv(args, seen, "--target", "target", opts["target"])
+                _cli_push_kv(args, seen, "--arch", "arch", opts["arch"])
+                _cli_push_flag(args, seen, "--strict-attrs", "strict-attrs")
+                _cli_push_kv(args, seen, "--attr-allow-prefixes", "attr-allow-prefixes", opts["attr-allow-prefixes"])
+                _cli_push_flag(args, seen, "--deterministic", "deterministic")
+                _cli_push_flag(args, seen, "--manifest", "manifest")
+            } else {
+                if cmd_name == "dump" {
+                    _cli_push_kv(args, seen, "-o", "out", opts["out"])
+                    _cli_push_kv(args, seen, "--target", "target", opts["target"])
+                    _cli_push_kv(args, seen, "--arch", "arch", opts["arch"])
+                    _cli_push_flag(args, seen, "--strict-attrs", "strict-attrs")
+                    _cli_push_kv(args, seen, "--attr-allow-prefixes", "attr-allow-prefixes", opts["attr-allow-prefixes"])
+                } else {
+                    // scan: no options today.
+                }
+            }
+        }
+    }
+
+    var argc = oren_list_len(args)
+    if dbg_args != nil {
+        var di = 0
+        while di < argc {
+            print("ARG[" + oren_int_to_string(di) + "] = " + args[di])
+            di = di + 1
+        }
     }
 
     var mode = "build"
@@ -47,15 +203,6 @@ fn compiler_main() {
                     }
                 }
             }
-        }
-    }
-
-    var dbg_args = oren_env("OREN_DEBUG_ARGS")
-    if dbg_args != nil {
-        var di = 0
-        while di < oren_list_len(args) {
-            print("ARG[" + oren_int_to_string(di) + "] = " + args[di])
-            di = di + 1
         }
     }
 
