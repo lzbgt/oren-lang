@@ -8,6 +8,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
     - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).
     - Status: migrated native `adr_{data,code}` + Mach-O GOT stubs from ADR (±1MB) to ADRP+ADD (±4GB) and added `oretest` audits to enforce 2-slot reservation (compiler fixups + debug hook + Mach-O GOT stubs).
     - Status: expanded golden coverage to include basic atomic encoders (LDAXR/STLXR/CLREX/LDADD/CAS/STRB) with clang-verified constants.
+    - Status: added clang-verified goldens for basic integer loads/stores (LDR/STR X, LDRB W).
     - Next: add more golden cases for pair loads/stores and keep them small/deterministic (use clang/otool to confirm encodings).
 
 2) **Include chunk coherence (overflow-proofing)** (M)

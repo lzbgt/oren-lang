@@ -753,10 +753,16 @@ fn insn_str_q_off(vt, rn, offset) {
 }
 
 fn insn_ldr_ptr(rd, rn) {
+    // LDR Xd, [Xn] with imm = 0 (unsigned offset encoding)
+    // Verified via clang:
+    //   ldr x0, [x1] => 0xF9400020
     return 4181721088 + (rn * 32) + rd
 }
 
 fn insn_str_ptr(rd, rn) {
+    // STR Xt, [Xn] with imm = 0 (unsigned offset encoding)
+    // Verified via clang:
+    //   str x2, [x3] => 0xF9000062
     return 4177526784 + (rn * 32) + rd
 }
 
@@ -837,6 +843,9 @@ fn insn_clrex() {
 }
 
 fn insn_ldrb(rt, rn) {
+    // LDRB Wt, [Xn] with imm = 0 (unsigned offset encoding)
+    // Verified via clang:
+    //   ldrb w4, [x5] => 0x394000A4
     return 960495616 + (rn * 32) + rt
 }
 
