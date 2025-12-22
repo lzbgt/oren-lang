@@ -165,9 +165,15 @@ fn read_bin_number(l) {
 
 fn read_oct_number(l) {
     var out = ""
-    while (l["ch"] >= "0" && l["ch"] <= "7") || l["ch"] == "_" {
-        if l["ch"] != "_" { out = out + l["ch"] }
-        read_char(l)
+    while 1 {
+        var ch = l["ch"]
+        var is_oct = ch >= "0" && ch <= "7"
+        if is_oct || ch == "_" {
+            if ch != "_" { out = out + ch }
+            read_char(l)
+        } else {
+            break
+        }
     }
     return out
 }

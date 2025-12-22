@@ -2714,7 +2714,7 @@ func auditStdlibModernStyle() error {
 		pattern     string
 		allowInLine func(trimmedLine string) bool
 	}
-	rules := []rule{
+		rules := []rule{
 		{
 			name:    "no string_concat in stdlib (prefer `+`)",
 			pattern: "string_concat(",
@@ -2897,6 +2897,21 @@ func auditRepoModernStyle() error {
 			pattern: "else if(",
 			allowInLine: func(trimmedLine string) bool {
 				return !strings.HasPrefix(trimmedLine, "else if(") && !strings.HasPrefix(trimmedLine, "} else if(")
+			},
+		},
+		{
+			// Rolling syntax modernization: prefer `while cond { ... }` over legacy `while (cond) { ... }`.
+			name:    "no legacy while (...) condition parentheses",
+			pattern: "while (",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "while (")
+			},
+		},
+		{
+			name:    "no legacy while(...) condition parentheses",
+			pattern: "while(",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "while(")
 			},
 		},
 		{
