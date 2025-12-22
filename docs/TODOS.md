@@ -35,9 +35,11 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 1) **SIMD intrinsic tail + microkernel correctness** (M)
    - Status: intrinsic-level tail determinism tests added for `simd_dot_f32_ptr`, `simd_dot_f32_4_ptr`, and `simd_gemm_f32_4x4_ptr`; runtime now uses the single-pass microkernels.
    - Status: added NaN/Inf edge-case coverage for `simd_dot_f32_ptr` (native) ensuring Inf stays Inf (bit-stable) and NaN propagates as NaN (checked by NaN-ness, not payload).
+   - Status: added NaN/Inf edge-case coverage for `simd_dot_f32_4_ptr` (native) to ensure lane-local Inf and NaN propagate deterministically.
    - Status: added large-`n` intrinsic determinism coverage for `simd_dot_f32_ptr` (`n=4097`) to exercise long accumulation paths + tail handling.
    - Status: added large-`n` intrinsic determinism coverage for `simd_dot_f32_4_ptr` (`n=4097`) to exercise multi-output dot paths + tail handling.
    - Status: added large-`n` intrinsic determinism coverage for `simd_gemm_f32_4x4_ptr` (`n=1025`) to exercise long 4x4 GEMM accumulation paths + tail handling.
+   - Status: added NaN/Inf edge-case coverage for `simd_gemm_f32_4x4_ptr` (native) to ensure per-row NaN propagation and Inf stability are deterministic.
    - DoD: broaden coverage (NaN/Inf/sign-bit edge cases, large `n`) and keep macOS+Linux parity for these intrinsics.
 
 2) **ARM64 instruction encoder audit** (S)
