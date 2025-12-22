@@ -778,12 +778,31 @@ fn test_net_loopback_minimal() {
     // Timeout correctness guard: UDP recv should not hang when no datagrams arrive.
     var ufd = oren_udp_bind_local(0)
     if ufd < 0 { fail(808) }
+    var uport = oren_udp_sockname_port(ufd)
+    if uport < 1 { fail(808) }
     var ub = malloc(1)
     if ub == 0 { fail(808) }
     var urn = oren_udp_recvfrom_into(ufd, ub, 1, 10)
     free(ub)
-    oren_udp_close(ufd)
     if urn != 0 - 60 { fail(808) }
+
+    // UDP loopback (sendto/recvfrom) correctness guard.
+    var sfd = oren_udp_bind_local(0)
+    if sfd < 0 { fail(808) }
+    var sb = malloc(1)
+    if sb == 0 { fail(808) }
+    ptr_set_byte(sb, 90) // 'Z'
+    var uwn = oren_udp_sendto(sfd, "127.0.0.1", uport, sb, 1, 2000)
+    free(sb)
+    if uwn != 1 { fail(808) }
+    var rb = malloc(1)
+    if rb == 0 { fail(808) }
+    var urn2 = oren_udp_recvfrom_into(ufd, rb, 1, 2000)
+    if urn2 != 1 { fail(808) }
+    if ptr_get_byte(rb) != 90 { fail(808) }
+    free(rb)
+    oren_udp_close(sfd)
+    oren_udp_close(ufd)
 
     var pbuf2 = malloc(8)
     if pbuf2 == 0 { fail(810) }
