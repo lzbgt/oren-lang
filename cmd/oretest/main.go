@@ -2997,6 +2997,21 @@ func auditRepoModernStyle() error {
 			if rerr != nil {
 				return rerr
 			}
+			// Size guard: keep `.oren` sources reviewable without context overflow.
+			// This is enforced repo-wide in rolling mode: split large files into modules.
+			//
+			// Note: keep this simple and deterministic; count '\n' as line separators.
+			if len(b) > 0 {
+				lines := 1
+				for _, ch := range b {
+					if ch == '\n' {
+						lines++
+					}
+				}
+				if lines > 2000 {
+					offenders = append(offenders, fmt.Sprintf("%s:1: file too large (%d lines > 2000); split into modules", path, lines))
+				}
+			}
 			lines := strings.Split(string(b), "\n")
 			for i, line := range lines {
 				trim := strings.TrimSpace(line)
