@@ -27,6 +27,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 6) **Include chunk coherence** (M)
    - Status: fixed one major boundary (`simd_dot_f32_4_ptr` lowering now starts in `040_lowering_d.oren` rather than splitting the `if` header across files).
+   - Status: fixed another boundary in compiler driver includes (moved `load_module` to live wholly in `020_modules_linking.oren`, and moved `_unit_prefix_from_function_name` wholly into `030_commands_dump_meta_scan.oren`).
    - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
 
 ### Notes

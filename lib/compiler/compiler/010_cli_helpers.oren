@@ -386,35 +386,3 @@ fn resolve_path(base, path) {
     if oren_string_len(path) > 0 && oren_string_char_at(path, 0) == "/" { return path_norm(path) }
     return path_norm(base + "/" + path)
 }
-
-fn load_module(base, path) {
-    var full = resolve_path(base, path)
-    if MODULES[full] != nil {
-        return MODULES[full]
-    }
-
-    if oren_env("OREN_TRACE_PASSES") != nil {
-        print("[trace] load_module: " + full)
-    }
-    
-    // Cycle check
-    var k = 0
-    while k < oren_list_len(MODULE_STACK) {
-        if MODULE_STACK[k] == full {
-            print("Cyclic import detected: " + full)
-            oren_exit(1)
-        }
-        k = k + 1
-    }
-    oren_list_push(MODULE_STACK, full)
-
-    var src = expand_includes_file(full, [])
-    if src == nil {
-        print("Failed to read file: " + full)
-        var msg = include_last_err()
-        if msg != nil { print(msg) }
-        oren_exit(1)
-    }
-    var l = lexer.new_lexer(src)
-    l["file"] = full
-    var p = parser.new_parser(l)

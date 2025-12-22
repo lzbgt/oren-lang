@@ -1,7 +1,38 @@
+fn load_module(base, path) {
+    var full = resolve_path(base, path)
+    if MODULES[full] != nil {
+        return MODULES[full]
+    }
+
+    if oren_env("OREN_TRACE_PASSES") != nil {
+        print("[trace] load_module: " + full)
+    }
+
+    // Cycle check
+    var k = 0
+    while k < oren_list_len(MODULE_STACK) {
+        if MODULE_STACK[k] == full {
+            print("Cyclic import detected: " + full)
+            oren_exit(1)
+        }
+        k = k + 1
+    }
+    oren_list_push(MODULE_STACK, full)
+
+    var src = expand_includes_file(full, [])
+    if src == nil {
+        print("Failed to read file: " + full)
+        var msg = include_last_err()
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
+    var l = lexer.new_lexer(src)
+    l["file"] = full
+    var p = parser.new_parser(l)
     p["strict_attrs"] = STRICT_ATTRS
     p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
     var prog = parser.parse_program(p)
-    
+
     if oren_list_len(p["errors"]) > 0 {
         print("Parse errors in " + full + ":")
         var i = 0
@@ -40,7 +71,6 @@
     // For now let's assume we copy `collect_toplevel_rename_pairs` etc.
     // Or better, put them in `analysis.oren` or a new `modules.oren`.
     // Let's put module logic in `compiler.oren` for now as it orchestrates loading.
-    
     var pairs = renamer.collect_toplevel_rename_pairs(prog, mod["prefix"])
     i = 0
     while i < oren_list_len(prog["statements"]) {
@@ -100,7 +130,7 @@
         si = si + 1
     }
     MODULE_STACK = new_stack
-    
+
     return mod
 }
 
@@ -409,12 +439,3 @@ fn link_program(entry_path, root_prog, config) {
     if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
     return linked
 }
-
-fn _unit_prefix_from_function_name(name) {
-    // Functions from imported modules are prefixed as `M<N>_foo` (e.g. `M12_len`).
-    // Root functions are unprefixed.
-    if name == nil || name == "" { return "root" }
-    if oren_string_len(name) < 3 { return "root" }
-    if oren_string_char_at(name, 0) != "M" { return "root" }
-    var i = 1
-    while i < oren_string_len(name) {
