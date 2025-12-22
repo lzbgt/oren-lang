@@ -1,25 +1,3 @@
-                            if recv_type != nil {
-                                var qm = impl_trait_method_lookup(p, tname_left, recv_type, method)
-                                // v0 parsing is module-local; other modules can provide impls.
-                                // Only rewrite when a unique target is known.
-                                // Whole-program coherence and missing-impl errors are enforced in the linker lowering pass.
-                                if qm != nil && qm != "__AMBIG__" {
-                                    fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, qm))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    var c = ast.new_call(tok, fn_expr, args)
-    if spread != nil {
-        c["spread"] = spread
-    }
-    return c
-}
 
 fn parse_call_args(p) {
     var args = []

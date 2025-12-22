@@ -1,3 +1,35 @@
+fn parse_match(p) {
+    // match <expr> {
+    //   case Enum.Variant(x,y) { ... }
+    //   case Enum.Other { ... }
+    //   default { ... }
+    // }
+    //
+    // Rolling implementation:
+    // - Works with the current `enum` sugar encoding:
+    //     { "tag": "Enum.Variant", "_0": x, "_1": y, ... }
+    // - Desugars into:
+    //     { var tmp = <expr>; var tag = tmp.tag; if tag == "Enum.Variant" { var x = tmp._0; ... } else ... }
+    var tok = p["cur"]
+    parser_next_token(p)
+    var m_expr = parse_expression(p, LOWEST)
+    if m_expr == nil { return nil }
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+
+    var tmp_name = parser_gensym(p, "@match_")
+    var tmp_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tmp_name), "value": tmp_name}
+    var init_tmp = ast.new_var(token.new_token(token.TOK_LET, "var"), tmp_ident, m_expr)
+
+    var tag_name = parser_gensym(p, "@match_tag_")
+    var tag_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tag_name), "value": tag_name}
+    var mem_tag = ast.new_member(token.new_token(token.TOK_DOT, "."), tmp_ident, ast.new_identifier(token.new_token(token.TOK_IDENT, "tag")))
+    var init_tag = ast.new_var(token.new_token(token.TOK_LET, "var"), tag_ident, mem_tag)
+
+    var cases = []
+    var default_block = nil
+
+    // Enter match body.
+    parser_next_token(p)
     while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
         if cur_is(p, token.TOK_CASE) {
             // case Pattern { ... }
@@ -507,14 +539,3 @@ fn parse_expression(p, prec) {
     return left
 }
 
-fn parse_prefix(p) {
-    var t = p["cur"]["type"]
-    if token.is_ident_like_token(t) { return ast.new_identifier(p["cur"]) }
-    if t == token.TOK_INT { return ast.new_integer(p["cur"]) }
-    if t == token.TOK_FLOAT { return ast.new_float(p["cur"]) }
-    if t == token.TOK_STRING { return ast.new_string(p["cur"]) }
-    if t == token.TOK_TRUE { return ast.new_boolean(p["cur"], true) }
-    if t == token.TOK_FALSE { return ast.new_boolean(p["cur"], false) }
-    if t == token.TOK_NIL { return ast.new_nil(p["cur"]) }
-    if t == token.TOK_BANG {
-        var tok = p["cur"]

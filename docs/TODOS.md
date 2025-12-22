@@ -31,7 +31,9 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: fixed one major boundary (`simd_dot_f32_4_ptr` lowering now starts in `040_lowering_d.oren` rather than splitting the `if` header across files).
    - Status: compiler driver include chunks are now brace-balanced (all of `compiler_main()` consolidated into `040_build_pipeline.oren` so individual include files are coherent in isolation).
    - Status: native runtime typed buffers split further (`lib/runtime_native/200_typed_buffers.oren` now includes smaller parts under `lib/runtime_native/typed_buffers/`) to avoid context overflow.
+   - Status: parser + bytecode backend include chunks are now split on top-level brace boundaries (no more mid-block splits): `lib/compiler/parser_parse/*.oren`, `lib/compiler/codegen_bytecode/*.oren`.
    - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
+   - Next: `lib/compiler/arm64_native_expr/*` and `lib/compiler/arm64_native_expr_syscalls/*` still contain very large single functions; refactor `native_compile_expr` / `native_compile_syscall_call` into helpers first so those include chunks can become coherent without creating >2000-line files.
 
 ### Notes
 

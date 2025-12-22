@@ -1,3 +1,25 @@
+fn bytecode_collect_locals_stmt(ctx, stmt) {
+    if stmt == nil { return nil }
+
+    // Do not descend into nested functions (they have their own locals scope).
+    if stmt["type"] == "Function" { return nil }
+    if stmt["type"] == "ExprStmt" {
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "Function" { return nil }
+        // If is an expression in the AST but can contain blocks with Var statements.
+        // Collect locals declared inside those blocks (Oren has function-scope vars today).
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "If" {
+            bytecode_collect_locals_stmt(ctx, stmt["expr"]["consq"])
+            if stmt["expr"]["alt"] != nil {
+                bytecode_collect_locals_stmt(ctx, stmt["expr"]["alt"])
+            }
+        }
+    }
+
+    if stmt["type"] == "Var" {
+        var name = stmt["name"]["value"]
+        if ctx["locals"][name] == nil {
+            ctx["locals"][name] = ctx["local_count"]
+            ctx["local_count"] = ctx["local_count"] + 1
         }
         return nil
     }

@@ -486,35 +486,3 @@ fn parse_impl_decl(p) {
     return ast.new_stmt_list(out)
 }
 
-fn parse_match(p) {
-    // match <expr> {
-    //   case Enum.Variant(x,y) { ... }
-    //   case Enum.Other { ... }
-    //   default { ... }
-    // }
-    //
-    // Rolling implementation:
-    // - Works with the current `enum` sugar encoding:
-    //     { "tag": "Enum.Variant", "_0": x, "_1": y, ... }
-    // - Desugars into:
-    //     { var tmp = <expr>; var tag = tmp.tag; if tag == "Enum.Variant" { var x = tmp._0; ... } else ... }
-    var tok = p["cur"]
-    parser_next_token(p)
-    var m_expr = parse_expression(p, LOWEST)
-    if m_expr == nil { return nil }
-    if !expect_peek(p, token.TOK_LBRACE) { return nil }
-
-    var tmp_name = parser_gensym(p, "@match_")
-    var tmp_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tmp_name), "value": tmp_name}
-    var init_tmp = ast.new_var(token.new_token(token.TOK_LET, "var"), tmp_ident, m_expr)
-
-    var tag_name = parser_gensym(p, "@match_tag_")
-    var tag_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tag_name), "value": tag_name}
-    var mem_tag = ast.new_member(token.new_token(token.TOK_DOT, "."), tmp_ident, ast.new_identifier(token.new_token(token.TOK_IDENT, "tag")))
-    var init_tag = ast.new_var(token.new_token(token.TOK_LET, "var"), tag_ident, mem_tag)
-
-    var cases = []
-    var default_block = nil
-
-    // Enter match body.
-    parser_next_token(p)

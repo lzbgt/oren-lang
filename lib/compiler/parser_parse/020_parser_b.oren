@@ -1,3 +1,14 @@
+fn parse_prefix(p) {
+    var t = p["cur"]["type"]
+    if token.is_ident_like_token(t) { return ast.new_identifier(p["cur"]) }
+    if t == token.TOK_INT { return ast.new_integer(p["cur"]) }
+    if t == token.TOK_FLOAT { return ast.new_float(p["cur"]) }
+    if t == token.TOK_STRING { return ast.new_string(p["cur"]) }
+    if t == token.TOK_TRUE { return ast.new_boolean(p["cur"], true) }
+    if t == token.TOK_FALSE { return ast.new_boolean(p["cur"], false) }
+    if t == token.TOK_NIL { return ast.new_nil(p["cur"]) }
+    if t == token.TOK_BANG {
+        var tok = p["cur"]
         parser_next_token(p)
         var right = parse_expression(p, PREFIX_P)
         return ast.new_prefix(tok, tok["literal"], right)
@@ -518,3 +529,25 @@ fn parse_call(p, fn_expr) {
                         var recv0 = args[0]
                         if recv0 != nil && recv0["type"] == "Identifier" {
                             var recv_type = type_env_get(p, recv0["value"])
+                            if recv_type != nil {
+                                var qm = impl_trait_method_lookup(p, tname_left, recv_type, method)
+                                // v0 parsing is module-local; other modules can provide impls.
+                                // Only rewrite when a unique target is known.
+                                // Whole-program coherence and missing-impl errors are enforced in the linker lowering pass.
+                                if qm != nil && qm != "__AMBIG__" {
+                                    fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, qm))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    var c = ast.new_call(tok, fn_expr, args)
+    if spread != nil {
+        c["spread"] = spread
+    }
+    return c
+}
