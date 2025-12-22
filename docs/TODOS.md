@@ -5,7 +5,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 ### P0 (Now)
 
 1) **ARM64 instruction encoder audit** (S)
-   - Status: added a native golden-encoding test that asserts key `arm64_core.oren` encoders produce the documented clang-verified constants (LDR/STR/LDRSW, broadcast/moves, basic SIMD ops, widening + pairwise ops).
+   - Status: added a native golden-encoding test that asserts key `arm64_core.oren` encoders produce clang-verified constants (LDR/STR/LDRSW, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR, broadcast/moves, basic SIMD ops, widening + pairwise ops).
    - Next: add more golden cases for the highest-frequency encoders (pair loads/stores, ADRP+ADD addressing, branches) and keep them small/deterministic.
 
 2) **Include chunk coherence (overflow-proofing)** (M)
