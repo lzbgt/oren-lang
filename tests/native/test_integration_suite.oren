@@ -606,7 +606,7 @@ fn test_string_eq_semantics() {
 
     // Common runtime string-producing calls (must compare by content).
     if oren_string_char_at("abc", 0) != "a" { fail(507) }
-    if string_concat("a", "b") != "ab" { fail(508) }
+    if ("a" + "b") != "ab" { fail(508) }
     if oren_realpath("x/./y") != "x/y" { fail(509) }
 
     // Comparing string pointers with nil must be safe (must NOT call strcmp).
