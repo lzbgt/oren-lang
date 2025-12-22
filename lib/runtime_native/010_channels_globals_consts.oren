@@ -188,12 +188,13 @@ fn native_simd_enabled() { return global_get_enable_simd() }
 // gate known-problematic kernels so correctness stays non-negotiable.
 //
 // Status (2025-12-22):
-// - `simd_dot_f32_ptr` is validated by `tests/native/test_simd_suite.oren` and
-//   can stay enabled (bit-exact vs scalar reference).
-// - `simd_dot_f32_4_ptr` / `simd_gemm_f32_4x4_ptr` are still failing for some
-//   fractional f32 vectors. Keep the 1x4 / 4x4 kernels disabled until fixed.
+// - `simd_dot_f32_ptr` is validated by `tests/native/test_simd_suite.oren` for
+//   the vector-sized path; tails are handled in Oren wrapper code for now to
+//   keep bit-exact semantics (fractional + odd-n guardrails).
+// - f32 1x4 / 4x4 higher-level APIs are enabled; the current implementation is
+//   built from tail-safe dot kernels (not the direct f32 4x4 microkernel).
 fn native_simd_f32_dot_enabled() { return 1 }
-fn native_simd_f32_dot4_enabled() { return 0 }
+fn native_simd_f32_dot4_enabled() { return 1 }
 
 fn global_get_capsule_mode() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE)) }
 fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE), v) }
@@ -353,4 +354,3 @@ var OREN_EPOLLOUT = 4
 // Verified via Apple SDK headers for macOS (audit only; not a build dependency).
 var FCNTL_F_DUPFD = 0
 var FCNTL_F_DUPFD_CLOEXEC = 67
-

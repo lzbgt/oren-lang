@@ -876,6 +876,43 @@ fn oren_buf_dot_i32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     return out
 }
 
+fn native_dot_f32_ptr_tail_safe(a_ptr, b_ptr, n): f64 {
+    // Tail-safe wrapper around the `simd_dot_f32_ptr` intrinsic.
+    //
+    // Motivation:
+    // - The intrinsic is validated for `n` divisible by 4 (vector-only path).
+    // - For rolling correctness, we keep tails in Oren scalar code until the
+    //   intrinsic tail path is proven bit-exact for all f32 inputs.
+    //
+    // Semantics:
+    // - widen f32 -> f64, multiply in f64, accumulate in increasing-k order.
+    if n <= 0 { return 0.0 }
+    if n < 4 {
+        var s = 0.0
+        var i = 0
+        while i < n {
+            var a32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(a_ptr + i * 4))
+            var b32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(b_ptr + i * 4))
+            s = s + a32 * b32
+            i = i + 1
+        }
+        return s
+    }
+
+    var n_vec = (n / 4) * 4
+    // `simd_dot_f32_ptr` returns f64 bits in the native float container.
+    // Use an explicit bitcast helper to keep later `+`/`*` in float semantics.
+    var s = oren_u64_bits_to_f64(simd_dot_f32_ptr(a_ptr, b_ptr, n_vec))
+    var i = n_vec
+    while i < n {
+        var a32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(a_ptr + i * 4))
+        var b32 = oren_u32_bits_to_f32(oren_ptr_get_u32_le(b_ptr + i * 4))
+        s = s + a32 * b32
+        i = i + 1
+    }
+    return s
+}
+
 fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_off, b3_off, n) {
     // Compute 4 dot-products sharing the same `a` slice and store into an f64 buffer.
     //
@@ -902,11 +939,10 @@ fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
     if n > nb - b0_off || n > nb - b1_off || n > nb - b2_off || n > nb - b3_off { return oren_err(4, "buf_dot_f32_4_slice_into: b range out of bounds") }
 
     // Native SIMD fast path (native backend only):
-    // Use the already-validated `simd_dot_f32_ptr` 4 times, one per column.
+    // Use a tail-safe wrapper around `simd_dot_f32_ptr` 4 times, one per column.
     //
-    // NOTE: `simd_dot_f32_4_ptr` exists but has known correctness issues for some f32 inputs
-    // (caught by GEMM+fractional test vectors). Keep it disabled until it is fixed in the
-    // arm64 intrinsic emitter.
+    // NOTE: `simd_dot_f32_4_ptr` (single-pass 1x4 microkernel) exists, but we keep the
+    // implementation conservative until it is proven bit-exact for all f32 inputs.
     if native_simd_enabled() != 0 && native_simd_f32_dot4_enabled() != 0 && n >= 4 {
         var pa = native_buf_data_ptr(a) + a_off * 4
         var pb0 = native_buf_data_ptr(b) + b0_off * 4
@@ -914,10 +950,10 @@ fn oren_buf_dot_f32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
         var pb2 = native_buf_data_ptr(b) + b2_off * 4
         var pb3 = native_buf_data_ptr(b) + b3_off * 4
 
-        var s0 = simd_dot_f32_ptr(pa, pb0, n)
-        var s1 = simd_dot_f32_ptr(pa, pb1, n)
-        var s2 = simd_dot_f32_ptr(pa, pb2, n)
-        var s3 = simd_dot_f32_ptr(pa, pb3, n)
+        var s0 = native_dot_f32_ptr_tail_safe(pa, pb0, n)
+        var s1 = native_dot_f32_ptr_tail_safe(pa, pb1, n)
+        var s2 = native_dot_f32_ptr_tail_safe(pa, pb2, n)
+        var s3 = native_dot_f32_ptr_tail_safe(pa, pb3, n)
         oren_buf_store_f64(out, out_off + 0, s0)
         oren_buf_store_f64(out, out_off + 1, s1)
         oren_buf_store_f64(out, out_off + 2, s2)
@@ -1203,10 +1239,10 @@ fn oren_buf_gemm_f32_4x4_slice_into(out, out_off, a, a0_off, a1_off, a2_off, a3_
         var pb2 = native_buf_data_ptr(b) + b2_off * 4
         var pb3 = native_buf_data_ptr(b) + b3_off * 4
 
-        var c00 = simd_dot_f32_ptr(pa0, pb0, n); var c01 = simd_dot_f32_ptr(pa0, pb1, n); var c02 = simd_dot_f32_ptr(pa0, pb2, n); var c03 = simd_dot_f32_ptr(pa0, pb3, n)
-        var c10 = simd_dot_f32_ptr(pa1, pb0, n); var c11 = simd_dot_f32_ptr(pa1, pb1, n); var c12 = simd_dot_f32_ptr(pa1, pb2, n); var c13 = simd_dot_f32_ptr(pa1, pb3, n)
-        var c20 = simd_dot_f32_ptr(pa2, pb0, n); var c21 = simd_dot_f32_ptr(pa2, pb1, n); var c22 = simd_dot_f32_ptr(pa2, pb2, n); var c23 = simd_dot_f32_ptr(pa2, pb3, n)
-        var c30 = simd_dot_f32_ptr(pa3, pb0, n); var c31 = simd_dot_f32_ptr(pa3, pb1, n); var c32 = simd_dot_f32_ptr(pa3, pb2, n); var c33 = simd_dot_f32_ptr(pa3, pb3, n)
+        var c00 = native_dot_f32_ptr_tail_safe(pa0, pb0, n); var c01 = native_dot_f32_ptr_tail_safe(pa0, pb1, n); var c02 = native_dot_f32_ptr_tail_safe(pa0, pb2, n); var c03 = native_dot_f32_ptr_tail_safe(pa0, pb3, n)
+        var c10 = native_dot_f32_ptr_tail_safe(pa1, pb0, n); var c11 = native_dot_f32_ptr_tail_safe(pa1, pb1, n); var c12 = native_dot_f32_ptr_tail_safe(pa1, pb2, n); var c13 = native_dot_f32_ptr_tail_safe(pa1, pb3, n)
+        var c20 = native_dot_f32_ptr_tail_safe(pa2, pb0, n); var c21 = native_dot_f32_ptr_tail_safe(pa2, pb1, n); var c22 = native_dot_f32_ptr_tail_safe(pa2, pb2, n); var c23 = native_dot_f32_ptr_tail_safe(pa2, pb3, n)
+        var c30 = native_dot_f32_ptr_tail_safe(pa3, pb0, n); var c31 = native_dot_f32_ptr_tail_safe(pa3, pb1, n); var c32 = native_dot_f32_ptr_tail_safe(pa3, pb2, n); var c33 = native_dot_f32_ptr_tail_safe(pa3, pb3, n)
 
         oren_buf_store_f64(out, out_off + 0, c00); oren_buf_store_f64(out, out_off + 1, c01); oren_buf_store_f64(out, out_off + 2, c02); oren_buf_store_f64(out, out_off + 3, c03)
         oren_buf_store_f64(out, out_off + 4, c10); oren_buf_store_f64(out, out_off + 5, c11); oren_buf_store_f64(out, out_off + 6, c12); oren_buf_store_f64(out, out_off + 7, c13)
@@ -1256,7 +1292,7 @@ fn oren_buf_dot_f32(a, b): f64 {
     if native_simd_enabled() != 0 && native_simd_f32_dot_enabled() != 0 && n >= 4 {
         var pa = native_buf_data_ptr(a)
         var pb = native_buf_data_ptr(b)
-        return simd_dot_f32_ptr(pa, pb, n)
+        return native_dot_f32_ptr_tail_safe(pa, pb, n)
     }
 
     var sum = 0.0
@@ -1282,7 +1318,7 @@ fn oren_buf_dot_f32_slice(a, a_off, b, b_off, n): f64 {
     if native_simd_enabled() != 0 && native_simd_f32_dot_enabled() != 0 && n >= 4 {
         var pa = native_buf_data_ptr(a) + a_off * 4
         var pb = native_buf_data_ptr(b) + b_off * 4
-        return simd_dot_f32_ptr(pa, pb, n)
+        return native_dot_f32_ptr_tail_safe(pa, pb, n)
     }
 
     var sum = 0.0
@@ -1662,4 +1698,3 @@ fn oren_buf_reduce_sum_i32_into(out, buf) {
     oren_buf_store_i64(out, 0, sum)
     return out
 }
-

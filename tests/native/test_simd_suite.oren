@@ -260,6 +260,45 @@ fn run_dot_f32() {
     return 0
 }
 
+fn run_dot_f32_tail_fractional() {
+    // Tail + fractional determinism check for `simd_dot_f32_ptr`:
+    // - `n` not divisible by 4 (forces scalar tail)
+    // - includes non-power-of-two fractions
+    var n = 129 // odd to force tail
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(n)
+    if oren_is_err(a) { return fail(421, "alloc a (f32 dot tail)") }
+    if oren_is_err(b) { return fail(422, "alloc b (f32 dot tail)") }
+
+    var i = 0
+    while i < n {
+        var av = (f64(i % 97) - 41.0) * 0.125 + 0.1
+        var bv = (f64((i * 11) % 73) - 9.0) * 0.1 + 0.2
+        oren_buf_store_f32(a, i, av)
+        oren_buf_store_f32(b, i, bv)
+        i = i + 1
+    }
+
+    var ref = 0.0
+    i = 0
+    while i < n {
+        ref = ref + (oren_buf_load_f32(a, i) * oren_buf_load_f32(b, i))
+        i = i + 1
+    }
+
+    var dot = oren_buf_dot_f32(a, b)
+    if oren_is_err(dot) { return fail(423, "dot returned err (f32 tail)") }
+
+    var ref_bits = oren_f64_to_u64_bits(ref)
+    var dot_bits = oren_f64_to_u64_bits(dot)
+    if ref_bits != dot_bits {
+        print("DOT_F32_TAIL_REF_BITS=" + oren_int_to_string(ref_bits))
+        print("DOT_F32_TAIL_GOT_BITS=" + oren_int_to_string(dot_bits))
+        return fail(424, "dot mismatch (f32 tail)")
+    }
+    return 0
+}
+
 fn run_dot_f32_4_microkernel() {
     // 1x4 dot microkernel boundary for f32: compute 4 dot products at once into an f64 buffer.
     var n = 256
@@ -976,6 +1015,7 @@ fn main() {
     if run_i32_buf_ops() != 0 { return 1 }
     if run_f32_buf_ops() != 0 { return 1 }
     if run_dot_f32() != 0 { return 1 }
+    if run_dot_f32_tail_fractional() != 0 { return 1 }
     if run_dot_f32_4_microkernel() != 0 { return 1 }
     if run_dot_f64_4_microkernel() != 0 { return 1 }
     if run_gemm_f32_4x4_microkernel() != 0 { return 1 }
