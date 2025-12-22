@@ -15,6 +15,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: split `lib/runtime_buf.c` into smaller include chunks under `lib/runtime_buf/*.inc` (single translation unit) to avoid >2000-line C hotspots.
    - Status: split `lib/runtime.c` into smaller include chunks under `lib/runtime/*.inc` (single translation unit) to avoid >2000-line C hotspots.
    - Status: added an `oretest` repo-style audit to prevent `.oren` files from growing past 2000 lines (forces module splits before context overflow).
+   - Status: added an `oretest` repo-style audit to prevent C runtime include chunks (`lib/runtime/*.inc`, `lib/runtime_buf/*.inc`) from growing past 2000 lines.
    - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
    - Next: keep applying overflow-proofing to any single-file hotspots before they cross the 2000-line refactor threshold (use `wc -l` to track growth).
 

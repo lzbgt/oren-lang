@@ -2977,6 +2977,72 @@ func auditRepoModernStyle() error {
 	}
 
 	var offenders []string
+	// Also enforce source size limits for C runtime include chunks. These chunks exist
+	// specifically to avoid context overflow; keep them under the same 2000-line guardrail.
+	{
+		type sizeRule struct {
+			root      string
+			ext       string
+			maxLines  int
+			desc      string
+			allowFile func(path string) bool
+		}
+		sizeRules := []sizeRule{
+			{
+				root:     filepath.Join("lib", "runtime"),
+				ext:      ".inc",
+				maxLines: 2000,
+				desc:     "C runtime include chunk too large",
+			},
+			{
+				root:     filepath.Join("lib", "runtime_buf"),
+				ext:      ".inc",
+				maxLines: 2000,
+				desc:     "C runtime_buf include chunk too large",
+			},
+		}
+		for _, sr := range sizeRules {
+			if _, err := os.Stat(sr.root); err != nil {
+				continue
+			}
+			err := filepath.WalkDir(sr.root, func(path string, d os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if d.IsDir() {
+					return nil
+				}
+				if !strings.HasSuffix(path, sr.ext) {
+					return nil
+				}
+				if sr.allowFile != nil && sr.allowFile(path) {
+					return nil
+				}
+				b, rerr := os.ReadFile(path)
+				if rerr != nil {
+					return rerr
+				}
+				lines := 0
+				for _, ch := range b {
+					if ch == '\n' {
+						lines++
+					}
+				}
+				// Count last line if non-empty.
+				if len(b) > 0 && b[len(b)-1] != '\n' {
+					lines++
+				}
+				if lines > sr.maxLines {
+					offenders = append(offenders, fmt.Sprintf("%s:1: %s (%d lines > %d)", path, sr.desc, lines, sr.maxLines))
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	roots := []string{filepath.Join("lib"), filepath.Join("tests"), filepath.Join("examples")}
 	for _, root := range roots {
 		if _, err := os.Stat(root); err != nil {
