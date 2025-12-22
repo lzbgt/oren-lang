@@ -9,7 +9,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 2) **Stdlib modernization pass** (M)
    - DoD: standardize on current grammar idioms across `lib/std/*.oren` (prefer `for x in ...` where semantics match; prefer string `+` over `string_concat`).
-   - Add/extend oretest audits to prevent reintroducing deprecated patterns.
+   - Guardrails: keep `cmd/oretest` audits updated (e.g. `auditStdlibModernStyle`) to prevent regressions (reintroducing `string_concat`, legacy `@forin_*`, etc.).
 
 ### P1 (Soon)
 

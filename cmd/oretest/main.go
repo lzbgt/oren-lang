@@ -117,6 +117,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "svc audit failed:", err)
 		os.Exit(1)
 	}
+	if err := auditStdlibModernStyle(); err != nil {
+		fmt.Fprintln(os.Stderr, "stdlib audit failed:", err)
+		os.Exit(1)
+	}
 
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
@@ -2689,6 +2693,82 @@ func auditNativeNoDirectSvcBypass() error {
 		}
 		return fmt.Errorf("direct svc/sysno emission outside syscall lowering module; first offenders:\n%s", strings.Join(offenders, "\n"))
 	}
+	return nil
+}
+
+func auditStdlibModernStyle() error {
+	// Purpose: keep `lib/std` in sync with rolling language idioms.
+	//
+	// This is intentionally a cheap static scan (no compilation), intended to
+	// prevent regressions during rolling refactors.
+	type rule struct {
+		name        string
+		pattern     string
+		allowInLine func(trimmedLine string) bool
+	}
+	rules := []rule{
+		{
+			name:    "no string_concat in stdlib (prefer `+`)",
+			pattern: "string_concat(",
+			allowInLine: func(trimmedLine string) bool {
+				// Allow mention in comments/docstrings, but not in code.
+				return strings.HasPrefix(trimmedLine, "//")
+			},
+		},
+		{
+			name:    "no legacy @forin internal identifiers",
+			pattern: "@forin_",
+		},
+		{
+			name:    "no legacy @forinr internal identifiers",
+			pattern: "@forinr_",
+		},
+	}
+
+	var offenders []string
+	err := filepath.WalkDir(filepath.Join("lib", "std"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".oren") {
+			return nil
+		}
+
+		b, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		src := string(b)
+		lines := strings.Split(src, "\n")
+		for i, line := range lines {
+			trim := strings.TrimSpace(line)
+			for _, r := range rules {
+				if !strings.Contains(line, r.pattern) {
+					continue
+				}
+				if r.allowInLine != nil && r.allowInLine(trim) {
+					continue
+				}
+				offenders = append(offenders, fmt.Sprintf("%s:%d: %s (found %q)", path, i+1, r.name, r.pattern))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(offenders) > 0 {
+		sort.Strings(offenders)
+		if len(offenders) > 30 {
+			offenders = append(offenders[:30], fmt.Sprintf("... (%d more)", len(offenders)-30))
+		}
+		return fmt.Errorf("stdlib style violations:\n%s", strings.Join(offenders, "\n"))
+	}
+
 	return nil
 }
 
