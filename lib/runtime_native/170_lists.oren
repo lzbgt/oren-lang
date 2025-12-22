@@ -1,0 +1,91 @@
+// --- Lists ---
+// Layout: [count][capacity][buffer_ptr][magic]
+fn oren_new_list(cap) {
+    if cap < 0 { cap = 0 }
+    var header = malloc(32)
+    if header == 0 { exit(200) }
+    if header == -1 { exit(200) }
+    oren_track_alloc(header, 32, 0)
+    var buf = 0
+    if cap > 0 {
+        buf = malloc(cap * 8)
+        if buf == 0 { exit(201) }
+        if buf == -1 { exit(201) }
+        oren_track_alloc(buf, cap * 8, 0)
+    }
+    ptr_set(header, 0)      // count
+    ptr_set(header + 8, cap) // capacity
+    ptr_set(header + 16, buf) // data buffer
+    ptr_set(header + 24, list_magic())
+    // Mark list header kind for GC traversal (kind=2 => LIST).
+    var node = oren_find_node(header)
+    if node != 0 { ptr_set(iadd(node, 16), 2) }
+    return header
+}
+
+fn oren_list_len(list) {
+    if list == 0 { return 0 }
+    if ptr_get(list + 24) != list_magic() { exit(205) }
+    return ptr_get(list)
+}
+
+fn oren_list_push(list, value) {
+    if list == 0 { exit(210) }
+    if ptr_get(list + 24) != list_magic() { exit(206) }
+    var count = ptr_get(list)
+    var cap = ptr_get(list + 8)
+    var buf = ptr_get(list + 16)
+    if count >= cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var new_buf = malloc(new_cap * 8)
+        if new_buf == 0 { exit(211) }
+        if new_buf == -1 { exit(211) }
+        oren_track_alloc(new_buf, new_cap * 8, 0)
+        var i = 0
+        while i < count {
+            ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
+            i = i + 1
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(list + 8, cap)
+        ptr_set(list + 16, buf)
+    }
+    ptr_set(buf + count * 8, value)
+    ptr_set(list, count + 1)
+    return list
+}
+
+fn oren_list_get(list, idx) {
+    if list == 0 { exit(220) }
+    if ptr_get(list + 24) != list_magic() {
+        // Not a list, try map get
+        return oren_map_get(list, idx)
+    }
+    var count = ptr_get(list)
+    if idx < 0 { 
+        oren_panic("Index out of bounds (negative)")
+        return 0
+    }
+    if idx >= count { 
+        oren_panic("Index out of bounds")
+        return 0
+    }
+    var buf = ptr_get(list + 16)
+    return ptr_get(buf + idx * 8)
+}
+
+// Set list element in-bounds (does not grow). Returns the written value.
+fn oren_list_set(list, idx, value) {
+    if list == 0 { oren_panic("list_set on nil") }
+    if ptr_get(list + 24) != list_magic() { oren_panic("list_set on non-list") }
+    var count = ptr_get(list)
+    if idx < 0 { oren_panic("Index out of bounds (negative)") }
+    if idx >= count { oren_panic("Index out of bounds") }
+    var buf = ptr_get(list + 16)
+    if buf == 0 { oren_panic("list buffer is nil") }
+    ptr_set(buf + idx * 8, value)
+    return value
+}
+

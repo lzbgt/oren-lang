@@ -1,0 +1,233 @@
+// --- Fork hygiene (rolling; syscall-first) ---
+// After fork(), the child process inherits any in-memory locks held at the moment of fork.
+// Our native runtime allocator uses an in-memory lock keyed by a thread-id token.
+// If a lock is held by the parent at fork time, the child must reset those lock fields
+// before doing further allocations, or it can deadlock (classic "fork while locked" issue).
+//
+// This is not a "pthread atfork" shim; it's purely internal runtime hygiene for fork-based v0 features.
+fn native_runtime_after_fork_child() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    // lock_owner_tid
+    global_set_lock(0)
+    // lock_recurse_count
+    global_set_lock_count(0)
+    return 0
+}
+
+fn oren_fork() {
+    var pid = sys_fork()
+    if pid == 0 {
+        native_runtime_after_fork_child()
+    }
+    return pid
+}
+
+fn native_runtime_init(target_os) {
+    // The native backend is still rolling and does not reliably run global initializers
+    // before entering the runtime. Ensure globals used by early allocation are safe.
+    g_storage = 0
+
+    // NET wait backend probe state (must not rely on global initializers).
+    g_target_os = target_os
+    // Prefer target knowledge from codegen over probing syscalls at runtime.
+    // This avoids unnecessary OS feature probes in tight paths and keeps behavior
+    // deterministic across nested execution.
+    if target_os == 1 {
+        // macOS: kqueue exists
+        g_net_has_kqueue = 1
+    } else {
+        // Linux (and any other non-macOS target): treat as no kqueue
+        g_net_has_kqueue = 0
+    }
+
+    // IMPORTANT: today the native backend does not reliably run global initializers
+    // before entering the runtime. Treat these as "constants" that must be set here.
+    GLOBAL_SLOT_BYTES = 8
+    GLOBAL_OFF_ALLOCS = 0
+    GLOBAL_OFF_ROOTS = 8
+    GLOBAL_OFF_LOCK_OWNER_TID = 16
+    GLOBAL_OFF_FREE_NODES = 24
+    GLOBAL_OFF_THREADS = 32
+    GLOBAL_OFF_ARGC = 40
+    GLOBAL_OFF_ARGV = 48
+    GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
+    GLOBAL_OFF_ENVP = 64
+    GLOBAL_OFF_FREE_BLOCKS = 72
+    GLOBAL_OFF_CAPSULE_MODE = 80
+    GLOBAL_OFF_CAP_ALLOW_MASK = 88
+    GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
+    GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR = 104
+    GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR = 112
+    GLOBAL_OFF_FS_MOUNTS_PTR = 120
+    GLOBAL_OFF_FS_MOUNTS_READ_PTR = 128
+    GLOBAL_OFF_FS_MOUNTS_WRITE_PTR = 136
+    GLOBAL_OFF_NET_ALLOW_LOOPBACK = 144
+    GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 152
+    GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 160
+    GLOBAL_OFF_NET_TCP_CONNECT_MAP_PTR = 208
+    GLOBAL_OFF_NET_TCP_LISTEN_MAP_PTR = 216
+    GLOBAL_OFF_NET_FD_CAPS_PTR = 224
+    GLOBAL_OFF_NET_FD_CAPS_LEN = 232
+    GLOBAL_OFF_PROC_ALLOW_SYSTEM = 168
+    GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 176
+    GLOBAL_OFF_PROC_INHERIT_ENV = 184
+    GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 192
+    GLOBAL_OFF_PROC_ALLOW_ARGV_PTR = 200
+    GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR = 240
+    GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN = 248
+    GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP = 256
+    GLOBAL_OFF_ENABLE_SIMD = 264
+    GLOBAL_OFF_RAW_MMAP_THRESHOLD = 272
+    GLOBAL_OFF_BUF_ALIGN = 280
+    GLOBAL_OFF_BUF_FORCE_MMAP = 288
+    GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
+    GLOBAL_SLOTS_RESERVED = 56
+
+    // IMPORTANT: do not rely on global initializers for these constants.
+    // Capability mask bits (used by capsule runtime enforcement).
+    CAP_FS = 1
+    CAP_NET = 2
+    CAP_PROC = 4
+    CAP_ENV = 8
+    CAP_TIME = 16
+
+    // Oren-level open(2) flags (translated by native syscall lowering).
+    OREN_O_CREAT = 256
+    OREN_O_TRUNC = 512
+    OREN_O_NONBLOCK = 1024
+
+    // POSIX socket constants.
+    OREN_AF_INET = 2
+    // AF_INET6 differs across macOS/Linux.
+    if target_os == 1 { OREN_AF_INET6 = 30 } else { OREN_AF_INET6 = 10 }
+    OREN_AF_UNIX = 1
+    OREN_SOCK_STREAM = 1
+    OREN_SOCK_DGRAM = 2
+    OREN_IPPROTO_TCP = 6
+    OREN_IPPROTO_UDP = 17
+
+    // Sockopt constants (Oren-level; translated by native syscall lowering).
+    OREN_SOL_SOCKET = 1
+    OREN_SO_REUSEADDR = 2
+    OREN_SO_ERROR = 4
+
+    // Per-fd kind tags (capsule hardening).
+    FD_KIND_NONE = 0
+    FD_KIND_TCP_STREAM = 1
+    FD_KIND_TCP_LISTEN = 2
+    FD_KIND_UDP_DGRAM = 3
+    FD_KIND_PROC_PIPE = 10
+    FD_KIND_KQUEUE = 20
+    FD_KIND_EPOLL = 21
+
+    FCNTL_F_DUPFD = 0
+    FCNTL_F_DUPFD_CLOEXEC = 67
+
+    // Linux epoll constants (unused on macOS; safe to define).
+    OREN_EPOLL_CTL_ADD = 1
+    OREN_EPOLL_CTL_DEL = 2
+    OREN_EPOLL_CTL_MOD = 3
+    OREN_EPOLLIN = 1
+    OREN_EPOLLOUT = 4
+
+    // Reserve room for current globals + some growth slack (rolling ABI).
+    //
+    // IMPORTANT: allocate globals storage with malloc_raw so it is NOT tracked by GC.
+    // This is runtime metadata and must never be reclaimed by mark/sweep.
+    g_storage = malloc_raw(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
+    if g_storage == 0 { exit(199) }
+    
+    // Zero it
+    var i = 0
+    while i < GLOBAL_SLOTS_RESERVED {
+        ptr_set(iadd(g_storage, i * GLOBAL_SLOT_BYTES), 0)
+        i = i + 1
+    }
+
+    // Defaults for allocator policy (rolling):
+    // - threshold: 1 MiB (matches C runtime)
+    // - align: 64 bytes (cache-line / NEON friendly)
+    // - force_mmap: off
+    // - payload_limit: unlimited (0)
+    global_set_raw_mmap_threshold(1048576)
+    global_set_buf_align(64)
+    global_set_buf_force_mmap(0)
+    global_set_buf_payload_limit(0)
+
+    // NET per-fd capability tags (rolling; capsule hardening).
+    // We intentionally keep this simple: a byte-per-fd kind table.
+    //
+    // NOTE:
+    // - This is not a general-purpose fd table; it only exists to prevent bypass
+    //   via raw `sys_*` NET syscalls in capsule mode.
+    // - Allocation uses malloc_raw so GC never reclaims it.
+    var max_fds = 4096
+    var caps = malloc_raw(max_fds)
+    if caps == 0 { exit(199) }
+    var zi = 0
+    while zi < max_fds {
+        ptr_set_byte(caps + zi, 0)
+        zi = zi + 1
+    }
+    global_set_net_fd_caps_ptr(caps)
+    global_set_net_fd_caps_len(max_fds)
+
+    // PROC allowed pid table (rolling; capsule hardening).
+    //
+    // Tracks subprocess pids created by syscall-first spawn so raw sys_wait4/sys_kill
+    // cannot target arbitrary host processes in capsule mode.
+    var pid_cap = 1024
+    var ptab = malloc_raw(pid_cap * 8)
+    if ptab == 0 { exit(199) }
+    zi = 0
+    while zi < pid_cap {
+        ptr_set(iadd(ptab, zi * 8), 0)
+        zi = zi + 1
+    }
+    global_set_proc_allowed_pids_ptr(ptab)
+    global_set_proc_allowed_pids_len(0)
+    global_set_proc_allowed_pids_cap(pid_cap)
+    return 0
+}
+
+// macOS syscall-first threading init (Darwin bsdthread + ulock model).
+//
+// NOTE:
+// - This is intentionally "best-effort" for now: if the process is already
+//   registered (because the host runtime registered earlier), the syscall
+//   will fail with EINVAL; we treat that as non-fatal for v0.
+// - For Oren's syscall-first runtime we want the kernel threadstart function
+//   to be OUR stub (emitted by the native backend), not libpthread.
+//
+// Args are code pointers to the native backend's thread entry stubs.
+fn native_runtime_threading_init(threadstart, wqthread) {
+    // Some Darwin kernels validate pthsize for bsdthread_register; use 16KB (page-sized) like libpthread.
+    var pthsize = 16384
+
+    // NOTE: Modern Darwin bsdthread_register has multiple historical ABIs.
+    // Passing a pthread init-data struct can trigger EINVAL on some kernels.
+    // For v0 syscall-first spawn, we register only threadstart/wqthread + pthsize
+    // and omit init-data / workqueue settings.
+    var rv = sys_bsdthread_register(threadstart, wqthread, pthsize, 0, 0, 0, 0)
+    // For syscall-first spawn to work, the process must be registered.
+    // If registration fails, bsdthread_create will start threads with the system's default
+    // threadstart (libsystem_pthread), which expects a full pthread runtime and will crash.
+    // sys_bsdthread_register returns -errno on failure.
+    if rv < 0 { exit(0 - rv) }
+    return rv
+}
+
+fn native_runtime_set_args(argc, argv) {
+    global_set_argc(argc)
+    global_set_argv(argv)
+    return 0
+}
+
+fn native_runtime_set_envp(envp) {
+    // Keep this function leaf-like (no calls) to avoid any stack-offset bugs
+    // while the compiler/runtime ABI is still evolving.
+    global_set_envp(envp)
+    return 0
+}
+

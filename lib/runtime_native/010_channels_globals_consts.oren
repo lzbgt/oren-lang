@@ -1,0 +1,356 @@
+// --- Channels (Pipe-based) ---
+fn oren_new_channel() {
+    return oren_pipe() // Returns [r, w]
+}
+
+fn oren_chan_send(ch, val) {
+    var w = oren_list_get(ch, 1)
+    var buf = malloc(8)
+    if buf == 0 { return 0 }
+    ptr_set(buf, val)
+    sys_write(w, buf, 8)
+    // free(buf) - no free yet
+    return 1
+}
+
+fn oren_chan_recv(ch) {
+    var r = oren_list_get(ch, 0)
+    var buf = malloc(8)
+    if buf == 0 { return 0 }
+    sys_read(r, buf, 8)
+    var val = ptr_get(buf)
+    // free(buf)
+    return val
+}
+
+// --- Native GC/Heap Tracking ---
+fn oren_pipe() {
+    var buf = malloc(16)
+    if buf == 0 { return oren_new_list(0) }
+    
+    var res = sys_pipe(buf)
+    if res != 0 { return oren_new_list(0) }
+    
+    var r = ptr_get(buf)
+    var w = ptr_get(iadd(buf, 8))
+    
+    var l = oren_new_list(2)
+    oren_list_push(l, r)
+    oren_list_push(l, w)
+    return l
+}
+
+// --- Native GC/Heap Tracking ---
+
+// We use a string literal in a function to get a stable pointer to writable memory for globals.
+// Layout (8-byte slots):
+//   0:allocs
+//   8:roots
+//   16:lock_owner_tid
+//   24:free_nodes
+//   32:threads
+//   40:argc
+//   48:argv
+//   56:lock_recurse_count
+//   64:envp
+//   72:free_blocks
+//   80:capsule_mode (0|1) (rolling: deny-by-default capability enforcement)
+//   88:cap_allow_mask (bitmask; rolling)
+//   96:fs_allow_prefixes_ptr (cstr: CSV prefixes) (rolling)
+//   104:fs_allow_read_prefixes_ptr (cstr: CSV prefixes) (rolling)
+//   112:fs_allow_write_prefixes_ptr (cstr: CSV prefixes) (rolling)
+//   120:fs_mounts_ptr (cstr: CSV mounts; legacy applies to both) (rolling)
+//   128:fs_mounts_read_ptr (cstr: CSV mounts) (rolling)
+//   136:fs_mounts_write_ptr (cstr: CSV mounts) (rolling)
+//   144:net_allow_loopback (0|1) (rolling)
+//   152:net_allow_tcp_connect_ptr (cstr: CSV endpoints) (rolling)
+//   160:net_allow_tcp_listen_ptr (cstr: CSV endpoints) (rolling)
+//   208:net_tcp_connect_map_ptr (cstr: CSV mappings) (rolling)
+//   216:net_tcp_listen_map_ptr (cstr: CSV mappings) (rolling)
+//   224:net_fd_caps_ptr (bytes: fd->kind table) (rolling)
+//   232:net_fd_caps_len (max fds) (rolling)
+//   168:proc_allow_system (0|1) (rolling)
+//   176:proc_allow_exec_prefixes_ptr (cstr: CSV prefixes) (rolling)
+//   184:proc_inherit_env (0|1) (rolling)
+//   192:proc_allow_env_keys_ptr (cstr: CSV keys) (rolling)
+//   200:proc_allow_argv_ptr (cstr: CSV command specs) (rolling)
+//   240:proc_allowed_pids_ptr (u64[] raw, len=cap; 0 means empty slot) (rolling)
+//   248:proc_allowed_pids_len (count) (rolling)
+//   256:proc_allowed_pids_cap (capacity) (rolling)
+//   264:enable_simd (0|1) (rolling; runtime opt-in for SIMD fast paths)
+//   272:raw_mmap_threshold_bytes (>=0; 0 disables mmap; rolling)
+//   280:buf_align (8|16|32|64; rolling)
+//   288:buf_force_mmap (0|1; rolling)
+//   296:buf_payload_limit_bytes (0 means unlimited; rolling)
+var g_storage = 0
+
+fn oren_globals() {
+    return g_storage
+}
+
+// NOTE (ABI hygiene; rolling):
+// - Keep a single authoritative definition of global slot offsets.
+// - Do not reuse slots for unrelated purposes.
+// - Prefer global_get_*/global_set_* helpers over raw offsets.
+var GLOBAL_SLOT_BYTES = 8
+var GLOBAL_OFF_ALLOCS = 0
+var GLOBAL_OFF_ROOTS = 8
+var GLOBAL_OFF_LOCK_OWNER_TID = 16
+var GLOBAL_OFF_FREE_NODES = 24
+var GLOBAL_OFF_THREADS = 32
+var GLOBAL_OFF_ARGC = 40
+var GLOBAL_OFF_ARGV = 48
+var GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
+var GLOBAL_OFF_ENVP = 64
+var GLOBAL_OFF_FREE_BLOCKS = 72
+var GLOBAL_OFF_CAPSULE_MODE = 80
+var GLOBAL_OFF_CAP_ALLOW_MASK = 88
+var GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
+var GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR = 104
+var GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR = 112
+var GLOBAL_OFF_FS_MOUNTS_PTR = 120
+var GLOBAL_OFF_FS_MOUNTS_READ_PTR = 128
+var GLOBAL_OFF_FS_MOUNTS_WRITE_PTR = 136
+var GLOBAL_OFF_NET_ALLOW_LOOPBACK = 144
+var GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR = 152
+var GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR = 160
+var GLOBAL_OFF_NET_TCP_CONNECT_MAP_PTR = 208
+var GLOBAL_OFF_NET_TCP_LISTEN_MAP_PTR = 216
+var GLOBAL_OFF_NET_FD_CAPS_PTR = 224
+var GLOBAL_OFF_NET_FD_CAPS_LEN = 232
+var GLOBAL_OFF_PROC_ALLOW_SYSTEM = 168
+var GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 176
+var GLOBAL_OFF_PROC_INHERIT_ENV = 184
+var GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR = 192
+var GLOBAL_OFF_PROC_ALLOW_ARGV_PTR = 200
+var GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR = 240
+var GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN = 248
+var GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP = 256
+var GLOBAL_OFF_ENABLE_SIMD = 264
+var GLOBAL_OFF_RAW_MMAP_THRESHOLD = 272
+var GLOBAL_OFF_BUF_ALIGN = 280
+var GLOBAL_OFF_BUF_FORCE_MMAP = 288
+var GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
+
+// Reserve extra room for rolling ABI growth.
+var GLOBAL_SLOTS_RESERVED = 56
+
+fn global_get_allocs() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ALLOCS)) }
+fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ALLOCS), v) }
+
+fn global_get_roots() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ROOTS)) }
+fn global_set_roots(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ROOTS), v) }
+
+fn global_get_lock() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)) }
+fn global_set_lock(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID), v) }
+
+fn global_get_free_nodes() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE_NODES)) }
+fn global_set_free_nodes(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE_NODES), v) }
+
+fn global_get_free_blocks() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE_BLOCKS)) }
+fn global_set_free_blocks(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE_BLOCKS), v) }
+
+fn global_get_threads() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_THREADS)) }
+fn global_set_threads(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_THREADS), v) }
+
+fn global_get_argc() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ARGC)) }
+fn global_set_argc(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ARGC), v) }
+
+fn global_get_argv() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ARGV)) }
+fn global_set_argv(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ARGV), v) }
+
+fn global_get_lock_count() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)) }
+fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT), v) }
+
+fn global_get_envp() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENVP)) }
+fn global_set_envp(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENVP), v) }
+
+fn global_get_enable_simd() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD)) }
+fn global_set_enable_simd(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD), v) }
+
+fn global_get_raw_mmap_threshold() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_RAW_MMAP_THRESHOLD)) }
+fn global_set_raw_mmap_threshold(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_RAW_MMAP_THRESHOLD), v) }
+
+fn global_get_buf_align() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_ALIGN)) }
+fn global_set_buf_align(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_ALIGN), v) }
+
+fn global_get_buf_force_mmap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP)) }
+fn global_set_buf_force_mmap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP), v) }
+
+fn global_get_buf_payload_limit() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT)) }
+fn global_set_buf_payload_limit(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT), v) }
+
+fn native_simd_enabled() { return global_get_enable_simd() }
+
+// SIMD feature gates (rolling):
+//
+// We keep SIMD globally toggleable via `global_get_enable_simd()`, but we also
+// gate known-problematic kernels so correctness stays non-negotiable.
+//
+// Status (2025-12-22):
+// - `simd_dot_f32_ptr` is validated by `tests/native/test_simd_suite.oren` and
+//   can stay enabled (bit-exact vs scalar reference).
+// - `simd_dot_f32_4_ptr` / `simd_gemm_f32_4x4_ptr` are still failing for some
+//   fractional f32 vectors. Keep the 1x4 / 4x4 kernels disabled until fixed.
+fn native_simd_f32_dot_enabled() { return 1 }
+fn native_simd_f32_dot4_enabled() { return 0 }
+
+fn global_get_capsule_mode() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE)) }
+fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE), v) }
+
+fn global_get_cap_allow_mask() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK)) }
+fn global_set_cap_allow_mask(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK), v) }
+
+fn global_get_fs_allow_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR)) }
+fn global_set_fs_allow_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR), v) }
+
+fn global_get_fs_allow_read_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR)) }
+fn global_set_fs_allow_read_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR), v) }
+
+fn global_get_fs_allow_write_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR)) }
+fn global_set_fs_allow_write_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR), v) }
+
+fn global_get_fs_mounts_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_PTR)) }
+fn global_set_fs_mounts_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_PTR), v) }
+
+fn global_get_fs_mounts_read_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_READ_PTR)) }
+fn global_set_fs_mounts_read_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_READ_PTR), v) }
+
+fn global_get_fs_mounts_write_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_WRITE_PTR)) }
+fn global_set_fs_mounts_write_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_WRITE_PTR), v) }
+
+fn global_get_net_allow_loopback() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK)) }
+fn global_set_net_allow_loopback(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK), v) }
+
+fn global_get_net_allow_tcp_connect_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR)) }
+fn global_set_net_allow_tcp_connect_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR), v) }
+
+fn global_get_net_allow_tcp_listen_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR)) }
+fn global_set_net_allow_tcp_listen_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR), v) }
+
+fn global_get_net_tcp_connect_map_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_CONNECT_MAP_PTR)) }
+fn global_set_net_tcp_connect_map_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_CONNECT_MAP_PTR), v) }
+
+fn global_get_net_tcp_listen_map_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_LISTEN_MAP_PTR)) }
+fn global_set_net_tcp_listen_map_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_LISTEN_MAP_PTR), v) }
+
+fn global_get_net_fd_caps_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_PTR)) }
+fn global_set_net_fd_caps_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_PTR), v) }
+
+fn global_get_net_fd_caps_len() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LEN)) }
+fn global_set_net_fd_caps_len(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LEN), v) }
+
+fn global_get_proc_allow_system() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM)) }
+fn global_set_proc_allow_system(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM), v) }
+
+fn global_get_proc_allow_exec_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR)) }
+fn global_set_proc_allow_exec_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR), v) }
+
+fn global_get_proc_inherit_env() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_INHERIT_ENV)) }
+fn global_set_proc_inherit_env(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_INHERIT_ENV), v) }
+
+fn global_get_proc_allow_env_keys_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR)) }
+fn global_set_proc_allow_env_keys_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR), v) }
+
+fn global_get_proc_allow_argv_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ARGV_PTR)) }
+fn global_set_proc_allow_argv_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ARGV_PTR), v) }
+
+fn global_get_proc_allowed_pids_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR)) }
+fn global_set_proc_allowed_pids_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR), v) }
+
+fn global_get_proc_allowed_pids_len() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN)) }
+fn global_set_proc_allowed_pids_len(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN), v) }
+
+fn global_get_proc_allowed_pids_cap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP)) }
+fn global_set_proc_allowed_pids_cap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP), v) }
+
+// Capsule/capability mask bits (rolling; native backend only).
+var CAP_FS = 1
+var CAP_NET = 2
+var CAP_PROC = 4
+var CAP_ENV = 8
+var CAP_TIME = 16
+
+// Oren-level open(2) flags (rolling ABI; translated by native codegen).
+//
+// Design:
+// - Lower 2 bits match POSIX access modes: 0=RDONLY, 1=WRONLY, 2=RDWR.
+// - Higher bits are Oren-stable feature flags and must be translated to OS-specific
+//   O_* bits in `arm64_native_expr_syscalls.oren` (Darwin/Linux differ).
+var OREN_O_CREAT = 256
+var OREN_O_TRUNC = 512
+var OREN_O_NONBLOCK = 1024
+
+// POSIX socket constants used by syscall-first runtime (no SDK headers).
+// Values are stable across Darwin/Linux for IPv4 + TCP/UDP in practice.
+var OREN_AF_INET = 2
+// NOTE: AF_INET6 differs across Darwin/Linux:
+// - macOS: 30
+// - Linux: 10
+// We initialize this deterministically in `native_runtime_init` based on target_os.
+var OREN_AF_INET6 = 30
+var OREN_AF_UNIX = 1
+var OREN_SOCK_STREAM = 1
+var OREN_SOCK_DGRAM = 2
+var OREN_IPPROTO_TCP = 6
+var OREN_IPPROTO_UDP = 17
+
+// Oren-level getsockopt/setsockopt constants (rolling ABI).
+// These are translated to OS-specific values in the native syscall lowering layer.
+var OREN_SOL_SOCKET = 1
+var OREN_SO_REUSEADDR = 2
+var OREN_SO_ERROR = 4
+
+// Typed buffer tags:
+// `ore_iter_next` needs BUF_TAG_U8 early to support `for x in u8_buf`.
+// Keep this as a top-level constant so the native backend doesn't depend on
+// global forward references (rolling parser/codegen constraint).
+var BUF_TAG_U8 = 5
+var BUF_TAG_I32 = 1
+var BUF_TAG_I64 = 2
+var BUF_TAG_F32 = 3
+var BUF_TAG_F64 = 4
+
+// Capsule per-fd kind tags (rolling; native backend only).
+// Stored in `net_fd_caps_ptr` (byte-per-fd).
+//
+// NOTE: In rolling mode this table is shared for:
+// - NET sockets (stream/listen/dgram)
+// - PROC IPC fds (pipes used by spawn/join)
+var FD_KIND_NONE = 0
+var FD_KIND_TCP_STREAM = 1
+var FD_KIND_TCP_LISTEN = 2
+var FD_KIND_UDP_DGRAM = 3
+var FD_KIND_PROC_PIPE = 10
+var FD_KIND_KQUEUE = 20
+var FD_KIND_EPOLL = 21
+
+// NET wait backend detection (rolling):
+// - macOS: kqueue/kevent is available
+// - Linux: kqueue does not exist
+//
+// Values:
+// - -1: unknown (not detected yet)
+// -  0: no kqueue backend
+// -  1: has kqueue backend
+var g_net_has_kqueue = -1
+
+// Native target OS (rolling):
+// - 0: unknown (should not happen after runtime init)
+// - 1: macOS
+// - 2: Linux
+var g_target_os = 0
+
+// Linux epoll constants (stable on Linux; unused on macOS).
+// Used by syscall-first NET wait to avoid libc poll/select shims.
+var OREN_EPOLL_CTL_ADD = 1
+var OREN_EPOLL_CTL_DEL = 2
+var OREN_EPOLL_CTL_MOD = 3
+var OREN_EPOLLIN = 1
+var OREN_EPOLLOUT = 4
+
+// fcntl(2) commands used for fd duplication (stable across Darwin/Linux).
+// Verified via Apple SDK headers for macOS (audit only; not a build dependency).
+var FCNTL_F_DUPFD = 0
+var FCNTL_F_DUPFD_CLOEXEC = 67
+

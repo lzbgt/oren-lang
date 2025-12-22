@@ -1,0 +1,184 @@
+// --- Binary I/O (byte-accurate) ---
+// Note: implemented via syscalls (see codegen intrinsics for sys_open/sys_read/sys_write/sys_close).
+
+@cap.requires(domain="FS")
+fn oren_write_bytes(path, bytes) {
+    var pair = native_capsule_fs_path_resolve_pair(path, 1)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var flags = 1 | OREN_O_CREAT | OREN_O_TRUNC // WRONLY|CREAT|TRUNC (Oren-level flags)
+    var fd = sys_open(rpath, flags, 420) // 0644
+    if fd < 0 { exit(260) }
+
+    var n = oren_list_len(bytes)
+    if n > 0 {
+        var buf = malloc(n)
+        if buf == 0 { exit(261) }
+        var i = 0
+        while i < n {
+            // bytes[i] is an int 0..255
+            var v = bytes[i]
+            if v < 0 { sys_close(fd); exit(264) }
+            if v > 255 { sys_close(fd); exit(265) }
+            ptr_set_byte(buf + i, v)
+            i = i + 1
+        }
+        // Handle short writes and propagate errno deterministically.
+        var off = 0
+        while off < n {
+            var wn = sys_write(fd, buf + off, n - off)
+            if wn < 0 { sys_close(fd); exit(266) }
+            if wn == 0 { sys_close(fd); exit(267) } // can't make progress
+            off = off + wn
+        }
+        free(buf)
+    }
+
+    var crc = sys_close(fd)
+    if crc < 0 { exit(268) }
+    if owned == 1 { free(rpath) }
+    return 0
+}
+
+@cap.requires(domain="FS")
+fn oren_read_bytes(path) {
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var fd = sys_open(rpath, 0, 0) // O_RDONLY
+    if fd < 0 { exit(262) }
+
+    var out = oren_new_list(0)
+    var buf = malloc(4096)
+    if buf == 0 { exit(263) }
+
+    while 1 {
+        var rn = sys_read(fd, buf, 4096)
+        if rn == 0 { break } // EOF
+        if rn < 0 { sys_close(fd); exit(269) } // errno propagated by syscall lowering
+        var i = 0
+        while i < rn {
+            oren_list_push(out, ptr_get_byte(buf + i))
+            i = i + 1
+        }
+    }
+
+    free(buf)
+    var crc = sys_close(fd)
+    if crc < 0 { exit(270) }
+    if owned == 1 { free(rpath) }
+    return out
+}
+
+
+@cap.requires(domain="FS")
+fn oren_readdir(path) {
+    // Returns a list of entry names (strings) in the directory at `path`.
+    // Implemented via syscalls (sys_open + sys_getdirentries64 + sys_close) and is capsule-safe.
+    //
+    // Record formats supported (detected per-entry):
+    // - Darwin: struct dirent64 (sys/dirent.h): name @ +21, namlen @ +18 (u16)
+    // - Linux:  linux_dirent64 (getdents64):      name @ +19, no namlen field
+
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var fd = sys_open(rpath, 0, 0) // O_RDONLY
+    if fd < 0 { exit(271) }
+
+    var out = oren_new_list(0)
+
+    var buf = malloc(4096)
+    if buf == 0 { exit(272) }
+
+    var pos = malloc(8)
+    if pos == 0 { exit(273) }
+    ptr_set(pos, 0)
+
+    while 1 {
+        var n = sys_getdirentries64(fd, buf, 4096, pos)
+        if n == 0 { break }
+        if n < 0 { sys_close(fd); exit(274) }
+
+        var off = 0
+        while off < n {
+            // d_reclen is u16 little-endian at offset 16 in both Darwin and Linux formats.
+            var r0 = ptr_get_byte(buf + off + 16)
+            var r1 = ptr_get_byte(buf + off + 17)
+            var reclen = r0 | (r1 << 8)
+            if reclen <= 0 { break }
+            if off + reclen > n { break }
+
+            // Try Darwin format first (has namlen u16 at +18).
+            var b18 = ptr_get_byte(buf + off + 18)
+            var b19 = ptr_get_byte(buf + off + 19)
+            var namlen = b18 | (b19 << 8)
+
+            var name_ptr = buf + off + 19
+            var name_len = 0
+
+            // Darwin: name starts at +21 and namlen must fit in record.
+            if namlen >= 0 {
+                if 21 + namlen <= reclen {
+                    name_ptr = buf + off + 21
+                    name_len = namlen
+                }
+            }
+
+            // Linux fallback: name starts at +19 and is NUL-terminated.
+            if name_len == 0 {
+                name_ptr = buf + off + 19
+                var max_len = reclen - 19
+                var k = 0
+                while k < max_len {
+                    if ptr_get_byte(name_ptr + k) == 0 { break }
+                    k = k + 1
+                }
+                name_len = k
+            }
+
+            // Skip empty / '.' / '..'
+            var skip = false
+            if name_len <= 0 { skip = true }
+            if skip != true {
+                if name_len == 1 {
+                    if ptr_get_byte(name_ptr) == 46 { skip = true }
+                }
+                if name_len == 2 {
+                    if ptr_get_byte(name_ptr) == 46 {
+                        if ptr_get_byte(name_ptr + 1) == 46 { skip = true }
+                    }
+                }
+            }
+
+            if skip != true {
+                var s2 = malloc(name_len + 1)
+                if s2 == 0 { exit(275) }
+                var j = 0
+                while j < name_len {
+                    ptr_set_byte(s2 + j, ptr_get_byte(name_ptr + j))
+                    j = j + 1
+                }
+                ptr_set_byte(s2 + name_len, 0)
+                oren_track_alloc(s2, name_len + 1, 1) // STRING
+                oren_list_push(out, s2)
+            }
+
+            off = off + reclen
+        }
+    }
+
+    free(pos)
+    free(buf)
+    var crc = sys_close(fd)
+    if crc < 0 { exit(276) }
+    if owned == 1 { free(rpath) }
+    return out
+}
+

@@ -1,0 +1,217 @@
+// --- Path helpers (pure, deterministic) ---
+// NOTE: v0 `oren_realpath()` is purely lexical normalization:
+// - collapses repeated '/'
+// - removes '.' segments
+// - resolves '..' segments without touching the filesystem
+// - does NOT check existence and does NOT consult the host
+fn oren_realpath(path) {
+    if path == 0 { return 0 }
+
+    var n = oren_string_len(path)
+    var is_abs = false
+    if n > 0 {
+        if ptr_get_byte(path) == 47 { is_abs = true } // '/'
+    }
+
+    // Stack of segments encoded as (start<<32)|len.
+    var segs = oren_new_list(0)
+
+    var i = 0
+    while i <= n {
+        // Skip separators
+        while i < n {
+            if ptr_get_byte(path + i) != 47 { break }
+            i = i + 1
+        }
+        if i >= n { break }
+
+        var start = i
+        while i < n {
+            if ptr_get_byte(path + i) == 47 { break }
+            i = i + 1
+        }
+        var end = i
+        var seg_len = end - start
+
+        // '.'
+        if seg_len == 1 {
+            if ptr_get_byte(path + start) == 46 {
+                // skip
+                continue
+            }
+        }
+
+        // '..'
+        if seg_len == 2 {
+            if ptr_get_byte(path + start) == 46 {
+                if ptr_get_byte(path + start + 1) == 46 {
+                    var cnt = oren_list_len(segs)
+                    if cnt > 0 {
+                        // Pop if last is not '..' (for relative) OR always for absolute.
+                        var last = oren_list_get(segs, cnt - 1)
+                        var last_len = last & 4294967295
+                        var last_start = last >> 32
+                        var last_is_dd = false
+                        if last_len == 2 {
+                            if ptr_get_byte(path + last_start) == 46 {
+                                if ptr_get_byte(path + last_start + 1) == 46 { last_is_dd = true }
+                            }
+                        }
+                        if is_abs || last_is_dd != true {
+                            ptr_set(segs, cnt - 1) // shrink list (pop)
+                            continue
+                        }
+                    }
+                    if is_abs != true {
+                        // Preserve leading '..' for relative paths.
+                        oren_list_push(segs, (start << 32) | seg_len)
+                    }
+                    continue
+                }
+            }
+        }
+
+        oren_list_push(segs, (start << 32) | seg_len)
+    }
+
+    var cnt2 = oren_list_len(segs)
+    if is_abs {
+        if cnt2 == 0 {
+            var out0 = malloc(2)
+            if out0 == 0 { exit(277) }
+            ptr_set_byte(out0, 47)
+            ptr_set_byte(out0 + 1, 0)
+            oren_track_alloc(out0, 2, 1)
+            return out0
+        }
+    } else {
+        if cnt2 == 0 {
+            var out1 = malloc(2)
+            if out1 == 0 { exit(278) }
+            ptr_set_byte(out1, 46)
+            ptr_set_byte(out1 + 1, 0)
+            oren_track_alloc(out1, 2, 1)
+            return out1
+        }
+    }
+
+    var total = 0
+    if is_abs { total = 1 }
+    var j = 0
+    while j < cnt2 {
+        var seg = oren_list_get(segs, j)
+        var seg_len2 = seg & 4294967295
+        total = total + seg_len2
+        if j + 1 < cnt2 { total = total + 1 }
+        j = j + 1
+    }
+
+    var out = malloc(total + 1)
+    if out == 0 { exit(279) }
+
+    var off = 0
+    if is_abs {
+        ptr_set_byte(out, 47)
+        off = 1
+    }
+
+    var k = 0
+    while k < cnt2 {
+        var seg2 = oren_list_get(segs, k)
+        var seg_len3 = seg2 & 4294967295
+        var seg_start3 = seg2 >> 32
+        var t = 0
+        while t < seg_len3 {
+            ptr_set_byte(out + off + t, ptr_get_byte(path + seg_start3 + t))
+            t = t + 1
+        }
+        off = off + seg_len3
+        if k + 1 < cnt2 {
+            ptr_set_byte(out + off, 47)
+            off = off + 1
+        }
+        k = k + 1
+    }
+
+    ptr_set_byte(out + total, 0)
+    oren_track_alloc(out, total + 1, 1)
+    return out
+}
+
+@cap.requires(domain="FS")
+fn oren_exists(path) {
+    // Returns true if the path exists (stat succeeds), false if it does not.
+    // Capsule-safe: path resolution and FS capability checks are enforced.
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    // Darwin: stat64 syscall; Linux: newfstatat.
+    // We only use the return code here (no struct layout dependency).
+    var st = malloc(144)
+    if st == 0 { exit(285) }
+    var rc = sys_stat(rpath, st)
+    free(st)
+
+    if owned == 1 { free(rpath) }
+    if rc < 0 { return false }
+    return true
+}
+
+@cap.requires(domain="FS")
+fn oren_realpath_checked(path) {
+    // Deterministic helper: lexical normalize (oren_realpath) and then check existence.
+    // In capsule mode, existence is checked only within enrolled mounts/prefixes.
+    var rp = oren_realpath(path)
+    if rp == 0 { return 0 }
+    if oren_exists(rp) != true {
+        // Keep failure explicit and non-silent in v0.
+        print("FS NOT FOUND")
+        exit(78)
+    }
+    return rp
+}
+
+@cap.requires(domain="FS")
+fn oren_getcwd() {
+    // Returns the current working directory.
+    //
+    // Security/determinism note:
+    // - In capsule mode we must not leak host paths. Return "/" (virtual root).
+    // - In host mode (non-capsule) on macOS we use fcntl(F_GETPATH).
+    // - On Linux we will use sys_getcwd when running natively.
+
+    native_capsule_require(CAP_FS, "FS")
+    if global_get_capsule_mode() == 1 {
+        // VirtualFS has no host cwd. Returning "/" is deterministic and avoids
+        // leaking host paths. This also makes it safe for libraries that use
+        // getcwd as part of path normalization.
+        var out = malloc(2)
+        if out == 0 { exit(280) }
+        ptr_set_byte(out + 0, 47) // '/'
+        ptr_set_byte(out + 1, 0)
+        oren_track_alloc(out, 2, 1) // STRING
+        return out
+    }
+
+    // macOS implementation: open(".") + fcntl(F_GETPATH)
+    // (works without libc; relies on sys_open + sys_fcntl_getpath intrinsics)
+    var fd = sys_open(".", 0, 0)
+    if fd < 0 { exit(281) }
+
+    var buf = malloc(4096)
+    if buf == 0 { sys_close(fd); exit(282) }
+
+    var rc = sys_fcntl_getpath(fd, buf)
+    if rc < 0 { sys_close(fd); exit(283) }
+
+    var cc = sys_close(fd)
+    if cc < 0 { exit(284) }
+
+    // Treat the buffer as a returned string.
+    // fcntl(F_GETPATH) NUL-terminates.
+    oren_track_alloc(buf, 4096, 1) // STRING
+    return buf
+}
+

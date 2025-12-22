@@ -1,0 +1,326 @@
+fn native_capsule_sys_socket_pre(domain, type, protocol) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+
+    // Allow only AF_INET in v0.
+    if domain != OREN_AF_INET {
+        print("CAPSULE DENY: NET_SOCKET_DOMAIN")
+        exit(79)
+    }
+
+    // Allow TCP/UDP only.
+    if type == OREN_SOCK_STREAM { // SOCK_STREAM
+        if protocol != 0 && protocol != OREN_IPPROTO_TCP {
+            print("CAPSULE DENY: NET_SOCKET_PROTO")
+            exit(79)
+        }
+        return 0
+    }
+    if type == OREN_SOCK_DGRAM { // SOCK_DGRAM
+        if protocol != 0 && protocol != 17 {
+            print("CAPSULE DENY: NET_SOCKET_PROTO")
+            exit(79)
+        }
+        return 0
+    }
+
+    print("CAPSULE DENY: NET_SOCKET_TYPE")
+    exit(79)
+    return 0
+}
+
+fn native_capsule_sys_socket_post(fd, domain, type, protocol) {
+    if global_get_capsule_mode() != 1 { return fd }
+    if fd < 0 { return fd }
+    // Tag fd kind (rolling):
+    if domain == OREN_AF_INET {
+        if type == OREN_SOCK_STREAM { native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_STREAM) }
+        if type == OREN_SOCK_DGRAM { native_capsule_net_fd_kind_set(fd, FD_KIND_UDP_DGRAM) }
+    }
+    return fd
+}
+
+fn native_capsule_sys_connect_pre(fd, addr, addrlen) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+
+    // Require fd to be a socket created in this process (simple per-fd capability).
+    if native_capsule_net_fd_kind_get(fd) == 0 {
+        print("CAPSULE DENY: NET_FD")
+        exit(79)
+    }
+
+    if addr == 0 || addrlen < 8 {
+        print("CAPSULE DENY: NET_CONNECT_SOCKADDR")
+        exit(79)
+    }
+
+    // Optional vnet-style mapping (enrollment mechanism).
+    var map_csv = global_get_net_tcp_connect_map_ptr()
+    var mapped = native_capsule_net_tcp_map_apply(addr, addrlen, map_csv)
+    if mapped == 1 { return 0 }
+
+    // Parse sockaddr_in and enforce endpoint allowlist / loopback.
+    var ip4 = addr + 4
+    var hi = ptr_get_byte(addr + 2)
+    var lo = ptr_get_byte(addr + 3)
+    var port = (hi << 8) | lo
+    if ptr_get_byte(addr + 1) != OREN_AF_INET {
+        print("CAPSULE DENY: NET_CONNECT_SOCKADDR")
+        exit(79)
+    }
+    if global_get_net_allow_loopback() == 1 {
+        if native_ipv4_is_loopback_ip4(ip4) { return 0 }
+    }
+    var prefs = global_get_net_allow_tcp_connect_ptr()
+    if native_capsule_net_endpoint_allowed_ip4(ip4, port, prefs) { return 0 }
+    print("CAPSULE DENY: NET_CONNECT")
+    exit(79)
+    return 0
+}
+
+fn native_capsule_sys_connect_post(rc, fd, addr, addrlen) {
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc == 0 {
+        // Mark stream socket as connected (still kind=1).
+        if native_capsule_net_fd_kind_get(fd) == FD_KIND_TCP_STREAM {
+            native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_STREAM)
+        }
+    }
+    return rc
+}
+
+fn native_capsule_sys_bind_pre(fd, addr, addrlen) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if native_capsule_net_fd_kind_get(fd) == 0 {
+        print("CAPSULE DENY: NET_FD")
+        exit(79)
+    }
+
+    if addr == 0 || addrlen < 8 {
+        print("CAPSULE DENY: NET_BIND_SOCKADDR")
+        exit(79)
+    }
+
+    var map_csv = global_get_net_tcp_listen_map_ptr()
+    var mapped = native_capsule_net_tcp_map_apply(addr, addrlen, map_csv)
+    if mapped == 1 { return 0 }
+
+    if ptr_get_byte(addr + 1) != OREN_AF_INET {
+        print("CAPSULE DENY: NET_BIND_SOCKADDR")
+        exit(79)
+    }
+    var ip4 = addr + 4
+    var hi = ptr_get_byte(addr + 2)
+    var lo = ptr_get_byte(addr + 3)
+    var port = (hi << 8) | lo
+
+    if global_get_net_allow_loopback() == 1 {
+        if native_ipv4_is_loopback_ip4(ip4) { return 0 }
+    }
+    var prefs = global_get_net_allow_tcp_listen_ptr()
+    if native_capsule_net_endpoint_allowed_ip4(ip4, port, prefs) { return 0 }
+    print("CAPSULE DENY: NET_LISTEN")
+    exit(79)
+    return 0
+}
+
+fn native_capsule_sys_bind_post(rc, fd, addr, addrlen) {
+    return rc
+}
+
+fn native_capsule_sys_listen_pre(fd, backlog) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if native_capsule_net_fd_kind_get(fd) == 0 {
+        print("CAPSULE DENY: NET_FD")
+        exit(79)
+    }
+    return 0
+}
+
+fn native_capsule_sys_listen_post(rc, fd, backlog) {
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc == 0 {
+        // Mark as listening (kind=2).
+        native_capsule_net_fd_kind_set(fd, FD_KIND_TCP_LISTEN)
+    }
+    return rc
+}
+
+fn native_capsule_sys_accept_pre(fd, addr, addrlen_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if native_capsule_net_fd_kind_get(fd) != FD_KIND_TCP_LISTEN {
+        print("CAPSULE DENY: NET_ACCEPT")
+        exit(79)
+    }
+    return 0
+}
+
+fn native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) {
+    if global_get_capsule_mode() != 1 { return newfd }
+    if newfd >= 0 {
+        // Inherit "tcp stream" capability (kind=1).
+        native_capsule_net_fd_kind_set(newfd, FD_KIND_TCP_STREAM)
+    }
+    return newfd
+}
+
+fn native_capsule_sys_getpeername_pre(fd, addr, addrlen_ptr) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_getsockname_pre(fd, addr, addrlen_ptr) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_getsockopt_pre(fd, level, optname, optval, optlen_ptr) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_setsockopt_pre(fd, level, optname, optval, optlen) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_shutdown_pre(fd, how) {
+    // Enforce NET enrollment on raw syscalls in capsule mode (no bypass).
+    native_capsule_require(CAP_NET, "NET")
+    return 0
+}
+
+fn native_capsule_sys_dup_pre(fd) {
+    // Enforce domain for raw sys_dup boundary (no bypass).
+    native_capsule_require_fd_domain(fd)
+    return fd
+}
+
+fn native_capsule_sys_dup_post(newfd, oldfd) {
+    // Propagate fd kind tags across duplication so later fd-based gating (read/write/close/fcntl)
+    // cannot be bypassed by dup'ing a tagged fd into an untagged slot.
+    if global_get_capsule_mode() != 1 { return newfd }
+    if newfd < 0 { return newfd }
+    if oldfd < 0 { return newfd }
+    var k = native_capsule_net_fd_kind_get(oldfd)
+    native_capsule_net_fd_kind_clear(newfd)
+    if k != 0 {
+        native_capsule_net_fd_kind_set(newfd, k)
+    }
+    return newfd
+}
+
+fn native_capsule_sys_dup2_pre(oldfd, newfd) {
+    // Enforce domain for raw sys_dup2 boundary (no bypass).
+    native_capsule_require_fd_domain(oldfd)
+    if global_get_capsule_mode() != 1 { return 0 }
+    // dup2/dup3 can implicitly close `newfd` if it is already open.
+    // For tagged fds (NET/PROC/TIME eventloop), require the corresponding domain as well
+    // so programs cannot drop capabilities by dup-clobbering a tagged fd slot.
+    if newfd >= 0 {
+        var k = native_capsule_net_fd_kind_get(newfd)
+        if k != 0 {
+            native_capsule_require_fd_domain(newfd)
+        }
+    }
+    return 0
+}
+
+fn native_capsule_sys_dup2_post(rc, oldfd, newfd) {
+    // dup2/dup3 returns newfd on success.
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc < 0 { return rc }
+    var k = 0
+    if oldfd >= 0 { k = native_capsule_net_fd_kind_get(oldfd) }
+    if newfd >= 0 {
+        native_capsule_net_fd_kind_clear(newfd)
+        if k != 0 {
+            native_capsule_net_fd_kind_set(newfd, k)
+        }
+    }
+    return rc
+}
+
+fn native_capsule_sys_ioctl_pre(fd, req, argp) {
+    // Enforce domain for raw sys_ioctl boundary (no bypass).
+    //
+    // ioctl is extremely powerful: it can mutate kernel-visible state associated with an fd,
+    // including socket flags, tty/pty settings, and various device controls.
+    // In capsule mode, we gate it based on fd kind:
+    // - NET-tagged fds require NET
+    // - PROC pipes require PROC
+    // - other fds require FS
+    native_capsule_require_fd_domain(fd)
+    return 0
+}
+
+fn native_capsule_sys_sendto_pre(fd, buf, len, flags, to, tolen) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k == 0 {
+        print("CAPSULE DENY: NET_FD")
+        exit(79)
+    }
+    // Disallow sending on listening sockets.
+    if k == FD_KIND_TCP_LISTEN {
+        print("CAPSULE DENY: NET_SEND_LISTEN")
+        exit(79)
+    }
+
+    // For datagrams with explicit destination, enforce endpoint allowlist.
+    if to != 0 {
+        if tolen < 8 || ptr_get_byte(to + 1) != OREN_AF_INET {
+            print("CAPSULE DENY: NET_SENDTO_SOCKADDR")
+            exit(79)
+        }
+        var ip4 = to + 4
+        var hi = ptr_get_byte(to + 2)
+        var lo = ptr_get_byte(to + 3)
+        var port = (hi << 8) | lo
+        var map_csv = global_get_net_tcp_connect_map_ptr()
+        var mapped = native_capsule_net_tcp_map_apply(to, tolen, map_csv)
+        if mapped == 1 { return 0 }
+        if global_get_net_allow_loopback() == 1 {
+            if native_ipv4_is_loopback_ip4(ip4) { return 0 }
+        }
+        var prefs = global_get_net_allow_tcp_connect_ptr()
+        if native_capsule_net_endpoint_allowed_ip4(ip4, port, prefs) { return 0 }
+        print("CAPSULE DENY: NET_SENDTO")
+        exit(79)
+    }
+    return 0
+}
+
+fn native_capsule_sys_recvfrom_pre(fd, buf, len, flags, from, fromlen) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k == 0 {
+        print("CAPSULE DENY: NET_FD")
+        exit(79)
+    }
+    if k == FD_KIND_TCP_LISTEN {
+        print("CAPSULE DENY: NET_RECV_LISTEN")
+        exit(79)
+    }
+    return 0
+}
+
+fn native_capsule_sys_close_post(rc, fd) {
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc == 0 {
+        native_capsule_net_fd_kind_clear(fd)
+    }
+    return rc
+}
+

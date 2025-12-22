@@ -45,6 +45,165 @@ fn str_starts_with(s, pref) {
     return oren_string_slice(s, 0, plen) == pref
 }
 
+fn str_ends_with_newline(s) {
+    if s == nil { return false }
+    var n = oren_string_len(s)
+    if n == 0 { return false }
+    return oren_string_char_at(s, n - 1) == "\n"
+}
+
+fn path_dirname(path) {
+    if path == nil { return "." }
+    var i = oren_string_len(path) - 1
+    while i >= 0 {
+        if oren_string_char_at(path, i) == "/" {
+            if i == 0 { return "/" }
+            return oren_string_slice(path, 0, i)
+        }
+        i = i - 1
+    }
+    return "."
+}
+
+fn path_join(base, rel) {
+    if rel == nil { return "" }
+    if oren_string_len(rel) > 0 && oren_string_char_at(rel, 0) == "/" { return rel }
+    if base == nil || base == "" || base == "." { return rel }
+    var bl = oren_string_len(base)
+    if bl > 0 && oren_string_char_at(base, bl - 1) == "/" { return base + rel }
+    return base + "/" + rel
+}
+
+fn trim_left_ws(s) {
+    if s == nil { return "" }
+    var i = 0
+    var n = oren_string_len(s)
+    while i < n {
+        var c = oren_string_char_at(s, i)
+        if c != " " && c != "\t" && c != "\r" { break }
+        i = i + 1
+    }
+    if i == 0 { return s }
+    return oren_string_slice(s, i, n)
+}
+
+fn runtime_include_path_from_line(line) {
+    // Directive form (must be in a single line comment):
+    //   // @include "relative/or/absolute/path.oren"
+    //
+    // NOTE: This is a tiny purpose-built preprocessor used only for the native runtime
+    // injector. It intentionally does *not* implement general modules/imports because
+    // runtime symbols must remain in the global namespace.
+    if line == nil { return "" }
+    var t = trim_left_ws(line)
+    if !str_starts_with(t, "// @include") { return "" }
+    var n = oren_string_len(t)
+    var i = 0
+    while i < n {
+        if oren_string_char_at(t, i) == "\"" { break }
+        i = i + 1
+    }
+    if i >= n { return "" }
+    var j = i + 1
+    while j < n {
+        if oren_string_char_at(t, j) == "\"" { break }
+        j = j + 1
+    }
+    if j >= n { return "" }
+    return oren_string_slice(t, i + 1, j)
+}
+
+fn runtime_expand_includes_file(ctx, full_path, stack) {
+    // Returns expanded source string, or nil on error (errors pushed into ctx["errors"]).
+    if full_path == nil || full_path == "" {
+        oren_list_push(ctx["errors"], "native backend: runtime include: empty path")
+        return nil
+    }
+
+    // Cycle check
+    if stack != nil {
+        var si = 0
+        while si < oren_list_len(stack) {
+            if stack[si] == full_path {
+                oren_list_push(ctx["errors"], "native backend: runtime include cycle: " + full_path)
+                return nil
+            }
+            si = si + 1
+        }
+    }
+
+    var src = oren_read_file(full_path)
+    if oren_is_err(src) {
+        var msg = oren_err_msg(src)
+        var e = "native backend: failed to read runtime include " + full_path
+        if msg != nil { e = e + ": " + msg }
+        oren_list_push(ctx["errors"], e)
+        return nil
+    }
+
+    var next_stack = []
+    if stack != nil {
+        var ci = 0
+        while ci < oren_list_len(stack) {
+            oren_list_push(next_stack, stack[ci])
+            ci = ci + 1
+        }
+    }
+    oren_list_push(next_stack, full_path)
+
+    var out_parts = []
+    var line = ""
+    var i = 0
+    var n = oren_string_len(src)
+    while i < n {
+        var ch = oren_string_char_at(src, i)
+        if ch == "\n" {
+            var inc = runtime_include_path_from_line(line)
+            if inc != "" {
+                var inc_full = path_join(path_dirname(full_path), inc)
+                var child = runtime_expand_includes_file(ctx, inc_full, next_stack)
+                if child == nil { return nil }
+                oren_list_push(out_parts, child)
+                if !str_ends_with_newline(child) {
+                    oren_list_push(out_parts, "\n")
+                }
+            } else {
+                oren_list_push(out_parts, line)
+                oren_list_push(out_parts, "\n")
+            }
+            line = ""
+        } else {
+            line = line + ch
+        }
+        i = i + 1
+    }
+
+    // Handle last line if file doesn't end in '\n'
+    if line != "" {
+        var inc2 = runtime_include_path_from_line(line)
+        if inc2 != "" {
+            var inc_full2 = path_join(path_dirname(full_path), inc2)
+            var child2 = runtime_expand_includes_file(ctx, inc_full2, next_stack)
+            if child2 == nil { return nil }
+            oren_list_push(out_parts, child2)
+            if !str_ends_with_newline(child2) {
+                oren_list_push(out_parts, "\n")
+            }
+        } else {
+            oren_list_push(out_parts, line)
+            oren_list_push(out_parts, "\n")
+        }
+    }
+
+    var out = ""
+    var pi = 0
+    while pi < oren_list_len(out_parts) {
+        out = out + out_parts[pi]
+        pi = pi + 1
+    }
+    return out
+}
+
 fn node_id(name) { return {"type": "Identifier", "value": name} }
 fn node_int(n) { return {"type": "Integer", "value": oren_int_to_string(n)} }
 fn node_string(s) { return {"type": "String", "value": s} }
@@ -844,15 +1003,9 @@ fn native_compile_program_arm64(linked, platform) {
     // without overlapping the injected runtime function ranges.
     ctx["entry_stub_end"] = oren_list_len(ctx["code"])
     
-    // Inject Runtime
-    var runtime_src = oren_read_file("lib/runtime_native.oren")
-    if oren_is_err(runtime_src) {
-        var msg = oren_err_msg(runtime_src)
-        var e = "Failed to read lib/runtime_native.oren"
-        if msg != nil { e = e + ": " + msg }
-        oren_list_push(ctx["errors"], e)
-        return ctx
-    }
+    // Inject Runtime (supports `// @include "..."` expansion for modular runtime sources).
+    var runtime_src = runtime_expand_includes_file(ctx, "lib/runtime_native.oren", [])
+    if runtime_src == nil { return ctx }
     var l = lexer.new_lexer(runtime_src)
     l["file"] = "lib/runtime_native.oren"
     var p = parser.new_parser(l)

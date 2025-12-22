@@ -1,0 +1,113 @@
+// --- UDP (syscall-first) ---
+//
+// Goal: provide a minimal datagram substrate for stdlib layering:
+// - bind local loopback (port may be 0 for ephemeral)
+// - sendto / recvfrom with timeout (no hangs)
+// - introspect bound port via getsockname
+
+@cap.requires(domain="NET")
+fn oren_udp_bind_local(port) {
+    native_capsule_require(CAP_NET, "NET")
+    // Bind to 127.0.0.1:<port> for loopback-only tests and simple local services.
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_DGRAM, 0)
+    if fd < 0 { return fd }
+
+    // Allow quick reuse during tests.
+    var one = malloc(8)
+    if one == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(one, 8, 0)
+    ptr_set(one, 1)
+    var sroc = sys_setsockopt(fd, OREN_SOL_SOCKET, OREN_SO_REUSEADDR, one, 4)
+    free(one)
+    if sroc < 0 {
+        sys_close(fd)
+        return sroc
+    }
+
+    // Non-blocking to avoid hanging on unexpected kernel behavior; we always wait with kqueue/epoll.
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 {
+        sys_close(fd)
+        return nb
+    }
+
+    var sa = oren_tcp_sockaddr_in(0, port) // 127.0.0.1
+    if sa == 0 {
+        sys_close(fd)
+        return 0 - 22 // EINVAL
+    }
+    var brc = sys_bind(fd, sa, 16)
+    free(sa)
+    if brc < 0 {
+        sys_close(fd)
+        return brc
+    }
+    return fd
+}
+
+@cap.requires(domain="NET")
+fn oren_udp_sockname_port(fd) {
+    native_capsule_require(CAP_NET, "NET")
+    var sa = malloc(16)
+    if sa == 0 { return 0 - 12 } // ENOMEM
+    oren_track_alloc(sa, 16, 0)
+    var lenp = malloc(8)
+    if lenp == 0 { free(sa); return 0 - 12 } // ENOMEM
+    oren_track_alloc(lenp, 8, 0)
+    ptr_set(lenp, 16)
+
+    var rc = sys_getsockname(fd, sa, lenp)
+    if rc < 0 {
+        free(sa)
+        free(lenp)
+        return rc
+    }
+
+    // Port is network-order u16 at bytes 2..3 for both Darwin and Linux sockaddr_in.
+    var hi = ptr_get_byte(sa + 2)
+    var lo = ptr_get_byte(sa + 3)
+    var port = (hi << 8) | lo
+    free(sa)
+    free(lenp)
+    return port
+}
+
+@cap.requires(domain="NET")
+fn oren_udp_sendto(fd, ip, port, buf, len, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if len <= 0 { return 0 }
+    var n = oren_fd_wait_writable(fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+
+    var sa = oren_tcp_sockaddr_in(ip, port)
+    if sa == 0 { return 0 - 22 } // EINVAL
+    var w = sys_sendto(fd, buf, len, 0, sa, 16)
+    free(sa)
+    // EAGAIN/EWOULDBLOCK:
+    // - macOS: 35
+    // - Linux: 11
+    if w == 0 - 35 || w == 0 - 11 { return 0 }
+    return w
+}
+
+@cap.requires(domain="NET")
+fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if len <= 0 { return 0 }
+    var n = oren_fd_wait_readable(fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
+    if r == 0 - 35 || r == 0 - 11 { return 0 }
+    return r
+}
+
+@cap.requires(domain="NET")
+fn oren_udp_close(fd) {
+    native_capsule_require(CAP_NET, "NET")
+    if fd < 0 { return 0 }
+    sys_close(fd)
+    return 0
+}
+

@@ -1,0 +1,550 @@
+fn native_runtime_capsule_init() {
+    // Initialize runtime capsule enforcement from env:
+    // - OREN_CAPSULE=1 enables deny-by-default enforcement for host-effectful APIs.
+    // - OREN_CAP_ALLOW_DOMAINS="FS,NET,PROC,ENV,TIME" enrolls domains.
+    //
+    // Defaults (non-capsule): allow everything (mask ignored).
+    global_set_capsule_mode(0)
+    global_set_cap_allow_mask(0)
+
+    // SIMD runtime opt-in (rolling):
+    // - Must never change semantics; scalar behavior is authoritative.
+    // - Default off; enable explicitly via env.
+    //
+    // Env:
+    // - OREN_ENABLE_SIMD=1 enables SIMD fast paths (when implemented).
+    // - OREN_NO_SIMD=1 disables SIMD (wins over enable).
+    global_set_enable_simd(0)
+    var v_no_simd = native_envp_get_value_ptr("OREN_NO_SIMD")
+    if v_no_simd != 0 {
+        if ptr_get_byte(v_no_simd) != 0 {
+            if ptr_get_byte(v_no_simd) != 48 { global_set_enable_simd(0) } // not '0'
+        }
+    } else {
+        var v_simd = native_envp_get_value_ptr("OREN_ENABLE_SIMD")
+        if v_simd != 0 {
+            if ptr_get_byte(v_simd) != 0 {
+                if ptr_get_byte(v_simd) != 48 { global_set_enable_simd(1) } // not '0'
+            }
+        }
+    }
+
+    // Allocator policy (rolling; affects typed buffers + raw blocks).
+    //
+    // Env:
+    // - OREN_RAW_MMAP_THRESHOLD=<bytes>  (0 disables mmap path; default 1 MiB)
+    // - OREN_BUF_ALIGN=8|16|32|64        (default 64)
+    // - OREN_BUF_FORCE_MMAP=1            (force mmap for any non-empty typed buffer payload)
+    // - OREN_BUF_PAYLOAD_LIMIT_BYTES=<bytes> (0 means unlimited; caps typed-buffer payload bytes)
+    var v_thr = native_envp_get_value_ptr("OREN_RAW_MMAP_THRESHOLD")
+    if v_thr != 0 {
+        var thr = native_parse_i64_dec_cstr_or_neg1(v_thr)
+        if thr >= 0 { global_set_raw_mmap_threshold(thr) }
+    }
+    var v_align = native_envp_get_value_ptr("OREN_BUF_ALIGN")
+    if v_align != 0 {
+        var a = native_parse_i64_dec_cstr_or_neg1(v_align)
+        if a == 8 || a == 16 || a == 32 || a == 64 { global_set_buf_align(a) }
+    }
+    global_set_buf_force_mmap(0)
+    var v_force = native_envp_get_value_ptr("OREN_BUF_FORCE_MMAP")
+    if v_force != 0 {
+        if ptr_get_byte(v_force) != 0 {
+            if ptr_get_byte(v_force) != 48 { global_set_buf_force_mmap(1) } // not '0'
+        }
+    }
+    global_set_buf_payload_limit(0)
+    var v_lim = native_envp_get_value_ptr("OREN_BUF_PAYLOAD_LIMIT_BYTES")
+    if v_lim != 0 {
+        var lim = native_parse_i64_dec_cstr_or_neg1(v_lim)
+        if lim >= 0 { global_set_buf_payload_limit(lim) }
+    }
+
+    var k_capsule = "OREN_CAPSULE"
+    var v_capsule = native_envp_get_value_ptr(k_capsule)
+    if v_capsule == 0 { return 0 }
+    if ptr_get_byte(v_capsule) == 0 { return 0 }
+    if ptr_get_byte(v_capsule) == 48 { return 0 } // '0'
+
+    global_set_capsule_mode(1)
+
+    var k_allow = "OREN_CAP_ALLOW_DOMAINS"
+    var v_allow = native_envp_get_value_ptr(k_allow)
+    if v_allow == 0 {
+        global_set_cap_allow_mask(0)
+        return 0
+    }
+    var mask = native_parse_cap_allow_mask(v_allow)
+    global_set_cap_allow_mask(mask)
+
+    // FS path prefix allowlist (rolling):
+    // Legacy env (applies to both read+write): OREN_FS_ALLOW_PREFIXES="build/,tmp/"
+    var v_fs = native_envp_get_value_ptr("OREN_FS_ALLOW_PREFIXES")
+    global_set_fs_allow_prefixes_ptr(v_fs)
+
+    // Split allowlists (preferred):
+    //   OREN_FS_ALLOW_READ_PREFIXES=...
+    //   OREN_FS_ALLOW_WRITE_PREFIXES=...
+    // If unset, fall back to OREN_FS_ALLOW_PREFIXES.
+    var v_r = native_envp_get_value_ptr("OREN_FS_ALLOW_READ_PREFIXES")
+    var v_w = native_envp_get_value_ptr("OREN_FS_ALLOW_WRITE_PREFIXES")
+    if v_r == 0 { v_r = v_fs }
+    if v_w == 0 { v_w = v_fs }
+    global_set_fs_allow_read_prefixes_ptr(v_r)
+    global_set_fs_allow_write_prefixes_ptr(v_w)
+
+    // FS mounts (preferred over prefixes when set):
+    // - In capsule mode, mounts provide an explicit virtual->host mapping and are sufficient by themselves.
+    // - When mounts are configured for an operation (read/write), direct host paths are denied unless they match a mount.
+    //
+    // Env:
+    // - OREN_FS_MOUNTS="v/=build/mnt/" (legacy applies to both)
+    // - OREN_FS_MOUNTS_READ=...
+    // - OREN_FS_MOUNTS_WRITE=...
+    //
+    // Notes:
+    // - Tokens are CSV.
+    // - Each token is "<virt_prefix>=<host_prefix>".
+    // - Use trailing '/' in virt_prefix to avoid accidental prefix matches.
+    var v_m = native_envp_get_value_ptr("OREN_FS_MOUNTS")
+    var v_mr = native_envp_get_value_ptr("OREN_FS_MOUNTS_READ")
+    var v_mw = native_envp_get_value_ptr("OREN_FS_MOUNTS_WRITE")
+    if v_mr == 0 { v_mr = v_m }
+    if v_mw == 0 { v_mw = v_m }
+    global_set_fs_mounts_ptr(v_m)
+    global_set_fs_mounts_read_ptr(v_mr)
+    global_set_fs_mounts_write_ptr(v_mw)
+
+    // NET enrollment (rolling; native backend):
+    // - Default: deny all NET endpoints in capsule mode unless explicitly enrolled.
+    // - Allow loopback endpoints via OREN_NET_ALLOW_LOOPBACK=1.
+    // - Optional explicit endpoint allowlists:
+    //     OREN_NET_ALLOW_TCP_CONNECT="127.0.0.1:8080,10.0.0.1:*"
+    //     OREN_NET_ALLOW_TCP_LISTEN="127.0.0.1:*"
+    // Tokens:
+    // - "<ipv4>" allows any port for that ip
+    // - "<ipv4>:<port>" allows a single port
+    // - "<ipv4>:*" allows any port
+    // - "*:<port>" allows that port to any ip
+    // - "*" allows any ip/port (dangerous; only honored if explicitly set)
+    var v_loop = native_envp_get_value_ptr("OREN_NET_ALLOW_LOOPBACK")
+    var loop = 0
+    if v_loop != 0 {
+        if ptr_get_byte(v_loop) != 0 {
+            if ptr_get_byte(v_loop) != 48 { loop = 1 } // not '0'
+        }
+    }
+    global_set_net_allow_loopback(loop)
+    global_set_net_allow_tcp_connect_ptr(native_envp_get_value_ptr("OREN_NET_ALLOW_TCP_CONNECT"))
+    global_set_net_allow_tcp_listen_ptr(native_envp_get_value_ptr("OREN_NET_ALLOW_TCP_LISTEN"))
+    // NET endpoint vnet-style mapping (rolling; native backend):
+    // - Explicit enrollment mechanism that can rewrite a *virtual* endpoint into a *host* endpoint
+    //   without requiring a relay between nested AVMs.
+    // - Format: CSV of "<virt_ip>:<virt_port>=<host_ip>:<host_port>"
+    // - When a mapping matches, it is sufficient by itself (it is the enrollment).
+    global_set_net_tcp_connect_map_ptr(native_envp_get_value_ptr("OREN_NET_TCP_CONNECT_MAP"))
+    global_set_net_tcp_listen_map_ptr(native_envp_get_value_ptr("OREN_NET_TCP_LISTEN_MAP"))
+
+    // PROC enrollment (rolling; native backend):
+    //
+    // We intentionally do NOT rely on a host shell or PATH lookups:
+    // - When you need processes in capsule mode, use explicit exec paths.
+    // - `oren_system` is considered a convenience API and must be explicitly enabled.
+    //
+    // Env:
+    // - OREN_PROC_ALLOW_EXEC_PREFIXES="/usr/bin/,/bin/" (CSV path prefixes)
+    // - OREN_PROC_ALLOW_SYSTEM=1 (enables /bin/sh only; convenience for bootstrapping)
+    // - OREN_PROC_INHERIT_ENV=1 (dangerous: inherit all parent env vars)
+    // - OREN_PROC_ALLOW_ENV_KEYS="PATH,HOME" (CSV keys; only these are inherited)
+    // - OREN_PROC_ALLOW_ARGV="/usr/bin/true|/usr/bin/true,/usr/bin/printenv|printenv|X,/bin/sh|sh|-c|*" (CSV specs; '|' delims argv)
+    var v_proc_exec = native_envp_get_value_ptr("OREN_PROC_ALLOW_EXEC_PREFIXES")
+    var v_allow_system = native_envp_get_value_ptr("OREN_PROC_ALLOW_SYSTEM")
+    var allow_system = 0
+    if v_allow_system != 0 {
+        if ptr_get_byte(v_allow_system) != 0 {
+            if ptr_get_byte(v_allow_system) != 48 { allow_system = 1 } // not '0'
+        }
+    }
+    global_set_proc_allow_system(allow_system)
+    if v_proc_exec == 0 {
+        if allow_system == 1 {
+            // Allow just the shell path for oren_system_timeout().
+            v_proc_exec = "/bin/sh"
+        }
+    }
+    global_set_proc_allow_exec_prefixes_ptr(v_proc_exec)
+
+    var v_inherit = native_envp_get_value_ptr("OREN_PROC_INHERIT_ENV")
+    var inherit = 0
+    if v_inherit != 0 {
+        if ptr_get_byte(v_inherit) != 0 {
+            if ptr_get_byte(v_inherit) != 48 { inherit = 1 } // not '0'
+        }
+    }
+    global_set_proc_inherit_env(inherit)
+    global_set_proc_allow_env_keys_ptr(native_envp_get_value_ptr("OREN_PROC_ALLOW_ENV_KEYS"))
+    global_set_proc_allow_argv_ptr(native_envp_get_value_ptr("OREN_PROC_ALLOW_ARGV"))
+    return 0
+}
+
+fn native_capsule_require(mask_bit, name) {
+    if global_get_capsule_mode() != 1 { return 0 }
+    var allow = global_get_cap_allow_mask()
+    if (allow & mask_bit) != 0 { return 0 }
+    native_capsule_diag_print("CAPSULE DENY: " + name)
+    native_capsule_diag_print("hint: set OREN_CAP_ALLOW_DOMAINS to include " + name + " (or pass --cap-allow-domains)")
+    exit(77)
+    return 0
+}
+
+fn native_capsule_require_any(mask_bits, name_hint) {
+    if global_get_capsule_mode() != 1 { return 0 }
+    var allow = global_get_cap_allow_mask()
+    if (allow & mask_bits) != 0 { return 0 }
+    native_capsule_diag_print("CAPSULE DENY: " + name_hint)
+    native_capsule_diag_print("hint: set OREN_CAP_ALLOW_DOMAINS to include one of: " + name_hint + " (or pass --cap-allow-domains)")
+    exit(77)
+    return 0
+}
+
+fn native_capsule_diag_print(msg) {
+    // Diagnostic printing helper for capsule deny paths.
+    //
+    // Design goal:
+    // - Capsule enforcement must be able to explain *why* it denied an operation.
+    // - Those diagnostics must not themselves be blocked by FS/NET/PROC enrollment rules.
+    //
+    // Implementation:
+    // - Temporarily disable capsule_mode while calling print(), so sys_write gating does not recurse.
+    if msg == 0 { return 0 }
+    if global_get_capsule_mode() != 1 {
+        print(msg)
+        return 0
+    }
+    global_set_capsule_mode(0)
+    print(msg)
+    global_set_capsule_mode(1)
+    return 0
+}
+
+fn native_capsule_require_fd_domain(fd) {
+    // Require an appropriate domain for an existing fd in capsule mode.
+    //
+    // Rules:
+    // - NET-tagged fds require NET.
+    // - PROC pipe fds require PROC.
+    // - Other fds require FS (stdio/files).
+    if global_get_capsule_mode() != 1 { return 0 }
+    if fd < 0 { return 0 }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k != 0 {
+        if k == FD_KIND_PROC_PIPE {
+            native_capsule_require(CAP_PROC, "PROC")
+            return 0
+        }
+        if k == FD_KIND_KQUEUE {
+            // Event-loop fds are shared across domains (TIME/NET/PROC).
+            native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+            return 0
+        }
+        if k == FD_KIND_EPOLL {
+            // Linux epoll fds serve the same "event loop" role as kqueue fds.
+            native_capsule_require_any(CAP_NET | CAP_PROC | CAP_TIME, "NET,PROC,TIME")
+            return 0
+        }
+        native_capsule_require(CAP_NET, "NET")
+        return 0
+    }
+    native_capsule_require(CAP_FS, "FS")
+    return 0
+}
+
+fn native_capsule_fs_path_allowed(path, prefs) {
+    if path == 0 { return false }
+    // prefs is a CSV cstr
+    if prefs == 0 { return false }
+
+    var i = 0
+    var start = 0
+    var n = native_cstr_len(prefs)
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(prefs, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(prefs, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(prefs, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            var tok_len = tok_end - tok_start
+            if tok_len > 0 {
+                var j = 0
+                var ok = true
+                while j < tok_len {
+                    var pc = ptr_get_byte(iadd(path, j))
+                    if pc == 0 { ok = false; j = tok_len }
+                    else {
+                        var tc = ptr_get_byte(iadd(prefs, tok_start + j))
+                        if pc != tc { ok = false; j = tok_len }
+                        else { j = j + 1 }
+                    }
+                }
+                if ok {
+                    // Boundary check when prefix does not end with '/':
+                    // Avoid accidental matches like "build" matching "build2".
+                    var last = ptr_get_byte(iadd(prefs, tok_start + tok_len - 1))
+                    if last != 47 {
+                        var nextc = ptr_get_byte(iadd(path, tok_len))
+                        if nextc != 0 && nextc != 47 { ok = false }
+                    }
+                }
+                if ok { return true }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_capsule_fs_mount_resolve(path, mounts_csv) {
+    // mounts_csv: CSV of "<virt_prefix>=<host_prefix>" tokens.
+    // Returns newly allocated host path string on match, or 0 if no match.
+    //
+    // Security + determinism rules (rolling):
+    // - Use LONGEST matching virt_prefix (order-independent).
+    // - Enforce a path boundary when prefix does not end with '/':
+    //     prefix matches only if next char is '/' or NUL.
+    if path == 0 { return 0 }
+    if mounts_csv == 0 { return 0 }
+    if ptr_get_byte(mounts_csv) == 0 { return 0 }
+
+    var path_len = oren_string_len(path)
+
+    // Track best match by virt_len.
+    var best_virt_len = 0
+    var best_host_start = 0
+    var best_host_len = 0
+
+    var n = native_cstr_len(mounts_csv)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(mounts_csv, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(mounts_csv, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(mounts_csv, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            // Find '=' inside token
+            var eq = -1
+            var j = tok_start
+            while j < tok_end {
+                if ptr_get_byte(iadd(mounts_csv, j)) == 61 { eq = j; break } // '='
+                j = j + 1
+            }
+
+            if eq != -1 {
+                var virt_start = tok_start
+                var virt_end = eq
+                var host_start = eq + 1
+                var host_end = tok_end
+
+                while virt_start < virt_end && ptr_get_byte(iadd(mounts_csv, virt_start)) == 32 { virt_start = virt_start + 1 }
+                while virt_end > virt_start && ptr_get_byte(iadd(mounts_csv, virt_end - 1)) == 32 { virt_end = virt_end - 1 }
+                while host_start < host_end && ptr_get_byte(iadd(mounts_csv, host_start)) == 32 { host_start = host_start + 1 }
+                while host_end > host_start && ptr_get_byte(iadd(mounts_csv, host_end - 1)) == 32 { host_end = host_end - 1 }
+
+                var virt_len = virt_end - virt_start
+                var host_len = host_end - host_start
+                if virt_len > 0 && host_len > 0 {
+                    // Prefix match of virt_prefix against path.
+                    if path_len >= virt_len {
+                        var k = 0
+                        var is_match = true
+                        while k < virt_len {
+                            var pc = ptr_get_byte(path + k)
+                            if pc == 0 { is_match = false; k = virt_len }
+                            else {
+                                var vc = ptr_get_byte(iadd(mounts_csv, virt_start + k))
+                                if pc != vc { is_match = false; k = virt_len }
+                                else { k = k + 1 }
+                            }
+                        }
+
+                        if is_match {
+                            // Boundary check when virt_prefix does not end with '/'.
+                            var last = ptr_get_byte(iadd(mounts_csv, virt_start + virt_len - 1))
+                            if last != 47 {
+                                var nextc = 0
+                                if path_len > virt_len { nextc = ptr_get_byte(path + virt_len) }
+                                if nextc != 0 && nextc != 47 { is_match = false }
+                            }
+                        }
+
+                        if is_match {
+                            if virt_len > best_virt_len {
+                                best_virt_len = virt_len
+                                best_host_start = host_start
+                                best_host_len = host_len
+                            }
+                        }
+                    }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+
+    if best_virt_len == 0 { return 0 }
+
+    var rem_len = path_len - best_virt_len
+    var out = malloc(best_host_len + rem_len + 1)
+    if out == 0 { exit(301) }
+
+    // host prefix
+    var a = 0
+    while a < best_host_len {
+        ptr_set_byte(out + a, ptr_get_byte(iadd(mounts_csv, best_host_start + a)))
+        a = a + 1
+    }
+    // remainder
+    var b = 0
+    while b < rem_len {
+        ptr_set_byte(out + best_host_len + b, ptr_get_byte(path + best_virt_len + b))
+        b = b + 1
+    }
+    ptr_set_byte(out + best_host_len + rem_len, 0)
+    oren_track_alloc(out, best_host_len + rem_len + 1, 1) // STRING
+    return out
+}
+
+fn native_capsule_fs_path_resolve_pair(path, op_kind) {
+    // Returns pointer to [resolved_path_ptr, owned(0|1)] (16 bytes).
+    // owned=1 means resolved_path_ptr must be free()'d by the caller.
+    var pair = malloc(16)
+    if pair == 0 { exit(301) }
+    ptr_set(pair + 0, path)
+    ptr_set(pair + 8, 0)
+
+    native_capsule_require(CAP_FS, "FS")
+    if global_get_capsule_mode() != 1 { return pair }
+
+    // Prefer mounts if configured for this operation.
+    var mounts = global_get_fs_mounts_ptr()
+    if op_kind == 0 { mounts = global_get_fs_mounts_read_ptr() }
+    if op_kind == 1 { mounts = global_get_fs_mounts_write_ptr() }
+    if mounts != 0 {
+        if ptr_get_byte(mounts) == 0 { mounts = 0 }
+    }
+
+    if mounts != 0 {
+        // Fast path: if caller already provides a host path, allow it if it is within
+        // any enrolled host_prefix in mounts.
+        //
+        // This is important because higher-level helpers may pre-resolve paths; mounts
+        // are still the enrollment mechanism, regardless of whether the caller uses
+        // virtual or host paths.
+        var n2 = native_cstr_len(mounts)
+        var ii = 0
+        var start2 = 0
+        while ii <= n2 {
+            var ch2 = 0
+            if ii < n2 { ch2 = ptr_get_byte(iadd(mounts, ii)) }
+            var is_sep2 = false
+            if ii == n2 { is_sep2 = true }
+            if ch2 == 44 { is_sep2 = true } // ','
+
+            if is_sep2 {
+                var tok_start = start2
+                var tok_end = ii
+                while tok_start < tok_end && ptr_get_byte(iadd(mounts, tok_start)) == 32 { tok_start = tok_start + 1 }
+                while tok_end > tok_start && ptr_get_byte(iadd(mounts, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+                // Find '='
+                var eq = -1
+                var j2 = tok_start
+                while j2 < tok_end {
+                    if ptr_get_byte(iadd(mounts, j2)) == 61 { eq = j2; break } // '='
+                    j2 = j2 + 1
+                }
+
+                if eq != -1 {
+                    var host_start = eq + 1
+                    var host_end = tok_end
+                    while host_start < host_end && ptr_get_byte(iadd(mounts, host_start)) == 32 { host_start = host_start + 1 }
+                    while host_end > host_start && ptr_get_byte(iadd(mounts, host_end - 1)) == 32 { host_end = host_end - 1 }
+                    var host_len = host_end - host_start
+                    if host_len > 0 {
+                        var k = 0
+                        var ok = true
+                        while k < host_len {
+                            var pc = ptr_get_byte(iadd(path, k))
+                            if pc == 0 { ok = false; break }
+                            if pc != ptr_get_byte(iadd(mounts, host_start + k)) { ok = false; break }
+                            k = k + 1
+                        }
+                        if ok {
+                            // Boundary check when host_prefix does not end with '/':
+                            // Avoid accidental enrollment bypass like "/mnt" matching "/mnt2".
+                            var last = ptr_get_byte(iadd(mounts, host_start + host_len - 1))
+                            if last != 47 {
+                                var nextc = ptr_get_byte(iadd(path, host_len))
+                                if nextc != 0 && nextc != 47 { ok = false }
+                            }
+                        }
+
+                        if ok {
+                            // Path already starts with enrolled host prefix; allow as-is.
+                            return pair
+                        }
+                    }
+                }
+
+                start2 = ii + 1
+            }
+            ii = ii + 1
+        }
+
+        // Otherwise treat the path as virtual and try to resolve it.
+        var host_path = native_capsule_fs_mount_resolve(path, mounts)
+        if host_path == 0 {
+            free(pair)
+            print("CAPSULE DENY: FS_MOUNT")
+            print("hint: enroll FS mounts via OREN_FS_MOUNTS / OREN_FS_MOUNTS_READ / OREN_FS_MOUNTS_WRITE")
+            exit(78)
+        }
+        ptr_set(pair + 0, host_path)
+        ptr_set(pair + 8, 1)
+        return pair
+    }
+
+    // Fallback: path prefix allowlists (legacy).
+    var prefs = global_get_fs_allow_prefixes_ptr()
+    // Prefer split read/write allowlists when present.
+    // op_kind: 0=read, 1=write (avoid string pointer equality issues).
+    if op_kind == 0 { prefs = global_get_fs_allow_read_prefixes_ptr() }
+    if op_kind == 1 { prefs = global_get_fs_allow_write_prefixes_ptr() }
+    if native_capsule_fs_path_allowed(path, prefs) { return pair }
+    free(pair)
+    print("CAPSULE DENY: FS_PATH")
+    print("hint: allow FS prefixes via OREN_FS_ALLOW_PREFIXES or OREN_FS_ALLOW_READ_PREFIXES / OREN_FS_ALLOW_WRITE_PREFIXES (or use mounts via OREN_FS_MOUNTS[_READ|_WRITE])")
+    exit(78)
+    return 0
+}
+

@@ -1,0 +1,562 @@
+// --- Threads ---
+@cap.requires(domain="PROC")
+fn oren_system(cmd) {
+    native_capsule_require(CAP_PROC, "PROC")
+    return oren_system_timeout(cmd, -1)
+}
+
+fn native_runtime_get_envp_ptr() {
+    // Preserve parent environment without libc.
+    // Prefer the envp captured at process entry; fallback to deriving envp from argv/argc.
+    var envp = global_get_envp()
+    if envp == 0 {
+        var argc = global_get_argc()
+        var parent_argv = global_get_argv()
+        if parent_argv != 0 {
+            // Cap derived pointer math so a corrupted argc can't walk arbitrarily.
+            if argc >= 0 && argc <= 1048576 {
+                envp = iadd(parent_argv, (iadd(argc, 1)) * 8)
+            }
+        }
+    }
+    if envp == 0 {
+        envp = malloc(8) // 1 pointer (NULL-terminated)
+        if envp == 0 { return 0 }
+        ptr_set(envp, 0)
+    }
+    return envp
+}
+
+fn native_csv_has_key(csv_cstr, key_ptr, key_len) {
+    if csv_cstr == 0 { return false }
+    if key_ptr == 0 { return false }
+    if key_len <= 0 { return false }
+
+    var n = native_cstr_len(csv_cstr)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(csv_cstr, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(csv_cstr, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(csv_cstr, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            if tok_end - tok_start == key_len {
+                var j = 0
+                var ok = true
+                while j < key_len {
+                    if ptr_get_byte(iadd(csv_cstr, tok_start + j)) != ptr_get_byte(iadd(key_ptr, j)) {
+                        ok = false
+                        j = key_len
+                    } else {
+                        j = j + 1
+                    }
+                }
+                if ok { return true }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_envp_push_unique(out, oi, max_out, ptr) {
+    if ptr == 0 { return oi }
+    var j = 0
+    while j < oi {
+        if ptr_get(out + (j * 8)) == ptr { return oi }
+        j = j + 1
+    }
+    if oi >= max_out { return oi }
+    ptr_set(out + (oi * 8), ptr)
+    return oi + 1
+}
+
+fn native_runtime_get_envp_for_proc_child() {
+    // Determine envp for subprocess exec in the child (after fork, before execve).
+    //
+    // Policy (capsule mode):
+    // - If OREN_PROC_INHERIT_ENV=1 => inherit all env.
+    // - Else build a filtered env consisting of:
+    //     - Mandatory OREN_* capsule controls (so the child cannot "escape capsule" by env filtering)
+    //     - Plus keys allowlisted by OREN_PROC_ALLOW_ENV_KEYS (if set).
+    //
+    // Non-capsule: inherit all env.
+    var parent_envp = native_runtime_get_envp_ptr()
+    if global_get_capsule_mode() != 1 { return parent_envp }
+
+    if global_get_proc_inherit_env() == 1 { return parent_envp }
+
+    var keys = global_get_proc_allow_env_keys_ptr()
+
+    // Conservative cap; we don't want huge env arrays during bootstrap.
+    var max_out = 256
+    var out = malloc((max_out + 1) * 8)
+    if out == 0 { return 0 }
+    var oi = 0
+
+    // --- Mandatory capsule env entries (best-effort) ---
+    // Keep this list small and focused: only OREN_* capability and resource enrollment vars.
+    // These are NOT secrets; they are the mechanism that prevents child escape.
+    var must_capsule = native_envp_get_entry_ptr("OREN_CAPSULE")
+    if must_capsule != 0 {
+        oi = native_envp_push_unique(out, oi, max_out, must_capsule)
+    } else {
+        // The parent is in capsule mode, so this should exist, but be robust anyway.
+        oi = native_envp_push_unique(out, oi, max_out, "OREN_CAPSULE=1")
+    }
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_CAP_ALLOW_DOMAINS"))
+    // FS enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_READ_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_WRITE_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS_READ"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS_WRITE"))
+    // NET enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_LOOPBACK"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_TCP_CONNECT"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_TCP_LISTEN"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_TCP_CONNECT_MAP"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_TCP_LISTEN_MAP"))
+    // PROC enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_EXEC_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_SYSTEM"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_INHERIT_ENV"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_ENV_KEYS"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_ARGV"))
+
+    // --- Optional allowlisted parent env keys ---
+    if keys != 0 {
+        var i = 0
+        while i < 4096 && oi < max_out {
+            var ent = ptr_get(iadd(parent_envp, i * 8))
+            if ent == 0 { break }
+
+            var key_len = 0
+            while key_len < 256 {
+                var ch = ptr_get_byte(iadd(ent, key_len))
+                if ch == 0 { key_len = 0; break }
+                if ch == 61 { break } // '='
+                key_len = key_len + 1
+            }
+
+            if key_len > 0 && key_len < 256 {
+                if native_csv_has_key(keys, ent, key_len) {
+                    oi = native_envp_push_unique(out, oi, max_out, ent)
+                }
+            }
+            i = i + 1
+        }
+    }
+
+    ptr_set(out + (oi * 8), 0)
+    return out
+}
+
+@cap.requires(domain="PROC")
+fn oren_proc_spawn(path, argv, timeout_ms) {
+    // Syscall-first subprocess spawn (no libc, no PATH search).
+    //
+    // - path: explicit exec path (e.g. "/usr/bin/true")
+    // - argv: list of argv entries (including argv0), or [] for default argv0=path
+    // - timeout_ms < 0: wait forever
+    // - timeout_ms >= 0: poll wait4(WNOHANG) up to timeout_ms iterations (rolling: not wall-clock)
+    //
+    // Returns wait status (raw), or negative on internal failure, or -60 on timeout.
+    native_capsule_require_proc_exec(path)
+    if path == 0 { return -1 }
+
+    var argc = 0
+    if argv != 0 { argc = oren_list_len(argv) }
+
+    // Ensure argv0 exists.
+    var out_argc = argc
+    if out_argc < 1 { out_argc = 1 }
+
+    var child_argv = malloc((out_argc + 1) * 8) // argv pointers + NULL
+    if child_argv == 0 { return -1 }
+
+    var i = 0
+    while i < out_argc {
+        var a = 0
+        if argc == 0 {
+            if i == 0 { a = path }
+        } else {
+            a = argv[i]
+            if i == 0 && a == 0 { a = path }
+        }
+        // Best-effort validation: require a NUL-terminated string within a cap.
+        if native_cstr_len(a) >= 4096 {
+            free(child_argv)
+            return -1
+        }
+        ptr_set(child_argv + (i * 8), a)
+        i = i + 1
+    }
+    ptr_set(child_argv + (out_argc * 8), 0)
+
+    // In capsule mode, enforce argv allowlist before forking.
+    native_capsule_require_proc_argv(path, child_argv, out_argc)
+
+    var pid = oren_fork()
+    if pid < 0 {
+        free(child_argv)
+        return -1
+    }
+
+    if pid == 0 {
+        var envp = native_runtime_get_envp_for_proc_child()
+        if envp == 0 { exit(127) }
+        sys_execve(path, child_argv, envp)
+        exit(127)
+    }
+
+    // Parent: record ownership so capsule sys_wait4/sys_kill cannot target arbitrary pids.
+    native_capsule_proc_register_pid(pid)
+
+    // Parent: wait4(pid, &status, options, 0)
+    free(child_argv)
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { return -1 }
+    ptr_set(status_ptr, 0)
+
+    if timeout_ms < 0 {
+        var wpid = sys_wait4(pid, status_ptr, 0, 0)
+        if wpid < 0 {
+            free(status_ptr)
+            return -1
+        }
+        var status = ptr_get(status_ptr)
+        free(status_ptr)
+        return status
+    }
+
+    // Poll: wait4(..., WNOHANG=1) until budget exhausted (deterministic; no TIME domain required).
+    var remaining = timeout_ms
+    while remaining > 0 {
+        var wpid2 = sys_wait4(pid, status_ptr, 1, 0) // WNOHANG
+        if wpid2 == pid {
+            var status2 = ptr_get(status_ptr)
+            free(status_ptr)
+            return status2
+        }
+        if wpid2 < 0 {
+            free(status_ptr)
+            return -1
+        }
+        remaining = remaining - 1
+    }
+
+    // Timeout: kill child and reap to avoid zombies.
+    oren_kill(pid, 9) // SIGKILL
+    sys_wait4(pid, status_ptr, 0, 0) // best-effort reap
+    free(status_ptr)
+    return 0 - 60 // ETIMEDOUT (BSD)
+}
+
+fn oren_system_timeout(cmd, timeout_ms) {
+    // Syscall-first `system(3)` equivalent with an optional timeout.
+    //
+    // In capsule mode this is intentionally blocked unless explicitly enabled:
+    // it executes a shell (/bin/sh -c), which is too powerful to allow by default.
+    native_capsule_require_proc_system()
+
+    if cmd == 0 { return -1 }
+    var args = ["sh", "-c", cmd]
+    return oren_proc_spawn("/bin/sh", args, timeout_ms)
+}
+
+fn oren_net_get(url) {
+    // Minimal HTTP/1.0 GET for native backend (macOS v0):
+    // - Supports: http://<ipv4>[:port][/path]
+    // - No TLS, no DNS, no chunked transfer decoding.
+    if url == 0 { return 0 }
+
+    // Require "http://"
+    var prefix = "http://"
+    var pl = oren_string_len(prefix)
+    var ul = oren_string_len(url)
+    if ul < pl { return 0 }
+    var pi = 0
+    while pi < pl {
+        if ptr_get_byte(url + pi) != ptr_get_byte(prefix + pi) { return 0 }
+        pi = pi + 1
+    }
+
+    var pos = pl
+    // Find '/' for path start
+    var slash = -1
+    var i = pos
+    while i < ul {
+        if ptr_get_byte(url + i) == 47 { slash = i; break } // '/'
+        i = i + 1
+    }
+    if slash == -1 { slash = ul }
+
+    // Find ':' for port separator (only within host segment)
+    var colon = -1
+    i = pos
+    while i < slash {
+        if ptr_get_byte(url + i) == 58 { colon = i; break } // ':'
+        i = i + 1
+    }
+
+    var host_end = slash
+    if colon != -1 { host_end = colon }
+    var host = oren_string_slice(url, pos, host_end)
+    if host == 0 { return 0 }
+
+    var port = 80
+    if colon != -1 {
+        var port_s = oren_string_slice(url, colon + 1, slash)
+        var pv = oren_int_from_string(port_s)
+        if pv <= 0 { return 0 }
+        port = pv
+    }
+
+    var path = "/"
+    if slash < ul {
+        path = oren_string_slice(url, slash, ul)
+        if path == 0 { return 0 }
+    }
+
+    // Connect (5s timeout)
+    var fd = oren_tcp_connect(host, port, 5000)
+    if fd < 0 { return 0 }
+
+    // Build request: "GET <path> HTTP/1.0\r\nHost: <host>\r\nConnection: close\r\n\r\n"
+    var r0 = string_concat("GET ", path)
+    var r1 = string_concat(r0, " HTTP/1.0\r\nHost: ")
+    var r2 = string_concat(r1, host)
+    var r3 = string_concat(r2, "\r\nConnection: close\r\n\r\n")
+    // Free intermediate concatenation buffers to avoid unbounded growth on repeated calls.
+    free(r0)
+    free(r1)
+    free(r2)
+
+    var req_len = oren_string_len(r3)
+    var wr = oren_tcp_write_from(fd, r3, req_len, 5000)
+    free(r3)
+    if wr < 0 {
+        oren_tcp_close(fd)
+        return 0
+    }
+
+    // Read entire response into a growing buffer.
+    var cap = 4096
+    var used = 0
+    var buf = malloc(cap)
+    if buf == 0 {
+        oren_tcp_close(fd)
+        return 0
+    }
+
+    while 1 {
+        var tmp = malloc(1024)
+        if tmp == 0 { break }
+        var n = oren_tcp_read_into(fd, tmp, 1024, 5000)
+        if n <= 0 {
+            free(tmp)
+            break
+        }
+
+        // Ensure capacity for used+n
+        while used + n > cap {
+            var new_cap = cap * 2
+            if new_cap < used + n { new_cap = used + n }
+            var new_buf = malloc(new_cap)
+            if new_buf == 0 { break }
+            oren_memcpy(new_buf, buf, used)
+            free(buf)
+            buf = new_buf
+            cap = new_cap
+        }
+        oren_memcpy(buf + used, tmp, n)
+        used = used + n
+        free(tmp)
+    }
+
+    oren_tcp_close(fd)
+
+    // Find header terminator "\r\n\r\n"
+    var body_off = 0
+    i = 0
+    while i + 3 < used {
+        if ptr_get_byte(buf + i) == 13 {
+            if ptr_get_byte(buf + i + 1) == 10 {
+                if ptr_get_byte(buf + i + 2) == 13 {
+                    if ptr_get_byte(buf + i + 3) == 10 {
+                        body_off = i + 4
+                        break
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    if body_off < 0 { body_off = 0 }
+    if body_off > used { body_off = used }
+
+    var body_len = used - body_off
+    var out = malloc(body_len + 1)
+    if out == 0 {
+        free(buf)
+        return 0
+    }
+    oren_memcpy(out, buf + body_off, body_len)
+    ptr_set_byte(out + body_len, 0)
+    oren_track_alloc(out, body_len + 1, 1)
+    free(buf)
+    return out
+}
+
+fn free(ptr) {
+    if ptr == 0 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+
+    // Deterministic/manual-friendly free:
+    // - remove from allocs list immediately
+    // - push into free_blocks so future malloc() can reuse the block
+    //
+    // This must work even when GC scanning is disabled (`--no-gc` / OREN_NO_GC=1).
+    var prev = 0
+    var cur = global_get_allocs()
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if ptr_get(cur) == ptr {
+            if prev == 0 {
+                global_set_allocs(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            var kind = ptr_get(iadd(cur, 16))
+            ptr_set(iadd(cur, 24), 0) // clear freed/mark flags
+
+            if kind == 9 {
+                // RAW_MMAP: return to OS now; do not keep for reuse.
+                var base = ptr - raw_hdr_size()
+                if ptr_get(base + 0) == raw_magic() {
+                    var total = ptr_get(base + 8)
+                    var backend = ptr_get(base + 16)
+                    if backend == 1 && total > 0 {
+                        sys_munmap(base, total)
+                    }
+                }
+                // Reuse tracking node storage.
+                ptr_set(cur, 0)
+                ptr_set(iadd(cur, 8), 40)
+                ptr_set(iadd(cur, 16), 0)
+                ptr_set(iadd(cur, 24), 0)
+                ptr_set(iadd(cur, 32), global_get_free_nodes())
+                global_set_free_nodes(cur)
+            } else {
+                ptr_set(iadd(cur, 32), global_get_free_blocks())
+                global_set_free_blocks(cur)
+            }
+            release_lock()
+            return 0
+        }
+        prev = cur
+        cur = next
+    }
+
+    release_lock()
+    return 0
+}
+
+fn oren_join_timeout(handle, timeout_ms) {
+    if handle == 0 { return 0 }
+
+    // Spawn handle layout (native backend, macOS v0 fork+pipe):
+    // 0: pid (u64)
+    // 8: read_fd (u64)
+
+    var pid = ptr_get(handle)
+    var fd = ptr_get(handle + 8)
+
+    var buf = malloc(8)
+    if buf == 0 { exit(270) }
+    ptr_set(buf, 0)
+
+    // Read exactly 8 bytes (result value) with an optional timeout budget.
+    var got = 0
+
+    // Timeout semantics (rolling, syscall-first):
+    // - `timeout_ms < 0`: wait forever (blocking read).
+    // - `timeout_ms >= 0`: deterministic poll budget (no kqueue/epoll dependency).
+    //
+    // Rationale:
+    // - Linux does not have kqueue, and we don't want libc poll()/select() shims.
+    // - For spawn/join, we can wait on child termination via wait4(WNOHANG) and only
+    //   attempt to read the pipe once the child has exited.
+    // - This keeps behavior portable and makes tests deterministic.
+    var reaped = 0
+    if timeout_ms >= 0 {
+        var remaining = timeout_ms
+        while remaining > 0 {
+            var wpid0 = sys_wait4(pid, 0, 1, 0) // WNOHANG
+            if wpid0 == pid {
+                reaped = 1
+                break
+            }
+            if wpid0 < 0 {
+                sys_close(fd)
+                free(handle)
+                return wpid0
+            }
+            remaining = remaining - 1
+        }
+        if reaped == 0 {
+            // Timeout: kill child and reap to avoid zombies.
+            oren_kill(pid, 9) // SIGKILL
+            sys_wait4(pid, 0, 0, 0) // best-effort reap
+            sys_close(fd)
+            free(handle)
+            return 0 - 60 // ETIMEDOUT (BSD)
+        }
+        // Child is already reaped by the WNOHANG wait4 above; proceed to read pipe.
+    }
+
+    while got < 8 {
+        var n = sys_read(fd, buf + got, 8 - got)
+        if n == 0 { break } // EOF
+        if n < 0 {
+            sys_close(fd)
+            if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
+            free(handle)
+            return n
+        }
+        got = got + n
+    }
+
+    sys_close(fd)
+
+    // Reap child (best-effort).
+    if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
+
+    if got != 8 {
+        free(handle)
+        return -1
+    }
+
+    var ret_val = ptr_get(buf)
+    free(handle)
+    return ret_val
+}
+
+fn oren_join(handle) {
+    return oren_join_timeout(handle, -1)
+}

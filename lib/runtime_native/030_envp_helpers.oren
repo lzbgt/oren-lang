@@ -1,0 +1,154 @@
+fn native_cstr_len(s) {
+    if s == 0 { return 0 }
+    var n = 0
+    while n < 65536 {
+        if ptr_get_byte(iadd(s, n)) == 0 { return n }
+        n = n + 1
+    }
+    return 65536
+}
+
+fn native_envp_get_value_ptr(key_cstr) {
+    // Low-level envp scanner for early init and capsule enforcement.
+    // Returns pointer to value substring for KEY in envp ("KEY=VALUE"), or 0 if not found.
+    if key_cstr == 0 { return 0 }
+
+    var envp = global_get_envp()
+    if envp == 0 { return 0 }
+
+    var key_len = native_cstr_len(key_cstr)
+    if key_len <= 0 { return 0 }
+    if key_len >= 4096 { return 0 }
+
+    var i = 0
+    while i < 4096 {
+        var ent = ptr_get(iadd(envp, i * 8))
+        if ent == 0 { return 0 }
+
+        // Check prefix match "KEY="
+        var j = 0
+        while j < key_len {
+            if ptr_get_byte(iadd(ent, j)) != ptr_get_byte(iadd(key_cstr, j)) {
+                j = -1
+                break
+            }
+            j = j + 1
+        }
+
+        if j != -1 {
+            if ptr_get_byte(iadd(ent, key_len)) == 61 { // '='
+                return iadd(ent, key_len + 1)
+            }
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_envp_get_entry_ptr(key_cstr) {
+    // Returns pointer to the full "KEY=VALUE" entry in envp, or 0 if not found.
+    if key_cstr == 0 { return 0 }
+
+    var envp = global_get_envp()
+    if envp == 0 { return 0 }
+
+    var key_len = native_cstr_len(key_cstr)
+    if key_len <= 0 { return 0 }
+    if key_len >= 4096 { return 0 }
+
+    var i = 0
+    while i < 4096 {
+        var ent = ptr_get(iadd(envp, i * 8))
+        if ent == 0 { return 0 }
+
+        var j = 0
+        while j < key_len {
+            if ptr_get_byte(iadd(ent, j)) != ptr_get_byte(iadd(key_cstr, j)) {
+                j = -1
+                break
+            }
+            j = j + 1
+        }
+
+        if j != -1 {
+            if ptr_get_byte(iadd(ent, key_len)) == 61 { // '='
+                return ent
+            }
+        }
+
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_parse_cap_allow_mask(csv_cstr) {
+    if csv_cstr == 0 { return 0 }
+
+    var mask = 0
+    var i = 0
+    var start = 0
+    var n = native_cstr_len(csv_cstr)
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(csv_cstr, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            // Trim spaces
+            while tok_start < tok_end && ptr_get_byte(iadd(csv_cstr, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(csv_cstr, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            var tok_len = tok_end - tok_start
+            if tok_len > 0 {
+                // ASCII fold to uppercase for matching (a-z -> A-Z).
+                var b0 = ptr_get_byte(iadd(csv_cstr, tok_start + 0))
+                if b0 >= 97 && b0 <= 122 { b0 = b0 - 32 }
+
+                if tok_len == 2 {
+                    var b1 = ptr_get_byte(iadd(csv_cstr, tok_start + 1))
+                    if b1 >= 97 && b1 <= 122 { b1 = b1 - 32 }
+                    // FS
+                    if b0 == 70 && b1 == 83 { mask = mask | CAP_FS }
+                } else {
+                    if tok_len == 3 {
+                        var b1a = ptr_get_byte(iadd(csv_cstr, tok_start + 1))
+                        var b2a = ptr_get_byte(iadd(csv_cstr, tok_start + 2))
+                        if b1a >= 97 && b1a <= 122 { b1a = b1a - 32 }
+                        if b2a >= 97 && b2a <= 122 { b2a = b2a - 32 }
+                        // NET / ENV
+                        if b0 == 78 && b1a == 69 && b2a == 84 {
+                            mask = mask | CAP_NET
+                        } else {
+                            if b0 == 69 && b1a == 78 && b2a == 86 { mask = mask | CAP_ENV }
+                        }
+                    } else {
+                        if tok_len == 4 {
+                            var b1b = ptr_get_byte(iadd(csv_cstr, tok_start + 1))
+                            var b2b = ptr_get_byte(iadd(csv_cstr, tok_start + 2))
+                            var b3b = ptr_get_byte(iadd(csv_cstr, tok_start + 3))
+                            if b1b >= 97 && b1b <= 122 { b1b = b1b - 32 }
+                            if b2b >= 97 && b2b <= 122 { b2b = b2b - 32 }
+                            if b3b >= 97 && b3b <= 122 { b3b = b3b - 32 }
+                            // PROC / TIME
+                            if b0 == 80 && b1b == 82 && b2b == 79 && b3b == 67 {
+                                mask = mask | CAP_PROC
+                            } else {
+                                if b0 == 84 && b1b == 73 && b2b == 77 && b3b == 69 { mask = mask | CAP_TIME }
+                            }
+                        }
+                    }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return mask
+}
+

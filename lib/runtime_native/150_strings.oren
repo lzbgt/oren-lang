@@ -1,0 +1,77 @@
+// --- Strings ---
+fn oren_string_len(s) {
+    if s == 0 { return 0 }
+    var i = 0
+    while ptr_get_byte(iadd(s, i)) != 0 {
+        i = i + 1
+    }
+    return i
+}
+
+fn oren_string_char_at(s, idx) {
+    if s == 0 { oren_panic("char_at expects string") }
+    var len = oren_string_len(s)
+    if idx < 0 || idx >= len {
+        oren_panic("char_at index out of range")
+    }
+    var out = malloc(2)
+    if out == 0 { oren_panic("malloc failed") }
+    ptr_set_byte(out + 0, ptr_get_byte(iadd(s, idx)))
+    ptr_set_byte(out + 1, 0)
+    oren_track_alloc(out, 2, 1)
+    return out
+}
+
+// Slice a C-string into a newly allocated, NUL-terminated string.
+// Semantics match the C-backend helper: out-of-range clamps, empty slice returns "".
+fn oren_string_slice(s, start, end) {
+    if s == 0 { return 0 }
+    var len = oren_string_len(s)
+    var i = start
+    var j = end
+    if i < 0 { i = 0 }
+    if j < 0 { j = 0 }
+    if i > len { i = len }
+    if j > len { j = len }
+    if i >= j {
+        // Return empty string (stable allocation).
+        var out0 = malloc(1)
+        if out0 == 0 { return 0 }
+        ptr_set_byte(out0, 0)
+        oren_track_alloc(out0, 1, 1)
+        return out0
+    }
+    var n = j - i
+    var out = malloc(n + 1)
+    if out == 0 { return 0 }
+    var k = 0
+    while k < n {
+        ptr_set_byte(out + k, ptr_get_byte(s + i + k))
+        k = k + 1
+    }
+    ptr_set_byte(out + n, 0)
+    oren_track_alloc(out, n + 1, 1)
+    return out
+}
+
+// Parse a non-negative decimal integer from a C-string (best-effort).
+// Returns -1 on invalid input.
+fn oren_int_from_string(s) {
+    if s == 0 { return -1 }
+    var i = 0
+    var v = 0
+    var any = 0
+    while 1 {
+        var c = ptr_get_byte(s + i)
+        if c == 0 { break }
+        if c < 48 { return -1 }
+        if c > 57 { return -1 }
+        any = 1
+        v = v * 10 + (c - 48)
+        i = i + 1
+        if i > 32 { return -1 } // bound
+    }
+    if any == 0 { return -1 }
+    return v
+}
+

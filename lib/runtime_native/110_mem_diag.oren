@@ -1,0 +1,465 @@
+// --- Memory diagnostics (native backend; failure-only surfaces) ---
+//
+// These helpers intentionally return plain integers and do not allocate, so they can be used
+// inside tests and long-running processes without perturbing the heap significantly.
+//
+// NOTE:
+// - `global_get_allocs()` includes live allocations (tracked nodes).
+// - `global_get_free_blocks()` includes freed blocks kept for reuse (not returned to OS).
+// - These diagnostics are about "leaks / runaway growth" in the runtime sense, not RSS.
+
+fn native_mem_live_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_allocs()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
+fn native_mem_live_bytes() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var sum = 0
+    var cur = global_get_allocs()
+    while cur != 0 {
+        sum = sum + ptr_get(iadd(cur, 8))
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return sum
+}
+
+fn native_mem_free_blocks_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
+fn native_mem_free_blocks_bytes() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var sum = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        sum = sum + ptr_get(iadd(cur, 8))
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return sum
+}
+
+fn native_mem_roots_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_roots()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
+fn native_mem_free_nodes_count() {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var n = 0
+    var cur = global_get_free_nodes()
+    while cur != 0 {
+        n = n + 1
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return n
+}
+
+fn native_gc_shutdown() {
+    return 0
+}
+
+var g_debug_info = 0
+var g_debug_static_addr = 0
+var g_slide = 0
+var g_prog_pc_min = 0
+var g_prog_pc_max = 0
+
+fn align_ptr8(ptr) {
+    while (ptr & 7) != 0 { ptr = ptr + 1 }
+    return ptr
+}
+
+fn compute_program_pc_bounds() {
+    // Best-effort: compute min/max static PC covered by debug function ranges.
+    // This is used to avoid mis-labeling host/shared-library PCs via resolve_symbol().
+    g_prog_pc_min = 0
+    g_prog_pc_max = 0
+    if g_debug_info == 0 { return 0 }
+    var ptr = g_debug_info
+    var count = ptr_get_u64(ptr)
+    ptr = ptr + 8
+    var i = 0
+    while i < count {
+        var start = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var end = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        if g_prog_pc_min == 0 || start < g_prog_pc_min { g_prog_pc_min = start }
+        if end > g_prog_pc_max { g_prog_pc_max = end }
+
+        var name_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + name_len
+        ptr = align_ptr8(ptr)
+
+        // file + (line,col)
+        var file_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + file_len
+        ptr = align_ptr8(ptr)
+        ptr = ptr + 16 // line + col
+
+        var p_count = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var j = 0
+        while j < p_count {
+            var pname_len = ptr_get_u64(ptr)
+            ptr = ptr + 8 + pname_len
+            ptr = align_ptr8(ptr)
+            ptr = ptr + 8 // offset
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn oren_set_debug_info(ptr, static_addr) {
+    g_debug_info = ptr
+    g_debug_static_addr = static_addr
+    g_slide = ptr - static_addr
+    compute_program_pc_bounds()
+    return 0
+}
+
+fn ptr_get_u64(ptr) { return ptr_get(ptr) }
+
+fn read_string_at(ptr, len) {
+    var s = malloc(len + 1)
+    var i = 0
+    while i < len {
+        ptr_set_byte(s + i, ptr_get_byte(ptr + i))
+        i = i + 1
+    }
+    ptr_set_byte(s + len, 0)
+    oren_track_alloc(s, len + 1, 1)
+    return s
+}
+
+fn find_func_info(pc) {
+    if g_debug_info == 0 { return 0 }
+    
+    // Un-slide PC to match static table
+    var static_pc = pc - g_slide
+    
+    var ptr = g_debug_info
+    var count = ptr_get_u64(ptr)
+    ptr = ptr + 8
+    
+    var i = 0
+    while i < count {
+        var start = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var end = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        
+        if static_pc >= start {
+            if static_pc < end {
+                return ptr
+            }
+        }
+        
+        var name_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + name_len
+        ptr = align_ptr8(ptr)
+
+        // file + (line,col)
+        var file_len = ptr_get_u64(ptr)
+        ptr = ptr + 8 + file_len
+        ptr = align_ptr8(ptr)
+        ptr = ptr + 16 // line + col
+
+        var p_count = ptr_get_u64(ptr)
+        ptr = ptr + 8
+        var j = 0
+        while j < p_count {
+            var pname_len = ptr_get_u64(ptr)
+            ptr = ptr + 8 + pname_len
+            ptr = align_ptr8(ptr)
+            ptr = ptr + 8 // offset
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn debug_value_to_string(val) {
+    var node = oren_find_node(val)
+    if node != 0 {
+        var kind = ptr_get(node + 16)
+        if kind == 1 { // STRING
+            return val
+        }
+        if kind == 2 { // LIST
+            var s0 = "<list ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
+        if kind == 3 { // MAP
+            var s0 = "<map ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
+        if kind == 4 { // STRUCT
+            var s0 = "<struct ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
+        if kind == 6 { // FUNC
+            var s0 = "<func ptr="
+            var s1 = string_concat(s0, oren_int_to_string(val))
+            return string_concat(s1, ">"
+            )
+        }
+    }
+    return oren_int_to_string(val)
+}
+
+fn stack_trace_debug() {
+    // Native backend debug stack trace (best-effort):
+    // - prints function name + pc offset
+    // - prints parameter values when available
+    print("Traceback (most recent call first):")
+    var fp = get_fp()
+    var i = 0
+    while fp != 0 {
+        if i > 50 { 
+            print("  ... (truncated)")
+            return 0 
+        }
+        // ABI note: at [fp+8] we have the *saved LR* (return address) for this frame,
+        // which is an address in the *caller*'s code. For readable traces we associate
+        // that PC with the caller function, and print caller params from the caller's FP.
+        var pc = ptr_get(fp + 8)
+        var caller_fp = ptr_get(fp)
+        var info_ptr = find_func_info(pc)
+        
+        if info_ptr != 0 {
+            var f_start = ptr_get_u64(info_ptr - 16)
+            // var f_end = ptr_get_u64(info_ptr - 8)
+            var static_pc = pc - g_slide
+            var off_in_func = static_pc - f_start
+
+            var name_len = ptr_get_u64(info_ptr)
+            var name = read_string_at(info_ptr + 8, name_len)
+            
+            var ptr = info_ptr + 8 + name_len
+            ptr = align_ptr8(ptr)
+
+            var file_len = ptr_get_u64(ptr)
+            ptr = ptr + 8
+            var file = "<unknown>"
+            if file_len > 0 {
+                file = read_string_at(ptr, file_len)
+            }
+            ptr = ptr + file_len
+            ptr = align_ptr8(ptr)
+            var line = ptr_get_u64(ptr)
+            var col = ptr_get_u64(ptr + 8)
+            ptr = ptr + 16
+
+            // Print stable shape:
+            //   at func file:line:col +off (pc=...)
+            var s0 = string_concat("  at ", name)
+            if line != 0 && col != 0 {
+                var sF = string_concat(s0, " ")
+                sF = string_concat(sF, file)
+                sF = string_concat(sF, ":")
+                sF = string_concat(sF, oren_int_to_string(line))
+                sF = string_concat(sF, ":")
+                s0 = string_concat(sF, oren_int_to_string(col))
+            }
+            var s1 = string_concat(s0, " +")
+            var s2 = string_concat(s1, oren_int_to_string(off_in_func))
+            var s3 = string_concat(s2, " (pc=")
+            var s4 = string_concat(s3, oren_int_to_string(pc))
+            print(string_concat(s4, ")"))
+
+            var p_count = ptr_get_u64(ptr)
+            ptr = ptr + 8
+            var j = 0
+            while j < p_count {
+                var pname_len = ptr_get_u64(ptr)
+                var pname = read_string_at(ptr + 8, pname_len)
+                ptr = ptr + 8 + pname_len
+                ptr = align_ptr8(ptr)
+                var offset = ptr_get_u64(ptr)
+                ptr = ptr + 8
+
+                // Param locals live in the caller's frame (because PC maps to caller).
+                if caller_fp != 0 {
+                    var val_ptr = caller_fp - offset
+                    var val = ptr_get(val_ptr)
+                    var s1 = string_concat("    ", pname)
+                    var s2 = string_concat(s1, " = ")
+                    print(string_concat(s2, debug_value_to_string(val)))
+                }
+                j = j + 1
+            }
+        } else {
+            // Fallback: try best-effort symbol resolution even when debug-info
+            // range lookup fails (e.g. top-level code regions or entry stub).
+            var name = "<unknown>"
+            if g_debug_info != 0 && g_prog_pc_min != 0 && g_prog_pc_max != 0 {
+                var static_pc = pc - g_slide
+                if static_pc >= g_prog_pc_min && static_pc < g_prog_pc_max {
+                    name = resolve_symbol(pc)
+                    if name == nil { name = "<unknown>" }
+                } else {
+                    name = "<unknown host>"
+                }
+            }
+            var s0 = string_concat("  at ", name)
+            var s1 = string_concat(s0, " (pc=")
+            var s2 = string_concat(s1, oren_int_to_string(pc))
+            print(string_concat(s2, ")"))
+        }
+        
+        fp = caller_fp
+        i = i + 1
+    }
+    return 0
+}
+
+fn oren_ensure_tracked(ptr, kind) {
+    if ptr == 0 { return 0 }
+    if oren_find_node(ptr) == 0 {
+        var size = 0
+        if kind == 1 {
+            size = oren_string_len(ptr) + 1
+        }
+        oren_track_alloc(ptr, size, kind)
+    }
+    return ptr
+}
+
+fn oren_raw_print_str(s) {
+    if s == 0 { return 0 }
+    var len = oren_string_len(s)
+    sys_write(1, s, len)
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
+    return 0
+}
+
+fn oren_diag_sanitize(msg) {
+    // Best-effort: make msg single-line and ASCII-safe for log parsing.
+    // Replaces '\n' -> '\\n', '\r' -> '\\r', '\t' -> '\\t'.
+    if msg == 0 { return 0 }
+    var n = oren_string_len(msg)
+    if n <= 0 { return msg }
+    if n > 1024 { n = 1024 }
+    // Worst case each char expands to 2 bytes.
+    var out = malloc(n * 2 + 1)
+    if out == 0 { return msg }
+    var i = 0
+    var j = 0
+    while i < n {
+        var c = ptr_get_byte(msg + i)
+        if c == 10 { // '\n'
+            ptr_set_byte(out + j, 92) // '\\'
+            ptr_set_byte(out + j + 1, 110) // 'n'
+            j = j + 2
+        } else {
+            if c == 13 { // '\r'
+                ptr_set_byte(out + j, 92)
+                ptr_set_byte(out + j + 1, 114) // 'r'
+                j = j + 2
+            } else {
+                if c == 9 { // '\t'
+                    ptr_set_byte(out + j, 92)
+                    ptr_set_byte(out + j + 1, 116) // 't'
+                    j = j + 2
+                } else {
+                    ptr_set_byte(out + j, c)
+                    j = j + 1
+                }
+            }
+        }
+        i = i + 1
+    }
+    ptr_set_byte(out + j, 0)
+    oren_track_alloc(out, j + 1, 1)
+    return out
+}
+
+fn oren_diag_emit(kind, code, msg) {
+    // Stable, machine-readable diagnostic header for AI agents/tools.
+    // Format (single line):
+    //   OREN_DIAG kind=<kind> code=<code> msg=<sanitized>
+    //
+    // Keep this best-effort and non-fatal; diagnostics must not crash.
+    var m = oren_diag_sanitize(msg)
+    var s0 = "OREN_DIAG kind="
+    var s1 = string_concat(s0, kind)
+    var s2 = string_concat(s1, " code=")
+    var s3 = string_concat(s2, oren_int_to_string(code))
+    var s4 = string_concat(s3, " msg=")
+    var s5 = string_concat(s4, m)
+    print(s5)
+    return 0
+}
+
+fn oren_fail(code, msg) {
+    // Fail-fast helper for tests + internal invariants.
+    // Emits an AI-friendly diagnostic line + a stack trace.
+    g_panicking = 1
+    oren_diag_emit("fail", code, msg)
+    if g_debug_info != 0 {
+        stack_trace_debug()
+    } else {
+        stack_trace()
+    }
+    exit(code)
+    return 0
+}
+
+fn oren_panic(msg) {
+    g_panicking = 1
+    oren_diag_emit("panic", 1, msg)
+    print("Runtime Panic: ")
+    oren_raw_print_str(msg)
+    if g_debug_info != 0 {
+        stack_trace_debug()
+    } else {
+        stack_trace()
+    }
+    exit(1)
+    return 0
+}
+

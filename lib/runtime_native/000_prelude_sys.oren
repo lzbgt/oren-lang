@@ -1,0 +1,125 @@
+fn print_hex(n) {
+    // Best-effort hex printer for debugging (no libc).
+    // Prints exactly 16 hex digits (u64) plus newline.
+    var buf = malloc(17)
+    if buf == 0 { return 0 }
+    var i = 0
+    while i < 16 {
+        var shift = (15 - i) * 4
+        var digit = (n >> shift) & 15
+        var ch = 48 + digit
+        if digit >= 10 { ch = 97 + (digit - 10) } // 'a'..
+        ptr_set_byte(buf + i, ch)
+        i = i + 1
+    }
+    ptr_set_byte(buf + 16, 10) // newline
+    sys_write(1, buf, 17)
+    return 0
+}
+
+fn stack_trace() {
+    print("Traceback (most recent call first):")
+    var fp = get_fp()
+    var i = 0
+    while fp != 0 {
+        if i > 20 { 
+            print("  ... (truncated)")
+            return 0 
+        }
+        var lr = ptr_get(iadd(fp, 8))
+        var name = resolve_symbol(lr)
+        var s0 = string_concat("  at ", name)
+        var s1 = string_concat(s0, " (pc=")
+        var s2 = string_concat(s1, oren_int_to_string(lr))
+        print(string_concat(s2, ")"))
+        // print_hex(lr)
+        fp = ptr_get(fp)
+        i = i + 1
+    }
+}
+
+// NOTE (native backend): `sys_*` are compiler intrinsics.
+//
+// Their *call sites* are lowered directly to syscalls by the native backend codegen
+// (see `lib/compiler/arm64_native_expr_syscalls.oren`), including calls from this
+// injected runtime itself.
+//
+// These stub bodies exist only so the source parses/links during self-hosting and
+// so the same source can be typechecked/loaded by other backends while the project
+// is still rolling. They should never execute in a correctly built native binary.
+fn sys_write(fd, ptr, len) { return 0 }
+fn sys_read(fd, ptr, len) { return 0 }
+fn sys_pipe(ptr) { return 0 }
+fn sys_open(path, flags, mode) { return 0 }
+fn sys_close(fd) { return 0 }
+fn sys_access(path, mode) { return 0 }
+fn sys_stat(path, st_ptr) { return 0 }
+fn sys_lstat(path, st_ptr) { return 0 }
+fn sys_fstat(fd, st_ptr) { return 0 }
+fn sys_unlink(path) { return 0 }
+fn sys_rename(from, to) { return 0 }
+fn sys_mkdir(path, mode) { return 0 }
+fn sys_rmdir(path) { return 0 }
+fn sys_getdirentries64(fd, buf, bufsize, pos_ptr) { return 0 }
+fn sys_fork() { return 0 }
+fn sys_execve(path, argv, envp) { return 0 }
+fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
+fn sys_mmap_private_anon(len) { return 0 }
+fn sys_munmap(addr, len) { return 0 }
+fn sys_clone(flags, stack) { return 0 }
+fn sys_gettid() { return 0 }
+fn sys_fcntl(fd, cmd, arg) { return 0 }
+fn sys_fcntl_getfl(fd) { return 0 }
+fn sys_fcntl_setfl(fd, flags) { return 0 }
+fn sys_fcntl_getpath(fd, buf) { return 0 }
+fn sys_dup(fd) { return 0 }
+fn sys_dup2(from, to) { return 0 }
+fn sys_dup3(from, to, flags) { return 0 }
+fn sys_ioctl(fd, req, argp) { return 0 }
+fn sys_kill(pid, signum) { return 0 }
+fn sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) { return 0 }
+fn sys_getcwd(buf, size) { return 0 }
+fn sys_ulock_wait(operation, addr, value, timeout_us) { return 0 }
+fn sys_ulock_wake(operation, addr, wake_value) { return 0 }
+fn sys_bsdthread_create(func, func_arg, stack, pthread, flags) { return 0 }
+fn sys_bsdthread_terminate(stackaddr, freesize, port, sema_or_ulock) { return 0 }
+fn sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset) { return 0 }
+
+// --- TCP/IP (syscall-first; macOS arm64 first) ---
+fn sys_socket(domain, type, protocol) { return 0 }
+fn sys_connect(fd, addr, addrlen) { return 0 }
+fn sys_bind(fd, addr, addrlen) { return 0 }
+fn sys_listen(fd, backlog) { return 0 }
+fn sys_accept(fd, addr, addrlen_ptr) { return 0 }
+fn sys_getpeername(fd, addr, addrlen_ptr) { return 0 }
+fn sys_getsockname(fd, addr, addrlen_ptr) { return 0 }
+fn sys_getsockopt(fd, level, optname, optval, optlen_ptr) { return 0 }
+fn sys_setsockopt(fd, level, optname, optval, optlen) { return 0 }
+fn sys_shutdown(fd, how) { return 0 }
+fn sys_sendto(fd, buf, len, flags, to, tolen) { return 0 }
+fn sys_recvfrom(fd, buf, len, flags, from, fromlen) { return 0 }
+// Convenience aliases (BSD-style send/recv) implemented in terms of sendto/recvfrom.
+// These are pure wrappers; no new syscall lowering required.
+fn sys_send(fd, buf, len, flags) { return sys_sendto(fd, buf, len, flags, 0, 0) }
+fn sys_recv(fd, buf, len, flags) { return sys_recvfrom(fd, buf, len, flags, 0, 0) }
+fn sys_kqueue() { return 0 }
+fn sys_kevent(kq, changelist, nchanges, eventlist, nevents, timeout_ptr) { return 0 }
+fn sys_epoll_create1(flags) { return 0 }
+fn sys_epoll_ctl(epfd, op, fd, event_ptr) { return 0 }
+fn sys_epoll_pwait(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsetsize) { return 0 }
+fn sys_nanosleep(ns) { return 0 }
+
+fn oren_memcpy(dst, src, len) {
+    var i = 0
+    while i < len {
+        if len - i >= 8 {
+            ptr_set(iadd(dst, i), ptr_get(iadd(src, i)))
+            i = i + 8
+        } else {
+            ptr_set_byte(iadd(dst, i), ptr_get_byte(iadd(src, i)))
+            i = i + 1
+        }
+    }
+    return 0
+}
+

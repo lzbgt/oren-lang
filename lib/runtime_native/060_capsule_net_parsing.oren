@@ -1,0 +1,510 @@
+fn native_ipv4_is_loopback(ip) {
+    // Accept 127.0.0.0/8 as loopback.
+    // ip==0 is treated as loopback because oren_tcp_sockaddr_in defaults to 127.0.0.1.
+    if ip == 0 { return true }
+
+    var acc = 0
+    var digits = 0
+    var i = 0
+    while 1 {
+        var ch = ptr_get_byte(ip + i)
+        if ch == 0 { return false }
+        if ch >= 48 && ch <= 57 {
+            acc = acc * 10 + (ch - 48)
+            if acc > 255 { return false }
+            digits = digits + 1
+        } else {
+            if ch == 46 { // '.'
+                if digits == 0 { return false }
+                if acc == 127 { return true }
+                return false
+            }
+            return false
+        }
+        i = i + 1
+        if i > 64 { return false }
+    }
+}
+
+fn native_capsule_net_endpoint_allowed(ip, port, prefs) {
+    // prefs: CSV cstr containing endpoint tokens.
+    // ip: oren string (cstr), may be 0.
+    if prefs == 0 { return false }
+    if port < 0 { return false }
+
+    var n = native_cstr_len(prefs)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(prefs, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(prefs, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(prefs, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            var tok_len = tok_end - tok_start
+            if tok_len > 0 {
+                // Find ':' in token
+                var colon = -1
+                var j = tok_start
+                while j < tok_end {
+                    if ptr_get_byte(iadd(prefs, j)) == 58 { colon = j; break } // ':'
+                    j = j + 1
+                }
+
+                var ip_start = tok_start
+                var ip_end = tok_end
+                var port_start = -1
+                var port_end = -1
+                if colon != -1 {
+                    ip_end = colon
+                    port_start = colon + 1
+                    port_end = tok_end
+                }
+
+                // Match ip (supports '*' wildcard).
+                var ip_ok = true
+                if ip_end - ip_start == 1 && ptr_get_byte(iadd(prefs, ip_start)) == 42 { // '*'
+                    ip_ok = true
+                } else {
+                    if ip == 0 { ip_ok = false }
+                    else {
+                        var k = 0
+                        while 1 {
+                            if ip_start + k >= ip_end {
+                                // Token ended; ip must also end here.
+                                if ptr_get_byte(ip + k) != 0 { ip_ok = false }
+                                break
+                            }
+                            var ic = ptr_get_byte(ip + k)
+                            if ic == 0 { ip_ok = false; break }
+                            var tc = ptr_get_byte(iadd(prefs, ip_start + k))
+                            if ic != tc { ip_ok = false; break }
+                            k = k + 1
+                            if k > 256 { ip_ok = false; break }
+                        }
+                    }
+                }
+
+                if ip_ok {
+                    // Match port (optional, supports '*').
+                    var port_ok = true
+                    if port_start != -1 {
+                        while port_start < port_end && ptr_get_byte(iadd(prefs, port_start)) == 32 { port_start = port_start + 1 }
+                        while port_end > port_start && ptr_get_byte(iadd(prefs, port_end - 1)) == 32 { port_end = port_end - 1 }
+
+                        if port_end - port_start == 1 && ptr_get_byte(iadd(prefs, port_start)) == 42 { // '*'
+                            port_ok = true
+                        } else {
+                            var pv = 0
+                            var pd = 0
+                            var pi = port_start
+                            while pi < port_end {
+                                var pc = ptr_get_byte(iadd(prefs, pi))
+                                if pc < 48 || pc > 57 { port_ok = false; pi = port_end }
+                                else {
+                                    pv = pv * 10 + (pc - 48)
+                                    if pv > 65535 { port_ok = false; pi = port_end }
+                                    else { pd = pd + 1; pi = pi + 1 }
+                                }
+                            }
+                            if port_ok {
+                                if pd == 0 { port_ok = false }
+                                else { if pv != port { port_ok = false } }
+                            }
+                        }
+                    }
+
+                    if port_ok { return true }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_capsule_require_net_connect(ip, port) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if global_get_net_allow_loopback() == 1 {
+        if native_ipv4_is_loopback(ip) { return 0 }
+    }
+    var prefs = global_get_net_allow_tcp_connect_ptr()
+    if native_capsule_net_endpoint_allowed(ip, port, prefs) { return 0 }
+    print("CAPSULE DENY: NET_CONNECT")
+    exit(79)
+    return 0
+}
+
+fn native_capsule_require_net_listen(ip, port) {
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    if global_get_net_allow_loopback() == 1 {
+        if native_ipv4_is_loopback(ip) { return 0 }
+    }
+    var prefs = global_get_net_allow_tcp_listen_ptr()
+    if native_capsule_net_endpoint_allowed(ip, port, prefs) { return 0 }
+    print("CAPSULE DENY: NET_LISTEN")
+    exit(79)
+    return 0
+}
+
+fn native_capsule_net_fd_kind_get(fd) {
+    if global_get_capsule_mode() != 1 { return 0 }
+    if fd < 0 { return 0 }
+    var caps = global_get_net_fd_caps_ptr()
+    if caps == 0 { return 0 }
+    var max_fds = global_get_net_fd_caps_len()
+    if max_fds <= 0 { return 0 }
+    if fd >= max_fds { return 0 }
+    return ptr_get_byte(caps + fd)
+}
+
+fn native_capsule_net_fd_kind_set(fd, kind) {
+    if global_get_capsule_mode() != 1 { return 0 }
+    if fd < 0 { return 0 }
+    var caps = global_get_net_fd_caps_ptr()
+    if caps == 0 { return 0 }
+    var max_fds = global_get_net_fd_caps_len()
+    if max_fds <= 0 { return 0 }
+    if fd >= max_fds { return 0 }
+    if kind < 0 { kind = 0 }
+    if kind > 255 { kind = 255 }
+    ptr_set_byte(caps + fd, kind)
+    return 0
+}
+
+fn native_capsule_net_fd_kind_clear(fd) {
+    return native_capsule_net_fd_kind_set(fd, 0)
+}
+
+fn native_parse_ipv4_sub(s, start, end, out4_ptr) {
+    // Parse dotted-decimal IPv4 from s[start:end) into 4 bytes at out4_ptr.
+    // Returns 1 on success.
+    if s == 0 { return 0 }
+    if out4_ptr == 0 { return 0 }
+    if end <= start { return 0 }
+
+    var part = 0
+    var acc = 0
+    var digits = 0
+    var i = start
+    while i < end {
+        var ch = ptr_get_byte(iadd(s, i))
+        if ch >= 48 && ch <= 57 {
+            acc = acc * 10 + (ch - 48)
+            if acc > 255 { return 0 }
+            digits = digits + 1
+        } else {
+            if ch == 46 { // '.'
+                if digits == 0 { return 0 }
+                if part >= 3 { return 0 }
+                ptr_set_byte(out4_ptr + part, acc)
+                part = part + 1
+                acc = 0
+                digits = 0
+            } else {
+                return 0
+            }
+        }
+        i = i + 1
+    }
+    if part != 3 { return 0 }
+    if digits == 0 { return 0 }
+    ptr_set_byte(out4_ptr + 3, acc)
+    return 1
+}
+
+fn native_parse_u16_sub(s, start, end, out_ok_ptr) {
+    // Parses 0..65535 from s[start:end). Returns value; writes 1/0 to out_ok_ptr.
+    if out_ok_ptr != 0 { ptr_set(out_ok_ptr, 0) }
+    if s == 0 { return 0 }
+    if end <= start { return 0 }
+    var v = 0
+    var i = start
+    var digits = 0
+    while i < end {
+        var ch = ptr_get_byte(iadd(s, i))
+        if ch < 48 || ch > 57 { return 0 }
+        v = v * 10 + (ch - 48)
+        if v > 65535 { return 0 }
+        digits = digits + 1
+        i = i + 1
+    }
+    if digits == 0 { return 0 }
+    if out_ok_ptr != 0 { ptr_set(out_ok_ptr, 1) }
+    return v
+}
+
+fn native_parse_i64_dec_cstr_or_neg1(s) {
+    // Parse a non-negative decimal integer from a NUL-terminated cstr.
+    // Returns parsed value on success; -1 on failure.
+    //
+    // Deterministic: decimal digits only (no spaces, signs, or suffixes).
+    if s == 0 { return -1 }
+    if ptr_get_byte(s) == 0 { return -1 }
+    var v = 0
+    var i = 0
+    while true {
+        var ch = ptr_get_byte(iadd(s, i))
+        if ch == 0 { break }
+        if ch < 48 || ch > 57 { return -1 }
+        var d = ch - 48
+        // Clamp to signed i64 max (9223372036854775807) to avoid overflow.
+        if v > 922337203685477580 { return -1 }
+        if v == 922337203685477580 && d > 7 { return -1 }
+        v = v * 10 + d
+        i = i + 1
+    }
+    return v
+}
+
+fn native_ipv4_is_loopback_ip4(ip4_ptr) {
+    // Accept 127.0.0.0/8 as loopback.
+    if ip4_ptr == 0 { return false }
+    return ptr_get_byte(ip4_ptr + 0) == 127
+}
+
+fn native_capsule_net_endpoint_allowed_ip4(ip4_ptr, port, prefs) {
+    // prefs: CSV cstr containing endpoint tokens.
+    // ip4_ptr: 4 bytes (network order) or NULL.
+    if prefs == 0 { return false }
+    if ip4_ptr == 0 { return false }
+    if port < 0 { return false }
+
+    var n = native_cstr_len(prefs)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(prefs, i)) }
+
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(prefs, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(prefs, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            var tok_len = tok_end - tok_start
+            if tok_len > 0 {
+                var colon = -1
+                var j = tok_start
+                while j < tok_end {
+                    if ptr_get_byte(iadd(prefs, j)) == 58 { colon = j; break } // ':'
+                    j = j + 1
+                }
+
+                var ip_start = tok_start
+                var ip_end = tok_end
+                var port_start = -1
+                var port_end = -1
+                if colon != -1 {
+                    ip_end = colon
+                    port_start = colon + 1
+                    port_end = tok_end
+                }
+
+                // Match ip (supports '*' wildcard).
+                var ip_ok = true
+                while ip_start < ip_end && ptr_get_byte(iadd(prefs, ip_start)) == 32 { ip_start = ip_start + 1 }
+                while ip_end > ip_start && ptr_get_byte(iadd(prefs, ip_end - 1)) == 32 { ip_end = ip_end - 1 }
+
+                if ip_end - ip_start == 1 && ptr_get_byte(iadd(prefs, ip_start)) == 42 { // '*'
+                    ip_ok = true
+                } else {
+                    // Parse token ip into tmp4 and compare bytes.
+                    var tmp4 = malloc(4)
+                    if tmp4 == 0 { return false }
+                    oren_track_alloc(tmp4, 4, 0)
+                    var ok = native_parse_ipv4_sub(prefs, ip_start, ip_end, tmp4)
+                    if ok == 0 { ip_ok = false }
+                    else {
+                        if ptr_get_byte(tmp4 + 0) != ptr_get_byte(ip4_ptr + 0) { ip_ok = false }
+                        if ptr_get_byte(tmp4 + 1) != ptr_get_byte(ip4_ptr + 1) { ip_ok = false }
+                        if ptr_get_byte(tmp4 + 2) != ptr_get_byte(ip4_ptr + 2) { ip_ok = false }
+                        if ptr_get_byte(tmp4 + 3) != ptr_get_byte(ip4_ptr + 3) { ip_ok = false }
+                    }
+                    free(tmp4)
+                }
+
+                if ip_ok {
+                    // Match port (optional, supports '*').
+                    var port_ok = true
+                    if port_start != -1 {
+                        while port_start < port_end && ptr_get_byte(iadd(prefs, port_start)) == 32 { port_start = port_start + 1 }
+                        while port_end > port_start && ptr_get_byte(iadd(prefs, port_end - 1)) == 32 { port_end = port_end - 1 }
+
+                        if port_end - port_start == 1 && ptr_get_byte(iadd(prefs, port_start)) == 42 { // '*'
+                            port_ok = true
+                        } else {
+                            var ok2 = malloc(8)
+                            if ok2 == 0 { return false }
+                            oren_track_alloc(ok2, 8, 0)
+                            var pv = native_parse_u16_sub(prefs, port_start, port_end, ok2)
+                            var okv = ptr_get(ok2)
+                            free(ok2)
+                            if okv == 0 { port_ok = false }
+                            else { if pv != port { port_ok = false } }
+                        }
+                    }
+                    if port_ok { return true }
+                }
+            }
+
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_sockaddr_in_read_ip_port(addr, addrlen, out_ip4_ptr, out_port_ptr) {
+    // Reads sockaddr_in into out buffers. Returns 1 on success.
+    if addr == 0 { return 0 }
+    if addrlen < 8 { return 0 }
+    if out_ip4_ptr == 0 { return 0 }
+    if out_port_ptr == 0 { return 0 }
+    // sockaddr_in: [1]=AF_INET, [2..3]=port be, [4..7]=ip bytes
+    if ptr_get_byte(addr + 1) != OREN_AF_INET { return 0 }
+    ptr_set_byte(out_ip4_ptr + 0, ptr_get_byte(addr + 4))
+    ptr_set_byte(out_ip4_ptr + 1, ptr_get_byte(addr + 5))
+    ptr_set_byte(out_ip4_ptr + 2, ptr_get_byte(addr + 6))
+    ptr_set_byte(out_ip4_ptr + 3, ptr_get_byte(addr + 7))
+    var hi = ptr_get_byte(addr + 2)
+    var lo = ptr_get_byte(addr + 3)
+    var port = (hi << 8) | lo
+    ptr_set(out_port_ptr, port)
+    return 1
+}
+
+fn native_capsule_net_tcp_map_apply(addr, addrlen, map_csv) {
+    // map_csv: CSV of "<virt_ip>:<virt_port>=<host_ip>:<host_port>".
+    // If a mapping matches (virt == requested), rewrite sockaddr_in in place to host endpoint and return 1.
+    if map_csv == 0 { return 0 }
+    if ptr_get_byte(map_csv) == 0 { return 0 }
+    if addr == 0 { return 0 }
+    if addrlen < 8 { return 0 }
+    if ptr_get_byte(addr + 1) != OREN_AF_INET { return 0 } // AF_INET only
+
+    var req_ip4 = malloc(4)
+    if req_ip4 == 0 { return 0 }
+    oren_track_alloc(req_ip4, 4, 0)
+    var req_port_ptr = malloc(8)
+    if req_port_ptr == 0 { free(req_ip4); return 0 }
+    oren_track_alloc(req_port_ptr, 8, 0)
+    var ok = native_sockaddr_in_read_ip_port(addr, addrlen, req_ip4, req_port_ptr)
+    if ok == 0 { free(req_ip4); free(req_port_ptr); return 0 }
+    var req_port = ptr_get(req_port_ptr)
+
+    var n = native_cstr_len(map_csv)
+    var i = 0
+    var start = 0
+    while i <= n {
+        var ch = 0
+        if i < n { ch = ptr_get_byte(iadd(map_csv, i)) }
+        var is_sep = false
+        if i == n { is_sep = true }
+        if ch == 44 { is_sep = true } // ','
+        if is_sep {
+            var tok_start = start
+            var tok_end = i
+            while tok_start < tok_end && ptr_get_byte(iadd(map_csv, tok_start)) == 32 { tok_start = tok_start + 1 }
+            while tok_end > tok_start && ptr_get_byte(iadd(map_csv, tok_end - 1)) == 32 { tok_end = tok_end - 1 }
+
+            // Find '='
+            var eq = -1
+            var j = tok_start
+            while j < tok_end {
+                if ptr_get_byte(iadd(map_csv, j)) == 61 { eq = j; break } // '='
+                j = j + 1
+            }
+            if eq != -1 {
+                var left_s = tok_start
+                var left_e = eq
+                var right_s = eq + 1
+                var right_e = tok_end
+
+                // Left: virt_ip:virt_port
+                var l_colon = -1
+                j = left_s
+                while j < left_e {
+                    if ptr_get_byte(iadd(map_csv, j)) == 58 { l_colon = j; break } // ':'
+                    j = j + 1
+                }
+                // Right: host_ip:host_port
+                var r_colon = -1
+                j = right_s
+                while j < right_e {
+                    if ptr_get_byte(iadd(map_csv, j)) == 58 { r_colon = j; break } // ':'
+                    j = j + 1
+                }
+
+                if l_colon != -1 && r_colon != -1 {
+                    var virt_ip4 = malloc(4)
+                    if virt_ip4 == 0 { free(req_ip4); free(req_port_ptr); return 0 }
+                    oren_track_alloc(virt_ip4, 4, 0)
+                    var host_ip4 = malloc(4)
+                    if host_ip4 == 0 { free(req_ip4); free(req_port_ptr); free(virt_ip4); return 0 }
+                    oren_track_alloc(host_ip4, 4, 0)
+
+                    var ok_l_ip = native_parse_ipv4_sub(map_csv, left_s, l_colon, virt_ip4)
+                    var ok_r_ip = native_parse_ipv4_sub(map_csv, right_s, r_colon, host_ip4)
+                    var okp = malloc(8)
+                    if okp == 0 { free(req_ip4); free(req_port_ptr); free(virt_ip4); free(host_ip4); return 0 }
+                    oren_track_alloc(okp, 8, 0)
+                    var virt_port = native_parse_u16_sub(map_csv, l_colon + 1, left_e, okp)
+                    var ok_l_port = ptr_get(okp)
+                    ptr_set(okp, 0)
+                    var host_port = native_parse_u16_sub(map_csv, r_colon + 1, right_e, okp)
+                    var ok_r_port = ptr_get(okp)
+                    free(okp)
+
+                    if ok_l_ip == 1 && ok_r_ip == 1 && ok_l_port == 1 && ok_r_port == 1 {
+                        var ip_match = true
+                        if ptr_get_byte(virt_ip4 + 0) != ptr_get_byte(req_ip4 + 0) { ip_match = false }
+                        if ptr_get_byte(virt_ip4 + 1) != ptr_get_byte(req_ip4 + 1) { ip_match = false }
+                        if ptr_get_byte(virt_ip4 + 2) != ptr_get_byte(req_ip4 + 2) { ip_match = false }
+                        if ptr_get_byte(virt_ip4 + 3) != ptr_get_byte(req_ip4 + 3) { ip_match = false }
+                        if ip_match && virt_port == req_port {
+                            // Rewrite sockaddr to host endpoint.
+                            ptr_set_byte(addr + 2, (host_port >> 8) & 255)
+                            ptr_set_byte(addr + 3, host_port & 255)
+                            ptr_set_byte(addr + 4, ptr_get_byte(host_ip4 + 0))
+                            ptr_set_byte(addr + 5, ptr_get_byte(host_ip4 + 1))
+                            ptr_set_byte(addr + 6, ptr_get_byte(host_ip4 + 2))
+                            ptr_set_byte(addr + 7, ptr_get_byte(host_ip4 + 3))
+                            free(req_ip4)
+                            free(req_port_ptr)
+                            free(virt_ip4)
+                            free(host_ip4)
+                            return 1
+                        }
+                    }
+                    free(virt_ip4)
+                    free(host_ip4)
+                }
+            }
+            start = i + 1
+        }
+        i = i + 1
+    }
+
+    free(req_ip4)
+    free(req_port_ptr)
+    return 0
+}
+

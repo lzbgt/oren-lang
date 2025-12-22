@@ -1,0 +1,17 @@
+// --- Args ---
+fn oren_args() {
+    var argc = global_get_argc()
+    var argv = global_get_argv()
+    if argc <= 0 { return oren_new_list(0) }
+    if argv == 0 { return oren_new_list(0) }
+
+    var out = oren_new_list(argc)
+    var i = 0
+    while i < argc {
+        var s = ptr_get(argv + i * 8)
+        oren_list_push(out, s)
+        i = i + 1
+    }
+    return out
+}
+

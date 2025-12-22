@@ -1,0 +1,350 @@
+// --- Printing ---
+fn print_int_no_nl(n) {
+    var buf = malloc(32)
+    if buf == 0 { exit(300) }
+    var i = 0
+    var neg = 0
+    if n < 0 {
+        neg = 1
+        n = -n
+    }
+    if n == 0 {
+        ptr_set_byte(buf, 48)
+        i = 1
+    } else {
+        while n > 0 {
+            var digit = n - (n / 10) * 10
+            ptr_set_byte(buf + i, 48 + digit)
+            i = i + 1
+            n = n / 10
+        }
+        if neg == 1 {
+            ptr_set_byte(buf + i, 45)
+            i = i + 1
+        }
+        // reverse
+        var s = 0
+        var e = i - 1
+        while s < e {
+            var t = ptr_get_byte(buf + s)
+            ptr_set_byte(buf + s, ptr_get_byte(buf + e))
+            ptr_set_byte(buf + e, t)
+            s = s + 1
+            e = e - 1
+        }
+    }
+    sys_write(1, buf, i)
+    return 0
+}
+
+fn print_int(n) {
+    print_int_no_nl(n)
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
+    return 0
+}
+
+fn oren_print_any_no_nl(val) {
+    var node = oren_find_node(val)
+    if node != 0 {
+        var kind = ptr_get(node + 16)
+        if kind == 1 { // STRING
+            var len = oren_string_len(val)
+            sys_write(1, val, len)
+            return 0
+        }
+    }
+    print_int_no_nl(val)
+    return 0
+}
+
+fn oren_print_fmt(fmt, args) {
+    // fmt is string ptr, args is list ptr
+    var len = oren_string_len(fmt)
+    var i = 0
+    var arg_idx = 0
+    var arg_count = 0
+    if args != 0 { arg_count = oren_list_len(args) }
+    
+    while i < len {
+        var c = ptr_get_byte(fmt + i)
+        if c == 123 { // '{'
+            if i + 1 < len {
+                if ptr_get_byte(fmt + i + 1) == 125 { // '}'
+                    if arg_idx < arg_count {
+                        var val = oren_list_get(args, arg_idx)
+                        oren_print_any_no_nl(val)
+                        arg_idx = arg_idx + 1
+                    } else {
+                        // Print {}
+                        sys_write(1, fmt + i, 2)
+                    }
+                    i = i + 2
+                } else {
+                    sys_write(1, fmt + i, 1)
+                    i = i + 1
+                }
+            } else {
+                sys_write(1, fmt + i, 1)
+                i = i + 1
+            }
+        } else {
+            sys_write(1, fmt + i, 1)
+            i = i + 1
+        }
+    }
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
+    return 0
+}
+
+fn print_bytes(ptr, len) {
+    sys_write(1, ptr, len)
+}
+
+fn oren_print(v) {
+    oren_print_any_no_nl(v)
+    var nl = malloc(1)
+    ptr_set_byte(nl, 10)
+    sys_write(1, nl, 1)
+    return 0
+}
+
+fn oren_print_list(args_list) {
+    // Print list elements separated by spaces and trailing newline.
+    if args_list == 0 {
+        var nl = malloc(1)
+        ptr_set_byte(nl, 10)
+        sys_write(1, nl, 1)
+        return 0
+    }
+    var n = oren_list_len(args_list)
+    var i = 0
+    while i < n {
+        var v = oren_list_get(args_list, i)
+        oren_print_any_no_nl(v)
+        if i < n - 1 {
+            var sp = malloc(1)
+            ptr_set_byte(sp, 32)
+            sys_write(1, sp, 1)
+        }
+        i = i + 1
+    }
+    var nl2 = malloc(1)
+    ptr_set_byte(nl2, 10)
+    sys_write(1, nl2, 1)
+    return 0
+}
+
+fn oren_print_fmt_list(fmt, args_list) { return oren_print_fmt(fmt, args_list) }
+
+fn oren_print_spread(fixed_args, spread_list) {
+    var args = oren_new_list(0)
+    if fixed_args != 0 {
+        var n0 = oren_list_len(fixed_args)
+        var i0 = 0
+        while i0 < n0 {
+            oren_list_push(args, oren_list_get(fixed_args, i0))
+            i0 = i0 + 1
+        }
+    }
+    if spread_list != 0 {
+        var n1 = oren_list_len(spread_list)
+        var i1 = 0
+        while i1 < n1 {
+            oren_list_push(args, oren_list_get(spread_list, i1))
+            i1 = i1 + 1
+        }
+    }
+    return oren_print_list(args)
+}
+
+fn oren_print_fmt_spread(fmt, fixed_args, spread_list) {
+    var args = oren_new_list(0)
+    if fixed_args != 0 {
+        var n0 = oren_list_len(fixed_args)
+        var i0 = 0
+        while i0 < n0 {
+            oren_list_push(args, oren_list_get(fixed_args, i0))
+            i0 = i0 + 1
+        }
+    }
+    if spread_list != 0 {
+        var n1 = oren_list_len(spread_list)
+        var i1 = 0
+        while i1 < n1 {
+            oren_list_push(args, oren_list_get(spread_list, i1))
+            i1 = i1 + 1
+        }
+    }
+    return oren_print_fmt(fmt, args)
+}
+
+fn oren_call_obj_spread(fn_obj, fixed_args, spread_list) {
+    var args = oren_new_list(0)
+    if fixed_args != 0 {
+        var n0 = oren_list_len(fixed_args)
+        var i0 = 0
+        while i0 < n0 {
+            oren_list_push(args, oren_list_get(fixed_args, i0))
+            i0 = i0 + 1
+        }
+    }
+    if spread_list != 0 {
+        var n1 = oren_list_len(spread_list)
+        var i1 = 0
+        while i1 < n1 {
+            oren_list_push(args, oren_list_get(spread_list, i1))
+            i1 = i1 + 1
+        }
+    }
+    return oren_call_obj_list(fn_obj, args)
+}
+
+fn list_magic() { return 1279870019 } // 'LIST'
+fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
+
+fn oren_new_map(cap) {
+    // Map layout mirrors list layout for safety and future growth:
+    //   [count][cap][entries_ptr][magic]
+    // Where entries_ptr points to an array of `[key_ptr][value]` pairs (16 bytes each).
+    //
+    // Rationale:
+    // - The previous v0 layout stored entries inline after the header and attempted to
+    //   "grow" by mutating cap without resizing the allocation. That caused OOB writes
+    //   for maps created with cap=0 (e.g. `{}`) and corrupted the allocator metadata.
+    // - By using an indirection (entries_ptr) we can grow like lists, without needing
+    //   to update every reference to the map pointer.
+    if cap < 0 { cap = 0 }
+    if cap > 0 && cap < 4 { cap = 4 }
+
+    var header = malloc(32)
+    if header == 0 { exit(1) }
+    if header == -1 { exit(1) }
+    oren_track_alloc(header, 32, 0)
+
+    var buf = 0
+    if cap > 0 {
+        buf = malloc(cap * 16)
+        if buf == 0 { exit(1) }
+        if buf == -1 { exit(1) }
+        oren_track_alloc(buf, cap * 16, 0)
+    }
+
+    ptr_set(header + 0, 0)       // count
+    ptr_set(header + 8, cap)     // cap
+    ptr_set(header + 16, buf)    // entries_ptr
+    ptr_set(header + 24, map_magic())
+
+    // Mark map header kind for GC traversal (kind=3 => MAP).
+    var node = oren_find_node(header)
+    if node != 0 { ptr_set(iadd(node, 16), 3) }
+    return header
+}
+
+fn oren_map_set(m, k, v) {
+    // stack_trace()
+    if m == 0 { exit(110) }
+    if m < 4096 { exit(111) }
+    if k == 0 { exit(112) }
+    // if m > 4096 { exit(12) } 
+    if ptr_get(m + 24) != map_magic() { exit(113) }
+    
+    var count = ptr_get(m + 0)
+    var cap = ptr_get(m + 8)
+    if count < 0 { count = 0; ptr_set(m + 0, 0) }
+    if cap < 0 { cap = 0; ptr_set(m + 8, 0) }
+
+    var buf = ptr_get(m + 16)
+    if buf == 0 && cap > 0 { exit(114) }
+    if cap == 0 && buf != 0 { exit(114) }
+
+    var i = 0
+    while i < count {
+        var kp = ptr_get(buf + i * 16)
+        if strcmp(kp, k) == 0 {
+            ptr_set(buf + i * 16 + 8, v)
+            return m
+        }
+        i = i + 1
+    }
+
+    // Grow if needed (like lists).
+    if count >= cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var new_buf = malloc(new_cap * 16)
+        if new_buf == 0 { exit(99) }
+        if new_buf == -1 { exit(99) }
+        oren_track_alloc(new_buf, new_cap * 16, 0)
+        var ci = 0
+        while ci < count {
+            ptr_set(new_buf + ci * 16 + 0, ptr_get(buf + ci * 16 + 0))
+            ptr_set(new_buf + ci * 16 + 8, ptr_get(buf + ci * 16 + 8))
+            ci = ci + 1
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(m + 8, cap)
+        ptr_set(m + 16, buf)
+    }
+
+    // Deterministic ordered maps (rolling): keep keys sorted by strcmp (ascending).
+    // Keys are assumed to be string pointers; do not use non-string keys in v0.
+    var insert_at = 0
+    while insert_at < count {
+        var ek = ptr_get(buf + insert_at * 16)
+        if strcmp(ek, k) > 0 { break }
+        insert_at = insert_at + 1
+    }
+
+    // Shift entries right to make space.
+    var j = count
+    while j > insert_at {
+        var from = buf + (j - 1) * 16
+        var to = buf + j * 16
+        ptr_set(to + 0, ptr_get(from + 0))
+        ptr_set(to + 8, ptr_get(from + 8))
+        j = j - 1
+    }
+
+    ptr_set(buf + insert_at * 16, k)
+    ptr_set(buf + insert_at * 16 + 8, v)
+    ptr_set(m + 0, count + 1)
+    return m
+}
+
+fn oren_map_get(m, k) {
+    if m == 0 { return 0 }
+    if ptr_get(m + 24) != map_magic() { return 0 }
+    var count = ptr_get(m + 0)
+    var buf = ptr_get(m + 16)
+    var i = 0
+    while i < count {
+        var kp = ptr_get(buf + i * 16)
+        if strcmp(kp, k) == 0 {
+            return ptr_get(buf + i * 16 + 8)
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn oren_map_len(m) {
+    if m == 0 { return 0 }
+    if ptr_get(m + 24) != map_magic() { return 0 }
+    return ptr_get(m + 0)
+}
+
+fn oren_map_key_at(m, idx) {
+    if m == 0 { return 0 }
+    if ptr_get(m + 24) != map_magic() { return 0 }
+    var count = ptr_get(m + 0)
+    if idx < 0 { return 0 }
+    if idx >= count { return 0 }
+    var buf = ptr_get(m + 16)
+    return ptr_get(buf + idx * 16)
+}
+

@@ -1,0 +1,37 @@
+// --- Structured errors (rolling, portable) ---
+// Convention matches C/AVM:
+//   error = map {"__err": true, "code": int, "msg": string}
+//
+// NOTE: in native v0, `nil/false/0` collapse to 0 in some contexts. This convention
+// uses a tagged map pointer (map_magic) so `oren_is_err` can discriminate reliably.
+fn oren_err(code, msg) {
+    var m = oren_new_map(8)
+    oren_map_set(m, "__err", 1)
+    oren_map_set(m, "code", code)
+    oren_map_set(m, "msg", msg)
+    return m
+}
+
+fn oren_is_err(v) {
+    // Safe for arbitrary ints:
+    // - integers can be >= 4096 (e.g. 16909060), so we must NOT probe memory
+    //   at `v+24` unless `v` is a tracked heap pointer.
+    if v == 0 { return 0 }
+    var node = oren_find_node(v)
+    if node == 0 { return 0 }
+    if ptr_get(v + 24) != map_magic() { return 0 }
+    var marker = oren_map_get(v, "__err")
+    if marker == 0 { return 0 }
+    return 1
+}
+
+fn oren_err_code(v) {
+    if oren_is_err(v) == 0 { return -1 }
+    return oren_map_get(v, "code")
+}
+
+fn oren_err_msg(v) {
+    if oren_is_err(v) == 0 { return 0 }
+    return oren_map_get(v, "msg")
+}
+

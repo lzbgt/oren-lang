@@ -1,0 +1,230 @@
+// --- First-class functions (native backend) ---
+//
+// Representation (tracked allocation kind=6):
+//   [0] code_ptr (u64)  - entrypoint taking (env, args_list)
+//   [8] env_ptr  (u64)  - closure environment (typically a list), or 0
+fn oren_func(code_ptr, env_ptr) {
+    if code_ptr == 0 { return 0 }
+    var obj = malloc(16)
+    if obj == 0 { exit(320) }
+    ptr_set(obj, code_ptr)
+    ptr_set(obj + 8, env_ptr)
+    // Update kind to 6 (FUNC) so GC can traverse env_ptr.
+    var node = oren_find_node(obj)
+    if node != 0 {
+        ptr_set(node + 16, 6)
+    }
+    return obj
+}
+
+// Spawn a callable object with an args list.
+//
+// This is the syscall-first native analogue of the C backend's spawn-callable helper.
+// It returns the same handle layout expected by `oren_join(handle)`:
+//   0: pid (u64)
+//   8: read_fd (u64)
+fn oren_spawn_call_list(fn_obj, args_list) {
+    var pipe_buf = malloc(16)
+    if pipe_buf == 0 { exit(321) }
+    var rv = sys_pipe(pipe_buf)
+    if rv != 0 { exit(322) }
+
+    var rfd = ptr_get(pipe_buf)
+    var wfd = ptr_get(pipe_buf + 8)
+
+    // IMPORTANT (fork hygiene):
+    // Use `oren_fork()` (not raw `sys_fork()`) so the child resets any inherited
+    // in-memory locks before doing further allocations/capsule bookkeeping.
+    var pid = oren_fork()
+    if pid == 0 {
+        // Child
+        var dbg = native_envp_get_value_ptr("OREN_DEBUG_SPAWN")
+        if dbg != 0 {
+            if ptr_get_byte(dbg) != 0 {
+                print("spawn debug (child):")
+                print("  pipe.rfd=" + oren_int_to_string(rfd))
+                print("  pipe.wfd=" + oren_int_to_string(wfd))
+            }
+        }
+        sys_close(rfd)
+        var ret = 0
+        if dbg != 0 {
+            if ptr_get_byte(dbg) != 0 {
+                print("  fn_obj=" + oren_int_to_string(fn_obj))
+                if fn_obj != 0 {
+                    print("  fn.code_ptr=" + oren_int_to_string(ptr_get(fn_obj)))
+                    print("  fn.env_ptr=" + oren_int_to_string(ptr_get(fn_obj + 8)))
+                }
+                print("  args_list=" + oren_int_to_string(args_list))
+                print("  args_len=" + oren_int_to_string(oren_list_len(args_list)))
+                if oren_list_len(args_list) > 0 {
+                    print("  args[0]=" + oren_int_to_string(oren_list_get(args_list, 0)))
+                }
+            }
+        }
+
+        ret = oren_call_obj_list(fn_obj, args_list)
+        if dbg != 0 {
+            if ptr_get_byte(dbg) != 0 {
+                print("  ret=" + oren_int_to_string(ret))
+            }
+        }
+        // Reuse the pre-fork heap buffer as the 8-byte write buffer.
+        // This avoids taking the allocator lock in the child before user code runs.
+        ptr_set(pipe_buf, ret)
+        sys_write(wfd, pipe_buf, 8)
+        sys_close(wfd)
+        exit(0)
+        return 0
+    }
+
+        // Parent
+    sys_close(wfd)
+    var dbg_p = native_envp_get_value_ptr("OREN_DEBUG_SPAWN")
+    if dbg_p != 0 {
+        if ptr_get_byte(dbg_p) != 0 {
+            print("spawn debug (parent):")
+            print("  pid=" + oren_int_to_string(pid))
+            print("  pipe.rfd=" + oren_int_to_string(rfd))
+            print("  pipe.wfd=" + oren_int_to_string(wfd))
+        }
+    }
+    free(pipe_buf)
+
+    var handle = malloc(16)
+    if handle == 0 { exit(324) }
+    ptr_set(handle, pid)
+    ptr_set(handle + 8, rfd)
+    return handle
+}
+
+// ... existing code ...
+
+// Centralized struct allocation hook (uses the compiler's special-cased malloc).
+fn oren_alloc_struct(size) {
+    var ptr = malloc(size)
+    // Update kind to 4 (STRUCT)
+    var node = oren_find_node(ptr)
+    if node != 0 {
+        ptr_set(node + 16, 4)
+    }
+    return ptr
+}
+
+fn oren_free_struct(ptr) {
+    // Best-effort explicit free for large struct buffers.
+    // (Allocator is bump-based; `free` marks the node as freed so GC can reclaim metadata.)
+    return free(ptr)
+}
+
+fn strcmp(s1, s2) {
+    // Nil-safe lexicographic compare for NUL-terminated strings.
+    // This is intentionally defensive: native codegen may still compare against 0 in rolling mode.
+    if s1 == 0 {
+        if s2 == 0 { return 0 }
+        return -1
+    }
+    if s2 == 0 { return 1 }
+    var i = 0
+    while 1 {
+        var b1 = ptr_get_byte(s1 + i)
+        var b2 = ptr_get_byte(s2 + i)
+        if b1 == 0 {
+            if b2 == 0 { return 0 }
+            return -1
+        }
+        if b2 == 0 { return 1 }
+        if b1 < b2 { return -1 }
+        if b1 > b2 { return 1 }
+        i = i + 1
+    }
+    return 0
+}
+
+
+fn oren_add(a, b) {
+    var na = oren_find_node(a)
+    if na != 0 {
+        var nb = oren_find_node(b)
+        if nb != 0 {
+            var ka = ptr_get(iadd(na, 16))
+            var kb = ptr_get(iadd(nb, 16))
+            if ka == 1 { // STRING
+                if kb == 1 {
+                    return string_concat(a, b)
+                }
+            }
+        }
+    }
+    return iadd(a, b)
+}
+
+fn oren_mod(a, b) {
+    // Deterministic signed remainder with explicit error on:
+    // - modulo by zero
+    // - i64_min % -1 (would imply division overflow)
+    //
+    // Native codegen's `/` uses unsigned division (rolling), so we implement the
+    // signed behavior explicitly using abs() + unsigned division on positives.
+    if b == 0 {
+        oren_panic("modulo by zero")
+        return 0
+    }
+
+    // INT64_MIN = -(1<<63). In Oren's rolling int model, this constant is safe.
+    var i64_min = 0 - (1 << 63)
+    if a == i64_min && b == -1 {
+        oren_panic("modulo overflow (i64_min % -1)")
+        return 0
+    }
+
+    var ua = a
+    var ub = b
+    if ua < 0 { ua = 0 - ua }
+    if ub < 0 { ub = 0 - ub }
+    // quotient for positive operands (unsigned division semantics are fine here)
+    var q = ua / ub
+    var rpos = ua - (q * ub)
+    if a < 0 { return 0 - rpos }
+    return rpos
+}
+
+fn oren_int_to_string(n) {
+    var buf = malloc(32)
+    if buf == 0 { exit(300) }
+    var i = 0
+    var neg = 0
+    if n < 0 {
+        neg = 1
+        n = -n
+    }
+    if n == 0 {
+        ptr_set_byte(buf, 48)
+        i = 1
+    } else {
+        while n > 0 {
+            var digit = n - (n / 10) * 10
+            ptr_set_byte(buf + i, 48 + digit)
+            i = i + 1
+            n = n / 10
+        }
+        if neg == 1 {
+            ptr_set_byte(buf + i, 45)
+            i = i + 1
+        }
+        // reverse
+        var s = 0
+        var e = i - 1
+        while s < e {
+            var t = ptr_get_byte(buf + s)
+            ptr_set_byte(buf + s, ptr_get_byte(buf + e))
+            ptr_set_byte(buf + e, t)
+            s = s + 1
+            e = e - 1
+        }
+    }
+    ptr_set_byte(buf + i, 0) // null term
+    oren_track_alloc(buf, 32, 1) // 1=STRING
+    return buf
+}
+

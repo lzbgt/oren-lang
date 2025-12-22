@@ -2297,6 +2297,69 @@ func catFile(w *os.File, path string) error {
 	return err
 }
 
+func expandOrenIncludes(entryPath string) (string, error) {
+	// Purpose-built preprocessor for repo-owned Oren sources.
+	//
+	// Directive form (single-line comment):
+	//   // @include "relative/or/absolute/path.oren"
+	//
+	// This is intentionally *not* Oren's `import` system; it's used for cases where
+	// we need literal textual inlining (e.g. the native runtime, which must define
+	// symbols in the global namespace).
+	var rec func(path string, stack []string) (string, error)
+	rec = func(path string, stack []string) (string, error) {
+		clean := filepath.Clean(path)
+		for _, p := range stack {
+			if p == clean {
+				return "", fmt.Errorf("oren include cycle detected: %s", clean)
+			}
+		}
+		stack2 := append(append([]string(nil), stack...), clean)
+
+		b, err := os.ReadFile(clean)
+		if err != nil {
+			return "", err
+		}
+		src := string(b)
+		lines := strings.Split(src, "\n")
+
+		var out strings.Builder
+		for i, line := range lines {
+			trim := strings.TrimSpace(line)
+			if strings.HasPrefix(trim, "// @include") {
+				i1 := strings.IndexByte(trim, '"')
+				i2 := strings.LastIndexByte(trim, '"')
+				if i1 >= 0 && i2 > i1 {
+					inc := trim[i1+1 : i2]
+					incPath := inc
+					if !filepath.IsAbs(incPath) {
+						incPath = filepath.Join(filepath.Dir(clean), incPath)
+					}
+					incPath = filepath.Clean(incPath)
+					expanded, eerr := rec(incPath, stack2)
+					if eerr != nil {
+						return "", eerr
+					}
+					out.WriteString(expanded)
+					if !strings.HasSuffix(expanded, "\n") {
+						out.WriteString("\n")
+					}
+				}
+				continue
+			}
+
+			// Preserve original text (including empty final line).
+			out.WriteString(line)
+			if i != len(lines)-1 || strings.HasSuffix(src, "\n") {
+				out.WriteString("\n")
+			}
+		}
+		return out.String(), nil
+	}
+
+	return rec(entryPath, nil)
+}
+
 func extractHashFromLog(logPath string, prefix string) (string, bool) {
 	b, err := os.ReadFile(logPath)
 	if err != nil {
@@ -2354,13 +2417,12 @@ func auditNativeCapsuleSyscallPrehooks() error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", compilerPath, err)
 	}
-	runtimeSrc, err := os.ReadFile(runtimePath)
+	rt, err := expandOrenIncludes(runtimePath)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", runtimePath, err)
+		return fmt.Errorf("expand includes %s: %w", runtimePath, err)
 	}
 
 	// Collect all defined capsule pre-hooks in the native runtime.
-	rt := string(runtimeSrc)
 	runtimePrehooks := map[string]bool{}
 	for _, line := range strings.Split(rt, "\n") {
 		line = strings.TrimSpace(line)

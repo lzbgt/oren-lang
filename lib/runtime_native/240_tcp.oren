@@ -1,0 +1,715 @@
+// --- TCP/IP (syscall-first) ---
+// Notes:
+// - macOS/BSD socket structs are built manually (byte-by-byte) without libc.
+// - All potentially-blocking operations use kqueue/kevent with a caller-provided timeout.
+// - Return convention: functions return fd/nbytes on success, or negative errno on failure.
+//
+// IMPORTANT (rolling): avoid relying on initialized global integer vars for numeric constants.
+// Use numeric literals inside the functions to keep behavior robust during bootstrap.
+
+fn oren_tcp_parse_ipv4_into(ip, out4_ptr) {
+    if ip == 0 { return 0 }
+    if out4_ptr == 0 { return 0 }
+
+    var part = 0
+    var acc = 0
+    var digits = 0
+    var i = 0
+    while 1 {
+        var ch = ptr_get_byte(ip + i)
+        if ch == 0 { break }
+        if ch >= 48 {
+            if ch <= 57 {
+                acc = acc * 10 + (ch - 48)
+                if acc > 255 { return 0 }
+                digits = digits + 1
+            } else {
+                return 0
+            }
+        } else {
+            if ch == 46 {
+                if digits == 0 { return 0 }
+                if part >= 3 { return 0 }
+                ptr_set_byte(out4_ptr + part, acc)
+                part = part + 1
+                acc = 0
+                digits = 0
+            } else {
+                return 0
+            }
+        }
+        i = i + 1
+    }
+
+    if part != 3 { return 0 }
+    if digits == 0 { return 0 }
+    ptr_set_byte(out4_ptr + 3, acc)
+    return 1
+}
+
+fn oren_tcp_sockaddr_in(ip, port) {
+    // struct sockaddr_in:
+    //
+    // - macOS/BSD layout (16 bytes):
+    //     u8  sin_len
+    //     u8  sin_family
+    //     u16 sin_port (big-endian)
+    //     u32 sin_addr (bytes)
+    //     u8  sin_zero[8]
+    //
+    // - Linux layout (16 bytes):
+    //     u16 sin_family (little-endian)
+    //     u16 sin_port   (big-endian)
+    //     u32 sin_addr   (bytes)
+    //     u8  sin_zero[8]
+    //
+    // Rolling portability rule:
+    // - Do not rely on host SDK headers.
+    // - Select layout by probing kqueue availability once (macOS has it, Linux doesn't).
+    var sa = malloc(16)
+    if sa == 0 { return 0 }
+    if sa == -1 { return 0 }
+    oren_track_alloc(sa, 16, 0)
+
+    // zero-fill
+    var zi = 0
+    while zi < 16 {
+        ptr_set_byte(sa + zi, 0)
+        zi = zi + 1
+    }
+
+    // Ensure we know whether this target has kqueue.
+    // In rolling mode, native codegen should pass target_os into native_runtime_init,
+    // which sets g_net_has_kqueue deterministically. Keep this probe as a last-resort
+    // fallback for older binaries.
+    if g_net_has_kqueue == -1 {
+        var kq0 = sys_kqueue()
+        if kq0 < 0 { g_net_has_kqueue = 0 }
+        else { g_net_has_kqueue = 1; sys_close(kq0) }
+    }
+
+    if g_net_has_kqueue == 1 {
+        // macOS/BSD: len + family
+        ptr_set_byte(sa + 0, 16) // len
+        ptr_set_byte(sa + 1, OREN_AF_INET) // AF_INET
+    } else {
+        // Linux: family u16 LE at [0..1]
+        ptr_set_byte(sa + 0, OREN_AF_INET)
+        ptr_set_byte(sa + 1, 0)
+    }
+
+    // port in network order
+    var hi = (port >> 8) & 255
+    var lo = port & 255
+    ptr_set_byte(sa + 2, hi)
+    ptr_set_byte(sa + 3, lo)
+
+    // address bytes
+    if ip == 0 {
+        // default: 127.0.0.1
+        ptr_set_byte(sa + 4, 127)
+        ptr_set_byte(sa + 5, 0)
+        ptr_set_byte(sa + 6, 0)
+        ptr_set_byte(sa + 7, 1)
+    } else {
+        var ok = oren_tcp_parse_ipv4_into(ip, sa + 4)
+        if ok == 0 { return 0 }
+    }
+
+    return sa
+}
+
+fn oren_sockaddr_in6(ip6_bytes, port) {
+    // struct sockaddr_in6:
+    //
+    // - macOS/BSD (28 bytes):
+    //     u8  sin6_len
+    //     u8  sin6_family
+    //     u16 sin6_port (big-endian)
+    //     u32 sin6_flowinfo (native-endian; little on arm64)
+    //     u8  sin6_addr[16]
+    //     u32 sin6_scope_id (native-endian; little on arm64)
+    //
+    // - Linux (28 bytes):
+    //     u16 sin6_family (little-endian)
+    //     u16 sin6_port   (big-endian)
+    //     u32 sin6_flowinfo (little-endian)
+    //     u8  sin6_addr[16]
+    //     u32 sin6_scope_id (little-endian)
+    //
+    // Input:
+    // - ip6_bytes: bytes container (list<int 0..255> or u8_buf) of length 16; if nil => ::1.
+    var sa = malloc(28)
+    if sa == 0 { return 0 }
+    oren_track_alloc(sa, 28, 0)
+
+    // zero-fill
+    var zi = 0
+    while zi < 28 {
+        ptr_set_byte(sa + zi, 0)
+        zi = zi + 1
+    }
+
+    if g_target_os == 1 {
+        // macOS/BSD
+        ptr_set_byte(sa + 0, 28)
+        ptr_set_byte(sa + 1, OREN_AF_INET6)
+    } else {
+        // Linux: family u16 LE
+        ptr_set_byte(sa + 0, OREN_AF_INET6 & 255)
+        ptr_set_byte(sa + 1, (OREN_AF_INET6 >> 8) & 255)
+    }
+
+    // port in network order
+    ptr_set_byte(sa + 2, (port >> 8) & 255)
+    ptr_set_byte(sa + 3, port & 255)
+
+    // addr bytes
+    if ip6_bytes == 0 {
+        // default ::1 (last byte = 1)
+        ptr_set_byte(sa + 8 + 15, 1)
+    } else {
+        var n = oren_bytes_len(ip6_bytes)
+        if oren_is_err(n) { return 0 }
+        if n != 16 { return 0 }
+        var i = 0
+        while i < 16 {
+            var b = oren_bytes_get_u8(ip6_bytes, i)
+            if b < 0 || b > 255 { return 0 }
+            ptr_set_byte(sa + 8 + i, b)
+            i = i + 1
+        }
+    }
+    return sa
+}
+
+fn oren_sockaddr_un(path) {
+    // struct sockaddr_un:
+    // - macOS/BSD: len(u8) + family(u8) + path[104], sizeof=106
+    // - Linux: family(u16) + path[108], sizeof=110
+    //
+    // Input:
+    // - path: string (NUL not required; we NUL-terminate if room)
+    if path == 0 { return 0 }
+    var n = oren_string_len(path)
+    if n < 0 { return 0 }
+
+    if g_target_os == 1 {
+        var sa = malloc(106)
+        if sa == 0 { return 0 }
+        oren_track_alloc(sa, 106, 0)
+        var zi = 0
+        while zi < 106 { ptr_set_byte(sa + zi, 0); zi = zi + 1 }
+        ptr_set_byte(sa + 0, 106)
+        ptr_set_byte(sa + 1, OREN_AF_UNIX)
+        var i = 0
+        while i < n {
+            if i >= 104 { break }
+            ptr_set_byte(sa + 2 + i, ptr_get_byte(path + i))
+            i = i + 1
+        }
+        // NUL terminate if there is space
+        if i < 104 { ptr_set_byte(sa + 2 + i, 0) }
+        return sa
+    }
+
+    // Linux
+    var sa2 = malloc(110)
+    if sa2 == 0 { return 0 }
+    oren_track_alloc(sa2, 110, 0)
+    var zj = 0
+    while zj < 110 { ptr_set_byte(sa2 + zj, 0); zj = zj + 1 }
+    ptr_set_byte(sa2 + 0, OREN_AF_UNIX)
+    ptr_set_byte(sa2 + 1, 0)
+    var j = 0
+    while j < n {
+        if j >= 108 { break }
+        ptr_set_byte(sa2 + 2 + j, ptr_get_byte(path + j))
+        j = j + 1
+    }
+    if j < 108 { ptr_set_byte(sa2 + 2 + j, 0) }
+    return sa2
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_set_nonblock(fd) {
+    native_capsule_require(CAP_NET, "NET")
+    var flags = sys_fcntl_getfl(fd)
+    if flags < 0 { return flags }
+    var r = sys_fcntl_setfl(fd, flags | OREN_O_NONBLOCK)
+    return r
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    // Returns 1 if ready, 0 if timed out, or negative errno.
+    if timeout_ms < 0 { timeout_ms = 0 }
+    if g_net_has_kqueue == 0 { return -1 }
+    var kq = sys_kqueue()
+    if g_net_has_kqueue == -1 {
+        // First-time detection.
+        if kq < 0 {
+            g_net_has_kqueue = 0
+            return -1
+        }
+        g_net_has_kqueue = 1
+    } else {
+        if kq < 0 { return kq }
+    }
+
+    var change = malloc(32)
+    if change == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(change, 32, 0)
+    var ev = malloc(32)
+    if ev == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 32, 0)
+
+    // Zero-fill the kevent structs (malloc does not promise zeroed memory).
+    var zi = 0
+    while zi < 32 {
+        ptr_set_byte(change + zi, 0)
+        ptr_set_byte(ev + zi, 0)
+        zi = zi + 1
+    }
+
+    // struct kevent:
+    // ident (u64) @0
+    // filter (i16) @8
+    // flags (u16)  @10
+    // fflags (u32) @12
+    // data (i64)   @16
+    // udata (ptr)  @24
+    ptr_set(change + 0, fd)
+    ptr_set_byte(change + 8, filter & 255)
+    ptr_set_byte(change + 9, (filter >> 8) & 255)
+    var kflags = 1 | 4 | 16 // EV_ADD | EV_ENABLE | EV_ONESHOT
+    ptr_set_byte(change + 10, kflags & 255)
+    ptr_set_byte(change + 11, (kflags >> 8) & 255)
+    ptr_set(change + 16, 0)
+    ptr_set(change + 24, 0)
+
+    // timespec*
+    var ts = 0
+    ts = malloc(16)
+    if ts == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ts, 16, 0)
+    var sec = timeout_ms / 1000
+    var nsec = (timeout_ms - sec * 1000) * 1000000
+    ptr_set(ts + 0, sec)
+    ptr_set(ts + 8, nsec)
+
+    var n = sys_kevent(kq, change, 1, ev, 1, ts)
+    sys_close(kq)
+    // Avoid leaking temporaries; free() is deterministic and reuses blocks.
+    free(change)
+    free(ev)
+    free(ts)
+    return n
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_epoll(fd, events_mask, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    // Returns 1 if ready, 0 if timed out, or negative errno.
+    //
+    // Linux only. Darwin does not have epoll (return -ENOSYS).
+    if g_target_os == 1 { return 0 - 78 } // ENOSYS
+    if timeout_ms < 0 { timeout_ms = -1 } // epoll uses -1 for infinite
+
+    var epfd = sys_epoll_create1(0)
+    if epfd < 0 { return epfd }
+
+    // struct epoll_event (Linux arm64):
+    //   u32 events @0
+    //   u32 pad    @4
+    //   u64 data   @8
+    var ev = malloc(16)
+    if ev == 0 { sys_close(epfd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 16, 0)
+    var out = malloc(16)
+    if out == 0 { sys_close(epfd); free(ev); return 0 - 12 } // ENOMEM
+    oren_track_alloc(out, 16, 0)
+
+    var zi = 0
+    while zi < 16 {
+        ptr_set_byte(ev + zi, 0)
+        ptr_set_byte(out + zi, 0)
+        zi = zi + 1
+    }
+
+    oren_ptr_set_u32_le(ev + 0, events_mask)
+    oren_ptr_set_u64_le(ev + 8, fd)
+
+    var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, fd, ev)
+    if rc < 0 {
+        sys_close(epfd)
+        free(ev)
+        free(out)
+        return rc
+    }
+
+    var n = sys_epoll_pwait(epfd, out, 1, timeout_ms, 0, 0)
+    sys_close(epfd)
+    free(ev)
+    free(out)
+    if n > 0 { return 1 }
+    return n
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_readable(fd, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
+    }
+    return oren_fd_wait_epoll(fd, OREN_EPOLLIN, timeout_ms)
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_writable(fd, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
+    }
+    return oren_fd_wait_epoll(fd, OREN_EPOLLOUT, timeout_ms)
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_any_kqueue(fds, filter, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    // Wait for any fd in `fds` to be ready for `filter`.
+    // Returns 1 if ready (writes ready fd to out_fd_ptr), 0 if timed out, or negative errno.
+    if fds == nil { return 0 - 22 } // EINVAL
+    if out_fd_ptr == 0 { return 0 - 22 } // EINVAL
+    var nfds = oren_list_len(fds)
+    if nfds <= 0 { return 0 - 22 } // EINVAL
+
+    // Match existing NET wait semantics: negative timeout means "no wait" (avoid hangs).
+    if timeout_ms < 0 { timeout_ms = 0 }
+    if g_net_has_kqueue == 0 { return 0 - 78 } // ENOSYS (no kqueue backend)
+
+    var kq = sys_kqueue()
+    if g_net_has_kqueue == -1 {
+        // First-time detection.
+        if kq < 0 {
+            g_net_has_kqueue = 0
+            return 0 - 78 // ENOSYS
+        }
+        g_net_has_kqueue = 1
+    } else {
+        if kq < 0 { return kq }
+    }
+
+    // struct kevent size is 32 bytes on Darwin.
+    var change = malloc(nfds * 32)
+    if change == 0 { sys_close(kq); return 0 - 12 } // ENOMEM
+    oren_track_alloc(change, nfds * 32, 0)
+    var ev = malloc(32)
+    if ev == 0 { sys_close(kq); free(change); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 32, 0)
+
+    // Zero-fill changelist and event buffer.
+    var zi = 0
+    while zi < nfds * 32 {
+        ptr_set_byte(change + zi, 0)
+        zi = zi + 1
+    }
+    zi = 0
+    while zi < 32 {
+        ptr_set_byte(ev + zi, 0)
+        zi = zi + 1
+    }
+
+    // struct kevent layout:
+    // ident (u64) @0
+    // filter (i16) @8
+    // flags (u16)  @10
+    // fflags (u32) @12
+    // data (i64)   @16
+    // udata (ptr)  @24
+    var kflags = 1 | 4 | 16 // EV_ADD | EV_ENABLE | EV_ONESHOT
+    var i = 0
+    while i < nfds {
+        var fd = oren_list_get(fds, i)
+        var base = change + i * 32
+        ptr_set(base + 0, fd)
+        ptr_set_byte(base + 8, filter & 255)
+        ptr_set_byte(base + 9, (filter >> 8) & 255)
+        ptr_set_byte(base + 10, kflags & 255)
+        ptr_set_byte(base + 11, (kflags >> 8) & 255)
+        ptr_set(base + 16, 0)
+        ptr_set(base + 24, 0)
+        i = i + 1
+    }
+
+    // timespec*
+    var ts = malloc(16)
+    if ts == 0 { sys_close(kq); free(change); free(ev); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ts, 16, 0)
+    var sec = timeout_ms / 1000
+    var nsec = (timeout_ms - sec * 1000) * 1000000
+    ptr_set(ts + 0, sec)
+    ptr_set(ts + 8, nsec)
+
+    var n = sys_kevent(kq, change, nfds, ev, 1, ts)
+    sys_close(kq)
+    if n > 0 {
+        // ready ident is a u64 at ev[0].
+        var ready_fd = ptr_get(ev + 0)
+        ptr_set(out_fd_ptr, ready_fd)
+        n = 1
+    }
+    free(change)
+    free(ev)
+    free(ts)
+    return n
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    // Returns 1 if ready (writes ready fd to out_fd_ptr), 0 if timed out, or negative errno.
+    // Linux only. Darwin does not have epoll.
+    if g_target_os == 1 { return 0 - 78 } // ENOSYS
+    if fds == nil { return 0 - 22 } // EINVAL
+    if out_fd_ptr == 0 { return 0 - 22 } // EINVAL
+    var nfds = oren_list_len(fds)
+    if nfds <= 0 { return 0 - 22 } // EINVAL
+
+    if timeout_ms < 0 { timeout_ms = -1 } // epoll uses -1 for infinite
+    var epfd = sys_epoll_create1(0)
+    if epfd < 0 { return epfd }
+
+    // struct epoll_event (Linux arm64):
+    //   u32 events @0
+    //   u32 pad    @4
+    //   u64 data   @8
+    var ev = malloc(16)
+    if ev == 0 { sys_close(epfd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(ev, 16, 0)
+    var out = malloc(16)
+    if out == 0 { sys_close(epfd); free(ev); return 0 - 12 } // ENOMEM
+    oren_track_alloc(out, 16, 0)
+
+    var zi = 0
+    while zi < 16 {
+        ptr_set_byte(ev + zi, 0)
+        ptr_set_byte(out + zi, 0)
+        zi = zi + 1
+    }
+
+    // Register all fds.
+    var i = 0
+    while i < nfds {
+        var fd = oren_list_get(fds, i)
+        // Set per-fd data so the returned event includes the ready fd.
+        oren_ptr_set_u32_le(ev + 0, events_mask)
+        oren_ptr_set_u64_le(ev + 8, fd)
+        var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, fd, ev)
+        if rc < 0 {
+            sys_close(epfd)
+            free(ev)
+            free(out)
+            return rc
+        }
+        i = i + 1
+    }
+
+    var n = sys_epoll_pwait(epfd, out, 1, timeout_ms, 0, 0)
+    sys_close(epfd)
+    if n > 0 {
+        var ready_fd = oren_ptr_get_u64_le(out + 8)
+        ptr_set(out_fd_ptr, ready_fd)
+        n = 1
+    }
+    free(ev)
+    free(out)
+    return n
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_fd_wait_any_kqueue(fds, -1, timeout_ms, out_fd_ptr) // EVFILT_READ
+    }
+    return oren_fd_wait_any_epoll(fds, OREN_EPOLLIN, timeout_ms, out_fd_ptr)
+}
+
+@cap.requires(domain="NET")
+fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
+    native_capsule_require(CAP_NET, "NET")
+    if g_net_has_kqueue == 1 {
+        return oren_fd_wait_any_kqueue(fds, -2, timeout_ms, out_fd_ptr) // EVFILT_WRITE
+    }
+    return oren_fd_wait_any_epoll(fds, OREN_EPOLLOUT, timeout_ms, out_fd_ptr)
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_connect(ip, port, timeout_ms) {
+    native_capsule_require_net_connect(ip, port)
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
+    if fd < 0 { return fd }
+
+    // Non-blocking + explicit wait for connect completion.
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 {
+        sys_close(fd)
+        return nb
+    }
+
+    var sa = oren_tcp_sockaddr_in(ip, port)
+    if sa == 0 {
+        sys_close(fd)
+        return 0 - 22 // EINVAL
+    }
+
+    var rc = sys_connect(fd, sa, 16)
+    free(sa)
+    if rc == 0 { return fd }
+    // EINPROGRESS:
+    // - macOS: 36
+    // - Linux: 115
+    if rc != 0 - 36 && rc != 0 - 115 {
+        sys_close(fd)
+        return rc
+    }
+
+    // Check SO_ERROR to determine connect result.
+    var soerr_buf = malloc(8)
+    if soerr_buf == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(soerr_buf, 8, 0)
+    ptr_set(soerr_buf, 0)
+    var olen = malloc(8)
+    if olen == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(olen, 8, 0)
+    ptr_set(olen, 4)
+
+    // Readiness wait for connect completion:
+    // - macOS: kqueue-backed
+    // - Linux: epoll-backed (syscall-first, no libc)
+    var n = oren_fd_wait_writable(fd, timeout_ms)
+    if n == 0 {
+        free(soerr_buf)
+        free(olen)
+        sys_close(fd)
+        return 0 - 60 // ETIMEDOUT
+    }
+    if n < 0 {
+        free(soerr_buf)
+        free(olen)
+        sys_close(fd)
+        return n
+    }
+
+    var grc = sys_getsockopt(fd, OREN_SOL_SOCKET, OREN_SO_ERROR, soerr_buf, olen)
+    if grc < 0 {
+        free(soerr_buf)
+        free(olen)
+        sys_close(fd)
+        return grc
+    }
+    var soerr = ptr_get(soerr_buf)
+    free(soerr_buf)
+    free(olen)
+    if soerr != 0 {
+        sys_close(fd)
+        return 0 - soerr
+    }
+
+    return fd
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_listen_local(port) {
+    native_capsule_require_net_listen(0, port)
+    var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
+    if fd < 0 { return fd }
+
+    // Allow quick reuse during tests.
+    var one = malloc(8)
+    if one == 0 { sys_close(fd); return 0 - 12 } // ENOMEM
+    oren_track_alloc(one, 8, 0)
+    ptr_set(one, 1)
+    var sroc = sys_setsockopt(fd, OREN_SOL_SOCKET, OREN_SO_REUSEADDR, one, 4)
+    free(one)
+    if sroc < 0 {
+        sys_close(fd)
+        return sroc
+    }
+
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 {
+        sys_close(fd)
+        return nb
+    }
+
+    var sa = oren_tcp_sockaddr_in(0, port) // 127.0.0.1
+    if sa == 0 {
+        sys_close(fd)
+        return 0 - 22 // EINVAL
+    }
+
+    var brc = sys_bind(fd, sa, 16)
+    free(sa)
+    if brc < 0 {
+        sys_close(fd)
+        return brc
+    }
+
+    var lrc = sys_listen(fd, 16)
+    if lrc < 0 {
+        sys_close(fd)
+        return lrc
+    }
+
+    return fd
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_accept(listen_fd, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    var n = oren_fd_wait_readable(listen_fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    return sys_accept(listen_fd, 0, 0)
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if len <= 0 { return 0 }
+    var n = oren_fd_wait_readable(fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
+    // EAGAIN/EWOULDBLOCK:
+    // - macOS: 35
+    // - Linux: 11
+    if r == 0 - 35 || r == 0 - 11 { return 0 }
+    return r
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    if len <= 0 { return 0 }
+    var n = oren_fd_wait_writable(fd, timeout_ms)
+    if n == 0 { return 0 - 60 } // ETIMEDOUT
+    if n < 0 { return n }
+    var w = sys_sendto(fd, buf, len, 0, 0, 0)
+    if w == 0 - 35 || w == 0 - 11 { return 0 }
+    return w
+}
+
+@cap.requires(domain="NET")
+fn oren_tcp_close(fd) {
+    native_capsule_require(CAP_NET, "NET")
+    if fd < 0 { return 0 }
+    // best-effort shutdown; ignore errors
+    sys_shutdown(fd, 2) // SHUT_RDWR
+    sys_close(fd)
+    return 0
+}
+

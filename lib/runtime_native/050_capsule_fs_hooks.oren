@@ -1,0 +1,248 @@
+fn native_capsule_sys_open_pre(path, flags) {
+    // Enforce FS enrollment at raw sys_open boundary (no bypass).
+    //
+    // Returns a pair [path_ptr, owned(0|1)] to use for the syscall.
+    // owned=1 => path_ptr must be free()'d after the syscall.
+    //
+    // op_kind: 0=read, 1=write
+    var op_kind = 0
+    // POSIX: O_RDONLY=0, O_WRONLY=1, O_RDWR=2.
+    // Any non-zero access bits imply write capability.
+    if (flags & 3) != 0 { op_kind = 1 }
+    return native_capsule_fs_path_resolve_pair(path, op_kind)
+}
+
+fn native_capsule_sys_open_post(pair, rc) {
+    // Free any allocated mount-resolved host path and the pair itself.
+    if pair != 0 {
+        var owns = ptr_get(pair + 8)
+        if owns != 0 {
+            var p = ptr_get(pair + 0)
+            if p != 0 { free(p) }
+        }
+        free(pair)
+    }
+    return rc
+}
+
+fn native_capsule_sys_unlink_pre(path) {
+    // unlink is a write op.
+    return native_capsule_fs_path_resolve_pair(path, 1)
+}
+
+fn native_capsule_sys_unlink_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_access_pre(path) {
+    // access is a read op.
+    return native_capsule_fs_path_resolve_pair(path, 0)
+}
+
+fn native_capsule_sys_access_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_stat_pre(path) {
+    // stat is a read op.
+    return native_capsule_fs_path_resolve_pair(path, 0)
+}
+
+fn native_capsule_sys_stat_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_lstat_pre(path) {
+    // lstat is a read op.
+    return native_capsule_fs_path_resolve_pair(path, 0)
+}
+
+fn native_capsule_sys_lstat_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_fstat_pre(fd) {
+    // fstat is a read op on an existing fd. The path enrollment is enforced at open-time;
+    // here we just require FS domain in capsule mode.
+    native_capsule_require(CAP_FS, "FS")
+    return fd
+}
+
+fn native_capsule_sys_fstat_post(rc) {
+    return rc
+}
+
+fn native_capsule_sys_read_pre(fd) {
+    // sys_read is a read operation on an existing fd.
+    //
+    // Capsule hardening:
+    // - If the fd is a NET-tagged fd (socket), require NET domain so programs cannot bypass
+    //   NET enrollment by calling sys_read/sys_write directly.
+    // - Otherwise treat it as FS/stdio and require FS domain (prevents bypass via inherited fds, incl stdin).
+    if global_get_capsule_mode() != 1 { return fd }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k != 0 {
+        if k == FD_KIND_PROC_PIPE {
+            native_capsule_require(CAP_PROC, "PROC")
+            return fd
+        } else {
+            native_capsule_require(CAP_NET, "NET")
+            // Disallow reading from listening sockets (kind=2).
+            if k == FD_KIND_TCP_LISTEN {
+                print("CAPSULE DENY: NET_RECV_LISTEN")
+                exit(79)
+            }
+            return fd
+        }
+    }
+
+    native_capsule_require(CAP_FS, "FS")
+    return fd
+}
+
+fn native_capsule_sys_pipe_pre(ptr) {
+    // pipe creates two new fds (host effect).
+    //
+    // For v0 capsule domains, classify it under PROC because it is primarily used for IPC
+    // (spawn/join, subprocess pipes) rather than path-based filesystem access.
+    // Capsule hardening: enforce FS at syscall boundary (no bypass).
+    native_capsule_require(CAP_PROC, "PROC")
+    return ptr
+}
+
+fn native_capsule_sys_pipe_post(ptr, rc) {
+    // Tag newly-created pipe fds as PROC-kind so sys_read/sys_write can allow IPC under PROC domain
+    // (without requiring FS and without confusing them as NET fds).
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc != 0 { return rc }
+    if ptr == 0 { return rc }
+    var rfd = ptr_get(ptr + 0)
+    var wfd = ptr_get(ptr + 8)
+    native_capsule_net_fd_kind_set(rfd, FD_KIND_PROC_PIPE)
+    native_capsule_net_fd_kind_set(wfd, FD_KIND_PROC_PIPE)
+    return rc
+}
+
+fn native_capsule_sys_write_pre(fd) {
+    // sys_write is a write operation on an existing fd.
+    //
+    // Capsule hardening:
+    // - If the fd is NET-tagged (socket), require NET domain to prevent NET bypass.
+    // - Stdout/stderr (fd=1/2) are treated as a diagnostic channel and are always allowed.
+    // - Otherwise treat it as FS/stdio and require FS domain.
+    if global_get_capsule_mode() != 1 { return fd }
+    if fd == 1 || fd == 2 { return fd }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k != 0 {
+        if k == FD_KIND_PROC_PIPE {
+            native_capsule_require(CAP_PROC, "PROC")
+            return fd
+        } else {
+            native_capsule_require(CAP_NET, "NET")
+            // Disallow sending on listening sockets (kind=2).
+            if k == FD_KIND_TCP_LISTEN {
+                print("CAPSULE DENY: NET_SEND_LISTEN")
+                exit(79)
+            }
+            return fd
+        }
+    }
+
+    native_capsule_require(CAP_FS, "FS")
+    return fd
+}
+
+fn native_capsule_sys_close_pre(fd) {
+    // Enforce domain for raw sys_close boundary (no bypass).
+    native_capsule_require_fd_domain(fd)
+    return fd
+}
+
+fn native_capsule_sys_fcntl_pre(fd, cmd, arg) {
+    // Enforce domain for raw sys_fcntl boundary (no bypass).
+    // fcntl can mutate fd state and is used for FS (e.g. F_GETPATH) and NET (socket flags).
+    native_capsule_require_fd_domain(fd)
+    return 0
+}
+
+fn native_capsule_sys_fcntl_post(rc, fd, cmd, arg) {
+    // Post-hook for sys_fcntl to propagate fd kind tags for commands that produce a new fd.
+    //
+    // Without this, a tagged socket fd can be duplicated via fcntl(F_DUPFD) into an untagged fd,
+    // which then breaks downstream syscall gating that relies on fd kind tags (sys_read/sys_write/etc).
+    if global_get_capsule_mode() != 1 { return rc }
+    if rc < 0 { return rc }
+    if cmd != FCNTL_F_DUPFD && cmd != FCNTL_F_DUPFD_CLOEXEC { return rc }
+    var newfd = rc
+    if newfd < 0 { return rc }
+    var k = native_capsule_net_fd_kind_get(fd)
+    native_capsule_net_fd_kind_clear(newfd)
+    if k != 0 {
+        native_capsule_net_fd_kind_set(newfd, k)
+    }
+    return rc
+}
+
+fn native_capsule_sys_mkdir_pre(path) {
+    // mkdir is a write op.
+    return native_capsule_fs_path_resolve_pair(path, 1)
+}
+
+fn native_capsule_sys_mkdir_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_rename_pre(from, to) {
+    // rename touches both paths and is a write op for both.
+    var b = malloc(32)
+    if b == 0 { exit(301) }
+
+    var p1 = native_capsule_fs_path_resolve_pair(from, 1)
+    var p2 = native_capsule_fs_path_resolve_pair(to, 1)
+
+    ptr_set(b + 0, ptr_get(p1 + 0))
+    ptr_set(b + 8, ptr_get(p1 + 8))
+    ptr_set(b + 16, ptr_get(p2 + 0))
+    ptr_set(b + 24, ptr_get(p2 + 8))
+    free(p1)
+    free(p2)
+    return b
+}
+
+fn native_capsule_sys_rename_post(bundle, rc) {
+    if bundle != 0 {
+        var o1 = ptr_get(bundle + 8)
+        if o1 != 0 {
+            var p1 = ptr_get(bundle + 0)
+            if p1 != 0 { free(p1) }
+        }
+        var o2 = ptr_get(bundle + 24)
+        if o2 != 0 {
+            var p2 = ptr_get(bundle + 16)
+            if p2 != 0 { free(p2) }
+        }
+        free(bundle)
+    }
+    return rc
+}
+
+fn native_capsule_sys_rmdir_pre(path) {
+    // rmdir is a write op.
+    return native_capsule_fs_path_resolve_pair(path, 1)
+}
+
+fn native_capsule_sys_rmdir_post(pair, rc) {
+    return native_capsule_sys_open_post(pair, rc)
+}
+
+fn native_capsule_sys_getdirentries64_pre(fd) {
+    // getdirentries is a read op on an existing directory fd. Enrollment is enforced at open-time;
+    // here we require FS domain in capsule mode to prevent bypass via inherited fds.
+    native_capsule_require(CAP_FS, "FS")
+    return fd
+}
+
+fn native_capsule_sys_getdirentries64_post(rc) {
+    return rc
+}
+

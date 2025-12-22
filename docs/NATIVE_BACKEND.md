@@ -27,7 +27,7 @@ The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF
   - This is a deliberate syscall-first compatibility choice to avoid depending on `pthread_*` / `bsdthread_*` ABIs until a robust OS-thread design lands.
 
 - **Runtime**:
-  - Automatically injects `lib/runtime_native.oren` which implements `String` comparison and `Map` logic.
+  - Automatically injects `lib/runtime_native.oren` (expanded from `lib/runtime_native/*.oren` via `// @include "..."`) which implements `String` comparison and `Map` logic.
   - Includes `oren_readdir(path)` built on syscall-first `sys_getdirentries64`.
   - `oren_net_get(url)` is implemented on native as a minimal HTTP/1.0 GET over syscall-first TCP:
     - supported form: `http://<ipv4>[:port][/path]`

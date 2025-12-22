@@ -1,0 +1,555 @@
+// --- TIME (syscall-first) ---
+//
+// Provide a minimal “sleep” primitive without libc.
+// We keep TIME intentionally small in v0: higher-level deadlines/cancellation can be built on top.
+//
+// sys_nanosleep(ns) is a native-backend intrinsic implemented per-OS:
+// - macOS: kqueue/kevent timeout (no libc shims)
+// - Linux: nanosleep syscall
+//
+// Returns 0 on success, or -errno.
+@cap.requires(domain="TIME")
+fn oren_sleep_ns(ns) {
+    native_capsule_require(CAP_TIME, "TIME")
+    if ns <= 0 { return 0 }
+    return sys_nanosleep(ns)
+}
+
+@cap.requires(domain="TIME")
+fn oren_sleep_ms(ms) {
+    native_capsule_require(CAP_TIME, "TIME")
+    if ms <= 0 { return 0 }
+    // ms -> ns
+    return sys_nanosleep(ms * 1000000)
+}
+
+fn oren_kill(pid, signum) {
+    return sys_kill(pid, signum)
+}
+
+// Wall time in nanoseconds since Unix epoch (best-effort; not monotonic).
+fn oren_time_unix_ns() {
+    // struct timeval { tv_sec(u64), tv_usec(u64) } (we use 2x u64 for simplicity)
+    var tv = malloc(16)
+    if tv == 0 { return 0 }
+    ptr_set(tv + 0, 0)
+    ptr_set(tv + 8, 0)
+
+    var rc = sys_gettimeofday(tv, 0, 0)
+    if rc < 0 {
+        free(tv)
+        return 0
+    }
+
+    var sec = ptr_get(tv + 0)
+    var usec = ptr_get(tv + 8)
+    free(tv)
+    return sec * 1000000000 + usec * 1000
+}
+
+// Rolling alias used by stdlib + AVM parity.
+fn oren_time_now_ns() {
+    return oren_time_unix_ns()
+}
+
+// Monotonic “raw” time. For correctness, treat as compare-only (do not assume units).
+// On Linux, this will be nanoseconds (via clock_gettime64 monotonic in the intrinsic).
+// On macOS, this is mach_absolute_time units (returned by gettimeofday's 3rd out-arg).
+fn oren_time_mono_raw() {
+    var tv = malloc(16)
+    if tv == 0 { return 0 }
+    ptr_set(tv + 0, 0)
+    ptr_set(tv + 8, 0)
+
+    var abs_ptr = malloc(8)
+    if abs_ptr == 0 {
+        free(tv)
+        return 0
+    }
+    ptr_set(abs_ptr, 0)
+
+    var rc = sys_gettimeofday(tv, 0, abs_ptr)
+    if rc < 0 {
+        free(abs_ptr)
+        free(tv)
+        return 0
+    }
+
+    var t = ptr_get(abs_ptr)
+    free(abs_ptr)
+    free(tv)
+    return t
+}
+
+fn oren_register_thread(top) {
+    // Thread Node: [top, saved_sp, next] (24 bytes)
+    // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
+    var node = malloc_raw(24)
+    if node != 0 {
+        ptr_set(node, top)
+        ptr_set(iadd(node, 8), 0) // saved_sp
+        
+        // Link
+        acquire_lock()
+        
+        ptr_set(iadd(node, 16), global_get_threads())
+        global_set_threads(node)
+        
+        release_lock()
+    }
+    return node
+}
+
+fn get_sp() { return 0 } // Intrinsic
+
+// GC mode toggle (native backend):
+// - enabled (default): conservative mark/sweep from stack + registered roots
+// - disabled (deterministic/manual): disable scanning/collection; keep tracking so `free()` can reuse blocks
+var g_gc_enabled = 1
+
+fn native_runtime_init_gc_mode(default_enabled) {
+    // default_enabled is provided by the compiler from `--no-gc`.
+    g_gc_enabled = default_enabled
+
+    // Runtime override: allow disabling GC via environment variable.
+    // Any non-empty value disables scanning/collection.
+    var v = native_envp_get_value_ptr("OREN_NO_GC")
+    if v != 0 {
+        if ptr_get_byte(v) != 0 { g_gc_enabled = 0 }
+    }
+    return 0
+}
+
+fn native_gc_scan_stack() {
+    if g_gc_enabled == 0 { return 0 }
+    var sp = get_sp()
+    var cur = global_get_threads()
+    
+    while cur != 0 {
+        var top = ptr_get(cur)
+        var saved = ptr_get(iadd(cur, 8))
+        var start = 0
+        
+        // Check if this is current thread
+        // Heuristic: sp is within 8MB below top
+        // 8MB = 8388608
+        if sp < top {
+            var diff = top - sp
+            if diff < 8388608 {
+                start = sp
+            }
+        }
+        
+        if start == 0 {
+            start = saved
+        }
+        
+        if start != 0 {
+            while start < top {
+                var val = ptr_get(start)
+                oren_mark_value(val)
+                start = iadd(start, 8)
+            }
+        }
+        
+        cur = ptr_get(iadd(cur, 16))
+    }
+    return 0
+}
+
+// Node layout: [ptr, size, kind, freed, next] (5 * 8 = 40 bytes)
+// Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next
+
+// Try to reuse a raw node allocation (used by malloc_raw callers like root lists).
+// This must NOT reuse freed "blocks" (which are tracked allocation records pointing at object memory),
+// otherwise we'd lose pointers to freed object memory and create leaks/corruption.
+fn native_try_reuse_node(size) {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var prev = 0
+    var cur = global_get_free_nodes()
+    while cur != 0 {
+        var node_size = ptr_get(iadd(cur, 8))
+        if node_size >= size {
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_nodes(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            // Clear next pointer; caller will overwrite fields.
+            ptr_set(iadd(cur, 32), 0)
+            release_lock()
+            return cur
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+fn native_try_reuse(size) {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    // Simple first-fit from the free list.
+    var prev = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        var chunk_size = ptr_get(iadd(cur, 8))
+        if chunk_size >= size {
+            // Unlink from free list.
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+
+            // Reactivate this tracking node by placing it back into allocs.
+            // NOTE:
+            // - We keep chunk_size (capacity) as-is; size is the requested logical size.
+            // - kind defaults to 5 (misc). Callers may later call `oren_track_alloc(...)`
+            //   to specialize kind (e.g. string/list/map/struct/func).
+            ptr_set(iadd(cur, 8), size)
+            ptr_set(iadd(cur, 16), 5)
+            ptr_set(iadd(cur, 24), 0) // not freed, not marked
+            ptr_set(iadd(cur, 32), global_get_allocs())
+            global_set_allocs(cur)
+
+            var out = ptr_get(cur)
+            release_lock()
+            return out
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+var g_panicking = 0
+
+fn acquire_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    
+    var tid = sys_gettid()
+    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)
+    var owner = ptr_get(lock_ptr)
+    
+    if owner == tid {
+        var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
+        var count = ptr_get(count_ptr)
+        ptr_set(count_ptr, iadd(count, 1))
+        return 0
+    }
+    
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        if g_panicking == 1 { return 0 }
+        spin = iadd(spin, 1)
+        // Park after a small amount of spinning to avoid burning CPU.
+        if spin > 1000 {
+            // Wait while lock owner hasn't changed.
+            var owner_now = ptr_get(lock_ptr)
+            if owner_now != 0 {
+                // operation=UL_COMPARE_AND_WAIT (1), timeout_us=0 => forever
+                sys_ulock_wait(1, lock_ptr, owner_now, 0)
+            }
+            spin = 0
+        }
+    }
+    
+    var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
+    ptr_set(count_ptr, 1)
+    return 0
+}
+
+fn release_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    
+    var tid = sys_gettid()
+    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)
+    var owner = ptr_get(lock_ptr)
+    
+    if owner != tid {
+        return 0
+    }
+    
+    var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
+    var count = ptr_get(count_ptr)
+    if count > 1 {
+        ptr_set(count_ptr, count - 1)
+        return 0
+    }
+    
+    ptr_set(count_ptr, 0)
+    atomic_cas(lock_ptr, tid, 0)
+    // Wake any waiters that parked in acquire_lock.
+    // operation=UL_COMPARE_AND_WAIT|ULF_WAKE_ALL = 1|0x100 = 257
+    sys_ulock_wake(257, lock_ptr, 0)
+    return 0
+}
+
+fn malloc_raw(size) { return 0 }
+
+fn oren_track_alloc(ptr, size, kind) {
+    if oren_globals() == 0 { return ptr }
+    acquire_lock()
+
+    // De-duplicate: if already tracked (allocs), update in place.
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur) == ptr {
+            if size != 0 { ptr_set(iadd(cur, 8), size) }
+            if kind != 0 { ptr_set(iadd(cur, 16), kind) }
+            // Clear "freed" and mark flags on re-track.
+            ptr_set(iadd(cur, 24), 0)
+            release_lock()
+            return ptr
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+
+    // If it exists in the free list (reused pointer or manual re-track),
+    // move it back into allocs to avoid duplicate nodes pointing at the same ptr.
+    var prev = 0
+    cur = global_get_free_blocks()
+    while cur != 0 {
+        if ptr_get(cur) == ptr {
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+
+            ptr_set(iadd(cur, 8), size)
+            ptr_set(iadd(cur, 16), kind)
+            ptr_set(iadd(cur, 24), 0)
+            ptr_set(iadd(cur, 32), global_get_allocs())
+            global_set_allocs(cur)
+
+            release_lock()
+            return ptr
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+
+    // Allocate a new tracking node.
+    var node = malloc_raw(40)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), size)
+        ptr_set(iadd(node, 16), kind)
+        ptr_set(iadd(node, 24), 0) // not freed, not marked
+        ptr_set(iadd(node, 32), global_get_allocs())
+        global_set_allocs(node)
+    }
+
+    release_lock()
+    return ptr
+}
+
+fn native_gc_register_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    acquire_lock()
+    
+    var node = malloc_raw(40)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), 0)
+        ptr_set(iadd(node, 16), 0) // kind 0 for root
+        ptr_set(iadd(node, 24), 0)
+        ptr_set(iadd(node, 32), global_get_roots())
+        global_set_roots(node)
+    }
+    
+    release_lock()
+    return 0
+}
+
+fn native_gc_unregister_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    acquire_lock()
+
+    var prev = 0
+    var cur = global_get_roots()
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if ptr_get(cur) == ptr {
+            if prev == 0 {
+                global_set_roots(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            // Reuse node storage via free list.
+            ptr_set(cur, 0)
+            ptr_set(iadd(cur, 8), 40)
+            ptr_set(iadd(cur, 16), 0)
+            ptr_set(iadd(cur, 24), 0)
+            ptr_set(iadd(cur, 32), global_get_free_nodes())
+            global_set_free_nodes(cur)
+            release_lock()
+            return 0
+        }
+        prev = cur
+        cur = next
+    }
+
+    release_lock()
+    return 0
+}
+
+fn oren_find_node(ptr) {
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur) == ptr { 
+            release_lock()
+            return cur 
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+fn oren_mark_value(val) {
+    if g_gc_enabled == 0 { return 0 }
+    if val == 0 { return 0 }
+    
+    var node = oren_find_node(val)
+    if node != 0 {
+        var freed = ptr_get(iadd(node, 24))
+        if freed == 0 {
+            // Mark it
+            ptr_set(iadd(node, 24), -1)
+            
+            var kind = ptr_get(iadd(node, 16))
+            if kind == 2 { // LIST
+                var count = ptr_get(val)
+                var buf = ptr_get(iadd(val, 16))
+                if buf != 0 {
+                    var i = 0
+                    while i < count {
+                        var item = ptr_get(iadd(buf, i * 8))
+                        oren_mark_value(item)
+                        i = i + 1
+                    }
+                    oren_mark_value(buf)
+                }
+            }
+            if kind == 3 { // MAP
+                var count = ptr_get(iadd(val, 0))
+                var buf = ptr_get(iadd(val, 16))
+                var i = 0
+                while i < count {
+                    var k = ptr_get(iadd(buf, i * 16))
+                    var v = ptr_get(iadd(buf, i * 16 + 8))
+                    oren_mark_value(k)
+                    oren_mark_value(v)
+                    i = i + 1
+                }
+                // Keep the entries buffer alive (tracked allocation).
+                oren_mark_value(buf)
+            }
+            if kind == 6 { // FUNC (closure env)
+                var env = ptr_get(iadd(val, 8))
+                oren_mark_value(env)
+            }
+            if kind == 7 { // BUF (typed buffers)
+                // Buffer header holds an owned payload pointer at +16.
+                // Keep the payload alive while the header is reachable.
+                var buf = ptr_get(iadd(val, 16))
+                oren_mark_value(buf)
+            }
+        }
+    }
+    return 0
+}
+
+fn native_gc_collect() {
+    if g_gc_enabled == 0 { return 0 }
+    // 1. Clear marks
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(iadd(cur, 24)) == -1 {
+            ptr_set(iadd(cur, 24), 0)
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+    
+    // 2. Mark stack
+    native_gc_scan_stack()
+
+    // 3. Mark roots
+    var r = global_get_roots()
+    while r != 0 {
+        var slot = ptr_get(r)
+        if slot != 0 {
+            var val = ptr_get(slot)
+            oren_mark_value(val)
+        }
+        r = ptr_get(iadd(r, 32))
+    }
+    
+    // 4. Sweep
+    var prev = 0
+    cur = global_get_allocs()
+    while cur != 0 {
+        var marked = 0
+        if ptr_get(iadd(cur, 24)) == -1 { marked = 1 }
+        
+        var next_node = ptr_get(iadd(cur, 32))
+        
+        if marked == 1 {
+            ptr_set(iadd(cur, 24), 0)
+            prev = cur
+        } else {
+            // Garbage
+            if prev == 0 {
+                global_set_allocs(next_node)
+            } else {
+                ptr_set(iadd(prev, 32), next_node)
+            }
+
+            var kind = ptr_get(iadd(cur, 16))
+            if kind == 9 {
+                // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
+                var p = ptr_get(cur)
+                if p != 0 {
+                    var base = p - raw_hdr_size()
+                    if ptr_get(base + 0) == raw_magic() {
+                        var total = ptr_get(base + 8)
+                        var backend = ptr_get(base + 16)
+                        if backend == 1 && total > 0 {
+                            // best-effort
+                            sys_munmap(base, total)
+                        }
+                    }
+                }
+
+                // Reuse the tracking node storage via free_nodes list.
+                ptr_set(cur, 0)
+                ptr_set(iadd(cur, 8), 40)
+                ptr_set(iadd(cur, 16), 0)
+                ptr_set(iadd(cur, 24), 0)
+                ptr_set(iadd(cur, 32), global_get_free_nodes())
+                global_set_free_nodes(cur)
+            } else {
+                ptr_set(iadd(cur, 32), global_get_free_blocks())
+                global_set_free_blocks(cur)
+            }
+        }
+        cur = next_node
+    }
+    return 0
+}
+
