@@ -722,6 +722,14 @@ fn test_net_loopback_minimal() {
         }
         if lfd2 < 0 { exit(801) }
 
+        // Timeout correctness guard: accept should not hang when no clients connect.
+        // (Child is the server; parent connects to port2 only.)
+        var tacc = oren_tcp_accept(lfd1, 10)
+        if tacc != 0 - 60 {
+            if tacc >= 0 { oren_tcp_close(tacc) }
+            exit(804)
+        }
+
         var pbuf = malloc(8)
         if pbuf == 0 { exit(802) }
         ptr_set(pbuf, port1)
@@ -766,6 +774,17 @@ fn test_net_loopback_minimal() {
 
     // Parent.
     sys_close(w)
+
+    // Timeout correctness guard: UDP recv should not hang when no datagrams arrive.
+    var ufd = oren_udp_bind_local(0)
+    if ufd < 0 { fail(808) }
+    var ub = malloc(1)
+    if ub == 0 { fail(808) }
+    var urn = oren_udp_recvfrom_into(ufd, ub, 1, 10)
+    free(ub)
+    oren_udp_close(ufd)
+    if urn != 0 - 60 { fail(808) }
+
     var pbuf2 = malloc(8)
     if pbuf2 == 0 { fail(810) }
     var got = 0

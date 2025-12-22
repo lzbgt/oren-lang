@@ -41,6 +41,9 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - DoD: spot-check the most-used instruction encoders (especially loads/stores) against clang/objdump golden encodings to prevent silent mis-encodes from regressing correctness.
 
 3) **Native networking hardening** (M)
+   - Status: added deterministic timeout coverage to the curated native integration suite:
+     - TCP: `oren_tcp_accept(..., 10)` returns `-ETIMEDOUT` when no clients connect.
+     - UDP: `oren_udp_recvfrom_into(..., 10)` returns `-ETIMEDOUT` when no datagrams arrive.
    - DoD: expand syscall-first TCP/UDP readiness + timeouts, keep capsule gating comprehensive on both macOS and Linux.
 
 4) **Docs parity pass** (S)
