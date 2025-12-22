@@ -195,17 +195,20 @@ func runNativeSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Durati
 		}
 	}
 
-	// Stage2 native must be executable and responsive. `--help` is intentionally fast and avoids
-	// pulling in heavy compiler pipelines (dump graph / meta) that are still too slow in the
-	// syscall-first runtime for a reliable gate.
-	help := fmt.Sprintf("%q --help", stage2Native)
-	if rc := runWithTimeout(timeoutBin, selfHostTimeout, help, logHelp); rc != 0 {
-		return fmt.Errorf("native self-host gate: stage2(native) --help failed (rc=%d), see %s", rc, logHelp)
+	// Stage2 native must be executable and have a minimally correct syscall-first runtime surface.
+	// Use `selftest-native` which is designed to be fast and avoids compiler pipelines.
+	runTimeout := 60 * time.Second
+	if runTimeout > selfHostTimeout {
+		runTimeout = selfHostTimeout
+	}
+	selftest := fmt.Sprintf("%q selftest-native", stage2Native)
+	if rc := runWithTimeout(timeoutBin, runTimeout, selftest, logHelp); rc != 0 {
+		return fmt.Errorf("native self-host gate: stage2(native) selftest-native failed (rc=%d), see %s", rc, logHelp)
 	}
 	b, err := os.ReadFile(logHelp)
 	if err == nil {
-		if !bytes.Contains(b, []byte("Usage:")) {
-			return fmt.Errorf("native self-host gate: stage2(native) --help output missing Usage:, see %s", logHelp)
+		if !bytes.Contains(b, []byte("selftest-native OK")) {
+			return fmt.Errorf("native self-host gate: stage2(native) selftest-native output missing OK marker, see %s", logHelp)
 		}
 	}
 

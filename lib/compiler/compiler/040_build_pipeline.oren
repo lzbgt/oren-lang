@@ -155,6 +155,14 @@ fn compiler_main() {
         return nil
     }
 
+    if cmd_name == "selftest-native" {
+        // This command must be fast and must not rely on the compiler pipelines.
+        // It exists so the native self-host gate can validate runtime correctness without
+        // running the full compiler on large source graphs.
+        selftest_native_run()
+        return nil
+    }
+
     if cmd_name == "dump" {
         if dbg_flow != nil { print("DEBUG_FLOW enter dump") }
         var kind = pos[0]
@@ -918,5 +926,49 @@ fn compiler_main() {
             _write_artifact_manifest("c", out_path, h, target, arch, deterministic, oren_list_len(bsC))
         }
     }
+    return nil
+}
+
+fn selftest_native_fail(code, msg) {
+    print("SELFTEST_NATIVE_FAIL code=" + oren_int_to_string(code) + " msg=" + msg)
+    oren_exit(code)
+}
+
+fn selftest_native_expect_true(code, cond, msg) {
+    if cond == true { return nil }
+    selftest_native_fail(code, msg)
+}
+
+fn selftest_native_expect_eq_int(code, a, b, msg) {
+    if a == b { return nil }
+    selftest_native_fail(code, msg + " (got=" + oren_int_to_string(a) + " want=" + oren_int_to_string(b) + ")")
+}
+
+fn selftest_native_run() {
+    // 1) Error tagging discrimination must be safe for strings
+    var e = oren_err(123, "boom")
+    selftest_native_expect_eq_int(20, oren_is_err("not_err"), 0, "oren_is_err(string) must be false")
+    selftest_native_expect_eq_int(21, oren_is_err(e), 1, "oren_is_err(err) must be true")
+    selftest_native_expect_eq_int(22, oren_err_code(e), 123, "oren_err_code")
+    selftest_native_expect_true(23, oren_err_msg(e) == "boom", "oren_err_msg")
+
+    // 2) oren_env must behave sanely (no crash; string ops work when present).
+    var path = oren_env("PATH")
+    if path != nil {
+        var tmp_len = oren_string_len(path)
+        if tmp_len < 0 { selftest_native_fail(33, "oren_string_len returned negative") }
+    }
+
+    // 3) sha256_range must treat start=0 as valid.
+    // sha256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    var b = [97, 98, 99]
+    var h = oren_sha256_range(b, 0, 3)
+    selftest_native_expect_eq_int(40, oren_list_len(h), 32, "sha256 length")
+    selftest_native_expect_eq_int(41, h[0] & 255, 0xba, "sha256[0]")
+    selftest_native_expect_eq_int(42, h[1] & 255, 0x78, "sha256[1]")
+    selftest_native_expect_eq_int(43, h[2] & 255, 0x16, "sha256[2]")
+    selftest_native_expect_eq_int(44, h[3] & 255, 0xbf, "sha256[3]")
+
+    print("selftest-native OK")
     return nil
 }
