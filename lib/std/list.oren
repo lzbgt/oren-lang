@@ -12,6 +12,58 @@ fn len(xs) { return oren_list_len(xs) }
 
 fn is_empty(xs) { return oren_list_len(xs) == 0 }
 
+fn clone(xs) {
+    // Shallow clone:
+    // - returns a new list with the same element values
+    // - does not deep-copy nested lists/maps (reference semantics for heap values)
+    var out = []
+    var n = oren_list_len(xs)
+    var i = 0
+    while i < n {
+        oren_list_push(out, xs[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn slice_copy(xs, off, n) {
+    // Copying slice (not a view).
+    //
+    // Errors are returned as Err maps (not panics) so callers can keep servers/HPC jobs alive.
+    if xs == nil { return oren_err(4, "list.slice_copy: xs is nil") }
+    if off == nil { off = 0 }
+    if n == nil { n = 0 }
+    if off < 0 { return oren_err(4, "list.slice_copy: off < 0") }
+    if n < 0 { return oren_err(4, "list.slice_copy: n < 0") }
+    var total = oren_list_len(xs)
+    if off > total { return oren_err(4, "list.slice_copy: off out of bounds") }
+    if n > (total - off) { return oren_err(4, "list.slice_copy: range out of bounds") }
+
+    var out = []
+    var i = 0
+    while i < n {
+        oren_list_push(out, xs[off + i])
+        i = i + 1
+    }
+    return out
+}
+
+fn slice_view(xs, off, n) {
+    // Cheap O(1) slice view (no copy):
+    //
+    // Returns an "iterable map" that `for x in view {}` can consume via `oren_iter_next`.
+    //
+    // Shape:
+    //   {"__iter":"list_slice","base":xs,"off":off,"len":n}
+    //
+    // Notes:
+    // - The marker value **must** be a string literal in native mode so the runtime can use pointer equality safely.
+    // - Malformed views iterate as an empty sequence (deterministic, avoids crashes).
+    if off == nil { off = 0 }
+    if n == nil { n = 0 }
+    return {"__iter": "list_slice", "base": xs, "off": off, "len": n}
+}
+
 fn push(xs, v) {
     oren_list_push(xs, v)
     return nil

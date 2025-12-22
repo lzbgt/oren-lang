@@ -1466,6 +1466,34 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                                     }
                                 }
                             }
+                        } else if (avm_map_get_key(container, "__iter", &itv) && itv.type == AVM_VAL_STRING && itv.as.p &&
+                                   strcmp((const char*)itv.as.p, "list_slice") == 0) {
+                            // Iterable map protocol (rolling): list slice view.
+                            //
+                            // Produced by std:list.slice_view(xs, off, n):
+                            //   {"__iter":"list_slice","base":xs,"off":off,"len":n}
+                            AvmValue basev, offv, lenv;
+                            if (avm_map_get_key(container, "base", &basev) &&
+                                avm_map_get_key(container, "off", &offv) &&
+                                avm_map_get_key(container, "len", &lenv) &&
+                                basev.type == AVM_VAL_LIST && basev.as.l &&
+                                offv.type == AVM_VAL_INT && lenv.type == AVM_VAL_INT) {
+                                int64_t off = offv.as.i;
+                                int64_t n = lenv.as.i;
+                                if (off >= 0 && n >= 0 && idx < n) {
+                                    AvmList* bl = basev.as.l;
+                                    if (off <= (int64_t)bl->count) {
+                                        int64_t max_n = (int64_t)bl->count - off;
+                                        if (n <= max_n) {
+                                            int64_t elem_idx = off + idx;
+                                            if (elem_idx >= 0 && elem_idx < (int64_t)bl->count) {
+                                                okv = avm_int(1);
+                                                val = bl->items[(int)elem_idx];
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         } else if (idx < m->count) {
                             okv = avm_int(1);
                             val = m->keys[(int)idx]; // map iteration yields keys

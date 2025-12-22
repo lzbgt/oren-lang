@@ -1,0 +1,33 @@
+// list slice view iteration (rolling)
+//
+// Goal:
+// - `std:list.slice_view(xs, off, n)` is a cheap O(1) non-copy view.
+// - `for x in view {}` iterates the underlying list elements, not view metadata.
+
+import list "std:list"
+
+fn main() {
+    var xs = []
+    xs.push(10)
+    xs.push(20)
+    xs.push(30)
+    xs.push(40)
+
+    var v = list.slice_view(xs, 1, 2) // expect [20, 30]
+
+    var out = []
+    for x in v {
+        out.push(x)
+    }
+
+    if out.len() != 2 { oren_panic("slice_view len") }
+    if out[0] != 20 { oren_panic("slice_view out[0]") }
+    if out[1] != 30 { oren_panic("slice_view out[1]") }
+
+    // Malformed views should be deterministic and not crash (iterate empty).
+    var bad = {"__iter":"list_slice","base":123,"off":0,"len":2}
+    var c = 0
+    for _x in bad { c = c + 1 }
+    if c != 0 { oren_panic("slice_view malformed should be empty") }
+}
+

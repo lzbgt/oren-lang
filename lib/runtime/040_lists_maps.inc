@@ -1479,6 +1479,35 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
             }
             return oren_new_list(2, oren_int(0), OREN_NIL);
         }
+        if (it.type == OREN_TYPE_STRING && it.as.string_val && strcmp(it.as.string_val, "list_slice") == 0) {
+            // Iterable map protocol (rolling): list slice view.
+            //
+            // Produced by std:list.slice_view(xs, off, n):
+            //   {"__iter":"list_slice","base":xs,"off":off,"len":n}
+            //
+            // If malformed, treat as empty iteration (deterministic, avoids crashes).
+            OrenValue basev = oren_map_get(container, oren_string_const("base"));
+            OrenValue offv = oren_map_get(container, oren_string_const("off"));
+            OrenValue lenv = oren_map_get(container, oren_string_const("len"));
+            if (basev.type == OREN_TYPE_LIST && basev.as.list_val && offv.type == OREN_TYPE_INT && lenv.type == OREN_TYPE_INT) {
+                long long off = offv.as.int_val;
+                long long n = lenv.as.int_val;
+                if (off < 0 || n < 0) {
+                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                }
+                OrenList* l = basev.as.list_val;
+                if (off <= l->count) {
+                    long long max_n = (long long)l->count - off;
+                    if (n <= max_n && i < n) {
+                        long long elem_idx = off + i;
+                        if (elem_idx >= 0 && elem_idx < (long long)l->count) {
+                            return oren_new_list(2, oren_int(1), l->items[(int)elem_idx]);
+                        }
+                    }
+                }
+            }
+            return oren_new_list(2, oren_int(0), OREN_NIL);
+        }
         OrenMap* m = container.as.map_val;
         if (i < m->count) {
             return oren_new_list(2, oren_int(1), m->keys[(int)i]);
@@ -1621,4 +1650,3 @@ static OrenValue oren_err_from_errno(const char* action, const char* path, int e
     else snprintf(buf, sizeof(buf), "%s (errno=%d)", action, err);
     return oren_err(oren_int(code), oren_string(buf));
 }
-

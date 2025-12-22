@@ -198,6 +198,43 @@ So `push` should be a first-class **operation** with deterministic lowering.
 
 ---
 
+## 6) List cloning and slice views (production ergonomics)
+
+Oren’s built-in list values are **mutable heap objects**. That implies:
+
+- **Assignment is cheap** (it copies a reference to the same list object).
+- “Copy” must be explicit when you want independent mutation.
+
+### `clone(xs)` — explicit shallow copy
+
+Recommended semantics for rolling v0:
+
+- `clone(xs)` returns a **new list** containing the same element values (shallow copy).
+- Nested containers are not deep-copied (consistent with reference semantics).
+
+### `slice_copy(xs, off, n)` — copying subrange
+
+- Returns a new list containing `n` elements starting at `off`.
+- Returns an `Err` map on out-of-bounds instead of panicking (server/HPC friendly).
+
+### `slice_view(xs, off, n)` — cheap non-copy view (iterator-first)
+
+Lists do not currently have a dedicated “view” runtime value kind, but we can still provide
+an O(1) non-copy slice view using the existing “iterable map” protocol.
+
+Shape (rolling):
+
+- `{"__iter":"list_slice","base":xs,"off":off,"len":n}`
+
+Backends implement this in `oren_iter_next` so `for x in list.slice_view(...) { ... }` yields
+the underlying list elements, not metadata.
+
+Important native-backend constraint:
+- The marker `"list_slice"` must be a **string literal** so the native runtime can safely do
+  pointer equality on `__iter` values without calling `strcmp` on untagged integers.
+
+---
+
 ## 6) Naming policy (important for stability)
 
 ### Reserve `oren_*`

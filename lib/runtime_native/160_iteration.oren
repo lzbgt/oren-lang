@@ -112,11 +112,43 @@ fn oren_iter_next(container, idx) {
                             }
                         }
                     } else {
-                    var count2 = ptr_get(container + 0)
-                    if idx < count2 {
-                        ok = 1
-                        val = oren_map_key_at(container, idx)
-                    }
+                        // Iterable map protocol (rolling): list slice view.
+                        //
+                        // Produced by std:list.slice_view(xs, off, n):
+                        //   {"__iter":"list_slice","base":xs,"off":off,"len":n}
+                        //
+                        // Safety + determinism rules:
+                        // - Only accept if `base` is a tracked list.
+                        // - Treat malformed values as empty iteration (do not crash).
+                        // - Use subtraction bounds checks to avoid overflow on `off + len`.
+                        if it == "list_slice" {
+                            var base = oren_map_get(container, "base")
+                            var off2 = oren_map_get(container, "off")
+                            var n2 = oren_map_get(container, "len")
+
+                            if base != 0 && off2 >= 0 && n2 >= 0 && idx < n2 {
+                                var bnode2 = oren_find_node(base)
+                                if bnode2 != 0 {
+                                    var bkind2 = ptr_get(iadd(bnode2, 16))
+                                    if bkind2 == 2 {
+                                        var bcount2 = ptr_get(base)
+                                        if off2 <= bcount2 {
+                                            var max_n2 = bcount2 - off2
+                                            if n2 <= max_n2 {
+                                                ok = 1
+                                                val = oren_list_get(base, off2 + idx)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            var count2 = ptr_get(container + 0)
+                            if idx < count2 {
+                                ok = 1
+                                val = oren_map_key_at(container, idx)
+                            }
+                        }
                     }
                 } else {
                     // Typed buffers: allow numeric buffers to be iterated.

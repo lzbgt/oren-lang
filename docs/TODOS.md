@@ -28,6 +28,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: standardized stdlib-internal imports to use the `std:` scheme (`import list "std:list"`, etc.) so prefixes are stable and separate compilation/linking stays deterministic.
    - Status: compiler now inlines hot `std:list` wrappers (`list.push`, `list.len`) directly to `oren_list_*` via the linker alias map (removes wrapper call overhead in tight loops without relying on best-effort `.push/.len` receiver inference).
    - Status: compiler recognizes rolling container-kind annotations (`: list|map|buf|string`) as hints for deterministic lowering of builtin container method sugar in native backends.
+   - Status: added list cloning + slice APIs to `std:list` (`clone`, `slice_copy`, `slice_view`) and implemented `list_slice` iterable-map support in `oren_iter_next` across native/C/AVM backends.
    - Next: make container method sugar robust for non-local flows (params, map-derived values) without relying on best-effort local inference (or keep stdlib on wrappers and document the rule clearly); then extend surface (pop/clear/extend?).
 
 3) **Precompiled stdlib `.obc` linking (OBX) for AVM** (M)

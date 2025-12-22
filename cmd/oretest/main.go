@@ -179,6 +179,7 @@ func main() {
 		"tests/modules/test_iter_range.oren",
 		"tests/modules/test_typed_struct_fields.oren",
 		"tests/modules/test_container_methods.oren",
+		"tests/modules/test_list_slice_view.oren",
 		"tests/modules/test_int_literal_bases.oren",
 		"tests/modules/test_generic_call_specialization.oren",
 		"tests/modules/test_generic_fn_monomorph_dot.oren",
