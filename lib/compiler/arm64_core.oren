@@ -486,6 +486,38 @@ fn insn_ldp_post() {
     return 2831252477
 }
 
+fn insn_stp_pair_pre(rt, rt2, rn, offset) {
+    // STP Xt, Xt2, [Xn, #imm7<<3]!
+    //
+    // Pair store with pre-index addressing (writes back to base).
+    // Encodes a signed imm7 scaled by 8 bytes.
+    //
+    // Verified via clang:
+    //   stp x19, x20, [sp, #-16]! => 0xA9BF53F3
+    //   stp x21, x22, [sp, #-32]! => 0xA9BE5BF5
+    // Note: derive sign from `offset` (not `imm7`) to avoid any surprises from
+    // integer division semantics on negative numbers across backends.
+    var imm7 = offset / 8
+    if offset < 0 { imm7 = imm7 + 128 } // 2's complement 7-bit
+    // Base: 0xA9800000
+    return 2843738112 + (imm7 * 32768) + (rt2 * 1024) + (rn * 32) + rt
+}
+
+fn insn_ldp_pair_post(rt, rt2, rn, offset) {
+    // LDP Xt, Xt2, [Xn], #imm7<<3
+    //
+    // Pair load with post-index addressing (writes back to base).
+    // Encodes a signed imm7 scaled by 8 bytes.
+    //
+    // Verified via clang:
+    //   ldp x19, x20, [sp], #16 => 0xA8C153F3
+    //   ldp x21, x22, [sp], #32 => 0xA8C25BF5
+    var imm7 = offset / 8
+    if offset < 0 { imm7 = imm7 + 128 } // 2's complement 7-bit
+    // Base: 0xA8C00000
+    return 2831155200 + (imm7 * 32768) + (rt2 * 1024) + (rn * 32) + rt
+}
+
 fn insn_mov_fp_sp() {
     return 2432697341
 }

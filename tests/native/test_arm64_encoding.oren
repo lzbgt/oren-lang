@@ -34,6 +34,10 @@ fn main() {
     expect_u32(core.insn_mov_sp_fp(), 0x910003BF, 137)  // mov sp, x29
     expect_u32(core.insn_ldp_post(), 0xA8C17BFD, 138)   // ldp x29, x30, [sp], #16
     expect_u32(core.insn_ret(), 0xD65F03C0, 139)
+    expect_u32(core.insn_stp_pair_pre(19, 20, 31, -16), 0xA9BF53F3, 140) // stp x19, x20, [sp, #-16]!
+    expect_u32(core.insn_ldp_pair_post(19, 20, 31, 16), 0xA8C153F3, 141) // ldp x19, x20, [sp], #16
+    expect_u32(core.insn_stp_pair_pre(21, 22, 31, -32), 0xA9BE5BF5, 142) // stp x21, x22, [sp, #-32]!
+    expect_u32(core.insn_ldp_pair_post(21, 22, 31, 32), 0xA8C25BF5, 143) // ldp x21, x22, [sp], #32
 
     // Basic integer ops + branches (assembled via clang on arm64-darwin).
     expect_u32(core.insn_add_imm(1, 2, 0), 0x91000041, 150)   // add x1, x2, #0
