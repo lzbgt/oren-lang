@@ -12,8 +12,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 ### P1 (Soon)
 
 2) **SIMD intrinsic tail + microkernel correctness** (M)
-   - Status: `simd_dot_f32_ptr` tail path fixed + directly regression-tested.
-   - DoD: make `simd_dot_f32_4_ptr` and `simd_gemm_f32_4x4_ptr` bit-exact for odd `n` and fractional f32 inputs, so runtime can switch to single-pass microkernels without scalar cleanup.
+   - Status: intrinsic-level tail determinism tests added for `simd_dot_f32_ptr`, `simd_dot_f32_4_ptr`, and `simd_gemm_f32_4x4_ptr`; runtime now uses the single-pass microkernels.
+   - DoD: broaden coverage (NaN/Inf/sign-bit edge cases, large `n`) and keep macOS+Linux parity for these intrinsics.
 
 3) **ARM64 instruction encoder audit** (S)
    - DoD: spot-check the most-used instruction encoders (especially loads/stores) against clang/objdump golden encodings to prevent silent mis-encodes from regressing correctness.
@@ -23,6 +23,9 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 5) **Docs parity pass** (S)
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
+
+6) **Include chunk coherence** (M)
+   - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
 
 ### Notes
 

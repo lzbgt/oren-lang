@@ -181,8 +181,12 @@
             set_u32_le(ctx["code"], br_vec_loop4b, insn_b_cond((vec_loop4 - br_vec_loop4b) / 4, 1)) // NE
 
             // rem = n - (groups_saved * 4)
-            push_u32_le(ctx["code"], insn_lslv(10, 10, 9))    // X10 = groups_saved * 4
-            push_u32_le(ctx["code"], insn_sub_reg(7, 7, 10))  // X7 = rem
+            //
+            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(10, 10, 10)) // X10 *= 2
+            push_u32_le(ctx["code"], insn_add_reg(10, 10, 10)) // X10 *= 4
+            push_u32_le(ctx["code"], insn_sub_reg(7, 7, 10))   // X7 = rem
 
             // Tail loop if rem != 0.
             push_u32_le(ctx["code"], insn_cmp_reg(7, 31))
