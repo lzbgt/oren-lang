@@ -764,6 +764,14 @@ fn test_net_loopback_minimal() {
         free(out_to)
         if wr_to != 0 { exit(804) }
 
+        // Negative timeout must be treated as "no wait" (avoid accidental hangs).
+        out_to = malloc(8)
+        if out_to == 0 { exit(804) }
+        ptr_set(out_to, 0)
+        var wr_to2 = oren_fd_wait_any_readable(only1, 0 - 1, out_to)
+        free(out_to)
+        if wr_to2 != 0 { exit(804) }
+
         // Wait until either listen fd becomes readable (incoming connection).
         var fds = [lfd1, lfd2]
         var out_fd = malloc(8)

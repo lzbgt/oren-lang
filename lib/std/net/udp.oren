@@ -7,7 +7,7 @@
 // Notes:
 // - All operations are capability-gated by the runtime capsule (`domain="NET"`).
 // - All potentially-blocking operations accept `timeout_ms` to avoid hangs.
-//   - `timeout_ms < 0` means "no timeout" (backend-dependent); avoid this in tests.
+//   - `timeout_ms < 0` is treated as "no wait" (0ms) in rolling mode to avoid accidental hangs.
 // - Return convention (rolling):
 //   - `fd` / byte-count: `>= 0` on success
 //   - negative errno: `< 0` on failure
@@ -60,4 +60,3 @@ fn send_to_ok(fd, ip, port, buf, len, timeout_ms) {
 fn recv_into_ok(fd, buf, len, timeout_ms) {
     return result.ok_or_errno(recv_into(fd, buf, len, timeout_ms), "udp.recv_into")
 }
-
