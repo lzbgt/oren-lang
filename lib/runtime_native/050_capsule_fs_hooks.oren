@@ -8,7 +8,8 @@ fn native_capsule_sys_open_pre(path, flags) {
     var op_kind = 0
     // POSIX: O_RDONLY=0, O_WRONLY=1, O_RDWR=2.
     // Any non-zero access bits imply write capability.
-    if (flags & 3) != 0 { op_kind = 1 }
+    var access_bits = flags & 3
+    if access_bits != 0 { op_kind = 1 }
     return native_capsule_fs_path_resolve_pair(path, op_kind)
 }
 
@@ -245,4 +246,3 @@ fn native_capsule_sys_getdirentries64_pre(fd) {
 fn native_capsule_sys_getdirentries64_post(rc) {
     return rc
 }
-

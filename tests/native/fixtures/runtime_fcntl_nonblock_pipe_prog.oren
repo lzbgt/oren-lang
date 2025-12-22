@@ -17,19 +17,20 @@ fn main() {
 
     var f0 = sys_fcntl_getfl(rfd)
     if f0 < 0 { exit(4) }
-
+    
     // pipes are typically O_RDONLY on the read end (0), but we only require it to be a valid access mode.
-    if (f0 & 3) > 2 { exit(5) }
+    var f0_mode = f0 & 3
+    if f0_mode > 2 { exit(5) }
 
     var r1 = sys_fcntl_setfl(rfd, f0 | OREN_O_NONBLOCK)
     if r1 < 0 { exit(6) }
 
     var f1 = sys_fcntl_getfl(rfd)
     if f1 < 0 { exit(7) }
-    if (f1 & OREN_O_NONBLOCK) == 0 { exit(8) }
+    var f1_nonblock = f1 & OREN_O_NONBLOCK
+    if f1_nonblock == 0 { exit(8) }
 
     sys_close(rfd)
     sys_close(wfd)
     print("ok")
 }
-

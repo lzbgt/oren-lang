@@ -225,7 +225,8 @@ fn sqrt(x) {
     if oren_is_err(g) { return g }
 
     // If exponent is odd, multiply guess by sqrt(2) to improve convergence.
-    if (e & 1) != 0 {
+    var e_is_odd = e & 1
+    if e_is_odd != 0 {
         g = g * 1.4142135623730951
     }
 
@@ -252,7 +253,8 @@ fn powi(x, n) {
     var base = x
     var acc = 1.0
     while nn > 0 {
-        if (nn & 1) != 0 { acc = acc * base }
+        var nn_is_odd = nn & 1
+        if nn_is_odd != 0 { acc = acc * base }
         base = base * base
         nn = nn >> 1
     }

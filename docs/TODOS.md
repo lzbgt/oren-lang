@@ -15,7 +15,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Next: split the remaining large native runtime entrypoints (`lib/runtime_native/*.oren`, especially `runtime_native.oren`) into smaller included modules guided by `docs/` (breaking changes OK while rolling).
 
 2) **Repo-wide grammar modernization + audits** (L)
-   - Status: cleaned up a first batch of legacy-style condition parentheses in `lib/std` (kept required parens for bitwise-vs-equality precedence).
+   - Status: removed legacy `if (...)` forms across `.oren` sources (compiler/runtime/tests) by rewriting conditions to modern `if cond { ... }` (introduced temporaries where operator precedence required).
+   - Status: added an `oretest` repo-style audit to prevent regressions back to `if (...)` / `else if (...)` legacy syntax.
    - DoD: update remaining `.oren` sources (especially `lib/std/*.oren`) to the current grammar/idioms (e.g. `for x in ...`, modern `if`/`else`, `match` where applicable), removing known legacy syntax.
    - Guardrails: extend `cmd/oretest` audits to ban additional legacy constructs once confirmed from `docs/` (keep the allowlist tiny and explicit).
    - Keep the modernization rolling: new code must not regress into legacy syntax.

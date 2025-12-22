@@ -55,12 +55,12 @@ oren_gc_collect()
 // Drop every other item and collect.
 var k = 0
 while k < oren_list_len(pool) {
-    if (k % 2) == 1 { pool[k] = nil }
+    if k % 2 == 1 { pool[k] = nil }
     k = k + 1
 }
 var k2 = 0
 while k2 < oren_list_len(pool_f) {
-    if (k2 % 2) == 1 { pool_f[k2] = nil }
+    if k2 % 2 == 1 { pool_f[k2] = nil }
     k2 = k2 + 1
 }
 oren_gc_collect()

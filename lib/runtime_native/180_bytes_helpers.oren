@@ -25,7 +25,8 @@ fn oren_bytes_from_hex(s) {
     if s == 0 { return oren_err(4, "bytes_from_hex: string is nil") }
     var n = oren_string_len(s)
     if n < 0 { return oren_err(4, "bytes_from_hex: invalid string") }
-    if (n & 1) != 0 { return oren_err(4, "bytes_from_hex: odd length") }
+    var n_is_odd = n & 1
+    if n_is_odd != 0 { return oren_err(4, "bytes_from_hex: odd length") }
     var outn = n / 2
     var out = oren_u8_buf_new(outn)
     if oren_is_err(out) { return out }
@@ -112,4 +113,3 @@ fn oren_ptr_free(ptr) {
     free(ptr)
     return 0
 }
-

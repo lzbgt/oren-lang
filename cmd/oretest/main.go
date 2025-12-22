@@ -2868,6 +2868,38 @@ func auditRepoModernStyle() error {
 			},
 		},
 		{
+			// Rolling syntax modernization: prefer `if cond { ... }` over legacy `if (cond) { ... }`.
+			//
+			// Note: this scan is intentionally heuristic. We only flag when the trimmed line begins
+			// with the legacy construct, so string literals like `emit("if (x) {")` don't trip it.
+			name:    "no legacy if (...) condition parentheses",
+			pattern: "if (",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "if (")
+			},
+		},
+		{
+			name:    "no legacy if(...) condition parentheses",
+			pattern: "if(",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "if(")
+			},
+		},
+		{
+			name:    "no legacy else if (...) condition parentheses",
+			pattern: "else if (",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "else if (") && !strings.HasPrefix(trimmedLine, "} else if (")
+			},
+		},
+		{
+			name:    "no legacy else if(...) condition parentheses",
+			pattern: "else if(",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "else if(") && !strings.HasPrefix(trimmedLine, "} else if(")
+			},
+		},
+		{
 			name:    "no legacy @forin internal identifiers",
 			pattern: "@forin_",
 			allowInLine: func(trimmedLine string) bool {

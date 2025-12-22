@@ -436,8 +436,10 @@ fn collect_instantiations_expr(e, templates, insts, errs) {
         }
         // Unspecialized call to a generic template is a compile-time error.
         // (generic_call_lowering should have caught it, but keep defense-in-depth here.)
-        if (targ == nil || tm == nil) && templates[fname] != nil {
-            err_push(errs, e["token"], "unspecialized call to generic function '" + fname + "': use " + fname + "[T](...)")
+        if templates[fname] != nil {
+            if targ == nil || tm == nil {
+                err_push(errs, e["token"], "unspecialized call to generic function '" + fname + "': use " + fname + "[T](...)")
+            }
         }
         // descend into call fn/args too (nested specializations)
         collect_instantiations_expr(e["fn"], templates, insts, errs)

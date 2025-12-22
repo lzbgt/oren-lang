@@ -29,7 +29,7 @@ fn oren_iter_next(container, idx) {
                 // - strided view: [buf, off, len, stride]
                 //
                 // `for x in view` should iterate the underlying buffer values, not the metadata fields.
-                if (count == 3 || count == 4) && idx >= 0 {
+                if count == 3 || count == 4 {
                     var b = oren_list_get(container, 0)
                     var off = oren_list_get(container, 1)
                     var n = oren_list_get(container, 2)
@@ -271,4 +271,3 @@ fn string_concat(a, b) {
     oren_track_alloc(buf, la + lb + 1, 1)
     return buf
 }
-

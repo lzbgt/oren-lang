@@ -133,7 +133,7 @@ fn native_expr_chunk_call(ctx, expr) {
     
             var fn_name = fn_expr["value"]
             // If the identifier is a local/global, it's a variable call => treat as indirect call.
-            if (ctx["locals"][fn_name] != nil) || (ctx["globals"][fn_name] != nil) {
+            if ctx["locals"][fn_name] != nil || ctx["globals"][fn_name] != nil {
                 // args_list = oren_new_list(0)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
                 var bl_new_list_ind2 = oren_list_len(ctx["code"])

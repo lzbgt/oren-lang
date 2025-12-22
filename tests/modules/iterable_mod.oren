@@ -19,10 +19,11 @@ impl Iterable for MyRange {
         if idx < 0 { return [0, nil] }
         if self.step == 0 { return [0, nil] }
         var v = self.start + idx * self.step
-        if (self.step > 0 && v < self.end) || (self.step < 0 && v > self.end) {
+        var ok_fwd = self.step > 0 && v < self.end
+        var ok_bwd = self.step < 0 && v > self.end
+        if ok_fwd || ok_bwd {
             return [1, v]
         }
         return [0, nil]
     }
 }
-

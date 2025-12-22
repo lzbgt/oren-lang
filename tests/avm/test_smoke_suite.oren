@@ -645,7 +645,7 @@ fn test_typed_buffers() {
         while kk < nmk_i32 {
             // Alternate sign per element.
             var sgn = 1
-            if (kk % 2) == 1 { sgn = -1 }
+            if kk % 2 == 1 { sgn = -1 }
             oren_buf_store_i32(iga2, rr * nmk_i32 + kk, sgn * (rr + 2))
             kk = kk + 1
         }

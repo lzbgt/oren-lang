@@ -4,7 +4,7 @@ fn main() {
 
     if "a" == "b" { exit(1) }
     if "a" != "a" { exit(2) }
-    if ("a" + "b") != "ab" { exit(3) }
+    if "a" + "b" != "ab" { exit(3) }
     if "ab" < "aa" { exit(4) }
     if "ab" <= "aa" { exit(5) }
     if "ab" > "b" { exit(6) }
@@ -12,7 +12,7 @@ fn main() {
 
     // Cover common runtime string-producing calls (must compare by content in native backend).
     if oren_string_char_at("abc", 0) != "a" { exit(8) }
-    if ("a" + "b") != "ab" { exit(9) }
+    if "a" + "b" != "ab" { exit(9) }
     if oren_realpath("x/./y") != "x/y" { exit(10) }
 
     // Comparing string pointers with nil must be safe (must NOT call strcmp).
