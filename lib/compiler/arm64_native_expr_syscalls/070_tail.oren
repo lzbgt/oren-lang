@@ -1,358 +1,370 @@
-            // Darwin syscall: bsdthread_register (366)
-            // This is macOS-specific; Linux should implement clone/futex-based threads instead.
-            compile_expr(ctx, args[0]) // threadstart -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+// Chunked out of native_compile_syscall_call for include coherence.
+fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
 
-            compile_expr(ctx, args[1]) // wqthread -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            compile_expr(ctx, args[2]) // pthsize -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            compile_expr(ctx, args[3]) // pthread_init_data -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            compile_expr(ctx, args[4]) // pthread_init_data_size -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            compile_expr(ctx, args[5]) // dispatchqueue_offset -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            // pre: native_capsule_sys_bsdthread_register_pre()
-            var bl_bsdthread_pre = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_bsdthread_pre, "name": "native_capsule_sys_bsdthread_register_pre"})
-
-            compile_expr(ctx, args[6]) // tsd_offset -> X0
-            push_u32_le(ctx["code"], insn_mov_reg(6, 0)) // save in X6
-
-            // Pop dispatchqueue_offset -> X5
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop init_data_size -> X4
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop init_data -> X3
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop pthsize -> X2
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop wqthread -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop threadstart -> X0
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            if ctx["platform"]["os"] == "linux" {
-                push_u32_le(ctx["code"], insn_movn(0, 0))
+            if fn_name == "sys_bsdthread_register" {
+                // sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset)
+                // Darwin syscall: bsdthread_register (366)
+                // This is macOS-specific; Linux should implement clone/futex-based threads instead.
+                compile_expr(ctx, args[0]) // threadstart -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[1]) // wqthread -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[2]) // pthsize -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[3]) // pthread_init_data -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[4]) // pthread_init_data_size -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[5]) // dispatchqueue_offset -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                // pre: native_capsule_sys_bsdthread_register_pre()
+                var bl_bsdthread_pre = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_bsdthread_pre, "name": "native_capsule_sys_bsdthread_register_pre"})
+    
+                compile_expr(ctx, args[6]) // tsd_offset -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(6, 0)) // save in X6
+    
+                // Pop dispatchqueue_offset -> X5
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Pop init_data_size -> X4
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Pop init_data -> X3
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Pop pthsize -> X2
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Pop wqthread -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Pop threadstart -> X0
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                if ctx["platform"]["os"] == "linux" {
+                    push_u32_le(ctx["code"], insn_movn(0, 0))
+                    return true
+                }
+    
+                push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_bsdthread_register()))
+                emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
+    
+                // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno (so callers can debug).
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = 0 - X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 return true
             }
-
-            push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_bsdthread_register()))
-            emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
-
-            // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno (so callers can debug).
-            var br_ok = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) // B.CC ok
-            push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = 0 - X0 = -errno
-            var ok_pos = oren_list_len(ctx["code"])
-            set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
-            return true
-        }
-        
-        if fn_name == "sys_pipe" {
-            compile_expr(ctx, args[0]) // ptr to int[2] -> X0
-
-            // pre: native_capsule_sys_pipe_pre(ptr) -> ptr
-            var bl_pipe_pre = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_pre, "name": "native_capsule_sys_pipe_pre"})
             
-            var sys_pipe = abi.darwin_sys_pipe()
-            var sys_pipe2 = labi.linux_sys_pipe2()
-            var sys_reg = abi.darwin_syscall_reg()
-            var svc_imm = abi.darwin_svc_imm()
-            if ctx["platform"]["os"] == "linux" {
-                sys_pipe = labi.linux_sys_pipe2()
-                sys_reg = labi.linux_syscall_reg()
-                svc_imm = labi.linux_svc_imm()
+
+            if fn_name == "sys_pipe" {
+                compile_expr(ctx, args[0]) // ptr to int[2] -> X0
+    
+                // pre: native_capsule_sys_pipe_pre(ptr) -> ptr
+                var bl_pipe_pre = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_pre, "name": "native_capsule_sys_pipe_pre"})
+                
+                var sys_pipe = abi.darwin_sys_pipe()
+                var sys_pipe2 = labi.linux_sys_pipe2()
+                var sys_reg = abi.darwin_syscall_reg()
+                var svc_imm = abi.darwin_svc_imm()
+                if ctx["platform"]["os"] == "linux" {
+                    sys_pipe = labi.linux_sys_pipe2()
+                    sys_reg = labi.linux_syscall_reg()
+                    svc_imm = labi.linux_svc_imm()
+                }
+                
+                if ctx["platform"]["os"] != "linux" {
+                    // Save ptr (X0) to stack
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                    
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
+                    emit_svc_preserve_heap(ctx, svc_imm)
+    
+                    // Restore ptr -> X2, keep a stable copy in X3 for post-hook.
+                    // IMPORTANT: pop stack unconditionally so compile-time stack tracking stays correct.
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+                    push_u32_le(ctx["code"], insn_mov_reg(3, 2))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                    // macOS syscall convention: on error, carry is set and X0 contains errno (positive).
+                    // Do not store fds on error. Normalize to X0=-errno.
+                    var br_ok = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.CC ok
+    
+                    // Error path: X0 = -errno, skip stores + post-hook.
+                    push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                    var br_end = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B end
+    
+                    // Ok path:
+                    var ok_pos = oren_list_len(ctx["code"])
+                    
+                    // Store X0 -> [X2]
+                    push_u32_le(ctx["code"], insn_str_ptr(0, 2))
+                    // Store X1 -> [X2 + 8]
+                    push_u32_le(ctx["code"], insn_add_imm(2, 2, 8))
+                    push_u32_le(ctx["code"], insn_str_ptr(1, 2))
+    
+                    // Return 0 and tag pipe fds for capsule mode (PROC IPC).
+                    push_u32_le(ctx["code"], insn_movz(0, 0)) // rc=0
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=rc
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // X0=ptr
+                    var bl_pipe_post = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post, "name": "native_capsule_sys_pipe_post"})
+                    push_u32_le(ctx["code"], insn_movz(0, 0)) // return 0
+    
+                    var end_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+                    set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
+                } else {
+                    // Linux pipe2(ptr, flags)
+                    // NOTE: Linux pipe2 expects an `int[2]` (32-bit fds). Our native runtime ABI uses
+                    // 8-byte slots (u64) for fds, so we:
+                    // - call pipe2 into a temporary `int[2]` buffer
+                    // - widen + store into the caller's 16-byte buffer as u64s.
+                    //
+                    // IMPORTANT:
+                    // Do not assume syscall preserves argument temporaries (X0-X5). Keep the temp buffer
+                    // inside our own scratch frame so its address is stable at the `svc` boundary.
+                    //
+                    // Layout (96 bytes):
+                    //   [SP+0..56]   saved X19..X26
+                    //   [SP+64]      saved X27
+                    //   [SP+72]      saved X28
+                    //   [SP+80]      saved out ptr (u64) (caller buffer)
+                    //
+                    // ptr in X0 (after capsule pre-hook).
+                    push_u32_le(ctx["code"], insn_sub_sp(96))
+                    ctx["stack_size"] = ctx["stack_size"] + 96
+    
+                    // Save callee-saved regs (so inlined syscalls behave like normal calls).
+                    var sr = 19
+                    while sr <= 26 {
+                        push_u32_le(ctx["code"], insn_str_reg_sp(sr, (sr - 19) * 8))
+                        sr = sr + 1
+                    }
+                    push_u32_le(ctx["code"], insn_str_reg_sp(27, 64))
+                    push_u32_le(ctx["code"], insn_str_reg_sp(28, 72))
+    
+                    // Save out ptr (X0). For Linux, we call pipe2 directly with the caller buffer
+                    // as `int[2]`, then widen in-place:
+                    // - kernel writes 2x32-bit fds into bytes [0..7]
+                    // - we load both ints, then store them back as u64 slots at [0] and [8].
+                    push_u32_le(ctx["code"], insn_str_reg_sp(0, 80)) // save X0 (ptr)
+    
+                    push_u32_le(ctx["code"], insn_movz(1, 0)) // flags = 0
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
+                    push_u32_le(ctx["code"], insn_svc(svc_imm))
+    
+                    push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = rc
+                    // Reload out ptr into X2 (caller buffer).
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 80))
+    
+                    // If rc==0: widen fds into caller buffer.
+                    push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
+                    // B.NE skip_store
+                    var br_skip = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+    
+                    // Load both 32-bit fds in one 64-bit word, then split:
+                    //   packed = *(u64*)ptr  where packed = (wfd<<32) | rfd
+                    // This avoids relying on `LDR Wt, [Xn,#imm]` encodings and keeps the lowering robust.
+                    //
+                    // X6 = packed
+                    push_u32_le(ctx["code"], insn_ldr_ptr(6, 2))
+                    // X9 = 0xffffffff
+                    emit_load_u64_imm(ctx, 9, 4294967295)
+                    // X7 = 32
+                    emit_load_u64_imm(ctx, 7, 32)
+                    // X4 = rfd (low 32)
+                    push_u32_le(ctx["code"], insn_and_reg(4, 6, 9))
+                    // X5 = wfd (high 32)
+                    push_u32_le(ctx["code"], insn_lsrv(5, 6, 7))
+    
+                    push_u32_le(ctx["code"], insn_str_ptr(4, 2))
+                    push_u32_le(ctx["code"], insn_add_imm(6, 2, 8))
+                    push_u32_le(ctx["code"], insn_str_ptr(5, 6))
+    
+                    var skip_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_skip, insn_b_cond((skip_pos - br_skip) / 4, 1)) // NE
+    
+                    // Restore callee-saved regs and pop scratch frame.
+                    var rr = 19
+                    while rr <= 26 {
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(rr, (rr - 19) * 8))
+                        rr = rr + 1
+                    }
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 64))
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 72))
+                    push_u32_le(ctx["code"], insn_add_sp(96))
+                    ctx["stack_size"] = ctx["stack_size"] - 96
+    
+                    // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // X0=ptr (caller buffer)
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 3)) // X1=rc
+                    var bl_pipe_post2 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post2, "name": "native_capsule_sys_pipe_post"})
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // return rc
+                }
+                return true
             }
             
-            if ctx["platform"]["os"] != "linux" {
-                // Save ptr (X0) to stack
+
+            if fn_name == "sys_clone" {
+                compile_expr(ctx, args[0]) // flags -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[1]) // stack -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                // pre: native_capsule_sys_clone_pre()
+                var bl_clone_pre = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_clone_pre, "name": "native_capsule_sys_clone_pre"})
+    
+                // Load args for syscall:
+                // Stack layout: stack@0, flags@16
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // flags
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // stack
+    
+                // Pop args (2 slots).
+                push_u32_le(ctx["code"], insn_add_sp(32))
+                ctx["stack_size"] = ctx["stack_size"] - 32
+                
+                // Clear other args
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_movz(3, 0))
+                push_u32_le(ctx["code"], insn_movz(4, 0))
+                
+                if ctx["platform"]["os"] == "linux" {
+                    push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone())) // sys_clone
+                    emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+                } else {
+                    push_u32_le(ctx["code"], insn_movn(0, 0)) // -1
+                }
+                return true
+            }
+            
+
+            if fn_name == "ptr_set" {
+                compile_expr(ctx, args[0]) // ptr -> X0
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
                 
-                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
-                emit_svc_preserve_heap(ctx, svc_imm)
-
-                // Restore ptr -> X2, keep a stable copy in X3 for post-hook.
-                // IMPORTANT: pop stack unconditionally so compile-time stack tracking stays correct.
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-                push_u32_le(ctx["code"], insn_mov_reg(3, 2))
+                compile_expr(ctx, args[1]) // val -> X0
+                
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // ptr -> X1
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 ctx["stack_size"] = ctx["stack_size"] - 16
-
-                // macOS syscall convention: on error, carry is set and X0 contains errno (positive).
-                // Do not store fds on error. Normalize to X0=-errno.
-                var br_ok = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0) // B.CC ok
-
-                // Error path: X0 = -errno, skip stores + post-hook.
-                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                var br_end = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0) // B end
-
-                // Ok path:
-                var ok_pos = oren_list_len(ctx["code"])
                 
-                // Store X0 -> [X2]
-                push_u32_le(ctx["code"], insn_str_ptr(0, 2))
-                // Store X1 -> [X2 + 8]
-                push_u32_le(ctx["code"], insn_add_imm(2, 2, 8))
-                push_u32_le(ctx["code"], insn_str_ptr(1, 2))
+                // STR X0, [X1] (val -> [ptr])
+                push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+                return true
+            }
+            
 
-                // Return 0 and tag pipe fds for capsule mode (PROC IPC).
-                push_u32_le(ctx["code"], insn_movz(0, 0)) // rc=0
-                push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=rc
-                push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // X0=ptr
-                var bl_pipe_post = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post, "name": "native_capsule_sys_pipe_post"})
-                push_u32_le(ctx["code"], insn_movz(0, 0)) // return 0
+            if fn_name == "atomic_add" {
+                compile_expr(ctx, args[0]) // ptr -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+                
+                compile_expr(ctx, args[1]) // val -> X0
+                
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // ptr -> X2
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+                
+                // LDADD X0 (val), X0 (result), [X2]
+                // We want val in a register, result in X0.
+                // Current X0 is val.
+                // Move val to X1.
+                push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
+    
+                // atomic_add returns the old value. Implement via LL/SC so Linux arm64
+                // binaries can run on CPUs/environments without LSE atomics (LDADD).
+                //
+                // Inputs:
+                // - X2 = ptr
+                // - X1 = addend
+                //
+                // Output:
+                // - X0 = old value
+                var loop_pos = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], insn_ldaxr(3, 2))        // X3 = *ptr (acquire)
+                push_u32_le(ctx["code"], insn_add_reg(5, 3, 1))   // X5 = old + addend
+                push_u32_le(ctx["code"], insn_stlxr(4, 5, 2))     // W4 = status, *ptr = new (release)
+                push_u32_le(ctx["code"], insn_cmp_reg(4, 31))     // status ?= 0
+                var br_retry = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)                       // B.NE loop
+                set_u32_le(ctx["code"], br_retry, insn_b_cond((loop_pos - br_retry) / 4, 1)) // NE
+    
+                push_u32_le(ctx["code"], insn_add_imm(0, 3, 0))   // return old value
+                return true
+            }
+            
 
-                var end_pos = oren_list_len(ctx["code"])
-                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
-                set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
-            } else {
-                // Linux pipe2(ptr, flags)
-                // NOTE: Linux pipe2 expects an `int[2]` (32-bit fds). Our native runtime ABI uses
-                // 8-byte slots (u64) for fds, so we:
-                // - call pipe2 into a temporary `int[2]` buffer
-                // - widen + store into the caller's 16-byte buffer as u64s.
-                //
-                // IMPORTANT:
-                // Do not assume syscall preserves argument temporaries (X0-X5). Keep the temp buffer
-                // inside our own scratch frame so its address is stable at the `svc` boundary.
-                //
-                // Layout (96 bytes):
-                //   [SP+0..56]   saved X19..X26
-                //   [SP+64]      saved X27
-                //   [SP+72]      saved X28
-                //   [SP+80]      saved out ptr (u64) (caller buffer)
-                //
-                // ptr in X0 (after capsule pre-hook).
-                push_u32_le(ctx["code"], insn_sub_sp(96))
-                ctx["stack_size"] = ctx["stack_size"] + 96
-
-                // Save callee-saved regs (so inlined syscalls behave like normal calls).
-                var sr = 19
-                while sr <= 26 {
-                    push_u32_le(ctx["code"], insn_str_reg_sp(sr, (sr - 19) * 8))
-                    sr = sr + 1
+            if fn_name == "sys_gettid" {
+                var sys_reg = abi.darwin_syscall_reg()
+                var svc_imm = abi.darwin_svc_imm()
+                var sys_num = abi.darwin_sys_thread_selfid()
+                if ctx["platform"]["os"] == "linux" {
+                    sys_reg = labi.linux_syscall_reg()
+                    svc_imm = labi.linux_svc_imm()
+                    sys_num = labi.linux_sys_gettid()
                 }
-                push_u32_le(ctx["code"], insn_str_reg_sp(27, 64))
-                push_u32_le(ctx["code"], insn_str_reg_sp(28, 72))
-
-                // Save out ptr (X0). For Linux, we call pipe2 directly with the caller buffer
-                // as `int[2]`, then widen in-place:
-                // - kernel writes 2x32-bit fds into bytes [0..7]
-                // - we load both ints, then store them back as u64 slots at [0] and [8].
-                push_u32_le(ctx["code"], insn_str_reg_sp(0, 80)) // save X0 (ptr)
-
-                push_u32_le(ctx["code"], insn_movz(1, 0)) // flags = 0
-                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_pipe))
-                push_u32_le(ctx["code"], insn_svc(svc_imm))
-
-                push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = rc
-                // Reload out ptr into X2 (caller buffer).
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 80))
-
-                // If rc==0: widen fds into caller buffer.
-                push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
-                // B.NE skip_store
-                var br_skip = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-
-                // Load both 32-bit fds in one 64-bit word, then split:
-                //   packed = *(u64*)ptr  where packed = (wfd<<32) | rfd
-                // This avoids relying on `LDR Wt, [Xn,#imm]` encodings and keeps the lowering robust.
-                //
-                // X6 = packed
-                push_u32_le(ctx["code"], insn_ldr_ptr(6, 2))
-                // X9 = 0xffffffff
-                emit_load_u64_imm(ctx, 9, 4294967295)
-                // X7 = 32
-                emit_load_u64_imm(ctx, 7, 32)
-                // X4 = rfd (low 32)
-                push_u32_le(ctx["code"], insn_and_reg(4, 6, 9))
-                // X5 = wfd (high 32)
-                push_u32_le(ctx["code"], insn_lsrv(5, 6, 7))
-
-                push_u32_le(ctx["code"], insn_str_ptr(4, 2))
-                push_u32_le(ctx["code"], insn_add_imm(6, 2, 8))
-                push_u32_le(ctx["code"], insn_str_ptr(5, 6))
-
-                var skip_pos = oren_list_len(ctx["code"])
-                set_u32_le(ctx["code"], br_skip, insn_b_cond((skip_pos - br_skip) / 4, 1)) // NE
-
-                // Restore callee-saved regs and pop scratch frame.
-                var rr = 19
-                while rr <= 26 {
-                    push_u32_le(ctx["code"], insn_ldr_reg_sp(rr, (rr - 19) * 8))
-                    rr = rr + 1
-                }
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 64))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 72))
-                push_u32_le(ctx["code"], insn_add_sp(96))
-                ctx["stack_size"] = ctx["stack_size"] - 96
-
-                // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
-                push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // X0=ptr (caller buffer)
-                push_u32_le(ctx["code"], insn_mov_reg(1, 3)) // X1=rc
-                var bl_pipe_post2 = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post2, "name": "native_capsule_sys_pipe_post"})
-                push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // return rc
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_num))
+                emit_svc_preserve_heap(ctx, svc_imm)
+                return true
             }
-            return true
-        }
-        
-        if fn_name == "sys_clone" {
-            compile_expr(ctx, args[0]) // flags -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            compile_expr(ctx, args[1]) // stack -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            // pre: native_capsule_sys_clone_pre()
-            var bl_clone_pre = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_clone_pre, "name": "native_capsule_sys_clone_pre"})
-
-            // Load args for syscall:
-            // Stack layout: stack@0, flags@16
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // flags
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // stack
-
-            // Pop args (2 slots).
-            push_u32_le(ctx["code"], insn_add_sp(32))
-            ctx["stack_size"] = ctx["stack_size"] - 32
-            
-            // Clear other args
-            push_u32_le(ctx["code"], insn_movz(2, 0))
-            push_u32_le(ctx["code"], insn_movz(3, 0))
-            push_u32_le(ctx["code"], insn_movz(4, 0))
-            
-            if ctx["platform"]["os"] == "linux" {
-                push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone())) // sys_clone
-                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
-            } else {
-                push_u32_le(ctx["code"], insn_movn(0, 0)) // -1
-            }
-            return true
-        }
-        
-        if fn_name == "ptr_set" {
-            compile_expr(ctx, args[0]) // ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-            
-            compile_expr(ctx, args[1]) // val -> X0
-            
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // ptr -> X1
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-            
-            // STR X0, [X1] (val -> [ptr])
-            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
-            return true
-        }
-        
-        if fn_name == "atomic_add" {
-            compile_expr(ctx, args[0]) // ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-            
-            compile_expr(ctx, args[1]) // val -> X0
-            
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // ptr -> X2
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-            
-            // LDADD X0 (val), X0 (result), [X2]
-            // We want val in a register, result in X0.
-            // Current X0 is val.
-            // Move val to X1.
-            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
-
-            // atomic_add returns the old value. Implement via LL/SC so Linux arm64
-            // binaries can run on CPUs/environments without LSE atomics (LDADD).
-            //
-            // Inputs:
-            // - X2 = ptr
-            // - X1 = addend
-            //
-            // Output:
-            // - X0 = old value
-            var loop_pos = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], insn_ldaxr(3, 2))        // X3 = *ptr (acquire)
-            push_u32_le(ctx["code"], insn_add_reg(5, 3, 1))   // X5 = old + addend
-            push_u32_le(ctx["code"], insn_stlxr(4, 5, 2))     // W4 = status, *ptr = new (release)
-            push_u32_le(ctx["code"], insn_cmp_reg(4, 31))     // status ?= 0
-            var br_retry = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)                       // B.NE loop
-            set_u32_le(ctx["code"], br_retry, insn_b_cond((loop_pos - br_retry) / 4, 1)) // NE
-
-            push_u32_le(ctx["code"], insn_add_imm(0, 3, 0))   // return old value
-            return true
-        }
-        
-        if fn_name == "sys_gettid" {
-            var sys_reg = abi.darwin_syscall_reg()
-            var svc_imm = abi.darwin_svc_imm()
-            var sys_num = abi.darwin_sys_thread_selfid()
-            if ctx["platform"]["os"] == "linux" {
-                sys_reg = labi.linux_syscall_reg()
-                svc_imm = labi.linux_svc_imm()
-                sys_num = labi.linux_sys_gettid()
-            }
-            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_num))
-            emit_svc_preserve_heap(ctx, svc_imm)
-            return true
-        }
+    
+        return false
 
     return false
 }

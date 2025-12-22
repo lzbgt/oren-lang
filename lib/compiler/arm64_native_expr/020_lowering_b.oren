@@ -1,554 +1,313 @@
-            // Save fixed_list on stack
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+// Chunked out of native_compile_expr for include coherence (call expr).
+fn native_expr_chunk_call(ctx, expr) {
+    if expr["type"] != "Call" { return false }
 
-            var i_sp = 0
-            while i_sp < oren_list_len(fixed_args) {
-                native_compile_expr(ctx, fixed_args[i_sp])
+            var fn_expr = expr["fn"]
+            if fn_expr == nil {
+                native_error(ctx, expr["token"], "native backend: call with nil callee")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return true
+            }
+    
+            // Call-site spread: f(a, xs...) where xs is a list.
+            // Lower to runtime helper `oren_call_obj_spread(fn_obj, fixed_args_list, spread_list)`.
+            // This keeps semantics consistent without introducing a user-defined varargs ABI.
+            if expr["spread"] != nil {
+                var fixed_args = expr["args"]
+    
+                // fixed_list = oren_new_list(0); fixed_list.push(arg0..)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var bl_new_list_sp = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_sp, "name": "oren_new_list"})
+    
+                // Save fixed_list on stack
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
-
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
-
-                var bl_push_sp = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_sp, "name": "oren_list_push"})
-                i_sp = i_sp + 1
-            }
-
-            // Save spread_list on stack
-            native_compile_expr(ctx, expr["spread"])
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            // fn_obj -> X0
-            native_compile_expr(ctx, fn_expr)
-
-            // Load fixed/spread into X1/X2 and pop stack
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fixed_list
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // spread_list
-            push_u32_le(ctx["code"], insn_add_sp(32))
-            ctx["stack_size"] = ctx["stack_size"] - 32
-
-            var bl_spread = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_spread, "name": "oren_call_obj_spread"})
-            return nil
-        }
-
-        // Fast-path module namespace calls: `mod.fn(args...)` where `mod` is an import alias.
-        if fn_expr["type"] == "Member" {
-            var nsr2 = native_ns_resolve(ctx, fn_expr)
-            if nsr2 != nil {
-                if nsr2["is_ns"] == true {
-                    native_error(ctx, expr["token"], "native backend: cannot call namespace '" + nsr2["name"] + "'")
-                    push_u32_le(ctx["code"], insn_movz(0, 0))
-                    return nil
+    
+                var i_sp = 0
+                while i_sp < oren_list_len(fixed_args) {
+                    native_compile_expr(ctx, fixed_args[i_sp])
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                    var bl_push_sp = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_sp, "name": "oren_list_push"})
+                    i_sp = i_sp + 1
                 }
-                fn_expr = {"type": "Identifier", "value": nsr2["name"]}
-            }
-        }
-
-        // Indirect call path: callee is an expression (or a variable) that evaluates to a callable object.
-        //
-        // We preserve the fast path for direct symbol calls (Identifier that is not a local/global var).
-        if fn_expr["type"] != "Identifier" {
-            // args_list = oren_new_list(0)
-            push_u32_le(ctx["code"], insn_movz(0, 0))
-            var bl_new_list_ind = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_ind, "name": "oren_new_list"})
-
-            // Save args_list on stack
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            var args_ind = expr["args"]
-            var nargs_ind = oren_list_len(args_ind)
-            var i_ind = 0
-            while i_ind < nargs_ind {
-                native_compile_expr(ctx, args_ind[i_ind])
+    
+                // Save spread_list on stack
+                native_compile_expr(ctx, expr["spread"])
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
-
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
-
-                var bl_push_ind = oren_list_len(ctx["code"])
+    
+                // fn_obj -> X0
+                native_compile_expr(ctx, fn_expr)
+    
+                // Load fixed/spread into X1/X2 and pop stack
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fixed_list
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // spread_list
+                push_u32_le(ctx["code"], insn_add_sp(32))
+                ctx["stack_size"] = ctx["stack_size"] - 32
+    
+                var bl_spread = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_ind, "name": "oren_list_push"})
-                i_ind = i_ind + 1
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_spread, "name": "oren_call_obj_spread"})
+                return true
             }
-
-            // fn_obj -> X0
-            native_compile_expr(ctx, fn_expr)
-
-            // X1 = args_list, pop stack
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Inline `oren_call_obj_list(fn_obj, args_list)` without requiring the symbol to exist.
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = fn_obj
-            // X0 = env_ptr
-            emit_load_ptr_from_base_plus(ctx, 0, 2, 8)
-            // X9 = code_ptr
-            emit_load_ptr_from_base_plus(ctx, 9, 2, 0)
-            push_u32_le(ctx["code"], insn_blr(9))
-            return nil
-        }
-
-        var fn_name = fn_expr["value"]
-        // If the identifier is a local/global, it's a variable call => treat as indirect call.
-        if (ctx["locals"][fn_name] != nil) || (ctx["globals"][fn_name] != nil) {
-            // args_list = oren_new_list(0)
-            push_u32_le(ctx["code"], insn_movz(0, 0))
-            var bl_new_list_ind2 = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_ind2, "name": "oren_new_list"})
-
-            // Save args_list on stack
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            var args_ind2 = expr["args"]
-            var nargs_ind2 = oren_list_len(args_ind2)
-            var i_ind2 = 0
-            while i_ind2 < nargs_ind2 {
-                native_compile_expr(ctx, args_ind2[i_ind2])
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
-
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
-
-                var bl_push_ind2 = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_ind2, "name": "oren_list_push"})
-                i_ind2 = i_ind2 + 1
+    
+            // Fast-path module namespace calls: `mod.fn(args...)` where `mod` is an import alias.
+            if fn_expr["type"] == "Member" {
+                var nsr2 = native_ns_resolve(ctx, fn_expr)
+                if nsr2 != nil {
+                    if nsr2["is_ns"] == true {
+                        native_error(ctx, expr["token"], "native backend: cannot call namespace '" + nsr2["name"] + "'")
+                        push_u32_le(ctx["code"], insn_movz(0, 0))
+                        return true
+                    }
+                    fn_expr = {"type": "Identifier", "value": nsr2["name"]}
+                }
             }
-
-            // fn_obj -> X0 (load from variable)
-            native_compile_expr(ctx, fn_expr)
-
-            // X1 = args_list, pop stack
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Inline `oren_call_obj_list(fn_obj, args_list)`.
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = fn_obj
-            emit_load_ptr_from_base_plus(ctx, 0, 2, 8) // env -> X0
-            emit_load_ptr_from_base_plus(ctx, 9, 2, 0) // code -> X9
-            push_u32_le(ctx["code"], insn_blr(9))
-            return nil
-        }
-
-        // Varargs named functions: lower through the uniform callable-object path so we can
-        // pass variable argument counts deterministically.
-        //
-        // We build an args_list and then inline-call the function object's code pointer.
-        // The function object for `fn_name` points at `__oren_fnwrap_<fn_name>`, which
-        // packs rest args into a list and calls the real function.
-        if ctx["func_varargs_fixed"][fn_name] != nil {
-            // args_list = oren_new_list(0)
-            push_u32_le(ctx["code"], insn_movz(0, 0))
-            var bl_new_list_v = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_v, "name": "oren_new_list"})
-
-            // Save args_list on stack
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            var args_v = expr["args"]
-            var nargs_v = oren_list_len(args_v)
-            var i_v = 0
-            while i_v < nargs_v {
-                native_compile_expr(ctx, args_v[i_v])
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
-
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
-
-                var bl_push_v = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_v, "name": "oren_list_push"})
-                i_v = i_v + 1
-            }
-
-            // fn_obj -> X0
-            native_compile_expr(ctx, fn_expr)
-
-            // X1 = args_list, pop stack
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Inline `oren_call_obj_list(fn_obj, args_list)`.
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = fn_obj
-            emit_load_ptr_from_base_plus(ctx, 0, 2, 8) // env -> X0
-            emit_load_ptr_from_base_plus(ctx, 9, 2, 0) // code -> X9
-            push_u32_le(ctx["code"], insn_blr(9))
-            return nil
-        }
-        if fn_name == "oren_call_obj_list" {
-            // Intrinsic: indirect call through a native function object.
-            // Signature: oren_call_obj_list(fn_obj, args_list) -> value
+    
+            // Indirect call path: callee is an expression (or a variable) that evaluates to a callable object.
             //
-            // Layout (kind=6):
-            //   [0] code_ptr
-            //   [8] env_ptr
-            native_compile_expr(ctx, expr["args"][0]) // fn_obj -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            native_compile_expr(ctx, expr["args"][1]) // args_list -> X0
-
-            // Pop fn_obj -> X2
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // X1 = args_list
-            push_u32_le(ctx["code"], insn_mov_reg(1, 0))
-            // X0 = env_ptr
-            emit_load_ptr_from_base_plus(ctx, 0, 2, 8)
-            // X9 = code_ptr
-            emit_load_ptr_from_base_plus(ctx, 9, 2, 0)
-            // BLR X9
-            push_u32_le(ctx["code"], insn_blr(9))
-            return nil
-        }
-        if fn_name == "simd_add_2d" || fn_name == "simd_sub_2d" || fn_name == "simd_and_2d" || fn_name == "simd_orr_2d" || fn_name == "simd_eor_2d" || fn_name == "simd_mul_4s" {
-            // Compile args
-            native_compile_expr(ctx, expr["args"][0]) // arg0 -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-            
-            native_compile_expr(ctx, expr["args"][1]) // arg1 -> X0
-            
-            // Pop arg0 -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-            
-            // Move X1 -> D0, X0 -> D1
-            push_u32_le(ctx["code"], insn_fmov_d_x(0, 1))
-            push_u32_le(ctx["code"], insn_fmov_d_x(1, 0))
-            
-            // Execute SIMD Op on V0, V1 -> V0
-            if fn_name == "simd_add_2d" { push_u32_le(ctx["code"], insn_add_2d(0, 0, 1)) }
-            if fn_name == "simd_sub_2d" { push_u32_le(ctx["code"], insn_sub_2d(0, 0, 1)) }
-            if fn_name == "simd_and_2d" { push_u32_le(ctx["code"], insn_and_16b(0, 0, 1)) }
-            if fn_name == "simd_orr_2d" { push_u32_le(ctx["code"], insn_orr_16b(0, 0, 1)) }
-            if fn_name == "simd_eor_2d" { push_u32_le(ctx["code"], insn_eor_16b(0, 0, 1)) }
-            if fn_name == "simd_mul_4s" { push_u32_le(ctx["code"], insn_mul_4s(0, 0, 1)) }
-            
-            // Move result D0 -> X0
-            push_u32_le(ctx["code"], insn_umov_d0(0, 0))
-            
-            return nil
-        }
-
-        if fn_name == "simd_dot_i32_ptr" {
-            // Intrinsic: dot product over raw i32 pointers, returning i64 (wrap-around).
-            // Signature: simd_dot_i32_ptr(a_ptr, b_ptr, n) -> i64
-            //
-            // This is a native-backend-only acceleration boundary (arm64 NEON).
-            // It must not depend on libc and must preserve scalar semantics.
-            var args3 = expr["args"]
-            if args3 == nil || oren_list_len(args3) != 3 {
-                native_error(ctx, expr["token"], "native backend: simd_dot_i32_ptr expects 3 arguments")
+            // We preserve the fast path for direct symbol calls (Identifier that is not a local/global var).
+            if fn_expr["type"] != "Identifier" {
+                // args_list = oren_new_list(0)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
-                return nil
+                var bl_new_list_ind = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_ind, "name": "oren_new_list"})
+    
+                // Save args_list on stack
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                var args_ind = expr["args"]
+                var nargs_ind = oren_list_len(args_ind)
+                var i_ind = 0
+                while i_ind < nargs_ind {
+                    native_compile_expr(ctx, args_ind[i_ind])
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                    var bl_push_ind = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_ind, "name": "oren_list_push"})
+                    i_ind = i_ind + 1
+                }
+    
+                // fn_obj -> X0
+                native_compile_expr(ctx, fn_expr)
+    
+                // X1 = args_list, pop stack
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Inline `oren_call_obj_list(fn_obj, args_list)` without requiring the symbol to exist.
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = fn_obj
+                // X0 = env_ptr
+                emit_load_ptr_from_base_plus(ctx, 0, 2, 8)
+                // X9 = code_ptr
+                emit_load_ptr_from_base_plus(ctx, 9, 2, 0)
+                push_u32_le(ctx["code"], insn_blr(9))
+                return true
             }
-
-            // Compile args: a_ptr, b_ptr, n
-            native_compile_expr(ctx, args3[0]) // a_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            native_compile_expr(ctx, args3[1]) // b_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-
-            native_compile_expr(ctx, args3[2]) // n -> X0
-
-            // Pop b_ptr -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop a_ptr -> X2
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Register assignment:
-            //   X3 = a_ptr
-            //   X4 = b_ptr
-            //   X2 = n
-            push_u32_le(ctx["code"], insn_mov_reg(3, 2))
-            push_u32_le(ctx["code"], insn_mov_reg(4, 1))
-            push_u32_le(ctx["code"], insn_mov_reg(2, 0))
-
-            // X0 = 0 accumulator
-            push_u32_le(ctx["code"], insn_movz(0, 0))
-
-            // V4.2D = 0 (duplicate X0 into both lanes)
-            push_u32_le(ctx["code"], insn_dup_2d(4, 0))
-
-            // X5 = n / 4 (vector groups of 4 i32s)
-            push_u32_le(ctx["code"], insn_mov_reg(5, 2))
-            push_u32_le(ctx["code"], insn_movz(6, 2))         // X6 = 2
-            push_u32_le(ctx["code"], insn_lsrv(5, 5, 6))       // X5 = X5 >> 2
-            push_u32_le(ctx["code"], insn_mov_reg(7, 5))       // X7 = groups (save for remainder)
-
-            // If groups == 0, skip vector loop.
-            push_u32_le(ctx["code"], insn_cmp_reg(5, 31))      // CMP X5, XZR
-            var br_skip_vec = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-
-            var vec_loop = oren_list_len(ctx["code"])
-            // Load 16 bytes (4x i32) from each pointer.
-            push_u32_le(ctx["code"], insn_ldr_q(0, 3))         // Q0 = *(u128*)a_ptr
-            push_u32_le(ctx["code"], insn_ldr_q(1, 4))         // Q1 = *(u128*)b_ptr
-            push_u32_le(ctx["code"], insn_add_imm(3, 3, 16))   // a_ptr += 16
-            push_u32_le(ctx["code"], insn_add_imm(4, 4, 16))   // b_ptr += 16
-
-            // Multiply-accumulate:
-            //   smull  v2.2d, v0.2s, v1.2s
-            //   smull2 v3.2d, v0.4s, v1.4s
-            //   v2 += v3
-            //   v4 += v2
-            push_u32_le(ctx["code"], insn_smull_2d(2, 0, 1))
-            push_u32_le(ctx["code"], insn_smull2_2d(3, 0, 1))
-            push_u32_le(ctx["code"], insn_add_2d(2, 2, 3))
-            push_u32_le(ctx["code"], insn_add_2d(4, 4, 2))
-
-            // groups--
-            push_u32_le(ctx["code"], insn_sub_imm(5, 5, 1))
-            push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
-            var br_vec_loop = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-
-            var vec_end = oren_list_len(ctx["code"])
-            set_u32_le(ctx["code"], br_skip_vec, insn_b_cond((vec_end - br_skip_vec) / 4, 0)) // EQ
-            set_u32_le(ctx["code"], br_vec_loop, insn_b_cond((vec_loop - br_vec_loop) / 4, 1)) // NE
-
-            // Reduce V4.2D -> X0:
-            //   addp v4.2d, v4.2d, v4.2d
-            //   umov x0, v4.d[0]
-            push_u32_le(ctx["code"], insn_addp_2d(4, 4, 4))
-            push_u32_le(ctx["code"], insn_umov_x_d(0, 4))
-
-            // Remainder count: n - (groups_saved * 4)
-            //
-            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
-            // to keep tail handling robust if variable-shift encoding changes.
-            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 2
-            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 4
-            push_u32_le(ctx["code"], insn_sub_reg(2, 2, 7))    // X2 = rem
-
-            // If rem == 0, done.
-            push_u32_le(ctx["code"], insn_cmp_reg(2, 31))
-            var br_done = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-
-            // Scalar tail loop (sign-extended i32 loads).
-            var tail_loop = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], insn_ldrsw(9, 3, 0))       // X9 = (i64)*(i32*)a_ptr
-            push_u32_le(ctx["code"], insn_add_imm(3, 3, 4))
-            push_u32_le(ctx["code"], insn_ldrsw(10, 4, 0))      // X10 = (i64)*(i32*)b_ptr
-            push_u32_le(ctx["code"], insn_add_imm(4, 4, 4))
-            push_u32_le(ctx["code"], insn_mul(9, 9, 10))
-            push_u32_le(ctx["code"], insn_add_reg(0, 0, 9))
-            push_u32_le(ctx["code"], insn_sub_imm(2, 2, 1))
-            push_u32_le(ctx["code"], insn_cmp_reg(2, 31))
-            var br_tail = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-
-            var done_pos = oren_list_len(ctx["code"])
-            set_u32_le(ctx["code"], br_done, insn_b_cond((done_pos - br_done) / 4, 0)) // EQ
-            set_u32_le(ctx["code"], br_tail, insn_b_cond((tail_loop - br_tail) / 4, 1)) // NE
-
-            return nil
-        }
-
-        if fn_name == "simd_dot_i32_4_ptr" {
-            // Intrinsic: 1x4 i32 dot microkernel over raw pointers, writing 4 i64 results to out_ptr.
-            // Signature: simd_dot_i32_4_ptr(out_ptr, a_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) -> out_ptr
-            //
-            // Semantics:
-            // - sign-extend i32 lanes to i64 for multiplication
-            // - accumulate with i64 two's-complement wrap-around (native CPU semantics)
-            //
-            // Determinism:
-            // - integer wrap arithmetic is associative in Z/2^64, so SIMD reassociation is safe
-            // - still keep scalar tail correct for non-multiple-of-4 lengths
-            var args7 = expr["args"]
-            if args7 == nil || oren_list_len(args7) != 7 {
-                native_error(ctx, expr["token"], "native backend: simd_dot_i32_4_ptr expects 7 arguments")
+    
+            var fn_name = fn_expr["value"]
+            // If the identifier is a local/global, it's a variable call => treat as indirect call.
+            if (ctx["locals"][fn_name] != nil) || (ctx["globals"][fn_name] != nil) {
+                // args_list = oren_new_list(0)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
-                return nil
+                var bl_new_list_ind2 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_ind2, "name": "oren_new_list"})
+    
+                // Save args_list on stack
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                var args_ind2 = expr["args"]
+                var nargs_ind2 = oren_list_len(args_ind2)
+                var i_ind2 = 0
+                while i_ind2 < nargs_ind2 {
+                    native_compile_expr(ctx, args_ind2[i_ind2])
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                    var bl_push_ind2 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_ind2, "name": "oren_list_push"})
+                    i_ind2 = i_ind2 + 1
+                }
+    
+                // fn_obj -> X0 (load from variable)
+                native_compile_expr(ctx, fn_expr)
+    
+                // X1 = args_list, pop stack
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Inline `oren_call_obj_list(fn_obj, args_list)`.
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = fn_obj
+                emit_load_ptr_from_base_plus(ctx, 0, 2, 8) // env -> X0
+                emit_load_ptr_from_base_plus(ctx, 9, 2, 0) // code -> X9
+                push_u32_le(ctx["code"], insn_blr(9))
+                return true
             }
+    
+            // Varargs named functions: lower through the uniform callable-object path so we can
+            // pass variable argument counts deterministically.
+            //
+            // We build an args_list and then inline-call the function object's code pointer.
+            // The function object for `fn_name` points at `__oren_fnwrap_<fn_name>`, which
+            // packs rest args into a list and calls the real function.
+            if ctx["func_varargs_fixed"][fn_name] != nil {
+                // args_list = oren_new_list(0)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var bl_new_list_v = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_v, "name": "oren_new_list"})
+    
+                // Save args_list on stack
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                var args_v = expr["args"]
+                var nargs_v = oren_list_len(args_v)
+                var i_v = 0
+                while i_v < nargs_v {
+                    native_compile_expr(ctx, args_v[i_v])
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16))
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                    var bl_push_v = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_v, "name": "oren_list_push"})
+                    i_v = i_v + 1
+                }
+    
+                // fn_obj -> X0
+                native_compile_expr(ctx, fn_expr)
+    
+                // X1 = args_list, pop stack
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+    
+                // Inline `oren_call_obj_list(fn_obj, args_list)`.
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = fn_obj
+                emit_load_ptr_from_base_plus(ctx, 0, 2, 8) // env -> X0
+                emit_load_ptr_from_base_plus(ctx, 9, 2, 0) // code -> X9
+                push_u32_le(ctx["code"], insn_blr(9))
+                return true
+            }
+    
 
-            // Compile args: out_ptr, a_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n
-            native_compile_expr(ctx, args7[0]) // out_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+    var args = expr["args"]
 
-            native_compile_expr(ctx, args7[1]) // a_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+    if native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) { return true }
+    if native_call_chunk_040_lowering_d(ctx, fn_name, expr, args) { return true }
+    if native_call_chunk_050_lowering_e(ctx, fn_name, expr, args) { return true }
+    if native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) { return true }
+    if native_call_chunk_070_lowering_g(ctx, fn_name, expr, args) { return true }
+    if native_call_chunk_080_lowering_h(ctx, fn_name, expr, args) { return true }
+    if native_call_chunk_090_tail(ctx, fn_name, expr, args) { return true }
 
-            native_compile_expr(ctx, args7[2]) // b0_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
 
-            native_compile_expr(ctx, args7[3]) // b1_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+    // Generic call
+    var nargs = oren_list_len(args)
+    var i = 0
 
-            native_compile_expr(ctx, args7[4]) // b2_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+    // Push args
+    while i < nargs {
+        native_compile_expr(ctx, args[i])
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        i = i + 1
+    }
 
-            native_compile_expr(ctx, args7[5]) // b3_ptr -> X0
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+    // Native calling convention hardening (AAPCS64):
+    // - X0..X7 hold the first 8 args
+    // - args 8+ are passed on the stack as 8-byte slots at [SP + 0..]
+    //
+    // Our temporary arg-eval stack uses 16-byte slots. Convert into ABI form.
+    //
+    // Save the current SP (points at arg[nargs-1] temporary slot) in X9.
+    push_u32_le(ctx["code"], insn_add_imm(9, 31, 0)) // X9 = SP (temp args base)
 
-            native_compile_expr(ctx, args7[6]) // n -> X0
+    var stack_arg_count = 0
+    if nargs > 8 { stack_arg_count = nargs - 8 }
+    var abi_stack_bytes = align_up(stack_arg_count * 8, 16)
+    if abi_stack_bytes > 0 {
+        emit_sub_sp_any(ctx, abi_stack_bytes)
+        ctx["stack_size"] = ctx["stack_size"] + abi_stack_bytes
 
-            // Pop b3_ptr -> X1
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+        // Copy arg[8..] into ABI stack area at [SP + k*8].
+        var k = 0
+        while k < stack_arg_count {
+            var arg_idx = 8 + k
+            var src_off = (nargs - 1 - arg_idx) * 16
+            emit_load_ptr_from_base_plus(ctx, 10, 9, src_off) // X10 = arg[arg_idx]
+            emit_str_reg_sp_any(ctx, 10, k * 8)
+            k = k + 1
+        }
+    }
 
-            // Pop b2_ptr -> X2
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+    // Load X0..X7 from the temporary stack (do not destroy the ABI stack args).
+    var reg_arg_count = nargs
+    if reg_arg_count > 8 { reg_arg_count = 8 }
+    var r = 0
+    while r < reg_arg_count {
+        var src_off2 = (nargs - 1 - r) * 16
+        emit_load_ptr_from_base_plus(ctx, r, 9, src_off2)
+        r = r + 1
+    }
 
-            // Pop b1_ptr -> X3
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+    // BL
+    var bl_pos = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": fn_name})
 
-            // Pop b0_ptr -> X4
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
+    // Clean up: pop ABI stack args area and the temporary arg-eval slots.
+    var cleanup = abi_stack_bytes + nargs * 16
+    if cleanup > 0 {
+        emit_add_sp_any(ctx, cleanup)
+        ctx["stack_size"] = ctx["stack_size"] - cleanup
+    }
 
-            // Pop a_ptr -> X5
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Pop out_ptr -> X6
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(6, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-
-            // Preserve inputs:
-            // - X7 = n (from compiled X0)
-            // - X0 = out_ptr (return value)
-            push_u32_le(ctx["code"], insn_mov_reg(7, 0)) // X7 = n
-            push_u32_le(ctx["code"], insn_mov_reg(0, 6)) // X0 = out_ptr
-
-            // Zero register for vector init.
-            push_u32_le(ctx["code"], insn_movz(19, 0))
-
-            // Accumulators: V12..V15 (2D lanes) = 0
-            push_u32_le(ctx["code"], insn_dup_2d(12, 19))
-            push_u32_le(ctx["code"], insn_dup_2d(13, 19))
-            push_u32_le(ctx["code"], insn_dup_2d(14, 19))
-            push_u32_le(ctx["code"], insn_dup_2d(15, 19))
-
-            // X8 = groups = n>>2, X9 = shift(2), X10 = groups_saved
-            push_u32_le(ctx["code"], insn_mov_reg(8, 7))
-            push_u32_le(ctx["code"], insn_movz(9, 2))
-            push_u32_le(ctx["code"], insn_lsrv(8, 8, 9))
-            push_u32_le(ctx["code"], insn_mov_reg(10, 8))
-
-            // If groups == 0, skip vector loop.
-            push_u32_le(ctx["code"], insn_cmp_reg(8, 31))
-            var br_skip_vec4i = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-
-            var vec_loop4i = oren_list_len(ctx["code"])
-            // Load A (4x i32) once.
-            push_u32_le(ctx["code"], insn_ldr_q(0, 5))
-            push_u32_le(ctx["code"], insn_add_imm(5, 5, 16))
-
-            // b0 -> V12
-            push_u32_le(ctx["code"], insn_ldr_q(1, 4))
-            push_u32_le(ctx["code"], insn_add_imm(4, 4, 16))
-            push_u32_le(ctx["code"], insn_smull_2d(2, 0, 1))
-            push_u32_le(ctx["code"], insn_smull2_2d(3, 0, 1))
-            push_u32_le(ctx["code"], insn_add_2d(2, 2, 3))
-            push_u32_le(ctx["code"], insn_add_2d(12, 12, 2))
-
-            // b1 -> V13
-            push_u32_le(ctx["code"], insn_ldr_q(1, 3))
-            push_u32_le(ctx["code"], insn_add_imm(3, 3, 16))
-            push_u32_le(ctx["code"], insn_smull_2d(2, 0, 1))
-            push_u32_le(ctx["code"], insn_smull2_2d(3, 0, 1))
-            push_u32_le(ctx["code"], insn_add_2d(2, 2, 3))
-            push_u32_le(ctx["code"], insn_add_2d(13, 13, 2))
-
-            // b2 -> V14
-            push_u32_le(ctx["code"], insn_ldr_q(1, 2))
-            push_u32_le(ctx["code"], insn_add_imm(2, 2, 16))
-            push_u32_le(ctx["code"], insn_smull_2d(2, 0, 1))
-            push_u32_le(ctx["code"], insn_smull2_2d(3, 0, 1))
-            push_u32_le(ctx["code"], insn_add_2d(2, 2, 3))
-            push_u32_le(ctx["code"], insn_add_2d(14, 14, 2))
-
-            // b3 -> V15
-            push_u32_le(ctx["code"], insn_ldr_q(1, 1))
-            push_u32_le(ctx["code"], insn_add_imm(1, 1, 16))
-            push_u32_le(ctx["code"], insn_smull_2d(2, 0, 1))
-            push_u32_le(ctx["code"], insn_smull2_2d(3, 0, 1))
-            push_u32_le(ctx["code"], insn_add_2d(2, 2, 3))
-            push_u32_le(ctx["code"], insn_add_2d(15, 15, 2))
-
-            // groups--
-            push_u32_le(ctx["code"], insn_sub_imm(8, 8, 1))
-            push_u32_le(ctx["code"], insn_cmp_reg(8, 31))
-            var br_vec_loop4i_b = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-
-            var vec_end4i = oren_list_len(ctx["code"])
-            set_u32_le(ctx["code"], br_skip_vec4i, insn_b_cond((vec_end4i - br_skip_vec4i) / 4, 0)) // EQ
-            set_u32_le(ctx["code"], br_vec_loop4i_b, insn_b_cond((vec_loop4i - br_vec_loop4i_b) / 4, 1)) // NE
+    return true
+}

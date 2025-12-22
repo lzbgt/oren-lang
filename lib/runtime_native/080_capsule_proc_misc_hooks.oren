@@ -252,6 +252,18 @@ fn native_capsule_sys_clone_pre() {
     return 0
 }
 
+fn native_capsule_sys_mmap_private_anon_pre(len) {
+    // Anonymous mmap is used by the allocator and the AVM; capsule mode does not currently
+    // gate memory mapping. This hook exists as a stable boundary for future resource policies
+    // (e.g. max mapped bytes) without changing syscall lowering shape.
+    return len
+}
+
+fn native_capsule_sys_munmap_pre(addr, len) {
+    // Placeholder hook for future resource policies. Intentionally does not gate today.
+    return 0
+}
+
 fn native_capsule_sys_bsdthread_register_pre() {
     // bsdthread_register initializes the OS thread substrate; treat it as PROC-domain in capsule mode.
     native_capsule_require(CAP_PROC, "PROC")
@@ -405,4 +417,3 @@ fn native_capsule_sys_kill_pre(pid, signum) {
     }
     return 0
 }
-
