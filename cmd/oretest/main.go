@@ -129,6 +129,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "repo style audit failed:", err)
 		os.Exit(1)
 	}
+	if err := auditIncludeChunkCoherence(); err != nil {
+		fmt.Fprintln(os.Stderr, "include chunk audit failed:", err)
+		os.Exit(1)
+	}
 
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
@@ -3109,6 +3113,189 @@ func auditRepoModernStyle() error {
 		return fmt.Errorf("repo style violations:\n%s", strings.Join(offenders, "\n"))
 	}
 	return nil
+}
+
+func auditIncludeChunkCoherence() error {
+	// Purpose: prevent `// @include`-based Oren sources from splitting mid-block,
+	// which makes individual include chunks unreadable and prone to context overflow.
+	//
+	// This is a cheap static scan: it does not parse Oren fully; it just checks per-file
+	// brace balance while ignoring braces inside string literals and line comments.
+	type fileStat struct {
+		path string
+		bal  int
+		min  int
+	}
+	type rootResult struct {
+		root  string
+		stats []fileStat
+		miss  []string
+	}
+
+	// Find roots: any `.oren` file under `lib/` containing a `// @include "..."` directive.
+	var roots []string
+	err := filepath.WalkDir(filepath.Join("lib"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".oren") {
+			return nil
+		}
+		b, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		if bytes.Contains(b, []byte("// @include \"")) {
+			roots = append(roots, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	sort.Strings(roots)
+	if len(roots) == 0 {
+		return nil
+	}
+
+	visited := map[string]bool{}
+	var offenders []string
+	var allMissing []string
+
+	for _, root := range roots {
+		// Traverse include tree (relative to the including file's directory).
+		var stack []string
+		stack = append(stack, root)
+		var missing []string
+		var stats []fileStat
+
+		for len(stack) > 0 {
+			cur := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			cur = filepath.Clean(cur)
+			if visited[cur] {
+				continue
+			}
+			visited[cur] = true
+
+			b, rerr := os.ReadFile(cur)
+			if rerr != nil {
+				// If we can't read a root, hard fail; otherwise record missing include.
+				missing = append(missing, fmt.Sprintf("%s (read error: %v)", cur, rerr))
+				continue
+			}
+
+			bal, min := braceBalanceOren(b)
+			stats = append(stats, fileStat{path: cur, bal: bal, min: min})
+			if bal != 0 || min < 0 {
+				offenders = append(offenders, fmt.Sprintf("%s: unbalanced braces (bal=%d, min=%d) under root %s", cur, bal, min, root))
+			}
+
+			// Parse include directives for recursion.
+			dir := filepath.Dir(cur)
+			lines := strings.Split(string(b), "\n")
+			for _, line := range lines {
+				trim := strings.TrimSpace(line)
+				if !strings.HasPrefix(trim, "// @include \"") {
+					continue
+				}
+				rest := strings.TrimPrefix(trim, "// @include \"")
+				q := strings.IndexByte(rest, '"')
+				if q < 0 {
+					continue
+				}
+				rel := rest[:q]
+				next := filepath.Clean(filepath.Join(dir, rel))
+				if _, err := os.Stat(next); err != nil {
+					missing = append(missing, fmt.Sprintf("%s includes missing %s", cur, next))
+					continue
+				}
+				stack = append(stack, next)
+			}
+		}
+
+		// If includes are missing, report them (but keep output bounded).
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			allMissing = append(allMissing, missing...)
+		}
+	}
+
+	if len(allMissing) > 0 {
+		sort.Strings(allMissing)
+		if len(allMissing) > 30 {
+			allMissing = append(allMissing[:30], fmt.Sprintf("... (%d more)", len(allMissing)-30))
+		}
+		return fmt.Errorf("include chunk missing files:\n%s", strings.Join(allMissing, "\n"))
+	}
+
+	if len(offenders) > 0 {
+		sort.Strings(offenders)
+		if len(offenders) > 30 {
+			offenders = append(offenders[:30], fmt.Sprintf("... (%d more)", len(offenders)-30))
+		}
+		return fmt.Errorf("include chunk coherence violations:\n%s", strings.Join(offenders, "\n"))
+	}
+
+	return nil
+}
+
+func braceBalanceOren(src []byte) (bal int, min int) {
+	// Heuristic scanner:
+	// - ignores braces inside double-quoted string literals
+	// - ignores braces after `//` comment starts (when not in a string)
+	inString := false
+	escape := false
+	min = 0
+	for i := 0; i < len(src); i++ {
+		ch := src[i]
+
+		if inString {
+			if escape {
+				escape = false
+				continue
+			}
+			if ch == '\\' {
+				escape = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+
+		// Line comment
+		if ch == '/' && i+1 < len(src) && src[i+1] == '/' {
+			// Skip to end of line (or EOF).
+			for i < len(src) && src[i] != '\n' {
+				i++
+			}
+			continue
+		}
+
+		if ch == '"' {
+			inString = true
+			escape = false
+			continue
+		}
+
+		if ch == '{' {
+			bal++
+			continue
+		}
+		if ch == '}' {
+			bal--
+			if bal < min {
+				min = bal
+			}
+			continue
+		}
+	}
+	return bal, min
 }
 
 func parseSyscallBlocks(src string) []syscallBlock {

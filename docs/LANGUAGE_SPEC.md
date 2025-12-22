@@ -72,7 +72,7 @@ short_var_stmt  = ident ":=" expression [ ";" ] ;
 typed_short_var_stmt = ident ":" type_name ":=" expression [ ";" ] ;
 return_stmt     = "return" expression [ ";" ] ;
 while_stmt      = "while" expression block ;
-for_stmt        = "for" [ for_header ] block ;
+for_stmt        = "for" [ for_in_header | for_header ] block ;
 switch_stmt     = "switch" expression "{" { case_clause } [ default_clause ] "}" ;
 match_stmt      = "match" expression "{" { match_case } [ match_default ] "}" ;
 case_clause     = "case" expression { "," expression } [ ":" ] block ;
@@ -94,6 +94,7 @@ expr_stmt       = expression [ ";" ] ;
 
 for_header      = expression
                 | [ for_init ] ";" [ expression ] ";" [ for_post ] ;
+for_in_header   = ident [ ":" type_name ] "in" expression ;
 for_init        = var_stmt_no_semi
                 | short_var_stmt_no_semi
                 | typed_short_var_stmt_no_semi
