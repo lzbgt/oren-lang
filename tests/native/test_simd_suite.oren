@@ -519,6 +519,73 @@ fn run_dot_f32_4_ptr_intrinsic_tail_fractional() {
     return 0
 }
 
+fn run_dot_f32_4_ptr_intrinsic_large_n() {
+    // Large-n determinism check for `simd_dot_f32_4_ptr` (native backend).
+    var n = 4097 // intentionally not divisible by 4
+    var a = oren_f32_buf_new(n)
+    var b = oren_f32_buf_new(4 * n)
+    var out = oren_f64_buf_new(4)
+    if oren_is_err(a) { return fail(449, "alloc a (f32 dot4 intrinsic large)") }
+    if oren_is_err(b) { return fail(450, "alloc b (f32 dot4 intrinsic large)") }
+    if oren_is_err(out) { return fail(451, "alloc out (f32 dot4 intrinsic large)") }
+
+    var i = 0
+    while i < n {
+        var av = (f64(i % 251) - 123.0) * 0.0078125 + 0.001
+        var b0 = (f64((i * 3) % 239) - 119.0) * 0.00390625 - 0.002
+        var b1 = (f64((i * 5) % 233) - 116.0) * 0.002 + 0.0005
+        var b2 = (f64((i * 7) % 229) - 114.0) * 0.001953125 - 0.0007
+        var b3 = (f64((i * 11) % 227) - 113.0) * 0.0009765625 + 0.0003
+        oren_buf_store_f32(a, i, av)
+        oren_buf_store_f32(b, 0 * n + i, b0)
+        oren_buf_store_f32(b, 1 * n + i, b1)
+        oren_buf_store_f32(b, 2 * n + i, b2)
+        oren_buf_store_f32(b, 3 * n + i, b3)
+        i = i + 1
+    }
+
+    // Reference (strict k-order).
+    var ref0 = 0.0
+    var ref1 = 0.0
+    var ref2 = 0.0
+    var ref3 = 0.0
+    i = 0
+    while i < n {
+        var aa = oren_buf_load_f32(a, i)
+        ref0 = ref0 + aa * oren_buf_load_f32(b, 0 * n + i)
+        ref1 = ref1 + aa * oren_buf_load_f32(b, 1 * n + i)
+        ref2 = ref2 + aa * oren_buf_load_f32(b, 2 * n + i)
+        ref3 = ref3 + aa * oren_buf_load_f32(b, 3 * n + i)
+        i = i + 1
+    }
+
+    var outp = native_buf_data_ptr(out)
+    var pa = native_buf_data_ptr(a)
+    var pb0 = native_buf_data_ptr(b) + 0 * n * 4
+    var pb1 = native_buf_data_ptr(b) + 1 * n * 4
+    var pb2 = native_buf_data_ptr(b) + 2 * n * 4
+    var pb3 = native_buf_data_ptr(b) + 3 * n * 4
+    simd_dot_f32_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
+
+    var ref0_bits = oren_f64_to_u64_bits(ref0)
+    var ref1_bits = oren_f64_to_u64_bits(ref1)
+    var ref2_bits = oren_f64_to_u64_bits(ref2)
+    var ref3_bits = oren_f64_to_u64_bits(ref3)
+    var got0_bits = f64_bits_at(out, 0)
+    var got1_bits = f64_bits_at(out, 1)
+    var got2_bits = f64_bits_at(out, 2)
+    var got3_bits = f64_bits_at(out, 3)
+    if ref0_bits != got0_bits {
+        print("DOT_F32_4_INTR_LARGE_REF0_BITS=" + oren_int_to_string(ref0_bits))
+        print("DOT_F32_4_INTR_LARGE_GOT0_BITS=" + oren_int_to_string(got0_bits))
+        return fail(452, "dot4 mismatch (f32 intrinsic large) [0]")
+    }
+    if ref1_bits != got1_bits { return fail(453, "dot4 mismatch (f32 intrinsic large) [1]") }
+    if ref2_bits != got2_bits { return fail(454, "dot4 mismatch (f32 intrinsic large) [2]") }
+    if ref3_bits != got3_bits { return fail(455, "dot4 mismatch (f32 intrinsic large) [3]") }
+    return 0
+}
+
 fn run_dot_f32_4_microkernel() {
     // 1x4 dot microkernel boundary for f32: compute 4 dot products at once into an f64 buffer.
     var n = 256
@@ -1324,6 +1391,7 @@ fn main() {
     if run_dot_f32_ptr_intrinsic_nan_inf() != 0 { return 1 }
     if run_dot_f32_ptr_intrinsic_large_n() != 0 { return 1 }
     if run_dot_f32_4_ptr_intrinsic_tail_fractional() != 0 { return 1 }
+    if run_dot_f32_4_ptr_intrinsic_large_n() != 0 { return 1 }
     if run_dot_f32_4_microkernel() != 0 { return 1 }
     if run_dot_f64_4_microkernel() != 0 { return 1 }
     if run_gemm_f32_4x4_microkernel() != 0 { return 1 }
