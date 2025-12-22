@@ -372,6 +372,163 @@ fn render_help(p, cmd_name) {
     return out
 }
 
+fn _json_escape(s) {
+    if s == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var c = oren_string_char_at(s, i)
+        if c == "\\" { out = out + "\\\\"; i = i + 1; continue }
+        if c == "\"" { out = out + "\\\""; i = i + 1; continue }
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
+fn _json_str(s) { return "\"" + _json_escape(s) + "\"" }
+
+fn render_help_json(p, cmd_name) {
+    // Machine-readable help for tooling: stable ordering, no implicit global state.
+    //
+    // Schema (rolling):
+    // {
+    //   "name": "<prog>",
+    //   "desc": "<desc>",
+    //   "cmd": "<cmd|''>",
+    //   "usage": "<usage line>",
+    //   "commands": [{"name":"...", "desc":"..."}],
+    //   "options": [{"kind":"flag|count|string|int", "long":"--x", "short":"-x", "help":"...", "default":..., "required":bool, "multiple":bool}],
+    //   "positionals": [{"name":"file", "required":bool, "help":"..."}]
+    // }
+    var cmd = nil
+    if cmd_name != nil && !_streq(cmd_name, "") {
+        cmd = _find_cmd(p, cmd_name)
+        if cmd == nil { cmd = p["root"] }
+    } else {
+        cmd = p["root"]
+        cmd_name = ""
+    }
+
+    var out = "{"
+    out = out + "\"name\":" + _json_str(p["name"]) + ","
+    out = out + "\"desc\":" + _json_str(p["desc"]) + ","
+    out = out + "\"cmd\":" + _json_str(cmd_name) + ","
+    out = out + "\"usage\":" + _json_str(_render_command_usage_line(p, cmd)) + ","
+
+    // Commands list only at root.
+    out = out + "\"commands\":["
+    if cmd == p["root"] && p["commands"] != nil {
+        var ci = 0
+        while ci < list.len(p["commands"]) {
+            var c = p["commands"][ci]
+            if ci != 0 { out = out + "," }
+            out = out + "{"
+            out = out + "\"name\":" + _json_str(c["name"]) + ","
+            out = out + "\"desc\":" + _json_str(c["desc"])
+            out = out + "}"
+            ci = ci + 1
+        }
+    }
+    out = out + "],"
+
+    // Options (stable order).
+    out = out + "\"options\":["
+    if cmd != nil && cmd["options"] != nil {
+        var oi = 0
+        while oi < list.len(cmd["options"]) {
+            var o = cmd["options"][oi]
+            if oi != 0 { out = out + "," }
+            var kind = o[0]
+            var kind_s = "flag"
+            if kind == 2 { kind_s = "string" }
+            if kind == 3 { kind_s = "int" }
+            if kind == 4 { kind_s = "count" }
+            var req = false
+            var multiple = false
+            if list.len(o) >= 6 { req = o[5] }
+            if list.len(o) >= 7 { multiple = o[6] }
+
+            out = out + "{"
+            out = out + "\"kind\":" + _json_str(kind_s) + ","
+            out = out + "\"long\":" + _json_str(o[1]) + ","
+            out = out + "\"short\":" + _json_str(o[2]) + ","
+            out = out + "\"help\":" + _json_str(o[3]) + ","
+
+            // Default value (kept simple and deterministic):
+            // - flags: true/false/null
+            // - int/count: number or null
+            // - string: string or null
+            // - multiple: [] (even when default is nil)
+            out = out + "\"default\":"
+            if multiple {
+                out = out + "[]"
+            } else {
+                var defv = o[4]
+                if defv == nil {
+                    out = out + "null"
+                } else {
+                    if kind == 1 {
+                        if defv == true { out = out + "true" }
+                        else {
+                            if defv == false { out = out + "false" }
+                            else { out = out + "null" }
+                        }
+                    } else {
+                        if kind == 3 || kind == 4 {
+                            out = out + oren_int_to_string(defv)
+                        } else {
+                            out = out + _json_str(defv)
+                        }
+                    }
+                }
+            }
+
+            var req_s = "false"
+            if req { req_s = "true" }
+            var multi_s = "false"
+            if multiple { multi_s = "true" }
+            out = out + ",\"required\":" + req_s
+            out = out + ",\"multiple\":" + multi_s
+            out = out + "}"
+            oi = oi + 1
+        }
+    }
+    out = out + "],"
+
+    // Positionals.
+    out = out + "\"positionals\":["
+    if cmd != nil && cmd["positionals"] != nil {
+        var pi = 0
+        while pi < list.len(cmd["positionals"]) {
+            var pos = cmd["positionals"][pi]
+            if pi != 0 { out = out + "," }
+            out = out + "{"
+            out = out + "\"name\":" + _json_str(pos[0]) + ","
+            var preq_s = "false"
+            if pos[1] { preq_s = "true" }
+            out = out + "\"required\":" + preq_s + ","
+            out = out + "\"help\":" + _json_str(pos[2])
+            out = out + "}"
+            pi = pi + 1
+        }
+    }
+    out = out + "]"
+
+    out = out + "}"
+    return out
+}
+
+fn _render_help_with_format(p, cmd_name, fmt) {
+    if fmt == nil || fmt == "" { return render_help(p, cmd_name) }
+    if fmt == "json" { return render_help_json(p, cmd_name) }
+    // Unknown format: default to text (rolling).
+    return render_help(p, cmd_name)
+}
+
 fn _tokenize_short(tok) {
     // Classify a non-long token starting with '-' (but not '--').
     // Returns:
@@ -464,7 +621,8 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
             if _streq(key, "help") {
                 res["ok"] = false
                 res["code"] = 0
-                res["help"] = render_help(p, cmd_name)
+                // Support `--help=json` for machine-readable output.
+                res["help"] = _render_help_with_format(p, cmd_name, value_inline)
                 res["err"] = nil
                 return {"ok": false, "res": res}
             }
@@ -564,7 +722,8 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
     if _streq(key0, "help") {
         res["ok"] = false
         res["code"] = 0
-        res["help"] = render_help(p, cmd_name)
+        // Support `-hjson` and `-h=json` (rewritten earlier into `-hjson`).
+        res["help"] = _render_help_with_format(p, cmd_name, tail)
         res["err"] = nil
         return {"ok": false, "res": res}
     }

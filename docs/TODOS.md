@@ -51,7 +51,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: removed remaining manual argv scanning in the compiler driver; options for `build/meta/dump` now come directly from parsed argparse results (less duplication, fewer edge cases).
    - Status: removed the remaining “normalize to legacy argv” layer; compiler now dispatches directly from argparse parse results (single source of truth).
    - Status: added click-style extras: `--no-<flag>` negation for bool flags, counted flags (`cmd_flag_count`, supports `-vvv`), required options (`cmd_option_required`), and `all_opts` merged view (`root_opts + opts`).
-   - Next: polish UX parity (error messages, help text consistency, richer subcommands), then add a machine-readable `--help=json` for tooling.
+   - Status: added machine-readable `--help=json` output (also supports `-h=json` / `-hjson`) and oretest regressions.
+   - Next: polish UX parity (error messages, help text consistency, richer subcommands), then add `--version` and shell completion.
 
 6) **ARM64 instruction encoder audit** (S)
     - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).
@@ -116,8 +117,9 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: native backend can now build the compiler itself: `./oren build oren.oren --backend native --target macos -o build/oren_stage2_native` (required native runtime subset filled: `oren_string_to_float_bits`, `oren_sha256_range`, `oren_chmod`, `oren_env`).
    - Status: native self-host gate validates that the Stage2 native compiler binary is buildable + runs `selftest-native` (fast runtime surface check; no compiler pipelines), because Stage2(native) `dump graph` / `meta` are still too slow to be a reliable CI gate.
    - Status: bytecode backend now rejects assignment to undeclared vars deterministically (aligns native/bytecode semantics; prevents AVM verifier stack mismatches).
-   - Next: define and freeze a “bootstrap subset” (syntax + stdlib surface) that Stage0 must support; treat changes as high-risk and gate them.
-   - Next: fix Stage1→Stage2 C-backend rebuild OOM risk (clang compiling a giant single-TU generated C file can be SIGKILL on dev machines); likely needs multi-TU emission or smaller generated C.
+    - Next: define and freeze a “bootstrap subset” (syntax + stdlib surface) that Stage0 must support; treat changes as high-risk and gate them.
+    - Next: align Stage0 bootstrap parser with rolling syntax sugar (notably `else if` chains) so stdlib/compiler sources don’t need bootstrap-driven style constraints.
+    - Next: fix Stage1→Stage2 C-backend rebuild OOM risk (clang compiling a giant single-TU generated C file can be SIGKILL on dev machines); likely needs multi-TU emission or smaller generated C.
    - Next: expand `oren selftest-native` coverage (map/string/sha256/env/args) as runtime primitives stabilize; then re-enable `meta --deterministic` (and eventually `dump graph`) behind env toggles once performance is acceptable.
    - Next: optimize `oren_sha256_range` hot path (it can dominate wall time during native builds); consider a typed-buffer implementation and/or a microkernel-assisted path while preserving determinism.
 

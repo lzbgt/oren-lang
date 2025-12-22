@@ -1067,24 +1067,36 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/unknown_backend"},
 		},
-		{
-			name: "build_cli_modern_equals_and_ordering",
-			cmd: fmt.Sprintf(
-				"./oren build --backend=native --target=%s --out=%q %q%s",
-				*target,
-				"build/cli_modern_eq",
-				"tests/native/fixtures/struct_field_assign_ok.oren",
-				gcArg,
-			),
-			log:     "build/logs/build_cli_modern_equals_and_ordering.log",
-			ok:      func(rc int) bool { return rc == 0 },
-			cleanup: []string{"build/cli_modern_eq"},
-		},
-		{
-			name: "dump_tokens_missing_file_diag",
-			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
-				"tests/native/fixtures/__missing__.oren",
+			{
+				name: "build_cli_modern_equals_and_ordering",
+				cmd: fmt.Sprintf(
+					"./oren build --backend=native --target=%s --out=%q %q%s",
+					*target,
+					"build/cli_modern_eq",
+					"tests/native/fixtures/struct_field_assign_ok.oren",
+					gcArg,
+				),
+				log:     "build/logs/build_cli_modern_equals_and_ordering.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/cli_modern_eq"},
+			},
+			{
+				name: "help_json_root",
+				cmd:  "sh -c 'out=$(./oren --help=json 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"\\\"name\\\":\\\"oren\\\"\"; printf \"%s\\n\" \"$out\" | grep -F \"\\\"commands\\\"\"'",
+				log:  "build/logs/help_json_root.log",
+				ok:   func(rc int) bool { return rc == 0 },
+			},
+			{
+				name: "help_json_build",
+				cmd:  "sh -c 'out=$(./oren build --help=json 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"\\\"cmd\\\":\\\"build\\\"\"; printf \"%s\\n\" \"$out\" | grep -F \"\\\"options\\\"\"'",
+				log:  "build/logs/help_json_build.log",
+				ok:   func(rc int) bool { return rc == 0 },
+			},
+			{
+				name: "dump_tokens_missing_file_diag",
+				cmd: fmt.Sprintf(
+					"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
+					"tests/native/fixtures/__missing__.oren",
 				"build/dump_tokens_missing.json",
 				*target,
 			),
