@@ -3132,7 +3132,7 @@ func auditIncludeChunkCoherence() error {
 		miss  []string
 	}
 
-	// Find roots: any `.oren` file under `lib/` containing a `// @include "..."` directive.
+	// Find roots: any `.oren` file under `lib/` containing a `// @include "..."` directive line.
 	var roots []string
 	err := filepath.WalkDir(filepath.Join("lib"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -3148,8 +3148,15 @@ func auditIncludeChunkCoherence() error {
 		if rerr != nil {
 			return rerr
 		}
-		if bytes.Contains(b, []byte("// @include \"")) {
-			roots = append(roots, path)
+		// Be strict: only treat it as a root if there is an actual directive at the
+		// beginning of a (trimmed) line. This avoids false positives from comments like:
+		//   // NOTE: uses includes (`// @include "..."`)
+		lines := strings.Split(string(b), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "// @include \"") {
+				roots = append(roots, path)
+				break
+			}
 		}
 		return nil
 	})
@@ -3188,15 +3195,20 @@ func auditIncludeChunkCoherence() error {
 				continue
 			}
 
-			bal, min := braceBalanceOren(b)
-			stats = append(stats, fileStat{path: cur, bal: bal, min: min})
-			if bal != 0 || min < 0 {
-				offenders = append(offenders, fmt.Sprintf("%s: unbalanced braces (bal=%d, min=%d) under root %s", cur, bal, min, root))
-			}
+				bal, min := braceBalanceOren(b)
+				stats = append(stats, fileStat{path: cur, bal: bal, min: min})
+				if bal != 0 || min < 0 {
+					offenders = append(offenders, fmt.Sprintf("%s: unbalanced braces (bal=%d, min=%d) under root %s", cur, bal, min, root))
+				}
+				if first := firstSignificantOrenLine(b); first != "" {
+					if !isAllowedIncludeChunkStart(first) {
+						offenders = append(offenders, fmt.Sprintf("%s: suspicious include chunk start %q under root %s (likely mid-block split)", cur, first, root))
+					}
+				}
 
-			// Parse include directives for recursion.
-			dir := filepath.Dir(cur)
-			lines := strings.Split(string(b), "\n")
+				// Parse include directives for recursion.
+				dir := filepath.Dir(cur)
+				lines := strings.Split(string(b), "\n")
 			for _, line := range lines {
 				trim := strings.TrimSpace(line)
 				if !strings.HasPrefix(trim, "// @include \"") {
@@ -3241,6 +3253,56 @@ func auditIncludeChunkCoherence() error {
 	}
 
 	return nil
+}
+
+func firstSignificantOrenLine(src []byte) string {
+	// Returns the first non-empty, non-`//` comment line (trimmed).
+	// We intentionally ignore block comments because Oren doesn't currently standardize them.
+	lines := strings.Split(string(src), "\n")
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" {
+			continue
+		}
+		if strings.HasPrefix(trim, "//") {
+			continue
+		}
+		return trim
+	}
+	return ""
+}
+
+func isAllowedIncludeChunkStart(trimmedLine string) bool {
+	// Heuristic: include chunks should begin at a top-level declaration boundary.
+	// This catches mid-function splits that could still be brace-balanced.
+	//
+	// Allow:
+	// - attributes (`@...`)
+	// - module imports and global vars
+	// - top-level declarations (fn/struct/class/trait/impl/enum/ffi/test)
+	//
+	// Disallow:
+	// - statements like `if ...`, `while ...`, `return ...`, `x = ...`
+	// - closers like `}` or `else` which indicate we split at an interior boundary
+	allowedPrefixes := []string{
+		"@",
+		"import ",
+		"var ",
+		"fn ",
+		"struct ",
+		"class ",
+		"trait ",
+		"impl ",
+		"enum ",
+		"ffi ",
+		"test ",
+	}
+	for _, p := range allowedPrefixes {
+		if strings.HasPrefix(trimmedLine, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func braceBalanceOren(src []byte) (bal int, min int) {

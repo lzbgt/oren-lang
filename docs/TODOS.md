@@ -17,6 +17,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added an `oretest` repo-style audit to prevent `.oren` files from growing past 2000 lines (forces module splits before context overflow).
    - Status: added an `oretest` repo-style audit to prevent C runtime include chunks (`lib/runtime/*.inc`, `lib/runtime_buf/*.inc`) from growing past 2000 lines.
    - Status: added an `oretest` include-chunk coherence audit for `// @include` roots (missing include detection + per-chunk brace-balance sanity, ignoring `//` comments and `"..."` strings).
+   - Status: strengthened the audit with a “chunk start looks top-level” heuristic to catch mid-block splits that still have balanced braces (e.g. a chunk starting with `if`/`return`/`x = ...`).
    - DoD: keep all `// @include`-split sources chunk-safe (no mid-block splits) so each included file stays reviewable without context overflow.
    - Next: keep applying overflow-proofing to any single-file hotspots before they cross the 2000-line refactor threshold (use `wc -l` to track growth).
 
