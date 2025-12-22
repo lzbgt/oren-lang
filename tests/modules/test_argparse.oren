@@ -72,6 +72,52 @@ fn test_parse() {
     assert(r["rest"][1] == "y", "rest y")
 }
 
+fn test_no_flag_sets_false() {
+    var p = ap.new_parser("tool", "demo tool")
+    var c = ap.add_command(p, "run", "run the tool")
+    ap.cmd_flag(c, "--verbose", "-v", "verbose mode")
+
+    var r0 = ap.parse(p, ["run", "--verbose"])
+    assert(r0["ok"] == true, "verbose parse ok")
+    assert(r0["opts"]["verbose"] == true, "verbose true")
+
+    var r1 = ap.parse(p, ["run", "--no-verbose"])
+    assert(r1["ok"] == true, "no-verbose parse ok")
+    assert(r1["opts"]["verbose"] == false, "verbose false via --no-verbose")
+}
+
+fn test_counted_flags() {
+    var p = ap.new_parser("tool", "demo tool")
+    var c = ap.add_command(p, "run", "run the tool")
+    ap.cmd_flag_count(c, "--verbose", "-v", "verbosity level")
+
+    var r0 = ap.parse(p, ["run"])
+    assert(r0["ok"] == true, "count default parse ok")
+    assert(r0["opts"]["verbose"] == 0, "count default 0")
+
+    var r1 = ap.parse(p, ["run", "-vvv"])
+    assert(r1["ok"] == true, "count -vvv parse ok")
+    assert(r1["opts"]["verbose"] == 3, "count -vvv => 3")
+
+    var r2 = ap.parse(p, ["run", "--verbose", "--verbose"])
+    assert(r2["ok"] == true, "count repeated long parse ok")
+    assert(r2["opts"]["verbose"] == 2, "count repeated long => 2")
+}
+
+fn test_all_opts_merge() {
+    var p = ap.new_parser("tool", "demo tool")
+    ap.cmd_flag(ap.root(p), "--trace", "-t", "trace mode")
+    var c = ap.add_command(p, "run", "run the tool")
+    ap.cmd_option(c, "--out", "-o", "string", "a.out", "output path")
+
+    var r = ap.parse(p, ["--trace", "run", "--out", "bin"])
+    assert(r["ok"] == true, "merge parse ok")
+    assert(r["root_opts"]["trace"] == true, "root trace")
+    assert(r["opts"]["out"] == "bin", "cmd out")
+    assert(r["all_opts"]["trace"] == true, "all_opts includes root")
+    assert(r["all_opts"]["out"] == "bin", "all_opts includes cmd")
+}
+
 fn test_help_early_exit() {
     var p = ap.new_parser("tool", "demo tool")
     var c = ap.add_command(p, "run", "run the tool")
@@ -86,6 +132,9 @@ fn test_help_early_exit() {
 
 test_help_render()
 test_parse()
+test_no_flag_sets_false()
+test_counted_flags()
+test_all_opts_merge()
 test_help_early_exit()
 print("ok")
 exit(0)

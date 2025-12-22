@@ -50,6 +50,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added oretest regression to ensure equals-form flags + options-before-file keep working.
    - Status: removed remaining manual argv scanning in the compiler driver; options for `build/meta/dump` now come directly from parsed argparse results (less duplication, fewer edge cases).
    - Status: removed the remaining “normalize to legacy argv” layer; compiler now dispatches directly from argparse parse results (single source of truth).
+   - Status: added click-style extras: `--no-<flag>` negation for bool flags, counted flags (`cmd_flag_count`, supports `-vvv`), required options (`cmd_option_required`), and `all_opts` merged view (`root_opts + opts`).
    - Next: polish UX parity (error messages, help text consistency, richer subcommands), then add a machine-readable `--help=json` for tooling.
 
 6) **ARM64 instruction encoder audit** (S)

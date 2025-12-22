@@ -185,6 +185,18 @@ fn cmd_flag(cmd, long_name, short_name, help) {
     return nil
 }
 
+fn cmd_flag_count(cmd, long_name, short_name, help) {
+    // Counted flag (like `-v -vv -vvv`).
+    //
+    // Storage: integer count, default 0. Each occurrence increments by 1.
+    // [kind, long, short, help, default, required, multiple]
+    //
+    // kind=4 => counted flag
+    var opt = [4, long_name, short_name, help, 0, false, false]
+    list.push(cmd["options"], opt)
+    return nil
+}
+
 fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     // kind: "string" | "int"
     var kind_code = nil
@@ -193,6 +205,20 @@ fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     if kind_code == nil { kind_code = 2 }
     // [kind, long, short, help, default, required, multiple]
     var opt = [kind_code, long_name, short_name, help, default_value, false, false]
+    list.push(cmd["options"], opt)
+    return nil
+}
+
+fn cmd_option_required(cmd, long_name, short_name, kind, help) {
+    // Required option (must be present in argv).
+    //
+    // kind: "string" | "int"
+    var kind_code = nil
+    if kind == "string" { kind_code = 2 }
+    if kind == "int" { kind_code = 3 }
+    if kind_code == nil { kind_code = 2 }
+    // default is nil; required flag is true.
+    var opt = [kind_code, long_name, short_name, help, nil, true, false]
     list.push(cmd["options"], opt)
     return nil
 }
@@ -248,6 +274,18 @@ fn _opts_defaults(cmd) {
         m[key] = defv
     }
     return m
+}
+
+fn _opts_required_keys(cmd) {
+    var out = []
+    for o in cmd["options"] {
+        var req = false
+        if list.len(o) >= 6 { req = o[5] }
+        if req {
+            list.push(out, _normalize_key(o[1]))
+        }
+    }
+    return out
 }
 
 fn _render_command_usage_line(p, cmd) {
@@ -379,6 +417,22 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
 
     // Long form: --opt or --opt=value
     if _starts_with(tok, "--") {
+        // Click-style boolean negation: --no-foo sets --foo to false (if foo is a bool flag).
+        //
+        // Only applies when the flag is not otherwise defined as a real long option.
+        // (If the CLI defines a literal `--no-foo` option, that wins.)
+        if _starts_with(tok, "--no-") && !_contains(tok, "=") {
+            var base = "--" + oren_string_slice(tok, 5, oren_string_len(tok))
+            var optN = _find_opt(cmd, tok)
+            if optN == nil {
+                var optBase = _find_opt(cmd, base)
+                if optBase != nil && optBase[0] == 1 {
+                    _set_opt_value(res, _normalize_key(optBase[1]), optBase, false)
+                    return {"ok": true, "next_i": i + 1}
+                }
+            }
+        }
+
         var flag = tok
         var value_inline = nil
         if _contains(tok, "=") {
@@ -399,7 +453,14 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
         var is_value_opt = (kind == 2 || kind == 3)
 
         if !is_value_opt {
-            _set_opt_value(res, key, opt, true)
+            if kind == 4 {
+                // Counted flag: increment.
+                var curc = res["opts"][key]
+                if curc == nil { curc = 0 }
+                _set_opt_value(res, key, opt, curc + 1)
+            } else {
+                _set_opt_value(res, key, opt, true)
+            }
             if _streq(key, "help") {
                 res["ok"] = false
                 res["code"] = 0
@@ -493,7 +554,13 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
     }
 
     // Bool flags: allow -abc chaining (tail is remaining letters).
-    _set_opt_value(res, key0, opt0, true)
+    if kind0 == 4 {
+        var curc0 = res["opts"][key0]
+        if curc0 == nil { curc0 = 0 }
+        _set_opt_value(res, key0, opt0, curc0 + 1)
+    } else {
+        _set_opt_value(res, key0, opt0, true)
+    }
     if _streq(key0, "help") {
         res["ok"] = false
         res["code"] = 0
@@ -524,7 +591,13 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
             res["help"] = render_help(p, cmd_name)
             return {"ok": false, "res": res}
         }
-        _set_opt_value(res, k, o, true)
+        if kk == 4 {
+            var curci = res["opts"][k]
+            if curci == nil { curci = 0 }
+            _set_opt_value(res, k, o, curci + 1)
+        } else {
+            _set_opt_value(res, k, o, true)
+        }
         if _streq(k, "help") {
             res["ok"] = false
             res["code"] = 0
@@ -548,12 +621,13 @@ fn parse(p, argv) {
     //   "cmd": string|nil,
     //   "root_opts": map,
     //   "opts": map,
+    //   "all_opts": map,    // merged (root_opts + opts), opts wins on key collision
     //   "seen": map,        // which opts were explicitly set
     //   "pos": list,
     //   "rest": list
     // }
 
-    var res = { "ok": false, "code": 2, "err": nil, "help": nil, "cmd": nil, "root_opts": {}, "opts": {}, "seen": {}, "pos": [], "rest": [] }
+    var res = { "ok": false, "code": 2, "err": nil, "help": nil, "cmd": nil, "root_opts": {}, "opts": {}, "all_opts": {}, "seen": {}, "pos": [], "rest": [] }
     if argv == nil { argv = [] }
 
     // Read settings (default to click-style).
@@ -667,6 +741,39 @@ fn parse(p, argv) {
         res["help"] = render_help(p, cmd_name)
         return res
     }
+
+    // Validate required options (command scope only, plus root options if present).
+    //
+    // We treat root opts as "global options" and allow them to satisfy required root options
+    // even when a subcommand is selected.
+    var req_cmd = _opts_required_keys(cmd)
+    var ri = 0
+    while ri < list.len(req_cmd) {
+        var rk = req_cmd[ri]
+        if res["seen"][rk] != true {
+            res["err"] = "missing required option: --" + rk
+            res["help"] = render_help(p, cmd_name)
+            return res
+        }
+        ri = ri + 1
+    }
+    var req_root = _opts_required_keys(root_cmd)
+    var rj = 0
+    while rj < list.len(req_root) {
+        var rk2 = req_root[rj]
+        if res["seen"][rk2] != true {
+            res["err"] = "missing required option: --" + rk2
+            res["help"] = render_help(p, cmd_name)
+            return res
+        }
+        rj = rj + 1
+    }
+
+    // Compute merged view for click-style access.
+    var merged = {}
+    for k0 in res["root_opts"] { merged[k0] = res["root_opts"][k0] }
+    for k1 in res["opts"] { merged[k1] = res["opts"][k1] }
+    res["all_opts"] = merged
 
     res["ok"] = true
     res["code"] = 0
