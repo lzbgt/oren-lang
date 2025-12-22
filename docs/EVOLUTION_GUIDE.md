@@ -243,7 +243,7 @@ This is the guiding story of “how languages get built” applied to Oren’s g
 ### Day 2: add a real native backend (host binaries)
 
 - Native codegen produces Mach-O/ELF directly.
-- Runtime is injected (`lib/runtime_native.oren`), not libc-based.
+- Runtime is injected (`lib/runtime_native.oren`, expanded from `lib/runtime_native/*.oren` via `// @include "..."`), not libc-based.
 - Add tests to prevent hangs and ABI regressions (timeouts are mandatory).
 
 ### Day 3: add an agent-native execution substrate (AVM)
