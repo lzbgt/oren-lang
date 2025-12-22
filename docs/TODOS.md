@@ -10,6 +10,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
     - Status: expanded golden coverage to include basic atomic encoders (LDAXR/STLXR/CLREX/LDADD/CAS/STRB) with clang-verified constants.
     - Status: added clang-verified goldens for basic integer loads/stores (LDR/STR X, LDRB W).
     - Status: included `tests/native/test_arm64_encoding.oren` in the curated native suite so these goldens run on every `make test`.
+    - Status: expanded goldens to cover SP-relative scaled loads/stores (LDR/STR [SP,#imm12<<3]).
     - Next: add more golden cases for pair loads/stores and keep them small/deterministic (use clang/otool to confirm encodings).
 
 2) **Include chunk coherence (overflow-proofing)** (M)

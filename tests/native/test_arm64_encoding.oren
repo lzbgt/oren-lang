@@ -64,6 +64,10 @@ fn main() {
     expect_u32(core.insn_ldr_ptr(0, 1), 0xF9400020, 185) // ldr x0, [x1]
     expect_u32(core.insn_str_ptr(2, 3), 0xF9000062, 186) // str x2, [x3]
     expect_u32(core.insn_ldrb(4, 5), 0x394000A4, 187)    // ldrb w4, [x5]
+    expect_u32(core.insn_ldr_reg_sp(0, 0), 0xF94003E0, 188) // ldr x0, [sp]
+    expect_u32(core.insn_ldr_reg_sp(6, 16), 0xF9400BE6, 189) // ldr x6, [sp,#16]
+    expect_u32(core.insn_str_x0_sp(0), 0xF90003E0, 190) // str x0, [sp]
+    expect_u32(core.insn_str_reg_sp(7, 24), 0xF9000FE7, 191) // str x7, [sp,#24]
 
     // Atomics / barriers (clang-assembled on arm64-darwin).
     expect_u32(core.insn_strb(1, 2), 0x39000041, 210)        // strb w1, [x2]

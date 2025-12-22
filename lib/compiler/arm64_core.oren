@@ -261,10 +261,18 @@ fn insn_add_sp(imm) {
 }
 
 fn insn_str_x0_sp(offset) {
+    // STR X0, [SP, #imm12<<3] (unsigned offset encoding, scaled by 8)
+    // Verified via clang:
+    //   str x0, [sp]       => 0xF90003E0
+    //   str x7, [sp,#24]   => 0xF9000FE7
     return 4177527776 + ((offset / 8) * 1024)
 }
 
 fn insn_ldr_reg_sp(reg, offset) {
+    // LDR Xt, [SP, #imm12<<3] (unsigned offset encoding, scaled by 8)
+    // Verified via clang:
+    //   ldr x0, [sp]       => 0xF94003E0
+    //   ldr x6, [sp,#16]   => 0xF9400BE6
     return 4181722080 + ((offset / 8) * 1024) + reg
 }
 
@@ -491,6 +499,10 @@ fn insn_str_reg_pre(i) {
 }
 
 fn insn_str_reg_sp(reg, offset) {
+    // STR Xt, [SP, #imm12<<3] (unsigned offset encoding, scaled by 8)
+    // Verified via clang:
+    //   str x0, [sp]       => 0xF90003E0
+    //   str x7, [sp,#24]   => 0xF9000FE7
     return 4177527776 + ((offset / 8) * 1024) + reg
 }
 
