@@ -137,6 +137,10 @@ func main() {
 			fmt.Fprintln(os.Stderr, "arm64 adr fixup audit failed:", err)
 			os.Exit(1)
 		}
+		if err := auditArm64MachoGotStubSlots(); err != nil {
+			fmt.Fprintln(os.Stderr, "arm64 Mach-O GOT stub audit failed:", err)
+			os.Exit(1)
+		}
 
 		// Curated lists: keep small and integration-first.
 		nativeTests := []string{
@@ -2923,12 +2927,82 @@ func auditArm64AdrFixupSlots() error {
 		}
 	}
 
+	// Debug hook placeholder is emitted in the entry stub (not near fixup pushes),
+	// but it is patched via `adr_data` later (Mach-O/ELF emitters). Ensure it also reserves 2 slots.
+	if err := func() error {
+		path := filepath.Join("lib", "compiler", "arm64_native_program.oren")
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		lines := strings.Split(string(b), "\n")
+		for i := range lines {
+			if !strings.Contains(lines[i], "ctx[\"debug_fixup_pos\"]") {
+				continue
+			}
+			start := i - 8
+			if start < 0 {
+				start = 0
+			}
+			slotCount := 0
+			for j := start; j <= i; j++ {
+				if strings.Contains(lines[j], "push_u32_le(ctx[\"code\"], 0)") {
+					slotCount++
+				}
+			}
+			if slotCount < 2 {
+				offenders = append(offenders, fmt.Sprintf("%s:%d: debug_fixup_pos must reserve 2 u32 slots (ADRP+ADD), found %d", path, i+1, slotCount))
+			}
+		}
+		return nil
+	}(); err != nil {
+		return err
+	}
+
 	if len(offenders) > 0 {
 		sort.Strings(offenders)
 		if len(offenders) > 30 {
 			offenders = append(offenders[:30], fmt.Sprintf("... (%d more)", len(offenders)-30))
 		}
 		return fmt.Errorf("arm64 fixup slot violations:\n%s", strings.Join(offenders, "\n"))
+	}
+	return nil
+}
+
+func auditArm64MachoGotStubSlots() error {
+	// Purpose: Mach-O imports use a small stub sequence that gets patched by `got_load` fixups.
+	// The stub placeholder must reserve 2 u32 words (ADRP + ADD). If it reserves 1, the patcher
+	// will overwrite the next instruction (LDR/BR) and corrupt the stub silently.
+	path := filepath.Join("lib", "compiler", "arm64_macho.oren")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(string(b), "\n")
+
+	var offenders []string
+	for i := range lines {
+		if !strings.Contains(lines[i], "\"type\": \"got_load\"") {
+			continue
+		}
+		start := i - 30
+		if start < 0 {
+			start = 0
+		}
+		slotCount := 0
+		for j := start; j <= i; j++ {
+			if strings.Contains(lines[j], "push_u32_le(code, 0)") {
+				slotCount++
+			}
+		}
+		if slotCount < 2 {
+			offenders = append(offenders, fmt.Sprintf("%s:%d: got_load stub must reserve 2 u32 slots (ADRP+ADD), found %d", path, i+1, slotCount))
+		}
+	}
+
+	if len(offenders) > 0 {
+		sort.Strings(offenders)
+		return fmt.Errorf("arm64 Mach-O got stub violations:\n%s", strings.Join(offenders, "\n"))
 	}
 	return nil
 }
