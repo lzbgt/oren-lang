@@ -1,0 +1,420 @@
+import renamer "renamer.oren"
+import arm64_macho "arm64_macho.oren"
+import arm64_elf "arm64_elf.oren"
+import codegen_bytecode "codegen_bytecode.oren"
+import transpiler "transpiler.oren"
+import analysis "analysis.oren"
+import lexer "lexer.oren"
+import parser "parser.oren"
+import ast "ast.oren"
+import metadata "metadata.oren"
+import packview "packview.oren"
+import serde_json "serde_json_lowering.oren"
+import type_ann "type_ann_lowering.oren"
+import typecheck "typecheck.oren"
+import gen_calls "generic_call_lowering.oren"
+import gen_mono "generic_monomorph.oren"
+import abi_layout "abi_layout_lowering.oren"
+import impl_lowering "impl_lowering.oren"
+import optimizer "optimizer.oren"
+import type_resolve "type_name_resolve.oren"
+import dump "dump.oren"
+import argparse "../std/argparse.oren"
+
+fn cli_spec() {
+    var p = argparse.new_parser("oren", "Oren compiler / toolchain driver")
+
+    var build = argparse.add_command(p, "build", "Build a .oren file (native/c/bytecode)")
+    argparse.cmd_positional(build, "file.oren", true, "Input source file")
+    argparse.cmd_option(build, "--backend", nil, "string", "c", "Backend: c|native|bytecode")
+    argparse.cmd_option(build, "-o", nil, "string", "", "Output path (default: strip .oren)")
+    argparse.cmd_flag(build, "--emit-c", nil, "(C backend) stop after generating <file.oren>.c")
+    argparse.cmd_option(build, "--cc", nil, "string", "cc", "(C backend) C compiler")
+    argparse.cmd_option(build, "--target", nil, "string", "macos", "(native backend) target OS: macos|linux")
+    argparse.cmd_option(build, "--arch", nil, "string", "arm64", "(native backend) target arch: arm64 (rolling; only arm64 supported now)")
+    argparse.cmd_flag(build, "--disasm", nil, "(native backend) disassemble output via otool/objdump")
+    argparse.cmd_flag(build, "--debug", nil, "(native backend) embed debug info for stack traces")
+    argparse.cmd_flag(build, "--lib", nil, "(native backend) build a shared library")
+    argparse.cmd_flag(build, "--shared", nil, "(native backend) build a shared library (alias)")
+    argparse.cmd_option(build, "--link", "-l", "string", "", "(native backend, macOS) add LC_LOAD_DYLIB")
+    argparse.cmd_flag(build, "--metadata", nil, "(native backend) write <out>.meta.json")
+    argparse.cmd_flag(build, "--analyze", nil, "Print analysis info and exit")
+    argparse.cmd_flag(build, "--typecheck", nil, "Typecheck annotated code (fail fast on type errors; still builds on success)")
+    argparse.cmd_flag(build, "--python", nil, "(C backend) enable Python integration (requires python3-config)")
+    argparse.cmd_flag(build, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
+    argparse.cmd_option(build, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
+    argparse.cmd_flag(build, "--capsule", nil, "(native backend) capability-safe subset: deny host effects unless allowlisted (also via env OREN_CAPSULE=1)")
+    argparse.cmd_option(build, "--cap-allow-domains", nil, "string", "", "CSV allow capability domains in capsule mode (also via env OREN_CAP_ALLOW_DOMAINS)")
+    argparse.cmd_option(build, "--codesign", nil, "string", "", "(macOS) codesign identity")
+    argparse.cmd_flag(build, "--notarize", nil, "(macOS) notarize output with notarytool")
+    argparse.cmd_option(build, "--notary-profile", nil, "string", "", "(macOS) notarytool keychain profile")
+    argparse.cmd_flag(build, "--no-gc", nil, "Disable GC scanning (also via env OREN_NO_GC=1)")
+    argparse.cmd_flag(build, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds")
+    argparse.cmd_flag(build, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed builds)")
+    var emitc = argparse.add_command(p, "emit-c", "Alias for: build --backend c --emit-c")
+    argparse.cmd_positional(emitc, "file.oren", true, "Input source file")
+
+    var meta = argparse.add_command(p, "meta", "Emit metadata JSON for a .oren entry module (no codegen)")
+    argparse.cmd_positional(meta, "file.oren", true, "Input source file")
+    argparse.cmd_option(meta, "-o", nil, "string", "", "Output path (default: <file>.meta.json)")
+    argparse.cmd_option(meta, "--target", nil, "string", "macos", "Target OS for ABI/layout lowering: macos|linux")
+    argparse.cmd_option(meta, "--arch", nil, "string", "arm64", "Target arch for ABI/layout lowering: arm64 (rolling)")
+    argparse.cmd_flag(meta, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
+    argparse.cmd_option(meta, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
+    argparse.cmd_flag(meta, "--deterministic", nil, "Deterministic mode: emit stable artifact hash (sha256) for metadata output")
+    argparse.cmd_flag(meta, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed metadata)")
+
+    var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
+    argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
+
+    var dumpcmd = argparse.add_command(p, "dump", "Dump compiler internals for troubleshooting (JSON)")
+    argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked|graph")
+    argparse.cmd_positional(dumpcmd, "file.oren", true, "Input source file")
+    argparse.cmd_option(dumpcmd, "-o", nil, "string", "", "Output path (default: stdout)")
+    argparse.cmd_option(dumpcmd, "--target", nil, "string", "macos", "Target OS for lowering: macos|linux")
+    argparse.cmd_option(dumpcmd, "--arch", nil, "string", "arm64", "Target arch for lowering: arm64 (rolling)")
+    argparse.cmd_flag(dumpcmd, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
+    argparse.cmd_option(dumpcmd, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
+
+    return p
+}
+
+fn usage_cmd(cmd_name) {
+    var p = cli_spec()
+    var lines = argparse.render_help_lines(p, cmd_name)
+    var i = 0
+    while i < oren_list_len(lines) {
+        print(lines[i])
+        i = i + 1
+    }
+}
+
+fn usage() { return usage_cmd(nil) }
+
+fn shell_quote(s) {
+    return "'" + s + "'" // Minimal quoting
+}
+
+fn cmd_ok(cmd) {
+    // Return true if command exits with 0.
+    return oren_system(cmd) == 0
+}
+
+fn normalize_rc(rc) {
+    // Normalize the return value of oren_system() to a conventional exit code.
+    // Many C runtimes encode exit status as (code << 8).
+    if rc == nil { return 1 }
+    if rc < 0 { return rc }
+    if rc >= 256 { return rc / 256 }
+    return rc
+}
+
+fn diag_escape(msg) {
+    // Escape newlines/tabs so one-line OREN_DIAG is machine-friendly.
+    if msg == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(msg) {
+        var c = oren_string_char_at(msg, i)
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
+fn emit_diag(kind, code, msg) {
+    // Compiler/toolchain diagnostic one-liner (AI-friendly).
+    // Format matches runtime OREN_DIAG.
+    print("OREN_DIAG kind=" + kind + " code=" + oren_int_to_string(code) + " msg=" + diag_escape(msg))
+    return nil
+}
+
+fn _imod(a, b) {
+    // Integer modulo without relying on a runtime helper.
+    // Assumes b>0.
+    return a - (a / b) * b
+}
+
+fn _hex_digit(n) {
+    // n in [0,15]
+    return oren_string_char_at("0123456789abcdef", n)
+}
+
+fn _bytes_to_hex(bs) {
+    if bs == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == nil { b = 0 }
+        if b < 0 { b = 0 }
+        if b > 255 { b = _imod(b, 256) }
+        out = out + _hex_digit(b / 16) + _hex_digit(_imod(b, 16))
+        i = i + 1
+    }
+    return out
+}
+
+fn _sha256_hex(bs) {
+    if bs == nil { return "" }
+    var n = oren_list_len(bs)
+    var d = oren_sha256_range(bs, 0, n)
+    return _bytes_to_hex(d)
+}
+
+fn _emit_artifact_hash(kind, path, bs) {
+    var h = _sha256_hex(bs)
+    print("OREN_ARTIFACT kind=" + kind + " sha256=" + h + " path=" + path)
+    return nil
+}
+
+fn _json_escape(s) {
+    // Minimal JSON string escaping for deterministic manifest emission.
+    // Escapes: backslash and double-quote, plus \n/\r/\t.
+    if s == nil { return "" }
+    var bs = oren_bytes_from_string(s)
+    var out = ""
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 92 { out = out + "\\\\" } // '\'
+        else {
+            if b == 34 { out = out + "\\\"" } // '"'
+            else {
+                if b == 10 { out = out + "\\n" }
+                else {
+                    if b == 13 { out = out + "\\r" }
+                    else {
+                        if b == 9 { out = out + "\\t" }
+                        else { out = out + oren_string_char_at(s, i) }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic, size_bytes) {
+    // Machine-readable artifact record for Compiler-in-AVM v2.
+    //
+    // Manifest path: <artifact_path>.manifest.json
+    // Determinism note: the manifest itself is emitted deterministically (stable key order).
+    var mp = path + ".manifest.json"
+    var det = "false"
+    if deterministic { det = "true" }
+    if size_bytes == nil { size_bytes = 0 }
+    var s = "{\"version\":1," +
+        "\"kind\":\"" + _json_escape(kind) + "\"," +
+        "\"sha256\":\"" + _json_escape(sha256_hex) + "\"," +
+        "\"size_bytes\":" + oren_int_to_string(size_bytes) + "," +
+        "\"path\":\"" + _json_escape(path) + "\"," +
+        "\"target\":\"" + _json_escape(target) + "\"," +
+        "\"arch\":\"" + _json_escape(arch) + "\"," +
+        "\"deterministic\":" + det +
+        "}\n"
+    var w = oren_write_file(mp, s)
+    if oren_is_err(w) {
+        print("Failed to write manifest: " + mp)
+        var msg = oren_err_msg(w)
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
+    print("Wrote manifest: " + mp)
+    return nil
+}
+
+fn ensure_dir(path) {
+    // Use shell to avoid adding FS syscalls to the compiler surface right now.
+    // This is for dev tooling (tests/build logs).
+    oren_system("mkdir -p " + shell_quote(path))
+    return nil
+}
+
+fn detect_timeout_bin() {
+    // Prefer GNU coreutils `timeout` (Linux) and `gtimeout` (macOS coreutils).
+    // We treat timeout tooling as mandatory for safe rolling iteration.
+    if cmd_ok("sh -c 'timeout 1 true >/dev/null 2>&1'") { return "timeout" }
+    if cmd_ok("sh -c 'gtimeout 1 true >/dev/null 2>&1'") { return "gtimeout" }
+    return nil
+}
+
+fn run_shell_capture(timeout_bin, timeout_secs, cmd, log_path) {
+    // Run a shell command, capture stdout+stderr to log_path, and apply a wall timeout.
+    // Returns exit code of the command (or timeout wrapper).
+    var t = detect_timeout_bin()
+    if timeout_bin != nil { t = timeout_bin }
+    if t == nil {
+        print("ERROR: timeout not found (need `timeout` or `gtimeout` in PATH).")
+        print("macOS: brew install coreutils")
+        return 2
+    }
+    // Always wrap in sh -c for redirection.
+    // NOTE: shell_quote is minimal; do not put untrusted input here.
+    var redir = cmd + " > " + shell_quote(log_path) + " 2>&1"
+    var wrapped = "sh -c " + shell_quote(redir)
+    var full = t + " " + oren_int_to_string(timeout_secs) + " " + wrapped
+    return normalize_rc(oren_system(full))
+}
+
+fn basename(path) {
+    if path == nil { return "" }
+    var i = oren_string_len(path) - 1
+    while i >= 0 {
+        if oren_string_char_at(path, i) == "/" {
+            return oren_string_slice(path, i + 1, oren_string_len(path))
+        }
+        i = i - 1
+    }
+    return path
+}
+
+fn strip_suffix(s, suffix) {
+    if s == nil { return s }
+    if suffix == nil { return s }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(suffix)
+    if sl < pl { return s }
+    if oren_string_slice(s, sl - pl, sl) == suffix {
+        return oren_string_slice(s, 0, sl - pl)
+    }
+    return s
+}
+
+fn file_exists(path) {
+    // Avoid nested quoting: shell_quote() already uses single quotes.
+    // `test -f 'path'` is fine whether oren_system uses /bin/sh -c or exec.
+    return cmd_ok("test -f " + shell_quote(path))
+}
+
+fn string_contains(hay, needle) {
+    if hay == nil || needle == nil { return false }
+    var hl = oren_string_len(hay)
+    var nl = oren_string_len(needle)
+    if nl == 0 { return true }
+    if hl < nl { return false }
+    var i = 0
+    while i <= hl - nl {
+        var j = 0
+        while j < nl {
+            if oren_string_char_at(hay, i + j) != oren_string_char_at(needle, j) {
+                j = -1
+                break
+            }
+            j = j + 1
+        }
+        if j == nl { return true }
+        i = i + 1
+    }
+    return false
+}
+
+// --- Syscall-first hardening (compile-time guard) ---
+//
+// Prevent accidental re-introduction of syscall bypasses in the native backend:
+// - All OS syscalls (except allocator mmap/exit and the entry stub exit) must be emitted by
+//   `arm64_native_expr_syscalls.oren` so capsule pre/post hooks remain authoritative.
+//
+// We enforce this by scanning compiler source files for direct `darwin_sys_*` / `linux_sys_*`
+// references, and allowing only a minimal set in the few files that intentionally emit
+// those syscalls.
+fn streq(a, b) {
+    if a == nil || b == nil { return false }
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    var al = oren_list_len(ab)
+    var bl = oren_list_len(bb)
+    if al != bl { return false }
+    var i = 0
+    while i < al {
+        if ab[i] != bb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn has_attr_list(stmt, name) {
+    if stmt == nil || name == nil { return false }
+    var attrs = stmt["attrs"]
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn scan_syscalls_in_src(src, prefix) {
+    var out = []
+    var sb = oren_bytes_from_string(src)
+    var pb = oren_bytes_from_string(prefix)
+    var n = oren_list_len(sb)
+    var p_len = oren_list_len(pb)
+    var i = 0
+    while i + p_len <= n {
+        // Skip line comments (`// ... \n`) so policy checks don't fail on docs/comments.
+        if i + 1 < n {
+            if sb[i] == 47 && sb[i + 1] == 47 {
+                // Skip until newline or EOF.
+                i = i + 2
+                while i < n {
+                    if sb[i] == 10 { i = i + 1; break } // '\n'
+                    i = i + 1
+                }
+                continue
+            }
+        }
+
+        var is_match = true
+        var j = 0
+        while j < p_len {
+            if sb[i + j] != pb[j] { is_match = false; break }
+            j = j + 1
+        }
+        if is_match {
+            var start = i + p_len
+            // Read identifier [a-zA-Z0-9_]+
+            var k = start
+            while k < n {
+                var ch = sb[k]
+                var ok = false
+                if ch >= 48 && ch <= 57 { ok = true }
+                if ch >= 65 && ch <= 90 { ok = true }
+                if ch >= 97 && ch <= 122 { ok = true }
+                if ch == 95 { ok = true }
+                if ok != true { break }
+                k = k + 1
+            }
+            var name = oren_string_slice(src, start, k)
+            if name != nil {
+                // De-dup
+                var seen = false
+                var si = 0
+                while si < oren_list_len(out) {
+                    if streq(out[si], name) { seen = true; break }
+                    si = si + 1
+                }
+                if seen != true { oren_list_push(out, name) }
+            }
+            i = k
+            continue
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn syscall_allow(list, name) {
+    var i = 0
+    while i < oren_list_len(list) {
+        if streq(list[i], name) { return true }
+        i = i + 1
+    }
+    return false
+}

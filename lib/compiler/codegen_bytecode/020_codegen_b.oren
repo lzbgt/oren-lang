@@ -1,0 +1,520 @@
+        }
+        if name == "" { indirect = true }
+
+        // Type constructor calls (rolling): represent a type value as a MAP:
+        //   {"field": value, ...}
+        //
+        // This keeps member access portable without requiring a full typechecker in
+        // the bytecode backend (member access compiles to string-key indexing).
+        if indirect == false {
+            var tfields = ctx["types"][name]
+            if tfields != nil {
+                if expr["spread"] != nil {
+            bytecode_error(ctx, "bytecode backend: type constructor does not support spread args yet: " + name)
+            return nil
+                }
+                var args0 = expr["args"]
+                var targc = oren_list_len(tfields)
+                if oren_list_len(args0) != targc {
+            bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
+            return nil
+                }
+                var ai0 = 0
+                while ai0 < oren_list_len(args0) {
+                    // key
+                    var key_idx = add_constant(ctx, {"type": "String", "value": tfields[ai0]})
+                    emit_byte(ctx, AVM_PUSH_CONST)
+                    emit_u16(ctx, key_idx)
+                    // value
+                    bytecode_compile_expr(ctx, args0[ai0])
+                    ai0 = ai0 + 1
+                }
+                emit_byte(ctx, AVM_NEW_MAP)
+                emit_u16(ctx, targc)
+                return nil
+            }
+        }
+
+        // VM-internal cooperative concurrency primitives (bytecode backend only).
+        // These are opcodes (not host natives), so they remain deterministic and portable.
+        if name == "oren_new_channel" {
+            if oren_list_len(expr["args"]) != 0 {
+            bytecode_error(ctx, "bytecode backend: oren_new_channel expects ()")
+            return nil
+            }
+            emit_byte(ctx, AVM_CHAN_NEW)
+            return nil
+        }
+        if name == "oren_chan_send" {
+            if oren_list_len(expr["args"]) != 2 {
+            bytecode_error(ctx, "bytecode backend: oren_chan_send expects (ch, val)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            emit_byte(ctx, AVM_CHAN_SEND)
+            return nil
+        }
+        if name == "oren_chan_recv" {
+            if oren_list_len(expr["args"]) != 1 {
+            bytecode_error(ctx, "bytecode backend: oren_chan_recv expects (ch)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_CHAN_RECV)
+            return nil
+        }
+        if name == "oren_select_recv" {
+            if oren_list_len(expr["args"]) != 1 {
+            bytecode_error(ctx, "bytecode backend: oren_select_recv expects (list<ch>)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_SELECT_RECV)
+            return nil
+        }
+        if name == "oren_select" {
+            if oren_list_len(expr["args"]) != 1 {
+            bytecode_error(ctx, "bytecode backend: oren_select expects (list<case>)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_SELECT)
+            return nil
+        }
+        if name == "oren_join" {
+            if oren_list_len(expr["args"]) != 1 {
+            bytecode_error(ctx, "bytecode backend: oren_join expects (handle)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_JOIN)
+            return nil
+        }
+        if name == "oren_join_timeout" {
+            if oren_list_len(expr["args"]) != 2 {
+            bytecode_error(ctx, "bytecode backend: oren_join_timeout expects (handle, timeout_ms)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            emit_byte(ctx, AVM_JOIN_TIMEOUT)
+            return nil
+        }
+        if name == "oren_yield" {
+            if oren_list_len(expr["args"]) != 0 {
+            bytecode_error(ctx, "bytecode backend: oren_yield expects ()")
+            return nil
+            }
+            emit_byte(ctx, AVM_YIELD)
+            // `oren_yield()` is a statement-like primitive, but the bytecode expression
+            // model expects every expression to leave exactly one value on the stack.
+            // Return a canonical `nil` so surrounding contexts (ExprStmt -> POP, Assign, etc.)
+            // remain stack-balanced.
+            var idx = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
+            return nil
+        }
+        
+        // Rolling ABI: prefer domain-based natives for effectful calls.
+        // CORE calls currently map op == legacy native id.
+        // FS calls use a separate domain/op mapping.
+        var native_domain = -1
+        var native_op = -1
+
+        if name == "oren_system" { native_domain = AVM_DOMAIN_PROC; native_op = 0 }
+        // Builtin aliases (surface names without the `oren_` prefix).
+        if name == "system" { native_domain = AVM_DOMAIN_PROC; native_op = 0 }
+        if name == "exit" { native_domain = AVM_DOMAIN_EXIT; native_op = 0 }
+        if name == "oren_exit" { native_domain = AVM_DOMAIN_EXIT; native_op = 0 }
+        if name == "oren_env" { native_domain = AVM_DOMAIN_ENV; native_op = 0 }
+        if name == "oren_time_now_ns" { native_domain = AVM_DOMAIN_TIME; native_op = 0 }
+        if name == "oren_sleep_ms" { native_domain = AVM_DOMAIN_TIME; native_op = 1 }
+        if name == "oren_rand_u64" { native_domain = AVM_DOMAIN_RNG; native_op = 0 }
+        if name == "oren_rand_seed" { native_domain = AVM_DOMAIN_RNG; native_op = 1 }
+        if name == "oren_net_get" { native_domain = AVM_DOMAIN_NET; native_op = 0 }
+        if name == "oren_read_file" { native_domain = AVM_DOMAIN_FS; native_op = 0 }
+        if name == "oren_write_file" { native_domain = AVM_DOMAIN_FS; native_op = 1 }
+        if name == "oren_write_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 2 }
+        if name == "oren_read_bytes" { native_domain = AVM_DOMAIN_FS; native_op = 3 }
+        if name == "oren_exists" { native_domain = AVM_DOMAIN_FS; native_op = 4 }
+        if name == "oren_readdir" { native_domain = AVM_DOMAIN_FS; native_op = 5 }
+        // Effectful file metadata update (used by native backends to set executable bit).
+        if name == "oren_chmod" { native_domain = AVM_DOMAIN_FS; native_op = 6 }
+        if name == "oren_avm_run_obc_bytes" { native_domain = AVM_DOMAIN_AVM; native_op = 0 }
+
+        if native_domain != -1 {
+            var args = expr["args"]
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            emit_byte(ctx, AVM_CALL_NATIVE2)
+            emit_byte(ctx, native_domain)
+            emit_u16(ctx, native_op)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
+
+        var native_id = -1
+        if name == "oren_args" { native_id = 3 }
+        if name == "oren_string_len" { native_id = 6 }
+        if name == "oren_string_char_at" { native_id = 7 }
+        if name == "oren_string_slice" { native_id = 8 }
+        if name == "oren_string_char_code_at" { native_id = 9 }
+        if name == "oren_int_to_string" { native_id = 10 }
+        if name == "oren_list_len" { native_id = 12 }
+        if name == "oren_list_push" { native_id = 13 }
+        if name == "oren_index_set" { native_id = 14 }
+        if name == "int_mod" { native_id = 15 }
+        if name == "oren_bytes_from_string" { native_id = 16 }
+        if name == "oren_string_from_bytes" { native_id = 44 }
+        if name == "oren_err" { native_id = 19 }
+        if name == "oren_is_err" { native_id = 20 }
+        if name == "oren_err_code" { native_id = 21 }
+        if name == "oren_err_msg" { native_id = 22 }
+        if name == "oren_set_result" { native_id = 23 }
+        if name == "oren_get_result" { native_id = 24 }
+        if name == "oren_bytes_pack" { native_id = 30 }
+        if name == "oren_bytes_unpack" { native_id = 31 }
+        if name == "oren_bytes_len" { native_id = 32 }
+        if name == "oren_bytes_get_u8" { native_id = 33 }
+        if name == "oren_bytes_set_u8" { native_id = 34 }
+        if name == "oren_bytes_get_u16_be" { native_id = 90 }
+        if name == "oren_bytes_get_u16_le" { native_id = 91 }
+        if name == "oren_bytes_get_i16_be" { native_id = 92 }
+        if name == "oren_bytes_get_i16_le" { native_id = 93 }
+        if name == "oren_bytes_get_u32_be" { native_id = 94 }
+        if name == "oren_bytes_get_u32_le" { native_id = 95 }
+        if name == "oren_bytes_get_i32_be" { native_id = 96 }
+        if name == "oren_bytes_get_i32_le" { native_id = 97 }
+        if name == "oren_bytes_get_u64_be" { native_id = 98 }
+        if name == "oren_bytes_get_u64_le" { native_id = 99 }
+        if name == "oren_bytes_get_i64_be" { native_id = 100 }
+        if name == "oren_bytes_get_i64_le" { native_id = 101 }
+        if name == "oren_bytes_set_u16_be" { native_id = 45 }
+        if name == "oren_bytes_set_u16_le" { native_id = 46 }
+        if name == "oren_bytes_set_i16_be" { native_id = 47 }
+        if name == "oren_bytes_set_i16_le" { native_id = 48 }
+        if name == "oren_bytes_set_u32_be" { native_id = 49 }
+        if name == "oren_bytes_set_u32_le" { native_id = 50 }
+        if name == "oren_bytes_set_i32_be" { native_id = 51 }
+        if name == "oren_bytes_set_i32_le" { native_id = 52 }
+        if name == "oren_bytes_set_u64_be" { native_id = 102 }
+        if name == "oren_bytes_set_u64_le" { native_id = 103 }
+        if name == "oren_bytes_set_i64_be" { native_id = 104 }
+        if name == "oren_bytes_set_i64_le" { native_id = 105 }
+        if name == "oren_f32_round" { native_id = 106 }
+        if name == "oren_bool_norm" { native_id = 107 }
+        if name == "oren_trunc_int" { native_id = 108 }
+        if name == "oren_f32_to_u32_bits" { native_id = 109 }
+        if name == "oren_u32_bits_to_f32" { native_id = 110 }
+        if name == "oren_f64_to_u64_bits" { native_id = 111 }
+        if name == "oren_u64_bits_to_f64" { native_id = 112 }
+        if name == "oren_map_len" { native_id = 113 }
+        if name == "oren_bytes_from_hex" { native_id = 35 }
+        if name == "oren_bytes_to_hex" { native_id = 36 }
+        if name == "oren_avm_record_to_bytes" { native_id = 40 }
+        if name == "oren_avm_get_record_bytes" { native_id = 41 }
+        if name == "oren_avm_set_replay_bytes" { native_id = 42 }
+        if name == "oren_iter_next" { native_id = 43 }
+        if name == "oren_i32_buf_new" { native_id = 54 }
+        if name == "oren_i64_buf_new" { native_id = 55 }
+        if name == "oren_f32_buf_new" { native_id = 56 }
+        if name == "oren_f64_buf_new" { native_id = 57 }
+        if name == "oren_buf_len" { native_id = 58 }
+        if name == "oren_buf_load_i32" { native_id = 59 }
+        if name == "oren_buf_store_i32" { native_id = 60 }
+        if name == "oren_buf_load_i64" { native_id = 61 }
+        if name == "oren_buf_store_i64" { native_id = 62 }
+        if name == "oren_buf_load_f32" { native_id = 63 }
+        if name == "oren_buf_store_f32" { native_id = 64 }
+        if name == "oren_buf_load_f64" { native_id = 65 }
+        if name == "oren_buf_store_f64" { native_id = 66 }
+        if name == "oren_buf_fill_i32" { native_id = 67 }
+        if name == "oren_buf_fill_i64" { native_id = 68 }
+        if name == "oren_buf_fill_f32" { native_id = 69 }
+        if name == "oren_buf_fill_f64" { native_id = 70 }
+        if name == "oren_buf_add_i32" { native_id = 71 }
+        if name == "oren_buf_add_f32" { native_id = 72 }
+        if name == "oren_buf_add_f64" { native_id = 138 }
+        if name == "oren_buf_dot_i32" { native_id = 73 }
+        if name == "oren_buf_dot_f32" { native_id = 74 }
+        // f64 reductions (rolling HPC): make these available to bytecode/AVM as native ops.
+        if name == "oren_buf_dot_f64" { native_id = 132 }
+        if name == "oren_buf_dot_i32_slice" { native_id = 114 }
+        if name == "oren_buf_dot_f32_slice" { native_id = 115 }
+        if name == "oren_buf_dot_f64_slice" { native_id = 133 }
+        if name == "oren_buf_dot_i32_strided" { native_id = 116 }
+        if name == "oren_buf_dot_f32_strided" { native_id = 117 }
+        if name == "oren_buf_dot_f64_strided" { native_id = 134 }
+        if name == "oren_buf_dot_f32_into" { native_id = 86 }
+        if name == "oren_buf_add_i32_into" { native_id = 75 }
+        if name == "oren_buf_add_f32_into" { native_id = 76 }
+        if name == "oren_buf_add_f64_into" { native_id = 139 }
+        if name == "oren_buf_scale_f32" { native_id = 77 }
+        if name == "oren_buf_reduce_sum_f32" { native_id = 78 }
+        if name == "oren_buf_reduce_sum_f32_into" { native_id = 87 }
+        if name == "oren_buf_mul_f32_into" { native_id = 79 }
+        if name == "oren_buf_mul_f32" { native_id = 80 }
+        if name == "oren_buf_mul_i32_into" { native_id = 81 }
+        if name == "oren_buf_mul_i32" { native_id = 82 }
+        if name == "oren_buf_mul_f64_into" { native_id = 140 }
+        if name == "oren_buf_mul_f64" { native_id = 141 }
+        if name == "oren_buf_reduce_sum_i32" { native_id = 83 }
+        if name == "oren_buf_reduce_sum_f64" { native_id = 135 }
+        if name == "oren_buf_scale_f32_into" { native_id = 84 }
+        if name == "oren_buf_scale_i32_into" { native_id = 85 }
+        if name == "oren_buf_dot_i32_into" { native_id = 88 }
+        if name == "oren_buf_reduce_sum_i32_into" { native_id = 89 }
+        if name == "oren_buf_dot_f64_into" { native_id = 136 }
+        if name == "oren_buf_reduce_sum_f64_into" { native_id = 137 }
+        if name == "oren_buf_axpy_i32_into" { native_id = 123 }
+        if name == "oren_buf_axpy_i32_in_place" { native_id = 124 }
+        if name == "oren_buf_axpy_f32_into" { native_id = 125 }
+        if name == "oren_buf_axpy_f32_in_place" { native_id = 126 }
+
+        // Pure path normalization (portable across backends; implemented natively in each backend).
+        if name == "oren_realpath" { native_id = 53 }
+
+        // Compiler/runtime support helpers required for self-hosting under the bytecode backend.
+        // These are CORE domain natives (portable, deterministic).
+        if name == "oren_char" { native_id = 118 }
+        if name == "oren_string_to_float_bits" { native_id = 119 }
+        if name == "oren_sha256_range" { native_id = 120 }
+        if name == "oren_fail" { native_id = 121 }
+        if name == "oren_buf_dot_i32_4_slice_into" { native_id = 122 }
+        if name == "oren_buf_dot_f32_4_slice_into" { native_id = 127 }
+        if name == "oren_buf_dot_f64_4_slice_into" { native_id = 130 }
+        if name == "oren_buf_gemm_f32_4x4_slice_into" { native_id = 128 }
+        if name == "oren_buf_gemm_i32_4x4_slice_into" { native_id = 129 }
+        if name == "oren_buf_gemm_f64_4x4_slice_into" { native_id = 131 }
+
+        if native_id != -1 {
+            var args = expr["args"]
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            emit_byte(ctx, AVM_CALL_NATIVE2)
+            emit_byte(ctx, AVM_DOMAIN_CORE)
+            emit_u16(ctx, native_id)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
+
+        if indirect == true {
+            // General call: fn can be a function value / closure.
+            bytecode_compile_expr(ctx, fn_node)
+            var args = expr["args"]
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            if expr["spread"] != nil {
+                // Call-site spread: [... fn fixed_args spread_list] CALL_INDIRECT_SPREAD fixed_count
+                bytecode_compile_expr(ctx, expr["spread"])
+                emit_byte(ctx, AVM_CALL_INDIRECT_SPREAD)
+                emit_byte(ctx, oren_list_len(args))
+                return nil
+            }
+            emit_byte(ctx, AVM_CALL_INDIRECT)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
+
+        if name == "print" {
+            // Rolling semantics:
+            // - print() prints a newline
+            // - print(x) prints x
+            // - print(a,b,...) prints values (AVM prints each element as a line; stable for tests)
+            //
+            // For spread: print(a, xs...) prints fixed args then xs elements.
+            var fixed = expr["args"]
+            var fixed_n = oren_list_len(fixed)
+            if fixed_n > 0 {
+                var j = 0
+                while j < fixed_n {
+                    bytecode_compile_expr(ctx, fixed[j])
+                    emit_byte(ctx, AVM_PRINT)
+                    j = j + 1
+                }
+            } else {
+                // print() => empty list => newline
+                emit_byte(ctx, AVM_NEW_LIST)
+                emit_u16(ctx, 0)
+                emit_byte(ctx, AVM_PRINT_LIST)
+            }
+            if expr["spread"] != nil {
+                bytecode_compile_expr(ctx, expr["spread"])
+                emit_byte(ctx, AVM_PRINT_LIST)
+            }
+            var idx = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
+            return nil
+        }
+        
+        var args = expr["args"]
+        // Varargs packing (rolling): for direct named calls to a function declared with
+        // a trailing `...rest`, pack extra args into a list as the last argument.
+        var fixed = -1
+        var vf = ctx["func_varargs_fixed"][name]
+        if vf != nil { fixed = vf }
+        if expr["spread"] != nil {
+            if fixed >= 0 {
+            bytecode_error(ctx, "bytecode backend: varargs+spread not supported yet for direct calls: " + name)
+            return nil
+            }
+            // Spread calls are compiled as indirect calls so we don't need a dynamic
+            // CALL-by-name opcode: push a function value, fixed args, spread list.
+            bytecode_compile_expr(ctx, fn_node)
+            var i = 0
+            while i < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i])
+                i = i + 1
+            }
+            bytecode_compile_expr(ctx, expr["spread"])
+            emit_byte(ctx, AVM_CALL_INDIRECT_SPREAD)
+            emit_byte(ctx, oren_list_len(args))
+            return nil
+        }
+        if fixed >= 0 && oren_list_len(args) < fixed {
+            bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + name)
+            return nil
+        }
+        var n_args = oren_list_len(args)
+        var i = 0
+        var fixed_count = n_args
+        if fixed >= 0 { fixed_count = fixed }
+        while i < fixed_count {
+            bytecode_compile_expr(ctx, args[i])
+            i = i + 1
+        }
+        if fixed >= 0 {
+            var ri = fixed
+            while ri < n_args {
+                bytecode_compile_expr(ctx, args[ri])
+                ri = ri + 1
+            }
+            emit_byte(ctx, AVM_NEW_LIST)
+            emit_u16(ctx, n_args - fixed)
+        }
+        
+        emit_byte(ctx, AVM_CALL32)
+        var call_pos = oren_list_len(ctx["code"])
+        emit_u32(ctx, 0)
+        if fixed >= 0 {
+            emit_byte(ctx, fixed + 1)
+        } else {
+            emit_byte(ctx, n_args)
+        }
+        
+        oren_list_push(ctx["fixups"], {"pos": call_pos, "name": name})
+        return nil
+    }
+    
+    return nil
+}
+
+fn bytecode_compile_function(ctx, stmt) {
+    var name = stmt["name"]
+    
+    emit_byte(ctx, AVM_JMP32)
+    var jump_skip_idx = oren_list_len(ctx["code"])
+    emit_i32(ctx, 0)
+    
+    var start_pc = oren_list_len(ctx["code"])
+    ctx["functions"][name] = start_pc
+    
+    var old_locals = ctx["locals"]
+    var old_local_count = ctx["local_count"]
+    var old_in_function = ctx["in_function"]
+    var old_env_captures = ctx["env_captures"]
+    ctx["locals"] = {}
+    ctx["local_count"] = 0
+    ctx["in_function"] = true
+
+    // Closure env mapping (rolling): captured free vars are accessed via LOAD_ENV.
+    ctx["env_captures"] = nil
+    var caps = stmt["captures"]
+    if caps != nil && oren_list_len(caps) > 0 {
+        var cmap = {}
+        var ci = 0
+        while ci < oren_list_len(caps) {
+            cmap[caps[ci]] = ci
+            ci = ci + 1
+        }
+        ctx["env_captures"] = cmap
+    }
+    
+    var params = stmt["params"]
+    var i = 0
+    while i < oren_list_len(params) {
+        var pname = params[i]["value"]
+        ctx["locals"][pname] = ctx["local_count"]
+        ctx["local_count"] = ctx["local_count"] + 1
+        i = i + 1
+    }
+
+    // Pre-allocate function locals so var-decls inside loops do not grow stack at runtime.
+    // The AVM uses one stack for both locals and evaluation:
+    // - fp points at the first argument (CALL sets fp = sp - nargs)
+    // - LOAD/STORE_LOCAL index into stack[fp + idx]
+    // Therefore we must ensure sp is advanced to include all locals slots up-front.
+    bytecode_collect_locals_stmt(ctx, stmt["body"])
+
+    var need = ctx["local_count"] - oren_list_len(params)
+    if need > 0 {
+        var nil_idx = add_constant(ctx, {"type": "Nil"})
+        var k = 0
+        while k < need {
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, nil_idx)
+            k = k + 1
+        }
+    }
+    
+    bytecode_compile_stmt(ctx, stmt["body"])
+    
+    var idx = add_constant(ctx, {"type": "Integer", "value": 0})
+    emit_byte(ctx, AVM_PUSH_CONST)
+    emit_u16(ctx, idx)
+    emit_byte(ctx, AVM_RET)
+    
+    var end_pc = oren_list_len(ctx["code"])
+    patch_u32(ctx, jump_skip_idx, end_pc - (jump_skip_idx + 4))
+    
+    ctx["locals"] = old_locals
+    ctx["local_count"] = old_local_count
+    ctx["in_function"] = old_in_function
+    ctx["env_captures"] = old_env_captures
+    return nil
+}
+
+fn bytecode_collect_locals_stmt(ctx, stmt) {
+    if stmt == nil { return nil }
+
+    // Do not descend into nested functions (they have their own locals scope).
+    if stmt["type"] == "Function" { return nil }
+    if stmt["type"] == "ExprStmt" {
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "Function" { return nil }
+        // If is an expression in the AST but can contain blocks with Var statements.
+        // Collect locals declared inside those blocks (Oren has function-scope vars today).
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "If" {
+            bytecode_collect_locals_stmt(ctx, stmt["expr"]["consq"])
+            if stmt["expr"]["alt"] != nil {
+                bytecode_collect_locals_stmt(ctx, stmt["expr"]["alt"])
+            }
+        }
+    }
+
+    if stmt["type"] == "Var" {
+        var name = stmt["name"]["value"]
+        if ctx["locals"][name] == nil {
+            ctx["locals"][name] = ctx["local_count"]
+            ctx["local_count"] = ctx["local_count"] + 1

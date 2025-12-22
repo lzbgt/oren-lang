@@ -1,0 +1,497 @@
+                            if recv_type != nil {
+                                var qm = impl_trait_method_lookup(p, tname_left, recv_type, method)
+                                // v0 parsing is module-local; other modules can provide impls.
+                                // Only rewrite when a unique target is known.
+                                // Whole-program coherence and missing-impl errors are enforced in the linker lowering pass.
+                                if qm != nil && qm != "__AMBIG__" {
+                                    fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, qm))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    var c = ast.new_call(tok, fn_expr, args)
+    if spread != nil {
+        c["spread"] = spread
+    }
+    return c
+}
+
+fn parse_call_args(p) {
+    var args = []
+    p["_call_spread"] = nil
+    if peek_is(p, token.TOK_RPAREN) {
+        parser_next_token(p)
+        return args
+    }
+    parser_next_token(p)
+    var a0 = parse_expression(p, LOWEST)
+    if peek_is(p, token.TOK_ELLIPSIS) {
+        // Call-site spread: f(xs...)
+        // - only one spread allowed
+        // - spread must be last (before ')')
+        p["_call_spread"] = a0
+        parser_next_token(p) // ...
+        if !peek_is(p, token.TOK_RPAREN) {
+            parser_add_error(p, "spread '...' must be the last argument")
+        }
+    } else {
+        oren_list_push(args, a0)
+    }
+    while peek_is(p, token.TOK_COMMA) {
+        parser_next_token(p)
+        parser_next_token(p)
+        if p["_call_spread"] != nil {
+            parser_add_error(p, "spread '...' must be the last argument")
+            // Still parse to make progress.
+            parse_expression(p, LOWEST)
+            continue
+        }
+        var ax = parse_expression(p, LOWEST)
+        if peek_is(p, token.TOK_ELLIPSIS) {
+            p["_call_spread"] = ax
+            parser_next_token(p) // ...
+            if !peek_is(p, token.TOK_RPAREN) {
+                parser_add_error(p, "spread '...' must be the last argument")
+            }
+        } else {
+            oren_list_push(args, ax)
+        }
+    }
+    expect_peek(p, token.TOK_RPAREN)
+    return args
+}
+
+fn parse_member(p, left) {
+    var tok = p["cur"]
+    if !expect_peek_ident_like(p, "member name") { return nil }
+    var prop = ast.new_identifier(p["cur"])
+
+    // Enum dot-variant sugar:
+    //
+    //   enum Option { None, Some(x) }
+    //   Option.None      -> Option_None()          (value)
+    //   Option.None()    -> Option_None()          (explicit call also ok)
+    //   Option.Some      -> Option_Some            (function value)
+    //   Option.Some(123) -> Option_Some(123)
+    //
+    // This is intentionally shallow and parser-local: it does not add new AST nodes
+    // and keeps backends unchanged (it rewrites to existing constructor fns).
+    if left != nil && left["type"] == "Identifier" {
+        var enum_name = left["value"]
+        var variants = p["enum_variants"][enum_name]
+        if variants != nil {
+            var vname = prop["value"]
+            var arity = variants[vname]
+            if arity != nil {
+                var fn_name = enum_name + "_" + vname
+                var fn_ident = ast.new_identifier(token.new_token(token.TOK_IDENT, fn_name))
+                if arity == 0 {
+                    if peek_is(p, token.TOK_LPAREN) {
+                        // Allow explicit `Option.None()` to parse as a normal call.
+                        return fn_ident
+                    }
+                    // Bare `Option.None` means "construct the value".
+                    return ast.new_call(token.new_token(token.TOK_LPAREN, "("), fn_ident, [])
+                }
+                // For payload variants, `Option.Some` is a function value, and the
+                // normal call parsing handles `Option.Some(...)`.
+                return fn_ident
+            }
+        }
+    }
+
+    return ast.new_member(tok, left, prop)
+}
+
+fn parse_array(p) {
+    var tok = p["cur"]
+    var elements = parse_expression_list(p, token.TOK_RBRACKET)
+    return ast.new_array(tok, elements)
+}
+
+fn parse_expression_list(p, endTok) {
+    var items = []
+    if peek_is(p, endTok) {
+        parser_next_token(p)
+        return items
+    }
+    parser_next_token(p)
+    oren_list_push(items, parse_expression(p, LOWEST))
+    while peek_is(p, token.TOK_COMMA) {
+        parser_next_token(p)
+        parser_next_token(p)
+        oren_list_push(items, parse_expression(p, LOWEST))
+    }
+    expect_peek(p, endTok)
+    return items
+}
+
+fn parse_index(p, left) {
+    var tok = p["cur"]
+    parser_next_token(p)
+    var idx = parse_expression(p, LOWEST)
+    expect_peek(p, token.TOK_RBRACKET)
+    return ast.new_index(tok, left, idx)
+}
+
+fn parse_hash(p) {
+    var tok = p["cur"]
+    var pairs = [] // store as list of {"key":..., "value":...}
+    var cont = true
+    while cont {
+        if peek_is(p, token.TOK_RBRACE) {
+            cont = false
+        } else {
+            parser_next_token(p)
+            var key = parse_expression(p, LOWEST)
+            if !expect_peek(p, token.TOK_COLON) {
+                cont = false
+            } else {
+                parser_next_token(p)
+                var val = parse_expression(p, LOWEST)
+                oren_list_push(pairs, {"key": key, "value": val})
+
+                if peek_is(p, token.TOK_RBRACE) {
+                    // done
+                } else {
+                    if peek_is(p, token.TOK_COMMA) {
+                        parser_next_token(p)
+                    } else {
+                        cont = false
+                    }
+                }
+            }
+        }
+    }
+    expect_peek(p, token.TOK_RBRACE)
+    return ast.new_hash(tok, pairs)
+}
+
+fn parse_while(p) {
+    var tok = p["cur"]
+    parser_next_token(p)
+    var cond = parse_expression(p, LOWEST)
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+    var body = parse_block(p)
+    return ast.new_while(tok, cond, body)
+}
+
+fn parse_break(p) {
+    var tok = p["cur"]
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    return ast.new_break(tok)
+}
+
+fn parse_continue(p) {
+    var tok = p["cur"]
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    return ast.new_continue(tok)
+}
+
+fn parse_for_init(p) {
+    if cur_is(p, token.TOK_LET) { return parse_var(p) }
+    if cur_is(p, token.TOK_IDENT) {
+        if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
+        if peek_is(p, token.TOK_COLON) { return parse_typed_short_var(p) }
+        return parse_assign_or_expr_stmt(p)
+    }
+    return parse_expr_stmt(p)
+}
+
+fn parse_for_post(p) {
+    if cur_is(p, token.TOK_LET) {
+        parser_add_error(p, "for post does not allow var declarations")
+        return nil
+    }
+    if cur_is(p, token.TOK_IDENT) {
+        if peek_is(p, token.TOK_DECLARE) {
+            parser_add_error(p, "for post does not allow :=")
+            return nil
+        }
+        if peek_is(p, token.TOK_COLON) {
+            parser_add_error(p, "for post does not allow type annotations")
+            return nil
+        }
+        return parse_assign_or_expr_stmt(p)
+    }
+    return parse_expr_stmt(p)
+}
+
+fn parse_for(p) {
+    var tok = p["cur"]
+
+    // for { ... }
+    if peek_is(p, token.TOK_LBRACE) {
+        parser_next_token(p)
+        var body = parse_block(p)
+        return ast.new_for(tok, nil, nil, nil, body)
+    }
+
+    // Move to first token after `for`.
+    parser_next_token(p)
+
+    // Iterator sugar:
+    //   for <ident> in <expr> { <body> }
+    //
+    // Desugars to a 3-clause `for` using an internal state list and a runtime iterator hook:
+    //   var __oren_forin_N = [<expr>, 0, 1]
+    //   for ; __oren_forin_N[2] != 0; __oren_forin_N[1] = __oren_forin_N[1] + 1 {
+    //       var __oren_forinr_N = oren_iter_next(__oren_forin_N[0], __oren_forin_N[1]) // -> [ok, value]
+    //       __oren_forin_N[2] = __oren_forinr_N[0]
+    //       if __oren_forin_N[2] != 0 {
+    //           var <ident> = __oren_forinr_N[1]
+    //           <body>
+    //       }
+    //   }
+    //
+    // Notes:
+    // - The internal names use a reserved `__oren_` prefix. User code should not define
+    //   symbols with this prefix.
+    // - This keeps backends minimal: it relies only on existing `for`, indexing, and `oren_list_len`.
+    if cur_is(p, token.TOK_IDENT) && (peek_is(p, token.TOK_IN) || peek_is(p, token.TOK_COLON)) {
+        var user_name = ast.new_identifier(p["cur"])
+
+        // Optional iterator variable annotation:
+        //   for x: u8 in bytes { ... }
+        if peek_is(p, token.TOK_COLON) {
+            parser_next_token(p) // :
+            var tname = parse_type_name_after_colon(p)
+            if tname == nil { return nil }
+            user_name["ann_type"] = tname
+            if !peek_is(p, token.TOK_IN) {
+                parser_add_error(p, "expected 'in' after for-in type annotation")
+                return nil
+            }
+        }
+        var st_name = parser_gensym(p, "__oren_forin_")
+        var res_name = parser_gensym(p, "__oren_forinr_")
+        var st_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, st_name), "value": st_name}
+        var res_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, res_name), "value": res_name}
+
+        // consume 'in'
+        parser_next_token(p)
+        // move to iterable expr
+        parser_next_token(p)
+        var iterable = parse_expression(p, LOWEST)
+        if iterable == nil { return nil }
+        if !expect_peek(p, token.TOK_LBRACE) { return nil }
+        var user_body = parse_block(p)
+
+        // init: var @forin = [iterable, 0]
+        var zero = {"type": "Integer", "token": token.new_token(token.TOK_INT, "0"), "value": "0"}
+        var one = {"type": "Integer", "token": token.new_token(token.TOK_INT, "1"), "value": "1"}
+        var two = {"type": "Integer", "token": token.new_token(token.TOK_INT, "2"), "value": "2"}
+
+        // Optimization (rolling v1 hook): if the iterable is a bare identifier, we don't need
+        // to stash it in the internal state list (ident evaluation is side-effect-free), and
+        // keeping it as an Identifier lets later lowering passes consult type annotations for
+        // iterator extensions (e.g. an `Iterable` trait).
+        var st_idx = nil
+        var st_ok = nil
+        var container_expr = nil
+        var init_stmt = nil
+
+        if iterable["type"] == "Identifier" {
+            // state: [idx, ok]
+            var state_init2 = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [zero, one]}
+            init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, state_init2)
+            st_idx = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, zero)
+            st_ok = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one)
+            container_expr = iterable
+        } else {
+            // state: [iterable, idx, ok]
+            var state_init3 = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [iterable, zero, one]}
+            init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, state_init3)
+            container_expr = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, zero)
+            st_idx = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one)
+            st_ok = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, two)
+        }
+
+        // cond: ok != 0
+        var cond_expr = ast.new_infix(token.new_token(token.TOK_NOT_EQ, "!="), st_ok, "!=", zero)
+
+        // post: idx = idx + 1
+        var inc_expr = ast.new_infix(token.new_token(token.TOK_PLUS, "+"), st_idx, "+", one)
+        var post_stmt = nil
+        if iterable["type"] == "Identifier" {
+            post_stmt = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, zero), inc_expr)
+        } else {
+            post_stmt = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one), inc_expr)
+        }
+
+        // body:
+        //   var @forinr = oren_iter_next(container, idx)
+        //   ok = @forinr[0]
+        //   if ok != 0 { var user = @forinr[1]; <user_body> }
+        var fn_next = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, "oren_iter_next"), "value": "oren_iter_next"}
+        var call_next = ast.new_call(token.new_token(token.TOK_LPAREN, "("), fn_next, [container_expr, st_idx])
+        var bind_res = ast.new_var(token.new_token(token.TOK_LET, "var"), res_ident, call_next)
+
+        var res0 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), res_ident, zero)
+        var res1 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), res_ident, one)
+
+        // ok = @forinr[0]
+        var set_ok = nil
+        if iterable["type"] == "Identifier" {
+            set_ok = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one), res0)
+        } else {
+            set_ok = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, two), res0)
+        }
+
+        // if @forin[2] != 0 { var user = @forinr[1]; <user_body> }
+        var guard_cond = ast.new_infix(token.new_token(token.TOK_NOT_EQ, "!="), st_ok, "!=", zero)
+        var guard_block = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+        var bind_user = ast.new_var(token.new_token(token.TOK_LET, "var"), user_name, res1)
+        oren_list_push(guard_block["stmts"], bind_user)
+        var bi = 0
+        while bi < oren_list_len(user_body["stmts"]) {
+            oren_list_push(guard_block["stmts"], user_body["stmts"][bi])
+            bi = bi + 1
+        }
+        var if_guard = ast.new_if(token.new_token(token.TOK_IF, "if"), guard_cond, guard_block, nil)
+        var if_guard_stmt = ast.new_expr_stmt(token.new_token(token.TOK_IF, "if"), if_guard)
+
+        var body_block = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+        oren_list_push(body_block["stmts"], bind_res)
+        oren_list_push(body_block["stmts"], set_ok)
+        oren_list_push(body_block["stmts"], if_guard_stmt)
+
+        return ast.new_for(tok, init_stmt, cond_expr, post_stmt, body_block)
+    }
+
+    var init = nil
+    var cond = nil
+    var post = nil
+
+    // for cond { ... } or for init; cond; post { ... }
+    if !cur_is(p, token.TOK_SEMICOLON) {
+        var first = parse_for_init(p)
+        if first == nil { return nil }
+
+        // Condition-only form: `for <expr> { ... }`
+        if first["type"] == "ExprStmt" {
+            if peek_is(p, token.TOK_LBRACE) {
+                cond = first["expr"]
+                parser_next_token(p)
+                var body2 = parse_block(p)
+                return ast.new_for(tok, nil, cond, nil, body2)
+            }
+        }
+
+        init = first
+
+        // Three-clause form: ensure we consumed `;` after init.
+        if !cur_is(p, token.TOK_SEMICOLON) {
+            if !expect_peek(p, token.TOK_SEMICOLON) { return nil }
+        }
+    }
+
+    // Parse condition (may be empty) up to second `;`.
+    parser_next_token(p)
+    if cur_is(p, token.TOK_SEMICOLON) {
+        cond = nil
+    } else {
+        cond = parse_expression(p, LOWEST)
+        if !expect_peek(p, token.TOK_SEMICOLON) { return nil }
+    }
+
+    // Parse post (may be empty) up to `{`.
+    parser_next_token(p)
+    if cur_is(p, token.TOK_LBRACE) {
+        post = nil
+        var body3 = parse_block(p)
+        return ast.new_for(tok, init, cond, post, body3)
+    }
+
+    post = parse_for_post(p)
+    if post == nil { return nil }
+
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+    var body4 = parse_block(p)
+    return ast.new_for(tok, init, cond, post, body4)
+}
+
+fn parse_import(p) {
+    var tok = p["cur"]
+    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    var name = ast.new_identifier(p["cur"])
+    if !expect_peek(p, token.TOK_STRING) { return nil }
+    var path = p["cur"]["literal"]
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    return ast.new_import(tok, name, path)
+}
+
+fn parse_type_decl(p) {
+    var tok = p["cur"]
+    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    var name = ast.new_identifier(p["cur"])
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+
+    var fields = []
+    if peek_is(p, token.TOK_RBRACE) {
+        parser_next_token(p)
+        if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+        return ast.new_type(tok, name, fields)
+    }
+
+    parser_next_token(p)
+    var cont = true
+    while cont {
+        if cur_is(p, token.TOK_RBRACE) { cont = false }
+        if cur_is(p, token.TOK_EOF) { cont = false }
+        if cont {
+            // field := {attr} ident [ ":" type_ident ]
+            var fattrs = parse_attr_list(p)
+            if p["cur"]["type"] != token.TOK_IDENT {
+                parser_add_error(p, "expected field name, got " + p["cur"]["type"])
+                return nil
+            }
+            var fid = ast.new_identifier(p["cur"])
+            if fattrs != nil && oren_list_len(fattrs) > 0 { fid["attrs"] = fattrs }
+
+            // Optional explicit type annotation (rolling, used by packed-byte views).
+            //
+            // Examples:
+            // - `len: u16be`
+            // - `dst: u32be`
+            //
+            // Type names are parsed as identifiers with optional dotted namespaces:
+            // - `myorg.Type`
+            // - `std.net.IPv4`
+            if peek_is(p, token.TOK_COLON) {
+                parser_next_token(p) // ':'
+                var tname = parse_type_name_after_colon(p)
+                if tname == nil { return nil }
+                fid["ann_type"] = tname
+            }
+
+            oren_list_push(fields, fid)
+            if peek_is(p, token.TOK_COMMA) {
+                parser_next_token(p) // ,
+                parser_next_token(p) // next field or }
+            } else {
+                if peek_is(p, token.TOK_RBRACE) {
+                    parser_next_token(p)
+                } else {
+                    parser_add_error(p, "expected ',' or '}', got " + p["peek"]["type"])
+                    return nil
+                }
+            }
+        }
+    }
+
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    return ast.new_type(tok, name, fields)
+}
+
+fn parse_ffi(p) {
+    var tok = p["cur"]
+    if !expect_peek(p, token.TOK_IDENT) { return nil }
+    var name = ast.new_identifier(p["cur"])
+    return ast.new_ffi(tok, name)
+}

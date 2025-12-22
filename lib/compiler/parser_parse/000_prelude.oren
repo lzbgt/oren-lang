@@ -1,0 +1,520 @@
+import token "token.oren"
+import ast "ast.oren"
+import core "parser_core.oren"
+
+// Re-export precedence constants into this module's scope so the rest of the
+// parser code can remain unchanged after refactoring `parser.oren` into modules.
+var LOWEST = core.LOWEST
+var OR_P = core.OR_P
+var AND_P = core.AND_P
+var BITOR_P = core.BITOR_P
+var BITXOR_P = core.BITXOR_P
+var BITAND_P = core.BITAND_P
+var EQUALS_P = core.EQUALS_P
+var LESSGREATER_P = core.LESSGREATER_P
+var SHIFT_P = core.SHIFT_P
+var SUM_P = core.SUM_P
+var PRODUCT_P = core.PRODUCT_P
+var CAST_P = core.CAST_P
+var PREFIX_P = core.PREFIX_P
+var CALL_P = core.CALL_P
+var INDEX_P = core.INDEX_P
+
+fn precedence(tokType) { return core.precedence(tokType) }
+
+// Core helper shims (keep existing parser logic unchanged).
+fn type_env_push(p) { return core.type_env_push(p) }
+fn type_env_pop(p) { return core.type_env_pop(p) }
+fn type_env_set(p, name, tname) { return core.type_env_set(p, name, tname) }
+fn type_env_get(p, name) { return core.type_env_get(p, name) }
+
+fn expr_dotted_name(e) { return core.expr_dotted_name(e) }
+fn impl_method_register(p, type_name, method, mangled) { return core.impl_method_register(p, type_name, method, mangled) }
+fn impl_method_lookup(p, type_name, method) { return core.impl_method_lookup(p, type_name, method) }
+fn impl_trait_method_register(p, trait_name, type_name, method, mangled) { return core.impl_trait_method_register(p, trait_name, type_name, method, mangled) }
+fn impl_trait_method_lookup(p, trait_name, type_name, method) { return core.impl_trait_method_lookup(p, trait_name, type_name, method) }
+
+fn str_starts_with(s, prefix) { return core.str_starts_with(s, prefix) }
+fn attr_is_reserved(name) { return core.attr_is_reserved(name) }
+fn attr_is_known(p, name) { return core.attr_is_known(p, name) }
+fn attr_is_allowlisted(p, name) { return core.attr_is_allowlisted(p, name) }
+fn attr_normalize_name(name) { return core.attr_normalize_name(name) }
+fn attr_validate(p, name) { return core.attr_validate(p, name) }
+
+fn parser_gensym(p, prefix) { return core.parser_gensym(p, prefix) }
+fn parser_add_error(p, msg) { return core.parser_add_error(p, msg) }
+fn docs_join(lines) { return core.docs_join(lines) }
+fn parse_doc_list(p) { return core.parse_doc_list(p) }
+fn parser_take_pending_doc(p) { return core.parser_take_pending_doc(p) }
+
+fn parser_next_token(p) { return core.parser_next_token(p) }
+fn cur_is(p, t) { return core.cur_is(p, t) }
+fn peek_is(p, t) { return core.peek_is(p, t) }
+fn cur_is_ident_like(p) { return core.cur_is_ident_like(p) }
+fn peek_is_ident_like(p) { return core.peek_is_ident_like(p) }
+fn expect_peek(p, t) { return core.expect_peek(p, t) }
+fn expect_peek_ident_like(p, what) { return core.expect_peek_ident_like(p, what) }
+fn parse_type_name_after_colon(p) { return core.parse_type_name_after_colon(p) }
+
+fn parse_program(p) {
+    var prog = ast.new_program()
+    while p["cur"]["type"] != token.TOK_EOF {
+        // Allow doc comments and attributes to appear in either order before a declaration:
+        //   /// doc
+        //   @attr(...)
+        //   fn ...
+        //
+        // or:
+        //   @attr(...)
+        //   /// doc
+        //   struct ...
+        //
+        // We collect both deterministically and attach to the next declaration only.
+        var doc_lines = []
+        var attrs = []
+        while cur_is(p, token.TOK_DOC) || cur_is(p, token.TOK_AT) {
+            if cur_is(p, token.TOK_DOC) {
+                oren_list_push(doc_lines, p["cur"]["literal"])
+                parser_next_token(p)
+            } else {
+                var a = parse_attr(p)
+                if a != nil { oren_list_push(attrs, a) }
+                parser_next_token(p)
+            }
+        }
+        var doc = docs_join(doc_lines)
+        p["_pending_doc"] = doc
+        var stmt = parse_statement(p)
+        if stmt != nil {
+            if stmt["type"] == "StmtList" {
+                if attrs != nil && oren_list_len(attrs) != 0 {
+                    parser_add_error(p, "attributes may not precede enum sugar expansion")
+                }
+                if p["_pending_doc"] != nil {
+                    parser_add_error(p, "doc comments may not precede enum/impl sugar expansion yet")
+                    p["_pending_doc"] = nil
+                }
+                var si = 0
+                while si < oren_list_len(stmt["stmts"]) {
+                    oren_list_push(prog["statements"], stmt["stmts"][si])
+                    si = si + 1
+                }
+            } else {
+                attach_attrs_to_stmt(p, stmt, attrs)
+                // Attach doc to declaration statements (fn/struct/class/import/ffi).
+                var pending = parser_take_pending_doc(p)
+                if pending != nil {
+                    if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" || stmt["type"] == "Var" {
+                        stmt["doc"] = pending
+                    } else {
+                        if stmt["type"] == "ExprStmt" {
+                            var exp = stmt["expr"]
+                            if exp != nil && exp["type"] == "Function" {
+                                // Function consumes pending doc in parse_function.
+                            } else {
+                                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
+                            }
+                        } else {
+                            parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
+                        }
+                    }
+                }
+                oren_list_push(prog["statements"], stmt)
+            }
+        }
+        // If no statement consumed the doc, clear it to avoid leakage.
+        p["_pending_doc"] = nil
+        parser_next_token(p)
+    }
+    // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
+    prog["traits"] = p["traits"]
+    return prog
+}
+
+fn parse_attr_list(p) {
+    var attrs = []
+    while cur_is(p, token.TOK_AT) {
+        var a = parse_attr(p)
+        if a != nil { oren_list_push(attrs, a) }
+        // Move to the next token after this attribute.
+        parser_next_token(p)
+    }
+    return attrs
+}
+
+fn parse_attr(p) {
+    // Current token is '@'
+    var at_tok = p["cur"]
+    if !core.expect_peek_attr_name(p, "attribute name") { return nil }
+    var name = p["cur"]["literal"]
+    // Support dotted namespaces: @myorg.tag(...)
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // '.'
+        if !core.expect_peek_attr_name(p, "attribute name segment") { return nil }
+        name = name + "." + p["cur"]["literal"]
+    }
+
+    // Normalize ergonomic aliases to canonical namespaces before strict validation
+    // and before embedding into metadata.
+    name = attr_normalize_name(name)
+
+    attr_validate(p, name)
+
+    var args = []
+    // Optional ( ... )
+    if peek_is(p, token.TOK_LPAREN) {
+        parser_next_token(p) // '('
+        parser_next_token(p) // first token inside args (or ')')
+
+        if cur_is(p, token.TOK_RPAREN) {
+            // no args
+        } else {
+            var cont = true
+            while cont {
+                var key = nil
+                var val = nil
+
+                // Keyword args in attrs: allow a small "attr-name token" set as keys.
+                // This keeps ergonomic forms like `@json(default=0)` working even though
+                // `default` is a keyword token in the lexer.
+                if token.is_attr_name_token(p["cur"]["type"]) && peek_is(p, token.TOK_ASSIGN) {
+                    key = p["cur"]["literal"]
+                    parser_next_token(p) // '='
+                    parser_next_token(p) // value
+                }
+
+                val = parse_attr_literal(p)
+                if val == nil {
+                    parser_add_error(p, "attribute args must be compile-time literals")
+                    return nil
+                }
+                oren_list_push(args, {"key": key, "value": val})
+
+                if peek_is(p, token.TOK_COMMA) {
+                    parser_next_token(p) // ','
+                    parser_next_token(p) // next
+                } else {
+                    cont = false
+                }
+            }
+
+            if !peek_is(p, token.TOK_RPAREN) {
+                parser_add_error(p, "expected ')' after attribute args")
+                return nil
+            }
+            parser_next_token(p) // ')'
+        }
+    }
+
+    return {"type": "Attr", "token": at_tok, "name": name, "args": args}
+}
+
+fn parse_attr_literal(p) {
+    // Only allow literals in v0 attribute args to keep builds deterministic.
+    var t = p["cur"]["type"]
+    if t == token.TOK_STRING { return ast.new_string(p["cur"]) }
+    if t == token.TOK_INT { return ast.new_integer(p["cur"]) }
+    if t == token.TOK_FLOAT { return ast.new_float(p["cur"]) }
+    if t == token.TOK_TRUE { return ast.new_boolean(p["cur"], true) }
+    if t == token.TOK_FALSE { return ast.new_boolean(p["cur"], false) }
+    if t == token.TOK_NIL { return ast.new_nil(p["cur"]) }
+    return nil
+}
+
+fn attach_attrs_to_stmt(p, stmt, attrs) {
+    if attrs == nil { return nil }
+    if oren_list_len(attrs) == 0 { return nil }
+
+    // Allowed targets (M1): declarations + local/global vars.
+    if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" {
+        stmt["attrs"] = attrs
+        return nil
+    }
+    if stmt["type"] == "Var" {
+        // Prefer storing attrs on the identifier node (consistent with fields/params).
+        if stmt["name"] != nil && stmt["name"]["type"] == "Identifier" {
+            stmt["name"]["attrs"] = attrs
+        } else {
+            stmt["attrs"] = attrs
+        }
+        return nil
+    }
+    if stmt["type"] == "ExprStmt" {
+        var exp = stmt["expr"]
+        if exp != nil && exp["type"] == "Function" {
+            exp["attrs"] = attrs
+            return nil
+        }
+    }
+
+    parser_add_error(p, "attributes may only precede declarations (fn/struct/class/import/ffi/var)")
+    return nil
+}
+
+fn parse_statement(p) {
+    if cur_is(p, token.TOK_LET) { return parse_var(p) }
+    if cur_is(p, token.TOK_RETURN) { return parse_return(p) }
+    if cur_is(p, token.TOK_WHILE) { return parse_while(p) }
+    if cur_is(p, token.TOK_FOR) { return parse_for(p) }
+    if cur_is(p, token.TOK_SWITCH) { return parse_switch(p) }
+    if cur_is(p, token.TOK_BREAK) { return parse_break(p) }
+    if cur_is(p, token.TOK_CONTINUE) { return parse_continue(p) }
+    if cur_is(p, token.TOK_IMPORT) { return parse_import(p) }
+    if cur_is(p, token.TOK_STRUCT) { return parse_type_decl(p) }
+    if cur_is(p, token.TOK_CLASS) { return parse_type_decl(p) }
+    if cur_is(p, token.TOK_ENUM) { return parse_enum_decl(p) }
+    if cur_is(p, token.TOK_TRAIT) { return parse_trait_decl(p) }
+    if cur_is(p, token.TOK_IMPL) { return parse_impl_decl(p) }
+    if cur_is(p, token.TOK_FFI) { return parse_ffi(p) }
+    if cur_is(p, token.TOK_TEST) { return parse_test(p) }
+    if cur_is(p, token.TOK_SPAWN) { return parse_spawn(p) }
+    if cur_is(p, token.TOK_LBRACE) { return parse_block(p) }
+    if cur_is(p, token.TOK_IDENT) {
+        // Contextual keyword: `match` is only treated as a statement when it is not
+        // being used as an identifier (var name, call, member, indexing, etc.).
+        if p["cur"]["literal"] == "match" {
+            var pt = p["peek"]["type"]
+            if pt != token.TOK_DECLARE && pt != token.TOK_ASSIGN && pt != token.TOK_COLON &&
+               pt != token.TOK_DOT && pt != token.TOK_LPAREN && pt != token.TOK_LBRACKET &&
+               pt != token.TOK_SEMICOLON && pt != token.TOK_RBRACE && pt != token.TOK_EOF {
+                return parse_match(p)
+            }
+        }
+        if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
+        if peek_is(p, token.TOK_COLON) { return parse_typed_short_var(p) }
+        return parse_assign_or_expr_stmt(p)
+    }
+    return parse_expr_stmt(p)
+}
+
+fn parse_dotted_name(p) {
+    // Parse an identifier with optional dotted suffixes: A.B.C
+    if !cur_is_ident_like(p) { return nil }
+    var name = p["cur"]["literal"]
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // .
+        if !expect_peek_ident_like(p, "dotted name segment") { return nil }
+        name = name + "." + p["cur"]["literal"]
+    }
+    return name
+}
+
+fn skip_parens_signature(p) {
+    // Best-effort skip of (...) in trait signatures.
+    // Precondition: current token is '('.
+    var depth = 0
+    while true {
+        if cur_is(p, token.TOK_LPAREN) { depth = depth + 1 }
+        if cur_is(p, token.TOK_RPAREN) {
+            depth = depth - 1
+            if depth <= 0 { return nil }
+        }
+        if cur_is(p, token.TOK_EOF) { return nil }
+        parser_next_token(p)
+    }
+}
+
+fn parse_trait_decl(p) {
+    // trait Foo { fn m(a, b); fn n(x): i32; }
+    //
+    // Rolling implementation:
+    // - Trait declarations are compile-time contracts only (no runtime representation yet).
+    // - We keep a metadata-only record under p["traits"] for tooling (docs/serde/OpenAPI/etc).
+    // - No statements are emitted, so existing backends remain unchanged.
+    var doc = parser_take_pending_doc(p)
+    if !expect_peek_ident_like(p, "trait name") { return ast.new_stmt_list([]) }
+    var trait_name = parse_dotted_name(p)
+    if trait_name == nil { return ast.new_stmt_list([]) }
+    if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
+
+    var methods = []
+    // Enter body.
+    parser_next_token(p)
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
+
+        if cur_is(p, token.TOK_FUNCTION) {
+            // Parse `fn name(...)` signature and record it.
+            if !expect_peek_ident_like(p, "trait method name") { return ast.new_stmt_list([]) }
+            var mname = p["cur"]["literal"]
+            if !expect_peek(p, token.TOK_LPAREN) { return ast.new_stmt_list([]) }
+            var params = parse_parameters(p) // leaves cur at ')'
+
+            // Optional return type: `: T`
+            var ret_ann = nil
+            if peek_is(p, token.TOK_COLON) {
+                parser_next_token(p) // ':'
+                ret_ann = parse_type_name_after_colon(p)
+                if ret_ann == nil { return ast.new_stmt_list([]) }
+            }
+
+            // Convert params (Identifier AST nodes) into stable metadata.
+            var mparams = []
+            var pi = 0
+            while pi < oren_list_len(params) {
+                var id = params[pi]
+                var pname = nil
+                var ann = nil
+                var isv = false
+                var pattrs = []
+                if id != nil {
+                    pname = id["value"]
+                    ann = id["ann_type"]
+                    if id["is_varargs"] == true { isv = true }
+                    if id["attrs"] != nil { pattrs = id["attrs"] }
+                }
+                oren_list_push(mparams, {"value": pname, "attrs": pattrs, "ann_type": ann, "is_varargs": isv})
+                pi = pi + 1
+            }
+
+            oren_list_push(methods, {"name": mname, "params": mparams, "ret_ann_type": ret_ann})
+
+            // Consume optional separator and continue.
+            if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+            if peek_is(p, token.TOK_COMMA) { parser_next_token(p) }
+            parser_next_token(p)
+            continue
+        }
+
+        // Unknown token inside trait body: skip (rolling mode).
+        parser_next_token(p)
+    }
+
+    // p["cur"] is '}' (or EOF). Record trait metadata for tooling.
+    p["trait_set"][trait_name] = true
+    oren_list_push(p["traits"], {"name": trait_name, "doc": doc, "methods": methods})
+    return ast.new_stmt_list([])
+}
+
+fn impl_mangled_name(trait_name, type_name, method) {
+    // Deterministic lowering name for impl methods (rolling).
+    //
+    // Rationale:
+    // - avoids introducing a runtime method table before the type system is stable
+    // - keeps compilation bootstrap-friendly (plain fns)
+    // - stable across backends (C/native/bytecode)
+    //
+    // Convention:
+    //   __oren_impl__<Trait>__<Type>__<method>
+    //
+    // Dots are replaced by underscores for C identifier stability downstream.
+    var tn = trait_name
+    var ty = type_name
+    // Replace '.' with '_'
+    var i = 0
+    var out_t = ""
+    while i < oren_string_len(tn) {
+        var c = oren_string_char_at(tn, i)
+        if c == "." { out_t = out_t + "_" } else { out_t = out_t + c }
+        i = i + 1
+    }
+    i = 0
+    var out_ty = ""
+    while i < oren_string_len(ty) {
+        var c2 = oren_string_char_at(ty, i)
+        if c2 == "." { out_ty = out_ty + "_" } else { out_ty = out_ty + c2 }
+        i = i + 1
+    }
+    return "__oren_impl__" + out_t + "__" + out_ty + "__" + method
+}
+
+fn parse_impl_decl(p) {
+    // impl Trait for Type { fn method(self, ...) { ... } ... }
+    //
+    // Rolling implementation:
+    // - Parser accepts impl blocks.
+    // - Each method is lowered to a plain top-level function with a deterministic name:
+    //     __oren_impl__Trait__Type__method(...)
+    //
+    // This unblocks early stdlib layering and tooling without committing to a stable
+    // method dispatch ABI yet.
+    var doc = parser_take_pending_doc(p)
+    if !expect_peek_ident_like(p, "impl trait name") { return ast.new_stmt_list([]) }
+    // cur is IDENT after expect_peek
+    var trait_name = parse_dotted_name(p)
+    if trait_name == nil { return ast.new_stmt_list([]) }
+
+    if !expect_peek(p, token.TOK_FOR) { return ast.new_stmt_list([]) }
+    if !expect_peek_ident_like(p, "impl type name") { return ast.new_stmt_list([]) }
+    // cur is IDENT after expect_peek
+    var type_name = parse_dotted_name(p)
+    if type_name == nil { return ast.new_stmt_list([]) }
+
+    if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
+
+    var out = []
+    var impl_block_id = parser_gensym(p, "@impl_" + trait_name + "_" + type_name + "_")
+    parser_next_token(p)
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_DOC) {
+            var md = parse_doc_list(p)
+            if md != nil { p["_pending_doc"] = md }
+            continue
+        }
+        if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_FUNCTION) {
+            var st = parse_expr_stmt(p)
+            if st == nil { return ast.new_stmt_list(out) }
+            // st is ExprStmt(Function)
+            var fnn = st["expr"]
+            if fnn != nil && fnn["type"] == "Function" {
+                if doc != nil && fnn["doc"] == nil { fnn["doc"] = doc }
+                var mname = fnn["name"]
+                var newn = impl_mangled_name(trait_name, type_name, mname)
+                // Preserve impl identity for later whole-program passes:
+                // - enables cross-module method call lowering after module linking
+                // - enables coherence checks without parsing mangled identifiers
+                fnn["impl_trait"] = trait_name
+                fnn["impl_type"] = type_name
+                fnn["impl_method"] = mname
+                fnn["impl_mangled_base"] = newn
+                fnn["impl_block_id"] = impl_block_id
+                fnn["name"] = newn
+                impl_method_register(p, type_name, mname, newn)
+                impl_trait_method_register(p, trait_name, type_name, mname, newn)
+            }
+            oren_list_push(out, st)
+            parser_next_token(p)
+            continue
+        }
+        parser_add_error(p, "impl body expects 'fn' declarations")
+        return ast.new_stmt_list(out)
+    }
+    // p["cur"] is '}'.
+    return ast.new_stmt_list(out)
+}
+
+fn parse_match(p) {
+    // match <expr> {
+    //   case Enum.Variant(x,y) { ... }
+    //   case Enum.Other { ... }
+    //   default { ... }
+    // }
+    //
+    // Rolling implementation:
+    // - Works with the current `enum` sugar encoding:
+    //     { "tag": "Enum.Variant", "_0": x, "_1": y, ... }
+    // - Desugars into:
+    //     { var tmp = <expr>; var tag = tmp.tag; if tag == "Enum.Variant" { var x = tmp._0; ... } else ... }
+    var tok = p["cur"]
+    parser_next_token(p)
+    var m_expr = parse_expression(p, LOWEST)
+    if m_expr == nil { return nil }
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+
+    var tmp_name = parser_gensym(p, "@match_")
+    var tmp_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tmp_name), "value": tmp_name}
+    var init_tmp = ast.new_var(token.new_token(token.TOK_LET, "var"), tmp_ident, m_expr)
+
+    var tag_name = parser_gensym(p, "@match_tag_")
+    var tag_ident = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, tag_name), "value": tag_name}
+    var mem_tag = ast.new_member(token.new_token(token.TOK_DOT, "."), tmp_ident, ast.new_identifier(token.new_token(token.TOK_IDENT, "tag")))
+    var init_tag = ast.new_var(token.new_token(token.TOK_LET, "var"), tag_ident, mem_tag)
+
+    var cases = []
+    var default_block = nil
+
+    // Enter match body.
+    parser_next_token(p)

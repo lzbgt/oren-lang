@@ -1,0 +1,520 @@
+            bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + call["fn"]["value"])
+            return nil
+        }
+
+        var n_args = oren_list_len(args)
+        var fixed_count = n_args
+        if fixed >= 0 { fixed_count = fixed }
+
+        var i = 0
+        while i < fixed_count {
+            bytecode_compile_expr(ctx, args[i])
+            i = i + 1
+        }
+        if fixed >= 0 {
+            var ri = fixed
+            while ri < n_args {
+                bytecode_compile_expr(ctx, args[ri])
+                ri = ri + 1
+            }
+            emit_byte(ctx, AVM_NEW_LIST)
+            emit_u16(ctx, n_args - fixed)
+        }
+        emit_byte(ctx, AVM_NEW_LIST)
+        if fixed >= 0 {
+            emit_u16(ctx, fixed + 1)
+        } else {
+            emit_u16(ctx, n_args)
+        }
+        emit_byte(ctx, AVM_SPAWN_CALL_LIST)
+        return nil
+    }
+
+    if expr["type"] == "If" {
+        bytecode_compile_expr(ctx, expr["cond"])
+        
+        emit_byte(ctx, AVM_JMP_IF32)
+        var jump_then_idx = oren_list_len(ctx["code"])
+        emit_i32(ctx, 0)
+        
+        emit_byte(ctx, AVM_JMP32)
+        var jump_else_idx = oren_list_len(ctx["code"])
+        emit_i32(ctx, 0)
+        
+        var then_start = oren_list_len(ctx["code"])
+        bytecode_compile_stmt(ctx, expr["consq"])
+        
+        emit_byte(ctx, AVM_JMP32)
+        var jump_end_idx = oren_list_len(ctx["code"])
+        emit_i32(ctx, 0)
+        
+        var else_start = oren_list_len(ctx["code"])
+        if expr["alt"] != nil {
+            bytecode_compile_stmt(ctx, expr["alt"])
+        }
+        
+        var end_pc = oren_list_len(ctx["code"])
+        
+        patch_u32(ctx, jump_then_idx, then_start - (jump_then_idx + 4))
+        patch_u32(ctx, jump_else_idx, else_start - (jump_else_idx + 4))
+        patch_u32(ctx, jump_end_idx, end_pc - (jump_end_idx + 4))
+
+        // Treat `if { ... } else { ... }` as an expression that evaluates to `nil`.
+        // This keeps stack depth consistent when `if` appears in statement position
+        // (ExprStmt emits AVM_POP after compiling the expression).
+        var nil_idx = add_constant(ctx, {"type": "Nil"})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, nil_idx)
+        return nil
+    }
+
+    if expr["type"] == "Hash" {
+        var entries = expr["pairs"]
+        var i = 0
+        while i < oren_list_len(entries) {
+            var ent = entries[i]
+            bytecode_compile_expr(ctx, ent["key"])
+            bytecode_compile_expr(ctx, ent["value"])
+            i = i + 1
+        }
+        emit_byte(ctx, AVM_NEW_MAP)
+        emit_u16(ctx, oren_list_len(entries))
+        return nil
+    }
+
+    if expr["type"] == "Array" {
+        var elements = expr["elements"]
+        var i = 0
+        while i < oren_list_len(elements) {
+            bytecode_compile_expr(ctx, elements[i])
+            i = i + 1
+        }
+        emit_byte(ctx, AVM_NEW_LIST)
+        emit_u16(ctx, oren_list_len(elements))
+        return nil
+    }
+
+    if expr["type"] == "Function" {
+        // Function literal (lambda): parser lowers `|...| { ... }` into an anonymous Function node (name="").
+        // Rolling closure model (v0): capture-by-value, env is a LIST in deterministic first-use order.
+        if expr["name"] == "" {
+            if expr["lambda_name"] == nil {
+                expr["lambda_name"] = lambda_gensym(ctx)
+                expr["captures"] = lambda_free_vars(expr)
+            }
+            var lname = expr["lambda_name"]
+            // Compile the lambda body exactly once (it is skipped at runtime via an entry JMP).
+            if ctx["functions"][lname] == nil {
+                var old_name = expr["name"]
+                expr["name"] = lname
+                bytecode_compile_function(ctx, expr)
+                expr["name"] = old_name
+            }
+
+            var caps = expr["captures"]
+            if caps == nil { caps = [] }
+            var ci = 0
+            while ci < oren_list_len(caps) {
+                bytecode_compile_expr(ctx, {"type": "Identifier", "value": caps[ci]})
+                ci = ci + 1
+            }
+
+            emit_byte(ctx, AVM_PUSH_FUNC32)
+            emit_u32(ctx, ctx["functions"][lname])
+            if oren_list_len(caps) > 0 {
+                emit_byte(ctx, AVM_MAKE_CLOSURE)
+                emit_byte(ctx, oren_list_len(caps))
+            }
+            return nil
+        }
+
+        // Named function literal in expression position: treat as a function value.
+        // Ensure the function body is compiled and then push it as a function value.
+        var nm = expr["name"]
+        if nm != nil && nm != "" {
+            if ctx["functions"][nm] == nil {
+                bytecode_compile_function(ctx, expr)
+            }
+            emit_byte(ctx, AVM_PUSH_FUNC32)
+            emit_u32(ctx, ctx["functions"][nm])
+            return nil
+        }
+    }
+    
+    if expr["type"] == "Member" {
+        var left_node = expr["left"]
+        if left_node["type"] == "Identifier" {
+            var left = left_node["value"]
+            var alias = ctx["aliases"][left]
+            if alias != nil {
+                var prop = expr["prop"]["value"]
+                var name = alias + prop
+                var glob = ctx["globals"][name]
+                if glob != nil {
+                    emit_byte(ctx, AVM_LOAD_GLOBAL)
+                    emit_u16(ctx, glob)
+                    return nil
+                }
+                var faddr = ctx["functions"][name]
+                if faddr != nil {
+                    emit_byte(ctx, AVM_PUSH_FUNC32)
+                    emit_u32(ctx, faddr)
+                    return nil
+                }
+                if ctx["declared_funcs"][name] == true {
+                    emit_byte(ctx, AVM_PUSH_FUNC32)
+                    var fpos = oren_list_len(ctx["code"])
+                    emit_u32(ctx, 0)
+                    oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
+                    return nil
+                }
+                // Fallthrough if not global (maybe member of variable shadowing module?)
+            }
+        }
+        
+        // General member access lowers to string-key indexing:
+        //   x.field  ->  x["field"]
+        bytecode_compile_expr(ctx, expr["left"])
+        var prop = expr["prop"]["value"]
+        var idx = add_constant(ctx, {"type": "String", "value": prop})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        emit_byte(ctx, AVM_GET_INDEX)
+        return nil
+    }
+
+    if expr["type"] == "Index" {
+        bytecode_compile_expr(ctx, expr["left"])
+        bytecode_compile_expr(ctx, expr["index"])
+        emit_byte(ctx, AVM_GET_INDEX)
+        return nil
+    }
+
+    if expr["type"] == "String" {
+        var idx = add_constant(ctx, {"type": "String", "value": expr["value"]})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+
+    if expr["type"] == "Nil" {
+        var idx = add_constant(ctx, {"type": "Nil"})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+
+    if expr["type"] == "Boolean" {
+        var v = 0
+        if expr["value"] == true { v = 1 }
+        var idx = add_constant(ctx, {"type": "Bool", "value": v})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+
+    if expr["type"] == "Integer" {
+        var s = expr["value"]
+        var val = 0
+        var i = 0
+        var neg = false
+        if s != nil && oren_string_len(s) > 0 {
+            var c0 = oren_string_char_at(s, 0)
+            if c0 == "-" {
+                neg = true
+                i = 1
+            } else {
+                if c0 == "+" {
+                    i = 1
+                }
+            }
+        }
+        var base = 10
+        if i + 1 < oren_string_len(s) && oren_string_char_at(s, i) == "0" {
+            var c1 = oren_string_char_at(s, i + 1)
+            if c1 == "x" || c1 == "X" { base = 16; i = i + 2 }
+            else {
+                if c1 == "b" || c1 == "B" { base = 2; i = i + 2 }
+                else {
+                    if c1 == "o" || c1 == "O" { base = 8; i = i + 2 }
+                }
+            }
+        }
+        while i < oren_string_len(s) {
+            var digit = 0
+            var c = oren_string_char_at(s, i)
+            if c == "_" { i = i + 1; continue }
+            if c == "0" { digit = 0 }
+            if c == "1" { digit = 1 }
+            if c == "2" { digit = 2 }
+            if c == "3" { digit = 3 }
+            if c == "4" { digit = 4 }
+            if c == "5" { digit = 5 }
+            if c == "6" { digit = 6 }
+            if c == "7" { digit = 7 }
+            if c == "8" { digit = 8 }
+            if c == "9" { digit = 9 }
+            if base == 16 {
+                if c == "a" || c == "A" { digit = 10 }
+                if c == "b" || c == "B" { digit = 11 }
+                if c == "c" || c == "C" { digit = 12 }
+                if c == "d" || c == "D" { digit = 13 }
+                if c == "e" || c == "E" { digit = 14 }
+                if c == "f" || c == "F" { digit = 15 }
+            }
+            val = val * base + digit
+            i = i + 1
+        }
+        if neg { val = 0 - val }
+        
+        var idx = add_constant(ctx, {"type": "Integer", "value": val})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+
+    if expr["type"] == "Float" {
+        // Encode float constants as IEEE-754 f64 raw bits, like the native backend.
+        // This avoids locale-dependent parsing inside the VM and keeps results deterministic.
+        var bits = oren_string_to_float_bits(expr["value"])
+        var idx = add_constant(ctx, {"type": "Float", "value": bits})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, idx)
+        return nil
+    }
+    
+    if expr["type"] == "Identifier" {
+        var name = expr["value"]
+        var loc = ctx["locals"][name]
+        if loc != nil {
+            emit_load_local(ctx, loc)
+            return nil
+        }
+        var caps = ctx["env_captures"]
+        if caps != nil {
+            var cidx = caps[name]
+            if cidx != nil {
+                emit_byte(ctx, AVM_LOAD_ENV)
+                emit_byte(ctx, cidx)
+                return nil
+            }
+        }
+        var glob = ctx["globals"][name]
+        if glob != nil {
+            emit_byte(ctx, AVM_LOAD_GLOBAL)
+            emit_u16(ctx, glob)
+            return nil
+        }
+        var faddr = ctx["functions"][name]
+        if faddr != nil {
+            emit_byte(ctx, AVM_PUSH_FUNC32)
+            emit_u32(ctx, faddr)
+            return nil
+        }
+        if ctx["declared_funcs"][name] == true {
+            emit_byte(ctx, AVM_PUSH_FUNC32)
+            var fpos = oren_list_len(ctx["code"])
+            emit_u32(ctx, 0)
+            oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
+            return nil
+        }
+        // Unknown identifier: leave it as NIL (best-effort in rolling mode).
+        var nidx = add_constant(ctx, {"type": "Nil"})
+        emit_byte(ctx, AVM_PUSH_CONST)
+        emit_u16(ctx, nidx)
+        return nil
+    }
+    
+    if expr["type"] == "Infix" {
+        // Short-circuit boolean ops (rolling): `&&` and `||` always return BOOL (0/1).
+        if expr["op"] == "&&" {
+            // if left truthy -> eval right and return truthiness(right), else return false
+            bytecode_compile_expr(ctx, expr["left"])
+
+            emit_byte(ctx, AVM_JMP_IF32)
+            var jump_eval_right = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            // left is falsey
+            var f_idx = add_constant(ctx, {"type": "Bool", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+            emit_byte(ctx, AVM_JMP32)
+            var jump_end = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            var eval_right_pc = oren_list_len(ctx["code"])
+            bytecode_compile_expr(ctx, expr["right"])
+            emit_byte(ctx, AVM_JMP_IF32)
+            var jump_push_true = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            // right falsey
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+            emit_byte(ctx, AVM_JMP32)
+            var jump_end2 = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            var push_true_pc = oren_list_len(ctx["code"])
+            var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, t_idx)
+
+            var end_pc = oren_list_len(ctx["code"])
+            patch_u32(ctx, jump_eval_right, eval_right_pc - (jump_eval_right + 4))
+            patch_u32(ctx, jump_push_true, push_true_pc - (jump_push_true + 4))
+            patch_u32(ctx, jump_end, end_pc - (jump_end + 4))
+            patch_u32(ctx, jump_end2, end_pc - (jump_end2 + 4))
+            return nil
+        }
+
+        if expr["op"] == "||" {
+            // if left truthy -> return true, else eval right and return truthiness(right)
+            bytecode_compile_expr(ctx, expr["left"])
+
+            emit_byte(ctx, AVM_JMP_IF32)
+            var jump_push_true_left = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            // eval right
+            var eval_right_pc = oren_list_len(ctx["code"])
+            bytecode_compile_expr(ctx, expr["right"])
+            emit_byte(ctx, AVM_JMP_IF32)
+            var jump_push_true_right = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            // right falsey
+            var f_idx = add_constant(ctx, {"type": "Bool", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+            emit_byte(ctx, AVM_JMP32)
+            var jump_end = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            var push_true_pc = oren_list_len(ctx["code"])
+            var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, t_idx)
+
+            var end_pc = oren_list_len(ctx["code"])
+            patch_u32(ctx, jump_push_true_left, push_true_pc - (jump_push_true_left + 4))
+            patch_u32(ctx, jump_push_true_right, push_true_pc - (jump_push_true_right + 4))
+            patch_u32(ctx, jump_end, end_pc - (jump_end + 4))
+            return nil
+        }
+
+        bytecode_compile_expr(ctx, expr["left"])
+        bytecode_compile_expr(ctx, expr["right"])
+        if expr["op"] == "+" {
+            emit_byte(ctx, AVM_ADD)
+        }
+        if expr["op"] == "-" {
+            emit_byte(ctx, AVM_SUB)
+        }
+        if expr["op"] == "*" {
+            emit_byte(ctx, AVM_MUL)
+        }
+        if expr["op"] == "/" {
+            emit_byte(ctx, AVM_DIV)
+        }
+        if expr["op"] == "%" {
+            emit_byte(ctx, AVM_MOD)
+        }
+        if expr["op"] == "<" {
+            emit_byte(ctx, 18)
+        }
+        if expr["op"] == "==" { emit_byte(ctx, 19) }
+        if expr["op"] == "!=" { emit_byte(ctx, 20) }
+        if expr["op"] == ">"  { emit_byte(ctx, 21) }
+        if expr["op"] == "<=" { emit_byte(ctx, 22) }
+        if expr["op"] == ">=" { emit_byte(ctx, 23) }
+        if expr["op"] == "&"  { emit_byte(ctx, 24) }
+        if expr["op"] == "|"  { emit_byte(ctx, 25) }
+        if expr["op"] == "^"  { emit_byte(ctx, 26) }
+        if expr["op"] == "<<" { emit_byte(ctx, 27) }
+        if expr["op"] == ">>" { emit_byte(ctx, 28) }
+        return nil
+    }
+
+    if expr["type"] == "Prefix" {
+        var op = expr["op"]
+        // Unary minus: (-1) * x
+        //
+        // Rationale:
+        // - Preserves IEEE-754 sign bit for floats (notably -0.0) which `0 - x` does not.
+        // - Integers use deterministic wrap semantics (two's complement), so this matches `-x`.
+        if op == "-" {
+            var z_idx = add_constant(ctx, {"type": "Integer", "value": -1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, z_idx)
+            bytecode_compile_expr(ctx, expr["right"])
+            emit_byte(ctx, AVM_MUL)
+            return nil
+        }
+
+        // Logical NOT: `!x` returns BOOL (0/1) based on truthiness(x)
+        if op == "!" {
+            bytecode_compile_expr(ctx, expr["right"])
+
+            emit_byte(ctx, AVM_JMP_IF32)
+            var jump_truthy = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            // falsey -> true
+            var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, t_idx)
+            emit_byte(ctx, AVM_JMP32)
+            var jump_end = oren_list_len(ctx["code"])
+            emit_i32(ctx, 0)
+
+            // truthy -> false
+            var truthy_pc = oren_list_len(ctx["code"])
+            var f_idx = add_constant(ctx, {"type": "Bool", "value": 0})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, f_idx)
+
+            var end_pc = oren_list_len(ctx["code"])
+            patch_u32(ctx, jump_truthy, truthy_pc - (jump_truthy + 4))
+            patch_u32(ctx, jump_end, end_pc - (jump_end + 4))
+            return nil
+        }
+
+        // Bitwise NOT: `~x` implemented as `x ^ -1` (two's complement)
+        if op == "~" {
+            bytecode_compile_expr(ctx, expr["right"])
+            var m1_idx = add_constant(ctx, {"type": "Integer", "value": -1})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, m1_idx)
+            emit_byte(ctx, 26) // BITXOR
+            return nil
+        }
+
+        // Unknown prefix: compile operand and leave it (best-effort).
+        bytecode_compile_expr(ctx, expr["right"])
+        return nil
+    }
+    
+    if expr["type"] == "Call" {
+        var name = ""
+        var fn_node = expr["fn"]
+        var indirect = false
+        if fn_node["type"] == "Identifier" {
+            name = fn_node["value"]
+            // If the identifier resolves to a variable slot, it is a function value call.
+            if ctx["locals"][name] != nil { indirect = true }
+            if ctx["globals"][name] != nil { indirect = true }
+        }
+        if fn_node["type"] == "Member" {
+            if fn_node["left"]["type"] == "Identifier" {
+                var left = fn_node["left"]["value"]
+                var prop = fn_node["prop"]["value"]
+                var alias = ctx["aliases"][left]
+                if alias != nil {
+                    name = alias + prop
+                } else {
+                    // method call / computed member: treat as indirect call of a function value
+                    indirect = true
+                }
+            }

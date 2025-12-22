@@ -1,0 +1,420 @@
+    p["strict_attrs"] = STRICT_ATTRS
+    p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    var prog = parser.parse_program(p)
+    
+    if oren_list_len(p["errors"]) > 0 {
+        print("Parse errors in " + full + ":")
+        var i = 0
+        while i < oren_list_len(p["errors"]) {
+            print(p["errors"][i])
+            i = i + 1
+        }
+        oren_exit(1)
+    }
+
+    var mod = {"prefix": new_module_prefix(), "path": full, "program": prog, "aliases": {}, "imports": [], "added": false}
+    MODULES[full] = mod
+
+    var dir = dirname(full)
+    var seen_alias = {}
+    var i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s = prog["statements"][i]
+        if s["type"] == "Import" {
+            var alias = s["name"]["value"]
+            if seen_alias[alias] != nil {
+                print("Duplicate import alias: " + alias + " in " + full)
+                oren_exit(1)
+            }
+            seen_alias[alias] = true
+            var dep = load_module(dir, s["path"])
+            var alias_ns = mod["prefix"] + alias
+            mod["aliases"][alias_ns] = dep["prefix"]
+            // Preserve import edges in deterministic source order for graph export.
+            oren_list_push(mod["imports"], {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"]})
+        }
+        i = i + 1
+    }
+
+    // Rename pass would be here, but we need to move rename logic to a module too?
+    // For now let's assume we copy `collect_toplevel_rename_pairs` etc.
+    // Or better, put them in `analysis.oren` or a new `modules.oren`.
+    // Let's put module logic in `compiler.oren` for now as it orchestrates loading.
+    
+    var pairs = renamer.collect_toplevel_rename_pairs(prog, mod["prefix"])
+    i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s2 = prog["statements"][i]
+        if s2["type"] == "Import" {
+            var alias2 = s2["name"]["value"]
+            if renamer.rename_lookup(pairs, alias2) != "" {
+                print("Import alias conflicts with top-level name: " + alias2 + " in " + full)
+                oren_exit(1)
+            }
+        }
+        i = i + 1
+    }
+
+    // Namespace import aliases with the *owning* module prefix so after linking/merging
+    // all statements into one program, alias resolution remains unambiguous and scoped.
+    //
+    // Example: within module prefix "M5_", `lexer.new_lexer(...)` becomes `M5_lexer.new_lexer(...)`.
+    i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s3 = prog["statements"][i]
+        if s3["type"] == "Import" {
+            var a3 = s3["name"]["value"]
+            pairs[a3] = mod["prefix"] + a3
+        }
+        i = i + 1
+    }
+    renamer.rename_program_in_place(prog, pairs)
+
+    // Attribute-driven JSON serde codegen (opt-in via `@json.derive(...)`).
+    // Must run *after* module renaming so generated functions are naturally prefixed
+    // via the (already-prefixed) type names.
+    serde_json.lower_program_in_place(prog, mod["prefix"])
+    if prog["serde_json_errors"] != nil && oren_list_len(prog["serde_json_errors"]) > 0 {
+        var first_err = prog["serde_json_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Serde JSON lowering errors in " + full + ":")
+        var ei = 0
+        while ei < oren_list_len(prog["serde_json_errors"]) {
+            print(prog["serde_json_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+    if mod["added"] != true {
+        mod["added"] = true
+        oren_list_push(MODULE_ORDER, mod)
+    }
+
+    // Pop cycle-check stack (runtime has no list_pop; do it manually).
+    var new_stack = []
+    var si = 0
+    var sl = oren_list_len(MODULE_STACK)
+    while si + 1 < sl {
+        oren_list_push(new_stack, MODULE_STACK[si])
+        si = si + 1
+    }
+    MODULE_STACK = new_stack
+    
+    return mod
+}
+
+fn link_program(entry_path, root_prog, config) {
+    var trace_passes = oren_env("OREN_TRACE_PASSES") != nil
+    if trace_passes { print("[trace] link: start " + entry_path) }
+    MODULES = {}
+    MODULE_STACK = []
+    MODULE_ORDER = []
+    MODULE_ID_COUNTER = 0
+    
+    var base = dirname(entry_path)
+    var root_prefix = "R_"
+    var root_aliases = {}
+    var root_imports = []
+    
+    var i = 0
+    while i < oren_list_len(root_prog["statements"]) {
+        var s = root_prog["statements"][i]
+        if s["type"] == "Import" {
+            var alias = s["name"]["value"]
+            var mod = load_module(base, s["path"])
+            var alias_ns = root_prefix + alias
+            root_aliases[alias_ns] = mod["prefix"]
+            // Preserve root import edges in source order.
+            oren_list_push(root_imports, {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"]})
+        }
+        i = i + 1
+    }
+
+    // Apply the same alias namespacing rule to the root module so its imports are
+    // scoped and do not collide with nested module imports after linking.
+    var root_pairs = {}
+    i = 0
+    while i < oren_list_len(root_prog["statements"]) {
+        var s0 = root_prog["statements"][i]
+        if s0["type"] == "Import" {
+            var a0 = s0["name"]["value"]
+            root_pairs[a0] = root_prefix + a0
+        }
+        i = i + 1
+    }
+    renamer.rename_program_in_place(root_prog, root_pairs)
+
+    // Attribute-driven JSON serde codegen for the root module.
+    // Root is not renamed, so prefix is empty.
+    serde_json.lower_program_in_place(root_prog, "")
+    if root_prog["serde_json_errors"] != nil && oren_list_len(root_prog["serde_json_errors"]) > 0 {
+        var first_err = root_prog["serde_json_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Serde JSON lowering errors in " + entry_path + ":")
+        var ei = 0
+        while ei < oren_list_len(root_prog["serde_json_errors"]) {
+            print(root_prog["serde_json_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    
+    var merged_stmts = []
+    var merged_traits = []
+    var type_ns = {}
+    
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var mod = MODULE_ORDER[i]
+        var stmts = mod["program"]["statements"]
+        if mod["program"]["traits"] != nil {
+            var ti = 0
+            while ti < oren_list_len(mod["program"]["traits"]) {
+                oren_list_push(merged_traits, mod["program"]["traits"][ti])
+                ti = ti + 1
+            }
+        }
+        var j = 0
+        while j < oren_list_len(stmts) {
+            var st = stmts[j]
+            if st["type"] == "Type" {
+                type_ns[st["name"]["value"]] = true
+            }
+            if st["type"] != "Import" {
+                oren_list_push(merged_stmts, st)
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    
+    i = 0
+    while i < oren_list_len(root_prog["statements"]) {
+        var st = root_prog["statements"][i]
+        if st["type"] == "Type" {
+            type_ns[st["name"]["value"]] = true
+        }
+        if st["type"] != "Import" {
+            oren_list_push(merged_stmts, st)
+        }
+        i = i + 1
+    }
+
+    if root_prog["traits"] != nil {
+        var rti = 0
+        while rti < oren_list_len(root_prog["traits"]) {
+            oren_list_push(merged_traits, root_prog["traits"][rti])
+            rti = rti + 1
+        }
+    }
+    
+    // Preserve metadata-only surfaces across module linking.
+    // (Traits are not represented as executable statements yet in v0.)
+    // Provide a deterministic module graph surface for tooling.
+    var module_summaries = []
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m = MODULE_ORDER[i]
+        oren_list_push(module_summaries, {"prefix": m["prefix"], "path": m["path"], "imports": m["imports"]})
+        i = i + 1
+    }
+
+    // Global alias map for whole-program codegen.
+    //
+    // `load_module()` keeps `mod["aliases"]` per-module, but after we merge all
+    // statements into one linked program, backends need a single alias lookup
+    // table to resolve `alias.symbol` member calls (e.g. `lexer.new_lexer`).
+    //
+    // Rolling rule:
+    // - import aliases are namespaced per-module (see `load_module` and root module renaming)
+    // - after namespacing, aliases must be globally unique; any collision is a bug
+    var all_aliases = {}
+    // root aliases first
+    var ri = 0
+    while ri < oren_list_len(root_imports) {
+        var e = root_imports[ri]
+        if e != nil {
+            all_aliases[e["alias_ns"]] = e["prefix"]
+        }
+        ri = ri + 1
+    }
+    // merge module aliases in deterministic order (MODULE_ORDER, then per-module import order)
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m2 = MODULE_ORDER[i]
+        var imps = m2["imports"]
+        if imps != nil {
+            var ii = 0
+            while ii < oren_list_len(imps) {
+                var ie = imps[ii]
+                var a2 = ie["alias_ns"]
+                var p2 = ie["prefix"]
+                if all_aliases[a2] == nil {
+                    all_aliases[a2] = p2
+                } else {
+                    if all_aliases[a2] != p2 {
+                        var msgA = "Import alias conflict: '" + a2 + "' maps to both '" + all_aliases[a2] + "' and '" + p2 + "'"
+                        emit_diag("compile", 1, msgA)
+                        print(msgA)
+                        oren_exit(1)
+                    }
+                }
+                ii = ii + 1
+            }
+        }
+        i = i + 1
+    }
+
+    var linked = {
+        "statements": merged_stmts,
+        "traits": merged_traits,
+        "aliases": all_aliases,
+        "type_ns": type_ns,
+        "config": config,
+        "module_graph": {"entry": entry_path, "imports": root_imports, "modules": module_summaries}
+    }
+
+    // Normalize cross-module type annotation spellings:
+    //   <alias_ns>.Type -> <dep_prefix>Type
+    //
+    // Must run before lowerings that consult annotations for dispatch decisions.
+    if trace_passes { print("[trace] pass: type_name_resolve") }
+    type_resolve.lower_linked_program_in_place(linked)
+    if linked["type_name_errors"] != nil && oren_list_len(linked["type_name_errors"]) > 0 {
+        var first_err = linked["type_name_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Type name resolution errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["type_name_errors"]) {
+            print(linked["type_name_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+    // Whole-program impl/method-call lowering:
+    // - enables cross-module method call sugar without runtime vtables
+    // - enforces deterministic coherence (ambiguous overlap is a compile error)
+    if trace_passes { print("[trace] pass: impl_lowering") }
+    impl_lowering.lower_linked_program_in_place(linked)
+    if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
+        var first_err = linked["impl_lowering_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Impl lowering errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["impl_lowering_errors"]) {
+            print(linked["impl_lowering_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+    // Compile-time lowering: packed struct views over bytes.
+    if trace_passes { print("[trace] pass: packview") }
+    packview.lower_linked_program_in_place(linked)
+    if linked["packview_errors"] != nil && oren_list_len(linked["packview_errors"]) > 0 {
+        var first_err = linked["packview_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Packview errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["packview_errors"]) {
+            print(linked["packview_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+    // Optional: typecheck pass (gradual typing).
+    //
+    // Run this before normalization casts are inserted so diagnostics point at user code
+    // rather than compiler-generated boundary rewrites.
+    if config != nil && config["typecheck"] == true {
+        if trace_passes { print("[trace] pass: typecheck") }
+        typecheck.typecheck_linked_program_in_place(linked)
+    }
+    if linked["typecheck_errors"] != nil && oren_list_len(linked["typecheck_errors"]) > 0 {
+        var first_err = linked["typecheck_errors"][0]
+        emit_diag("typecheck", 1, first_err)
+        print("Typecheck errors:")
+        var ei2 = 0
+        while ei2 < oren_list_len(linked["typecheck_errors"]) {
+            print(linked["typecheck_errors"][ei2])
+            ei2 = ei2 + 1
+        }
+        oren_exit(1)
+    }
+
+
+    // Compile-time lowering: apply value-level normalization for annotated boundaries.
+    // (Rolling step toward exact-size layout semantics.)
+    if trace_passes { print("[trace] pass: type_ann") }
+    type_ann.lower_linked_program_in_place(linked)
+
+    // Compile-time lowering: specialization call sugar.
+    //   f[T](...) -> f__T(...)
+    //
+    // This is a v0 stepping stone toward full generics + monomorphization, with zero runtime cost.
+    if trace_passes { print("[trace] pass: generic_calls") }
+    gen_calls.lower_linked_program_in_place(linked)
+    if linked["generic_call_errors"] != nil && oren_list_len(linked["generic_call_errors"]) > 0 {
+        var first_err = linked["generic_call_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Generic call errors:")
+        var ei0 = 0
+        while ei0 < oren_list_len(linked["generic_call_errors"]) {
+            print(linked["generic_call_errors"][ei0])
+            ei0 = ei0 + 1
+        }
+        oren_exit(1)
+    }
+
+    // Compile-time lowering: generic function monomorphization (rolling v0).
+    //   fn f[T](...) + f[T](...) calls  ->  fn f__T(...)
+    if trace_passes { print("[trace] pass: generic_mono") }
+    gen_mono.lower_linked_program_in_place(linked)
+    if linked["generic_monomorph_errors"] != nil && oren_list_len(linked["generic_monomorph_errors"]) > 0 {
+        var first_err = linked["generic_monomorph_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Generic monomorphization errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["generic_monomorph_errors"]) {
+            print(linked["generic_monomorph_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+    // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
+    // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.
+    if trace_passes { print("[trace] pass: abi_layout") }
+    abi_layout.lower_linked_program_in_place(linked)
+    if linked["abi_layout_errors"] != nil && oren_list_len(linked["abi_layout_errors"]) > 0 {
+        var first_err = linked["abi_layout_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("ABI layout errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["abi_layout_errors"]) {
+            print(linked["abi_layout_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+
+    // Optimizer baseline (safe, conservative).
+    if trace_passes { print("[trace] pass: optimizer") }
+    optimizer.lower_linked_program_in_place(linked)
+
+    if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
+    return linked
+}
+
+fn _unit_prefix_from_function_name(name) {
+    // Functions from imported modules are prefixed as `M<N>_foo` (e.g. `M12_len`).
+    // Root functions are unprefixed.
+    if name == nil || name == "" { return "root" }
+    if oren_string_len(name) < 3 { return "root" }
+    if oren_string_char_at(name, 0) != "M" { return "root" }
+    var i = 1
+    while i < oren_string_len(name) {

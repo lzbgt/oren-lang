@@ -1,0 +1,420 @@
+        var ch = oren_string_char_at(name, i)
+        if ch >= "0" && ch <= "9" {
+            i = i + 1
+            continue
+        }
+        break
+    }
+    if i == 1 { return "root" }
+    if i < oren_string_len(name) && oren_string_char_at(name, i) == "_" {
+        return oren_string_slice(name, 0, i)
+    }
+    return "root"
+}
+
+fn c_backend_sync_generated_functions(root_prog, module_order, linked) {
+    // The C backend transpiler consumes per-module programs (MODULE_ORDER + root_prog).
+    // Whole-program passes may generate new functions by rebuilding `linked["statements"]`.
+    //
+    // Sync strategy (rolling, deterministic):
+    // - Remove generic templates (`fn f[T]`) from unit programs (so C won't emit unspecialized stubs).
+    // - Collect a set of already-present function names across all unit programs.
+    // - Any function in `linked["statements"]` not already present is appended to:
+    //     - module unit program matching `M<N>_` prefix, or
+    //     - root program (fallback).
+
+    if root_prog == nil || module_order == nil || linked == nil { return nil }
+
+    // Build prefix -> program table.
+    var by_pref = {}
+    var i = 0
+    while i < oren_list_len(module_order) {
+        var mod = module_order[i]
+        if mod != nil && mod["prefix"] != nil && mod["program"] != nil {
+            by_pref[mod["prefix"]] = mod["program"]
+        }
+        i = i + 1
+    }
+    by_pref["root"] = root_prog
+
+    // Remove generic templates from each unit and collect present function names.
+    var present = {}
+    i = 0
+    while i < oren_list_len(module_order) {
+        var mod = module_order[i]
+        var prog = mod["program"]
+        if prog != nil {
+            var out_stmts = []
+            var ss = prog["statements"]
+            var j = 0
+            while ss != nil && j < oren_list_len(ss) {
+                var st = ss[j]
+                var skip = false
+                if st != nil && st["type"] == "ExprStmt" {
+                    var e = st["expr"]
+                    if e != nil && e["type"] == "Function" {
+                        if e["type_params"] != nil && oren_list_len(e["type_params"]) > 0 {
+                            skip = true
+                        } else {
+                            present[e["name"]] = true
+                        }
+                    }
+                }
+                if !skip { oren_list_push(out_stmts, st) }
+                j = j + 1
+            }
+            prog["statements"] = out_stmts
+        }
+        i = i + 1
+    }
+
+    // Root program too.
+    var out_root = []
+    var ssr = root_prog["statements"]
+    var jr = 0
+    while ssr != nil && jr < oren_list_len(ssr) {
+        var st = ssr[jr]
+        var skip = false
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" {
+                if e["type_params"] != nil && oren_list_len(e["type_params"]) > 0 {
+                    skip = true
+                } else {
+                    present[e["name"]] = true
+                }
+            }
+        }
+        if !skip { oren_list_push(out_root, st) }
+        jr = jr + 1
+    }
+    root_prog["statements"] = out_root
+
+    // Append newly generated functions from linked program into the appropriate unit.
+    var linked_ss = linked["statements"]
+    var k = 0
+    while linked_ss != nil && k < oren_list_len(linked_ss) {
+        var st = linked_ss[k]
+        if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" {
+                var nm = e["name"]
+                if nm != nil && present[nm] != true {
+                    var pref = _unit_prefix_from_function_name(nm)
+                    var dst = by_pref[pref]
+                    if dst == nil { dst = root_prog }
+                    if dst["statements"] == nil { dst["statements"] = [] }
+                    oren_list_push(dst["statements"], st)
+                    present[nm] = true
+                }
+            }
+        }
+        k = k + 1
+    }
+    return nil
+}
+
+fn compiler_main() {
+    var args = oren_args()
+    var argc = oren_list_len(args)
+    if argc < 2 { usage(); return nil }
+
+    // Help behavior (rolling):
+    // - `oren --help` / `oren -h` shows root help.
+    // - `oren <cmd> --help` / `oren <cmd> -h` shows command-specific help.
+    //
+    // NOTE: We keep the existing manual CLI parsing below (rolling, no huge rewrite),
+    // but we should not let a global help scan swallow subcommand help.
+    var first_cmd = args[1]
+    if first_cmd == "build" || first_cmd == "emit-c" || first_cmd == "meta" || first_cmd == "scan" || first_cmd == "dump" {
+        var hi_cmd = 2
+        while hi_cmd < argc {
+            if args[hi_cmd] == "--help" || args[hi_cmd] == "-h" {
+                usage_cmd(first_cmd)
+                return nil
+            }
+            hi_cmd = hi_cmd + 1
+        }
+    }
+
+    // Root help (no subcommand).
+    var hi = 1
+    while hi < argc {
+        if args[hi] == "--help" || args[hi] == "-h" {
+            usage()
+            return nil
+        }
+        hi = hi + 1
+    }
+
+    var mode = "build"
+    var i = 1
+    if args[i] == "build" { mode = "build"; i = i + 1 }
+    else {
+        if args[i] == "emit-c" { mode = "emit-c"; i = i + 1 }
+        else {
+            if args[i] == "meta" { mode = "meta"; i = i + 1 }
+            else {
+                if args[i] == "scan" { mode = "scan"; i = i + 1 }
+                else {
+                    if args[i] == "dump" { mode = "dump"; i = i + 1 }
+                    else {
+                        if args[i] == "--emit-c" { mode = "emit-c"; i = i + 1 }
+                    }
+                }
+            }
+        }
+    }
+
+    var dbg_args = oren_env("OREN_DEBUG_ARGS")
+    if dbg_args != nil {
+        var di = 0
+        while di < oren_list_len(args) {
+            print("ARG[" + oren_int_to_string(di) + "] = " + args[di])
+            di = di + 1
+        }
+    }
+
+    if mode == "scan" {
+        if i >= argc { print("Usage: oren scan <lib>"); return nil }
+        var lib = args[i]
+        var nm_out = "scan_tmp.txt"
+        // macOS: nm -gU. Linux: nm -gD?
+        var cmd = "nm -gU " + shell_quote(lib) + " > " + nm_out
+        if oren_system(cmd) != 0 {
+            print("Scan failed (nm not found or lib invalid?)")
+            return nil
+        }
+        var content = oren_read_file(nm_out)
+        if oren_is_err(content) {
+            print("Scan failed (cannot read nm output): " + nm_out)
+            var msg = oren_err_msg(content)
+            if msg != nil { print(msg) }
+            return nil
+        }
+        var len = oren_string_len(content)
+        var idx = 0
+        
+        print("# API Documentation for " + lib)
+        print("")
+        print("| Symbol | Address | Type |")
+        print("|---|---|---|")
+        
+        // Parse lines: address T symbol
+        var line_start = 0
+        while idx < len {
+            if oren_string_char_at(content, idx) == "\n" {
+                var line = oren_string_slice(content, line_start, idx)
+                // Parse line
+                // Format: "0000000000003f50 T _my_api_func"
+                // Check if contains " T "
+                // Simple search
+                var t_idx = -1
+                var k = 0
+                var l_len = oren_string_len(line)
+                while k < l_len - 3 {
+                    if oren_string_char_at(line, k) == " " {
+                        if oren_string_char_at(line, k+1) == "T" {
+                            if oren_string_char_at(line, k+2) == " " {
+                                t_idx = k
+                                k = l_len // break
+                            }
+                        }
+                    }
+                    k = k + 1
+                }
+                
+                if t_idx != -1 {
+                    var addr = oren_string_slice(line, 0, t_idx)
+                    var sym = oren_string_slice(line, t_idx + 3, l_len)
+                    // Trim CR if any
+                    // macOS symbols have _ prefix.
+                    if oren_string_char_at(sym, 0) == "_" {
+                        sym = oren_string_slice(sym, 1, oren_string_len(sym))
+                    }
+                    print("| " + sym + " | " + addr + " | Function |")
+                }
+                
+                line_start = idx + 1
+            }
+            idx = idx + 1
+        }
+        
+        oren_system("rm " + nm_out)
+        return nil
+    }
+
+    if mode == "dump" {
+        // Usage: oren dump <tokens|linked|graph> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]
+        if i + 1 >= argc {
+            var msg_usage = "Usage: oren dump <tokens|linked|graph> <file.oren> [-o out.json] [--target macos|linux] [--arch arm64]"
+            emit_diag("compile", 2, msg_usage)
+            print(msg_usage)
+            oren_exit(2)
+        }
+        var kind = args[i]
+        var path = args[i + 1]
+        i = i + 2
+
+        var target = "macos"
+        var arch = "arm64"
+        var outp = ""
+
+        var strict = false
+        var allow = []
+        var env_strict = oren_env("OREN_STRICT_ATTRS")
+        if env_strict != nil { strict = true }
+        var env_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
+        if env_allow != nil { allow = split_csv(env_allow) }
+
+        while i < argc {
+            if args[i] == "--target" {
+                if i + 1 >= argc {
+                    emit_diag("compile", 2, "Missing value for --target")
+                    print("Missing value for --target")
+                    oren_exit(2)
+                }
+                target = args[i + 1]
+                i = i + 2
+            } else {
+                if args[i] == "--arch" {
+                    if i + 1 >= argc {
+                        emit_diag("compile", 2, "Missing value for --arch")
+                        print("Missing value for --arch")
+                        oren_exit(2)
+                    }
+                    arch = args[i + 1]
+                    i = i + 2
+                } else {
+                    if args[i] == "-o" {
+                        if i + 1 >= argc {
+                            emit_diag("compile", 2, "Missing value for -o")
+                            print("Missing value for -o")
+                            oren_exit(2)
+                        }
+                        outp = args[i + 1]
+                        i = i + 2
+                    } else {
+                        if args[i] == "--strict-attrs" {
+                            strict = true
+                            i = i + 1
+                        } else {
+                            if args[i] == "--attr-allow-prefixes" {
+                                if i + 1 >= argc {
+                                    emit_diag("compile", 2, "Missing value for --attr-allow-prefixes")
+                                    print("Missing value for --attr-allow-prefixes")
+                                    oren_exit(2)
+                                }
+                                allow = split_csv(args[i + 1])
+                                i = i + 2
+                            } else {
+                                emit_diag("compile", 2, "Unknown arg: " + args[i])
+                                print("Unknown arg: " + args[i])
+                                oren_exit(2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if kind == "tokens" {
+            var js = dump.dump_tokens_json(path, strict, allow)
+            if js == nil {
+                emit_diag("compile", 2, "dump tokens failed: " + path)
+                oren_exit(1)
+            }
+            var rc = dump.write_or_print(outp, js)
+            if rc != 0 {
+                emit_diag("compile", 2, "Failed to write dump output: " + outp)
+                oren_exit(rc)
+            }
+            return nil
+        }
+    if kind == "linked" {
+            var src = expand_includes_file(path, [])
+            if src == nil {
+                var emsg = "Failed to read file: " + path
+                var msg = include_last_err()
+                if msg != nil { emsg = emsg + " (" + msg + ")" }
+                emit_diag("compile", 2, emsg)
+                print("Failed to read file: " + path)
+                if msg != nil { print(msg) }
+                oren_exit(2)
+            }
+            var l = lexer.new_lexer(src)
+            l["file"] = path
+            var p = parser.new_parser(l)
+            p["strict_attrs"] = strict
+            p["attr_allow_prefixes"] = allow
+            var prog = parser.parse_program(p)
+            if oren_list_len(p["errors"]) > 0 {
+                var first_err = nil
+                if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+                emit_diag("parse", 1, first_err)
+                print("Parse errors:")
+                var ei = 0
+                while ei < oren_list_len(p["errors"]) {
+                    print(p["errors"][ei])
+                    ei = ei + 1
+                }
+                oren_exit(1)
+            }
+            var linked = link_program(path, prog, {"target": target, "arch": arch})
+            var js2 = dump.linked_summary_json(linked)
+            var rc2 = dump.write_or_print(outp, js2)
+            if rc2 != 0 {
+                emit_diag("compile", 2, "Failed to write dump output: " + outp)
+                oren_exit(rc2)
+            }
+            return nil
+        }
+    if kind == "graph" {
+            var srcg = expand_includes_file(path, [])
+            if srcg == nil {
+                var emsgg = "Failed to read file: " + path
+                var msgg = include_last_err()
+                if msgg != nil { emsgg = emsgg + " (" + msgg + ")" }
+                emit_diag("compile", 2, emsgg)
+                print("Failed to read file: " + path)
+                if msgg != nil { print(msgg) }
+                oren_exit(2)
+            }
+            var lg = lexer.new_lexer(srcg)
+            lg["file"] = path
+            var pg = parser.new_parser(lg)
+            pg["strict_attrs"] = strict
+            pg["attr_allow_prefixes"] = allow
+            var progg = parser.parse_program(pg)
+            if oren_list_len(pg["errors"]) > 0 {
+                var first_err = nil
+                if oren_list_len(pg["errors"]) > 0 { first_err = pg["errors"][0] }
+                emit_diag("parse", 1, first_err)
+                print("Parse errors:")
+                var eig = 0
+                while eig < oren_list_len(pg["errors"]) {
+                    print(pg["errors"][eig])
+                    eig = eig + 1
+                }
+                oren_exit(1)
+            }
+            var linkedg = link_program(path, progg, {"target": target, "arch": arch})
+            var graph = linkedg["module_graph"]
+            var jsg = dump.module_graph_json(graph)
+            var rcg = dump.write_or_print(outp, jsg)
+            if rcg != 0 {
+                emit_diag("compile", 2, "Failed to write dump output: " + outp)
+                oren_exit(rcg)
+            }
+            return nil
+        }
+
+        emit_diag("compile", 2, "Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
+        print("Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
+        oren_exit(2)
+    }
+
+    if mode == "meta" {
+        if i >= argc {
+            var msg_usage = "Usage: oren meta <file.oren> [-o out.meta.json] [--target macos|linux] [--arch arm64]"
+            emit_diag("compile", 2, msg_usage)

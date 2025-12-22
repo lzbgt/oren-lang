@@ -1,0 +1,520 @@
+        parser_next_token(p)
+        var right = parse_expression(p, PREFIX_P)
+        return ast.new_prefix(tok, tok["literal"], right)
+    }
+    if t == token.TOK_MINUS {
+        var tok = p["cur"]
+        parser_next_token(p)
+        var right = parse_expression(p, PREFIX_P)
+        return ast.new_prefix(tok, tok["literal"], right)
+    }
+    if t == token.TOK_TILDE {
+        var tok = p["cur"]
+        parser_next_token(p)
+        var right = parse_expression(p, PREFIX_P)
+        return ast.new_prefix(tok, tok["literal"], right)
+    }
+    if t == token.TOK_LPAREN {
+        parser_next_token(p)
+        var exp = parse_expression(p, LOWEST)
+        if !expect_peek(p, token.TOK_RPAREN) { return nil }
+        return exp
+    }
+    if t == token.TOK_IF { return parse_if(p) }
+    if t == token.TOK_FUNCTION { return parse_function(p) }
+    if t == token.TOK_BITOR { return parse_lambda(p) }
+    if t == token.TOK_OR { return parse_lambda(p) } // allow empty-params lambda: || expr
+    if t == token.TOK_SPAWN { return parse_spawn_expr(p) }
+    if t == token.TOK_LBRACKET { return parse_array(p) }
+    if t == token.TOK_LBRACE { return parse_hash(p) }
+    parser_add_error(p, "no prefix parse fn for " + t)
+    return nil
+}
+
+fn parse_lambda(p) {
+    // lambda literal:
+    //   |params| expr
+    //   |params| { block }
+    //
+    // Lowered to an anonymous Function node (name="").
+    var tok = p["cur"] // '|'
+    var params = []
+
+    // Parse params between | ... |.
+    // Special-case: lexer tokenizes `||` as TOK_OR, so `|| body` means empty params.
+    if tok["type"] == token.TOK_OR {
+        // empty params
+    } else {
+        if peek_is(p, token.TOK_BITOR) {
+            parser_next_token(p) // consume closing '|'
+        } else {
+            parser_next_token(p) // first param
+            if !cur_is(p, token.TOK_IDENT) {
+                parser_add_error(p, "lambda expects identifier parameters")
+                return nil
+            }
+            oren_list_push(params, ast.new_identifier(p["cur"]))
+            while peek_is(p, token.TOK_COMMA) {
+                parser_next_token(p) // comma
+                parser_next_token(p) // ident
+                if !cur_is(p, token.TOK_IDENT) {
+                    parser_add_error(p, "lambda expects identifier parameters")
+                    return nil
+                }
+                oren_list_push(params, ast.new_identifier(p["cur"]))
+            }
+            if !expect_peek(p, token.TOK_BITOR) { return nil }
+        }
+    }
+
+    // Body: block or expression
+    parser_next_token(p)
+    var body = nil
+    if cur_is(p, token.TOK_LBRACE) {
+        body = parse_block(p)
+    } else {
+        var exp = parse_expression(p, LOWEST)
+        if exp == nil { return nil }
+        var b = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+        var rtok = token.new_token(token.TOK_RETURN, "return")
+        oren_list_push(b["stmts"], ast.new_return(rtok, exp))
+        body = b
+    }
+
+    return ast.new_function(tok, "", params, body)
+}
+
+fn parse_spawn_expr(p) {
+    var tok = p["cur"]
+    // spawn <call-expr>
+    parser_next_token(p)
+    var exp = parse_expression(p, LOWEST)
+    if exp == nil { return nil }
+    if exp["type"] != "Call" {
+        parser_add_error(p, "spawn expects a call expression")
+        return nil
+    }
+    return ast.new_spawn_expr(tok, exp)
+}
+
+fn parse_infix(p, left) {
+    var t = p["cur"]["type"]
+    if t == token.TOK_AS { return parse_as_cast(p, left) }
+    var is_op = false
+    if t == token.TOK_PLUS { is_op = true }
+    if t == token.TOK_MINUS { is_op = true }
+    if t == token.TOK_SLASH { is_op = true }
+    if t == token.TOK_ASTERISK { is_op = true }
+    if t == token.TOK_PERCENT { is_op = true }
+    if t == token.TOK_EQ { is_op = true }
+    if t == token.TOK_NOT_EQ { is_op = true }
+    if t == token.TOK_AND { is_op = true }
+    if t == token.TOK_OR { is_op = true }
+    if t == token.TOK_LT { is_op = true }
+    if t == token.TOK_GT { is_op = true }
+    if t == token.TOK_LTE { is_op = true }
+    if t == token.TOK_GTE { is_op = true }
+    if t == token.TOK_SHL { is_op = true }
+    if t == token.TOK_SHR { is_op = true }
+    if t == token.TOK_BITAND { is_op = true }
+    if t == token.TOK_BITOR { is_op = true }
+    if t == token.TOK_BITXOR { is_op = true }
+    if is_op {
+        var tok = p["cur"]
+        var op = tok["literal"]
+        var prec = precedence(t)
+        parser_next_token(p)
+        var right = parse_expression(p, prec)
+        return ast.new_infix(tok, left, op, right)
+    }
+    if t == token.TOK_LPAREN { return parse_call(p, left) }
+    if t == token.TOK_DOT { return parse_member(p, left) }
+    if t == token.TOK_LBRACKET { return parse_index(p, left) }
+    return left
+}
+
+fn parse_as_cast(p, left) {
+    // Cast operator:
+    //   <expr> as <type>
+    //
+    // v0 restriction: <type> must be a builtin width token (u8/i32/f32/u16be/...).
+    // Lowering strategy: desugar into call-form cast sugar:
+    //   x as u8  ->  u8(x)
+    //
+    // Then `type_ann_lowering.oren` rewrites `u8(x)` into deterministic casts.
+    var tok = p["cur"] // 'as'
+    parser_next_token(p) // type token
+
+    if !token.is_builtin_type_token(p["cur"]["type"]) {
+        parser_add_error(p, "expected builtin type after 'as' (e.g. u8/i32/f32/bool/u16be)")
+        return left
+    }
+
+    var fn_expr = ast.new_identifier(p["cur"])
+    return ast.new_call(tok, fn_expr, [left])
+}
+
+fn parse_if(p) {
+    var tok = p["cur"]
+    parser_next_token(p)
+    var cond = parse_expression(p, LOWEST)
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+    var consq = parse_block(p)
+    var alt = nil
+    if peek_is(p, token.TOK_ELSE) {
+        parser_next_token(p)
+        // Support `else if ... { ... }` as syntax sugar for:
+        //   else { if ... { ... } }
+        // so backends can keep the simple `alt: Block | nil` invariant.
+        if peek_is(p, token.TOK_IF) {
+            parser_next_token(p) // 'if'
+            var if_expr = parse_if(p)
+            if if_expr == nil { return nil }
+            alt = ast.new_block(token.new_token(token.TOK_ELSE, "else"))
+            oren_list_push(alt["stmts"], ast.new_expr_stmt(token.new_token(token.TOK_IF, "if"), if_expr))
+        } else {
+            if expect_peek(p, token.TOK_LBRACE) {
+                alt = parse_block(p)
+            }
+        }
+    }
+    return ast.new_if(tok, cond, consq, alt)
+}
+
+fn parse_block(p) {
+    type_env_push(p)
+    var block = ast.new_block(p["cur"])
+    parser_next_token(p)
+    var cont = true
+    while cont {
+        if cur_is(p, token.TOK_RBRACE) { cont = false }
+        if cur_is(p, token.TOK_EOF) { cont = false }
+        if cont {
+            // Allow doc comments and attributes inside blocks (useful for local declarations,
+            // and for metadata channels like @trace/@cap annotations).
+            //
+            // We collect both deterministically and attach to the next statement only,
+            // matching top-level behavior.
+            var doc_lines = []
+            var attrs = []
+            while cur_is(p, token.TOK_DOC) || cur_is(p, token.TOK_AT) {
+                if cur_is(p, token.TOK_DOC) {
+                    oren_list_push(doc_lines, p["cur"]["literal"])
+                    parser_next_token(p)
+                } else {
+                    var a = parse_attr(p)
+                    if a != nil { oren_list_push(attrs, a) }
+                    parser_next_token(p)
+                }
+            }
+            var doc = docs_join(doc_lines)
+            p["_pending_doc"] = doc
+            var stmt = parse_statement(p)
+            if stmt != nil {
+                if stmt["type"] == "StmtList" {
+                    if attrs != nil && oren_list_len(attrs) != 0 {
+                        parser_add_error(p, "attributes may not precede enum/impl sugar expansion in blocks yet")
+                    }
+                    if p["_pending_doc"] != nil {
+                        parser_add_error(p, "doc comments may not precede enum/impl sugar expansion in blocks yet")
+                        p["_pending_doc"] = nil
+                    }
+                    var si = 0
+                    while si < oren_list_len(stmt["stmts"]) {
+                        oren_list_push(block["stmts"], stmt["stmts"][si])
+                        si = si + 1
+                    }
+                } else {
+                    // Attach attrs (metadata-only) if present.
+                    attach_attrs_to_stmt(p, stmt, attrs)
+                    // Attach doc to declaration-like statements.
+                    var pending = parser_take_pending_doc(p)
+                    if pending != nil {
+                        if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" || stmt["type"] == "Var" {
+                            stmt["doc"] = pending
+                        } else {
+                            if stmt["type"] == "ExprStmt" {
+                                var exp = stmt["expr"]
+                                if exp != nil && exp["type"] == "Function" {
+                                    // Function consumes pending doc in parse_function.
+                                } else {
+                                    parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
+                                }
+                            } else {
+                                parser_add_error(p, "doc comments may only precede declarations (fn/struct/class/import/ffi/var)")
+                            }
+                        }
+                    }
+                    oren_list_push(block["stmts"], stmt)
+                }
+            }
+            parser_next_token(p)
+        }
+    }
+    type_env_pop(p)
+    return block
+}
+
+fn parse_function(p) {
+    var tok = p["cur"]
+    // Doc comments attach to the next declaration. Consume them at the start of
+    // parsing the declaration so nested parsing (function body) can't clobber
+    // the pending doc value.
+    var doc = parser_take_pending_doc(p)
+    var name = ""
+    if peek_is_ident_like(p) {
+        parser_next_token(p)
+        name = p["cur"]["literal"]
+    }
+
+    // Generic function definition (rolling v0):
+    //   fn f[T](x: []T): T { ... }
+    //
+    // - Stored as `fn["type_params"] = [{name, constraint?}]`.
+    // - Monomorphization is implemented as a later whole-program lowering pass.
+    var type_params = nil
+    if peek_is(p, token.TOK_LBRACKET) {
+        type_params = []
+        parser_next_token(p) // '['
+        if peek_is(p, token.TOK_RBRACKET) {
+            // Empty `[]` is invalid for now (avoid ambiguous surfaces).
+            parser_add_error(p, "empty generic parameter list")
+            return nil
+        }
+        parser_next_token(p) // first token in type params
+        while true {
+            if p["cur"]["type"] != token.TOK_IDENT {
+                parser_add_error(p, "expected generic type parameter name, got " + p["cur"]["type"])
+                return nil
+            }
+            var tp = {"name": p["cur"]["literal"]}
+            // Optional constraint:
+            //   T: TraitName
+            if peek_is(p, token.TOK_COLON) {
+                // NOTE: in generic type parameter position we treat the constraint as a trait list,
+                // not a general type name:
+                //   T: Foo + bar.Baz
+                //
+                // This keeps the surface modern and avoids allowing pointer/array prefixes here.
+                parser_next_token(p) // ':'
+                if !expect_peek_ident_like(p, "trait constraint name") { return nil }
+                var cs = []
+                // Parse first dotted trait name.
+                var c0 = parse_dotted_name(p)
+                if c0 == nil { return nil }
+                oren_list_push(cs, c0)
+                // Parse optional `+`-separated trait names.
+                while peek_is(p, token.TOK_PLUS) {
+                    parser_next_token(p) // '+'
+                    if !expect_peek_ident_like(p, "trait constraint name") { return nil }
+                    var cn = parse_dotted_name(p)
+                    if cn == nil { return nil }
+                    oren_list_push(cs, cn)
+                }
+                tp["constraints"] = cs
+            }
+            oren_list_push(type_params, tp)
+
+            if peek_is(p, token.TOK_COMMA) {
+                parser_next_token(p)
+                parser_next_token(p) // next token after comma
+                continue
+            }
+            if peek_is(p, token.TOK_RBRACKET) {
+                parser_next_token(p)
+                break
+            }
+            parser_add_error(p, "expected ',' or ']' after generic parameter")
+            return nil
+        }
+    }
+    if !expect_peek(p, token.TOK_LPAREN) { return nil }
+    var params = parse_parameters(p)
+
+    // Optional return type annotation (rolling, metadata-only for now):
+    //   fn f(x: T): U { ... }
+    // Stored on the Function node as `ret_ann_type`.
+    var ret_ann = nil
+    if peek_is(p, token.TOK_COLON) {
+        parser_next_token(p) // ':'
+        ret_ann = parse_type_name_after_colon(p)
+        if ret_ann == nil { return nil }
+    }
+
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+    // Seed the function body scope with any parameter type annotations so method
+    // sugar (`x.method(...)`) can resolve inside the body.
+    var pend = []
+    var pi = 0
+    while pi < oren_list_len(params) {
+        var id = params[pi]
+        if id != nil && id["ann_type"] != nil {
+            oren_list_push(pend, {"k": id["value"], "v": id["ann_type"]})
+        }
+        pi = pi + 1
+    }
+    if oren_list_len(pend) > 0 {
+        p["_pending_scope_types"] = pend
+    }
+    var body = parse_block(p)
+    var fnn = ast.new_function(tok, name, params, body)
+    if type_params != nil { fnn["type_params"] = type_params }
+    if ret_ann != nil { fnn["ret_ann_type"] = ret_ann }
+    if doc != nil { fnn["doc"] = doc }
+    return fnn
+}
+
+fn parse_param_name_and_ann(p, attrs) {
+    // Parse one parameter name with optional varargs marker and optional type annotation.
+    //
+    // param := {attr} ["..."] ident [ ":" type ]
+    //
+    // Returns an Identifier node with optional fields:
+    // - attrs
+    // - ann_type
+    // - is_varargs (bool)
+    var is_varargs = false
+    if p["cur"]["type"] == token.TOK_ELLIPSIS {
+        is_varargs = true
+        // Advance to the actual name.
+        parser_next_token(p)
+    }
+    if p["cur"]["type"] != token.TOK_IDENT {
+        parser_add_error(p, "expected parameter name, got " + p["cur"]["type"])
+        return nil
+    }
+    var id = ast.new_identifier(p["cur"])
+    if is_varargs { id["is_varargs"] = true }
+
+    if peek_is(p, token.TOK_COLON) {
+        parser_next_token(p) // :
+        var tname = parse_type_name_after_colon(p)
+        if tname == nil { return nil }
+        id["ann_type"] = tname
+    }
+    if attrs != nil && oren_list_len(attrs) > 0 { id["attrs"] = attrs }
+    return id
+}
+
+fn parse_parameters(p) {
+    var params = []
+    if peek_is(p, token.TOK_RPAREN) {
+        parser_next_token(p)
+        return params
+    }
+    parser_next_token(p) // first token in params (could be '@' or ident)
+
+    // param := {attr} ["..."] ident [ ":" type ]
+    var attrs0 = parse_attr_list(p)
+    var id0 = parse_param_name_and_ann(p, attrs0)
+    if id0 == nil { return params }
+    oren_list_push(params, id0)
+
+    while peek_is(p, token.TOK_COMMA) {
+        parser_next_token(p)
+        parser_next_token(p) // next token after comma (could be '@' or ident)
+
+        var attrsN = parse_attr_list(p)
+        var idN = parse_param_name_and_ann(p, attrsN)
+        if idN == nil { return params }
+        oren_list_push(params, idN)
+    }
+    if !expect_peek(p, token.TOK_RPAREN) { return params }
+
+    // Enforce varargs placement: at most one, and it must be last.
+    var saw_varargs = false
+    var i = 0
+    while i < oren_list_len(params) {
+        var id = params[i]
+        var isv = (id != nil && id["is_varargs"] == true)
+        if isv {
+            if saw_varargs {
+                parser_add_error(p, "only one varargs parameter is allowed")
+                break
+            }
+            saw_varargs = true
+            if i != oren_list_len(params) - 1 {
+                parser_add_error(p, "varargs parameter must be last")
+                break
+            }
+        }
+        i = i + 1
+    }
+
+    return params
+}
+
+fn parse_call(p, fn_expr) {
+    var tok = p["cur"]
+    var args = parse_call_args(p)
+    var spread = p["_call_spread"]
+    p["_call_spread"] = nil
+    // Method-call sugar resolver (static-first, rolling):
+    //
+    //   x.method(a, b)      -> __oren_impl__...__method(x, a, b)
+    //   Type.method(a, b)   -> __oren_impl__...__method(a, b)
+    //
+    // Conditions:
+    // - Only triggers if we can resolve an impl method name deterministically.
+    // - `x.method(...)` uses the rolling type environment (from `x: Type` annotations).
+    // - Ambiguity (multiple impls for the same type+method) is a compile-time error.
+    if fn_expr != nil && fn_expr["type"] == "Member" {
+        var m = fn_expr
+        var method = nil
+        if m["prop"] != nil && m["prop"]["type"] == "Identifier" { method = m["prop"]["value"] }
+        if method != nil {
+            // Try receiver-style: x.method(...)
+            if m["left"] != nil && m["left"]["type"] == "Identifier" {
+                var recv = m["left"]
+                var tname = type_env_get(p, recv["value"])
+                if tname != nil {
+                    var mangled = impl_method_lookup(p, tname, method)
+                    if mangled == "__AMBIG__" {
+                        parser_add_error(p, "ambiguous method '" + method + "' for type '" + tname + "' (multiple impls)")
+                    } else {
+                        if mangled != nil {
+                            // Rewrite: insert receiver as arg0.
+                            var new_args = [recv]
+                            var ai = 0
+                            while ai < oren_list_len(args) {
+                                oren_list_push(new_args, args[ai])
+                                ai = ai + 1
+                            }
+                            args = new_args
+                            fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, mangled))
+                        }
+                    }
+                }
+            }
+
+            // Try type-style: Type.method(...)
+            if fn_expr["type"] == "Member" {
+                var tdot = expr_dotted_name(fn_expr["left"])
+                if tdot != nil {
+                    // IMPORTANT: do not consult blanket (`any`) fallbacks here.
+                    // `Module.fn(...)` and `Trait.method(...)` share the same surface syntax and we must
+                    // avoid rewriting unrelated calls due to a blanket impl on `any`.
+                    var by_type = p["impl_methods"][tdot]
+                    var mangled2 = nil
+                    if by_type != nil { mangled2 = by_type[method] }
+                    if mangled2 == "__AMBIG__" {
+                        parser_add_error(p, "ambiguous method '" + method + "' for type '" + tdot + "' (multiple impls)")
+                    } else {
+                        if mangled2 != nil {
+                            fn_expr = ast.new_identifier(token.new_token(token.TOK_IDENT, mangled2))
+                        }
+                    }
+                }
+            }
+
+            // Try trait-qualified: Trait.method(x, ...)
+            //
+            // This is the disambiguation path when multiple traits define the same
+            // method name for a type, and unqualified `x.method(...)` is ambiguous.
+            if fn_expr["type"] == "Member" {
+                var tname_left = expr_dotted_name(fn_expr["left"])
+                if tname_left != nil && p["trait_set"][tname_left] == true {
+                    if args != nil && oren_list_len(args) > 0 {
+                        var recv0 = args[0]
+                        if recv0 != nil && recv0["type"] == "Identifier" {
+                            var recv_type = type_env_get(p, recv0["value"])

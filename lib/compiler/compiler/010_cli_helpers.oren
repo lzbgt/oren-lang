@@ -1,0 +1,420 @@
+
+fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
+    var src = expand_includes_file(file, [])
+    if src == nil {
+        print("ERROR: failed to read for syscall-policy check: " + file)
+        var msg = include_last_err()
+        if msg != nil { print(msg) }
+        oren_exit(2)
+    }
+    var dar = scan_syscalls_in_src(src, "darwin_sys_")
+    var lin = scan_syscalls_in_src(src, "linux_sys_")
+
+    var bad = []
+    var i = 0
+    while i < oren_list_len(dar) {
+        if syscall_allow(allowed_darwin, dar[i]) != true {
+            oren_list_push(bad, "darwin_sys_" + dar[i])
+        }
+        i = i + 1
+    }
+    i = 0
+    while i < oren_list_len(lin) {
+        if syscall_allow(allowed_linux, lin[i]) != true {
+            oren_list_push(bad, "linux_sys_" + lin[i])
+        }
+        i = i + 1
+    }
+
+    if oren_list_len(bad) != 0 {
+        print("FAIL: syscall-first policy violation in " + file)
+        print("Disallowed direct syscall identifiers (should be centralized in arm64_native_expr_syscalls.oren):")
+        var bi = 0
+        while bi < oren_list_len(bad) {
+            print("  - " + bad[bi])
+            bi = bi + 1
+        }
+        oren_exit(1)
+    }
+    return 0
+}
+
+fn count_substring_in_src(src, needle) {
+    if src == nil || needle == nil { return 0 }
+    var sb = oren_bytes_from_string(src)
+    var nb = oren_bytes_from_string(needle)
+    var sl = oren_list_len(sb)
+    var nl = oren_list_len(nb)
+    if nl == 0 { return 0 }
+    if sl < nl { return 0 }
+
+    var count = 0
+    var i = 0
+    while i + nl <= sl {
+        // Skip line comments (`// ... \n`) so policy checks don't fail on docs/comments.
+        if i + 1 < sl {
+            if sb[i] == 47 && sb[i + 1] == 47 {
+                i = i + 2
+                while i < sl {
+                    if sb[i] == 10 { i = i + 1; break } // '\n'
+                    i = i + 1
+                }
+                continue
+            }
+        }
+
+        var ok = true
+        var j = 0
+        while j < nl {
+            if sb[i + j] != nb[j] { ok = false; break }
+            j = j + 1
+        }
+        if ok {
+            count = count + 1
+            i = i + nl
+        } else {
+            i = i + 1
+        }
+    }
+    return count
+}
+
+fn enforce_svc_emit_policy(file, allowed_svc_emits) {
+    var src = expand_includes_file(file, [])
+    if src == nil {
+        print("ERROR: failed to read for svc-policy check: " + file)
+        var msg = include_last_err()
+        if msg != nil { print(msg) }
+        oren_exit(2)
+    }
+
+    // Only count actual instruction emission, not function definitions.
+    var pattern = "push_u32_le(ctx[\"code\"], insn_svc("
+    var n = count_substring_in_src(src, pattern)
+    if n != allowed_svc_emits {
+        print("FAIL: syscall-first policy violation in " + file)
+        print("Unexpected number of direct `insn_svc` emissions.")
+        print("  expected: " + oren_int_to_string(allowed_svc_emits))
+        print("  found:    " + oren_int_to_string(n))
+        print("Rule: only arm64_native_expr_syscalls.oren should emit syscalls for OS ops;")
+        print("      other files may only emit svc for allocator/entry-stub special cases.")
+        oren_exit(1)
+    }
+    return 0
+}
+
+fn dirname(path) {
+    var i = oren_string_len(path) - 1
+    while i >= 0 {
+        if oren_string_char_at(path, i) == "/" {
+            if i == 0 { return "/" }
+            return oren_string_slice(path, 0, i)
+        }
+        i = i - 1
+    }
+    return "."
+}
+
+fn starts_with(s, prefix) {
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn trim_left_ws(s) {
+    if s == nil { return "" }
+    var i = 0
+    var n = oren_string_len(s)
+    while i < n {
+        var c = oren_string_char_at(s, i)
+        if c != " " && c != "\t" && c != "\r" { break }
+        i = i + 1
+    }
+    if i == 0 { return s }
+    return oren_string_slice(s, i, n)
+}
+
+fn ends_with_newline(s) {
+    if s == nil { return false }
+    var n = oren_string_len(s)
+    if n == 0 { return false }
+    return oren_string_char_at(s, n - 1) == "\n"
+}
+
+fn include_path_from_line(line) {
+    // Purpose-built textual include for repo-owned Oren sources.
+    //
+    // Directive form (must be in a single line comment):
+    //   // @include "relative/or/absolute/path.oren"
+    //
+    // This is *not* the language `import` system. It is used to split large files
+    // into smaller ones while keeping all symbols in the same module namespace.
+    if line == nil { return "" }
+    var t = trim_left_ws(line)
+    if !starts_with(t, "// @include") { return "" }
+    var n = oren_string_len(t)
+    var i = 0
+    while i < n {
+        if oren_string_char_at(t, i) == "\"" { break }
+        i = i + 1
+    }
+    if i >= n { return "" }
+    var j = i + 1
+    while j < n {
+        if oren_string_char_at(t, j) == "\"" { break }
+        j = j + 1
+    }
+    if j >= n { return "" }
+    return oren_string_slice(t, i + 1, j)
+}
+
+var INCLUDE_LAST_ERR = nil
+
+fn include_last_err() { return INCLUDE_LAST_ERR }
+
+fn expand_includes_file(full_path, include_stack) {
+    // Expand `// @include "..."` directives recursively and return the concatenated source.
+    //
+    // On failure, returns nil and sets `INCLUDE_LAST_ERR` to a best-effort message.
+    // Callers should format their own diagnostics so user-facing output stays stable.
+    INCLUDE_LAST_ERR = nil
+
+    if full_path == nil || full_path == "" {
+        INCLUDE_LAST_ERR = "include: empty path"
+        return nil
+    }
+
+    // Include-cycle check.
+    if include_stack != nil {
+        var si = 0
+        while si < oren_list_len(include_stack) {
+            if include_stack[si] == full_path {
+                INCLUDE_LAST_ERR = "include cycle detected: " + full_path
+                return nil
+            }
+            si = si + 1
+        }
+    }
+
+    var src = oren_read_file(full_path)
+    if oren_is_err(src) {
+        INCLUDE_LAST_ERR = oren_err_msg(src)
+        if INCLUDE_LAST_ERR == nil { INCLUDE_LAST_ERR = "failed to read" }
+        return nil
+    }
+
+    var next_stack = []
+    if include_stack != nil {
+        var ci = 0
+        while ci < oren_list_len(include_stack) {
+            oren_list_push(next_stack, include_stack[ci])
+            ci = ci + 1
+        }
+    }
+    oren_list_push(next_stack, full_path)
+
+    var out_parts = []
+    var line = ""
+    var i = 0
+    var n = oren_string_len(src)
+    while i < n {
+        var ch = oren_string_char_at(src, i)
+        if ch == "\n" {
+            var inc = include_path_from_line(line)
+            if inc != "" {
+                var inc_full = inc
+                if oren_string_len(inc) > 0 && oren_string_char_at(inc, 0) != "/" {
+                    inc_full = resolve_path(dirname(full_path), inc)
+                }
+                var child = expand_includes_file(inc_full, next_stack)
+                if child == nil { return nil }
+                oren_list_push(out_parts, child)
+                if !ends_with_newline(child) { oren_list_push(out_parts, "\n") }
+            } else {
+                oren_list_push(out_parts, line)
+                oren_list_push(out_parts, "\n")
+            }
+            line = ""
+        } else {
+            line = line + ch
+        }
+        i = i + 1
+    }
+
+    // Last line if file doesn't end with '\n'
+    if line != "" {
+        var inc2 = include_path_from_line(line)
+        if inc2 != "" {
+            var inc_full2 = inc2
+            if oren_string_len(inc2) > 0 && oren_string_char_at(inc2, 0) != "/" {
+                inc_full2 = resolve_path(dirname(full_path), inc2)
+            }
+            var child2 = expand_includes_file(inc_full2, next_stack)
+            if child2 == nil { return nil }
+            oren_list_push(out_parts, child2)
+            if !ends_with_newline(child2) { oren_list_push(out_parts, "\n") }
+        } else {
+            oren_list_push(out_parts, line)
+            oren_list_push(out_parts, "\n")
+        }
+    }
+
+    var out = ""
+    var pi = 0
+    while pi < oren_list_len(out_parts) {
+        out = out + out_parts[pi]
+        pi = pi + 1
+    }
+    return out
+}
+
+fn default_output_path(path) {
+    var i = oren_string_len(path) - 1
+    while i >= 0 {
+        if oren_string_char_at(path, i) == "." {
+            return oren_string_slice(path, 0, i)
+        }
+        i = i - 1
+    }
+    return path // No extension?
+}
+
+// Module system globals
+var MODULES = {}
+var MODULE_STACK = []
+var MODULE_ORDER = []
+var MODULE_ID_COUNTER = 0
+
+// Attribute validation knobs (plumbed into the parser).
+// Defaults keep rolling mode permissive.
+var STRICT_ATTRS = false
+var ATTR_ALLOW_PREFIXES = []
+var CAPSULE = false
+var CAP_ALLOW_DOMAINS = []
+
+fn split_csv(s) {
+    var out = []
+    if s == nil { return out }
+    if s == "" { return out }
+    var cur = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        if ch == "," {
+            if cur != "" { oren_list_push(out, cur) }
+            cur = ""
+        } else {
+            cur = cur + ch
+        }
+        i = i + 1
+    }
+    if cur != "" { oren_list_push(out, cur) }
+    return out
+}
+
+fn new_module_prefix() {
+    MODULE_ID_COUNTER = MODULE_ID_COUNTER + 1
+    return "M" + oren_int_to_string(MODULE_ID_COUNTER) + "_"
+}
+
+
+fn path_norm(path) {
+    if path == nil { return "" }
+    var n = oren_string_len(path)
+    if n == 0 { return "" }
+
+    var is_abs = oren_string_char_at(path, 0) == "/"
+    var segs = []
+
+    var i = 0
+    var start = 0
+    while i <= n {
+        var at_end = i == n
+        if at_end || oren_string_char_at(path, i) == "/" {
+            var seg = oren_string_slice(path, start, i)
+            if seg != "" && seg != "." {
+                if seg == ".." {
+                    var sl = oren_list_len(segs)
+                    if sl > 0 && segs[sl - 1] != ".." {
+                        // pop
+                        var ns = []
+                        var j = 0
+                        while j + 1 < sl {
+                            oren_list_push(ns, segs[j])
+                            j = j + 1
+                        }
+                        segs = ns
+                    } else {
+                        if !is_abs { oren_list_push(segs, "..") }
+                    }
+                } else {
+                    oren_list_push(segs, seg)
+                }
+            }
+            start = i + 1
+        }
+        i = i + 1
+    }
+
+    var out = ""
+    if is_abs { out = "/" }
+
+    i = 0
+    while i < oren_list_len(segs) {
+        if out != "" && oren_string_char_at(out, oren_string_len(out) - 1) != "/" {
+            out = out + "/"
+        }
+        out = out + segs[i]
+        i = i + 1
+    }
+
+    if out == "" {
+        if is_abs { return "/" }
+        return "."
+    }
+    return out
+}
+
+fn resolve_path(base, path) {
+    if path == nil { return "" }
+    if oren_string_len(path) > 0 && oren_string_char_at(path, 0) == "/" { return path_norm(path) }
+    return path_norm(base + "/" + path)
+}
+
+fn load_module(base, path) {
+    var full = resolve_path(base, path)
+    if MODULES[full] != nil {
+        return MODULES[full]
+    }
+
+    if oren_env("OREN_TRACE_PASSES") != nil {
+        print("[trace] load_module: " + full)
+    }
+    
+    // Cycle check
+    var k = 0
+    while k < oren_list_len(MODULE_STACK) {
+        if MODULE_STACK[k] == full {
+            print("Cyclic import detected: " + full)
+            oren_exit(1)
+        }
+        k = k + 1
+    }
+    oren_list_push(MODULE_STACK, full)
+
+    var src = expand_includes_file(full, [])
+    if src == nil {
+        print("Failed to read file: " + full)
+        var msg = include_last_err()
+        if msg != nil { print(msg) }
+        oren_exit(1)
+    }
+    var l = lexer.new_lexer(src)
+    l["file"] = full
+    var p = parser.new_parser(l)
