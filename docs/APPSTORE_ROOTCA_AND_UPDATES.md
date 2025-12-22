@@ -88,6 +88,25 @@ Planned directions:
 - optional websocket for streaming updates
 - compatibility with VirtualNET fixtures for deterministic simulation runs
 
+## Running crypto inside AVM vs host crypto
+
+Two viable designs exist in rolling mode:
+
+1) **Host-side crypto (current implementation)**
+   - AVM binary (C) verifies `OREN_SIG` using a vendored ed25519 verifier.
+   - Pros: fast, small amount of bytecode changes.
+   - Cons: trust is anchored in the AVM binary (still acceptable for many deployments).
+
+2) **Bytecode crypto (planned)**
+   - Implement SHA-256 / ed25519 verification in pure Oren (no FFI), compile to `.obc`, and link it.
+   - Pros: the same verification logic can run inside nested universes (no libc/FFI dependency).
+   - Cons: slower and more work; must be carefully tested for correctness/determinism.
+
+Rolling recommendation:
+
+- Keep host crypto as the enforcement boundary for `avm.run_obc_bytes`.
+- Build bytecode crypto in parallel for portability/testing and to support more advanced “store logic as `.obc`” workflows.
+
 ## Key Handling
 
 - Root private key: stored in `../oren-ca/` only (never in-repo).
@@ -99,4 +118,3 @@ Planned directions:
 - Multiverse requirements: `docs/AVM_MULTIVERSE.md`
 - `.obc` module linking (OBX): `docs/OBC_MODULE_LINKING.md`
 - `.obc` format and metadata conventions: `docs/AVM_SPEC.md`
-

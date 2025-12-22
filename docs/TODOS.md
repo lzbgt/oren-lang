@@ -9,7 +9,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added `orensign` tool (`cmd/orensign/main.go`) for ed25519 keygen + `.obc` signing/verifying (keys live outside repo, recommended `../oren-ca/`).
    - Status: added AVM signature verification gate (`--require-sig`, `--trusted-pubkey`, nested cfg `require_sig` + `trusted_pubkey`), using `OREN_SIG\n1\n` BYTES constant.
    - Status: added oretest fixture to ensure signed `.obc` runs and unsigned fails under `--require-sig`.
-   - Next: embed a real root pubkey in AVM builds (public only), add rotation support (trusted pubkey set), and specify update manifest format (name/version/hash/policy).
+   - Status: added pure-Oren SHA-256 (`std:crypto/sha256`) and AVM test vectors as the first step toward “bytecode crypto” (no libc/FFI).
+   - Next: embed a real root pubkey in AVM builds (public only), add rotation support (trusted pubkey set), specify update manifest format (name/version/hash/policy), and port ed25519 verify to pure Oren to reduce host-crypto dependency.
 
 2) **Container ops modernization (generic + dyn)** (S)
    - Status: documented the design in `docs/DESIGN_CONTAINER_OPS.md` (3-layer model: kernel `oren_*` intrinsics → std wrappers → language-level ops) including deterministic dispatch rules for generics + `dyn`.

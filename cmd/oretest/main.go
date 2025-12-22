@@ -239,6 +239,8 @@ func main() {
 	avmTestsFast := []string{
 		// Broad smoke covers the common surface area quickly.
 		"tests/avm/test_smoke_suite.oren",
+		// Crypto primitives needed for signed artifact verification in AVM.
+		"tests/avm/test_crypto_sha256_vectors.oren",
 		// Snapshot/resume and multiverse are core AVM differentiators.
 		"tests/avm/test_snapshot_tasks_resume.oren",
 		"tests/avm/test_multiverse_invalid_obc.oren",
@@ -250,6 +252,7 @@ func main() {
 	}
 	avmTestsFull := []string{
 		"tests/avm/test_smoke_suite.oren",
+		"tests/avm/test_crypto_sha256_vectors.oren",
 		"tests/avm/test_map_iter_deterministic.oren",
 		"tests/avm/test_iter_range.oren",
 		"tests/avm/test_int_literal_bases.oren",

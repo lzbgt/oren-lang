@@ -1,0 +1,34 @@
+import sha256 "std:crypto/sha256"
+
+fn fail(msg) {
+    print("FAIL: " + msg)
+    oren_exit(1)
+}
+
+fn assert_eq(got, want, label) {
+    if got != want {
+        print("label=" + label)
+        print("got =" + got)
+        print("want=" + want)
+        fail("mismatch")
+    }
+}
+
+fn main() {
+    // Test vectors (SHA-256):
+    // - ""    => e3b0c442...
+    // - "abc" => ba7816bf...
+    var empty = oren_bytes_pack([])
+    var got0 = sha256.sha256_hex(empty)
+    assert_eq(got0, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "empty")
+
+    var abc = oren_bytes_from_string("abc")
+    var got1 = sha256.sha256_hex(oren_bytes_pack(abc))
+    assert_eq(got1, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "abc")
+
+    print("sha256 vectors OK")
+    oren_exit(0)
+}
+
+main()
+
