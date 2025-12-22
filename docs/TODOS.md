@@ -24,6 +24,11 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added oretest regression to ensure equals-form flags + options-before-file keep working.
    - Next: remove the remaining legacy manual parsing in the compiler driver and dispatch directly from argparse results (less duplication, fewer edge cases).
 
+4) **Container ops modernization (generic + dyn)** (S)
+   - Status: added a dedicated design doc for container operations (`push/len/get`) with a 3-layer model (kernel `oren_*` intrinsics → std wrappers → language-level ops), including deterministic dispatch rules for generics + `dyn`.
+   - Status: added `lib/std/list.oren` wrapper module as the first incremental step away from direct `oren_list_*` in userland.
+   - Next: migrate selected stdlib modules to use `list.*` wrappers and add `oretest` audits to keep direct `oren_*` usage confined to allowlisted low-level modules.
+
 ### P1 (Soon)
 
 1) **SIMD intrinsic tail + microkernel correctness** (M)

@@ -1,0 +1,32 @@
+// std/list.oren
+//
+// Ergonomic wrappers around the kernel list intrinsics (`oren_list_*`).
+//
+// Design notes:
+// - `oren_*` is treated as the "kernel ABI" namespace (reserved, stable, non-idiomatic).
+// - This module is the first step toward language-level container operations like `push(...)`.
+// - Today these wrappers only target built-in list values (`[]T`).
+// - Future: compiler can lower `push(xs, v)` to either an intrinsic fast path or trait dispatch.
+
+fn len(xs) { return oren_list_len(xs) }
+
+fn is_empty(xs) { return oren_list_len(xs) == 0 }
+
+fn push(xs, v) {
+    oren_list_push(xs, v)
+    return nil
+}
+
+fn get(xs, i) { return oren_list_get(xs, i) }
+
+fn set(xs, i, v) {
+    oren_list_set(xs, i, v)
+    return nil
+}
+
+fn last(xs) {
+    var n = oren_list_len(xs)
+    if n <= 0 { return nil }
+    return oren_list_get(xs, n - 1)
+}
+
