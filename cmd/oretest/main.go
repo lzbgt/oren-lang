@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"flag"
 	"fmt"
 	"os"
@@ -43,13 +44,124 @@ type syscallBlock struct {
 	text     string
 }
 
+func fileSHA256Hex(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(b)
+	return fmt.Sprintf("%x", sum[:]), nil
+}
+
+func runSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Duration) error {
+	// Rolling stability gate:
+	// - Stage1 (./oren) builds Stage2 (a fresh ./oren_stage2)
+	// - Stage1 and Stage2 must agree on deterministic dumps of the compiler source
+	//
+	// This catches "bootstrap breaks itself" regressions early.
+	if os.Getenv("OREN_SKIP_SELFHOST") != "" {
+		return nil
+	}
+
+	workdir := filepath.Join("build", "selfhost")
+	_ = os.MkdirAll(workdir, 0o755)
+
+	stage2Obc := filepath.Join(workdir, "oren_stage2.obc")
+	stage1Graph := filepath.Join(workdir, "stage1.graph.json")
+	stage2Graph := filepath.Join(workdir, "stage2.graph.json")
+	stage1Meta := filepath.Join(workdir, "stage1.meta.json")
+	stage2Meta := filepath.Join(workdir, "stage2.meta.json")
+
+	logBuildObc := filepath.Join("build", "logs", "selfhost_build_stage2_obc.log")
+	logG1 := filepath.Join("build", "logs", "selfhost_stage1_dump_graph.log")
+	logG2 := filepath.Join("build", "logs", "selfhost_stage2_dump_graph.log")
+	logM1 := filepath.Join("build", "logs", "selfhost_stage1_meta.log")
+	logM2 := filepath.Join("build", "logs", "selfhost_stage2_meta.log")
+
+	// Self-hosting builds can be slower than ordinary test compilation, especially on
+	// cold caches or when the host toolchain is busy. Keep it bounded but generous.
+	selfHostTimeout := buildTimeout
+	if selfHostTimeout < 300*time.Second {
+		selfHostTimeout = 300 * time.Second
+	}
+
+	// Self-hosting build strategy (rolling, pragmatic):
+	//
+	// - Building a full Stage2 native binary currently depends on a much larger native-runtime surface
+	//   (syscall-first file I/O, float parsing, etc.) which is still evolving.
+	// - Building a full Stage2 C backend binary can be extremely memory hungry (clang compiling a
+	//   giant single-TU generated C file), and may be SIGKILL/OOM on developer machines.
+	//
+	// Therefore this gate uses the bytecode backend + AVM to validate self-hosting deterministically:
+	// Stage1 emits Stage2 compiler as `.obc`, then AVM runs Stage2 to reproduce Stage1 outputs.
+	buildObc := fmt.Sprintf("./oren build oren.oren --backend bytecode -o %q%s", stage2Obc, gcArg)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, buildObc, logBuildObc); rc != 0 {
+		return fmt.Errorf("self-host gate: failed to build stage2 .obc (rc=%d), see %s", rc, logBuildObc)
+	}
+
+	// Dump module graph from Stage1 and Stage2 and require byte-for-byte match.
+	g1 := fmt.Sprintf("./oren dump graph oren.oren --out %q", stage1Graph)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, g1, logG1); rc != 0 {
+		return fmt.Errorf("self-host gate: stage1 dump graph failed (rc=%d), see %s", rc, logG1)
+	}
+	// Run Stage2 under AVM with a narrow FS allowlist:
+	// - read: `oren.oren` + `lib/**`
+	// - write: `build/**`
+	//
+	// Note: AVM passes args after `--`.
+	fsAllow := "build/,lib/,oren.oren"
+	// Important: the compiler strips argv[0] as the program name. AVM passes only args-after-`--`
+	// (no implicit argv0), so we inject a dummy argv0 ("oren") here.
+	g2 := fmt.Sprintf("./avm --fs-allow-prefixes %q %q -- oren dump graph oren.oren --out %q", fsAllow, stage2Obc, stage2Graph)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, g2, logG2); rc != 0 {
+		return fmt.Errorf("self-host gate: stage2 (avm) dump graph failed (rc=%d), see %s", rc, logG2)
+	}
+	hg1, err := fileSHA256Hex(stage1Graph)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage1 graph: %w", err)
+	}
+	hg2, err := fileSHA256Hex(stage2Graph)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage2 graph: %w", err)
+	}
+	if hg1 != hg2 {
+		return fmt.Errorf("self-host gate: module graph mismatch (stage1=%s stage2=%s); diff %s vs %s", hg1, hg2, stage1Graph, stage2Graph)
+	}
+
+	// Also compare metadata output (API surface) under --deterministic.
+	m1 := fmt.Sprintf("./oren meta oren.oren --deterministic --out %q", stage1Meta)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, m1, logM1); rc != 0 {
+		return fmt.Errorf("self-host gate: stage1 meta failed (rc=%d), see %s", rc, logM1)
+	}
+	m2 := fmt.Sprintf("./avm --fs-allow-prefixes %q %q -- oren meta oren.oren --deterministic --out %q", fsAllow, stage2Obc, stage2Meta)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, m2, logM2); rc != 0 {
+		return fmt.Errorf("self-host gate: stage2 (avm) meta failed (rc=%d), see %s", rc, logM2)
+	}
+	hm1, err := fileSHA256Hex(stage1Meta)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage1 meta: %w", err)
+	}
+	hm2, err := fileSHA256Hex(stage2Meta)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage2 meta: %w", err)
+	}
+	if hm1 != hm2 {
+		return fmt.Errorf("self-host gate: metadata mismatch (stage1=%s stage2=%s); diff %s vs %s", hm1, hm2, stage1Meta, stage2Meta)
+	}
+
+	return nil
+}
+
 func main() {
 	var (
-		target  = flag.String("target", "macos", "native backend target: macos|linux")
-		noGC    = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
-		jobs    = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
-		full    = flag.Bool("full", envBool("OREN_TEST_FULL", false), "run the full curated suite (env OREN_TEST_FULL=1)")
-		verbose = flag.Bool("verbose", envBool("OREN_TEST_VERBOSE", false), "print per-test progress (env OREN_TEST_VERBOSE=1)")
+		target      = flag.String("target", "macos", "native backend target: macos|linux")
+		noGC        = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
+		jobs        = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
+		fixtureJobs = flag.Int("fixture-jobs", envInt("OREN_TEST_FIXTURE_JOBS", 0), "parallel jobs for fixtures (env OREN_TEST_FIXTURE_JOBS); default min(--jobs,4)")
+		nativeJobs  = flag.Int("native-jobs", envInt("OREN_TEST_NATIVE_JOBS", 0), "parallel jobs for native tests (env OREN_TEST_NATIVE_JOBS); default min(--jobs,4)")
+		full        = flag.Bool("full", envBool("OREN_TEST_FULL", false), "run the full curated suite (env OREN_TEST_FULL=1)")
+		verbose     = flag.Bool("verbose", envBool("OREN_TEST_VERBOSE", false), "print per-test progress (env OREN_TEST_VERBOSE=1)")
+		selfhost    = flag.Bool("selfhost", envBool("OREN_TEST_SELFHOST", false), "run self-hosting stability gate (env OREN_TEST_SELFHOST=1); implied by --full")
 	)
 	flag.Parse()
 
@@ -58,6 +170,32 @@ func main() {
 	}
 	if *jobs > 32 {
 		*jobs = 32
+	}
+	fixtureJobsEff := *fixtureJobs
+	if fixtureJobsEff == 0 {
+		fixtureJobsEff = *jobs
+		if fixtureJobsEff > 4 {
+			fixtureJobsEff = 4
+		}
+	}
+	if fixtureJobsEff < 1 {
+		fixtureJobsEff = 1
+	}
+	if fixtureJobsEff > 32 {
+		fixtureJobsEff = 32
+	}
+	nativeJobsEff := *nativeJobs
+	if nativeJobsEff == 0 {
+		nativeJobsEff = *jobs
+		if nativeJobsEff > 4 {
+			nativeJobsEff = 4
+		}
+	}
+	if nativeJobsEff < 1 {
+		nativeJobsEff = 1
+	}
+	if nativeJobsEff > 32 {
+		nativeJobsEff = 32
 	}
 
 	timeoutBin := detectTimeoutBin()
@@ -120,6 +258,12 @@ func main() {
 	if err := auditStdlibModernStyle(); err != nil {
 		fmt.Fprintln(os.Stderr, "stdlib audit failed:", err)
 		os.Exit(1)
+	}
+	if *full || *selfhost {
+		if err := runSelfHostingGate(timeoutBin, gcArg, buildTimeout); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
 	}
 	if err := auditRuntimeNativeModernStyle(); err != nil {
 		fmt.Fprintln(os.Stderr, "runtime_native audit failed:", err)
@@ -351,99 +495,92 @@ func main() {
 			name: "signed_obc_verify_cli",
 			cmd: fmt.Sprintf(
 				"set -e; "+
+					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
 					"echo \"[fixture] build orensign\"; "+
-					"go build -o build/orensign ./cmd/orensign; "+
+					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
 					"echo \"[fixture] keygen (ephemeral)\"; "+
-					"rm -rf build/ca_test; mkdir -p build/ca_test; "+
-					"./build/orensign keygen --out build/ca_test; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca\"; "+
 					"echo \"[fixture] build unsigned obc\"; "+
 					"./oren build %q --backend bytecode --target %s -o %q%s; "+
 					"echo \"[fixture] sign obc\"; "+
-					"./build/orensign sign-obc --sk build/ca_test/root_ed25519_sk.bin --in %q --out %q; "+
+					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
 					"echo \"[fixture] verify + run signed\"; "+
-					"./avm --require-sig --trusted-pubkey build/ca_test/root_ed25519_pk.bin %q > %q; "+
+					"./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > %q; "+
 					"grep -Fq %q %q; "+
 					"echo \"[fixture] verify unsigned must fail\"; "+
-					"set +e; ./avm --require-sig --trusted-pubkey build/ca_test/root_ed25519_pk.bin %q > /dev/null 2>&1; rc=$?; set -e; "+
+					"set +e; ./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
 					"test $rc -ne 0",
+				"build/tmp/fixture_signed_obc_verify_cli",
 				"tests/avm/fixtures/signed_obc_smoke.oren",
 				*target,
-				"build/signed_obc_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
 				gcArg,
-				"build/signed_obc_smoke.obc",
-				"build/signed_obc_smoke.signed.obc",
-				"build/signed_obc_smoke.signed.obc",
-				"build/fixture_signed_obc_verify_cli.out",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
 				"signed obc OK",
-				"build/fixture_signed_obc_verify_cli.out",
-				"build/signed_obc_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
 			),
 			log: "build/logs/fixture_signed_obc_verify_cli.log",
 			ok:  func(rc int) bool { return rc == 0 },
 			cleanup: []string{
-				"build/orensign",
-				"build/ca_test",
-				"build/signed_obc_smoke.obc",
-				"build/signed_obc_smoke.signed.obc",
-				"build/fixture_signed_obc_verify_cli.out",
+				"build/tmp/fixture_signed_obc_verify_cli",
 			},
 		},
 		{
 			name: "signed_obc_verify_cert_chain_cli",
 			cmd: fmt.Sprintf(
 				"set -e; "+
+					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
 					"echo \"[fixture] build orensign\"; "+
-					"go build -o build/orensign ./cmd/orensign; "+
+					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
 					"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
-					"rm -rf build/ca_chain_test; mkdir -p build/ca_chain_test; "+
-					"./build/orensign keygen --out build/ca_chain_test/root; "+
-					"./build/orensign keygen --out build/ca_chain_test/org; "+
-					"./build/orensign keygen --out build/ca_chain_test/dev; "+
+					"mkdir -p \"$wd/ca\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca/root\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca/org\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca/dev\"; "+
 					"echo \"[fixture] issue root->org (can_issue) and org->dev certs\"; "+
-					"./build/orensign issue-cert --issuer-sk build/ca_chain_test/root/root_ed25519_sk.bin --subject-pk build/ca_chain_test/org/root_ed25519_pk.bin --out build/ca_chain_test/org.cert --can-issue; "+
-					"./build/orensign issue-cert --issuer-sk build/ca_chain_test/org/root_ed25519_sk.bin --subject-pk build/ca_chain_test/dev/root_ed25519_pk.bin --out build/ca_chain_test/dev.cert; "+
+					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue; "+
+					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
 					"echo \"[fixture] build unsigned obc\"; "+
 					"./oren build %q --backend bytecode --target %s -o %q%s; "+
 					"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
-					"./build/orensign sign-obc --sk build/ca_chain_test/dev/root_ed25519_sk.bin --cert build/ca_chain_test/dev.cert --cert build/ca_chain_test/org.cert --in %q --out %q; "+
+					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
 					"echo \"[fixture] verify + run (require chain)\"; "+
-					"./avm --require-sig --require-cert-chain --trusted-pubkey build/ca_chain_test/root/root_ed25519_pk.bin %q > %q; "+
+					"./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q; "+
 					"grep -Fq %q %q; "+
 					"echo \"[fixture] verify missing chain must fail\"; "+
-					"./build/orensign sign-obc --sk build/ca_chain_test/dev/root_ed25519_sk.bin --in %q --out %q; "+
-					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey build/ca_chain_test/root/root_ed25519_pk.bin %q > /dev/null 2>&1; rc=$?; set -e; "+
+					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --in %q --out %q; "+
+					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
 					"test $rc -ne 0; "+
 					"echo \"[fixture] verify root-sign without chain must fail under require-cert-chain\"; "+
-					"./build/orensign sign-obc --sk build/ca_chain_test/root/root_ed25519_sk.bin --in %q --out %q; "+
-					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey build/ca_chain_test/root/root_ed25519_pk.bin %q > /dev/null 2>&1; rc=$?; set -e; "+
+					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root/root_ed25519_sk.bin\" --in %q --out %q; "+
+					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
 					"test $rc -ne 0",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
 				"tests/avm/fixtures/signed_obc_smoke.oren",
 				*target,
-				"build/signed_obc_chain_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
 				gcArg,
-				"build/signed_obc_chain_smoke.obc",
-				"build/signed_obc_chain_smoke.devchain.obc",
-				"build/signed_obc_chain_smoke.devchain.obc",
-				"build/fixture_signed_obc_verify_cert_chain_cli.out",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.devchain.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.devchain.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/fixture_signed_obc_verify_cert_chain_cli.out",
 				"signed obc OK",
-				"build/fixture_signed_obc_verify_cert_chain_cli.out",
-				"build/signed_obc_chain_smoke.obc",
-				"build/signed_obc_chain_smoke.dev_nocert.obc",
-				"build/signed_obc_chain_smoke.dev_nocert.obc",
-				"build/signed_obc_chain_smoke.obc",
-				"build/signed_obc_chain_smoke.root_nocert.obc",
-				"build/signed_obc_chain_smoke.root_nocert.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/fixture_signed_obc_verify_cert_chain_cli.out",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.dev_nocert.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.dev_nocert.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.root_nocert.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.root_nocert.obc",
 			),
 			log: "build/logs/fixture_signed_obc_verify_cert_chain_cli.log",
 			ok:  func(rc int) bool { return rc == 0 },
 			cleanup: []string{
-				"build/orensign",
-				"build/ca_chain_test",
-				"build/signed_obc_chain_smoke.obc",
-				"build/signed_obc_chain_smoke.devchain.obc",
-				"build/signed_obc_chain_smoke.dev_nocert.obc",
-				"build/signed_obc_chain_smoke.root_nocert.obc",
-				"build/fixture_signed_obc_verify_cert_chain_cli.out",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
 			},
 		},
 		{
@@ -1140,20 +1277,44 @@ func main() {
 		},
 	}
 
-	// Run fixtures sequentially (fast, high-signal).
-	for _, fx := range fixtures {
-		vprintln("fixture: " + fx.name)
-		t := buildTimeout
-		if fx.timeout != 0 {
-			t = fx.timeout
-		}
-		rc := runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
-		for _, c := range fx.cleanup {
-			_ = os.Remove(c)
-		}
-		if !fx.ok(rc) {
-			fmt.Fprintf(os.Stderr, "fixture failed: %s (log: %s)\n", fx.name, fx.log)
-			_ = catFile(os.Stderr, fx.log)
+	// Run fixtures in parallel (bounded by --fixture-jobs).
+	//
+	// Fixtures are intended to be small, high-signal correctness guards. Most are
+	// independent and safe to parallelize for wall-time reduction.
+	type fixtureResult struct {
+		name string
+		log  string
+		ok   bool
+	}
+	fixtureResults := make([]fixtureResult, len(fixtures))
+	var wgFixtures sync.WaitGroup
+	semFixtures := make(chan struct{}, fixtureJobsEff)
+	for i := range fixtures {
+		wgFixtures.Add(1)
+		semFixtures <- struct{}{}
+		go func(i int) {
+			defer wgFixtures.Done()
+			defer func() { <-semFixtures }()
+			fx := fixtures[i]
+			if *verbose {
+				vprintln("fixture: " + fx.name)
+			}
+			t := buildTimeout
+			if fx.timeout != 0 {
+				t = fx.timeout
+			}
+			rc := runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
+			for _, c := range fx.cleanup {
+				_ = os.RemoveAll(c)
+			}
+			fixtureResults[i] = fixtureResult{name: fx.name, log: fx.log, ok: fx.ok(rc)}
+		}(i)
+	}
+	wgFixtures.Wait()
+	for _, fr := range fixtureResults {
+		if !fr.ok {
+			fmt.Fprintf(os.Stderr, "fixture failed: %s (log: %s)\n", fr.name, fr.log)
+			_ = catFile(os.Stderr, fr.log)
 			os.Exit(1)
 		}
 	}
@@ -1175,12 +1336,12 @@ func main() {
 			os.Exit(1)
 		}
 		for _, c := range fx.cleanup {
-			_ = os.Remove(c)
+			_ = os.RemoveAll(c)
 		}
 	}
 
-	// Native tests: compile+run sequentially (low count, avoids over-parallelizing codesign).
-	nativeRes := runNativeTests(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, nativeTests)
+	// Native tests: parallel for wall-time reduction (bounded by --native-jobs).
+	nativeRes := runNativeTests(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, nativeJobsEff, nativeTests)
 	if !nativeRes.ok {
 		os.Exit(1)
 	}
@@ -1262,21 +1423,26 @@ type suiteResult struct {
 	failed []testResult
 }
 
-func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), tests []string) suiteResult {
+func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	envPrefix := sanitizedAllocatorEnvPrefix()
-	for _, path := range tests {
+	results := runParallel(jobs, tests, func(path string) testResult {
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		if verbose {
 			vprintln("native: " + path)
 		}
-		out := filepath.Join("build", name)
+
+		workdir := filepath.Join("build", "tmp", "native_"+name)
+		_ = os.RemoveAll(workdir)
+		_ = os.MkdirAll(filepath.Join(workdir, "build"), 0o755)
+
+		out := filepath.Join(workdir, "build", name)
 		log := filepath.Join("build", "logs", "native_"+name+".log")
+
 		buildCmd := fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", path, target, out, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
-			res.ok = false
-			res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log})
-			continue
+			_ = os.RemoveAll(workdir)
+			return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log}
 		}
 
 		rc := 0
@@ -1591,34 +1757,36 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 		}
 
 		_ = os.Remove(out)
+		_ = os.RemoveAll(workdir)
+
 		if name == "test_debug_panic" {
 			// Expected-failure regression: panic output must be readable and include a stack trace.
 			// We accept any non-zero exit except external timeout.
 			if rc == 0 || rc == 124 {
-				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
-				continue
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
 			}
 			outb, err := os.ReadFile(runLog)
 			if err != nil {
-				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
-				continue
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
 			}
 			s := string(outb)
 			if !strings.Contains(s, "Traceback") || !strings.Contains(s, "crash_me") {
-				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
-				continue
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
 			}
 		} else {
 			if rc != 0 {
-				res.ok = false
-				res.failed = append(res.failed, testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog})
-				continue
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
 			}
 		}
-		res.pass++
+		return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: true, log: runLog}
+	})
+	for _, r := range results {
+		if r.ok {
+			res.pass++
+		} else {
+			res.ok = false
+			res.failed = append(res.failed, r)
+		}
 	}
 	if !res.ok {
 		fmt.Println("native failed:")

@@ -74,6 +74,31 @@ fn oren_read_bytes(path) {
     return out
 }
 
+// Text I/O helpers (portable names used by the compiler and stdlib).
+//
+// Native backend representation notes:
+// - string is a raw pointer to a NUL-terminated byte sequence
+// - bytes is a list<int 0..255>
+//
+// These helpers bridge the two by using existing `*_bytes` and conversion helpers.
+
+@cap.requires(domain="FS")
+fn oren_read_file(path) {
+    // Returns a string pointer (NUL-terminated).
+    // Failure behavior is inherited from `oren_read_bytes` in rolling native mode.
+    var bs = oren_read_bytes(path)
+    return oren_string_from_bytes(bs)
+}
+
+@cap.requires(domain="FS")
+fn oren_write_file(path, content) {
+    // Write a string as bytes.
+    // Failure behavior is inherited from `oren_write_bytes` in rolling native mode.
+    var bs = oren_bytes_from_string(content)
+    oren_write_bytes(path, bs)
+    return 0
+}
+
 
 @cap.requires(domain="FS")
 fn oren_readdir(path) {
@@ -181,4 +206,3 @@ fn oren_readdir(path) {
     if owned == 1 { free(rpath) }
     return out
 }
-

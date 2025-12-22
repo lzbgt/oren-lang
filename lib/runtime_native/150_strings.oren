@@ -22,6 +22,23 @@ fn oren_string_char_at(s, idx) {
     return out
 }
 
+fn oren_char(code) {
+    // Return a freshly allocated 1-byte NUL-terminated string for an integer codepoint.
+    //
+    // Rolling v0 semantics:
+    // - This is "byte char" (0..255), matching the rest of the native runtime string model
+    //   (strings are C strings; iteration yields bytes until NUL).
+    // - Values outside [0..255] are masked to keep behavior deterministic across backends.
+    if code == nil { oren_panic("char expects int") }
+    var b = code & 255
+    var out = malloc(2)
+    if out == 0 { oren_panic("malloc failed") }
+    ptr_set_byte(out + 0, b)
+    ptr_set_byte(out + 1, 0)
+    oren_track_alloc(out, 2, 1)
+    return out
+}
+
 // Slice a C-string into a newly allocated, NUL-terminated string.
 // Semantics match the C-backend helper: out-of-range clamps, empty slice returns "".
 fn oren_string_slice(s, start, end) {
@@ -74,4 +91,3 @@ fn oren_int_from_string(s) {
     if any == 0 { return -1 }
     return v
 }
-
