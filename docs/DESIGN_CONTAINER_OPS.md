@@ -158,6 +158,46 @@ This makes “push as operator” compatible with `dyn` and generics.
 
 ---
 
+## 5.1 Performance note: “not a function call” at runtime
+
+It is correct to be suspicious of *generic userland function calls* in hot code, but the
+important distinction is:
+
+- **surface syntax** (what the program text looks like), vs
+- **lowered form** (what codegen actually emits).
+
+For container ops like `push` and `len`, the intended design is:
+
+- user writes an ergonomic operation form (e.g. `xs.push(v)` or `push(xs, v)`),
+- the compiler recognizes this as a **container operation**, and
+- lowers it to an intrinsic fast path (e.g. `oren_list_push(xs, v)` / `oren_list_len(xs)`).
+
+This means there is **no extra call overhead** vs “operator syntax”, because the call is not
+implemented as an indirect dispatch through a normal function symbol.
+
+### Why `get/set` should stay index-based
+
+For lists, `get` and `set` already have an optimal surface syntax:
+
+- `x = xs[i]`
+- `xs[i] = v`
+
+These should remain the canonical way to access and update elements. They:
+
+- avoid naming issues (`get` vs `at` vs `index`),
+- are trivially optimizable in all backends,
+- match the “container ops are not library calls” direction.
+
+### Why `push` needs a dedicated operation
+
+Unlike `set`, `push` mutates container length and may trigger growth/allocation.
+Index syntax alone can’t represent “append” unless the language adds auto-grow semantics
+to `xs[len(xs)] = v` (not recommended; it blurs bounds safety and is hard to make deterministic).
+
+So `push` should be a first-class **operation** with deterministic lowering.
+
+---
+
 ## 6) Naming policy (important for stability)
 
 ### Reserve `oren_*`
@@ -207,4 +247,3 @@ Add `oretest` audits to:
 
 - The compiler’s CLI has been modernized to parse click-style args (`--opt=value`, interspersed args).
 - This document establishes the same “modern Oren feel” direction for core container operations.
-
