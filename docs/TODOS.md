@@ -42,7 +42,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: compiler driver now uses argparse to normalize argv, so the legacy driver logic accepts modern forms like `oren build --backend=native --out=... file.oren` without breaking existing `file first` invocations.
    - Status: added oretest regression to ensure equals-form flags + options-before-file keep working.
    - Status: removed remaining manual argv scanning in the compiler driver; options for `build/meta/dump` now come directly from parsed argparse results (less duplication, fewer edge cases).
-   - Next: remove the remaining “normalize to legacy argv” layer entirely and dispatch commands directly (no intermediate argv reconstruction).
+   - Status: removed the remaining “normalize to legacy argv” layer; compiler now dispatches directly from argparse parse results (single source of truth).
+   - Next: polish UX parity (error messages, help text consistency, richer subcommands), then add a machine-readable `--help=json` for tooling.
 
 6) **ARM64 instruction encoder audit** (S)
     - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).
