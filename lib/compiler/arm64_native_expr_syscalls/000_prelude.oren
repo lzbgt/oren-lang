@@ -1,0 +1,520 @@
+import core "arm64_core.oren"
+import abi "arm64_abi_macos.oren"
+import labi "arm64_abi_linux.oren"
+
+// Re-export core helpers locally so the native expr compiler stays readable.
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn align_up(n, align) { return core.align_up(n, align) }
+fn ceil_div(a, b) { return core.ceil_div(a, b) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
+fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
+fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+fn int_from_string(s) { return core.int_from_string(s) }
+fn contains_curly_braces(s) { return core.contains_curly_braces(s) }
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+
+fn insn_ret() { return core.insn_ret() }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_movn(rd, imm) { return core.insn_movn(rd, imm) }
+fn insn_svc(imm) { return core.insn_svc(imm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_ldr_x0_sp(offset) { return core.insn_ldr_x0_sp(offset) }
+fn insn_sub_imm(rd, rn, imm) { return core.insn_sub_imm(rd, rn, imm) }
+fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
+fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
+fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
+fn emit_add_sp_offset_to_reg(ctx, reg, offset) { return core.emit_add_sp_offset_to_reg(ctx, reg, offset) }
+fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
+fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+
+fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
+fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
+fn insn_orr_reg(rd, rn, rm) { return core.insn_orr_reg(rd, rn, rm) }
+fn insn_eor_reg(rd, rn, rm) { return core.insn_eor_reg(rd, rn, rm) }
+fn insn_lslv(rd, rn, rm) { return core.insn_lslv(rd, rn, rm) }
+fn insn_lsrv(rd, rn, rm) { return core.insn_lsrv(rd, rn, rm) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_cset(rd, cond) { return core.insn_cset(rd, cond) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn insn_bl(off) { return core.insn_bl(off) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
+fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_ldp_post() { return core.insn_ldp_post() }
+fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
+fn insn_str_reg_pre(i) { return core.insn_str_reg_pre(i) }
+fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+
+fn insn_dup_2d(vd, rn) { return core.insn_dup_2d(vd, rn) }
+fn insn_add_2d(vd, vn, vm) { return core.insn_add_2d(vd, vn, vm) }
+fn insn_sub_2d(vd, vn, vm) { return core.insn_sub_2d(vd, vn, vm) }
+fn insn_and_16b(vd, vn, vm) { return core.insn_and_16b(vd, vn, vm) }
+fn insn_orr_16b(vd, vn, vm) { return core.insn_orr_16b(vd, vn, vm) }
+fn insn_eor_16b(vd, vn, vm) { return core.insn_eor_16b(vd, vn, vm) }
+fn insn_umov_d0(rd, vn) { return core.insn_umov_d0(rd, vn) }
+fn insn_fmov_d_x(rd, rn) { return core.insn_fmov_d_x(rd, rn) }
+fn insn_umov_x_d(rd, rn) { return core.insn_umov_x_d(rd, rn) }
+fn insn_fadd(rd, rn, rm) { return core.insn_fadd(rd, rn, rm) }
+fn insn_fcmp(rn, rm) { return core.insn_fcmp(rn, rm) }
+fn insn_fsub(rd, rn, rm) { return core.insn_fsub(rd, rn, rm) }
+fn insn_fmul(rd, rn, rm) { return core.insn_fmul(rd, rn, rm) }
+fn insn_fdiv(rd, rn, rm) { return core.insn_fdiv(rd, rn, rm) }
+fn insn_scvtf(rd, rn) { return core.insn_scvtf(rd, rn) }
+fn insn_fcvtzs(rd, rn) { return core.insn_fcvtzs(rd, rn) }
+fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
+fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
+fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
+fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_ldadd(rs, rt, rn) { return core.insn_ldadd(rs, rt, rn) }
+fn insn_cas(rs, rt, rn) { return core.insn_cas(rs, rt, rn) }
+fn insn_ldaxr(rt, rn) { return core.insn_ldaxr(rt, rn) }
+fn insn_stlxr(rs, rt, rn) { return core.insn_stlxr(rs, rt, rn) }
+fn insn_clrex() { return core.insn_clrex() }
+fn insn_ldrb(rt, rn) { return core.insn_ldrb(rt, rn) }
+fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
+fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
+fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
+fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
+
+// Rolling ABI hygiene:
+// - The native backend reserves X28 (heap_ptr) and X27 (heap_limit) as "global heap registers".
+// - Kernels may clobber registers across syscalls.
+// - Preserve our native backend's callee-saved set (X19-X28) around each `svc`
+//   so inlined syscalls behave like normal function calls w.r.t. register liveness.
+//
+// Why this matters (Linux parity):
+// - Inlined syscalls can appear in the middle of generated code where the compiler
+//   may keep important values in X19-X26 across calls.
+// - Treating `svc` as clobbering callee-saved registers makes behavior deterministic
+//   across kernels and avoids subtle miscompiles (e.g. spawn/closure paths).
+fn emit_svc_preserve_heap(ctx, svc_imm) {
+    // Use a transient scratch slot. Avoid touching ctx["stack_size"] because
+    // the adjustment is fully balanced and no stack-relative locals are accessed
+    // between save and restore (the only instruction between is `svc`).
+    //
+    // Layout (80 bytes):
+    //   [SP+0..56]  = X19..X26
+    //   [SP+64]     = X27
+    //   [SP+72]     = X28
+    push_u32_le(ctx["code"], insn_sub_sp(80))
+    var r = 19
+    while r <= 26 {
+        push_u32_le(ctx["code"], insn_str_reg_sp(r, (r - 19) * 8))
+        r = r + 1
+    }
+    push_u32_le(ctx["code"], insn_str_reg_sp(27, 64))
+    push_u32_le(ctx["code"], insn_str_reg_sp(28, 72))
+    push_u32_le(ctx["code"], insn_svc(svc_imm))
+    var rr = 19
+    while rr <= 26 {
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(rr, (rr - 19) * 8))
+        rr = rr + 1
+    }
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 64))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 72))
+    push_u32_le(ctx["code"], insn_add_sp(80))
+    return nil
+}
+
+// Oren-level open(2) flags (rolling ABI).
+//
+// Design:
+// - The lower 2 bits match POSIX access mode: 0=RDONLY, 1=WRONLY, 2=RDWR.
+// - Higher bits are Oren-stable feature flags that must be translated to OS-specific
+//   O_* values in the syscall lowering (Darwin vs Linux differ).
+//
+// This avoids baking OS flag literals into `.oren` code and keeps Linux parity feasible.
+var OREN_O_CREAT = 256
+var OREN_O_TRUNC = 512
+var OREN_O_NONBLOCK = 1024
+
+fn emit_translate_open_flags(ctx) {
+    // Input:
+    // - X1 = oren_flags
+    // Output:
+    // - X1 = os_flags (Darwin/Linux)
+    //
+    // Scratch:
+    // - X4..X7
+    //
+    // Keep the access mode bits stable (flags & 3), and translate OREN_O_CREAT/OREN_O_TRUNC.
+    push_u32_le(ctx["code"], insn_mov_reg(4, 1))     // X4 = oren_flags
+    push_u32_le(ctx["code"], insn_movz(5, 3))        // X5 = 3
+    push_u32_le(ctx["code"], insn_and_reg(1, 1, 5))  // X1 = flags & 3 (access bits)
+
+    // If (oren_flags & OREN_O_CREAT) != 0 => OR in OS O_CREAT.
+    push_u32_le(ctx["code"], insn_movz(5, OREN_O_CREAT))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_CREAT
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
+    var br_skip_creat = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    var os_creat = abi.darwin_open_flag_creat()
+    if ctx["platform"]["os"] == "linux" {
+        os_creat = labi.linux_open_flag_creat()
+    }
+    push_u32_le(ctx["code"], insn_movz(7, os_creat))
+    push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_CREAT
+    var after_creat = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_creat, insn_b_cond((after_creat - br_skip_creat) / 4, 0)) // EQ
+
+    // If (oren_flags & OREN_O_TRUNC) != 0 => OR in OS O_TRUNC.
+    push_u32_le(ctx["code"], insn_movz(5, OREN_O_TRUNC))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_TRUNC
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
+    var br_skip_trunc = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    var os_trunc = abi.darwin_open_flag_trunc()
+    if ctx["platform"]["os"] == "linux" {
+        os_trunc = labi.linux_open_flag_trunc()
+    }
+    push_u32_le(ctx["code"], insn_movz(7, os_trunc))
+    push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_TRUNC
+    var after_trunc = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_trunc, insn_b_cond((after_trunc - br_skip_trunc) / 4, 0)) // EQ
+
+    // If (oren_flags & OREN_O_NONBLOCK) != 0 => OR in OS O_NONBLOCK.
+    push_u32_le(ctx["code"], insn_movz(5, OREN_O_NONBLOCK))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_NONBLOCK
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
+    var br_skip_nb = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    var os_nb = abi.darwin_open_flag_nonblock()
+    if ctx["platform"]["os"] == "linux" {
+        os_nb = labi.linux_open_flag_nonblock()
+    }
+    push_u32_le(ctx["code"], insn_movz(7, os_nb))
+    push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_NONBLOCK
+    var after_nb = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
+
+    return nil
+}
+
+fn emit_translate_fcntl_setfl_flags(ctx) {
+    // Input:  X2 = oren_flags (rolling ABI)
+    // Output: X2 = os_flags (Darwin/Linux)
+    //
+    // Currently we translate only the bits we use in runtime/tests: O_NONBLOCK.
+    // Unknown bits are intentionally dropped in rolling mode (deny-by-default semantics).
+    push_u32_le(ctx["code"], insn_mov_reg(4, 2))  // X4 = oren_flags
+    push_u32_le(ctx["code"], insn_movz(2, 0))     // X2 = 0 (os_flags)
+
+    push_u32_le(ctx["code"], insn_movz(5, OREN_O_NONBLOCK))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_NONBLOCK
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
+    var br_skip_nb = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    var os_nb = abi.darwin_open_flag_nonblock()
+    if ctx["platform"]["os"] == "linux" {
+        os_nb = labi.linux_open_flag_nonblock()
+    }
+    push_u32_le(ctx["code"], insn_movz(7, os_nb))
+    push_u32_le(ctx["code"], insn_orr_reg(2, 2, 7)) // os_flags |= O_NONBLOCK
+    var after_nb = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
+    return nil
+}
+
+fn emit_translate_fcntl_getfl_return(ctx) {
+    // Input:  X0 = os_flags (or negative errno)
+    // Output: X0 = oren_flags (or negative errno)
+    //
+    // Keep access bits (&3) and translate O_NONBLOCK.
+    push_u32_le(ctx["code"], insn_mov_reg(4, 0))   // X4 = os_flags / rc
+
+    // If rc < 0, skip translation.
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp X0, XZR
+    var br_skip_all = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.LT skip
+
+    // X0 = os_flags & 3
+    push_u32_le(ctx["code"], insn_mov_reg(0, 4))
+    push_u32_le(ctx["code"], insn_movz(5, 3))
+    push_u32_le(ctx["code"], insn_and_reg(0, 0, 5))
+
+    // if (os_flags & OS_O_NONBLOCK) != 0 => X0 |= OREN_O_NONBLOCK
+    var os_nb = abi.darwin_open_flag_nonblock()
+    if ctx["platform"]["os"] == "linux" {
+        os_nb = labi.linux_open_flag_nonblock()
+    }
+    push_u32_le(ctx["code"], insn_movz(5, os_nb))
+    push_u32_le(ctx["code"], insn_and_reg(6, 4, 5))
+    push_u32_le(ctx["code"], insn_cmp_reg(6, 31))
+    var br_skip_nb = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // B.EQ skip
+    push_u32_le(ctx["code"], insn_movz(7, OREN_O_NONBLOCK))
+    push_u32_le(ctx["code"], insn_orr_reg(0, 0, 7))
+    var after_nb = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
+
+    var after_all = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_skip_all, insn_b_cond((after_all - br_skip_all) / 4, 11)) // LT
+    return nil
+}
+
+
+fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
+        if fn_name == "sys_read" {
+            compile_expr(ctx, args[0]) // fd -> X0
+
+            // pre: native_capsule_sys_read_pre(fd) -> fd
+            var bl_read_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_read_pre, "name": "native_capsule_sys_read_pre"})
+
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[2]) // len -> X0
+
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // ptr -> X2 (was X1 in sys_write logic, wait)
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // fd -> X1
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // X0=len (current), X1=fd, X2=ptr.
+            // Syscall: X0=fd, X1=ptr, X2=len.
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // temp save len in X3
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // fd -> X0
+            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // ptr -> X1
+            push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // len -> X2
+
+            var sys_read = abi.darwin_sys_read()
+            var svc_imm = abi.darwin_svc_imm()
+            var sys_reg = abi.darwin_syscall_reg()
+            if ctx["platform"]["os"] == "linux" {
+                sys_read = labi.linux_sys_read()
+                svc_imm = labi.linux_svc_imm()
+                sys_reg = labi.linux_syscall_reg()
+            }
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_read))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
+                // Normalize to X0 = -errno for syscall-first code that checks for negative errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = 0 - errno = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return true
+        }
+
+    if fn_name == "sys_mmap_private_anon" {
+            // sys_mmap_private_anon(len) -> ptr (>=0) or -errno
+            // mmap(0, len, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON(YMOUS), -1, 0)
+            compile_expr(ctx, args[0]) // len -> X0
+            push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = len
+            push_u32_le(ctx["code"], insn_movz(0, 0))    // X0 = addr = 0
+
+            var mmap_prot = abi.darwin_mmap_prot_read_write()
+            var mmap_flags = abi.darwin_mmap_flags_private_anon()
+            var sys_mmap = abi.darwin_sys_mmap()
+            var svc_imm = abi.darwin_svc_imm()
+            var sys_reg = abi.darwin_syscall_reg()
+            if ctx["platform"]["os"] == "linux" {
+                mmap_prot = labi.linux_mmap_prot_read_write()
+                mmap_flags = labi.linux_mmap_flags_private_anon()
+                sys_mmap = labi.linux_sys_mmap()
+                svc_imm = labi.linux_svc_imm()
+                sys_reg = labi.linux_syscall_reg()
+            }
+
+            push_u32_le(ctx["code"], insn_movz(2, mmap_prot))  // X2 = prot
+            push_u32_le(ctx["code"], insn_movz(3, mmap_flags)) // X3 = flags
+            push_u32_le(ctx["code"], insn_movn(4, 0))          // X4 = -1 (fd)
+            push_u32_le(ctx["code"], insn_movz(5, 0))          // X5 = 0 (off)
+
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_mmap))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                // macOS syscall convention: on error, carry flag is set and X0 contains errno (positive).
+                // Normalize to X0 = -errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return true
+        }
+
+    if fn_name == "sys_munmap" {
+            // sys_munmap(addr, len) -> 0 or -errno
+            compile_expr(ctx, args[0]) // addr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // len -> X0
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // addr -> X1
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+            // Arrange: X0=addr, X1=len
+            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = len
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = addr
+            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // X1 = len
+
+            var sys_munmap = abi.darwin_sys_munmap()
+            var svc_imm = abi.darwin_svc_imm()
+            var sys_reg = abi.darwin_syscall_reg()
+            if ctx["platform"]["os"] == "linux" {
+                sys_munmap = labi.linux_sys_munmap()
+                svc_imm = labi.linux_svc_imm()
+                sys_reg = labi.linux_syscall_reg()
+            }
+
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_munmap))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+            return true
+        }
+        
+    if fn_name == "sys_write" {
+            // sys_write(fd, ptr, len)
+            compile_expr(ctx, args[0]) // fd -> X0
+
+            // pre: native_capsule_sys_write_pre(fd) -> fd
+            var bl_write_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_write_pre, "name": "native_capsule_sys_write_pre"})
+
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // ptr -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[2]) // len -> X0
+
+            // Pop ptr -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop fd -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Move fd to X0, ptr already in X2, len in X0 currently -> swap len to X2? We already moved ptr to X2; len is in X0, fd in X1.
+            // Arrange registers: X0=fd, X1=ptr, X2=len
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // temp save len in X3
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // fd -> X0
+            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // ptr -> X1
+            push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // len -> X2
+
+            var sys_write = abi.darwin_sys_write()
+            var svc_imm = abi.darwin_svc_imm()
+            var sys_reg = abi.darwin_syscall_reg()
+            if ctx["platform"]["os"] == "linux" {
+                sys_write = labi.linux_sys_write()
+                svc_imm = labi.linux_svc_imm()
+                sys_reg = labi.linux_syscall_reg()
+            }
+            push_u32_le(ctx["code"], insn_movz(sys_reg, sys_write))
+            emit_svc_preserve_heap(ctx, svc_imm)
+            if ctx["platform"]["os"] != "linux" {
+                // Normalize macOS syscall error (carry set, X0=errno) to X0 = -errno.
+                var br_ok = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+            }
+        return true
+    }
+
+    if fn_name == "sys_exit" {
+        // sys_exit(code) -> does not return
+        // NOTE: kept here so all syscall emission stays centralized in this module.
+        //
+        // We intentionally do not add capsule gating for exit yet:
+        // - exit is used by the injected runtime for fatal failures (OOM, init invariants)
+        // - requiring PROC enrollment for exit would make FS-only/TIME-only capsule programs brittle
+        // - AVM exit semantics are VM-terminate, not host-terminate
+
+        compile_expr(ctx, args[0]) // code -> X0
+
+        var svc_imm = abi.darwin_svc_imm()
+        var sys_reg = abi.darwin_syscall_reg()
+        var sys_exit = abi.darwin_sys_exit()
+        if ctx["platform"]["os"] == "linux" {
+            svc_imm = labi.linux_svc_imm()
+            sys_reg = labi.linux_syscall_reg()
+            sys_exit = labi.linux_sys_exit()
+        }
+
+        push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
+        emit_svc_preserve_heap(ctx, svc_imm)
+        return true
+    }
+
+        if fn_name == "sys_open" {
+            // sys_open(path_ptr, flags, mode)
+            // macOS: open(path, flags, mode) -> fd
+            // Linux:  openat(AT_FDCWD=-100, path, flags, mode) -> fd
+            // Keep args on stack so we can call capsule enforcement helpers (no bypass),
+            // and optionally rewrite path via FS mounts (virtual->host).
+            compile_expr(ctx, args[0]) // path -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[1]) // flags -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            compile_expr(ctx, args[2]) // mode -> X0
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // pre: native_capsule_sys_open_pre(path, flags) -> pair [path_ptr, owned]
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // path
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // flags
+            var bl_open_pre = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_open_pre, "name": "native_capsule_sys_open_pre"})
+            // Save pair pointer.
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // Load resolved path_ptr from pair into X0 for syscall setup.
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // pair -> X2
+            push_u32_le(ctx["code"], insn_ldr_ptr(0, 2))    // X0 = pair[0] (path_ptr)

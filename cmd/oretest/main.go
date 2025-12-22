@@ -2413,9 +2413,9 @@ func auditNativeCapsuleSyscallPrehooks() error {
 	compilerPath := filepath.Join("lib", "compiler", "arm64_native_expr_syscalls.oren")
 	runtimePath := filepath.Join("lib", "runtime_native.oren")
 
-	compilerSrc, err := os.ReadFile(compilerPath)
+	compilerExpanded, err := expandOrenIncludes(compilerPath)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", compilerPath, err)
+		return fmt.Errorf("expand includes %s: %w", compilerPath, err)
 	}
 	rt, err := expandOrenIncludes(runtimePath)
 	if err != nil {
@@ -2439,7 +2439,7 @@ func auditNativeCapsuleSyscallPrehooks() error {
 		}
 	}
 
-	src := string(compilerSrc)
+	src := compilerExpanded
 	blocks := parseSyscallBlocks(src)
 	if len(blocks) == 0 {
 		return fmt.Errorf("no syscall blocks found in %s (unexpected)", compilerPath)
@@ -2563,6 +2563,7 @@ func auditNativeNoDirectSvcBypass() error {
 	// is expanded before scanning so policy checks still see the real code.
 	skipDirs := map[string]bool{
 		filepath.Join("lib", "compiler", "arm64_native_expr"): true,
+		filepath.Join("lib", "compiler", "arm64_native_expr_syscalls"): true,
 	}
 
 	var offenders []string
