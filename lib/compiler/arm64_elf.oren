@@ -37,6 +37,8 @@ fn insn_movk(reg, imm16, shift_idx) { return codegen.insn_movk(reg, imm16, shift
 fn insn_ret() { return codegen.insn_ret() }
 fn insn_bl(off) { return codegen.insn_bl(off) }
 fn insn_adr(reg, imm) { return codegen.insn_adr(reg, imm) }
+fn insn_adrp(reg, imm_pages) { return codegen.insn_adrp(reg, imm_pages) }
+fn insn_add_imm(rd, rn, imm) { return codegen.insn_add_imm(rd, rn, imm) }
 
 fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }
 fn native_emit_errors_and_exit(ctx) { return codegen.native_emit_errors_and_exit(ctx) }
@@ -240,9 +242,16 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         if fix["type"] == "adr_data" {
             var data_off = fix["data_off"]
             var target_idx = code_len_before_data + data_off
-            var offset2 = target_idx - pos
-            var insn = insn_adr(0, offset2)
-            set_u32_le(code, pos, insn)
+            var text_base = 4194304 // 0x400000
+            var header_size = 120   // Ehdr + Phdr size
+            var target_addr = text_base + header_size + target_idx
+            var pc = text_base + header_size + pos
+            var pc_page = pc - int_mod(pc, 4096)
+            var target_page = target_addr - int_mod(target_addr, 4096)
+            var delta_pages = (target_page - pc_page) / 4096
+            var page_off = int_mod(target_addr, 4096)
+            set_u32_le(code, pos, insn_adrp(0, delta_pages))
+            set_u32_le(code, pos + 4, insn_add_imm(0, 0, page_off))
         }
 
         if fix["type"] == "adr_code" {
@@ -256,8 +265,16 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
             }
             var reg = fix["reg"]
             if reg == nil { reg = 0 }
-            var off_bytes = target2 - pos
-            set_u32_le(code, pos, insn_adr(reg, off_bytes))
+            var text_base = 4194304 // 0x400000
+            var header_size = 120   // Ehdr + Phdr size
+            var target_addr = text_base + header_size + target2
+            var pc = text_base + header_size + pos
+            var pc_page = pc - int_mod(pc, 4096)
+            var target_page = target_addr - int_mod(target_addr, 4096)
+            var delta_pages = (target_page - pc_page) / 4096
+            var page_off = int_mod(target_addr, 4096)
+            set_u32_le(code, pos, insn_adrp(reg, delta_pages))
+            set_u32_le(code, pos + 4, insn_add_imm(reg, reg, page_off))
         }
         
         // Legacy

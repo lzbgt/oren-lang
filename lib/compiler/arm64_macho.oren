@@ -121,10 +121,12 @@ fn insn_movz(reg, imm16) { return codegen.insn_movz(reg, imm16) }
 fn insn_movk(reg, imm16, shift_idx) { return codegen.insn_movk(reg, imm16, shift_idx) }
 fn insn_bl(off) { return codegen.insn_bl(off) }
 fn insn_adr(reg, imm) { return codegen.insn_adr(reg, imm) }
+fn insn_adrp(reg, imm_pages) { return codegen.insn_adrp(reg, imm_pages) }
 fn insn_ret() { return codegen.insn_ret() }
 fn insn_svc(imm) { return core.insn_svc(imm) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_br(rn) { return core.insn_br(rn) }
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 
 fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }
 fn native_emit_errors_and_exit(ctx) { return codegen.native_emit_errors_and_exit(ctx) }
@@ -656,8 +658,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var stub_pos = oren_list_len(code)
         functions[name] = stub_pos 
         
-        // Stub: ADR X16, <got>; LDR X16, [X16]; BR X16
-        push_u32_le(code, 0) // Placeholder for ADR
+        // Stub: ADRP X16, <got>@PAGE; ADD X16, X16, <got>@PAGEOFF; LDR X16, [X16]; BR X16
+        push_u32_le(code, 0) // Placeholder for ADRP
+        push_u32_le(code, 0) // Placeholder for ADD
         push_u32_le(code, insn_ldr_ptr(16, 16))
         push_u32_le(code, insn_br(16))
         
@@ -783,9 +786,12 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var data_off = fix["data_off"]
             var target_addr = data_vmaddr + data_off
             var pc = text_base + header_size + pos
-            var offset2 = target_addr - pc
-            var insn = insn_adr(0, offset2)
-            set_u32_le(code, pos, insn)
+            var pc_page = pc - int_mod(pc, 4096)
+            var target_page = target_addr - int_mod(target_addr, 4096)
+            var delta_pages = (target_page - pc_page) / 4096
+            var page_off = int_mod(target_addr, 4096)
+            set_u32_le(code, pos, insn_adrp(0, delta_pages))
+            set_u32_le(code, pos + 4, insn_add_imm(0, 0, page_off))
         }
 
         if fix["type"] == "adr_code" {
@@ -799,17 +805,26 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             var reg = fix["reg"]
             if reg == nil { reg = 0 }
-            // Within __TEXT, PC-relative offset is simply target-pos (header cancels out).
-            var off_bytes = target2 - pos
-            set_u32_le(code, pos, insn_adr(reg, off_bytes))
+            var target_addr = text_base + header_size + target2
+            var pc2 = text_base + header_size + pos
+            var pc_page2 = pc2 - int_mod(pc2, 4096)
+            var target_page2 = target_addr - int_mod(target_addr, 4096)
+            var delta_pages2 = (target_page2 - pc_page2) / 4096
+            var page_off2 = int_mod(target_addr, 4096)
+            set_u32_le(code, pos, insn_adrp(reg, delta_pages2))
+            set_u32_le(code, pos + 4, insn_add_imm(reg, reg, page_off2))
         }
 
         if fix["type"] == "got_load" {
              var got_idx = fix["got_index"]
              var got_entry_addr = data_vmaddr + got_offset + (got_idx * 8)
              var pc2 = text_base + header_size + pos
-             var offset3 = got_entry_addr - pc2
-             set_u32_le(code, pos, insn_adr(16, offset3))
+             var pc_page3 = pc2 - int_mod(pc2, 4096)
+             var target_page3 = got_entry_addr - int_mod(got_entry_addr, 4096)
+             var delta_pages3 = (target_page3 - pc_page3) / 4096
+             var page_off3 = int_mod(got_entry_addr, 4096)
+             set_u32_le(code, pos, insn_adrp(16, delta_pages3))
+             set_u32_le(code, pos + 4, insn_add_imm(16, 16, page_off3))
         }
         
         i = i + 1

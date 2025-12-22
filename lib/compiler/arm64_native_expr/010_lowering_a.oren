@@ -58,6 +58,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 // X0 = code_ptr (lambda wrapper), X1 = env_ptr
                 var adr_pos = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos, "name": lname, "reg": 0})
     
                 var bl_make = oren_list_len(ctx["code"])
@@ -85,6 +86,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
             bytes_extend(ctx["data"], bytes)
             
             var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
             
@@ -292,6 +294,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
             if global_off != nil {
                 var adr_pos = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": global_off})
                 // X0 has address. LDR X0, [X0]
                 push_u32_le(ctx["code"], insn_ldr_ptr(0, 0))
@@ -312,6 +315,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     push_u32_le(ctx["code"], insn_movz(1, 0)) // env_ptr = 0
                     var wname = "__oren_fnwrap_" + name
                     var adr_pos2 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos2, "name": wname, "reg": 0})
     
@@ -672,6 +676,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
             var data_off = oren_list_len(ctx["data"])
             bytes_extend(ctx["data"], bytes)
             var adr_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
             

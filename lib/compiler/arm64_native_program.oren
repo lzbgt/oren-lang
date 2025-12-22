@@ -963,8 +963,9 @@ fn native_compile_program_arm64(linked, platform) {
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init_gc, "name": "native_runtime_init_gc_mode"})
 
     if platform["debug"] == true {
+        var debug_adr_pos = oren_list_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        var debug_adr_pos = oren_list_len(ctx["code"]) - 4
+        push_u32_le(ctx["code"], 0)
         ctx["debug_fixup_pos"] = debug_adr_pos
         
         var static_addr_pos = oren_list_len(ctx["code"])

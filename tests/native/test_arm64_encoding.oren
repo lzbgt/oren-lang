@@ -49,6 +49,7 @@ fn main() {
 
     // PC-relative addressing.
     expect_u32(core.insn_adr(13, 0), 0x1000000D, 170) // adr x13, .
+    expect_u32(core.insn_adrp(16, 0), 0x90000010, 171) // adrp x16, _sym@PAGE (page delta 0)
 
     // Unscaled signed-byte offset loads/stores.
     expect_u32(core.insn_stur_reg(1, 2, -8), 0xF81F8041, 180) // stur x1, [x2, #-8]

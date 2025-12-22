@@ -129,14 +129,18 @@ func main() {
 		fmt.Fprintln(os.Stderr, "repo style audit failed:", err)
 		os.Exit(1)
 	}
-	if err := auditIncludeChunkCoherence(); err != nil {
-		fmt.Fprintln(os.Stderr, "include chunk audit failed:", err)
-		os.Exit(1)
-	}
+		if err := auditIncludeChunkCoherence(); err != nil {
+			fmt.Fprintln(os.Stderr, "include chunk audit failed:", err)
+			os.Exit(1)
+		}
+		if err := auditArm64AdrFixupSlots(); err != nil {
+			fmt.Fprintln(os.Stderr, "arm64 adr fixup audit failed:", err)
+			os.Exit(1)
+		}
 
-	// Curated lists: keep small and integration-first.
-	nativeTests := []string{
-		"tests/native/test_integration_suite.oren",
+		// Curated lists: keep small and integration-first.
+		nativeTests := []string{
+			"tests/native/test_integration_suite.oren",
 		"tests/native/test_simd_suite.oren",
 		"tests/native/test_debug_panic.oren",
 	}
@@ -2837,6 +2841,94 @@ func auditRuntimeNativeModernStyle() error {
 			offenders = append(offenders[:30], fmt.Sprintf("... (%d more)", len(offenders)-30))
 		}
 		return fmt.Errorf("runtime_native style violations:\n%s", strings.Join(offenders, "\n"))
+	}
+	return nil
+}
+
+func auditArm64AdrFixupSlots() error {
+	// Purpose: protect the rolling migration from ADR (±1MB) to ADRP+ADD (±4GB pages)
+	// for native backend fixups.
+	//
+	// The native backend emits placeholder instruction words at each `adr_*` fixup site.
+	// Once we patch those fixups as a 2-instruction sequence, any new site that only
+	// reserves 1 slot will cause silent code corruption (pos+4 overwrites the next insn).
+	//
+	// Keep this audit intentionally small and specific to the compiler lowering modules.
+	type fixupKind struct {
+		name    string
+		pattern string
+	}
+	kinds := []fixupKind{
+		{name: "adr_data", pattern: "\"type\": \"adr_data\""},
+		{name: "adr_code", pattern: "\"type\": \"adr_code\""},
+	}
+
+	var paths []string
+	paths = append(paths, filepath.Join("lib", "compiler", "arm64_native_stmt.oren"))
+
+	exprDir := filepath.Join("lib", "compiler", "arm64_native_expr")
+	if err := filepath.WalkDir(exprDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".oren") {
+			return nil
+		}
+		paths = append(paths, path)
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	var offenders []string
+	for _, path := range paths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		lines := strings.Split(string(b), "\n")
+		for i := range lines {
+			line := lines[i]
+			for _, k := range kinds {
+				if !strings.Contains(line, k.pattern) {
+					continue
+				}
+
+				// Heuristic: find the nearest preceding `var adr_pos` (or similar) and count
+				// reserved u32 slots up to the fixup push.
+				start := i - 20
+				if start < 0 {
+					start = 0
+				}
+				for j := i; j >= start; j-- {
+					if strings.Contains(lines[j], "var adr_pos") {
+						start = j
+						break
+					}
+				}
+
+				slotCount := 0
+				for j := start; j <= i; j++ {
+					if strings.Contains(lines[j], "push_u32_le(ctx[\"code\"], 0)") {
+						slotCount++
+					}
+				}
+				if slotCount < 2 {
+					offenders = append(offenders, fmt.Sprintf("%s:%d: %s fixup must reserve 2 u32 slots (ADRP+ADD), found %d", path, i+1, k.name, slotCount))
+				}
+			}
+		}
+	}
+
+	if len(offenders) > 0 {
+		sort.Strings(offenders)
+		if len(offenders) > 30 {
+			offenders = append(offenders[:30], fmt.Sprintf("... (%d more)", len(offenders)-30))
+		}
+		return fmt.Errorf("arm64 fixup slot violations:\n%s", strings.Join(offenders, "\n"))
 	}
 	return nil
 }

@@ -848,6 +848,29 @@ fn insn_adr(reg, imm) {
     return 268435456 + (lo * 536870912) + (hi * 32) + reg
 }
 
+fn insn_adrp(reg, imm_pages) {
+    // ADRP Xd, <label>@PAGE
+    //
+    // Encodes a signed 21-bit PC-relative immediate in units of 4KB pages.
+    // The effective address is: (PC_page + imm_pages*4096).
+    //
+    // Verified via clang (Mach-O @PAGE / @PAGEOFF pattern):
+    //   adrp x16, _sym@PAGE => 0x90000010   (when page delta == 0)
+    //
+    // Encoding (A64):
+    // - base opcode: 0x90000000
+    // - immlo: bits[30:29] = imm[1:0]
+    // - immhi: bits[23:5]  = imm[20:2]
+    // - rd:    bits[4:0]
+    var imm = imm_pages
+    if imm < 0 {
+        imm = imm + 2097152 // 2^21 pages
+    }
+    var immlo = imm & 3
+    var immhi = imm / 4
+    return 2415919104 + (immlo * 536870912) + (immhi * 32) + reg // 0x90000000
+}
+
 fn insn_br(rn) {
     // BR Xn
     // Encoding: 0xD61F0000 | (rn << 5)

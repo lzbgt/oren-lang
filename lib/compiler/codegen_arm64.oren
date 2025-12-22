@@ -31,6 +31,8 @@ fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_bl(off) { return core.insn_bl(off) }
 fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
+fn insn_adrp(reg, imm_pages) { return core.insn_adrp(reg, imm_pages) }
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_ret() { return core.insn_ret() }
 
 // Top-level compilation entry
