@@ -16,6 +16,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - DoD: broaden coverage (NaN/Inf/sign-bit edge cases, large `n`) and keep macOS+Linux parity for these intrinsics.
 
 3) **ARM64 instruction encoder audit** (S)
+   - Status: replaced `LSLV` uses in SIMD tail math (constant scale factors) with add-doubling to reduce sensitivity to variable-shift encoding.
    - DoD: spot-check the most-used instruction encoders (especially loads/stores) against clang/objdump golden encodings to prevent silent mis-encodes from regressing correctness.
 
 4) **Native networking hardening** (M)

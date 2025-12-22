@@ -10,7 +10,11 @@
             push_u32_le(ctx["code"], insn_umov_x_d(15, 15))
 
             // rem = n - (groups_saved * 4)
-            push_u32_le(ctx["code"], insn_lslv(10, 10, 9))     // X10 = groups_saved * 4
+            //
+            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(10, 10, 10)) // X10 *= 2
+            push_u32_le(ctx["code"], insn_add_reg(10, 10, 10)) // X10 *= 4
             push_u32_le(ctx["code"], insn_sub_reg(7, 7, 10))   // X7 = rem
 
             // If rem == 0, skip tail.
@@ -285,7 +289,11 @@
             }
 
             // rem = n - (groups_saved * 4)
-            push_u32_le(ctx["code"], insn_lslv(14, 14, 12))     // X14 = groups_saved * 4
+            //
+            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(14, 14, 14))  // X14 *= 2
+            push_u32_le(ctx["code"], insn_add_reg(14, 14, 14))  // X14 *= 4
             push_u32_le(ctx["code"], insn_sub_reg(10, 10, 14))  // X10 = rem
 
             // If rem == 0, done.

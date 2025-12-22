@@ -56,7 +56,10 @@
             set_u32_le(ctx["code"], br_vec_loop64, insn_b_cond((vec_loop64 - br_vec_loop64) / 4, 1)) // NE
 
             // rem = n - (groups_saved*2)
-            push_u32_le(ctx["code"], insn_lslv(7, 7, 6))       // X7 = groups*2
+            //
+            // Rolling note: compute `groups_saved * 2` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 2
             push_u32_le(ctx["code"], insn_sub_reg(4, 4, 7))    // X4 = rem
 
             // If rem == 0, done.
@@ -242,7 +245,10 @@
             set_u32_le(ctx["code"], br_dot_loop64, insn_b_cond((dot_loop64 - br_dot_loop64) / 4, 1)) // NE
 
             // rem = n - (groups_saved*2)
-            push_u32_le(ctx["code"], insn_lslv(7, 7, 6))       // X7 = groups*2
+            //
+            // Rolling note: compute `groups_saved * 2` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 2
             push_u32_le(ctx["code"], insn_sub_reg(2, 2, 7))    // X2 = rem
 
             // If rem == 0, done.
@@ -428,7 +434,10 @@
             set_u32_le(ctx["code"], br_vec_loop, insn_b_cond((vec_loop - br_vec_loop) / 4, 1)) // NE
 
             // rem = n - (groups_saved*2)
-            push_u32_le(ctx["code"], insn_lslv(10, 10, 9))    // X10 = groups_saved*2
+            //
+            // Rolling note: compute `groups_saved * 2` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(10, 10, 10)) // X10 *= 2
             push_u32_le(ctx["code"], insn_sub_reg(7, 7, 10))  // X7 = rem
 
             // If rem == 0, skip tail.
@@ -541,10 +550,12 @@
             set_u32_le(ctx["code"], br_rs_loop64, insn_b_cond((rs_loop64 - br_rs_loop64) / 4, 1)) // NE
 
             // rem = n - (groups_saved*2)
-            push_u32_le(ctx["code"], insn_lslv(7, 7, 6))       // X7 = groups*2
+            //
+            // Rolling note: compute `groups_saved * 2` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 2
             push_u32_le(ctx["code"], insn_sub_reg(2, 2, 7))    // X2 = rem
 
             push_u32_le(ctx["code"], insn_cmp_reg(2, 31))
             var br_done_rs64 = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
-

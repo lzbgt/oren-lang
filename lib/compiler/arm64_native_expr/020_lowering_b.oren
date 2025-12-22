@@ -367,7 +367,11 @@
             push_u32_le(ctx["code"], insn_umov_x_d(0, 4))
 
             // Remainder count: n - (groups_saved * 4)
-            push_u32_le(ctx["code"], insn_lslv(7, 7, 6))       // X7 = groups * 4
+            //
+            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 2
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 4
             push_u32_le(ctx["code"], insn_sub_reg(2, 2, 7))    // X2 = rem
 
             // If rem == 0, done.

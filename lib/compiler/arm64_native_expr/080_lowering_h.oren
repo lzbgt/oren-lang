@@ -97,7 +97,11 @@
             set_u32_le(ctx["code"], br_vec_loop3, insn_b_cond((vec_loop3 - br_vec_loop3) / 4, 1)) // NE
 
             // rem = n - (groups_saved*4)
-            push_u32_le(ctx["code"], insn_lslv(7, 7, 6))       // X7 = groups*4
+            //
+            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 2
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 4
             push_u32_le(ctx["code"], insn_sub_reg(4, 4, 7))    // X4 = rem
 
             // If rem == 0, done.
@@ -213,7 +217,11 @@
             set_u32_le(ctx["code"], br_vec_loop_sf32, insn_b_cond((vec_loop_sf32 - br_vec_loop_sf32) / 4, 1)) // NE
 
             // rem = n - (groups_saved*4)
-            push_u32_le(ctx["code"], insn_lslv(7, 7, 6))
+            //
+            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 2
+            push_u32_le(ctx["code"], insn_add_reg(7, 7, 7))    // X7 *= 4
             push_u32_le(ctx["code"], insn_sub_reg(4, 4, 7))
 
             push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
@@ -329,7 +337,11 @@
             set_u32_le(ctx["code"], br_vec_loop_axf, insn_b_cond((vec_loop_axf - br_vec_loop_axf) / 4, 1)) // NE
 
             // rem = n - (groups_saved*4)
-            push_u32_le(ctx["code"], insn_lslv(8, 8, 7))
+            //
+            // Rolling note: compute `groups_saved * 4` via add-doubling rather than `LSLV`
+            // to keep tail handling robust if variable-shift encoding changes.
+            push_u32_le(ctx["code"], insn_add_reg(8, 8, 8))    // X8 *= 2
+            push_u32_le(ctx["code"], insn_add_reg(8, 8, 8))    // X8 *= 4
             push_u32_le(ctx["code"], insn_sub_reg(5, 5, 8))
 
             push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
