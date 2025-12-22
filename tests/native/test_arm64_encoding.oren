@@ -28,11 +28,32 @@ fn main() {
     expect_u32(core.insn_ldrsw(2, 3, 0), 0xB9800062, 130)
     expect_u32(core.insn_ldrsw(4, 5, 12), 0xB9800CA4, 131)
 
+    // Register <-> vector moves/broadcasts.
+    expect_u32(core.insn_dup_2d(4, 0), 0x4E080C04, 140) // dup v4.2d, x0
+    expect_u32(core.insn_dup_4s(4, 0), 0x4E040C04, 141) // dup v4.4s, w0
+    expect_u32(core.insn_fmov_s_w(0, 0), 0x1E270000, 142) // fmov s0, w0
+    expect_u32(core.insn_fmov_w_s(0, 0), 0x1E260000, 143) // fmov w0, s0
+    expect_u32(core.insn_umov_x_d1(1, 4), 0x4E183C81, 144) // umov x1, v4.d[1]
+
+    // Vector ops: add/sub.
+    expect_u32(core.insn_add_2d(4, 2, 3), 0x4EE38444, 160) // add v4.2d, v2.2d, v3.2d
+    expect_u32(core.insn_sub_2d(4, 2, 3), 0x6EE38444, 161) // sub v4.2d, v2.2d, v3.2d
+    expect_u32(core.insn_add_4s(0, 0, 1), 0x4EA18400, 162) // add v0.4s, v0.4s, v1.4s
+
     // A couple of SIMD scalar/vector arithmetic encodings (also golden in arm64_core.oren).
     expect_u32(core.insn_fadd_4s(0, 0, 1), 0x4E21D400, 200)
-    expect_u32(core.insn_fmul_4s(0, 0, 1), 0x6E21DC00, 201)
-    expect_u32(core.insn_fadd_s(0, 0, 1), 0x1E212800, 202)
-    expect_u32(core.insn_fmul_s(0, 0, 1), 0x1E210800, 203)
+    expect_u32(core.insn_fadd_2d(3, 1, 2), 0x4E62D423, 201)
+    expect_u32(core.insn_fmul_4s(0, 0, 1), 0x6E21DC00, 202)
+    expect_u32(core.insn_fmul_2d(4, 1, 2), 0x6E62DC24, 203)
+    expect_u32(core.insn_fadd_s(0, 0, 1), 0x1E212800, 204)
+    expect_u32(core.insn_fmul_s(0, 0, 1), 0x1E210800, 205)
+
+    // Widening/long ops (lane widening + pairwise add).
+    expect_u32(core.insn_fcvtl_2d_from_2s(2, 0), 0x0E617802, 220)  // fcvtl v2.2d, v0.2s
+    expect_u32(core.insn_fcvtl2_2d_from_4s(3, 0), 0x4E617803, 221) // fcvtl2 v3.2d, v0.4s
+    expect_u32(core.insn_smull_2d(2, 0, 1), 0x0EA1C002, 222)       // smull v2.2d, v0.2s, v1.2s
+    expect_u32(core.insn_smull2_2d(3, 0, 1), 0x4EA1C003, 223)      // smull2 v3.2d, v0.4s, v1.4s
+    expect_u32(core.insn_addp_2d(5, 4, 4), 0x4EE4BC85, 224)        // addp v5.2d, v4.2d, v4.2d
 
     print("arm64 encoding OK")
     exit(0)
