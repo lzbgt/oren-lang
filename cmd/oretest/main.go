@@ -2915,6 +2915,52 @@ func auditRepoModernStyle() error {
 			},
 		},
 		{
+			// Rolling syntax modernization: prefer `for x in xs { ... }` or `for init; cond; post { ... }`
+			// over legacy `for (<header>) { ... }`.
+			name:    "no legacy for (...) header parentheses",
+			pattern: "for (",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "for (")
+			},
+		},
+		{
+			name:    "no legacy for(...) header parentheses",
+			pattern: "for(",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "for(")
+			},
+		},
+		{
+			// Rolling syntax modernization: prefer `switch expr { ... }` over legacy `switch (expr) { ... }`.
+			name:    "no legacy switch (...) expression parentheses",
+			pattern: "switch (",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "switch (")
+			},
+		},
+		{
+			name:    "no legacy switch(...) expression parentheses",
+			pattern: "switch(",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "switch(")
+			},
+		},
+		{
+			// Rolling syntax modernization: prefer `match expr { ... }` over legacy `match (expr) { ... }`.
+			name:    "no legacy match (...) expression parentheses",
+			pattern: "match (",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "match (")
+			},
+		},
+		{
+			name:    "no legacy match(...) expression parentheses",
+			pattern: "match(",
+			allowInLine: func(trimmedLine string) bool {
+				return !strings.HasPrefix(trimmedLine, "match(")
+			},
+		},
+		{
 			name:    "no legacy @forin internal identifiers",
 			pattern: "@forin_",
 			allowInLine: func(trimmedLine string) bool {

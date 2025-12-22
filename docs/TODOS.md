@@ -12,7 +12,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
      - `native_compile_syscall_call()` is a small dispatcher; per-chunk helpers live in `lib/compiler/arm64_native_expr_syscalls/*`.
    - Status: added capsule prehook hooks + lowering calls for `sys_mmap_private_anon` / `sys_munmap` so AVM capsule audit passes.
    - DoD: ensure `// @include`-split sources don’t break mid-block (each included file should start/end on a coherent boundary), to keep per-file reviewable without context overflow.
-   - Next: split the remaining large native runtime entrypoints (`lib/runtime_native/*.oren`, especially `runtime_native.oren`) into smaller included modules guided by `docs/` (breaking changes OK while rolling).
+   - Next: keep applying overflow-proofing to any single-file hotspots (e.g. very large stdlib modules like `lib/std/linalg.oren`) before they cross the 2000-line refactor threshold.
 
 2) **Repo-wide grammar modernization + audits** (L)
    - Status: removed legacy `if (...)` forms across `.oren` sources (compiler/runtime/tests) by rewriting conditions to modern `if cond { ... }` (introduced temporaries where operator precedence required).
