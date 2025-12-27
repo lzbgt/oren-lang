@@ -695,6 +695,14 @@ fn work(x) { return x + 1 }
 var t = spawn work(10)
 ```
 
+Rolling note (backend gap): call-site spread (`...`) is supported for normal calls, but the
+bytecode backend currently rejects spread arguments in `spawn`:
+
+```oren
+var xs = [1]
+spawn work(xs...) // rejected by bytecode today (see `tests/native/fixtures/bytecode_codegen_error.oren`)
+```
+
 To wait for a spawned task:
 
 ```oren
@@ -721,6 +729,26 @@ The authoritative build/test workflow is in:
 
 - `docs/BUILD_AND_VERIFY.md`
 - `docs/TEST_SYSTEM.md`
+
+### Machine-readable diagnostics (`OREN_DIAG`)
+
+Both the compiler and runtime emit stable, machine-readable **single-line** diagnostics intended
+for tooling and AI agents.
+
+Format:
+
+- `OREN_DIAG kind=<kind> code=<code> msg=<sanitized>`
+
+Examples:
+
+- Compile-time errors (parse/compile/codegen/typecheck) print an `OREN_DIAG` line to stderr and exit non-zero.
+- Runtime failures (like `oren_fail(code, "msg")`) emit `OREN_DIAG kind=fail code=<code> ...` and exit with that code.
+- Panics emit `OREN_DIAG kind=panic code=1 ...` (and may print a stack trace depending on backend/runtime).
+
+Fixtures covering this contract:
+
+- Runtime fail header: `tests/native/fixtures/diag_fail.oren`
+- ABI/packview compile errors: `tests/native/fixtures/abi_layout_error.oren`, `tests/native/fixtures/packview_error.oren`
 
 In rolling mode, the canonical verification step is:
 
