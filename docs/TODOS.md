@@ -54,7 +54,9 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added machine-readable `--help=json` output (also supports `-h=json` / `-hjson`) and oretest regressions.
    - Status: added global `--version` / `-V` (deterministic string) and oretest regression.
    - Status: added `oren completion bash|zsh` to emit minimal deterministic shell completion scripts (commands + option names) and oretest regressions.
-   - Next: extend completion to suggest option values (e.g. `--backend` enums) and add install docs (`source <(oren completion bash)` / `eval "$(oren completion zsh)"`).
+   - Status: completion now suggests enum-like option values for key flags (`--backend`, `--target`, `--arch`, `--stdlib-mode`, plus `--help=json`).
+   - Status: documented installation and scope in `docs/CLI_COMPLETION.md`.
+   - Next: extend completion to suggest positional enums (e.g. `oren dump kind`) and add basic file/path completion for `*.oren` arguments (without depending on non-portable shell features).
 
 6) **ARM64 instruction encoder audit** (S)
     - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).
