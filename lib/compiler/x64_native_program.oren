@@ -236,6 +236,7 @@ fn _cond_check(ctx, cond) {
     if cond["type"] == "Prefix" && cond["op"] == "!" {
         var r2 = cond["right"]
         if r2 == nil { err(ctx, "x64 native v0: condition prefix ! missing operand"); return nil }
+        if _cond_is_cmp_infix(r2) != nil { return nil }
         _expr_int_check(ctx, r2)
         return nil
     }
@@ -262,6 +263,17 @@ fn _cond_false_cc(cond_op) {
     return nil
 }
 
+fn _cond_true_cc(cond_op) {
+    // Return the Jcc condition code for "cond is true", given `cond_op`.
+    if cond_op == "==" { return "e" }
+    if cond_op == "!=" { return "ne" }
+    if cond_op == "<" { return "l" }
+    if cond_op == "<=" { return "le" }
+    if cond_op == ">" { return "g" }
+    if cond_op == ">=" { return "ge" }
+    return nil
+}
+
 fn _cond_false_cc_for_cond(cond) {
     // After `_emit_cmp_from_cond`, flags are:
     // - comparison: based on `cmp lhs, rhs`
@@ -269,6 +281,11 @@ fn _cond_false_cc_for_cond(cond) {
     if _cond_is_cmp_infix(cond) != nil { return _cond_false_cc(cond["op"]) }
     if cond != nil && cond["type"] == "Prefix" && cond["op"] == "!" {
         // !x is false when x is truthy (x != 0)
+        var inner = cond["right"]
+        if _cond_is_cmp_infix(inner) != nil {
+            // !(lhs op rhs) is false when (lhs op rhs) is true.
+            return _cond_true_cc(inner["op"])
+        }
         return "ne"
     }
     // expr is false when expr == 0
@@ -771,10 +788,18 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
 
     // Truthy expression condition: compare expr to 0.
     if cond["type"] == "Prefix" && cond["op"] == "!" {
-        _emit_eval_int_to_rax(ctx, cond["right"], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-        return nil
+        var inner = cond["right"]
+        if inner == nil { err(ctx, "x64 native v0: condition prefix ! missing operand"); return nil }
+        if _cond_is_cmp_infix(inner) != nil {
+            // Negated compare: emit compare for inner; caller picks the correct Jcc.
+            _emit_cmp_from_cond(ctx, inner, locals)
+            return nil
+        } else {
+            _emit_eval_int_to_rax(ctx, inner, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            return nil
+        }
     }
     _emit_eval_int_to_rax(ctx, cond, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }

@@ -1,0 +1,11 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises negated compare conditions: `if !(a < b) { ... }`
+
+fn main() {
+    var x = 0
+    if !(x < 3) {
+        return 1
+    } else {
+        return 2
+    }
+}
