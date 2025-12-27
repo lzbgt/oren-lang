@@ -42,6 +42,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Next: varargs (`...rest`) lowering + call wrappers (needs list packing/runtime parity).
    - Next: refactor native backend for code reuse via a shared NativeIR + per-target ABI tables (see `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`).
    - Status: started factoring ABI details into `lib/compiler/native_abi*.oren` (arg registers + Win64 shadow/call-area), consumed by x64 codegen.
+   - Status: extracted callable semantics helpers (lambda capture + fnwrap/lambda wrappers) into `lib/compiler/native_callable.oren` (used by arm64 now; x64 can converge on it as runtime/list support lands).
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: added an opt-in remote-run oretest smoke (Win11 cmd.exe + WSL2) behind `OREN_REMOTE_RUN=1` to validate actual stdout + exit code on real x86_64.
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).
