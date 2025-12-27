@@ -23,15 +23,21 @@ static int is_all_zero_32(const unsigned char k[32]) {
     return acc == 0;
 }
 
-int avm_has_embedded_root_pubkey(void) {
-    // Consider only the first AVM_TRUSTED_ROOT_PUBKEYS_COUNT entries as active.
-    for (size_t i = 0; i < AVM_TRUSTED_ROOT_PUBKEYS_COUNT; i++) {
-        if (i >= (size_t)AVM_TRUSTED_ROOT_PUBKEYS_SLOTS) break;
+static const unsigned char* avm_first_embedded_root_pubkey(void) {
+    // Returns the first non-zero embedded pubkey among the active set, or NULL.
+    if (AVM_TRUSTED_ROOT_PUBKEYS_COUNT == 0) return NULL;
+    size_t n = AVM_TRUSTED_ROOT_PUBKEYS_COUNT;
+    if (n > (size_t)AVM_TRUSTED_ROOT_PUBKEYS_SLOTS) n = (size_t)AVM_TRUSTED_ROOT_PUBKEYS_SLOTS;
+    for (size_t i = 0; i < n; i++) {
         const unsigned char* pk = AVM_TRUSTED_ROOT_PUBKEYS[i];
         if (!pk) continue;
-        if (!is_all_zero_32(pk)) return 1;
+        if (!is_all_zero_32(pk)) return pk;
     }
-    return 0;
+    return NULL;
+}
+
+int avm_has_embedded_root_pubkey(void) {
+    return avm_first_embedded_root_pubkey() != NULL;
 }
 
 static void err_set(char* err, size_t cap, const char* msg) {
@@ -200,10 +206,10 @@ int avm_obc_verify_signature(const uint8_t* data, size_t len, const uint8_t* tru
             err_set(err, err_cap, "no trusted pubkey provided and no embedded root pubkey");
             return 0;
         }
-        // Historical API: if no pubkey is provided, use the first embedded root key.
-        // When multiple embedded roots are configured, callers should prefer
-        // avm_obc_verify_signature_with_chain_any() which tries them all.
-        memcpy(pk, AVM_TRUSTED_ROOT_PUBKEYS[0], 32);
+        const unsigned char* emb = avm_first_embedded_root_pubkey();
+        if (!emb) { err_set(err, err_cap, "no embedded root pubkey"); return 0; }
+        // Historical API: pick one embedded root. For rotation, prefer *_any().
+        memcpy(pk, emb, 32);
     }
 
     uint8_t hash[32];
@@ -259,7 +265,9 @@ int avm_obc_verify_signature_with_chain(
         return 0;
     }
     // Historical API: if no root pubkey is provided, use the first embedded root key.
-    const uint8_t* root_pk = trusted_root_pubkey_32 ? trusted_root_pubkey_32 : AVM_TRUSTED_ROOT_PUBKEYS[0];
+    const unsigned char* emb = avm_first_embedded_root_pubkey();
+    const uint8_t* root_pk = trusted_root_pubkey_32 ? trusted_root_pubkey_32 : (const uint8_t*)emb;
+    if (!root_pk) { err_set(err, err_cap, "missing trusted root pubkey"); return 0; }
 
     uint8_t hash[32];
     uint8_t sig[64];

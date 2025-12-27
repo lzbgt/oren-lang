@@ -612,11 +612,11 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/manifest_meta.meta.json", "build/manifest_meta.out", "build/manifest_meta.meta.json.manifest.json"},
 		},
-		{
-			name: "signed_obc_verify_cli",
-			cmd: fmt.Sprintf(
-				"set -e; "+
-					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+			{
+				name: "signed_obc_verify_cli",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
 					"echo \"[fixture] build orensign\"; "+
 					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
 					"echo \"[fixture] keygen (ephemeral)\"; "+
@@ -631,30 +631,68 @@ func main() {
 					"echo \"[fixture] verify unsigned must fail\"; "+
 					"set +e; ./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
 					"test $rc -ne 0",
-				"build/tmp/fixture_signed_obc_verify_cli",
-				"tests/avm/fixtures/signed_obc_smoke.oren",
-				*target,
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-				gcArg,
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
-				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
-				"signed obc OK",
-				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-			),
-			log: "build/logs/fixture_signed_obc_verify_cli.log",
-			ok:  func(rc int) bool { return rc == 0 },
-			cleanup: []string{
-				"build/tmp/fixture_signed_obc_verify_cli",
+					"build/tmp/fixture_signed_obc_verify_cli",
+					"tests/avm/fixtures/signed_obc_smoke.oren",
+					*target,
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+					gcArg,
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
+					"signed obc OK",
+					"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+				),
+				log: "build/logs/fixture_signed_obc_verify_cli.log",
+				ok:  func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cli",
+				},
 			},
-		},
-		{
-			name: "signed_obc_verify_cert_chain_cli",
-			cmd: fmt.Sprintf(
-				"set -e; "+
-					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+			{
+				name: "signed_obc_verify_cli_multi_root_hex",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+						"echo \"[fixture] build orensign\"; "+
+						"go build -o \"$wd/orensign\" ./cmd/orensign; "+
+						"echo \"[fixture] keygen root + wrong (ephemeral)\"; "+
+						"\"$wd/orensign\" keygen --out \"$wd/ca\"; "+
+						"\"$wd/orensign\" keygen --out \"$wd/wrong\"; "+
+						"echo \"[fixture] build unsigned obc\"; "+
+						"./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] sign obc\"; "+
+						"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
+						"echo \"[fixture] verify + run signed with hex list (wrong,correct)\"; "+
+						"bad=$(xxd -p -c 256 \"$wd/wrong/root_ed25519_pk.bin\" | tr -d '\\n'); "+
+						"good=$(xxd -p -c 256 \"$wd/ca/root_ed25519_pk.bin\" | tr -d '\\n'); "+
+						"./avm --require-sig --trusted-pubkey-hex \"${bad},${good}\" %q > %q; "+
+						"grep -Fq %q %q",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
+					"tests/avm/fixtures/signed_obc_smoke.oren",
+					*target,
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
+					gcArg,
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
+					"signed obc OK",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
+				),
+				timeout: 4 * time.Minute,
+				log:     "build/logs/fixture_signed_obc_verify_cli_multi_root_hex.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
+				},
+			},
+			{
+				name: "signed_obc_verify_cert_chain_cli",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
 					"echo \"[fixture] build orensign\"; "+
 					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
 					"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
