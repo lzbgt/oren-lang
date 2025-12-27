@@ -120,6 +120,13 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                     i = i + 1
                     continue
                 }
+
+                // Generic call expression statement: evaluate and discard return.
+                _expr_int_check(ctx, e)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                oren_list_push(ops, {"op": "expr", "expr": e})
+                i = i + 1
+                continue
             }
             err(ctx, "x64 native v0: unsupported expr statement")
             return nil

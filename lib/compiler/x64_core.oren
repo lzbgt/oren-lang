@@ -156,6 +156,112 @@ fn insn_mov_rax_mrax() {
     return [72, 139, 0]
 }
 
+fn _mem_base_modrm_and_sib(base_reg, reg_field_low3) {
+    // Encode ModRM (+ optional SIB + optional disp8=0) for the addressing mode [base_reg].
+    //
+    // This handles the x86_64 encoding quirks:
+    // - rm=100 (rsp/r12) requires a SIB byte
+    // - rm=101 (rbp/r13) cannot be encoded with mod=00; use mod=01 with disp8=0
+    //
+    // Returns {"modrm": byte, "sib": byte|nil, "disp8": byte|nil}.
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var rm = int_mod(base_reg, 8)
+    var mod = 0
+    var sib = nil
+    var disp8 = nil
+
+    // rbp/r13: force disp8=0 so it's [rbp+0] instead of RIP-relative.
+    if rm == 5 {
+        mod = 1
+        disp8 = 0
+    }
+
+    // rsp/r12: require SIB byte with index=none, base=rsp.
+    if rm == 4 {
+        sib = 36 // 0x24 (scale=0, index=100 (none), base=100 (rsp))
+        rm = 4
+    }
+
+    var modrm = 0
+    if mod == 1 { modrm = 64 } // 0x40
+    modrm = modrm + int_mod(reg_field_low3, 8) * 8 + rm
+    return {"modrm": modrm, "sib": sib, "disp8": disp8}
+}
+
+fn insn_mov_r64_mr64(dst_reg, base_reg) {
+    // mov r64, qword ptr [base_reg]
+    // Encoding: REX.W + 8B /r with ModRM addressing [base]
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 0x48 (REX.W)
+    if dst_reg >= 8 { rex = rex + 4 } // REX.R
+    if base_reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 139) // 8B
+    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(dst_reg, 8))
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    return out
+}
+
+fn insn_mov_mr64_r64(base_reg, src_reg) {
+    // mov qword ptr [base_reg], src_reg
+    // Encoding: REX.W + 89 /r with ModRM addressing [base]
+    if src_reg < 0 || src_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 0x48 (REX.W)
+    if src_reg >= 8 { rex = rex + 4 } // REX.R
+    if base_reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 137) // 89
+    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(src_reg, 8))
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    return out
+}
+
+fn insn_movzx_r32_mr8(dst_reg, base_reg) {
+    // movzx r32, byte ptr [base_reg]
+    // Encoding: 0F B6 /r (+ optional REX for r8d-r15d or base r8-r15)
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    var rex = 64 // 0x40 base
+    var need = false
+    if dst_reg >= 8 { rex = rex + 4; need = true } // REX.R
+    if base_reg >= 8 { rex = rex + 1; need = true } // REX.B
+    if need { bytes_push(out, rex) }
+    bytes_push(out, 15) // 0F
+    bytes_push(out, 182) // B6
+    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(dst_reg, 8))
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    return out
+}
+
+fn insn_mov_mr8_al(base_reg) {
+    // mov byte ptr [base_reg], al
+    // Encoding: 88 /r (reg=0) (+ optional REX.B for base r8-r15)
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    if base_reg >= 8 { bytes_push(out, 65) } // 0x41 (REX.B)
+    bytes_push(out, 136) // 88
+    var enc = _mem_base_modrm_and_sib(base_reg, 0)
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    return out
+}
+
 fn insn_lea_rsi_rip_disp32(disp32) {
     // lea rsi, [rip+disp32] => 48 8D 35 disp32
     var out = [72, 141, 53]

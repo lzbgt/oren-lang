@@ -138,7 +138,7 @@ fn _max_call_argc_in_ops(ops) {
         var op = ops[i]
         if op == nil { i = i + 1; continue }
         var k = op["op"]
-        if k == "var_i32" || k == "assign_i32" || k == "return" {
+        if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" {
             var e = op["expr"]
             var me = _max_call_argc_in_expr(e)
             if me > m { m = me }

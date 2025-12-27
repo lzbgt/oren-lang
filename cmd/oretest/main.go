@@ -118,6 +118,7 @@ func stdlibModernizationAudit() error {
 }
 
 const remoteX64Host = "lzbgt@pc.work"
+
 // Use backslash-escaped spaces so this can be embedded safely into `sh -c` commands without
 // nested-quote footguns.
 const remoteX64ProxyArg = "-o ProxyCommand=socat\\ -\\ PROXY:hubstack.cn:%h:%p,proxyport=6002"
@@ -1157,6 +1158,43 @@ func main() {
 				"build/x64_var_return_win.exe",
 				"build/x64_var_return_win.build.out",
 				"build/x64_var_return_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_malloc_ptr_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_malloc_ptr_main.oren",
+				"build/x64_malloc_ptr_linux",
+				"build/x64_malloc_ptr_linux.build.out",
+				"build/x64_malloc_ptr_linux",
+				"build/x64_malloc_ptr_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_malloc_ptr_linux.file.out",
+				"x86-64",
+				"build/x64_malloc_ptr_linux.file.out",
+				"tests/fixtures/x64_malloc_ptr_main.oren",
+				"build/x64_malloc_ptr_win.exe",
+				"build/x64_malloc_ptr_win.build.out",
+				"build/x64_malloc_ptr_win.exe",
+				"build/x64_malloc_ptr_win.file.out",
+				"PE32+",
+				"build/x64_malloc_ptr_win.file.out",
+				"x86-64",
+				"build/x64_malloc_ptr_win.file.out",
+			),
+			log: "build/logs/native_x64_malloc_ptr_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_malloc_ptr_linux",
+				"build/x64_malloc_ptr_linux.build.out",
+				"build/x64_malloc_ptr_linux.file.out",
+				"build/x64_malloc_ptr_win.exe",
+				"build/x64_malloc_ptr_win.build.out",
+				"build/x64_malloc_ptr_win.file.out",
 			},
 		},
 		{
@@ -3066,6 +3104,7 @@ func main() {
 			timeout         time.Duration
 		}{
 			{name: "remote_x64_run_print_win_and_wsl", src: "tests/fixtures/x64_print_main.oren", expectSubstring: "x64 hello", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_malloc_ptr_exitcode", src: "tests/fixtures/x64_malloc_ptr_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_div_mod_neg_exitcode", src: "tests/fixtures/x64_div_mod_neg_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_div_mod_exitcode", src: "tests/fixtures/x64_div_mod_main.oren", expectExit: 13, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_bit_shift_exitcode", src: "tests/fixtures/x64_bit_shift_main.oren", expectExit: 40, timeout: 5 * time.Minute},

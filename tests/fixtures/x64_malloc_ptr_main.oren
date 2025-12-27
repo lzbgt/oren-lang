@@ -1,0 +1,28 @@
+// x64-native fixture (Tier-1 bring-up):
+// - exercises syscall-first bump allocator (`malloc`)
+// - exercises pointer load/store intrinsics (`ptr_get`, `ptr_set`, byte variants)
+//
+// This fixture is intended to be run via `OREN_REMOTE_RUN=1 ./oretest` on the
+// Win11+WSL2 x86_64 machine (see docs/REMOTE_X64_ENV.md).
+
+fn main() {
+    // Allocate 16 bytes and treat it as two u64 slots.
+    var p = malloc(16)
+    if p == 0 { return 99 }
+
+    ptr_set(p, 41)
+    ptr_set(iadd(p, 8), 1)
+
+    var a = ptr_get(p)
+    var b = ptr_get(iadd(p, 8))
+    if a != 41 { return 1 }
+    if b != 1 { return 2 }
+
+    // Byte store/load should be 0..255 (zero-extended on load).
+    ptr_set_byte(iadd(p, 8), 255)
+    var c = ptr_get_byte(iadd(p, 8))
+    if c != 255 { return 3 }
+
+    return 0
+}
+

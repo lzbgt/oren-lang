@@ -51,6 +51,12 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_mov_mrbp_r64(ctx, 0 - off2, 0)
+        } else if op["op"] == "expr" {
+            // Expression statement: evaluate and discard return value.
+            _expr_int_check(ctx, op["expr"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _emit_eval_int_to_rax(ctx, op["expr"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         } else if op["op"] == "print_cstr" {
             if platform != nil && platform["os"] == "linux" {
                 _emit_linux_write_cstr(ctx, op["value"])

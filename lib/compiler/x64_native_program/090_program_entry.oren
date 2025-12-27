@@ -35,6 +35,19 @@ fn native_compile_program_x64(linked, platform) {
     // Since our entrypoint is not a C runtime, we explicitly reserve it here.
     var entry_shadow = abi.caller_shadow_bytes(ctx["abi"])
     if entry_shadow > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_shadow)) }
+
+    // Native heap registers (rolling Tier-1 design):
+    //
+    // Reserve two callee-saved registers as the global bump allocator state:
+    // - R15: heap_ptr
+    // - R14: heap_limit
+    //
+    // These are initialized to 0 so the first `malloc`/`malloc_raw` triggers the slow path
+    // and maps/allocates a new chunk. External calls (WinAPI) and syscalls preserve R14/R15
+    // by ABI convention (Linux syscalls clobber RCX/R11 only).
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(14, 0))
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(15, 0))
+
     var call_pos = oren_list_len(ctx["code"])
     // placeholder rel32=0
     bytes_extend(ctx["code"], insn_call_rel32(0))
