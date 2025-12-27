@@ -1,0 +1,18 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises `else if` chain lowering (should not require braces nesting)
+// - uses equality and relational ops
+//
+// Expected:
+//   x=2 => hits middle branch => return 20
+
+fn main() {
+    var x = 2
+    if x < 0 {
+        return 10
+    } else if x == 2 {
+        return 20
+    } else {
+        return 30
+    }
+}
+

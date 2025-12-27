@@ -1,0 +1,13 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises `while` with `<` and assignment in loop body
+//
+// Expected: x increments 0->3 => return 3
+
+fn main() {
+    var x = 0
+    while x < 3 {
+        x = x + 1
+    }
+    return x
+}
+
