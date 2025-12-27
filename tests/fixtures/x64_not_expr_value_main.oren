@@ -4,5 +4,6 @@
 fn main() {
     var x = 0
     // !0 => 1
-    return !x
+    // Keep a distinctive exit code so remote-run gates can disambiguate fixtures.
+    return (!x) + 10 // 11
 }

@@ -5,5 +5,6 @@ fn main() {
     var a = 2
     var b = 3
     // (a < b) => 1
-    return (a < b) + 4
+    // Keep a distinctive exit code so remote-run gates can disambiguate fixtures.
+    return (a < b) + 20 // 21
 }
