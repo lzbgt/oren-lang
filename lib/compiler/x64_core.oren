@@ -42,9 +42,17 @@ fn push_u32_le(buf, n) {
 }
 
 fn push_u64_le(buf, n) {
-    // Note: Oren compiler ints are signed; v0 x64 backend only uses non-negative u64 immediates.
-    push_u32_le(buf, int_mod(n, 4294967296))
-    push_u32_le(buf, int_mod(n / 4294967296, 4294967296))
+    // Encode the low 64 bits of a signed Oren `int` into little-endian bytes.
+    //
+    // Important: Oren compiler ints are signed (i64). We frequently need to write 64-bit
+    // immediates/displacements that conceptually live in a u64 domain (two's complement).
+    //
+    // Use Euclidean mod to derive low/high 32-bit lanes deterministically without requiring
+    // a 2^64 constant (which would not fit in signed i64).
+    var lo = int_mod(n, 4294967296)
+    var hi = int_mod((n - lo) / 4294967296, 4294967296)
+    push_u32_le(buf, lo)
+    push_u32_le(buf, hi)
 }
 
 fn set_u32_le(buf, offset, n) {

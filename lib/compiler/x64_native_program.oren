@@ -150,33 +150,85 @@ fn _emit_mov_mrsp_r64(ctx, disp, src_reg) {
     return nil
 }
 
-fn _int_from_string_dec(s) {
-    // Minimal decimal parser (no hex/bin/octal) for v0.
+fn _int_from_string_lit(s) {
+    // Integer literal parser (rolling, shared semantics).
+    //
+    // Supported:
+    // - optional leading sign (+/-)
+    // - base prefixes: 0x / 0b / 0o
+    // - `_` separators (ignored; lexer already strips them, but keep robust)
+    //
+    // Returns:
+    // - parsed signed i64 value, or nil on invalid digit / overflow.
     if s == nil { return nil }
     var i = 0
     var neg = false
-    if oren_string_len(s) > 0 && oren_string_char_at(s, 0) == "-" { neg = true; i = 1 }
+    var sl = oren_string_len(s)
+    if sl > 0 {
+        var c0 = oren_string_char_at(s, 0)
+        if c0 == "-" { neg = true; i = 1 }
+        else { if c0 == "+" { i = 1 } }
+    }
+
+    var base = 10
+    if i + 1 < sl && oren_string_char_at(s, i) == "0" {
+        var c1 = oren_string_char_at(s, i + 1)
+        if c1 == "x" || c1 == "X" { base = 16; i = i + 2 }
+        else if c1 == "b" || c1 == "B" { base = 2; i = i + 2 }
+        else if c1 == "o" || c1 == "O" { base = 8; i = i + 2 }
+    }
+
     var n = 0
-    while i < oren_string_len(s) {
-        var c = oren_string_char_at(s, i)
-        var digit = -1
-        if c == "0" { digit = 0 }
-        else if c == "1" { digit = 1 }
-        else if c == "2" { digit = 2 }
-        else if c == "3" { digit = 3 }
-        else if c == "4" { digit = 4 }
-        else if c == "5" { digit = 5 }
-        else if c == "6" { digit = 6 }
-        else if c == "7" { digit = 7 }
-        else if c == "8" { digit = 8 }
-        else if c == "9" { digit = 9 }
-        else { return nil }
-        n = n * 10 + digit
+    var any = false
+    var I64_MAX = 9223372036854775807
+    // Note: the lexer/parser rejects the literal `9223372036854775808`, so spell i64_min via
+    // in-range arithmetic.
+    var I64_MIN = 0 - I64_MAX - 1
+    while i < sl {
+        var ch = oren_string_char_at(s, i)
+        if ch == "_" { i = i + 1; continue }
+
+        var d = -1
+        if ch == "0" { d = 0 }
+        else if ch == "1" { d = 1 }
+        else if ch == "2" { d = 2 }
+        else if ch == "3" { d = 3 }
+        else if ch == "4" { d = 4 }
+        else if ch == "5" { d = 5 }
+        else if ch == "6" { d = 6 }
+        else if ch == "7" { d = 7 }
+        else if ch == "8" { d = 8 }
+        else if ch == "9" { d = 9 }
+        else {
+            if base == 16 {
+                if ch == "a" || ch == "A" { d = 10 }
+                else if ch == "b" || ch == "B" { d = 11 }
+                else if ch == "c" || ch == "C" { d = 12 }
+                else if ch == "d" || ch == "D" { d = 13 }
+                else if ch == "e" || ch == "E" { d = 14 }
+                else if ch == "f" || ch == "F" { d = 15 }
+            }
+        }
+        if d < 0 || d >= base { return nil }
+        any = true
+
+        if !neg {
+            // Guard: n*base + d <= I64_MAX
+            if n > (I64_MAX - d) / base { return nil }
+            n = n * base + d
+        } else {
+            // Parse in the negative domain to allow -9223372036854775808 without requiring +2^63.
+            // Guard: n*base - d >= I64_MIN  <=>  n >= (I64_MIN + d) / base
+            if n < (I64_MIN + d) / base { return nil }
+            n = n * base - d
+        }
         i = i + 1
     }
-    if neg { return 0 - n }
+    if !any { return nil }
     return n
 }
+
+fn _is_i32(n) { return n >= -2147483648 && n <= 2147483647 }
 
 fn _extract_main_return_i64(ctx, linked) {
     if linked == nil { return nil }
@@ -205,7 +257,7 @@ fn _extract_main_return_i64(ctx, linked) {
                 if last == nil || last["type"] != "Return" { err(ctx, "x64 native v0: main must end with return"); return nil }
                 var v = last["value"]
                 if v == nil || v["type"] != "Integer" { err(ctx, "x64 native v0: main return must be integer literal"); return nil }
-                var n = _int_from_string_dec(v["value"])
+                var n = _int_from_string_lit(v["value"])
                 if n == nil { err(ctx, "x64 native v0: invalid integer literal in return"); return nil }
                 if n < 0 { err(ctx, "x64 native v0: negative return not supported yet"); return nil }
                 return n
@@ -213,7 +265,7 @@ fn _extract_main_return_i64(ctx, linked) {
             if body["type"] == "Return" {
                 var v2 = body["value"]
                 if v2 == nil || v2["type"] != "Integer" { err(ctx, "x64 native v0: main return must be integer literal"); return nil }
-                var n2 = _int_from_string_dec(v2["value"])
+                var n2 = _int_from_string_lit(v2["value"])
                 if n2 == nil { err(ctx, "x64 native v0: invalid integer literal in return"); return nil }
                 if n2 < 0 { err(ctx, "x64 native v0: negative return not supported yet"); return nil }
                 return n2
@@ -552,12 +604,8 @@ fn _expr_int_check(ctx, expr) {
     if expr == nil { err(ctx, "x64 native v0: missing expr"); return nil }
     var t = expr["type"]
     if t == "Integer" {
-        var n = _int_from_string_dec(expr["value"])
+        var n = _int_from_string_lit(expr["value"])
         if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-        // v0: literals are restricted to signed i32 range so we can encode them via imm32
-        // and keep arithmetic/cmp semantics unambiguous.
-        if n < -2147483648 { err(ctx, "x64 native v0: int literal too small (min i32)"); return nil }
-        if n > 2147483647 { err(ctx, "x64 native v0: int literal too large (max i32)"); return nil }
         return nil
     }
     if t == "Boolean" { return nil }
@@ -709,8 +757,7 @@ fn _max_call_argc_in_ops(ops) {
 fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // Evaluate a tiny integer expression into RAX (64-bit register).
     //
-    // Rolling v0 constraint: integer literals are restricted to signed i32 range (imm32)
-    // but values are stored/propagated through 64-bit registers and stack slots.
+    // Values are stored/propagated through 64-bit registers and stack slots.
     // Supports:
     // - Integer
     // - Identifier (locals/params; or a named function as a first-class function pointer)
@@ -718,14 +765,18 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
     if expr == nil { return nil }
     var t = expr["type"]
     if t == "Integer" {
-        var n = _int_from_string_dec(expr["value"])
+        var n = _int_from_string_lit(expr["value"])
         if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-        if n < -2147483648 || n > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
-        // mov eax, imm32 then sign-extend to rax (cdqe)
-        var imm_u32 = n
-        if n < 0 { imm_u32 = 4294967296 + n }
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm_u32))
-        bytes_extend(ctx["code"], insn_cdqe())
+        if _is_i32(n) {
+            // mov eax, imm32 then sign-extend to rax (cdqe)
+            var imm_u32 = n
+            if n < 0 { imm_u32 = 4294967296 + n }
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm_u32))
+            bytes_extend(ctx["code"], insn_cdqe())
+        } else {
+            // movabs rax, imm64 (encoded as u64 bits)
+            bytes_extend(ctx["code"], insn_mov_r64_imm64(0, n))
+        }
         return nil
     }
     if t == "Boolean" {
@@ -985,7 +1036,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             // Shift counts are masked to 0..63 (x86-64 semantics; keeps deterministic behavior).
             if r != nil && r["type"] == "Integer" {
-                var n2 = _int_from_string_dec(r["value"])
+                var n2 = _int_from_string_lit(r["value"])
                 if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
                 if n2 < 0 { err(ctx, "x64 native v0: negative shift count not supported"); return nil }
                 var sh = core.int_mod(n2, 64)
@@ -1022,14 +1073,20 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_eval_int_to_rax(ctx, l, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             if r != nil && r["type"] == "Integer" {
-                var n3 = _int_from_string_dec(r["value"])
+                var n3 = _int_from_string_lit(r["value"])
                 if n3 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-                if n3 < -2147483648 || n3 > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
-                var imm_u32_3 = n3
-                if n3 < 0 { imm_u32_3 = 4294967296 + n3 }
-                if op == "&" { bytes_extend(ctx["code"], insn_and_r64_imm32(0, imm_u32_3)) }
-                else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_imm32(0, imm_u32_3)) }
-                else { bytes_extend(ctx["code"], insn_xor_r64_imm32(0, imm_u32_3)) }
+                if _is_i32(n3) {
+                    var imm_u32_3 = n3
+                    if n3 < 0 { imm_u32_3 = 4294967296 + n3 }
+                    if op == "&" { bytes_extend(ctx["code"], insn_and_r64_imm32(0, imm_u32_3)) }
+                    else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_imm32(0, imm_u32_3)) }
+                    else { bytes_extend(ctx["code"], insn_xor_r64_imm32(0, imm_u32_3)) }
+                } else {
+                    bytes_extend(ctx["code"], insn_mov_r64_imm64(2, n3)) // rdx = imm64
+                    if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
+                    else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
+                    else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
+                }
                 return nil
             }
             if r != nil && r["type"] == "Identifier" {
@@ -1059,14 +1116,20 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         _emit_eval_int_to_rax(ctx, l, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if r != nil && r["type"] == "Integer" {
-            var n2 = _int_from_string_dec(r["value"])
+            var n2 = _int_from_string_lit(r["value"])
             if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-            if n2 < -2147483648 || n2 > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
-            var imm_u32_2 = n2
-            if n2 < 0 { imm_u32_2 = 4294967296 + n2 }
-            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_imm32(0, imm_u32_2)) }
-            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_imm32(0, imm_u32_2)) }
-            else { bytes_extend(ctx["code"], insn_imul_r64_imm32(0, imm_u32_2)) }
+            if _is_i32(n2) {
+                var imm_u32_2 = n2
+                if n2 < 0 { imm_u32_2 = 4294967296 + n2 }
+                if op == "+" { bytes_extend(ctx["code"], insn_add_r64_imm32(0, imm_u32_2)) }
+                else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_imm32(0, imm_u32_2)) }
+                else { bytes_extend(ctx["code"], insn_imul_r64_imm32(0, imm_u32_2)) }
+            } else {
+                bytes_extend(ctx["code"], insn_mov_r64_imm64(2, n2)) // rdx = imm64
+                if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+                else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
+                else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
+            }
             return nil
         }
         if r != nil && r["type"] == "Identifier" {
@@ -1123,12 +1186,16 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
         _emit_eval_int_to_rax(ctx, l, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if r["type"] == "Integer" {
-            var n = _int_from_string_dec(r["value"])
+            var n = _int_from_string_lit(r["value"])
             if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-            if n < -2147483648 || n > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
-            var imm_u32 = n
-            if n < 0 { imm_u32 = 4294967296 + n }
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, imm_u32))
+            if _is_i32(n) {
+                var imm_u32 = n
+                if n < 0 { imm_u32 = 4294967296 + n }
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, imm_u32))
+            } else {
+                bytes_extend(ctx["code"], insn_mov_r64_imm64(2, n)) // rdx = imm64
+                bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
+            }
             return nil
         }
         if r["type"] == "Identifier" {

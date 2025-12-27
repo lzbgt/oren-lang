@@ -26,6 +26,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: x64 lowering supports `*` (imul) for `i32` with non-trivial RHS expressions (identifiers/calls/infix), not just integer literals; `OREN_REMOTE_RUN=1` validates exit code on real x86_64 (`x64_mul_expr_main.oren`).
    - Status: x64 lowering supports bitwise ops and shifts for `int`: `& | ^ << >>` (with `>>` as logical shift) (`x64_bit_shift_main.oren`).
    - Status: x64 lowering supports integer division and modulo: `/` and `%` (including negative cases; trunc-toward-zero) (`x64_div_mod_main.oren`, `x64_div_mod_neg_main.oren`).
+   - Status: x64 integer literals now support full signed `i64` range (overflow-checked parsing); codegen uses `movabs r64, imm64` for large immediates (no i32-literal restriction).
    - Status: x64 fixtures now exercise variable shift counts (CL path) and computed divisors (non-trivial RHS) while keeping stable exit codes (helps catch encoder/lowering regressions early).
    - Status: x64 entry stub now aligns stack to 16 bytes to reduce ABI fragility as we add more calls/control flow.
    - Status: x64 lowering supports multiple functions and calls in expressions; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
