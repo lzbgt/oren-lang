@@ -697,14 +697,18 @@ verify: clean oren_stage2
 
 # --- AVM (experimental) ---
 
+build/avm_root_pubkey.inc: tools/gen_avm_root_pubkeys_inc.sh
+	@mkdir -p build
+	@./tools/gen_avm_root_pubkeys_inc.sh > build/avm_root_pubkey.inc
+
 avm: lib/avm/main.c lib/avm/avm.h lib/avm/avm_internal.h lib/avm/sha256.c lib/avm/sha256.h \
      lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c lib/avm/avm_containers.c \
      lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c lib/avm/avm_native.c \
      lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c lib/avm/avm_sig.c lib/avm/avm_cert.c \
-     third_party/tweetnacl/tweetnacl.c third_party/tweetnacl/tweetnacl.h lib/avm/avm_sig.h lib/avm/avm_cert.h lib/avm/avm_root_pubkey.inc \
+     third_party/tweetnacl/tweetnacl.c third_party/tweetnacl/tweetnacl.h lib/avm/avm_sig.h lib/avm/avm_cert.h build/avm_root_pubkey.inc \
      lib/avm/tweetnacl_randombytes_stub.c
 	@echo "Building AVM..."
-	@$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -o avm lib/avm/main.c lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c \
+	@$(CC) -Ibuild -Ilib/avm $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -o avm lib/avm/main.c lib/avm/avm_alloc.c lib/avm/avm_budget.c lib/avm/avm_bytes_mem.c \
 		lib/avm/avm_containers.c lib/avm/avm_errors.c lib/avm/avm_fixtures.c lib/avm/avm_host.c \
 		lib/avm/avm_native.c lib/avm/avm_state.c lib/avm/avm_trace.c lib/avm/avm_vm.c lib/avm/sha256.c lib/avm/avm_sig.c lib/avm/avm_cert.c third_party/tweetnacl/tweetnacl.c lib/avm/tweetnacl_randombytes_stub.c
 

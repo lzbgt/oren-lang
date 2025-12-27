@@ -10,8 +10,9 @@
 
 #include "../../third_party/tweetnacl/tweetnacl.h"
 
-// Embedded root pubkey (public only; safe).
-#include "avm_root_pubkey.inc"
+// Embedded root pubkeys (public only; safe).
+// NOTE: included via include path so release builds can generate it at build time.
+#include <avm_root_pubkey.inc>
 
 static const char* SIG_PREFIX = "OREN_SIG\n1\n";
 static const size_t SIG_PREFIX_LEN = 11;

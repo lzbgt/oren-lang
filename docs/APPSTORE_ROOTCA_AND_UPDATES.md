@@ -33,6 +33,14 @@ Operational requirement:
 
 - Root secrets live in a sibling directory **outside the repo**: `../oren-ca/`
 
+Build-time embedding (rolling):
+
+- AVM can embed a set of trusted root **public keys** in release builds (for “no flags needed” verification).
+- The build reads root pubkeys from either:
+  - `AVM_EMBED_ROOT_PUBKEY_HEX` (comma-separated 64-hex strings), or
+  - `../oren-ca/avm_root_pubkeys.hex` (one 64-hex pubkey per line)
+- Implementation detail: `make avm` generates `build/avm_root_pubkey.inc` via `tools/gen_avm_root_pubkeys_inc.sh`.
+
 ## Artifact Signature Model (Rolling v0)
 
 We define a signature payload stored inside `.obc` as an unused `BYTES` constant:
