@@ -36,6 +36,26 @@ Run a compiled Windows PE executable and see its exit code:
 ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c "C:\\Users\\lzbgt\\tmp_oren\\x64_min_win.exe & echo EXIT=%ERRORLEVEL%"'
 ```
 
+## Windows toolchain (VS2022 + Windows Kits)
+
+The remote Win11 x64 machine has a full MSVC toolchain installed, useful for:
+
+- checking ABI details / header layouts (authoritative platform headers)
+- quickly compiling “golden” reference snippets for instruction encodings (e.g., `cl.exe` + `dumpbin` / `llvm-objdump`)
+- validating PE emit details and linking behavior as we expand Oren’s x64 backend
+
+Installed locations (remote host):
+
+- Visual Studio 2022 Community:
+  - `C:\Program Files\Microsoft Visual Studio\2022\Community\`
+- Windows SDK / Windows Kits:
+  - `C:\Program Files (x86)\Windows Kits\`
+
+Practical note:
+
+- Prefer launching a “Developer Command Prompt” environment before running `cl.exe` so the right `INCLUDE`, `LIB`, and `PATH` are set.
+  - The most direct non-interactive way is to call `VsDevCmd.bat` / `vcvars64.bat` and then run your command in the same `cmd.exe /c` invocation.
+
 ## Run commands on Linux (WSL2)
 
 Run a Linux command inside WSL2:
@@ -69,4 +89,3 @@ scp -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' build/x64_m
 
 - Keep the remote-run steps **opt-in** in automated tests (use env flags like `OREN_REMOTE_RUN=1`) so CI remains deterministic/offline by default.
 - Never copy root CA private keys or other secrets into the repo or remote host unless explicitly designed for secure storage (`../oren-ca/` remains the secret boundary).
-
