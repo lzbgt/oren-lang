@@ -1651,18 +1651,8 @@ void avm_run(AvmVM* vm) {
                 int expected_spread = nkeys - (int)fixed;
                 if (sl->count != expected_spread) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "TYPE_CTOR_MAP_SPREAD arity mismatch")); break; }
 
-                // Copy fixed args into a temporary buffer so we can read in order.
-                AvmValue* fixed_vals = NULL;
-                if (fixed > 0) {
-                    fixed_vals = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)fixed);
-                    if (!fixed_vals) { avm_abort(vm, avm_alloc_fail_value()); break; }
-                    for (int i = 0; i < (int)fixed; i++) {
-                        fixed_vals[i] = vm->stack[keys_idx + 1 + i];
-                    }
-                }
-
                 AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
-                if (!map) { if (fixed_vals) free(fixed_vals); avm_abort(vm, avm_alloc_fail_value()); break; }
+                if (!map) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 map->count = 0;
                 map->capacity = (nkeys > 0) ? nkeys * 2 : 8;
                 map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)map->capacity, AVM_ALLOC_KIND_MAP);
@@ -1671,7 +1661,6 @@ void avm_run(AvmVM* vm) {
                     if (map->keys) avm_heap_free(map->keys);
                     if (map->values) avm_heap_free(map->values);
                     avm_heap_free(map);
-                    if (fixed_vals) free(fixed_vals);
                     avm_abort(vm, avm_alloc_fail_value());
                     break;
                 }
@@ -1680,7 +1669,7 @@ void avm_run(AvmVM* vm) {
                     AvmValue key = kl->items[i];
                     AvmValue val = avm_nil();
                     if (i < (int)fixed) {
-                        val = fixed_vals[i];
+                        val = vm->stack[keys_idx + 1 + i];
                     } else {
                         val = sl->items[i - (int)fixed];
                     }
@@ -1693,7 +1682,6 @@ void avm_run(AvmVM* vm) {
                         break;
                     }
                 }
-                if (fixed_vals) free(fixed_vals);
 
                 // Pop operands and push result.
                 vm->sp = keys_idx;
