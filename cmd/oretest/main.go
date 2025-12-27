@@ -805,8 +805,8 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/bytecode_neg_int_const.obc", "build/bytecode_neg_int_const.build.out", "build/bytecode_neg_int_const.disasm.out"},
 		},
-		{
-			name: "deterministic_bytecode_hash",
+			{
+				name: "deterministic_bytecode_hash",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
 					"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
@@ -831,11 +831,53 @@ func main() {
 			log:     "build/logs/deterministic_bytecode_hash.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/deterministic_1.obc", "build/deterministic_2.obc", "build/deterministic_1.out", "build/deterministic_2.out", "build/deterministic_1.hash", "build/deterministic_2.hash"},
-		},
-		{
-			name: "oren_meta_emit",
-			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
+			},
+			{
+				name: "native_x64_linux_format",
+				cmd: fmt.Sprintf(
+					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+						"file %q > %q && "+
+						"grep -Fq %q %q && "+
+						"grep -Fq %q %q",
+					"tests/fixtures/x64_min_main.oren",
+					"build/x64_min_linux",
+					"build/x64_min_linux.build.out",
+					"build/x64_min_linux",
+					"build/x64_min_linux.file.out",
+					"ELF 64-bit",
+					"build/x64_min_linux.file.out",
+					"x86-64",
+					"build/x64_min_linux.file.out",
+				),
+				log:     "build/logs/native_x64_linux_format.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/x64_min_linux", "build/x64_min_linux.build.out", "build/x64_min_linux.file.out"},
+			},
+			{
+				name: "native_x64_windows_format",
+				cmd: fmt.Sprintf(
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+						"file %q > %q && "+
+						"grep -Fq %q %q && "+
+						"grep -Fq %q %q",
+					"tests/fixtures/x64_min_main.oren",
+					"build/x64_min_win.exe",
+					"build/x64_min_win.build.out",
+					"build/x64_min_win.exe",
+					"build/x64_min_win.file.out",
+					"PE32+",
+					"build/x64_min_win.file.out",
+					"x86-64",
+					"build/x64_min_win.file.out",
+				),
+				log:     "build/logs/native_x64_windows_format.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/x64_min_win.exe", "build/x64_min_win.build.out", "build/x64_min_win.file.out"},
+			},
+			{
+				name: "oren_meta_emit",
+				cmd: fmt.Sprintf(
+					"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
 				"tests/fixtures/meta_attrs_src.oren",
 				*target,
 				"build/meta_attrs.meta.json",

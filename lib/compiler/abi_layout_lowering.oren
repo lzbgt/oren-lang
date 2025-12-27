@@ -134,6 +134,14 @@ fn abi_ptr_size_align_for_target(target, arch) {
         if target == "linux" { return {"size": 8, "align": 8} }
         return {"size": 8, "align": 8}
     }
+    if arch == "x64" || arch == "x86_64" || arch == "amd64" {
+        // Rolling v0 x64: 64-bit pointers on both Linux and Windows.
+        if target == "linux" { return {"size": 8, "align": 8} }
+        if target == "windows" { return {"size": 8, "align": 8} }
+        // Future: macOS x86_64 (deprecated in ecosystem, but ABI still 64-bit pointers).
+        if target == "macos" { return {"size": 8, "align": 8} }
+        return {"size": 8, "align": 8}
+    }
     return nil
 }
 

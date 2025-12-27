@@ -1,0 +1,308 @@
+// PE32+ (Windows x64) emitter for minimal x86_64 native backend bring-up.
+//
+// v0:
+// - emits a PE executable with two sections: .text and .rdata
+// - imports kernel32!ExitProcess via an import table
+// - entry stub calls main(), then ExitProcess(main_ret)
+//
+// This is intentionally small and self-contained (no external toolchain required).
+
+import codegen "codegen_x64_min.oren"
+
+fn bytes_new() { return codegen.bytes_new() }
+fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
+fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn push_u32_le(b, n) { return codegen.push_u32_le(b, n) }
+fn push_u64_le(b, n) { return codegen.push_u64_le(b, n) }
+fn set_u32_le(b, off, n) { return codegen.set_u32_le(b, off, n) }
+fn int_mod(a, b) { return codegen.int_mod(a, b) }
+
+fn align_up(n, align) {
+    return (n + align - 1) / align * align
+}
+
+fn push_u16_le(buf, n) {
+    bytes_push(buf, int_mod(n, 256))
+    bytes_push(buf, int_mod(n / 256, 256))
+}
+
+fn push_u8_n(buf, v, n) {
+    var i = 0
+    while i < n { bytes_push(buf, v); i = i + 1 }
+}
+
+fn push_ascii_z(buf, s) {
+    var bs = oren_bytes_from_string(s)
+    var i = 0
+    while i < oren_list_len(bs) { bytes_push(buf, bs[i]); i = i + 1 }
+    bytes_push(buf, 0)
+}
+
+fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_domains) {
+    var ctx = codegen.native_compile_program_x64_min(linked, {"os": "windows", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
+    if ctx == nil { return nil }
+    codegen.native_emit_errors_and_exit(ctx)
+
+    var code = ctx["code"]
+    var fixups = ctx["fixups"]
+    var functions = ctx["functions"]
+
+    // ---- Build .rdata (import table) ----
+    //
+    // Layout in .rdata:
+    //   import_desc[2] (kernel32 + null)
+    //   ILT (2 entries: ExitProcess + null)
+    //   IAT (2 entries: ExitProcess + null)
+    //   hint/name for ExitProcess
+    //   dll name
+    //
+    // We record offsets for RVAs and patch descriptors later.
+    var rdata = bytes_new()
+
+    var off_import_desc = oren_list_len(rdata)
+    // 2 descriptors * 20 bytes
+    push_u8_n(rdata, 0, 40)
+
+    // Align to 8 for thunk arrays.
+    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_ilt = oren_list_len(rdata)
+    // ILT: 2 entries (8 bytes each)
+    push_u64_le(rdata, 0)
+    push_u64_le(rdata, 0)
+
+    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_iat = oren_list_len(rdata)
+    // IAT: 2 entries (8 bytes each)
+    push_u64_le(rdata, 0)
+    push_u64_le(rdata, 0)
+
+    // Hint/Name for ExitProcess
+    var off_hint_name = oren_list_len(rdata)
+    push_u16_le(rdata, 0) // hint
+    push_ascii_z(rdata, "ExitProcess")
+    // Align to 2 bytes
+    if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+
+    var off_dll_name = oren_list_len(rdata)
+    push_ascii_z(rdata, "KERNEL32.dll")
+
+    // Section layout constants.
+    var file_align = 512
+    var sect_align = 4096
+    var image_base = 4194304 // 0x400000
+
+    // We'll use:
+    //   .text RVA 0x1000
+    //   .rdata RVA 0x2000
+    var text_rva = 4096
+    var rdata_rva = 8192
+
+    // Patch thunk entries with RVA to hint/name.
+    var hn_rva = rdata_rva + off_hint_name
+    // IMAGE_THUNK_DATA64: AddressOfData = RVA
+    // write into ILT[0] and IAT[0]
+    // Each thunk entry is 8 bytes: low 32 is RVA for our small address range.
+    // (High bits remain 0 => import by name)
+    // ILT[0]
+    set_u32_le(rdata, off_ilt + 0, hn_rva)
+    // IAT[0]
+    set_u32_le(rdata, off_iat + 0, hn_rva)
+
+    // Patch import descriptor for kernel32.
+    //
+    // IMAGE_IMPORT_DESCRIPTOR (20 bytes):
+    //   0: OriginalFirstThunk (RVA ILT)
+    //   4: TimeDateStamp (0)
+    //   8: ForwarderChain (0)
+    //  12: Name (RVA dll name)
+    //  16: FirstThunk (RVA IAT)
+    var dll_rva = rdata_rva + off_dll_name
+    set_u32_le(rdata, off_import_desc + 0, rdata_rva + off_ilt)
+    set_u32_le(rdata, off_import_desc + 12, dll_rva)
+    set_u32_le(rdata, off_import_desc + 16, rdata_rva + off_iat)
+
+    var import_dir_rva = rdata_rva + off_import_desc
+    var import_dir_size = 40
+
+    // ---- Apply code fixups (rel32 call + rip-relative IAT load) ----
+    //
+    // For PE, all code addresses are RVAs within .text section.
+    // We patch:
+    // - call rel32 to main
+    // - mov rax, [rip+disp32] to read IAT ExitProcess slot
+    var i = 0
+    while i < oren_list_len(fixups) {
+        var f = fixups[i]
+        if f["type"] == "call_rel32" {
+            var name = f["name"]
+            var target = functions[name]
+            if target == nil {
+                print("x64 pe: undefined function " + name)
+                oren_exit(1)
+            }
+            var pos = f["pos"]
+            var disp = target - (pos + 5)
+            if disp < 0 { disp = 4294967296 + disp }
+            set_u32_le(code, pos + 1, disp)
+        }
+        if f["type"] == "rip_data32" {
+            // disp32 relative to next RIP (end of instruction).
+            // f["pos"] points to disp32 field within the instruction.
+            var label = f["data_label"]
+            if label != "IAT_ExitProcess" {
+                print("x64 pe: unknown data label " + label)
+                oren_exit(1)
+            }
+            var disp_pos = f["pos"]
+            var insn_start = disp_pos - 3
+            var next_rip = text_rva + (insn_start + 7)
+            var target_rva = rdata_rva + off_iat
+            var disp2 = target_rva - next_rip
+            if disp2 < 0 { disp2 = 4294967296 + disp2 }
+            set_u32_le(code, disp_pos, disp2)
+        }
+        i = i + 1
+    }
+
+    // ---- Build headers ----
+    var n_sections = 2
+    var text_raw_size = align_up(oren_list_len(code), file_align)
+    var rdata_raw_size = align_up(oren_list_len(rdata), file_align)
+
+    // PE headers size:
+    // DOS(64) + stub/pad to e_lfanew (0x80) + PE sig(4) + COFF(20) + OPT(240) + SECHDR(40*n)
+    var dos_stub_size = 128
+    var pe_off = dos_stub_size
+    var pe_headers_size = pe_off + 4 + 20 + 240 + 40 * n_sections
+    var size_of_headers = align_up(pe_headers_size, file_align)
+
+    var text_raw_ptr = size_of_headers
+    var rdata_raw_ptr = align_up(text_raw_ptr + text_raw_size, file_align)
+
+    var size_of_code = text_raw_size
+    var size_of_init_data = rdata_raw_size
+
+    var size_of_image = align_up(rdata_rva + align_up(oren_list_len(rdata), sect_align), sect_align)
+
+    // ---- DOS header ----
+    var out = bytes_new()
+    // IMAGE_DOS_HEADER (64 bytes)
+    push_u16_le(out, 23117) // 'MZ' 0x5A4D
+    push_u8_n(out, 0, 58)
+    // e_lfanew at offset 0x3C
+    push_u32_le(out, pe_off)
+    // pad to pe_off
+    while oren_list_len(out) < pe_off { bytes_push(out, 0) }
+
+    // ---- PE signature ----
+    bytes_push(out, 80); bytes_push(out, 69); bytes_push(out, 0); bytes_push(out, 0) // "PE\0\0"
+
+    // ---- COFF header (20 bytes) ----
+    push_u16_le(out, 34404) // 0x8664
+    push_u16_le(out, n_sections)
+    push_u32_le(out, 0) // TimeDateStamp
+    push_u32_le(out, 0) // PtrToSymbolTable
+    push_u32_le(out, 0) // NumberOfSymbols
+    push_u16_le(out, 240) // SizeOfOptionalHeader
+    push_u16_le(out, 34)  // Characteristics: EXECUTABLE | LARGE_ADDRESS_AWARE
+
+    // ---- Optional header (PE32+, 240 bytes) ----
+    var opt_start = oren_list_len(out)
+    push_u16_le(out, 523) // 0x20B
+    bytes_push(out, 0) // MajorLinkerVersion
+    bytes_push(out, 0) // MinorLinkerVersion
+    push_u32_le(out, size_of_code)
+    push_u32_le(out, size_of_init_data)
+    push_u32_le(out, 0) // SizeOfUninitializedData
+    push_u32_le(out, text_rva + ctx["entry_off"]) // AddressOfEntryPoint
+    push_u32_le(out, text_rva) // BaseOfCode
+    push_u64_le(out, image_base) // ImageBase
+    push_u32_le(out, sect_align) // SectionAlignment
+    push_u32_le(out, file_align) // FileAlignment
+    push_u16_le(out, 6) // MajorOperatingSystemVersion
+    push_u16_le(out, 0)
+    push_u16_le(out, 0) // MajorImageVersion
+    push_u16_le(out, 0)
+    push_u16_le(out, 6) // MajorSubsystemVersion
+    push_u16_le(out, 0)
+    push_u32_le(out, 0) // Win32VersionValue
+    push_u32_le(out, size_of_image)
+    push_u32_le(out, size_of_headers)
+    push_u32_le(out, 0) // CheckSum
+    push_u16_le(out, 3) // Subsystem: Windows CUI
+    push_u16_le(out, 0) // DllCharacteristics
+    push_u64_le(out, 1048576) // SizeOfStackReserve (1MB)
+    push_u64_le(out, 4096)    // SizeOfStackCommit
+    push_u64_le(out, 1048576) // SizeOfHeapReserve
+    push_u64_le(out, 4096)    // SizeOfHeapCommit
+    push_u32_le(out, 0) // LoaderFlags
+    push_u32_le(out, 16) // NumberOfRvaAndSizes
+
+    // DataDirectory[16] (each 8 bytes: RVA + Size)
+    // 0 Export, 1 Import, others zero.
+    // Export
+    push_u32_le(out, 0); push_u32_le(out, 0)
+    // Import
+    push_u32_le(out, import_dir_rva); push_u32_le(out, import_dir_size)
+    // Remaining 14 directories
+    var ddi = 0
+    while ddi < 14 {
+        push_u32_le(out, 0); push_u32_le(out, 0)
+        ddi = ddi + 1
+    }
+
+    // Pad optional header to 240 bytes
+    while oren_list_len(out) - opt_start < 240 { bytes_push(out, 0) }
+
+    // ---- Section headers (2 * 40 bytes) ----
+    // .text
+    var name_text = ".text"
+    var nb = oren_bytes_from_string(name_text)
+    var j = 0
+    while j < 8 {
+        if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
+        j = j + 1
+    }
+    push_u32_le(out, oren_list_len(code)) // VirtualSize
+    push_u32_le(out, text_rva)
+    push_u32_le(out, text_raw_size)
+    push_u32_le(out, text_raw_ptr)
+    push_u32_le(out, 0); push_u32_le(out, 0) // reloc/line ptr
+    push_u16_le(out, 0); push_u16_le(out, 0)
+    push_u32_le(out, 1610612768) // Characteristics: CNT_CODE | MEM_EXECUTE | MEM_READ (0x60000020)
+
+    // .rdata
+    var name_rd = ".rdata"
+    nb = oren_bytes_from_string(name_rd)
+    j = 0
+    while j < 8 {
+        if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
+        j = j + 1
+    }
+    push_u32_le(out, oren_list_len(rdata))
+    push_u32_le(out, rdata_rva)
+    push_u32_le(out, rdata_raw_size)
+    push_u32_le(out, rdata_raw_ptr)
+    push_u32_le(out, 0); push_u32_le(out, 0)
+    push_u16_le(out, 0); push_u16_le(out, 0)
+    push_u32_le(out, 1073741888) // Characteristics: CNT_INITIALIZED_DATA | MEM_READ (0x40000040)
+
+    // Pad headers to SizeOfHeaders
+    while oren_list_len(out) < size_of_headers { bytes_push(out, 0) }
+
+    // ---- Section raw data ----
+    // .text raw
+    bytes_extend(out, code)
+    while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
+    // .rdata raw
+    bytes_extend(out, rdata)
+    while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
+
+    var w = oren_write_bytes(out_path, out)
+    if oren_is_err(w) {
+        print("x64 pe: failed to write: " + out_path)
+        oren_exit(1)
+    }
+    return nil
+}
+

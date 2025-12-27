@@ -1,0 +1,8 @@
+// Minimal x64-native fixture (rolling bring-up):
+// - must compile to x86_64 ELF/PE
+// - must not rely on injected native runtime yet
+
+fn main() {
+    return 0
+}
+

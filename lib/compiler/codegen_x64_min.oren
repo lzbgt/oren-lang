@@ -1,0 +1,24 @@
+// Thin facade module for x86_64 native backend bring-up.
+//
+// This is intentionally minimal (no runtime injection yet).
+
+import core "x64_core.oren"
+import prog "x64_native_min_program.oren"
+
+// Binary utils
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+
+// Instructions used by emitters
+fn insn_ret() { return core.insn_ret() }
+
+// Top-level compilation entry
+fn native_compile_program_x64_min(linked, platform) { return prog.native_compile_program_x64_min(linked, platform) }
+fn native_emit_errors_and_exit(ctx) { return prog.native_emit_errors_and_exit(ctx) }
+

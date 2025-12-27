@@ -1,0 +1,98 @@
+// ELF emitter for x86_64 (Linux).
+//
+// v0: minimal ET_EXEC with a single PT_LOAD segment containing headers + code.
+
+import codegen "codegen_x64_min.oren"
+
+fn bytes_new() { return codegen.bytes_new() }
+fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
+fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+
+fn push_u16_le(buf, n) {
+    bytes_push(buf, codegen.int_mod(n, 256))
+    bytes_push(buf, codegen.int_mod(n / 256, 256))
+}
+fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
+
+fn elf_build_prefix_x64(code, entry_off) {
+    var p = bytes_new()
+
+    // ELF Header (64 bytes)
+    bytes_push(p, 127); bytes_push(p, 69); bytes_push(p, 76); bytes_push(p, 70); // 0x7F 'E' 'L' 'F'
+    bytes_push(p, 2) // 64-bit
+    bytes_push(p, 1) // little endian
+    bytes_push(p, 1) // version
+    bytes_push(p, 0) // System V
+    push_u64_le(p, 0) // padding (EI_PAD) + rest
+
+    push_u16_le(p, 2)   // ET_EXEC
+    push_u16_le(p, 62)  // EM_X86_64
+    push_u32_le(p, 1)   // EV_CURRENT
+
+    var base = 4194304 // 0x400000
+    var hdr_size = 64 + 56
+    push_u64_le(p, base + hdr_size + entry_off) // e_entry
+    push_u64_le(p, 64)  // e_phoff
+    push_u64_le(p, 0)   // e_shoff
+    push_u32_le(p, 0)   // e_flags
+    push_u16_le(p, 64)  // e_ehsize
+    push_u16_le(p, 56)  // e_phentsize
+    push_u16_le(p, 1)   // e_phnum
+    push_u16_le(p, 64)  // e_shentsize
+    push_u16_le(p, 0)   // e_shnum
+    push_u16_le(p, 0)   // e_shstrndx
+
+    // Program Header (56 bytes)
+    push_u32_le(p, 1) // PT_LOAD
+    push_u32_le(p, 5) // PF_R | PF_X
+    push_u64_le(p, 0)       // p_offset
+    push_u64_le(p, base)    // p_vaddr
+    push_u64_le(p, base)    // p_paddr
+    push_u64_le(p, hdr_size + oren_list_len(code)) // p_filesz
+    push_u64_le(p, hdr_size + oren_list_len(code)) // p_memsz
+    push_u64_le(p, 4096)    // p_align
+
+    return p
+}
+
+fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_domains) {
+    var ctx = codegen.native_compile_program_x64_min(linked, {"os": "linux", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
+    if ctx == nil { return nil }
+    codegen.native_emit_errors_and_exit(ctx)
+
+    var code = ctx["code"]
+    var fixups = ctx["fixups"]
+    var functions = ctx["functions"]
+
+    // Apply rel32 call fixups.
+    var i = 0
+    while i < oren_list_len(fixups) {
+        var f = fixups[i]
+        if f["type"] == "call_rel32" {
+            var name = f["name"]
+            var target = functions[name]
+            if target == nil {
+                print("x64 elf: undefined function " + name)
+                oren_exit(1)
+            }
+            var pos = f["pos"]
+            // rel32 is relative to next instruction (pos + 5)
+            var disp = target - (pos + 5)
+            if disp < 0 { disp = 4294967296 + disp } // v0: allow negative by wrapping (assumes within 32-bit)
+            set_u32_le(code, pos + 1, disp)
+        }
+        i = i + 1
+    }
+
+    var prefix = elf_build_prefix_x64(code, ctx["entry_off"])
+    bytes_extend(prefix, code)
+    var w = oren_write_bytes(out_path, prefix)
+    if oren_is_err(w) {
+        print("x64 elf: failed to write: " + out_path)
+        oren_exit(1)
+    }
+    oren_chmod(out_path, 493) // 0755
+    return nil
+}

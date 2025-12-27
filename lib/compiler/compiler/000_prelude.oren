@@ -1,6 +1,8 @@
 import renamer "renamer.oren"
 import arm64_macho "arm64_macho.oren"
 import arm64_elf "arm64_elf.oren"
+import x64_elf "x64_elf.oren"
+import x64_pe "x64_pe.oren"
 import codegen_bytecode "codegen_bytecode.oren"
 import transpiler "transpiler.oren"
 import analysis "analysis.oren"
@@ -39,8 +41,8 @@ fn cli_spec() {
     argparse.cmd_option(build, "--out", "-o", "string", "", "Output path (default: strip .oren)")
     argparse.cmd_flag(build, "--emit-c", nil, "(C backend) stop after generating <file.oren>.c")
     argparse.cmd_option(build, "--cc", nil, "string", "cc", "(C backend) C compiler")
-    argparse.cmd_option(build, "--target", nil, "string", "macos", "(native backend) target OS: macos|linux")
-    argparse.cmd_option(build, "--arch", nil, "string", "arm64", "(native backend) target arch: arm64 (rolling; only arm64 supported now)")
+    argparse.cmd_option(build, "--target", nil, "string", "macos", "(native backend) target OS: macos|linux|windows (rolling)")
+    argparse.cmd_option(build, "--arch", nil, "string", "arm64", "(native backend) target arch: arm64|x64 (rolling)")
     argparse.cmd_flag(build, "--disasm", nil, "(native backend) disassemble output via otool/objdump")
     argparse.cmd_flag(build, "--debug", nil, "(native backend) embed debug info for stack traces")
     argparse.cmd_flag(build, "--lib", nil, "(native backend) build a shared library")
@@ -81,8 +83,8 @@ fn cli_spec() {
     var meta = argparse.add_command(p, "meta", "Emit metadata JSON for a .oren entry module (no codegen)")
     argparse.cmd_positional(meta, "file.oren", true, "Input source file")
     argparse.cmd_option(meta, "--out", "-o", "string", "", "Output path (default: <file>.meta.json)")
-    argparse.cmd_option(meta, "--target", nil, "string", "macos", "Target OS for ABI/layout lowering: macos|linux")
-    argparse.cmd_option(meta, "--arch", nil, "string", "arm64", "Target arch for ABI/layout lowering: arm64 (rolling)")
+    argparse.cmd_option(meta, "--target", nil, "string", "macos", "Target OS for ABI/layout lowering: macos|linux|windows (rolling)")
+    argparse.cmd_option(meta, "--arch", nil, "string", "arm64", "Target arch for ABI/layout lowering: arm64|x64 (rolling)")
     argparse.cmd_flag(meta, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
     argparse.cmd_option(meta, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
     argparse.cmd_flag(meta, "--deterministic", nil, "Deterministic mode: emit stable artifact hash (sha256) for metadata output")
@@ -95,8 +97,8 @@ fn cli_spec() {
     argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked|graph")
     argparse.cmd_positional(dumpcmd, "file.oren", true, "Input source file")
     argparse.cmd_option(dumpcmd, "--out", "-o", "string", "", "Output path (default: stdout)")
-    argparse.cmd_option(dumpcmd, "--target", nil, "string", "macos", "Target OS for lowering: macos|linux")
-    argparse.cmd_option(dumpcmd, "--arch", nil, "string", "arm64", "Target arch for lowering: arm64 (rolling)")
+    argparse.cmd_option(dumpcmd, "--target", nil, "string", "macos", "Target OS for lowering: macos|linux|windows (rolling)")
+    argparse.cmd_option(dumpcmd, "--arch", nil, "string", "arm64", "Target arch for lowering: arm64|x64 (rolling)")
     argparse.cmd_flag(dumpcmd, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted (also via env OREN_STRICT_ATTRS=1)")
     argparse.cmd_option(dumpcmd, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode (also via env OREN_ATTR_ALLOW_PREFIXES)")
 

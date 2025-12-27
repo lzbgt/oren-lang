@@ -1,0 +1,197 @@
+// Minimal x86_64 native codegen (rolling bring-up).
+//
+// This is intentionally tiny: it only supports compiling a `fn main() { return <int> }`
+// form well enough to produce runnable Linux x86_64 ELF and Windows x64 PE binaries.
+//
+// Future work (tracked in docs/TODOS.md):
+// - full expression + statement lowering parity with arm64 backend
+// - native runtime injection on x64 (print, malloc, syscalls, capsule gating)
+
+import core "x64_core.oren"
+
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn push_u32_le(b, n) { return core.push_u32_le(b, n) }
+fn set_u32_le(b, off, n) { return core.set_u32_le(b, off, n) }
+
+fn insn_ret() { return core.insn_ret() }
+fn insn_syscall() { return core.insn_syscall() }
+fn insn_push_rbp() { return core.insn_push_rbp() }
+fn insn_pop_rbp() { return core.insn_pop_rbp() }
+fn insn_mov_rbp_rsp() { return core.insn_mov_rbp_rsp() }
+fn insn_mov_r64_imm64(reg, imm) { return core.insn_mov_r64_imm64(reg, imm) }
+fn insn_mov_r32_imm32(reg, imm) { return core.insn_mov_r32_imm32(reg, imm) }
+fn insn_mov_r64_r64(dst, src) { return core.insn_mov_r64_r64(dst, src) }
+fn insn_mov_r32_r32(dst, src) { return core.insn_mov_r32_r32(dst, src) }
+fn insn_call_rel32(disp32) { return core.insn_call_rel32(disp32) }
+fn insn_mov_rax_mrip_disp32(disp32) { return core.insn_mov_rax_mrip_disp32(disp32) }
+fn insn_call_rax() { return core.insn_call_rax() }
+
+fn err(ctx, msg) {
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    oren_list_push(ctx["errors"], msg)
+}
+
+fn _int_from_string_dec(s) {
+    // Minimal decimal parser (no hex/bin/octal) for v0.
+    if s == nil { return nil }
+    var i = 0
+    var neg = false
+    if oren_string_len(s) > 0 && oren_string_char_at(s, 0) == "-" { neg = true; i = 1 }
+    var n = 0
+    while i < oren_string_len(s) {
+        var c = oren_string_char_at(s, i)
+        var digit = -1
+        if c == "0" { digit = 0 }
+        else if c == "1" { digit = 1 }
+        else if c == "2" { digit = 2 }
+        else if c == "3" { digit = 3 }
+        else if c == "4" { digit = 4 }
+        else if c == "5" { digit = 5 }
+        else if c == "6" { digit = 6 }
+        else if c == "7" { digit = 7 }
+        else if c == "8" { digit = 8 }
+        else if c == "9" { digit = 9 }
+        else { return nil }
+        n = n * 10 + digit
+        i = i + 1
+    }
+    if neg { return 0 - n }
+    return n
+}
+
+fn _extract_main_return_i64(ctx, linked) {
+    if linked == nil { return nil }
+    var stmts = linked["statements"]
+    if stmts == nil { err(ctx, "x64 native v0: missing program statements"); return nil }
+
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        var s = nil
+        if st != nil {
+            if st["type"] == "Function" { s = st }
+            if st["type"] == "ExprStmt" {
+                var e = st["expr"]
+                if e != nil && e["type"] == "Function" { s = e }
+            }
+        }
+        if s != nil && s["type"] == "Function" && s["name"] == "main" {
+            var body = s["body"]
+            if body == nil { err(ctx, "x64 native v0: main has no body"); return nil }
+            // Expect: body is a Block with a Return as the last statement.
+            if body["type"] == "Block" {
+                var bstmts = body["stmts"]
+                if bstmts == nil || oren_list_len(bstmts) == 0 { err(ctx, "x64 native v0: main block empty"); return nil }
+                var last = bstmts[oren_list_len(bstmts) - 1]
+                if last == nil || last["type"] != "Return" { err(ctx, "x64 native v0: main must end with return"); return nil }
+                var v = last["value"]
+                if v == nil || v["type"] != "Integer" { err(ctx, "x64 native v0: main return must be integer literal"); return nil }
+                var n = _int_from_string_dec(v["value"])
+                if n == nil { err(ctx, "x64 native v0: invalid integer literal in return"); return nil }
+                if n < 0 { err(ctx, "x64 native v0: negative return not supported yet"); return nil }
+                return n
+            }
+            if body["type"] == "Return" {
+                var v2 = body["value"]
+                if v2 == nil || v2["type"] != "Integer" { err(ctx, "x64 native v0: main return must be integer literal"); return nil }
+                var n2 = _int_from_string_dec(v2["value"])
+                if n2 == nil { err(ctx, "x64 native v0: invalid integer literal in return"); return nil }
+                if n2 < 0 { err(ctx, "x64 native v0: negative return not supported yet"); return nil }
+                return n2
+            }
+            err(ctx, "x64 native v0: unsupported main body shape: " + body["type"])
+            return nil
+        }
+        i = i + 1
+    }
+
+    err(ctx, "x64 native v0: missing fn main()")
+    return nil
+}
+
+// Compile minimal x64 program.
+//
+// Returns a ctx:
+// - code: []byte
+// - data: []byte (used by PE import table)
+// - fixups: list of fixups for emitters (call_main, rip_data32)
+// - functions: map name->offset
+// - import_list: list of imports (for PE)
+// - errors: list of strings
+fn native_compile_program_x64_min(linked, platform) {
+    var ctx = {
+        "code": bytes_new(),
+        "data": bytes_new(),
+        "fixups": [],
+        "functions": {},
+        "import_list": [],
+        "errors": [],
+        "platform": platform
+    }
+
+    var retv = _extract_main_return_i64(ctx, linked)
+    if retv == nil { return ctx }
+
+    // --- Entry stub ---
+    // call main
+    var call_pos = oren_list_len(ctx["code"])
+    // placeholder rel32=0
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "main"})
+
+    if platform != nil && platform["os"] == "windows" {
+        // Windows x64: ExitProcess(ret)
+        //
+        // - rcx = u32 exit code
+        // - call [IAT ExitProcess]
+        bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
+
+        var mov_iat_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
+        bytes_extend(ctx["code"], insn_call_rax())
+        // Should not return; if it does, just ret.
+        bytes_extend(ctx["code"], insn_ret())
+        // Record entrypoint offset (start of code).
+        ctx["entry_off"] = 0
+    } else {
+        // Linux x86_64: exit(main_ret) via syscall
+        // rdi = rax
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // mov rdi, rax
+        // rax = 60 (SYS_exit)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))
+        bytes_extend(ctx["code"], insn_syscall())
+        // Should not return; if it does, ret.
+        bytes_extend(ctx["code"], insn_ret())
+        ctx["entry_off"] = 0
+    }
+
+    // --- main ---
+    var main_off = oren_list_len(ctx["code"])
+    ctx["functions"]["main"] = main_off
+    // Minimal prologue/epilogue (keeps stack sane if we later extend main).
+    bytes_extend(ctx["code"], insn_push_rbp())
+    bytes_extend(ctx["code"], insn_mov_rbp_rsp())
+    // rax = retv
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, retv))
+    bytes_extend(ctx["code"], insn_pop_rbp())
+    bytes_extend(ctx["code"], insn_ret())
+
+    return ctx
+}
+
+fn native_emit_errors_and_exit(ctx) {
+    if ctx == nil { return nil }
+    var errs = ctx["errors"]
+    if errs == nil || oren_list_len(errs) == 0 { return nil }
+    var i = 0
+    while i < oren_list_len(errs) {
+        var e = errs[i]
+        if e != nil { print(e) }
+        i = i + 1
+    }
+    oren_exit(1)
+    return nil
+}
