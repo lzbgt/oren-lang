@@ -18,6 +18,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Direction: 3 layers — kernel intrinsics (`oren_*`) → std wrappers (`std:list`) → language-level sugar/operators.
    - Next: finish deterministic dispatch rules for generics + `dyn` and document the exact lowering contract.
    - Next: expand the native inlining fast-path beyond `xs[i]` / `xs[i]=v` (e.g. `len`, `push`) and port parity to the x64 native backend.
+   - Next: treat `std:list` calls (`list.len`, `list.push`) as intrinsics too so idiomatic stdlib usage stays zero-overhead in native mode.
    - References: `docs/DESIGN_CONTAINER_OPS.md`, `docs/STDLIB_LAYERS.md`.
 
 3) **Backend architecture unification (CoreIR boundary + canonical runtime ABI)** (L)
@@ -56,5 +57,6 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **Invalid arithmetic fixtures added**: `oretest` now exercises div0 / overflow / shift-oob panic behavior in the local native+C backends and ensures x64 ELF/PE builds exist for the same cases.
 - **Container ops first milestone (arm64 native)**: list indexing `xs[i]` and index assignment `xs[i]=v` now lower to native code directly (no `oren_list_get` / `oren_index_set` call), with a deterministic fallback to `oren_map_get` / `oren_map_set` for non-list containers; `oren_index_set` runtime semantics now match the spec (lists do not auto-grow).
 - **Container ops second milestone (arm64 native)**: `oren_list_len(xs)` and `oren_list_push(xs, v)` now use native fast-paths (len is fully inlined; push is inlined when `count < cap`, otherwise falls back to runtime growth).
+- **Container ops third milestone (arm64 native)**: `std:list` namespace calls `list.len(xs)` / `list.push(xs, v)` now lower to the same intrinsics (no wrapper call overhead); `list.push` preserves std semantics by returning `nil`.
 - **Test throughput**: `oretest` now runs runtime diagnostic fixtures in parallel (bounded by `--fixture-jobs`) to reduce wall time during rolling development.
 - **Docs coverage**: `docs/LANGUAGE_MANUAL.md` now includes a “fixtures as living spec” index pointing at key `tests/native/fixtures` and x64 bring-up fixtures.

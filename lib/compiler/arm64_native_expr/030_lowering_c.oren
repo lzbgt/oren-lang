@@ -1,7 +1,7 @@
 // Chunked out of native_compile_expr call handling for include coherence.
 fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
-            if fn_name == "oren_list_len" {
+            if fn_name == "oren_list_len" || fn_name == "std_list_len" {
                 // Intrinsic: list length (fast-path, no runtime call).
                 //
                 // Runtime layout: [count][capacity][buffer_ptr][magic]
@@ -46,10 +46,13 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 return true
             }
 
-            if fn_name == "oren_list_push" {
+            if fn_name == "oren_list_push" || fn_name == "std_list_push" {
                 // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
                 //
                 // Signature: oren_list_push(list, value) -> list
+                //
+                // Note: `std_list_push` (from `import list "std:list"; list.push(...)`) returns `nil`.
+                // We still inline the push, but normalize the return value to nil for that case.
                 var args1 = expr["args"]
                 if args1 == nil || oren_list_len(args1) != 2 {
                     native_error(ctx, expr["token"], "native backend: oren_list_push expects 2 arguments")
@@ -130,6 +133,11 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
                 var done_pos2 = oren_list_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done2, insn_b((done_pos2 - br_done2) / 4))
+
+                // Normalize return value for stdlib wrapper semantics.
+                if fn_name == "std_list_push" {
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                }
                 return true
             }
 
