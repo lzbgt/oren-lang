@@ -113,6 +113,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
   - Docs parity: keep `docs/LANGUAGE_SPEC.md` and `docs/LANGUAGE_MANUAL.md` aligned with `tests/**` and fixtures (rolling).
   - AVM spec parity: keep `docs/AVM_SPEC.md` opcode + legacy native-id tables synced with `lib/avm/main.c` and `lib/avm/avm_native.inc` (rolling).
   - Container docs parity: keep `docs/LANGUAGE_MANUAL.md` container guidance aligned with `std:list` wrappers (`clone`, `slice_copy`, `slice_view`) and runtime `oren_iter_next` behavior.
+  - Int literal parsing: unify compiler-side int literal parsing (base prefixes + overflow handling) across `lexer/parser` consumers (`transpiler`, `optimizer`, x64 backend) to avoid silent wrap on large literals.
   - Include chunk coherence: keep large `.oren` and runtime hotspots split so files remain reviewable without context overflow (`docs/RUNTIME_NATIVE_LAYOUT.md`).
   - Compiler CLI/argparse: click-style behavior and shell completion exist; refine completions opportunistically (`docs/CLI_COMPLETION.md`).
   - ARM64 encoder audit: keep adding small clang-verified golden cases as new encoders are introduced.
