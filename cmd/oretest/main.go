@@ -3189,24 +3189,55 @@ func main() {
 		}
 	}
 
-	// Run runtime diagnostics fixtures sequentially.
-	for _, fx := range runtimeFixtures {
-		vprintln("runtime fixture: " + fx.name)
-		rc := runWithTimeout(timeoutBin, buildTimeout, fx.build, fx.log)
-		if rc != 0 {
-			fmt.Fprintf(os.Stderr, "runtime fixture build failed: %s (log: %s)\n", fx.name, fx.log)
-			_ = catFile(os.Stderr, fx.log)
+	// Run runtime diagnostics fixtures in parallel (bounded by --fixture-jobs).
+	//
+	// These are build+run pairs that validate deterministic diagnostic headers.
+	// They are independent and safe to parallelize as long as output paths are distinct.
+	type runtimeFixtureResult struct {
+		name string
+		log  string
+		ok   bool
+		msg  string
+	}
+	runtimeResults := make([]runtimeFixtureResult, len(runtimeFixtures))
+	var wgRuntime sync.WaitGroup
+	semRuntime := make(chan struct{}, fixtureJobsEff)
+	for i := range runtimeFixtures {
+		wgRuntime.Add(1)
+		semRuntime <- struct{}{}
+		go func(i int) {
+			defer wgRuntime.Done()
+			defer func() { <-semRuntime }()
+			fx := runtimeFixtures[i]
+			if *verbose {
+				vprintln("runtime fixture: " + fx.name)
+			}
+
+			rc := runWithTimeout(timeoutBin, buildTimeout, fx.build, fx.log)
+			if rc != 0 {
+				runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: false, msg: "build failed"}
+				return
+			}
+
+			rc2 := runWithTimeout(timeoutBin, runTimeout, fx.run, fx.log)
+			outb, _ := os.ReadFile(fx.log)
+			if !fx.ok(rc2, string(outb)) {
+				runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: false, msg: "run failed"}
+				return
+			}
+
+			for _, c := range fx.cleanup {
+				_ = os.RemoveAll(c)
+			}
+			runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: true}
+		}(i)
+	}
+	wgRuntime.Wait()
+	for _, rr := range runtimeResults {
+		if !rr.ok {
+			fmt.Fprintf(os.Stderr, "runtime fixture %s: %s (log: %s)\n", rr.name, rr.msg, rr.log)
+			_ = catFile(os.Stderr, rr.log)
 			os.Exit(1)
-		}
-		rc2 := runWithTimeout(timeoutBin, runTimeout, fx.run, fx.log)
-		outb, _ := os.ReadFile(fx.log)
-		if !fx.ok(rc2, string(outb)) {
-			fmt.Fprintf(os.Stderr, "runtime fixture failed: %s (log: %s)\n", fx.name, fx.log)
-			_ = catFile(os.Stderr, fx.log)
-			os.Exit(1)
-		}
-		for _, c := range fx.cleanup {
-			_ = os.RemoveAll(c)
 		}
 	}
 
