@@ -27,7 +27,12 @@ fn insn_mov_r32_r32(dst, src) { return core.insn_mov_r32_r32(dst, src) }
 fn insn_call_rel32(disp32) { return core.insn_call_rel32(disp32) }
 fn insn_mov_rax_mrip_disp32(disp32) { return core.insn_mov_rax_mrip_disp32(disp32) }
 fn insn_lea_rsi_rip_disp32(disp32) { return core.insn_lea_rsi_rip_disp32(disp32) }
+fn insn_lea_r64_rip_disp32(reg, disp32) { return core.insn_lea_r64_rip_disp32(reg, disp32) }
+fn insn_lea_r64_rsp_disp8(reg, disp8) { return core.insn_lea_r64_rsp_disp8(reg, disp8) }
 fn insn_call_rax() { return core.insn_call_rax() }
+fn insn_sub_rsp_imm8(n) { return core.insn_sub_rsp_imm8(n) }
+fn insn_add_rsp_imm8(n) { return core.insn_add_rsp_imm8(n) }
+fn insn_mov_mrsp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrsp_disp8_imm32(disp8, imm32) }
 
 fn err(ctx, msg) {
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -147,10 +152,12 @@ fn _emit_linux_write_cstr(ctx, s) {
     return nil
 }
 
-fn _emit_supported_main_body(ctx, fn_node, platform) {
-    // Minimal statement support:
+fn _analyze_supported_main_body(ctx, fn_node) {
+    // Minimal statement support (analysis only; emission happens later inside `main`):
     // - ExprStmt(Call(print, [String]))
     // - Return(Integer)
+    //
+    // Returns {"ops": list, "ret": int}
     var body = fn_node["body"]
     if body == nil { err(ctx, "x64 native v0: main has no body"); return nil }
     if body["type"] != "Block" {
@@ -160,6 +167,7 @@ fn _emit_supported_main_body(ctx, fn_node, platform) {
     var stmts = body["stmts"]
     if stmts == nil { err(ctx, "x64 native v0: main block empty"); return nil }
 
+    var ops = []
     var i = 0
     while i < oren_list_len(stmts) {
         var st = stmts[i]
@@ -174,13 +182,7 @@ fn _emit_supported_main_body(ctx, fn_node, platform) {
                     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
                     var a0 = args[0]
                     if a0 == nil || a0["type"] != "String" { err(ctx, "x64 native v0: print only supports string literal"); return nil }
-                    if platform != nil && platform["os"] == "linux" {
-                        _emit_linux_write_cstr(ctx, a0["value"])
-                    } else {
-                        // Windows print support will be added via kernel32!WriteFile later.
-                        err(ctx, "x64 native v0: print not supported on windows yet")
-                        return nil
-                    }
+                    oren_list_push(ops, {"op": "print_cstr", "value": a0["value"]})
                     i = i + 1
                     continue
                 }
@@ -194,14 +196,61 @@ fn _emit_supported_main_body(ctx, fn_node, platform) {
             var n = _int_from_string_dec(v["value"])
             if n == nil { err(ctx, "x64 native v0: invalid integer literal in return"); return nil }
             if n < 0 { err(ctx, "x64 native v0: negative return not supported yet"); return nil }
-            return n
+            return {"ops": ops, "ret": n}
         }
         err(ctx, "x64 native v0: unsupported stmt in main: " + st["type"])
         return nil
     }
 
     // Default return 0 if no explicit return found.
-    return 0
+    return {"ops": ops, "ret": 0}
+}
+
+fn _emit_windows_write_cstr(ctx, s) {
+    // Emit:
+    //   h = GetStdHandle(-11)
+    //   WriteFile(h, s_ptr, len, &written, NULL)
+    //
+    // Uses Win64 ABI (RCX, RDX, R8, R9, shadow space).
+
+    var meta = _data_add_cstr_newline(ctx, s)
+    if meta == nil { return nil }
+    var data_off = meta["off"]
+    var nbytes = meta["len"]
+
+    // --- GetStdHandle(STD_OUTPUT_HANDLE=-11) ---
+    // ecx = 0xFFFFFFF5
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285))
+    var mov_iat0 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // rcx = rax (hStdout)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+
+    // rdx = &data (RIP-relative into .rdata appended blob)
+    var lea_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_rdata_lea", "pos": lea_pos + 3, "data_off": data_off})
+
+    // r8d = len
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, nbytes))
+
+    // Stack arg5 (lpOverlapped) = NULL at [rsp+0x20], and bytesWritten at [rsp+0x28].
+    //
+    // Write 8 bytes of zeros for lpOverlapped (two dwords).
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(36, 0))
+    // r9 = &written
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(9, 40))
+
+    // --- WriteFile(...) ---
+    var mov_iat1 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_WriteFile"})
+    bytes_extend(ctx["code"], insn_call_rax())
+    return nil
 }
 
 // Compile minimal x64 program.
@@ -246,11 +295,19 @@ fn native_compile_program_x64_min(linked, platform) {
     }
     if main_node == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
 
-    var retv = _emit_supported_main_body(ctx, main_node, platform)
-    if retv == nil { return ctx }
+    var plan = _analyze_supported_main_body(ctx, main_node)
+    if plan == nil { return ctx }
+    var ops = plan["ops"]
+    var retv = plan["ret"]
 
     // --- Entry stub ---
     // call main
+    //
+    // Windows x64 ABI note: calls require 32 bytes of shadow space allocated by the caller.
+    // Since our entrypoint is not a C runtime, we explicitly reserve it here.
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], insn_sub_rsp_imm8(32))
+    }
     var call_pos = oren_list_len(ctx["code"])
     // placeholder rel32=0
     bytes_extend(ctx["code"], insn_call_rel32(0))
@@ -268,6 +325,7 @@ fn native_compile_program_x64_min(linked, platform) {
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
         bytes_extend(ctx["code"], insn_call_rax())
         // Should not return; if it does, just ret.
+        bytes_extend(ctx["code"], insn_add_rsp_imm8(32))
         bytes_extend(ctx["code"], insn_ret())
         // Record entrypoint offset (start of code).
         ctx["entry_off"] = 0
@@ -289,8 +347,38 @@ fn native_compile_program_x64_min(linked, platform) {
     // Minimal prologue/epilogue (keeps stack sane if we later extend main).
     bytes_extend(ctx["code"], insn_push_rbp())
     bytes_extend(ctx["code"], insn_mov_rbp_rsp())
+    // Windows calls require shadow space and 16-byte alignment before CALL.
+    // We keep this simple by reserving a fixed 0x40 bytes when on Windows.
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], insn_sub_rsp_imm8(64))
+    }
+
+    // Emit supported ops inside main.
+    var k = 0
+    while ops != nil && k < oren_list_len(ops) {
+        var op = ops[k]
+        if op == nil { k = k + 1; continue }
+        if op["op"] == "print_cstr" {
+            if platform != nil && platform["os"] == "linux" {
+                _emit_linux_write_cstr(ctx, op["value"])
+            } else if platform != nil && platform["os"] == "windows" {
+                _emit_windows_write_cstr(ctx, op["value"])
+            } else {
+                err(ctx, "x64 native v0: print unsupported on this target")
+                return ctx
+            }
+        } else {
+            err(ctx, "x64 native v0: unknown main op")
+            return ctx
+        }
+        k = k + 1
+    }
+
     // rax = retv
     bytes_extend(ctx["code"], insn_mov_r64_imm64(0, retv))
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], insn_add_rsp_imm8(64))
+    }
     bytes_extend(ctx["code"], insn_pop_rbp())
     bytes_extend(ctx["code"], insn_ret())
 

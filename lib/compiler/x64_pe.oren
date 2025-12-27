@@ -44,6 +44,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     codegen.native_emit_errors_and_exit(ctx)
 
     var code = ctx["code"]
+    var user_data = ctx["data"]
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
 
@@ -51,10 +52,11 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     //
     // Layout in .rdata:
     //   import_desc[2] (kernel32 + null)
-    //   ILT (2 entries: ExitProcess + null)
-    //   IAT (2 entries: ExitProcess + null)
-    //   hint/name for ExitProcess
+    //   ILT (N+1 entries)
+    //   IAT (N+1 entries)
+    //   hint/name for each imported func
     //   dll name
+    //   user data blob (string literals, etc.)
     //
     // We record offsets for RVAs and patch descriptors later.
     var rdata = bytes_new()
@@ -66,21 +68,31 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     // Align to 8 for thunk arrays.
     while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
     var off_ilt = oren_list_len(rdata)
-    // ILT: 2 entries (8 bytes each)
-    push_u64_le(rdata, 0)
-    push_u64_le(rdata, 0)
+    // ILT: 3 imports + null entry
+    var n_imports = 3
+    var i0 = 0
+    while i0 < n_imports + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
 
     while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
     var off_iat = oren_list_len(rdata)
-    // IAT: 2 entries (8 bytes each)
-    push_u64_le(rdata, 0)
-    push_u64_le(rdata, 0)
+    // IAT: 3 imports + null entry
+    var i1 = 0
+    while i1 < n_imports + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
 
-    // Hint/Name for ExitProcess
-    var off_hint_name = oren_list_len(rdata)
+    // Hint/Name entries
+    var off_hint_exit = oren_list_len(rdata)
     push_u16_le(rdata, 0) // hint
     push_ascii_z(rdata, "ExitProcess")
-    // Align to 2 bytes
+    if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+
+    var off_hint_getstd = oren_list_len(rdata)
+    push_u16_le(rdata, 0)
+    push_ascii_z(rdata, "GetStdHandle")
+    if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+
+    var off_hint_write = oren_list_len(rdata)
+    push_u16_le(rdata, 0)
+    push_ascii_z(rdata, "WriteFile")
     if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
 
     var off_dll_name = oren_list_len(rdata)
@@ -98,15 +110,22 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     var rdata_rva = 8192
 
     // Patch thunk entries with RVA to hint/name.
-    var hn_rva = rdata_rva + off_hint_name
-    // IMAGE_THUNK_DATA64: AddressOfData = RVA
-    // write into ILT[0] and IAT[0]
-    // Each thunk entry is 8 bytes: low 32 is RVA for our small address range.
-    // (High bits remain 0 => import by name)
-    // ILT[0]
-    set_u32_le(rdata, off_ilt + 0, hn_rva)
-    // IAT[0]
-    set_u32_le(rdata, off_iat + 0, hn_rva)
+    //
+    // Order:
+    //   0: ExitProcess
+    //   1: GetStdHandle
+    //   2: WriteFile
+    var hn_exit_rva = rdata_rva + off_hint_exit
+    var hn_getstd_rva = rdata_rva + off_hint_getstd
+    var hn_write_rva = rdata_rva + off_hint_write
+    // ILT
+    set_u32_le(rdata, off_ilt + 0, hn_exit_rva)
+    set_u32_le(rdata, off_ilt + 8, hn_getstd_rva)
+    set_u32_le(rdata, off_ilt + 16, hn_write_rva)
+    // IAT
+    set_u32_le(rdata, off_iat + 0, hn_exit_rva)
+    set_u32_le(rdata, off_iat + 8, hn_getstd_rva)
+    set_u32_le(rdata, off_iat + 16, hn_write_rva)
 
     // Patch import descriptor for kernel32.
     //
@@ -123,6 +142,13 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
 
     var import_dir_rva = rdata_rva + off_import_desc
     var import_dir_size = 40
+
+    // ---- Append user data ----
+    //
+    // Keep user data 8-byte aligned for future u64 tables.
+    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_user_data = oren_list_len(rdata)
+    if user_data != nil { bytes_extend(rdata, user_data) }
 
     // ---- Apply code fixups (rel32 call + rip-relative IAT load) ----
     //
@@ -149,17 +175,32 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
             // disp32 relative to next RIP (end of instruction).
             // f["pos"] points to disp32 field within the instruction.
             var label = f["data_label"]
-            if label != "IAT_ExitProcess" {
+            var target_off = nil
+            if label == "IAT_ExitProcess" { target_off = off_iat + 0 }
+            else if label == "IAT_GetStdHandle" { target_off = off_iat + 8 }
+            else if label == "IAT_WriteFile" { target_off = off_iat + 16 }
+            else {
                 print("x64 pe: unknown data label " + label)
                 oren_exit(1)
             }
             var disp_pos = f["pos"]
             var insn_start = disp_pos - 3
             var next_rip = text_rva + (insn_start + 7)
-            var target_rva = rdata_rva + off_iat
+            var target_rva = rdata_rva + target_off
             var disp2 = target_rva - next_rip
             if disp2 < 0 { disp2 = 4294967296 + disp2 }
             set_u32_le(code, disp_pos, disp2)
+        }
+        if f["type"] == "rip_rdata_lea" {
+            // lea rdx, [rip+disp32] where target points into appended user data.
+            var disp_pos2 = f["pos"]
+            var data_off = f["data_off"]
+            var insn_start2 = disp_pos2 - 3
+            var next_rip2 = text_rva + (insn_start2 + 7)
+            var target_rva2 = rdata_rva + off_user_data + data_off
+            var disp3 = target_rva2 - next_rip2
+            if disp3 < 0 { disp3 = 4294967296 + disp3 }
+            set_u32_le(code, disp_pos2, disp3)
         }
         i = i + 1
     }
@@ -305,4 +346,3 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     }
     return nil
 }
-

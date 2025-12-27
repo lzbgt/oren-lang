@@ -59,20 +59,23 @@ fn insn_mov_rbp_rsp() { return [72, 137, 229] } // 48 89 E5
 
 fn insn_mov_r64_imm64(reg, imm_u64) {
     // movabs r64, imm64  => REX.W + (B8+reg) + imm64
-    // v0: reg in 0..7 only.
-    if reg < 0 || reg > 7 { return nil }
+    // v0: reg in 0..15 (RAX..R15).
+    if reg < 0 || reg > 15 { return nil }
     var out = []
-    bytes_push(out, 72) // 48 (REX.W)
-    bytes_push(out, 184 + reg) // B8+reg
+    var rex = 72 // 0x48 (REX.W)
+    if reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 184 + int_mod(reg, 8)) // B8+(reg&7)
     push_u64_le(out, imm_u64)
     return out
 }
 
 fn insn_mov_r32_imm32(reg, imm_u32) {
     // mov r32, imm32 => (B8+reg) imm32
-    if reg < 0 || reg > 7 { return nil }
     var out = []
-    bytes_push(out, 184 + reg)
+    if reg < 0 || reg > 15 { return nil }
+    if reg >= 8 { bytes_push(out, 65) } // 41 (REX.B)
+    bytes_push(out, 184 + int_mod(reg, 8))
     push_u32_le(out, imm_u32)
     return out
 }
@@ -80,16 +83,27 @@ fn insn_mov_r32_imm32(reg, imm_u32) {
 fn insn_mov_r64_r64(dst, src) {
     // mov r/m64, r64 => 48 89 /r
     // modrm: 11 reg=src rm=dst
-    if dst < 0 || dst > 7 { return nil }
-    if src < 0 || src > 7 { return nil }
-    return [72, 137, 192 + src * 8 + dst] // 0xC0 | (src<<3) | dst
+    if dst < 0 || dst > 15 { return nil }
+    if src < 0 || src > 15 { return nil }
+    var rex = 72 // 48 (REX.W)
+    if src >= 8 { rex = rex + 4 } // REX.R
+    if dst >= 8 { rex = rex + 1 } // REX.B
+    return [rex, 137, 192 + int_mod(src, 8) * 8 + int_mod(dst, 8)] // 0xC0 | ((src&7)<<3) | (dst&7)
 }
 
 fn insn_mov_r32_r32(dst, src) {
     // mov r/m32, r32 => 89 /r
-    if dst < 0 || dst > 7 { return nil }
-    if src < 0 || src > 7 { return nil }
-    return [137, 192 + src * 8 + dst]
+    if dst < 0 || dst > 15 { return nil }
+    if src < 0 || src > 15 { return nil }
+    var out = []
+    var rex = 64 // 40 base
+    var need = false
+    if src >= 8 { rex = rex + 4; need = true } // REX.R
+    if dst >= 8 { rex = rex + 1; need = true } // REX.B
+    if need { bytes_push(out, rex) }
+    bytes_push(out, 137)
+    bytes_push(out, 192 + int_mod(src, 8) * 8 + int_mod(dst, 8))
+    return out
 }
 
 fn insn_call_rel32(disp32) {
@@ -117,6 +131,52 @@ fn insn_lea_rsi_rip_disp32(disp32) {
     // lea rsi, [rip+disp32] => 48 8D 35 disp32
     var out = [72, 141, 53]
     push_u32_le(out, disp32)
+    return out
+}
+
+fn insn_lea_r64_rip_disp32(reg, disp32) {
+    // lea r64, [rip+disp32] => REX.W + 8D + ModRM(00 reg rm=101) + disp32
+    if reg < 0 || reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 48 (REX.W)
+    if reg >= 8 { rex = rex + 4 } // REX.R
+    bytes_push(out, rex)
+    bytes_push(out, 141) // 8D
+    bytes_push(out, 5 + int_mod(reg, 8) * 8) // 0x05 | ((reg&7)<<3)
+    push_u32_le(out, disp32)
+    return out
+}
+
+fn insn_lea_r64_rsp_disp8(reg, disp8) {
+    // lea r64, [rsp+disp8] => REX.W + 8D + ModRM + SIB + disp8
+    // ModRM: mod=01 reg=(reg&7) rm=100 (SIB)
+    // SIB: scale=0 index=100 (none) base=100 (rsp)
+    if reg < 0 || reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 48 (REX.W)
+    if reg >= 8 { rex = rex + 4 } // REX.R
+    bytes_push(out, rex)
+    bytes_push(out, 141) // 8D
+    bytes_push(out, 64 + int_mod(reg, 8) * 8 + 4) // 0x40 | ((reg&7)<<3) | 0x04
+    bytes_push(out, 36) // 0x24
+    bytes_push(out, int_mod(disp8, 256))
+    return out
+}
+
+fn insn_sub_rsp_imm8(n) {
+    // sub rsp, imm8 => 48 83 EC ib
+    return [72, 131, 236, int_mod(n, 256)]
+}
+
+fn insn_add_rsp_imm8(n) {
+    // add rsp, imm8 => 48 83 C4 ib
+    return [72, 131, 196, int_mod(n, 256)]
+}
+
+fn insn_mov_mrsp_disp8_imm32(disp8, imm32) {
+    // mov dword ptr [rsp+disp8], imm32 => C7 44 24 ib imm32
+    var out = [199, 68, 36, int_mod(disp8, 256)]
+    push_u32_le(out, imm32)
     return out
 }
 

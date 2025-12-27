@@ -25,11 +25,11 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added minimal x64 bring-up backend (`--backend native --arch x64`) that can compile a tiny `fn main(){return 0}` program.
    - Status: added Linux x86_64 ELF emitter (`lib/compiler/x64_elf.oren`) and Windows PE32+ emitter with import table for `kernel32!ExitProcess` (`lib/compiler/x64_pe.oren`).
    - Status: Linux x64 now supports `print("...")` (string literal only) via direct `SYS_write` + RIP-relative string data; oretest asserts the string is embedded in the ELF output.
+   - Status: Windows x64 now supports `print("...")` (string literal only) via `kernel32!GetStdHandle` + `kernel32!WriteFile`; oretest asserts the string is embedded in the PE output.
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).
    - Next: implement full x64 statement/expression lowering parity with arm64 backend (loops, locals, calls, ptr ops, lists, floats/SIMD).
-   - Next: implement Win32 imports for IO (`GetStdHandle`, `WriteFile`) so `print` works on Windows x64 too.
-   - Next: add remote-run smoke gate using Win11 OpenSSH + WSL2 when `OREN_REMOTE_RUN=1` is set (keep CI deterministic by default).
+   - Next: add remote-run smoke gate using Win11 OpenSSH + WSL2 when `OREN_REMOTE_RUN=1` is set (keep CI deterministic by default) and validate actual stdout bytes (not only embedding).
 
 3) **Container ops modernization (generic + dyn)** (S)
    - Status: documented the design in `docs/DESIGN_CONTAINER_OPS.md` (3-layer model: kernel `oren_*` intrinsics → std wrappers → language-level ops) including deterministic dispatch rules for generics + `dyn`.
