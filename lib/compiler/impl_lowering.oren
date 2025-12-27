@@ -413,19 +413,19 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
 
     // Iterator extension hook (rolling v1):
     //
-    // `for x in y { ... }` desugars to `oren_iter_next(y, idx)` for identifier iterables.
+    // `for x in y { ... }` desugars to `oren_iter_next(y, idx, out_pair)` for identifier iterables.
     //
     // If `y` has an explicit type annotation and that type implements the `Iterable` trait,
     // rewrite the call to the trait impl method:
     //
-    //   impl Iterable for MyIter { fn iter_next(self, idx) { ... } }
+    //   impl Iterable for MyIter { fn iter_next(self, idx, out_pair) { ... } }
     //
     // This preserves v0 behavior for built-in containers and untyped code, while allowing
     // custom deterministic iterables without introducing runtime vtables.
     var fn0 = expr["fn"]
     if fn0 != nil && fn0["type"] == "Identifier" && fn0["value"] == "oren_iter_next" {
         var args0 = expr["args"]
-        if args0 != nil && oren_list_len(args0) >= 2 {
+        if args0 != nil && oren_list_len(args0) >= 3 {
             var recv0 = args0[0]
             if recv0 != nil && recv0["type"] == "Identifier" {
                 var recv_type0 = type_env_get(env, recv0["value"])

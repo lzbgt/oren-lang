@@ -1354,10 +1354,11 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
-        case 43: { // oren_iter_next(container, idx:int) -> [ok:int, value]
-            if (nargs == 2 && args[1].type == AVM_VAL_INT) {
+        case 43: { // oren_iter_next(container, idx:int, out_pair:list|nil) -> [ok:int, value]
+            if ((nargs == 2 || nargs == 3) && args[1].type == AVM_VAL_INT) {
                 AvmValue container = args[0];
                 int64_t idx = args[1].as.i;
+                AvmValue out_pair = (nargs == 3) ? args[2] : avm_nil();
 
                 AvmValue okv = avm_int(0);
                 AvmValue val = avm_nil();
@@ -1536,18 +1537,26 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                     }
                 }
 
-                AvmList* out = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
-                if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
-                out->count = 2;
-                out->capacity = 2;
-                out->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * 2u, AVM_ALLOC_KIND_LIST);
-                if (!out->items) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
-                out->items[0] = okv;
-                out->items[1] = val;
-                res.type = AVM_VAL_LIST;
-                res.as.l = out;
+                if (out_pair.type == AVM_VAL_LIST && out_pair.as.l && out_pair.as.l->capacity >= 2 && out_pair.as.l->items) {
+                    AvmList* out = out_pair.as.l;
+                    if (out->count < 2) out->count = 2;
+                    out->items[0] = okv;
+                    out->items[1] = val;
+                    res = out_pair;
+                } else {
+                    AvmList* out = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                    if (!out) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    out->count = 2;
+                    out->capacity = 2;
+                    out->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * 2u, AVM_ALLOC_KIND_LIST);
+                    if (!out->items) { avm_heap_free(out); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    out->items[0] = okv;
+                    out->items[1] = val;
+                    res.type = AVM_VAL_LIST;
+                    res.as.l = out;
+                }
             } else {
-                res = avm_err(AVM_ERR_INVALID_ARG, "oren_iter_next expects (container, int)");
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_iter_next expects (container, int idx, out_pair:list|nil)");
             }
             break;
         }

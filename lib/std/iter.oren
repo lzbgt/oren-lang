@@ -7,7 +7,7 @@
 // - Must be deterministic and must not require host effects.
 //
 // Contract:
-// - `for x in iterable` desugars to calls to `oren_iter_next(iterable, idx)`.
+// - `for x in iterable` desugars to calls to `oren_iter_next(iterable, idx, out_pair)`.
 // - Backends recognize special "iterable map" objects by the marker key `__iter`.
 //
 // This is the minimal "stream-like iterable" story in v0.
@@ -25,4 +25,3 @@ fn range3(start, end, step) {
     // step == 0 yields an empty sequence (deterministic, avoids infinite loops).
     return {"__iter": "range", "start": start, "end": end, "step": step}
 }
-

@@ -217,9 +217,10 @@ fn parse_for(p) {
     //   for <ident> in <expr> { <body> }
     //
     // Desugars to a 3-clause `for` using an internal state list and a runtime iterator hook:
-    //   var __oren_forin_N = [<expr>, 0, 1]
+    //   var __oren_forin_N = [<expr>, 0, 1, [0, 0]]
     //   for ; __oren_forin_N[2] != 0; __oren_forin_N[1] = __oren_forin_N[1] + 1 {
-    //       var __oren_forinr_N = oren_iter_next(__oren_forin_N[0], __oren_forin_N[1]) // -> [ok, value]
+    //       var __oren_forinr_N = oren_iter_next(__oren_forin_N[0], __oren_forin_N[1], __oren_forin_N[3]) // -> [ok, value]
+    //       __oren_forin_N[3] = __oren_forinr_N
     //       __oren_forin_N[2] = __oren_forinr_N[0]
     //       if __oren_forin_N[2] != 0 {
     //           var <ident> = __oren_forinr_N[1]
@@ -260,10 +261,11 @@ fn parse_for(p) {
         if !expect_peek(p, token.TOK_LBRACE) { return nil }
         var user_body = parse_block(p)
 
-        // init: var @forin = [iterable, 0]
         var zero = {"type": "Integer", "token": token.new_token(token.TOK_INT, "0"), "value": "0"}
         var one = {"type": "Integer", "token": token.new_token(token.TOK_INT, "1"), "value": "1"}
         var two = {"type": "Integer", "token": token.new_token(token.TOK_INT, "2"), "value": "2"}
+        var three = {"type": "Integer", "token": token.new_token(token.TOK_INT, "3"), "value": "3"}
+        var pair_init = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [zero, zero]}
 
         // Optimization (rolling v1 hook): if the iterable is a bare identifier, we don't need
         // to stash it in the internal state list (ident evaluation is side-effect-free), and
@@ -271,23 +273,26 @@ fn parse_for(p) {
         // iterator extensions (e.g. an `Iterable` trait).
         var st_idx = nil
         var st_ok = nil
+        var st_pair = nil
         var container_expr = nil
         var init_stmt = nil
 
         if iterable["type"] == "Identifier" {
-            // state: [idx, ok]
-            var state_init2 = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [zero, one]}
-            init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, state_init2)
+            // state: [idx, ok, out_pair]
+            var state_init3 = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [zero, one, pair_init]}
+            init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, state_init3)
             st_idx = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, zero)
             st_ok = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one)
+            st_pair = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, two)
             container_expr = iterable
         } else {
-            // state: [iterable, idx, ok]
-            var state_init3 = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [iterable, zero, one]}
-            init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, state_init3)
+            // state: [iterable, idx, ok, out_pair]
+            var state_init4 = {"type": "Array", "token": token.new_token(token.TOK_LBRACKET, "["), "elements": [iterable, zero, one, pair_init]}
+            init_stmt = ast.new_var(token.new_token(token.TOK_LET, "var"), st_ident, state_init4)
             container_expr = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, zero)
             st_idx = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, one)
             st_ok = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, two)
+            st_pair = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, three)
         }
 
         // cond: ok != 0
@@ -303,15 +308,24 @@ fn parse_for(p) {
         }
 
         // body:
-        //   var @forinr = oren_iter_next(container, idx)
+        //   var @forinr = oren_iter_next(container, idx, out_pair)
+        //   out_pair = @forinr
         //   ok = @forinr[0]
         //   if ok != 0 { var user = @forinr[1]; <user_body> }
         var fn_next = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, "oren_iter_next"), "value": "oren_iter_next"}
-        var call_next = ast.new_call(token.new_token(token.TOK_LPAREN, "("), fn_next, [container_expr, st_idx])
+        var call_next = ast.new_call(token.new_token(token.TOK_LPAREN, "("), fn_next, [container_expr, st_idx, st_pair])
         var bind_res = ast.new_var(token.new_token(token.TOK_LET, "var"), res_ident, call_next)
 
         var res0 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), res_ident, zero)
         var res1 = ast.new_index(token.new_token(token.TOK_LBRACKET, "["), res_ident, one)
+
+        // out_pair = @forinr
+        var set_pair = nil
+        if iterable["type"] == "Identifier" {
+            set_pair = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, two), res_ident)
+        } else {
+            set_pair = ast.new_set(token.new_token(token.TOK_ASSIGN, "="), ast.new_index(token.new_token(token.TOK_LBRACKET, "["), st_ident, three), res_ident)
+        }
 
         // ok = @forinr[0]
         var set_ok = nil
@@ -336,6 +350,7 @@ fn parse_for(p) {
 
         var body_block = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
         oren_list_push(body_block["stmts"], bind_res)
+        oren_list_push(body_block["stmts"], set_pair)
         oren_list_push(body_block["stmts"], set_ok)
         oren_list_push(body_block["stmts"], if_guard_stmt)
 

@@ -1,13 +1,13 @@
 // --- Iteration (generic `for x in ...`) ---
 // Iterator contract:
-//   oren_iter_next(container, idx) -> [ok, value]
+//   oren_iter_next(container, idx, out_pair) -> [ok, value]
 // Where ok is 1 when value exists, 0 when iteration is complete.
 //
 // Native backend note:
 // - Lists and maps are heap objects with magic tags.
 // - Strings are raw pointers (C strings); iteration stops at NUL byte.
 // - "bytes" in native v0 is typically `list<int 0..255>` (from `oren_read_bytes`).
-fn oren_iter_next(container, idx) {
+fn oren_iter_next(container, idx, out_pair) {
     // Compute result first, then allocate the return list last.
     // This avoids reliance on any particular native backend local/param storage strategy.
     var ok = 0
@@ -218,8 +218,18 @@ fn oren_iter_next(container, idx) {
     }
 
     // NOTE (rolling native backend):
-    // Construct the `[ok, value]` pair by directly writing into the list buffer.
-    var out = oren_new_list(2)
+    // Fill a provided out-pair when possible to avoid per-iteration allocations in `for x in ...`.
+    var out = out_pair
+    if out != 0 && ptr_get(out + 24) == list_magic() {
+        var cap = ptr_get(out + 8)
+        var buf = ptr_get(out + 16)
+        if cap < 2 || buf == 0 { out = 0 }
+    } else {
+        out = 0
+    }
+    if out == 0 {
+        out = oren_new_list(2)
+    }
     var out_buf = ptr_get(out + 16)
     ptr_set(out, 2) // count
     ptr_set(out_buf + 0, ok)

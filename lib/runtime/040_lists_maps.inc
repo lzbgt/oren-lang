@@ -1381,22 +1381,35 @@ OrenValue oren_call_obj_spread(OrenValue fn, OrenValue fixed_args, OrenValue spr
 
 // Iterator hook for `for x in <container>` sugar.
 // Contract:
-//   oren_iter_next(container, idx:int) -> [ok:int, value]
+//   oren_iter_next(container, idx:int, out_pair:list|nil) -> [ok:int, value]
 // Where ok is 1 when a value exists, 0 when iteration is complete.
 //
 // v0 iteration rules:
 // - list: yields elements (idx 0..len-1)
 // - map: yields keys in deterministic key order (idx 0..count-1)
 // - string: yields byte codepoints (unsigned 0..255), stops at NUL terminator
-OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
+static OrenValue iter_fill_pair(OrenValue out_pair, OrenValue okv, OrenValue val) {
+    if (out_pair.type == OREN_TYPE_LIST && out_pair.as.list_val) {
+        OrenList* l = out_pair.as.list_val;
+        if (l->capacity >= 2 && l->items) {
+            if (l->count < 2) l->count = 2;
+            l->items[0] = okv;
+            l->items[1] = val;
+            return out_pair;
+        }
+    }
+    return oren_new_list(2, okv, val);
+}
+
+OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair) {
     if (idx.type != OREN_TYPE_INT) {
-        oren_panic("iter_next expects (container, int idx)");
+        oren_panic("iter_next expects (container, int idx, list|nil out_pair)");
         return OREN_NIL; // Should not be reached
     }
 
     long long i = idx.as.int_val;
     if (i < 0) {
-        return oren_new_list(2, oren_int(0), OREN_NIL);
+        return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
     }
 
     // Typed buffer "view" lists (rolling, HPC):
@@ -1415,13 +1428,13 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
                 OrenValue lenv = l->items[2];
                 OrenValue stridev = (l->count == 4) ? l->items[3] : oren_int(1);
                 if (offv.type != OREN_TYPE_INT || lenv.type != OREN_TYPE_INT || stridev.type != OREN_TYPE_INT) {
-                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                    return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
                 }
                 long long off = offv.as.int_val;
                 long long n = lenv.as.int_val;
                 long long stride = stridev.as.int_val;
                 if (off < 0 || n < 0 || stride <= 0) {
-                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                    return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
                 }
                 if (i < n) {
                     long long elem_idx = off + i * stride;
@@ -1436,9 +1449,9 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
                         oren_panic("iter_next: buffer view load failed");
                         return OREN_NIL;
                     }
-                    return oren_new_list(2, oren_int(1), v);
+                    return iter_fill_pair(out_pair, oren_int(1), v);
                 }
-                return oren_new_list(2, oren_int(0), OREN_NIL);
+                return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
             }
         }
     }
@@ -1446,9 +1459,9 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
     if (container.type == OREN_TYPE_LIST) {
         OrenList* l = container.as.list_val;
         if (i < l->count) {
-            return oren_new_list(2, oren_int(1), l->items[(int)i]);
+            return iter_fill_pair(out_pair, oren_int(1), l->items[(int)i]);
         }
-        return oren_new_list(2, oren_int(0), OREN_NIL);
+        return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
     }
 
     if (container.type == OREN_TYPE_MAP) {
@@ -1470,14 +1483,14 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
                 long long end = endv.as.int_val;
                 long long step = stepv.as.int_val;
                 if (step == 0) {
-                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                    return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
                 }
                 long long v = start + (long long)i * step;
                 if ((step > 0 && v < end) || (step < 0 && v > end)) {
-                    return oren_new_list(2, oren_int(1), oren_int(v));
+                    return iter_fill_pair(out_pair, oren_int(1), oren_int(v));
                 }
             }
-            return oren_new_list(2, oren_int(0), OREN_NIL);
+            return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
         }
         if (it.type == OREN_TYPE_STRING && it.as.string_val && strcmp(it.as.string_val, "list_slice") == 0) {
             // Iterable map protocol (rolling): list slice view.
@@ -1493,7 +1506,7 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
                 long long off = offv.as.int_val;
                 long long n = lenv.as.int_val;
                 if (off < 0 || n < 0) {
-                    return oren_new_list(2, oren_int(0), OREN_NIL);
+                    return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
                 }
                 OrenList* l = basev.as.list_val;
                 if (off <= l->count) {
@@ -1501,37 +1514,37 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
                     if (n <= max_n && i < n) {
                         long long elem_idx = off + i;
                         if (elem_idx >= 0 && elem_idx < (long long)l->count) {
-                            return oren_new_list(2, oren_int(1), l->items[(int)elem_idx]);
+                            return iter_fill_pair(out_pair, oren_int(1), l->items[(int)elem_idx]);
                         }
                     }
                 }
             }
-            return oren_new_list(2, oren_int(0), OREN_NIL);
+            return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
         }
         OrenMap* m = container.as.map_val;
         if (i < m->count) {
-            return oren_new_list(2, oren_int(1), m->keys[(int)i]);
+            return iter_fill_pair(out_pair, oren_int(1), m->keys[(int)i]);
         }
-        return oren_new_list(2, oren_int(0), OREN_NIL);
+        return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
     }
 
     if (container.type == OREN_TYPE_STRING) {
         const unsigned char* s = (const unsigned char*)container.as.string_val;
         if (!s) {
-            return oren_new_list(2, oren_int(0), OREN_NIL);
+            return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
         }
         unsigned char ch = s[i];
         if (ch == 0) {
-            return oren_new_list(2, oren_int(0), OREN_NIL);
+            return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
         }
-        return oren_new_list(2, oren_int(1), oren_int((long long)ch));
+        return iter_fill_pair(out_pair, oren_int(1), oren_int((long long)ch));
     }
 
     // Typed numeric buffers (C backend).
     if (container.type == OREN_TYPE_U8_BUF || container.type == OREN_TYPE_I32_BUF || container.type == OREN_TYPE_I64_BUF ||
         container.type == OREN_TYPE_F32_BUF || container.type == OREN_TYPE_F64_BUF) {
         OrenBuf* b = container.as.buf_val;
-        if (!b) { return oren_new_list(2, oren_int(0), OREN_NIL); }
+        if (!b) { return iter_fill_pair(out_pair, oren_int(0), OREN_NIL); }
         if (i < (long long)b->len) {
             OrenValue v = OREN_NIL;
             OrenValue idxv = oren_int(i);
@@ -1546,9 +1559,9 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx) {
                 oren_panic("iter_next: buffer load failed");
                 return OREN_NIL;
             }
-            return oren_new_list(2, oren_int(1), v);
+            return iter_fill_pair(out_pair, oren_int(1), v);
         }
-        return oren_new_list(2, oren_int(0), OREN_NIL);
+        return iter_fill_pair(out_pair, oren_int(0), OREN_NIL);
     }
 
     oren_panic("iter_next: unsupported container type (need list/map/string/buf)");

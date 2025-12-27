@@ -15,15 +15,22 @@ fn new_range(start, end, step) {
 }
 
 impl Iterable for MyRange {
-    fn iter_next(self, idx) {
-        if idx < 0 { return [0, nil] }
-        if self.step == 0 { return [0, nil] }
-        var v = self.start + idx * self.step
-        var ok_fwd = self.step > 0 && v < self.end
-        var ok_bwd = self.step < 0 && v > self.end
-        if ok_fwd || ok_bwd {
-            return [1, v]
+    fn iter_next(self, idx, out_pair) {
+        var ok = 0
+        var val = nil
+        if idx >= 0 && self.step != 0 {
+            var v = self.start + idx * self.step
+            var ok_fwd = self.step > 0 && v < self.end
+            var ok_bwd = self.step < 0 && v > self.end
+            if ok_fwd || ok_bwd {
+                ok = 1
+                val = v
+            }
         }
-        return [0, nil]
+        var out = out_pair
+        if out == nil { out = [0, nil] }
+        out[0] = ok
+        out[1] = val
+        return out
     }
 }

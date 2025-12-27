@@ -116,10 +116,10 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 ## Archived (2025-12-21) — Iteration model v1: `Iterable` trait extension (static-first, no vtables)
 
 - Kept the v0 iteration ABI/hook intact:
-  - `for x in it { ... }` still relies on the `oren_iter_next(container, idx)` contract.
+  - `for x in it { ... }` still relies on the `oren_iter_next(container, idx, out_pair)` contract.
 - Added a v1 extension point for **custom deterministic iterables** without runtime vtables:
   - If the iterable is a **bare identifier** and has a known type annotation, the compiler may rewrite:
-    - `oren_iter_next(it, idx)` → `__oren_impl__Iterable__<Type>__iter_next(it, idx)` when an impl exists.
+    - `oren_iter_next(it, idx, out_pair)` → `__oren_impl__Iterable__<Type>__iter_next(it, idx, out_pair)` when an impl exists.
   - This is implemented as a whole-program lowering rule (impl lowering pass), so it works across modules.
 - For-loop desugaring optimization:
   - For identifier iterables, the compiler no longer stashes the container inside the internal `@forin_*` state list,
@@ -689,7 +689,7 @@ Focus statement (to avoid roadmap thrash):
 13) **`for x in ...` must be generic (rolling iterator hook)**
    - Goal: `for <name> in <iterable> { ... }` works uniformly across backends and container types needed for stdlib work.
    - Current implementation (rolling):
-     - parser desugars to a `for init; cond; post { ... }` that calls `oren_iter_next(container, idx) -> [ok:int, value]`.
+     - parser desugars to a `for init; cond; post { ... }` that calls `oren_iter_next(container, idx, out_pair) -> [ok:int, value]`.
      - Implemented across:
        - native backend runtime (`lib/runtime_native.oren`): list/map/string
        - C backend runtime (`lib/runtime.c`): list/map/string

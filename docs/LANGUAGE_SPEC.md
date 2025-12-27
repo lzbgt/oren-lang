@@ -521,9 +521,10 @@ Implementation note (current compiler):
 - `for <name>: <Type> in <iterable> { ... }` is the same, with an annotation on the loop binding:
   - in v0 this does **not** require `<iterable>` to be homogeneous
   - it is primarily for readability, tooling, and future type-checking
-  - It is a source-level desugaring that relies on a runtime hook `oren_iter_next(iterable, idx)`.
+  - It is a source-level desugaring that relies on a runtime hook `oren_iter_next(iterable, idx, out_pair)`.
   - Iterator hook contract:
-    - `oren_iter_next(container, idx:int) -> [ok:int, value]`
+    - `oren_iter_next(container, idx:int, out_pair:list|nil) -> [ok:int, value]`
+    - `out_pair` is a reusable list buffer (length ≥ 2) used to avoid per-iteration allocations
     - `ok == 1` means `value` is valid for this `idx`
     - `ok == 0` means iteration is complete
   - Current container coverage (rolling):
@@ -551,11 +552,11 @@ Implementation note (current compiler):
   - Trait-based iterable extension (rolling v1, static-first, no vtables):
     - If the loop iterable is a **bare identifier** (e.g. `for x in it { ... }`) and `it` has a known
       type annotation in scope, the compiler may rewrite the underlying iterator hook call:
-      - source desugaring: `oren_iter_next(it, idx)`
-      - rewrite (if available): `__oren_impl__Iterable__<Type>__iter_next(it, idx)`
+      - source desugaring: `oren_iter_next(it, idx, out_pair)`
+      - rewrite (if available): `__oren_impl__Iterable__<Type>__iter_next(it, idx, out_pair)`
     - To opt in, define:
-      - `trait Iterable { fn iter_next(self, idx); }`
-      - `impl Iterable for MyType { fn iter_next(self, idx) { ... } }`
+      - `trait Iterable { fn iter_next(self, idx, out_pair); }`
+      - `impl Iterable for MyType { fn iter_next(self, idx, out_pair) { ... } }`
     - This allows custom deterministic iterables (streams/ranges/adaptors) without adding runtime value kinds,
       and without runtime vtables in hot loops.
     - If no `Iterable` impl is present, behavior falls back to the normal v0 hook (`oren_iter_next`).

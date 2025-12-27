@@ -193,7 +193,8 @@ for x: i32 in xs { ... }
 
 This is **source-level sugar** that desugars into repeated calls to the runtime hook:
 
-- `oren_iter_next(iterable, idx) -> [ok:int, value]`
+- `oren_iter_next(iterable, idx, out_pair) -> [ok:int, value]`
+  - `out_pair` is a reusable list buffer (length ≥ 2) used to avoid per-iteration allocations
   - `ok == 1` means “yield `value`”
   - `ok == 0` means “stop iteration”
 
@@ -205,7 +206,7 @@ In rolling mode, Oren also supports a static-first trait extension for iteration
 
 ```oren
 trait Iterable {
-    fn iter_next(self, idx)
+    fn iter_next(self, idx, out_pair)
 }
 ```
 
@@ -214,18 +215,24 @@ If the loop iterable is a bare identifier and an `impl Iterable for <Type>` exis
 Practical example (range-like iterable):
 
 ```oren
-trait Iterable { fn iter_next(self, idx) }
+trait Iterable { fn iter_next(self, idx, out_pair) }
 
 struct MyRange { start: i32, end: i32, step: i32 }
 
 impl Iterable for MyRange {
-    fn iter_next(self, idx) {
-        if idx < 0 { return [0, nil] }
-        if self.step == 0 { return [0, nil] }
-        var v = self.start + idx * self.step
-        var ok = (self.step > 0 && v < self.end) || (self.step < 0 && v > self.end)
-        if ok { return [1, v] }
-        return [0, nil]
+    fn iter_next(self, idx, out_pair) {
+        var ok = 0
+        var val = nil
+        if idx >= 0 && self.step != 0 {
+            var v = self.start + idx * self.step
+            var ok2 = (self.step > 0 && v < self.end) || (self.step < 0 && v > self.end)
+            if ok2 { ok = 1; val = v }
+        }
+        var out = out_pair
+        if out == nil { out = [0, nil] }
+        out[0] = ok
+        out[1] = val
+        return out
     }
 }
 
@@ -597,7 +604,7 @@ var tail = list.slice_copy(xs, 1, n - 1)
 
 #### Slice views (cheap; iterable-only)
 
-`list.slice_view(xs, off, n)` returns an “iterable map” consumed by `for x in it {}` via the runtime hook `oren_iter_next(container, idx)`.
+`list.slice_view(xs, off, n)` returns an “iterable map” consumed by `for x in it {}` via the runtime hook `oren_iter_next(container, idx, out_pair)`.
 
 This is designed for “fast iteration without copy”:
 
