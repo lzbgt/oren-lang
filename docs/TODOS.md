@@ -25,6 +25,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added minimal x64 bring-up backend (`--backend native --arch x64`) that can compile a tiny `fn main(){return 0}` program.
    - Status: added Linux x86_64 ELF emitter (`lib/compiler/x64_elf.oren`) and Windows PE32+ emitter with import table for `kernel32!ExitProcess` (`lib/compiler/x64_pe.oren`).
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
+   - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).
    - Next: implement full x64 statement/expression lowering parity with arm64 backend (loops, locals, calls, ptr ops, lists, floats/SIMD).
    - Next: implement x64 syscall intrinsics for Linux (syscall instruction ABI) and Win32 imports for IO (`WriteFile`, `GetStdHandle`) so the injected native runtime can run on x64.
    - Next: add remote-run smoke gate using Win11 OpenSSH + WSL2 when `OREN_REMOTE_RUN=1` is set (keep CI deterministic by default).
