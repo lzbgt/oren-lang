@@ -220,6 +220,96 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         err(ctx, "x64 native v0: unknown var " + name)
         return nil
     }
+    if t == "Index" {
+        // Index expression `xs[i]`.
+        //
+        // In the current x64 bring-up subset we only support list indexing
+        // (maps/strings/bytes will come later with runtime injection).
+        var left = expr["left"]
+        var idx = expr["index"]
+        if left == nil || idx == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
+
+        var tmp0 = locals["$tmp0"]
+        if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for index"); return nil }
+
+        // Eval container -> rax; spill
+        _emit_eval_int_to_rax(ctx, left, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
+
+        // Eval index -> rax; move to rcx
+        _emit_eval_int_to_rax(ctx, idx, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = idx
+
+        // list -> rdx
+        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
+
+        // list must be non-nil
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+        var labels = {}
+        var local_fixups = []
+        var l_list_ok = _new_label(ctx, "idx_list_non_nil")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
+        _emit_abort_exitcode(ctx, 1)
+        _emit_label(ctx, labels, l_list_ok)
+
+        // magic check: [list+24] == LIST
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+        var l_magic_ok = _new_label(ctx, "idx_list_magic_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+        _emit_abort_exitcode(ctx, 1)
+        _emit_label(ctx, labels, l_magic_ok)
+
+        // load count -> r8
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
+
+        // idx >= 0
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+        var l_idx_nonneg = _new_label(ctx, "idx_nonneg")
+        _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
+        _emit_abort_exitcode(ctx, 1)
+        _emit_label(ctx, labels, l_idx_nonneg)
+
+        // idx < count
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
+        var l_inbounds = _new_label(ctx, "idx_inbounds")
+        _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
+        _emit_abort_exitcode(ctx, 1)
+        _emit_label(ctx, labels, l_inbounds)
+
+        // buf -> r9 = *(list+16)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+
+        // buf != 0
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+        var l_buf_ok = _new_label(ctx, "idx_buf_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
+        _emit_abort_exitcode(ctx, 1)
+        _emit_label(ctx, labels, l_buf_ok)
+
+        // addr = buf + idx*8  (r10)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+        bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+
+        // load *(addr) into rax
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+
+        _patch_local_fixups(ctx, labels, local_fixups)
+        return nil
+    }
     if t == "Call" {
         var fn_expr = expr["fn"]
         var args = expr["args"]
@@ -449,16 +539,19 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
 
-        if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" {
+        if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_index_set" || nm == "oren_list_push" {
             // Implement list operations as intrinsics for x64 bring-up:
             // - no dependency on injected runtime
             // - deterministic aborts on invalid use
             //
             // Note: we keep this consistent with the native runtime layout, but we do not
             // yet emit rich panic messages here (future: unify with `oren_panic` diagnostics).
+            var is_get = (nm == "oren_list_get")
+            var is_set = (nm == "oren_list_set" || nm == "oren_index_set")
+            var is_push = (nm == "oren_list_push")
             var want = 0
-            if nm == "oren_list_get" { want = 2 }
-            else if nm == "oren_list_set" { want = 3 }
+            if is_get { want = 2 }
+            else if is_set { want = 3 }
             else { want = 2 }
             if args == nil || oren_list_len(args) != want { err(ctx, "x64 native v0: list op arity mismatch"); return nil }
 
@@ -473,13 +566,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 return nil
             }
 
-            // list -> rax, spill
+            // Evaluate args in language order (LTR) to preserve side-effect semantics.
+            //
+            // list/container -> rax, spill
             _emit_eval_int_to_rax(ctx, args[0], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_list, 0)
 
-            // For set/push: spill value now (so later address math doesn't lose it).
-            if nm == "oren_list_set" || nm == "oren_list_push" {
+            // get/set/index_set: spill idx (arg#1) now.
+            if !is_push {
+                _emit_eval_int_to_rax(ctx, args[1], locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                _emit_mov_mrbp_r64(ctx, 0 - tmp_aux, 0)
+            }
+
+            // set/index_set/push: spill value (last arg) now.
+            if is_set || is_push {
                 _emit_eval_int_to_rax(ctx, args[want - 1], locals)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
@@ -529,7 +631,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // r10 = buf
             _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 10)
 
-            if nm == "oren_list_push" {
+            if is_push {
                 // if count < cap => skip grow
                 _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_count) // r8 = count
                 _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_cap)   // r9 = cap
@@ -652,10 +754,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             // --- get / set ---
             //
-            // idx expression is args[1] for both get and set.
-            _emit_eval_int_to_rax(ctx, args[1], locals) // idx -> rax
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = idx
+            // idx is in tmp_aux
+            _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_aux) // rcx = idx
 
             // idx >= 0
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
@@ -685,14 +785,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
             bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
 
-            if nm == "oren_list_get" {
+            if is_get {
                 bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
                 bytes_extend(ctx["code"], insn_mov_rax_mrax())
                 _patch_local_fixups(ctx, labels, local_fixups)
                 return nil
             }
 
-            // set: store value and return value
+            // set/index_set: store value and return value
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val)
             bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
             _patch_local_fixups(ctx, labels, local_fixups)

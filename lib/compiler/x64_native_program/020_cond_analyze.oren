@@ -140,6 +140,35 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             i = i + 1
             continue
         }
+        if t == "Set" {
+            // Statement assignment to a non-identifier lvalue (rolling):
+            // - index assignment: xs[i] = v   ->   expr-stmt: oren_index_set(xs, i, v)
+            //
+            // Note: Member assignment (`obj.field = v`) is not part of the x64 v0 subset yet.
+            var left = st["left"]
+            var v3 = st["value"]
+            if left == nil { err(ctx, "x64 native v0: set missing left"); return nil }
+            if v3 == nil { err(ctx, "x64 native v0: set missing value"); return nil }
+
+            if left["type"] == "Index" {
+                var recv = left["left"]
+                var idx = left["index"]
+                if recv == nil || idx == nil { err(ctx, "x64 native v0: set index missing operands"); return nil }
+                var call = {
+                    "type": "Call",
+                    "fn": {"type": "Identifier", "token": nil, "value": "oren_index_set"},
+                    "args": [recv, idx, v3],
+                }
+                _expr_int_check(ctx, call)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                oren_list_push(ops, {"op": "expr", "expr": call})
+                i = i + 1
+                continue
+            }
+
+            err(ctx, "x64 native v0: unsupported set left: " + left["type"])
+            return nil
+        }
         if t == "Return" {
             var v = st["value"]
             if v == nil { err(ctx, "x64 native v0: return missing value"); return nil }

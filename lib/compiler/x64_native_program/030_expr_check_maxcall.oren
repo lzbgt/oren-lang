@@ -83,6 +83,15 @@ fn _expr_int_check(ctx, expr) {
         _expr_int_check(ctx, r)
         return nil
     }
+    if t == "Index" {
+        var l2 = expr["left"]
+        var idx2 = expr["index"]
+        if l2 == nil || idx2 == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
+        _expr_int_check(ctx, l2)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        _expr_int_check(ctx, idx2)
+        return nil
+    }
     err(ctx, "x64 native v0: expr not supported: " + t)
     return nil
 }
@@ -117,6 +126,12 @@ fn _max_call_argc_in_expr(expr) {
     }
     if t == "Prefix" {
         return _max_call_argc_in_expr(expr["right"])
+    }
+    if t == "Index" {
+        var ml = _max_call_argc_in_expr(expr["left"])
+        var mi = _max_call_argc_in_expr(expr["index"])
+        if mi > ml { return mi }
+        return ml
     }
     if t == "If" {
         // Conservative: if-expr isn't part of the x64 v0 expression surface yet, but keep it safe.

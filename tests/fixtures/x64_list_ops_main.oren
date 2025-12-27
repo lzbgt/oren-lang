@@ -15,11 +15,10 @@ fn main() {
     }
 
     if oren_list_len(xs) != 10 { return 1 }
-    if oren_list_get(xs, 5) != 5 { return 2 }
+    if xs[5] != 5 { return 2 }
 
-    oren_list_set(xs, 5, 99)
-    if oren_list_get(xs, 5) != 99 { return 3 }
+    xs[5] = 99
+    if xs[5] != 99 { return 3 }
 
     return 0
 }
-
