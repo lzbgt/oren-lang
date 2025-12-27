@@ -27,6 +27,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added x64 comparison coverage for `<, <=, >, >=` (build fixtures + opt-in remote-run exit code).
    - Status: x64 comparisons now support non-trivial RHS expressions (not only identifiers/integers) via a dedicated spill slot (`x64_cmp_expr_rhs_main.oren`).
    - Status: x64 now supports compare-as-expression (returns `0/1`) and prefix `!` as an expression via `cmp` + `setcc` lowering (`x64_cmp_expr_value_main.oren`, `x64_not_expr_value_main.oren`).
+   - Status: x64 now supports short-circuit `&&` / `||` (RHS is not evaluated when not needed), returning normalized `0/1` (`x64_and_or_short_circuit_main.oren`).
    - Status: added x64 coverage for `else if` chains, `while <` loops, and negative signed comparisons (fixtures + build checks + opt-in remote-run exit codes).
    - Status: x64 lowering now supports Prefix unary `-` and `~` for integer expressions (fixtures + build checks + opt-in remote-run exit code).
    - Status: added Linux x86_64 ELF emitter (`lib/compiler/x64_elf.oren`) and Windows PE32+ emitter with import table for `kernel32!ExitProcess` (`lib/compiler/x64_pe.oren`).

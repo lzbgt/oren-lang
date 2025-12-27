@@ -1744,6 +1744,43 @@ func main() {
 			},
 		},
 		{
+			name: "native_x64_and_or_short_circuit_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_and_or_short_circuit_main.oren",
+				"build/x64_and_or_short_circuit_linux",
+				"build/x64_and_or_short_circuit_linux.build.out",
+				"build/x64_and_or_short_circuit_linux",
+				"build/x64_and_or_short_circuit_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_and_or_short_circuit_linux.file.out",
+				"x86-64",
+				"build/x64_and_or_short_circuit_linux.file.out",
+				"tests/fixtures/x64_and_or_short_circuit_main.oren",
+				"build/x64_and_or_short_circuit_win.exe",
+				"build/x64_and_or_short_circuit_win.build.out",
+				"build/x64_and_or_short_circuit_win.exe",
+				"build/x64_and_or_short_circuit_win.file.out",
+				"PE32+",
+				"build/x64_and_or_short_circuit_win.file.out",
+				"x86-64",
+				"build/x64_and_or_short_circuit_win.file.out",
+			),
+			log: "build/logs/native_x64_and_or_short_circuit_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_and_or_short_circuit_linux",
+				"build/x64_and_or_short_circuit_linux.build.out",
+				"build/x64_and_or_short_circuit_linux.file.out",
+				"build/x64_and_or_short_circuit_win.exe",
+				"build/x64_and_or_short_circuit_win.build.out",
+				"build/x64_and_or_short_circuit_win.file.out",
+			},
+		},
+		{
 			name: "native_x64_fnptr_call_builds",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+

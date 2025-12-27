@@ -515,7 +515,7 @@ fn _expr_int_check(ctx, expr) {
     }
     if t == "Infix" {
         var op = expr["op"]
-        if op != "+" && op != "-" && op != "*" && op != "==" && op != "!=" && op != "<" && op != "<=" && op != ">" && op != ">=" {
+        if op != "+" && op != "-" && op != "*" && op != "==" && op != "!=" && op != "<" && op != "<=" && op != ">" && op != ">=" && op != "&&" && op != "||" {
             err(ctx, "x64 native v0: infix op not supported: " + op)
             return nil
         }
@@ -711,6 +711,61 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var op = expr["op"]
         var l = expr["left"]
         var r = expr["right"]
+        if op == "&&" || op == "||" {
+            // Short-circuit boolean operators.
+            //
+            // Semantics: truthiness, but result is normalized to 0/1 in RAX.
+            //
+            // NOTE: we patch the local Jcc/Jmp fixups immediately within this expression
+            // lowering, so callers don't need to plumb label/fixup state.
+            var labels = {}
+            var local_fixups = []
+            var l_short = _new_label(ctx, "sc_l")
+            var end = _new_label(ctx, "sc_end")
+
+            _emit_eval_int_to_rax(ctx, l, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+
+            if op == "&&" {
+                // if lhs == 0 => result 0, skip rhs
+                _emit_jcc_to_label(ctx, local_fixups, "e", l_short)
+
+                _emit_eval_int_to_rax(ctx, r, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_setcc_al("ne"))
+                bytes_extend(ctx["code"], insn_cdqe())
+                _emit_jmp_to_label(ctx, local_fixups, end)
+
+                _emit_label(ctx, labels, l_short)
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_cdqe())
+                _emit_label(ctx, labels, end)
+                _patch_local_fixups(ctx, labels, local_fixups)
+                return nil
+            }
+
+            // op == "||"
+            // if lhs != 0 => result 1, skip rhs
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_short)
+
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_setcc_al("ne"))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_jmp_to_label(ctx, local_fixups, end)
+
+            _emit_label(ctx, labels, l_short)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_label(ctx, labels, end)
+            _patch_local_fixups(ctx, labels, local_fixups)
+            return nil
+        }
         if _cond_is_cmp_infix(expr) != nil {
             // Compare-expression lowering: result is 0/1 in RAX (bool-as-int).
             _emit_cmp_from_cond(ctx, expr, locals)

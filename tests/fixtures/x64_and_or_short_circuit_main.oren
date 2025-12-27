@@ -1,0 +1,19 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises short-circuit `&&` / `||` (must not evaluate RHS when not needed)
+
+fn hang() {
+    // If this runs, the program hangs.
+    while 1 { }
+    return 0
+}
+
+fn main() {
+    // Must not call hang()
+    if false && hang() != 0 { return 10 }
+    if true || hang() != 0 { return 11 }
+
+    // Must evaluate RHS when needed
+    var a = false || (1 < 2) // => 1
+    var b = true && (2 < 1)  // => 0
+    return a + b + 4
+}
