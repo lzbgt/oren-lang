@@ -122,9 +122,13 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
 
     // We'll use:
     //   .text RVA 0x1000
-    //   .rdata RVA 0x2000
+    //   .rdata RVA aligned after .text (SectAlign pages)
+    //
+    // NOTE: .rdata must not overlap .text in virtual address space. When .text grows beyond
+    // 1 page, the next section RVA must advance accordingly (Windows loader rejects overlap).
     var text_rva = 4096
-    var rdata_rva = 8192
+    var text_vsize = oren_list_len(code)
+    var rdata_rva = text_rva + align_up(text_vsize, sect_align)
 
     // Patch thunk entries with RVA to hint/name.
     var hn_exit_rva = rdata_rva + off_hint_exit

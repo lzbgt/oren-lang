@@ -92,6 +92,17 @@ fn _expr_int_check(ctx, expr) {
         _expr_int_check(ctx, idx2)
         return nil
     }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els == nil { return nil }
+        var i = 0
+        while i < oren_list_len(els) {
+            _expr_int_check(ctx, els[i])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i = i + 1
+        }
+        return nil
+    }
     err(ctx, "x64 native v0: expr not supported: " + t)
     return nil
 }
@@ -132,6 +143,17 @@ fn _max_call_argc_in_expr(expr) {
         var mi = _max_call_argc_in_expr(expr["index"])
         if mi > ml { return mi }
         return ml
+    }
+    if t == "Array" {
+        var m = 0
+        var els = expr["elements"]
+        var i = 0
+        while els != nil && i < oren_list_len(els) {
+            var mi = _max_call_argc_in_expr(els[i])
+            if mi > m { m = mi }
+            i = i + 1
+        }
+        return m
     }
     if t == "If" {
         // Conservative: if-expr isn't part of the x64 v0 expression surface yet, but keep it safe.

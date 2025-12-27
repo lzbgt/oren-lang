@@ -119,7 +119,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // These are intentionally generic so future intrinsic lowering doesn't need to keep
     // growing the reserved namespace (keeps ABI stable while the backend evolves).
     var ti = 1
-    while ti <= 6 {
+    while ti <= 8 {
         var tnm = "$tmp" + oren_int_to_string(ti)
         if locals[tnm] != nil { err(ctx, "x64 native v0: reserved local name " + tnm + " used"); return nil }
         locals[tnm] = local_next

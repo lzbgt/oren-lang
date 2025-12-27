@@ -310,6 +310,46 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         _patch_local_fixups(ctx, labels, local_fixups)
         return nil
     }
+    if t == "Array" {
+        // List literal `[a, b, c]`.
+        //
+        // Rolling x64 v0: represent arrays as native lists and build them via list intrinsics.
+        var els = expr["elements"]
+        if els == nil { els = [] }
+
+        var tmp_list = locals["$tmp7"]
+        if tmp_list == nil { err(ctx, "x64 native v0: missing $tmp7 slot for array literal"); return nil }
+
+        // list = oren_new_list(len)
+        var cap = oren_list_len(els)
+        var new_call = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
+            "args": [{"type": "Integer", "value": oren_int_to_string(cap)}],
+        }
+        _emit_eval_int_to_rax(ctx, new_call, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_list, 0)
+
+        // Push elements in order; store back the list pointer after each push to keep it future-proof
+        // if `oren_list_push` ever returns a different header (today it does not).
+        var i = 0
+        while i < cap {
+            var push_call = {
+                "type": "Call",
+                "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push"},
+                "args": [{"type": "Identifier", "token": nil, "value": "$tmp7"}, els[i]],
+            }
+            _emit_eval_int_to_rax(ctx, push_call, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_list, 0)
+            i = i + 1
+        }
+
+        // return list
+        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_list)
+        return nil
+    }
     if t == "Call" {
         var fn_expr = expr["fn"]
         var args = expr["args"]
