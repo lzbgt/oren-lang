@@ -52,15 +52,18 @@ Take NativeIR + ABI and emit machine code:
 
 This is where register allocation lives (even a simple stack-machine allocator can be shared at the IR level).
 
-## 2) Why “args4” matters, even with varargs in the language
+## 2) Win64 has 4 int arg registers (not a language limitation)
 
-Varargs (`...rest`) is a **language-level feature**, but implementing it in native backends depends on:
+Oren supports **first-class functions** and **varargs** (`fn f(...rest)` + `f(xs...)`) at the language level.
 
-- A correct fixed-arg ABI mapping first (including “extended” arg registers like `r8d/r9d` on Windows x64).
-- A stable strategy for packing/rest arguments (typically into a `list`) and calling the underlying function or wrapper.
-- Runtime/list support parity on the backend (to build the list deterministically).
+The *native backend* still must map those semantics to platform ABIs:
 
-So “args4” is not a goal by itself; it is a correctness milestone that proves our ABI layer handles the full register-arg set for Win64 and makes varargs implementation much less risky.
+- **Linux x86_64 SysV**: 6 integer arg registers (`rdi, rsi, rdx, rcx, r8, r9`)
+- **Windows x64 (Win64 ABI)**: 4 integer arg registers (`rcx, rdx, r8, r9`) + mandatory 32B shadow space
+
+So the “4 args” constraint is a *cross-target bring-up constraint* (Win64 is the smallest Tier‑1 integer-reg arg set), not something “special” about Oren or varargs.
+
+For a future-proof design, varargs/closures/indirect calls should be implemented via a **uniform callable ABI** (typically `args_list` based, plus `env_ptr` for closures) so higher-level features do not depend on the fixed-arg register limit of any single OS ABI.
 
 ## 3) Near-term work items
 
@@ -71,4 +74,3 @@ So “args4” is not a goal by itself; it is a correctness milestone that prove
 2. Move current x64 ABI hardcoding to those tables (arg regs, shadow space, alignment).
 3. Start extracting common lowering logic (statements/expressions) into a shared pass producing NativeIR, then hook it up to arm64 and x64 emitters.
 4. Add fixtures that validate ABI-sensitive behavior (multi-arg, nested calls, spill correctness, alignment-sensitive calls).
-

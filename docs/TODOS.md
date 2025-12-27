@@ -104,7 +104,14 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 ### P1 (Soon)
 
-1) **SIMD intrinsic tail + microkernel correctness** (M)
+1) **Backend architecture unification (CoreIR + canonical runtime ABI)** (L)
+   - Status: added `docs/BACKEND_ARCHITECTURE.md` to define the SOLID layering and “one semantics, many backends” direction.
+   - Status: updated `docs/ROADMAP.md` to treat x86_64 as Tier‑1 alongside arm64 (rolling), so platform goals match implementation reality.
+   - Status: updated `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md` to clarify Win64’s 4 integer arg registers is a platform ABI fact (not an Oren limitation).
+   - Next: define a canonical **CoreIR** boundary and migrate closure/varargs/container-op lowering into it so C/native/bytecode all share semantics.
+   - Next: converge all backends on the same callable model (`code_ptr + env_ptr`, `args_list` calling) and use wrappers only as an optimization layer.
+
+2) **SIMD intrinsic tail + microkernel correctness** (M)
    - Status: intrinsic-level tail determinism tests added for `simd_dot_f32_ptr`, `simd_dot_f32_4_ptr`, and `simd_gemm_f32_4x4_ptr`; runtime now uses the single-pass microkernels.
    - Status: added NaN/Inf edge-case coverage for `simd_dot_f32_ptr` (native) ensuring Inf stays Inf (bit-stable) and NaN propagates as NaN (checked by NaN-ness, not payload).
    - Status: added NaN/Inf edge-case coverage for `simd_dot_f32_4_ptr` (native) to ensure lane-local Inf and NaN propagate deterministically.
@@ -114,11 +121,11 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added NaN/Inf edge-case coverage for `simd_gemm_f32_4x4_ptr` (native) to ensure per-row NaN propagation and Inf stability are deterministic.
    - DoD: broaden coverage (NaN/Inf/sign-bit edge cases, large `n`) and keep macOS+Linux parity for these intrinsics.
 
-2) **Repo-wide grammar modernization + audits** (L)
+3) **Repo-wide grammar modernization + audits** (L)
    - Status: repo scans show no remaining `.oren` uses of legacy paren-forms (`if (...)`, `while (...)`, `for (...)`, `match (...)`, `switch (...)`); `oretest` blocks regressions.
    - Next: keep the allowlist tiny and explicit; add a targeted rule only when a new legacy pattern is discovered in `docs/` or via a regression.
 
-3) **Native networking hardening** (M)
+4) **Native networking hardening** (M)
    - Status: added deterministic timeout coverage to the curated native integration suite:
      - TCP: `oren_tcp_accept(..., 10)` returns `-ETIMEDOUT` when no clients connect.
      - UDP: `oren_udp_recvfrom_into(..., 10)` returns `-ETIMEDOUT` when no datagrams arrive.
@@ -131,7 +138,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added regression coverage ensuring single-fd waits (`oren_fd_wait_readable(fd, -1)`) also treat negative timeouts as 0ms (no wait).
    - DoD: expand syscall-first TCP/UDP readiness + timeouts, keep capsule gating comprehensive on both macOS and Linux.
 
-4) **Docs parity pass** (S)
+5) **Docs parity pass** (S)
    - Status: fixed `docs/LANGUAGE_SPEC.md` to include `%` (modulo) in the infix operator grammar + precedence list (matches the compiler’s token set).
    - Status: updated `docs/LANGUAGE_SPEC.md` EBNF to include `for <name>[:Type] in <expr> { ... }` iterator sugar (matches the parser implementation).
    - Status: updated `docs/LANGUAGE_MANUAL.md` examples to avoid legacy `if (...)` statement form.
@@ -143,11 +150,11 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: refreshed repo `AGENTS.md` with clearer rolling workflow rules (verification policy, large-file strategy, web research capture, secret handling).
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
 
-5) **HPC perf harness + linalg/math maturation** (M)
+6) **HPC perf harness + linalg/math maturation** (M)
    - Status: initial matmul f32 benchmark harness exists under `tools/bench/` and now uses modern CLI forms.
    - DoD: expand bench coverage (dot/axpy/gemm variants), add result reporting, and validate SIMD kernels against a scalar reference for correctness + determinism.
 
-6) **Self-hosting hardening (rolling stability gates)** (S)
+7) **Self-hosting hardening (rolling stability gates)** (S)
    - Status: Stage0→Stage1→Stage2 pipeline exists and is exercised by `make test` (see `docs/SELF_HOSTING.md`).
    - Status: Stage0 bootstrap transpiler now resolves `std:` imports (keeps the language/compiler evolution path unblocked).
    - Status: Stage0 bootstrap lexer now supports modern numeric literals (`0x`/`0b`/`0o`, `_` separators, scientific notation) to avoid bootstrap breakage when Stage1 sources use them.

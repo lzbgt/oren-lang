@@ -18,14 +18,18 @@ Agentic/production constraints that drive prioritization (rolling mode):
 ## Mitigation Strategies (Addressing Disadvantages)
 - **Runtime Performance**: Move from stack-machine codegen to a Register Allocator (Linear Scan or Graph Coloring) and keep a simple optimization pipeline (const-folding, DCE, peepholes) to close the perf gap with Zig/C.
 - **Platform Limitations (rolling stance)**:
-  - native backend focus is **macOS arm64 and Linux arm64** until the syscall-first runtime model is stable.
-  - x86_64 and WASM are considered **future** targets; they must not drive early architecture decisions or block progress on syscall-first + determinism.
+  - Tier‑1 native targets are **arm64** (macOS/Linux) and **x86_64** (Linux/Windows). Both are treated as first-class targets for the compiler toolchain.
+  - Even with Tier‑1 x86_64, **syscall-first runtime semantics + determinism** remain the architectural drivers: new ISA/OS work must not regress capsule governance, record/replay, or cross-backend semantic parity.
 - **Safety**: Transition from conservative stack scanning to **Precise GC** using stack maps generated at compile-time. This prevents integers from being mistaken for pointers (leaks) and enables moving collectors.
 - **Ecosystem Split**: Define a `core` library subset that is guaranteed to work in `--no-gc` mode. Standard library modules will be explicitly marked if they require the managed heap.
 
 ## Phase 1
 - **Memory/GC**: [DONE] Implemented conservative stack scanning and thread registry. Next: Upgrade to **Precise GC** with stack maps, add safepoints and per-frame roots. Refine collection locking.
 - **Architecture**: Keep native backend architecture clean so new targets can be added later, but do not spend effort on new CPU/OS targets until syscall-first runtime surfaces are stable.
+- **Tier‑1 parity**: keep arm64 and x86_64 aligned on:
+  - callable/closure semantics
+  - runtime-injection surface (lists/maps/strings, capsule gating)
+  - test strategy (fixtures + opt-in remote runs)
 - **Concurrency**: [IN PROGRESS] Core threading primitives foundation (Thread Registry). Implementing IPC (Pipes). Next: `spawn` intrinsic (Linux clone/macOS bsdthread_create), channels/queues, atomics; ensure runtime data structures are thread-safe.
 - **FFI/Linking**: [DONE] Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding and GOT stubs. Linux `DT_NEEDED`/PLT pending but architecture is shared.
 - **Native backend**: Managed struct allocation in the native runtime (done). Global variable support (done). Next: register allocator groundwork (IR definition).
@@ -35,6 +39,7 @@ Agentic/production constraints that drive prioritization (rolling mode):
 - **Syscall-first OS boundary**: expand/lock `sys_*` surface (FS/PROC/ENV/TIME + NET) and keep all core runtime services behind it.
 - **Native TCP/IP (macOS arm64)**: minimal socket/connect/send/recv + timeout/cancellation story.
 - **Linux arm64 parity**: implement the same syscall surface and run smoke tests on the trusted QEMU host early and continuously.
+- **x86_64 Tier‑1 parity**: validate on real x86_64 continuously (Win11 + WSL2 remote host; see `docs/REMOTE_X64_ENV.md`).
 
 ## Phase 2
 - **Optimization**: Implement **Register Allocation** (replace stack PUSH/POP with usage of X0-X28). Add basic inlining and const-prop.
