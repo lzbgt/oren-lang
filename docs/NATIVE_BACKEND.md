@@ -7,6 +7,26 @@ The native backend emits machine code directly for:
 
 The x86_64 backend is a Tier-1 target, but is still in rolling evolution; `docs/TODOS.md` tracks what is implemented today and what is next.
 
+## ABI Notes (x86_64 SysV vs Win64)
+
+Oren the language supports first-class functions and varargs; any “arg count” limits you see in
+bring-up fixtures are **ABI facts**, not language constraints.
+
+- **Linux x86_64 SysV ABI** (ELF):
+  - integer args in registers: `rdi, rsi, rdx, rcx, r8, r9` (6 regs)
+  - return value: `rax`
+  - stack: 16-byte aligned at call boundaries
+- **Windows x64 (Win64 ABI)** (PE32+):
+  - integer args in registers: `rcx, rdx, r8, r9` (4 regs)
+  - return value: `rax`
+  - caller must reserve **32 bytes of shadow space** for every call
+  - stack: 16-byte aligned at call boundaries
+
+Rolling note:
+
+- If you see fixture names like “args4”, it’s usually targeting the smallest Tier‑1 integer-reg arg set
+  (Win64’s 4) to keep cross-OS ABI coverage honest.
+
 ## Supported Features
 
 - **Executable Formats**:
@@ -93,3 +113,19 @@ make verify # Run full self-hosting test
   - `X28`: Heap Pointer (Global).
   - `X27`: Heap Limit (Global).
   - `FP (X29)`, `LR (X30)`, `SP`: Standard usage.
+
+## Why some x86_64 helpers use 32-bit ops (e.g. `eax`) even though the arch is 64-bit
+
+On x86_64, writing a 32-bit subregister (like `eax`) has two important properties:
+
+1) **Encoding size / immediates**: many instructions have a smaller encoding for imm32 forms.
+2) **Architectural behavior**: writes to a 32-bit register zero-extend into the full 64-bit register.
+
+When Oren wants a *signed* i32 value in `rax`, a common safe sequence is:
+
+- `mov eax, imm32` (loads 32-bit value)
+- `cdqe` (sign-extend `eax` → `rax`)
+
+This is not a type-system statement (“int is i32”), it’s an emitter optimization/detail. The language-level
+`int` is still treated as a 64-bit two’s-complement value in the compiler/runtime model; the emitter just
+chooses compact encodings when they are provably correct.

@@ -328,6 +328,12 @@ Rules (rolling):
 - Only one varargs parameter is allowed, and it must be the **last** parameter.
 - The varargs binding is always a **list** (possibly empty).
 
+Note (native backends / ABI):
+
+- Some x86_64 native backend fixtures use names like “args4”. This is **not** an Oren language limit.
+  It reflects the Win64 ABI having 4 integer argument registers (`rcx, rdx, r8, r9`) versus Linux SysV
+  having 6 (`rdi, rsi, rdx, rcx, r8, r9`). The language-level varargs semantics remain list-based.
+
 Call-site spread (apply-style call):
 
 ```oren
