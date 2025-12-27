@@ -1,0 +1,14 @@
+fn foo() {
+    return 7
+}
+
+fn bar() {
+    // Tests RHS-call in infix lowering (spills lhs without touching RSP alignment).
+    return 1 + foo()
+}
+
+fn main() {
+    // Tests call+call infix lowering (spills lhs, calls rhs).
+    return foo() + bar()
+}
+

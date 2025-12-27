@@ -1,12 +1,18 @@
-# Native Backend (ARM64)
+# Native Backend (ARM64 + x86_64 bring-up)
 
-The native backend emits machine code directly for macOS (Mach-O) and Linux (ELF) on ARM64 architectures.
+The native backend emits machine code directly for:
+
+- **ARM64** (primary): macOS (Mach-O) and Linux (ELF)
+- **x86_64** (rolling bring-up): Linux (ELF) and Windows (PE32+)
+
+The x86_64 backend is intentionally minimal while it is being brought up (see `docs/TODOS.md` for the current supported subset and roadmap).
 
 ## Supported Features
 
 - **Executable Formats**:
   - **macOS**: Mach-O 64-bit, PIE. Supports dynamic linking with `libSystem` (FFI) via `LC_DYLD_INFO_ONLY` binding opcodes and GOT stubs. The CLI signs the finished binary with your Developer ID by default.
   - **Linux**: ELF 64-bit (`ET_EXEC`) with a minimal single `PT_LOAD` image (no dynamic section / no dynamic linker integration yet).
+  - **Windows (x86_64 bring-up)**: PE32+ with a minimal import table for `kernel32` and a small `.rdata` blob for string literals.
 
 - **Language Features**:
   - **Control Flow**: `if/else`, `while`, `Block`, `Return`.

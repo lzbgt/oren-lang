@@ -353,11 +353,11 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
     return ops
 }
 
-fn _analyze_supported_main_body(ctx, fn_node) {
+fn _analyze_supported_fn_body(ctx, fn_node) {
     var body = fn_node["body"]
-    if body == nil { err(ctx, "x64 native v0: main has no body"); return nil }
+    if body == nil { err(ctx, "x64 native v0: function has no body"); return nil }
     if body["type"] != "Block" {
-        err(ctx, "x64 native v0: main body must be Block")
+        err(ctx, "x64 native v0: function body must be Block")
         return nil
     }
     var ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
@@ -381,19 +381,31 @@ fn _expr_i32_check(ctx, expr) {
         return nil
     }
     if t == "Identifier" { return nil }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var args = expr["args"]
+        if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
+        if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: calls do not support args yet"); return nil }
+        var nm = fn_expr["value"]
+        if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+        var declared = ctx["declared_functions"]
+        if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
+        return nil
+    }
     if t == "Infix" {
         var op = expr["op"]
         if op != "+" && op != "-" && op != "*" { err(ctx, "x64 native v0: infix op not supported: " + op); return nil }
         var l = expr["left"]
         var r = expr["right"]
-        if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier") {
-            err(ctx, "x64 native v0: infix left must be Integer or Identifier")
+        if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier" && l["type"] != "Call") {
+            err(ctx, "x64 native v0: infix left must be Integer, Identifier, or Call")
             return nil
         }
-        if r == nil || (r["type"] != "Integer" && r["type"] != "Identifier") {
-            err(ctx, "x64 native v0: infix right must be Integer or Identifier")
+        if r == nil || (r["type"] != "Integer" && r["type"] != "Identifier" && r["type"] != "Call") {
+            err(ctx, "x64 native v0: infix right must be Integer, Identifier, or Call")
             return nil
         }
+        if op == "*" && r["type"] != "Integer" { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
         _expr_i32_check(ctx, l)
         _expr_i32_check(ctx, r)
         return nil
@@ -423,6 +435,20 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(0, disp8))
         return nil
     }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var args = expr["args"]
+        if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
+        if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: calls do not support args yet"); return nil }
+        var nm = fn_expr["value"]
+        if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+        var declared = ctx["declared_functions"]
+        if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
+        var call_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
+        return nil
+    }
     if t == "Infix" {
         var op = expr["op"]
         var l = expr["left"]
@@ -442,6 +468,21 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
             if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
             var disp82 = core.int_mod(0 - off2, 256)
             bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(2, disp82)) // edx = rhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r32_r32(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r32_r32(0, 2)) }
+            else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
+            return nil
+        }
+        if r != nil && r["type"] == "Call" {
+            var tmp_off = locals["$tmp0"]
+            if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for calls"); return nil }
+            var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
+            // Spill left to stack temp, evaluate RHS call into EAX, then combine.
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(tmp_disp8, 0)) // [tmp] = eax
+            _emit_eval_i32_to_eax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r32_r32(2, 0)) // edx = rhs (eax)
+            bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(0, tmp_disp8)) // eax = lhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r32_r32(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r32_r32(0, 2)) }
             else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
@@ -552,7 +593,7 @@ fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
     return local_next
 }
 
-fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
+fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var j = 0
     while ops != nil && j < oren_list_len(ops) {
         var op = ops[j]
@@ -601,11 +642,11 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             if false_cc == nil { err(ctx, "x64 native v0: unsupported if op"); return nil }
             _emit_jcc_to_label(ctx, local_fixups, false_cc, else_label)
 
-            _emit_ops_in_main(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+            _emit_ops_in_fn(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_jmp_to_label(ctx, local_fixups, end_label)
             _emit_label(ctx, labels, else_label)
-            _emit_ops_in_main(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+            _emit_ops_in_fn(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_label(ctx, labels, end_label)
         } else if op["op"] == "while" {
@@ -621,7 +662,7 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             _emit_jcc_to_label(ctx, local_fixups, w_false, end_label2)
 
             _emit_label(ctx, labels, body_label)
-            _emit_ops_in_main(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
+            _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_jmp_to_label(ctx, local_fixups, cond_label)
             _emit_label(ctx, labels, end_label2)
@@ -638,7 +679,7 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             var post_label2 = _new_label(ctx, "for_post")
             var end_label3 = _new_label(ctx, "for_end")
 
-            _emit_ops_in_main(ctx, op["init"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+            _emit_ops_in_fn(ctx, op["init"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_label(ctx, labels, cond_label2)
@@ -649,12 +690,12 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             _emit_jcc_to_label(ctx, local_fixups, f_false, end_label3)
 
             _emit_label(ctx, labels, body_label2)
-            _emit_ops_in_main(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, post_label2, end_label3)
+            _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, post_label2, end_label3)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_label(ctx, labels, post_label2)
             // Post must not use break/continue (enforced by analyzer); pass nil to be strict.
-            _emit_ops_in_main(ctx, op["post"], locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+            _emit_ops_in_fn(ctx, op["post"], locals, labels, local_fixups, epilogue_label, platform, nil, nil)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_jmp_to_label(ctx, local_fixups, cond_label2)
@@ -721,6 +762,89 @@ fn _emit_windows_write_cstr(ctx, s) {
     return nil
 }
 
+fn _extract_functions_v0(ctx, linked) {
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    if stmts == nil { err(ctx, "x64 native v0: missing program statements"); return nil }
+
+    var out = []
+    var declared = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        var fn0 = nil
+        if st != nil {
+            if st["type"] == "Function" { fn0 = st }
+            if st["type"] == "ExprStmt" {
+                var e0 = st["expr"]
+                if e0 != nil && e0["type"] == "Function" { fn0 = e0 }
+            }
+        }
+        if fn0 != nil {
+            var name = fn0["name"]
+            if name == nil { err(ctx, "x64 native v0: function missing name"); return nil }
+            if declared[name] != nil { err(ctx, "x64 native v0: duplicate function " + name); return nil }
+            declared[name] = 1
+            var params = fn0["params"]
+            if params != nil && oren_list_len(params) != 0 { err(ctx, "x64 native v0: functions do not support params yet: " + name); return nil }
+            oren_list_push(out, fn0)
+        }
+        i = i + 1
+    }
+    ctx["declared_functions"] = declared
+    return out
+}
+
+fn _compile_function_v0(ctx, fn_node, platform) {
+    if fn_node == nil { return nil }
+    var name = fn_node["name"]
+    if name == nil { err(ctx, "x64 native v0: function missing name"); return nil }
+
+    var ops = _analyze_supported_fn_body(ctx, fn_node)
+    if ops == nil { return nil }
+
+    var fn_off = oren_list_len(ctx["code"])
+    ctx["functions"][name] = fn_off
+
+    bytes_extend(ctx["code"], insn_push_rbp())
+    bytes_extend(ctx["code"], insn_mov_rbp_rsp())
+
+    // Allocate locals + (Windows) call shadow/args area.
+    //
+    // Locals are addressed via RBP-negative offsets in 8-byte steps.
+    var locals = {}
+    var local_next = _collect_locals_from_ops(ctx, ops, locals, 8)
+    if local_next == nil { return nil }
+
+    // Reserve a spill slot so expression lowering can safely handle calls on RHS without
+    // perturbing RSP (keeps ABI alignment intact for nested calls).
+    if locals["$tmp0"] != nil { err(ctx, "x64 native v0: reserved local name $tmp0 used"); return nil }
+    locals["$tmp0"] = local_next
+    local_next = local_next + 8
+
+    var locals_size = local_next - 8
+    // Align locals area to 16.
+    while core.int_mod(locals_size, 16) != 0 { locals_size = locals_size + 1 }
+    var win_call_area = 0
+    if platform != nil && platform["os"] == "windows" { win_call_area = 64 }
+    var frame_size = locals_size + win_call_area
+    if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
+
+    var labels = {}
+    var local_fixups = []
+    var epilogue_label = _new_label(ctx, name + "_epilogue")
+    _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    _emit_label(ctx, labels, epilogue_label)
+    if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }
+    bytes_extend(ctx["code"], insn_pop_rbp())
+    bytes_extend(ctx["code"], insn_ret())
+
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
 // Compile minimal x64 program.
 //
 // Returns a ctx:
@@ -741,30 +865,9 @@ fn native_compile_program_x64_min(linked, platform) {
         "platform": platform
     }
 
-    // Find `main` node so we can support a tiny subset of statements.
-    var stmts = nil
-    if linked != nil { stmts = linked["statements"] }
-    var main_node = nil
-    if stmts != nil {
-        var i0 = 0
-        while i0 < oren_list_len(stmts) {
-            var st0 = stmts[i0]
-            var fn0 = nil
-            if st0 != nil {
-                if st0["type"] == "Function" { fn0 = st0 }
-                if st0["type"] == "ExprStmt" {
-                    var e0 = st0["expr"]
-                    if e0 != nil && e0["type"] == "Function" { fn0 = e0 }
-                }
-            }
-            if fn0 != nil && fn0["type"] == "Function" && fn0["name"] == "main" { main_node = fn0; break }
-            i0 = i0 + 1
-        }
-    }
-    if main_node == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
-
-    var ops = _analyze_supported_main_body(ctx, main_node)
-    if ops == nil { return ctx }
+    var fns = _extract_functions_v0(ctx, linked)
+    if fns == nil { return ctx }
+    if ctx["declared_functions"]["main"] == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
 
     // --- Entry stub ---
     //
@@ -812,42 +915,13 @@ fn native_compile_program_x64_min(linked, platform) {
         ctx["entry_off"] = 0
     }
 
-    // --- main ---
-    var main_off = oren_list_len(ctx["code"])
-    ctx["functions"]["main"] = main_off
-    // Minimal prologue/epilogue (keeps stack sane if we later extend main).
-    bytes_extend(ctx["code"], insn_push_rbp())
-    bytes_extend(ctx["code"], insn_mov_rbp_rsp())
-
-    // Allocate locals + (Windows) call shadow/args area.
-    //
-    // Locals are addressed via RBP-negative offsets in 8-byte steps.
-    var locals = {}
-    var local_next = _collect_locals_from_ops(ctx, ops, locals, 8)
-    if local_next == nil { return ctx }
-    var locals_size = local_next - 8
-    // Align locals area to 16.
-    while core.int_mod(locals_size, 16) != 0 { locals_size = locals_size + 1 }
-    var win_call_area = 0
-    if platform != nil && platform["os"] == "windows" { win_call_area = 64 }
-    var frame_size = locals_size + win_call_area
-    if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
-
-    var labels = {}
-    var local_fixups = []
-    var epilogue_label = _new_label(ctx, "main_epilogue")
-    _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
-
-    // Epilogue label (all returns jump here).
-    _emit_label(ctx, labels, epilogue_label)
-    if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }
-    bytes_extend(ctx["code"], insn_pop_rbp())
-    bytes_extend(ctx["code"], insn_ret())
-
-    // Patch local branch fixups (relative to code offsets).
-    _patch_local_fixups(ctx, labels, local_fixups)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    // --- functions ---
+    var i1 = 0
+    while i1 < oren_list_len(fns) {
+        _compile_function_v0(ctx, fns[i1], platform)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+        i1 = i1 + 1
+    }
 
     return ctx
 }

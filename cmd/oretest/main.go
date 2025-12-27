@@ -1114,10 +1114,10 @@ func main() {
 					"build/x64_for_win.file.out",
 				},
 			},
-			{
-				name: "native_x64_mul_builds",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+				{
+					name: "native_x64_mul_builds",
+					cmd: fmt.Sprintf(
+						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
 						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
 						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
 						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
@@ -1149,12 +1149,49 @@ func main() {
 					"build/x64_mul_win.exe",
 					"build/x64_mul_win.build.out",
 					"build/x64_mul_win.file.out",
+					},
 				},
-			},
-			{
-				name: "native_x64_linux_print_embeds_string",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+				{
+					name: "native_x64_call_builds",
+					cmd: fmt.Sprintf(
+						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+						"tests/fixtures/x64_call_main.oren",
+						"build/x64_call_linux",
+						"build/x64_call_linux.build.out",
+						"build/x64_call_linux",
+						"build/x64_call_linux.file.out",
+						"ELF 64-bit",
+						"build/x64_call_linux.file.out",
+						"x86-64",
+						"build/x64_call_linux.file.out",
+						"tests/fixtures/x64_call_main.oren",
+						"build/x64_call_win.exe",
+						"build/x64_call_win.build.out",
+						"build/x64_call_win.exe",
+						"build/x64_call_win.file.out",
+						"PE32+",
+						"build/x64_call_win.file.out",
+						"x86-64",
+						"build/x64_call_win.file.out",
+					),
+					log: "build/logs/native_x64_call_builds.log",
+					ok:  func(rc int) bool { return rc == 0 },
+					cleanup: []string{
+						"build/x64_call_linux",
+						"build/x64_call_linux.build.out",
+						"build/x64_call_linux.file.out",
+						"build/x64_call_win.exe",
+						"build/x64_call_win.build.out",
+						"build/x64_call_win.file.out",
+					},
+				},
+				{
+					name: "native_x64_linux_print_embeds_string",
+					cmd: fmt.Sprintf(
+						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
 						"strings %q > %q && "+
 						"grep -Fq %q %q",
 					"tests/fixtures/x64_print_main.oren",
@@ -1682,10 +1719,10 @@ func main() {
 		// - runs the produced program as another nested universe
 		//
 		// This closes the "no host effects" loop for compilation while staying bootstrap-friendly.
-		fixtures = append(fixtures, struct {
-			name    string
-			cmd     string
-			timeout time.Duration
+			fixtures = append(fixtures, struct {
+				name    string
+				cmd     string
+				timeout time.Duration
 			log     string
 			ok      func(rc int) bool
 			cleanup []string
@@ -1865,12 +1902,50 @@ func main() {
 			log:     "build/logs/fixture_remote_x64_run_print_win_and_wsl.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/tmp/fixture_remote_x64_run_print_win_and_wsl"},
-		})
+			})
 
-		fixtures = append(fixtures, struct {
-			name    string
-			cmd     string
-			timeout time.Duration
+			fixtures = append(fixtures, struct {
+				name    string
+				cmd     string
+				timeout time.Duration
+				log     string
+				ok      func(rc int) bool
+				cleanup []string
+			}{
+				name: "remote_x64_run_call_exitcode",
+				cmd: fmt.Sprintf(
+					"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
+						"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_call_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
+						"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_call_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
+						"echo '[remote] ensure dir'; "+
+						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
+						"echo '[remote] copy artifacts'; "+
+						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_win.exe; "+
+						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_linux; "+
+						"echo '[remote] run windows exe'; "+
+						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+						"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_call_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
+						"> \\\"$wd/run_win.out\\\"; "+
+						"grep -Fq 'EXIT=15' \\\"$wd/run_win.out\\\"; "+
+						"echo '[remote] run linux exe (wsl)'; "+
+						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+						"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_call_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_call_linux; echo EXIT=$?\\\"' "+
+						"> \\\"$wd/run_wsl.out\\\"; "+
+						"grep -Fq 'EXIT=15' \\\"$wd/run_wsl.out\\\"\"",
+					"build/tmp/fixture_remote_x64_run_call_exitcode",
+					"tests/fixtures/x64_call_main.oren",
+					"tests/fixtures/x64_call_main.oren",
+				),
+				timeout: 5 * time.Minute,
+				log:     "build/logs/fixture_remote_x64_run_call_exitcode.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/tmp/fixture_remote_x64_run_call_exitcode"},
+			})
+
+			fixtures = append(fixtures, struct {
+				name    string
+				cmd     string
+				timeout time.Duration
 			log     string
 			ok      func(rc int) bool
 			cleanup []string
