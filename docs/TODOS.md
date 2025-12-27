@@ -35,6 +35,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: x64 minimal lowering now supports `*` (imul) for `i32` when RHS is an integer literal (`return x * 7`); `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
    - Status: x64 entry stub now aligns stack to 16 bytes to reduce ABI fragility as we add more calls/control flow.
    - Status: x64 minimal lowering now supports multiple no-arg functions and no-arg calls (`foo()`) in expressions; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 minimal lowering now supports 1–2 i32 params and 1–2 i32 args in calls (`add2(2,3)`); oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: added an opt-in remote-run oretest smoke (Win11 cmd.exe + WSL2) behind `OREN_REMOTE_RUN=1` to validate actual stdout + exit code on real x86_64.
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).

@@ -1,0 +1,9 @@
+fn add2(a, b) {
+    return a + b
+}
+
+fn main() {
+    // 2-arg call, integer literals.
+    return add2(2, 3)
+}
+

@@ -385,11 +385,24 @@ fn _expr_i32_check(ctx, expr) {
         var fn_expr = expr["fn"]
         var args = expr["args"]
         if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
-        if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: calls do not support args yet"); return nil }
         var nm = fn_expr["value"]
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
         var declared = ctx["declared_functions"]
         if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
+
+        var arity = ctx["func_arity"][nm]
+        if arity == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+        if argc > 2 { err(ctx, "x64 native v0: call supports at most 2 args for now"); return nil }
+
+        var i = 0
+        while i < argc {
+            _expr_i32_check(ctx, args[i])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i = i + 1
+        }
         return nil
     }
     if t == "Infix" {
@@ -411,6 +424,19 @@ fn _expr_i32_check(ctx, expr) {
         return nil
     }
     err(ctx, "x64 native v0: expr not supported: " + t)
+    return nil
+}
+
+fn _call_arg_reg32(platform, arg_index) {
+    // Return r32 register id used for arg_index under the platform ABI.
+    if platform != nil && platform["os"] == "windows" {
+        if arg_index == 0 { return 1 } // ecx
+        if arg_index == 1 { return 2 } // edx
+        return nil
+    }
+    // SysV (linux) subset (int args): edi, esi, edx, ecx, r8d, r9d.
+    if arg_index == 0 { return 7 } // edi
+    if arg_index == 1 { return 6 } // esi
     return nil
 }
 
@@ -439,11 +465,31 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         var fn_expr = expr["fn"]
         var args = expr["args"]
         if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
-        if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: calls do not support args yet"); return nil }
         var nm = fn_expr["value"]
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
         var declared = ctx["declared_functions"]
         if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
+
+        var arity = ctx["func_arity"][nm]
+        if arity == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+        if argc > 2 { err(ctx, "x64 native v0: call supports at most 2 args for now"); return nil }
+
+        // Evaluate args left-to-right and move into ABI arg registers.
+        //
+        // v0 limitation: only up to 2 args so we don't clobber Win64 arg1 (EDX) with our scratch.
+        var i = 0
+        while i < argc {
+            _emit_eval_i32_to_eax(ctx, args[i], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var reg = _call_arg_reg32(ctx["platform"], i)
+            if reg == nil { err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+            bytes_extend(ctx["code"], insn_mov_r32_r32(reg, 0)) // mov <arg>, eax
+            i = i + 1
+        }
+
         var call_pos = oren_list_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
@@ -786,12 +832,32 @@ fn _extract_functions_v0(ctx, linked) {
             if declared[name] != nil { err(ctx, "x64 native v0: duplicate function " + name); return nil }
             declared[name] = 1
             var params = fn0["params"]
-            if params != nil && oren_list_len(params) != 0 { err(ctx, "x64 native v0: functions do not support params yet: " + name); return nil }
+            var pc = 0
+            if params != nil { pc = oren_list_len(params) }
+            if pc > 2 { err(ctx, "x64 native v0: functions support at most 2 params for now: " + name); return nil }
+            var j = 0
+            while j < pc {
+                var p = params[j]
+                if p == nil || p["type"] != "Identifier" { err(ctx, "x64 native v0: param must be identifier: " + name); return nil }
+                if p["is_varargs"] == true { err(ctx, "x64 native v0: varargs not supported yet: " + name); return nil }
+                j = j + 1
+            }
             oren_list_push(out, fn0)
         }
         i = i + 1
     }
     ctx["declared_functions"] = declared
+    ctx["func_arity"] = {}
+    var k = 0
+    while k < oren_list_len(out) {
+        var f = out[k]
+        var nm = f["name"]
+        var pp = f["params"]
+        var n = 0
+        if pp != nil { n = oren_list_len(pp) }
+        ctx["func_arity"][nm] = n
+        k = k + 1
+    }
     return out
 }
 
@@ -813,7 +879,21 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     //
     // Locals are addressed via RBP-negative offsets in 8-byte steps.
     var locals = {}
-    var local_next = _collect_locals_from_ops(ctx, ops, locals, 8)
+    var local_next = 8
+    var params = fn_node["params"]
+    var pc = 0
+    if params != nil { pc = oren_list_len(params) }
+    var i = 0
+    while i < pc {
+        var p = params[i]
+        var pnm = p["value"]
+        if locals[pnm] != nil { err(ctx, "x64 native v0: duplicate param " + pnm); return nil }
+        locals[pnm] = local_next
+        local_next = local_next + 8
+        i = i + 1
+    }
+
+    local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
     if local_next == nil { return nil }
 
     // Reserve a spill slot so expression lowering can safely handle calls on RHS without
@@ -829,6 +909,20 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if platform != nil && platform["os"] == "windows" { win_call_area = 64 }
     var frame_size = locals_size + win_call_area
     if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
+
+    // Spill incoming params to their stack slots.
+    i = 0
+    while i < pc {
+        var p2 = params[i]
+        var pnm2 = p2["value"]
+        var off = locals[pnm2]
+        if off == nil { err(ctx, "x64 native v0: missing param slot"); return nil }
+        var disp8 = core.int_mod(0 - off, 256)
+        var reg = _call_arg_reg32(platform, i)
+        if reg == nil { err(ctx, "x64 native v0: unsupported param index"); return nil }
+        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp8, reg))
+        i = i + 1
+    }
 
     var labels = {}
     var local_fixups = []
