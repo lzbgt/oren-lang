@@ -1,0 +1,16 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises bitwise ops `& | ^` and shifts `<< >>` (>> is logical)
+
+fn main() {
+    var a = 12 // 1100b
+    var b = 10 // 1010b
+
+    var bit_and = a & b // 1000b => 8
+    var bit_or = a | b  // 1110b => 14
+    var bit_xor = a ^ b // 0110b => 6
+
+    var shl = 1 << 3    // 8
+    var shr = 16 >> 2   // 4
+
+    return bit_and + bit_or + bit_xor + shl + shr // 8+14+6+8+4 == 40
+}
