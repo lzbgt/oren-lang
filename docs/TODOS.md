@@ -105,6 +105,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: documented capsule runtime policy env vars (FS/NET/PROC/ENV gates and mount lists) in `docs/LANGUAGE_MANUAL.md` so fixture-driven behavior is discoverable.
    - Status: expanded `docs/LANGUAGE_MANUAL.md` with rolling features exercised by fixtures/tests: generics (`fn f[T]` + explicit specialization), trait method sugar + qualified calls, blanket `impl ... for any`, strict attributes mode, and capsule mode (`@cap.requires` + `--capsule`).
    - Status: documented `switch` and `enum` sugar in `docs/LANGUAGE_MANUAL.md` (both are exercised by `tests/modules/test_switch.oren`, `tests/modules/test_enum.oren`, and `tests/modules/test_match_enum.oren`).
+   - Status: documented varargs (`fn f(...rest)`) and call-site spread (`f(xs...)`), plus `oren_join`/`oren_join_timeout`, in `docs/LANGUAGE_MANUAL.md` (exercised by `tests/modules/test_varargs.oren`, `tests/native/test_integration_suite.oren`, and `tests/modules/test_spawn_join_timeout.oren`).
    - Status: refreshed repo `AGENTS.md` with clearer rolling workflow rules (verification policy, large-file strategy, web research capture, secret handling).
    - DoD: update any docs referencing old single-file layouts after refactors (compiler/runtime).
 

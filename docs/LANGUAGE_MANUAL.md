@@ -256,6 +256,50 @@ var g = |x, y| { return x * y }
 
 Lambdas capture values (capture-by-value in the current lowering model).
 
+### Varargs and call-site spread (`...`)
+
+Oren supports two related features:
+
+1) **Varargs parameters** (bind extra arguments into a list)
+2) **Call-site spread** (pass a list as multiple arguments)
+
+Varargs parameters:
+
+```oren
+fn count(...rest) {
+    // `rest` is a list of extra args (possibly empty)
+    return oren_list_len(rest)
+}
+
+fn sum1(x, ...rest) {
+    var s = x
+    var i = 0
+    while i < oren_list_len(rest) {
+        s = s + rest[i]
+        i = i + 1
+    }
+    return s
+}
+```
+
+Rules (rolling):
+
+- Only one varargs parameter is allowed, and it must be the **last** parameter.
+- The varargs binding is always a **list** (possibly empty).
+
+Call-site spread (apply-style call):
+
+```oren
+fn add3(a, b, c) { return a + b + c }
+var xs = [2, 3]
+var r = add3(1, xs...) // expands to add3(1, 2, 3)
+```
+
+This is exercised by:
+
+- `tests/modules/test_varargs.oren` (varargs + spawn/join)
+- `tests/native/test_integration_suite.oren` and `tests/avm/test_smoke_suite.oren` (spread calls)
+
 ## 6) Types (practical)
 
 Oren’s *runtime* (v0) is dynamically typed (boxed values), but the language includes **explicit width types** used for:
@@ -592,6 +636,21 @@ Oren has `spawn` (rolling v0 restriction: spawns a call expression):
 fn work(x) { return x + 1 }
 var t = spawn work(10)
 ```
+
+To wait for a spawned task:
+
+```oren
+var r = oren_join(t) // returns the worker’s return value (or panics if the worker panicked)
+```
+
+Timeout join is also available:
+
+```oren
+// timeout_ms < 0 means “wait forever” (equivalent to oren_join).
+var r2 = oren_join_timeout(t, 20)
+```
+
+See `tests/modules/test_spawn_join_timeout.oren` and `tests/native/test_spawn_join_timeout.oren`.
 
 Concurrency in AVM differs from native mode; see:
 
