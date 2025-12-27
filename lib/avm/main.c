@@ -569,6 +569,12 @@ static VerifyResult verify_program_region(
             if (!decode_u16(code, code_len, pc + 1, &fixed)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated SPAWN_CALL_SPREAD"); }
             pop = (int)fixed + 2;  // fn + fixed args + spread list
             push = 1;              // handle
+        } else if (op == 0x55) { // TYPE_CTOR_MAP_SPREAD u16_fixed
+            len = 3;
+            uint16_t fixed = 0;
+            if (!decode_u16(code, code_len, pc + 1, &fixed)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated TYPE_CTOR_MAP_SPREAD"); }
+            pop = (int)fixed + 2;  // keys_list + fixed args + spread list
+            push = 1;              // map
         } else if (op == 0x46) { // JOIN
             len = 1;
             pop = 1;
@@ -1712,6 +1718,7 @@ static const char* op_name(uint8_t op) {
         case 0x43: return "SET_INDEX";
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";
+        case 0x55: return "TYPE_CTOR_MAP_SPREAD";
         case 0x46: return "JOIN";
         case 0x47: return "CHAN_NEW";
         case 0x48: return "CHAN_SEND";
@@ -1792,6 +1799,7 @@ static size_t disasm_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     if (op == 0x3F) return 2;                 // LOAD_ENV u8
     if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
     if (op == 0x54) return 3;                 // SPAWN_CALL_SPREAD u16
+    if (op == 0x55) return 3;                 // TYPE_CTOR_MAP_SPREAD u16
     return 1;
 }
 

@@ -585,6 +585,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";
+        case 0x55: return "TYPE_CTOR_MAP_SPREAD";
         case 0x46: return "JOIN";
         case 0x47: return "CHAN_NEW";
         case 0x48: return "CHAN_SEND";
@@ -1627,6 +1628,79 @@ void avm_run(AvmVM* vm) {
                 int tid = sched_new_task(vm, sched, fnv, args_list);
                 if (tid < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "spawn failed")); break; }
                 vm->stack[vm->sp++] = avm_int((int64_t)(tid + 1));
+                break;
+            }
+            case 0x55: { // TYPE_CTOR_MAP_SPREAD u16_fixed
+                // stack: [... keys_list fixed_args spread_list] -> [... map]
+                if (vm->pc + 2 > vm->prog->code_len) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "truncated TYPE_CTOR_MAP_SPREAD")); break; }
+                uint16_t fixed = code[vm->pc++];
+                fixed |= (uint16_t)code[vm->pc++] << 8;
+                if (vm->sp < (int)fixed + 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on TYPE_CTOR_MAP_SPREAD")); break; }
+
+                AvmValue spread = vm->stack[vm->sp - 1];
+                if (spread.type != AVM_VAL_LIST || !spread.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "TYPE_CTOR_MAP_SPREAD expects list as spread arg")); break; }
+                AvmList* sl = spread.as.l;
+
+                int keys_idx = vm->sp - (int)fixed - 2;
+                AvmValue keys_v = vm->stack[keys_idx];
+                if (keys_v.type != AVM_VAL_LIST || !keys_v.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "TYPE_CTOR_MAP_SPREAD expects keys list")); break; }
+                AvmList* kl = keys_v.as.l;
+                int nkeys = kl->count;
+                if (nkeys < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "TYPE_CTOR_MAP_SPREAD invalid keys list")); break; }
+                if ((int)fixed > nkeys) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "TYPE_CTOR_MAP_SPREAD fixed args > fields")); break; }
+                int expected_spread = nkeys - (int)fixed;
+                if (sl->count != expected_spread) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "TYPE_CTOR_MAP_SPREAD arity mismatch")); break; }
+
+                // Copy fixed args into a temporary buffer so we can read in order.
+                AvmValue* fixed_vals = NULL;
+                if (fixed > 0) {
+                    fixed_vals = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)fixed);
+                    if (!fixed_vals) { avm_abort(vm, avm_alloc_fail_value()); break; }
+                    for (int i = 0; i < (int)fixed; i++) {
+                        fixed_vals[i] = vm->stack[keys_idx + 1 + i];
+                    }
+                }
+
+                AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+                if (!map) { if (fixed_vals) free(fixed_vals); avm_abort(vm, avm_alloc_fail_value()); break; }
+                map->count = 0;
+                map->capacity = (nkeys > 0) ? nkeys * 2 : 8;
+                map->keys = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)map->capacity, AVM_ALLOC_KIND_MAP);
+                map->values = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)map->capacity, AVM_ALLOC_KIND_MAP);
+                if (!map->keys || !map->values) {
+                    if (map->keys) avm_heap_free(map->keys);
+                    if (map->values) avm_heap_free(map->values);
+                    avm_heap_free(map);
+                    if (fixed_vals) free(fixed_vals);
+                    avm_abort(vm, avm_alloc_fail_value());
+                    break;
+                }
+
+                for (int i = 0; i < nkeys; i++) {
+                    AvmValue key = kl->items[i];
+                    AvmValue val = avm_nil();
+                    if (i < (int)fixed) {
+                        val = fixed_vals[i];
+                    } else {
+                        val = sl->items[i - (int)fixed];
+                    }
+                    if (!avm_map_key_supported(key)) {
+                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "TYPE_CTOR_MAP_SPREAD key type not supported"));
+                        break;
+                    }
+                    if (!avm_map_set_sorted(map, key, val)) {
+                        avm_abort(vm, avm_alloc_fail_value());
+                        break;
+                    }
+                }
+                if (fixed_vals) free(fixed_vals);
+
+                // Pop operands and push result.
+                vm->sp = keys_idx;
+                AvmValue res;
+                res.type = AVM_VAL_MAP;
+                res.as.m = map;
+                vm->stack[vm->sp++] = res;
                 break;
             }
             case AVM_OP_JOIN: { // JOIN

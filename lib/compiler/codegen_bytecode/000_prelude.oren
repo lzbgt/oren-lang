@@ -56,6 +56,10 @@ var AVM_SELECT = 77                // 0x4D
 // Spawn with call-site spread (rolling):
 // stack: [... fn fixed_args spread_list] SPAWN_CALL_SPREAD u16_fixed -> [... handle_int]
 var AVM_SPAWN_CALL_SPREAD = 84     // 0x54
+// Type constructor with call-site spread (rolling):
+// stack: [... keys_list fixed_args spread_list] TYPE_CTOR_MAP_SPREAD u16_fixed -> [... map_value]
+// keys_list is list<string> of field names in declaration order.
+var AVM_TYPE_CTOR_MAP_SPREAD = 85  // 0x55
 
 var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1

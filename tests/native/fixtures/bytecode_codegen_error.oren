@@ -4,9 +4,10 @@
 // - fail compilation under --backend bytecode
 // - emit OREN_DIAG kind=codegen code=1
 //
-// Rolling note: type constructor lowering does not support call-site spread yet.
+// Rolling note: spawn supports call-site spread, but varargs+spread in spawn is
+// still rejected (needs dynamic varargs packing).
 
-struct Node { value }
+fn f(x, ...rest) { return x }
 
 var xs = [1]
-var n = Node(xs...)
+spawn f(1, xs...)

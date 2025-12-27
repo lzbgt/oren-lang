@@ -593,15 +593,48 @@ fn bytecode_compile_expr(ctx, expr) {
         if indirect == false {
             var tfields = ctx["types"][name]
             if tfields != nil {
-                if expr["spread"] != nil {
-            bytecode_error(ctx, "bytecode backend: type constructor does not support spread args yet: " + name)
-            return nil
-                }
                 var args0 = expr["args"]
                 var targc = oren_list_len(tfields)
+
+                // Call-site spread in type constructors:
+                //   Node(a, b, xs...)  where xs is list of remaining positional args.
+                //
+                // Lower to a dedicated VM opcode that can validate spread arity and build
+                // the resulting map without requiring temporary locals/register shuffling.
+                if expr["spread"] != nil {
+                    var fixed = oren_list_len(args0)
+                    if fixed > targc {
+                        bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
+                        return nil
+                    }
+
+                    // keys_list = ["field0","field1",...]
+                    var ki = 0
+                    while ki < targc {
+                        var key_idx = add_constant(ctx, {"type": "String", "value": tfields[ki]})
+                        emit_byte(ctx, AVM_PUSH_CONST)
+                        emit_u16(ctx, key_idx)
+                        ki = ki + 1
+                    }
+                    emit_byte(ctx, AVM_NEW_LIST)
+                    emit_u16(ctx, targc)
+
+                    // fixed args
+                    var ai0 = 0
+                    while ai0 < fixed {
+                        bytecode_compile_expr(ctx, args0[ai0])
+                        ai0 = ai0 + 1
+                    }
+                    // spread list
+                    bytecode_compile_expr(ctx, expr["spread"])
+                    emit_byte(ctx, AVM_TYPE_CTOR_MAP_SPREAD)
+                    emit_u16(ctx, fixed)
+                    return nil
+                }
+
                 if oren_list_len(args0) != targc {
-            bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
-            return nil
+                    bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
+                    return nil
                 }
                 var ai0 = 0
                 while ai0 < oren_list_len(args0) {
