@@ -230,6 +230,32 @@ fn insn_mov_mrbp_disp8_r32(disp8, src_reg) {
     return out
 }
 
+fn insn_mov_r64_mrbp_disp8(dst_reg, disp8) {
+    // mov r64, qword ptr [rbp+disp8] => REX.W 8B 45 ib (with optional REX.R for r8-r15)
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 0x48 (REX.W)
+    if dst_reg >= 8 { rex = rex + 4 } // REX.R
+    bytes_push(out, rex)
+    bytes_push(out, 139) // 8B
+    bytes_push(out, 69 + int_mod(dst_reg, 8) * 8) // 0x45 | ((dst&7)<<3)
+    bytes_push(out, int_mod(disp8, 256))
+    return out
+}
+
+fn insn_mov_mrbp_disp8_r64(disp8, src_reg) {
+    // mov qword ptr [rbp+disp8], r64 => REX.W 89 45 ib (with optional REX.R for r8-r15)
+    if src_reg < 0 || src_reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 0x48 (REX.W)
+    if src_reg >= 8 { rex = rex + 4 } // REX.R
+    bytes_push(out, rex)
+    bytes_push(out, 137) // 89
+    bytes_push(out, 69 + int_mod(src_reg, 8) * 8) // 0x45 | ((src&7)<<3)
+    bytes_push(out, int_mod(disp8, 256))
+    return out
+}
+
 fn insn_add_r32_imm32(dst_reg, imm32) {
     // add r/m32, imm32 => 81 /0 id
     // modrm: 11 reg=000 rm=(dst&7)

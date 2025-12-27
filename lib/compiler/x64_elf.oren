@@ -117,6 +117,24 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
             if disp2 < 0 { disp2 = 4294967296 + disp2 }
             set_u32_le(code, disp_pos, disp2)
         }
+        else if f["type"] == "rip_code_lea" {
+            // Patch lea r64, [rip+disp32] where disp32 points to a function entry in .text.
+            //
+            // f["pos"] points to disp32 field within the instruction.
+            var disp_pos3 = f["pos"]
+            var name2 = f["name"]
+            var target_off2 = functions[name2]
+            if target_off2 == nil {
+                print("x64 elf: undefined function " + name2)
+                oren_exit(1)
+            }
+            var insn_start3 = disp_pos3 - 3
+            var next_rip3 = text_base + (insn_start3 + 7)
+            var target_addr3 = text_base + target_off2
+            var disp3 = target_addr3 - next_rip3
+            if disp3 < 0 { disp3 = 4294967296 + disp3 }
+            set_u32_le(code, disp_pos3, disp3)
+        }
         else {
             print("x64 elf: unknown fixup type " + f["type"])
             oren_exit(1)

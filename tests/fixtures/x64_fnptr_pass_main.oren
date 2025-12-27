@@ -1,0 +1,12 @@
+fn add(a, b) {
+    return a + b
+}
+
+fn apply(f, x, y) {
+    return f(x, y)
+}
+
+fn main() {
+    return apply(add, 2, 3)
+}
+

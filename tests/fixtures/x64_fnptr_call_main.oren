@@ -1,0 +1,9 @@
+fn add(a, b) {
+    return a + b
+}
+
+fn main() {
+    var f = add
+    return f(2, 3)
+}
+

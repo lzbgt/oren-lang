@@ -35,15 +35,16 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: x64 lowering supports `*` (imul) for `i32` when RHS is an integer literal (`return x * 7`); `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
    - Status: x64 entry stub now aligns stack to 16 bytes to reduce ABI fragility as we add more calls/control flow.
    - Status: x64 lowering supports multiple functions and calls in expressions; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 lowering supports first-class function values (named function identifier in expression position → code pointer) and indirect calls (call through a local/param), including passing function pointers through parameters; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
    - Status: x64 lowering now supports fixed i32 params/args via ABI registers:
      - Windows x64: up to 4 (`ecx, edx, r8d, r9d`)
      - Linux SysV: up to 6 (`edi, esi, edx, ecx, r8d, r9d`)
-     Oretest builds both targets (cross-target fixtures use ≤4), and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
+     Oretest builds both targets (cross-target fixtures use ≤4 because Win64 has only 4 integer arg registers), and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
    - Next: varargs (`...rest`) lowering + call wrappers (needs list packing/runtime parity).
    - Next: refactor native backend for code reuse via a shared NativeIR + per-target ABI tables (see `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`).
    - Status: started factoring ABI details into `lib/compiler/native_abi*.oren` (arg registers + Win64 shadow/call-area), consumed by x64 codegen.
    - Status: extracted callable semantics helpers (lambda capture + fnwrap/lambda wrappers) into `lib/compiler/native_callable.oren` (used by arm64 now; x64 can converge on it as runtime/list support lands).
-   - Next: x64 Tier-1 parity for first-class callables: implement function values + lambdas + indirect calls on x64 native by compiling/injecting the native runtime callable layer (`lib/runtime_native/120_first_class_fn.oren`) and aligning with `native_callable.oren` wrappers.
+   - Next: x64 Tier-1 parity for full first-class callables: converge from raw code pointers to the uniform callable object ABI (code_ptr + env_ptr, args_list-based) by compiling/injecting the native runtime callable layer (`lib/runtime_native/120_first_class_fn.oren`) and aligning with `native_callable.oren` wrappers (enables closures + varargs/spread + safe indirect calls).
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: added an opt-in remote-run oretest smoke (Win11 cmd.exe + WSL2) behind `OREN_REMOTE_RUN=1` to validate actual stdout + exit code on real x86_64.
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).

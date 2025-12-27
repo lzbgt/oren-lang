@@ -43,6 +43,8 @@ fn insn_and_rsp_imm8(mask_imm8) { return core.insn_and_rsp_imm8(mask_imm8) }
 fn insn_mov_mrbp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrbp_disp8_imm32(disp8, imm32) }
 fn insn_mov_r32_mrbp_disp8(reg, disp8) { return core.insn_mov_r32_mrbp_disp8(reg, disp8) }
 fn insn_mov_mrbp_disp8_r32(disp8, reg) { return core.insn_mov_mrbp_disp8_r32(disp8, reg) }
+fn insn_mov_r64_mrbp_disp8(reg, disp8) { return core.insn_mov_r64_mrbp_disp8(reg, disp8) }
+fn insn_mov_mrbp_disp8_r64(disp8, reg) { return core.insn_mov_mrbp_disp8_r64(disp8, reg) }
 fn insn_add_r32_imm32(reg, imm32) { return core.insn_add_r32_imm32(reg, imm32) }
 fn insn_sub_r32_imm32(reg, imm32) { return core.insn_sub_r32_imm32(reg, imm32) }
 fn insn_add_r32_r32(dst, src) { return core.insn_add_r32_r32(dst, src) }
@@ -390,16 +392,20 @@ fn _expr_i32_check(ctx, expr) {
         if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
         var nm = fn_expr["value"]
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
-        var declared = ctx["declared_functions"]
-        if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
-
-        var arity = ctx["func_arity"][nm]
-        if arity == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
-        if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
         var max_args = abi.max_int_reg_args(ctx["abi"])
         if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
+
+        // Direct calls enforce arity; indirect calls (callable value in a local/param) are permitted
+        // in v0 bring-up without static arity tracking.
+        var arity = nil
+        if ctx["func_arity"] != nil { arity = ctx["func_arity"][nm] }
+        if arity != nil {
+            var declared = ctx["declared_functions"]
+            if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
+            if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+        }
 
         var i = 0
         while i < argc {
@@ -432,10 +438,10 @@ fn _expr_i32_check(ctx, expr) {
 }
 
 fn _emit_eval_i32_to_eax(ctx, expr, locals) {
-    // Evaluate a tiny int expression into EAX.
+    // Evaluate a tiny expression into RAX (integer in low 32 bits).
     // Supports:
     // - Integer
-    // - Identifier
+    // - Identifier (locals/params; or a named function as a first-class function pointer)
     // - Infix (+/-) with subexpressions from the above set
     if expr == nil { return nil }
     var t = expr["type"]
@@ -446,10 +452,26 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         return nil
     }
     if t == "Identifier" {
-        var off = locals[expr["value"]]
-        if off == nil { err(ctx, "x64 native v0: unknown var " + expr["value"]); return nil }
-        var disp8 = core.int_mod(0 - off, 256)
-        bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(0, disp8))
+        var name = expr["value"]
+        var off = locals[name]
+        if off != nil {
+            var disp8 = core.int_mod(0 - off, 256)
+            // Load full 64-bit slot so function pointers round-trip correctly.
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, disp8))
+            return nil
+        }
+
+        // Named function used in expression position => treat as a first-class function value.
+        // v0 representation: raw code pointer (direct-call ABI), not the full runtime callable object.
+        if ctx["func_arity"] != nil && ctx["func_arity"][name] != nil {
+            var lea_pos = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+            // Patch disp32 to point at the function entry within .text.
+            oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": name})
+            return nil
+        }
+
+        err(ctx, "x64 native v0: unknown var " + name)
         return nil
     }
     if t == "Call" {
@@ -458,16 +480,26 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
         var nm = fn_expr["value"]
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
-        var declared = ctx["declared_functions"]
-        if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
-
-        var arity = ctx["func_arity"][nm]
-        if arity == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
-        if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
         var max_args = abi.max_int_reg_args(ctx["abi"])
         if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
+
+        var is_direct = false
+        var declared = ctx["declared_functions"]
+        if declared != nil && declared[nm] != nil { is_direct = true }
+        var callee_off = nil
+        if is_direct != true {
+            callee_off = locals[nm]
+            if callee_off == nil {
+                err(ctx, "x64 native v0: undefined function or fn var " + nm)
+                return nil
+            }
+        } else {
+            var arity = ctx["func_arity"][nm]
+            if arity == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
+            if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+        }
 
         // Evaluate args left-to-right, spill to stack temps, then load into ABI arg registers.
         // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
@@ -479,7 +511,8 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
             var tmp_off = locals[tmp_name]
             if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name); return nil }
             var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(tmp_disp8, 0)) // [tmp] = eax
+            // Spill the full 64-bit value (keeps function pointer args intact).
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8, 0)) // [tmp] = rax
             i = i + 1
         }
 
@@ -491,13 +524,19 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
             var tmp_off2 = locals[tmp_name2]
             if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name2); return nil }
             var tmp_disp82 = core.int_mod(0 - tmp_off2, 256)
-            bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(reg, tmp_disp82))
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(reg, tmp_disp82))
             i = i + 1
         }
 
-        var call_pos = oren_list_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
+        if is_direct {
+            var call_pos = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
+        } else {
+            var disp8c = core.int_mod(0 - callee_off, 256)
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, disp8c)) // rax = fn ptr
+            bytes_extend(ctx["code"], insn_call_rax())
+        }
         return nil
     }
     if t == "Infix" {
@@ -529,7 +568,7 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
             if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for calls"); return nil }
             var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
             // Spill left to stack temp, evaluate RHS call into EAX, then combine.
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(tmp_disp8, 0)) // [tmp] = eax
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8, 0)) // [tmp] = rax
             _emit_eval_i32_to_eax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r32_r32(2, 0)) // edx = rhs (eax)
@@ -657,7 +696,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_eval_i32_to_eax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp8, 0))
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp8, 0))
         } else if op["op"] == "assign_i32" {
             var off2 = locals[op["name"]]
             if off2 == nil { err(ctx, "x64 native v0: assign unknown var " + op["name"]); return nil }
@@ -666,7 +705,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_eval_i32_to_eax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp82, 0))
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp82, 0))
         } else if op["op"] == "print_cstr" {
             if platform != nil && platform["os"] == "linux" {
                 _emit_linux_write_cstr(ctx, op["value"])
@@ -936,7 +975,8 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         var disp8 = core.int_mod(0 - off, 256)
         var reg = abi.int_arg_reg32(ctx["abi"], i)
         if reg == nil { err(ctx, "x64 native v0: unsupported param index"); return nil }
-        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp8, reg))
+        // Spill the full register width so function pointers can be passed/called.
+        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp8, reg))
         i = i + 1
     }
 

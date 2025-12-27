@@ -16,7 +16,7 @@ The x86_64 backend is a Tier-1 target, but is still in rolling evolution; `docs/
 
 - **Language Features**:
   - **Control Flow**: `if/else`, `while`, `Block`, `Return`.
-  - **Functions**: Definitions, Calls (stack passing), Stack frames (`FP`/`LR`). Entry trampoline aligns to 4-byte boundaries and calls `main` before exiting via syscall.
+  - **Functions**: Definitions, direct calls, and first-class function values (callable pointers) with indirect calls (rolling; x86_64 bring-up). Stack frames (`FP`/`LR` on arm64; `RBP` on x86_64). Entry trampolines align the stack for ABI-correct calls and terminate via syscall (Linux) or imported `ExitProcess` (Windows).
   - **Variables**: Local (stack-allocated) with block-scoped cleanup to prevent loop leaks.
   - **Structs**: Constructors generate `Map` objects (Duck Typing). Access via `obj.field`. Nested struct offsets are honoured in native layout.
   - **Lists (WIP)**: Minimal list runtime (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` for lists) for future native feature parity.
@@ -33,7 +33,8 @@ The x86_64 backend is a Tier-1 target, but is still in rolling evolution; `docs/
   - This is a deliberate syscall-first compatibility choice to avoid depending on `pthread_*` / `bsdthread_*` ABIs until a robust OS-thread design lands.
 
 - **Runtime**:
-  - Automatically injects `lib/runtime_native.oren` (expanded from `lib/runtime_native/*.oren` via `// @include "..."`) which implements `String` comparison and `Map` logic.
+  - **ARM64**: automatically injects `lib/runtime_native.oren` (expanded from `lib/runtime_native/*.oren` via `// @include "..."`) which implements `String` comparison and `Map` logic.
+  - **x86_64 bring-up**: does not yet inject the full native runtime; it currently emits small target-specific helpers for I/O and process exit. The Tier-1 roadmap is to converge on the same injected runtime surface for callables/closures, lists/maps/strings, and capsule gating.
   - Includes `oren_readdir(path)` built on syscall-first `sys_getdirentries64`.
   - `oren_net_get(url)` is implemented on native as a minimal HTTP/1.0 GET over syscall-first TCP:
     - supported form: `http://<ipv4>[:port][/path]`
