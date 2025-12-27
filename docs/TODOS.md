@@ -38,7 +38,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: x64 lowering supports `while <id|int> (==|!=) <id|int> { ... }` plus assignment (`x = x + 1`) with local vars; oretest ensures it builds for both targets.
    - Status: x64 lowering supports `break` / `continue` inside `while` loops; oretest ensures it builds for both targets, and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
    - Status: x64 lowering supports `for var i = 0; i < N; i = i + 1 { ... }` with correct `continue` semantics (continue jumps to post); oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
-   - Status: x64 lowering supports `*` (imul) for `i32` when RHS is an integer literal (`return x * 7`); `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 lowering supports `*` (imul) for `i32` with non-trivial RHS expressions (identifiers/calls/infix), not just integer literals; `OREN_REMOTE_RUN=1` validates exit code on real x86_64 (`x64_mul_expr_main.oren`).
    - Status: x64 entry stub now aligns stack to 16 bytes to reduce ABI fragility as we add more calls/control flow.
    - Status: x64 lowering supports multiple functions and calls in expressions; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
    - Status: x64 lowering supports first-class function values (named function identifier in expression position → pointer to a `{code_ptr, env_ptr}` callable record; env=0 for now) and indirect calls (call through a local/param by loading `code_ptr`), including passing function pointers through parameters; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.

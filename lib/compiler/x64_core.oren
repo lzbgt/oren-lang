@@ -495,6 +495,22 @@ fn insn_imul_r64_imm32(reg, imm_u32) {
     return out
 }
 
+fn insn_imul_r64_r64(dst, src) {
+    // imul r64(dst), r/m64(src) => REX.W 0F AF /r
+    // modrm: 11 reg=dst rm=src
+    if dst < 0 || dst > 15 { return nil }
+    if src < 0 || src > 15 { return nil }
+    var out = []
+    var rex = 72 // 0x48 (REX.W)
+    if dst >= 8 { rex = rex + 4 } // REX.R
+    if src >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 15) // 0F
+    bytes_push(out, 175) // AF
+    bytes_push(out, 192 + int_mod(dst, 8) * 8 + int_mod(src, 8))
+    return out
+}
+
 fn insn_not_r64(reg) {
     // not r/m64 => REX.W F7 /2
     // modrm: 11 reg=010 rm=(reg&7)

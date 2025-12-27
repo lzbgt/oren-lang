@@ -62,6 +62,7 @@ fn insn_cmp_r64_r64(lhs, rhs) { return core.insn_cmp_r64_r64(lhs, rhs) }
 fn insn_jcc_rel32(cc, disp32) { return core.insn_jcc_rel32(cc, disp32) }
 fn insn_imul_r32_imm32(reg, imm32) { return core.insn_imul_r32_imm32(reg, imm32) }
 fn insn_imul_r64_imm32(reg, imm32) { return core.insn_imul_r64_imm32(reg, imm32) }
+fn insn_imul_r64_r64(dst, src) { return core.insn_imul_r64_r64(dst, src) }
 fn insn_not_r64(reg) { return core.insn_not_r64(reg) }
 fn insn_neg_r64(reg) { return core.insn_neg_r64(reg) }
 
@@ -520,10 +521,6 @@ fn _expr_int_check(ctx, expr) {
 
         // Rolling: allow nested infix expressions for + and - (and as the LHS of `*`)
         // so chains like `a + b + c + d` work.
-        if op == "*" && r["type"] != "Integer" {
-            err(ctx, "x64 native v0: mul rhs must be integer literal")
-            return nil
-        }
         _expr_int_check(ctx, l)
         _expr_int_check(ctx, r)
         return nil
@@ -707,7 +704,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp82)) // rdx = rhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
-            else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
+            else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
             return nil
         }
         if r != nil && r["type"] == "Call" {
@@ -722,11 +719,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8)) // rax = lhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
-            else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
+            else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
             return nil
         }
         if r != nil && r["type"] == "Infix" {
-            if op == "*" { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
             var tmp_off2 = locals["$tmp0"]
             if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot for infix rhs"); return nil }
             var tmp_disp82 = core.int_mod(0 - tmp_off2, 256)
@@ -738,6 +734,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp82)) // rax = lhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
+            else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
             return nil
         }
     }
