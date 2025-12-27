@@ -1,6 +1,138 @@
 // Chunked out of native_compile_expr call handling for include coherence.
 fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
+            if fn_name == "oren_list_len" {
+                // Intrinsic: list length (fast-path, no runtime call).
+                //
+                // Runtime layout: [count][capacity][buffer_ptr][magic]
+                // - nil list => 0
+                // - non-list => deterministic panic (matches runtime)
+                var args0 = expr["args"]
+                if args0 == nil || oren_list_len(args0) != 1 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_len expects 1 argument")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                native_compile_expr(ctx, args0[0]) // list -> X0
+
+                // nil => 0
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+                var br_non_nil = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var br_done = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                var non_nil_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
+
+                // magic check
+                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
+                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
+                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+                var br_is_list = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_len on non-list")
+                var is_list_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_is_list, insn_b_cond((is_list_pos - br_is_list) / 4, 0)) // EQ
+
+                // count
+                emit_load_ptr_from_base_plus(ctx, 0, 0, 0)
+
+                var done_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+                return true
+            }
+
+            if fn_name == "oren_list_push" {
+                // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
+                //
+                // Signature: oren_list_push(list, value) -> list
+                var args1 = expr["args"]
+                if args1 == nil || oren_list_len(args1) != 2 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_push expects 2 arguments")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                // Eval list -> stack
+                native_compile_expr(ctx, args1[0]) // list -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // Eval value -> X0
+                native_compile_expr(ctx, args1[1])
+
+                // Pop list -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Swap: X0=value, X1=list => X0=list, X1=value
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2))
+
+                // nil => panic
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                var br_non_nil2 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_push on nil")
+                var non_nil_pos2 = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_non_nil2, insn_b_cond((non_nil_pos2 - br_non_nil2) / 4, 1)) // NE
+
+                // magic check (panic on non-list)
+                emit_load_ptr_from_base_plus(ctx, 2, 0, 24) // X2 = magic
+                emit_load_i64_imm(ctx, 3, 1279870019)       // X3 = 'LIST'
+                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
+                var br_is_list2 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_push on non-list")
+                var is_list_pos2 = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_is_list2, insn_b_cond((is_list_pos2 - br_is_list2) / 4, 0)) // EQ
+
+                // Load count/cap/buf
+                emit_load_ptr_from_base_plus(ctx, 4, 0, 0)   // X4 = count
+                emit_load_ptr_from_base_plus(ctx, 5, 0, 8)   // X5 = cap
+                emit_load_ptr_from_base_plus(ctx, 6, 0, 16)  // X6 = buf
+
+                // if count < cap => fast store; else => slow path call
+                push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+                var br_fast = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                // Slow path: call runtime oren_list_push(list, value)
+                var bl_pos = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_list_push"})
+                var br_done2 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                // Fast path
+                var fast_pos = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_fast, insn_b_cond((fast_pos - br_fast) / 4, 11)) // LT
+
+                // addr = buf + count*8
+                emit_load_i64_imm(ctx, 2, 8)
+                push_u32_le(ctx["code"], insn_mul(7, 4, 2))      // X7 = count*8
+                push_u32_le(ctx["code"], insn_add_reg(7, 6, 7))  // X7 = buf + off
+                push_u32_le(ctx["code"], insn_str_ptr(1, 7))     // *(addr) = value
+
+                // count++
+                push_u32_le(ctx["code"], insn_add_imm(4, 4, 1))
+                push_u32_le(ctx["code"], insn_str_ptr(4, 0))     // *(list) = count+1
+
+                // return list in X0 (already)
+
+                var done_pos2 = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_done2, insn_b((done_pos2 - br_done2) / 4))
+                return true
+            }
+
             if fn_name == "oren_call_obj_list" {
                 // Intrinsic: indirect call through a native function object.
                 // Signature: oren_call_obj_list(fn_obj, args_list) -> value
