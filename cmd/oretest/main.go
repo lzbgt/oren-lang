@@ -409,8 +409,10 @@ func main() {
 	fixtureJobsEff := *fixtureJobs
 	if fixtureJobsEff == 0 {
 		fixtureJobsEff = *jobs
-		if fixtureJobsEff > 4 {
-			fixtureJobsEff = 4
+		// Fixtures are typically short and IO-bound (compiler invocations + small grep checks).
+		// Use a higher default ceiling than module tests to reduce wall time on multi-core hosts.
+		if fixtureJobsEff > 8 {
+			fixtureJobsEff = 8
 		}
 	}
 	if fixtureJobsEff < 1 {
@@ -422,8 +424,10 @@ func main() {
 	nativeJobsEff := *nativeJobs
 	if nativeJobsEff == 0 {
 		nativeJobsEff = *jobs
-		if nativeJobsEff > 4 {
-			nativeJobsEff = 4
+		// Native tests do more compilation and produce binaries, so keep the default
+		// ceiling slightly conservative but still higher than 4 for modern CPUs.
+		if nativeJobsEff > 8 {
+			nativeJobsEff = 8
 		}
 	}
 	if nativeJobsEff < 1 {
