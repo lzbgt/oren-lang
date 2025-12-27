@@ -18,6 +18,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Goal: ergonomic container operations (push/pop/len/get/set/slice) without stdlib call overhead in hot paths.
    - Direction: 3 layers — kernel intrinsics (`oren_*`) → std wrappers (`std:list`) → language-level sugar/operators.
    - Next: finish deterministic dispatch rules for generics + `dyn` and document the exact lowering contract.
+   - Status: x64 Tier‑1 now supports list literals (`[a,b,c]`), list indexing (`xs[i]`), index assignment (`xs[i]=v`), and validates builtin container method sugar (`xs.len()`, `xs.push(v)`, `xs.get(i)`) via lowering to list intrinsics.
    - Next: expand the native inlining fast-path beyond `xs[i]` / `xs[i]=v` (e.g. `len`, `push`) and port parity to the x64 native backend.
    - Next: treat `std:list` calls (`list.len`, `list.push`) as intrinsics too so idiomatic stdlib usage stays zero-overhead in native mode.
    - References: `docs/DESIGN_CONTAINER_OPS.md`, `docs/STDLIB_LAYERS.md`.

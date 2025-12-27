@@ -1,0 +1,26 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates that high-level list method sugar lowers correctly for the x64 backend:
+//     xs.len()   -> oren_list_len(xs)
+//     xs.push(v) -> oren_list_push(xs, v)
+//     xs.get(i)  -> xs[i]
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var xs = []
+
+    xs.push(1)
+    xs.push(2)
+    xs.push(3)
+
+    if xs.len() != 3 { return 1 }
+    if xs.get(0) != 1 { return 2 }
+    if xs[2] != 3 { return 3 }
+
+    xs[1] = 99
+    if xs[1] != 99 { return 4 }
+
+    return 0
+}
+
