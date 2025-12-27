@@ -21,21 +21,26 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Next: decide release root-pubkey distribution (what ships embedded vs passed via deployment), then expand cert constraints (namespace/import allowlists), and port ed25519 verify to pure Oren to reduce host-crypto dependency.
    - Next (security hardening): add an optional AVM “diagnostic self-hash” mode (corruption detection / telemetry, not a security promise) and explore codesigned release builds for AVM.
 
-2) **Native backend x86_64 (Linux ELF + Windows PE)** (L)
-   - Status: added minimal x64 bring-up backend (`--backend native --arch x64`) that can compile a tiny `fn main(){return 0}` program.
+2) **Native backend x86_64 (Linux ELF + Windows PE)** (L) (Tier 1 target)
+   - Status: added x64 native backend foundation (`--backend native --arch x64`) that can compile small programs end-to-end.
    - Status: added Linux x86_64 ELF emitter (`lib/compiler/x64_elf.oren`) and Windows PE32+ emitter with import table for `kernel32!ExitProcess` (`lib/compiler/x64_pe.oren`).
    - Status: Linux x64 now supports `print("...")` (string literal only) via direct `SYS_write` + RIP-relative string data; oretest asserts the string is embedded in the ELF output.
    - Status: Windows x64 now supports `print("...")` (string literal only) via `kernel32!GetStdHandle` + `kernel32!WriteFile`; oretest asserts the string is embedded in the PE output.
-   - Status: x64 minimal lowering now supports local `var x = <int>` and `return x` (stack slot via RBP-relative addressing); oretest ensures it builds for both ELF+PE targets.
-   - Status: x64 minimal lowering now supports `+` / `-` on i32 (`return x + 2`, `return 40 - x` style); oretest ensures it builds for both targets.
-   - Status: x64 minimal lowering now supports `if <id|int> (==|!=) <id|int> { ... } else { ... }` with early returns; oretest ensures it builds for both targets.
-   - Status: x64 minimal lowering now supports `while <id|int> (==|!=) <id|int> { ... }` plus assignment (`x = x + 1`) with local vars; oretest ensures it builds for both targets.
-   - Status: x64 minimal lowering now supports `break` / `continue` inside `while` loops; oretest ensures it builds for both targets, and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
-   - Status: x64 minimal lowering now supports `for var i = 0; i < N; i = i + 1 { ... }` with correct `continue` semantics (continue jumps to post); oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
-   - Status: x64 minimal lowering now supports `*` (imul) for `i32` when RHS is an integer literal (`return x * 7`); `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 lowering supports local `var x = <int>` and `return x` (stack slot via RBP-relative addressing); oretest ensures it builds for both ELF+PE targets.
+   - Status: x64 lowering supports `+` / `-` on i32 (`return x + 2`, `return 40 - x` style); oretest ensures it builds for both targets.
+   - Status: x64 lowering supports `if <id|int> (==|!=) <id|int> { ... } else { ... }` with early returns; oretest ensures it builds for both targets.
+   - Status: x64 lowering supports `while <id|int> (==|!=) <id|int> { ... }` plus assignment (`x = x + 1`) with local vars; oretest ensures it builds for both targets.
+   - Status: x64 lowering supports `break` / `continue` inside `while` loops; oretest ensures it builds for both targets, and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
+   - Status: x64 lowering supports `for var i = 0; i < N; i = i + 1 { ... }` with correct `continue` semantics (continue jumps to post); oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 lowering supports `*` (imul) for `i32` when RHS is an integer literal (`return x * 7`); `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
    - Status: x64 entry stub now aligns stack to 16 bytes to reduce ABI fragility as we add more calls/control flow.
-   - Status: x64 minimal lowering now supports multiple no-arg functions and no-arg calls (`foo()`) in expressions; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
-   - Status: x64 minimal lowering now supports 1–2 i32 params and 1–2 i32 args in calls (`add2(2,3)`); oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 lowering supports multiple functions and calls in expressions; oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 lowering now supports fixed i32 params/args via ABI registers:
+     - Windows x64: up to 4 (`ecx, edx, r8d, r9d`)
+     - Linux SysV: up to 6 (`edi, esi, edx, ecx, r8d, r9d`)
+     Oretest builds both targets (cross-target fixtures use ≤4), and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
+   - Next: varargs (`...rest`) lowering + call wrappers (needs list packing/runtime parity).
+   - Next: refactor native backend for code reuse via a shared NativeIR + per-target ABI tables (see `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`).
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: added an opt-in remote-run oretest smoke (Win11 cmd.exe + WSL2) behind `OREN_REMOTE_RUN=1` to validate actual stdout + exit code on real x86_64.
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).

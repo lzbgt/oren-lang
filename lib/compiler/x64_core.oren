@@ -1,10 +1,11 @@
-// x86_64 ("x64") core utilities for the native backend (rolling; minimal bring-up).
+// x86_64 ("x64") core utilities for the native backend (rolling; Tier-1 target).
 //
-// Scope (v0):
+// Scope (rolling):
 // - byte buffer utilities
-// - small set of fixed-length instruction encoders (rel32 call/jmp, mov imm64, syscall, ret)
+// - instruction encoder building blocks used by the x64 native backend
 //
-// The goal is to support a minimal end-to-end x64 native backend bootstrap path.
+// Note: while x64 is a Tier-1 target, the encoder surface is still being expanded
+// incrementally with fixtures to keep correctness and ABI details tight.
 
 // --- Binary Utils ---
 fn bytes_new() { return [] }

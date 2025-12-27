@@ -1,0 +1,11 @@
+fn add4(a, b, c, d) {
+    // Exercises arg regs beyond the first two:
+    // - Linux SysV: edi, esi, edx, ecx
+    // - Windows x64: ecx, edx, r8d, r9d
+    return a + b + c + d
+}
+
+fn main() {
+    return add4(1, 2, 3, 4)
+}
+

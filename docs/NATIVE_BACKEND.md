@@ -1,11 +1,11 @@
-# Native Backend (ARM64 + x86_64 bring-up)
+# Native Backend (ARM64 + x86_64 Tier 1)
 
 The native backend emits machine code directly for:
 
 - **ARM64** (primary): macOS (Mach-O) and Linux (ELF)
-- **x86_64** (rolling bring-up): Linux (ELF) and Windows (PE32+)
+- **x86_64** (Tier 1; rolling evolution): Linux (ELF) and Windows (PE32+)
 
-The x86_64 backend is intentionally minimal while it is being brought up (see `docs/TODOS.md` for the current supported subset and roadmap).
+The x86_64 backend is a Tier-1 target, but is still in rolling evolution; `docs/TODOS.md` tracks what is implemented today and what is next.
 
 ## Supported Features
 

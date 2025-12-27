@@ -1,7 +1,9 @@
-// Minimal x86_64 native codegen (rolling bring-up).
+// x86_64 native codegen (rolling; Tier-1 target).
 //
-// This is intentionally tiny: it only supports compiling a `fn main() { return <int> }`
-// form well enough to produce runnable Linux x86_64 ELF and Windows x64 PE binaries.
+// The x64 backend is brought up incrementally with focused fixtures (oretest) to keep ABI
+// details correct across:
+// - Linux x86_64 SysV (ELF)
+// - Windows x64 (PE32+, Win64 ABI)
 //
 // Future work (tracked in docs/TODOS.md):
 // - full expression + statement lowering parity with arm64 backend
@@ -395,7 +397,8 @@ fn _expr_i32_check(ctx, expr) {
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
         if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
-        if argc > 2 { err(ctx, "x64 native v0: call supports at most 2 args for now"); return nil }
+        var max_args = _call_max_reg_args(ctx["platform"])
+        if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
 
         var i = 0
         while i < argc {
@@ -427,16 +430,27 @@ fn _expr_i32_check(ctx, expr) {
     return nil
 }
 
+fn _call_max_reg_args(platform) {
+    if platform != nil && platform["os"] == "windows" { return 4 }
+    return 6 // SysV
+}
+
 fn _call_arg_reg32(platform, arg_index) {
     // Return r32 register id used for arg_index under the platform ABI.
     if platform != nil && platform["os"] == "windows" {
         if arg_index == 0 { return 1 } // ecx
         if arg_index == 1 { return 2 } // edx
+        if arg_index == 2 { return 8 } // r8d
+        if arg_index == 3 { return 9 } // r9d
         return nil
     }
     // SysV (linux) subset (int args): edi, esi, edx, ecx, r8d, r9d.
     if arg_index == 0 { return 7 } // edi
     if arg_index == 1 { return 6 } // esi
+    if arg_index == 2 { return 2 } // edx
+    if arg_index == 3 { return 1 } // ecx
+    if arg_index == 4 { return 8 } // r8d
+    if arg_index == 5 { return 9 } // r9d
     return nil
 }
 
@@ -475,18 +489,32 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
         if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
-        if argc > 2 { err(ctx, "x64 native v0: call supports at most 2 args for now"); return nil }
+        var max_args = _call_max_reg_args(ctx["platform"])
+        if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
 
-        // Evaluate args left-to-right and move into ABI arg registers.
-        //
-        // v0 limitation: only up to 2 args so we don't clobber Win64 arg1 (EDX) with our scratch.
+        // Evaluate args left-to-right, spill to stack temps, then load into ABI arg registers.
+        // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
         var i = 0
         while i < argc {
             _emit_eval_i32_to_eax(ctx, args[i], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var tmp_name = "$tmp_arg" + oren_int_to_string(i)
+            var tmp_off = locals[tmp_name]
+            if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name); return nil }
+            var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(tmp_disp8, 0)) // [tmp] = eax
+            i = i + 1
+        }
+
+        i = 0
+        while i < argc {
             var reg = _call_arg_reg32(ctx["platform"], i)
             if reg == nil { err(ctx, "x64 native v0: unsupported call arg index"); return nil }
-            bytes_extend(ctx["code"], insn_mov_r32_r32(reg, 0)) // mov <arg>, eax
+            var tmp_name2 = "$tmp_arg" + oren_int_to_string(i)
+            var tmp_off2 = locals[tmp_name2]
+            if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name2); return nil }
+            var tmp_disp82 = core.int_mod(0 - tmp_off2, 256)
+            bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(reg, tmp_disp82))
             i = i + 1
         }
 
@@ -834,7 +862,8 @@ fn _extract_functions_v0(ctx, linked) {
             var params = fn0["params"]
             var pc = 0
             if params != nil { pc = oren_list_len(params) }
-            if pc > 2 { err(ctx, "x64 native v0: functions support at most 2 params for now: " + name); return nil }
+            var max_params = _call_max_reg_args(ctx["platform"])
+            if pc > max_params { err(ctx, "x64 native v0: functions support at most " + oren_int_to_string(max_params) + " params for now: " + name); return nil }
             var j = 0
             while j < pc {
                 var p = params[j]
@@ -901,6 +930,17 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if locals["$tmp0"] != nil { err(ctx, "x64 native v0: reserved local name $tmp0 used"); return nil }
     locals["$tmp0"] = local_next
     local_next = local_next + 8
+
+    // Reserve arg temp spill slots used for call lowering.
+    var tmp_i = 0
+    var max_args = _call_max_reg_args(platform)
+    while tmp_i < max_args {
+        var nm = "$tmp_arg" + oren_int_to_string(tmp_i)
+        if locals[nm] != nil { err(ctx, "x64 native v0: reserved local name " + nm + " used"); return nil }
+        locals[nm] = local_next
+        local_next = local_next + 8
+        tmp_i = tmp_i + 1
+    }
 
     var locals_size = local_next - 8
     // Align locals area to 16.
