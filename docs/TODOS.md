@@ -24,6 +24,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 2) **Native backend x86_64 (Linux ELF + Windows PE)** (L) (Tier 1 target)
    - Status: added x64 native backend foundation (`--backend native --arch x64`) that can compile small programs end-to-end.
    - Status: aligned x64 naming with Tier‑1 intent (removed `_min` module naming; now `lib/compiler/codegen_x64.oren` + `lib/compiler/x64_native_program.oren`).
+   - Status: added x64 comparison coverage for `<, <=, >, >=` (build fixtures + opt-in remote-run exit code).
    - Status: added Linux x86_64 ELF emitter (`lib/compiler/x64_elf.oren`) and Windows PE32+ emitter with import table for `kernel32!ExitProcess` (`lib/compiler/x64_pe.oren`).
    - Status: Linux x64 now supports `print("...")` (string literal only) via direct `SYS_write` + RIP-relative string data; oretest asserts the string is embedded in the ELF output.
    - Status: Windows x64 now supports `print("...")` (string literal only) via `kernel32!GetStdHandle` + `kernel32!WriteFile`; oretest asserts the string is embedded in the PE output.

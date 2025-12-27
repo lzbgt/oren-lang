@@ -1,4 +1,4 @@
-// Minimal x64-native fixture (rolling bring-up):
+// x86_64 native backend fixture (rolling bring-up):
 // - exercises `while`, assignment, and `!=`
 
 fn main() {
@@ -8,4 +8,3 @@ fn main() {
     }
     return x
 }
-

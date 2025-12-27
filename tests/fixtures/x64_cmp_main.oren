@@ -1,0 +1,25 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises signed comparisons: <, <=, >, >=
+// - uses assignments inside `if` blocks (not only early-returns)
+//
+// Expected result:
+// - a=3, b=3
+// - (a<=b) true  => +1
+// - (a<b)  false => +0
+// - (a>=b) true  => +4
+// - (a>b)  false => +0
+// => return 5
+
+fn main() {
+    var a = 3
+    var b = 3
+    var c = 0
+
+    if a <= b { c = c + 1 }
+    if a < b { c = c + 2 }
+    if a >= b { c = c + 4 }
+    if a > b { c = c + 8 }
+
+    return c
+}
+

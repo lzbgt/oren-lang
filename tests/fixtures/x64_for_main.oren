@@ -1,4 +1,4 @@
-// Minimal x64-native fixture (rolling bring-up):
+// x86_64 native backend fixture (rolling bring-up):
 // - exercises `for var i = 0; i < N; i = i + 1` lowering
 // - ensures `continue` jumps to post (otherwise this would hang at i==2)
 
@@ -12,4 +12,3 @@ fn main() {
     }
     return sum
 }
-
