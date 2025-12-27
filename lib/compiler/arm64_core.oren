@@ -924,6 +924,14 @@ fn insn_udiv(rd, rn, rm) {
     return 2596276224 + (rm * 65536) + (rn * 32) + rd // base 0x9AC00800
 }
 
+fn insn_sdiv(rd, rn, rm) {
+    // SDIV Xrd, Xrn, Xrm
+    // Verified via clang + otool:
+    //   sdiv x0, x1, x0 => 0x9AC00C20
+    // Base: 0x9AC00C00
+    return 2596277248 + (rm * 65536) + (rn * 32) + rd
+}
+
 fn insn_movk(reg, imm16, shift_idx) {
     return 4068474880 + (shift_idx * 2097152) + (imm16 * 32) + reg
 }

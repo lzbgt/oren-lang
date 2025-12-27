@@ -688,8 +688,11 @@ Non-goal:
   ```
 
 ### Operators
-- `+ - * /`:
-  - `int op int` yields `int` (and `int / int` is integer division).
+- `+ - * / %`:
+  - `int op int` yields `int`.
+  - `int / int` is **signed** integer division with truncation toward zero.
+  - `int % int` is the signed remainder consistent with trunc-toward-zero division (i.e. `a == (a / b) * b + (a % b)` and the remainder has the same sign as `a`).
+  - Division-by-zero and signed overflow (`i64_min / -1`) are not yet fully standardized across backends; this is tracked as a Tier‑1 parity item.
   - If either operand is `float`, arithmetic is performed in `float`.
   - `string + string` concatenates.
 - `==` / `!=` are type-strict in the runtime (e.g., `1 == 1.0` is false).

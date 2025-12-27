@@ -433,7 +433,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 }
                 if op == "-" { push_u32_le(ctx["code"], insn_sub_reg(0, 1, 0)) }
                 if op == "*" { push_u32_le(ctx["code"], insn_mul(0, 1, 0)) }
-                if op == "/" { push_u32_le(ctx["code"], insn_udiv(0, 1, 0)) }
+                if op == "/" { push_u32_le(ctx["code"], insn_sdiv(0, 1, 0)) }
                 if op == "&" { push_u32_le(ctx["code"], insn_and_reg(0, 1, 0)) }
                 if op == "|" { push_u32_le(ctx["code"], insn_orr_reg(0, 1, 0)) }
                 if op == "^" { push_u32_le(ctx["code"], insn_eor_reg(0, 1, 0)) }

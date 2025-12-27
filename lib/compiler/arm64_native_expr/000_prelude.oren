@@ -384,6 +384,7 @@ fn insn_clrex() { return core.insn_clrex() }
 fn insn_ldrb(rt, rn) { return core.insn_ldrb(rt, rn) }
 fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
 fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
+fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
 fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
 
