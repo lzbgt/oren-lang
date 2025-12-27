@@ -1374,6 +1374,43 @@ func main() {
 			},
 		},
 		{
+			name: "native_x64_cmp_expr_value_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_cmp_expr_value_main.oren",
+				"build/x64_cmp_expr_value_linux",
+				"build/x64_cmp_expr_value_linux.build.out",
+				"build/x64_cmp_expr_value_linux",
+				"build/x64_cmp_expr_value_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_cmp_expr_value_linux.file.out",
+				"x86-64",
+				"build/x64_cmp_expr_value_linux.file.out",
+				"tests/fixtures/x64_cmp_expr_value_main.oren",
+				"build/x64_cmp_expr_value_win.exe",
+				"build/x64_cmp_expr_value_win.build.out",
+				"build/x64_cmp_expr_value_win.exe",
+				"build/x64_cmp_expr_value_win.file.out",
+				"PE32+",
+				"build/x64_cmp_expr_value_win.file.out",
+				"x86-64",
+				"build/x64_cmp_expr_value_win.file.out",
+			),
+			log: "build/logs/native_x64_cmp_expr_value_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_cmp_expr_value_linux",
+				"build/x64_cmp_expr_value_linux.build.out",
+				"build/x64_cmp_expr_value_linux.file.out",
+				"build/x64_cmp_expr_value_win.exe",
+				"build/x64_cmp_expr_value_win.build.out",
+				"build/x64_cmp_expr_value_win.file.out",
+			},
+		},
+		{
 			name: "native_x64_cmp_neg_builds",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
@@ -1667,6 +1704,43 @@ func main() {
 				"build/x64_call_args4_win.exe",
 				"build/x64_call_args4_win.build.out",
 				"build/x64_call_args4_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_not_expr_value_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_not_expr_value_main.oren",
+				"build/x64_not_expr_value_linux",
+				"build/x64_not_expr_value_linux.build.out",
+				"build/x64_not_expr_value_linux",
+				"build/x64_not_expr_value_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_not_expr_value_linux.file.out",
+				"x86-64",
+				"build/x64_not_expr_value_linux.file.out",
+				"tests/fixtures/x64_not_expr_value_main.oren",
+				"build/x64_not_expr_value_win.exe",
+				"build/x64_not_expr_value_win.build.out",
+				"build/x64_not_expr_value_win.exe",
+				"build/x64_not_expr_value_win.file.out",
+				"PE32+",
+				"build/x64_not_expr_value_win.file.out",
+				"x86-64",
+				"build/x64_not_expr_value_win.file.out",
+			),
+			log: "build/logs/native_x64_not_expr_value_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_not_expr_value_linux",
+				"build/x64_not_expr_value_linux.build.out",
+				"build/x64_not_expr_value_linux.file.out",
+				"build/x64_not_expr_value_win.exe",
+				"build/x64_not_expr_value_win.build.out",
+				"build/x64_not_expr_value_win.file.out",
 			},
 		},
 		{

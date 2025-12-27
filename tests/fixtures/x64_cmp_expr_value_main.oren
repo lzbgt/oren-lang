@@ -1,0 +1,9 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises compare-as-expression lowering (bool-as-int 0/1)
+
+fn main() {
+    var a = 2
+    var b = 3
+    // (a < b) => 1
+    return (a < b) + 4
+}

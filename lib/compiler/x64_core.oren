@@ -469,6 +469,25 @@ fn insn_jcc_rel32(cc, disp32) {
     return out
 }
 
+fn insn_setcc_al(cc) {
+    // setcc al => 0F 9? C0
+    //
+    // Supported:
+    // - "e"  => SETE  (0F 94 C0)
+    // - "ne" => SETNE (0F 95 C0)
+    // - "l"  => SETL  (0F 9C C0)  signed less than
+    // - "ge" => SETGE (0F 9D C0)  signed greater/equal
+    // - "le" => SETLE (0F 9E C0)  signed less/equal
+    // - "g"  => SETG  (0F 9F C0)  signed greater than
+    if cc != "e" && cc != "ne" && cc != "l" && cc != "ge" && cc != "le" && cc != "g" { return nil }
+    if cc == "e" { return [15, 148, 192] }
+    if cc == "ne" { return [15, 149, 192] }
+    if cc == "l" { return [15, 156, 192] }
+    if cc == "ge" { return [15, 157, 192] }
+    if cc == "le" { return [15, 158, 192] }
+    return [15, 159, 192]
+}
+
 fn insn_imul_r32_imm32(reg, imm32) {
     // imul r32, r/m32, imm32 => 69 /r id
     // modrm: 11 reg=(reg&7) rm=(reg&7) => 0xC0 | ((reg&7)<<3) | (reg&7)
