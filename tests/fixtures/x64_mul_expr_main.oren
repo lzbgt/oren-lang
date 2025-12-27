@@ -1,0 +1,9 @@
+// Minimal x64-native fixture (rolling bring-up):
+// - exercises `*` on i32 with an integer literal rhs
+// Expected: 6*7 == 42
+
+fn main() {
+    var x = 6
+    return x * 7
+}
+

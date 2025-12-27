@@ -32,6 +32,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: x64 minimal lowering now supports `while <id|int> (==|!=) <id|int> { ... }` plus assignment (`x = x + 1`) with local vars; oretest ensures it builds for both targets.
    - Status: x64 minimal lowering now supports `break` / `continue` inside `while` loops; oretest ensures it builds for both targets, and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
    - Status: x64 minimal lowering now supports `for var i = 0; i < N; i = i + 1 { ... }` with correct `continue` semantics (continue jumps to post); oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
+   - Status: x64 minimal lowering now supports `*` (imul) for `i32` when RHS is an integer literal (`return x * 7`); `OREN_REMOTE_RUN=1` validates exit code on real x86_64.
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: added an opt-in remote-run oretest smoke (Win11 cmd.exe + WSL2) behind `OREN_REMOTE_RUN=1` to validate actual stdout + exit code on real x86_64.
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).

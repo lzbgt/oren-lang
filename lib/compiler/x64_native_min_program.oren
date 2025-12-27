@@ -46,6 +46,7 @@ fn insn_sub_r32_r32(dst, src) { return core.insn_sub_r32_r32(dst, src) }
 fn insn_cmp_r32_imm32(reg, imm32) { return core.insn_cmp_r32_imm32(reg, imm32) }
 fn insn_cmp_r32_r32(lhs, rhs) { return core.insn_cmp_r32_r32(lhs, rhs) }
 fn insn_jcc_rel32(cc, disp32) { return core.insn_jcc_rel32(cc, disp32) }
+fn insn_imul_r32_imm32(reg, imm32) { return core.insn_imul_r32_imm32(reg, imm32) }
 
 fn err(ctx, msg) {
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -170,11 +171,13 @@ fn _cond_check(ctx, cond) {
     // - <id|int> == <id|int>
     // - <id|int> != <id|int>
     // - <id|int> <  <id|int>
+    // - <id|int> <= <id|int>
+    // - <id|int> >  <id|int>
     // - <id|int> >= <id|int>
     if cond == nil { err(ctx, "x64 native v0: missing if condition"); return nil }
     if cond["type"] != "Infix" { err(ctx, "x64 native v0: if condition must be infix"); return nil }
     var op = cond["op"]
-    if op != "==" && op != "!=" && op != "<" && op != ">=" { err(ctx, "x64 native v0: if op not supported: " + op); return nil }
+    if op != "==" && op != "!=" && op != "<" && op != "<=" && op != ">" && op != ">=" { err(ctx, "x64 native v0: if op not supported: " + op); return nil }
     var l = cond["left"]
     var r = cond["right"]
     if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier") {
@@ -195,6 +198,8 @@ fn _cond_false_cc(cond_op) {
     if cond_op == "==" { return "ne" }
     if cond_op == "!=" { return "e" }
     if cond_op == "<" { return "ge" }
+    if cond_op == "<=" { return "g" }
+    if cond_op == ">" { return "le" }
     if cond_op == ">=" { return "l" }
     return nil
 }
@@ -377,7 +382,7 @@ fn _expr_i32_check(ctx, expr) {
     if t == "Identifier" { return nil }
     if t == "Infix" {
         var op = expr["op"]
-        if op != "+" && op != "-" { err(ctx, "x64 native v0: infix op not supported: " + op); return nil }
+        if op != "+" && op != "-" && op != "*" { err(ctx, "x64 native v0: infix op not supported: " + op); return nil }
         var l = expr["left"]
         var r = expr["right"]
         if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier") {
@@ -427,7 +432,8 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
             var n2 = _int_from_string_dec(r["value"])
             if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
             if op == "+" { bytes_extend(ctx["code"], insn_add_r32_imm32(0, n2)) }
-            else { bytes_extend(ctx["code"], insn_sub_r32_imm32(0, n2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r32_imm32(0, n2)) }
+            else { bytes_extend(ctx["code"], insn_imul_r32_imm32(0, n2)) }
             return nil
         }
         if r != nil && r["type"] == "Identifier" {
@@ -436,7 +442,8 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
             var disp82 = core.int_mod(0 - off2, 256)
             bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(2, disp82)) // edx = rhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r32_r32(0, 2)) }
-            else { bytes_extend(ctx["code"], insn_sub_r32_r32(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r32_r32(0, 2)) }
+            else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
             return nil
         }
     }
