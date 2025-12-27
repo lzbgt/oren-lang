@@ -518,6 +518,101 @@ Common builtins:
 - `@abi` for ABI/layout metadata
 - `@pack` for packed “view over bytes” structs (network packet parsing)
 - `@serde(...)` for serialization metadata (json/yaml/cbor)
+
+## 8) Containers (lists, maps, buffers)
+
+Oren has three “container families” in rolling v0:
+
+1) **Lists**: `[]` (dynamic, boxed values)
+2) **Maps**: `{...}` (dynamic keys/values)
+3) **Typed buffers**: `I32_BUF / F32_BUF / F64_BUF / ...` (HPC-oriented numeric arrays)
+
+### Lists (dynamic)
+
+Lists are dynamic sequences. Literal forms:
+
+```oren
+var xs = [1, 2, 3]
+var ys = []
+```
+
+Indexing and assignment:
+
+```oren
+var x0 = xs[0]
+xs[1] = 9
+```
+
+Rolling note: lists are **boxed** at runtime. Even if you conceptually treat `xs` as “list of ints”, elements are still stored as generic runtime values. If you need stable numeric performance and layout, use typed buffers (see below).
+
+#### std:list helpers (recommended)
+
+Prefer `std:list` for ergonomics and for keeping stdlib/internal code off kernel intrinsics:
+
+```oren
+import list "std:list"
+
+var xs = [1, 2, 3]
+list.push(xs, 4)
+var n = list.len(xs)
+var tail = list.slice_copy(xs, 1, n - 1)
+```
+
+`std:list` also provides:
+
+- `list.clone(xs)` — **shallow clone** (new list; elements are not deep-copied)
+- `list.slice_copy(xs, off, n)` — copy out a sub-range (returns `Err` on invalid ranges)
+- `list.slice_view(xs, off, n)` — cheap O(1) iterable *view*
+
+#### Slice views (cheap; iterable-only)
+
+`list.slice_view(xs, off, n)` returns an “iterable map” consumed by `for x in it {}` via the runtime hook `oren_iter_next(container, idx)`.
+
+This is designed for “fast iteration without copy”:
+
+```oren
+import list "std:list"
+
+var xs = [10, 20, 30, 40]
+var view = list.slice_view(xs, 1, 2) // 20, 30
+
+var sum = 0
+for x: i64 in view {
+    sum = sum + x
+}
+```
+
+Rolling semantics:
+
+- Slice views are **not** general-purpose “lists” (they are iterable objects).
+- The view reflects the underlying list values at iteration time (no copy).
+- Malformed views iterate as an empty sequence (deterministic; avoids crashes).
+
+### Maps (dynamic)
+
+Maps use `{k: v, ...}` syntax, and can be indexed:
+
+```oren
+var m = {"a": 1, "b": 2}
+var v = m["a"]
+m["c"] = 3
+```
+
+Rolling note: map keys are restricted to a small set of runtime types (see `docs/AVM_SPEC.md` and runtime code for the exact set).
+
+### Typed buffers (HPC)
+
+Typed buffers are the performance-oriented container family used by the SIMD and linalg layers.
+They are created via intrinsics (or std wrappers) and support deterministic numeric kernels.
+
+Examples of native/AVM intrinsics include:
+
+- `oren_i32_buf_new(len)`
+- `oren_f32_buf_new(len)`
+- `oren_buf_load_f32(buf, idx)`
+- `oren_buf_store_f32(buf, idx, val)`
+
+See `docs/HPC_SERVER_PLAN.md` and `docs/AVM_NEON_MAPPING_PLAN.md` for direction and design constraints.
 - `@cap.requires(domain="...")` for capsule/capability gating of host-effectful APIs (see below)
 
 #### Strict attribute mode (compiler option)
