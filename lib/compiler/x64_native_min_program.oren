@@ -223,6 +223,15 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             err(ctx, "x64 native v0: unsupported expr statement")
             return nil
         }
+        if t == "Assign" {
+            var name_node2 = st["name"]
+            var v2 = st["value"]
+            if name_node2 == nil || name_node2["type"] != "Identifier" { err(ctx, "x64 native v0: assign name must be identifier"); return nil }
+            if v2 == nil { err(ctx, "x64 native v0: assign missing value"); return nil }
+            oren_list_push(ops, {"op": "assign_i32", "name": name_node2["value"], "expr": v2})
+            i = i + 1
+            continue
+        }
         if t == "Return" {
             var v = st["value"]
             if v == nil { err(ctx, "x64 native v0: return missing value"); return nil }
@@ -254,6 +263,27 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 }
             }
             oren_list_push(ops, {"op": "if", "cond": st["cond"], "then": then_ops, "else": else_ops})
+            i = i + 1
+            continue
+        }
+        if t == "While" {
+            _cond_check(ctx, st["cond"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var body = st["body"]
+            if body == nil || body["type"] != "Block" { err(ctx, "x64 native v0: while body must be Block"); return nil }
+            var body_ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
+            if body_ops == nil { return nil }
+            oren_list_push(ops, {"op": "while", "cond": st["cond"], "body": body_ops})
+            i = i + 1
+            continue
+        }
+        if t == "Break" {
+            oren_list_push(ops, {"op": "break"})
+            i = i + 1
+            continue
+        }
+        if t == "Continue" {
+            oren_list_push(ops, {"op": "continue"})
             i = i + 1
             continue
         }
@@ -443,6 +473,9 @@ fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
                 if local_next == nil { return nil }
                 local_next = _collect_locals_from_ops(ctx, op["else"], locals, local_next)
                 if local_next == nil { return nil }
+            } else if op["op"] == "while" {
+                local_next = _collect_locals_from_ops(ctx, op["body"], locals, local_next)
+                if local_next == nil { return nil }
             }
         }
         i = i + 1
@@ -450,7 +483,7 @@ fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
     return local_next
 }
 
-fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, platform) {
+fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var j = 0
     while ops != nil && j < oren_list_len(ops) {
         var op = ops[j]
@@ -464,6 +497,15 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             _emit_eval_i32_to_eax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp8, 0))
+        } else if op["op"] == "assign_i32" {
+            var off2 = locals[op["name"]]
+            if off2 == nil { err(ctx, "x64 native v0: assign unknown var " + op["name"]); return nil }
+            var disp82 = core.int_mod(0 - off2, 256)
+            _expr_i32_check(ctx, op["expr"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _emit_eval_i32_to_eax(ctx, op["expr"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp82, 0))
         } else if op["op"] == "print_cstr" {
             if platform != nil && platform["os"] == "linux" {
                 _emit_linux_write_cstr(ctx, op["value"])
@@ -490,13 +532,36 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             if c_op == "==" { _emit_jcc_to_label(ctx, local_fixups, "ne", else_label) }
             else { _emit_jcc_to_label(ctx, local_fixups, "e", else_label) }
 
-            _emit_ops_in_main(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform)
+            _emit_ops_in_main(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_jmp_to_label(ctx, local_fixups, end_label)
             _emit_label(ctx, labels, else_label)
-            _emit_ops_in_main(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform)
+            _emit_ops_in_main(ctx, op["else"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_label(ctx, labels, end_label)
+        } else if op["op"] == "while" {
+            var cond_label = _new_label(ctx, "while_cond")
+            var body_label = _new_label(ctx, "while_body")
+            var end_label2 = _new_label(ctx, "while_end")
+
+            _emit_label(ctx, labels, cond_label)
+            _emit_cmp_from_cond(ctx, op["cond"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var wop = op["cond"]["op"]
+            if wop == "==" { _emit_jcc_to_label(ctx, local_fixups, "ne", end_label2) }
+            else { _emit_jcc_to_label(ctx, local_fixups, "e", end_label2) }
+
+            _emit_label(ctx, labels, body_label)
+            _emit_ops_in_main(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _emit_jmp_to_label(ctx, local_fixups, cond_label)
+            _emit_label(ctx, labels, end_label2)
+        } else if op["op"] == "break" {
+            if loop_end_label == nil { err(ctx, "x64 native v0: break outside loop"); return nil }
+            _emit_jmp_to_label(ctx, local_fixups, loop_end_label)
+        } else if op["op"] == "continue" {
+            if loop_cond_label == nil { err(ctx, "x64 native v0: continue outside loop"); return nil }
+            _emit_jmp_to_label(ctx, local_fixups, loop_cond_label)
         } else {
             err(ctx, "x64 native v0: unknown op in main")
             return nil
@@ -663,7 +728,7 @@ fn native_compile_program_x64_min(linked, platform) {
     var labels = {}
     var local_fixups = []
     var epilogue_label = _new_label(ctx, "main_epilogue")
-    _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, platform)
+    _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Epilogue label (all returns jump here).

@@ -29,6 +29,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: x64 minimal lowering now supports local `var x = <int>` and `return x` (stack slot via RBP-relative addressing); oretest ensures it builds for both ELF+PE targets.
    - Status: x64 minimal lowering now supports `+` / `-` on i32 (`return x + 2`, `return 40 - x` style); oretest ensures it builds for both targets.
    - Status: x64 minimal lowering now supports `if <id|int> (==|!=) <id|int> { ... } else { ... }` with early returns; oretest ensures it builds for both targets.
+   - Status: x64 minimal lowering now supports `while <id|int> (==|!=) <id|int> { ... }` plus assignment (`x = x + 1`) with local vars; oretest ensures it builds for both targets.
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: added an opt-in remote-run oretest smoke (Win11 cmd.exe + WSL2) behind `OREN_REMOTE_RUN=1` to validate actual stdout + exit code on real x86_64.
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).
