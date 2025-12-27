@@ -15,7 +15,7 @@ Oren is an **agent-native**, syscall-first language and toolchain:
 
 - **Native** mode (server/desktop): compiles to native binaries (no libc shims for the *native backend output*).
   - Primary/production path today: macOS `arm64` (syscall-first runtime surface is most complete here).
-  - Rolling bring-up path: Linux/Windows `x86_64` (`--arch x64`) is supported but still in “minimal lowering” mode (feature surface is growing rapidly; see `docs/TODOS.md`).
+  - Rolling bring-up path: Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent, but currently a growing “bring-up subset” (feature surface is expanding rapidly; see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md` for real-hardware validation).
 - **Portable** mode: compiles to `.obc` bytecode executed by AVM, supporting determinism, snapshots, and capability-governed virtualized domains (FS/NET/PROC/ENV/TIME).
 
 ## 1) Program structure

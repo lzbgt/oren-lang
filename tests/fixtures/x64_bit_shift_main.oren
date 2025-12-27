@@ -9,8 +9,13 @@ fn main() {
     var bit_or = a | b  // 1110b => 14
     var bit_xor = a ^ b // 0110b => 6
 
+    // `<<` with an immediate shift count (encoder imm8 path).
     var shl = 1 << 3    // 8
-    var shr = 16 >> 2   // 4
+
+    // `>>` with a variable shift count (encoder CL path).
+    // Note: the x64 backend masks variable shift counts to 0..63 per ISA semantics.
+    var s = 2
+    var shr = 16 >> s   // 4
 
     return bit_and + bit_or + bit_xor + shl + shr // 8+14+6+8+4 == 40
 }
