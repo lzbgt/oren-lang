@@ -279,4 +279,45 @@ fn insn_sub_r32_r32(dst, src) {
     return out
 }
 
+fn insn_cmp_r32_imm32(lhs_reg, imm32) {
+    // cmp r/m32, imm32 => 81 /7 id
+    // modrm: 11 reg=111 rm=(lhs&7) => 0xF8 | (lhs&7)
+    if lhs_reg < 0 || lhs_reg > 15 { return nil }
+    var out = []
+    if lhs_reg >= 8 { bytes_push(out, 65) } // 0x41 (REX.B)
+    bytes_push(out, 129) // 81
+    bytes_push(out, 248 + int_mod(lhs_reg, 8)) // 0xF8 | rm
+    push_u32_le(out, imm32)
+    return out
+}
+
+fn insn_cmp_r32_r32(lhs, rhs) {
+    // cmp r/m32(lhs), r32(rhs) => 39 /r
+    // modrm: 11 reg=rhs rm=lhs
+    if lhs < 0 || lhs > 15 { return nil }
+    if rhs < 0 || rhs > 15 { return nil }
+    var out = []
+    var rex = 64 // 40 base
+    var need = false
+    if rhs >= 8 { rex = rex + 4; need = true } // REX.R
+    if lhs >= 8 { rex = rex + 1; need = true } // REX.B
+    if need { bytes_push(out, rex) }
+    bytes_push(out, 57) // 39
+    bytes_push(out, 192 + int_mod(rhs, 8) * 8 + int_mod(lhs, 8))
+    return out
+}
+
+fn insn_jcc_rel32(cc, disp32) {
+    // jcc rel32 => 0F 8? disp32
+    //
+    // Supported:
+    // - "e"  => JE  (0F 84)
+    // - "ne" => JNE (0F 85)
+    if cc != "e" && cc != "ne" { return nil }
+    var out = [15]
+    if cc == "e" { bytes_push(out, 132) } else { bytes_push(out, 133) }
+    push_u32_le(out, disp32)
+    return out
+}
+
 fn insn_call_rax() { return [255, 208] } // FF D0

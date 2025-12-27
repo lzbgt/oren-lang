@@ -1,0 +1,12 @@
+// Minimal x64-native fixture (rolling bring-up):
+// - exercises `if` branching with == and early returns
+
+fn main() {
+    var x = 0
+    if x == 0 {
+        return 1
+    } else {
+        return 2
+    }
+}
+
