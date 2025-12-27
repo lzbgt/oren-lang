@@ -219,7 +219,7 @@ fn _cond_check(ctx, cond) {
     if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
 
     // Comparison form is a special-case: we currently only support comparing
-    // an evaluated LHS expression against an Integer/Identifier RHS.
+    // an evaluated LHS expression against a restricted RHS subset (rolling forward).
     if _cond_is_cmp_infix(cond) != nil {
         var op = cond["op"]
         var l = cond["left"]
@@ -227,10 +227,6 @@ fn _cond_check(ctx, cond) {
         if l == nil || r == nil { err(ctx, "x64 native v0: condition infix missing operands"); return nil }
         _expr_int_check(ctx, l)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        if r["type"] != "Integer" && r["type"] != "Identifier" {
-            err(ctx, "x64 native v0: condition rhs must be Integer or Identifier for now")
-            return nil
-        }
         _expr_int_check(ctx, r)
         return nil
     }
@@ -760,7 +756,16 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
             return nil
         }
-        err(ctx, "x64 native v0: condition rhs not supported")
+        // General RHS expression: spill LHS, evaluate RHS, then cmp lhs,rhs.
+        var tmp_off = locals["$tmp_cmp"]
+        if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for cmp"); return nil }
+        var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
+        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8, 0)) // [tmp] = lhs (rax)
+        _emit_eval_int_to_rax(ctx, r, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+        bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8)) // rax = lhs
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
         return nil
     }
 
@@ -1114,6 +1119,13 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // perturbing RSP (keeps ABI alignment intact for nested calls).
     if locals["$tmp0"] != nil { err(ctx, "x64 native v0: reserved local name $tmp0 used"); return nil }
     locals["$tmp0"] = local_next
+    local_next = local_next + 8
+
+    // Reserve a spill slot for condition comparison lowering. This must be distinct from $tmp0
+    // because RHS expression evaluation may itself use $tmp0 (calls/infix spill), and we must
+    // preserve the LHS value until the final cmp.
+    if locals["$tmp_cmp"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_cmp used"); return nil }
+    locals["$tmp_cmp"] = local_next
     local_next = local_next + 8
 
     // Reserve arg temp spill slots used for call lowering.

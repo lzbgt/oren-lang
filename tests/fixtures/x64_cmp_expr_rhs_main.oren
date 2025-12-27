@@ -1,0 +1,12 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises comparison where RHS is a non-trivial expression (not just id/int)
+
+fn main() {
+    var a = 2
+    var b = 3
+    if a + b == b + 2 {
+        return 1
+    } else {
+        return 2
+    }
+}
