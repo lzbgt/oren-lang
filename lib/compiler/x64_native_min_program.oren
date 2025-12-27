@@ -31,6 +31,7 @@ fn insn_mov_r32_r32(dst, src) { return core.insn_mov_r32_r32(dst, src) }
 fn insn_call_rel32(disp32) { return core.insn_call_rel32(disp32) }
 fn insn_jmp_rel32(disp32) { return core.insn_jmp_rel32(disp32) }
 fn insn_mov_rax_mrip_disp32(disp32) { return core.insn_mov_rax_mrip_disp32(disp32) }
+fn insn_mov_rax_mrax() { return core.insn_mov_rax_mrax() }
 fn insn_lea_rsi_rip_disp32(disp32) { return core.insn_lea_rsi_rip_disp32(disp32) }
 fn insn_lea_r64_rip_disp32(reg, disp32) { return core.insn_lea_r64_rip_disp32(reg, disp32) }
 fn insn_lea_r64_rsp_disp8(reg, disp8) { return core.insn_lea_r64_rsp_disp8(reg, disp8) }
@@ -158,6 +159,35 @@ fn _data_add_cstr_newline(ctx, s) {
     bytes_extend(ctx["data"], b)
     // Return {"off": int, "len": int} where len excludes trailing NUL.
     return {"off": off, "len": oren_list_len(b) - 1}
+}
+
+fn _data_add_fnobj(ctx, fn_name) {
+    // Create (or reuse) a function-value object in the appended data blob.
+    //
+    // Layout (16 bytes):
+    //   [0] code_ptr (u64)  -- patched by emitter
+    //   [8] env_ptr  (u64)  -- 0 for now (no closures in x64 v0)
+    //
+    // NOTE: this does not yet implement the full canonical callable ABI
+    // (env,args_list wrappers). It is a convergence step so function values are
+    // not raw code pointers.
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    if ctx["fnobj_offs"] == nil { ctx["fnobj_offs"] = {} }
+    if ctx["fnobj_offs"][fn_name] != nil { return ctx["fnobj_offs"][fn_name] }
+
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = oren_list_len(ctx["data"])
+    // code_ptr placeholder (8 bytes)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+    // env_ptr = 0 (8 bytes)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+
+    ctx["fnobj_offs"][fn_name] = off
+    oren_list_push(ctx["fixups"], {"type": "data_fnobj_code_ptr", "data_off": off, "name": fn_name})
+    return off
 }
 
 fn _emit_linux_write_cstr(ctx, s) {
@@ -480,12 +510,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
 
         // Named function used in expression position => treat as a first-class function value.
-        // v0 representation: raw code pointer (direct-call ABI), not the full runtime callable object.
+        // v0 representation: pointer to a small `{code_ptr, env_ptr}` object in the data blob.
         if ctx["func_arity"] != nil && ctx["func_arity"][name] != nil {
+            var fnobj_off = _data_add_fnobj(ctx, name)
+            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
+
             var lea_pos = oren_list_len(ctx["code"])
             bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
-            // Patch disp32 to point at the function entry within .text.
-            oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": name})
+            // Patch disp32 to point at the fnobj data record.
+            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})
             return nil
         }
 
@@ -552,7 +585,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
         } else {
             var disp8c = core.int_mod(0 - callee_off, 256)
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, disp8c)) // rax = fn ptr
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, disp8c)) // rax = fnobj ptr
+            bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = [fnobj].code_ptr
             bytes_extend(ctx["code"], insn_call_rax())
         }
         return nil

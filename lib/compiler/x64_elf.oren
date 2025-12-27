@@ -17,6 +17,12 @@ fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
 fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
 fn int_mod(a, b) { return codegen.int_mod(a, b) }
 
+fn set_u64_le(buf, offset, n) {
+    // Patch u64 into a byte buffer (little-endian) using two u32 writes.
+    set_u32_le(buf, offset, int_mod(n, 4294967296))
+    set_u32_le(buf, offset + 4, int_mod(n / 4294967296, 4294967296))
+}
+
 fn elf_build_prefix_x64(code, data, entry_off) {
     var p = bytes_new()
 
@@ -88,6 +94,10 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
     }
     var data_base_off = code_len + oren_list_len(code_pad)
 
+    var data_blob = bytes_new()
+    bytes_extend(data_blob, code_pad)
+    bytes_extend(data_blob, data)
+
     var i = 0
     while i < oren_list_len(fixups) {
         var f = fixups[i]
@@ -117,6 +127,34 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
             if disp2 < 0 { disp2 = 4294967296 + disp2 }
             set_u32_le(code, disp_pos, disp2)
         }
+        else if f["type"] == "rip_data_lea" {
+            // Patch lea r64, [rip+disp32] where disp32 points into appended data.
+            // (Same patch math as rip_data_lea_rsi; the disp field is the same.)
+            var disp_pos2 = f["pos"]
+            var data_off2 = f["data_off"]
+            var insn_start2 = disp_pos2 - 3
+            var next_rip2 = text_base + (insn_start2 + 7)
+            var target_addr2 = text_base + data_base_off + data_off2
+            var disp3 = target_addr2 - next_rip2
+            if disp3 < 0 { disp3 = 4294967296 + disp3 }
+            set_u32_le(code, disp_pos2, disp3)
+        }
+        else if f["type"] == "data_fnobj_code_ptr" {
+            // Patch the code_ptr field inside a `{code_ptr, env_ptr}` fnobj record.
+            //
+            // NOTE: We store the absolute virtual address. This is safe for this v0 ELF emitter
+            // because we emit a fixed-base ET_EXEC without relocations (base=0x400000).
+            var name2 = f["name"]
+            var target_off2 = functions[name2]
+            if target_off2 == nil {
+                print("x64 elf: undefined function " + name2)
+                oren_exit(1)
+            }
+            var data_off3 = f["data_off"]
+            var addr = text_base + target_off2
+            // Data blob is appended after code_pad; patch there.
+            set_u64_le(data_blob, data_base_off + data_off3, addr)
+        }
         else if f["type"] == "rip_code_lea" {
             // Patch lea r64, [rip+disp32] where disp32 points to a function entry in .text.
             //
@@ -141,10 +179,6 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
         }
         i = i + 1
     }
-
-    var data_blob = bytes_new()
-    bytes_extend(data_blob, code_pad)
-    bytes_extend(data_blob, data)
 
     var prefix = elf_build_prefix_x64(code, data_blob, ctx["entry_off"])
     bytes_extend(prefix, code)

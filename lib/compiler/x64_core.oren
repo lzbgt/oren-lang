@@ -134,6 +134,11 @@ fn insn_mov_rax_mrip_disp32(disp32) {
     return out
 }
 
+fn insn_mov_rax_mrax() {
+    // mov rax, qword ptr [rax] => 48 8B 00
+    return [72, 139, 0]
+}
+
 fn insn_lea_rsi_rip_disp32(disp32) {
     // lea rsi, [rip+disp32] => 48 8D 35 disp32
     var out = [72, 141, 53]
