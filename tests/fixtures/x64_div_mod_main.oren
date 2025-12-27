@@ -1,0 +1,10 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises int division `/` and modulo `%` (trunc toward zero)
+
+fn main() {
+    var a = 7
+    var b = 3
+    var q = a / b   // 2
+    var r = a % b   // 1
+    return q + r + 10 // 13
+}

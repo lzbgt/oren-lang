@@ -74,6 +74,9 @@ fn insn_shl_r64_imm8(reg, imm8) { return core.insn_shl_r64_imm8(reg, imm8) }
 fn insn_shr_r64_imm8(reg, imm8) { return core.insn_shr_r64_imm8(reg, imm8) }
 fn insn_shl_r64_cl(reg) { return core.insn_shl_r64_cl(reg) }
 fn insn_shr_r64_cl(reg) { return core.insn_shr_r64_cl(reg) }
+fn insn_movsxd_r64_r32(dst, src) { return core.insn_movsxd_r64_r32(dst, src) }
+fn insn_cqo() { return core.insn_cqo() }
+fn insn_idiv_r64(reg) { return core.insn_idiv_r64(reg) }
 fn insn_not_r64(reg) { return core.insn_not_r64(reg) }
 fn insn_neg_r64(reg) { return core.insn_neg_r64(reg) }
 
@@ -525,7 +528,7 @@ fn _expr_int_check(ctx, expr) {
     }
     if t == "Infix" {
         var op = expr["op"]
-        if op != "+" && op != "-" && op != "*" &&
+        if op != "+" && op != "-" && op != "*" && op != "/" && op != "%" &&
             op != "==" && op != "!=" && op != "<" && op != "<=" && op != ">" && op != ">=" &&
             op != "&&" && op != "||" &&
             op != "&" && op != "|" && op != "^" && op != "<<" && op != ">>" {
@@ -788,6 +791,34 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if cc1 == nil { err(ctx, "x64 native v0: unsupported compare op"); return nil }
             bytes_extend(ctx["code"], insn_setcc_al(cc1))
             bytes_extend(ctx["code"], insn_cdqe())
+            return nil
+        }
+
+        if op == "/" || op == "%" {
+            // Integer division/modulo (trunc toward zero, like x86 idiv).
+            //
+            // idiv uses RDX:RAX as the dividend and overwrites both; divisor is r/m64.
+            // We keep divisor in RCX and preserve dividend in $tmp_div across RHS evaluation.
+            _emit_eval_int_to_rax(ctx, l, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var tmp_offd = locals["$tmp_div"]
+            if tmp_offd == nil { err(ctx, "x64 native v0: missing temp slot for div"); return nil }
+            var tmp_disp8d = core.int_mod(0 - tmp_offd, 256)
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8d, 0)) // [tmp] = dividend (rax)
+
+            // Evaluate divisor into RAX, then move to RCX with sign extension from i32 range.
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // ecx = eax (low 32)
+            bytes_extend(ctx["code"], insn_movsxd_r64_r32(1, 1)) // rcx = signext(ecx)
+
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8d)) // rax = dividend
+            bytes_extend(ctx["code"], insn_cqo()) // sign-extend rax into rdx
+            bytes_extend(ctx["code"], insn_idiv_r64(1)) // idiv rcx
+            if op == "%" {
+                // remainder in rdx
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2)) // rax = rdx
+            }
             return nil
         }
 
@@ -1342,6 +1373,12 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // evaluation can use $tmp0, so we need an independent slot to preserve the LHS value.
     if locals["$tmp_shift"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_shift used"); return nil }
     locals["$tmp_shift"] = local_next
+    local_next = local_next + 8
+
+    // Reserve a spill slot for division/mod lowering, because idiv uses RAX/RDX and we need
+    // to preserve the dividend while evaluating the divisor.
+    if locals["$tmp_div"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_div used"); return nil }
+    locals["$tmp_div"] = local_next
     local_next = local_next + 8
 
     // Reserve arg temp spill slots used for call lowering.
