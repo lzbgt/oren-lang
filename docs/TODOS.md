@@ -39,6 +39,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Next: x64 Tier-1 parity for full first-class callables: converge from raw code pointers to the uniform callable object ABI (code_ptr + env_ptr, args_list-based) by compiling/injecting the native runtime callable layer (`lib/runtime_native/120_first_class_fn.oren`) and aligning with `native_callable.oren` wrappers (enables closures + varargs/spread + safe indirect calls).
    - Status: added oretest fixtures validating produced artifact formats via `file` (`native_x64_linux_format`, `native_x64_windows_format`).
    - Status: added an opt-in remote-run oretest smoke (Win11 cmd.exe + WSL2) behind `OREN_REMOTE_RUN=1` to validate actual stdout + exit code on real x86_64 (includes `div/mod`, `bit/shift`, `&&/||` short-circuit, compare-as-expression, `!` as expression, and stack-arg calling exitcode checks).
+   - Status: remote-run harness now uses per-fixture remote subdirectories (safe to parallelize), captures Win `ERRORLEVEL` via delayed expansion (`cmd.exe /v:on` + `!ERRORLEVEL!`), and PE emitter now patches `rip_data_lea` (fixes first-class function value indirection crashes on Windows x64).
    - Status: documented the remote x86_64 dev environment access (Win11 cmd.exe + WSL2) in `docs/REMOTE_X64_ENV.md` (includes the exact `ssh -o 'proxycommand socat ...'` command and run/copy workflows).
    - Next: implement full x64 statement/expression lowering parity with arm64 backend (loops, locals, calls, ptr ops, lists, floats/SIMD).
    - Next: expand the remote-run gate (more fixtures; maybe include `capsule` mode on Linux x64) while keeping it opt-in.
@@ -72,7 +73,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
 
 6) **Self-hosting hardening (rolling stability gates)** (S)
    - Status: Stage0→Stage1→Stage2 pipeline exists and is exercised by `make test` (see `docs/SELF_HOSTING.md`).
-   - Status: `oretest` parallelizes fixtures/native tests and has deterministic self-host gates (bytecode Stage2 + AVM; optional native Stage2 smoke).
+   - Status: `oretest` parallelizes fixtures/native tests, logs the executed shell command into each fixture/test log, and preserves fixture artifacts on failure for debugging.
    - Next: define and freeze a “bootstrap subset” (syntax + stdlib surface) that Stage0 must support; treat changes as high-risk and gate them.
 
 ### P1 (Soon)

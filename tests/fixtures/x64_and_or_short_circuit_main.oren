@@ -9,8 +9,13 @@ fn hang() {
 
 fn main() {
     // Must not call hang()
-    if false && hang() != 0 { return 10 }
-    if true || hang() != 0 { return 11 }
+    // Validate results while preserving short-circuit behavior:
+    // - `false && <rhs>` must be false without evaluating <rhs>
+    // - `true || <rhs>` must be true without evaluating <rhs>
+    var c0 = false && hang() != 0
+    if c0 != false { return 10 }
+    var c1 = true || hang() != 0
+    if c1 != true { return 11 }
 
     // Must evaluate RHS when needed
     var a = false || (1 < 2) // => 1

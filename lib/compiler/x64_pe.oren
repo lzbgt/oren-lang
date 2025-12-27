@@ -208,6 +208,20 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
             if disp3 < 0 { disp3 = 4294967296 + disp3 }
             set_u32_le(code, disp_pos2, disp3)
         }
+        if f["type"] == "rip_data_lea" || f["type"] == "rip_data_lea_rsi" {
+            // lea r64, [rip+disp32] where target points into appended user data (fnobj, cstr, etc).
+            //
+            // x64_native_program.oren uses this fixup for first-class function values:
+            // it emits `lea rax,[rip+disp32]` and later the caller loads `[rax]` as code_ptr.
+            var disp_pos2 = f["pos"]
+            var data_off = f["data_off"]
+            var insn_start2 = disp_pos2 - 3
+            var next_rip2 = text_rva + (insn_start2 + 7)
+            var target_rva2 = rdata_rva + off_user_data + data_off
+            var disp3 = target_rva2 - next_rip2
+            if disp3 < 0 { disp3 = 4294967296 + disp3 }
+            set_u32_le(code, disp_pos2, disp3)
+        }
         if f["type"] == "data_fnobj_code_ptr" {
             var name2 = f["name"]
             var target_off2 = functions[name2]
