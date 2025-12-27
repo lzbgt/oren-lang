@@ -25,6 +25,7 @@ fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
 
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
 fn insn_b(off) { return core.insn_b(off) }
 fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
 fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
@@ -35,6 +36,7 @@ fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
 fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
 fn insn_ret() { return core.insn_ret() }
 fn insn_stp_pre() { return core.insn_stp_pre() }
 fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
@@ -47,6 +49,7 @@ fn insn_svc(imm) { return core.insn_svc(imm) }
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
 fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
 
 // Delegate expression compilation to the expr module.
 fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
@@ -163,11 +166,81 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // cont -> X0
             // X1 is index (ok)
             push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
-            
+
+            // Native backend fast-path: list in-bounds store without calling stdlib.
+            // Falls back to `oren_map_set` for non-list containers (same behavior as the runtime `oren_index_set`).
+
+            // If container is nil, panic deterministically.
+            push_u32_le(ctx["code"], insn_movz(4, 0))
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
+            var br_non_nil = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "index_set on nil")
+            var non_nil_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
+
+            // magic = *(container + 24)
+            emit_load_ptr_from_base_plus(ctx, 4, 0, 24) // X4 = magic
+            emit_load_i64_imm(ctx, 5, 1279870019)       // X5 = list_magic ('LIST')
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_to_map = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            // --- List path ---
+            // count = *(container + 0)
+            emit_load_ptr_from_base_plus(ctx, 6, 0, 0) // X6 = count
+
+            // idx < 0 => panic
+            push_u32_le(ctx["code"], insn_movz(4, 0))
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 4))
+            var br_nonneg = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "Index out of bounds (negative)")
+            var nonneg_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_nonneg, insn_b_cond((nonneg_pos - br_nonneg) / 4, 10)) // GE
+
+            // idx >= count => panic
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 6))
+            var br_in_bounds = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "Index out of bounds")
+            var in_bounds_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_in_bounds, insn_b_cond((in_bounds_pos - br_in_bounds) / 4, 11)) // LT
+
+            // buf = *(container + 16)
+            emit_load_ptr_from_base_plus(ctx, 6, 0, 16) // X6 = buf
+
+            // buf == 0 => panic (should only happen for empty lists, but keep it deterministic)
+            push_u32_le(ctx["code"], insn_movz(4, 0))
+            push_u32_le(ctx["code"], insn_cmp_reg(6, 4))
+            var br_buf_ok = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "list buffer is nil")
+            var buf_ok_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_buf_ok, insn_b_cond((buf_ok_pos - br_buf_ok) / 4, 1)) // NE
+
+            // addr = buf + idx*8
+            emit_load_i64_imm(ctx, 4, 8)
+            push_u32_le(ctx["code"], insn_mul(7, 1, 4))     // X7 = idx*8
+            push_u32_le(ctx["code"], insn_add_reg(7, 6, 7)) // X7 = buf + off
+
+            // *(addr) = value
+            push_u32_le(ctx["code"], insn_str_ptr(2, 7))
+
+            // Done.
+            var br_done = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            // --- Map fallback ---
+            var map_pos = oren_list_len(ctx["code"])
             var bl_pos = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_index_set"})
-            
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_map_set"})
+
+            var done_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_to_map, insn_b_cond((map_pos - br_to_map) / 4, 1)) // NE
+            set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+
             return nil
         }
         if stmt["left"]["type"] == "Member" {

@@ -16,6 +16,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Goal: ergonomic container operations (push/pop/len/get/set/slice) without stdlib call overhead in hot paths.
    - Direction: 3 layers — kernel intrinsics (`oren_*`) → std wrappers (`std:list`) → language-level sugar/operators.
    - Next: finish deterministic dispatch rules for generics + `dyn` and document the exact lowering contract.
+   - Next: expand the native inlining fast-path beyond `xs[i]` / `xs[i]=v` (e.g. `len`, `push`) and port parity to the x64 native backend.
    - References: `docs/DESIGN_CONTAINER_OPS.md`, `docs/STDLIB_LAYERS.md`.
 
 3) **Backend architecture unification (CoreIR boundary + canonical runtime ABI)** (L)
@@ -52,3 +53,4 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **ARM64 `/` semantics fixed for Tier‑1 parity**: `int / int` now lowers to `SDIV` (signed trunc-toward-zero) in the arm64 native backend; integration suite adds signed division asserts.
 - **Arithmetic invalid cases standardized**: native backends now deterministically abort on div-by-zero / `i64_min / -1` and shift counts outside `0..63`, matching AVM and the C backend runtime.
 - **Invalid arithmetic fixtures added**: `oretest` now exercises div0 / overflow / shift-oob panic behavior in the local native+C backends and ensures x64 ELF/PE builds exist for the same cases.
+- **Container ops first milestone (arm64 native)**: list indexing `xs[i]` and index assignment `xs[i]=v` now lower to native code directly (no `oren_list_get` / `oren_index_set` call), with a deterministic fallback to `oren_map_get` / `oren_map_set` for non-list containers; `oren_index_set` runtime semantics now match the spec (lists do not auto-grow).

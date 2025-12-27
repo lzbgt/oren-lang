@@ -25,13 +25,22 @@ fn oren_new_list(cap) {
 
 fn oren_list_len(list) {
     if list == 0 { return 0 }
-    if ptr_get(list + 24) != list_magic() { exit(205) }
+    if ptr_get(list + 24) != list_magic() {
+        oren_panic("list_len on non-list")
+        return 0
+    }
     return ptr_get(list)
 }
 
 fn oren_list_push(list, value) {
-    if list == 0 { exit(210) }
-    if ptr_get(list + 24) != list_magic() { exit(206) }
+    if list == 0 {
+        oren_panic("list_push on nil")
+        return 0
+    }
+    if ptr_get(list + 24) != list_magic() {
+        oren_panic("list_push on non-list")
+        return 0
+    }
     var count = ptr_get(list)
     var cap = ptr_get(list + 8)
     var buf = ptr_get(list + 16)
@@ -58,7 +67,10 @@ fn oren_list_push(list, value) {
 }
 
 fn oren_list_get(list, idx) {
-    if list == 0 { exit(220) }
+    if list == 0 {
+        oren_panic("Indexing on nil")
+        return 0
+    }
     if ptr_get(list + 24) != list_magic() {
         // Not a list, try map get
         return oren_map_get(list, idx)
@@ -88,4 +100,3 @@ fn oren_list_set(list, idx, value) {
     ptr_set(buf + idx * 8, value)
     return value
 }
-

@@ -543,44 +543,23 @@ fn oren_bytes_put_u32_le(bytes, idx, v) {
     return bytes
 }
 
-// Minimal index_set for lists; maps still use oren_map_set directly.
+// Index assignment helper used by the frontend/lowerings that still target
+// `oren_index_set` directly (rolling).
+//
+// Semantics (per `docs/LANGUAGE_SPEC.md`):
+// - Lists: `xs[i] = v` must be in-bounds (does not grow); out-of-range is a panic.
+// - Maps: `m[key] = v` inserts/replaces and returns `v`.
 fn oren_index_set(container, index, value) {
-    if container == 0 { exit(230) }
-    // Detect list by magic tag.
-    if ptr_get(container + 24) == list_magic() {
-        var buf = ptr_get(container + 16)
-        var count = ptr_get(container)
-        var cap = ptr_get(container + 8)
-        if index < 0 { exit(231) }
-        if index >= cap {
-            var new_cap = cap
-            if new_cap == 0 { new_cap = index + 1 }
-            while new_cap <= index { new_cap = new_cap * 2 }
-            var new_buf = malloc(new_cap * 8)
-            oren_track_alloc(new_buf, new_cap * 8, 0)
-            var i = 0
-            while i < count {
-                ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
-                i = i + 1
-            }
-            buf = new_buf
-            cap = new_cap
-            ptr_set(container + 8, cap)
-            ptr_set(container + 16, buf)
-        }
-        if index >= count {
-            // zero-fill new slots
-            var i2 = count
-            while i2 <= index {
-                ptr_set(buf + i2 * 8, 0)
-                i2 = i2 + 1
-            }
-            ptr_set(container, index + 1)
-        }
-        ptr_set(buf + index * 8, value)
-        return value
+    if container == 0 {
+        oren_panic("index_set on nil")
+        return 0
     }
+
+    // Detect list by magic tag; lists use strict in-bounds semantics.
+    if ptr_get(container + 24) == list_magic() {
+        return oren_list_set(container, index, value)
+    }
+
     // Fallback: behave like map set
     return oren_map_set(container, index, value)
 }
-
