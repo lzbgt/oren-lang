@@ -173,10 +173,42 @@ fn insn_add_rsp_imm8(n) {
     return [72, 131, 196, int_mod(n, 256)]
 }
 
+fn insn_sub_rsp_imm32(n) {
+    // sub rsp, imm32 => 48 81 EC id
+    var out = [72, 129, 236]
+    push_u32_le(out, int_mod(n, 4294967296))
+    return out
+}
+
+fn insn_add_rsp_imm32(n) {
+    // add rsp, imm32 => 48 81 C4 id
+    var out = [72, 129, 196]
+    push_u32_le(out, int_mod(n, 4294967296))
+    return out
+}
+
 fn insn_mov_mrsp_disp8_imm32(disp8, imm32) {
     // mov dword ptr [rsp+disp8], imm32 => C7 44 24 ib imm32
     var out = [199, 68, 36, int_mod(disp8, 256)]
     push_u32_le(out, imm32)
+    return out
+}
+
+fn insn_mov_mrbp_disp8_imm32(disp8, imm32) {
+    // mov dword ptr [rbp+disp8], imm32 => C7 45 ib imm32
+    var out = [199, 69, int_mod(disp8, 256)]
+    push_u32_le(out, imm32)
+    return out
+}
+
+fn insn_mov_r32_mrbp_disp8(dst_reg, disp8) {
+    // mov r32, dword ptr [rbp+disp8] => 8B 45 ib (with optional REX.R for r8d-r15d)
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    var out = []
+    if dst_reg >= 8 { bytes_push(out, 68) } // 0x44 (REX.R)
+    bytes_push(out, 139) // 8B
+    bytes_push(out, 69 + int_mod(dst_reg, 8) * 8) // 0x45 | ((dst&7)<<3)
+    bytes_push(out, int_mod(disp8, 256))
     return out
 }
 

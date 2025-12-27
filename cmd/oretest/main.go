@@ -893,6 +893,43 @@ func main() {
 				cleanup: []string{"build/x64_print_win.exe", "build/x64_print_win.build.out", "build/x64_print_win.strings.out"},
 			},
 			{
+				name: "native_x64_var_return_builds",
+				cmd: fmt.Sprintf(
+					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+					"tests/fixtures/x64_var_return_main.oren",
+					"build/x64_var_return_linux",
+					"build/x64_var_return_linux.build.out",
+					"build/x64_var_return_linux",
+					"build/x64_var_return_linux.file.out",
+					"ELF 64-bit",
+					"build/x64_var_return_linux.file.out",
+					"x86-64",
+					"build/x64_var_return_linux.file.out",
+					"tests/fixtures/x64_var_return_main.oren",
+					"build/x64_var_return_win.exe",
+					"build/x64_var_return_win.build.out",
+					"build/x64_var_return_win.exe",
+					"build/x64_var_return_win.file.out",
+					"PE32+",
+					"build/x64_var_return_win.file.out",
+					"x86-64",
+					"build/x64_var_return_win.file.out",
+				),
+				log: "build/logs/native_x64_var_return_builds.log",
+				ok:  func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/x64_var_return_linux",
+					"build/x64_var_return_linux.build.out",
+					"build/x64_var_return_linux.file.out",
+					"build/x64_var_return_win.exe",
+					"build/x64_var_return_win.build.out",
+					"build/x64_var_return_win.file.out",
+				},
+			},
+			{
 				name: "native_x64_linux_print_embeds_string",
 				cmd: fmt.Sprintf(
 					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
