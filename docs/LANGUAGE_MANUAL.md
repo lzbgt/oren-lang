@@ -38,6 +38,25 @@ import buffer "std:buffer"
 
 Imported names can be qualified as `alias.symbol`.
 
+### FFI symbols (`ffi name`)
+
+Oren supports an `ffi` declaration statement to reference an external symbol:
+
+```oren
+ffi puts
+puts("Hello FFI")
+```
+
+Notes (rolling):
+
+- `ffi` is a low-level escape hatch intended primarily for native interop and experiments.
+- In **capsule** mode, `ffi` declarations are rejected (FFI bypasses capability gating).
+- Native backend:
+  - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/NATIVE_BACKEND.md`).
+  - **Linux** does not yet have a full dynamic-linking story in the native backend; unresolved imports are currently stubbed (see `docs/NATIVE_BACKEND.md`).
+- C backend:
+  - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/C_BACKEND.md`).
+
 ## 2) Values and literals
 
 ### Integers
@@ -116,6 +135,20 @@ for var i = 0; i < 10; i = i + 1 {
     // ...
 }
 ```
+
+### `break` / `continue`
+
+Oren supports `break` and `continue` inside loops.
+
+- `break` exits the **nearest** enclosing loop.
+- `continue` skips to the next loop iteration.
+  - In `for var i=...; ...; post { ... }`, `continue` still executes the `post` expression
+    before re-checking the loop condition (this avoids “continue hangs” and is enforced by tests).
+
+This behavior is exercised by:
+
+- `tests/native/test_for_break_continue.oren`
+- `tests/avm/test_for_break_continue.oren`
 
 ### `for x in iterable` (trait-based iteration sugar)
 
@@ -401,6 +434,23 @@ struct Point {
     y: i32
 }
 ```
+
+Classes (rolling; legacy object-shaped values):
+
+```oren
+class Rect { tl, br }
+
+var r = Rect(Point(0, 0), Point(10, 20))
+var w = r.br.x - r.tl.x
+```
+
+In the current rolling implementation, `class` is similar to `struct`:
+
+- Constructor syntax is the same (`Rect(...)`).
+- Field access is the same (`r.tl`, `r.br`).
+- Values are represented as runtime map-shaped objects (see `docs/OBJECT_MODEL.md`).
+
+Oren’s long-term direction is “traits + composition”, not inheritance-first OOP; consider `class` a compatibility/ergonomics feature rather than a design center.
 
 Enums (rolling “tagged map” sugar):
 
