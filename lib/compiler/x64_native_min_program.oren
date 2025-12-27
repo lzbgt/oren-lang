@@ -36,6 +36,7 @@ fn insn_add_rsp_imm8(n) { return core.insn_add_rsp_imm8(n) }
 fn insn_sub_rsp_imm32(n) { return core.insn_sub_rsp_imm32(n) }
 fn insn_add_rsp_imm32(n) { return core.insn_add_rsp_imm32(n) }
 fn insn_mov_mrsp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrsp_disp8_imm32(disp8, imm32) }
+fn insn_and_rsp_imm8(mask_imm8) { return core.insn_and_rsp_imm8(mask_imm8) }
 fn insn_mov_mrbp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrbp_disp8_imm32(disp8, imm32) }
 fn insn_mov_r32_mrbp_disp8(reg, disp8) { return core.insn_mov_r32_mrbp_disp8(reg, disp8) }
 fn insn_mov_mrbp_disp8_r32(disp8, reg) { return core.insn_mov_mrbp_disp8_r32(disp8, reg) }
@@ -766,6 +767,11 @@ fn native_compile_program_x64_min(linked, platform) {
     if ops == nil { return ctx }
 
     // --- Entry stub ---
+    //
+    // Align stack to 16B boundary early so both SysV and Win64 calls stay well-formed as we grow
+    // the x64 backend surface. This is safe because we do not use argv/envp here and never return.
+    bytes_extend(ctx["code"], insn_and_rsp_imm8(240)) // 0xF0 == -16
+
     // call main
     //
     // Windows x64 ABI note: calls require 32 bytes of shadow space allocated by the caller.

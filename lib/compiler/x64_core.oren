@@ -194,6 +194,12 @@ fn insn_mov_mrsp_disp8_imm32(disp8, imm32) {
     return out
 }
 
+fn insn_and_rsp_imm8(mask_imm8) {
+    // and rsp, imm8 => 48 83 E4 ib  (imm8 is sign-extended)
+    // Common usage: mask_imm8 = 0xF0 (-16) to align RSP to 16B boundary.
+    return [72, 131, 228, int_mod(mask_imm8, 256)]
+}
+
 fn insn_mov_mrbp_disp8_imm32(disp8, imm32) {
     // mov dword ptr [rbp+disp8], imm32 => C7 45 ib imm32
     var out = [199, 69, int_mod(disp8, 256)]
