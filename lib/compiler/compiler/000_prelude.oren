@@ -30,6 +30,9 @@ fn cli_spec() {
     // Global flags
     argparse.cmd_flag(argparse.root(p), "--version", "-V", "Show version and exit")
 
+    var completion = argparse.add_command(p, "completion", "Emit shell completion script")
+    argparse.cmd_positional(completion, "shell", false, "Shell: bash|zsh")
+
     var build = argparse.add_command(p, "build", "Build a .oren file (native/c/bytecode)")
     argparse.cmd_positional(build, "file.oren", true, "Input source file")
     argparse.cmd_option(build, "--backend", nil, "string", "c", "Backend: c|native|bytecode")

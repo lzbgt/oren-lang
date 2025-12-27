@@ -1117,17 +1117,29 @@ func main() {
 				log:  "build/logs/help_json_build.log",
 				ok:   func(rc int) bool { return rc == 0 },
 			},
-			{
-				name: "version_flag",
-				cmd:  "sh -c 'out=$(./oren --version 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"oren 0.0.0-rolling\"'",
-				log:  "build/logs/version_flag.log",
-				ok:   func(rc int) bool { return rc == 0 },
-			},
-			{
-				name: "dump_tokens_missing_file_diag",
-				cmd: fmt.Sprintf(
-					"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
-					"tests/native/fixtures/__missing__.oren",
+				{
+					name: "version_flag",
+					cmd:  "sh -c 'out=$(./oren --version 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"oren 0.0.0-rolling\"'",
+					log:  "build/logs/version_flag.log",
+					ok:   func(rc int) bool { return rc == 0 },
+				},
+				{
+					name: "completion_bash",
+					cmd:  "sh -c 'out=$(./oren completion bash 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"complete -F _oren oren\"'",
+					log:  "build/logs/completion_bash.log",
+					ok:   func(rc int) bool { return rc == 0 },
+				},
+				{
+					name: "completion_zsh",
+					cmd:  "sh -c 'out=$(./oren completion zsh 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"#compdef oren\"; printf \"%s\\n\" \"$out\" | grep -F \"compdef _oren oren\"'",
+					log:  "build/logs/completion_zsh.log",
+					ok:   func(rc int) bool { return rc == 0 },
+				},
+				{
+					name: "dump_tokens_missing_file_diag",
+					cmd: fmt.Sprintf(
+						"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
+						"tests/native/fixtures/__missing__.oren",
 				"build/dump_tokens_missing.json",
 				*target,
 			),

@@ -92,6 +92,15 @@ fn compiler_main() {
         print("DEBUG_FLOW cmd=" + cmd_name)
     }
 
+    if cmd_name == "completion" {
+        var sh = "bash"
+        if pos != nil && oren_list_len(pos) > 0 {
+            if pos[0] != nil && pos[0] != "" { sh = pos[0] }
+        }
+        completion_emit(sh)
+        return nil
+    }
+
     if cmd_name == "scan" {
         var lib = pos[0]
         var nm_out = "scan_tmp.txt"

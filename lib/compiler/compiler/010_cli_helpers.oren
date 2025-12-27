@@ -526,3 +526,248 @@ fn resolve_import_path(base_dir, import_path) {
     var full = resolve_path(base_dir, import_path)
     return _ensure_oren_ext(full)
 }
+
+fn _completion_join_words(ws) {
+    if ws == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_list_len(ws) {
+        if i != 0 { out = out + " " }
+        out = out + ws[i]
+        i = i + 1
+    }
+    return out
+}
+
+fn _completion_dedupe(ws) {
+    if ws == nil { return [] }
+    var out = []
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(ws) {
+        var w = ws[i]
+        if w != nil && w != "" && seen[w] != true {
+            seen[w] = true
+            oren_list_push(out, w)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _completion_sanitize_var(name) {
+    // Bash variables cannot contain '-' so map it to '_' (keep other chars as-is).
+    if name == nil { return "" }
+    var out = ""
+    var i = 0
+    var n = oren_string_len(name)
+    while i < n {
+        var c = oren_string_char_at(name, i)
+        if c == "-" { out = out + "_" } else { out = out + c }
+        i = i + 1
+    }
+    return out
+}
+
+fn _completion_collect_opt_tokens(cmd) {
+    if cmd == nil { return [] }
+    var out = []
+    var opts = cmd["options"]
+    if opts == nil { return out }
+    var i = 0
+    while i < oren_list_len(opts) {
+        var o = opts[i]
+        if o != nil {
+            var ln = o[1]
+            var sh = o[2]
+            if ln != nil && ln != "" { oren_list_push(out, ln) }
+            if sh != nil && sh != "" { oren_list_push(out, sh) }
+        }
+        i = i + 1
+    }
+    return _completion_dedupe(out)
+}
+
+fn _completion_collect_cmd_names(p) {
+    if p == nil { return [] }
+    var out = []
+    var cmds = p["commands"]
+    if cmds == nil { return out }
+    var i = 0
+    while i < oren_list_len(cmds) {
+        var c = cmds[i]
+        if c != nil && c["name"] != nil && c["name"] != "" {
+            oren_list_push(out, c["name"])
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn completion_emit(shell) {
+    // Emit minimal shell completion script for the `oren` CLI.
+    // This intentionally stays simple and deterministic: it completes
+    // - subcommands
+    // - global options
+    // - per-command option names (no value completion yet)
+    if shell == nil || shell == "" { shell = "bash" }
+    var p = cli_spec()
+    var cmds = _completion_collect_cmd_names(p)
+    var cmd_pat = _completion_join_words(cmds)
+    // For bash case patterns we need "|" separators:
+    var cmd_pat_bar = ""
+    var i0 = 0
+    while i0 < oren_list_len(cmds) {
+        if i0 != 0 { cmd_pat_bar = cmd_pat_bar + "|" }
+        cmd_pat_bar = cmd_pat_bar + cmds[i0]
+        i0 = i0 + 1
+    }
+
+    var root_cmd = p["root"]
+    var root_opts = _completion_collect_opt_tokens(root_cmd)
+    var root_opts_s = _completion_join_words(root_opts)
+
+    if shell == "bash" {
+        print("# bash completion for oren (generated)")
+        print("_oren_cmds=\"" + cmd_pat + "\"")
+        print("_oren_root_opts=\"" + root_opts_s + "\"")
+
+        var ci = 0
+        while ci < oren_list_len(cmds) {
+            var cname = cmds[ci]
+            var cmd_obj = argparse._find_cmd(p, cname)
+            // Fallback to linear scan if internal helper is not available.
+            if cmd_obj == nil {
+                var cmds2 = p["commands"]
+                var j = 0
+                while j < oren_list_len(cmds2) {
+                    if cmds2[j]["name"] == cname { cmd_obj = cmds2[j]; break }
+                    j = j + 1
+                }
+            }
+            var opt_tokens = _completion_collect_opt_tokens(cmd_obj)
+            var opt_s = _completion_join_words(opt_tokens)
+            print("_oren_opts_" + _completion_sanitize_var(cname) + "=\"" + opt_s + "\"")
+            ci = ci + 1
+        }
+
+        print("")
+        print("_oren() {")
+        print("  local cur cmd w opts")
+        print("  cur=\"${COMP_WORDS[COMP_CWORD]}\"")
+        print("  cmd=\"\"")
+        print("  for w in \"${COMP_WORDS[@]:1}\"; do")
+        print("    if [[ \"$w\" == -* ]]; then")
+        print("      continue")
+        print("    fi")
+        print("    case \"$w\" in")
+        print("      " + cmd_pat_bar + ") cmd=\"$w\"; break ;;")
+        print("    esac")
+        print("  done")
+        print("")
+        print("  if [[ \"$cur\" == -* ]]; then")
+        print("    opts=\"$_oren_root_opts\"")
+        print("    case \"$cmd\" in")
+        ci = 0
+        while ci < oren_list_len(cmds) {
+            var cname2 = cmds[ci]
+            print("      " + cname2 + ") opts=\"$opts $_oren_opts_" + _completion_sanitize_var(cname2) + "\" ;;")
+            ci = ci + 1
+        }
+        print("    esac")
+        print("    COMPREPLY=( $(compgen -W \"$opts\" -- \"$cur\") )")
+        print("    return 0")
+        print("  fi")
+        print("")
+        print("  if [[ -z \"$cmd\" ]]; then")
+        print("    COMPREPLY=( $(compgen -W \"$_oren_cmds\" -- \"$cur\") )")
+        print("    return 0")
+        print("  fi")
+        print("")
+        print("  case \"$cmd\" in")
+        print("    completion)")
+        print("      COMPREPLY=( $(compgen -W \"bash zsh\" -- \"$cur\") )")
+        print("      return 0")
+        print("      ;;")
+        print("  esac")
+        print("  return 0")
+        print("}")
+        print("complete -F _oren oren")
+        return nil
+    }
+
+    if shell == "zsh" {
+        print("#compdef oren")
+        print("# zsh completion for oren (generated)")
+        print("typeset -a _oren_cmds")
+        print("_oren_cmds=(" + cmd_pat + ")")
+        print("typeset -a _oren_root_opts")
+        print("_oren_root_opts=(" + root_opts_s + ")")
+
+        var ci2 = 0
+        while ci2 < oren_list_len(cmds) {
+            var cname3 = cmds[ci2]
+            var cmd_obj2 = argparse._find_cmd(p, cname3)
+            if cmd_obj2 == nil {
+                var cmds3 = p["commands"]
+                var j2 = 0
+                while j2 < oren_list_len(cmds3) {
+                    if cmds3[j2]["name"] == cname3 { cmd_obj2 = cmds3[j2]; break }
+                    j2 = j2 + 1
+                }
+            }
+            var opt_tokens2 = _completion_collect_opt_tokens(cmd_obj2)
+            var opt_s2 = _completion_join_words(opt_tokens2)
+            print("typeset -a _oren_opts_" + _completion_sanitize_var(cname3))
+            print("_oren_opts_" + _completion_sanitize_var(cname3) + "=(" + opt_s2 + ")")
+            ci2 = ci2 + 1
+        }
+
+        print("")
+        print("function _oren() {")
+        print("  local -a cmds root_opts opts")
+        print("  cmds=(${_oren_cmds[@]})")
+        print("  root_opts=(${_oren_root_opts[@]})")
+        print("  local cur cmd w")
+        print("  cur=${words[$CURRENT]}")
+        print("  cmd=\"\"")
+        print("  for w in ${words[2,-1]}; do")
+        print("    if [[ \"$w\" == -* ]]; then continue; fi")
+        print("    case \"$w\" in")
+        print("      " + cmd_pat_bar + ") cmd=\"$w\"; break ;;")
+        print("    esac")
+        print("  done")
+        print("  if [[ \"$cur\" == -* ]]; then")
+        print("    opts=(${root_opts[@]})")
+        print("    case \"$cmd\" in")
+        ci2 = 0
+        while ci2 < oren_list_len(cmds) {
+            var cname4 = cmds[ci2]
+            print("      " + cname4 + ") opts+=(${_oren_opts_" + _completion_sanitize_var(cname4) + "[@]}) ;;")
+            ci2 = ci2 + 1
+        }
+        print("    esac")
+        print("    compadd -- $opts")
+        print("    return 0")
+        print("  fi")
+        print("  if [[ -z \"$cmd\" ]]; then")
+        print("    compadd -- $cmds")
+        print("    return 0")
+        print("  fi")
+        print("  case \"$cmd\" in")
+        print("    completion)")
+        print("      compadd -- bash zsh")
+        print("      return 0")
+        print("      ;;")
+        print("  esac")
+        print("  return 0")
+        print("}")
+        print("compdef _oren oren")
+        return nil
+    }
+
+    print("ERROR: unsupported shell for completion: " + shell)
+    print("Supported: bash, zsh")
+    oren_exit(2)
+    return nil
+}
