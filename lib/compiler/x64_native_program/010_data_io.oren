@@ -1,0 +1,63 @@
+fn _data_add_cstr_newline(ctx, s) {
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    var b = oren_bytes_from_string(s)
+    // Append newline and NUL for tooling visibility.
+    bytes_push(b, 10)
+    bytes_push(b, 0)
+    // 8B align (helps future u64 reads; harmless for strings).
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = oren_list_len(ctx["data"])
+    bytes_extend(ctx["data"], b)
+    // Return {"off": int, "len": int} where len excludes trailing NUL.
+    return {"off": off, "len": oren_list_len(b) - 1}
+}
+
+fn _data_add_fnobj(ctx, fn_name) {
+    // Create (or reuse) a function-value object in the appended data blob.
+    //
+    // Layout (16 bytes):
+    //   [0] code_ptr (u64)  -- patched by emitter
+    //   [8] env_ptr  (u64)  -- 0 for now (no closures in x64 v0)
+    //
+    // NOTE: this does not yet implement the full canonical callable ABI
+    // (env,args_list wrappers). It is a convergence step so function values are
+    // not raw code pointers.
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    if ctx["fnobj_offs"] == nil { ctx["fnobj_offs"] = {} }
+    if ctx["fnobj_offs"][fn_name] != nil { return ctx["fnobj_offs"][fn_name] }
+
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = oren_list_len(ctx["data"])
+    // code_ptr placeholder (8 bytes)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+    // env_ptr = 0 (8 bytes)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+    bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0); bytes_push(ctx["data"], 0)
+
+    ctx["fnobj_offs"][fn_name] = off
+    oren_list_push(ctx["fixups"], {"type": "data_fnobj_code_ptr", "data_off": off, "name": fn_name})
+    return off
+}
+
+fn _emit_linux_write_cstr(ctx, s) {
+    // Emit SYS_write(1, s_ptr, len) where s_ptr is a RIP-relative pointer to appended data.
+    var meta = _data_add_cstr_newline(ctx, s)
+    if meta == nil { return nil }
+    var data_off = meta["off"]
+    var nbytes = meta["len"]
+
+    // rax = 1 (SYS_write), rdi = 1 (stdout), rsi = &data, rdx = len
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1)) // eax=1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 1)) // edi=1
+
+    var lea_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_rsi_rip_disp32(0)) // patch disp32
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea_rsi", "pos": lea_pos + 3, "data_off": data_off})
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, nbytes)) // edx=len
+    bytes_extend(ctx["code"], insn_syscall())
+    return nil
+}

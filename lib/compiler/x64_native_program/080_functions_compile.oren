@@ -1,0 +1,192 @@
+fn _extract_functions_v0(ctx, linked) {
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    if stmts == nil { err(ctx, "x64 native v0: missing program statements"); return nil }
+
+    var out = []
+    var declared = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        var fn0 = nil
+        if st != nil {
+            if st["type"] == "Function" { fn0 = st }
+            if st["type"] == "ExprStmt" {
+                var e0 = st["expr"]
+                if e0 != nil && e0["type"] == "Function" { fn0 = e0 }
+            }
+        }
+        if fn0 != nil {
+            var name = fn0["name"]
+            if name == nil { err(ctx, "x64 native v0: function missing name"); return nil }
+            if declared[name] != nil { err(ctx, "x64 native v0: duplicate function " + name); return nil }
+            declared[name] = 1
+            var params = fn0["params"]
+            var pc = 0
+            if params != nil { pc = oren_list_len(params) }
+            var j = 0
+            while j < pc {
+                var p = params[j]
+                if p == nil || p["type"] != "Identifier" { err(ctx, "x64 native v0: param must be identifier: " + name); return nil }
+                if p["is_varargs"] == true { err(ctx, "x64 native v0: varargs not supported yet: " + name); return nil }
+                j = j + 1
+            }
+            oren_list_push(out, fn0)
+        }
+        i = i + 1
+    }
+    ctx["declared_functions"] = declared
+    ctx["func_arity"] = {}
+    var k = 0
+    while k < oren_list_len(out) {
+        var f = out[k]
+        var nm = f["name"]
+        var pp = f["params"]
+        var n = 0
+        if pp != nil { n = oren_list_len(pp) }
+        ctx["func_arity"][nm] = n
+        k = k + 1
+    }
+    return out
+}
+
+fn _compile_function_v0(ctx, fn_node, platform) {
+    if fn_node == nil { return nil }
+    var name = fn_node["name"]
+    if name == nil { err(ctx, "x64 native v0: function missing name"); return nil }
+
+    var ops = _analyze_supported_fn_body(ctx, fn_node)
+    if ops == nil { return nil }
+
+    // Compute the maximum argument count among calls in this function so we can:
+    // - reserve enough `$tmp_arg<i>` spill slots (argument evaluation is LTR and can contain nested calls)
+    // - reserve enough outgoing call-area space for stack args (ABI dependent)
+    var max_call_argc = _max_call_argc_in_ops(ops)
+
+    var fn_off = oren_list_len(ctx["code"])
+    ctx["functions"][name] = fn_off
+
+    bytes_extend(ctx["code"], insn_push_rbp())
+    bytes_extend(ctx["code"], insn_mov_rbp_rsp())
+
+    // Allocate locals + (Windows) call shadow/args area.
+    //
+    // Locals are addressed via RBP-negative offsets in 8-byte steps.
+    var locals = {}
+    var local_next = 8
+    var params = fn_node["params"]
+    var pc = 0
+    if params != nil { pc = oren_list_len(params) }
+    var i = 0
+    while i < pc {
+        var p = params[i]
+        var pnm = p["value"]
+        if locals[pnm] != nil { err(ctx, "x64 native v0: duplicate param " + pnm); return nil }
+        locals[pnm] = local_next
+        local_next = local_next + 8
+        i = i + 1
+    }
+
+    local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
+    if local_next == nil { return nil }
+
+    // Reserve a spill slot so expression lowering can safely handle calls on RHS without
+    // perturbing RSP (keeps ABI alignment intact for nested calls).
+    if locals["$tmp0"] != nil { err(ctx, "x64 native v0: reserved local name $tmp0 used"); return nil }
+    locals["$tmp0"] = local_next
+    local_next = local_next + 8
+
+    // Reserve a spill slot for condition comparison lowering. This must be distinct from $tmp0
+    // because RHS expression evaluation may itself use $tmp0 (calls/infix spill), and we must
+    // preserve the LHS value until the final cmp.
+    if locals["$tmp_cmp"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_cmp used"); return nil }
+    locals["$tmp_cmp"] = local_next
+    local_next = local_next + 8
+
+    // Reserve a spill slot for shift lowering, for the same reason as $tmp_cmp: RHS expression
+    // evaluation can use $tmp0, so we need an independent slot to preserve the LHS value.
+    if locals["$tmp_shift"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_shift used"); return nil }
+    locals["$tmp_shift"] = local_next
+    local_next = local_next + 8
+
+    // Reserve a spill slot for division/mod lowering, because idiv uses RAX/RDX and we need
+    // to preserve the dividend while evaluating the divisor.
+    if locals["$tmp_div"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_div used"); return nil }
+    locals["$tmp_div"] = local_next
+    local_next = local_next + 8
+
+    // Reserve arg temp spill slots used for call lowering.
+    var tmp_i = 0
+    while tmp_i < max_call_argc {
+        var nm = "$tmp_arg" + oren_int_to_string(tmp_i)
+        if locals[nm] != nil { err(ctx, "x64 native v0: reserved local name " + nm + " used"); return nil }
+        locals[nm] = local_next
+        local_next = local_next + 8
+        tmp_i = tmp_i + 1
+    }
+
+    var locals_size = local_next - 8
+    // Align locals area to 16.
+    while core.int_mod(locals_size, 16) != 0 { locals_size = locals_size + 1 }
+
+    // Reserve an outgoing call area at the bottom of the frame so call lowering can:
+    // - satisfy Win64 32B shadow requirement (if applicable)
+    // - place stack args without mutating RSP inside expression lowering
+    //
+    // For SysV, shadow is 0 and stack args begin at [rsp+0] at the call site.
+    // For Win64, stack args begin at [rsp+0x20] at the call site.
+    var regc = abi.max_int_reg_args(ctx["abi"])
+    var shadow = abi.caller_shadow_bytes(ctx["abi"])
+    var stack_slots = 0
+    if max_call_argc > regc { stack_slots = max_call_argc - regc }
+    var need_call_area = shadow + stack_slots * 8
+    var call_area = abi.callee_call_area_bytes(ctx["abi"])
+    if need_call_area > call_area { call_area = need_call_area }
+
+    // Provide call lowering with the reserved call-area capacity for this function.
+    ctx["cur_call_area_bytes"] = call_area
+
+    var frame_size = locals_size + call_area
+    if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
+
+    // Spill incoming params to their stack slots.
+    i = 0
+    while i < pc {
+        var p2 = params[i]
+        var pnm2 = p2["value"]
+        var off = locals[pnm2]
+        if off == nil { err(ctx, "x64 native v0: missing param slot"); return nil }
+
+        // Params 0..regc-1 come from ABI registers. Additional params come from the caller stack.
+        if i < regc {
+            var reg = abi.int_arg_reg(ctx["abi"], i)
+            if reg == nil { err(ctx, "x64 native v0: unsupported param index"); return nil }
+            // Spill the full register width so function pointers can be passed/called.
+            _emit_mov_mrbp_r64(ctx, 0 - off, reg)
+        } else {
+            // Callee stack layout after `push rbp; mov rbp,rsp`:
+            // - [rbp+8]  return address
+            // - [rbp+16] first stack arg on SysV (arg#7)
+            // - [rbp+48] first stack arg on Win64 (arg#5), because of 32B shadow
+            var stack_base = 16 + shadow
+            var disp = stack_base + 8 * (i - regc)
+            _emit_mov_r64_mrbp(ctx, 0, disp)     // rax = arg
+            _emit_mov_mrbp_r64(ctx, 0 - off, 0) // [local] = rax
+        }
+        i = i + 1
+    }
+
+    var labels = {}
+    var local_fixups = []
+    var epilogue_label = _new_label(ctx, name + "_epilogue")
+    _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    _emit_label(ctx, labels, epilogue_label)
+    if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }
+    bytes_extend(ctx["code"], insn_pop_rbp())
+    bytes_extend(ctx["code"], insn_ret())
+
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}

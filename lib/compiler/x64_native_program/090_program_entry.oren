@@ -1,0 +1,94 @@
+// Compile minimal x64 program.
+//
+// Returns a ctx:
+// - code: []byte
+// - data: []byte (used by PE import table)
+// - fixups: list of fixups for emitters (call_main, rip_data32)
+// - functions: map name->offset
+// - import_list: list of imports (for PE)
+// - errors: list of strings
+fn native_compile_program_x64(linked, platform) {
+    var ctx = {
+        "code": bytes_new(),
+        "data": bytes_new(),
+        "fixups": [],
+        "functions": {},
+        "import_list": [],
+        "errors": [],
+        "platform": platform
+    }
+    ctx["abi"] = abi.x64(platform)
+
+    var fns = _extract_functions_v0(ctx, linked)
+    if fns == nil { return ctx }
+    if ctx["declared_functions"]["main"] == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
+
+    // --- Entry stub ---
+    //
+    // Align stack to 16B boundary early so both SysV and Win64 calls stay well-formed as we grow
+    // the x64 backend surface. This is safe because we do not use argv/envp here and never return.
+    bytes_extend(ctx["code"], insn_and_rsp_imm8(240)) // 0xF0 == -16
+
+    // call main
+    //
+    // Windows x64 ABI note: calls require 32 bytes of shadow space allocated by the caller.
+    // Since our entrypoint is not a C runtime, we explicitly reserve it here.
+    var entry_shadow = abi.caller_shadow_bytes(ctx["abi"])
+    if entry_shadow > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_shadow)) }
+    var call_pos = oren_list_len(ctx["code"])
+    // placeholder rel32=0
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "main"})
+
+    if platform != nil && platform["os"] == "windows" {
+        // Windows x64: ExitProcess(ret)
+        //
+        // - rcx = u32 exit code
+        // - call [IAT ExitProcess]
+        bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
+
+        var mov_iat_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
+        bytes_extend(ctx["code"], insn_call_rax())
+        // Should not return; if it does, just ret.
+        if entry_shadow > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_shadow)) }
+        bytes_extend(ctx["code"], insn_ret())
+        // Record entrypoint offset (start of code).
+        ctx["entry_off"] = 0
+    } else {
+        // Linux x86_64: exit(main_ret) via syscall
+        // rdi = rax
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // mov rdi, rax
+        // rax = 60 (SYS_exit)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))
+        bytes_extend(ctx["code"], insn_syscall())
+        // Should not return; if it does, ret.
+        bytes_extend(ctx["code"], insn_ret())
+        ctx["entry_off"] = 0
+    }
+
+    // --- functions ---
+    var i1 = 0
+    while i1 < oren_list_len(fns) {
+        _compile_function_v0(ctx, fns[i1], platform)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+        i1 = i1 + 1
+    }
+
+    return ctx
+}
+
+fn native_emit_errors_and_exit(ctx) {
+    if ctx == nil { return nil }
+    var errs = ctx["errors"]
+    if errs == nil || oren_list_len(errs) == 0 { return nil }
+    var i = 0
+    while i < oren_list_len(errs) {
+        var e = errs[i]
+        if e != nil { print(e) }
+        i = i + 1
+    }
+    oren_exit(1)
+    return nil
+}

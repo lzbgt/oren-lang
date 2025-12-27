@@ -1,0 +1,170 @@
+fn _analyze_supported_fn_body(ctx, fn_node) {
+    var body = fn_node["body"]
+    if body == nil { err(ctx, "x64 native v0: function has no body"); return nil }
+    if body["type"] != "Block" {
+        err(ctx, "x64 native v0: function body must be Block")
+        return nil
+    }
+    var ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
+    if ops == nil { return nil }
+
+    // If last statement is not a return, add an implicit `return 0` to keep the ABI sane.
+    if oren_list_len(ops) == 0 || ops[oren_list_len(ops) - 1]["op"] != "return" {
+        oren_list_push(ops, {"op": "return", "expr": {"type": "Integer", "value": "0"}})
+    }
+    return ops
+}
+
+fn _expr_int_check(ctx, expr) {
+    if expr == nil { err(ctx, "x64 native v0: missing expr"); return nil }
+    var t = expr["type"]
+    if t == "Integer" {
+        var n = intparse.parse_int_lit(expr["value"])
+        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+        return nil
+    }
+    if t == "Boolean" { return nil }
+    if t == "Identifier" { return nil }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var args = expr["args"]
+        if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
+        var nm = fn_expr["value"]
+        if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        // Rolling: stack args are supported; arg count is bounded only by frame/call-area capacity.
+
+        // Direct calls enforce arity; indirect calls (callable value in a local/param) are permitted
+        // in v0 bring-up without static arity tracking.
+        var arity = nil
+        if ctx["func_arity"] != nil { arity = ctx["func_arity"][nm] }
+        if arity != nil {
+            var declared = ctx["declared_functions"]
+            if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
+            if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+        }
+
+        var i = 0
+        while i < argc {
+            _expr_int_check(ctx, args[i])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Infix" {
+        var op = expr["op"]
+        if op != "+" && op != "-" && op != "*" && op != "/" && op != "%" &&
+            op != "==" && op != "!=" && op != "<" && op != "<=" && op != ">" && op != ">=" &&
+            op != "&&" && op != "||" &&
+            op != "&" && op != "|" && op != "^" && op != "<<" && op != ">>" {
+            err(ctx, "x64 native v0: infix op not supported: " + op)
+            return nil
+        }
+        var l = expr["left"]
+        var r = expr["right"]
+        if l == nil || r == nil { err(ctx, "x64 native v0: infix missing operands"); return nil }
+
+        // Rolling: allow nested infix expressions for + and - (and as the LHS of `*`)
+        // so chains like `a + b + c + d` work.
+        _expr_int_check(ctx, l)
+        _expr_int_check(ctx, r)
+        return nil
+    }
+    if t == "Prefix" {
+        var op = expr["op"]
+        if op != "-" && op != "~" && op != "!" {
+            err(ctx, "x64 native v0: prefix op not supported: " + op)
+            return nil
+        }
+        var r = expr["right"]
+        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
+        _expr_int_check(ctx, r)
+        return nil
+    }
+    err(ctx, "x64 native v0: expr not supported: " + t)
+    return nil
+}
+
+fn _max_call_argc_in_expr(expr) {
+    if expr == nil { return 0 }
+    var t = expr["type"]
+    if t == "Call" {
+        var args = expr["args"]
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        var m = argc
+        // Count calls in call target and in each arg expression too.
+        var fn_expr = expr["fn"]
+        var mf = _max_call_argc_in_expr(fn_expr)
+        if mf > m { m = mf }
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            var mi = _max_call_argc_in_expr(args[i])
+            if mi > m { m = mi }
+            i = i + 1
+        }
+        return m
+    }
+    if t == "Infix" {
+        var l = expr["left"]
+        var r = expr["right"]
+        var ml = _max_call_argc_in_expr(l)
+        var mr = _max_call_argc_in_expr(r)
+        if mr > ml { return mr }
+        return ml
+    }
+    if t == "Prefix" {
+        return _max_call_argc_in_expr(expr["right"])
+    }
+    if t == "If" {
+        // Conservative: if-expr isn't part of the x64 v0 expression surface yet, but keep it safe.
+        var m0 = _max_call_argc_in_expr(expr["cond"])
+        var consq = expr["consq"]
+        if consq != nil { var m1 = _max_call_argc_in_expr(consq["expr"]); if m1 > m0 { m0 = m1 } }
+        var alt = expr["alt"]
+        if alt != nil { var m2 = _max_call_argc_in_expr(alt["expr"]); if m2 > m0 { m0 = m2 } }
+        return m0
+    }
+    return 0
+}
+
+fn _max_call_argc_in_ops(ops) {
+    if ops == nil { return 0 }
+    var m = 0
+    var i = 0
+    while i < oren_list_len(ops) {
+        var op = ops[i]
+        if op == nil { i = i + 1; continue }
+        var k = op["op"]
+        if k == "var_i32" || k == "assign_i32" || k == "return" {
+            var e = op["expr"]
+            var me = _max_call_argc_in_expr(e)
+            if me > m { m = me }
+        } else if k == "if" {
+            var mc = _max_call_argc_in_expr(op["cond"])
+            if mc > m { m = mc }
+            var mt = _max_call_argc_in_ops(op["then"])
+            if mt > m { m = mt }
+            var mf = _max_call_argc_in_ops(op["else"])
+            if mf > m { m = mf }
+        } else if k == "while" {
+            var mc2 = _max_call_argc_in_expr(op["cond"])
+            if mc2 > m { m = mc2 }
+            var mb = _max_call_argc_in_ops(op["body"])
+            if mb > m { m = mb }
+        } else if k == "for" {
+            var mi = _max_call_argc_in_ops(op["init"])
+            if mi > m { m = mi }
+            var mc3 = _max_call_argc_in_expr(op["cond"])
+            if mc3 > m { m = mc3 }
+            var mp = _max_call_argc_in_ops(op["post"])
+            if mp > m { m = mp }
+            var mb2 = _max_call_argc_in_ops(op["body"])
+            if mb2 > m { m = mb2 }
+        }
+        i = i + 1
+    }
+    return m
+}

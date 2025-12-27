@@ -1,0 +1,419 @@
+fn _emit_eval_int_to_rax(ctx, expr, locals) {
+    // Evaluate a tiny integer expression into RAX (64-bit register).
+    //
+    // Values are stored/propagated through 64-bit registers and stack slots.
+    // Supports:
+    // - Integer
+    // - Identifier (locals/params; or a named function as a first-class function pointer)
+    // - Infix (+/-) with subexpressions from the above set
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Integer" {
+        var n = intparse.parse_int_lit(expr["value"])
+        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+        if _is_i32(n) {
+            // mov eax, imm32 then sign-extend to rax (cdqe)
+            var imm_u32 = n
+            if n < 0 { imm_u32 = 4294967296 + n }
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm_u32))
+            bytes_extend(ctx["code"], insn_cdqe())
+        } else {
+            // movabs rax, imm64 (encoded as u64 bits)
+            bytes_extend(ctx["code"], insn_mov_r64_imm64(0, n))
+        }
+        return nil
+    }
+    if t == "Boolean" {
+        // Map boolean literal to i32 0/1, then sign-extend to rax.
+        var v = expr["value"]
+        var imm = 0
+        if v { imm = 1 }
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm))
+        bytes_extend(ctx["code"], insn_cdqe())
+        return nil
+    }
+    if t == "Identifier" {
+        var name = expr["value"]
+        var off = locals[name]
+        if off != nil {
+            // Load full 64-bit slot so function pointers round-trip correctly.
+            _emit_mov_r64_mrbp(ctx, 0, 0 - off)
+            return nil
+        }
+
+        // Named function used in expression position => treat as a first-class function value.
+        // v0 representation: pointer to a small `{code_ptr, env_ptr}` object in the data blob.
+        if ctx["func_arity"] != nil && ctx["func_arity"][name] != nil {
+            var fnobj_off = _data_add_fnobj(ctx, name)
+            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
+
+            var lea_pos = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+            // Patch disp32 to point at the fnobj data record.
+            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})
+            return nil
+        }
+
+        err(ctx, "x64 native v0: unknown var " + name)
+        return nil
+    }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var args = expr["args"]
+        if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
+        var nm = fn_expr["value"]
+        if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
+
+        var is_direct = false
+        var declared = ctx["declared_functions"]
+        if declared != nil && declared[nm] != nil { is_direct = true }
+        var callee_off = nil
+        if is_direct != true {
+            callee_off = locals[nm]
+            if callee_off == nil {
+                err(ctx, "x64 native v0: undefined function or fn var " + nm)
+                return nil
+            }
+        } else {
+            var arity = ctx["func_arity"][nm]
+            if arity == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
+            if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+        }
+
+        // Evaluate args left-to-right, spill to stack temps, then load into ABI arg registers.
+        // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
+        var i = 0
+        while i < argc {
+            _emit_eval_int_to_rax(ctx, args[i], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var tmp_name = "$tmp_arg" + oren_int_to_string(i)
+            var tmp_off = locals[tmp_name]
+            if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name); return nil }
+            // Spill the full 64-bit value (keeps function pointer args intact).
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = rax
+            i = i + 1
+        }
+
+        i = 0
+        var regc = abi.max_int_reg_args(ctx["abi"])
+        var shadow = abi.caller_shadow_bytes(ctx["abi"])
+        while i < argc {
+            var tmp_name2 = "$tmp_arg" + oren_int_to_string(i)
+            var tmp_off2 = locals[tmp_name2]
+            if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name2); return nil }
+
+            if i < regc {
+                var reg = abi.int_arg_reg(ctx["abi"], i)
+                if reg == nil { err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+                _emit_mov_r64_mrbp(ctx, reg, 0 - tmp_off2)
+            } else {
+                // Stack args beyond register count are passed in the caller-reserved call area
+                // at [rsp + shadow + 8*(i-regc)].
+                _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2) // rax = arg[i]
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                var stack_disp = shadow + 8 * (i - regc)
+                var call_area = ctx["cur_call_area_bytes"]
+                if call_area == nil { call_area = 0 }
+                if stack_disp + 8 > call_area {
+                    err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+8) + ", have " + oren_int_to_string(call_area) + ")")
+                    return nil
+                }
+                _emit_mov_mrsp_r64(ctx, stack_disp, 0)
+            }
+            i = i + 1
+        }
+
+        if is_direct {
+            var call_pos = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
+        } else {
+            _emit_mov_r64_mrbp(ctx, 0, 0 - callee_off) // rax = fnobj ptr
+            bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = [fnobj].code_ptr
+            bytes_extend(ctx["code"], insn_call_rax())
+        }
+        return nil
+    }
+    if t == "Prefix" {
+        var op = expr["op"]
+        var r = expr["right"]
+        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
+        if op == "!" {
+            // Boolean-not in expression context: result is 0/1 in RAX.
+            //
+            // - for compare operand: reuse cmp lowering and setcc based on "false"
+            // - otherwise: compare operand to 0 and set if equal
+            if _cond_is_cmp_infix(r) != nil {
+                _emit_cmp_from_cond(ctx, r, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                var cc0 = _cond_false_cc(r["op"])
+                if cc0 == nil { err(ctx, "x64 native v0: unsupported compare op for !"); return nil }
+                bytes_extend(ctx["code"], insn_setcc_al(cc0))
+                bytes_extend(ctx["code"], insn_cdqe())
+                return nil
+            }
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_setcc_al("e"))
+            bytes_extend(ctx["code"], insn_cdqe())
+            return nil
+        }
+        _emit_eval_int_to_rax(ctx, r, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if op == "-" {
+            bytes_extend(ctx["code"], insn_neg_r64(0)) // neg rax
+            return nil
+        }
+        if op == "~" {
+            bytes_extend(ctx["code"], insn_not_r64(0)) // not rax
+            return nil
+        }
+        err(ctx, "x64 native v0: prefix op not supported: " + op)
+        return nil
+    }
+    if t == "Infix" {
+        var op = expr["op"]
+        var l = expr["left"]
+        var r = expr["right"]
+        if op == "&&" || op == "||" {
+            // Short-circuit boolean operators.
+            //
+            // Semantics: truthiness, but result is normalized to 0/1 in RAX.
+            //
+            // NOTE: we patch the local Jcc/Jmp fixups immediately within this expression
+            // lowering, so callers don't need to plumb label/fixup state.
+            var labels = {}
+            var local_fixups = []
+            var l_short = _new_label(ctx, "sc_l")
+            var end = _new_label(ctx, "sc_end")
+
+            _emit_eval_int_to_rax(ctx, l, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+
+            if op == "&&" {
+                // if lhs == 0 => result 0, skip rhs
+                _emit_jcc_to_label(ctx, local_fixups, "e", l_short)
+
+                _emit_eval_int_to_rax(ctx, r, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_setcc_al("ne"))
+                bytes_extend(ctx["code"], insn_cdqe())
+                _emit_jmp_to_label(ctx, local_fixups, end)
+
+                _emit_label(ctx, labels, l_short)
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_cdqe())
+                _emit_label(ctx, labels, end)
+                _patch_local_fixups(ctx, labels, local_fixups)
+                return nil
+            }
+
+            // op == "||"
+            // if lhs != 0 => result 1, skip rhs
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_short)
+
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_setcc_al("ne"))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_jmp_to_label(ctx, local_fixups, end)
+
+            _emit_label(ctx, labels, l_short)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_label(ctx, labels, end)
+            _patch_local_fixups(ctx, labels, local_fixups)
+            return nil
+        }
+        if _cond_is_cmp_infix(expr) != nil {
+            // Compare-expression lowering: result is 0/1 in RAX (bool-as-int).
+            _emit_cmp_from_cond(ctx, expr, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            var cc1 = _cond_true_cc(op)
+            if cc1 == nil { err(ctx, "x64 native v0: unsupported compare op"); return nil }
+            bytes_extend(ctx["code"], insn_setcc_al(cc1))
+            bytes_extend(ctx["code"], insn_cdqe())
+            return nil
+        }
+
+        if op == "/" || op == "%" {
+            // Integer division/modulo (trunc toward zero, like x86 idiv).
+            //
+            // idiv uses RDX:RAX as the dividend and overwrites both; divisor is r/m64.
+            // We keep divisor in RCX and preserve dividend in $tmp_div across RHS evaluation.
+            _emit_eval_int_to_rax(ctx, l, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var tmp_offd = locals["$tmp_div"]
+            if tmp_offd == nil { err(ctx, "x64 native v0: missing temp slot for div"); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_offd, 0) // [tmp] = dividend (rax)
+
+            // Evaluate divisor into RAX, then move to RCX.
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rax
+
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offd) // rax = dividend
+            bytes_extend(ctx["code"], insn_cqo()) // sign-extend rax into rdx
+            bytes_extend(ctx["code"], insn_idiv_r64(1)) // idiv rcx
+            if op == "%" {
+                // remainder in rdx
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2)) // rax = rdx
+            }
+            return nil
+        }
+
+        if op == "<<" || op == ">>" {
+            _emit_eval_int_to_rax(ctx, l, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            // Shift counts are masked to 0..63 (x86-64 semantics; keeps deterministic behavior).
+            if r != nil && r["type"] == "Integer" {
+                var n2 = intparse.parse_int_lit(r["value"])
+                if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+                if n2 < 0 { err(ctx, "x64 native v0: negative shift count not supported"); return nil }
+                var sh = core.int_mod(n2, 64)
+                if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_imm8(0, sh)) }
+                else { bytes_extend(ctx["code"], insn_shr_r64_imm8(0, sh)) }
+                return nil
+            }
+            if r != nil && r["type"] == "Identifier" {
+                var off2 = locals[r["value"]]
+                if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
+                _emit_mov_r64_mrbp(ctx, 2, 0 - off2) // rdx = rhs
+                bytes_extend(ctx["code"], insn_mov_r64_r64(1, 2)) // rcx = rhs (CL)
+                bytes_extend(ctx["code"], insn_and_r64_imm32(1, 63)) // rcx &= 63
+                if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_cl(0)) }
+                else { bytes_extend(ctx["code"], insn_shr_r64_cl(0)) }
+                return nil
+            }
+
+            // General RHS expression: spill lhs, eval RHS into RAX, move to RCX, restore lhs, shift.
+            var tmp_offs = locals["$tmp_shift"]
+            if tmp_offs == nil { err(ctx, "x64 native v0: missing temp slot for shift"); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_offs, 0) // [tmp] = lhs
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rhs
+            bytes_extend(ctx["code"], insn_and_r64_imm32(1, 63)) // rcx &= 63
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offs) // rax = lhs
+            if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_cl(0)) }
+            else { bytes_extend(ctx["code"], insn_shr_r64_cl(0)) }
+            return nil
+        }
+
+        if op == "&" || op == "|" || op == "^" {
+            _emit_eval_int_to_rax(ctx, l, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if r != nil && r["type"] == "Integer" {
+                var n3 = intparse.parse_int_lit(r["value"])
+                if n3 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+                if _is_i32(n3) {
+                    var imm_u32_3 = n3
+                    if n3 < 0 { imm_u32_3 = 4294967296 + n3 }
+                    if op == "&" { bytes_extend(ctx["code"], insn_and_r64_imm32(0, imm_u32_3)) }
+                    else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_imm32(0, imm_u32_3)) }
+                    else { bytes_extend(ctx["code"], insn_xor_r64_imm32(0, imm_u32_3)) }
+                } else {
+                    bytes_extend(ctx["code"], insn_mov_r64_imm64(2, n3)) // rdx = imm64
+                    if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
+                    else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
+                    else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
+                }
+                return nil
+            }
+            if r != nil && r["type"] == "Identifier" {
+                var off3 = locals[r["value"]]
+                if off3 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
+                _emit_mov_r64_mrbp(ctx, 2, 0 - off3) // rdx = rhs
+                if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
+                else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
+                else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
+                return nil
+            }
+
+            // General RHS expression: spill lhs, eval RHS into RAX, move to RDX, restore lhs, op.
+            var tmp_offb = locals["$tmp0"]
+            if tmp_offb == nil { err(ctx, "x64 native v0: missing temp slot for bitop"); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_offb, 0) // [tmp] = lhs
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offb) // rax = lhs
+            if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
+            else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
+            else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
+            return nil
+        }
+
+        _emit_eval_int_to_rax(ctx, l, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if r != nil && r["type"] == "Integer" {
+            var n2 = intparse.parse_int_lit(r["value"])
+            if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+            if _is_i32(n2) {
+                var imm_u32_2 = n2
+                if n2 < 0 { imm_u32_2 = 4294967296 + n2 }
+                if op == "+" { bytes_extend(ctx["code"], insn_add_r64_imm32(0, imm_u32_2)) }
+                else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_imm32(0, imm_u32_2)) }
+                else { bytes_extend(ctx["code"], insn_imul_r64_imm32(0, imm_u32_2)) }
+            } else {
+                bytes_extend(ctx["code"], insn_mov_r64_imm64(2, n2)) // rdx = imm64
+                if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+                else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
+                else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
+            }
+            return nil
+        }
+        if r != nil && r["type"] == "Identifier" {
+            var off2 = locals[r["value"]]
+            if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
+            _emit_mov_r64_mrbp(ctx, 2, 0 - off2) // rdx = rhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
+            else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
+            return nil
+        }
+        if r != nil && r["type"] == "Call" {
+            var tmp_off = locals["$tmp0"]
+            if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for calls"); return nil }
+            // Spill left to stack temp, evaluate RHS call into EAX, then combine.
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = rax
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
+            else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
+            return nil
+        }
+        if r != nil && r["type"] == "Infix" {
+            var tmp_off2 = locals["$tmp0"]
+            if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot for infix rhs"); return nil }
+            // Spill left, evaluate RHS infix into RAX, then combine.
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_off2, 0)
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2) // rax = lhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
+            else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
+            return nil
+        }
+    }
+    err(ctx, "x64 native v0: expr not supported")
+    return nil
+}

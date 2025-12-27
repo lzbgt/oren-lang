@@ -1,0 +1,238 @@
+fn _cond_check(ctx, cond) {
+    // Supported cond forms (rolling v0):
+    // - Any int-ish expression, using language truthiness semantics (0 is false).
+    // - Comparison infix: == != < <= > >= (keeps "cmp+Jcc" lowering compact).
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+
+    // Comparison form is a special-case: we currently only support comparing
+    // an evaluated LHS expression against a restricted RHS subset (rolling forward).
+    if _cond_is_cmp_infix(cond) != nil {
+        var op = cond["op"]
+        var l = cond["left"]
+        var r = cond["right"]
+        if l == nil || r == nil { err(ctx, "x64 native v0: condition infix missing operands"); return nil }
+        _expr_int_check(ctx, l)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        _expr_int_check(ctx, r)
+        return nil
+    }
+
+    // Truthy expression form.
+    // Special-case `!x` so `if !x { ... }` works without needing full bool lowering in v0.
+    if cond["type"] == "Prefix" && cond["op"] == "!" {
+        var r2 = cond["right"]
+        if r2 == nil { err(ctx, "x64 native v0: condition prefix ! missing operand"); return nil }
+        if _cond_is_cmp_infix(r2) != nil { return nil }
+        _expr_int_check(ctx, r2)
+        return nil
+    }
+    _expr_int_check(ctx, cond)
+    return nil
+}
+
+fn _cond_is_cmp_infix(cond) {
+    if cond == nil { return nil }
+    if cond["type"] != "Infix" { return nil }
+    var op = cond["op"]
+    if op == "==" || op == "!=" || op == "<" || op == "<=" || op == ">" || op == ">=" { return 1 }
+    return nil
+}
+
+fn _cond_false_cc(cond_op) {
+    // Return the Jcc condition code for "cond is false", given `cond_op`.
+    if cond_op == "==" { return "ne" }
+    if cond_op == "!=" { return "e" }
+    if cond_op == "<" { return "ge" }
+    if cond_op == "<=" { return "g" }
+    if cond_op == ">" { return "le" }
+    if cond_op == ">=" { return "l" }
+    return nil
+}
+
+fn _cond_true_cc(cond_op) {
+    // Return the Jcc condition code for "cond is true", given `cond_op`.
+    if cond_op == "==" { return "e" }
+    if cond_op == "!=" { return "ne" }
+    if cond_op == "<" { return "l" }
+    if cond_op == "<=" { return "le" }
+    if cond_op == ">" { return "g" }
+    if cond_op == ">=" { return "ge" }
+    return nil
+}
+
+fn _cond_false_cc_for_cond(cond) {
+    // After `_emit_cmp_from_cond`, flags are:
+    // - comparison: based on `cmp lhs, rhs`
+    // - truthy expr: based on `cmp expr, 0`
+    if _cond_is_cmp_infix(cond) != nil { return _cond_false_cc(cond["op"]) }
+    if cond != nil && cond["type"] == "Prefix" && cond["op"] == "!" {
+        // !x is false when x is truthy (x != 0)
+        var inner = cond["right"]
+        if _cond_is_cmp_infix(inner) != nil {
+            // !(lhs op rhs) is false when (lhs op rhs) is true.
+            return _cond_true_cc(inner["op"])
+        }
+        return "ne"
+    }
+    // expr is false when expr == 0
+    return "e"
+}
+
+fn _analyze_stmt_list_to_ops(ctx, stmts) {
+    var ops = []
+    if stmts == nil { return ops }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil { i = i + 1; continue }
+        var t = st["type"]
+        if t == "Var" {
+            var name_node = st["name"]
+            var v0 = st["value"]
+            if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: var name must be identifier"); return nil }
+            if v0 == nil { err(ctx, "x64 native v0: var init missing"); return nil }
+            oren_list_push(ops, {"op": "var_i32", "name": name_node["value"], "expr": v0})
+            i = i + 1
+            continue
+        }
+        if t == "ExprStmt" {
+            var e = st["expr"]
+            if e == nil { i = i + 1; continue }
+            // Some parts of the pipeline represent statement-forms as an ExprStmt wrapper.
+            // Accept common control-flow nodes here to avoid backend fragility as the AST evolves.
+            if e["type"] == "If" || e["type"] == "While" || e["type"] == "For" {
+                var tmp = _analyze_stmt_list_to_ops(ctx, [e])
+                if tmp == nil { return nil }
+                // Splice in the ops produced by the wrapped statement.
+                var k = 0
+                while k < oren_list_len(tmp) { oren_list_push(ops, tmp[k]); k = k + 1 }
+                i = i + 1
+                continue
+            }
+            if e["type"] == "Call" {
+                var callee = e["fn"]
+                var args = e["args"]
+                if callee != nil && callee["type"] == "Identifier" && callee["value"] == "print" {
+                    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
+                    var a0 = args[0]
+                    if a0 == nil || a0["type"] != "String" { err(ctx, "x64 native v0: print only supports string literal"); return nil }
+                    oren_list_push(ops, {"op": "print_cstr", "value": a0["value"]})
+                    i = i + 1
+                    continue
+                }
+            }
+            err(ctx, "x64 native v0: unsupported expr statement")
+            return nil
+        }
+        if t == "Assign" {
+            var name_node2 = st["name"]
+            var v2 = st["value"]
+            if name_node2 == nil || name_node2["type"] != "Identifier" { err(ctx, "x64 native v0: assign name must be identifier"); return nil }
+            if v2 == nil { err(ctx, "x64 native v0: assign missing value"); return nil }
+            oren_list_push(ops, {"op": "assign_i32", "name": name_node2["value"], "expr": v2})
+            i = i + 1
+            continue
+        }
+        if t == "Return" {
+            var v = st["value"]
+            if v == nil { err(ctx, "x64 native v0: return missing value"); return nil }
+            oren_list_push(ops, {"op": "return", "expr": v})
+            i = i + 1
+            continue
+        }
+        if t == "If" {
+            _cond_check(ctx, st["cond"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var then_block = st["consq"]
+            var else_node = st["alt"]
+            if then_block == nil || then_block["type"] != "Block" { err(ctx, "x64 native v0: if then must be Block"); return nil }
+            var then_ops = _analyze_stmt_list_to_ops(ctx, then_block["stmts"])
+            if then_ops == nil { return nil }
+            var else_ops = []
+            if else_node != nil {
+                if else_node["type"] == "Block" {
+                    else_ops = _analyze_stmt_list_to_ops(ctx, else_node["stmts"])
+                    if else_ops == nil { return nil }
+                } else if else_node["type"] == "If" {
+                    // else-if chain: represent as else { if ... }
+                    var tmp = _analyze_stmt_list_to_ops(ctx, [else_node])
+                    if tmp == nil { return nil }
+                    else_ops = tmp
+                } else {
+                    err(ctx, "x64 native v0: unsupported else node: " + else_node["type"])
+                    return nil
+                }
+            }
+            oren_list_push(ops, {"op": "if", "cond": st["cond"], "then": then_ops, "else": else_ops})
+            i = i + 1
+            continue
+        }
+        if t == "While" {
+            _cond_check(ctx, st["cond"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var body = st["body"]
+            if body == nil || body["type"] != "Block" { err(ctx, "x64 native v0: while body must be Block"); return nil }
+            var body_ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
+            if body_ops == nil { return nil }
+            oren_list_push(ops, {"op": "while", "cond": st["cond"], "body": body_ops})
+            i = i + 1
+            continue
+        }
+        if t == "For" {
+            // Support a tiny subset:
+            // - `for <cond> { ... }` (cond-only form)
+            // - `for var i = 0; <cond>; i = i + 1 { ... }` (3-clause form)
+            var init = st["init"]
+            var cond = st["cond"]
+            var post = st["post"]
+            var body3 = st["body"]
+            if body3 == nil || body3["type"] != "Block" { err(ctx, "x64 native v0: for body must be Block"); return nil }
+            if cond == nil { err(ctx, "x64 native v0: for missing cond"); return nil }
+            _cond_check(ctx, cond)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            // Cond-only form => lower to while.
+            if init == nil && post == nil {
+                var bops = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
+                if bops == nil { return nil }
+                oren_list_push(ops, {"op": "while", "cond": cond, "body": bops})
+                i = i + 1
+                continue
+            }
+
+            // 3-clause form: init and post must be present.
+            if init == nil || post == nil {
+                err(ctx, "x64 native v0: for init/post required in 3-clause form")
+                return nil
+            }
+            var init_ops = _analyze_stmt_list_to_ops(ctx, [init])
+            if init_ops == nil { return nil }
+            var post_ops = _analyze_stmt_list_to_ops(ctx, [post])
+            if post_ops == nil { return nil }
+            var body_ops2 = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
+            if body_ops2 == nil { return nil }
+
+            // Restrict post to a single assignment for now (prevents weird continue behavior).
+            if oren_list_len(post_ops) != 1 || post_ops[0]["op"] != "assign_i32" {
+                err(ctx, "x64 native v0: for post must be assignment")
+                return nil
+            }
+            oren_list_push(ops, {"op": "for", "init": init_ops, "cond": cond, "post": post_ops, "body": body_ops2})
+            i = i + 1
+            continue
+        }
+        if t == "Break" {
+            oren_list_push(ops, {"op": "break"})
+            i = i + 1
+            continue
+        }
+        if t == "Continue" {
+            oren_list_push(ops, {"op": "continue"})
+            i = i + 1
+            continue
+        }
+        err(ctx, "x64 native v0: unsupported stmt: " + t)
+        return nil
+    }
+    return ops
+}

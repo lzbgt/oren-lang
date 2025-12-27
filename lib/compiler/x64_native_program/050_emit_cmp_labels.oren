@@ -1,0 +1,106 @@
+fn _emit_cmp_from_cond(ctx, cond, locals) {
+    // Emits a compare that sets flags according to `cond`.
+    // Uses RAX for evaluated LHS/expr; RDX as scratch for RHS when needed.
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+
+    // Comparison condition: compare lhs and rhs.
+    if _cond_is_cmp_infix(cond) != nil {
+        var l = cond["left"]
+        var r = cond["right"]
+        _emit_eval_int_to_rax(ctx, l, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if r["type"] == "Integer" {
+            var n = intparse.parse_int_lit(r["value"])
+            if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+            if _is_i32(n) {
+                var imm_u32 = n
+                if n < 0 { imm_u32 = 4294967296 + n }
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, imm_u32))
+            } else {
+                bytes_extend(ctx["code"], insn_mov_r64_imm64(2, n)) // rdx = imm64
+                bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
+            }
+            return nil
+        }
+        if r["type"] == "Identifier" {
+            var off = locals[r["value"]]
+            if off == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
+            _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
+            return nil
+        }
+        // General RHS expression: spill LHS, evaluate RHS, then cmp lhs,rhs.
+        var tmp_off = locals["$tmp_cmp"]
+        if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for cmp"); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = lhs (rax)
+        _emit_eval_int_to_rax(ctx, r, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
+        return nil
+    }
+
+    // Truthy expression condition: compare expr to 0.
+    if cond["type"] == "Prefix" && cond["op"] == "!" {
+        var inner = cond["right"]
+        if inner == nil { err(ctx, "x64 native v0: condition prefix ! missing operand"); return nil }
+        if _cond_is_cmp_infix(inner) != nil {
+            // Negated compare: emit compare for inner; caller picks the correct Jcc.
+            _emit_cmp_from_cond(ctx, inner, locals)
+            return nil
+        } else {
+            _emit_eval_int_to_rax(ctx, inner, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            return nil
+        }
+    }
+    _emit_eval_int_to_rax(ctx, cond, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    return nil
+}
+
+fn _new_label(ctx, prefix) {
+    if ctx["label_seq"] == nil { ctx["label_seq"] = 0 }
+    ctx["label_seq"] = ctx["label_seq"] + 1
+    return prefix + "_" + oren_int_to_string(ctx["label_seq"])
+}
+
+fn _emit_label(ctx, labels, name) {
+    labels[name] = oren_list_len(ctx["code"])
+}
+
+fn _emit_jmp_to_label(ctx, local_fixups, name) {
+    var pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_jmp_rel32(0))
+    oren_list_push(local_fixups, {"disp_pos": pos + 1, "insn_start": pos, "insn_len": 5, "label": name})
+}
+
+fn _emit_jcc_to_label(ctx, local_fixups, cc, name) {
+    var pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_jcc_rel32(cc, 0))
+    oren_list_push(local_fixups, {"disp_pos": pos + 2, "insn_start": pos, "insn_len": 6, "label": name})
+}
+
+fn _patch_local_fixups(ctx, labels, local_fixups) {
+    var i = 0
+    while i < oren_list_len(local_fixups) {
+        var f = local_fixups[i]
+        var label = f["label"]
+        var target = labels[label]
+        if target == nil {
+            err(ctx, "x64 native v0: unknown label " + label)
+            return nil
+        }
+        var insn_start = f["insn_start"]
+        var insn_len = f["insn_len"]
+        var next_rip = insn_start + insn_len
+        var disp = target - next_rip
+        if disp < 0 { disp = 4294967296 + disp }
+        set_u32_le(ctx["code"], f["disp_pos"], disp)
+        i = i + 1
+    }
+    return nil
+}
