@@ -37,6 +37,11 @@ fn insn_add_rsp_imm32(n) { return core.insn_add_rsp_imm32(n) }
 fn insn_mov_mrsp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrsp_disp8_imm32(disp8, imm32) }
 fn insn_mov_mrbp_disp8_imm32(disp8, imm32) { return core.insn_mov_mrbp_disp8_imm32(disp8, imm32) }
 fn insn_mov_r32_mrbp_disp8(reg, disp8) { return core.insn_mov_r32_mrbp_disp8(reg, disp8) }
+fn insn_mov_mrbp_disp8_r32(disp8, reg) { return core.insn_mov_mrbp_disp8_r32(disp8, reg) }
+fn insn_add_r32_imm32(reg, imm32) { return core.insn_add_r32_imm32(reg, imm32) }
+fn insn_sub_r32_imm32(reg, imm32) { return core.insn_sub_r32_imm32(reg, imm32) }
+fn insn_add_r32_r32(dst, src) { return core.insn_add_r32_r32(dst, src) }
+fn insn_sub_r32_r32(dst, src) { return core.insn_sub_r32_r32(dst, src) }
 
 fn err(ctx, msg) {
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -180,12 +185,8 @@ fn _analyze_supported_main_body(ctx, fn_node) {
             var name_node = st["name"]
             var v0 = st["value"]
             if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: var name must be identifier"); return nil }
-            if v0 == nil || v0["type"] != "Integer" { err(ctx, "x64 native v0: var init must be integer literal"); return nil }
-            var n0 = _int_from_string_dec(v0["value"])
-            if n0 == nil { err(ctx, "x64 native v0: invalid integer literal in var init"); return nil }
-            if n0 < 0 { err(ctx, "x64 native v0: negative var init not supported yet"); return nil }
-            if n0 > 4294967295 { err(ctx, "x64 native v0: var init too large for imm32"); return nil }
-            oren_list_push(ops, {"op": "var_i32", "name": name_node["value"], "value": n0})
+            if v0 == nil { err(ctx, "x64 native v0: var init missing"); return nil }
+            oren_list_push(ops, {"op": "var_i32", "name": name_node["value"], "expr": v0})
             i = i + 1
             continue
         }
@@ -210,24 +211,94 @@ fn _analyze_supported_main_body(ctx, fn_node) {
         if st["type"] == "Return" {
             var v = st["value"]
             if v == nil { err(ctx, "x64 native v0: return missing value"); return nil }
-            if v["type"] == "Integer" {
-                var n = _int_from_string_dec(v["value"])
-                if n == nil { err(ctx, "x64 native v0: invalid integer literal in return"); return nil }
-                if n < 0 { err(ctx, "x64 native v0: negative return not supported yet"); return nil }
-                return {"ops": ops, "ret": {"kind": "imm", "value": n}}
-            }
-            if v["type"] == "Identifier" {
-                return {"ops": ops, "ret": {"kind": "var", "name": v["value"]}}
-            }
-            err(ctx, "x64 native v0: return must be integer literal or identifier")
-            return nil
+            return {"ops": ops, "ret_expr": v}
         }
         err(ctx, "x64 native v0: unsupported stmt in main: " + st["type"])
         return nil
     }
 
     // Default return 0 if no explicit return found.
-    return {"ops": ops, "ret": {"kind": "imm", "value": 0}}
+    return {"ops": ops, "ret_expr": {"type": "Integer", "value": "0"}}
+}
+
+fn _expr_i32_check(ctx, expr) {
+    if expr == nil { err(ctx, "x64 native v0: missing expr"); return nil }
+    var t = expr["type"]
+    if t == "Integer" {
+        var n = _int_from_string_dec(expr["value"])
+        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+        if n < 0 { err(ctx, "x64 native v0: negative ints not supported yet"); return nil }
+        if n > 4294967295 { err(ctx, "x64 native v0: int too large for i32"); return nil }
+        return nil
+    }
+    if t == "Identifier" { return nil }
+    if t == "Infix" {
+        var op = expr["op"]
+        if op != "+" && op != "-" { err(ctx, "x64 native v0: infix op not supported: " + op); return nil }
+        var l = expr["left"]
+        var r = expr["right"]
+        if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier") {
+            err(ctx, "x64 native v0: infix left must be Integer or Identifier")
+            return nil
+        }
+        if r == nil || (r["type"] != "Integer" && r["type"] != "Identifier") {
+            err(ctx, "x64 native v0: infix right must be Integer or Identifier")
+            return nil
+        }
+        _expr_i32_check(ctx, l)
+        _expr_i32_check(ctx, r)
+        return nil
+    }
+    err(ctx, "x64 native v0: expr not supported: " + t)
+    return nil
+}
+
+fn _emit_eval_i32_to_eax(ctx, expr, locals) {
+    // Evaluate a tiny int expression into EAX.
+    // Supports:
+    // - Integer
+    // - Identifier
+    // - Infix (+/-) with subexpressions from the above set
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Integer" {
+        var n = _int_from_string_dec(expr["value"])
+        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, n))
+        return nil
+    }
+    if t == "Identifier" {
+        var off = locals[expr["value"]]
+        if off == nil { err(ctx, "x64 native v0: unknown var " + expr["value"]); return nil }
+        var disp8 = core.int_mod(0 - off, 256)
+        bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(0, disp8))
+        return nil
+    }
+    if t == "Infix" {
+        var op = expr["op"]
+        var l = expr["left"]
+        var r = expr["right"]
+        _emit_eval_i32_to_eax(ctx, l, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if r != nil && r["type"] == "Integer" {
+            var n2 = _int_from_string_dec(r["value"])
+            if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r32_imm32(0, n2)) }
+            else { bytes_extend(ctx["code"], insn_sub_r32_imm32(0, n2)) }
+            return nil
+        }
+        if r != nil && r["type"] == "Identifier" {
+            var off2 = locals[r["value"]]
+            if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
+            var disp82 = core.int_mod(0 - off2, 256)
+            bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(2, disp82)) // edx = rhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r32_r32(0, 2)) }
+            else { bytes_extend(ctx["code"], insn_sub_r32_r32(0, 2)) }
+            return nil
+        }
+    }
+    err(ctx, "x64 native v0: expr not supported")
+    return nil
 }
 
 fn _emit_windows_write_cstr(ctx, s) {
@@ -322,7 +393,7 @@ fn native_compile_program_x64_min(linked, platform) {
     var plan = _analyze_supported_main_body(ctx, main_node)
     if plan == nil { return ctx }
     var ops = plan["ops"]
-    var retv = plan["ret"]
+    var ret_expr = plan["ret_expr"]
 
     // --- Entry stub ---
     // call main
@@ -405,7 +476,11 @@ fn native_compile_program_x64_min(linked, platform) {
             var off = locals[op["name"]]
             if off == nil { err(ctx, "x64 native v0: missing local slot"); return ctx }
             var disp8 = core.int_mod(0 - off, 256)
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_imm32(disp8, op["value"]))
+            _expr_i32_check(ctx, op["expr"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+            _emit_eval_i32_to_eax(ctx, op["expr"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp8, 0))
         }
         if op["op"] == "print_cstr" {
             if platform != nil && platform["os"] == "linux" {
@@ -423,18 +498,11 @@ fn native_compile_program_x64_min(linked, platform) {
         k = k + 1
     }
 
-    // rax = return value
-    if retv != nil && retv["kind"] == "imm" {
-        bytes_extend(ctx["code"], insn_mov_r64_imm64(0, retv["value"]))
-    } else if retv != nil && retv["kind"] == "var" {
-        var off2 = locals[retv["name"]]
-        if off2 == nil { err(ctx, "x64 native v0: return var not found: " + retv["name"]); return ctx }
-        var disp82 = core.int_mod(0 - off2, 256)
-        bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(0, disp82)) // eax = [rbp-disp8]
-    } else {
-        err(ctx, "x64 native v0: invalid return plan")
-        return ctx
-    }
+    // EAX = return value (expr)
+    _expr_i32_check(ctx, ret_expr)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    _emit_eval_i32_to_eax(ctx, ret_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }
     bytes_extend(ctx["code"], insn_pop_rbp())

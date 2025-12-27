@@ -212,4 +212,71 @@ fn insn_mov_r32_mrbp_disp8(dst_reg, disp8) {
     return out
 }
 
+fn insn_mov_mrbp_disp8_r32(disp8, src_reg) {
+    // mov dword ptr [rbp+disp8], r32 => 89 45 ib (with optional REX.R for r8d-r15d)
+    if src_reg < 0 || src_reg > 15 { return nil }
+    var out = []
+    if src_reg >= 8 { bytes_push(out, 68) } // 0x44 (REX.R)
+    bytes_push(out, 137) // 89
+    bytes_push(out, 69 + int_mod(src_reg, 8) * 8) // 0x45 | ((src&7)<<3)
+    bytes_push(out, int_mod(disp8, 256))
+    return out
+}
+
+fn insn_add_r32_imm32(dst_reg, imm32) {
+    // add r/m32, imm32 => 81 /0 id
+    // modrm: 11 reg=000 rm=(dst&7)
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    var out = []
+    if dst_reg >= 8 { bytes_push(out, 65) } // 0x41 (REX.B) for rm extension
+    bytes_push(out, 129) // 81
+    bytes_push(out, 192 + int_mod(dst_reg, 8)) // 0xC0 | rm
+    push_u32_le(out, imm32)
+    return out
+}
+
+fn insn_sub_r32_imm32(dst_reg, imm32) {
+    // sub r/m32, imm32 => 81 /5 id
+    // modrm: 11 reg=101 rm=(dst&7)
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    var out = []
+    if dst_reg >= 8 { bytes_push(out, 65) } // 0x41 (REX.B)
+    bytes_push(out, 129) // 81
+    bytes_push(out, 232 + int_mod(dst_reg, 8)) // 0xE8 | rm (0xC0 | (5<<3) | rm)
+    push_u32_le(out, imm32)
+    return out
+}
+
+fn insn_add_r32_r32(dst, src) {
+    // add r/m32, r32 => 01 /r
+    // modrm: 11 reg=src rm=dst
+    if dst < 0 || dst > 15 { return nil }
+    if src < 0 || src > 15 { return nil }
+    var out = []
+    var rex = 64 // 40 base
+    var need = false
+    if src >= 8 { rex = rex + 4; need = true } // REX.R
+    if dst >= 8 { rex = rex + 1; need = true } // REX.B
+    if need { bytes_push(out, rex) }
+    bytes_push(out, 1) // 01
+    bytes_push(out, 192 + int_mod(src, 8) * 8 + int_mod(dst, 8))
+    return out
+}
+
+fn insn_sub_r32_r32(dst, src) {
+    // sub r/m32, r32 => 29 /r
+    // modrm: 11 reg=src rm=dst
+    if dst < 0 || dst > 15 { return nil }
+    if src < 0 || src > 15 { return nil }
+    var out = []
+    var rex = 64 // 40 base
+    var need = false
+    if src >= 8 { rex = rex + 4; need = true }
+    if dst >= 8 { rex = rex + 1; need = true }
+    if need { bytes_push(out, rex) }
+    bytes_push(out, 41) // 29
+    bytes_push(out, 192 + int_mod(src, 8) * 8 + int_mod(dst, 8))
+    return out
+}
+
 fn insn_call_rax() { return [255, 208] } // FF D0

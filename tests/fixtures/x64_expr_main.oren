@@ -1,0 +1,8 @@
+// Minimal x64-native fixture (rolling bring-up):
+// - exercises `+` and `-` on i32 (literal + identifier)
+
+fn main() {
+    var x = 40
+    return x + 2
+}
+
