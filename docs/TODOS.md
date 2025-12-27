@@ -52,7 +52,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: removed the remaining “normalize to legacy argv” layer; compiler now dispatches directly from argparse parse results (single source of truth).
    - Status: added click-style extras: `--no-<flag>` negation for bool flags, counted flags (`cmd_flag_count`, supports `-vvv`), required options (`cmd_option_required`), and `all_opts` merged view (`root_opts + opts`).
    - Status: added machine-readable `--help=json` output (also supports `-h=json` / `-hjson`) and oretest regressions.
-   - Next: polish UX parity (error messages, help text consistency, richer subcommands), then add `--version` and shell completion.
+   - Status: added global `--version` / `-V` (deterministic string) and oretest regression.
+   - Next: polish UX parity (error messages, help text consistency, richer subcommands), then add shell completion.
 
 6) **ARM64 instruction encoder audit** (S)
     - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).

@@ -842,9 +842,15 @@ fn parse(p, argv) {
         // No commands defined => treat as root positional.
         break
     }
-
+    
     res["cmd"] = cmd_name
-    res["opts"] = _opts_defaults(cmd)
+    // If no subcommand is selected, treat the root options map as the effective opts.
+    // This prevents root options like `--version` from being overwritten by defaults.
+    if cmd_name == "" {
+        res["opts"] = res["root_opts"]
+    } else {
+        res["opts"] = _opts_defaults(cmd)
+    }
 
     // Command args parsing phase.
     var pos = []

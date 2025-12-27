@@ -1118,6 +1118,12 @@ func main() {
 				ok:   func(rc int) bool { return rc == 0 },
 			},
 			{
+				name: "version_flag",
+				cmd:  "sh -c 'out=$(./oren --version 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"oren 0.0.0-rolling\"'",
+				log:  "build/logs/version_flag.log",
+				ok:   func(rc int) bool { return rc == 0 },
+			},
+			{
 				name: "dump_tokens_missing_file_diag",
 				cmd: fmt.Sprintf(
 					"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",

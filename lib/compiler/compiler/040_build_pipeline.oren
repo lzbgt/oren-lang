@@ -59,6 +59,11 @@ fn compiler_main() {
         print(parsed["help"])
         return nil
     }
+    // Global version flag: must work even with no subcommand.
+    if parsed["all_opts"] != nil && parsed["all_opts"]["version"] == true {
+        print("oren " + OREN_VERSION)
+        return nil
+    }
     if parsed["ok"] != true {
         var emsg = parsed["err"]
         if emsg != nil {
