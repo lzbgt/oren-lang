@@ -25,6 +25,7 @@ fn insn_pop_rbp() { return core.insn_pop_rbp() }
 fn insn_mov_rbp_rsp() { return core.insn_mov_rbp_rsp() }
 fn insn_mov_r64_imm64(reg, imm) { return core.insn_mov_r64_imm64(reg, imm) }
 fn insn_mov_r32_imm32(reg, imm) { return core.insn_mov_r32_imm32(reg, imm) }
+fn insn_cdqe() { return core.insn_cdqe() }
 fn insn_mov_r64_r64(dst, src) { return core.insn_mov_r64_r64(dst, src) }
 fn insn_mov_r32_r32(dst, src) { return core.insn_mov_r32_r32(dst, src) }
 fn insn_call_rel32(disp32) { return core.insn_call_rel32(disp32) }
@@ -51,8 +52,15 @@ fn insn_add_r32_r32(dst, src) { return core.insn_add_r32_r32(dst, src) }
 fn insn_sub_r32_r32(dst, src) { return core.insn_sub_r32_r32(dst, src) }
 fn insn_cmp_r32_imm32(reg, imm32) { return core.insn_cmp_r32_imm32(reg, imm32) }
 fn insn_cmp_r32_r32(lhs, rhs) { return core.insn_cmp_r32_r32(lhs, rhs) }
+fn insn_add_r64_imm32(reg, imm32) { return core.insn_add_r64_imm32(reg, imm32) }
+fn insn_sub_r64_imm32(reg, imm32) { return core.insn_sub_r64_imm32(reg, imm32) }
+fn insn_add_r64_r64(dst, src) { return core.insn_add_r64_r64(dst, src) }
+fn insn_sub_r64_r64(dst, src) { return core.insn_sub_r64_r64(dst, src) }
+fn insn_cmp_r64_imm32(reg, imm32) { return core.insn_cmp_r64_imm32(reg, imm32) }
+fn insn_cmp_r64_r64(lhs, rhs) { return core.insn_cmp_r64_r64(lhs, rhs) }
 fn insn_jcc_rel32(cc, disp32) { return core.insn_jcc_rel32(cc, disp32) }
 fn insn_imul_r32_imm32(reg, imm32) { return core.insn_imul_r32_imm32(reg, imm32) }
+fn insn_imul_r64_imm32(reg, imm32) { return core.insn_imul_r64_imm32(reg, imm32) }
 
 fn err(ctx, msg) {
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -194,8 +202,8 @@ fn _cond_check(ctx, cond) {
         err(ctx, "x64 native v0: if right must be Integer or Identifier")
         return nil
     }
-    if l["type"] == "Integer" { _expr_i32_check(ctx, l) }
-    if r["type"] == "Integer" { _expr_i32_check(ctx, r) }
+    if l["type"] == "Integer" { _expr_int_check(ctx, l) }
+    if r["type"] == "Integer" { _expr_int_check(ctx, r) }
     return nil
 }
 
@@ -375,14 +383,16 @@ fn _analyze_supported_fn_body(ctx, fn_node) {
     return ops
 }
 
-fn _expr_i32_check(ctx, expr) {
+fn _expr_int_check(ctx, expr) {
     if expr == nil { err(ctx, "x64 native v0: missing expr"); return nil }
     var t = expr["type"]
     if t == "Integer" {
         var n = _int_from_string_dec(expr["value"])
         if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-        if n < 0 { err(ctx, "x64 native v0: negative ints not supported yet"); return nil }
-        if n > 4294967295 { err(ctx, "x64 native v0: int too large for i32"); return nil }
+        // v0: literals are restricted to signed i32 range so we can encode them via imm32
+        // and keep arithmetic/cmp semantics unambiguous.
+        if n < -2147483648 { err(ctx, "x64 native v0: int literal too small (min i32)"); return nil }
+        if n > 2147483647 { err(ctx, "x64 native v0: int literal too large (max i32)"); return nil }
         return nil
     }
     if t == "Identifier" { return nil }
@@ -409,7 +419,7 @@ fn _expr_i32_check(ctx, expr) {
 
         var i = 0
         while i < argc {
-            _expr_i32_check(ctx, args[i])
+            _expr_int_check(ctx, args[i])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             i = i + 1
         }
@@ -429,16 +439,19 @@ fn _expr_i32_check(ctx, expr) {
             return nil
         }
         if op == "*" && r["type"] != "Integer" { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
-        _expr_i32_check(ctx, l)
-        _expr_i32_check(ctx, r)
+        _expr_int_check(ctx, l)
+        _expr_int_check(ctx, r)
         return nil
     }
     err(ctx, "x64 native v0: expr not supported: " + t)
     return nil
 }
 
-fn _emit_eval_i32_to_eax(ctx, expr, locals) {
-    // Evaluate a tiny expression into RAX (integer in low 32 bits).
+fn _emit_eval_int_to_rax(ctx, expr, locals) {
+    // Evaluate a tiny integer expression into RAX (64-bit register).
+    //
+    // Rolling v0 constraint: integer literals are restricted to signed i32 range (imm32)
+    // but values are stored/propagated through 64-bit registers and stack slots.
     // Supports:
     // - Integer
     // - Identifier (locals/params; or a named function as a first-class function pointer)
@@ -448,7 +461,12 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
     if t == "Integer" {
         var n = _int_from_string_dec(expr["value"])
         if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, n))
+        if n < -2147483648 || n > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
+        // mov eax, imm32 then sign-extend to rax (cdqe)
+        var imm_u32 = n
+        if n < 0 { imm_u32 = 4294967296 + n }
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm_u32))
+        bytes_extend(ctx["code"], insn_cdqe())
         return nil
     }
     if t == "Identifier" {
@@ -505,7 +523,7 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
         var i = 0
         while i < argc {
-            _emit_eval_i32_to_eax(ctx, args[i], locals)
+            _emit_eval_int_to_rax(ctx, args[i], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             var tmp_name = "$tmp_arg" + oren_int_to_string(i)
             var tmp_off = locals[tmp_name]
@@ -543,23 +561,26 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         var op = expr["op"]
         var l = expr["left"]
         var r = expr["right"]
-        _emit_eval_i32_to_eax(ctx, l, locals)
+        _emit_eval_int_to_rax(ctx, l, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if r != nil && r["type"] == "Integer" {
             var n2 = _int_from_string_dec(r["value"])
             if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-            if op == "+" { bytes_extend(ctx["code"], insn_add_r32_imm32(0, n2)) }
-            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r32_imm32(0, n2)) }
-            else { bytes_extend(ctx["code"], insn_imul_r32_imm32(0, n2)) }
+            if n2 < -2147483648 || n2 > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
+            var imm_u32_2 = n2
+            if n2 < 0 { imm_u32_2 = 4294967296 + n2 }
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_imm32(0, imm_u32_2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_imm32(0, imm_u32_2)) }
+            else { bytes_extend(ctx["code"], insn_imul_r64_imm32(0, imm_u32_2)) }
             return nil
         }
         if r != nil && r["type"] == "Identifier" {
             var off2 = locals[r["value"]]
             if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
             var disp82 = core.int_mod(0 - off2, 256)
-            bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(2, disp82)) // edx = rhs
-            if op == "+" { bytes_extend(ctx["code"], insn_add_r32_r32(0, 2)) }
-            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r32_r32(0, 2)) }
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp82)) // rdx = rhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
             return nil
         }
@@ -569,12 +590,12 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
             var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
             // Spill left to stack temp, evaluate RHS call into EAX, then combine.
             bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8, 0)) // [tmp] = rax
-            _emit_eval_i32_to_eax(ctx, r, locals)
+            _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_r32_r32(2, 0)) // edx = rhs (eax)
-            bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(0, tmp_disp8)) // eax = lhs
-            if op == "+" { bytes_extend(ctx["code"], insn_add_r32_r32(0, 2)) }
-            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r32_r32(0, 2)) }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8)) // rax = lhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
             return nil
         }
@@ -588,20 +609,23 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
     // Uses EAX for left; EDX as scratch for right when needed.
     var l = cond["left"]
     var r = cond["right"]
-    _emit_eval_i32_to_eax(ctx, l, locals)
+    _emit_eval_int_to_rax(ctx, l, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     if r["type"] == "Integer" {
         var n = _int_from_string_dec(r["value"])
         if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-        bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, n))
+        if n < -2147483648 || n > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
+        var imm_u32 = n
+        if n < 0 { imm_u32 = 4294967296 + n }
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, imm_u32))
         return nil
     }
     if r["type"] == "Identifier" {
         var off = locals[r["value"]]
         if off == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
         var disp8 = core.int_mod(0 - off, 256)
-        bytes_extend(ctx["code"], insn_mov_r32_mrbp_disp8(2, disp8)) // edx = rhs
-        bytes_extend(ctx["code"], insn_cmp_r32_r32(0, 2)) // cmp eax, edx
+        bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp8)) // rdx = rhs
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
         return nil
     }
     err(ctx, "x64 native v0: if rhs not supported")
@@ -692,18 +716,18 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             var off = locals[op["name"]]
             if off == nil { err(ctx, "x64 native v0: missing local slot"); return nil }
             var disp8 = core.int_mod(0 - off, 256)
-            _expr_i32_check(ctx, op["expr"])
+            _expr_int_check(ctx, op["expr"])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_eval_i32_to_eax(ctx, op["expr"], locals)
+            _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp8, 0))
         } else if op["op"] == "assign_i32" {
             var off2 = locals[op["name"]]
             if off2 == nil { err(ctx, "x64 native v0: assign unknown var " + op["name"]); return nil }
             var disp82 = core.int_mod(0 - off2, 256)
-            _expr_i32_check(ctx, op["expr"])
+            _expr_int_check(ctx, op["expr"])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_eval_i32_to_eax(ctx, op["expr"], locals)
+            _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp82, 0))
         } else if op["op"] == "print_cstr" {
@@ -716,9 +740,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 return nil
             }
         } else if op["op"] == "return" {
-            _expr_i32_check(ctx, op["expr"])
+            _expr_int_check(ctx, op["expr"])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_eval_i32_to_eax(ctx, op["expr"], locals)
+            _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_jmp_to_label(ctx, local_fixups, epilogue_label)
         } else if op["op"] == "if" {
