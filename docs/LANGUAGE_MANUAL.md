@@ -171,6 +171,29 @@ for x: i32 in r { sum = sum + x }
 
 For deeper details and the long-term polymorphism plan (static-first, optional `dyn Trait` later), see `docs/TRAITS_AND_POLYMORPHISM.md`.
 
+### `switch` / `case` (multi-branch dispatch)
+
+Oren supports `switch` statements for multi-branch control flow:
+
+```oren
+var x = 3
+var y = 0
+
+switch x {
+    case 1 { y = 10 }
+    case 2, 3 { y = 20 }      // multiple match values
+    default { y = 30 }
+}
+```
+
+Notes (rolling behavior, as exercised by tests):
+
+- The `switch <expr>` expression is evaluated **exactly once** (useful when `<expr>` has effects).
+- `case` can list multiple values separated by commas.
+- A colon after the case list is accepted in rolling mode:
+  - `case 2, 3: { ... }` (see `tests/modules/test_switch.oren`)
+- `default` is optional; if present, it matches when no earlier case matches.
+
 ### `match` / `case` (pattern match sugar)
 
 Oren supports `match` with `case` patterns (especially for enum sugar).
@@ -334,6 +357,38 @@ struct Point {
     y: i32
 }
 ```
+
+Enums (rolling “tagged map” sugar):
+
+```oren
+enum Option {
+    None,
+    Some(x),
+    Pair(a, b),
+}
+
+var a = Option.None
+var b = Option.Some(123)
+var c = Option.Pair(7, 9)
+
+// All enum values are maps with:
+// - a string tag like "Option.Some"
+// - positional payload fields ._0, ._1, ...
+if b.tag != "Option.Some" { exit(1) }
+if b._0 != 123 { exit(2) }
+```
+
+Enum values are designed to work naturally with `match` patterns like:
+
+```oren
+match b {
+    case Option.None { print("none") }
+    case Option.Some(x) { print("x=" + oren_int_to_string(x)) }
+    default { print("unknown") }
+}
+```
+
+See `tests/modules/test_enum.oren` and `tests/modules/test_match_enum.oren`.
 
 ### Attributes
 
