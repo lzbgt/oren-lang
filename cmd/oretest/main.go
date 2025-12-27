@@ -232,14 +232,14 @@ func hostNativeArch() string {
 
 func main() {
 	var (
-		target      = flag.String("target", "macos", "native backend target: macos|linux")
-		noGC        = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
-		jobs        = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
-		fixtureJobs = flag.Int("fixture-jobs", envInt("OREN_TEST_FIXTURE_JOBS", 0), "parallel jobs for fixtures (env OREN_TEST_FIXTURE_JOBS); default min(--jobs,4)")
-		nativeJobs  = flag.Int("native-jobs", envInt("OREN_TEST_NATIVE_JOBS", 0), "parallel jobs for native tests (env OREN_TEST_NATIVE_JOBS); default min(--jobs,4)")
-		full        = flag.Bool("full", envBool("OREN_TEST_FULL", false), "run the full curated suite (env OREN_TEST_FULL=1)")
-		verbose     = flag.Bool("verbose", envBool("OREN_TEST_VERBOSE", false), "print per-test progress (env OREN_TEST_VERBOSE=1)")
-		selfhost    = flag.Bool("selfhost", envBool("OREN_TEST_SELFHOST", false), "run self-hosting stability gate (env OREN_TEST_SELFHOST=1); implied by --full")
+		target         = flag.String("target", "macos", "native backend target: macos|linux")
+		noGC           = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
+		jobs           = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
+		fixtureJobs    = flag.Int("fixture-jobs", envInt("OREN_TEST_FIXTURE_JOBS", 0), "parallel jobs for fixtures (env OREN_TEST_FIXTURE_JOBS); default min(--jobs,4)")
+		nativeJobs     = flag.Int("native-jobs", envInt("OREN_TEST_NATIVE_JOBS", 0), "parallel jobs for native tests (env OREN_TEST_NATIVE_JOBS); default min(--jobs,4)")
+		full           = flag.Bool("full", envBool("OREN_TEST_FULL", false), "run the full curated suite (env OREN_TEST_FULL=1)")
+		verbose        = flag.Bool("verbose", envBool("OREN_TEST_VERBOSE", false), "print per-test progress (env OREN_TEST_VERBOSE=1)")
+		selfhost       = flag.Bool("selfhost", envBool("OREN_TEST_SELFHOST", false), "run self-hosting stability gate (env OREN_TEST_SELFHOST=1); implied by --full")
 		selfhostNative = flag.Bool("selfhost-native", envBool("OREN_TEST_SELFHOST_NATIVE", false), "also run the native self-hosting gate (build+run a stage2 native compiler) (env OREN_TEST_SELFHOST_NATIVE=1); implied by --full")
 	)
 	flag.Parse()
@@ -531,44 +531,44 @@ func main() {
 	}
 
 	// Compile-fail fixtures (portable semantics guards).
-		fixtures := []struct {
-			name    string
-			cmd     string
-			timeout time.Duration
-			log     string
-			ok      func(rc int) bool
-			cleanup []string
-		}{
-			{
-				name: "bootstrap_else_if_parse",
-				cmd: fmt.Sprintf(
-					"sh -c 'set -e; wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
-						"cat > \"$wd/main.oren\" <<\"EOF\"\n"+
-						"fn main() {\n"+
-						"    var x = 0\n"+
-						"    if x == 0 {\n"+
-						"        exit(0)\n"+
-						"    } else if x == 1 {\n"+
-						"        exit(1)\n"+
-						"    } else {\n"+
-						"        exit(2)\n"+
-						"    }\n"+
-						"}\n"+
-						"EOF\n"+
-						"./oren_bootstrap build \"$wd/main.oren\" --emit-c > \"$wd/out.txt\" 2>&1; "+
-						"test -s \"$wd/main.oren.c\"; "+
-						"grep -Fq \"Wrote\" \"$wd/out.txt\"'",
-					"build/tmp/fixture_bootstrap_else_if_parse",
-				),
-				log:     "build/logs/bootstrap_else_if_parse.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/tmp/fixture_bootstrap_else_if_parse"},
-			},
-			{
-				name: "manifest_bytecode",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend bytecode --target %s --deterministic --manifest -o %q > %q && "+
-						"test -s %q && "+
+	fixtures := []struct {
+		name    string
+		cmd     string
+		timeout time.Duration
+		log     string
+		ok      func(rc int) bool
+		cleanup []string
+	}{
+		{
+			name: "bootstrap_else_if_parse",
+			cmd: fmt.Sprintf(
+				"sh -c 'set -e; wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+					"cat > \"$wd/main.oren\" <<\"EOF\"\n"+
+					"fn main() {\n"+
+					"    var x = 0\n"+
+					"    if x == 0 {\n"+
+					"        exit(0)\n"+
+					"    } else if x == 1 {\n"+
+					"        exit(1)\n"+
+					"    } else {\n"+
+					"        exit(2)\n"+
+					"    }\n"+
+					"}\n"+
+					"EOF\n"+
+					"./oren_bootstrap build \"$wd/main.oren\" --emit-c > \"$wd/out.txt\" 2>&1; "+
+					"test -s \"$wd/main.oren.c\"; "+
+					"grep -Fq \"Wrote\" \"$wd/out.txt\"'",
+				"build/tmp/fixture_bootstrap_else_if_parse",
+			),
+			log:     "build/logs/bootstrap_else_if_parse.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/tmp/fixture_bootstrap_else_if_parse"},
+		},
+		{
+			name: "manifest_bytecode",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend bytecode --target %s --deterministic --manifest -o %q > %q && "+
+					"test -s %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Eq %q %q",
@@ -612,11 +612,11 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/manifest_meta.meta.json", "build/manifest_meta.out", "build/manifest_meta.meta.json.manifest.json"},
 		},
-			{
-				name: "signed_obc_verify_cli",
-				cmd: fmt.Sprintf(
-					"set -e; "+
-						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+		{
+			name: "signed_obc_verify_cli",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
 					"echo \"[fixture] build orensign\"; "+
 					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
 					"echo \"[fixture] keygen (ephemeral)\"; "+
@@ -631,68 +631,68 @@ func main() {
 					"echo \"[fixture] verify unsigned must fail\"; "+
 					"set +e; ./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
 					"test $rc -ne 0",
-					"build/tmp/fixture_signed_obc_verify_cli",
-					"tests/avm/fixtures/signed_obc_smoke.oren",
-					*target,
-					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-					gcArg,
-					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
-					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
-					"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
-					"signed obc OK",
-					"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
-					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-				),
-				log: "build/logs/fixture_signed_obc_verify_cli.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/tmp/fixture_signed_obc_verify_cli",
-				},
+				"build/tmp/fixture_signed_obc_verify_cli",
+				"tests/avm/fixtures/signed_obc_smoke.oren",
+				*target,
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+				gcArg,
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
+				"signed obc OK",
+				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
+				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+			),
+			log: "build/logs/fixture_signed_obc_verify_cli.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/tmp/fixture_signed_obc_verify_cli",
 			},
-			{
-				name: "signed_obc_verify_cli_multi_root_hex",
-				cmd: fmt.Sprintf(
-					"set -e; "+
-						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
-						"echo \"[fixture] build orensign\"; "+
-						"go build -o \"$wd/orensign\" ./cmd/orensign; "+
-						"echo \"[fixture] keygen root + wrong (ephemeral)\"; "+
-						"\"$wd/orensign\" keygen --out \"$wd/ca\"; "+
-						"\"$wd/orensign\" keygen --out \"$wd/wrong\"; "+
-						"echo \"[fixture] build unsigned obc\"; "+
-						"./oren build %q --backend bytecode --target %s -o %q%s; "+
-						"echo \"[fixture] sign obc\"; "+
-						"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
-						"echo \"[fixture] verify + run signed with hex list (wrong,correct)\"; "+
-						"bad=$(xxd -p -c 256 \"$wd/wrong/root_ed25519_pk.bin\" | tr -d '\\n'); "+
-						"good=$(xxd -p -c 256 \"$wd/ca/root_ed25519_pk.bin\" | tr -d '\\n'); "+
-						"./avm --require-sig --trusted-pubkey-hex \"${bad},${good}\" %q > %q; "+
-						"grep -Fq %q %q",
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
-					"tests/avm/fixtures/signed_obc_smoke.oren",
-					*target,
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
-					gcArg,
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
-					"signed obc OK",
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
-				),
-				timeout: 4 * time.Minute,
-				log:     "build/logs/fixture_signed_obc_verify_cli_multi_root_hex.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
-				},
+		},
+		{
+			name: "signed_obc_verify_cli_multi_root_hex",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+					"echo \"[fixture] build orensign\"; "+
+					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
+					"echo \"[fixture] keygen root + wrong (ephemeral)\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/wrong\"; "+
+					"echo \"[fixture] build unsigned obc\"; "+
+					"./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] sign obc\"; "+
+					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
+					"echo \"[fixture] verify + run signed with hex list (wrong,correct)\"; "+
+					"bad=$(xxd -p -c 256 \"$wd/wrong/root_ed25519_pk.bin\" | tr -d '\\n'); "+
+					"good=$(xxd -p -c 256 \"$wd/ca/root_ed25519_pk.bin\" | tr -d '\\n'); "+
+					"./avm --require-sig --trusted-pubkey-hex \"${bad},${good}\" %q > %q; "+
+					"grep -Fq %q %q",
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
+				"tests/avm/fixtures/signed_obc_smoke.oren",
+				*target,
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
+				gcArg,
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
+				"signed obc OK",
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
+			),
+			timeout: 4 * time.Minute,
+			log:     "build/logs/fixture_signed_obc_verify_cli_multi_root_hex.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
 			},
-			{
-				name: "signed_obc_verify_cert_chain_cli",
-				cmd: fmt.Sprintf(
-					"set -e; "+
-						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+		},
+		{
+			name: "signed_obc_verify_cert_chain_cli",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
 					"echo \"[fixture] build orensign\"; "+
 					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
 					"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
@@ -738,55 +738,55 @@ func main() {
 			),
 			log: "build/logs/fixture_signed_obc_verify_cert_chain_cli.log",
 			ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
-				},
+			cleanup: []string{
+				"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
 			},
-			{
-				name: "signed_obc_verify_cert_chain_allow_domains",
-				cmd: fmt.Sprintf(
-					"set -e; "+
-						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
-						"echo \"[fixture] build orensign\"; "+
-						"go build -o \"$wd/orensign\" ./cmd/orensign; "+
-						"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
-						"mkdir -p \"$wd/ca\"; "+
-						"\"$wd/orensign\" keygen --out \"$wd/ca/root\"; "+
-						"\"$wd/orensign\" keygen --out \"$wd/ca/org\"; "+
-						"\"$wd/orensign\" keygen --out \"$wd/ca/dev\"; "+
-						"echo \"[fixture] issue root->org (can_issue, allow CORE-only) and org->dev (inherit) certs\"; "+
-						"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue --allow-domains CORE; "+
-						"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
-						"echo \"[fixture] build unsigned obc (uses FS)\"; "+
-						"./oren build %q --backend bytecode --target %s -o %q%s; "+
-						"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
-						"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
-						"echo \"[fixture] verify must fail due to cert allow_domains\"; "+
-						"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q 2>&1; rc=$?; set -e; "+
-						"test $rc -ne 0; "+
-						"grep -Fq %q %q",
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
-					"tests/avm/fixtures/signed_obc_uses_fs.oren",
-					*target,
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
-					gcArg,
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
-					"cert policy failed",
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
-				),
-				log: "build/logs/fixture_signed_obc_verify_cert_chain_allow_domains.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
-				},
+		},
+		{
+			name: "signed_obc_verify_cert_chain_allow_domains",
+			cmd: fmt.Sprintf(
+				"set -e; "+
+					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+					"echo \"[fixture] build orensign\"; "+
+					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
+					"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
+					"mkdir -p \"$wd/ca\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca/root\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca/org\"; "+
+					"\"$wd/orensign\" keygen --out \"$wd/ca/dev\"; "+
+					"echo \"[fixture] issue root->org (can_issue, allow CORE-only) and org->dev (inherit) certs\"; "+
+					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue --allow-domains CORE; "+
+					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
+					"echo \"[fixture] build unsigned obc (uses FS)\"; "+
+					"./oren build %q --backend bytecode --target %s -o %q%s; "+
+					"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
+					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
+					"echo \"[fixture] verify must fail due to cert allow_domains\"; "+
+					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q 2>&1; rc=$?; set -e; "+
+					"test $rc -ne 0; "+
+					"grep -Fq %q %q",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
+				"tests/avm/fixtures/signed_obc_uses_fs.oren",
+				*target,
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
+				gcArg,
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
+				"cert policy failed",
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
+			),
+			log: "build/logs/fixture_signed_obc_verify_cert_chain_allow_domains.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
 			},
-			{
-				name: "bytecode_negative_int_constants",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
+		},
+		{
+			name: "bytecode_negative_int_constants",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
 					"./avm --disasm-consts %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q",
@@ -805,8 +805,8 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/bytecode_neg_int_const.obc", "build/bytecode_neg_int_const.build.out", "build/bytecode_neg_int_const.disasm.out"},
 		},
-			{
-				name: "deterministic_bytecode_hash",
+		{
+			name: "deterministic_bytecode_hash",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
 					"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
@@ -831,792 +831,829 @@ func main() {
 			log:     "build/logs/deterministic_bytecode_hash.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/deterministic_1.obc", "build/deterministic_2.obc", "build/deterministic_1.out", "build/deterministic_2.out", "build/deterministic_1.hash", "build/deterministic_2.hash"},
-			},
-			{
-				name: "native_x64_linux_format",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && "+
-						"grep -Fq %q %q && "+
-						"grep -Fq %q %q",
-					"tests/fixtures/x64_format_main.oren",
-					"build/x64_format_linux",
-					"build/x64_format_linux.build.out",
-					"build/x64_format_linux",
-					"build/x64_format_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_format_linux.file.out",
-					"x86-64",
-					"build/x64_format_linux.file.out",
-				),
-				log:     "build/logs/native_x64_linux_format.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/x64_format_linux", "build/x64_format_linux.build.out", "build/x64_format_linux.file.out"},
-			},
-			{
-				name: "native_x64_windows_format",
-				cmd: fmt.Sprintf(
+		},
+		{
+			name: "native_x64_linux_format",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/fixtures/x64_format_main.oren",
+				"build/x64_format_linux",
+				"build/x64_format_linux.build.out",
+				"build/x64_format_linux",
+				"build/x64_format_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_format_linux.file.out",
+				"x86-64",
+				"build/x64_format_linux.file.out",
+			),
+			log:     "build/logs/native_x64_linux_format.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/x64_format_linux", "build/x64_format_linux.build.out", "build/x64_format_linux.file.out"},
+		},
+		{
+			name: "native_x64_windows_format",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/fixtures/x64_format_main.oren",
+				"build/x64_format_win.exe",
+				"build/x64_format_win.build.out",
+				"build/x64_format_win.exe",
+				"build/x64_format_win.file.out",
+				"PE32+",
+				"build/x64_format_win.file.out",
+				"x86-64",
+				"build/x64_format_win.file.out",
+			),
+			log:     "build/logs/native_x64_windows_format.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/x64_format_win.exe", "build/x64_format_win.build.out", "build/x64_format_win.file.out"},
+		},
+		{
+			name: "native_x64_windows_print_embeds_string",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"strings %q > %q && "+
+					"grep -Fq %q %q",
+				"tests/fixtures/x64_print_main.oren",
+				"build/x64_print_win.exe",
+				"build/x64_print_win.build.out",
+				"build/x64_print_win.exe",
+				"build/x64_print_win.strings.out",
+				"x64 hello",
+				"build/x64_print_win.strings.out",
+			),
+			log:     "build/logs/native_x64_windows_print_embeds_string.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/x64_print_win.exe", "build/x64_print_win.build.out", "build/x64_print_win.strings.out"},
+		},
+		{
+			name: "native_x64_var_return_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
 					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && "+
-						"grep -Fq %q %q && "+
-						"grep -Fq %q %q",
-					"tests/fixtures/x64_format_main.oren",
-					"build/x64_format_win.exe",
-					"build/x64_format_win.build.out",
-					"build/x64_format_win.exe",
-					"build/x64_format_win.file.out",
-					"PE32+",
-					"build/x64_format_win.file.out",
-					"x86-64",
-					"build/x64_format_win.file.out",
-				),
-				log:     "build/logs/native_x64_windows_format.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/x64_format_win.exe", "build/x64_format_win.build.out", "build/x64_format_win.file.out"},
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_var_return_main.oren",
+				"build/x64_var_return_linux",
+				"build/x64_var_return_linux.build.out",
+				"build/x64_var_return_linux",
+				"build/x64_var_return_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_var_return_linux.file.out",
+				"x86-64",
+				"build/x64_var_return_linux.file.out",
+				"tests/fixtures/x64_var_return_main.oren",
+				"build/x64_var_return_win.exe",
+				"build/x64_var_return_win.build.out",
+				"build/x64_var_return_win.exe",
+				"build/x64_var_return_win.file.out",
+				"PE32+",
+				"build/x64_var_return_win.file.out",
+				"x86-64",
+				"build/x64_var_return_win.file.out",
+			),
+			log: "build/logs/native_x64_var_return_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_var_return_linux",
+				"build/x64_var_return_linux.build.out",
+				"build/x64_var_return_linux.file.out",
+				"build/x64_var_return_win.exe",
+				"build/x64_var_return_win.build.out",
+				"build/x64_var_return_win.file.out",
 			},
-			{
-				name: "native_x64_windows_print_embeds_string",
-				cmd: fmt.Sprintf(
+		},
+		{
+			name: "native_x64_expr_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
 					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"strings %q > %q && "+
-						"grep -Fq %q %q",
-					"tests/fixtures/x64_print_main.oren",
-					"build/x64_print_win.exe",
-					"build/x64_print_win.build.out",
-					"build/x64_print_win.exe",
-					"build/x64_print_win.strings.out",
-					"x64 hello",
-					"build/x64_print_win.strings.out",
-				),
-				log:     "build/logs/native_x64_windows_print_embeds_string.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/x64_print_win.exe", "build/x64_print_win.build.out", "build/x64_print_win.strings.out"},
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_expr_main.oren",
+				"build/x64_expr_linux",
+				"build/x64_expr_linux.build.out",
+				"build/x64_expr_linux",
+				"build/x64_expr_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_expr_linux.file.out",
+				"x86-64",
+				"build/x64_expr_linux.file.out",
+				"tests/fixtures/x64_expr_main.oren",
+				"build/x64_expr_win.exe",
+				"build/x64_expr_win.build.out",
+				"build/x64_expr_win.exe",
+				"build/x64_expr_win.file.out",
+				"PE32+",
+				"build/x64_expr_win.file.out",
+				"x86-64",
+				"build/x64_expr_win.file.out",
+			),
+			log: "build/logs/native_x64_expr_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_expr_linux",
+				"build/x64_expr_linux.build.out",
+				"build/x64_expr_linux.file.out",
+				"build/x64_expr_win.exe",
+				"build/x64_expr_win.build.out",
+				"build/x64_expr_win.file.out",
 			},
-			{
-				name: "native_x64_var_return_builds",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-					"tests/fixtures/x64_var_return_main.oren",
-					"build/x64_var_return_linux",
-					"build/x64_var_return_linux.build.out",
-					"build/x64_var_return_linux",
-					"build/x64_var_return_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_var_return_linux.file.out",
-					"x86-64",
-					"build/x64_var_return_linux.file.out",
-					"tests/fixtures/x64_var_return_main.oren",
-					"build/x64_var_return_win.exe",
-					"build/x64_var_return_win.build.out",
-					"build/x64_var_return_win.exe",
-					"build/x64_var_return_win.file.out",
-					"PE32+",
-					"build/x64_var_return_win.file.out",
-					"x86-64",
-					"build/x64_var_return_win.file.out",
-				),
-				log: "build/logs/native_x64_var_return_builds.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/x64_var_return_linux",
-					"build/x64_var_return_linux.build.out",
-					"build/x64_var_return_linux.file.out",
-					"build/x64_var_return_win.exe",
-					"build/x64_var_return_win.build.out",
-					"build/x64_var_return_win.file.out",
-				},
+		},
+		{
+			name: "native_x64_if_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_if_main.oren",
+				"build/x64_if_linux",
+				"build/x64_if_linux.build.out",
+				"build/x64_if_linux",
+				"build/x64_if_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_if_linux.file.out",
+				"x86-64",
+				"build/x64_if_linux.file.out",
+				"tests/fixtures/x64_if_main.oren",
+				"build/x64_if_win.exe",
+				"build/x64_if_win.build.out",
+				"build/x64_if_win.exe",
+				"build/x64_if_win.file.out",
+				"PE32+",
+				"build/x64_if_win.file.out",
+				"x86-64",
+				"build/x64_if_win.file.out",
+			),
+			log: "build/logs/native_x64_if_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_if_linux",
+				"build/x64_if_linux.build.out",
+				"build/x64_if_linux.file.out",
+				"build/x64_if_win.exe",
+				"build/x64_if_win.build.out",
+				"build/x64_if_win.file.out",
 			},
-			{
-				name: "native_x64_expr_builds",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-					"tests/fixtures/x64_expr_main.oren",
-					"build/x64_expr_linux",
-					"build/x64_expr_linux.build.out",
-					"build/x64_expr_linux",
-					"build/x64_expr_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_expr_linux.file.out",
-					"x86-64",
-					"build/x64_expr_linux.file.out",
-					"tests/fixtures/x64_expr_main.oren",
-					"build/x64_expr_win.exe",
-					"build/x64_expr_win.build.out",
-					"build/x64_expr_win.exe",
-					"build/x64_expr_win.file.out",
-					"PE32+",
-					"build/x64_expr_win.file.out",
-					"x86-64",
-					"build/x64_expr_win.file.out",
-				),
-				log: "build/logs/native_x64_expr_builds.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/x64_expr_linux",
-					"build/x64_expr_linux.build.out",
-					"build/x64_expr_linux.file.out",
-					"build/x64_expr_win.exe",
-					"build/x64_expr_win.build.out",
-					"build/x64_expr_win.file.out",
-				},
+		},
+		{
+			name: "native_x64_if_truthy_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_if_truthy_main.oren",
+				"build/x64_if_truthy_linux",
+				"build/x64_if_truthy_linux.build.out",
+				"build/x64_if_truthy_linux",
+				"build/x64_if_truthy_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_if_truthy_linux.file.out",
+				"x86-64",
+				"build/x64_if_truthy_linux.file.out",
+				"tests/fixtures/x64_if_truthy_main.oren",
+				"build/x64_if_truthy_win.exe",
+				"build/x64_if_truthy_win.build.out",
+				"build/x64_if_truthy_win.exe",
+				"build/x64_if_truthy_win.file.out",
+				"PE32+",
+				"build/x64_if_truthy_win.file.out",
+				"x86-64",
+				"build/x64_if_truthy_win.file.out",
+			),
+			log: "build/logs/native_x64_if_truthy_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_if_truthy_linux",
+				"build/x64_if_truthy_linux.build.out",
+				"build/x64_if_truthy_linux.file.out",
+				"build/x64_if_truthy_win.exe",
+				"build/x64_if_truthy_win.build.out",
+				"build/x64_if_truthy_win.file.out",
 			},
-				{
-					name: "native_x64_if_builds",
-					cmd: fmt.Sprintf(
-					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-					"tests/fixtures/x64_if_main.oren",
-					"build/x64_if_linux",
-					"build/x64_if_linux.build.out",
-					"build/x64_if_linux",
-					"build/x64_if_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_if_linux.file.out",
-					"x86-64",
-					"build/x64_if_linux.file.out",
-					"tests/fixtures/x64_if_main.oren",
-					"build/x64_if_win.exe",
-					"build/x64_if_win.build.out",
-					"build/x64_if_win.exe",
-					"build/x64_if_win.file.out",
-					"PE32+",
-					"build/x64_if_win.file.out",
-					"x86-64",
-					"build/x64_if_win.file.out",
-				),
-				log: "build/logs/native_x64_if_builds.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/x64_if_linux",
-					"build/x64_if_linux.build.out",
-					"build/x64_if_linux.file.out",
-					"build/x64_if_win.exe",
-					"build/x64_if_win.build.out",
-					"build/x64_if_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_if_truthy_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_if_truthy_main.oren",
-						"build/x64_if_truthy_linux",
-						"build/x64_if_truthy_linux.build.out",
-						"build/x64_if_truthy_linux",
-						"build/x64_if_truthy_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_if_truthy_linux.file.out",
-						"x86-64",
-						"build/x64_if_truthy_linux.file.out",
-						"tests/fixtures/x64_if_truthy_main.oren",
-						"build/x64_if_truthy_win.exe",
-						"build/x64_if_truthy_win.build.out",
-						"build/x64_if_truthy_win.exe",
-						"build/x64_if_truthy_win.file.out",
-						"PE32+",
-						"build/x64_if_truthy_win.file.out",
-						"x86-64",
-						"build/x64_if_truthy_win.file.out",
-					),
-					log: "build/logs/native_x64_if_truthy_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_if_truthy_linux",
-						"build/x64_if_truthy_linux.build.out",
-						"build/x64_if_truthy_linux.file.out",
-						"build/x64_if_truthy_win.exe",
-						"build/x64_if_truthy_win.build.out",
-						"build/x64_if_truthy_win.file.out",
-					},
-				},
-					{
-						name: "native_x64_while_builds",
-						cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-					"tests/fixtures/x64_while_main.oren",
-					"build/x64_while_linux",
-					"build/x64_while_linux.build.out",
-					"build/x64_while_linux",
-					"build/x64_while_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_while_linux.file.out",
-					"x86-64",
-					"build/x64_while_linux.file.out",
-					"tests/fixtures/x64_while_main.oren",
-					"build/x64_while_win.exe",
-					"build/x64_while_win.build.out",
-					"build/x64_while_win.exe",
-					"build/x64_while_win.file.out",
-					"PE32+",
-					"build/x64_while_win.file.out",
-					"x86-64",
-					"build/x64_while_win.file.out",
-				),
-				log: "build/logs/native_x64_while_builds.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/x64_while_linux",
-					"build/x64_while_linux.build.out",
-					"build/x64_while_linux.file.out",
-					"build/x64_while_win.exe",
-					"build/x64_while_win.build.out",
-					"build/x64_while_win.file.out",
-					},
-					},
-					{
-						name: "native_x64_while_truthy_builds",
-						cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_while_truthy_main.oren",
-						"build/x64_while_truthy_linux",
-						"build/x64_while_truthy_linux.build.out",
-						"build/x64_while_truthy_linux",
-						"build/x64_while_truthy_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_while_truthy_linux.file.out",
-						"x86-64",
-						"build/x64_while_truthy_linux.file.out",
-						"tests/fixtures/x64_while_truthy_main.oren",
-						"build/x64_while_truthy_win.exe",
-						"build/x64_while_truthy_win.build.out",
-						"build/x64_while_truthy_win.exe",
-						"build/x64_while_truthy_win.file.out",
-						"PE32+",
-						"build/x64_while_truthy_win.file.out",
-						"x86-64",
-						"build/x64_while_truthy_win.file.out",
-					),
-					log: "build/logs/native_x64_while_truthy_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_while_truthy_linux",
-						"build/x64_while_truthy_linux.build.out",
-						"build/x64_while_truthy_linux.file.out",
-						"build/x64_while_truthy_win.exe",
-						"build/x64_while_truthy_win.build.out",
-						"build/x64_while_truthy_win.file.out",
-					},
-					},
-					{
-						name: "native_x64_while_lt_builds",
-						cmd: fmt.Sprintf(
-							"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-								"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_while_lt_main.oren",
-						"build/x64_while_lt_linux",
-						"build/x64_while_lt_linux.build.out",
-						"build/x64_while_lt_linux",
-						"build/x64_while_lt_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_while_lt_linux.file.out",
-						"x86-64",
-						"build/x64_while_lt_linux.file.out",
-						"tests/fixtures/x64_while_lt_main.oren",
-						"build/x64_while_lt_win.exe",
-						"build/x64_while_lt_win.build.out",
-						"build/x64_while_lt_win.exe",
-						"build/x64_while_lt_win.file.out",
-						"PE32+",
-						"build/x64_while_lt_win.file.out",
-						"x86-64",
-						"build/x64_while_lt_win.file.out",
-					),
-					log: "build/logs/native_x64_while_lt_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_while_lt_linux",
-						"build/x64_while_lt_linux.build.out",
-						"build/x64_while_lt_linux.file.out",
-						"build/x64_while_lt_win.exe",
-						"build/x64_while_lt_win.build.out",
-						"build/x64_while_lt_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_else_if_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_else_if_main.oren",
-						"build/x64_else_if_linux",
-						"build/x64_else_if_linux.build.out",
-						"build/x64_else_if_linux",
-						"build/x64_else_if_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_else_if_linux.file.out",
-						"x86-64",
-						"build/x64_else_if_linux.file.out",
-						"tests/fixtures/x64_else_if_main.oren",
-						"build/x64_else_if_win.exe",
-						"build/x64_else_if_win.build.out",
-						"build/x64_else_if_win.exe",
-						"build/x64_else_if_win.file.out",
-						"PE32+",
-						"build/x64_else_if_win.file.out",
-						"x86-64",
-						"build/x64_else_if_win.file.out",
-					),
-					log: "build/logs/native_x64_else_if_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_else_if_linux",
-						"build/x64_else_if_linux.build.out",
-						"build/x64_else_if_linux.file.out",
-						"build/x64_else_if_win.exe",
-						"build/x64_else_if_win.build.out",
-						"build/x64_else_if_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_cmp_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_cmp_main.oren",
-						"build/x64_cmp_linux",
-						"build/x64_cmp_linux.build.out",
-						"build/x64_cmp_linux",
-						"build/x64_cmp_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_cmp_linux.file.out",
-						"x86-64",
-						"build/x64_cmp_linux.file.out",
-						"tests/fixtures/x64_cmp_main.oren",
-						"build/x64_cmp_win.exe",
-						"build/x64_cmp_win.build.out",
-						"build/x64_cmp_win.exe",
-						"build/x64_cmp_win.file.out",
-						"PE32+",
-						"build/x64_cmp_win.file.out",
-						"x86-64",
-						"build/x64_cmp_win.file.out",
-					),
-					log: "build/logs/native_x64_cmp_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_cmp_linux",
-						"build/x64_cmp_linux.build.out",
-						"build/x64_cmp_linux.file.out",
-						"build/x64_cmp_win.exe",
-						"build/x64_cmp_win.build.out",
-						"build/x64_cmp_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_cmp_neg_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_cmp_neg_main.oren",
-						"build/x64_cmp_neg_linux",
-						"build/x64_cmp_neg_linux.build.out",
-						"build/x64_cmp_neg_linux",
-						"build/x64_cmp_neg_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_cmp_neg_linux.file.out",
-						"x86-64",
-						"build/x64_cmp_neg_linux.file.out",
-						"tests/fixtures/x64_cmp_neg_main.oren",
-						"build/x64_cmp_neg_win.exe",
-						"build/x64_cmp_neg_win.build.out",
-						"build/x64_cmp_neg_win.exe",
-						"build/x64_cmp_neg_win.file.out",
-						"PE32+",
-						"build/x64_cmp_neg_win.file.out",
-						"x86-64",
-						"build/x64_cmp_neg_win.file.out",
-					),
-					log: "build/logs/native_x64_cmp_neg_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_cmp_neg_linux",
-						"build/x64_cmp_neg_linux.build.out",
-						"build/x64_cmp_neg_linux.file.out",
-						"build/x64_cmp_neg_win.exe",
-						"build/x64_cmp_neg_win.build.out",
-						"build/x64_cmp_neg_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_prefix_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_prefix_main.oren",
-						"build/x64_prefix_linux",
-						"build/x64_prefix_linux.build.out",
-						"build/x64_prefix_linux",
-						"build/x64_prefix_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_prefix_linux.file.out",
-						"x86-64",
-						"build/x64_prefix_linux.file.out",
-						"tests/fixtures/x64_prefix_main.oren",
-						"build/x64_prefix_win.exe",
-						"build/x64_prefix_win.build.out",
-						"build/x64_prefix_win.exe",
-						"build/x64_prefix_win.file.out",
-						"PE32+",
-						"build/x64_prefix_win.file.out",
-						"x86-64",
-						"build/x64_prefix_win.file.out",
-					),
-					log: "build/logs/native_x64_prefix_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_prefix_linux",
-						"build/x64_prefix_linux.build.out",
-						"build/x64_prefix_linux.file.out",
-						"build/x64_prefix_win.exe",
-						"build/x64_prefix_win.build.out",
-						"build/x64_prefix_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_break_continue_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-					"tests/fixtures/x64_break_continue_main.oren",
-					"build/x64_break_continue_linux",
-					"build/x64_break_continue_linux.build.out",
-					"build/x64_break_continue_linux",
-					"build/x64_break_continue_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_break_continue_linux.file.out",
-					"x86-64",
-					"build/x64_break_continue_linux.file.out",
-					"tests/fixtures/x64_break_continue_main.oren",
-					"build/x64_break_continue_win.exe",
-					"build/x64_break_continue_win.build.out",
-					"build/x64_break_continue_win.exe",
-					"build/x64_break_continue_win.file.out",
-					"PE32+",
-					"build/x64_break_continue_win.file.out",
-					"x86-64",
-					"build/x64_break_continue_win.file.out",
-				),
-				log: "build/logs/native_x64_break_continue_builds.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/x64_break_continue_linux",
-					"build/x64_break_continue_linux.build.out",
-					"build/x64_break_continue_linux.file.out",
-					"build/x64_break_continue_win.exe",
-					"build/x64_break_continue_win.build.out",
-					"build/x64_break_continue_win.file.out",
-				},
+		},
+		{
+			name: "native_x64_if_not_truthy_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_if_not_truthy_main.oren",
+				"build/x64_if_not_truthy_linux",
+				"build/x64_if_not_truthy_linux.build.out",
+				"build/x64_if_not_truthy_linux",
+				"build/x64_if_not_truthy_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_if_not_truthy_linux.file.out",
+				"x86-64",
+				"build/x64_if_not_truthy_linux.file.out",
+				"tests/fixtures/x64_if_not_truthy_main.oren",
+				"build/x64_if_not_truthy_win.exe",
+				"build/x64_if_not_truthy_win.build.out",
+				"build/x64_if_not_truthy_win.exe",
+				"build/x64_if_not_truthy_win.file.out",
+				"PE32+",
+				"build/x64_if_not_truthy_win.file.out",
+				"x86-64",
+				"build/x64_if_not_truthy_win.file.out",
+			),
+			log: "build/logs/native_x64_if_not_truthy_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_if_not_truthy_linux",
+				"build/x64_if_not_truthy_linux.build.out",
+				"build/x64_if_not_truthy_linux.file.out",
+				"build/x64_if_not_truthy_win.exe",
+				"build/x64_if_not_truthy_win.build.out",
+				"build/x64_if_not_truthy_win.file.out",
 			},
-			{
-				name: "native_x64_for_builds",
-				cmd: fmt.Sprintf(
-					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-					"tests/fixtures/x64_for_main.oren",
-					"build/x64_for_linux",
-					"build/x64_for_linux.build.out",
-					"build/x64_for_linux",
-					"build/x64_for_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_for_linux.file.out",
-					"x86-64",
-					"build/x64_for_linux.file.out",
-					"tests/fixtures/x64_for_main.oren",
-					"build/x64_for_win.exe",
-					"build/x64_for_win.build.out",
-					"build/x64_for_win.exe",
-					"build/x64_for_win.file.out",
-					"PE32+",
-					"build/x64_for_win.file.out",
-					"x86-64",
-					"build/x64_for_win.file.out",
-				),
-				log: "build/logs/native_x64_for_builds.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/x64_for_linux",
-					"build/x64_for_linux.build.out",
-					"build/x64_for_linux.file.out",
-					"build/x64_for_win.exe",
-					"build/x64_for_win.build.out",
-					"build/x64_for_win.file.out",
-				},
+		},
+		{
+			name: "native_x64_while_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_while_main.oren",
+				"build/x64_while_linux",
+				"build/x64_while_linux.build.out",
+				"build/x64_while_linux",
+				"build/x64_while_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_while_linux.file.out",
+				"x86-64",
+				"build/x64_while_linux.file.out",
+				"tests/fixtures/x64_while_main.oren",
+				"build/x64_while_win.exe",
+				"build/x64_while_win.build.out",
+				"build/x64_while_win.exe",
+				"build/x64_while_win.file.out",
+				"PE32+",
+				"build/x64_while_win.file.out",
+				"x86-64",
+				"build/x64_while_win.file.out",
+			),
+			log: "build/logs/native_x64_while_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_while_linux",
+				"build/x64_while_linux.build.out",
+				"build/x64_while_linux.file.out",
+				"build/x64_while_win.exe",
+				"build/x64_while_win.build.out",
+				"build/x64_while_win.file.out",
 			},
-				{
-					name: "native_x64_mul_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-						"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-						"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-					"tests/fixtures/x64_mul_expr_main.oren",
-					"build/x64_mul_linux",
-					"build/x64_mul_linux.build.out",
-					"build/x64_mul_linux",
-					"build/x64_mul_linux.file.out",
-					"ELF 64-bit",
-					"build/x64_mul_linux.file.out",
-					"x86-64",
-					"build/x64_mul_linux.file.out",
-					"tests/fixtures/x64_mul_expr_main.oren",
-					"build/x64_mul_win.exe",
-					"build/x64_mul_win.build.out",
-					"build/x64_mul_win.exe",
-					"build/x64_mul_win.file.out",
-					"PE32+",
-					"build/x64_mul_win.file.out",
-					"x86-64",
-					"build/x64_mul_win.file.out",
-				),
-				log: "build/logs/native_x64_mul_builds.log",
-				ok:  func(rc int) bool { return rc == 0 },
-				cleanup: []string{
-					"build/x64_mul_linux",
-					"build/x64_mul_linux.build.out",
-					"build/x64_mul_linux.file.out",
-					"build/x64_mul_win.exe",
-					"build/x64_mul_win.build.out",
-					"build/x64_mul_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_call_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_call_main.oren",
-						"build/x64_call_linux",
-						"build/x64_call_linux.build.out",
-						"build/x64_call_linux",
-						"build/x64_call_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_call_linux.file.out",
-						"x86-64",
-						"build/x64_call_linux.file.out",
-						"tests/fixtures/x64_call_main.oren",
-						"build/x64_call_win.exe",
-						"build/x64_call_win.build.out",
-						"build/x64_call_win.exe",
-						"build/x64_call_win.file.out",
-						"PE32+",
-						"build/x64_call_win.file.out",
-						"x86-64",
-						"build/x64_call_win.file.out",
-					),
-					log: "build/logs/native_x64_call_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_call_linux",
-						"build/x64_call_linux.build.out",
-						"build/x64_call_linux.file.out",
-						"build/x64_call_win.exe",
-						"build/x64_call_win.build.out",
-						"build/x64_call_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_call_args2_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_call_args2_main.oren",
-						"build/x64_call_args2_linux",
-						"build/x64_call_args2_linux.build.out",
-						"build/x64_call_args2_linux",
-						"build/x64_call_args2_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_call_args2_linux.file.out",
-						"x86-64",
-						"build/x64_call_args2_linux.file.out",
-						"tests/fixtures/x64_call_args2_main.oren",
-						"build/x64_call_args2_win.exe",
-						"build/x64_call_args2_win.build.out",
-						"build/x64_call_args2_win.exe",
-						"build/x64_call_args2_win.file.out",
-						"PE32+",
-						"build/x64_call_args2_win.file.out",
-						"x86-64",
-						"build/x64_call_args2_win.file.out",
-					),
-					log: "build/logs/native_x64_call_args2_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_call_args2_linux",
-						"build/x64_call_args2_linux.build.out",
-						"build/x64_call_args2_linux.file.out",
-						"build/x64_call_args2_win.exe",
-						"build/x64_call_args2_win.build.out",
-						"build/x64_call_args2_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_call_args4_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_call_args4_main.oren",
-						"build/x64_call_args4_linux",
-						"build/x64_call_args4_linux.build.out",
-						"build/x64_call_args4_linux",
-						"build/x64_call_args4_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_call_args4_linux.file.out",
-						"x86-64",
-						"build/x64_call_args4_linux.file.out",
-						"tests/fixtures/x64_call_args4_main.oren",
-						"build/x64_call_args4_win.exe",
-						"build/x64_call_args4_win.build.out",
-						"build/x64_call_args4_win.exe",
-						"build/x64_call_args4_win.file.out",
-						"PE32+",
-						"build/x64_call_args4_win.file.out",
-						"x86-64",
-						"build/x64_call_args4_win.file.out",
-					),
-					log: "build/logs/native_x64_call_args4_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_call_args4_linux",
-						"build/x64_call_args4_linux.build.out",
-						"build/x64_call_args4_linux.file.out",
-						"build/x64_call_args4_win.exe",
-						"build/x64_call_args4_win.build.out",
-						"build/x64_call_args4_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_fnptr_call_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_fnptr_call_main.oren",
-						"build/x64_fnptr_call_linux",
-						"build/x64_fnptr_call_linux.build.out",
-						"build/x64_fnptr_call_linux",
-						"build/x64_fnptr_call_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_fnptr_call_linux.file.out",
-						"x86-64",
-						"build/x64_fnptr_call_linux.file.out",
-						"tests/fixtures/x64_fnptr_call_main.oren",
-						"build/x64_fnptr_call_win.exe",
-						"build/x64_fnptr_call_win.build.out",
-						"build/x64_fnptr_call_win.exe",
-						"build/x64_fnptr_call_win.file.out",
-						"PE32+",
-						"build/x64_fnptr_call_win.file.out",
-						"x86-64",
-						"build/x64_fnptr_call_win.file.out",
-					),
-					log: "build/logs/native_x64_fnptr_call_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_fnptr_call_linux",
-						"build/x64_fnptr_call_linux.build.out",
-						"build/x64_fnptr_call_linux.file.out",
-						"build/x64_fnptr_call_win.exe",
-						"build/x64_fnptr_call_win.build.out",
-						"build/x64_fnptr_call_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_fnptr_pass_builds",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
-							"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
-							"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
-						"tests/fixtures/x64_fnptr_pass_main.oren",
-						"build/x64_fnptr_pass_linux",
-						"build/x64_fnptr_pass_linux.build.out",
-						"build/x64_fnptr_pass_linux",
-						"build/x64_fnptr_pass_linux.file.out",
-						"ELF 64-bit",
-						"build/x64_fnptr_pass_linux.file.out",
-						"x86-64",
-						"build/x64_fnptr_pass_linux.file.out",
-						"tests/fixtures/x64_fnptr_pass_main.oren",
-						"build/x64_fnptr_pass_win.exe",
-						"build/x64_fnptr_pass_win.build.out",
-						"build/x64_fnptr_pass_win.exe",
-						"build/x64_fnptr_pass_win.file.out",
-						"PE32+",
-						"build/x64_fnptr_pass_win.file.out",
-						"x86-64",
-						"build/x64_fnptr_pass_win.file.out",
-					),
-					log: "build/logs/native_x64_fnptr_pass_builds.log",
-					ok:  func(rc int) bool { return rc == 0 },
-					cleanup: []string{
-						"build/x64_fnptr_pass_linux",
-						"build/x64_fnptr_pass_linux.build.out",
-						"build/x64_fnptr_pass_linux.file.out",
-						"build/x64_fnptr_pass_win.exe",
-						"build/x64_fnptr_pass_win.build.out",
-						"build/x64_fnptr_pass_win.file.out",
-					},
-				},
-				{
-					name: "native_x64_linux_print_embeds_string",
-					cmd: fmt.Sprintf(
-						"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
-						"strings %q > %q && "+
-						"grep -Fq %q %q",
-					"tests/fixtures/x64_print_main.oren",
-					"build/x64_print_linux",
-					"build/x64_print_linux.build.out",
-					"build/x64_print_linux",
-					"build/x64_print_linux.strings.out",
-					"x64 hello",
-					"build/x64_print_linux.strings.out",
-				),
-				log:     "build/logs/native_x64_linux_print_embeds_string.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/x64_print_linux", "build/x64_print_linux.build.out", "build/x64_print_linux.strings.out"},
+		},
+		{
+			name: "native_x64_while_truthy_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_while_truthy_main.oren",
+				"build/x64_while_truthy_linux",
+				"build/x64_while_truthy_linux.build.out",
+				"build/x64_while_truthy_linux",
+				"build/x64_while_truthy_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_while_truthy_linux.file.out",
+				"x86-64",
+				"build/x64_while_truthy_linux.file.out",
+				"tests/fixtures/x64_while_truthy_main.oren",
+				"build/x64_while_truthy_win.exe",
+				"build/x64_while_truthy_win.build.out",
+				"build/x64_while_truthy_win.exe",
+				"build/x64_while_truthy_win.file.out",
+				"PE32+",
+				"build/x64_while_truthy_win.file.out",
+				"x86-64",
+				"build/x64_while_truthy_win.file.out",
+			),
+			log: "build/logs/native_x64_while_truthy_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_while_truthy_linux",
+				"build/x64_while_truthy_linux.build.out",
+				"build/x64_while_truthy_linux.file.out",
+				"build/x64_while_truthy_win.exe",
+				"build/x64_while_truthy_win.build.out",
+				"build/x64_while_truthy_win.file.out",
 			},
-			{
-				name: "oren_meta_emit",
-				cmd: fmt.Sprintf(
-					"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
+		},
+		{
+			name: "native_x64_while_lt_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_while_lt_main.oren",
+				"build/x64_while_lt_linux",
+				"build/x64_while_lt_linux.build.out",
+				"build/x64_while_lt_linux",
+				"build/x64_while_lt_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_while_lt_linux.file.out",
+				"x86-64",
+				"build/x64_while_lt_linux.file.out",
+				"tests/fixtures/x64_while_lt_main.oren",
+				"build/x64_while_lt_win.exe",
+				"build/x64_while_lt_win.build.out",
+				"build/x64_while_lt_win.exe",
+				"build/x64_while_lt_win.file.out",
+				"PE32+",
+				"build/x64_while_lt_win.file.out",
+				"x86-64",
+				"build/x64_while_lt_win.file.out",
+			),
+			log: "build/logs/native_x64_while_lt_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_while_lt_linux",
+				"build/x64_while_lt_linux.build.out",
+				"build/x64_while_lt_linux.file.out",
+				"build/x64_while_lt_win.exe",
+				"build/x64_while_lt_win.build.out",
+				"build/x64_while_lt_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_else_if_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_else_if_main.oren",
+				"build/x64_else_if_linux",
+				"build/x64_else_if_linux.build.out",
+				"build/x64_else_if_linux",
+				"build/x64_else_if_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_else_if_linux.file.out",
+				"x86-64",
+				"build/x64_else_if_linux.file.out",
+				"tests/fixtures/x64_else_if_main.oren",
+				"build/x64_else_if_win.exe",
+				"build/x64_else_if_win.build.out",
+				"build/x64_else_if_win.exe",
+				"build/x64_else_if_win.file.out",
+				"PE32+",
+				"build/x64_else_if_win.file.out",
+				"x86-64",
+				"build/x64_else_if_win.file.out",
+			),
+			log: "build/logs/native_x64_else_if_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_else_if_linux",
+				"build/x64_else_if_linux.build.out",
+				"build/x64_else_if_linux.file.out",
+				"build/x64_else_if_win.exe",
+				"build/x64_else_if_win.build.out",
+				"build/x64_else_if_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_cmp_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_cmp_main.oren",
+				"build/x64_cmp_linux",
+				"build/x64_cmp_linux.build.out",
+				"build/x64_cmp_linux",
+				"build/x64_cmp_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_cmp_linux.file.out",
+				"x86-64",
+				"build/x64_cmp_linux.file.out",
+				"tests/fixtures/x64_cmp_main.oren",
+				"build/x64_cmp_win.exe",
+				"build/x64_cmp_win.build.out",
+				"build/x64_cmp_win.exe",
+				"build/x64_cmp_win.file.out",
+				"PE32+",
+				"build/x64_cmp_win.file.out",
+				"x86-64",
+				"build/x64_cmp_win.file.out",
+			),
+			log: "build/logs/native_x64_cmp_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_cmp_linux",
+				"build/x64_cmp_linux.build.out",
+				"build/x64_cmp_linux.file.out",
+				"build/x64_cmp_win.exe",
+				"build/x64_cmp_win.build.out",
+				"build/x64_cmp_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_cmp_neg_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_cmp_neg_main.oren",
+				"build/x64_cmp_neg_linux",
+				"build/x64_cmp_neg_linux.build.out",
+				"build/x64_cmp_neg_linux",
+				"build/x64_cmp_neg_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_cmp_neg_linux.file.out",
+				"x86-64",
+				"build/x64_cmp_neg_linux.file.out",
+				"tests/fixtures/x64_cmp_neg_main.oren",
+				"build/x64_cmp_neg_win.exe",
+				"build/x64_cmp_neg_win.build.out",
+				"build/x64_cmp_neg_win.exe",
+				"build/x64_cmp_neg_win.file.out",
+				"PE32+",
+				"build/x64_cmp_neg_win.file.out",
+				"x86-64",
+				"build/x64_cmp_neg_win.file.out",
+			),
+			log: "build/logs/native_x64_cmp_neg_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_cmp_neg_linux",
+				"build/x64_cmp_neg_linux.build.out",
+				"build/x64_cmp_neg_linux.file.out",
+				"build/x64_cmp_neg_win.exe",
+				"build/x64_cmp_neg_win.build.out",
+				"build/x64_cmp_neg_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_prefix_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_prefix_main.oren",
+				"build/x64_prefix_linux",
+				"build/x64_prefix_linux.build.out",
+				"build/x64_prefix_linux",
+				"build/x64_prefix_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_prefix_linux.file.out",
+				"x86-64",
+				"build/x64_prefix_linux.file.out",
+				"tests/fixtures/x64_prefix_main.oren",
+				"build/x64_prefix_win.exe",
+				"build/x64_prefix_win.build.out",
+				"build/x64_prefix_win.exe",
+				"build/x64_prefix_win.file.out",
+				"PE32+",
+				"build/x64_prefix_win.file.out",
+				"x86-64",
+				"build/x64_prefix_win.file.out",
+			),
+			log: "build/logs/native_x64_prefix_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_prefix_linux",
+				"build/x64_prefix_linux.build.out",
+				"build/x64_prefix_linux.file.out",
+				"build/x64_prefix_win.exe",
+				"build/x64_prefix_win.build.out",
+				"build/x64_prefix_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_break_continue_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_break_continue_main.oren",
+				"build/x64_break_continue_linux",
+				"build/x64_break_continue_linux.build.out",
+				"build/x64_break_continue_linux",
+				"build/x64_break_continue_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_break_continue_linux.file.out",
+				"x86-64",
+				"build/x64_break_continue_linux.file.out",
+				"tests/fixtures/x64_break_continue_main.oren",
+				"build/x64_break_continue_win.exe",
+				"build/x64_break_continue_win.build.out",
+				"build/x64_break_continue_win.exe",
+				"build/x64_break_continue_win.file.out",
+				"PE32+",
+				"build/x64_break_continue_win.file.out",
+				"x86-64",
+				"build/x64_break_continue_win.file.out",
+			),
+			log: "build/logs/native_x64_break_continue_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_break_continue_linux",
+				"build/x64_break_continue_linux.build.out",
+				"build/x64_break_continue_linux.file.out",
+				"build/x64_break_continue_win.exe",
+				"build/x64_break_continue_win.build.out",
+				"build/x64_break_continue_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_for_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_for_main.oren",
+				"build/x64_for_linux",
+				"build/x64_for_linux.build.out",
+				"build/x64_for_linux",
+				"build/x64_for_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_for_linux.file.out",
+				"x86-64",
+				"build/x64_for_linux.file.out",
+				"tests/fixtures/x64_for_main.oren",
+				"build/x64_for_win.exe",
+				"build/x64_for_win.build.out",
+				"build/x64_for_win.exe",
+				"build/x64_for_win.file.out",
+				"PE32+",
+				"build/x64_for_win.file.out",
+				"x86-64",
+				"build/x64_for_win.file.out",
+			),
+			log: "build/logs/native_x64_for_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_for_linux",
+				"build/x64_for_linux.build.out",
+				"build/x64_for_linux.file.out",
+				"build/x64_for_win.exe",
+				"build/x64_for_win.build.out",
+				"build/x64_for_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_mul_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_mul_expr_main.oren",
+				"build/x64_mul_linux",
+				"build/x64_mul_linux.build.out",
+				"build/x64_mul_linux",
+				"build/x64_mul_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_mul_linux.file.out",
+				"x86-64",
+				"build/x64_mul_linux.file.out",
+				"tests/fixtures/x64_mul_expr_main.oren",
+				"build/x64_mul_win.exe",
+				"build/x64_mul_win.build.out",
+				"build/x64_mul_win.exe",
+				"build/x64_mul_win.file.out",
+				"PE32+",
+				"build/x64_mul_win.file.out",
+				"x86-64",
+				"build/x64_mul_win.file.out",
+			),
+			log: "build/logs/native_x64_mul_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_mul_linux",
+				"build/x64_mul_linux.build.out",
+				"build/x64_mul_linux.file.out",
+				"build/x64_mul_win.exe",
+				"build/x64_mul_win.build.out",
+				"build/x64_mul_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_call_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_call_main.oren",
+				"build/x64_call_linux",
+				"build/x64_call_linux.build.out",
+				"build/x64_call_linux",
+				"build/x64_call_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_call_linux.file.out",
+				"x86-64",
+				"build/x64_call_linux.file.out",
+				"tests/fixtures/x64_call_main.oren",
+				"build/x64_call_win.exe",
+				"build/x64_call_win.build.out",
+				"build/x64_call_win.exe",
+				"build/x64_call_win.file.out",
+				"PE32+",
+				"build/x64_call_win.file.out",
+				"x86-64",
+				"build/x64_call_win.file.out",
+			),
+			log: "build/logs/native_x64_call_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_call_linux",
+				"build/x64_call_linux.build.out",
+				"build/x64_call_linux.file.out",
+				"build/x64_call_win.exe",
+				"build/x64_call_win.build.out",
+				"build/x64_call_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_call_args2_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_call_args2_main.oren",
+				"build/x64_call_args2_linux",
+				"build/x64_call_args2_linux.build.out",
+				"build/x64_call_args2_linux",
+				"build/x64_call_args2_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_call_args2_linux.file.out",
+				"x86-64",
+				"build/x64_call_args2_linux.file.out",
+				"tests/fixtures/x64_call_args2_main.oren",
+				"build/x64_call_args2_win.exe",
+				"build/x64_call_args2_win.build.out",
+				"build/x64_call_args2_win.exe",
+				"build/x64_call_args2_win.file.out",
+				"PE32+",
+				"build/x64_call_args2_win.file.out",
+				"x86-64",
+				"build/x64_call_args2_win.file.out",
+			),
+			log: "build/logs/native_x64_call_args2_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_call_args2_linux",
+				"build/x64_call_args2_linux.build.out",
+				"build/x64_call_args2_linux.file.out",
+				"build/x64_call_args2_win.exe",
+				"build/x64_call_args2_win.build.out",
+				"build/x64_call_args2_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_call_args4_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_call_args4_main.oren",
+				"build/x64_call_args4_linux",
+				"build/x64_call_args4_linux.build.out",
+				"build/x64_call_args4_linux",
+				"build/x64_call_args4_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_call_args4_linux.file.out",
+				"x86-64",
+				"build/x64_call_args4_linux.file.out",
+				"tests/fixtures/x64_call_args4_main.oren",
+				"build/x64_call_args4_win.exe",
+				"build/x64_call_args4_win.build.out",
+				"build/x64_call_args4_win.exe",
+				"build/x64_call_args4_win.file.out",
+				"PE32+",
+				"build/x64_call_args4_win.file.out",
+				"x86-64",
+				"build/x64_call_args4_win.file.out",
+			),
+			log: "build/logs/native_x64_call_args4_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_call_args4_linux",
+				"build/x64_call_args4_linux.build.out",
+				"build/x64_call_args4_linux.file.out",
+				"build/x64_call_args4_win.exe",
+				"build/x64_call_args4_win.build.out",
+				"build/x64_call_args4_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_fnptr_call_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_fnptr_call_main.oren",
+				"build/x64_fnptr_call_linux",
+				"build/x64_fnptr_call_linux.build.out",
+				"build/x64_fnptr_call_linux",
+				"build/x64_fnptr_call_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_fnptr_call_linux.file.out",
+				"x86-64",
+				"build/x64_fnptr_call_linux.file.out",
+				"tests/fixtures/x64_fnptr_call_main.oren",
+				"build/x64_fnptr_call_win.exe",
+				"build/x64_fnptr_call_win.build.out",
+				"build/x64_fnptr_call_win.exe",
+				"build/x64_fnptr_call_win.file.out",
+				"PE32+",
+				"build/x64_fnptr_call_win.file.out",
+				"x86-64",
+				"build/x64_fnptr_call_win.file.out",
+			),
+			log: "build/logs/native_x64_fnptr_call_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_fnptr_call_linux",
+				"build/x64_fnptr_call_linux.build.out",
+				"build/x64_fnptr_call_linux.file.out",
+				"build/x64_fnptr_call_win.exe",
+				"build/x64_fnptr_call_win.build.out",
+				"build/x64_fnptr_call_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_fnptr_pass_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_fnptr_pass_main.oren",
+				"build/x64_fnptr_pass_linux",
+				"build/x64_fnptr_pass_linux.build.out",
+				"build/x64_fnptr_pass_linux",
+				"build/x64_fnptr_pass_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_fnptr_pass_linux.file.out",
+				"x86-64",
+				"build/x64_fnptr_pass_linux.file.out",
+				"tests/fixtures/x64_fnptr_pass_main.oren",
+				"build/x64_fnptr_pass_win.exe",
+				"build/x64_fnptr_pass_win.build.out",
+				"build/x64_fnptr_pass_win.exe",
+				"build/x64_fnptr_pass_win.file.out",
+				"PE32+",
+				"build/x64_fnptr_pass_win.file.out",
+				"x86-64",
+				"build/x64_fnptr_pass_win.file.out",
+			),
+			log: "build/logs/native_x64_fnptr_pass_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_fnptr_pass_linux",
+				"build/x64_fnptr_pass_linux.build.out",
+				"build/x64_fnptr_pass_linux.file.out",
+				"build/x64_fnptr_pass_win.exe",
+				"build/x64_fnptr_pass_win.build.out",
+				"build/x64_fnptr_pass_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_linux_print_embeds_string",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"strings %q > %q && "+
+					"grep -Fq %q %q",
+				"tests/fixtures/x64_print_main.oren",
+				"build/x64_print_linux",
+				"build/x64_print_linux.build.out",
+				"build/x64_print_linux",
+				"build/x64_print_linux.strings.out",
+				"x64 hello",
+				"build/x64_print_linux.strings.out",
+			),
+			log:     "build/logs/native_x64_linux_print_embeds_string.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/x64_print_linux", "build/x64_print_linux.build.out", "build/x64_print_linux.strings.out"},
+		},
+		{
+			name: "oren_meta_emit",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
 				"tests/fixtures/meta_attrs_src.oren",
 				*target,
 				"build/meta_attrs.meta.json",
@@ -1834,36 +1871,36 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/codegen_error"},
 		},
-			{
-				name: "compiler_bytecode_codegen_diag",
-				cmd: fmt.Sprintf(
-					"sh -c 'out=$(./oren build %q --backend bytecode --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\n\" \"$out\"; test $rc -ne 0; printf \"%%s\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"; printf \"%%s\n\" \"$out\" | grep -F \"Bytecode codegen errors:\"'",
-					"tests/native/fixtures/bytecode_codegen_error.oren",
-					*target,
-					"build/bytecode_codegen_err.obc",
-					gcArg,
-				),
-				log:     "build/logs/compiler_bytecode_codegen_diag.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/bytecode_codegen_err.obc"},
-			},
-			{
-				name: "compiler_bytecode_assign_undefined_diag",
-				cmd: fmt.Sprintf(
-					"sh -c 'out=$(./oren build %q --backend bytecode --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\n\" \"$out\"; test $rc -ne 0; printf \"%%s\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"; printf \"%%s\n\" \"$out\" | grep -F \"Bytecode codegen errors:\"; printf \"%%s\n\" \"$out\" | grep -F \"undefined variable in assignment\"'",
-					"tests/fixtures/bytecode_assign_undefined.oren",
-					*target,
-					"build/bytecode_assign_undefined.obc",
-					gcArg,
-				),
-				log:     "build/logs/compiler_bytecode_assign_undefined_diag.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/bytecode_assign_undefined.obc"},
-			},
-			{
-				name: "compiler_impl_diag",
-				cmd: fmt.Sprintf(
-					"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"'",
+		{
+			name: "compiler_bytecode_codegen_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend bytecode --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\n\" \"$out\"; test $rc -ne 0; printf \"%%s\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"; printf \"%%s\n\" \"$out\" | grep -F \"Bytecode codegen errors:\"'",
+				"tests/native/fixtures/bytecode_codegen_error.oren",
+				*target,
+				"build/bytecode_codegen_err.obc",
+				gcArg,
+			),
+			log:     "build/logs/compiler_bytecode_codegen_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/bytecode_codegen_err.obc"},
+		},
+		{
+			name: "compiler_bytecode_assign_undefined_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend bytecode --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\n\" \"$out\"; test $rc -ne 0; printf \"%%s\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"; printf \"%%s\n\" \"$out\" | grep -F \"Bytecode codegen errors:\"; printf \"%%s\n\" \"$out\" | grep -F \"undefined variable in assignment\"'",
+				"tests/fixtures/bytecode_assign_undefined.oren",
+				*target,
+				"build/bytecode_assign_undefined.obc",
+				gcArg,
+			),
+			log:     "build/logs/compiler_bytecode_assign_undefined_diag.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/bytecode_assign_undefined.obc"},
+		},
+		{
+			name: "compiler_impl_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren build %q --backend c --target %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"'",
 				"tests/native/fixtures/trait_impl_duplicate.oren",
 				*target,
 				"build/impl_err",
@@ -1952,54 +1989,54 @@ func main() {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/unknown_backend"},
 		},
-			{
-				name: "build_cli_modern_equals_and_ordering",
-				cmd: fmt.Sprintf(
-					"./oren build --backend=native --target=%s --out=%q %q%s",
-					*target,
-					"build/cli_modern_eq",
-					"tests/native/fixtures/struct_field_assign_ok.oren",
-					gcArg,
-				),
-				log:     "build/logs/build_cli_modern_equals_and_ordering.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/cli_modern_eq"},
-			},
-			{
-				name: "help_json_root",
-				cmd:  "sh -c 'out=$(./oren --help=json 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"\\\"name\\\":\\\"oren\\\"\"; printf \"%s\\n\" \"$out\" | grep -F \"\\\"commands\\\"\"'",
-				log:  "build/logs/help_json_root.log",
-				ok:   func(rc int) bool { return rc == 0 },
-			},
-			{
-				name: "help_json_build",
-				cmd:  "sh -c 'out=$(./oren build --help=json 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"\\\"cmd\\\":\\\"build\\\"\"; printf \"%s\\n\" \"$out\" | grep -F \"\\\"options\\\"\"'",
-				log:  "build/logs/help_json_build.log",
-				ok:   func(rc int) bool { return rc == 0 },
-			},
-				{
-					name: "version_flag",
-					cmd:  "sh -c 'out=$(./oren --version 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"oren 0.0.0-rolling\"'",
-					log:  "build/logs/version_flag.log",
-					ok:   func(rc int) bool { return rc == 0 },
-				},
-				{
-					name: "completion_bash",
-					cmd:  "sh -c 'out=$(./oren completion bash 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"complete -F _oren oren\"; printf \"%s\\n\" \"$out\" | grep -F \"tokens linked graph\"; printf \"%s\\n\" \"$out\" | grep -F \"compgen -f\"'",
-					log:  "build/logs/completion_bash.log",
-					ok:   func(rc int) bool { return rc == 0 },
-				},
-				{
-					name: "completion_zsh",
-					cmd:  "sh -c 'out=$(./oren completion zsh 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"#compdef oren\"; printf \"%s\\n\" \"$out\" | grep -F \"compdef _oren oren\"; printf \"%s\\n\" \"$out\" | grep -F \"tokens linked graph\"; printf \"%s\\n\" \"$out\" | grep -F \"compadd -f\"'",
-					log:  "build/logs/completion_zsh.log",
-					ok:   func(rc int) bool { return rc == 0 },
-				},
-				{
-					name: "dump_tokens_missing_file_diag",
-					cmd: fmt.Sprintf(
-						"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
-						"tests/native/fixtures/__missing__.oren",
+		{
+			name: "build_cli_modern_equals_and_ordering",
+			cmd: fmt.Sprintf(
+				"./oren build --backend=native --target=%s --out=%q %q%s",
+				*target,
+				"build/cli_modern_eq",
+				"tests/native/fixtures/struct_field_assign_ok.oren",
+				gcArg,
+			),
+			log:     "build/logs/build_cli_modern_equals_and_ordering.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/cli_modern_eq"},
+		},
+		{
+			name: "help_json_root",
+			cmd:  "sh -c 'out=$(./oren --help=json 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"\\\"name\\\":\\\"oren\\\"\"; printf \"%s\\n\" \"$out\" | grep -F \"\\\"commands\\\"\"'",
+			log:  "build/logs/help_json_root.log",
+			ok:   func(rc int) bool { return rc == 0 },
+		},
+		{
+			name: "help_json_build",
+			cmd:  "sh -c 'out=$(./oren build --help=json 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"\\\"cmd\\\":\\\"build\\\"\"; printf \"%s\\n\" \"$out\" | grep -F \"\\\"options\\\"\"'",
+			log:  "build/logs/help_json_build.log",
+			ok:   func(rc int) bool { return rc == 0 },
+		},
+		{
+			name: "version_flag",
+			cmd:  "sh -c 'out=$(./oren --version 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"oren 0.0.0-rolling\"'",
+			log:  "build/logs/version_flag.log",
+			ok:   func(rc int) bool { return rc == 0 },
+		},
+		{
+			name: "completion_bash",
+			cmd:  "sh -c 'out=$(./oren completion bash 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"complete -F _oren oren\"; printf \"%s\\n\" \"$out\" | grep -F \"tokens linked graph\"; printf \"%s\\n\" \"$out\" | grep -F \"compgen -f\"'",
+			log:  "build/logs/completion_bash.log",
+			ok:   func(rc int) bool { return rc == 0 },
+		},
+		{
+			name: "completion_zsh",
+			cmd:  "sh -c 'out=$(./oren completion zsh 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"#compdef oren\"; printf \"%s\\n\" \"$out\" | grep -F \"compdef _oren oren\"; printf \"%s\\n\" \"$out\" | grep -F \"tokens linked graph\"; printf \"%s\\n\" \"$out\" | grep -F \"compadd -f\"'",
+			log:  "build/logs/completion_zsh.log",
+			ok:   func(rc int) bool { return rc == 0 },
+		},
+		{
+			name: "dump_tokens_missing_file_diag",
+			cmd: fmt.Sprintf(
+				"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
+				"tests/native/fixtures/__missing__.oren",
 				"build/dump_tokens_missing.json",
 				*target,
 			),
@@ -2126,10 +2163,10 @@ func main() {
 		// - runs the produced program as another nested universe
 		//
 		// This closes the "no host effects" loop for compilation while staying bootstrap-friendly.
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
 			log     string
 			ok      func(rc int) bool
 			cleanup []string
@@ -2309,203 +2346,203 @@ func main() {
 			log:     "build/logs/fixture_remote_x64_run_print_win_and_wsl.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/tmp/fixture_remote_x64_run_print_win_and_wsl"},
-			})
+		})
 
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "remote_x64_run_call_exitcode",
-				cmd: fmt.Sprintf(
-					"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
-						"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_call_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
-						"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_call_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
-						"echo '[remote] ensure dir'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
-						"echo '[remote] copy artifacts'; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_win.exe; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_linux; "+
-						"echo '[remote] run windows exe'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_call_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
-						"> \\\"$wd/run_win.out\\\"; "+
-						"grep -Fq 'EXIT=15' \\\"$wd/run_win.out\\\"; "+
-						"echo '[remote] run linux exe (wsl)'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_call_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_call_linux; echo EXIT=$?\\\"' "+
-						"> \\\"$wd/run_wsl.out\\\"; "+
-						"grep -Fq 'EXIT=15' \\\"$wd/run_wsl.out\\\"\"",
-					"build/tmp/fixture_remote_x64_run_call_exitcode",
-					"tests/fixtures/x64_call_main.oren",
-					"tests/fixtures/x64_call_main.oren",
-				),
-				timeout: 5 * time.Minute,
-				log:     "build/logs/fixture_remote_x64_run_call_exitcode.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/tmp/fixture_remote_x64_run_call_exitcode"},
-			})
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "remote_x64_run_call_exitcode",
+			cmd: fmt.Sprintf(
+				"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
+					"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_call_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
+					"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_call_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
+					"echo '[remote] ensure dir'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
+					"echo '[remote] copy artifacts'; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_win.exe; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_linux; "+
+					"echo '[remote] run windows exe'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_call_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
+					"> \\\"$wd/run_win.out\\\"; "+
+					"grep -Fq 'EXIT=15' \\\"$wd/run_win.out\\\"; "+
+					"echo '[remote] run linux exe (wsl)'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_call_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_call_linux; echo EXIT=$?\\\"' "+
+					"> \\\"$wd/run_wsl.out\\\"; "+
+					"grep -Fq 'EXIT=15' \\\"$wd/run_wsl.out\\\"\"",
+				"build/tmp/fixture_remote_x64_run_call_exitcode",
+				"tests/fixtures/x64_call_main.oren",
+				"tests/fixtures/x64_call_main.oren",
+			),
+			timeout: 5 * time.Minute,
+			log:     "build/logs/fixture_remote_x64_run_call_exitcode.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/tmp/fixture_remote_x64_run_call_exitcode"},
+		})
 
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "remote_x64_run_call_args2_exitcode",
-				cmd: fmt.Sprintf(
-					"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
-						"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_call_args2_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
-						"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_call_args2_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
-						"echo '[remote] ensure dir'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
-						"echo '[remote] copy artifacts'; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args2_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args2_win.exe; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args2_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args2_linux; "+
-						"echo '[remote] run windows exe'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_call_args2_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
-						"> \\\"$wd/run_win.out\\\"; "+
-						"grep -Fq 'EXIT=5' \\\"$wd/run_win.out\\\"; "+
-						"echo '[remote] run linux exe (wsl)'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_call_args2_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_call_args2_linux; echo EXIT=$?\\\"' "+
-						"> \\\"$wd/run_wsl.out\\\"; "+
-						"grep -Fq 'EXIT=5' \\\"$wd/run_wsl.out\\\"\"",
-					"build/tmp/fixture_remote_x64_run_call_args2_exitcode",
-					"tests/fixtures/x64_call_args2_main.oren",
-					"tests/fixtures/x64_call_args2_main.oren",
-				),
-				timeout: 5 * time.Minute,
-				log:     "build/logs/fixture_remote_x64_run_call_args2_exitcode.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/tmp/fixture_remote_x64_run_call_args2_exitcode"},
-			})
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "remote_x64_run_call_args2_exitcode",
+			cmd: fmt.Sprintf(
+				"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
+					"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_call_args2_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
+					"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_call_args2_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
+					"echo '[remote] ensure dir'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
+					"echo '[remote] copy artifacts'; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args2_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args2_win.exe; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args2_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args2_linux; "+
+					"echo '[remote] run windows exe'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_call_args2_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
+					"> \\\"$wd/run_win.out\\\"; "+
+					"grep -Fq 'EXIT=5' \\\"$wd/run_win.out\\\"; "+
+					"echo '[remote] run linux exe (wsl)'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_call_args2_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_call_args2_linux; echo EXIT=$?\\\"' "+
+					"> \\\"$wd/run_wsl.out\\\"; "+
+					"grep -Fq 'EXIT=5' \\\"$wd/run_wsl.out\\\"\"",
+				"build/tmp/fixture_remote_x64_run_call_args2_exitcode",
+				"tests/fixtures/x64_call_args2_main.oren",
+				"tests/fixtures/x64_call_args2_main.oren",
+			),
+			timeout: 5 * time.Minute,
+			log:     "build/logs/fixture_remote_x64_run_call_args2_exitcode.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/tmp/fixture_remote_x64_run_call_args2_exitcode"},
+		})
 
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "remote_x64_run_call_args4_exitcode",
-				cmd: fmt.Sprintf(
-					"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
-						"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_call_args4_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
-						"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_call_args4_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
-						"echo '[remote] ensure dir'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
-						"echo '[remote] copy artifacts'; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args4_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args4_win.exe; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args4_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args4_linux; "+
-						"echo '[remote] run windows exe'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_call_args4_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
-						"> \\\"$wd/run_win.out\\\"; "+
-						"grep -Fq 'EXIT=10' \\\"$wd/run_win.out\\\"; "+
-						"echo '[remote] run linux exe (wsl)'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_call_args4_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_call_args4_linux; echo EXIT=$?\\\"' "+
-						"> \\\"$wd/run_wsl.out\\\"; "+
-						"grep -Fq 'EXIT=10' \\\"$wd/run_wsl.out\\\"\"",
-					"build/tmp/fixture_remote_x64_run_call_args4_exitcode",
-					"tests/fixtures/x64_call_args4_main.oren",
-					"tests/fixtures/x64_call_args4_main.oren",
-				),
-				timeout: 5 * time.Minute,
-				log:     "build/logs/fixture_remote_x64_run_call_args4_exitcode.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/tmp/fixture_remote_x64_run_call_args4_exitcode"},
-			})
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "remote_x64_run_call_args4_exitcode",
+			cmd: fmt.Sprintf(
+				"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
+					"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_call_args4_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
+					"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_call_args4_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
+					"echo '[remote] ensure dir'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
+					"echo '[remote] copy artifacts'; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args4_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args4_win.exe; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_call_args4_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_call_args4_linux; "+
+					"echo '[remote] run windows exe'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_call_args4_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
+					"> \\\"$wd/run_win.out\\\"; "+
+					"grep -Fq 'EXIT=10' \\\"$wd/run_win.out\\\"; "+
+					"echo '[remote] run linux exe (wsl)'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_call_args4_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_call_args4_linux; echo EXIT=$?\\\"' "+
+					"> \\\"$wd/run_wsl.out\\\"; "+
+					"grep -Fq 'EXIT=10' \\\"$wd/run_wsl.out\\\"\"",
+				"build/tmp/fixture_remote_x64_run_call_args4_exitcode",
+				"tests/fixtures/x64_call_args4_main.oren",
+				"tests/fixtures/x64_call_args4_main.oren",
+			),
+			timeout: 5 * time.Minute,
+			log:     "build/logs/fixture_remote_x64_run_call_args4_exitcode.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/tmp/fixture_remote_x64_run_call_args4_exitcode"},
+		})
 
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "remote_x64_run_fnptr_call_exitcode",
-				cmd: fmt.Sprintf(
-					"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
-						"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_fnptr_call_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
-						"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_fnptr_call_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
-						"echo '[remote] ensure dir'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
-						"echo '[remote] copy artifacts'; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_call_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_call_win.exe; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_call_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_call_linux; "+
-						"echo '[remote] run windows exe'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_fnptr_call_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
-						"> \\\"$wd/run_win.out\\\"; "+
-						"grep -Fq 'EXIT=5' \\\"$wd/run_win.out\\\"; "+
-						"echo '[remote] run linux exe (wsl)'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_call_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_call_linux; echo EXIT=$?\\\"' "+
-						"> \\\"$wd/run_wsl.out\\\"; "+
-						"grep -Fq 'EXIT=5' \\\"$wd/run_wsl.out\\\"\"",
-					"build/tmp/fixture_remote_x64_run_fnptr_call_exitcode",
-					"tests/fixtures/x64_fnptr_call_main.oren",
-					"tests/fixtures/x64_fnptr_call_main.oren",
-				),
-				timeout: 5 * time.Minute,
-				log:     "build/logs/fixture_remote_x64_run_fnptr_call_exitcode.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/tmp/fixture_remote_x64_run_fnptr_call_exitcode"},
-			})
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "remote_x64_run_fnptr_call_exitcode",
+			cmd: fmt.Sprintf(
+				"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
+					"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_fnptr_call_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
+					"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_fnptr_call_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
+					"echo '[remote] ensure dir'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
+					"echo '[remote] copy artifacts'; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_call_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_call_win.exe; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_call_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_call_linux; "+
+					"echo '[remote] run windows exe'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_fnptr_call_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
+					"> \\\"$wd/run_win.out\\\"; "+
+					"grep -Fq 'EXIT=5' \\\"$wd/run_win.out\\\"; "+
+					"echo '[remote] run linux exe (wsl)'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_call_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_call_linux; echo EXIT=$?\\\"' "+
+					"> \\\"$wd/run_wsl.out\\\"; "+
+					"grep -Fq 'EXIT=5' \\\"$wd/run_wsl.out\\\"\"",
+				"build/tmp/fixture_remote_x64_run_fnptr_call_exitcode",
+				"tests/fixtures/x64_fnptr_call_main.oren",
+				"tests/fixtures/x64_fnptr_call_main.oren",
+			),
+			timeout: 5 * time.Minute,
+			log:     "build/logs/fixture_remote_x64_run_fnptr_call_exitcode.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/tmp/fixture_remote_x64_run_fnptr_call_exitcode"},
+		})
 
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
-				ok      func(rc int) bool
-				cleanup []string
-			}{
-				name: "remote_x64_run_fnptr_pass_exitcode",
-				cmd: fmt.Sprintf(
-					"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
-						"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_fnptr_pass_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
-						"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_fnptr_pass_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
-						"echo '[remote] ensure dir'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
-						"echo '[remote] copy artifacts'; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_pass_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_pass_win.exe; "+
-						"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_pass_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_pass_linux; "+
-						"echo '[remote] run windows exe'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_fnptr_pass_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
-						"> \\\"$wd/run_win.out\\\"; "+
-						"grep -Fq 'EXIT=5' \\\"$wd/run_win.out\\\"; "+
-						"echo '[remote] run linux exe (wsl)'; "+
-						"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
-						"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_pass_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_pass_linux; echo EXIT=$?\\\"' "+
-						"> \\\"$wd/run_wsl.out\\\"; "+
-						"grep -Fq 'EXIT=5' \\\"$wd/run_wsl.out\\\"\"",
-					"build/tmp/fixture_remote_x64_run_fnptr_pass_exitcode",
-					"tests/fixtures/x64_fnptr_pass_main.oren",
-					"tests/fixtures/x64_fnptr_pass_main.oren",
-				),
-				timeout: 5 * time.Minute,
-				log:     "build/logs/fixture_remote_x64_run_fnptr_pass_exitcode.log",
-				ok:      func(rc int) bool { return rc == 0 },
-				cleanup: []string{"build/tmp/fixture_remote_x64_run_fnptr_pass_exitcode"},
-			})
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "remote_x64_run_fnptr_pass_exitcode",
+			cmd: fmt.Sprintf(
+				"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
+					"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_fnptr_pass_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
+					"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_fnptr_pass_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
+					"echo '[remote] ensure dir'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
+					"echo '[remote] copy artifacts'; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_pass_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_pass_win.exe; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_fnptr_pass_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_fnptr_pass_linux; "+
+					"echo '[remote] run windows exe'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_fnptr_pass_win.exe & echo EXIT=%%ERRORLEVEL%%\\\"' "+
+					"> \\\"$wd/run_win.out\\\"; "+
+					"grep -Fq 'EXIT=5' \\\"$wd/run_win.out\\\"; "+
+					"echo '[remote] run linux exe (wsl)'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_pass_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_fnptr_pass_linux; echo EXIT=$?\\\"' "+
+					"> \\\"$wd/run_wsl.out\\\"; "+
+					"grep -Fq 'EXIT=5' \\\"$wd/run_wsl.out\\\"\"",
+				"build/tmp/fixture_remote_x64_run_fnptr_pass_exitcode",
+				"tests/fixtures/x64_fnptr_pass_main.oren",
+				"tests/fixtures/x64_fnptr_pass_main.oren",
+			),
+			timeout: 5 * time.Minute,
+			log:     "build/logs/fixture_remote_x64_run_fnptr_pass_exitcode.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/tmp/fixture_remote_x64_run_fnptr_pass_exitcode"},
+		})
 
-			fixtures = append(fixtures, struct {
-				name    string
-				cmd     string
-				timeout time.Duration
-				log     string
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
 			ok      func(rc int) bool
 			cleanup []string
 		}{

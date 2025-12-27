@@ -236,6 +236,13 @@ fn _cond_check(ctx, cond) {
     }
 
     // Truthy expression form.
+    // Special-case `!x` so `if !x { ... }` works without needing full bool lowering in v0.
+    if cond["type"] == "Prefix" && cond["op"] == "!" {
+        var r2 = cond["right"]
+        if r2 == nil { err(ctx, "x64 native v0: condition prefix ! missing operand"); return nil }
+        _expr_int_check(ctx, r2)
+        return nil
+    }
     _expr_int_check(ctx, cond)
     return nil
 }
@@ -264,6 +271,10 @@ fn _cond_false_cc_for_cond(cond) {
     // - comparison: based on `cmp lhs, rhs`
     // - truthy expr: based on `cmp expr, 0`
     if _cond_is_cmp_infix(cond) != nil { return _cond_false_cc(cond["op"]) }
+    if cond != nil && cond["type"] == "Prefix" && cond["op"] == "!" {
+        // !x is false when x is truthy (x != 0)
+        return "ne"
+    }
     // expr is false when expr == 0
     return "e"
 }
@@ -744,6 +755,12 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
     }
 
     // Truthy expression condition: compare expr to 0.
+    if cond["type"] == "Prefix" && cond["op"] == "!" {
+        _emit_eval_int_to_rax(ctx, cond["right"], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        return nil
+    }
     _emit_eval_int_to_rax(ctx, cond, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))

@@ -1,0 +1,11 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises prefix `!` in truthy conditions without full bool lowering
+
+fn main() {
+    var x = 0
+    if !x {
+        return 11
+    } else {
+        return 22
+    }
+}
