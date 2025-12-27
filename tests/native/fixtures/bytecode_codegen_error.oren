@@ -1,5 +1,12 @@
-fn f(x) { return x }
+// Bytecode backend codegen diagnostic fixture.
+//
+// This fixture should:
+// - fail compilation under --backend bytecode
+// - emit OREN_DIAG kind=codegen code=1
+//
+// Rolling note: type constructor lowering does not support call-site spread yet.
+
+struct Node { value }
 
 var xs = [1]
-// Bytecode backend: spawn currently rejects spread args; should surface OREN_DIAG kind=codegen.
-spawn f(xs...)
+var n = Node(xs...)

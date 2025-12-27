@@ -584,6 +584,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
+        case 0x54: return "SPAWN_CALL_SPREAD";
         case 0x46: return "JOIN";
         case 0x47: return "CHAN_NEW";
         case 0x48: return "CHAN_SEND";
@@ -1578,6 +1579,53 @@ void avm_run(AvmVM* vm) {
                 int tid = sched_new_task(vm, sched, fnv, args_list);
                 if (tid < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "spawn failed")); break; }
                 // Public handle is tid+1 so 0 can represent nil/invalid.
+                vm->stack[vm->sp++] = avm_int((int64_t)(tid + 1));
+                break;
+            }
+            case 0x54: { // SPAWN_CALL_SPREAD u16_fixed
+                // stack: [... fn fixed_args spread_list] -> [... handle_int]
+                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (vm->pc + 2 > vm->prog->code_len) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "truncated SPAWN_CALL_SPREAD")); break; }
+                uint16_t fixed = code[vm->pc++];
+                fixed |= (uint16_t)code[vm->pc++] << 8;
+                if (vm->sp < (int)fixed + 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on SPAWN_CALL_SPREAD")); break; }
+                int fn_idx = vm->sp - (int)fixed - 2;
+                AvmValue fnv = vm->stack[fn_idx];
+                if (fnv.type != AVM_VAL_FUNC || !fnv.as.fn) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SPAWN_CALL_SPREAD expects function value")); break; }
+                AvmValue spread = vm->stack[vm->sp - 1];
+                if (spread.type != AVM_VAL_LIST || !spread.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SPAWN_CALL_SPREAD expects list as spread arg")); break; }
+                AvmList* sl = spread.as.l;
+                int total = (int)fixed + sl->count;
+                if (sl->count < 0 || total < 0 || total > (int)AVM_STACK_SIZE) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SPAWN_CALL_SPREAD argc too large"));
+                    break;
+                }
+
+                // Build args_list = [fixed_args..., spread_items...].
+                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
+                list->count = total;
+                list->capacity = total;
+                list->items = NULL;
+                if (total > 0) {
+                    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)total, AVM_ALLOC_KIND_LIST);
+                    if (!list->items) { avm_heap_free(list); avm_abort(vm, avm_alloc_fail_value()); break; }
+                    for (int i = 0; i < (int)fixed; i++) {
+                        list->items[i] = vm->stack[fn_idx + 1 + i];
+                    }
+                    for (int i = 0; i < sl->count; i++) {
+                        list->items[(int)fixed + i] = sl->items[i];
+                    }
+                }
+                AvmValue args_list;
+                args_list.type = AVM_VAL_LIST;
+                args_list.as.l = list;
+
+                // Pop operands.
+                vm->sp = fn_idx;
+
+                int tid = sched_new_task(vm, sched, fnv, args_list);
+                if (tid < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "spawn failed")); break; }
                 vm->stack[vm->sp++] = avm_int((int64_t)(tid + 1));
                 break;
             }

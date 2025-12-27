@@ -53,6 +53,9 @@ var AVM_SELECT_RECV = 74           // 0x4A
 var AVM_YIELD = 75                 // 0x4B
 var AVM_JOIN_TIMEOUT = 76          // 0x4C
 var AVM_SELECT = 77                // 0x4D
+// Spawn with call-site spread (rolling):
+// stack: [... fn fixed_args spread_list] SPAWN_CALL_SPREAD u16_fixed -> [... handle_int]
+var AVM_SPAWN_CALL_SPREAD = 84     // 0x54
 
 var AVM_DOMAIN_CORE = 0
 var AVM_DOMAIN_FS = 1

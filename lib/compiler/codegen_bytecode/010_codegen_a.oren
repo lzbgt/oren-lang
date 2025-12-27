@@ -19,10 +19,6 @@ fn bytecode_compile_expr(ctx, expr) {
             bytecode_error(ctx, "bytecode backend: spawn expects Call")
             return nil
         }
-        if call["spread"] != nil {
-            bytecode_error(ctx, "bytecode backend: spawn does not support spread args yet")
-            return nil
-        }
 
         // fn value
         bytecode_compile_expr(ctx, call["fn"])
@@ -42,6 +38,31 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if fixed >= 0 && oren_list_len(args) < fixed {
             bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + call["fn"]["value"])
+            return nil
+        }
+
+        // Call-site spread in spawn:
+        // build the argument list in the VM (dynamic length), then spawn.
+        //
+        // Rolling restriction: varargs+spread in spawn is not supported yet (needs dynamic packing).
+        if call["spread"] != nil {
+            if fixed >= 0 {
+                bytecode_error(ctx, "bytecode backend: spawn varargs+spread not supported yet for " + call["fn"]["value"])
+                return nil
+            }
+            if oren_list_len(args) > 65535 {
+                bytecode_error(ctx, "bytecode backend: spawn spread fixed arg count too large")
+                return nil
+            }
+
+            var i0 = 0
+            while i0 < oren_list_len(args) {
+                bytecode_compile_expr(ctx, args[i0])
+                i0 = i0 + 1
+            }
+            bytecode_compile_expr(ctx, call["spread"])
+            emit_byte(ctx, AVM_SPAWN_CALL_SPREAD)
+            emit_u16(ctx, oren_list_len(args))
             return nil
         }
 

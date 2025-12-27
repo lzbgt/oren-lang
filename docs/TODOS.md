@@ -62,7 +62,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: updated `docs/ROADMAP.md` to treat x86_64 as Tier‑1 alongside arm64 (rolling), so platform goals match implementation reality.
    - Next: define a canonical **CoreIR** boundary and migrate closure/varargs/container-op lowering into it so C/native/bytecode all share semantics.
    - Next: converge all backends on the same callable model (`code_ptr + env_ptr`, `args_list` calling) and use wrappers only as an optimization layer.
-   - Next: close parity gaps exposed by fixtures (e.g. bytecode backend currently rejects spread args in `spawn`; see `tests/native/fixtures/bytecode_codegen_error.oren`).
+   - Next: close parity gaps exposed by fixtures (e.g. bytecode backend still rejects call-site spread in type constructors; see `tests/native/fixtures/bytecode_codegen_error.oren`).
 
 4) **SIMD intrinsic tail + microkernel correctness** (M)
    - Status: intrinsic-level tail determinism tests added for `simd_dot_f32_ptr`, `simd_dot_f32_4_ptr`, and `simd_gemm_f32_4x4_ptr`; runtime now uses the single-pass microkernels.

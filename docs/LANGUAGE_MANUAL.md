@@ -695,12 +695,11 @@ fn work(x) { return x + 1 }
 var t = spawn work(10)
 ```
 
-Rolling note (backend gap): call-site spread (`...`) is supported for normal calls, but the
-bytecode backend currently rejects spread arguments in `spawn`:
+Call-site spread (`...`) works in `spawn` just like normal calls:
 
 ```oren
-var xs = [1]
-spawn work(xs...) // rejected by bytecode today (see `tests/native/fixtures/bytecode_codegen_error.oren`)
+var xs = [10]
+var t2 = spawn work(xs...)
 ```
 
 To wait for a spawned task:

@@ -100,20 +100,8 @@ fn bytecode_compile_stmt(ctx, stmt) {
             bytecode_error(ctx, "bytecode backend: spawn expects Call")
             return nil
         }
-        if call["spread"] != nil {
-            bytecode_error(ctx, "bytecode backend: spawn does not support spread args yet")
-            return nil
-        }
-        bytecode_compile_expr(ctx, call["fn"])
-        var args = call["args"]
-        var i = 0
-        while i < oren_list_len(args) {
-            bytecode_compile_expr(ctx, args[i])
-            i = i + 1
-        }
-        emit_byte(ctx, AVM_NEW_LIST)
-        emit_u16(ctx, oren_list_len(args))
-        emit_byte(ctx, AVM_SPAWN_CALL_LIST)
+        bytecode_compile_expr(ctx, {"type": "SpawnExpr", "call": call})
+        if ctx != nil && ctx["fatal"] == true { return nil }
         emit_byte(ctx, AVM_POP)
         return nil
     }
