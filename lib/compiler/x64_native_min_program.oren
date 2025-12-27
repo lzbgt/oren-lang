@@ -169,10 +169,12 @@ fn _cond_check(ctx, cond) {
     // Supported cond forms (v0):
     // - <id|int> == <id|int>
     // - <id|int> != <id|int>
+    // - <id|int> <  <id|int>
+    // - <id|int> >= <id|int>
     if cond == nil { err(ctx, "x64 native v0: missing if condition"); return nil }
     if cond["type"] != "Infix" { err(ctx, "x64 native v0: if condition must be infix"); return nil }
     var op = cond["op"]
-    if op != "==" && op != "!=" { err(ctx, "x64 native v0: if op not supported: " + op); return nil }
+    if op != "==" && op != "!=" && op != "<" && op != ">=" { err(ctx, "x64 native v0: if op not supported: " + op); return nil }
     var l = cond["left"]
     var r = cond["right"]
     if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier") {
@@ -185,6 +187,15 @@ fn _cond_check(ctx, cond) {
     }
     if l["type"] == "Integer" { _expr_i32_check(ctx, l) }
     if r["type"] == "Integer" { _expr_i32_check(ctx, r) }
+    return nil
+}
+
+fn _cond_false_cc(cond_op) {
+    // Return the Jcc condition code for "cond is false", given `cond_op`.
+    if cond_op == "==" { return "ne" }
+    if cond_op == "!=" { return "e" }
+    if cond_op == "<" { return "ge" }
+    if cond_op == ">=" { return "l" }
     return nil
 }
 
@@ -274,6 +285,49 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             var body_ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
             if body_ops == nil { return nil }
             oren_list_push(ops, {"op": "while", "cond": st["cond"], "body": body_ops})
+            i = i + 1
+            continue
+        }
+        if t == "For" {
+            // Support a tiny subset:
+            // - `for <cond> { ... }` (cond-only form)
+            // - `for var i = 0; <cond>; i = i + 1 { ... }` (3-clause form)
+            var init = st["init"]
+            var cond = st["cond"]
+            var post = st["post"]
+            var body3 = st["body"]
+            if body3 == nil || body3["type"] != "Block" { err(ctx, "x64 native v0: for body must be Block"); return nil }
+            if cond == nil { err(ctx, "x64 native v0: for missing cond"); return nil }
+            _cond_check(ctx, cond)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            // Cond-only form => lower to while.
+            if init == nil && post == nil {
+                var bops = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
+                if bops == nil { return nil }
+                oren_list_push(ops, {"op": "while", "cond": cond, "body": bops})
+                i = i + 1
+                continue
+            }
+
+            // 3-clause form: init and post must be present.
+            if init == nil || post == nil {
+                err(ctx, "x64 native v0: for init/post required in 3-clause form")
+                return nil
+            }
+            var init_ops = _analyze_stmt_list_to_ops(ctx, [init])
+            if init_ops == nil { return nil }
+            var post_ops = _analyze_stmt_list_to_ops(ctx, [post])
+            if post_ops == nil { return nil }
+            var body_ops2 = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
+            if body_ops2 == nil { return nil }
+
+            // Restrict post to a single assignment for now (prevents weird continue behavior).
+            if oren_list_len(post_ops) != 1 || post_ops[0]["op"] != "assign_i32" {
+                err(ctx, "x64 native v0: for post must be assignment")
+                return nil
+            }
+            oren_list_push(ops, {"op": "for", "init": init_ops, "cond": cond, "post": post_ops, "body": body_ops2})
             i = i + 1
             continue
         }
@@ -476,6 +530,13 @@ fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
             } else if op["op"] == "while" {
                 local_next = _collect_locals_from_ops(ctx, op["body"], locals, local_next)
                 if local_next == nil { return nil }
+            } else if op["op"] == "for" {
+                local_next = _collect_locals_from_ops(ctx, op["init"], locals, local_next)
+                if local_next == nil { return nil }
+                local_next = _collect_locals_from_ops(ctx, op["post"], locals, local_next)
+                if local_next == nil { return nil }
+                local_next = _collect_locals_from_ops(ctx, op["body"], locals, local_next)
+                if local_next == nil { return nil }
             }
         }
         i = i + 1
@@ -528,9 +589,9 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             _emit_cmp_from_cond(ctx, cond, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             // Jump to else if condition is false.
-            var c_op = cond["op"]
-            if c_op == "==" { _emit_jcc_to_label(ctx, local_fixups, "ne", else_label) }
-            else { _emit_jcc_to_label(ctx, local_fixups, "e", else_label) }
+            var false_cc = _cond_false_cc(cond["op"])
+            if false_cc == nil { err(ctx, "x64 native v0: unsupported if op"); return nil }
+            _emit_jcc_to_label(ctx, local_fixups, false_cc, else_label)
 
             _emit_ops_in_main(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -547,15 +608,49 @@ fn _emit_ops_in_main(ctx, ops, locals, labels, local_fixups, epilogue_label, pla
             _emit_label(ctx, labels, cond_label)
             _emit_cmp_from_cond(ctx, op["cond"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var wop = op["cond"]["op"]
-            if wop == "==" { _emit_jcc_to_label(ctx, local_fixups, "ne", end_label2) }
-            else { _emit_jcc_to_label(ctx, local_fixups, "e", end_label2) }
+            var w_false = _cond_false_cc(op["cond"]["op"])
+            if w_false == nil { err(ctx, "x64 native v0: unsupported while op"); return nil }
+            _emit_jcc_to_label(ctx, local_fixups, w_false, end_label2)
 
             _emit_label(ctx, labels, body_label)
             _emit_ops_in_main(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_jmp_to_label(ctx, local_fixups, cond_label)
             _emit_label(ctx, labels, end_label2)
+        } else if op["op"] == "for" {
+            // for init; cond; post { body }
+            //
+            // Semantics:
+            // - init runs once
+            // - cond checked before each iteration
+            // - continue jumps to post (then cond)
+            // - break exits the loop
+            var cond_label2 = _new_label(ctx, "for_cond")
+            var body_label2 = _new_label(ctx, "for_body")
+            var post_label2 = _new_label(ctx, "for_post")
+            var end_label3 = _new_label(ctx, "for_end")
+
+            _emit_ops_in_main(ctx, op["init"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            _emit_label(ctx, labels, cond_label2)
+            _emit_cmp_from_cond(ctx, op["cond"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var f_false = _cond_false_cc(op["cond"]["op"])
+            if f_false == nil { err(ctx, "x64 native v0: unsupported for op"); return nil }
+            _emit_jcc_to_label(ctx, local_fixups, f_false, end_label3)
+
+            _emit_label(ctx, labels, body_label2)
+            _emit_ops_in_main(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, post_label2, end_label3)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            _emit_label(ctx, labels, post_label2)
+            // Post must not use break/continue (enforced by analyzer); pass nil to be strict.
+            _emit_ops_in_main(ctx, op["post"], locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            _emit_jmp_to_label(ctx, local_fixups, cond_label2)
+            _emit_label(ctx, labels, end_label3)
         } else if op["op"] == "break" {
             if loop_end_label == nil { err(ctx, "x64 native v0: break outside loop"); return nil }
             _emit_jmp_to_label(ctx, local_fixups, loop_end_label)

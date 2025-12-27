@@ -313,9 +313,14 @@ fn insn_jcc_rel32(cc, disp32) {
     // Supported:
     // - "e"  => JE  (0F 84)
     // - "ne" => JNE (0F 85)
-    if cc != "e" && cc != "ne" { return nil }
+    // - "l"  => JL  (0F 8C)  signed less than
+    // - "ge" => JGE (0F 8D)  signed greater/equal
+    if cc != "e" && cc != "ne" && cc != "l" && cc != "ge" { return nil }
     var out = [15]
-    if cc == "e" { bytes_push(out, 132) } else { bytes_push(out, 133) }
+    if cc == "e" { bytes_push(out, 132) }
+    else if cc == "ne" { bytes_push(out, 133) }
+    else if cc == "l" { bytes_push(out, 140) }
+    else { bytes_push(out, 141) } // ge
     push_u32_le(out, disp32)
     return out
 }

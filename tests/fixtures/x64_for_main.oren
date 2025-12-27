@@ -1,0 +1,15 @@
+// Minimal x64-native fixture (rolling bring-up):
+// - exercises `for var i = 0; i < N; i = i + 1` lowering
+// - ensures `continue` jumps to post (otherwise this would hang at i==2)
+
+fn main() {
+    var sum = 0
+    for var i = 0; i < 5; i = i + 1 {
+        if i == 2 {
+            continue
+        }
+        sum = sum + 1
+    }
+    return sum
+}
+
