@@ -118,7 +118,9 @@ func stdlibModernizationAudit() error {
 }
 
 const remoteX64Host = "lzbgt@pc.work"
-const remoteX64ProxyArg = "-o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002'"
+// Use backslash-escaped spaces so this can be embedded safely into `sh -c` commands without
+// nested-quote footguns.
+const remoteX64ProxyArg = "-o ProxyCommand=socat\\ -\\ PROXY:hubstack.cn:%h:%p,proxyport=6002"
 const remoteX64RemoteUnixRoot = "/Users/lzbgt/tmp_oren"
 const remoteX64RemoteWinRoot = `C:\Users\lzbgt\tmp_oren`
 const remoteX64RemoteWslRoot = "/mnt/c/Users/lzbgt/tmp_oren"

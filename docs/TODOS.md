@@ -11,7 +11,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Next: varargs (`...rest`) lowering + spread semantics, including efficient list packing and tail-call-safe wrapper stubs.
    - Next: expand x64 parity for containers, pointers, floats/SIMD (keep fixtures small + deterministic; keep remote-run opt-in).
    - Next: implement x64 native runtime injection (allocator + strings + lists/maps) so x64 can run non-trivial stdlib code without host libc dependencies.
-   - References: `docs/NATIVE_BACKEND.md`, `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`, `docs/REMOTE_X64_ENV.md`.
+   - References: `docs/NATIVE_BACKEND.md`, `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`, `docs/REMOTE_X64_ENV.md` (includes the canonical SSH ProxyCommand snippet).
 
 2) **Container ops modernization (generic + dyn)** (M)
    - Goal: ergonomic container operations (push/pop/len/get/set/slice) without stdlib call overhead in hot paths.

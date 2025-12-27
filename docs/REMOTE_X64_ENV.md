@@ -14,7 +14,7 @@ To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled
 Use this command to open the remote terminal session:
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work
 ```
 
 Notes:
@@ -27,13 +27,13 @@ Notes:
 From your local machine, run a single Windows command like this:
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c ver'
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /c ver'
 ```
 
 Run a compiled Windows PE executable and see its exit code:
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c "C:\\Users\\lzbgt\\tmp_oren\\x64_format_win.exe & echo EXIT=%ERRORLEVEL%"'
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /c "C:\\Users\\lzbgt\\tmp_oren\\x64_format_win.exe & echo EXIT=%ERRORLEVEL%"'
 ```
 
 ## Windows toolchain (VS2022 + Windows Kits)
@@ -61,13 +61,13 @@ Practical note:
 Run a Linux command inside WSL2:
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'wsl.exe -e uname -a'
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'wsl.exe -e uname -a'
 ```
 
 Run a Linux x86_64 ELF executable from the Windows filesystem path:
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'wsl.exe -e bash -lc "chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_format_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_format_linux; echo EXIT=$?"'
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'wsl.exe -e bash -lc "chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_format_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_format_linux; echo EXIT=$?"'
 ```
 
 ## Copy artifacts to the remote host
@@ -75,14 +75,14 @@ ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.wo
 Create a staging directory on the remote machine (Windows user profile):
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c "mkdir %USERPROFILE%\\tmp_oren"'
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /c "mkdir %USERPROFILE%\\tmp_oren"'
 ```
 
 Copy artifacts:
 
 ```bash
-scp -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' build/x64_format_win.exe lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_win.exe
-scp -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' build/x64_format_linux   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_linux
+scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_format_win.exe lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_win.exe
+scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_format_linux   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_linux
 ```
 
 ## Rolling guidance
