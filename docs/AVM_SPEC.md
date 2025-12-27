@@ -53,48 +53,76 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - see `docs/APPSTORE_ROOTCA_AND_UPDATES.md`
 - `FLOAT` constants are wired end-to-end (rolling): the bytecode backend emits float64 bit-pattern constants and the VM decodes them as `AVM_VAL_FLOAT`.
 
-## Instruction Set (Version 0.1)
+## Instruction Set (Rolling Bootstrap v0.1)
+
+**Byte order:** all multi-byte operands are little-endian on disk (`u16_le`, `i16_le`, `u32_le`, `i32_le`).
 
 | Opcode | Name | Operands | Stack (Before -> After) | Description |
 |---|---|---|---|---|
 | 0x00 | NOP | - | - | No operation. |
-| 0x01 | HALT | - | - | Stop execution. |
-| 0x02 | PUSH_CONST | `u16_idx` | `[] -> [val]` | Push constant from pool. |
+| 0x01 | HALT | - | - | Stop the current task; for task 0, halts the VM. |
+| 0x02 | PUSH_CONST | `u16_le const_idx` | `[] -> [val]` | Push constant from pool. |
 | 0x03 | POP | - | `[val] -> []` | Discard top of stack. |
-| 0x04 | LOAD_LOCAL | `u8_idx` | `[] -> [val]` | Load local variable. |
-| 0x05 | STORE_LOCAL | `u8_idx` | `[val] -> []` | Store local variable. |
-| 0x06 | LOAD_GLOBAL | `u16_idx` | `[] -> [val]` | Load global variable. |
-| 0x07 | STORE_GLOBAL | `u16_idx` | `[val] -> []` | Store global variable. |
-| 0x10 | ADD | - | `[a, b] -> [a+b]` | Add top two values. |
-| 0x11 | SUB | - | `[a, b] -> [a-b]` | Subtract. |
-| 0x12 | LT | - | `[a, b] -> [bool]` | Less than. |
-| 0x13 | EQ | - | `[a, b] -> [bool]` | Equal. |
-| 0x14 | NEQ | - | `[a, b] -> [bool]` | Not equal. |
-| 0x15 | GT | - | `[a, b] -> [bool]` | Greater than. |
-| 0x16 | LTE | - | `[a, b] -> [bool]` | Less than or equal. |
-| 0x17 | GTE | - | `[a, b] -> [bool]` | Greater than or equal. |
-| 0x18 | BITAND | - | `[a, b] -> [int]` | Bitwise AND. |
-| 0x19 | BITOR | - | `[a, b] -> [int]` | Bitwise OR. |
-| 0x1A | BITXOR | - | `[a, b] -> [int]` | Bitwise XOR. |
-| 0x1B | SHL | - | `[a, b] -> [int]` | Shift Left. |
-| 0x1C | SHR | - | `[a, b] -> [int]` | Shift Right. |
-| 0x20 | PRINT | - | `[val] -> []` | Print top value to stdout. |
-| 0x30 | JMP | `i16_off` | - | Unconditional jump. |
-| 0x31 | JMP_IF | `i16_off` | `[cond] -> []` | Jump if truthy. |
-| 0x38 | CALL | `u16_addr`, `u8_nargs` | `[args] -> [ret]` | Call function (returns one value). |
-| 0x39 | RET | - | `[ret] -> []` | Return from function (pops callee return value and resumes caller). |
-| 0x3A | CALL_NATIVE | `u16_id`, `u8_nargs` | `[args] -> [ret]` | Call host function. |
-| 0x3B | CALL_NATIVE2 | `u8_domain`, `u16_op`, `u8_nargs` | `[args] -> [ret]` | Call host function within a capability domain (rolling ABI). |
-| 0x3C | PUSH_FUNC | `u16_addr` | `[] -> [fn]` | Push a function value for a code address (env=nil). |
-| 0x3D | CALL_INDIRECT | `u8_nargs` | `[fn, args] -> [ret]` | Call a function value / closure (returns one value). |
-| 0x3E | MAKE_CLOSURE | `u8_ncap` | `[caps, fn] -> [fn]` | Build a closure by capturing `ncap` values into a list env. |
-| 0x3F | LOAD_ENV | `u8_idx` | `[] -> [val]` | Load captured value `env[idx]` for the current function call. |
-| 0x40 | NEW_LIST | `u16_count` | `[v1..vn] -> [list]` | Create list from n items. |
-| 0x41 | NEW_MAP | `u16_count` | `[k1,v1..] -> [map]` | Create map from n pairs. |
-| 0x42 | GET_INDEX | - | `[obj, key] -> [val]` | Get item from list/map. |
-| 0x43 | SET_INDEX | - | `[obj, key, val] -> []` | Set item in list/map. |
+| 0x04 | LOAD_LOCAL | `u8 idx` | `[] -> [val]` | Push local value at `fp+idx`. |
+| 0x05 | STORE_LOCAL | `u8 idx` | `[val] -> []` | Pop value and store to `fp+idx`. |
+| 0x06 | LOAD_GLOBAL | `u16_le idx` | `[] -> [val]` | Push global value at `globals[idx]`. |
+| 0x07 | STORE_GLOBAL | `u16_le idx` | `[val] -> []` | Pop value and store to `globals[idx]`. |
+| 0x10 | ADD | - | `[a, b] -> [a+b]` | Add (ints wrap on overflow; floats supported; also string concat for string+string). |
+| 0x11 | SUB | - | `[a, b] -> [a-b]` | Subtract (ints wrap on overflow; floats supported). |
+| 0x1D | MUL | - | `[a, b] -> [a*b]` | Multiply (ints wrap on overflow; floats supported). |
+| 0x1E | DIV | - | `[a, b] -> [a/b]` | Divide (errors on division by zero and `INT64_MIN / -1`). |
+| 0x1F | MOD | - | `[a, b] -> [a%b]` | Modulo (errors on modulo by zero and `INT64_MIN % -1`). |
+| 0x12 | LT | - | `[a, b] -> [bool]` | Less-than comparison (int/float/string supported). |
+| 0x13 | EQ | - | `[a, b] -> [bool]` | Equality comparison (type-aware). |
+| 0x14 | NEQ | - | `[a, b] -> [bool]` | Not-equal comparison (type-aware). |
+| 0x15 | GT | - | `[a, b] -> [bool]` | Greater-than comparison (int/float/string supported). |
+| 0x16 | LE | - | `[a, b] -> [bool]` | Less-than-or-equal comparison (int/float/string supported). |
+| 0x17 | GE | - | `[a, b] -> [bool]` | Greater-than-or-equal comparison (int/float/string supported). |
+| 0x18 | AND | - | `[a, b] -> [int]` | Bitwise AND (int only; otherwise yields `nil`). |
+| 0x19 | OR | - | `[a, b] -> [int]` | Bitwise OR (int only; otherwise yields `nil`). |
+| 0x1A | XOR | - | `[a, b] -> [int]` | Bitwise XOR (int only; otherwise yields `nil`). |
+| 0x1B | SHL | - | `[a, b] -> [int]` | Logical shift-left (int only; errors if shift count not in `0..63`). |
+| 0x1C | SHR | - | `[a, b] -> [int]` | Logical shift-right (int only; errors if shift count not in `0..63`). |
+| 0x20 | PRINT | - | `[val] -> []` | Print a value (debug). |
+| 0x21 | PRINT_LIST | - | `[list] -> []` | Print list items separated by spaces (debug). |
+| 0x30 | JMP | `i16_le off` | - | Relative jump (`pc := pc + off`) after decoding operands. |
+| 0x31 | JMP_IF | `i16_le off` | `[cond] -> []` | Pop condition; if truthy, relative jump. |
+| 0x4E | JMP32 | `i32_le off` | - | Relative jump with 32-bit offset. |
+| 0x4F | JMP_IF32 | `i32_le off` | `[cond] -> []` | Pop condition; if truthy, relative jump with 32-bit offset. |
+| 0x38 | CALL | `u16_le addr, u8 nargs` | `[args...] -> [ret]` | Call function at `addr` (abstract stack effect; see `RET` convention below). |
+| 0x50 | CALL32 | `u32_le addr, u8 nargs` | `[args...] -> [ret]` | Call function at `addr` (32-bit address). |
+| 0x39 | RET | - | `[ret] -> [ret]` | Return: pop callee return, discard callee frame, then push return for caller. |
+| 0x3A | CALL_NATIVE | `u16_le id, u8 nargs` | `[args...] -> [ret]` | Call legacy native ID (internally remapped to `CALL_NATIVE2` domain/op). |
+| 0x3B | CALL_NATIVE2 | `u8 domain, u16_le op, u8 nargs` | `[args...] -> [ret]` | Call a native capability `(domain, op)` (rolling ABI). |
+| 0x3C | PUSH_FUNC | `u16_le addr` | `[] -> [fn]` | Push a function value `{addr, env=nil}`. |
+| 0x51 | PUSH_FUNC32 | `u32_le addr` | `[] -> [fn]` | Push a function value `{addr, env=nil}` (32-bit address). |
+| 0x3D | CALL_INDIRECT | `u8 nargs` | `[fn, args...] -> [ret]` | Indirect call through function value/closure. |
+| 0x44 | CALL_INDIRECT_SPREAD | `u8 fixed` | `[fn, fixed_args..., spread_list] -> [ret]` | Indirect call with a spread list appended to fixed args. |
+| 0x3E | MAKE_CLOSURE | `u8 ncap` | `[cap0..cap(n-1), fn] -> [fn]` | Create closure by capturing `ncap` values into `fn.env` (a list). |
+| 0x3F | LOAD_ENV | `u8 idx` | `[] -> [val]` | Push captured value `env[idx]`. |
+| 0x40 | NEW_LIST | `u16_le len` | `[v0..v(n-1)] -> [list]` | Pop `len` values and build a list preserving push order. |
+| 0x56 | NEW_LIST_SPREAD | `u16_le fixed` | `[fixed_values..., spread_list] -> [list]` | Build list from fixed stack values plus a spread list. |
+| 0x41 | NEW_MAP | `u16_le pairs` | `[k0,v0..k(p-1),v(p-1)] -> [map]` | Pop `pairs` key/value pairs and build a map (sorted key storage). |
+| 0x55 | TYPE_CTOR_MAP_SPREAD | `u16_le fixed` | `[keys_list, fixed_args..., spread_list] -> [map]` | Construct a map for typed-ctor calls using `keys_list` + fixed args + spread args (arity must match). |
+| 0x42 | GET_INDEX | - | `[obj, key] -> [val]` | Index list/map; returns `nil` for missing/out-of-range. |
+| 0x43 | SET_INDEX | - | `[obj, key, val] -> []` | Mutate list/map; list also supports append when `key == len`. |
+| 0x45 | SPAWN_CALL_LIST | - | `[fn, args_list] -> [handle_int]` | Spawn a task calling `fn(args_list...)` (handle is `tid+1`). |
+| 0x54 | SPAWN_CALL_SPREAD | `u16_le fixed` | `[fn, fixed_args..., spread_list] -> [handle_int]` | Spawn a task calling `fn(fixed..., spread...)`. |
+| 0x46 | JOIN | - | `[handle_int] -> [ret]` | Join task by handle; blocks until complete. |
+| 0x4C | JOIN_TIMEOUT | - | `[handle_int, timeout_ms] -> [ret_or_errno]` | Join with timeout; returns `-60` on timeout (BSD `ETIMEDOUT`, rolling). |
+| 0x47 | CHAN_NEW | - | `[] -> [chan_int]` | Create a new channel. |
+| 0x48 | CHAN_SEND | - | `[chan_int, val] -> [1]` | Send a value to a channel (may wake select waiters). |
+| 0x49 | CHAN_RECV | - | `[chan_int] -> [val]` | Receive from a channel; blocks if empty. |
+| 0x4A | SELECT_RECV | - | `[channels_list] -> [pair_list]` | Select-first-ready receive: returns `[idx, msg]` for a list of channels; blocks otherwise. |
+| 0x4D | SELECT | - | `[cases_list] -> [pair_list]` | General select over recv/send cases (returns `[idx, msg_or_1]`); blocks otherwise. |
+| 0x4B | YIELD | - | - | Yield to scheduler if another task is runnable. |
+| 0x52 | LOAD_LOCAL16 | `u16_le idx` | `[] -> [val]` | Push local value at `fp+idx` (16-bit index). |
+| 0x53 | STORE_LOCAL16 | `u16_le idx` | `[val] -> []` | Pop value and store to `fp+idx` (16-bit index). |
 
-## Native Intrinsics (ID map)
+## Native Intrinsics (Legacy `CALL_NATIVE` ID map)
+
+Source of truth (rolling): `lib/avm/avm_native.inc` `avm_call_native(...)`.
+
 0. oren_read_file
 1. oren_write_file
 2. oren_system
@@ -114,20 +142,129 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 16. oren_bytes_from_string
 17. oren_write_bytes
 18. oren_read_bytes
-19. oren_err
-20. oren_is_err
-21. oren_err_code
-22. oren_err_msg
-23. oren_set_result
-24. oren_get_result
-30. oren_bytes_pack
-31. oren_bytes_unpack
-32. oren_bytes_len
-33. oren_bytes_get_u8
-34. oren_bytes_set_u8
-35. oren_bytes_from_hex
-36. oren_bytes_to_hex
-43. oren_iter_next
+19. oren_err(code, msg)
+20. oren_is_err(v)
+21. oren_err_code(v)
+22. oren_err_msg(v)
+23. oren_set_result(v)
+24. oren_get_result()
+25. (reserved)
+26. (reserved)
+27. (reserved)
+28. (reserved)
+29. (reserved)
+30. oren_bytes_pack(list<int 0..255>) -> bytes
+31. oren_bytes_unpack(bytes) -> list<int>
+32. oren_bytes_len(bytes) -> int
+33. oren_bytes_get_u8(bytes, idx) -> int
+34. oren_bytes_set_u8(bytes, idx, val) -> bytes
+35. oren_bytes_from_hex(string) -> bytes
+36. oren_bytes_to_hex(bytes) -> string
+37. (reserved)
+38. (reserved)
+39. (reserved)
+40. oren_avm_record_to_bytes() -> nil
+41. oren_avm_get_record_bytes() -> bytes|nil
+42. oren_avm_set_replay_bytes(bytes) -> nil
+43. oren_iter_next(container, idx:int) -> [ok:int, value]
+44. oren_string_from_bytes(list<int 0..255>) -> string
+45. oren_bytes_set_u16_be(bytes|list<int>, idx, val) -> int (0..65535)
+46. oren_bytes_set_u16_le(bytes|list<int>, idx, val) -> int (0..65535)
+47. oren_bytes_set_i16_be(bytes|list<int>, idx, val) -> int (-32768..32767)
+48. oren_bytes_set_i16_le(bytes|list<int>, idx, val) -> int (-32768..32767)
+49. oren_bytes_set_u32_be(bytes|list<int>, idx, val) -> int (0..2^32-1)
+50. oren_bytes_set_u32_le(bytes|list<int>, idx, val) -> int (0..2^32-1)
+51. oren_bytes_set_i32_be(bytes|list<int>, idx, val) -> int (-2^31..2^31-1)
+52. oren_bytes_set_i32_le(bytes|list<int>, idx, val) -> int (-2^31..2^31-1)
+53. oren_realpath(path:string) -> string (pure lexical normalization)
+54. oren_i32_buf_new(len:int) -> I32_BUF
+55. oren_i64_buf_new(len:int) -> I64_BUF
+56. oren_f32_buf_new(len:int) -> F32_BUF
+57. oren_f64_buf_new(len:int) -> F64_BUF
+58. oren_buf_len(buf) -> int
+59. oren_buf_load_i32(i32_buf, idx) -> int
+60. oren_buf_store_i32(i32_buf, idx, val) -> i32_buf
+61. oren_buf_load_i64(i64_buf, idx) -> int
+62. oren_buf_store_i64(i64_buf, idx, val) -> i64_buf
+63. oren_buf_load_f32(f32_buf, idx) -> float
+64. oren_buf_store_f32(f32_buf, idx, val) -> f32_buf
+65. oren_buf_load_f64(f64_buf, idx) -> float
+66. oren_buf_store_f64(f64_buf, idx, val) -> f64_buf
+67. oren_buf_fill_i32(i32_buf, val:int) -> i32_buf
+68. oren_buf_fill_i64(i64_buf, val:int) -> i64_buf
+69. oren_buf_fill_f32(f32_buf, val:float) -> f32_buf
+70. oren_buf_fill_f64(f64_buf, val:float) -> f64_buf
+71. oren_buf_add_i32(a:i32_buf, b:i32_buf) -> i32_buf
+72. oren_buf_add_f32(a:f32_buf, b:f32_buf) -> f32_buf
+73. oren_buf_dot_i32(a:i32_buf, b:i32_buf) -> int
+74. oren_buf_dot_f32(a:f32_buf, b:f32_buf) -> float
+75. oren_buf_add_i32_into(dst:i32_buf, a:i32_buf, b:i32_buf) -> i32_buf
+76. oren_buf_add_f32_into(dst:f32_buf, a:f32_buf, b:f32_buf) -> f32_buf
+77. oren_buf_scale_f32(buf:f32_buf, scalar:float) -> f32_buf
+78. oren_buf_reduce_sum_f32(buf:f32_buf) -> float
+79. oren_buf_mul_f32_into(dst:f32_buf, a:f32_buf, b:f32_buf) -> f32_buf
+80. oren_buf_mul_f32(a:f32_buf, b:f32_buf) -> f32_buf
+81. oren_buf_mul_i32_into(dst:i32_buf, a:i32_buf, b:i32_buf) -> i32_buf
+82. oren_buf_mul_i32(a:i32_buf, b:i32_buf) -> i32_buf
+83. oren_buf_reduce_sum_i32(buf:i32_buf) -> int
+84. oren_buf_scale_f32_into(dst:f32_buf, a:f32_buf, scalar:float) -> f32_buf
+85. oren_buf_scale_i32_into(dst:i32_buf, a:i32_buf, scalar:int) -> i32_buf
+86. oren_buf_dot_f32_into(out:f64_buf, a:f32_buf, b:f32_buf) -> f64_buf
+87. oren_buf_reduce_sum_f32_into(out:f64_buf, a:f32_buf) -> f64_buf
+88. oren_buf_dot_i32_into(out:i64_buf, a:i32_buf, b:i32_buf) -> i64_buf
+89. oren_buf_reduce_sum_i32_into(out:i64_buf, a:i32_buf) -> i64_buf
+90. oren_bytes_get_u16_be(bytes|list<int>, idx) -> int (0..65535)
+91. oren_bytes_get_u16_le(bytes|list<int>, idx) -> int (0..65535)
+92. oren_bytes_get_i16_be(bytes|list<int>, idx) -> int (-32768..32767)
+93. oren_bytes_get_i16_le(bytes|list<int>, idx) -> int (-32768..32767)
+94. oren_bytes_get_u32_be(bytes|list<int>, idx) -> int (0..2^32-1)
+95. oren_bytes_get_u32_le(bytes|list<int>, idx) -> int (0..2^32-1)
+96. oren_bytes_get_i32_be(bytes|list<int>, idx) -> int (-2^31..2^31-1)
+97. oren_bytes_get_i32_le(bytes|list<int>, idx) -> int (-2^31..2^31-1)
+98. oren_bytes_get_u64_be(bytes|list<int>, idx) -> int (signed int64 bits)
+99. oren_bytes_get_u64_le(bytes|list<int>, idx) -> int (signed int64 bits)
+100. oren_bytes_get_i64_be(bytes|list<int>, idx) -> int (signed int64)
+101. oren_bytes_get_i64_le(bytes|list<int>, idx) -> int (signed int64)
+102. oren_bytes_set_u64_be(bytes|list<int>, idx, val) -> int (signed int64 bits)
+103. oren_bytes_set_u64_le(bytes|list<int>, idx, val) -> int (signed int64 bits)
+104. oren_bytes_set_i64_be(bytes|list<int>, idx, val) -> int (signed int64)
+105. oren_bytes_set_i64_le(bytes|list<int>, idx, val) -> int (signed int64)
+106. oren_f32_round(x: float) -> float
+107. oren_bool_norm(x) -> bool
+108. oren_trunc_int(x: int|float) -> int
+109. oren_f32_to_u32_bits(x: float) -> int
+110. oren_u32_bits_to_f32(x: int) -> float
+111. oren_f64_to_u64_bits(x: float) -> int
+112. oren_u64_bits_to_f64(x: int) -> float
+113. oren_map_len(map) -> int
+114. oren_buf_dot_i32_slice(a:i32_buf, a_off:int, b:i32_buf, b_off:int, n:int) -> int
+115. oren_buf_dot_f32_slice(a:f32_buf, a_off:int, b:f32_buf, b_off:int, n:int) -> float
+116. oren_buf_dot_i32_strided(a:i32_buf, a_off:int, a_stride:int, b:i32_buf, b_off:int, b_stride:int, n:int) -> int
+117. oren_buf_dot_f32_strided(a:f32_buf, a_off:int, a_stride:int, b:f32_buf, b_off:int, b_stride:int, n:int) -> float
+118. oren_char(code:int) -> string(1)
+119. oren_string_to_float_bits(s:string) -> int (u64 bits stored in i64 container)
+120. oren_sha256_range(bytes:list<int>, start:int, len:int) -> list<int 32>
+121. oren_fail(code:int, msg:string) -> abort VM run
+122. oren_buf_dot_i32_4_slice_into(out:i64_buf, out_off:int, a:i32_buf, a_off:int, b:i32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> i64_buf
+123. oren_buf_axpy_i32_into(dst:i32_buf, alpha:int, x:i32_buf, y:i32_buf) -> i32_buf
+124. oren_buf_axpy_i32_in_place(alpha:int, x:i32_buf, y:i32_buf) -> i32_buf
+125. oren_buf_axpy_f32_into(dst:f32_buf, alpha:float, x:f32_buf, y:f32_buf) -> f32_buf
+126. oren_buf_axpy_f32_in_place(alpha:float, x:f32_buf, y:f32_buf) -> f32_buf
+127. oren_buf_dot_f32_4_slice_into(out:f64_buf, out_off:int, a:f32_buf, a_off:int, b:f32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+128. oren_buf_gemm_f32_4x4_slice_into(out:f64_buf, out_off:int, a:f32_buf, a0_off:int, a1_off:int, a2_off:int, a3_off:int, b:f32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+129. oren_buf_gemm_i32_4x4_slice_into(out:i64_buf, out_off:int, a:i32_buf, a0_off:int, a1_off:int, a2_off:int, a3_off:int, b:i32_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> i64_buf
+130. oren_buf_dot_f64_4_slice_into(out:f64_buf, out_off:int, a:f64_buf, a_off:int, b:f64_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+131. oren_buf_gemm_f64_4x4_slice_into(out:f64_buf, out_off:int, a:f64_buf, a0_off:int, a1_off:int, a2_off:int, a3_off:int, b:f64_buf, b0_off:int, b1_off:int, b2_off:int, b3_off:int, n:int) -> f64_buf
+132. oren_buf_dot_f64(a:f64_buf, b:f64_buf) -> float
+133. oren_buf_dot_f64_slice(a:f64_buf, a_off:int, b:f64_buf, b_off:int, n:int) -> float
+134. oren_buf_dot_f64_strided(a:f64_buf, a_off:int, a_stride:int, b:f64_buf, b_off:int, b_stride:int, n:int) -> float
+135. oren_buf_reduce_sum_f64(a:f64_buf) -> float
+136. oren_buf_dot_f64_into(out:f64_buf, a:f64_buf, b:f64_buf) -> f64_buf
+137. oren_buf_reduce_sum_f64_into(out:f64_buf, a:f64_buf) -> f64_buf
+138. oren_buf_add_f64(a:f64_buf, b:f64_buf) -> f64_buf
+139. oren_buf_add_f64_into(dst:f64_buf, a:f64_buf, b:f64_buf) -> f64_buf
+140. oren_buf_mul_f64_into(dst:f64_buf, a:f64_buf, b:f64_buf) -> f64_buf
+141. oren_buf_mul_f64(a:f64_buf, b:f64_buf) -> f64_buf
 
 ## Implementation Strategy
 1. `libavm` (C Library): Core VM loop, stack management, loader.
