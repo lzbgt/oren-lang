@@ -15,8 +15,9 @@ fn push_u16_le(buf, n) {
 fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
 fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
+fn int_mod(a, b) { return codegen.int_mod(a, b) }
 
-fn elf_build_prefix_x64(code, entry_off) {
+fn elf_build_prefix_x64(code, data, entry_off) {
     var p = bytes_new()
 
     // ELF Header (64 bytes)
@@ -50,8 +51,8 @@ fn elf_build_prefix_x64(code, entry_off) {
     push_u64_le(p, 0)       // p_offset
     push_u64_le(p, base)    // p_vaddr
     push_u64_le(p, base)    // p_paddr
-    push_u64_le(p, hdr_size + oren_list_len(code)) // p_filesz
-    push_u64_le(p, hdr_size + oren_list_len(code)) // p_memsz
+    push_u64_le(p, hdr_size + oren_list_len(code) + oren_list_len(data)) // p_filesz
+    push_u64_le(p, hdr_size + oren_list_len(code) + oren_list_len(data)) // p_memsz
     push_u64_le(p, 4096)    // p_align
 
     return p
@@ -63,10 +64,30 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
     codegen.native_emit_errors_and_exit(ctx)
 
     var code = ctx["code"]
+    var data = ctx["data"]
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
 
-    // Apply rel32 call fixups.
+    // Apply fixups.
+    //
+    // Layout:
+    //   [ELF hdrs (120 bytes)] [code] [data]
+    //
+    // All fixup positions are relative to the start of code.
+    var base = 4194304 // 0x400000
+    var hdr_size = 64 + 56 // 120
+    var text_base = base + hdr_size
+    var code_len = oren_list_len(code)
+
+    // Keep the appended data 8-byte aligned within the PT_LOAD segment.
+    // This is not strictly needed for strings, but it avoids future surprises when
+    // we start storing u64 tables in the data blob.
+    var code_pad = bytes_new()
+    if oren_list_len(data) > 0 {
+        while int_mod(code_len + oren_list_len(code_pad), 8) != 0 { bytes_push(code_pad, 0) }
+    }
+    var data_base_off = code_len + oren_list_len(code_pad)
+
     var i = 0
     while i < oren_list_len(fixups) {
         var f = fixups[i]
@@ -83,11 +104,33 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
             if disp < 0 { disp = 4294967296 + disp } // v0: allow negative by wrapping (assumes within 32-bit)
             set_u32_le(code, pos + 1, disp)
         }
+        else if f["type"] == "rip_data_lea_rsi" {
+            // Patch lea rsi, [rip+disp32] where disp32 points into appended data.
+            //
+            // f["pos"] points to disp32 field within the instruction.
+            var disp_pos = f["pos"]
+            var data_off = f["data_off"]
+            var insn_start = disp_pos - 3
+            var next_rip = text_base + (insn_start + 7)
+            var target_addr = text_base + data_base_off + data_off
+            var disp2 = target_addr - next_rip
+            if disp2 < 0 { disp2 = 4294967296 + disp2 }
+            set_u32_le(code, disp_pos, disp2)
+        }
+        else {
+            print("x64 elf: unknown fixup type " + f["type"])
+            oren_exit(1)
+        }
         i = i + 1
     }
 
-    var prefix = elf_build_prefix_x64(code, ctx["entry_off"])
+    var data_blob = bytes_new()
+    bytes_extend(data_blob, code_pad)
+    bytes_extend(data_blob, data)
+
+    var prefix = elf_build_prefix_x64(code, data_blob, ctx["entry_off"])
     bytes_extend(prefix, code)
+    bytes_extend(prefix, data_blob)
     var w = oren_write_bytes(out_path, prefix)
     if oren_is_err(w) {
         print("x64 elf: failed to write: " + out_path)

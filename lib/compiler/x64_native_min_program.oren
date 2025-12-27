@@ -26,6 +26,7 @@ fn insn_mov_r64_r64(dst, src) { return core.insn_mov_r64_r64(dst, src) }
 fn insn_mov_r32_r32(dst, src) { return core.insn_mov_r32_r32(dst, src) }
 fn insn_call_rel32(disp32) { return core.insn_call_rel32(disp32) }
 fn insn_mov_rax_mrip_disp32(disp32) { return core.insn_mov_rax_mrip_disp32(disp32) }
+fn insn_lea_rsi_rip_disp32(disp32) { return core.insn_lea_rsi_rip_disp32(disp32) }
 fn insn_call_rax() { return core.insn_call_rax() }
 
 fn err(ctx, msg) {
@@ -111,6 +112,98 @@ fn _extract_main_return_i64(ctx, linked) {
     return nil
 }
 
+fn _data_add_cstr_newline(ctx, s) {
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    var b = oren_bytes_from_string(s)
+    // Append newline and NUL for tooling visibility.
+    bytes_push(b, 10)
+    bytes_push(b, 0)
+    // 8B align (helps future u64 reads; harmless for strings).
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = oren_list_len(ctx["data"])
+    bytes_extend(ctx["data"], b)
+    // Return {"off": int, "len": int} where len excludes trailing NUL.
+    return {"off": off, "len": oren_list_len(b) - 1}
+}
+
+fn _emit_linux_write_cstr(ctx, s) {
+    // Emit SYS_write(1, s_ptr, len) where s_ptr is a RIP-relative pointer to appended data.
+    var meta = _data_add_cstr_newline(ctx, s)
+    if meta == nil { return nil }
+    var data_off = meta["off"]
+    var nbytes = meta["len"]
+
+    // rax = 1 (SYS_write), rdi = 1 (stdout), rsi = &data, rdx = len
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1)) // eax=1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 1)) // edi=1
+
+    var lea_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_rsi_rip_disp32(0)) // patch disp32
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea_rsi", "pos": lea_pos + 3, "data_off": data_off})
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, nbytes)) // edx=len
+    bytes_extend(ctx["code"], insn_syscall())
+    return nil
+}
+
+fn _emit_supported_main_body(ctx, fn_node, platform) {
+    // Minimal statement support:
+    // - ExprStmt(Call(print, [String]))
+    // - Return(Integer)
+    var body = fn_node["body"]
+    if body == nil { err(ctx, "x64 native v0: main has no body"); return nil }
+    if body["type"] != "Block" {
+        err(ctx, "x64 native v0: main body must be Block")
+        return nil
+    }
+    var stmts = body["stmts"]
+    if stmts == nil { err(ctx, "x64 native v0: main block empty"); return nil }
+
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil { i = i + 1; continue }
+        if st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e == nil { i = i + 1; continue }
+            if e["type"] == "Call" {
+                var callee = e["fn"]
+                var args = e["args"]
+                if callee != nil && callee["type"] == "Identifier" && callee["value"] == "print" {
+                    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
+                    var a0 = args[0]
+                    if a0 == nil || a0["type"] != "String" { err(ctx, "x64 native v0: print only supports string literal"); return nil }
+                    if platform != nil && platform["os"] == "linux" {
+                        _emit_linux_write_cstr(ctx, a0["value"])
+                    } else {
+                        // Windows print support will be added via kernel32!WriteFile later.
+                        err(ctx, "x64 native v0: print not supported on windows yet")
+                        return nil
+                    }
+                    i = i + 1
+                    continue
+                }
+            }
+            err(ctx, "x64 native v0: unsupported expr statement")
+            return nil
+        }
+        if st["type"] == "Return" {
+            var v = st["value"]
+            if v == nil || v["type"] != "Integer" { err(ctx, "x64 native v0: return must be integer literal"); return nil }
+            var n = _int_from_string_dec(v["value"])
+            if n == nil { err(ctx, "x64 native v0: invalid integer literal in return"); return nil }
+            if n < 0 { err(ctx, "x64 native v0: negative return not supported yet"); return nil }
+            return n
+        }
+        err(ctx, "x64 native v0: unsupported stmt in main: " + st["type"])
+        return nil
+    }
+
+    // Default return 0 if no explicit return found.
+    return 0
+}
+
 // Compile minimal x64 program.
 //
 // Returns a ctx:
@@ -131,7 +224,29 @@ fn native_compile_program_x64_min(linked, platform) {
         "platform": platform
     }
 
-    var retv = _extract_main_return_i64(ctx, linked)
+    // Find `main` node so we can support a tiny subset of statements.
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    var main_node = nil
+    if stmts != nil {
+        var i0 = 0
+        while i0 < oren_list_len(stmts) {
+            var st0 = stmts[i0]
+            var fn0 = nil
+            if st0 != nil {
+                if st0["type"] == "Function" { fn0 = st0 }
+                if st0["type"] == "ExprStmt" {
+                    var e0 = st0["expr"]
+                    if e0 != nil && e0["type"] == "Function" { fn0 = e0 }
+                }
+            }
+            if fn0 != nil && fn0["type"] == "Function" && fn0["name"] == "main" { main_node = fn0; break }
+            i0 = i0 + 1
+        }
+    }
+    if main_node == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
+
+    var retv = _emit_supported_main_body(ctx, main_node, platform)
     if retv == nil { return ctx }
 
     // --- Entry stub ---

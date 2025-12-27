@@ -875,6 +875,24 @@ func main() {
 				cleanup: []string{"build/x64_min_win.exe", "build/x64_min_win.build.out", "build/x64_min_win.file.out"},
 			},
 			{
+				name: "native_x64_linux_print_embeds_string",
+				cmd: fmt.Sprintf(
+					"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+						"strings %q > %q && "+
+						"grep -Fq %q %q",
+					"tests/fixtures/x64_print_main.oren",
+					"build/x64_print_linux",
+					"build/x64_print_linux.build.out",
+					"build/x64_print_linux",
+					"build/x64_print_linux.strings.out",
+					"x64 hello",
+					"build/x64_print_linux.strings.out",
+				),
+				log:     "build/logs/native_x64_linux_print_embeds_string.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/x64_print_linux", "build/x64_print_linux.build.out", "build/x64_print_linux.strings.out"},
+			},
+			{
 				name: "oren_meta_emit",
 				cmd: fmt.Sprintf(
 					"./oren meta %q --target %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",

@@ -1,0 +1,9 @@
+// Minimal x64-native fixture (rolling bring-up):
+// - must compile to x86_64 ELF
+// - must embed the printed string in the output artifact
+
+fn main() {
+    print("x64 hello")
+    return 0
+}
+

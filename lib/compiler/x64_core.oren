@@ -113,5 +113,11 @@ fn insn_mov_rax_mrip_disp32(disp32) {
     return out
 }
 
-fn insn_call_rax() { return [255, 208] } // FF D0
+fn insn_lea_rsi_rip_disp32(disp32) {
+    // lea rsi, [rip+disp32] => 48 8D 35 disp32
+    var out = [72, 141, 53]
+    push_u32_le(out, disp32)
+    return out
+}
 
+fn insn_call_rax() { return [255, 208] } // FF D0
