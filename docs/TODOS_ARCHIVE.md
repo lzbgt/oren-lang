@@ -1068,3 +1068,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
      - JSON/YAML decode: comment tolerance stays deterministic (already supported); improve diagnostics on malformed inputs.
      - CBOR: keep canonical map ordering and RFC 8742 sequence support; add roundtrip fixtures for nested shapes.
      - Ensure serde-generated helpers cover nested arrays/maps and preserve deterministic ordering.
+
+## Snapshot Notes (Rolling)
+
+- 2025-12-28: `docs/TODOS.md` was condensed back to a short “active tracker” (per its own header). The prior expanded tracker remains available via git history (commit `3580ebb` and earlier).

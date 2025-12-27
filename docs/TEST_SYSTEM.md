@@ -18,12 +18,17 @@ This document explains the current state and the planned evolution.
 - runs the canonical curated runner: `./oretest --target macos`
 - captures per-test logs under `build/logs/`
 - prints **only summaries** on success; prints **details only on failures**
+- runs tests/fixtures in parallel by default (bounded); tune with:
+  - `OREN_TEST_JOBS` (`./oretest --jobs`)
+  - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
+  - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
 
 It requires `timeout` (Linux) or `gtimeout` (macOS coreutils).
 
 Legacy behavior (broader Makefile-driven lists) is preserved as:
 
 - `make test-legacy`
+  - note: the legacy Makefile suite is intentionally more shell-heavy and tends to run sequentially; prefer `make test` for fast iteration.
 
 ### 2) `./oretest` (repo runner, outside the compiler)
 
