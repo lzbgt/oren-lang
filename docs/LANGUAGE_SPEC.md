@@ -561,6 +561,7 @@ Implementation note (current compiler):
     - If no `Iterable` impl is present, behavior falls back to the normal v0 hook (`oren_iter_next`).
 - `break` exits the nearest enclosing loop (`while`/`for`).
 - `continue` skips to the next loop iteration.
+- `for init; cond; post { ... }` three-clause form: `continue` executes the `post` clause before re-checking `cond`.
 - `return expr` returns from the current function. A return value is always required; use `return nil` if needed.
 
 ### Builtin container method sugar (rolling)

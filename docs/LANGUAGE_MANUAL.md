@@ -13,7 +13,9 @@ Oren is in **rolling ABI mode**: until an explicit stabilization milestone is de
 
 Oren is an **agent-native**, syscall-first language and toolchain:
 
-- **Native** mode (server/desktop): compiles to macOS/Linux arm64 binaries (no libc shims for the *native backend output*).
+- **Native** mode (server/desktop): compiles to native binaries (no libc shims for the *native backend output*).
+  - Primary/production path today: macOS `arm64` (syscall-first runtime surface is most complete here).
+  - Rolling bring-up path: Linux/Windows `x86_64` (`--arch x64`) is supported but still in “minimal lowering” mode (feature surface is growing rapidly; see `docs/TODOS.md`).
 - **Portable** mode: compiles to `.obc` bytecode executed by AVM, supporting determinism, snapshots, and capability-governed virtualized domains (FS/NET/PROC/ENV/TIME).
 
 ## 1) Program structure
@@ -135,6 +137,12 @@ for var i = 0; i < 10; i = i + 1 {
     // ...
 }
 ```
+
+Rolling note: there are two additional `for` forms that are supported by the parser and are
+commonly used in low-level code:
+
+- Infinite loop: `for { ... }` (equivalent to `while true { ... }`)
+- Condition-only: `for cond { ... }` (equivalent to `while cond { ... }`)
 
 ### `break` / `continue`
 
