@@ -738,14 +738,55 @@ func main() {
 			),
 			log: "build/logs/fixture_signed_obc_verify_cert_chain_cli.log",
 			ok:  func(rc int) bool { return rc == 0 },
-			cleanup: []string{
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
+				},
 			},
-		},
-		{
-			name: "bytecode_negative_int_constants",
-			cmd: fmt.Sprintf(
-				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
+			{
+				name: "signed_obc_verify_cert_chain_allow_domains",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+						"echo \"[fixture] build orensign\"; "+
+						"go build -o \"$wd/orensign\" ./cmd/orensign; "+
+						"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
+						"mkdir -p \"$wd/ca\"; "+
+						"\"$wd/orensign\" keygen --out \"$wd/ca/root\"; "+
+						"\"$wd/orensign\" keygen --out \"$wd/ca/org\"; "+
+						"\"$wd/orensign\" keygen --out \"$wd/ca/dev\"; "+
+						"echo \"[fixture] issue root->org (can_issue, allow CORE-only) and org->dev (inherit) certs\"; "+
+						"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue --allow-domains CORE; "+
+						"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
+						"echo \"[fixture] build unsigned obc (uses FS)\"; "+
+						"./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
+						"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
+						"echo \"[fixture] verify must fail due to cert allow_domains\"; "+
+						"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q 2>&1; rc=$?; set -e; "+
+						"test $rc -ne 0; "+
+						"grep -Fq %q %q",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
+					"tests/avm/fixtures/signed_obc_uses_fs.oren",
+					*target,
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
+					gcArg,
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
+					"cert policy failed",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
+				),
+				log: "build/logs/fixture_signed_obc_verify_cert_chain_allow_domains.log",
+				ok:  func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
+				},
+			},
+			{
+				name: "bytecode_negative_int_constants",
+				cmd: fmt.Sprintf(
+					"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
 					"./avm --disasm-consts %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q",

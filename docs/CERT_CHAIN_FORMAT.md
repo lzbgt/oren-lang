@@ -73,6 +73,46 @@ Each cert blob is fixed-format:
 
 Where `cert_body_no_sig` is the cert bytes up to (but excluding) `sig[64]`.
 
+## Certificate format: OREN_CERT v2 (constraints)
+
+v2 extends v1 with a minimal policy constraint field used by AVM to enforce
+issuer-defined capability ceilings.
+
+Bytes layout:
+
+- ASCII prefix: `OREN_CERT\n2\n`
+- `u8` algo (`1` = ed25519)
+- `u8` flags:
+  - bit0 `can_issue` (1 = may issue derived certs)
+- `u64` not_before (LE) (rolling; `0` means “unset”)
+- `u64` not_after  (LE) (rolling; `0` means “unset”)
+- `subject_pubkey[32]`
+- `issuer_keyid8[8]` = `sha256(issuer_pubkey)[:8]`
+- `u64` allow_domains_mask (LE)
+- `sig[64]` ed25519 signature over `SHA256(cert_body_no_sig)`
+
+Semantics of `allow_domains_mask` (rolling):
+
+- The mask is an AVM native domain allowlist (bit `n` corresponds to domain `n`).
+- `0` means **inherit** the issuer’s effective mask (so leaf certs can omit and inherit org policy).
+- Non-zero must be a **subset** of the issuer’s effective mask.
+- The leaf’s effective allow_domains_mask is computed by flowing root → … → leaf:
+  - root anchor implies an issuer mask of `~0` (“all allowed”)
+  - per cert: `effective = issuer_effective` if mask==0, else `issuer_effective & mask`
+- AVM treats an effective mask of `~0` as “unconstrained” and reports it as `0` in tooling outputs.
+
+Domain name mapping (for human-facing tooling) matches AVM’s `OREN_CAP_ALLOW_DOMAINS` parser:
+
+- `CORE` = bit0
+- `FS` = bit1
+- `TIME` = bit2
+- `RNG` = bit3
+- `NET` = bit4
+- `PROC` = bit5
+- `EXIT` = bit6
+- `ENV` = bit7
+- `AVM` = bit8
+
 ## Verification algorithm (AVM)
 
 Given:
@@ -91,6 +131,8 @@ Steps:
 2) Leaf public key = `certs[0].subject_pubkey`
 3) Require `.obc` signature keyid matches leaf keyid
 4) Verify `.obc` signature with leaf pubkey
+5) If leaf effective `allow_domains_mask != 0`, scan `.obc` bytecode to compute `used_domains_mask` and
+   require `(used_domains_mask & ~allow_domains_mask) == 0`.
 
 ## Status
 
@@ -105,6 +147,6 @@ Rolling v0 implementation:
 
 Future work:
 
-- add constraints in certs (policy allowlists, package namespaces)
+- expand constraints in certs (package namespaces/import allowlists, network policy, issuer metadata)
 - add revocation/rotation story (key id lists)
 - add timestamp/expiry enforcement in deterministic settings

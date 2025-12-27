@@ -7,7 +7,8 @@
 
 #include "../../third_party/tweetnacl/tweetnacl.h"
 
-static const char* CERT_PREFIX = "OREN_CERT\n1\n";
+static const char* CERT_PREFIX_V1 = "OREN_CERT\n1\n";
+static const char* CERT_PREFIX_V2 = "OREN_CERT\n2\n";
 static const size_t CERT_PREFIX_LEN = 12;
 static const char* CERTS_PREFIX = "OREN_CERTS\n1\n";
 static const size_t CERTS_PREFIX_LEN = 13;
@@ -50,16 +51,25 @@ static int ed25519_verify_hash_sig(const uint8_t pubkey[32], const uint8_t hash[
     return memcmp(m, hash, 32) == 0;
 }
 
-int avm_cert_parse_v1(const uint8_t* cert_bytes, size_t cert_len, AvmCertV1* out, char* err, size_t err_cap) {
+int avm_cert_parse(const uint8_t* cert_bytes, size_t cert_len, AvmCert* out, char* err, size_t err_cap) {
     if (!cert_bytes || !out) { err_set(err, err_cap, "nil cert"); return 0; }
-    if (!starts_with(cert_bytes, cert_len, CERT_PREFIX, CERT_PREFIX_LEN)) { err_set(err, err_cap, "bad cert prefix"); return 0; }
+    int ver = 0;
+    if (starts_with(cert_bytes, cert_len, CERT_PREFIX_V1, CERT_PREFIX_LEN)) ver = 1;
+    else if (starts_with(cert_bytes, cert_len, CERT_PREFIX_V2, CERT_PREFIX_LEN)) ver = 2;
+    else { err_set(err, err_cap, "bad cert prefix"); return 0; }
     size_t pos = CERT_PREFIX_LEN;
-    // Fixed layout after prefix:
-    // algo(1) flags(1) not_before(8) not_after(8) subject_pk(32) issuer_keyid8(8) sig(64)
-    if (cert_len < CERT_PREFIX_LEN + 1 + 1 + 8 + 8 + 32 + 8 + 64) {
-        err_set(err, err_cap, "cert too short");
-        return 0;
-    }
+
+    // Fixed layouts after prefix:
+    // v1:
+    //   algo(1) flags(1) not_before(8) not_after(8) subject_pk(32) issuer_keyid8(8) sig(64)
+    // v2:
+    //   v1 fields + allow_domains_mask(8) + sig(64)
+    size_t want_len = 0;
+    if (ver == 1) want_len = CERT_PREFIX_LEN + 1 + 1 + 8 + 8 + 32 + 8 + 64;
+    else want_len = CERT_PREFIX_LEN + 1 + 1 + 8 + 8 + 32 + 8 + 8 + 64;
+    if (cert_len != want_len) { err_set(err, err_cap, "bad cert length"); return 0; }
+
+    out->version = (uint8_t)ver;
     out->algo = cert_bytes[pos++];
     out->flags = cert_bytes[pos++];
     out->not_before_u64 = u64_le(cert_bytes + pos);
@@ -70,14 +80,29 @@ int avm_cert_parse_v1(const uint8_t* cert_bytes, size_t cert_len, AvmCertV1* out
     pos += 32;
     memcpy(out->issuer_keyid8, cert_bytes + pos, 8);
     pos += 8;
+    if (ver == 2) {
+        out->allow_domains_mask_u64 = u64_le(cert_bytes + pos);
+        pos += 8;
+    } else {
+        out->allow_domains_mask_u64 = 0;
+    }
     memcpy(out->sig, cert_bytes + pos, 64);
     pos += 64;
     (void)pos;
+
     if (out->algo != 1) { err_set(err, err_cap, "unsupported cert algo"); return 0; }
     return 1;
 }
 
-int avm_cert_chain_verify_leaf_first(const uint8_t* root_pubkey32, const uint8_t* certs_blob, size_t certs_len, uint8_t out_leaf_pubkey32[32], char* err, size_t err_cap) {
+int avm_cert_chain_verify_leaf_first_ex(
+    const uint8_t* root_pubkey32,
+    const uint8_t* certs_blob,
+    size_t certs_len,
+    uint8_t out_leaf_pubkey32[32],
+    uint64_t* out_effective_allow_domains_mask_u64,
+    char* err,
+    size_t err_cap
+) {
     if (!root_pubkey32) { err_set(err, err_cap, "missing root pubkey"); return 0; }
     if (!certs_blob || certs_len == 0) { err_set(err, err_cap, "missing cert chain"); return 0; }
     if (!starts_with(certs_blob, certs_len, CERTS_PREFIX, CERTS_PREFIX_LEN)) { err_set(err, err_cap, "bad certs prefix"); return 0; }
@@ -100,9 +125,9 @@ int avm_cert_chain_verify_leaf_first(const uint8_t* root_pubkey32, const uint8_t
         pos += clen;
     }
 
-    AvmCertV1 certs[32];
+    AvmCert certs[32];
     for (uint16_t i = 0; i < count; i++) {
-        if (!avm_cert_parse_v1(cert_ptrs[i], cert_lens[i], &certs[i], err, err_cap)) return 0;
+        if (!avm_cert_parse(cert_ptrs[i], cert_lens[i], &certs[i], err, err_cap)) return 0;
     }
 
     // Verify chain leaf-first:
@@ -132,7 +157,31 @@ int avm_cert_chain_verify_leaf_first(const uint8_t* root_pubkey32, const uint8_t
         if (!ed25519_verify_hash_sig(issuer_pk, body_hash, certs[i].sig)) { err_set(err, err_cap, "cert signature invalid"); return 0; }
     }
 
+    // Compute effective allow_domains_mask at the leaf (v2), with inheritance semantics.
+    //
+    // - Root anchor implies an issuer allow mask of ~0 (all allowed).
+    // - A cert allow_domains_mask_u64 of 0 means "inherit issuer's effective mask".
+    // - A non-zero mask must be a subset of the issuer's effective mask.
+    // - Effective mask flows root -> ... -> leaf (intersection).
+    uint64_t issuer_eff = ~0ULL;
+    for (int i = (int)count - 1; i >= 0; i--) {
+        uint64_t m = certs[i].allow_domains_mask_u64;
+        uint64_t eff = issuer_eff;
+        if (m != 0) {
+            if ((m & ~issuer_eff) != 0) { err_set(err, err_cap, "cert allow_domains exceeds issuer"); return 0; }
+            eff = issuer_eff & m;
+        }
+        issuer_eff = eff;
+    }
+    if (out_effective_allow_domains_mask_u64) {
+        *out_effective_allow_domains_mask_u64 = (issuer_eff == ~0ULL) ? 0 : issuer_eff;
+    }
+
     // Leaf pubkey is cert[0].subject_pubkey.
     if (out_leaf_pubkey32) memcpy(out_leaf_pubkey32, certs[0].subject_pubkey, 32);
     return 1;
+}
+
+int avm_cert_chain_verify_leaf_first(const uint8_t* root_pubkey32, const uint8_t* certs_blob, size_t certs_len, uint8_t out_leaf_pubkey32[32], char* err, size_t err_cap) {
+    return avm_cert_chain_verify_leaf_first_ex(root_pubkey32, certs_blob, certs_len, out_leaf_pubkey32, NULL, err, err_cap);
 }

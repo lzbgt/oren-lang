@@ -75,6 +75,12 @@ The AVM verifies:
 3) `.obc` signature key id matches the leaf cert key id
 4) `.obc` signature verifies under the leaf pubkey
 
+Rolling extension (cert constraints):
+
+- Certs may carry an issuer-defined capability ceiling (`allow_domains_mask` in `OREN_CERT\n2\n`).
+- AVM enforces that the artifact’s bytecode only uses native domains within the delegated mask,
+  independent of host/user allowlists.
+
 Spec: `docs/CERT_CHAIN_FORMAT.md`.
 
 ## Verification Policy in AVM

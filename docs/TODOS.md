@@ -16,7 +16,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added pure-Oren SHA-256 (`std:crypto/sha256`) and AVM test vectors as the first step toward “bytecode crypto” (no libc/FFI).
    - Status: documented AVM startup anti-tamper limits + practical trust anchors in `docs/AVM_ANTITAMPER.md`.
    - Status: AVM now supports multiple trusted root pubkeys (root rotation) via a packed key list (repeatable `--trusted-pubkey-hex` / comma-separated `AVM_TRUSTED_PUBKEY_HEX`) and a configurable embedded root-key set in `lib/avm/avm_root_pubkey.inc`.
-   - Next: embed a real root pubkey in AVM release builds (public only), add cert constraints (namespace/policy allowlists), and port ed25519 verify to pure Oren to reduce host-crypto dependency.
+   - Status: added `OREN_CERT\n2\n` with `allow_domains_mask` constraints (inherit-by-default) and AVM enforcement against bytecode `used_domains_mask` (prevents issuer policy bypass even if host allowlist is broader); added oretest regression.
+   - Next: embed a real root pubkey in AVM release builds (public only), expand cert constraints (namespace/import allowlists), and port ed25519 verify to pure Oren to reduce host-crypto dependency.
    - Next (security hardening): add an optional AVM “diagnostic self-hash” mode (corruption detection / telemetry, not a security promise) and explore codesigned release builds for AVM.
 
 2) **Container ops modernization (generic + dyn)** (S)

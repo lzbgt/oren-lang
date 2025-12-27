@@ -1,5 +1,6 @@
 #include "avm_sig.h"
 
+#include "avm.h"
 #include "sha256.h"
 #include "avm_cert.h"
 
@@ -54,6 +55,115 @@ static int bytes_starts_with(const uint8_t* b, size_t blen, const char* pref) {
     if (!b || !pref) return 0;
     if (blen < plen) return 0;
     return memcmp(b, pref, plen) == 0;
+}
+
+static int avm_obc_verify_signature_with_chain_ex(
+    const uint8_t* data,
+    size_t len,
+    const uint8_t* trusted_root_pubkey_32,
+    int require_chain,
+    uint64_t* out_effective_allow_domains_mask_u64,
+    char* err,
+    size_t err_cap
+);
+
+static int obc_scan_used_domains_mask(const uint8_t* data, size_t len, uint64_t* used_domains_mask_out, char* err, size_t err_cap) {
+    if (!used_domains_mask_out) { err_set(err, err_cap, "nil used_domains_mask"); return 0; }
+    *used_domains_mask_out = 0;
+    if (!data || len < 4) { err_set(err, err_cap, "obc too short"); return 0; }
+    if (data[0] != 0xCD || data[1] != 0x0E) { err_set(err, err_cap, "bad obc magic"); return 0; }
+
+    size_t pos = 2;
+    if (pos + 2 > len) { err_set(err, err_cap, "truncated const count"); return 0; }
+    uint16_t n_consts = u16_le(data + pos);
+    pos += 2;
+
+    // Skip constant pool to find code bytes start.
+    for (uint16_t i = 0; i < n_consts; i++) {
+        if (pos >= len) { err_set(err, err_cap, "truncated const pool"); return 0; }
+        uint8_t typ = data[pos++];
+        if (typ == 0) {
+            // nil
+        } else if (typ == 1) {
+            if (pos + 8 > len) { err_set(err, err_cap, "truncated int const"); return 0; }
+            pos += 8;
+        } else if (typ == 2) {
+            if (pos + 1 > len) { err_set(err, err_cap, "truncated bool const"); return 0; }
+            pos += 1;
+        } else if (typ == 3) {
+            if (pos + 8 > len) { err_set(err, err_cap, "truncated float const"); return 0; }
+            pos += 8;
+        } else if (typ == 4) {
+            if (pos + 2 > len) { err_set(err, err_cap, "truncated string const"); return 0; }
+            uint16_t slen = u16_le(data + pos);
+            pos += 2;
+            if (pos + slen > len) { err_set(err, err_cap, "truncated string payload"); return 0; }
+            pos += slen;
+        } else if (typ == 8) {
+            if (pos + 4 > len) { err_set(err, err_cap, "truncated bytes const"); return 0; }
+            uint32_t blen = u32_le(data + pos);
+            pos += 4;
+            if (pos + blen > len) { err_set(err, err_cap, "truncated bytes payload"); return 0; }
+            pos += blen;
+        } else {
+            err_set(err, err_cap, "unknown const tag");
+            return 0;
+        }
+    }
+
+    if (pos > len) { err_set(err, err_cap, "bad code pos"); return 0; }
+    const uint8_t* code = data + pos;
+    size_t code_len = len - pos;
+
+    uint64_t domains = 0;
+    size_t pc = 0;
+    while (pc < code_len) {
+        uint8_t op = code[pc];
+        size_t ins_len = 1;
+        // Keep in sync with main.c policy_scan_program (only these opcodes have operands today).
+        if (op == 0x02) ins_len = 3;
+        else if (op == 0x04 || op == 0x05) ins_len = 2;
+        else if (op == 0x52 || op == 0x53) ins_len = 3;
+        else if (op == 0x06 || op == 0x07) ins_len = 3;
+        else if (op == 0x30 || op == 0x31) ins_len = 3;
+        else if (op == 0x4E || op == 0x4F) ins_len = 5;
+        else if (op == 0x38) ins_len = 4;
+        else if (op == 0x50) ins_len = 6;
+        else if (op == 0x3A) ins_len = 4;
+        else if (op == 0x3B) ins_len = 5;
+        else if (op == 0x3C) ins_len = 3;
+        else if (op == 0x51) ins_len = 5;
+        else if (op == 0x3D) ins_len = 2;
+        else if (op == 0x44) ins_len = 2;
+        else if (op == 0x3E) ins_len = 2;
+        else if (op == 0x3F) ins_len = 2;
+        else if (op == 0x40 || op == 0x41) ins_len = 3;
+
+        if (pc + ins_len > code_len) { err_set(err, err_cap, "truncated opcode"); return 0; }
+
+        if (op == 0x3A) { // CALL_NATIVE u16_id u8_nargs
+            uint16_t id = (uint16_t)code[pc + 1] | ((uint16_t)code[pc + 2] << 8);
+            uint8_t dom = 0;
+            uint16_t capop = 0;
+            avm_legacy_native_to_domop(id, &dom, &capop);
+            domains |= (1ULL << (dom & 63));
+        } else if (op == 0x3B) { // CALL_NATIVE2 u8_domain u16_op u8_nargs
+            uint8_t dom = code[pc + 1];
+            uint16_t capop = (uint16_t)code[pc + 2] | ((uint16_t)code[pc + 3] << 8);
+            if (dom == 0) {
+                uint8_t nd = 0;
+                uint16_t nop = capop;
+                avm_legacy_native_to_domop(capop, &nd, &nop);
+                if (nd != 0) dom = nd;
+            }
+            domains |= (1ULL << (dom & 63));
+        }
+
+        pc += ins_len;
+    }
+
+    *used_domains_mask_out = domains;
+    return 1;
 }
 
 // Compute canonical hash:
@@ -260,6 +370,18 @@ int avm_obc_verify_signature_with_chain(
     char* err,
     size_t err_cap
 ) {
+    return avm_obc_verify_signature_with_chain_ex(data, len, trusted_root_pubkey_32, require_chain, NULL, err, err_cap);
+}
+
+static int avm_obc_verify_signature_with_chain_ex(
+    const uint8_t* data,
+    size_t len,
+    const uint8_t* trusted_root_pubkey_32,
+    int require_chain,
+    uint64_t* out_effective_allow_domains_mask_u64,
+    char* err,
+    size_t err_cap
+) {
     if (!trusted_root_pubkey_32 && !avm_has_embedded_root_pubkey()) {
         err_set(err, err_cap, "missing trusted root pubkey");
         return 0;
@@ -281,12 +403,14 @@ int avm_obc_verify_signature_with_chain(
     // If there is no cert chain, fall back to direct-root signature only when not required.
     if (!certs_payload || certs_len == 0) {
         if (require_chain) { err_set(err, err_cap, "missing OREN_CERTS chain"); return 0; }
+        if (out_effective_allow_domains_mask_u64) *out_effective_allow_domains_mask_u64 = 0;
         return avm_obc_verify_signature(data, len, root_pk, err, err_cap);
     }
 
-    // Verify cert chain, get leaf pubkey.
+    // Verify cert chain, get leaf pubkey and effective policy constraints.
     uint8_t leaf_pk[32];
-    if (!avm_cert_chain_verify_leaf_first(root_pk, certs_payload, certs_len, leaf_pk, err, err_cap)) return 0;
+    uint64_t allow_mask = 0;
+    if (!avm_cert_chain_verify_leaf_first_ex(root_pk, certs_payload, certs_len, leaf_pk, &allow_mask, err, err_cap)) return 0;
 
     // Enforce that the signature keyid matches the leaf pubkey.
     uint8_t leaf_hash[32];
@@ -310,6 +434,23 @@ int avm_obc_verify_signature_with_chain(
         err_set(err, err_cap, "signature message mismatch");
         return 0;
     }
+
+    // Enforce leaf cert allow_domains_mask (v2) against the artifact's used domains.
+    // This must hold even if the host allows broader capabilities: certs are issuer policy.
+    if (allow_mask != 0) {
+        uint64_t used_domains_mask = 0;
+        if (!obc_scan_used_domains_mask(data, len, &used_domains_mask, err, err_cap)) return 0;
+        if ((used_domains_mask & ~allow_mask) != 0) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "cert policy failed: used_domains_mask=0x%016llx not_subset_of allow_domains_mask=0x%016llx",
+                     (unsigned long long)used_domains_mask,
+                     (unsigned long long)allow_mask);
+            err_set(err, err_cap, msg);
+            return 0;
+        }
+    }
+
+    if (out_effective_allow_domains_mask_u64) *out_effective_allow_domains_mask_u64 = allow_mask;
     return 1;
 }
 
@@ -319,6 +460,28 @@ int avm_obc_verify_signature_with_chain_any(
     const uint8_t* trusted_root_pubkeys_32,
     size_t trusted_root_pubkeys_count,
     int require_chain,
+    char* err,
+    size_t err_cap
+) {
+    return avm_obc_verify_signature_with_chain_any_ex(
+        data,
+        len,
+        trusted_root_pubkeys_32,
+        trusted_root_pubkeys_count,
+        require_chain,
+        NULL,
+        err,
+        err_cap
+    );
+}
+
+int avm_obc_verify_signature_with_chain_any_ex(
+    const uint8_t* data,
+    size_t len,
+    const uint8_t* trusted_root_pubkeys_32,
+    size_t trusted_root_pubkeys_count,
+    int require_chain,
+    uint64_t* out_effective_allow_domains_mask_u64,
     char* err,
     size_t err_cap
 ) {
@@ -332,9 +495,11 @@ int avm_obc_verify_signature_with_chain_any(
     if (trusted_root_pubkeys_32 && trusted_root_pubkeys_count > 0) {
         for (size_t i = 0; i < trusted_root_pubkeys_count; i++) {
             const uint8_t* pk = trusted_root_pubkeys_32 + i * 32;
-            if (!avm_obc_verify_signature_with_chain(data, len, pk, require_chain, last_err, sizeof(last_err))) {
+            uint64_t allow_mask = 0;
+            if (!avm_obc_verify_signature_with_chain_ex(data, len, pk, require_chain, &allow_mask, last_err, sizeof(last_err))) {
                 continue;
             }
+            if (out_effective_allow_domains_mask_u64) *out_effective_allow_domains_mask_u64 = allow_mask;
             return 1;
         }
     }
@@ -346,9 +511,11 @@ int avm_obc_verify_signature_with_chain_any(
             const unsigned char* pk = AVM_TRUSTED_ROOT_PUBKEYS[i];
             if (!pk) continue;
             if (is_all_zero_32(pk)) continue;
-            if (!avm_obc_verify_signature_with_chain(data, len, pk, require_chain, last_err, sizeof(last_err))) {
+            uint64_t allow_mask = 0;
+            if (!avm_obc_verify_signature_with_chain_ex(data, len, pk, require_chain, &allow_mask, last_err, sizeof(last_err))) {
                 continue;
             }
+            if (out_effective_allow_domains_mask_u64) *out_effective_allow_domains_mask_u64 = allow_mask;
             return 1;
         }
     }

@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -30,7 +31,8 @@ const (
 
 	// Rolling cert chain payload embedded in `.obc` as an unused BYTES constant.
 	// The AVM uses this chain to verify that a developer/org key is delegated by the root.
-	certPrefix  = "OREN_CERT\n1\n"
+	certV1Prefix = "OREN_CERT\n1\n"
+	certV2Prefix = "OREN_CERT\n2\n"
 	certsPrefix = "OREN_CERTS\n1\n"
 )
 
@@ -57,7 +59,7 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  orensign keygen --out <dir>")
-	fmt.Fprintln(os.Stderr, "  orensign issue-cert --issuer-sk <issuer_sk.bin> --subject-pk <subject_pk.bin> --out <cert.bin> [--can-issue]")
+	fmt.Fprintln(os.Stderr, "  orensign issue-cert --issuer-sk <issuer_sk.bin> --subject-pk <subject_pk.bin> --out <cert.bin> [--can-issue] [--allow-domains <csv>] [--allow-domains-mask <u64>]")
 	fmt.Fprintln(os.Stderr, "  orensign sign-obc --sk <path> --in <file.obc> [--cert <cert.bin> ...] [--out <signed.obc>]")
 	fmt.Fprintln(os.Stderr, "  orensign verify-obc --pk <path> --in <file.obc>")
 }
@@ -181,6 +183,8 @@ func cmdIssueCert(args []string) {
 	subjectPKPath := fs.String("subject-pk", "", "subject ed25519 public key (org/dev)")
 	outPath := fs.String("out", "", "output cert file (raw bytes)")
 	canIssue := fs.Bool("can-issue", false, "allow subject to issue derived certs")
+	allowDomains := fs.String("allow-domains", "", "optional CSV allowlist of AVM native domains (CORE,FS,TIME,RNG,NET,PROC,EXIT,ENV,AVM,ALL); empty means inherit")
+	allowDomainsMask := fs.String("allow-domains-mask", "", "optional u64 mask allowlist (hex 0x... or decimal); 0 means inherit")
 	must(fs.Parse(args))
 	if *issuerSKPath == "" || *subjectPKPath == "" || *outPath == "" {
 		must(errors.New("missing --issuer-sk, --subject-pk, or --out"))
@@ -203,7 +207,22 @@ func cmdIssueCert(args []string) {
 		flags |= 0x01
 	}
 
-	bodyNoSig := buildCertBodyNoSig(flags, issuerPK, subjectPK)
+	if *allowDomains != "" && *allowDomainsMask != "" {
+		must(errors.New("cannot use both --allow-domains and --allow-domains-mask"))
+	}
+	var allowMask uint64 = 0
+	if *allowDomains != "" {
+		m, err := parseAllowDomainsCSV(*allowDomains)
+		must(err)
+		allowMask = m
+	} else if *allowDomainsMask != "" {
+		m, err := parseU64(*allowDomainsMask)
+		must(err)
+		allowMask = m
+	}
+
+	// Rolling: issue OREN_CERT v2 by default (adds allow_domains_mask field).
+	bodyNoSig := buildCertV2BodyNoSig(flags, issuerPK, subjectPK, allowMask)
 	bodyHash := sha256.Sum256(bodyNoSig)
 	sig := ed25519.Sign(ed25519.PrivateKey(issuerSK), bodyHash[:])
 	cert := append(bodyNoSig, sig...)
@@ -212,9 +231,9 @@ func cmdIssueCert(args []string) {
 	fmt.Println("Wrote cert:", *outPath)
 }
 
-func buildCertBodyNoSig(flags byte, issuerPK ed25519.PublicKey, subjectPK []byte) []byte {
+func buildCertV2BodyNoSig(flags byte, issuerPK ed25519.PublicKey, subjectPK []byte, allowDomainsMask uint64) []byte {
 	var out bytes.Buffer
-	out.WriteString(certPrefix)
+	out.WriteString(certV2Prefix)
 	out.WriteByte(1) // algo=1 ed25519
 	out.WriteByte(flags)
 	// not_before, not_after (u64 LE). 0 means "unset" in rolling v0.
@@ -223,6 +242,8 @@ func buildCertBodyNoSig(flags byte, issuerPK ed25519.PublicKey, subjectPK []byte
 	out.Write(subjectPK)
 	issuerKeyID := sha256.Sum256(issuerPK)
 	out.Write(issuerKeyID[:8])
+	// v2: allow_domains_mask (u64 LE). 0 means "inherit issuer's effective mask".
+	writeU64LE(&out, allowDomainsMask)
 	return out.Bytes()
 }
 
@@ -479,4 +500,60 @@ func writeU64LE(w io.Writer, v uint64) {
 		byte(v >> 48),
 		byte(v >> 56),
 	})
+}
+
+func parseU64(s string) (uint64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, errors.New("empty u64")
+	}
+	// base=0 supports: 123, 0x7b, 077, etc.
+	return strconv.ParseUint(s, 0, 64)
+}
+
+func parseAllowDomainsCSV(s string) (uint64, error) {
+	// Tokens are case-insensitive, comma-separated.
+	// Kept in sync with AVM parse_oren_domains_mask() (CORE,FS,TIME,RNG,NET,PROC,EXIT,ENV,AVM,ALL).
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, nil
+	}
+	var mask uint64 = 0
+	sawAny := false
+	for _, tok := range strings.Split(s, ",") {
+		t := strings.TrimSpace(tok)
+		if t == "" {
+			continue
+		}
+		sawAny = true
+		t = strings.ToUpper(t)
+		switch t {
+		case "ALL":
+			mask |= ^uint64(0)
+		case "CORE":
+			mask |= 1 << 0
+		case "FS":
+			mask |= 1 << 1
+		case "TIME":
+			mask |= 1 << 2
+		case "RNG":
+			mask |= 1 << 3
+		case "NET":
+			mask |= 1 << 4
+		case "PROC":
+			mask |= 1 << 5
+		case "EXIT":
+			mask |= 1 << 6
+		case "ENV":
+			mask |= 1 << 7
+		case "AVM":
+			mask |= 1 << 8
+		default:
+			return 0, fmt.Errorf("unknown allow-domains token: %q", t)
+		}
+	}
+	if !sawAny {
+		return 0, errors.New("no allow-domains tokens")
+	}
+	return mask, nil
 }

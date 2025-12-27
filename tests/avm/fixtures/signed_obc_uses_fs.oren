@@ -1,0 +1,10 @@
+fn main() {
+    // Intentionally uses the FS native domain so AVM policy scan can detect it.
+    // This fixture is used to test cert-chain allow_domains_mask enforcement.
+    var v = oren_read_file("README.md")
+    print(v)
+    return 0
+}
+
+main()
+

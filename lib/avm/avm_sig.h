@@ -40,6 +40,24 @@ int avm_obc_verify_signature_with_chain_any(
     size_t err_cap
 );
 
+// Same as avm_obc_verify_signature_with_chain_any, but also returns the effective
+// allow_domains_mask computed from the leaf cert (v2) if a chain is present.
+//
+// out_effective_allow_domains_mask_u64:
+// - If non-NULL and a chain is present and valid, receives a u64 bitmask.
+// - 0 means "unconstrained" (equivalent to ~0).
+// - If no chain is present (and require_chain==0), returns 0.
+int avm_obc_verify_signature_with_chain_any_ex(
+    const uint8_t* data,
+    size_t len,
+    const uint8_t* trusted_root_pubkeys_32,
+    size_t trusted_root_pubkeys_count,
+    int require_chain,
+    uint64_t* out_effective_allow_domains_mask_u64,
+    char* err,
+    size_t err_cap
+);
+
 // Verify signature using an embedded cert chain (OREN_CERTS) delegated by a trusted root.
 //
 // If require_chain==1, the `.obc` must contain an OREN_CERTS chain and the signature must match the leaf cert.
