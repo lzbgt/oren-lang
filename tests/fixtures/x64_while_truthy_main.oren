@@ -1,0 +1,10 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises truthy `while <expr>` condition lowering (`cmp rax, 0` + Jcc)
+
+fn main() {
+    var x = 3
+    while x {
+        x = x - 1
+    }
+    return x
+}

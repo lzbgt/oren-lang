@@ -213,29 +213,38 @@ fn _emit_linux_write_cstr(ctx, s) {
 }
 
 fn _cond_check(ctx, cond) {
-    // Supported cond forms (v0):
-    // - <id|int> == <id|int>
-    // - <id|int> != <id|int>
-    // - <id|int> <  <id|int>
-    // - <id|int> <= <id|int>
-    // - <id|int> >  <id|int>
-    // - <id|int> >= <id|int>
-    if cond == nil { err(ctx, "x64 native v0: missing if condition"); return nil }
-    if cond["type"] != "Infix" { err(ctx, "x64 native v0: if condition must be infix"); return nil }
+    // Supported cond forms (rolling v0):
+    // - Any int-ish expression, using language truthiness semantics (0 is false).
+    // - Comparison infix: == != < <= > >= (keeps "cmp+Jcc" lowering compact).
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+
+    // Comparison form is a special-case: we currently only support comparing
+    // an evaluated LHS expression against an Integer/Identifier RHS.
+    if _cond_is_cmp_infix(cond) != nil {
+        var op = cond["op"]
+        var l = cond["left"]
+        var r = cond["right"]
+        if l == nil || r == nil { err(ctx, "x64 native v0: condition infix missing operands"); return nil }
+        _expr_int_check(ctx, l)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if r["type"] != "Integer" && r["type"] != "Identifier" {
+            err(ctx, "x64 native v0: condition rhs must be Integer or Identifier for now")
+            return nil
+        }
+        _expr_int_check(ctx, r)
+        return nil
+    }
+
+    // Truthy expression form.
+    _expr_int_check(ctx, cond)
+    return nil
+}
+
+fn _cond_is_cmp_infix(cond) {
+    if cond == nil { return nil }
+    if cond["type"] != "Infix" { return nil }
     var op = cond["op"]
-    if op != "==" && op != "!=" && op != "<" && op != "<=" && op != ">" && op != ">=" { err(ctx, "x64 native v0: if op not supported: " + op); return nil }
-    var l = cond["left"]
-    var r = cond["right"]
-    if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier") {
-        err(ctx, "x64 native v0: if left must be Integer or Identifier")
-        return nil
-    }
-    if r == nil || (r["type"] != "Integer" && r["type"] != "Identifier") {
-        err(ctx, "x64 native v0: if right must be Integer or Identifier")
-        return nil
-    }
-    if l["type"] == "Integer" { _expr_int_check(ctx, l) }
-    if r["type"] == "Integer" { _expr_int_check(ctx, r) }
+    if op == "==" || op == "!=" || op == "<" || op == "<=" || op == ">" || op == ">=" { return 1 }
     return nil
 }
 
@@ -248,6 +257,15 @@ fn _cond_false_cc(cond_op) {
     if cond_op == ">" { return "le" }
     if cond_op == ">=" { return "l" }
     return nil
+}
+
+fn _cond_false_cc_for_cond(cond) {
+    // After `_emit_cmp_from_cond`, flags are:
+    // - comparison: based on `cmp lhs, rhs`
+    // - truthy expr: based on `cmp expr, 0`
+    if _cond_is_cmp_infix(cond) != nil { return _cond_false_cc(cond["op"]) }
+    // expr is false when expr == 0
+    return "e"
 }
 
 fn _analyze_stmt_list_to_ops(ctx, stmts) {
@@ -695,29 +713,40 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
 fn _emit_cmp_from_cond(ctx, cond, locals) {
     // Emits a compare that sets flags according to `cond`.
-    // Uses EAX for left; EDX as scratch for right when needed.
-    var l = cond["left"]
-    var r = cond["right"]
-    _emit_eval_int_to_rax(ctx, l, locals)
+    // Uses RAX for evaluated LHS/expr; RDX as scratch for RHS when needed.
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+
+    // Comparison condition: compare lhs and rhs.
+    if _cond_is_cmp_infix(cond) != nil {
+        var l = cond["left"]
+        var r = cond["right"]
+        _emit_eval_int_to_rax(ctx, l, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if r["type"] == "Integer" {
+            var n = _int_from_string_dec(r["value"])
+            if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+            if n < -2147483648 || n > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
+            var imm_u32 = n
+            if n < 0 { imm_u32 = 4294967296 + n }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, imm_u32))
+            return nil
+        }
+        if r["type"] == "Identifier" {
+            var off = locals[r["value"]]
+            if off == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
+            var disp8 = core.int_mod(0 - off, 256)
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp8)) // rdx = rhs
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
+            return nil
+        }
+        err(ctx, "x64 native v0: condition rhs not supported")
+        return nil
+    }
+
+    // Truthy expression condition: compare expr to 0.
+    _emit_eval_int_to_rax(ctx, cond, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    if r["type"] == "Integer" {
-        var n = _int_from_string_dec(r["value"])
-        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-        if n < -2147483648 || n > 2147483647 { err(ctx, "x64 native v0: int literal out of i32 range"); return nil }
-        var imm_u32 = n
-        if n < 0 { imm_u32 = 4294967296 + n }
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, imm_u32))
-        return nil
-    }
-    if r["type"] == "Identifier" {
-        var off = locals[r["value"]]
-        if off == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-        var disp8 = core.int_mod(0 - off, 256)
-        bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp8)) // rdx = rhs
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
-        return nil
-    }
-    err(ctx, "x64 native v0: if rhs not supported")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     return nil
 }
 
@@ -841,7 +870,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_cmp_from_cond(ctx, cond, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             // Jump to else if condition is false.
-            var false_cc = _cond_false_cc(cond["op"])
+            var false_cc = _cond_false_cc_for_cond(cond)
             if false_cc == nil { err(ctx, "x64 native v0: unsupported if op"); return nil }
             _emit_jcc_to_label(ctx, local_fixups, false_cc, else_label)
 
@@ -860,7 +889,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_label(ctx, labels, cond_label)
             _emit_cmp_from_cond(ctx, op["cond"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var w_false = _cond_false_cc(op["cond"]["op"])
+            var w_false = _cond_false_cc_for_cond(op["cond"])
             if w_false == nil { err(ctx, "x64 native v0: unsupported while op"); return nil }
             _emit_jcc_to_label(ctx, local_fixups, w_false, end_label2)
 
@@ -888,7 +917,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_label(ctx, labels, cond_label2)
             _emit_cmp_from_cond(ctx, op["cond"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var f_false = _cond_false_cc(op["cond"]["op"])
+            var f_false = _cond_false_cc_for_cond(op["cond"])
             if f_false == nil { err(ctx, "x64 native v0: unsupported for op"); return nil }
             _emit_jcc_to_label(ctx, local_fixups, f_false, end_label3)
 

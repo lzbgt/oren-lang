@@ -1,0 +1,11 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises truthy `if <expr>` condition lowering (`cmp rax, 0` + Jcc)
+
+fn main() {
+    var x = 1
+    if x {
+        return 7
+    } else {
+        return 9
+    }
+}
