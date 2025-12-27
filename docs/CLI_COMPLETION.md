@@ -15,8 +15,10 @@ The generated scripts are intentionally minimal and deterministic:
   - `--arch={arm64}` (rolling; currently the only supported value)
   - `--stdlib-mode={source|obc}`
   - `--help=json` / `-h=json`
+- Completes `oren dump <kind>` where `<kind>` is one of `tokens|linked|graph`
+- Does basic file completion for common positionals (e.g. `oren build <file>`, `oren meta <file>`, `oren dump <kind> <file>`, `oren scan <lib>`)
 
-It does **not** currently do path completion (files, directories) or validate combinations.
+It does **not** currently validate combinations or suggest paths with type filters (e.g. only `*.oren`).
 
 ## Bash
 

@@ -56,7 +56,8 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: added `oren completion bash|zsh` to emit minimal deterministic shell completion scripts (commands + option names) and oretest regressions.
    - Status: completion now suggests enum-like option values for key flags (`--backend`, `--target`, `--arch`, `--stdlib-mode`, plus `--help=json`).
    - Status: documented installation and scope in `docs/CLI_COMPLETION.md`.
-   - Next: extend completion to suggest positional enums (e.g. `oren dump kind`) and add basic file/path completion for `*.oren` arguments (without depending on non-portable shell features).
+   - Status: completion now suggests positional enums for `oren dump <kind>` and does basic file completion for common positionals (`build`/`emit-c`/`meta`/`dump`/`scan`).
+   - Next: improve completion precision (filter to `*.oren`, complete `dump kind` only when it is the next positional even with interspersed options) without making the scripts brittle across shells.
 
 6) **ARM64 instruction encoder audit** (S)
     - Status: added native golden-encoding coverage for key `arm64_core.oren` encoders (loads/stores, prologue/epilogue, add/sub imm+reg, B/BL/B.cond/BR/BLR, ADR/ADRP, broadcast/moves, basic SIMD ops, widening + pairwise ops).

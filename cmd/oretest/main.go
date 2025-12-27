@@ -1125,13 +1125,13 @@ func main() {
 				},
 				{
 					name: "completion_bash",
-					cmd:  "sh -c 'out=$(./oren completion bash 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"complete -F _oren oren\"'",
+					cmd:  "sh -c 'out=$(./oren completion bash 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"complete -F _oren oren\"; printf \"%s\\n\" \"$out\" | grep -F \"tokens linked graph\"; printf \"%s\\n\" \"$out\" | grep -F \"compgen -f\"'",
 					log:  "build/logs/completion_bash.log",
 					ok:   func(rc int) bool { return rc == 0 },
 				},
 				{
 					name: "completion_zsh",
-					cmd:  "sh -c 'out=$(./oren completion zsh 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"#compdef oren\"; printf \"%s\\n\" \"$out\" | grep -F \"compdef _oren oren\"'",
+					cmd:  "sh -c 'out=$(./oren completion zsh 2>&1); rc=$?; printf \"%s\\n\" \"$out\"; test $rc -eq 0; printf \"%s\\n\" \"$out\" | grep -F \"#compdef oren\"; printf \"%s\\n\" \"$out\" | grep -F \"compdef _oren oren\"; printf \"%s\\n\" \"$out\" | grep -F \"tokens linked graph\"; printf \"%s\\n\" \"$out\" | grep -F \"compadd -f\"'",
 					log:  "build/logs/completion_zsh.log",
 					ok:   func(rc int) bool { return rc == 0 },
 				},
