@@ -388,6 +388,39 @@ fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
 fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
 
+fn native_emit_panic(ctx, msg) {
+    // Emit a runtime panic with a stable message string literal.
+    //
+    // We ensure the message is tracked so it can be safely used in string concatenations
+    // inside `oren_diag_emit` even if allocations are tight.
+    var bytes = oren_bytes_from_string(msg)
+    bytes_push(bytes, 0) // NUL
+
+    while int_mod(oren_list_len(ctx["data"]), 8) != 0 {
+        bytes_push(ctx["data"], 0)
+    }
+    var data_off = oren_list_len(ctx["data"])
+    bytes_extend(ctx["data"], bytes)
+
+    // X0 = &msg
+    var adr_pos = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+
+    // oren_ensure_tracked(msg, kind=STRING)
+    push_u32_le(ctx["code"], insn_movz(1, 1))
+    var bl_track = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
+
+    // oren_panic(msg)  (never returns)
+    var bl_panic = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_panic, "name": "oren_panic"})
+    return 0
+}
+
 fn native_compile_expr(ctx, expr) {
     if expr == nil {
         native_error(ctx, nil, "native backend: expr is nil")

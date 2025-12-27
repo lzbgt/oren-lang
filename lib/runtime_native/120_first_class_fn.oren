@@ -164,8 +164,7 @@ fn oren_mod(a, b) {
     // - modulo by zero
     // - i64_min % -1 (would imply division overflow)
     //
-    // Native codegen's `/` uses unsigned division (rolling), so we implement the
-    // signed behavior explicitly using abs() + unsigned division on positives.
+    // Implement the signed behavior explicitly using abs() + trunc-to-zero division on positives.
     if b == 0 {
         oren_panic("modulo by zero")
         return 0
@@ -227,4 +226,3 @@ fn oren_int_to_string(n) {
     oren_track_alloc(buf, 32, 1) // 1=STRING
     return buf
 }
-

@@ -433,12 +433,69 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 }
                 if op == "-" { push_u32_le(ctx["code"], insn_sub_reg(0, 1, 0)) }
                 if op == "*" { push_u32_le(ctx["code"], insn_mul(0, 1, 0)) }
-                if op == "/" { push_u32_le(ctx["code"], insn_sdiv(0, 1, 0)) }
+                if op == "/" {
+                    // Deterministic error instead of arch-specific behavior:
+                    // - div by zero: x86 idiv traps, arm64 sdiv does not
+                    // - i64_min / -1: overflows in two's complement (x86 traps)
+
+                    // if divisor == 0 => panic
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp x0, xzr
+                    var br_div_nonzero = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // b.ne <ok>
+                    native_emit_panic(ctx, "division by zero")
+                    var div_nonzero_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_div_nonzero, insn_b_cond((div_nonzero_pos - br_div_nonzero) / 4, 1)) // NE
+
+                    // if (a == i64_min && b == -1) => panic
+                    emit_load_i64_imm(ctx, 2, -1)
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                    var br_not_minus1 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // b.ne <ok>
+
+                    var i64_min = 0 - (1 << 63)
+                    emit_load_i64_imm(ctx, 3, i64_min)
+                    push_u32_le(ctx["code"], insn_cmp_reg(1, 3))
+                    var br_not_min = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // b.ne <ok>
+
+                    native_emit_panic(ctx, "division overflow (i64_min / -1)")
+                    var div_ok_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_not_minus1, insn_b_cond((div_ok_pos - br_not_minus1) / 4, 1)) // NE
+                    set_u32_le(ctx["code"], br_not_min, insn_b_cond((div_ok_pos - br_not_min) / 4, 1)) // NE
+
+                    push_u32_le(ctx["code"], insn_sdiv(0, 1, 0))
+                }
                 if op == "&" { push_u32_le(ctx["code"], insn_and_reg(0, 1, 0)) }
                 if op == "|" { push_u32_le(ctx["code"], insn_orr_reg(0, 1, 0)) }
                 if op == "^" { push_u32_le(ctx["code"], insn_eor_reg(0, 1, 0)) }
-                if op == "<<" { push_u32_le(ctx["code"], insn_lslv(0, 1, 0)) }
-                if op == ">>" { push_u32_le(ctx["code"], insn_lsrv(0, 1, 0)) }
+                if op == "<<" || op == ">>" {
+                    // Deterministic error instead of arch-defined masking:
+                    // shift count must be 0..63.
+                    //
+                    // X1 = lhs, X0 = rhs (shift count)
+                    var msg = "shl shift count out of range (need 0..63)"
+                    if op == ">>" { msg = "shr shift count out of range (need 0..63)" }
+
+                    // if rhs < 0 => panic
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp x0, xzr
+                    var br_nonneg = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // b.ge <ok>
+                    native_emit_panic(ctx, msg)
+                    var nonneg_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_nonneg, insn_b_cond((nonneg_pos - br_nonneg) / 4, 10)) // GE
+
+                    // if rhs >= 64 => panic
+                    emit_load_i64_imm(ctx, 2, 64)
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                    var br_lt64 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // b.lt <ok>
+                    native_emit_panic(ctx, msg)
+                    var lt64_pos = oren_list_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_lt64, insn_b_cond((lt64_pos - br_lt64) / 4, 11)) // LT
+
+                    if op == "<<" { push_u32_le(ctx["code"], insn_lslv(0, 1, 0)) }
+                    else { push_u32_le(ctx["code"], insn_lsrv(0, 1, 0)) }
+                }
                 return true
             }
             

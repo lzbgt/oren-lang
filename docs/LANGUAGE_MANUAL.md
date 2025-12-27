@@ -76,6 +76,9 @@ Integer arithmetic (rolling v0):
 - `+ - * / %` are defined for `int`.
 - `int / int` is signed integer division with truncation toward zero.
 - `int % int` is the signed remainder consistent with trunc-toward-zero division (remainder has the same sign as the dividend).
+- Invalid cases are deterministic runtime panics:
+  - division by zero
+  - signed overflow (`i64_min / -1`)
 
 Examples:
 
@@ -85,6 +88,12 @@ if (-7 / 3) != -2 { exit(2) }
 if (7 % 3) != 1 { exit(3) }
 if (-7 % 3) != -1 { exit(4) }
 ```
+
+### Bitwise ops and shifts (`& | ^ ~ << >>`)
+
+- Bitwise ops operate on the 64-bit two’s-complement bit pattern of `int`.
+- `>>` is a logical (zero-fill) right shift in rolling v0.
+- Shift counts must be in `0..63`; out-of-range shift counts are a deterministic runtime panic (consistent across AVM/C/native backends).
 
 ### Floats (`f64` container in v0)
 

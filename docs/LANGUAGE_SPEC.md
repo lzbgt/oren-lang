@@ -692,7 +692,9 @@ Non-goal:
   - `int op int` yields `int`.
   - `int / int` is **signed** integer division with truncation toward zero.
   - `int % int` is the signed remainder consistent with trunc-toward-zero division (i.e. `a == (a / b) * b + (a % b)` and the remainder has the same sign as `a`).
-  - Division-by-zero and signed overflow (`i64_min / -1`) are not yet fully standardized across backends; this is tracked as a Tier‑1 parity item.
+  - Invalid cases are deterministic runtime panics:
+    - division by zero
+    - signed overflow (`i64_min / -1`)
   - If either operand is `float`, arithmetic is performed in `float`.
   - `string + string` concatenates.
 - `==` / `!=` are type-strict in the runtime (e.g., `1 == 1.0` is false).
@@ -707,6 +709,7 @@ Non-goal:
   - only defined for `int`
   - operate on the 64-bit two’s-complement bit pattern of the integer value
   - `>>` is a logical (zero-fill) right shift
+  - shift counts must be in `0..63`; out-of-range is a deterministic runtime panic
   - results wrap to 64 bits (any higher bits are discarded)
 
 ### Lists

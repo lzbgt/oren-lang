@@ -13,7 +13,7 @@ fn main() {
     var shl = 1 << 3    // 8
 
     // `>>` with a variable shift count (encoder CL path).
-    // Note: the x64 backend masks variable shift counts to 0..63 per ISA semantics.
+    // Note: shift counts must be in 0..63; out-of-range is a deterministic abort.
     var s = 2
     var shr = 16 >> s   // 4
 

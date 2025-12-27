@@ -1,3 +1,26 @@
+fn _emit_abort_exitcode(ctx, exit_code) {
+    // Emit a hard abort with a deterministic process exit code.
+    // Used for invalid arithmetic cases (div0, shift out of range) to avoid host SIGFPE/UB.
+    var platform = ctx["platform"]
+    if platform != nil && platform["os"] == "windows" {
+        // ExitProcess(exit_code)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, exit_code)) // mov ecx, imm32
+        var mov_iat_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
+        bytes_extend(ctx["code"], insn_call_rax())
+        bytes_extend(ctx["code"], insn_ret())
+        return nil
+    }
+
+    // Linux x86_64: exit(exit_code) via syscall
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, exit_code)) // mov edi, imm32
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))        // mov eax, SYS_exit
+    bytes_extend(ctx["code"], insn_syscall())
+    bytes_extend(ctx["code"], insn_ret())
+    return nil
+}
+
 fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // Evaluate a tiny integer expression into RAX (64-bit register).
     //
@@ -265,6 +288,32 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rax
 
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offd) // rax = dividend
+
+            // Deterministic error instead of arch traps/UB:
+            // - div by zero => abort
+            // - i64_min / -1 => abort (x86 idiv traps)
+            var labels = {}
+            var local_fixups = []
+
+            // if rcx != 0 => continue; else abort
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+            var l_div_nonzero = _new_label(ctx, "div_nonzero")
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_nonzero)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_div_nonzero)
+
+            // if rcx != -1 => continue; else check dividend == i64_min
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 4294967295)) // -1 (imm32 sign-extended)
+            var l_div_ok = _new_label(ctx, "div_ok")
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_ok)
+            var i64_min = 0 - (1 << 63)
+            bytes_extend(ctx["code"], insn_mov_r64_imm64(2, i64_min)) // rdx = i64_min
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_ok)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_div_ok)
+            _patch_local_fixups(ctx, labels, local_fixups)
+
             bytes_extend(ctx["code"], insn_cqo()) // sign-extend rax into rdx
             bytes_extend(ctx["code"], insn_idiv_r64(1)) // idiv rcx
             if op == "%" {
@@ -278,14 +327,16 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_eval_int_to_rax(ctx, l, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
-            // Shift counts are masked to 0..63 (x86-64 semantics; keeps deterministic behavior).
+            // Shift counts must be in 0..63. This keeps semantics consistent with AVM and the C backend runtime.
             if r != nil && r["type"] == "Integer" {
                 var n2 = intparse.parse_int_lit(r["value"])
                 if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
-                if n2 < 0 { err(ctx, "x64 native v0: negative shift count not supported"); return nil }
-                var sh = core.int_mod(n2, 64)
-                if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_imm8(0, sh)) }
-                else { bytes_extend(ctx["code"], insn_shr_r64_imm8(0, sh)) }
+                if n2 < 0 || n2 >= 64 {
+                    _emit_abort_exitcode(ctx, 1)
+                    return nil
+                }
+                if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_imm8(0, n2)) }
+                else { bytes_extend(ctx["code"], insn_shr_r64_imm8(0, n2)) }
                 return nil
             }
             if r != nil && r["type"] == "Identifier" {
@@ -293,7 +344,23 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
                 _emit_mov_r64_mrbp(ctx, 2, 0 - off2) // rdx = rhs
                 bytes_extend(ctx["code"], insn_mov_r64_r64(1, 2)) // rcx = rhs (CL)
-                bytes_extend(ctx["code"], insn_and_r64_imm32(1, 63)) // rcx &= 63
+
+                var labels2 = {}
+                var local_fixups2 = []
+                // if rcx < 0 => abort
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+                var l_nonneg = _new_label(ctx, "sh_nonneg")
+                _emit_jcc_to_label(ctx, local_fixups2, "ge", l_nonneg)
+                _emit_abort_exitcode(ctx, 1)
+                _emit_label(ctx, labels2, l_nonneg)
+                // if rcx >= 64 => abort
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 64))
+                var l_lt64 = _new_label(ctx, "sh_lt64")
+                _emit_jcc_to_label(ctx, local_fixups2, "l", l_lt64)
+                _emit_abort_exitcode(ctx, 1)
+                _emit_label(ctx, labels2, l_lt64)
+                _patch_local_fixups(ctx, labels2, local_fixups2)
+
                 if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_cl(0)) }
                 else { bytes_extend(ctx["code"], insn_shr_r64_cl(0)) }
                 return nil
@@ -306,7 +373,23 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rhs
-            bytes_extend(ctx["code"], insn_and_r64_imm32(1, 63)) // rcx &= 63
+
+            var labels3 = {}
+            var local_fixups3 = []
+            // if rcx < 0 => abort
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+            var l_nonneg2 = _new_label(ctx, "sh_nonneg")
+            _emit_jcc_to_label(ctx, local_fixups3, "ge", l_nonneg2)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels3, l_nonneg2)
+            // if rcx >= 64 => abort
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 64))
+            var l_lt642 = _new_label(ctx, "sh_lt64")
+            _emit_jcc_to_label(ctx, local_fixups3, "l", l_lt642)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels3, l_lt642)
+            _patch_local_fixups(ctx, labels3, local_fixups3)
+
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offs) // rax = lhs
             if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_cl(0)) }
             else { bytes_extend(ctx["code"], insn_shr_r64_cl(0)) }
