@@ -1,0 +1,12 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises signed int division/modulo on negatives (trunc toward zero)
+
+fn main() {
+    if -7 / 3 != -2 { return 1 }
+    if -7 % 3 != -1 { return 2 }
+    if 7 / -3 != -2 { return 3 }
+    if 7 % -3 != 1 { return 4 }
+    if -7 / -3 != 2 { return 5 }
+    if -7 % -3 != -1 { return 6 }
+    return 0
+}

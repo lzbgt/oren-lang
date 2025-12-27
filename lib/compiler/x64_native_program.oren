@@ -806,11 +806,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var tmp_disp8d = core.int_mod(0 - tmp_offd, 256)
             bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8d, 0)) // [tmp] = dividend (rax)
 
-            // Evaluate divisor into RAX, then move to RCX with sign extension from i32 range.
+            // Evaluate divisor into RAX, then move to RCX.
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // ecx = eax (low 32)
-            bytes_extend(ctx["code"], insn_movsxd_r64_r32(1, 1)) // rcx = signext(ecx)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rax
 
             bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8d)) // rax = dividend
             bytes_extend(ctx["code"], insn_cqo()) // sign-extend rax into rdx
