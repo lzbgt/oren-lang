@@ -93,6 +93,7 @@ OREN_SRC := oren.oren
 $(OREN_SRC): ;
 GO_SRC := $(shell find cmd pkg -name "*.go")
 OREN_OREN_SRC := $(shell find lib -name "*.oren")
+OREN_RUNTIME_INC := $(shell find lib/runtime -name "*.inc")
 
 # --- Build Stages ---
 
@@ -112,12 +113,12 @@ oredoc: $(GO_SRC)
 	@go build -o oredoc ./cmd/oredoc
 
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
-oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC)
+oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 1 (Oren)..."
 	./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG)
 
 # Stage 2: Self-Hosted Compiler (Built by Stage 1)
-oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC)
+oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 2 (Self-Hosted)..."
 	./oren build $(OREN_SRC) -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)
 

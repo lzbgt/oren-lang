@@ -1,4 +1,4 @@
-// PE32+ (Windows x64) emitter for minimal x86_64 native backend bring-up.
+// PE32+ (Windows x64) emitter for x86_64 native backend bring-up.
 //
 // v0:
 // - emits a PE executable with two sections: .text and .rdata
@@ -7,7 +7,7 @@
 //
 // This is intentionally small and self-contained (no external toolchain required).
 
-import codegen "codegen_x64_min.oren"
+import codegen "codegen_x64.oren"
 
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
@@ -45,7 +45,7 @@ fn push_ascii_z(buf, s) {
 }
 
 fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_domains) {
-    var ctx = codegen.native_compile_program_x64_min(linked, {"os": "windows", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
+    var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
 
@@ -377,6 +377,10 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     var w = oren_write_bytes(out_path, out)
     if oren_is_err(w) {
         print("x64 pe: failed to write: " + out_path)
+        var code = oren_err_code(w)
+        var msg = oren_err_msg(w)
+        print("x64 pe: write error code=" + oren_int_to_string(code))
+        if msg != nil { print("x64 pe: write error msg=" + msg) }
         oren_exit(1)
     }
     return nil

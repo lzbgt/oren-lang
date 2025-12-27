@@ -58,12 +58,16 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
         OrenValue b = bytes.as.list_val->items[i];
         if (b.type != OREN_TYPE_INT) {
             fclose(f);
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects list of ints"));
+            char buf[160];
+            snprintf(buf, sizeof(buf), "write_bytes expects list<int>; element %d has type=%d", i, b.type);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
         }
         long long v = b.as.int_val;
         if (v < 0 || v > 255) {
             fclose(f);
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes byte out of range"));
+            char buf[160];
+            snprintf(buf, sizeof(buf), "write_bytes byte out of range: element %d has value=%lld", i, v);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
         }
         if (fputc((unsigned char)v, f) == EOF) {
             fclose(f);

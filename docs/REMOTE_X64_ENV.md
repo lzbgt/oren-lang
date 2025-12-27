@@ -33,7 +33,7 @@ ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.wo
 Run a compiled Windows PE executable and see its exit code:
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c "C:\\Users\\lzbgt\\tmp_oren\\x64_min_win.exe & echo EXIT=%ERRORLEVEL%"'
+ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c "C:\\Users\\lzbgt\\tmp_oren\\x64_format_win.exe & echo EXIT=%ERRORLEVEL%"'
 ```
 
 ## Windows toolchain (VS2022 + Windows Kits)
@@ -67,7 +67,7 @@ ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.wo
 Run a Linux x86_64 ELF executable from the Windows filesystem path:
 
 ```bash
-ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'wsl.exe -e bash -lc "chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_min_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_min_linux; echo EXIT=$?"'
+ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.work 'wsl.exe -e bash -lc "chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_format_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_format_linux; echo EXIT=$?"'
 ```
 
 ## Copy artifacts to the remote host
@@ -81,8 +81,8 @@ ssh -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' lzbgt@pc.wo
 Copy artifacts:
 
 ```bash
-scp -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' build/x64_min_win.exe lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_min_win.exe
-scp -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' build/x64_min_linux   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_min_linux
+scp -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' build/x64_format_win.exe lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_win.exe
+scp -o 'proxycommand socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' build/x64_format_linux   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_linux
 ```
 
 ## Rolling guidance

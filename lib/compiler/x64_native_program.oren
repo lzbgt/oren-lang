@@ -268,6 +268,17 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
         if t == "ExprStmt" {
             var e = st["expr"]
             if e == nil { i = i + 1; continue }
+            // Some parts of the pipeline represent statement-forms as an ExprStmt wrapper.
+            // Accept common control-flow nodes here to avoid backend fragility as the AST evolves.
+            if e["type"] == "If" || e["type"] == "While" || e["type"] == "For" {
+                var tmp = _analyze_stmt_list_to_ops(ctx, [e])
+                if tmp == nil { return nil }
+                // Splice in the ops produced by the wrapped statement.
+                var k = 0
+                while k < oren_list_len(tmp) { oren_list_push(ops, tmp[k]); k = k + 1 }
+                i = i + 1
+                continue
+            }
             if e["type"] == "Call" {
                 var callee = e["fn"]
                 var args = e["args"]
@@ -460,15 +471,14 @@ fn _expr_int_check(ctx, expr) {
         if op != "+" && op != "-" && op != "*" { err(ctx, "x64 native v0: infix op not supported: " + op); return nil }
         var l = expr["left"]
         var r = expr["right"]
-        if l == nil || (l["type"] != "Integer" && l["type"] != "Identifier" && l["type"] != "Call") {
-            err(ctx, "x64 native v0: infix left must be Integer, Identifier, or Call")
+        if l == nil || r == nil { err(ctx, "x64 native v0: infix missing operands"); return nil }
+
+        // Rolling: allow nested infix expressions for + and - (and as the LHS of `*`)
+        // so chains like `a + b + c + d` work.
+        if op == "*" && r["type"] != "Integer" {
+            err(ctx, "x64 native v0: mul rhs must be integer literal")
             return nil
         }
-        if r == nil || (r["type"] != "Integer" && r["type"] != "Identifier" && r["type"] != "Call") {
-            err(ctx, "x64 native v0: infix right must be Integer, Identifier, or Call")
-            return nil
-        }
-        if op == "*" && r["type"] != "Integer" { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
         _expr_int_check(ctx, l)
         _expr_int_check(ctx, r)
         return nil
@@ -631,6 +641,21 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             else { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
+            return nil
+        }
+        if r != nil && r["type"] == "Infix" {
+            if op == "*" { err(ctx, "x64 native v0: mul rhs must be integer literal"); return nil }
+            var tmp_off2 = locals["$tmp0"]
+            if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot for infix rhs"); return nil }
+            var tmp_disp82 = core.int_mod(0 - tmp_off2, 256)
+            // Spill left, evaluate RHS infix into RAX, then combine.
+            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp82, 0))
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp82)) // rax = lhs
+            if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
+            else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             return nil
         }
     }
@@ -1062,7 +1087,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 // - functions: map name->offset
 // - import_list: list of imports (for PE)
 // - errors: list of strings
-fn native_compile_program_x64_min(linked, platform) {
+fn native_compile_program_x64(linked, platform) {
     var ctx = {
         "code": bytes_new(),
         "data": bytes_new(),

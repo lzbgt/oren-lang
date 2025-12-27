@@ -18,7 +18,16 @@ fn bytes_extend(b, other) {
     }
 }
 
-fn int_mod(a, b) { return a - (a / b) * b }
+fn int_mod(a, b) {
+    // Positive modulus (result in [0, b) for b>0).
+    //
+    // We use this for byte/bit packing (u8/u16/u32/u64) where callers may pass
+    // negative signed immediates (e.g. disp8=-4, imm8=-16). The runtime
+    // `oren_write_bytes` requires every element be in 0..255.
+    var r = a - (a / b) * b
+    if r < 0 { r = r + b }
+    return r
+}
 
 fn push_u16_le(buf, n) {
     bytes_push(buf, int_mod(n, 256))
