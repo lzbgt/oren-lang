@@ -47,6 +47,12 @@ fn insn_mov_r32_mrbp_disp8(reg, disp8) { return core.insn_mov_r32_mrbp_disp8(reg
 fn insn_mov_mrbp_disp8_r32(disp8, reg) { return core.insn_mov_mrbp_disp8_r32(disp8, reg) }
 fn insn_mov_r64_mrbp_disp8(reg, disp8) { return core.insn_mov_r64_mrbp_disp8(reg, disp8) }
 fn insn_mov_mrbp_disp8_r64(disp8, reg) { return core.insn_mov_mrbp_disp8_r64(disp8, reg) }
+fn insn_mov_r64_mrbp_disp32(reg, disp32) { return core.insn_mov_r64_mrbp_disp32(reg, disp32) }
+fn insn_mov_mrbp_disp32_r64(disp32, reg) { return core.insn_mov_mrbp_disp32_r64(disp32, reg) }
+fn insn_mov_r64_mrsp_disp8(reg, disp8) { return core.insn_mov_r64_mrsp_disp8(reg, disp8) }
+fn insn_mov_mrsp_disp8_r64(disp8, reg) { return core.insn_mov_mrsp_disp8_r64(disp8, reg) }
+fn insn_mov_r64_mrsp_disp32(reg, disp32) { return core.insn_mov_r64_mrsp_disp32(reg, disp32) }
+fn insn_mov_mrsp_disp32_r64(disp32, reg) { return core.insn_mov_mrsp_disp32_r64(disp32, reg) }
 fn insn_add_r32_imm32(reg, imm32) { return core.insn_add_r32_imm32(reg, imm32) }
 fn insn_sub_r32_imm32(reg, imm32) { return core.insn_sub_r32_imm32(reg, imm32) }
 fn insn_add_r32_r32(dst, src) { return core.insn_add_r32_r32(dst, src) }
@@ -83,6 +89,65 @@ fn insn_neg_r64(reg) { return core.insn_neg_r64(reg) }
 fn err(ctx, msg) {
     if ctx["errors"] == nil { ctx["errors"] = [] }
     oren_list_push(ctx["errors"], msg)
+}
+
+fn _is_i8(n) {
+    return n >= -128 && n <= 127
+}
+
+fn _as_u32_signed(disp) {
+    // Encode a signed 32-bit displacement as the unsigned u32 value expected by push_u32_le.
+    if disp < -2147483648 || disp > 2147483647 { return nil }
+    if disp < 0 { return 4294967296 + disp }
+    return disp
+}
+
+fn _emit_mov_r64_mrbp(ctx, dst_reg, disp) {
+    // mov dst_reg, qword ptr [rbp+disp]
+    if _is_i8(disp) {
+        bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(dst_reg, disp))
+        return nil
+    }
+    var u = _as_u32_signed(disp)
+    if u == nil { err(ctx, "x64 native v0: rbp disp32 out of range"); return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp32(dst_reg, u))
+    return nil
+}
+
+fn _emit_mov_mrbp_r64(ctx, disp, src_reg) {
+    // mov qword ptr [rbp+disp], src_reg
+    if _is_i8(disp) {
+        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp, src_reg))
+        return nil
+    }
+    var u = _as_u32_signed(disp)
+    if u == nil { err(ctx, "x64 native v0: rbp disp32 out of range"); return nil }
+    bytes_extend(ctx["code"], insn_mov_mrbp_disp32_r64(u, src_reg))
+    return nil
+}
+
+fn _emit_mov_r64_mrsp(ctx, dst_reg, disp) {
+    // mov dst_reg, qword ptr [rsp+disp]
+    if _is_i8(disp) {
+        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(dst_reg, disp))
+        return nil
+    }
+    var u = _as_u32_signed(disp)
+    if u == nil { err(ctx, "x64 native v0: rsp disp32 out of range"); return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(dst_reg, u))
+    return nil
+}
+
+fn _emit_mov_mrsp_r64(ctx, disp, src_reg) {
+    // mov qword ptr [rsp+disp], src_reg
+    if _is_i8(disp) {
+        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(disp, src_reg))
+        return nil
+    }
+    var u = _as_u32_signed(disp)
+    if u == nil { err(ctx, "x64 native v0: rsp disp32 out of range"); return nil }
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp32_r64(u, src_reg))
+    return nil
 }
 
 fn _int_from_string_dec(s) {
@@ -505,8 +570,7 @@ fn _expr_int_check(ctx, expr) {
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
-        var max_args = abi.max_int_reg_args(ctx["abi"])
-        if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
+        // Rolling: stack args are supported; arg count is bounded only by frame/call-area capacity.
 
         // Direct calls enforce arity; indirect calls (callable value in a local/param) are permitted
         // in v0 bring-up without static arity tracking.
@@ -560,6 +624,88 @@ fn _expr_int_check(ctx, expr) {
     return nil
 }
 
+fn _max_call_argc_in_expr(expr) {
+    if expr == nil { return 0 }
+    var t = expr["type"]
+    if t == "Call" {
+        var args = expr["args"]
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        var m = argc
+        // Count calls in call target and in each arg expression too.
+        var fn_expr = expr["fn"]
+        var mf = _max_call_argc_in_expr(fn_expr)
+        if mf > m { m = mf }
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            var mi = _max_call_argc_in_expr(args[i])
+            if mi > m { m = mi }
+            i = i + 1
+        }
+        return m
+    }
+    if t == "Infix" {
+        var l = expr["left"]
+        var r = expr["right"]
+        var ml = _max_call_argc_in_expr(l)
+        var mr = _max_call_argc_in_expr(r)
+        if mr > ml { return mr }
+        return ml
+    }
+    if t == "Prefix" {
+        return _max_call_argc_in_expr(expr["right"])
+    }
+    if t == "If" {
+        // Conservative: if-expr isn't part of the x64 v0 expression surface yet, but keep it safe.
+        var m0 = _max_call_argc_in_expr(expr["cond"])
+        var consq = expr["consq"]
+        if consq != nil { var m1 = _max_call_argc_in_expr(consq["expr"]); if m1 > m0 { m0 = m1 } }
+        var alt = expr["alt"]
+        if alt != nil { var m2 = _max_call_argc_in_expr(alt["expr"]); if m2 > m0 { m0 = m2 } }
+        return m0
+    }
+    return 0
+}
+
+fn _max_call_argc_in_ops(ops) {
+    if ops == nil { return 0 }
+    var m = 0
+    var i = 0
+    while i < oren_list_len(ops) {
+        var op = ops[i]
+        if op == nil { i = i + 1; continue }
+        var k = op["op"]
+        if k == "var_i32" || k == "assign_i32" || k == "return" {
+            var e = op["expr"]
+            var me = _max_call_argc_in_expr(e)
+            if me > m { m = me }
+        } else if k == "if" {
+            var mc = _max_call_argc_in_expr(op["cond"])
+            if mc > m { m = mc }
+            var mt = _max_call_argc_in_ops(op["then"])
+            if mt > m { m = mt }
+            var mf = _max_call_argc_in_ops(op["else"])
+            if mf > m { m = mf }
+        } else if k == "while" {
+            var mc2 = _max_call_argc_in_expr(op["cond"])
+            if mc2 > m { m = mc2 }
+            var mb = _max_call_argc_in_ops(op["body"])
+            if mb > m { m = mb }
+        } else if k == "for" {
+            var mi = _max_call_argc_in_ops(op["init"])
+            if mi > m { m = mi }
+            var mc3 = _max_call_argc_in_expr(op["cond"])
+            if mc3 > m { m = mc3 }
+            var mp = _max_call_argc_in_ops(op["post"])
+            if mp > m { m = mp }
+            var mb2 = _max_call_argc_in_ops(op["body"])
+            if mb2 > m { m = mb2 }
+        }
+        i = i + 1
+    }
+    return m
+}
+
 fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // Evaluate a tiny integer expression into RAX (64-bit register).
     //
@@ -595,9 +741,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var name = expr["value"]
         var off = locals[name]
         if off != nil {
-            var disp8 = core.int_mod(0 - off, 256)
             // Load full 64-bit slot so function pointers round-trip correctly.
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, disp8))
+            _emit_mov_r64_mrbp(ctx, 0, 0 - off)
             return nil
         }
 
@@ -625,8 +770,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
-        var max_args = abi.max_int_reg_args(ctx["abi"])
-        if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
+        // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
 
         var is_direct = false
         var declared = ctx["declared_functions"]
@@ -653,21 +797,37 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var tmp_name = "$tmp_arg" + oren_int_to_string(i)
             var tmp_off = locals[tmp_name]
             if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name); return nil }
-            var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
             // Spill the full 64-bit value (keeps function pointer args intact).
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8, 0)) // [tmp] = rax
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = rax
             i = i + 1
         }
 
         i = 0
+        var regc = abi.max_int_reg_args(ctx["abi"])
+        var shadow = abi.caller_shadow_bytes(ctx["abi"])
         while i < argc {
-            var reg = abi.int_arg_reg(ctx["abi"], i)
-            if reg == nil { err(ctx, "x64 native v0: unsupported call arg index"); return nil }
             var tmp_name2 = "$tmp_arg" + oren_int_to_string(i)
             var tmp_off2 = locals[tmp_name2]
             if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name2); return nil }
-            var tmp_disp82 = core.int_mod(0 - tmp_off2, 256)
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(reg, tmp_disp82))
+
+            if i < regc {
+                var reg = abi.int_arg_reg(ctx["abi"], i)
+                if reg == nil { err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+                _emit_mov_r64_mrbp(ctx, reg, 0 - tmp_off2)
+            } else {
+                // Stack args beyond register count are passed in the caller-reserved call area
+                // at [rsp + shadow + 8*(i-regc)].
+                _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2) // rax = arg[i]
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                var stack_disp = shadow + 8 * (i - regc)
+                var call_area = ctx["cur_call_area_bytes"]
+                if call_area == nil { call_area = 0 }
+                if stack_disp + 8 > call_area {
+                    err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+8) + ", have " + oren_int_to_string(call_area) + ")")
+                    return nil
+                }
+                _emit_mov_mrsp_r64(ctx, stack_disp, 0)
+            }
             i = i + 1
         }
 
@@ -676,8 +836,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_call_rel32(0))
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
         } else {
-            var disp8c = core.int_mod(0 - callee_off, 256)
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, disp8c)) // rax = fnobj ptr
+            _emit_mov_r64_mrbp(ctx, 0, 0 - callee_off) // rax = fnobj ptr
             bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = [fnobj].code_ptr
             bytes_extend(ctx["code"], insn_call_rax())
         }
@@ -803,15 +962,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             var tmp_offd = locals["$tmp_div"]
             if tmp_offd == nil { err(ctx, "x64 native v0: missing temp slot for div"); return nil }
-            var tmp_disp8d = core.int_mod(0 - tmp_offd, 256)
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8d, 0)) // [tmp] = dividend (rax)
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_offd, 0) // [tmp] = dividend (rax)
 
             // Evaluate divisor into RAX, then move to RCX.
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rax
 
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8d)) // rax = dividend
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offd) // rax = dividend
             bytes_extend(ctx["code"], insn_cqo()) // sign-extend rax into rdx
             bytes_extend(ctx["code"], insn_idiv_r64(1)) // idiv rcx
             if op == "%" {
@@ -838,8 +996,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if r != nil && r["type"] == "Identifier" {
                 var off2 = locals[r["value"]]
                 if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-                var disp82 = core.int_mod(0 - off2, 256)
-                bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp82)) // rdx = rhs
+                _emit_mov_r64_mrbp(ctx, 2, 0 - off2) // rdx = rhs
                 bytes_extend(ctx["code"], insn_mov_r64_r64(1, 2)) // rcx = rhs (CL)
                 bytes_extend(ctx["code"], insn_and_r64_imm32(1, 63)) // rcx &= 63
                 if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_cl(0)) }
@@ -850,13 +1007,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // General RHS expression: spill lhs, eval RHS into RAX, move to RCX, restore lhs, shift.
             var tmp_offs = locals["$tmp_shift"]
             if tmp_offs == nil { err(ctx, "x64 native v0: missing temp slot for shift"); return nil }
-            var tmp_disp8s = core.int_mod(0 - tmp_offs, 256)
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8s, 0)) // [tmp] = lhs
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_offs, 0) // [tmp] = lhs
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rhs
             bytes_extend(ctx["code"], insn_and_r64_imm32(1, 63)) // rcx &= 63
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8s)) // rax = lhs
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offs) // rax = lhs
             if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_cl(0)) }
             else { bytes_extend(ctx["code"], insn_shr_r64_cl(0)) }
             return nil
@@ -879,8 +1035,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if r != nil && r["type"] == "Identifier" {
                 var off3 = locals[r["value"]]
                 if off3 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-                var disp83 = core.int_mod(0 - off3, 256)
-                bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp83)) // rdx = rhs
+                _emit_mov_r64_mrbp(ctx, 2, 0 - off3) // rdx = rhs
                 if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
                 else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
                 else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
@@ -890,12 +1045,11 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // General RHS expression: spill lhs, eval RHS into RAX, move to RDX, restore lhs, op.
             var tmp_offb = locals["$tmp0"]
             if tmp_offb == nil { err(ctx, "x64 native v0: missing temp slot for bitop"); return nil }
-            var tmp_disp8b = core.int_mod(0 - tmp_offb, 256)
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8b, 0)) // [tmp] = lhs
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_offb, 0) // [tmp] = lhs
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8b)) // rax = lhs
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offb) // rax = lhs
             if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
             else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
             else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
@@ -918,8 +1072,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if r != nil && r["type"] == "Identifier" {
             var off2 = locals[r["value"]]
             if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-            var disp82 = core.int_mod(0 - off2, 256)
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp82)) // rdx = rhs
+            _emit_mov_r64_mrbp(ctx, 2, 0 - off2) // rdx = rhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
@@ -928,13 +1081,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if r != nil && r["type"] == "Call" {
             var tmp_off = locals["$tmp0"]
             if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for calls"); return nil }
-            var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
             // Spill left to stack temp, evaluate RHS call into EAX, then combine.
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8, 0)) // [tmp] = rax
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = rax
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8)) // rax = lhs
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
@@ -943,13 +1095,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if r != nil && r["type"] == "Infix" {
             var tmp_off2 = locals["$tmp0"]
             if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot for infix rhs"); return nil }
-            var tmp_disp82 = core.int_mod(0 - tmp_off2, 256)
             // Spill left, evaluate RHS infix into RAX, then combine.
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp82, 0))
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_off2, 0)
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp82)) // rax = lhs
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2) // rax = lhs
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
@@ -983,20 +1134,18 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
         if r["type"] == "Identifier" {
             var off = locals[r["value"]]
             if off == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-            var disp8 = core.int_mod(0 - off, 256)
-            bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(2, disp8)) // rdx = rhs
+            _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs
             bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
             return nil
         }
         // General RHS expression: spill LHS, evaluate RHS, then cmp lhs,rhs.
         var tmp_off = locals["$tmp_cmp"]
         if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for cmp"); return nil }
-        var tmp_disp8 = core.int_mod(0 - tmp_off, 256)
-        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(tmp_disp8, 0)) // [tmp] = lhs (rax)
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = lhs (rax)
         _emit_eval_int_to_rax(ctx, r, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
-        bytes_extend(ctx["code"], insn_mov_r64_mrbp_disp8(0, tmp_disp8)) // rax = lhs
+        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
         bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
         return nil
     }
@@ -1105,21 +1254,19 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         if op["op"] == "var_i32" {
             var off = locals[op["name"]]
             if off == nil { err(ctx, "x64 native v0: missing local slot"); return nil }
-            var disp8 = core.int_mod(0 - off, 256)
             _expr_int_check(ctx, op["expr"])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp8, 0))
+            _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         } else if op["op"] == "assign_i32" {
             var off2 = locals[op["name"]]
             if off2 == nil { err(ctx, "x64 native v0: assign unknown var " + op["name"]); return nil }
-            var disp82 = core.int_mod(0 - off2, 256)
             _expr_int_check(ctx, op["expr"])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp82, 0))
+            _emit_mov_mrbp_r64(ctx, 0 - off2, 0)
         } else if op["op"] == "print_cstr" {
             if platform != nil && platform["os"] == "linux" {
                 _emit_linux_write_cstr(ctx, op["value"])
@@ -1292,8 +1439,6 @@ fn _extract_functions_v0(ctx, linked) {
             var params = fn0["params"]
             var pc = 0
             if params != nil { pc = oren_list_len(params) }
-            var max_params = abi.max_int_reg_args(ctx["abi"])
-            if pc > max_params { err(ctx, "x64 native v0: functions support at most " + oren_int_to_string(max_params) + " params for now: " + name); return nil }
             var j = 0
             while j < pc {
                 var p = params[j]
@@ -1327,6 +1472,11 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     var ops = _analyze_supported_fn_body(ctx, fn_node)
     if ops == nil { return nil }
+
+    // Compute the maximum argument count among calls in this function so we can:
+    // - reserve enough `$tmp_arg<i>` spill slots (argument evaluation is LTR and can contain nested calls)
+    // - reserve enough outgoing call-area space for stack args (ABI dependent)
+    var max_call_argc = _max_call_argc_in_ops(ops)
 
     var fn_off = oren_list_len(ctx["code"])
     ctx["functions"][name] = fn_off
@@ -1382,8 +1532,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     // Reserve arg temp spill slots used for call lowering.
     var tmp_i = 0
-    var max_args = abi.max_int_reg_args(ctx["abi"])
-    while tmp_i < max_args {
+    while tmp_i < max_call_argc {
         var nm = "$tmp_arg" + oren_int_to_string(tmp_i)
         if locals[nm] != nil { err(ctx, "x64 native v0: reserved local name " + nm + " used"); return nil }
         locals[nm] = local_next
@@ -1394,8 +1543,25 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     var locals_size = local_next - 8
     // Align locals area to 16.
     while core.int_mod(locals_size, 16) != 0 { locals_size = locals_size + 1 }
-    var win_call_area = abi.callee_call_area_bytes(ctx["abi"])
-    var frame_size = locals_size + win_call_area
+
+    // Reserve an outgoing call area at the bottom of the frame so call lowering can:
+    // - satisfy Win64 32B shadow requirement (if applicable)
+    // - place stack args without mutating RSP inside expression lowering
+    //
+    // For SysV, shadow is 0 and stack args begin at [rsp+0] at the call site.
+    // For Win64, stack args begin at [rsp+0x20] at the call site.
+    var regc = abi.max_int_reg_args(ctx["abi"])
+    var shadow = abi.caller_shadow_bytes(ctx["abi"])
+    var stack_slots = 0
+    if max_call_argc > regc { stack_slots = max_call_argc - regc }
+    var need_call_area = shadow + stack_slots * 8
+    var call_area = abi.callee_call_area_bytes(ctx["abi"])
+    if need_call_area > call_area { call_area = need_call_area }
+
+    // Provide call lowering with the reserved call-area capacity for this function.
+    ctx["cur_call_area_bytes"] = call_area
+
+    var frame_size = locals_size + call_area
     if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
 
     // Spill incoming params to their stack slots.
@@ -1405,11 +1571,23 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         var pnm2 = p2["value"]
         var off = locals[pnm2]
         if off == nil { err(ctx, "x64 native v0: missing param slot"); return nil }
-        var disp8 = core.int_mod(0 - off, 256)
-        var reg = abi.int_arg_reg(ctx["abi"], i)
-        if reg == nil { err(ctx, "x64 native v0: unsupported param index"); return nil }
-        // Spill the full register width so function pointers can be passed/called.
-        bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r64(disp8, reg))
+
+        // Params 0..regc-1 come from ABI registers. Additional params come from the caller stack.
+        if i < regc {
+            var reg = abi.int_arg_reg(ctx["abi"], i)
+            if reg == nil { err(ctx, "x64 native v0: unsupported param index"); return nil }
+            // Spill the full register width so function pointers can be passed/called.
+            _emit_mov_mrbp_r64(ctx, 0 - off, reg)
+        } else {
+            // Callee stack layout after `push rbp; mov rbp,rsp`:
+            // - [rbp+8]  return address
+            // - [rbp+16] first stack arg on SysV (arg#7)
+            // - [rbp+48] first stack arg on Win64 (arg#5), because of 32B shadow
+            var stack_base = 16 + shadow
+            var disp = stack_base + 8 * (i - regc)
+            _emit_mov_r64_mrbp(ctx, 0, disp)     // rax = arg
+            _emit_mov_mrbp_r64(ctx, 0 - off, 0) // [local] = rax
+        }
         i = i + 1
     }
 

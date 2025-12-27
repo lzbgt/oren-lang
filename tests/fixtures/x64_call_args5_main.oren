@@ -1,0 +1,12 @@
+fn add5(a, b, c, d, e) {
+    // Exercises Win64 stack args (arg5+) while still being valid on SysV.
+    //
+    // - Linux SysV: first 6 integer args in registers => all 5 args are in regs.
+    // - Windows x64: first 4 integer args in regs, arg5 on the stack => exercises stack passing.
+    return a + b + c + d + e
+}
+
+fn main() {
+    return add5(1, 2, 3, 4, 5) // 15
+}
+
