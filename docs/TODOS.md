@@ -110,6 +110,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: Stage0→Stage1→Stage2 pipeline exists and is exercised by `make test` (see `docs/SELF_HOSTING.md`).
    - Status: Stage0 bootstrap transpiler now resolves `std:` imports (keeps the language/compiler evolution path unblocked).
    - Status: Stage0 bootstrap lexer now supports modern numeric literals (`0x`/`0b`/`0o`, `_` separators, scientific notation) to avoid bootstrap breakage when Stage1 sources use them.
+   - Status: Stage0 bootstrap parser now supports `else if` chains (lowered to `else { if ... }` internally); oretest covers it via a `./oren_bootstrap` fixture.
    - Status: `oretest` has a deterministic self-hosting gate (enabled via `--full` or `--selfhost`): Stage1 emits Stage2 compiler as `.obc`, then Stage2 reproduces Stage1 `dump graph` + `meta --deterministic` outputs (hash-checked).
    - Status: `oretest` now parallelizes fixtures (`--fixture-jobs`) and native tests (`--native-jobs`) to reduce `make test` wall time.
    - Status: `make test-native-all` now supports parallel builds via `NATIVE_TEST_JOBS=...` and per-test logs (`build/logs/native_all_*.log`).
@@ -118,7 +119,6 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: native self-host gate validates that the Stage2 native compiler binary is buildable + runs `selftest-native` (fast runtime surface check; no compiler pipelines), because Stage2(native) `dump graph` / `meta` are still too slow to be a reliable CI gate.
    - Status: bytecode backend now rejects assignment to undeclared vars deterministically (aligns native/bytecode semantics; prevents AVM verifier stack mismatches).
     - Next: define and freeze a “bootstrap subset” (syntax + stdlib surface) that Stage0 must support; treat changes as high-risk and gate them.
-    - Next: align Stage0 bootstrap parser with rolling syntax sugar (notably `else if` chains) so stdlib/compiler sources don’t need bootstrap-driven style constraints.
     - Next: fix Stage1→Stage2 C-backend rebuild OOM risk (clang compiling a giant single-TU generated C file can be SIGKILL on dev machines); likely needs multi-TU emission or smaller generated C.
    - Next: expand `oren selftest-native` coverage (map/string/sha256/env/args) as runtime primitives stabilize; then re-enable `meta --deterministic` (and eventually `dump graph`) behind env toggles once performance is acceptable.
    - Next: optimize `oren_sha256_range` hot path (it can dominate wall time during native builds); consider a typed-buffer implementation and/or a microkernel-assisted path while preserving determinism.

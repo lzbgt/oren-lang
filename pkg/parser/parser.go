@@ -833,12 +833,31 @@ func (p *Parser) parseIfExpression() ast.Expression {
 
 	if p.peekTokenIs(token.ELSE) {
 		p.nextToken()
+		elseTok := p.curToken
 
-		if !p.expectPeek(token.LBRACE) {
-			return nil
+		// Rolling grammar: allow `else if ... { ... }` chains.
+		// Represent as `else { if ... { ... } else { ... } }` at the AST level so
+		// existing backends (C transpiler) remain correct without structural changes.
+		if p.peekTokenIs(token.IF) {
+			p.nextToken() // move to 'if'
+			nested := p.parseIfExpression()
+			if nested == nil {
+				return nil
+			}
+			if nestedIf, ok := nested.(*ast.IfExpression); ok {
+				altTok := token.Token{Type: token.LBRACE, Literal: "{", Line: elseTok.Line, Column: elseTok.Column}
+				es := &ast.ExpressionStatement{Token: nestedIf.Token, Expression: nestedIf}
+				expression.Alternative = &ast.BlockStatement{Token: altTok, Statements: []ast.Statement{es}}
+			} else {
+				p.errors = append(p.errors, fmt.Sprintf("%d:%d expected if expression after else, got %T", elseTok.Line, elseTok.Column, nested))
+				return nil
+			}
+		} else {
+			if !p.expectPeek(token.LBRACE) {
+				return nil
+			}
+			expression.Alternative = p.parseBlockStatement()
 		}
-
-		expression.Alternative = p.parseBlockStatement()
 	}
 
 	return expression

@@ -531,19 +531,44 @@ func main() {
 	}
 
 	// Compile-fail fixtures (portable semantics guards).
-	fixtures := []struct {
-		name    string
-		cmd     string
-		timeout time.Duration
-		log     string
-		ok      func(rc int) bool
-		cleanup []string
-	}{
-		{
-			name: "manifest_bytecode",
-			cmd: fmt.Sprintf(
-				"./oren build %q --backend bytecode --target %s --deterministic --manifest -o %q > %q && "+
-					"test -s %q && "+
+		fixtures := []struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			{
+				name: "bootstrap_else_if_parse",
+				cmd: fmt.Sprintf(
+					"sh -c 'set -e; wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+						"cat > \"$wd/main.oren\" <<\"EOF\"\n"+
+						"fn main() {\n"+
+						"    var x = 0\n"+
+						"    if x == 0 {\n"+
+						"        exit(0)\n"+
+						"    } else if x == 1 {\n"+
+						"        exit(1)\n"+
+						"    } else {\n"+
+						"        exit(2)\n"+
+						"    }\n"+
+						"}\n"+
+						"EOF\n"+
+						"./oren_bootstrap build \"$wd/main.oren\" --emit-c > \"$wd/out.txt\" 2>&1; "+
+						"test -s \"$wd/main.oren.c\"; "+
+						"grep -Fq \"Wrote\" \"$wd/out.txt\"'",
+					"build/tmp/fixture_bootstrap_else_if_parse",
+				),
+				log:     "build/logs/bootstrap_else_if_parse.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{"build/tmp/fixture_bootstrap_else_if_parse"},
+			},
+			{
+				name: "manifest_bytecode",
+				cmd: fmt.Sprintf(
+					"./oren build %q --backend bytecode --target %s --deterministic --manifest -o %q > %q && "+
+						"test -s %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Eq %q %q",
