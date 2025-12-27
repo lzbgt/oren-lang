@@ -1567,6 +1567,48 @@ func main() {
 		})
 	}
 
+	if envBool("OREN_REMOTE_RUN", false) {
+		// Opt-in remote-run gate for x86_64 artifacts (Win11 + WSL2).
+		// See docs/REMOTE_X64_ENV.md for the proxy access workflow.
+		fixtures = append(fixtures, struct {
+			name    string
+			cmd     string
+			timeout time.Duration
+			log     string
+			ok      func(rc int) bool
+			cleanup []string
+		}{
+			name: "remote_x64_run_print_win_and_wsl",
+			cmd: fmt.Sprintf(
+				"sh -c \"set -e; wd=%q; rm -rf \\\"$wd\\\"; mkdir -p \\\"$wd\\\"; "+
+					"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \\\"$wd/x64_print_linux\\\" > \\\"$wd/build_linux.out\\\"; "+
+					"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \\\"$wd/x64_print_win.exe\\\" > \\\"$wd/build_win.out\\\"; "+
+					"echo '[remote] ensure dir'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work 'cmd.exe /c \\\"mkdir %%USERPROFILE%%\\\\tmp_oren\\\"'; "+
+					"echo '[remote] copy artifacts'; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_print_win.exe\\\" lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_print_win.exe; "+
+					"scp -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' \\\"$wd/x64_print_linux\\\"   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_print_linux; "+
+					"echo '[remote] run windows exe'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'cmd.exe /c \\\"C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\x64_print_win.exe > C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\out_win.txt & echo EXIT=%%ERRORLEVEL%% & type C:\\\\\\\\Users\\\\\\\\lzbgt\\\\\\\\tmp_oren\\\\\\\\out_win.txt\\\"' "+
+					"> \\\"$wd/run_win.out\\\"; "+
+					"grep -Fq 'EXIT=0' \\\"$wd/run_win.out\\\"; grep -Fq 'x64 hello' \\\"$wd/run_win.out\\\"; "+
+					"echo '[remote] run linux exe (wsl)'; "+
+					"ssh -o 'proxycommand socat - PROXY:hubstack.cn:%%h:%%p,proxyport=6002' lzbgt@pc.work "+
+					"'wsl.exe -e bash -lc \\\"chmod +x /mnt/c/Users/lzbgt/tmp_oren/x64_print_linux && /mnt/c/Users/lzbgt/tmp_oren/x64_print_linux > /mnt/c/Users/lzbgt/tmp_oren/out_wsl.txt; echo EXIT=$?; cat /mnt/c/Users/lzbgt/tmp_oren/out_wsl.txt\\\"' "+
+					"> \\\"$wd/run_wsl.out\\\"; "+
+					"grep -Fq 'EXIT=0' \\\"$wd/run_wsl.out\\\"; grep -Fq 'x64 hello' \\\"$wd/run_wsl.out\\\"\"",
+				"build/tmp/fixture_remote_x64_run_print_win_and_wsl",
+				"tests/fixtures/x64_print_main.oren",
+				"tests/fixtures/x64_print_main.oren",
+			),
+			timeout: 5 * time.Minute,
+			log:     "build/logs/fixture_remote_x64_run_print_win_and_wsl.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/tmp/fixture_remote_x64_run_print_win_and_wsl"},
+		})
+	}
+
 	// Runtime diagnostics fixtures (expected non-zero exit, machine-readable header).
 	runtimeFixtures := []struct {
 		name    string
