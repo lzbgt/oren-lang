@@ -881,7 +881,65 @@ In rolling mode, the canonical verification step is:
 timeout 900 ./oretest --target macos
 ```
 
-## 12) Where to go next
+## 12) Test fixtures are a living spec (recommended)
+
+The language and runtime evolve quickly in rolling mode. The most accurate “what works today” source is:
+
+- `tests/native/fixtures/` (native + C backends; compile-time and runtime diagnostics)
+- `tests/fixtures/` (targeted bring-up fixtures, including x86_64 native)
+- `tests/modules/` (stdlib and module-level behavior)
+- `tests/avm/` (AVM semantics and sandbox/determinism constraints)
+
+This is intentional: fixtures are small, high-signal, and regression-friendly.
+
+### Useful fixture groups (native backend)
+
+- **Machine-readable compile errors** (`OREN_DIAG kind=compile|parse|codegen`):
+  - Parse error contract: `tests/native/fixtures/parse_error.oren`
+  - Codegen error contract: `tests/native/fixtures/codegen_error.oren`
+  - Bytecode codegen error contract: `tests/native/fixtures/bytecode_codegen_error.oren`
+  - Generic constraint failures: `tests/native/fixtures/generic_constraint_missing_impl.oren`
+
+- **Deterministic runtime panics** (`OREN_DIAG kind=panic code=1`):
+  - Division by zero: `tests/native/fixtures/arith_div0.oren`
+  - Signed overflow (`i64_min / -1`): `tests/native/fixtures/arith_div_overflow.oren`
+  - Shift count out of range: `tests/native/fixtures/arith_shift_oob.oren`
+
+- **Struct field assignment (rolling semantics)**:
+  - OK path: `tests/native/fixtures/struct_field_assign_ok.oren`
+  - Error path: `tests/native/fixtures/struct_field_assign_bad.oren`
+
+### Capsule runtime fixture naming conventions
+
+There are many “capsule runtime” fixtures. They are intentionally verbose so a failing case points at
+exactly one syscall/domain edge.
+
+- **FS (filesystems / mounts / syscalls)**:
+  - High-level helpers: `tests/native/fixtures/capsule_runtime_fs_prog.oren`, `tests/native/fixtures/capsule_runtime_fs_read_prog.oren`
+  - Mount behavior: `tests/native/fixtures/capsule_runtime_fs_mount_read_prog.oren`, `tests/native/fixtures/capsule_runtime_fs_mount_write_prog.oren`
+  - Syscall edges: `tests/native/fixtures/capsule_runtime_fs_syscall_open_read_prog.oren`, `tests/native/fixtures/capsule_runtime_fs_syscall_unlink_prog.oren`, etc.
+
+- **NET (tcp connect/listen + raw socket syscalls)**:
+  - High-level: `tests/native/fixtures/capsule_runtime_net_connect_prog.oren`, `tests/native/fixtures/capsule_runtime_net_listen_prog.oren`
+  - Syscall edges: `tests/native/fixtures/capsule_runtime_net_syscall_connect_prog.oren`, `tests/native/fixtures/capsule_runtime_net_syscall_read_socket_prog.oren`, etc.
+
+- **PROC (spawn/exec/system/env)**:
+  - High-level: `tests/native/fixtures/capsule_runtime_proc_spawn_prog.oren`, `tests/native/fixtures/capsule_runtime_proc_system_prog.oren`
+  - Syscall edges: `tests/native/fixtures/capsule_runtime_proc_syscall_execve_true_prog.oren`, `tests/native/fixtures/capsule_runtime_proc_syscall_pipe_prog.oren`
+  - Nested capsule behavior: `tests/native/fixtures/capsule_runtime_proc_child_capsule_parent.oren`, `tests/native/fixtures/capsule_runtime_proc_child_capsule_child.oren`
+
+- **TIME (determinism constraints)**:
+  - Syscall edges: `tests/native/fixtures/capsule_runtime_time_syscall_gettimeofday_prog.oren`, `tests/native/fixtures/capsule_runtime_time_syscall_nanosleep_prog.oren`
+
+### x86_64 native bring-up fixtures (Tier‑1 roadmap)
+
+The x86_64 native backend is Tier‑1, but still in bring-up. The x64 fixtures in `tests/fixtures/`
+are the canonical incremental contract for what the x64 backend supports today:
+
+- `tests/fixtures/x64_*_main.oren` are compiled for Linux ELF + Windows PE in `oretest`.
+- Remote execution (Win11 + WSL2) is opt-in; see `docs/REMOTE_X64_ENV.md`.
+
+## 13) Where to go next
 
 - Formal language spec: `docs/LANGUAGE_SPEC.md`
 - Evolution narrative (day0 → “compiler-in-AVM”): `docs/EVOLUTION_GUIDE.md`

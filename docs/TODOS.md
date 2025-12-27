@@ -10,6 +10,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Next: converge callable ABI on the canonical `{code_ptr, env_ptr}` + `args_list` model (closures + safe indirect calls) across arm64/x64.
    - Next: varargs (`...rest`) lowering + spread semantics, including efficient list packing and tail-call-safe wrapper stubs.
    - Next: expand x64 parity for containers, pointers, floats/SIMD (keep fixtures small + deterministic; keep remote-run opt-in).
+   - Next: implement x64 native runtime injection (allocator + strings + lists/maps) so x64 can run non-trivial stdlib code without host libc dependencies.
    - References: `docs/NATIVE_BACKEND.md`, `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`, `docs/REMOTE_X64_ENV.md`.
 
 2) **Container ops modernization (generic + dyn)** (M)
@@ -56,3 +57,4 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **Container ops first milestone (arm64 native)**: list indexing `xs[i]` and index assignment `xs[i]=v` now lower to native code directly (no `oren_list_get` / `oren_index_set` call), with a deterministic fallback to `oren_map_get` / `oren_map_set` for non-list containers; `oren_index_set` runtime semantics now match the spec (lists do not auto-grow).
 - **Container ops second milestone (arm64 native)**: `oren_list_len(xs)` and `oren_list_push(xs, v)` now use native fast-paths (len is fully inlined; push is inlined when `count < cap`, otherwise falls back to runtime growth).
 - **Test throughput**: `oretest` now runs runtime diagnostic fixtures in parallel (bounded by `--fixture-jobs`) to reduce wall time during rolling development.
+- **Docs coverage**: `docs/LANGUAGE_MANUAL.md` now includes a “fixtures as living spec” index pointing at key `tests/native/fixtures` and x64 bring-up fixtures.
