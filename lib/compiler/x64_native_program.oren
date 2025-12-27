@@ -62,6 +62,8 @@ fn insn_cmp_r64_r64(lhs, rhs) { return core.insn_cmp_r64_r64(lhs, rhs) }
 fn insn_jcc_rel32(cc, disp32) { return core.insn_jcc_rel32(cc, disp32) }
 fn insn_imul_r32_imm32(reg, imm32) { return core.insn_imul_r32_imm32(reg, imm32) }
 fn insn_imul_r64_imm32(reg, imm32) { return core.insn_imul_r64_imm32(reg, imm32) }
+fn insn_not_r64(reg) { return core.insn_not_r64(reg) }
+fn insn_neg_r64(reg) { return core.insn_neg_r64(reg) }
 
 fn err(ctx, msg) {
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -483,6 +485,17 @@ fn _expr_int_check(ctx, expr) {
         _expr_int_check(ctx, r)
         return nil
     }
+    if t == "Prefix" {
+        var op = expr["op"]
+        if op != "-" && op != "~" {
+            err(ctx, "x64 native v0: prefix op not supported: " + op)
+            return nil
+        }
+        var r = expr["right"]
+        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
+        _expr_int_check(ctx, r)
+        return nil
+    }
     err(ctx, "x64 native v0: expr not supported: " + t)
     return nil
 }
@@ -599,6 +612,23 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = [fnobj].code_ptr
             bytes_extend(ctx["code"], insn_call_rax())
         }
+        return nil
+    }
+    if t == "Prefix" {
+        var op = expr["op"]
+        var r = expr["right"]
+        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
+        _emit_eval_int_to_rax(ctx, r, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if op == "-" {
+            bytes_extend(ctx["code"], insn_neg_r64(0)) // neg rax
+            return nil
+        }
+        if op == "~" {
+            bytes_extend(ctx["code"], insn_not_r64(0)) // not rax
+            return nil
+        }
+        err(ctx, "x64 native v0: prefix op not supported: " + op)
         return nil
     }
     if t == "Infix" {

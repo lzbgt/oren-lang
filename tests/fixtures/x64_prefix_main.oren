@@ -1,0 +1,15 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises Prefix expressions: unary '-' and bitwise '~'
+//
+// Expected:
+//   x = -1
+//   y = ~0 => -1
+//   x == y => return 1 else 0
+
+fn main() {
+    var x = -1
+    var y = ~0
+    if x == y { return 1 }
+    return 0
+}
+

@@ -13,8 +13,7 @@
 // => return 35
 
 fn main() {
-    // Avoid unary prefix nodes (`-1`) in this fixture until x64 v0 lowers Prefix.
-    var x = 0 - 1
+    var x = -1
     var y = 0
     var c = 0
 
