@@ -1,0 +1,10 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - invalid arithmetic must be deterministic across backends
+// - i64_min / -1 must abort (overflow in two's complement; x86 idiv traps)
+
+fn main() {
+    var i64_min = 0 - (1 << 63)
+    var x = i64_min / -1
+    return x
+}
+

@@ -1,0 +1,5 @@
+// Native + C backend fixture:
+// shift count must be in 0..63; out-of-range must be a deterministic runtime panic.
+
+var x = 1 << 64
+print(x)

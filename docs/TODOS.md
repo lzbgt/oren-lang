@@ -9,7 +9,6 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Goal: x86_64 (Linux+Windows) is Tier‑1 alongside arm64 (macOS/Linux) with consistent semantics across native/C/bytecode backends.
    - Next: converge callable ABI on the canonical `{code_ptr, env_ptr}` + `args_list` model (closures + safe indirect calls) across arm64/x64.
    - Next: varargs (`...rest`) lowering + spread semantics, including efficient list packing and tail-call-safe wrapper stubs.
-   - Next: add native fixtures for invalid arithmetic aborts (`/0`, `i64_min/-1`, `1<<64`) so regressions are caught outside AVM.
    - Next: expand x64 parity for containers, pointers, floats/SIMD (keep fixtures small + deterministic; keep remote-run opt-in).
    - References: `docs/NATIVE_BACKEND.md`, `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`, `docs/REMOTE_X64_ENV.md`.
 
@@ -52,3 +51,4 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **x64 backend modularized for reviewability**: `lib/compiler/x64_native_program.oren` now uses `// @include` chunks under `lib/compiler/x64_native_program/` to avoid large-file context overflow while keeping namespace stability.
 - **ARM64 `/` semantics fixed for Tier‑1 parity**: `int / int` now lowers to `SDIV` (signed trunc-toward-zero) in the arm64 native backend; integration suite adds signed division asserts.
 - **Arithmetic invalid cases standardized**: native backends now deterministically abort on div-by-zero / `i64_min / -1` and shift counts outside `0..63`, matching AVM and the C backend runtime.
+- **Invalid arithmetic fixtures added**: `oretest` now exercises div0 / overflow / shift-oob panic behavior in the local native+C backends and ensures x64 ELF/PE builds exist for the same cases.

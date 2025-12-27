@@ -1,0 +1,5 @@
+// Native + C backend fixture:
+// division by zero must be a deterministic runtime panic (no host SIGFPE / UB).
+
+var x = 1 / 0
+print(x)

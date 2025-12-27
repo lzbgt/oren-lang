@@ -1867,6 +1867,117 @@ func main() {
 			},
 		},
 		{
+			name: "native_x64_div0_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_div0_main.oren",
+				"build/x64_div0_linux",
+				"build/x64_div0_linux.build.out",
+				"build/x64_div0_linux",
+				"build/x64_div0_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_div0_linux.file.out",
+				"x86-64",
+				"build/x64_div0_linux.file.out",
+				"tests/fixtures/x64_div0_main.oren",
+				"build/x64_div0_win.exe",
+				"build/x64_div0_win.build.out",
+				"build/x64_div0_win.exe",
+				"build/x64_div0_win.file.out",
+				"PE32+",
+				"build/x64_div0_win.file.out",
+				"x86-64",
+				"build/x64_div0_win.file.out",
+			),
+			log: "build/logs/native_x64_div0_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_div0_linux",
+				"build/x64_div0_linux.build.out",
+				"build/x64_div0_linux.file.out",
+				"build/x64_div0_win.exe",
+				"build/x64_div0_win.build.out",
+				"build/x64_div0_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_div_overflow_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_div_overflow_main.oren",
+				"build/x64_div_overflow_linux",
+				"build/x64_div_overflow_linux.build.out",
+				"build/x64_div_overflow_linux",
+				"build/x64_div_overflow_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_div_overflow_linux.file.out",
+				"x86-64",
+				"build/x64_div_overflow_linux.file.out",
+				"tests/fixtures/x64_div_overflow_main.oren",
+				"build/x64_div_overflow_win.exe",
+				"build/x64_div_overflow_win.build.out",
+				"build/x64_div_overflow_win.exe",
+				"build/x64_div_overflow_win.file.out",
+				"PE32+",
+				"build/x64_div_overflow_win.file.out",
+				"x86-64",
+				"build/x64_div_overflow_win.file.out",
+			),
+			log: "build/logs/native_x64_div_overflow_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_div_overflow_linux",
+				"build/x64_div_overflow_linux.build.out",
+				"build/x64_div_overflow_linux.file.out",
+				"build/x64_div_overflow_win.exe",
+				"build/x64_div_overflow_win.build.out",
+				"build/x64_div_overflow_win.file.out",
+			},
+		},
+		{
+			name: "native_x64_shift_oob_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_shift_oob_main.oren",
+				"build/x64_shift_oob_linux",
+				"build/x64_shift_oob_linux.build.out",
+				"build/x64_shift_oob_linux",
+				"build/x64_shift_oob_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_shift_oob_linux.file.out",
+				"x86-64",
+				"build/x64_shift_oob_linux.file.out",
+				"tests/fixtures/x64_shift_oob_main.oren",
+				"build/x64_shift_oob_win.exe",
+				"build/x64_shift_oob_win.build.out",
+				"build/x64_shift_oob_win.exe",
+				"build/x64_shift_oob_win.file.out",
+				"PE32+",
+				"build/x64_shift_oob_win.file.out",
+				"x86-64",
+				"build/x64_shift_oob_win.file.out",
+			),
+			log: "build/logs/native_x64_shift_oob_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_shift_oob_linux",
+				"build/x64_shift_oob_linux.build.out",
+				"build/x64_shift_oob_linux.file.out",
+				"build/x64_shift_oob_win.exe",
+				"build/x64_shift_oob_win.build.out",
+				"build/x64_shift_oob_win.file.out",
+			},
+		},
+		{
 			name: "native_x64_call_builds",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
@@ -2968,6 +3079,66 @@ func main() {
 				return rc == 42 && strings.Contains(out, "OREN_DIAG kind=fail code=42")
 			},
 			cleanup: []string{"build/diag_fail_c"},
+		},
+		{
+			name:  "arith_div0_native",
+			build: fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", "tests/native/fixtures/arith_div0.oren", *target, "build/arith_div0_native", gcArg),
+			run:   "./build/arith_div0_native",
+			log:   "build/logs/arith_div0_native.log",
+			ok: func(rc int, out string) bool {
+				return rc != 0 && strings.Contains(out, "OREN_DIAG kind=panic code=1") && strings.Contains(out, "division by zero")
+			},
+			cleanup: []string{"build/arith_div0_native"},
+		},
+		{
+			name:  "arith_div0_c",
+			build: fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/arith_div0.oren", *target, "build/arith_div0_c", gcArg),
+			run:   "./build/arith_div0_c",
+			log:   "build/logs/arith_div0_c.log",
+			ok: func(rc int, out string) bool {
+				return rc != 0 && strings.Contains(out, "OREN_DIAG kind=panic code=1") && strings.Contains(out, "division by zero")
+			},
+			cleanup: []string{"build/arith_div0_c"},
+		},
+		{
+			name:  "arith_div_overflow_native",
+			build: fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", "tests/native/fixtures/arith_div_overflow.oren", *target, "build/arith_div_overflow_native", gcArg),
+			run:   "./build/arith_div_overflow_native",
+			log:   "build/logs/arith_div_overflow_native.log",
+			ok: func(rc int, out string) bool {
+				return rc != 0 && strings.Contains(out, "OREN_DIAG kind=panic code=1") && strings.Contains(out, "division overflow (i64_min / -1)")
+			},
+			cleanup: []string{"build/arith_div_overflow_native"},
+		},
+		{
+			name:  "arith_div_overflow_c",
+			build: fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/arith_div_overflow.oren", *target, "build/arith_div_overflow_c", gcArg),
+			run:   "./build/arith_div_overflow_c",
+			log:   "build/logs/arith_div_overflow_c.log",
+			ok: func(rc int, out string) bool {
+				return rc != 0 && strings.Contains(out, "OREN_DIAG kind=panic code=1") && strings.Contains(out, "division overflow (i64_min / -1)")
+			},
+			cleanup: []string{"build/arith_div_overflow_c"},
+		},
+		{
+			name:  "arith_shift_oob_native",
+			build: fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", "tests/native/fixtures/arith_shift_oob.oren", *target, "build/arith_shift_oob_native", gcArg),
+			run:   "./build/arith_shift_oob_native",
+			log:   "build/logs/arith_shift_oob_native.log",
+			ok: func(rc int, out string) bool {
+				return rc != 0 && strings.Contains(out, "OREN_DIAG kind=panic code=1") && strings.Contains(out, "shl shift count out of range (need 0..63)")
+			},
+			cleanup: []string{"build/arith_shift_oob_native"},
+		},
+		{
+			name:  "arith_shift_oob_c",
+			build: fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/arith_shift_oob.oren", *target, "build/arith_shift_oob_c", gcArg),
+			run:   "./build/arith_shift_oob_c",
+			log:   "build/logs/arith_shift_oob_c.log",
+			ok: func(rc int, out string) bool {
+				return rc != 0 && strings.Contains(out, "OREN_DIAG kind=panic code=1") && strings.Contains(out, "shl shift count out of range (need 0..63)")
+			},
+			cleanup: []string{"build/arith_shift_oob_c"},
 		},
 	}
 

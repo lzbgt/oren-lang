@@ -333,6 +333,15 @@ fn emit_load_i64_imm(ctx, reg, val) {
         return nil
     }
 
+    // Special-case INT64_MIN: abs(INT64_MIN) overflows in two's complement.
+    // Emit the bit-pattern directly: 0x8000_0000_0000_0000.
+    var i64_min = 0 - (1 << 63)
+    if val == i64_min {
+        push_u32_le(ctx["code"], insn_movz(reg, 0))
+        push_u32_le(ctx["code"], insn_movk(reg, 32768, 3)) // 0x8000 << 48
+        return nil
+    }
+
     var abs = 0 - val
     if abs <= 65536 {
         push_u32_le(ctx["code"], insn_movn(reg, abs - 1))

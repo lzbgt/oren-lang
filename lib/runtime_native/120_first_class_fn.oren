@@ -164,7 +164,6 @@ fn oren_mod(a, b) {
     // - modulo by zero
     // - i64_min % -1 (would imply division overflow)
     //
-    // Implement the signed behavior explicitly using abs() + trunc-to-zero division on positives.
     if b == 0 {
         oren_panic("modulo by zero")
         return 0
@@ -177,15 +176,12 @@ fn oren_mod(a, b) {
         return 0
     }
 
-    var ua = a
-    var ub = b
-    if ua < 0 { ua = 0 - ua }
-    if ub < 0 { ub = 0 - ub }
-    // quotient for positive operands (unsigned division semantics are fine here)
-    var q = ua / ub
-    var rpos = ua - (q * ub)
-    if a < 0 { return 0 - rpos }
-    return rpos
+    // Trunc-to-zero remainder identity:
+    //   a == (a / b) * b + (a % b)
+    // so:
+    //   a % b == a - (a / b) * b
+    var q = a / b
+    return a - (q * b)
 }
 
 fn oren_int_to_string(n) {

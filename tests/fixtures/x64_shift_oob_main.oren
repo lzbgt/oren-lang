@@ -1,0 +1,9 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - invalid arithmetic must be deterministic across backends
+// - shift count must be in 0..63; out-of-range must abort
+
+fn main() {
+    var x = 1 << 64
+    return x
+}
+

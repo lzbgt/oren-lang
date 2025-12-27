@@ -1,0 +1,9 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - invalid arithmetic must be deterministic across backends
+// - division by zero must abort (no SIGFPE / UB / masking)
+
+fn main() {
+    var x = 1 / 0
+    return x
+}
+
