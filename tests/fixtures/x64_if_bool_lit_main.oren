@@ -1,0 +1,12 @@
+// x86_64 native backend fixture (rolling bring-up):
+// - exercises Boolean literals in conditions (`true`/`false`)
+
+fn main() {
+    if false {
+        return 1
+    }
+    if true {
+        return 2
+    }
+    return 3
+}

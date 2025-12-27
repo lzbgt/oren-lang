@@ -33,7 +33,7 @@ This file tracks only the highest-priority active items (5–10 total). Detailed
    - Status: x64 lowering supports local `var x = <int>` and `return x` (stack slot via RBP-relative addressing); oretest ensures it builds for both ELF+PE targets.
    - Status: x64 lowering supports `+` / `-` on i32 (`return x + 2`, `return 40 - x` style); oretest ensures it builds for both targets.
    - Status: x64 lowering supports `if <id|int> (==|!=) <id|int> { ... } else { ... }` with early returns; oretest ensures it builds for both targets.
-   - Status: x64 lowering supports truthy conditions (`if <expr> { ... }`, `while <expr> { ... }`, and `if !x { ... }` where `<expr>` is an int expression) by lowering to `cmp rax, 0` + Jcc; oretest builds both targets (`x64_if_truthy_main.oren`, `x64_while_truthy_main.oren`, `x64_if_not_truthy_main.oren`).
+   - Status: x64 lowering supports truthy conditions (`if <expr> { ... }`, `while <expr> { ... }`, `if !x { ... }`, plus `if true/false { ... }`) by lowering to `cmp rax, 0` + Jcc; oretest builds both targets (`x64_if_truthy_main.oren`, `x64_while_truthy_main.oren`, `x64_if_not_truthy_main.oren`, `x64_if_bool_lit_main.oren`).
    - Status: x64 lowering supports `while <id|int> (==|!=) <id|int> { ... }` plus assignment (`x = x + 1`) with local vars; oretest ensures it builds for both targets.
    - Status: x64 lowering supports `break` / `continue` inside `while` loops; oretest ensures it builds for both targets, and `OREN_REMOTE_RUN=1` validates exit codes on real x86_64.
    - Status: x64 lowering supports `for var i = 0; i < N; i = i + 1 { ... }` with correct `continue` semantics (continue jumps to post); oretest builds both targets and `OREN_REMOTE_RUN=1` validates exit code on real x86_64.

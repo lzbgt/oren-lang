@@ -467,6 +467,7 @@ fn _expr_int_check(ctx, expr) {
         if n > 2147483647 { err(ctx, "x64 native v0: int literal too large (max i32)"); return nil }
         return nil
     }
+    if t == "Boolean" { return nil }
     if t == "Identifier" { return nil }
     if t == "Call" {
         var fn_expr = expr["fn"]
@@ -548,6 +549,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var imm_u32 = n
         if n < 0 { imm_u32 = 4294967296 + n }
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm_u32))
+        bytes_extend(ctx["code"], insn_cdqe())
+        return nil
+    }
+    if t == "Boolean" {
+        // Map boolean literal to i32 0/1, then sign-extend to rax.
+        var v = expr["value"]
+        var imm = 0
+        if v { imm = 1 }
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm))
         bytes_extend(ctx["code"], insn_cdqe())
         return nil
     }
