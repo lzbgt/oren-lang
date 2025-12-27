@@ -39,7 +39,7 @@ Rolling note:
   - **Functions**: Definitions, direct calls, and first-class function values (callable pointers) with indirect calls (rolling; x86_64 bring-up). Stack frames (`FP`/`LR` on arm64; `RBP` on x86_64). Entry trampolines align the stack for ABI-correct calls and terminate via syscall (Linux) or imported `ExitProcess` (Windows).
   - **Variables**: Local (stack-allocated) with block-scoped cleanup to prevent loop leaks.
   - **Structs**: Constructors generate `Map` objects (Duck Typing). Access via `obj.field`. Nested struct offsets are honoured in native layout.
-  - **Lists (WIP)**: Minimal list runtime (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` for lists) for future native feature parity.
+  - **Lists (WIP)**: Minimal list runtime/intrinsics for bring-up (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_list_set`, plus `oren_index_set` for list-aware index assignment) for future native feature parity.
   - **Modules**: `import` loads code (merged).
 
 - **Memory & Concurrency**:

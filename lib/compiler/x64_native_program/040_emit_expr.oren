@@ -21,6 +21,146 @@ fn _emit_abort_exitcode(ctx, exit_code) {
     return nil
 }
 
+fn _emit_malloc_size_in_rax(ctx, locals) {
+    // malloc(size) / malloc_raw(size) intrinsic core.
+    //
+    // Input:
+    // - RAX: requested size (signed int)
+    //
+    // Output:
+    // - RAX: allocated pointer (0 on size<=0; otherwise non-zero on success)
+    //
+    // Global state (callee-saved registers, initialized in entry stub):
+    // - R15: heap_ptr
+    // - R14: heap_limit
+    //
+    // Clobbers:
+    // - R10, R11, RCX (kernel syscall clobbers RCX/R11)
+    var platform = ctx["platform"]
+    if locals == nil { err(ctx, "x64 native v0: malloc intrinsic requires locals context"); return nil }
+    var tmp0 = locals["$tmp0"]
+    if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for malloc"); return nil }
+    var labels = {}
+    var local_fixups = []
+    var l_ret0 = _new_label(ctx, "malloc_ret0")
+    var l_fast = _new_label(ctx, "malloc_fast")
+    var l_done = _new_label(ctx, "malloc_done")
+
+    // if size <= 0 => return 0
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
+
+    // Align up to 16: (size + 15) & ~15
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 15))
+    bytes_extend(ctx["code"], insn_and_r64_imm32(0, 4294967280)) // 0xFFFFFFF0 (-16)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // r11 = aligned size
+    // Spill aligned size so slow paths can recompute after syscall/call clobbers volatile regs.
+    _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
+
+    // candidate_end = heap_ptr + size
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 15)) // r10 = heap_ptr
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 11)) // r10 = end
+    // if end <= limit => fast
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 14))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_fast)
+
+    // --- Slow path ---
+    // chunk = max(size, 65536)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11)) // r10 = chunk candidate (size)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
+    var l_chunk_ok = _new_label(ctx, "malloc_chunk_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536)) // r10d = 65536
+    _emit_label(ctx, labels, l_chunk_ok)
+
+    if platform != nil && platform["os"] == "windows" {
+        // VirtualAlloc(0, chunk, MEM_COMMIT|MEM_RESERVE=0x3000, PAGE_READWRITE=0x04)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // ecx = 0
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 10))  // rdx = chunk
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 12288)) // r8d = 0x3000
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4))     // r9d = 4
+
+        var mov_iat_va = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_va + 3, "data_label": "IAT_VirtualAlloc"})
+        bytes_extend(ctx["code"], insn_call_rax())
+
+        // if rax == 0 => abort
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        var l_alloc_ok = _new_label(ctx, "malloc_alloc_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_alloc_ok)
+        _emit_abort_exitcode(ctx, 200)
+        _emit_label(ctx, labels, l_alloc_ok)
+
+        // heap_ptr = base + size; heap_limit = base + chunk
+        // Reload aligned size (volatile regs may have been clobbered by the call).
+        _emit_mov_r64_mrbp(ctx, 11, 0 - tmp0) // r11 = size
+
+        // Recompute chunk = max(size, 65536) into r10.
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
+        var l_chunk_ok3 = _new_label(ctx, "malloc_chunk_ok3")
+        _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok3)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536))
+        _emit_label(ctx, labels, l_chunk_ok3)
+
+        bytes_extend(ctx["code"], insn_mov_r64_r64(15, 0))
+        bytes_extend(ctx["code"], insn_add_r64_r64(15, 11))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
+        bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+    } else {
+        // Linux mmap syscall: mmap(0, chunk, PROT=3, MAP_PRIVATE|MAP_ANON=0x22, -1, 0)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 9)) // eax = SYS_mmap
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 10))  // rsi = chunk
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 3)) // edx = PROT_READ|PROT_WRITE
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 34)) // r10d = MAP_PRIVATE|MAP_ANON (0x22)
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(8, -1)) // r8 = -1 (fd)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))  // r9d = 0 (offset)
+        bytes_extend(ctx["code"], insn_syscall())
+
+        // if rax < 0 => abort
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        var l_mmap_ok = _new_label(ctx, "malloc_mmap_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ge", l_mmap_ok)
+        _emit_abort_exitcode(ctx, 200)
+        _emit_label(ctx, labels, l_mmap_ok)
+
+        // Reload aligned size and recompute chunk into r10 (syscall clobbers rcx/r11).
+        _emit_mov_r64_mrbp(ctx, 11, 0 - tmp0) // r11 = size
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
+        var l_chunk_ok2 = _new_label(ctx, "malloc_chunk_ok2")
+        _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok2)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536))
+        _emit_label(ctx, labels, l_chunk_ok2)
+
+        // heap_ptr = base + size; heap_limit = base + chunk
+        bytes_extend(ctx["code"], insn_mov_r64_r64(15, 0))
+        bytes_extend(ctx["code"], insn_add_r64_r64(15, 11))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
+        bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+    }
+
+    // --- Fast path ---
+    _emit_label(ctx, labels, l_fast)
+    // return old heap_ptr; heap_ptr = candidate_end
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 15))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(15, 10))
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+        _emit_label(ctx, labels, l_ret0)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
 fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // Evaluate a tiny integer expression into RAX (64-bit register).
     //
@@ -165,110 +305,396 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_eval_int_to_rax(ctx, args[0], locals) // size -> rax
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
-            var platform = ctx["platform"]
+            _emit_malloc_size_in_rax(ctx, locals)
+            return nil
+        }
+
+        if nm == "oren_new_list" {
+            // Native list layout (matches native runtime contract):
+            //   header (32 bytes): [count][cap][buf_ptr][magic]
+            // Where buffer holds 8-byte slots (u64 carriers).
+            //
+            // This is an intrinsic so x64 Tier-1 can execute list-heavy code without
+            // injecting the full native runtime yet.
+            if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_new_list expects 1 arg"); return nil }
+
+            var tmp_cap = locals["$tmp1"]
+            var tmp_hdr = locals["$tmp2"]
+            var tmp_buf = locals["$tmp3"]
+            if tmp_cap == nil || tmp_hdr == nil || tmp_buf == nil { err(ctx, "x64 native v0: missing temp slots for list alloc"); return nil }
+
+            // cap -> rax
+            _emit_eval_int_to_rax(ctx, args[0], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            // if cap < 0 => cap = 0
             var labels = {}
             var local_fixups = []
-            var l_ret0 = _new_label(ctx, "malloc_ret0")
-            var l_fast = _new_label(ctx, "malloc_fast")
-            var l_done = _new_label(ctx, "malloc_done")
-
-            // if size <= 0 => return 0
+            var l_cap_ok = _new_label(ctx, "list_cap_ok")
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-            _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
-
-            // Align up to 16: (size + 15) & ~15
-            bytes_extend(ctx["code"], insn_add_r64_imm32(0, 15))
-            bytes_extend(ctx["code"], insn_and_r64_imm32(0, 4294967280)) // 0xFFFFFFF0 (-16)
-            bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // r11 = aligned size
-
-            // candidate_end = heap_ptr + size
-            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 15)) // r10 = heap_ptr
-            bytes_extend(ctx["code"], insn_add_r64_r64(10, 11)) // r10 = end
-            // if end <= limit => fast
-            bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 14))
-            _emit_jcc_to_label(ctx, local_fixups, "le", l_fast)
-
-            // --- Slow path ---
-            // chunk = max(size, 65536)
-            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11)) // r10 = chunk candidate (size)
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
-            var l_chunk_ok = _new_label(ctx, "malloc_chunk_ok")
-            _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536)) // r10d = 65536
-            _emit_label(ctx, labels, l_chunk_ok)
-
-            if platform != nil && platform["os"] == "windows" {
-                // VirtualAlloc(0, chunk, MEM_COMMIT|MEM_RESERVE=0x3000, PAGE_READWRITE=0x04)
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // ecx = 0
-                bytes_extend(ctx["code"], insn_mov_r64_r64(2, 10))  // rdx = chunk
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 12288)) // r8d = 0x3000
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4))     // r9d = 4
-
-                var mov_iat_va = oren_list_len(ctx["code"])
-                bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-                oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_va + 3, "data_label": "IAT_VirtualAlloc"})
-                bytes_extend(ctx["code"], insn_call_rax())
-
-                // if rax == 0 => abort
-                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-                var l_alloc_ok = _new_label(ctx, "malloc_alloc_ok")
-                _emit_jcc_to_label(ctx, local_fixups, "ne", l_alloc_ok)
-                _emit_abort_exitcode(ctx, 200)
-                _emit_label(ctx, labels, l_alloc_ok)
-
-                // heap_ptr = base + size; heap_limit = base + chunk
-                bytes_extend(ctx["code"], insn_mov_r64_r64(15, 0))
-                bytes_extend(ctx["code"], insn_add_r64_r64(15, 11))
-                bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
-                bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
-                _emit_jmp_to_label(ctx, local_fixups, l_done)
-            } else {
-                // Linux mmap syscall: mmap(0, chunk, PROT=3, MAP_PRIVATE|MAP_ANON=0x22, -1, 0)
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 9)) // eax = SYS_mmap
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
-                bytes_extend(ctx["code"], insn_mov_r64_r64(6, 10))  // rsi = chunk
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 3)) // edx = PROT_READ|PROT_WRITE
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 34)) // r10d = MAP_PRIVATE|MAP_ANON (0x22)
-                bytes_extend(ctx["code"], insn_mov_r64_imm64(8, -1)) // r8 = -1 (fd)
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))  // r9d = 0 (offset)
-                bytes_extend(ctx["code"], insn_syscall())
-
-                // if rax < 0 => abort
-                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-                var l_mmap_ok = _new_label(ctx, "malloc_mmap_ok")
-                _emit_jcc_to_label(ctx, local_fixups, "ge", l_mmap_ok)
-                _emit_abort_exitcode(ctx, 200)
-                _emit_label(ctx, labels, l_mmap_ok)
-
-                // Recompute chunk into r10 (syscall clobbers rcx/r11; keep behavior deterministic).
-                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-                bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 65536))
-                var l_chunk_ok2 = _new_label(ctx, "malloc_chunk_ok2")
-                _emit_jcc_to_label(ctx, local_fixups, "ge", l_chunk_ok2)
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 65536))
-                _emit_label(ctx, labels, l_chunk_ok2)
-
-                // heap_ptr = base + size; heap_limit = base + chunk
-                bytes_extend(ctx["code"], insn_mov_r64_r64(15, 0))
-                bytes_extend(ctx["code"], insn_add_r64_r64(15, 11))
-                bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
-                bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
-                _emit_jmp_to_label(ctx, local_fixups, l_done)
-            }
-
-            // --- Fast path ---
-            _emit_label(ctx, labels, l_fast)
-            // return old heap_ptr; heap_ptr = candidate_end
-            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 15))
-            bytes_extend(ctx["code"], insn_mov_r64_r64(15, 10))
-            _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-            _emit_label(ctx, labels, l_ret0)
+            _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
             bytes_extend(ctx["code"], insn_cdqe())
+            _emit_label(ctx, labels, l_cap_ok)
+            _patch_local_fixups(ctx, labels, local_fixups)
+
+            // spill cap
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_cap, 0)
+
+            // header = malloc(32)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 32))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_malloc_size_in_rax(ctx, locals)
+            // spill header
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
+
+            // buf = 0
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+
+            // if cap > 0 => buf = malloc(cap*8)
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_cap) // rax = cap
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            labels = {}
+            local_fixups = []
+            var l_no_buf = _new_label(ctx, "list_no_buf")
+            var l_buf_done = _new_label(ctx, "list_buf_done")
+            _emit_jcc_to_label(ctx, local_fixups, "le", l_no_buf)
+            // size = cap << 3
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+            bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            _emit_malloc_size_in_rax(ctx, locals)
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+            _emit_jmp_to_label(ctx, local_fixups, l_buf_done)
+            _emit_label(ctx, labels, l_no_buf)
+            _emit_label(ctx, labels, l_buf_done)
+            _patch_local_fixups(ctx, labels, local_fixups)
+
+            // Initialize header fields.
+            //
+            // Load hdr -> rdx (base pointer).
+            _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr) // rdx = hdr
+
+            // [hdr+0] count = 0
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_cdqe())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // [hdr+8] cap = cap
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_cap) // rax = cap
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // [hdr+16] buf = buf
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_buf) // rax = buf
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // [hdr+24] magic = 'LIST'
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1279870019))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // return hdr
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
+            return nil
+        }
+
+        if nm == "oren_list_len" {
+            if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_list_len expects 1 arg"); return nil }
+
+            _emit_eval_int_to_rax(ctx, args[0], locals) // list -> rax
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            var labels = {}
+            var local_fixups = []
+            var l_nil = _new_label(ctx, "list_len_nil")
+            var l_ok = _new_label(ctx, "list_len_ok")
+            var l_done = _new_label(ctx, "list_len_done")
+
+            // if list == 0 => return 0
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_nil)
+
+            // rdx = list
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0))
+
+            // magic check: [list+24] == LIST
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_ok)
+            _emit_abort_exitcode(ctx, 1)
+
+            _emit_label(ctx, labels, l_ok)
+            // load count
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
             _emit_jmp_to_label(ctx, local_fixups, l_done)
 
+            _emit_label(ctx, labels, l_nil)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_cdqe())
             _emit_label(ctx, labels, l_done)
+            _patch_local_fixups(ctx, labels, local_fixups)
+            return nil
+        }
+
+        if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" {
+            // Implement list operations as intrinsics for x64 bring-up:
+            // - no dependency on injected runtime
+            // - deterministic aborts on invalid use
+            //
+            // Note: we keep this consistent with the native runtime layout, but we do not
+            // yet emit rich panic messages here (future: unify with `oren_panic` diagnostics).
+            var want = 0
+            if nm == "oren_list_get" { want = 2 }
+            else if nm == "oren_list_set" { want = 3 }
+            else { want = 2 }
+            if args == nil || oren_list_len(args) != want { err(ctx, "x64 native v0: list op arity mismatch"); return nil }
+
+            var tmp_list = locals["$tmp1"]
+            var tmp_val = locals["$tmp2"]
+            var tmp_count = locals["$tmp3"]
+            var tmp_cap = locals["$tmp4"]
+            var tmp_buf = locals["$tmp5"]
+            var tmp_aux = locals["$tmp6"]
+            if tmp_list == nil || tmp_val == nil || tmp_count == nil || tmp_cap == nil || tmp_buf == nil || tmp_aux == nil {
+                err(ctx, "x64 native v0: missing temp slots for list ops")
+                return nil
+            }
+
+            // list -> rax, spill
+            _emit_eval_int_to_rax(ctx, args[0], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_list, 0)
+
+            // For set/push: spill value now (so later address math doesn't lose it).
+            if nm == "oren_list_set" || nm == "oren_list_push" {
+                _emit_eval_int_to_rax(ctx, args[want - 1], locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+            }
+
+            // Reload list -> rdx
+            _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_list)
+            // list must be non-nil for get/set/push (match native runtime strictness)
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+            var labels = {}
+            var local_fixups = []
+            var l_list_ok = _new_label(ctx, "list_non_nil")
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_list_ok)
+
+            // magic check: [list+24] == LIST
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+            var l_magic_ok = _new_label(ctx, "list_magic_ok")
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_magic_ok)
+
+            // load count -> r8
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_count, 8)
+
+            // load cap -> r9
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_cap, 9)
+
+            // load buf -> r10
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // r10 = buf
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 10)
+
+            if nm == "oren_list_push" {
+                // if count < cap => skip grow
+                _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_count) // r8 = count
+                _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_cap)   // r9 = cap
+                bytes_extend(ctx["code"], insn_cmp_r64_r64(8, 9))
+                var l_grow = _new_label(ctx, "list_grow")
+                var l_push = _new_label(ctx, "list_push")
+                _emit_jcc_to_label(ctx, local_fixups, "ge", l_grow)
+                _emit_jmp_to_label(ctx, local_fixups, l_push)
+
+                // --- grow ---
+                _emit_label(ctx, labels, l_grow)
+                // new_cap = cap * 2
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9)) // rax = cap
+                bytes_extend(ctx["code"], insn_add_r64_r64(0, 9)) // rax = cap*2
+                // if new_cap < 4 => new_cap = 4
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4))
+                var l_cap_ge4 = _new_label(ctx, "list_cap_ge4")
+                _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ge4)
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4))
+                bytes_extend(ctx["code"], insn_cdqe())
+                _emit_label(ctx, labels, l_cap_ge4)
+                // spill new_cap into tmp_cap (overwrite old cap)
+                _emit_mov_mrbp_r64(ctx, 0 - tmp_cap, 0)
+
+                // new_buf = malloc(new_cap * 8)
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+                bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+                _emit_malloc_size_in_rax(ctx, locals)
+                _emit_mov_mrbp_r64(ctx, 0 - tmp_aux, 0) // tmp_aux = new_buf
+
+                // Copy old elements if count > 0.
+                _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_count) // r8 = count
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+                var l_copy_done = _new_label(ctx, "list_copy_done")
+                _emit_jcc_to_label(ctx, local_fixups, "le", l_copy_done)
+
+                _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_buf) // r9 = old buf
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+                var l_oldbuf_ok = _new_label(ctx, "list_oldbuf_ok")
+                _emit_jcc_to_label(ctx, local_fixups, "ne", l_oldbuf_ok)
+                _emit_abort_exitcode(ctx, 1)
+                _emit_label(ctx, labels, l_oldbuf_ok)
+
+                _emit_mov_r64_mrbp(ctx, 11, 0 - tmp_aux) // r11 = new buf
+                // rcx = 0 (loop i)
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0))
+                var l_loop = _new_label(ctx, "list_copy_loop")
+                var l_loop_end = _new_label(ctx, "list_copy_loop_end")
+                _emit_label(ctx, labels, l_loop)
+                bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8)) // i vs count
+                _emit_jcc_to_label(ctx, local_fixups, "ge", l_loop_end)
+
+                // off = i << 3  (r10)
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+                bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+
+                // load v = *(old_buf + off)  into rax
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+                bytes_extend(ctx["code"], insn_add_r64_r64(0, 10))
+                bytes_extend(ctx["code"], insn_mov_rax_mrax())
+
+                // store *(new_buf + off) = v
+                bytes_extend(ctx["code"], insn_mov_r64_r64(6, 11)) // rsi = new_buf
+                bytes_extend(ctx["code"], insn_add_r64_r64(6, 10))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(6, 0))
+
+                // i++
+                bytes_extend(ctx["code"], insn_add_r64_imm32(1, 1))
+                _emit_jmp_to_label(ctx, local_fixups, l_loop)
+                _emit_label(ctx, labels, l_loop_end)
+                _emit_label(ctx, labels, l_copy_done)
+
+                // Update header cap and buf fields.
+                _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_cap) // rax = new_cap
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+                _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_aux) // rax = new_buf
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+                // spill buf = new_buf (overwrite old buf slot)
+                _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+
+                _emit_jmp_to_label(ctx, local_fixups, l_push)
+
+                // --- push ---
+                _emit_label(ctx, labels, l_push)
+                _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_count) // r8 = count
+                _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_buf)   // r9 = buf
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+                var l_buf_ok = _new_label(ctx, "list_buf_ok")
+                _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
+                _emit_abort_exitcode(ctx, 1)
+                _emit_label(ctx, labels, l_buf_ok)
+
+                // addr = buf + count*8  (r10)
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 8))
+                bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+                bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+
+                // store value
+                _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val) // rax = value
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+                // count++ and store back
+                bytes_extend(ctx["code"], insn_add_r64_imm32(8, 1))
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 8))
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+                // return list
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+                _patch_local_fixups(ctx, labels, local_fixups)
+                return nil
+            }
+
+            // --- get / set ---
+            //
+            // idx expression is args[1] for both get and set.
+            _emit_eval_int_to_rax(ctx, args[1], locals) // idx -> rax
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = idx
+
+            // idx >= 0
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+            var l_idx_nonneg = _new_label(ctx, "list_idx_nonneg")
+            _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_idx_nonneg)
+
+            // idx < count
+            _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_count) // r8 = count
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
+            var l_inbounds = _new_label(ctx, "list_inbounds")
+            _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_inbounds)
+
+            // buf != 0
+            _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_buf) // r9 = buf
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+            var l_buf_ok2 = _new_label(ctx, "list_buf_ok2")
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok2)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_buf_ok2)
+
+            // addr = buf + idx*8  (r10)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+            bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+            bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+
+            if nm == "oren_list_get" {
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+                bytes_extend(ctx["code"], insn_mov_rax_mrax())
+                _patch_local_fixups(ctx, labels, local_fixups)
+                return nil
+            }
+
+            // set: store value and return value
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val)
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
             _patch_local_fixups(ctx, labels, local_fixups)
             return nil
         }

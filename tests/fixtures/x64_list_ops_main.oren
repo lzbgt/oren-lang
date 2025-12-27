@@ -1,0 +1,25 @@
+// x64-native fixture (Tier-1 bring-up):
+// - exercises list intrinsics (oren_new_list / oren_list_push / len / get / set)
+// - triggers grow path (cap=0 then push many)
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var xs = oren_new_list(0)
+
+    var i = 0
+    while i < 10 {
+        oren_list_push(xs, i)
+        i = i + 1
+    }
+
+    if oren_list_len(xs) != 10 { return 1 }
+    if oren_list_get(xs, 5) != 5 { return 2 }
+
+    oren_list_set(xs, 5, 99)
+    if oren_list_get(xs, 5) != 99 { return 3 }
+
+    return 0
+}
+
