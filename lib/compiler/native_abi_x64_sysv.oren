@@ -7,11 +7,10 @@ fn x64_sysv() {
     return {
         // Integer/pointer args (subset used by current x64 backend).
         // SysV order: rdi, rsi, rdx, rcx, r8, r9
-        "int_arg_regs32": [7, 6, 2, 1, 8, 9],
+        "int_arg_regs": [7, 6, 2, 1, 8, 9],
         // SysV has no mandatory shadow space.
         "caller_shadow_bytes": 0,
         // v0: no dedicated call area needed (we avoid pushing during calls).
         "callee_call_area_bytes": 0,
     }
 }
-

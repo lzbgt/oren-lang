@@ -6,7 +6,7 @@
 fn x64_win64() {
     return {
         // Integer/pointer args: rcx, rdx, r8, r9
-        "int_arg_regs32": [1, 2, 8, 9],
+        "int_arg_regs": [1, 2, 8, 9],
         // Win64 requires 32B shadow space reserved by the caller for every call.
         "caller_shadow_bytes": 32,
         // v0: we reserve 64B in each function frame:
@@ -14,4 +14,3 @@ fn x64_win64() {
         "callee_call_area_bytes": 64,
     }
 }
-
