@@ -133,6 +133,51 @@ static void free_bytes_obj(AvmBytes* b) {
     free(b);
 }
 
+static int add_trusted_pubkey_32(uint8_t out_pks[][32], size_t* out_count, size_t cap, const uint8_t* pk32) {
+    if (!out_pks || !out_count || !pk32) return 0;
+    if (*out_count >= cap) return 0;
+    memcpy(out_pks[*out_count], pk32, 32);
+    (*out_count)++;
+    return 1;
+}
+
+static int add_trusted_pubkey_hex_list(uint8_t out_pks[][32], size_t* out_count, size_t cap, const char* s, const char* label) {
+    // Accept either:
+    // - a single 64-hex pubkey
+    // - a comma-separated list of 64-hex pubkeys
+    if (!s || !s[0]) return 1;
+    const char* p = s;
+    while (*p) {
+        while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',') p++;
+        if (!*p) break;
+        const char* start = p;
+        while (*p && *p != ',') p++;
+        size_t n = (size_t)(p - start);
+        while (n > 0 && (start[n - 1] == ' ' || start[n - 1] == '\t' || start[n - 1] == '\n' || start[n - 1] == '\r')) n--;
+        if (n == 0) continue;
+        char tmp[256];
+        if (n >= sizeof(tmp)) {
+            fprintf(stderr, "Invalid %s (token too long)\n", label ? label : "trusted pubkey");
+            return 0;
+        }
+        memcpy(tmp, start, n);
+        tmp[n] = 0;
+        AvmBytes* b = bytes_from_hex(tmp);
+        if (!b || b->len != 32) {
+            fprintf(stderr, "Invalid %s (expected 64 hex chars)\n", label ? label : "trusted pubkey");
+            if (b) free_bytes_obj(b);
+            return 0;
+        }
+        if (!add_trusted_pubkey_32(out_pks, out_count, cap, b->data)) {
+            fprintf(stderr, "Too many trusted pubkeys (cap=%zu)\n", cap);
+            free_bytes_obj(b);
+            return 0;
+        }
+        free_bytes_obj(b);
+    }
+    return 1;
+}
+
 static char* bytes_to_hex(const uint8_t* data, size_t len) {
     static const char* hexd = "0123456789abcdef";
     char* out = (char*)malloc(len * 2 + 1);
@@ -2107,8 +2152,10 @@ int main(int argc, char** argv) {
     const char* net_fixtures_hex_cli = NULL;
     int require_sig = 0;
     int require_cert_chain = 0;
-    const char* trusted_pubkey_cli = NULL;
-    const char* trusted_pubkey_hex_cli = NULL;
+    const char* trusted_pubkey_cli_list[16];
+    int trusted_pubkey_cli_count = 0;
+    const char* trusted_pubkey_hex_cli_list[16];
+    int trusted_pubkey_hex_cli_count = 0;
     const char* timeout_ms_cli = NULL;
     const char* call_depth_max_cli = NULL;
     const char* task_quantum_cli = NULL;
@@ -2352,13 +2399,15 @@ int main(int argc, char** argv) {
         }
         if (strcmp(argv[i], "--trusted-pubkey") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --trusted-pubkey\n"); return 1; }
-            trusted_pubkey_cli = argv[i + 1];
+            if (trusted_pubkey_cli_count >= 16) { fprintf(stderr, "Too many --trusted-pubkey entries (cap=16)\n"); return 1; }
+            trusted_pubkey_cli_list[trusted_pubkey_cli_count++] = argv[i + 1];
             i += 2;
             continue;
         }
         if (strcmp(argv[i], "--trusted-pubkey-hex") == 0) {
             if (i + 1 >= argc) { fprintf(stderr, "Missing value for --trusted-pubkey-hex\n"); return 1; }
-            trusted_pubkey_hex_cli = argv[i + 1];
+            if (trusted_pubkey_hex_cli_count >= 16) { fprintf(stderr, "Too many --trusted-pubkey-hex entries (cap=16)\n"); return 1; }
+            trusted_pubkey_hex_cli_list[trusted_pubkey_hex_cli_count++] = argv[i + 1];
             i += 2;
             continue;
         }
@@ -2472,22 +2521,22 @@ int main(int argc, char** argv) {
     const char* require_chain_env = getenv("AVM_REQUIRE_CERT_CHAIN");
     if (require_chain_env && require_chain_env[0] && require_chain_env[0] != '0') { require_sig = 1; require_cert_chain = 1; }
 
-    uint8_t trusted_pk[32];
-    int has_trusted_pk = 0;
-    if (trusted_pubkey_hex_cli && trusted_pubkey_hex_cli[0]) {
-        AvmBytes* b = bytes_from_hex(trusted_pubkey_hex_cli);
-        if (!b || b->len != 32) {
-            fprintf(stderr, "Invalid --trusted-pubkey-hex (expected 64 hex chars)\n");
+    uint8_t trusted_pks[16][32];
+    size_t trusted_pk_count = 0;
+
+    // Collect trusted keys from CLI.
+    for (int k = 0; k < trusted_pubkey_hex_cli_count; k++) {
+        if (!add_trusted_pubkey_hex_list(trusted_pks, &trusted_pk_count, 16, trusted_pubkey_hex_cli_list[k], "--trusted-pubkey-hex")) {
             free(break_pcs);
             free(data);
             return 1;
         }
-        memcpy(trusted_pk, b->data, 32);
-        has_trusted_pk = 1;
-        free_bytes_obj(b);
-    } else if (trusted_pubkey_cli && trusted_pubkey_cli[0]) {
+    }
+    for (int k = 0; k < trusted_pubkey_cli_count; k++) {
+        const char* path = trusted_pubkey_cli_list[k];
+        if (!path || !path[0]) continue;
         size_t pklen = 0;
-        uint8_t* pkb = read_file(trusted_pubkey_cli, &pklen);
+        uint8_t* pkb = read_file(path, &pklen);
         if (!pkb || pklen != 32) {
             fprintf(stderr, "Invalid --trusted-pubkey (expected 32 raw bytes)\n");
             free(break_pcs);
@@ -2495,38 +2544,36 @@ int main(int argc, char** argv) {
             free(pkb);
             return 1;
         }
-        memcpy(trusted_pk, pkb, 32);
-        has_trusted_pk = 1;
+        if (!add_trusted_pubkey_32(trusted_pks, &trusted_pk_count, 16, pkb)) {
+            fprintf(stderr, "Too many trusted pubkeys (cap=16)\n");
+            free(break_pcs);
+            free(data);
+            free(pkb);
+            return 1;
+        }
         free(pkb);
-    } else {
-        const char* env_pk_hex = getenv("AVM_TRUSTED_PUBKEY_HEX");
-        if (env_pk_hex && env_pk_hex[0]) {
-            AvmBytes* b = bytes_from_hex(env_pk_hex);
-            if (b && b->len == 32) {
-                memcpy(trusted_pk, b->data, 32);
-                has_trusted_pk = 1;
-            }
-            if (b) free_bytes_obj(b);
+    }
+
+    // Also accept env-provided trusted root(s) (single 64-hex or comma-separated list).
+    const char* env_pk_hex = getenv("AVM_TRUSTED_PUBKEY_HEX");
+    if (env_pk_hex && env_pk_hex[0]) {
+        if (!add_trusted_pubkey_hex_list(trusted_pks, &trusted_pk_count, 16, env_pk_hex, "AVM_TRUSTED_PUBKEY_HEX")) {
+            free(break_pcs);
+            free(data);
+            return 1;
         }
     }
 
     if (require_sig) {
         char emsg[256];
-        const uint8_t* pkptr = has_trusted_pk ? trusted_pk : NULL;
-        if (require_cert_chain) {
-            if (!avm_obc_verify_signature_with_chain(data, len, pkptr, 1, emsg, sizeof(emsg))) {
-                fprintf(stderr, "AVM signature verify failed: %s\n", emsg);
-                free(data);
-                free(break_pcs);
-                return 1;
-            }
-        } else {
-            if (!avm_obc_verify_signature_with_chain(data, len, pkptr, 0, emsg, sizeof(emsg))) {
-                fprintf(stderr, "AVM signature verify failed: %s\n", emsg);
-                free(data);
-                free(break_pcs);
-                return 1;
-            }
+        const uint8_t* pkptr = (trusted_pk_count > 0) ? (const uint8_t*)trusted_pks : NULL;
+        size_t pkcount = (trusted_pk_count > 0) ? trusted_pk_count : 0;
+        int require_chain = require_cert_chain ? 1 : 0;
+        if (!avm_obc_verify_signature_with_chain_any(data, len, pkptr, pkcount, require_chain, emsg, sizeof(emsg))) {
+            fprintf(stderr, "AVM signature verify failed: %s\n", emsg);
+            free(data);
+            free(break_pcs);
+            return 1;
         }
     }
 

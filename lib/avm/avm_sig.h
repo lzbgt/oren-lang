@@ -20,10 +20,37 @@ int avm_obc_verify_signature(const uint8_t* data, size_t len, const uint8_t* tru
 // Returns 1 if a non-zero embedded root pubkey is present.
 int avm_has_embedded_root_pubkey(void);
 
+// Verify signature (and optional cert chain) against *any* trusted root pubkey.
+//
+// trusted_root_pubkeys_32:
+// - if non-NULL and trusted_root_pubkeys_count>0, treat it as a packed array of
+//   `trusted_root_pubkeys_count` pubkeys, each 32 bytes (ed25519 public key).
+// - embedded trusted roots (from avm_root_pubkey.inc) are also tried.
+//
+// require_chain:
+// - if 1: OREN_CERTS must be present and valid (root -> ... -> leaf).
+// - if 0: absence of OREN_CERTS falls back to direct-root signature verification.
+int avm_obc_verify_signature_with_chain_any(
+    const uint8_t* data,
+    size_t len,
+    const uint8_t* trusted_root_pubkeys_32,
+    size_t trusted_root_pubkeys_count,
+    int require_chain,
+    char* err,
+    size_t err_cap
+);
+
 // Verify signature using an embedded cert chain (OREN_CERTS) delegated by a trusted root.
 //
 // If require_chain==1, the `.obc` must contain an OREN_CERTS chain and the signature must match the leaf cert.
 // If require_chain==0, falls back to direct-root signature verification when no chain is present.
-int avm_obc_verify_signature_with_chain(const uint8_t* data, size_t len, const uint8_t* trusted_root_pubkey_32, int require_chain, char* err, size_t err_cap);
+int avm_obc_verify_signature_with_chain(
+    const uint8_t* data,
+    size_t len,
+    const uint8_t* trusted_root_pubkey_32,
+    int require_chain,
+    char* err,
+    size_t err_cap
+);
 
 #endif
