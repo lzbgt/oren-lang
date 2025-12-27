@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,6 +52,69 @@ func fileSHA256Hex(path string) (string, error) {
 	}
 	sum := sha256.Sum256(b)
 	return fmt.Sprintf("%x", sum[:]), nil
+}
+
+func stdlibModernizationAudit() error {
+	// Rolling guardrails: keep stdlib usage modern and layered.
+	//
+	// Enforced today:
+	// - No direct `oren_list_*` calls outside `lib/std/list.oren` (stdlib should use `std:list`).
+	// - No legacy `string_concat(...)` usage inside `lib/std/**` (prefer `+`).
+	allowOrenListCalls := map[string]bool{
+		filepath.Clean("lib/std/list.oren"): true,
+	}
+	denySubstrings := []string{
+		"string_concat(",
+	}
+
+	var violations []string
+	root := filepath.Clean("lib/std")
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".oren" {
+			return nil
+		}
+
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel := filepath.Clean(path)
+		lines := bytes.Split(b, []byte("\n"))
+		for i, line := range lines {
+			ln := i + 1
+			s := string(line)
+			if strings.Contains(s, "oren_list_") && !allowOrenListCalls[rel] {
+				violations = append(violations, fmt.Sprintf("%s:%d: stdlib must not call oren_list_* directly (use std:list)", rel, ln))
+			}
+			for _, bad := range denySubstrings {
+				if strings.Contains(s, bad) {
+					violations = append(violations, fmt.Sprintf("%s:%d: stdlib must not use %q (prefer modern syntax)", rel, ln, bad))
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(violations) > 0 {
+		var b strings.Builder
+		b.WriteString("stdlib modernization audit failed:\n")
+		for _, v := range violations {
+			b.WriteString("  - ")
+			b.WriteString(v)
+			b.WriteString("\n")
+		}
+		b.WriteString("fix: route list ops through `lib/std/list.oren` and prefer `+` over `string_concat`.\n")
+		return fmt.Errorf("%s", b.String())
+	}
+	return nil
 }
 
 const remoteX64Host = "lzbgt@pc.work"
@@ -455,6 +519,10 @@ func main() {
 	}
 	if _, err := os.Stat("./oredoc"); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR: ./oredoc not found; run `make oredoc` or `make test`.")
+		os.Exit(2)
+	}
+	if err := stdlibModernizationAudit(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(2)
 	}
 	orenPath, _ := filepath.Abs("./oren")

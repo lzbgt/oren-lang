@@ -28,7 +28,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 4) **Stdlib modernization audit (grammar + intrinsics)** (S)
    - Goal: no legacy grammar in `lib/std/**` (if/else/match/for-in syntax, legacy helper names) and no direct `oren_list_*` usage outside `std:list`.
-   - Next: add/extend repo-wide audits in `oretest` to keep this enforced as the grammar evolves.
+   - Status: `oretest` now enforces “no `oren_list_*` outside `lib/std/list.oren`” and “no `string_concat(...)` in stdlib”; expand checks cautiously as grammar evolves.
 
 5) **Runtime native modularization (avoid “single huge file”)** (M)
    - Goal: keep native runtime sources reviewable and module-scoped (prevents context/merge pain).
