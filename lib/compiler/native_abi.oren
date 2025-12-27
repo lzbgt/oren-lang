@@ -1,0 +1,42 @@
+// Native ABI helpers (rolling).
+//
+// This module is the first step toward sharing native backend lowering across Tier-1
+// architectures (arm64 + x86_64) while keeping ABI details explicit and testable.
+
+import win64 "native_abi_x64_win64.oren"
+import sysv "native_abi_x64_sysv.oren"
+
+fn x64(platform) {
+    if platform != nil && platform["os"] == "windows" { return win64.x64_win64() }
+    return sysv.x64_sysv()
+}
+
+fn max_int_reg_args(abi) {
+    if abi == nil || abi["int_arg_regs32"] == nil { return 0 }
+    return oren_list_len(abi["int_arg_regs32"])
+}
+
+fn int_arg_reg32(abi, arg_index) {
+    var regs = nil
+    if abi != nil { regs = abi["int_arg_regs32"] }
+    if regs == nil { return nil }
+    if arg_index < 0 || arg_index >= oren_list_len(regs) { return nil }
+    return regs[arg_index]
+}
+
+fn caller_shadow_bytes(abi) {
+    if abi == nil { return 0 }
+    var n = abi["caller_shadow_bytes"]
+    if n == nil { return 0 }
+    return n
+}
+
+fn callee_call_area_bytes(abi) {
+    // Extra stack space reserved in function frames to support nested calls safely.
+    // For Win64 we reserve >= 32B shadow plus scratch for stack args used by syscalls/FFI.
+    if abi == nil { return 0 }
+    var n = abi["callee_call_area_bytes"]
+    if n == nil { return 0 }
+    return n
+}
+

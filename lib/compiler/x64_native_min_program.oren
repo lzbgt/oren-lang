@@ -10,6 +10,7 @@
 // - native runtime injection on x64 (print, malloc, syscalls, capsule gating)
 
 import core "x64_core.oren"
+import abi "native_abi.oren"
 
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
@@ -397,7 +398,7 @@ fn _expr_i32_check(ctx, expr) {
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
         if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
-        var max_args = _call_max_reg_args(ctx["platform"])
+        var max_args = abi.max_int_reg_args(ctx["abi"])
         if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
 
         var i = 0
@@ -427,30 +428,6 @@ fn _expr_i32_check(ctx, expr) {
         return nil
     }
     err(ctx, "x64 native v0: expr not supported: " + t)
-    return nil
-}
-
-fn _call_max_reg_args(platform) {
-    if platform != nil && platform["os"] == "windows" { return 4 }
-    return 6 // SysV
-}
-
-fn _call_arg_reg32(platform, arg_index) {
-    // Return r32 register id used for arg_index under the platform ABI.
-    if platform != nil && platform["os"] == "windows" {
-        if arg_index == 0 { return 1 } // ecx
-        if arg_index == 1 { return 2 } // edx
-        if arg_index == 2 { return 8 } // r8d
-        if arg_index == 3 { return 9 } // r9d
-        return nil
-    }
-    // SysV (linux) subset (int args): edi, esi, edx, ecx, r8d, r9d.
-    if arg_index == 0 { return 7 } // edi
-    if arg_index == 1 { return 6 } // esi
-    if arg_index == 2 { return 2 } // edx
-    if arg_index == 3 { return 1 } // ecx
-    if arg_index == 4 { return 8 } // r8d
-    if arg_index == 5 { return 9 } // r9d
     return nil
 }
 
@@ -489,7 +466,7 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
         if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
-        var max_args = _call_max_reg_args(ctx["platform"])
+        var max_args = abi.max_int_reg_args(ctx["abi"])
         if argc > max_args { err(ctx, "x64 native v0: call supports at most " + oren_int_to_string(max_args) + " args for now"); return nil }
 
         // Evaluate args left-to-right, spill to stack temps, then load into ABI arg registers.
@@ -508,7 +485,7 @@ fn _emit_eval_i32_to_eax(ctx, expr, locals) {
 
         i = 0
         while i < argc {
-            var reg = _call_arg_reg32(ctx["platform"], i)
+            var reg = abi.int_arg_reg32(ctx["abi"], i)
             if reg == nil { err(ctx, "x64 native v0: unsupported call arg index"); return nil }
             var tmp_name2 = "$tmp_arg" + oren_int_to_string(i)
             var tmp_off2 = locals[tmp_name2]
@@ -862,7 +839,7 @@ fn _extract_functions_v0(ctx, linked) {
             var params = fn0["params"]
             var pc = 0
             if params != nil { pc = oren_list_len(params) }
-            var max_params = _call_max_reg_args(ctx["platform"])
+            var max_params = abi.max_int_reg_args(ctx["abi"])
             if pc > max_params { err(ctx, "x64 native v0: functions support at most " + oren_int_to_string(max_params) + " params for now: " + name); return nil }
             var j = 0
             while j < pc {
@@ -933,7 +910,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     // Reserve arg temp spill slots used for call lowering.
     var tmp_i = 0
-    var max_args = _call_max_reg_args(platform)
+    var max_args = abi.max_int_reg_args(ctx["abi"])
     while tmp_i < max_args {
         var nm = "$tmp_arg" + oren_int_to_string(tmp_i)
         if locals[nm] != nil { err(ctx, "x64 native v0: reserved local name " + nm + " used"); return nil }
@@ -945,8 +922,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     var locals_size = local_next - 8
     // Align locals area to 16.
     while core.int_mod(locals_size, 16) != 0 { locals_size = locals_size + 1 }
-    var win_call_area = 0
-    if platform != nil && platform["os"] == "windows" { win_call_area = 64 }
+    var win_call_area = abi.callee_call_area_bytes(ctx["abi"])
     var frame_size = locals_size + win_call_area
     if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
 
@@ -958,7 +934,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         var off = locals[pnm2]
         if off == nil { err(ctx, "x64 native v0: missing param slot"); return nil }
         var disp8 = core.int_mod(0 - off, 256)
-        var reg = _call_arg_reg32(platform, i)
+        var reg = abi.int_arg_reg32(ctx["abi"], i)
         if reg == nil { err(ctx, "x64 native v0: unsupported param index"); return nil }
         bytes_extend(ctx["code"], insn_mov_mrbp_disp8_r32(disp8, reg))
         i = i + 1
@@ -998,6 +974,7 @@ fn native_compile_program_x64_min(linked, platform) {
         "errors": [],
         "platform": platform
     }
+    ctx["abi"] = abi.x64(platform)
 
     var fns = _extract_functions_v0(ctx, linked)
     if fns == nil { return ctx }
@@ -1013,9 +990,8 @@ fn native_compile_program_x64_min(linked, platform) {
     //
     // Windows x64 ABI note: calls require 32 bytes of shadow space allocated by the caller.
     // Since our entrypoint is not a C runtime, we explicitly reserve it here.
-    if platform != nil && platform["os"] == "windows" {
-        bytes_extend(ctx["code"], insn_sub_rsp_imm32(32))
-    }
+    var entry_shadow = abi.caller_shadow_bytes(ctx["abi"])
+    if entry_shadow > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_shadow)) }
     var call_pos = oren_list_len(ctx["code"])
     // placeholder rel32=0
     bytes_extend(ctx["code"], insn_call_rel32(0))
@@ -1033,7 +1009,7 @@ fn native_compile_program_x64_min(linked, platform) {
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
         bytes_extend(ctx["code"], insn_call_rax())
         // Should not return; if it does, just ret.
-        bytes_extend(ctx["code"], insn_add_rsp_imm32(32))
+        if entry_shadow > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_shadow)) }
         bytes_extend(ctx["code"], insn_ret())
         // Record entrypoint offset (start of code).
         ctx["entry_off"] = 0

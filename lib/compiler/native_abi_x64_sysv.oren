@@ -1,0 +1,17 @@
+// Linux x86_64 SysV ABI (integer subset).
+//
+// Registers use the x64_core numbering:
+// - 0: rax, 1: rcx, 2: rdx, 6: rsi, 7: rdi, 8: r8, 9: r9
+
+fn x64_sysv() {
+    return {
+        // Integer/pointer args (subset used by current x64 backend).
+        // SysV order: rdi, rsi, rdx, rcx, r8, r9
+        "int_arg_regs32": [7, 6, 2, 1, 8, 9],
+        // SysV has no mandatory shadow space.
+        "caller_shadow_bytes": 0,
+        // v0: no dedicated call area needed (we avoid pushing during calls).
+        "callee_call_area_bytes": 0,
+    }
+}
+
