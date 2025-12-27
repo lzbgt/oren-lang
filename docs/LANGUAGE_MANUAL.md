@@ -71,6 +71,21 @@ Notes (rolling):
 
 Negative numbers are prefix expressions: `-1`, `-(a + b)`.
 
+Integer arithmetic (rolling v0):
+
+- `+ - * / %` are defined for `int`.
+- `int / int` is signed integer division with truncation toward zero.
+- `int % int` is the signed remainder consistent with trunc-toward-zero division (remainder has the same sign as the dividend).
+
+Examples:
+
+```oren
+if (7 / 3) != 2 { exit(1) }
+if (-7 / 3) != -2 { exit(2) }
+if (7 % 3) != 1 { exit(3) }
+if (-7 % 3) != -1 { exit(4) }
+```
+
 ### Floats (`f64` container in v0)
 
 Float literals are compiled as **f64 bit-pattern constants**.
@@ -510,6 +525,7 @@ Attribute syntax:
 They can appear on:
 
 - declarations (`struct`, `fn`, `var`)
+- local `var` declarations inside blocks
 - struct fields
 - parameters
 
