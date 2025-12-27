@@ -42,27 +42,60 @@ fn bytecode_compile_expr(ctx, expr) {
         }
 
         // Call-site spread in spawn:
-        // build the argument list in the VM (dynamic length), then spawn.
         //
-        // Rolling restriction: varargs+spread in spawn is not supported yet (needs dynamic packing).
+        // Use NEW_LIST_SPREAD to build lists with dynamic length in the VM.
+        // This keeps spawn semantics aligned with normal call-site spread.
         if call["spread"] != nil {
+            var n_args = oren_list_len(args)
             if fixed >= 0 {
-                bytecode_error(ctx, "bytecode backend: spawn varargs+spread not supported yet for " + call["fn"]["value"])
-                return nil
-            }
-            if oren_list_len(args) > 65535 {
-                bytecode_error(ctx, "bytecode backend: spawn spread fixed arg count too large")
+                // Varargs+spread: rest list is dynamic, but fixed param count is known.
+                if n_args < fixed {
+                    bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + call["fn"]["value"])
+                    return nil
+                }
+                if fixed > 65535 || n_args > 65535 {
+                    bytecode_error(ctx, "bytecode backend: spawn varargs+spread arg count too large")
+                    return nil
+                }
+
+                // fixed params
+                var i0 = 0
+                while i0 < fixed {
+                    bytecode_compile_expr(ctx, args[i0])
+                    i0 = i0 + 1
+                }
+                // explicit extras beyond fixed
+                var extra_fixed = n_args - fixed
+                var j0 = fixed
+                while j0 < n_args {
+                    bytecode_compile_expr(ctx, args[j0])
+                    j0 = j0 + 1
+                }
+                // spread list
+                bytecode_compile_expr(ctx, call["spread"])
+                // rest_list = [extras..., spread...]
+                emit_byte(ctx, AVM_NEW_LIST_SPREAD)
+                emit_u16(ctx, extra_fixed)
+                // args_list = [fixed_args..., rest_list]
+                emit_byte(ctx, AVM_NEW_LIST)
+                emit_u16(ctx, fixed + 1)
+                emit_byte(ctx, AVM_SPAWN_CALL_LIST)
                 return nil
             }
 
+            if n_args > 65535 {
+                bytecode_error(ctx, "bytecode backend: spawn spread fixed arg count too large")
+                return nil
+            }
             var i0 = 0
-            while i0 < oren_list_len(args) {
+            while i0 < n_args {
                 bytecode_compile_expr(ctx, args[i0])
                 i0 = i0 + 1
             }
             bytecode_compile_expr(ctx, call["spread"])
-            emit_byte(ctx, AVM_SPAWN_CALL_SPREAD)
-            emit_u16(ctx, oren_list_len(args))
+            emit_byte(ctx, AVM_NEW_LIST_SPREAD)
+            emit_u16(ctx, n_args)
+            emit_byte(ctx, AVM_SPAWN_CALL_LIST)
             return nil
         }
 
@@ -984,8 +1017,41 @@ fn bytecode_compile_expr(ctx, expr) {
         if vf != nil { fixed = vf }
         if expr["spread"] != nil {
             if fixed >= 0 {
-            bytecode_error(ctx, "bytecode backend: varargs+spread not supported yet for direct calls: " + name)
-            return nil
+                // Varargs+spread: build the `rest` list dynamically, then call with
+                // argc = fixed+1 (last arg is the `rest` list).
+                var n_args = oren_list_len(args)
+                if n_args < fixed {
+                    bytecode_error(ctx, "bytecode backend: varargs arity mismatch for " + name)
+                    return nil
+                }
+                if fixed > 255 {
+                    bytecode_error(ctx, "bytecode backend: varargs fixed param count too large for call: " + name)
+                    return nil
+                }
+                var extra_fixed = n_args - fixed
+                if extra_fixed > 65535 {
+                    bytecode_error(ctx, "bytecode backend: varargs extra args too large for call: " + name)
+                    return nil
+                }
+                // compile as an indirect call:
+                // [... fn fixed_args extras spread] -> rest_list -> CALL_INDIRECT (fixed+1)
+                bytecode_compile_expr(ctx, fn_node)
+                var i0 = 0
+                while i0 < fixed {
+                    bytecode_compile_expr(ctx, args[i0])
+                    i0 = i0 + 1
+                }
+                var j0 = fixed
+                while j0 < n_args {
+                    bytecode_compile_expr(ctx, args[j0])
+                    j0 = j0 + 1
+                }
+                bytecode_compile_expr(ctx, expr["spread"])
+                emit_byte(ctx, AVM_NEW_LIST_SPREAD)
+                emit_u16(ctx, extra_fixed)
+                emit_byte(ctx, AVM_CALL_INDIRECT)
+                emit_byte(ctx, fixed + 1)
+                return nil
             }
             // Spread calls are compiled as indirect calls so we don't need a dynamic
             // CALL-by-name opcode: push a function value, fixed args, spread list.

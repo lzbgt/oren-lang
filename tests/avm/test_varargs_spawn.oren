@@ -21,6 +21,12 @@ fn main() {
     var r = oren_join(h)
     if r != 10 { _fail() }
 
+    // Call-site spread inside spawn must pack into the varargs `rest` list.
+    var tail = [2, 3, 4]
+    var h2 = spawn sum1(1, tail...)
+    var r2 = oren_join(h2)
+    if r2 != 10 { _fail() }
+
     print("avm varargs spawn OK")
 }
 

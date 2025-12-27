@@ -4,10 +4,11 @@
 // - fail compilation under --backend bytecode
 // - emit OREN_DIAG kind=codegen code=1
 //
-// Rolling note: spawn supports call-site spread, but varargs+spread in spawn is
-// still rejected (needs dynamic varargs packing).
+// Rolling note: the bytecode backend has a deterministic constructor lowering that
+// treats struct values as map-shaped records; mismatched constructor arity should be
+// a codegen error (not a parse error) and must produce OREN_DIAG kind=codegen.
 
-fn f(x, ...rest) { return x }
+struct Node { value }
 
-var xs = [1]
-spawn f(1, xs...)
+// Arity mismatch: Node expects 1 positional arg.
+var n = Node(1, 2)

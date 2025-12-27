@@ -702,10 +702,6 @@ var xs = [10]
 var t2 = spawn work(xs...)
 ```
 
-Rolling note: the bytecode backend still rejects **varargs + spread** inside `spawn`
-(dynamic varargs packing), and this is intentionally covered by
-`tests/native/fixtures/bytecode_codegen_error.oren`.
-
 To wait for a spawned task:
 
 ```oren

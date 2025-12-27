@@ -586,6 +586,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";
         case 0x55: return "TYPE_CTOR_MAP_SPREAD";
+        case 0x56: return "NEW_LIST_SPREAD";
         case 0x46: return "JOIN";
         case 0x47: return "CHAN_NEW";
         case 0x48: return "CHAN_SEND";
@@ -1688,6 +1689,42 @@ void avm_run(AvmVM* vm) {
                 AvmValue res;
                 res.type = AVM_VAL_MAP;
                 res.as.m = map;
+                vm->stack[vm->sp++] = res;
+                break;
+            }
+            case 0x56: { // NEW_LIST_SPREAD u16_fixed
+                // stack: [... fixed_values spread_list] -> [... list]
+                if (vm->pc + 2 > vm->prog->code_len) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "truncated NEW_LIST_SPREAD")); break; }
+                uint16_t fixed = code[vm->pc++];
+                fixed |= (uint16_t)code[vm->pc++] << 8;
+                if (vm->sp < (int)fixed + 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on NEW_LIST_SPREAD")); break; }
+                AvmValue spread = vm->stack[vm->sp - 1];
+                if (spread.type != AVM_VAL_LIST || !spread.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "NEW_LIST_SPREAD expects list as spread arg")); break; }
+                AvmList* sl = spread.as.l;
+                int total = (int)fixed + sl->count;
+                if (sl->count < 0 || total < 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "NEW_LIST_SPREAD invalid count")); break; }
+
+                AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+                if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
+                list->count = total;
+                list->capacity = total;
+                list->items = NULL;
+                if (total > 0) {
+                    list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)total, AVM_ALLOC_KIND_LIST);
+                    if (!list->items) { avm_heap_free(list); avm_abort(vm, avm_alloc_fail_value()); break; }
+                    int base = vm->sp - (int)fixed - 1;
+                    for (int i = 0; i < (int)fixed; i++) {
+                        list->items[i] = vm->stack[base + i];
+                    }
+                    for (int i = 0; i < sl->count; i++) {
+                        list->items[(int)fixed + i] = sl->items[i];
+                    }
+                }
+
+                vm->sp -= (int)fixed + 1;
+                AvmValue res;
+                res.type = AVM_VAL_LIST;
+                res.as.l = list;
                 vm->stack[vm->sp++] = res;
                 break;
             }

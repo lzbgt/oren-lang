@@ -559,6 +559,12 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 3;
             push = 0;
+        } else if (op == 0x56) { // NEW_LIST_SPREAD u16_fixed
+            len = 3;
+            uint16_t fixed = 0;
+            if (!decode_u16(code, code_len, pc + 1, &fixed)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated NEW_LIST_SPREAD"); }
+            pop = (int)fixed + 1; // fixed vals + spread list
+            push = 1;
         } else if (op == 0x45) { // SPAWN_CALL_LIST
             len = 1;
             pop = 2;  // fn + args_list
@@ -1719,6 +1725,7 @@ static const char* op_name(uint8_t op) {
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";
         case 0x55: return "TYPE_CTOR_MAP_SPREAD";
+        case 0x56: return "NEW_LIST_SPREAD";
         case 0x46: return "JOIN";
         case 0x47: return "CHAN_NEW";
         case 0x48: return "CHAN_SEND";
@@ -1800,6 +1807,7 @@ static size_t disasm_insn_len(const uint8_t* code, size_t code_len, size_t pc) {
     if (op == 0x40 || op == 0x41) return 3;   // NEW_LIST/NEW_MAP u16
     if (op == 0x54) return 3;                 // SPAWN_CALL_SPREAD u16
     if (op == 0x55) return 3;                 // TYPE_CTOR_MAP_SPREAD u16
+    if (op == 0x56) return 3;                 // NEW_LIST_SPREAD u16
     return 1;
 }
 
