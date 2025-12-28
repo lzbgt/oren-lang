@@ -51,7 +51,12 @@ fn callee_call_area_bytes(abi) {
 // with `lib/compiler/x64_elf.oren` and `lib/compiler/x64_pe.oren`.
 
 fn x64_v0_linux_elf_base_addr() { return 4194304 } // 0x400000
-fn x64_v0_linux_elf_hdr_size_bytes() { return 64 + 56 } // ELF64_Ehdr + Elf64_Phdr
+// ELF header size for the x64 fixed-base ET_EXEC emitter (rolling v0).
+//
+// We emit 2 program headers:
+// - PT_LOAD RX: headers + .text (+ pad)
+// - PT_LOAD RW: data blob (string literals, fnobj records, mutable globals)
+fn x64_v0_linux_elf_hdr_size_bytes() { return 64 + 56 * 2 } // ELF64_Ehdr + 2*Elf64_Phdr
 fn x64_v0_linux_text_base_addr() { return x64_v0_linux_elf_base_addr() + x64_v0_linux_elf_hdr_size_bytes() }
 
 fn x64_v0_windows_pe_image_base() { return 4194304 } // 0x400000

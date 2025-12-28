@@ -1,6 +1,8 @@
 // ELF emitter for x86_64 (Linux).
 //
-// v0: minimal ET_EXEC with a single PT_LOAD segment containing headers + code.
+// v0: minimal ET_EXEC with two PT_LOAD segments:
+// - RX: headers + code (+ padding)
+// - RW: data blob
 
 import codegen "codegen_x64.oren"
 import abi "native_abi.oren"
@@ -24,7 +26,11 @@ fn set_u64_le(buf, offset, n) {
     set_u32_le(buf, offset + 4, int_mod(n / 4294967296, 4294967296))
 }
 
-fn elf_build_prefix_x64(code, data, entry_off) {
+fn align_up(n, align) {
+    return (n + align - 1) / align * align
+}
+
+fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
     var p = bytes_new()
 
     // ELF Header (64 bytes)
@@ -39,7 +45,7 @@ fn elf_build_prefix_x64(code, data, entry_off) {
     push_u16_le(p, 62)  // EM_X86_64
     push_u32_le(p, 1)   // EV_CURRENT
 
-    var base = 4194304 // 0x400000
+    var base = abi.x64_v0_linux_elf_base_addr()
     var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes()
     push_u64_le(p, base + hdr_size + entry_off) // e_entry
     push_u64_le(p, 64)  // e_phoff
@@ -47,23 +53,38 @@ fn elf_build_prefix_x64(code, data, entry_off) {
     push_u32_le(p, 0)   // e_flags
     push_u16_le(p, 64)  // e_ehsize
     push_u16_le(p, 56)  // e_phentsize
-    push_u16_le(p, 1)   // e_phnum
+    push_u16_le(p, 2)   // e_phnum
     push_u16_le(p, 64)  // e_shentsize
     push_u16_le(p, 0)   // e_shnum
     push_u16_le(p, 0)   // e_shstrndx
 
-    // Program Header (56 bytes)
+    var page = 4096
+    var text_filesz = hdr_size + oren_list_len(code) + code_pad_len
+    // Caller is expected to align the start of data to a page boundary by choosing code_pad_len.
+    if int_mod(text_filesz, page) != 0 {
+        // Fallback: round up so segment offsets stay valid even if caller forgot.
+        text_filesz = align_up(text_filesz, page)
+    }
+    var data_off = text_filesz
+
+    // Program Header #1: RX (headers + code + padding)
     push_u32_le(p, 1) // PT_LOAD
-    // Rolling v0 note:
-    // - We keep a single PT_LOAD segment for simplicity.
-    // - Some Tier‑1 features (e.g. call depth counters) require writable memory, so the
-    //   segment is temporarily RWX until we split into RX text + RW data segments.
-    push_u32_le(p, 7) // PF_R | PF_W | PF_X
+    push_u32_le(p, 5) // PF_R | PF_X
     push_u64_le(p, 0)       // p_offset
     push_u64_le(p, base)    // p_vaddr
     push_u64_le(p, base)    // p_paddr
-    push_u64_le(p, hdr_size + oren_list_len(code) + oren_list_len(data)) // p_filesz
-    push_u64_le(p, hdr_size + oren_list_len(code) + oren_list_len(data)) // p_memsz
+    push_u64_le(p, text_filesz) // p_filesz
+    push_u64_le(p, text_filesz) // p_memsz
+    push_u64_le(p, 4096)    // p_align
+
+    // Program Header #2: RW (data blob)
+    push_u32_le(p, 1) // PT_LOAD
+    push_u32_le(p, 6) // PF_R | PF_W
+    push_u64_le(p, data_off)        // p_offset
+    push_u64_le(p, base + data_off) // p_vaddr
+    push_u64_le(p, base + data_off) // p_paddr
+    push_u64_le(p, oren_list_len(data)) // p_filesz
+    push_u64_le(p, oren_list_len(data)) // p_memsz
     push_u64_le(p, 4096)    // p_align
 
     return p
@@ -82,27 +103,23 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
     // Apply fixups.
     //
     // Layout:
-    //   [ELF hdrs (120 bytes)] [code] [data]
+    //   [ELF hdrs] [code] [pad-to-page] [data]
     //
     // All fixup positions are relative to the start of code.
     var base = abi.x64_v0_linux_elf_base_addr()
-    var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes() // 120
+    var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes()
     var text_base = base + hdr_size
     var code_len = oren_list_len(code)
 
-    // Keep the appended data 8-byte aligned within the PT_LOAD segment.
-    // This is not strictly needed for strings, but it avoids future surprises when
-    // we start storing u64 tables in the data blob.
+    // Ensure the data segment begins on a page boundary (required for PT_LOAD alignment).
     var code_pad = bytes_new()
-    if oren_list_len(data) > 0 {
-        while int_mod(code_len + oren_list_len(code_pad), 8) != 0 { bytes_push(code_pad, 0) }
-    }
+    var page = 4096
+    var text_end_off = hdr_size + code_len
+    var data_file_off = align_up(text_end_off, page)
+    var pad_len = data_file_off - text_end_off
+    var pi = 0
+    while pi < pad_len { bytes_push(code_pad, 0); pi = pi + 1 }
     var data_base_off = code_len + oren_list_len(code_pad)
-
-    var data_blob = bytes_new()
-    bytes_extend(data_blob, code_pad)
-    bytes_extend(data_blob, data)
-    var code_pad_len = oren_list_len(code_pad)
 
     var i = 0
     while i < oren_list_len(fixups) {
@@ -158,9 +175,8 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
             }
             var data_off3 = f["data_off"]
             var addr = text_base + target_off2
-            // `data_blob` is `code_pad || data`, so patch within that buffer.
-            // Do NOT include `code_len` here: that is an offset within the full PT_LOAD segment.
-            set_u64_le(data_blob, code_pad_len + data_off3, addr)
+            // Patch within the data segment payload (not including the file padding).
+            set_u64_le(data, data_off3, addr)
         }
         else if f["type"] == "rip_code_lea" {
             // Patch lea r64, [rip+disp32] where disp32 points to a function entry in .text.
@@ -187,9 +203,10 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
         i = i + 1
     }
 
-    var prefix = elf_build_prefix_x64(code, data_blob, ctx["entry_off"])
+    var prefix = elf_build_prefix_x64(code, oren_list_len(code_pad), data, ctx["entry_off"])
     bytes_extend(prefix, code)
-    bytes_extend(prefix, data_blob)
+    bytes_extend(prefix, code_pad)
+    bytes_extend(prefix, data)
     var w = oren_write_bytes(out_path, prefix)
     if oren_is_err(w) {
         print("x64 elf: failed to write: " + out_path)

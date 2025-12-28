@@ -62,8 +62,8 @@ However, it now has a minimal deterministic recursion guard (rolling):
 Current limitations (tracked in `docs/TODOS.md`):
 
 - the call-depth max is currently a fixed default (8192) in x64 v0 (no env override yet)
-- the ELF/PE emitters currently map the data blob writable as a rolling simplification; the
-  production direction is RX text + RW data (W^X)
+- the data blob must be writable for the counter; Linux ELF now maps it RW in a dedicated segment, while
+  Windows PE still needs a dedicated `.data` section for clean RO/RW separation
 
 ## What “Stack Safe” Means for Oren
 
