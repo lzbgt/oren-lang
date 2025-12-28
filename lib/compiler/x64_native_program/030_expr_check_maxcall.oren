@@ -33,10 +33,7 @@ fn _expr_int_check(ctx, expr) {
         if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
         var nm = fn_expr["value"]
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
-        if expr["spread"] != nil {
-            err(ctx, "x64 native v0: call-site spread not supported yet")
-            return nil
-        }
+        var spread = expr["spread"]
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
         // Rolling: stack args are supported; arg count is bounded only by frame/call-area capacity.
@@ -51,10 +48,20 @@ fn _expr_int_check(ctx, expr) {
 
             var vf = nil
             if ctx["func_varargs_fixed"] != nil { vf = ctx["func_varargs_fixed"][nm] }
-            if vf != nil {
+            if spread != nil {
+                // Rolling: spread is only supported for fixed-arity named calls.
+                if vf != nil { err(ctx, "x64 native v0: call-site spread with varargs is not supported yet"); return nil }
+                if argc > arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+            } else if vf != nil {
                 if argc < vf { err(ctx, "x64 native v0: varargs arity mismatch for " + nm); return nil }
             } else {
                 if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+            }
+        } else {
+            // No static arity info: do not allow spread on indirect/untracked calls.
+            if spread != nil {
+                err(ctx, "x64 native v0: call-site spread requires a named function")
+                return nil
             }
         }
 
@@ -63,6 +70,10 @@ fn _expr_int_check(ctx, expr) {
             _expr_int_check(ctx, args[i])
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             i = i + 1
+        }
+        if spread != nil {
+            _expr_int_check(ctx, spread)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         }
         return nil
     }
@@ -135,7 +146,7 @@ fn _expr_int_check(ctx, expr) {
     return nil
 }
 
-fn _max_call_argc_in_expr(expr) {
+fn _max_call_argc_in_expr(ctx, expr) {
     if expr == nil { return 0 }
     var t = expr["type"]
     if t == "Nil" { return 0 }
@@ -145,32 +156,50 @@ fn _max_call_argc_in_expr(expr) {
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
         var m = argc
-        // Count calls in call target and in each arg expression too.
+
+        // Spread/varargs adjust the *actual* outgoing call argc (important for call-area sizing).
         var fn_expr = expr["fn"]
-        var mf = _max_call_argc_in_expr(fn_expr)
+        if fn_expr != nil && fn_expr["type"] == "Identifier" {
+            var nm = fn_expr["value"]
+            if nm != nil && ctx != nil && ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+                var arity = ctx["func_arity"][nm]
+                if expr["spread"] != nil {
+                    m = arity
+                } else if ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+                    // x64 packs varargs to a single rest_list, so the real call argc is the declared arity.
+                    m = arity
+                }
+            }
+        }
+        // Count calls in call target and in each arg expression too.
+        var mf = _max_call_argc_in_expr(ctx, fn_expr)
         if mf > m { m = mf }
         var i = 0
         while args != nil && i < oren_list_len(args) {
-            var mi = _max_call_argc_in_expr(args[i])
+            var mi = _max_call_argc_in_expr(ctx, args[i])
             if mi > m { m = mi }
             i = i + 1
+        }
+        if expr["spread"] != nil {
+            var ms = _max_call_argc_in_expr(ctx, expr["spread"])
+            if ms > m { m = ms }
         }
         return m
     }
     if t == "Infix" {
         var l = expr["left"]
         var r = expr["right"]
-        var ml = _max_call_argc_in_expr(l)
-        var mr = _max_call_argc_in_expr(r)
+        var ml = _max_call_argc_in_expr(ctx, l)
+        var mr = _max_call_argc_in_expr(ctx, r)
         if mr > ml { return mr }
         return ml
     }
     if t == "Prefix" {
-        return _max_call_argc_in_expr(expr["right"])
+        return _max_call_argc_in_expr(ctx, expr["right"])
     }
     if t == "Index" {
-        var ml = _max_call_argc_in_expr(expr["left"])
-        var mi = _max_call_argc_in_expr(expr["index"])
+        var ml = _max_call_argc_in_expr(ctx, expr["left"])
+        var mi = _max_call_argc_in_expr(ctx, expr["index"])
         if mi > ml { return mi }
         return ml
     }
@@ -179,7 +208,7 @@ fn _max_call_argc_in_expr(expr) {
         var els = expr["elements"]
         var i = 0
         while els != nil && i < oren_list_len(els) {
-            var mi = _max_call_argc_in_expr(els[i])
+            var mi = _max_call_argc_in_expr(ctx, els[i])
             if mi > m { m = mi }
             i = i + 1
         }
@@ -191,9 +220,9 @@ fn _max_call_argc_in_expr(expr) {
         var i2 = 0
         while pairs != nil && i2 < oren_list_len(pairs) {
             var pair = pairs[i2]
-            var mk = _max_call_argc_in_expr(pair["key"])
+            var mk = _max_call_argc_in_expr(ctx, pair["key"])
             if mk > m2 { m2 = mk }
-            var mv = _max_call_argc_in_expr(pair["value"])
+            var mv = _max_call_argc_in_expr(ctx, pair["value"])
             if mv > m2 { m2 = mv }
             i2 = i2 + 1
         }
@@ -201,17 +230,17 @@ fn _max_call_argc_in_expr(expr) {
     }
     if t == "If" {
         // Conservative: if-expr isn't part of the x64 v0 expression surface yet, but keep it safe.
-        var m0 = _max_call_argc_in_expr(expr["cond"])
+        var m0 = _max_call_argc_in_expr(ctx, expr["cond"])
         var consq = expr["consq"]
-        if consq != nil { var m1 = _max_call_argc_in_expr(consq["expr"]); if m1 > m0 { m0 = m1 } }
+        if consq != nil { var m1 = _max_call_argc_in_expr(ctx, consq["expr"]); if m1 > m0 { m0 = m1 } }
         var alt = expr["alt"]
-        if alt != nil { var m2 = _max_call_argc_in_expr(alt["expr"]); if m2 > m0 { m0 = m2 } }
+        if alt != nil { var m2 = _max_call_argc_in_expr(ctx, alt["expr"]); if m2 > m0 { m0 = m2 } }
         return m0
     }
     return 0
 }
 
-fn _max_call_argc_in_ops(ops) {
+fn _max_call_argc_in_ops(ctx, ops) {
     if ops == nil { return 0 }
     var m = 0
     var i = 0
@@ -221,28 +250,28 @@ fn _max_call_argc_in_ops(ops) {
         var k = op["op"]
         if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" {
             var e = op["expr"]
-            var me = _max_call_argc_in_expr(e)
+            var me = _max_call_argc_in_expr(ctx, e)
             if me > m { m = me }
         } else if k == "if" {
-            var mc = _max_call_argc_in_expr(op["cond"])
+            var mc = _max_call_argc_in_expr(ctx, op["cond"])
             if mc > m { m = mc }
-            var mt = _max_call_argc_in_ops(op["then"])
+            var mt = _max_call_argc_in_ops(ctx, op["then"])
             if mt > m { m = mt }
-            var mf = _max_call_argc_in_ops(op["else"])
+            var mf = _max_call_argc_in_ops(ctx, op["else"])
             if mf > m { m = mf }
         } else if k == "while" {
-            var mc2 = _max_call_argc_in_expr(op["cond"])
+            var mc2 = _max_call_argc_in_expr(ctx, op["cond"])
             if mc2 > m { m = mc2 }
-            var mb = _max_call_argc_in_ops(op["body"])
+            var mb = _max_call_argc_in_ops(ctx, op["body"])
             if mb > m { m = mb }
         } else if k == "for" {
-            var mi = _max_call_argc_in_ops(op["init"])
+            var mi = _max_call_argc_in_ops(ctx, op["init"])
             if mi > m { m = mi }
-            var mc3 = _max_call_argc_in_expr(op["cond"])
+            var mc3 = _max_call_argc_in_expr(ctx, op["cond"])
             if mc3 > m { m = mc3 }
-            var mp = _max_call_argc_in_ops(op["post"])
+            var mp = _max_call_argc_in_ops(ctx, op["post"])
             if mp > m { m = mp }
-            var mb2 = _max_call_argc_in_ops(op["body"])
+            var mb2 = _max_call_argc_in_ops(ctx, op["body"])
             if mb2 > m { m = mb2 }
         }
         i = i + 1
@@ -258,7 +287,7 @@ fn _max_call_argc_in_ops(ops) {
 //
 // We must reserve enough `$tmp_intr<i>` stack slots to cover the maximum *nested* usage,
 // but we should not over-reserve (large fixed pools bloat every stack frame and hurt recursion).
-fn _intr_tmp_base_slots_for_call(nm, argc) {
+fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     if nm == nil { return argc }
     // Intrinsics with custom spill needs.
     if nm == "iadd" { return 1 }
@@ -268,11 +297,20 @@ fn _intr_tmp_base_slots_for_call(nm, argc) {
     if nm == "oren_map_set" { return 7 }
     if nm == "oren_index_set" { return 7 }
     if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" { return 2 }
+    // Spread calls spill: fixed args + spread list + spread elems (arity-fixed_argc).
+    if expr != nil && expr["spread"] != nil && ctx != nil && ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+        var arity = ctx["func_arity"][nm]
+        return arity + 1
+    }
+    // Named varargs packing uses an extra spill slot for the packed rest_list.
+    if ctx != nil && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+        return argc + 1
+    }
     // Normal calls: spill all args.
     return argc
 }
 
-fn _max_intr_tmp_in_expr(expr) {
+fn _max_intr_tmp_in_expr(ctx, expr) {
     if expr == nil { return 0 }
     var t = expr["type"]
     if t == "Nil" || t == "Boolean" || t == "Integer" || t == "String" || t == "Identifier" { return 0 }
@@ -286,34 +324,38 @@ fn _max_intr_tmp_in_expr(expr) {
         var nm = nil
         if fn_expr != nil && fn_expr["type"] == "Identifier" { nm = fn_expr["value"] }
 
-        var base = _intr_tmp_base_slots_for_call(nm, argc)
+        var base = _intr_tmp_base_slots_for_call(ctx, expr, nm, argc)
 
         // While compiling this call, we keep `base` spill slots live across evaluation of each arg.
         // Args are evaluated LTR, so peak additional usage is the max over arg subexpressions.
         var max_child = 0
         var i = 0
         while args != nil && i < argc {
-            var mi = _max_intr_tmp_in_expr(args[i])
+            var mi = _max_intr_tmp_in_expr(ctx, args[i])
             if mi > max_child { max_child = mi }
             i = i + 1
+        }
+        if expr["spread"] != nil {
+            var ms = _max_intr_tmp_in_expr(ctx, expr["spread"])
+            if ms > max_child { max_child = ms }
         }
         return base + max_child
     }
 
     if t == "Infix" {
-        var ml = _max_intr_tmp_in_expr(expr["left"])
-        var mr = _max_intr_tmp_in_expr(expr["right"])
+        var ml = _max_intr_tmp_in_expr(ctx, expr["left"])
+        var mr = _max_intr_tmp_in_expr(ctx, expr["right"])
         if mr > ml { return mr }
         return ml
     }
 
     if t == "Prefix" {
-        return _max_intr_tmp_in_expr(expr["right"])
+        return _max_intr_tmp_in_expr(ctx, expr["right"])
     }
 
     if t == "Index" {
-        var ml2 = _max_intr_tmp_in_expr(expr["left"])
-        var mi2 = _max_intr_tmp_in_expr(expr["index"])
+        var ml2 = _max_intr_tmp_in_expr(ctx, expr["left"])
+        var mi2 = _max_intr_tmp_in_expr(ctx, expr["index"])
         if mi2 > ml2 { return mi2 }
         return ml2
     }
@@ -323,7 +365,7 @@ fn _max_intr_tmp_in_expr(expr) {
         var els = expr["elements"]
         var j = 0
         while els != nil && j < oren_list_len(els) {
-            var mj = _max_intr_tmp_in_expr(els[j])
+            var mj = _max_intr_tmp_in_expr(ctx, els[j])
             if mj > m { m = mj }
             j = j + 1
         }
@@ -336,9 +378,9 @@ fn _max_intr_tmp_in_expr(expr) {
         var k = 0
         while pairs != nil && k < oren_list_len(pairs) {
             var pair = pairs[k]
-            var mk = _max_intr_tmp_in_expr(pair["key"])
+            var mk = _max_intr_tmp_in_expr(ctx, pair["key"])
             if mk > m2 { m2 = mk }
-            var mv = _max_intr_tmp_in_expr(pair["value"])
+            var mv = _max_intr_tmp_in_expr(ctx, pair["value"])
             if mv > m2 { m2 = mv }
             k = k + 1
         }
@@ -347,18 +389,18 @@ fn _max_intr_tmp_in_expr(expr) {
 
     if t == "If" {
         // Conservative: keep structure in sync with `_max_call_argc_in_expr`.
-        var m0 = _max_intr_tmp_in_expr(expr["cond"])
+        var m0 = _max_intr_tmp_in_expr(ctx, expr["cond"])
         var consq = expr["consq"]
-        if consq != nil { var m1 = _max_intr_tmp_in_expr(consq["expr"]); if m1 > m0 { m0 = m1 } }
+        if consq != nil { var m1 = _max_intr_tmp_in_expr(ctx, consq["expr"]); if m1 > m0 { m0 = m1 } }
         var alt = expr["alt"]
-        if alt != nil { var m2 = _max_intr_tmp_in_expr(alt["expr"]); if m2 > m0 { m0 = m2 } }
+        if alt != nil { var m2 = _max_intr_tmp_in_expr(ctx, alt["expr"]); if m2 > m0 { m0 = m2 } }
         return m0
     }
 
     return 0
 }
 
-fn _max_intr_tmp_in_ops(ops) {
+fn _max_intr_tmp_in_ops(ctx, ops) {
     if ops == nil { return 0 }
     var m = 0
     var i = 0
@@ -368,28 +410,28 @@ fn _max_intr_tmp_in_ops(ops) {
         var k = op["op"]
         if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" {
             var e = op["expr"]
-            var me = _max_intr_tmp_in_expr(e)
+            var me = _max_intr_tmp_in_expr(ctx, e)
             if me > m { m = me }
         } else if k == "if" {
-            var mc = _max_intr_tmp_in_expr(op["cond"])
+            var mc = _max_intr_tmp_in_expr(ctx, op["cond"])
             if mc > m { m = mc }
-            var mt = _max_intr_tmp_in_ops(op["then"])
+            var mt = _max_intr_tmp_in_ops(ctx, op["then"])
             if mt > m { m = mt }
-            var mf = _max_intr_tmp_in_ops(op["else"])
+            var mf = _max_intr_tmp_in_ops(ctx, op["else"])
             if mf > m { m = mf }
         } else if k == "while" {
-            var mc2 = _max_intr_tmp_in_expr(op["cond"])
+            var mc2 = _max_intr_tmp_in_expr(ctx, op["cond"])
             if mc2 > m { m = mc2 }
-            var mb = _max_intr_tmp_in_ops(op["body"])
+            var mb = _max_intr_tmp_in_ops(ctx, op["body"])
             if mb > m { m = mb }
         } else if k == "for" {
-            var mi = _max_intr_tmp_in_ops(op["init"])
+            var mi = _max_intr_tmp_in_ops(ctx, op["init"])
             if mi > m { m = mi }
-            var mc3 = _max_intr_tmp_in_expr(op["cond"])
+            var mc3 = _max_intr_tmp_in_expr(ctx, op["cond"])
             if mc3 > m { m = mc3 }
-            var mp = _max_intr_tmp_in_ops(op["post"])
+            var mp = _max_intr_tmp_in_ops(ctx, op["post"])
             if mp > m { m = mp }
-            var mb2 = _max_intr_tmp_in_ops(op["body"])
+            var mb2 = _max_intr_tmp_in_ops(ctx, op["body"])
             if mb2 > m { m = mb2 }
         }
         i = i + 1

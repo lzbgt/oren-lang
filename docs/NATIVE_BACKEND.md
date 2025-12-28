@@ -22,11 +22,6 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - caller must reserve **32 bytes of shadow space** for every call
   - stack: 16-byte aligned at call boundaries
 
-Rolling note:
-
-- If you see fixture names like “args4”, it’s usually targeting the smallest Tier‑1 integer-reg arg set
-  (Win64’s 4) to keep cross-OS ABI coverage honest.
-
 ## Supported Features
 
 - **Executable Formats**:

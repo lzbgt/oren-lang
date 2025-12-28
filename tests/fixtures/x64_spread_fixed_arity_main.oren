@@ -1,0 +1,11 @@
+fn add3(a, b, c) {
+    return a + b + c
+}
+
+fn main() {
+    var xs = [2, 3]
+    var r = add3(1, xs...)
+    if r == 6 { return 0 }
+    return 1
+}
+

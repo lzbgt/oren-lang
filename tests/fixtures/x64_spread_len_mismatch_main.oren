@@ -1,0 +1,10 @@
+fn add3(a, b, c) {
+    return a + b + c
+}
+
+fn main() {
+    // Needs 2 args, but we only provide 1 => x64 native should deterministically abort(1).
+    var xs = [2]
+    return add3(1, xs...)
+}
+
