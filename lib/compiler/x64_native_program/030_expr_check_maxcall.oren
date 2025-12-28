@@ -49,9 +49,11 @@ fn _expr_int_check(ctx, expr) {
             var vf = nil
             if ctx["func_varargs_fixed"] != nil { vf = ctx["func_varargs_fixed"][nm] }
             if spread != nil {
-                // Rolling: spread is only supported for fixed-arity named calls.
-                if vf != nil { err(ctx, "x64 native v0: call-site spread with varargs is not supported yet"); return nil }
-                if argc > arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+                // Rolling: spread is supported for named calls.
+                //
+                // - fixed-arity: spread must fill exactly (checked at codegen/runtime)
+                // - varargs: spread contributes elements into the `...rest` list; total runtime arg count is dynamic
+                if vf == nil && argc > arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
             } else if vf != nil {
                 if argc < vf { err(ctx, "x64 native v0: varargs arity mismatch for " + nm); return nil }
             } else {
@@ -297,10 +299,21 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     if nm == "oren_map_set" { return 7 }
     if nm == "oren_index_set" { return 7 }
     if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" { return 2 }
-    // Spread calls spill: fixed args + spread list + spread elems (arity-fixed_argc).
-    if expr != nil && expr["spread"] != nil && ctx != nil && ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
-        var arity = ctx["func_arity"][nm]
-        return arity + 1
+    // Spread calls spill:
+    // - fixed-arity: fixed args + spread list + spread elems (arity-fixed_argc)
+    // - varargs: explicit args + spread list + loop temps + missing-fixed spills
+    if expr != nil && expr["spread"] != nil && ctx != nil {
+        var vf = nil
+        if ctx["func_varargs_fixed"] != nil { vf = ctx["func_varargs_fixed"][nm] }
+        if vf != nil {
+            // Conservative: explicit args (argc) + spread + rest + idx+len+elem + missing fixed spills (<= vf).
+            return argc + 5 + vf
+        }
+        if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+            var arity = ctx["func_arity"][nm]
+            return arity + 1
+        }
+        return argc + 1
     }
     // Named varargs packing uses an extra spill slot for the packed rest_list.
     if ctx != nil && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {

@@ -35,15 +35,206 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
             err(ctx, "x64 native v0: call-site spread requires a named function")
             return nil
         }
-        if is_varargs_named {
-            err(ctx, "x64 native v0: call-site spread with varargs is not supported yet")
-            return nil
-        }
         var arity = nil
         if ctx["func_arity"] != nil { arity = ctx["func_arity"][nm] }
         if arity == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
-        if argc > arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
 
+        // --- varargs + spread ---
+        //
+        // For a known varargs function `fn f(a,b,...rest)` (fixed=2, arity=3),
+        // lower `f(args..., xs...)` as:
+        // - evaluate explicit args (args...)
+        // - evaluate `xs` list and get `len(xs)`
+        // - runtime check: argc + len(xs) >= fixed else abort(1)
+        // - fill missing fixed args (if any) from xs[0..missing-1]
+        // - build rest_list:
+        //     - push explicit args beyond fixed
+        //     - push xs[missing..] (dynamic loop)
+        // - call f(fixed0..fixedN-1, rest_list)
+        if is_varargs_named {
+            var fixed = varargs_fixed
+            if arity != fixed + 1 {
+                err(ctx, "x64 native v0: inconsistent varargs signature for " + nm)
+                return nil
+            }
+
+            var missing = 0
+            if argc < fixed { missing = fixed - argc }
+
+            // Spill layout:
+            // - explicit args: [base + 0 .. base + argc-1]
+            // - spread list:  base + argc
+            // - rest_list:    base + argc + 1
+            // - idx:          base + argc + 2
+            // - len:          base + argc + 3
+            // - elem:         base + argc + 4
+            // - missing fixed spill: base + argc + 5 .. + missing-1
+            var spill_n = argc + 5 + missing
+            var base = _intr_tmp_push(ctx, spill_n)
+            if base == nil { return nil }
+
+            // Spill explicit args
+            var i = 0
+            while i < argc {
+                _emit_eval_int_to_rax(ctx, args[i], locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+                var off = _intr_tmp_off(ctx, locals, base + i)
+                if off == nil { _intr_tmp_pop(ctx, base); return nil }
+                _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+                i = i + 1
+            }
+
+            // Spill spread list
+            var spread_slot = base + argc
+            var spread_off = _intr_tmp_off(ctx, locals, spread_slot)
+            if spread_off == nil { _intr_tmp_pop(ctx, base); return nil }
+            _emit_eval_int_to_rax(ctx, spread, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - spread_off, 0)
+
+            // len = oren_list_len(spread)
+            var len_slot = base + argc + 3
+            var len_off = _intr_tmp_off(ctx, locals, len_slot)
+            if len_off == nil { _intr_tmp_pop(ctx, base); return nil }
+            var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_len"}, "args": [{"type": "Identifier", "value": spread_name}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - len_off, 0)
+
+            // If we are missing fixed args, require len >= missing.
+            if missing > 0 {
+                _emit_mov_r64_mrbp(ctx, 0, 0 - len_off) // rax = len
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, missing))
+                var labels0 = {}
+                var fixups0 = []
+                var l_ok0 = _new_label(ctx, "varargs_spread_fixed_ok")
+                _emit_jcc_to_label(ctx, fixups0, "ge", l_ok0)
+                _emit_abort_exitcode(ctx, 1)
+                _emit_label(ctx, labels0, l_ok0)
+                _patch_local_fixups(ctx, labels0, fixups0)
+
+                // Materialize missing fixed args from spread[0..missing-1].
+                var j = 0
+                while j < missing {
+                    var slot = base + argc + 5 + j
+                    var off2 = _intr_tmp_off(ctx, locals, slot)
+                    if off2 == nil { _intr_tmp_pop(ctx, base); return nil }
+
+                    _emit_eval_int_to_rax(ctx, {"type": "Index", "left": {"type": "Identifier", "value": spread_name}, "index": {"type": "Integer", "value": oren_int_to_string(j)}}, locals)
+                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+                    _emit_mov_mrbp_r64(ctx, 0 - off2, 0)
+                    j = j + 1
+                }
+            }
+
+            // rest_list = oren_new_list(0)
+            var rest_slot = base + argc + 1
+            var rest_off = _intr_tmp_off(ctx, locals, rest_slot)
+            if rest_off == nil { _intr_tmp_pop(ctx, base); return nil }
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - rest_off, 0)
+            var rest_name = "$tmp_intr" + oren_int_to_string(rest_slot)
+
+            // Push explicit args beyond fixed into rest_list.
+            var j2 = fixed
+            while j2 < argc {
+                var arg_name = "$tmp_intr" + oren_int_to_string(base + j2)
+                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": rest_name}, {"type": "Identifier", "value": arg_name}]}, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+                j2 = j2 + 1
+            }
+
+            // Push spread args beyond the missing-fixed prefix into rest_list (dynamic loop).
+            //
+            // idx = missing; while idx < len { rest.push(spread[idx]); idx++ }
+            var idx_slot = base + argc + 2
+            var idx_off = _intr_tmp_off(ctx, locals, idx_slot)
+            if idx_off == nil { _intr_tmp_pop(ctx, base); return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_imm64(0, missing))
+            _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
+
+            var elem_slot = base + argc + 4
+            var elem_off = _intr_tmp_off(ctx, locals, elem_slot)
+            if elem_off == nil { _intr_tmp_pop(ctx, base); return nil }
+            var idx_name = "$tmp_intr" + oren_int_to_string(idx_slot)
+            var elem_name = "$tmp_intr" + oren_int_to_string(elem_slot)
+
+            var labels1 = {}
+            var fixups1 = []
+            var l_loop = _new_label(ctx, "varargs_spread_loop")
+            var l_done = _new_label(ctx, "varargs_spread_done")
+
+            _emit_label(ctx, labels1, l_loop)
+            _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off) // rax = idx
+            _emit_mov_r64_mrbp(ctx, 2, 0 - len_off) // rdx = len
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
+            _emit_jcc_to_label(ctx, fixups1, "ge", l_done)
+
+            // elem = spread[idx]
+            _emit_eval_int_to_rax(ctx, {"type": "Index", "left": {"type": "Identifier", "value": spread_name}, "index": {"type": "Identifier", "value": idx_name}}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - elem_off, 0)
+
+            // rest.push(elem)
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": rest_name}, {"type": "Identifier", "value": elem_name}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+            // idx++
+            _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off)
+            bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
+            _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
+            _emit_jmp_to_label(ctx, fixups1, l_loop)
+
+            _emit_label(ctx, labels1, l_done)
+            _patch_local_fixups(ctx, labels1, fixups1)
+
+            // Load ABI args for the real call: fixed args + rest_list.
+            var regc = abi.max_int_reg_args(ctx["abi"])
+            var shadow = abi.caller_shadow_bytes(ctx["abi"])
+            var k = 0
+            while k < fixed + 1 {
+                var tmp_off = nil
+                if k < fixed {
+                    if k < argc {
+                        tmp_off = _intr_tmp_off(ctx, locals, base + k)
+                    } else {
+                        tmp_off = _intr_tmp_off(ctx, locals, base + argc + 5 + (k - argc))
+                    }
+                } else {
+                    tmp_off = rest_off
+                }
+                if tmp_off == nil { _intr_tmp_pop(ctx, base); return nil }
+
+                if k < regc {
+                    var reg = abi.int_arg_reg(ctx["abi"], k)
+                    if reg == nil { _intr_tmp_pop(ctx, base); err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+                    _emit_mov_r64_mrbp(ctx, reg, 0 - tmp_off)
+                } else {
+                    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off)
+                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+                    var stack_disp = shadow + 8 * (k - regc)
+                    var call_area = ctx["cur_call_area_bytes"]
+                    if call_area == nil { call_area = 0 }
+                    if stack_disp + 8 > call_area {
+                        _intr_tmp_pop(ctx, base)
+                        err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+8) + ", have " + oren_int_to_string(call_area) + ")")
+                        return nil
+                    }
+                    _emit_mov_mrsp_r64(ctx, stack_disp, 0)
+                }
+                k = k + 1
+            }
+
+            var call_pos = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": nm})
+            _intr_tmp_pop(ctx, base)
+            return nil
+        }
+
+        // --- fixed-arity + spread ---
+        if argc > arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
         var need = arity - argc
 
         // Spill fixed args + spread list + spread elements, then load into ABI arg registers.
@@ -251,4 +442,3 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     _intr_tmp_pop(ctx, base2)
     return nil
 }
-

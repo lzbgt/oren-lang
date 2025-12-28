@@ -1,0 +1,18 @@
+fn sum1(x, ...rest) {
+    var s = x
+    var i = 0
+    while i < oren_list_len(rest) {
+        s = s + rest[i]
+        i = i + 1
+    }
+    return s
+}
+
+fn main() {
+    var xs = [2, 3]
+    // Spread contributes into `rest`.
+    var r = sum1(1, xs...)
+    if r == 6 { return 0 }
+    return 1
+}
+

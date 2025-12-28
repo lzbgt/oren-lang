@@ -1,0 +1,10 @@
+fn add2(a, b, ...rest) {
+    return a + b + oren_list_len(rest)
+}
+
+fn main() {
+    // Need 2 fixed args, but spread has only 1 => deterministic abort(1) in x64 native.
+    var xs = [1]
+    return add2(xs...)
+}
+

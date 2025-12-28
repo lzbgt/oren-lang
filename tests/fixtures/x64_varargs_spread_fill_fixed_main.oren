@@ -1,0 +1,14 @@
+fn add2(a, b, ...rest) {
+    // returns a + b + len(rest)
+    return a + b + oren_list_len(rest)
+}
+
+fn main() {
+    // Fixed args filled from spread, remaining goes into rest.
+    var xs = [1, 2, 3]
+    var r = add2(xs...)
+    // 1 + 2 + len([3]) == 4
+    if r == 4 { return 0 }
+    return 1
+}
+
