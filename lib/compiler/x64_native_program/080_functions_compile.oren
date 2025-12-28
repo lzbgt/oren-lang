@@ -64,10 +64,20 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     // Reset the intrinsic temp allocator for this function.
     // This protects intrinsic arg spilling from nested expression evaluation clobbering.
+    //
+    // Reserve only as much as needed (plus a small cushion) to avoid bloating every stack frame.
+    var max_intr = _max_intr_tmp_in_ops(ops)
+    if max_intr == nil { max_intr = 0 }
+    var intr_lim = max_intr + 8
+    if intr_lim < 16 { intr_lim = 16 }
+    // Rolling safety ceiling: if a function needs an extreme amount of temp spilling,
+    // fail fast rather than silently capping and producing miscompiles.
+    if intr_lim > 4096 {
+        err(ctx, "x64 native v0: intrinsic temp demand too high (need " + oren_int_to_string(intr_lim) + ")")
+        return nil
+    }
     ctx["intr_tmp_cursor"] = 0
-    // Note: we intentionally keep this generous so nested calls and nested intrinsics can
-    // spill independently without clobbering each other. (Rolling: tune later.)
-    ctx["intr_tmp_limit"] = 256
+    ctx["intr_tmp_limit"] = intr_lim
 
     var fn_off = oren_list_len(ctx["code"])
     ctx["functions"][name] = fn_off
@@ -136,7 +146,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
     // These are distinct from `$tmp1..$tmp8` and are allocated via `_intr_tmp_push/_intr_tmp_pop`.
     var it = 0
-    while it < 256 {
+    while it < intr_lim {
         var nm_intr = "$tmp_intr" + oren_int_to_string(it)
         if locals[nm_intr] != nil { err(ctx, "x64 native v0: reserved local name " + nm_intr + " used"); return nil }
         locals[nm_intr] = local_next

@@ -238,3 +238,150 @@ fn _max_call_argc_in_ops(ops) {
     }
     return m
 }
+
+// Compute the maximum intrinsic temp pool usage needed to compile expressions in this function.
+//
+// x64 native v0 uses a per-function `$tmp_intr<i>` pool as a re-entrant spill allocator for:
+// - nested calls used as arguments
+// - intrinsic implementations that must spill args (map/list ops, ptr_set, etc.)
+//
+// We must reserve enough `$tmp_intr<i>` stack slots to cover the maximum *nested* usage,
+// but we should not over-reserve (large fixed pools bloat every stack frame and hurt recursion).
+fn _intr_tmp_base_slots_for_call(nm, argc) {
+    if nm == nil { return argc }
+    // Intrinsics with custom spill needs.
+    if nm == "iadd" { return 1 }
+    if nm == "ptr_set" { return 1 }
+    if nm == "ptr_set_byte" { return 1 }
+    if nm == "oren_map_get" { return 2 }
+    if nm == "oren_map_set" { return 7 }
+    if nm == "oren_index_set" { return 7 }
+    if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" { return 2 }
+    // Normal calls: spill all args.
+    return argc
+}
+
+fn _max_intr_tmp_in_expr(expr) {
+    if expr == nil { return 0 }
+    var t = expr["type"]
+    if t == "Nil" || t == "Boolean" || t == "Integer" || t == "String" || t == "Identifier" { return 0 }
+
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var args = expr["args"]
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+
+        var nm = nil
+        if fn_expr != nil && fn_expr["type"] == "Identifier" { nm = fn_expr["value"] }
+
+        var base = _intr_tmp_base_slots_for_call(nm, argc)
+
+        // While compiling this call, we keep `base` spill slots live across evaluation of each arg.
+        // Args are evaluated LTR, so peak additional usage is the max over arg subexpressions.
+        var max_child = 0
+        var i = 0
+        while args != nil && i < argc {
+            var mi = _max_intr_tmp_in_expr(args[i])
+            if mi > max_child { max_child = mi }
+            i = i + 1
+        }
+        return base + max_child
+    }
+
+    if t == "Infix" {
+        var ml = _max_intr_tmp_in_expr(expr["left"])
+        var mr = _max_intr_tmp_in_expr(expr["right"])
+        if mr > ml { return mr }
+        return ml
+    }
+
+    if t == "Prefix" {
+        return _max_intr_tmp_in_expr(expr["right"])
+    }
+
+    if t == "Index" {
+        var ml2 = _max_intr_tmp_in_expr(expr["left"])
+        var mi2 = _max_intr_tmp_in_expr(expr["index"])
+        if mi2 > ml2 { return mi2 }
+        return ml2
+    }
+
+    if t == "Array" {
+        var m = 0
+        var els = expr["elements"]
+        var j = 0
+        while els != nil && j < oren_list_len(els) {
+            var mj = _max_intr_tmp_in_expr(els[j])
+            if mj > m { m = mj }
+            j = j + 1
+        }
+        return m
+    }
+
+    if t == "Hash" {
+        var m2 = 0
+        var pairs = expr["pairs"]
+        var k = 0
+        while pairs != nil && k < oren_list_len(pairs) {
+            var pair = pairs[k]
+            var mk = _max_intr_tmp_in_expr(pair["key"])
+            if mk > m2 { m2 = mk }
+            var mv = _max_intr_tmp_in_expr(pair["value"])
+            if mv > m2 { m2 = mv }
+            k = k + 1
+        }
+        return m2
+    }
+
+    if t == "If" {
+        // Conservative: keep structure in sync with `_max_call_argc_in_expr`.
+        var m0 = _max_intr_tmp_in_expr(expr["cond"])
+        var consq = expr["consq"]
+        if consq != nil { var m1 = _max_intr_tmp_in_expr(consq["expr"]); if m1 > m0 { m0 = m1 } }
+        var alt = expr["alt"]
+        if alt != nil { var m2 = _max_intr_tmp_in_expr(alt["expr"]); if m2 > m0 { m0 = m2 } }
+        return m0
+    }
+
+    return 0
+}
+
+fn _max_intr_tmp_in_ops(ops) {
+    if ops == nil { return 0 }
+    var m = 0
+    var i = 0
+    while i < oren_list_len(ops) {
+        var op = ops[i]
+        if op == nil { i = i + 1; continue }
+        var k = op["op"]
+        if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" {
+            var e = op["expr"]
+            var me = _max_intr_tmp_in_expr(e)
+            if me > m { m = me }
+        } else if k == "if" {
+            var mc = _max_intr_tmp_in_expr(op["cond"])
+            if mc > m { m = mc }
+            var mt = _max_intr_tmp_in_ops(op["then"])
+            if mt > m { m = mt }
+            var mf = _max_intr_tmp_in_ops(op["else"])
+            if mf > m { m = mf }
+        } else if k == "while" {
+            var mc2 = _max_intr_tmp_in_expr(op["cond"])
+            if mc2 > m { m = mc2 }
+            var mb = _max_intr_tmp_in_ops(op["body"])
+            if mb > m { m = mb }
+        } else if k == "for" {
+            var mi = _max_intr_tmp_in_ops(op["init"])
+            if mi > m { m = mi }
+            var mc3 = _max_intr_tmp_in_expr(op["cond"])
+            if mc3 > m { m = mc3 }
+            var mp = _max_intr_tmp_in_ops(op["post"])
+            if mp > m { m = mp }
+            var mb2 = _max_intr_tmp_in_ops(op["body"])
+            if mb2 > m { m = mb2 }
+        }
+        i = i + 1
+    }
+    return m
+}

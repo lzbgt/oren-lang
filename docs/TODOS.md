@@ -55,6 +55,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 - **Compiler int literals unified**: `lib/compiler/int_lit.oren` is the single source of truth for int literal parsing across optimizer/transpiler/native backends, including u64 bit-pattern literals (e.g. `9223372036854775808` → `i64_min`).
 - **x64 backend modularized for reviewability**: `lib/compiler/x64_native_program.oren` now uses `// @include` chunks under `lib/compiler/x64_native_program/` to avoid large-file context overflow while keeping namespace stability.
+- **x64 re-entrant temp spilling**: x64 native v0 now sizes the `$tmp_intr*` spill pool per-function based on AST analysis (avoids large fixed stack frames while keeping nested calls/intrinsics correct).
 - **ARM64 `/` semantics fixed for Tier‑1 parity**: `int / int` now lowers to `SDIV` (signed trunc-toward-zero) in the arm64 native backend; integration suite adds signed division asserts.
 - **Arithmetic invalid cases standardized**: native backends now deterministically abort on div-by-zero / `i64_min / -1` and shift counts outside `0..63`, matching AVM and the C backend runtime.
 - **Invalid arithmetic fixtures added**: `oretest` now exercises div0 / overflow / shift-oob panic behavior in the local native+C backends and ensures x64 ELF/PE builds exist for the same cases.
