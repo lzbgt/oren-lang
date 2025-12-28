@@ -136,6 +136,19 @@ fn c_ident(name) {
     return s
 }
 
+// C backend symbol naming for Oren identifiers.
+//
+// The C backend emits a host `int main(int argc, char** argv)` entrypoint, so an Oren user
+// function named `main` must not collide with the host entry symbol.
+//
+// Rolling policy:
+// - Keep the Oren surface as `fn main() { ... }`.
+// - Emit it as a different C symbol and call it from the host entrypoint.
+fn c_fn_name(name) {
+    if name == "main" { return "__oren_user_main" }
+    return c_ident(name)
+}
+
 fn ns_resolve(t, exp) {
     if exp == nil { return nil }
     var et = exp["type"]
@@ -290,14 +303,14 @@ fn function_sig(func_decl) {
     var i = 0
     while i < oren_list_len(func_decl["params"]) {
         if i > 0 { params = params + ", " }
-        params = params + "OrenValue " + func_decl["params"][i]["value"]
+        params = params + "OrenValue " + c_ident(func_decl["params"][i]["value"])
         i = i + 1
     }
-    return "OrenValue " + func_decl["name"] + "(" + params + ")"
+    return "OrenValue " + c_fn_name(func_decl["name"]) + "(" + params + ")"
 }
 
 fn fnwrap_name(name) {
-    return name + "__oren_fnwrap"
+    return c_fn_name(name) + "__oren_fnwrap"
 }
 
 fn fnwrap_sig_by_name(name) {
@@ -775,7 +788,7 @@ fn transpile_statement(t, stmt) {
             var ns = ns_resolve(t, stmt["left"])
             if ns != nil {
                 if list_contains(t["functions"], ns["name"]) { return "/* cannot assign to function */" }
-                return ns["name"] + " = " + v_set + ";"
+                return c_ident(ns["name"]) + " = " + v_set + ";"
             }
             var obj = transpile_expression(t, stmt["left"]["left"])
             return "oren_set_attr(" + obj + ", " + CH_QUOTE + stmt["left"]["prop"]["value"] + CH_QUOTE + ", " + v_set + ");"
@@ -1052,7 +1065,7 @@ fn transpile_expression(t, exp) {
             return "oren_call_obj(" + fn_expr + ", " + int_str(argc) + ", " + args_s + ")"
         }
         // Direct call
-        if fn_sym != "" { return fn_sym + "(" + args_s + ")" }
+        if fn_sym != "" { return c_fn_name(fn_sym) + "(" + args_s + ")" }
         return fn_expr + "(" + args_s + ")"
     }
     if et == "SpawnExpr" {
@@ -1076,7 +1089,7 @@ fn transpile_expression(t, exp) {
             if list_contains(t["functions"], ns["name"]) {
                 return "oren_func(" + fnwrap_name(ns["name"]) + ", NULL)"
             }
-            return ns["name"]
+            return c_ident(ns["name"])
         }
         var left = transpile_expression(t, exp["left"])
         return "oren_get_attr(" + left + ", " + CH_QUOTE + exp["prop"]["value"] + CH_QUOTE + ")"
@@ -1144,7 +1157,7 @@ fn transpile_function(t, func_decl) {
             args2 = args2 + "argv[" + int_str(k) + "]"
             k = k + 1
         }
-        emit(t, "return " + fname + "(" + args2 + ");")
+        emit(t, "return " + c_fn_name(fname) + "(" + args2 + ");")
     } else {
         emit(t, "if (argc < " + int_str(fixed) + ") { oren_panic(\"arity mismatch\"); }")
         emit(t, "OrenValue __rest = oren_new_list(0);")
@@ -1160,7 +1173,7 @@ fn transpile_function(t, func_decl) {
         }
         if fixed > 0 { args3 = args3 + ", " }
         args3 = args3 + "__rest"
-        emit(t, "return " + fname + "(" + args3 + ");")
+        emit(t, "return " + c_fn_name(fname) + "(" + args3 + ");")
     }
     indent_less(t)
     emit(t, "}")
@@ -1277,6 +1290,8 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     var t = new_transpiler()
     t["type_ns"] = type_ns
 
+    var has_user_main = false
+
     // Preload all function names for direct-call lowering.
     i = 0
     while i < oren_list_len(units) {
@@ -1284,6 +1299,7 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         var j = 0
         while j < oren_list_len(funs) {
             oren_list_push(t["functions"], funs[j]["name"])
+            if funs[j]["name"] == "main" { has_user_main = true }
             var vf = fun_varargs_fixed(funs[j])
             if vf >= 0 {
                 t["func_varargs_fixed"][funs[j]["name"]] = vf
@@ -1311,7 +1327,7 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         var globals = units[i]["parts"]["globals"]
         var j = 0
         while j < oren_list_len(globals) {
-            emit(t, "OrenValue " + globals[j]["name"]["value"] + ";")
+            emit(t, "OrenValue " + c_ident(globals[j]["name"]["value"]) + ";")
             j = j + 1
         }
         i = i + 1
@@ -1401,7 +1417,7 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
         var globals = units[i]["parts"]["globals"]
         var j = 0
         while j < oren_list_len(globals) {
-            emit(t, "oren_register_root(&" + globals[j]["name"]["value"] + ");")
+            emit(t, "oren_register_root(&" + c_ident(globals[j]["name"]["value"]) + ");")
             j = j + 1
         }
         i = i + 1
@@ -1427,6 +1443,12 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     while i < oren_list_len(root_body) {
         emit(t, transpile_statement(t, root_body[i]))
         i = i + 1
+    }
+
+    // If the user defines `fn main()`, run it after all module top-level statements.
+    // This matches native+AVM entry behavior (rolling parity).
+    if has_user_main {
+        emit(t, c_fn_name("main") + "();")
     }
 
     emit(t, "oren_shutdown();")

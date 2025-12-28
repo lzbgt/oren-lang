@@ -148,9 +148,8 @@ fn main() {
 Entry semantics (rolling, by current toolchain implementation):
 
 - **Top-level statements execute** as the module loads (they compile into an internal `__top_level__` function).
-- If `fn main()` exists:
-  - **Native backend + AVM bytecode**: the runtime **calls it automatically**.
-  - **C backend (current)**: does **not** auto-call `main`; only top-level statements run (so call `main()` at top level, or write script-style top-level code).
+- If `fn main()` exists, the runtime **calls it automatically** (native backend + AVM bytecode + C backend).
+  - C backend implementation detail: the user `main` is emitted as a different C symbol to avoid colliding with the host `int main(...)` entrypoint.
 - Avoid writing `main()` as a top-level call unless you intentionally want `main` to run twice.
 
 ### Imports

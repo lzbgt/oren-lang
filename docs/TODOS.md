@@ -27,7 +27,6 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
-   - Unify **entry semantics** across backends (top-level + `main`): align C/native/AVM so “a typical program with `fn main()`” behaves consistently.
    - Start migration with “callables + varargs + spread” because they span C/native/bytecode.
    - Decide and document a stable **evaluation order** (or an effect model) so optimizations are semantics-preserving across backends.
    - Reference: `docs/BACKEND_ARCHITECTURE.md`.
@@ -95,6 +94,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 ### Recently Completed (Rolling)
 
+- **C backend entry parity**: the C backend now supports `fn main()` without colliding with the host `int main(...)` symbol, and auto-calls the user `main` after module top-level statements.
 - **Compiler int literals unified**: `lib/compiler/int_lit.oren` is the single source of truth for int literal parsing across optimizer/transpiler/native backends, including u64 bit-pattern literals (e.g. `9223372036854775808` → `i64_min`).
 - **x86_64 native callables converge**: function values now point at `__oren_fnwrap_*` wrappers and indirect calls lower as `wrapper(env_ptr, args_list)`; `oren_panic` exists as a minimal deterministic abort for wrappers/invariants.
 - **x86_64 native lambdas/closures converge**: lambda literals now lower to heap-allocated fnobj records with env capture lists, and lambda wrappers `__oren_lambda_*` implement the uniform call ABI.

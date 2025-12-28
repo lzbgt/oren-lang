@@ -250,16 +250,16 @@ Entry behavior (current implementation across backends):
 - If a user-defined `fn main()` exists, the runtime may call it automatically depending on backend:
   - bytecode backend appends a `CALL main` entry stub if `main` exists (see `lib/compiler/codegen_bytecode/030_tail.oren`),
   - native backends use an entry stub that calls `main` (or `__top_level__` if `main` is absent; see `lib/compiler/arm64_elf.oren` / `lib/compiler/arm64_macho.oren`),
-  - **C backend (current)**: emits a host `int main(...)` that executes top-level statements in order, but **does not** auto-call user `fn main()` today (see `lib/compiler/transpiler.oren`).
+  - C backend emits a host `int main(...)` that executes top-level statements in order and then calls user `fn main()` if present (see `lib/compiler/transpiler.oren`).
 
 Practical rule:
 
 - For **native** and **AVM** builds, do **not** write `main()` as a top-level call unless you intentionally want `main` to run twice.
-- For the **C backend today**, the entrypoint is “top-level statements”; if you want `fn main()` to run, call `main()` at top-level (or use top-level script style).
+- For the **C backend**, do **not** write `main()` as a top-level call unless you intentionally want `main` to run twice.
 
-Planned (parity goal):
+Implementation note (C backend):
 
-- Unify entry semantics across backends so that “a typical program with `fn main()`” behaves consistently. Track: `docs/TODOS.md` (P0.2).
+- User `fn main()` is emitted as a different C symbol to avoid colliding with the host `int main(...)` entrypoint; this is an internal detail and should not affect Oren source code.
 
 ### Notes on current (rolling) type annotations
 
