@@ -21,6 +21,26 @@ fn _emit_abort_exitcode(ctx, exit_code) {
     return nil
 }
 
+fn _emit_abort_panic_str(ctx, msg) {
+    // Emit a deterministic abort via `oren_panic(msg)` so failures produce the Tier‑1
+    // diagnostic contract (OREN_DIAG + best-effort stack trace) instead of a silent exit.
+    //
+    // - msg must be a compile-time string literal (this helper stores it in the appended data blob)
+    // - aborts with exit code 1 (the `oren_panic` contract)
+    if msg == nil { msg = "" }
+    var off = _data_add_cstr0(ctx, msg)
+    if off == nil {
+        // If we can't even store the message, fall back to silent deterministic abort.
+        _emit_abort_exitcode(ctx, 1)
+        return nil
+    }
+    var lea_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // rax = &msg
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
+    _emit_panic_with_msg_ptr(ctx, 0)
+    return nil
+}
+
 fn _emit_malloc_size_in_rax(ctx, locals) {
     // malloc(size) / malloc_raw(size) intrinsic core.
     //
@@ -739,7 +759,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_rax_mrax())
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
             _emit_jcc_to_label(ctx, local_fixups, "e", l_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "map_len on non-map")
 
             _emit_label(ctx, labels, l_ok)
             // load count
@@ -764,7 +784,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             //
             // Tier‑1 invariant:
             // - key kind is inferred and attached by shared lowering (`impl_lowering.oren`)
-            // - x64 native does not guess from syntax here.
+            // - x64 native does not guess from syntax here (tagged values are the full fix).
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
 
             var known_key_kind = -1
@@ -814,7 +834,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
             var l_magic_ok = _new_label(ctx, "map_get_magic_ok")
             _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "map_get on non-map")
             _emit_label(ctx, labels, l_magic_ok)
 
             // rsi = key
@@ -825,7 +845,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             } else if known_key_kind == 1 {
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
             } else {
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "x64 native v0: map_get requires inferred key kind (tagged values pending)")
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
             }
 
@@ -1003,7 +1023,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_rax_mrax())
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
             _emit_jcc_to_label(ctx, local_fixups, "e", l_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "list_len on non-list")
 
             _emit_label(ctx, labels, l_ok)
             // load count
@@ -1166,13 +1186,17 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" {
             // Implement list operations as intrinsics for x64 bring-up:
             // - no dependency on injected runtime
-            // - deterministic aborts on invalid use
+            // - deterministic panics on invalid use (Tier‑1 `OREN_DIAG` + stack trace)
             //
             // Note: we keep this consistent with the native runtime layout, but we do not
-            // yet emit rich panic messages here (future: unify with `oren_panic` diagnostics).
+            // yet emit rich heap diagnostics here (future: unify with `lib/runtime_native/110_mem_diag.oren`).
             var is_get = (nm == "oren_list_get")
             var is_set = (nm == "oren_list_set")
             var is_push = (nm == "oren_list_push")
+            var op_name = "list_op"
+            if is_get { op_name = "list_get" }
+            else if is_set { op_name = "list_set" }
+            else if is_push { op_name = "list_push" }
             var want = 0
             if is_get { want = 2 }
             else if is_set { want = 3 }
@@ -1223,7 +1247,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var local_fixups = []
             var l_list_ok = _new_label(ctx, "list_non_nil")
             _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, op_name + " on nil")
             _emit_label(ctx, labels, l_list_ok)
 
             // magic check: [list+24] == LIST
@@ -1234,7 +1258,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
             var l_magic_ok = _new_label(ctx, "list_magic_ok")
             _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, op_name + " on non-list")
             _emit_label(ctx, labels, l_magic_ok)
 
             // load count -> r8
@@ -1301,7 +1325,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
                 var l_oldbuf_ok = _new_label(ctx, "list_oldbuf_ok")
                 _emit_jcc_to_label(ctx, local_fixups, "ne", l_oldbuf_ok)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "list_push internal: old buf missing")
                 _emit_label(ctx, labels, l_oldbuf_ok)
 
                 _emit_mov_r64_mrbp(ctx, 11, 0 - tmp_aux) // r11 = new buf
@@ -1355,7 +1379,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
                 var l_buf_ok = _new_label(ctx, "list_buf_ok")
                 _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "list_push internal: buf missing")
                 _emit_label(ctx, labels, l_buf_ok)
 
                 // addr = buf + count*8  (r10)
@@ -1391,7 +1415,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
             var l_idx_nonneg = _new_label(ctx, "list_idx_nonneg")
             _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, op_name + ": index < 0")
             _emit_label(ctx, labels, l_idx_nonneg)
 
             // idx < count
@@ -1399,7 +1423,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
             var l_inbounds = _new_label(ctx, "list_inbounds")
             _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, op_name + ": index out of bounds")
             _emit_label(ctx, labels, l_inbounds)
 
             // buf != 0
@@ -1407,7 +1431,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
             var l_buf_ok2 = _new_label(ctx, "list_buf_ok2")
             _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok2)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, op_name + " internal: buf missing")
             _emit_label(ctx, labels, l_buf_ok2)
 
             // addr = buf + idx*8  (r10)

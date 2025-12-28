@@ -44,7 +44,7 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
     var l_map_ok = _new_label(ctx, "map_set_map_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_map_ok)
-    _emit_abort_exitcode(ctx, 1)
+    _emit_abort_panic_str(ctx, "map_set on nil")
     _emit_label(ctx, labels, l_map_ok)
 
     // magic check
@@ -55,7 +55,7 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
     var l_magic_ok = _new_label(ctx, "map_set_magic_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
-    _emit_abort_exitcode(ctx, 1)
+    _emit_abort_panic_str(ctx, "map_set on non-map")
     _emit_label(ctx, labels, l_magic_ok)
 
     // rsi = key
@@ -68,7 +68,7 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     } else if kk == 1 {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
     } else {
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "x64 native v0: map_set requires inferred key kind (tagged values pending)")
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
     }
 
