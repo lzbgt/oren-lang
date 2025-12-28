@@ -89,3 +89,117 @@ fn _emit_linux_write_cstr(ctx, s) {
     bytes_extend(ctx["code"], insn_syscall())
     return nil
 }
+
+fn _data_reserve_symtab(ctx, sym_names) {
+    // Reserve a symbol table region in the appended data blob.
+    //
+    // This is used by the x64 native panic stack trace to map return addresses to
+    // function names without needing a full debug-info pipeline.
+    //
+    // Layout (in ctx["data"]):
+    //   symtab_off + 0: u32 count
+    //   symtab_off + 4: u32 reserved (0)
+    //   symtab_off + 8: entries[count] each entry is u64:
+    //       low 32: function code offset (u32)
+    //       high 32: name string offset in data blob (u32)
+    //
+    // The table is filled later, after all functions have been compiled and
+    // their code offsets are known. We reserve first so `symtab_off` is stable
+    // during codegen (RIP-relative LEA fixups).
+    if ctx == nil { return nil }
+    if sym_names == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+
+    // 8-byte align for u64 reads.
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var symtab_off = oren_list_len(ctx["data"])
+    var count = oren_list_len(sym_names)
+    var total = 8 + count * 8
+    var i = 0
+    while i < total { bytes_push(ctx["data"], 0); i = i + 1 }
+
+    ctx["symtab_off"] = symtab_off
+    ctx["symtab_count"] = count
+    ctx["symtab_names"] = sym_names
+    return symtab_off
+}
+
+fn _data_finalize_symtab(ctx) {
+    // Fill the reserved symtab region (see `_data_reserve_symtab`).
+    if ctx == nil { return nil }
+    var symtab_off = ctx["symtab_off"]
+    var sym_names = ctx["symtab_names"]
+    if symtab_off == nil || sym_names == nil { return nil }
+
+    var count = oren_list_len(sym_names)
+    // Header is patched after we know how many valid entries we wrote.
+    set_u32_le(ctx["data"], symtab_off + 0, 0)
+    set_u32_le(ctx["data"], symtab_off + 4, 0)
+
+    // Build entries as {off:int, name:string, name_off:int} then sort descending by off.
+    // Descending order lets symbol resolution pick the closest preceding function via:
+    //   if off_target >= entry.off { return entry.name }
+    var entries = []
+
+    var i = 0
+    while i < count {
+        var nm = sym_names[i]
+        if nm == nil { i = i + 1; continue }
+
+        var off = nil
+        if nm == "__entry_stub__" {
+            off = 0
+        } else if ctx["functions"] != nil {
+            off = ctx["functions"][nm]
+        }
+        if off == nil {
+            err(ctx, "x64 native v0: symtab missing function offset for " + nm)
+            // Do not create a bogus entry that matches everything.
+            i = i + 1
+            continue
+        }
+
+        var name_off = _data_add_cstr0(ctx, nm)
+        if name_off == nil {
+            err(ctx, "x64 native v0: symtab failed to store name " + nm)
+            i = i + 1
+            continue
+        }
+
+        oren_list_push(entries, {"off": off, "name": nm, "name_off": name_off})
+        i = i + 1
+    }
+
+    // Insertion sort (descending by off). Small N expected; keep deterministic.
+    var si = 1
+    while si < oren_list_len(entries) {
+        var key = entries[si]
+        var k_off = key["off"]
+        var k = si - 1
+        while k >= 0 {
+            if entries[k]["off"] >= k_off { break }
+            entries[k + 1] = entries[k]
+            k = k - 1
+        }
+        entries[k + 1] = key
+        si = si + 1
+    }
+
+    // Write entries into the reserved table region (truncate/pad if needed).
+    // NOTE: we reserved `count` entries, but we may have fewer if errors occurred.
+    var write_n = oren_list_len(entries)
+    if write_n > count { write_n = count }
+    set_u32_le(ctx["data"], symtab_off + 0, write_n)
+    var j = 0
+    while j < write_n {
+        var e = entries[j]
+        var e_off = e["off"]
+        var e_name_off = e["name_off"]
+        // entry word at: symtab_off + 8 + j*8
+        var pos = symtab_off + 8 + j * 8
+        set_u32_le(ctx["data"], pos + 0, core.int_mod(e_off, 4294967296))
+        set_u32_le(ctx["data"], pos + 4, core.int_mod(e_name_off, 4294967296))
+        j = j + 1
+    }
+    return nil
+}

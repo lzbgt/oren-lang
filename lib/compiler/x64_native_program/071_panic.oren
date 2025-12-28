@@ -195,10 +195,10 @@ fn _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, shift, pos) {
     return nil
 }
 
-fn _emit_format_u64_hex_line(ctx, val_reg, buf_reg) {
+fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
     // Format into memory at buf_reg:
-    //   0x<16 hex digits>\n
-    // Total bytes: 19
+    //   0x<16 hex digits><space>
+    // Total bytes: 19 (no newline; caller prints suffix)
     //
     // Uses:
     // - r13: hex table ptr (must be initialized)
@@ -232,11 +232,131 @@ fn _emit_format_u64_hex_line(ctx, val_reg, buf_reg) {
     _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 4, 16)
     _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 0, 17)
 
-    // newline at buf[18]
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 10))
+    // trailing space at buf[18]
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 32))
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 18))
     bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    return nil
+}
+
+fn _emit_resolve_symbol_ptr_best_effort(ctx, addr_reg, out_ptr_reg) {
+    // Resolve an absolute return address to a best-effort function name pointer.
+    //
+    // Requires:
+    // - ctx["symtab_off"] reserved by `_data_reserve_symtab` in program entry.
+    // - fixed-base emitters (x64_elf/x64_pe) so absolute return addresses are stable.
+    //
+    // Returns:
+    // - out_ptr_reg = pointer to NUL-terminated C string name (or "???")
+    //
+    // Clobbers: rax, rbx, r8, r9, r10, r11
+    var symtab_off = ctx["symtab_off"]
+    var unk_off = _data_add_cstr0(ctx, "???")
+    if unk_off == nil {
+        // If we can't even store the unknown marker, leave out_ptr_reg unchanged.
+        return nil
+    }
+
+    // Default out_ptr_reg = "???"
+    var lea_unk = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(out_ptr_reg, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_unk + 3, "data_off": unk_off})
+
+    if symtab_off == nil { return nil }
+
+    // Compute code base address used by the fixed-base emitters.
+    //
+    // Linux x64 ELF: base=0x400000, header_size=120 => first instruction at 0x400000 + 120.
+    // Windows x64 PE: image_base=0x400000, .text rva=0x1000 => first instruction at 0x400000 + 0x1000.
+    //
+    // These constants must match:
+    // - `lib/compiler/x64_elf.oren` (hdr_size=64+56)
+    // - `lib/compiler/x64_pe.oren`  (image_base=0x400000, text_rva=0x1000)
+    var platform = ctx["platform"]
+    var text_base = 4194304 + 120
+    if platform != nil && platform["os"] == "windows" {
+        text_base = 4194304 + 4096
+    }
+
+    // if addr < text_base => keep "???"
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(10, text_base)) // r10 = text_base
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(addr_reg, 10))
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "sym_done")
+    var l_loop = _new_label(ctx, "sym_loop")
+    var l_match = _new_label(ctx, "sym_match")
+    _emit_jcc_to_label(ctx, fixups, "l", l_done)
+
+    // off_target (r9) = addr - text_base
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, addr_reg))
+    bytes_extend(ctx["code"], insn_sub_r64_r64(9, 10))
+
+    // r11 = &symtab (RIP-relative into appended data)
+    var lea_sym = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": symtab_off})
+
+    // data_base (r8) = symtab_ptr - symtab_off
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 11))
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(8, core.int_mod(symtab_off, 4294967296)))
+
+    // count (r10) = *(u64*)symtab_ptr
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 11))
+    // entries_base (r11) = symtab_ptr + 8
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+    // idx (rbx) = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(3, 0))
+
+    _emit_label(ctx, labels, l_loop)
+    // if idx >= count => done
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(3, 10))
+    _emit_jcc_to_label(ctx, fixups, "ge", l_done)
+
+    // entry_ptr (rax) = entries_base + idx*8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 3))
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(0, 8))
+    bytes_extend(ctx["code"], insn_add_r64_r64(0, 11))
+    // entry (rax) = *(u64*)entry_ptr
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 0))
+
+    // entry_off (rsi) = low32(entry)  (keep r10 as count)
+    bytes_extend(ctx["code"], insn_mov_r32_r32(6, 0))
+    // if off_target >= entry_off => match
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 6))
+    _emit_jcc_to_label(ctx, fixups, "ge", l_match)
+
+    // idx++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(3, 1))
+    _emit_jmp_to_label(ctx, fixups, l_loop)
+
+    _emit_label(ctx, labels, l_match)
+    // name_off = high32(entry)
+    bytes_extend(ctx["code"], insn_shr_r64_imm8(0, 32))
+    // out_ptr_reg = data_base + name_off
+    bytes_extend(ctx["code"], insn_mov_r64_r64(out_ptr_reg, 8))
+    bytes_extend(ctx["code"], insn_add_r64_r64(out_ptr_reg, 0))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _emit_write_newline(ctx) {
+    var platform = ctx["platform"]
+    if platform != nil && platform["os"] == "windows" {
+        var nl_off = _data_add_cstr0(ctx, "\n")
+        if nl_off == nil { return nil }
+        var lea_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_rdata_lea", "pos": lea_pos + 3, "data_off": nl_off})
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1))
+        _emit_windows_write_ptr_len(ctx, 2, 11)
+        return nil
+    }
+    _emit_linux_write_str(ctx, "\n")
     return nil
 }
 
@@ -288,10 +408,17 @@ fn _emit_stack_trace_best_effort(ctx) {
 
         // buf = rsp + 0x60
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 96))
-        _emit_format_u64_hex_line(ctx, 15, 11)
-        // write buf (ptr=r11, len=19 in r10)
+        _emit_format_u64_hex_prefix(ctx, 15, 11)
+        // write buf prefix (ptr=r11, len=19 in r10)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 19))
         _emit_windows_write_ptr_len(ctx, 11, 10)
+
+        // Symbolicate: print best-effort name and newline.
+        _emit_resolve_symbol_ptr_best_effort(ctx, 15, 11) // r11 = name ptr
+        _emit_strlen_cstr0_to_rdx(ctx, 11) // rdx = len
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2)) // r10 = len
+        _emit_windows_write_ptr_len(ctx, 11, 10)
+        _emit_write_newline(ctx)
 
         // r12 = *(r12) (next frame)
         bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 12))
@@ -330,10 +457,15 @@ fn _emit_stack_trace_best_effort(ctx) {
 
     // buf = rsp + 0x60
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 96))
-    _emit_format_u64_hex_line(ctx, 15, 11)
+    _emit_format_u64_hex_prefix(ctx, 15, 11)
     // len=19 in r10
     bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 19))
     _emit_linux_write_ptr_len(ctx, 11, 10)
+
+    _emit_resolve_symbol_ptr_best_effort(ctx, 15, 11)
+    _emit_strlen_cstr0_to_rdx(ctx, 11)
+    _emit_linux_write_ptr_len(ctx, 11, 2)
+    _emit_write_newline(ctx)
 
     // r12 = *(r12)
     bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 12))
