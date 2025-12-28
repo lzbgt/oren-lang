@@ -1,7 +1,7 @@
 # Docs Index (Canonical Map)
 
 **Last updated:** 2025-12-28  
-This folder contains both **canonical specs** and a few **compatibility stubs** kept to avoid link rot while the repo evolves in rolling mode.
+This folder contains the **canonical specs** and living design notes for Oren (rolling).
 
 ## 1) “Start Here”
 
@@ -41,15 +41,11 @@ This folder contains both **canonical specs** and a few **compatibility stubs** 
 - Nested universes (“AVM in AVM”): `docs/AVM_MULTIVERSE.md`
 - Comparison notes: `docs/COMPARISON.md`
 
-## 7) Tools
+## 6) Tools
 
 - Local swarm harness (k-of-n agreement): `tools/avm_swarm_local.sh`
 
-## 6) Compatibility Stubs (Kept for Link Stability)
+## 7) No Stubs (Rolling)
 
-These docs are intentionally short and point to canonical locations:
-
-- `docs/AI_FEATURES.md` → `docs/AGENTIC_REQUIREMENTS.md`
-- `docs/AGENTIC_AI_TOP_FEATURES.md` → `docs/AGENTIC_REQUIREMENTS.md`
-- `docs/AGENTIC_VM_KILLER_FEATURES.md` → `docs/AGENTIC_REQUIREMENTS.md`
-- `docs/AVM_CAPABILITIES.md` → `docs/AVM_SPEC_V1.md`
+Rolling policy: remove empty/duplicate docs instead of keeping “stub” files.
+Prefer updating links and index entries when names move.
