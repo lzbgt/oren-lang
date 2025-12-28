@@ -31,6 +31,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Unify “program termination” semantics across backends (what does `main` return mean vs `exit(code)`); keep deterministic contract for tooling/agents.
    - Decide and document a stable **evaluation order** (or an effect model) so optimizations are semantics-preserving across backends.
    - Concrete step landed: CoreIR v0 scaffold exists (`lib/compiler/coreir.oren`) and the x86_64 native backend now uses it for deterministic function metadata (decl order, arity, varargs).
+   - Docs hygiene: keep IR docs aligned as CoreIR expands (`docs/IR_AND_COMPILER_INTERNALS.md`).
    - Reference: `docs/BACKEND_ARCHITECTURE.md`.
 
 3) **Container ops as operations (no hot-path stdlib overhead)** (M)
