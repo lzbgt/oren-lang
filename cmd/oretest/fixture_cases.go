@@ -44,26 +44,25 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 		{
 			name: "manifest_bytecode",
 			cmd: fmt.Sprintf(
-				"./oren build %q --backend bytecode --target %s --deterministic --manifest -o %q > %q && "+
+				"./oren build %q --backend bytecode --deterministic --manifest -o %q > %q && "+
 					"test -s %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Eq %q %q",
 				"tests/modules/test_strings.oren",
-				target,
-				"build/manifest_bytecode.obc",
-				"build/manifest_bytecode.out",
-				"build/manifest_bytecode.obc.manifest.json",
+				"build/targets/avm/bytecode/manifest_bytecode.obc",
+				"build/tmp/manifest_bytecode.out",
+				"build/targets/avm/bytecode/manifest_bytecode.obc.manifest.json",
 				"\"kind\":\"bytecode\"",
-				"build/manifest_bytecode.obc.manifest.json",
+				"build/targets/avm/bytecode/manifest_bytecode.obc.manifest.json",
 				"\"deterministic\":true",
-				"build/manifest_bytecode.obc.manifest.json",
+				"build/targets/avm/bytecode/manifest_bytecode.obc.manifest.json",
 				"\\\"size_bytes\\\":[1-9][0-9]*",
-				"build/manifest_bytecode.obc.manifest.json",
+				"build/targets/avm/bytecode/manifest_bytecode.obc.manifest.json",
 			),
 			log:     "build/logs/manifest_bytecode.log",
 			ok:      func(rc int) bool { return rc == 0 },
-			cleanup: []string{"build/manifest_bytecode.obc", "build/manifest_bytecode.out", "build/manifest_bytecode.obc.manifest.json"},
+			cleanup: []string{"build/targets/avm/bytecode/manifest_bytecode.obc", "build/tmp/manifest_bytecode.out", "build/targets/avm/bytecode/manifest_bytecode.obc.manifest.json"},
 		},
 		{
 			name: "manifest_meta",
@@ -92,51 +91,48 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 		{
 			name: "bytecode_negative_int_constants",
 			cmd: fmt.Sprintf(
-				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
+				"./oren build %q --backend bytecode --deterministic -o %q > %q && "+
 					"./avm --disasm-consts %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q",
 				"tests/fixtures/bytecode_neg_int_const.oren",
-				target,
-				"build/bytecode_neg_int_const.obc",
-				"build/bytecode_neg_int_const.build.out",
-				"build/bytecode_neg_int_const.obc",
-				"build/bytecode_neg_int_const.disasm.out",
+				"build/targets/avm/bytecode/bytecode_neg_int_const.obc",
+				"build/tmp/bytecode_neg_int_const.build.out",
+				"build/targets/avm/bytecode/bytecode_neg_int_const.obc",
+				"build/tmp/bytecode_neg_int_const.disasm.out",
 				"=-4",
-				"build/bytecode_neg_int_const.disasm.out",
+				"build/tmp/bytecode_neg_int_const.disasm.out",
 				"=-3",
-				"build/bytecode_neg_int_const.disasm.out",
+				"build/tmp/bytecode_neg_int_const.disasm.out",
 			),
 			log:     "build/logs/fixture_bytecode_negative_int_constants.log",
 			ok:      func(rc int) bool { return rc == 0 },
-			cleanup: []string{"build/bytecode_neg_int_const.obc", "build/bytecode_neg_int_const.build.out", "build/bytecode_neg_int_const.disasm.out"},
+			cleanup: []string{"build/targets/avm/bytecode/bytecode_neg_int_const.obc", "build/tmp/bytecode_neg_int_const.build.out", "build/tmp/bytecode_neg_int_const.disasm.out"},
 		},
 		{
 			name: "deterministic_bytecode_hash",
 			cmd: fmt.Sprintf(
-				"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
-					"./oren build %q --backend bytecode --target %s --deterministic -o %q > %q && "+
+				"./oren build %q --backend bytecode --deterministic -o %q > %q && "+
+					"./oren build %q --backend bytecode --deterministic -o %q > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=bytecode sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=bytecode sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
 					"diff -q %q %q",
 				"tests/modules/test_strings.oren",
-				target,
-				"build/deterministic_1.obc",
-				"build/deterministic_1.out",
+				"build/targets/avm/bytecode/deterministic_1.obc",
+				"build/tmp/deterministic_1.out",
 				"tests/modules/test_strings.oren",
-				target,
-				"build/deterministic_2.obc",
-				"build/deterministic_2.out",
-				"build/deterministic_1.out",
-				"build/deterministic_1.hash",
-				"build/deterministic_2.out",
-				"build/deterministic_2.hash",
-				"build/deterministic_1.hash",
-				"build/deterministic_2.hash",
+				"build/targets/avm/bytecode/deterministic_2.obc",
+				"build/tmp/deterministic_2.out",
+				"build/tmp/deterministic_1.out",
+				"build/tmp/deterministic_1.hash",
+				"build/tmp/deterministic_2.out",
+				"build/tmp/deterministic_2.hash",
+				"build/tmp/deterministic_1.hash",
+				"build/tmp/deterministic_2.hash",
 			),
 			log:     "build/logs/deterministic_bytecode_hash.log",
 			ok:      func(rc int) bool { return rc == 0 },
-			cleanup: []string{"build/deterministic_1.obc", "build/deterministic_2.obc", "build/deterministic_1.out", "build/deterministic_2.out", "build/deterministic_1.hash", "build/deterministic_2.hash"},
+			cleanup: []string{"build/targets/avm/bytecode/deterministic_1.obc", "build/targets/avm/bytecode/deterministic_2.obc", "build/tmp/deterministic_1.out", "build/tmp/deterministic_2.out", "build/tmp/deterministic_1.hash", "build/tmp/deterministic_2.hash"},
 		},
 		{
 			name: "native_x64_tier1_smoke_builds",

@@ -41,6 +41,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - linux/arm64 (persistent docker),
      - linux/x86_64 (WSL2 on remote Win11).
    - Tooling: `tools/verify_obc_portability.sh`
+   - Convenience: `make obc-portability`
    - Docs: `docs/OBC_PORTABILITY.md`
    - Next: port AVM to native Windows so this can become “Win11 x64 (no WSL)” too.
 

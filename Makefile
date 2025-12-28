@@ -1,4 +1,5 @@
 .PHONY: all clean bootstrap test test-inner test-legacy test-legacy-inner verify stage1 stage2 avm examples-test examples-test-inner
+.PHONY: obc-portability
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -295,6 +296,11 @@ examples-test-inner: oren avm
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_multiverse_net_demo.oren --backend bytecode -o build/ex_avm_multiverse_net_demo.obc
 	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,8,6" --fs-allow-prefixes "build/" --fs-backend host build/ex_avm_multiverse_net_demo.obc >/dev/null
 	@echo "Examples OK"
+
+# Verify `.obc` portability across AVM hosts (rolling).
+# This is an integration-style gate and may use Docker + remote Win11+WSL2.
+obc-portability: oren avm
+	@tools/verify_obc_portability.sh
 
 # --- Cleanup ---
 

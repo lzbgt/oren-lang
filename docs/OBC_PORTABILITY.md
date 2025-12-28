@@ -27,6 +27,10 @@ Use the script:
 
 `tools/verify_obc_portability.sh`
 
+Or via Make:
+
+`make obc-portability`
+
 It verifies the same `.obc` (`tests/avm/test_smoke_suite.oren`) runs identically on:
 
 - macOS arm64 (host)
@@ -71,4 +75,3 @@ Environment variables (defaults match the repo’s existing conventions):
 2) **Compiler bytecode invariants**
    - The compiler currently forces a single bytecode ABI profile (`target=avm`, `arch=avm64`) to prevent host-specific lowering from leaking into `.obc`.
    - This should converge to “bytecode compilation ignores host target entirely” as the IR and lowering become fully portable.
-
