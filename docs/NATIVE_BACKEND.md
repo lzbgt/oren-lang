@@ -93,6 +93,7 @@ make verify # Run full self-hosting test
 ./oren build file.oren --backend native -o out
 ./oren build file.oren --backend native -o out --target linux
 ./oren build file.oren --backend native --disasm
+./oren build file.oren --backend native --no-debug # Disable stack-trace debug info (or: OREN_NATIVE_NO_DEBUG=1)
 ./oren build file.oren --analyze # Static analysis
 ```
 

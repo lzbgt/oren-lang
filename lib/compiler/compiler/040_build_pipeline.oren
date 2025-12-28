@@ -419,16 +419,13 @@ fn compiler_main() {
     var stdlib_obc = ""
     var link_obc = []
     // Rolling mode: default native builds to embed debug info so panics produce readable stack traces.
-    // Users can still disable by explicitly setting OREN_NATIVE_NO_DEBUG=1 (kept as an env knob so we
-    // don't need to introduce a new CLI flag yet).
+    // Users can still disable by setting `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`).
     var debug_mode = false
     var link_libs = []
     if target == "macos" { codesign_id = "Developer ID Application: Zongbao Lu (US56HHF2Y4)" }
     if cmd_name == "emit-c" { emit_c = true }
     // These options can also be configured via env (wired via std:argparse env defaults).
     // Use parsed opts as the canonical source to keep precedence consistent.
-    var env_native_no_debug = oren_env("OREN_NATIVE_NO_DEBUG")
-    if env_native_no_debug != nil { debug_mode = false }
 
     // Modern CLI: options already parsed/validated by std/argparse; map parsed fields to vars.
     if cmd_name == "emit-c" {
@@ -442,7 +439,19 @@ fn compiler_main() {
     target = opts["target"]
     arch = opts["arch"]
     disasm = seen["disasm"] == true
-    debug_mode = seen["debug"] == true
+    // Debug info policy (native backend):
+    // - default: enabled for native builds (production ergonomics: readable stack traces)
+    // - opt-out: `--no-debug` or `OREN_NATIVE_NO_DEBUG=1`
+    // - opt-in override: `--debug` force-enables even if env/flag disabled (unless both flags passed)
+    if backend == "native" { debug_mode = true }
+    if seen["no-debug"] == true { debug_mode = false }
+    if seen["debug"] == true { debug_mode = true }
+    if seen["debug"] == true && seen["no-debug"] == true {
+        var emsg = "oren build: cannot use both --debug and --no-debug"
+        emit_diag("compile", 2, emsg)
+        print(emsg)
+        oren_exit(2)
+    }
     call_depth_max = opts["call-depth-max"]
     analyze = seen["analyze"] == true
     emit_meta = seen["metadata"] == true
@@ -584,16 +593,6 @@ fn compiler_main() {
     // - 0 => unlimited (disable deterministic call-depth abort)
     if call_depth_max == nil { call_depth_max = 8192 }
     else if call_depth_max < 0 { call_depth_max = 8192 }
-
-    // If user did not explicitly request debug info, default it on for native backend builds.
-    // This makes runtime panics actionable by default (stack traces map to function names).
-    if backend == "native" {
-        if debug_mode == false {
-            if env_native_no_debug == nil {
-                debug_mode = true
-            }
-        }
-    }
 
     if backend != "c" && backend != "native" && backend != "bytecode" {
         emit_diag("compile", 2, "Unknown backend: " + backend)

@@ -154,7 +154,41 @@ Docs that reference this contract:
 
 ---
 
-## 5) Quick debugging checklist (fast “where is this implemented?”)
+## 5) Native `STACK_TRACE` debug info (arm64 + x64)
+
+### 5.1 What “debug info” means in rolling native
+
+Native backends do not yet emit DWARF/PDB. Instead they embed **best-effort tables** so panics can print readable stack traces.
+
+Current Tier‑1 behavior:
+
+- `oren_panic(msg)` prints a stable `OREN_DIAG ...` line, then prints `STACK_TRACE`, then aborts.
+- `STACK_TRACE` is based on a frame-pointer chain (`FP`/`LR` on arm64; `RBP` on x86_64).
+- Symbolication uses embedded tables (best-effort; fixed-base emitters on x64).
+
+Implementation (x86_64 native v0 bring-up):
+
+- Stack trace printing: `lib/compiler/x64_native_program/071_panic.oren`
+- Symtab storage/fill: `lib/compiler/x64_native_program/010_data_io.oren` (`_data_reserve_symtab`, `_data_finalize_symtab`)
+- Call-site linetab storage/fill (debug builds): `lib/compiler/x64_native_program/010_data_io.oren` (`_data_reserve_linetab`, `_data_finalize_linetab`)
+- Call-site linetab resolve + printing: `lib/compiler/x64_native_program/071_panic.oren` (`_emit_resolve_loc_ptr_best_effort` + stack-trace loop)
+
+### 5.2 How to enable/disable native debug info
+
+Rolling compiler UX policy:
+
+- Native builds embed stack-trace debug info **by default**.
+- Disable with `--no-debug` (or env `OREN_NATIVE_NO_DEBUG=1`).
+- Use `--debug` to force-enable (but `--debug` and `--no-debug` together is an error).
+
+Note:
+
+- x64 call-site `@file:line` mapping depends on embedding the linetab (debug mode).
+- Function definition locations (`fn@file:line`) come from tokens on function nodes during symtab display synthesis.
+
+---
+
+## 6) Quick debugging checklist (fast “where is this implemented?”)
 
 Suggested ripgrep pivots:
 

@@ -78,6 +78,7 @@ Notes (rolling):
 
 - A Linux/Windows native artifact may not be runnable on a macOS host. Use a Linux machine or the Win11+WSL2 remote workflow (`docs/REMOTE_X64_ENV.md`) to execute x86_64 outputs.
 - The x86_64 native backend is Tier‑1 intent but still in bring-up; `docs/TODOS.md` tracks what is implemented today.
+- Native builds embed best-effort debug info for stack traces by default (rolling ergonomics). Disable with `--no-debug` or `OREN_NATIVE_NO_DEBUG=1`.
 
 ### C Backend (Portable)
 Transpiles Oren to C, then compiles with the system C compiler (`cc`). Best for stability and platform compatibility (x86_64, etc.).
