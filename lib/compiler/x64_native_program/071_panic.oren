@@ -501,7 +501,8 @@ fn _emit_stack_trace_best_effort(ctx) {
     // - avoids allocations and does not depend on injected runtime
     //
     // Caveats:
-    // - this is not a symbolic trace (no debug info / line mapping on x64 yet)
+    // - best-effort only: symbolication uses an embedded symtab (fixed-base emitters)
+    // - line mapping is currently "function definition @ file:line" (not call-site DWARF/PDB-style)
     // - relies on frame pointers being enabled (true for current x64 prologues)
     //
     // Clobbers: volatile regs; exits soon after anyway.

@@ -24,7 +24,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 	     - ✅ x64 call depth max is configurable at build time via `oren build --call-depth-max <n>` (default 8192)
 	     - ✅ x64 runtime env override: `OREN_CALL_DEPTH_MAX=<n>` is now supported in the entry stub (Linux ELF + Windows PE)
 	     - ✅ remote-run gate covers `OREN_CALL_DEPTH_MAX` on real x86_64 (Win11 PE + WSL2 ELF) when `OREN_REMOTE_RUN=1`
-	     - ⏭️ next: fn+line mapping / source file mapping, fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
+	     - ✅ x64 `STACK_TRACE` symbolication now includes function definition location `fn@file:line` for user fns (best-effort; not call-site line mapping)
+	     - ⏭️ next: call-site line mapping / source file mapping (debug info), fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).

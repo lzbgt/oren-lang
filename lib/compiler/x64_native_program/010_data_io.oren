@@ -214,7 +214,11 @@ fn _data_finalize_symtab(ctx) {
             continue
         }
 
-        var name_off = _data_add_cstr0(ctx, nm)
+        var disp = nm
+        if ctx["symtab_display"] != nil && ctx["symtab_display"][nm] != nil {
+            disp = ctx["symtab_display"][nm]
+        }
+        var name_off = _data_add_cstr0(ctx, disp)
         if name_off == nil {
             err(ctx, "x64 native v0: symtab failed to store name " + nm)
             i = i + 1

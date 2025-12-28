@@ -305,13 +305,27 @@ fn native_compile_program_x64(linked, platform) {
     // with stable RIP-relative fixups. We fill the table later, after compilation
     // (when function code offsets are known).
     var sym_names = []
+    // Display name mapping for stack traces:
+    // - key: real function name (used to look up code offsets)
+    // - value: display label (may include source location)
+    //
+    // This is intentionally "function definition location" (not call-site line mapping).
+    ctx["symtab_display"] = {}
     oren_list_push(sym_names, "__entry_stub__")
+    ctx["symtab_display"]["__entry_stub__"] = "__entry_stub__"
     // User functions (deterministic: source order).
     var si0 = 0
     while si0 < oren_list_len(fns) {
         var fn0 = fns[si0]
         if fn0 != nil && fn0["name"] != nil && fn0["name"] != "" {
-            oren_list_push(sym_names, fn0["name"])
+            var nm1 = fn0["name"]
+            oren_list_push(sym_names, nm1)
+            var disp = nm1
+            var tok0 = fn0["token"]
+            if tok0 != nil && tok0["file"] != nil && tok0["line"] != nil {
+                disp = nm1 + "@" + tok0["file"] + ":" + oren_int_to_string(tok0["line"])
+            }
+            ctx["symtab_display"][nm1] = disp
         }
         si0 = si0 + 1
     }
@@ -320,7 +334,10 @@ fn native_compile_program_x64(linked, platform) {
     while si0 < oren_list_len(wrappers) {
         var w0 = wrappers[si0]
         if w0 != nil && w0["name"] != nil && w0["name"] != "" {
-            oren_list_push(sym_names, w0["name"])
+            var wnm = w0["name"]
+            oren_list_push(sym_names, wnm)
+            // Wrappers are compiler-synthesized; keep them clearly marked in stack traces.
+            ctx["symtab_display"][wnm] = wnm + "@<generated>"
         }
         si0 = si0 + 1
     }
