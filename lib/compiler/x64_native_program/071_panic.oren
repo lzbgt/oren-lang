@@ -268,18 +268,9 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     if symtab_off == nil { return nil }
 
     // Compute code base address used by the fixed-base emitters.
-    //
-    // Linux x64 ELF: base=0x400000, header_size=120 => first instruction at 0x400000 + 120.
-    // Windows x64 PE: image_base=0x400000, .text rva=0x1000 => first instruction at 0x400000 + 0x1000.
-    //
-    // These constants must match:
-    // - `lib/compiler/x64_elf.oren` (hdr_size=64+56)
-    // - `lib/compiler/x64_pe.oren`  (image_base=0x400000, text_rva=0x1000)
+    // Source of truth: `lib/compiler/native_abi.oren` (x64_v0_* helpers).
     var platform = ctx["platform"]
-    var text_base = 4194304 + 120
-    if platform != nil && platform["os"] == "windows" {
-        text_base = 4194304 + 4096
-    }
+    var text_base = abi.x64_v0_text_base_addr(platform)
 
     // if addr < text_base => keep "???"
     bytes_extend(ctx["code"], insn_mov_r64_imm64(10, text_base)) // r10 = text_base

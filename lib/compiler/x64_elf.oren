@@ -3,6 +3,7 @@
 // v0: minimal ET_EXEC with a single PT_LOAD segment containing headers + code.
 
 import codegen "codegen_x64.oren"
+import abi "native_abi.oren"
 
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
@@ -39,7 +40,7 @@ fn elf_build_prefix_x64(code, data, entry_off) {
     push_u32_le(p, 1)   // EV_CURRENT
 
     var base = 4194304 // 0x400000
-    var hdr_size = 64 + 56
+    var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes()
     push_u64_le(p, base + hdr_size + entry_off) // e_entry
     push_u64_le(p, 64)  // e_phoff
     push_u64_le(p, 0)   // e_shoff
@@ -80,8 +81,8 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_
     //   [ELF hdrs (120 bytes)] [code] [data]
     //
     // All fixup positions are relative to the start of code.
-    var base = 4194304 // 0x400000
-    var hdr_size = 64 + 56 // 120
+    var base = abi.x64_v0_linux_elf_base_addr()
+    var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes() // 120
     var text_base = base + hdr_size
     var code_len = oren_list_len(code)
 

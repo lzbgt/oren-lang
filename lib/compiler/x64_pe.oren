@@ -8,6 +8,7 @@
 // This is intentionally small and self-contained (no external toolchain required).
 
 import codegen "codegen_x64.oren"
+import abi "native_abi.oren"
 
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
@@ -118,7 +119,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     // Section layout constants.
     var file_align = 512
     var sect_align = 4096
-    var image_base = 4194304 // 0x400000
+    var image_base = abi.x64_v0_windows_pe_image_base()
 
     // We'll use:
     //   .text RVA 0x1000
@@ -126,7 +127,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     //
     // NOTE: .rdata must not overlap .text in virtual address space. When .text grows beyond
     // 1 page, the next section RVA must advance accordingly (Windows loader rejects overlap).
-    var text_rva = 4096
+    var text_rva = abi.x64_v0_windows_text_rva()
     var text_vsize = oren_list_len(code)
     var rdata_rva = text_rva + align_up(text_vsize, sect_align)
 

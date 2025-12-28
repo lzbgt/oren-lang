@@ -39,3 +39,26 @@ fn callee_call_area_bytes(abi) {
     if n == nil { return 0 }
     return n
 }
+
+// ---- x86_64 Tier‑1 fixed-base emitters (rolling v0) ----
+//
+// The x64 native backend currently emits fixed-base executables without relocations:
+// - Linux: ET_EXEC at 0x400000 with headers prepended
+// - Windows: PE32+ ImageBase 0x400000 with .text at RVA 0x1000
+//
+// This lets the panic/diagnostic path do best-effort addr→symbol mapping without
+// a full debug-info pipeline, but it requires that these constants remain consistent
+// with `lib/compiler/x64_elf.oren` and `lib/compiler/x64_pe.oren`.
+
+fn x64_v0_linux_elf_base_addr() { return 4194304 } // 0x400000
+fn x64_v0_linux_elf_hdr_size_bytes() { return 64 + 56 } // ELF64_Ehdr + Elf64_Phdr
+fn x64_v0_linux_text_base_addr() { return x64_v0_linux_elf_base_addr() + x64_v0_linux_elf_hdr_size_bytes() }
+
+fn x64_v0_windows_pe_image_base() { return 4194304 } // 0x400000
+fn x64_v0_windows_text_rva() { return 4096 } // 0x1000
+fn x64_v0_windows_text_base_addr() { return x64_v0_windows_pe_image_base() + x64_v0_windows_text_rva() }
+
+fn x64_v0_text_base_addr(platform) {
+    if platform != nil && platform["os"] == "windows" { return x64_v0_windows_text_base_addr() }
+    return x64_v0_linux_text_base_addr()
+}

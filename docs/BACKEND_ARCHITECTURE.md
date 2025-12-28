@@ -122,6 +122,10 @@ Some backends are still “mid-convergence”:
 - x86_64 native now has a **best-effort panic trace** (RBP chain) and a minimal **addr→fn+offset** symbolication path (embedded symtab, fixed-base emitters) so Tier‑1 bring-up failures are diagnosable without AVM.
 - Remaining Tier‑1 gaps: symbolic stack traces (addr→fn/line mapping), richer `OREN_DIAG` parity with runtime-native diagnostics, and performance work (avoid per-call `args_list` allocations for common cases).
 
+Implementation note (rolling):
+
+- Fixed-base constants for x64 ELF/PE are centralized in `lib/compiler/native_abi.oren` (`x64_v0_*` helpers) so the emitters and the panic symbolication logic cannot drift.
+
 This is acceptable in rolling mode as long as:
 
 - the direction is explicit,
