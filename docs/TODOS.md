@@ -33,7 +33,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 4) **Stack safety parity (recursion / deterministic failure)** (M)
    - Goal: recursion must fail deterministically under a configured budget across AVM + native + C backends (no host stack overflow crashes).
-   - Status: AVM has `--call-depth-max`; native/C parity is not yet guaranteed.
+   - Status: AVM has `--call-depth-max`. C backend now has a deterministic recursion guard via `OREN_CALL_DEPTH_MAX` (default 8192), and the curated runner validates it via `tests/native/fixtures/call_depth_overflow.oren` (C backend runtime fixture).
+   - Next: implement the same call-depth contract in the native backend runtime (arm64 + x64) with minimal overhead (shared lowering / CoreIR boundary).
    - Design: `docs/STACK_SAFETY.md`.
 
 5) **Stdlib modernization audit (grammar + intrinsics)** (S)

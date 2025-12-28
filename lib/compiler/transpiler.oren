@@ -715,13 +715,16 @@ fn transpile_lambda_def(t, def) {
         }
     }
 
+    // Stack safety: deterministic recursion guard for C backend binaries.
+    emit(t, "oren_call_depth_enter();")
+
     var body = fun["body"]["stmts"]
     var k = 0
     while k < oren_list_len(body) {
         emit(t, transpile_statement(t, body[k]))
         k = k + 1
     }
-    emit(t, "return OREN_NIL;")
+    emit(t, "oren_call_depth_exit(); return OREN_NIL;")
 
     indent_less(t)
     emit(t, "}")
@@ -785,7 +788,9 @@ fn transpile_statement(t, stmt) {
     }
     if stmt["type"] == "Return" {
         var v_ret = transpile_expression(t, stmt["value"])
-        return "return " + v_ret + ";"
+        // Ensure the return expression is evaluated *before* we decrement call depth,
+        // otherwise `return f(...)` (including recursion) would not count correctly.
+        return "{ OrenValue __oren_ret = " + v_ret + "; oren_call_depth_exit(); return __oren_ret; }"
     }
     if stmt["type"] == "ExprStmt" {
         if stmt["expr"]["type"] == "If" {
@@ -1112,12 +1117,14 @@ fn transpile_expression(t, exp) {
 fn transpile_function(t, func_decl) {
     emit(t, function_sig(func_decl) + " {")
     indent_more(t)
+    // Stack safety: deterministic recursion guard for C backend binaries.
+    emit(t, "oren_call_depth_enter();")
     var i = 0
     while i < oren_list_len(func_decl["body"]["stmts"]) {
         emit(t, transpile_statement(t, func_decl["body"]["stmts"][i]))
         i = i + 1
     }
-    emit(t, "return OREN_NIL;")
+    emit(t, "oren_call_depth_exit(); return OREN_NIL;")
     indent_less(t)
     emit(t, "}")
 

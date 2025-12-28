@@ -1,0 +1,8 @@
+fn rec(n) {
+    if n == 0 { return 0 }
+    return rec(n - 1)
+}
+
+// With stack safety enabled (C backend call-depth guard), this must fail
+// deterministically rather than overflowing the host OS stack.
+rec(2048)

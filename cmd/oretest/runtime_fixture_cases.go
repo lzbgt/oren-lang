@@ -88,6 +88,16 @@ func buildRuntimeFixtureCases(target string, gcArg string) []runtimeFixtureCase 
 			},
 			cleanup: []string{"build/arith_shift_oob_c"},
 		},
+		{
+			name:  "call_depth_overflow_c",
+			build: fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/call_depth_overflow.oren", target, "build/call_depth_overflow_c", gcArg),
+			run:   "OREN_CALL_DEPTH_MAX=64 ./build/call_depth_overflow_c",
+			log:   "build/logs/call_depth_overflow_c.log",
+			ok: func(rc int, out string) bool {
+				return rc != 0 && strings.Contains(out, "OREN_DIAG kind=panic code=1") && strings.Contains(out, "call depth exceeded")
+			},
+			cleanup: []string{"build/call_depth_overflow_c"},
+		},
 	}
 
 	return runtimeFixtures

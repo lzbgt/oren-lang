@@ -238,10 +238,29 @@ typedef struct OrenThreadState {
     int at_safepoint;
     void* stack_top;
     void* stack_sp;
+    uint64_t call_depth;
+    uint64_t call_depth_max;
     jmp_buf panic_buf;
     int has_panic_buf;
     struct OrenThreadState* next;
 } OrenThreadState;
+
+// Native/C stack safety: guard recursion depth deterministically to avoid host OS stack overflows.
+// Conservative default; override per-process via env.
+#define OREN_CALL_DEPTH_MAX_DEFAULT ((uint64_t)8192u)
+
+static uint64_t parse_env_u64(const char* s, uint64_t def) {
+    if (!s || !s[0]) return def;
+    uint64_t out = 0;
+    for (size_t i = 0; s[i]; i++) {
+        char c = s[i];
+        if (c < '0' || c > '9') return def;
+        uint64_t d = (uint64_t)(c - '0');
+        if (out > (UINT64_MAX - d) / 10) return def;
+        out = out * 10 + d;
+    }
+    return out;
+}
 
 static void thread_key_init() {
     (void)pthread_key_create(&g_thread_key, free);
@@ -260,6 +279,9 @@ static OrenThreadState* oren_thread_state() {
         st->stack_top = (void*)&stack_marker;
         st->stack_sp = NULL;
         st->has_panic_buf = 0;
+        st->call_depth = 0;
+        st->call_depth_max = parse_env_u64(getenv("OREN_CALL_DEPTH_MAX"), OREN_CALL_DEPTH_MAX_DEFAULT);
+        if (st->call_depth_max == 0) st->call_depth_max = OREN_CALL_DEPTH_MAX_DEFAULT;
         pthread_setspecific(g_thread_key, st);
         lock_collections();
         g_threads_total++;
@@ -289,6 +311,21 @@ static void oren_diag_emit(const char* kind, int code, const char* msg) {
         fputc(c, stderr);
     }
     fputc('\n', stderr);
+}
+
+void oren_call_depth_enter() {
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return;
+    st->call_depth++;
+    if (st->call_depth > st->call_depth_max) {
+        oren_panic("call depth exceeded");
+    }
+}
+
+void oren_call_depth_exit() {
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return;
+    if (st->call_depth > 0) st->call_depth--;
 }
 
 void oren_panic(const char* msg) {
@@ -769,4 +806,3 @@ static void* oren_spawn0_entry(void* p) {
     oren_thread_unregister();
     return NULL;
 }
-
