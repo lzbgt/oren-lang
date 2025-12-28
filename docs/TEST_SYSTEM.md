@@ -28,7 +28,8 @@ It requires `timeout` (Linux) or `gtimeout` (macOS coreutils).
 Legacy behavior (broader Makefile-driven lists) is preserved as:
 
 - `make test-legacy`
-  - note: the legacy Makefile suite is intentionally more shell-heavy and tends to run sequentially; prefer `make test` for fast iteration.
+  - note: `test-legacy` is now a **compatibility alias** for `./oretest --full` (broader curated coverage, still parallel).
+  - the historical shell-heavy runner is kept only for reference as `make test-legacy-old` (and may be removed once confidence is high).
 
 ### 2) `./oretest` (repo runner, outside the compiler)
 

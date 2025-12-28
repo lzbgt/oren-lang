@@ -160,7 +160,7 @@ selfhost:
 
 # Legacy suite: historical Makefile-driven runner.
 # Keep it for “extra coverage” during rolling refactors, but do not make it the default.
-test-legacy: oren avm
+test-legacy-old: oren avm
 	@echo "=== Running Tests (Legacy Makefile Suite) ==="
 	@# Hard requirement in rolling mode: tests must not be able to hang forever.
 	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
@@ -171,7 +171,7 @@ test-legacy: oren avm
 		exit $$rc; \
 	}
 
-test-legacy-inner: oren
+test-legacy-inner-old: oren
 	@mkdir -p build
 	@mkdir -p build/logs
 	@# Native Backend Tests
@@ -648,6 +648,24 @@ tests/native/while.oren \
 			exit 1; \
 		fi
 	@echo "All Tests Passed."
+
+# Legacy suite (modern alias).
+#
+# Historical note:
+# - The old shell-heavy Makefile runner is kept as `test-legacy-old` /
+#   `test-legacy-inner-old` for reference during rolling refactors.
+# - The supported behavior for `make test-legacy` is now “run oretest with
+#   broader curated coverage” (parallel and kept in sync with the repo).
+test-legacy: test-legacy-inner
+
+test-legacy-inner: oren avm oretest oredoc
+	@echo "=== Running Tests (Legacy Alias: oretest --full) ==="
+	@# Hard requirement in rolling mode: tests must not be able to hang forever.
+	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
+	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG) --full"; \
+		if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
+		if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
+		$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS
 
 test-native-all: oren
 	@echo "=== Native Tests (All) ==="
