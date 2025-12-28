@@ -655,18 +655,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
 
         if nm == "oren_panic" {
-            // Minimal Tier‑1 convergence: `oren_panic(msg)` is a deterministic abort.
-            //
-            // Rolling note:
-            // - The x64 native backend does not inject the full diagnostic runtime yet, so the
-            //   message is not emitted (future: unify with `OREN_DIAG` contract).
-            // - The process exit code is stable (1), which is sufficient for invariants and
-            //   for shared callable wrappers (`native_callable.oren`).
+            // Tier‑1 convergence: `oren_panic(msg)` emits a stable OREN_DIAG line and aborts(1).
             if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_panic expects 1 arg"); return nil }
             // Evaluate msg for side-effect parity (even though it is usually a string literal).
             _emit_eval_int_to_rax(ctx, args[0], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_abort_exitcode(ctx, 1)
+            _emit_panic_with_msg_ptr(ctx, 0)
             return nil
         }
 

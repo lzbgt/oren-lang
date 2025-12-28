@@ -120,6 +120,7 @@ Some backends are still “mid-convergence”:
   - named function values point at synthesized wrappers `__oren_fnwrap_*`
   - lambda literals lower to heap fnobj records where `env_ptr` points at a capture-by-value list (or `0` for capture-free lambdas), and `code_ptr` points at `__oren_lambda_*` wrappers
 - Remaining Tier‑1 gap: consistent panic/diagnostic output on x86_64 native (rich `OREN_DIAG` / stack trace parity) and performance work (avoid per-call `args_list` allocations for common cases).
+- Remaining Tier‑1 gap: stack trace parity on x86_64 native (rich `OREN_DIAG` + stack trace like `lib/runtime_native/110_mem_diag.oren`) and performance work (avoid per-call `args_list` allocations for common cases).
 
 This is acceptable in rolling mode as long as:
 
