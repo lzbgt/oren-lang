@@ -815,8 +815,12 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_string_slice" { native_id = 8 }
         if name == "oren_string_char_code_at" { native_id = 9 }
         if name == "oren_int_to_string" { native_id = 10 }
-        if name == "oren_list_len" { native_id = 12 }
-        if name == "oren_list_push" { native_id = 13 }
+        // Container ops (rolling): accept both kernel intrinsics (`oren_*`) and
+        // stable-stdlib names (`STD_*`) so bytecode stays fast even if wrapper
+        // inlining is skipped for some reason.
+        if name == "oren_list_len" || name == "STD_list_len" { native_id = 12 }
+        // Note: `oren_list_push` returns `nil` (cross-backend contract).
+        if name == "oren_list_push" || name == "STD_list_push" { native_id = 13 }
         if name == "oren_index_set" { native_id = 14 }
         if name == "int_mod" { native_id = 15 }
         if name == "oren_bytes_from_string" { native_id = 16 }
