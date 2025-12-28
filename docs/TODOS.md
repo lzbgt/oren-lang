@@ -15,7 +15,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic ...` line (best-effort) before aborting
      - ✅ `oren_panic(msg)` now emits a best-effort `STACK_TRACE` (RBP chain, up to 16 return addrs) on Linux+Win64 before aborting
      - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names **and offsets** via an embedded symtab (fixed-base emitters)
-     - ✅ x64 map key-kind selection no longer relies on `key < 4096` for common non-literal keys (identifier int/string keys are inferred and plumbed)
+     - ✅ x64 map key-kind heuristics removed (no `key < 4096` guessing): key kind is inferred conservatively; if unknown, the map path aborts(1) (tagged values remain the full fix)
      - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)
      - ⏭️ next: fn+line mapping / source file mapping, fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
 

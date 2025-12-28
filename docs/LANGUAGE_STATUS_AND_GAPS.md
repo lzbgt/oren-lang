@@ -76,7 +76,7 @@ production maturity requires both implementation *and* regression coverage.
   - Any heuristic that guesses key types (e.g. based on numeric range) is a semantics risk.
   - Direction: a tagged value model or explicit key typing at IR level.
   - Rolling status:
-    - x64 native now infers key kinds for common non-literal keys (identifier int/string) during lowering, reducing reliance on runtime guessing
+    - x64 native key-kind guessing (`key < 4096`) is removed for map get/set; key kind is inferred conservatively during lowering, and unknown cases abort(1) on the map path (tagged values remain the full fix)
     - x64 native now also propagates `recv_kind` on `Index` so codegen can avoid dynamic LIST/MAP dispatch when the receiver kind is known (still validates runtime magic; remaining unknown cases need a principled representation)
 - **Varargs/spread parity (all backends + indirect calls)**
   - Varargs must be “boring and correct”: same semantics everywhere, including closures.

@@ -313,6 +313,20 @@ fn infer_container_kind(expr, kind_env) {
     if t == "Hash" { return "map" }
     if t == "String" { return "string" }
     if t == "Integer" { return "int" }
+    if t == "Prefix" {
+        // Best-effort: arithmetic/bitwise prefix ops produce int.
+        var op = expr["op"]
+        if op == "-" || op == "+" || op == "~" { return "int" }
+    }
+    if t == "Infix" {
+        // Best-effort: arithmetic/bitwise infix ops produce int.
+        // Comparisons (==, <, etc) are intentionally not treated as int here.
+        var op2 = expr["op"]
+        if op2 == "+" || op2 == "-" || op2 == "*" || op2 == "/" || op2 == "%" ||
+           op2 == "&" || op2 == "|" || op2 == "^" || op2 == "<<" || op2 == ">>" {
+            return "int"
+        }
+    }
     if t == "Call" {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
@@ -331,6 +345,12 @@ fn infer_container_kind(expr, kind_env) {
             if nm == "string_concat" { return "string" }
             if nm == "oren_int_to_string" { return "string" }
             if nm == "oren_string_slice" { return "string" }
+
+            // Length helpers return int.
+            if nm == "oren_list_len" { return "int" }
+            if nm == "oren_map_len" { return "int" }
+            if nm == "oren_buf_len" { return "int" }
+            if nm == "oren_string_len" { return "int" }
         }
     }
     return nil
@@ -356,18 +376,30 @@ fn infer_map_key_kind(expr, kind_env) {
         var k = kind_env_get(kind_env, expr["value"])
         if k == "string" { return 1 }
         if k == "int" { return 0 }
-        // Default to integer for unknown identifiers: most non-container values are i64 in
-        // the current rolling compiler pipeline, and map keys are restricted to int/string.
-        return 0
+        // Unknown identifier kind => cannot safely infer.
+        return nil
     }
     // Numeric expressions are treated as integer keys.
-    if t == "Prefix" || t == "Infix" { return 0 }
+    if t == "Prefix" {
+        var op = expr["op"]
+        if op == "-" || op == "+" || op == "~" { return 0 }
+        return nil
+    }
+    if t == "Infix" {
+        var op2 = expr["op"]
+        if op2 == "+" || op2 == "-" || op2 == "*" || op2 == "/" || op2 == "%" ||
+           op2 == "&" || op2 == "|" || op2 == "^" || op2 == "<<" || op2 == ">>" {
+            return 0
+        }
+        return nil
+    }
     // String-producing calls we recognize.
     if t == "Call" {
         var k2 = infer_container_kind(expr, kind_env)
         if k2 == "string" { return 1 }
-        // Default to int for unknown calls (safe for most numeric-key usage).
-        return 0
+        if k2 == "int" { return 0 }
+        // Unknown call kind => cannot safely infer.
+        return nil
     }
     return nil
 }

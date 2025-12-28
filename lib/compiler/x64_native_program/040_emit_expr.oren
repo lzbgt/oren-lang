@@ -346,7 +346,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Key kind inference order (rolling):
         // 1) If the frontend annotated the Index node with `known_key_kind`, use it.
         // 2) Else if the key is a literal Integer/String, use that kind directly.
-        // 3) Else fall back to the v0 heuristic (key < 4096 => int; else string).
+        // 3) Else: abort(1) on the map path (no runtime heuristics in Tier‑1).
         var known_key_kind = -1
         if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
         var idx_t = idx["type"]
@@ -465,12 +465,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 err(ctx, "x64 native v0: map index requires inferred key kind (annotate via known key kinds or use int/string key literals)")
                 return nil
             }
+            // If the receiver kind is unknown, we still support list-vs-map runtime dispatch.
+            // However, the map path cannot guess key kind without tagging, so it aborts.
+            _emit_abort_exitcode(ctx, 1)
             bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-            var l_kind_done = _new_label(ctx, "idx_map_kind_done")
-            _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
-            _emit_label(ctx, labels, l_kind_done)
         }
 
         // r8 = count
@@ -956,7 +954,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // Incremental Tier-1 improvement:
             // - if the frontend provided `known_key_kind`, use it (covers most identifier keys)
             // - if the key is a literal Integer/String, we can emit the correct kind directly
-            // - otherwise we fall back to the v0 heuristic (key < 4096 => int; else string)
+            // - otherwise: abort(1) (no runtime heuristics in Tier‑1)
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
 
             var known_key_kind = -1
@@ -1020,12 +1018,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             } else if known_key_kind == 1 {
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
             } else {
+                _emit_abort_exitcode(ctx, 1)
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-                bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-                var l_kind_done = _new_label(ctx, "map_get_kind_done")
-                _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
-                _emit_label(ctx, labels, l_kind_done)
             }
 
             // r8 = count

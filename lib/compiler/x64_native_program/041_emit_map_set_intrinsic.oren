@@ -10,7 +10,11 @@
 // Note: without tagging, x64 v0 cannot safely infer key kinds for *dynamic* keys
 // (integers >= 4096 are indistinguishable from pointers). As an incremental step,
 // callers may pass a compile-time known key_kind (for literal keys) so integer keys
-// >= 4096 work when the compiler knows they're integers. Full fix: tagged values.
+// >= 4096 work when the compiler knows they're integers.
+//
+// Tier‑1 correctness rule:
+// - when key kind is unknown at compile time, the map path aborts(1) (no heuristics).
+// Full fix: tagged values.
 
 // Map intrinsic helper:
 // Assumes map/key/value have already been evaluated and spilled at the provided stack slots.
@@ -64,13 +68,9 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     } else if kk == 1 {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
     } else {
-        // Fallback heuristic for dynamic keys (v0 limitation).
+        // No runtime heuristics in Tier‑1: key kind must be provided by the compiler.
+        _emit_abort_exitcode(ctx, 1)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-        var l_kind_done = _new_label(ctx, "map_set_kind_done")
-        _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
-        _emit_label(ctx, labels, l_kind_done)
     }
 
     // r8 = count
@@ -265,16 +265,8 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_key)
     bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 0))
     // store kind at +8
-    _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key) // rsi = key
-    // rax = kind (0=int, 1=string)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-    var l_store_kind_done = _new_label(ctx, "map_set_store_kind_done")
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_store_kind_done)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
-    bytes_extend(ctx["code"], insn_cdqe())
-    _emit_label(ctx, labels, l_store_kind_done)
+    // Key kind is already computed into r13 (0=int, 1=string). Do not re-guess.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 13)) // rax = r13
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
     bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
