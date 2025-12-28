@@ -27,3 +27,8 @@ func targetsOutPath(target, arch, backend, name string) string {
 	return filepath.Join("build", "targets", arch+"-"+target, backend, name)
 }
 
+func targetsMetaPath(target, arch, name string) string {
+	// Canonical meta output layout:
+	//   build/targets/<arch>-<os>/meta/<name>.meta.json
+	return filepath.Join("build", "targets", arch+"-"+target, "meta", name+".meta.json")
+}

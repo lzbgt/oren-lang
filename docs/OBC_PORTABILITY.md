@@ -52,7 +52,7 @@ Outputs are stored under:
 This repo already has a persistent docker workflow:
 
 - container name default: `oren-linux-oretest`
-- image default: `ubuntu:24.04`
+- image default: `ubuntu:24.04` (override via `OREN_LINUX_DOCKER_IMAGE=...`)
 
 The script will create/start the container if needed, sync tracked sources, rebuild AVM, then execute the host-built `.obc`.
 
