@@ -1,0 +1,52 @@
+// Intrinsic temp allocator for x64 native v0.
+//
+// Problem:
+// Many intrinsic lowerings need to spill evaluated args into stack slots so they can
+// freely use registers for the actual implementation. If those spill slots are fixed
+// names (e.g. `$tmp1..$tmp7`), nested expression evaluation can clobber the outer
+// intrinsic's spilled args (e.g. `{ "a": {"b": 7} }` where the outer `oren_map_set`
+// evaluates a nested map literal as its value).
+//
+// Solution:
+// Reserve a pool of stack slots `$tmp_intr0..$tmp_intr<N-1>` per function, and treat
+// the pool as a simple bump allocator with explicit push/pop to support nesting.
+
+fn _intr_tmp_push(ctx, n) {
+    var cur = 0
+    if ctx["intr_tmp_cursor"] != nil { cur = ctx["intr_tmp_cursor"] }
+    var lim = 0
+    if ctx["intr_tmp_limit"] != nil { lim = ctx["intr_tmp_limit"] }
+
+    if n < 0 {
+        err(ctx, "x64 native v0: invalid intrinsic temp request")
+        return nil
+    }
+    if cur + n > lim {
+        err(ctx, "x64 native v0: intrinsic temp overflow (need " + oren_int_to_string(n) + ")")
+        return nil
+    }
+
+    ctx["intr_tmp_cursor"] = cur + n
+    return cur
+}
+
+fn _intr_tmp_pop(ctx, base) {
+    if base == nil { return nil }
+    ctx["intr_tmp_cursor"] = base
+    return nil
+}
+
+fn _intr_tmp_off(ctx, locals, idx) {
+    if idx == nil {
+        err(ctx, "x64 native v0: intrinsic temp idx is nil")
+        return nil
+    }
+    var nm = "$tmp_intr" + oren_int_to_string(idx)
+    var off = locals[nm]
+    if off == nil {
+        err(ctx, "x64 native v0: missing intrinsic temp slot " + nm)
+        return nil
+    }
+    return off
+}
+

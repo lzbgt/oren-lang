@@ -1,0 +1,192 @@
+// x64-native literal lowering helpers.
+//
+// These helpers keep literal building re-entrant so nested literals do not clobber
+// fixed temp spill slots used by x64 intrinsics.
+
+fn _lit_enter(ctx) {
+    var d0 = 0
+    if ctx["lit_depth"] != nil { d0 = ctx["lit_depth"] }
+    if d0 >= 8 { err(ctx, "x64 native v0: literal nesting too deep"); return nil }
+    ctx["lit_depth"] = d0 + 1
+    return d0
+}
+
+fn _lit_exit(ctx, d0) {
+    ctx["lit_depth"] = d0
+    return nil
+}
+
+fn _emit_array_literal_expr(ctx, expr, locals) {
+    // List literal `[a, b, c]` lowered as:
+    // - allocate list with cap=len
+    // - fill buffer slots directly
+    // - set count=len
+    var els = nil
+    if expr != nil { els = expr["elements"] }
+    if els == nil { els = [] }
+
+    var d0 = _lit_enter(ctx)
+    if d0 == nil { return nil }
+
+    var hn = "$tmp_lit_list_hdr" + oren_int_to_string(d0)
+    var bn = "$tmp_lit_list_buf" + oren_int_to_string(d0)
+    var tmp_hdr = locals[hn]
+    var tmp_buf = locals[bn]
+    if tmp_hdr == nil || tmp_buf == nil {
+        _lit_exit(ctx, d0)
+        err(ctx, "x64 native v0: missing literal spill slots for array literal")
+        return nil
+    }
+
+    var n = oren_list_len(els)
+
+    var new_call = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
+        "args": [{"type": "Integer", "value": oren_int_to_string(n)}],
+    }
+    _emit_eval_int_to_rax(ctx, new_call, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _lit_exit(ctx, d0)
+        return nil
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
+
+    // buf = *(list+16)
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+
+    if n > 0 {
+        // n>0 implies buf must be non-zero.
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        var labels = {}
+        var local_fixups = []
+        var l_buf_ok = _new_label(ctx, "array_lit_buf_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
+        _emit_abort_exitcode(ctx, 1)
+        _emit_label(ctx, labels, l_buf_ok)
+        _patch_local_fixups(ctx, labels, local_fixups)
+    }
+
+    // Fill elements.
+    var i = 0
+    while i < n {
+        _emit_eval_int_to_rax(ctx, els[i], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+            _lit_exit(ctx, d0)
+            return nil
+        }
+
+        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_buf) // r10 = buf
+        if i != 0 {
+            var off = i * 8
+            if off < 0 || off > 2147483647 {
+                _lit_exit(ctx, d0)
+                err(ctx, "x64 native v0: array literal element offset out of range")
+                return nil
+            }
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, off))
+        }
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+        i = i + 1
+    }
+
+    // count = n
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, n))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // return list
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
+    _lit_exit(ctx, d0)
+    return nil
+}
+
+fn _emit_hash_literal_expr(ctx, expr, locals) {
+    // Map literal `{k: v, ...}` lowered as:
+    // - allocate map with cap>=len
+    // - insert pairs in source order via `oren_map_set`
+    //
+    // Key kinds (rolling x64 v0):
+    // - Integer keys => kind=0
+    // - String keys  => kind=1 (C-string pointer)
+    var pairs = nil
+    if expr != nil { pairs = expr["pairs"] }
+    if pairs == nil { pairs = [] }
+
+    var d0 = _lit_enter(ctx)
+    if d0 == nil { return nil }
+
+    var hn = "$tmp_lit_map_hdr" + oren_int_to_string(d0)
+    var tmp_hdr = locals[hn]
+    if tmp_hdr == nil {
+        _lit_exit(ctx, d0)
+        err(ctx, "x64 native v0: missing literal spill slots for hash literal")
+        return nil
+    }
+
+    var n = oren_list_len(pairs)
+
+    // map = oren_new_map(n)
+    var new_call = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "oren_new_map"},
+        "args": [{"type": "Integer", "value": oren_int_to_string(n)}],
+    }
+    _emit_eval_int_to_rax(ctx, new_call, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _lit_exit(ctx, d0)
+        return nil
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
+
+    // Insert pairs in source order (LTR).
+    var i = 0
+    while i < n {
+        var pair = pairs[i]
+        if pair == nil {
+            _lit_exit(ctx, d0)
+            err(ctx, "x64 native v0: hash literal has nil pair")
+            return nil
+        }
+        var k = pair["key"]
+        var v = pair["value"]
+        if k == nil || v == nil {
+            _lit_exit(ctx, d0)
+            err(ctx, "x64 native v0: hash literal missing key/value")
+            return nil
+        }
+        if k["type"] != "String" && k["type"] != "Integer" {
+            _lit_exit(ctx, d0)
+            err(ctx, "x64 native v0: hash literal key must be string literal or integer")
+            return nil
+        }
+
+        var set_call = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_map_set"},
+            "args": [{"type": "Identifier", "token": nil, "value": hn}, k, v],
+        }
+        _emit_eval_int_to_rax(ctx, set_call, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+            _lit_exit(ctx, d0)
+            return nil
+        }
+        // Store back the map pointer in case future runtimes return a new header.
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
+
+        i = i + 1
+    }
+
+    // return map
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
+    _lit_exit(ctx, d0)
+    return nil
+}

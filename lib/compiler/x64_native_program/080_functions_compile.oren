@@ -63,6 +63,11 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
     var max_call_argc = _max_call_argc_in_ops(ops)
 
+    // Reset the intrinsic temp allocator for this function.
+    // This protects intrinsic arg spilling from nested expression evaluation clobbering.
+    ctx["intr_tmp_cursor"] = 0
+    ctx["intr_tmp_limit"] = 64
+
     var fn_off = oren_list_len(ctx["code"])
     ctx["functions"][name] = fn_off
 
@@ -127,6 +132,17 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         ti = ti + 1
     }
 
+    // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
+    // These are distinct from `$tmp1..$tmp8` and are allocated via `_intr_tmp_push/_intr_tmp_pop`.
+    var it = 0
+    while it < 64 {
+        var nm_intr = "$tmp_intr" + oren_int_to_string(it)
+        if locals[nm_intr] != nil { err(ctx, "x64 native v0: reserved local name " + nm_intr + " used"); return nil }
+        locals[nm_intr] = local_next
+        local_next = local_next + 8
+        it = it + 1
+    }
+
     // Reserve literal-building spill slots. These must be re-entrant because list/map literals
     // can be nested (e.g. `[0, 1, [0, 0]]` in for-in lowering).
     //
@@ -134,13 +150,22 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // those across nested expression evaluation. Dedicated `$tmp_lit_*` slots avoid clobbering.
     var ld = 0
     while ld < 8 {
-        var hn = "$tmp_lit_list_hdr" + oren_int_to_string(ld)
-        var bn = "$tmp_lit_list_buf" + oren_int_to_string(ld)
-        if locals[hn] != nil { err(ctx, "x64 native v0: reserved local name " + hn + " used"); return nil }
-        locals[hn] = local_next
+        var hn1 = "$tmp_lit_list_hdr" + oren_int_to_string(ld)
+        var bn1 = "$tmp_lit_list_buf" + oren_int_to_string(ld)
+        if locals[hn1] != nil { err(ctx, "x64 native v0: reserved local name " + hn1 + " used"); return nil }
+        locals[hn1] = local_next
         local_next = local_next + 8
-        if locals[bn] != nil { err(ctx, "x64 native v0: reserved local name " + bn + " used"); return nil }
-        locals[bn] = local_next
+        if locals[bn1] != nil { err(ctx, "x64 native v0: reserved local name " + bn1 + " used"); return nil }
+        locals[bn1] = local_next
+        local_next = local_next + 8
+
+        var hn2 = "$tmp_lit_map_hdr" + oren_int_to_string(ld)
+        var bn2 = "$tmp_lit_map_buf" + oren_int_to_string(ld)
+        if locals[hn2] != nil { err(ctx, "x64 native v0: reserved local name " + hn2 + " used"); return nil }
+        locals[hn2] = local_next
+        local_next = local_next + 8
+        if locals[bn2] != nil { err(ctx, "x64 native v0: reserved local name " + bn2 + " used"); return nil }
+        locals[bn2] = local_next
         local_next = local_next + 8
         ld = ld + 1
     }

@@ -1457,6 +1457,43 @@ func main() {
 			},
 		},
 		{
+			name: "native_x64_nested_map_literal_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_nested_map_literal_main.oren",
+				"build/x64_nested_map_literal_linux",
+				"build/x64_nested_map_literal_linux.build.out",
+				"build/x64_nested_map_literal_linux",
+				"build/x64_nested_map_literal_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_nested_map_literal_linux.file.out",
+				"x86-64",
+				"build/x64_nested_map_literal_linux.file.out",
+				"tests/fixtures/x64_nested_map_literal_main.oren",
+				"build/x64_nested_map_literal_win.exe",
+				"build/x64_nested_map_literal_win.build.out",
+				"build/x64_nested_map_literal_win.exe",
+				"build/x64_nested_map_literal_win.file.out",
+				"PE32+",
+				"build/x64_nested_map_literal_win.file.out",
+				"x86-64",
+				"build/x64_nested_map_literal_win.file.out",
+			),
+			log: "build/logs/native_x64_nested_map_literal_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_nested_map_literal_linux",
+				"build/x64_nested_map_literal_linux.build.out",
+				"build/x64_nested_map_literal_linux.file.out",
+				"build/x64_nested_map_literal_win.exe",
+				"build/x64_nested_map_literal_win.build.out",
+				"build/x64_nested_map_literal_win.file.out",
+			},
+		},
+		{
 			name: "native_x64_map_index_get_builds",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
@@ -3482,6 +3519,7 @@ func main() {
 			{name: "remote_x64_run_std_list_namespace_exitcode", src: "tests/fixtures/x64_std_list_namespace_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_string_literal_bytes_exitcode", src: "tests/fixtures/x64_string_literal_bytes_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_map_literal_exitcode", src: "tests/fixtures/x64_map_literal_main.oren", expectExit: 0, timeout: 5 * time.Minute},
+			{name: "remote_x64_run_nested_map_literal_exitcode", src: "tests/fixtures/x64_nested_map_literal_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_map_index_get_exitcode", src: "tests/fixtures/x64_map_index_get_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_map_index_set_exitcode", src: "tests/fixtures/x64_map_index_set_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_map_int_key_exitcode", src: "tests/fixtures/x64_map_int_key_main.oren", expectExit: 0, timeout: 5 * time.Minute},
