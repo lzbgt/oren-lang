@@ -104,9 +104,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ERROR: ./avm not found; run `make avm`.")
 		os.Exit(2)
 	}
-	if _, err := os.Stat("./oredoc"); err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR: ./oredoc not found; run `make oredoc` or `make test`.")
-		os.Exit(2)
+	// Optional tools: only required when the corresponding fixtures are enabled.
+	includeSigning := *full || os.Getenv("OREN_TEST_SIGNING") == "1"
+	includeOredoc := *full || os.Getenv("OREN_TEST_OREDOC") == "1"
+	if includeSigning {
+		if _, err := os.Stat("./orensign"); err != nil {
+			fmt.Fprintln(os.Stderr, "ERROR: ./orensign not found; run `make orensign` (or disable signing fixtures).")
+			os.Exit(2)
+		}
+	}
+	if includeOredoc {
+		if _, err := os.Stat("./oredoc"); err != nil {
+			fmt.Fprintln(os.Stderr, "ERROR: ./oredoc not found; run `make oredoc` (or disable oredoc fixtures).")
+			os.Exit(2)
+		}
 	}
 	if err := stdlibModernizationAudit(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())

@@ -61,6 +61,15 @@ Status legend:
 | Tail-call optimization | Rolling (subset) | Lowering/codegen passes | Docs: `docs/STACK_SAFETY.md` |
 | Capsule model (native capability gating) | Rolling | Native runtime + syscall emit constraints | Fixtures: `tests/native/fixtures/capsule_*` |
 | AVM execution of `.obc` | Rolling | Runtime: `lib/avm/**`; codegen: `lib/compiler/codegen_bytecode/**` | Examples: `examples/avm_*`; Tests: `tests/avm/**` |
+| Capability domains (CORE/FS/NET/PROC/AVM) | Rolling | `.obc` verifier + dispatch: `lib/avm/avm_native.inc`, `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (domains vs backends); fixtures cover capsule constraints |
+| VirtualFS backend (`vfs`) for deterministic simulation | Rolling | Backend selection + fixtures: `lib/avm/main.c`; VFS ops + snapshot codec: `lib/avm/avm_native.inc` | Spec: `docs/AVM_SPEC.md` (VirtualFS / `AVMVFS01`) |
+| VirtualPROC backend (`vproc`) for deterministic subprocess stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (`AVM_PROC_BACKEND=vproc`, `AVM_PROC_FIXTURES_HEX=...`) |
+| VirtualNET backend (`vnet`) for deterministic network stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (`AVM_NET_BACKEND=vnet`, `AVM_NET_FIXTURES_HEX=...`) |
+| `.obc` signature verification (`--require-sig`) | Rolling | Sig verifier: `lib/avm/avm_sig.c` | Spec: `docs/AVM_SPEC.md`; tools: `cmd/orensign/main.go` |
+| Delegated signing via embedded cert chain (`OREN_CERTS`) | Rolling | Cert parser: `lib/avm/avm_cert.c`; chain verify: `lib/avm/avm_sig.c` | Docs: `docs/CERT_CHAIN_FORMAT.md`, `docs/APPSTORE_ROOTCA_AND_UPDATES.md` |
+| Strict verification mode (`--verify-strict`) | Rolling | CLI + verifier gating: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (strict verification); help: `lib/avm/avm_help.inc` |
+| Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM_MULTIVERSE.md` (model + constraints) |
+| Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM_SWARM_CONSENSUS.md` |
 | Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/TODOS.md` (P0.10), `docs/TOOLCHAIN_SELF_HOSTING.md` |
 
 ## HPC / SIMD (Tier‑1 HPC: arm64 NEON now, x86_64 SSE/AVX next)

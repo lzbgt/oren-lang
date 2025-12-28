@@ -22,6 +22,12 @@ This document explains the current state and the planned evolution.
   - `OREN_TEST_JOBS` (`./oretest --jobs`)
   - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
   - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
+- rolling split (speed vs coverage):
+  - default fast suite skips expensive fixture families (signing / OpenAPI export)
+  - enable when needed:
+    - `OREN_TEST_SIGNING=1 make test` (requires `./orensign`)
+    - `OREN_TEST_OREDOC=1 make test` (requires `./oredoc`)
+  - `make test-legacy` / `./oretest --full` implies those families (broader coverage)
 
 It benefits from `timeout` (Linux) or `gtimeout` (macOS coreutils) as an outer failsafe, but it is not required for correctness.
 

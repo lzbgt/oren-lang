@@ -2,11 +2,18 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 )
 
 func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
+	// Keep `make test` iteration-friendly:
+	// - fast suite: high-signal, low-cost fixtures only
+	// - full suite: includes heavier security/tooling gates (signing, OpenAPI export, compiler-in-AVM)
+	includeSigning := full || os.Getenv("OREN_TEST_SIGNING") == "1"
+	includeOredoc := full || os.Getenv("OREN_TEST_OREDOC") == "1"
+
 	// Compile-fail fixtures (portable semantics guards).
 	fixtures := []fixtureCase{
 		{
@@ -81,177 +88,6 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			log:     "build/logs/manifest_meta.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/manifest_meta.meta.json", "build/manifest_meta.out", "build/manifest_meta.meta.json.manifest.json"},
-		},
-		{
-			name: "signed_obc_verify_cli",
-			cmd: fmt.Sprintf(
-				"set -e; "+
-					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
-					"echo \"[fixture] build orensign\"; "+
-					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
-					"echo \"[fixture] keygen (ephemeral)\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca\"; "+
-					"echo \"[fixture] build unsigned obc\"; "+
-					"./oren build %q --backend bytecode --target %s -o %q%s; "+
-					"echo \"[fixture] sign obc\"; "+
-					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
-					"echo \"[fixture] verify + run signed\"; "+
-					"./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > %q; "+
-					"grep -Fq %q %q; "+
-					"echo \"[fixture] verify unsigned must fail\"; "+
-					"set +e; ./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
-					"test $rc -ne 0",
-				"build/tmp/fixture_signed_obc_verify_cli",
-				"tests/avm/fixtures/signed_obc_smoke.oren",
-				target,
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-				gcArg,
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
-				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
-				"signed obc OK",
-				"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
-				"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
-			),
-			log: "build/logs/fixture_signed_obc_verify_cli.log",
-			ok:  func(rc int) bool { return rc == 0 },
-			cleanup: []string{
-				"build/tmp/fixture_signed_obc_verify_cli",
-			},
-		},
-		{
-			name: "signed_obc_verify_cli_multi_root_hex",
-			cmd: fmt.Sprintf(
-				"set -e; "+
-					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
-					"echo \"[fixture] build orensign\"; "+
-					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
-					"echo \"[fixture] keygen root + wrong (ephemeral)\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/wrong\"; "+
-					"echo \"[fixture] build unsigned obc\"; "+
-					"./oren build %q --backend bytecode --target %s -o %q%s; "+
-					"echo \"[fixture] sign obc\"; "+
-					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
-					"echo \"[fixture] verify + run signed with hex list (wrong,correct)\"; "+
-					"bad=$(xxd -p -c 256 \"$wd/wrong/root_ed25519_pk.bin\" | tr -d '\\n'); "+
-					"good=$(xxd -p -c 256 \"$wd/ca/root_ed25519_pk.bin\" | tr -d '\\n'); "+
-					"./avm --require-sig --trusted-pubkey-hex \"${bad},${good}\" %q > %q; "+
-					"grep -Fq %q %q",
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
-				"tests/avm/fixtures/signed_obc_smoke.oren",
-				target,
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
-				gcArg,
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
-				"signed obc OK",
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
-			),
-			timeout: 4 * time.Minute,
-			log:     "build/logs/fixture_signed_obc_verify_cli_multi_root_hex.log",
-			ok:      func(rc int) bool { return rc == 0 },
-			cleanup: []string{
-				"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
-			},
-		},
-		{
-			name: "signed_obc_verify_cert_chain_cli",
-			cmd: fmt.Sprintf(
-				"set -e; "+
-					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
-					"echo \"[fixture] build orensign\"; "+
-					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
-					"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
-					"mkdir -p \"$wd/ca\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca/root\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca/org\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca/dev\"; "+
-					"echo \"[fixture] issue root->org (can_issue) and org->dev certs\"; "+
-					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue; "+
-					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
-					"echo \"[fixture] build unsigned obc\"; "+
-					"./oren build %q --backend bytecode --target %s -o %q%s; "+
-					"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
-					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
-					"echo \"[fixture] verify + run (require chain)\"; "+
-					"./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q; "+
-					"grep -Fq %q %q; "+
-					"echo \"[fixture] verify missing chain must fail\"; "+
-					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --in %q --out %q; "+
-					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
-					"test $rc -ne 0; "+
-					"echo \"[fixture] verify root-sign without chain must fail under require-cert-chain\"; "+
-					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/root/root_ed25519_sk.bin\" --in %q --out %q; "+
-					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
-					"test $rc -ne 0",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
-				"tests/avm/fixtures/signed_obc_smoke.oren",
-				target,
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
-				gcArg,
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.devchain.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.devchain.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/fixture_signed_obc_verify_cert_chain_cli.out",
-				"signed obc OK",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/fixture_signed_obc_verify_cert_chain_cli.out",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.dev_nocert.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.dev_nocert.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.root_nocert.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.root_nocert.obc",
-			),
-			log: "build/logs/fixture_signed_obc_verify_cert_chain_cli.log",
-			ok:  func(rc int) bool { return rc == 0 },
-			cleanup: []string{
-				"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
-			},
-		},
-		{
-			name: "signed_obc_verify_cert_chain_allow_domains",
-			cmd: fmt.Sprintf(
-				"set -e; "+
-					"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
-					"echo \"[fixture] build orensign\"; "+
-					"go build -o \"$wd/orensign\" ./cmd/orensign; "+
-					"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
-					"mkdir -p \"$wd/ca\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca/root\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca/org\"; "+
-					"\"$wd/orensign\" keygen --out \"$wd/ca/dev\"; "+
-					"echo \"[fixture] issue root->org (can_issue, allow CORE-only) and org->dev (inherit) certs\"; "+
-					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue --allow-domains CORE; "+
-					"\"$wd/orensign\" issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
-					"echo \"[fixture] build unsigned obc (uses FS)\"; "+
-					"./oren build %q --backend bytecode --target %s -o %q%s; "+
-					"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
-					"\"$wd/orensign\" sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
-					"echo \"[fixture] verify must fail due to cert allow_domains\"; "+
-					"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q 2>&1; rc=$?; set -e; "+
-					"test $rc -ne 0; "+
-					"grep -Fq %q %q",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
-				"tests/avm/fixtures/signed_obc_uses_fs.oren",
-				target,
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
-				gcArg,
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
-				"cert policy failed",
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
-			),
-			log: "build/logs/fixture_signed_obc_verify_cert_chain_allow_domains.log",
-			ok:  func(rc int) bool { return rc == 0 },
-			cleanup: []string{
-				"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
-			},
 		},
 		{
 			name: "bytecode_negative_int_constants",
@@ -429,36 +265,6 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			log:     "build/logs/oren_meta_serde_formats.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/serde_formats.meta.json"},
-		},
-		{
-			name: "oredoc_openapi_export",
-			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s -o %q && "+
-					"./oredoc openapi %q -o %q --title %q --version %q --format %q && "+
-					"grep -Fq %q %q && "+
-					"grep -Fq %q %q && "+
-					"grep -Fq %q %q && "+
-					"grep -Fq %q %q",
-				"tests/modules/test_json_serde_attrs.oren",
-				target,
-				"build/openapi.meta.json",
-				"build/openapi.meta.json",
-				"build/openapi.json",
-				"Oren API",
-				"0.0.0",
-				"json",
-				"\"openapi\": \"3.1.0\"",
-				"build/openapi.json",
-				"\"components\": {",
-				"build/openapi.json",
-				"\"schemas\": {",
-				"build/openapi.json",
-				"\"User\": {",
-				"build/openapi.json",
-			),
-			log:     "build/logs/oredoc_openapi_export.log",
-			ok:      func(rc int) bool { return rc == 0 },
-			cleanup: []string{"build/openapi.meta.json", "build/openapi.json"},
 		},
 		{
 			name: "deterministic_meta_hash",
@@ -849,6 +655,210 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{"build/capsule_ok_fs_allow"},
 		},
+	}
+
+	// Security fixtures (signing/cert-chain): useful, but expensive. Keep them out of the default
+	// iteration suite unless explicitly requested.
+	if includeSigning {
+		fixtures = append(fixtures,
+			fixtureCase{
+				name: "signed_obc_verify_cli",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+						"echo \"[fixture] keygen (ephemeral)\"; "+
+						"./orensign keygen --out \"$wd/ca\"; "+
+						"echo \"[fixture] build unsigned obc\"; "+
+						"./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] sign obc\"; "+
+						"./orensign sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
+						"echo \"[fixture] verify + run signed\"; "+
+						"./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > %q; "+
+						"grep -Fq %q %q; "+
+						"echo \"[fixture] verify unsigned must fail\"; "+
+						"set +e; ./avm --require-sig --trusted-pubkey \"$wd/ca/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
+						"test $rc -ne 0",
+					"build/tmp/fixture_signed_obc_verify_cli",
+					"tests/avm/fixtures/signed_obc_smoke.oren",
+					target,
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+					gcArg,
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
+					"signed obc OK",
+					"build/tmp/fixture_signed_obc_verify_cli/fixture_signed_obc_verify_cli.out",
+					"build/tmp/fixture_signed_obc_verify_cli/signed_obc_smoke.obc",
+				),
+				log: "build/logs/fixture_signed_obc_verify_cli.log",
+				ok:  func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cli",
+				},
+			},
+			fixtureCase{
+				name: "signed_obc_verify_cli_multi_root_hex",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+						"echo \"[fixture] keygen root + wrong (ephemeral)\"; "+
+						"./orensign keygen --out \"$wd/ca\"; "+
+						"./orensign keygen --out \"$wd/wrong\"; "+
+						"echo \"[fixture] build unsigned obc\"; "+
+						"./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] sign obc\"; "+
+						"./orensign sign-obc --sk \"$wd/ca/root_ed25519_sk.bin\" --in %q --out %q; "+
+						"echo \"[fixture] verify + run signed with hex list (wrong,correct)\"; "+
+						"bad=$(xxd -p -c 256 \"$wd/wrong/root_ed25519_pk.bin\" | tr -d '\\n'); "+
+						"good=$(xxd -p -c 256 \"$wd/ca/root_ed25519_pk.bin\" | tr -d '\\n'); "+
+						"./avm --require-sig --trusted-pubkey-hex \"${bad},${good}\" %q > %q; "+
+						"grep -Fq %q %q",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
+					"tests/avm/fixtures/signed_obc_smoke.oren",
+					target,
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
+					gcArg,
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.obc",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/signed_obc_smoke.signed.obc",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
+					"signed obc OK",
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex/fixture_signed_obc_verify_cli_multi_root_hex.out",
+				),
+				timeout: 4 * time.Minute,
+				log:     "build/logs/fixture_signed_obc_verify_cli_multi_root_hex.log",
+				ok:      func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cli_multi_root_hex",
+				},
+			},
+			fixtureCase{
+				name: "signed_obc_verify_cert_chain_cli",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+						"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
+						"mkdir -p \"$wd/ca\"; "+
+						"./orensign keygen --out \"$wd/ca/root\"; "+
+						"./orensign keygen --out \"$wd/ca/org\"; "+
+						"./orensign keygen --out \"$wd/ca/dev\"; "+
+						"echo \"[fixture] issue root->org (can_issue) and org->dev certs\"; "+
+						"./orensign issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue; "+
+						"./orensign issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
+						"echo \"[fixture] build unsigned obc\"; "+
+						"./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
+						"./orensign sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
+						"echo \"[fixture] verify + run (require chain)\"; "+
+						"./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q; "+
+						"grep -Fq %q %q; "+
+						"echo \"[fixture] verify missing chain must fail\"; "+
+						"./orensign sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --in %q --out %q; "+
+						"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
+						"test $rc -ne 0; "+
+						"echo \"[fixture] verify root-sign without chain must fail under require-cert-chain\"; "+
+						"./orensign sign-obc --sk \"$wd/ca/root/root_ed25519_sk.bin\" --in %q --out %q; "+
+						"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > /dev/null 2>&1; rc=$?; set -e; "+
+						"test $rc -ne 0",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
+					"tests/avm/fixtures/signed_obc_smoke.oren",
+					target,
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
+					gcArg,
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.devchain.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.devchain.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/fixture_signed_obc_verify_cert_chain_cli.out",
+					"signed obc OK",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/fixture_signed_obc_verify_cert_chain_cli.out",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.dev_nocert.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.dev_nocert.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.root_nocert.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli/signed_obc_chain_smoke.root_nocert.obc",
+				),
+				log: "build/logs/fixture_signed_obc_verify_cert_chain_cli.log",
+				ok:  func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cert_chain_cli",
+				},
+			},
+			fixtureCase{
+				name: "signed_obc_verify_cert_chain_allow_domains",
+				cmd: fmt.Sprintf(
+					"set -e; "+
+						"wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+						"echo \"[fixture] keygen root/org/dev (ephemeral)\"; "+
+						"mkdir -p \"$wd/ca\"; "+
+						"./orensign keygen --out \"$wd/ca/root\"; "+
+						"./orensign keygen --out \"$wd/ca/org\"; "+
+						"./orensign keygen --out \"$wd/ca/dev\"; "+
+						"echo \"[fixture] issue root->org (can_issue, allow CORE-only) and org->dev (inherit) certs\"; "+
+						"./orensign issue-cert --issuer-sk \"$wd/ca/root/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/org/root_ed25519_pk.bin\" --out \"$wd/ca/org.cert\" --can-issue --allow-domains CORE; "+
+						"./orensign issue-cert --issuer-sk \"$wd/ca/org/root_ed25519_sk.bin\" --subject-pk \"$wd/ca/dev/root_ed25519_pk.bin\" --out \"$wd/ca/dev.cert\"; "+
+						"echo \"[fixture] build unsigned obc (uses FS)\"; "+
+						"./oren build %q --backend bytecode --target %s -o %q%s; "+
+						"echo \"[fixture] sign obc with dev key + embed leaf-first chain\"; "+
+						"./orensign sign-obc --sk \"$wd/ca/dev/root_ed25519_sk.bin\" --cert \"$wd/ca/dev.cert\" --cert \"$wd/ca/org.cert\" --in %q --out %q; "+
+						"echo \"[fixture] verify must fail due to cert allow_domains\"; "+
+						"set +e; ./avm --require-sig --require-cert-chain --trusted-pubkey \"$wd/ca/root/root_ed25519_pk.bin\" %q > %q 2>&1; rc=$?; set -e; "+
+						"test $rc -ne 0; "+
+						"grep -Fq %q %q",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
+					"tests/avm/fixtures/signed_obc_uses_fs.oren",
+					target,
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
+					gcArg,
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/signed_obc_uses_fs.devchain.obc",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
+					"cert policy failed",
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains/fixture_signed_obc_verify_cert_chain_allow_domains.out",
+				),
+				log: "build/logs/fixture_signed_obc_verify_cert_chain_allow_domains.log",
+				ok:  func(rc int) bool { return rc == 0 },
+				cleanup: []string{
+					"build/tmp/fixture_signed_obc_verify_cert_chain_allow_domains",
+				},
+			},
+		)
+	}
+
+	// Tooling fixtures (OpenAPI export): keep out of fast suite by default.
+	if includeOredoc {
+		fixtures = append(fixtures, fixtureCase{
+			name: "oredoc_openapi_export",
+			cmd: fmt.Sprintf(
+				"./oren meta %q --target %s -o %q && "+
+					"./oredoc openapi %q -o %q --title %q --version %q --format %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
+					"grep -Fq %q %q",
+				"tests/modules/test_json_serde_attrs.oren",
+				target,
+				"build/openapi.meta.json",
+				"build/openapi.meta.json",
+				"build/openapi.json",
+				"Oren API",
+				"0.0.0",
+				"json",
+				"\"openapi\": \"3.1.0\"",
+				"build/openapi.json",
+				"\"components\": {",
+				"build/openapi.json",
+				"\"schemas\": {",
+				"build/openapi.json",
+				"\"User\": {",
+				"build/openapi.json",
+			),
+			log:     "build/logs/oredoc_openapi_export.log",
+			ok:      func(rc int) bool { return rc == 0 },
+			cleanup: []string{"build/openapi.meta.json", "build/openapi.json"},
+		})
 	}
 
 	if full {

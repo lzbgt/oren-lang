@@ -112,6 +112,11 @@ oredoc: $(GO_SRC)
 	@echo "Building oredoc..."
 	@go build -o oredoc ./cmd/oredoc
 
+# Go-based signing utility (used by AVM signing fixtures).
+orensign: $(GO_SRC)
+	@echo "Building orensign..."
+	@go build -o orensign ./cmd/orensign
+
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
 oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 1 (Oren)..."
@@ -141,12 +146,15 @@ test: oren
 		exit $$rc; \
 	}
 
-test-inner: oren avm oretest oredoc
+test-inner: oren avm oretest
 	@# Canonical curated runner lives inside the compiler:
 	@# - timeout-protected
 	@# - failure-only output
 	@# - curated lists are in sync with repo evolution
 	@# IMPORTANT: `./oretest` runs the full suite; it must not be constrained by BUILD_TIMEOUT_SECS.
+	@# Optional tools: only build when the corresponding fixture families are enabled.
+	@if [ "$$OREN_TEST_FULL" = "1" ] || [ "$$OREN_TEST_OREDOC" = "1" ]; then $(MAKE) oredoc; fi
+	@if [ "$$OREN_TEST_FULL" = "1" ] || [ "$$OREN_TEST_SIGNING" = "1" ]; then $(MAKE) orensign; fi
 	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG)"; \
 		if [ "$$OREN_TEST_FULL" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --full"; fi; \
 		if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
@@ -164,7 +172,7 @@ selfhost:
 # runner is `./oretest --full` (parallel, curated, and kept in sync with the repo).
 test-legacy: test-legacy-inner
 
-test-legacy-inner: oren avm oretest oredoc
+test-legacy-inner: oren avm oretest oredoc orensign
 	@echo "=== Running Tests (Legacy Alias: oretest --full) ==="
 	@# Hard requirement in rolling mode: tests must not be able to hang forever.
 	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
@@ -294,6 +302,7 @@ clean:
 	@echo "Cleaning workspace..."
 	rm -rf build/ *.dSYM verify_full.sh run_tests.sh
 	rm -f oren_bootstrap oren oren_stage2 oren_stage3 avm
+	rm -f orensign
 	rm -f *.oren.c *.obc *.otool *.dylib *.so
 	@# Remove local test binaries (keep .oren sources)
 	@find tests/native -maxdepth 1 -type f ! -name '*.oren' -delete 2>/dev/null || true
