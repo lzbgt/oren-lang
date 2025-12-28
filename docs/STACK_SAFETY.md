@@ -61,7 +61,8 @@ However, it now has a minimal deterministic recursion guard (rolling):
 
 Current limitations (tracked in `docs/TODOS.md`):
 
-- the call-depth max is currently a fixed default (8192) in x64 v0 (no env override yet)
+- the call-depth max is configurable at **compile time** via `oren build --call-depth-max <n>` (default 8192)
+  - x64 v0 does **not** support runtime env override yet (no `OREN_CALL_DEPTH_MAX` parsing in the entry stub)
 - the data blob must be writable for the counter; Linux ELF maps it RW in a dedicated segment, and Windows PE
   maps it into a dedicated `.data` section (RO/RW separation is still evolving as the runtime injection surface grows)
 
@@ -140,8 +141,11 @@ This is valuable but should not be the only guard because:
 
 ### P0 — Parity knob and deterministic diagnostic
 
-1) Add `--call-depth-max` (compiler flag) for native and C backends.
-2) Lower `--call-depth-max` into a runtime-visible limit.
+1) Add a call-depth budget knob across backends:
+   - AVM: `--call-depth-max` / `AVM_CALL_DEPTH_MAX` (already exists)
+   - C backend: `OREN_CALL_DEPTH_MAX` env (already exists)
+   - native backend: `oren build --call-depth-max <n>` (x64 v0 uses compile-time max today; env parsing is still pending)
+2) Lower the budget knob into a runtime-visible limit in a single, shared contract (so “default vs override” behaves the same everywhere).
 3) Implement entry/exit instrumentation in shared lowering (CoreIR boundary), so all
    backends inherit the same semantics.
 4) Add a cross-backend fixture:

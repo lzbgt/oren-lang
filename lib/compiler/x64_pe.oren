@@ -45,8 +45,8 @@ fn push_ascii_z(buf, s) {
     bytes_push(buf, 0)
 }
 
-fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_domains) {
-    var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
+fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+    var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
 

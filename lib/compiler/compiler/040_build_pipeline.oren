@@ -416,6 +416,7 @@ fn compiler_main() {
     var deterministic = false
     var emit_manifest = false
     var do_typecheck = false
+    var call_depth_max = 8192
     var obc_lib = false
     var stdlib_mode = "source"
     var stdlib_obc = ""
@@ -456,6 +457,7 @@ fn compiler_main() {
     arch = opts["arch"]
     disasm = seen["disasm"] == true
     debug_mode = seen["debug"] == true
+    call_depth_max = opts["call-depth-max"]
     analyze = seen["analyze"] == true
     emit_meta = seen["metadata"] == true
     is_shared_lib = seen["lib"] == true || seen["shared"] == true
@@ -486,6 +488,11 @@ fn compiler_main() {
         codesign_id = ""
         notarize = false
     }
+
+    // Normalize call depth budget (shared contract across backends):
+    // - 0 or negative => fallback to default (8192)
+    // - nil => fallback to default (8192)
+    if call_depth_max == nil || call_depth_max <= 0 { call_depth_max = 8192 }
 
     // If user did not explicitly request debug info, default it on for native backend builds.
     // This makes runtime panics actionable by default (stack traces map to function names).
@@ -801,10 +808,10 @@ fn compiler_main() {
         } else {
             if arch == "x64" || arch == "x86_64" || arch == "amd64" {
                 if target == "linux" {
-                    x64_elf.elf_emit_program_x64(out_path, linked, debug_mode, no_gc, CAPSULE, CAP_ALLOW_DOMAINS)
+                    x64_elf.elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
                 } else {
                     if target == "windows" {
-                        x64_pe.pe_emit_program_x64(out_path, linked, debug_mode, no_gc, CAPSULE, CAP_ALLOW_DOMAINS)
+                        x64_pe.pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
                     } else {
                         print("native backend (x64) unsupported target: " + target)
                         oren_exit(1)
