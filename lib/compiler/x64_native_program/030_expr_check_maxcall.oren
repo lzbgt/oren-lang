@@ -336,7 +336,9 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     // present, additional loop spills (spread/idx/len/elem).
     if ctx != nil && ctx["declared_functions"] != nil && ctx["declared_functions"][nm] == nil {
         if expr != nil && expr["spread"] != nil { return argc + 5 }
-        return argc + 1
+        // Indirect call fast path builds a stack-backed args_list:
+        //   spills: argc (args) + 1 (args_list ptr) + 4 (hdr) + argc (buf) = 2*argc + 5
+        return 2 * argc + 5
     }
 
     // Intrinsics with custom spill needs.
