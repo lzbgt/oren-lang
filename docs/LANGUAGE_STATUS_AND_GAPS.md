@@ -87,8 +87,8 @@ production maturity requires both implementation *and* regression coverage.
 
 - **Stack safety parity across backends**
   - AVM has `--call-depth-max`.
-  - C backend has `OREN_CALL_DEPTH_MAX` env.
-  - Native backend supports `oren build --call-depth-max <n>` (compile-time default) and `OREN_CALL_DEPTH_MAX` (runtime override, including x64 entry stubs).
+  - C backend has `OREN_CALL_DEPTH_MAX` env (`0` disables the deterministic guard).
+  - Native backend supports `oren build --call-depth-max <n>` (compile-time default) and `OREN_CALL_DEPTH_MAX` (runtime override, including x64 entry stubs; `0` disables).
   - Design: `docs/STACK_SAFETY.md`
 - **Remove native map “key kind” heuristics**
   - Any heuristic that guesses key types (e.g. based on numeric range) is a semantics risk.

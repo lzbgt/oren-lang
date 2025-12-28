@@ -653,14 +653,22 @@ fn insn_jcc_rel32(cc, disp32) {
     // Supported:
     // - "e"  => JE  (0F 84)
     // - "ne" => JNE (0F 85)
+    // - "b"  => JB  (0F 82)  unsigned below (CF=1)
+    // - "ae" => JAE (0F 83)  unsigned above/equal (CF=0)
+    // - "be" => JBE (0F 86)  unsigned below/equal (CF=1 or ZF=1)
+    // - "a"  => JA  (0F 87)  unsigned above (CF=0 and ZF=0)
     // - "l"  => JL  (0F 8C)  signed less than
     // - "ge" => JGE (0F 8D)  signed greater/equal
     // - "le" => JLE (0F 8E)  signed less/equal
     // - "g"  => JG  (0F 8F)  signed greater than
-    if cc != "e" && cc != "ne" && cc != "l" && cc != "ge" && cc != "le" && cc != "g" { return nil }
+    if cc != "e" && cc != "ne" && cc != "b" && cc != "ae" && cc != "be" && cc != "a" && cc != "l" && cc != "ge" && cc != "le" && cc != "g" { return nil }
     var out = [15]
     if cc == "e" { bytes_push(out, 132) }
     else if cc == "ne" { bytes_push(out, 133) }
+    else if cc == "b" { bytes_push(out, 130) }
+    else if cc == "ae" { bytes_push(out, 131) }
+    else if cc == "be" { bytes_push(out, 134) }
+    else if cc == "a" { bytes_push(out, 135) }
     else if cc == "l" { bytes_push(out, 140) }
     else if cc == "ge" { bytes_push(out, 141) }
     else if cc == "le" { bytes_push(out, 142) }

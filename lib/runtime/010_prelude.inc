@@ -281,7 +281,8 @@ static OrenThreadState* oren_thread_state() {
         st->has_panic_buf = 0;
         st->call_depth = 0;
         st->call_depth_max = parse_env_u64(getenv("OREN_CALL_DEPTH_MAX"), OREN_CALL_DEPTH_MAX_DEFAULT);
-        if (st->call_depth_max == 0) st->call_depth_max = OREN_CALL_DEPTH_MAX_DEFAULT;
+        // Config contract: OREN_CALL_DEPTH_MAX=0 disables the deterministic guard (unlimited).
+        if (st->call_depth_max == 0) st->call_depth_max = UINT64_MAX;
         pthread_setspecific(g_thread_key, st);
         lock_collections();
         g_threads_total++;

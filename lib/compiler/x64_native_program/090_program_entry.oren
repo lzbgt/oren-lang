@@ -107,12 +107,22 @@ fn _emit_entry_call_depth_env_override_linux_x64(ctx, orig_rsp_reg) {
     }
 
     // Matched prefix: parse digits at r12 into r8.
+    // If the value is empty or non-decimal, ignore.
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 12))
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 48))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_next)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 57))
+    _emit_jcc_to_label(ctx, local_fixups, "g", l_next)
+
     _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, 12, 8, labels, local_fixups)
-    // If parsed value is 0, ignore (keep default/build-time).
+    // If parsed value is 0, treat as "unlimited" (u64max).
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_next)
+    var l_store = _new_label(ctx, "env_store_max")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_store)
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(8, -1))
 
     // Store to call_depth_max global: *(u64*)(&data[off_max]) = r8
+    _emit_label(ctx, labels, l_store)
     var lea0 = oren_list_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea0 + 3, "data_off": off_max})
@@ -176,11 +186,22 @@ fn _emit_entry_call_depth_env_override_windows_x64(ctx) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
 
     // Parse digits from buffer into r8.
+    // If the value is empty or non-decimal, treat as not present.
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 12))
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 48))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 57))
+    _emit_jcc_to_label(ctx, local_fixups, "g", l_done)
+
     _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, 12, 8, labels, local_fixups)
+    // If parsed value is 0, treat as "unlimited" (u64max).
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+    var l_store = _new_label(ctx, "win_env_store_max")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_store)
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(8, -1))
 
     // Store to call_depth_max global
+    _emit_label(ctx, labels, l_store)
     var lea0 = oren_list_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea0 + 3, "data_off": off_max})

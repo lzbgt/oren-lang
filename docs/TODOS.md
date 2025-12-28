@@ -130,6 +130,11 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Keep Go bootstrap/tools canonical for now; add Oren-native tools behind explicit gates and promote only with reliability/perf acceptance tests.
    - Reference: `docs/TOOLCHAIN_SELF_HOSTING.md`.
 
+5) **Stackless recursion beyond TCO (heap call frames)** (L)
+   - For non-tail recursion that cannot be optimized by TCO, provide an explicit heap call-frame model (AVM-like).
+   - Gate with one deep, deterministic non-tail recursion fixture that must not OS-stack-overflow on Tier‑1 targets.
+   - Reference: `docs/STACK_SAFETY.md` (Option D).
+
 ### Recently Completed (Rolling)
 
 - Tier‑1 x86_64 native bring-up: callable wrappers (`__oren_fnwrap_*` + uniform `args_list`) and a deterministic `oren_panic` contract (stable `OREN_DIAG` + best-effort `STACK_TRACE`) on Linux+Win64.

@@ -38,13 +38,13 @@ Today, both backends have a **deterministic recursion guard** (rolling):
 
 - **C backend**
   - runtime implements `oren_call_depth_enter/exit()` with a per-thread counter + max
-  - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192)
+  - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192; `0` disables the guard)
   - validated by `tests/native/fixtures/call_depth_overflow.oren` via oretest runtime fixture
 
 - **Native backend (arm64 today)**
   - compiler inserts `oren_call_depth_enter()` on user-function entry and `oren_call_depth_exit()` on return
     (native runtime helpers are intentionally excluded to keep bootstrap stable)
-  - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192)
+  - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192; `0` disables the guard)
   - validated by the same fixture under `--backend native`
   - call depth is tracked per-thread via the registered native thread nodes (rolling v0:
     thread selection is based on the same SP-vs-top heuristic used by the GC stack scanner)
@@ -63,6 +63,7 @@ Current limitations (tracked in `docs/TODOS.md`):
 
 - the call-depth max is configurable at **compile time** via `oren build --call-depth-max <n>` (default 8192)
   - runtime can also override via `OREN_CALL_DEPTH_MAX=<n>` (Linux ELF + Windows PE entry stubs)
+  - `OREN_CALL_DEPTH_MAX=0` disables the deterministic guard (unlimited)
 - the data blob must be writable for the counter; Linux ELF maps it RW in a dedicated segment, and Windows PE
   maps it into a dedicated `.data` section (RO/RW separation is still evolving as the runtime injection surface grows)
 
@@ -154,25 +155,20 @@ Rolling status (today):
 - Fixture: `tests/native/fixtures/tail_recursion_ok.oren` (expected to succeed under low `OREN_CALL_DEPTH_MAX`)
   - Fixture: `tests/native/fixtures/non_tail_modconst_ok.oren`
 
-### Option D — Heap-backed call frames / stack switching (future; for non-TCO recursion)
+### Option D — Heap-backed call frames (future; for non-TCO recursion)
 
 Goal:
 
 - For recursive calls that cannot be TCO-optimized, avoid consuming unbounded **host** stack by
-  moving the “logical call stack” into heap-managed frames (or onto a heap-backed alternate stack).
+  moving the “logical call stack” into heap-managed frames.
 
-High-level approaches (Tier‑1 direction):
+High-level approach (Tier‑1 direction):
 
 - **Explicit heap call-frames** (stackless execution):
   - lower calls to a loop over a heap stack of frames (similar to how AVM works)
   - most deterministic across OS/arch, and naturally works with per-capsule budgets
   - requires a well-defined calling convention at the IR boundary (closures/varargs/spread) and
     runtime support for frame allocation and unwinding diagnostics
-
-- **Alternate stacks / fibers** (stackful execution):
-  - allocate large stacks on the heap and switch RSP (or use segmented stacks)
-  - can preserve “normal” native calling patterns, but is harder to make portable and ABI-clean,
-    and complicates GC and stack scanning
 
 Status:
 

@@ -20,20 +20,23 @@
 fn native_runtime_call_depth_apply_env() {
     // Apply env override after envp is captured.
     //
-    // Any invalid or zero value falls back to default.
+    // Config contract:
+    // - missing/invalid => keep default
+    // - 0 => unlimited (disable deterministic call-depth abort)
     if g_storage == 0 { return 0 }
 
     var max = ptr_get(iadd(g_storage, 312))
-    if max <= 0 { max = 8192 }
+    if max < 0 { max = 8192 }
     // Rolling safety: if something corrupt writes a ridiculous max, clamp to default.
     if max > 100000000 { max = 8192 }
 
     var v = native_envp_get_value_ptr("OREN_CALL_DEPTH_MAX")
     if v != 0 {
         var parsed = native_parse_i64_dec_cstr_or_neg1(v)
-        if parsed > 0 { max = parsed }
+        if parsed == 0 { max = 0 }
+        else if parsed > 0 { max = parsed }
     }
-    if max <= 0 { max = 8192 }
+    if max < 0 { max = 8192 }
     if max > 100000000 { max = 8192 }
     ptr_set(iadd(g_storage, 312), max)
     return 0
@@ -48,6 +51,10 @@ fn oren_call_depth_enter() {
     // including those helpers; calling them here would recurse indefinitely.
     var g = g_storage
     if g == 0 { return 0 }
+
+    // Unlimited mode: skip tracking entirely (no overhead; no deterministic abort).
+    var max0 = ptr_get(iadd(g, 312))
+    if max0 == 0 { return 0 }
 
     // Prefer per-thread call-depth tracking (production direction).
     // Find current thread node based on SP heuristics (same as GC stack scanning).
@@ -67,8 +74,8 @@ fn oren_call_depth_enter() {
                 var d = iadd(d0, 1)
                 ptr_set(d_ptr2, d)
 
-                var max = ptr_get(iadd(g, 312))
-                if max <= 0 { max = 8192 }
+                var max = max0
+                if max < 0 { max = 8192 }
                 if max > 100000000 { max = 8192 }
                 if d > max {
                     g_panicking = 1
@@ -89,8 +96,8 @@ fn oren_call_depth_enter() {
     var d2 = iadd(d0g, 1)
     ptr_set(d_ptr, d2)
 
-    var max = ptr_get(iadd(g, 312))
-    if max <= 0 { max = 8192 }
+    var max = max0
+    if max < 0 { max = 8192 }
     if max > 100000000 { max = 8192 }
 
     if d2 > max {
@@ -106,6 +113,9 @@ fn oren_call_depth_exit() {
     // Same rule as enter(): no helper calls here (avoid recursion).
     var g = g_storage
     if g == 0 { return 0 }
+
+    // Unlimited mode: we skipped increments; skip decrements too.
+    if ptr_get(iadd(g, 312)) == 0 { return 0 }
 
     // Prefer per-thread call-depth tracking.
     var sp = get_sp()

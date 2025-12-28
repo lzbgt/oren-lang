@@ -32,6 +32,11 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 - If **only documentation** changes (`docs/**`, `*.md`, comments-only edits), tests are optional; prefer skipping full suites to save iteration time unless the doc change is about build/test instructions (in that case, run a targeted smoke like `make -n test` or a minimal command path check).
 - Use the fastest targeted check first, then broaden if needed.
 
+## Known baselines (avoid guessing)
+
+- Typical `make test` wall time on the primary dev host is ~**<3 minutes** (Dec 28, 2025 observation). Treat large deviations as a signal to investigate rather than speculate.
+- If a long-running tool produces no output for ~20–30 seconds, use `ps` (or the harness session output) to confirm what is currently running before concluding it is “stuck”.
+
 ## Test performance knobs (preferred)
 
 - `./oretest` supports parallelism:

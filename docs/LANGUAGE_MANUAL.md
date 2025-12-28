@@ -139,6 +139,8 @@ Stack safety knobs (rolling):
   - Native compile-time default: `./oren build ... --backend native --call-depth-max 64`
 - C backend: `OREN_CALL_DEPTH_MAX=64 ./build/your_prog_c`
 
+To disable the deterministic recursion guard (unlimited): `OREN_CALL_DEPTH_MAX=0 ...`
+
 ## 1) Program structure
 
 Oren files are modules. A typical program has a `main` function:

@@ -114,7 +114,9 @@ fn _data_reserve_call_depth_guard(ctx) {
     if ctx["platform"] != nil && ctx["platform"]["call_depth_max"] != nil {
         max0 = ctx["platform"]["call_depth_max"]
     }
-    if max0 == nil || max0 <= 0 { max0 = 8192 }
+    if max0 == nil { max0 = 8192 }
+    else if max0 < 0 { max0 = 8192 }
+    else if max0 == 0 { max0 = -1 } // u64max => "no limit"
     var off_depth = _data_add_u64(ctx, 0)
     var off_max = _data_add_u64(ctx, max0)
     if off_depth == nil || off_max == nil { err(ctx, "x64 native v0: failed to reserve call depth globals"); return nil }

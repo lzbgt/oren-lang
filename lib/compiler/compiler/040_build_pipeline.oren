@@ -579,9 +579,11 @@ fn compiler_main() {
     }
 
     // Normalize call depth budget (shared contract across backends):
-    // - 0 or negative => fallback to default (8192)
-    // - nil => fallback to default (8192)
-    if call_depth_max == nil || call_depth_max <= 0 { call_depth_max = 8192 }
+    // - nil => default (8192)
+    // - negative => default (8192)
+    // - 0 => unlimited (disable deterministic call-depth abort)
+    if call_depth_max == nil { call_depth_max = 8192 }
+    else if call_depth_max < 0 { call_depth_max = 8192 }
 
     // If user did not explicitly request debug info, default it on for native backend builds.
     // This makes runtime panics actionable by default (stack traces map to function names).
