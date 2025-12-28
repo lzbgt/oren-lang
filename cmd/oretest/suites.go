@@ -37,6 +37,7 @@ type suiteResult struct {
 func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	envPrefix := sanitizedAllocatorEnvPrefix()
+	arch := hostOrenArch()
 	results := runParallel(jobs, tests, func(path string) testResult {
 		start := time.Now()
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
@@ -44,16 +45,11 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			vprintln("native: " + path)
 		}
 
-		workdir := filepath.Join("build", "tmp", "native_"+name)
-		_ = os.RemoveAll(workdir)
-		_ = os.MkdirAll(filepath.Join(workdir, "build"), 0o755)
-
-		out := filepath.Join(workdir, "build", name)
+		out := targetsOutPath(target, arch, "native", name)
 		log := filepath.Join("build", "logs", "native_"+name+".log")
 
-		buildCmd := fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", path, target, out, gcArg)
+		buildCmd := fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", path, target, arch, out, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
-			_ = os.RemoveAll(workdir)
 			return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}
 
@@ -368,8 +364,10 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			runLog = log
 		}
 
-		_ = os.Remove(out)
-		_ = os.RemoveAll(workdir)
+		// Keep the built artifact on failure for debugging; remove on success to keep the repo clean.
+		if rc == 0 {
+			_ = os.Remove(out)
+		}
 
 		if name == "test_debug_panic" {
 			// Expected-failure regression: panic output must be readable and include a stack trace.
@@ -414,21 +412,19 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	envPrefix := sanitizedAllocatorEnvPrefix()
+	arch := hostOrenArch()
 	results := runParallel(jobs, tests, func(path string) testResult {
 		start := time.Now()
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		if verbose {
 			vprintln("module: " + path)
 		}
-		workdir := filepath.Join("build", "tmp", "mod_"+name)
-		_ = os.RemoveAll(workdir)
-		_ = os.MkdirAll(filepath.Join(workdir, "build"), 0o755)
 		log := filepath.Join("build", "logs", "mod_"+name+".log")
 
-		out := filepath.Join(workdir, "build", name)
+		out := targetsOutPath(target, arch, "c", name)
 		// IMPORTANT: pass `--target` explicitly so running oretest on Linux doesn't
 		// default to macOS and attempt codesigning.
-		buildCmd := fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", path, target, out, gcArg)
+		buildCmd := fmt.Sprintf("./oren build %q --backend c --target %s --arch %s -o %q%s", path, target, arch, out, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}
@@ -466,7 +462,7 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 	for _, path := range tests {
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		log := filepath.Join("build", "logs", "avm_"+name+".log")
-		obc := filepath.Join("build", name+".obc")
+		obc := targetsOutPath("avm", "avm64", "bytecode", name)
 
 		buildCmd := fmt.Sprintf("./oren build %q --backend bytecode -o %q%s", path, obc, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {

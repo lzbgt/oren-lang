@@ -62,7 +62,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Keep `make test` iteration-fast by gating expensive fixture families behind explicit flags (`OREN_TEST_SIGNING=1`, `OREN_TEST_OREDOC=1`) or `--full`; document in `docs/TEST_SYSTEM.md`.
    - Normalize build artifacts layout:
      - compiler default outputs: `build/targets/<arch>-<os>/<backend>/...` and `build/targets/avm/bytecode/...`
-     - migrate `./oretest` fixtures off ad-hoc `build/*.out` paths over time (keep `build/logs/` stable)
+     - `./oretest` suites + runtime fixtures now use `build/targets/...` outputs; migrate remaining ad-hoc fixture artifacts (`cmd/oretest/fixture_cases.go`) over time (keep `build/logs/` stable)
    - Reference: `docs/TEST_SYSTEM.md`.
    - Rolling docs hygiene: when fixtures or backends change, update the docs that claim invariants (`docs/LANGUAGE_MANUAL.md`, `docs/NATIVE_BACKEND.md`, `docs/CLI_COMPLETION.md`) in the same change to avoid drift.
    - Spec hygiene (AI-friendly): keep `docs/LANGUAGE_SPEC.md` and `docs/LANGUAGE_MANUAL.md` aligned with actual compiler behavior and mark planned vs implemented explicitly.

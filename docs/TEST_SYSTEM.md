@@ -29,7 +29,10 @@ This document explains the current state and the planned evolution.
   - `.obc` is an AVM artifact and is intended to be platform-neutral; `oren build --backend bytecode` uses an AVM ABI profile (`target=avm`, `arch=avm64`) to keep bytecode semantics stable across hosts
   - artifact layout note:
     - `oren build` has a repo-local default output layout under `build/targets/...`
-    - `./oretest` intentionally passes explicit `-o build/...` paths for many fixtures (so logs and cleanup lists stay stable); it does not rely on the compiler’s default output paths yet
+    - `./oretest` passes explicit `-o ...` paths for fixtures/tests (so logs and cleanup lists stay stable), but those outputs now also follow the `build/targets/...` layout for the main suites:
+      - native: `build/targets/<arch>-<os>/native/<test>`
+      - c: `build/targets/<arch>-<os>/c/<test>`
+      - bytecode: `build/targets/avm/bytecode/<test>.obc`
 - quick bottleneck discovery:
   - `OREN_TEST_PROFILE=1 make test` (or `./oretest --profile`) prints the slowest tests (per-test elapsed time)
 - SIMD validation note:
