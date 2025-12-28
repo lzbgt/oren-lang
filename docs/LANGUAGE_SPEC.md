@@ -30,6 +30,9 @@ If an AI agent needs the most “ground-truth” behavior, prioritize:
 The spec defines syntax/semantics. This section exists to help AI agents locate the implementation that enforces a given rule.
 It is **not** normative, but it should be kept accurate.
 
+For a rolling “agent cache” of subtle internals (name resolution, lowering patterns, cross-backend contracts),
+see `docs/IMPLEMENTATION_NOTES.md`.
+
 Compiler pipeline (high level):
 
 1) parse → AST (`lib/compiler/parser_parse/**`, `lib/compiler/ast.oren`)

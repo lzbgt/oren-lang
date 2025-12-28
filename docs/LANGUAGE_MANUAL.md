@@ -30,6 +30,9 @@ When you change behavior (compiler/runtime/stdlib):
 
 This section is a brief “map” for AI agents (and maintainers) to connect a language feature to the implementation that enforces it.
 
+For a rolling “agent cache” of subtle internals (name resolution, lowering patterns, cross-backend contracts),
+see `docs/IMPLEMENTATION_NOTES.md`.
+
 ### Compiler front-end (parsing + AST)
 
 - Tokens/lexer: `lib/compiler/token.oren`, `lib/compiler/lexer.oren`
