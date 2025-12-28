@@ -404,6 +404,46 @@ fn infer_map_key_kind(expr, kind_env) {
     return nil
 }
 
+fn annotate_intrinsic_key_kinds(expr, kind_env) {
+    // Normalize key-kind and receiver-kind hints for intrinsic calls so backends can rely
+    // on shared IR annotations rather than re-inferring from syntax.
+    //
+    // This is especially important for x64 native where map entries store an explicit
+    // key kind (int vs string) and the backend must not guess at runtime.
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fnn = expr["fn"]
+    if fnn == nil || fnn["type"] != "Identifier" { return nil }
+    var nm = fnn["value"]
+    var args = expr["args"]
+    if args == nil { args = [] }
+
+    if nm == "oren_map_get" || nm == "oren_map_set" {
+        // Map-only intrinsics.
+        expr["recv_kind"] = "map"
+        if oren_list_len(args) >= 2 {
+            var kk = infer_map_key_kind(args[1], kind_env)
+            if kk != nil { expr["known_key_kind"] = kk }
+        }
+        return nil
+    }
+
+    if nm == "oren_index_set" {
+        // Polymorphic intrinsic. If the receiver is inferred as a map and the key kind
+        // can be inferred, annotate so codegen stays deterministic.
+        if oren_list_len(args) >= 2 {
+            var recv_k = infer_container_kind(args[0], kind_env)
+            if recv_k != nil { expr["recv_kind"] = recv_k }
+            if recv_k == "map" {
+                var kk2 = infer_map_key_kind(args[1], kind_env)
+                if kk2 != nil { expr["known_key_kind"] = kk2 }
+            }
+        }
+        return nil
+    }
+
+    return nil
+}
+
 fn rewrite_builtin_container_call(expr, kind_env) {
     if expr == nil || expr["type"] != "Call" { return expr }
     var fn_expr = expr["fn"]
@@ -693,6 +733,7 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
             i3 = i3 + 1
         }
         if expr["spread"] != nil { expr["spread"] = lower_expr_in_place(expr["spread"], regs, trait_set, env, kind_env, errs) }
+        annotate_intrinsic_key_kinds(expr, kind_env)
         return rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs)
     }
     return expr

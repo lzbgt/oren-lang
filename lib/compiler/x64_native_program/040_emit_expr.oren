@@ -343,15 +343,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
         // For maps, key-kind must match the stored entry kind.
         //
-        // Key kind inference order (rolling):
-        // 1) If the frontend annotated the Index node with `known_key_kind`, use it.
-        // 2) Else if the key is a literal Integer/String, use that kind directly.
-        // 3) Else: abort(1) on the map path (no runtime heuristics in Tier‑1).
+        // Tier‑1 invariant:
+        // - x64 native codegen must not re-infer key kind from syntax.
+        // - shared lowering (`impl_lowering.oren`) annotates Index nodes with `known_key_kind`
+        //   when it can be inferred deterministically (e.g. literals, typed identifiers).
         var known_key_kind = -1
         if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
-        var idx_t = idx["type"]
-        if idx_t == "Integer" { known_key_kind = 0 }
-        else if idx_t == "String" { known_key_kind = 1 }
 
         var tmp0 = locals["$tmp0"]
         if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for index"); return nil }
@@ -951,17 +948,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - kind=0 => integer key
             // - kind=1 => C-string pointer key
             //
-            // Incremental Tier-1 improvement:
-            // - if the frontend provided `known_key_kind`, use it (covers most identifier keys)
-            // - if the key is a literal Integer/String, we can emit the correct kind directly
-            // - otherwise: abort(1) (no runtime heuristics in Tier‑1)
+            // Tier‑1 invariant:
+            // - key kind is inferred and attached by shared lowering (`impl_lowering.oren`)
+            // - x64 native does not guess from syntax here.
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
 
             var known_key_kind = -1
             if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
-            var key_t = args[1]["type"]
-            if key_t == "Integer" { known_key_kind = 0 }
-            else if key_t == "String" { known_key_kind = 1 }
 
             var base = _intr_tmp_push(ctx, 2)
             if base == nil { return nil }
@@ -1124,9 +1117,6 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             var known_key_kind = -1
             if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
-            var key_t = args[1]["type"]
-            if key_t == "Integer" { known_key_kind = 0 }
-            else if key_t == "String" { known_key_kind = 1 }
 
             // Use the intrinsic temp pool so nested expression evaluation cannot clobber
             // spilled args (required for nested map literals like `{ "a": {"b": 7} }`).
@@ -1229,9 +1219,6 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             var known_key_kind = -1
             if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
-            var key_t = args[1]["type"]
-            if key_t == "Integer" { known_key_kind = 0 }
-            else if key_t == "String" { known_key_kind = 1 }
 
             if recv_kind == "map" && known_key_kind < 0 {
                 err(ctx, "x64 native v0: map index_set requires inferred key kind (avoid dynamic key heuristics)")

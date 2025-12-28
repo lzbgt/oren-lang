@@ -15,7 +15,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic ...` line (best-effort) before aborting
      - ✅ `oren_panic(msg)` now emits a best-effort `STACK_TRACE` (RBP chain, up to 16 return addrs) on Linux+Win64 before aborting
      - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names **and offsets** via an embedded symtab (fixed-base emitters)
-     - ✅ x64 map key-kind heuristics removed (no `key < 4096` guessing): key kind is inferred conservatively; if unknown, the map path aborts(1) (tagged values remain the full fix)
+     - ✅ x64 map key-kind selection centralized in shared lowering: `known_key_kind` is inferred conservatively and required for map paths; x64 codegen does not re-infer from syntax (tagged values remain the full fix)
      - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)
      - ⏭️ next: fn+line mapping / source file mapping, fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
 
@@ -79,6 +79,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **Container ops third milestone (arm64 native)**: `std:list` namespace calls `list.len(xs)` / `list.push(xs, v)` now lower to the same intrinsics (no wrapper call overhead); `list.push` preserves std semantics by returning `nil`.
 - **Whole-program function DCE (linker)**: module linking now prunes unreachable top-level functions for executable builds, so importing stdlib modules no longer forces tier‑1 native v0 backends to codegen unused helpers (e.g. `std:list.slice_view` string/map literals).
 - **Type-name resolution parity (`[]` + aliases)**: the compiler now preserves `[]` prefixes in annotation renaming and resolves `[]alias.Type` across modules before impl/method-call lowering; impl receivers now accept full type spellings like `[]i32`.
+- **Key-kind inference unification (x64 native)**: `impl_lowering.oren` now annotates `oren_map_get` / `oren_map_set` / `oren_index_set` calls with `known_key_kind` when deterministically inferable; x64 native emit no longer inspects key AST types as a fallback.
 - **Test throughput**: `oretest` now runs runtime diagnostic fixtures in parallel (bounded by `--fixture-jobs`) to reduce wall time during rolling development.
 - **oretest modularized**: the curated runner is split into `cmd/oretest/*.go` modules, and x86_64 validation was consolidated into an integration-first Tier‑1 smoke (local build existence + minimal opt-in remote-run).
 - **oretest x64 remote configurability**: the Win11+WSL2 remote host/proxy/paths can be overridden via env (`OREN_REMOTE_X64_*`) without editing source; see `docs/REMOTE_X64_ENV.md`.
