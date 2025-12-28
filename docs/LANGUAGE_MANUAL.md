@@ -393,7 +393,7 @@ This is exercised by:
 Oren’s *runtime* (v0) is dynamically typed (boxed values), but the language includes **explicit width types** used for:
 
 - ABI/layout and packed views
-- typed buffers (`[]i32`, `[]f32`, `[]f64`, …)
+- typed buffers (`[]i32`, `[]f32`, `[]f64`, …) (HPC buffers; not boxed lists)
 - deterministic casts at type boundaries
 
 Common width tokens (non-exhaustive):
@@ -413,6 +413,24 @@ var b = i32(-1.9)    // truncate toward zero then wrap to width
 ```
 
 The compiler lowers these to deterministic runtime primitives (not “user-level” function calls).
+
+### Rolling v0: container kind hints (`list` / `map` / `buf` / `string`)
+
+Oren’s type system is still rolling without a full static checker, but some sugar relies on
+**receiver kind hints** so lowering stays deterministic across backends (especially the native backends).
+
+In practice, you may see (or choose to use) annotations like:
+
+```oren
+var xs: list = [1, 2, 3]     // list receiver hint
+var m: map = {"a": 1}        // map receiver hint
+var s: string = "hello"      // string receiver hint
+// import buffer "std:buffer"
+// var b: []i32 = buffer.i32_new(16)  // typed-buffer receiver hint
+```
+
+These annotations are **compiler hints** in rolling v0, not stable “v1 types”.
+See `docs/LANGUAGE_SPEC.md` (“kind annotations”) for the normative description.
 
 ### Traits and `impl` (practical)
 
@@ -463,7 +481,7 @@ Rolling coherence rules enforced by the compiler:
 
 See `tests/native/fixtures/trait_impl_duplicate.oren` and `tests/native/fixtures/trait_impl_split_blocks.oren`.
 
-#### Blanket impls (`any`)
+#### Blanket impls (`any`) (fallback impl; not a value type)
 
 Rolling v0 supports a minimal blanket impl form:
 
@@ -476,6 +494,14 @@ impl Z for i64 { fn z(self) { return 7 } }
 
 Exact impls (like `i64`) override blanket `any` impls deterministically.
 See `tests/modules/test_trait_blanket_impl_any.oren`.
+
+Notes (rolling):
+
+- `any` is currently **only** meaningful in `impl <Trait> for any { ... }` as a “fallback receiver”.
+  It is not a general “top type”, and you should not assume you can write `var x: any = ...` as a
+  stable feature.
+- This is still **compile-time rewriting** (no vtable / no dynamic dispatch). Do not confuse it with
+  the planned `dyn Trait` direction.
 
 See `docs/TRAITS_AND_POLYMORPHISM.md` for the design rationale and constraints.
 
@@ -573,7 +599,7 @@ Oren has three “container families” in rolling v0:
 
 1) **Lists**: `[]` (dynamic, boxed values)
 2) **Maps**: `{...}` (dynamic keys/values)
-3) **Typed buffers**: `I32_BUF / F32_BUF / F64_BUF / ...` (HPC-oriented numeric arrays)
+3) **Typed buffers**: `[]i32 / []f32 / []f64 / ...` (HPC-oriented numeric arrays; runtime tags include `I32_BUF`, `F32_BUF`, `F64_BUF`, etc.)
 
 ### Lists (dynamic)
 

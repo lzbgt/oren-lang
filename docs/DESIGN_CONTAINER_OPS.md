@@ -205,6 +205,20 @@ Oren’s built-in list values are **mutable heap objects**. That implies:
 - **Assignment is cheap** (it copies a reference to the same list object).
 - “Copy” must be explicit when you want independent mutation.
 
+### Heterogeneous elements (dynamic “value” list)
+
+In rolling v0, lists store **boxed runtime values** (they are not unboxed “`Vec<T>`” arrays).
+Practically:
+
+- A list may be **heterogeneous** at runtime (different element kinds in the same list).
+- “Element types” are therefore a *static intent* (casts at boundaries), not a guaranteed storage layout.
+- If you need stable numeric layout/perf, use **typed buffers** (`[]i32`, `[]f32`, `[]f64`, etc.) rather than lists.
+
+This matters for copy/view operations:
+
+- `clone(xs)` and `slice_copy(xs, ...)` are **shallow**: they copy element values as-is (references remain shared).
+- `slice_view(xs, ...)` is a **view**: it never copies elements and reflects the underlying list at iteration time.
+
 ### `clone(xs)` — explicit shallow copy
 
 Recommended semantics for rolling v0:

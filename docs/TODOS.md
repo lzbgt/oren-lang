@@ -80,6 +80,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **Whole-program function DCE (linker)**: module linking now prunes unreachable top-level functions for executable builds, so importing stdlib modules no longer forces tier‑1 native v0 backends to codegen unused helpers (e.g. `std:list.slice_view` string/map literals).
 - **Test throughput**: `oretest` now runs runtime diagnostic fixtures in parallel (bounded by `--fixture-jobs`) to reduce wall time during rolling development.
 - **oretest modularized**: the curated runner is split into `cmd/oretest/*.go` modules, and x86_64 validation was consolidated into an integration-first Tier‑1 smoke (local build existence + minimal opt-in remote-run).
+- **oretest x64 remote configurability**: the Win11+WSL2 remote host/proxy/paths can be overridden via env (`OREN_REMOTE_X64_*`) without editing source; see `docs/REMOTE_X64_ENV.md`.
 - **Legacy Makefile runner removed**: `make test-legacy` now aliases `./oretest --full` (parallel, curated) and the old sequential shell runner has been deleted.
 - **HPC iteration performance**: `for x in iterable` no longer allocates a fresh `[ok, value]` pair on every iteration; the loop reuses a preallocated `out_pair` via `oren_iter_next(container, idx, out_pair)` across native/C/AVM, and the `Iterable` trait extension signature is updated to match.
 - **Docs coverage**: `docs/LANGUAGE_MANUAL.md` now includes a “fixtures as living spec” index pointing at key `tests/native/fixtures` and x64 bring-up fixtures.

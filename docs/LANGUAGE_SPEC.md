@@ -85,7 +85,7 @@ import_stmt     = "import" ident string_lit [ ";" ] ;
 type_stmt       = ("struct" | "class") ident "{" [ field { "," field } [ "," ] ] "}" [ ";" ] ;
 field           = { attr } ident [ ":" type_name ] ;
 trait_stmt      = "trait" ident "{" { "fn" ident "(" [ param_list ] ")" [ ":" type_name ] ";" } "}" ;
-impl_stmt       = "impl" dotted_name "for" dotted_name "{" { "fn" ident "(" [ param_list ] ")" [ ":" type_name ] block } "}" ;
+impl_stmt       = "impl" dotted_name "for" type_name "{" { "fn" ident "(" [ param_list ] ")" [ ":" type_name ] block } "}" ;
 enum_stmt       = "enum" ident "{" ident [ "(" [ ident { "," ident } ] ")" ] { "," ident [ "(" [ ident { "," ident } ] ")" ] } [ "," ] "}" ;
 ffi_stmt        = "ffi" ident [ ";" ] ;
 test_stmt       = "test" string_lit block ;
@@ -162,7 +162,9 @@ index_suffix    = "[" expression "]" ;
 	literal         = int_lit | float_lit | string_lit | "true" | "false" | "nil" ;
 	ident           = /[A-Za-z_][A-Za-z0-9_]*/ ;
 	dotted_name     = ident { "." ident } ;
-	type_name       = [ "*" { "*" } ] dotted_name { "[" int_lit "]" } ;
+	type_name       = [ "*" { "*" } ] type_atom { "[" int_lit "]" } ;
+	type_atom       = dotted_name
+	                | "[]" dotted_name ;
 attr            = "@" dotted_name [ "(" { /* literal args only (v0) */ } ")" ] ;
 param           = { attr } [ "..." ] ident [ ":" type_name ] ;
 param_list      = param { "," param } ;
@@ -222,10 +224,22 @@ Oren therefore allows a small set of *conventional* annotation spellings to act 
 
 - `: list` — list receiver (enables `xs.push(v)` / `xs.len()` lowering)
 - `: map` — map receiver (enables `m.len()` lowering)
-- `: buf` — typed buffer receiver (enables `b.len()` lowering)
+- `: buf` — typed buffer receiver kind (enables `b.len()` lowering when element width is not relevant)
 - `: string` — string receiver (enables `s.len()` lowering)
 
 These are hints used by compiler lowerings in rolling v0; they are not yet “real types” in the v1 sense.
+
+Typed buffers also have a width-specialized type spelling used throughout the HPC stdlib:
+
+- `[]i32`, `[]i64`, `[]f32`, `[]f64`, `[]u8`, ...
+
+Example:
+
+```oren
+import buffer "std:buffer"
+
+var b: []i32 = buffer.i32_new(16)
+```
 
 Type names like `u8`, `i32`, `f64`, `u16be`, etc. are **language-reserved tokens** intended to
 become true explicit types as the v1 type system is stabilized (see later sections in this spec).
@@ -780,6 +794,29 @@ Planned evolution (minimal rewrite):
 - `trait` declarations have no runtime effect yet.
 - `impl Trait for Type { ... }` is lowered deterministically into plain top-level `fn`s (see `docs/OBJECT_MODEL.md`).
 - Design direction: Oren is **static-first** (`trait` = compile-time dispatch) with **explicit opt-in** runtime polymorphism (`dyn Trait`) when needed. See `docs/TRAITS_AND_POLYMORPHISM.md`.
+
+#### Rolling extension: blanket impl (`impl Trait for any`)
+
+Rolling v0 also supports a minimal **blanket impl** syntax:
+
+```oren
+trait Z { fn z(self); }
+
+impl Z for any { fn z(self) { return 0 } }
+impl Z for i64 { fn z(self) { return 7 } }
+```
+
+Semantics (rolling, deterministic):
+
+- `any` acts as a **fallback receiver** in the *impl receiver position only*.
+  It is best treated as a **contextual keyword**: special in `impl <Trait> for any { ... }`, otherwise not a “real type”.
+- Resolution prefers the most specific impl:
+  - exact `(Trait, Type)` impl wins if present
+  - otherwise use the `(Trait, any)` blanket impl if present
+  - otherwise: compile-time error (“missing impl”)
+- This is still **compile-time rewriting** (no vtables / no dynamic dispatch).
+
+Evidence: `tests/modules/test_trait_blanket_impl_any.oren`.
 
 
 Example:
