@@ -82,12 +82,23 @@ fn oren_time_mono_raw() {
 }
 
 fn oren_register_thread(top) {
-    // Thread Node: [top, saved_sp, next] (24 bytes)
+    // Thread Node (rolling):
+    // - [top, saved_sp, next] must stay at offsets 0/8/16 because GC stack scanning depends on it.
+    // - Additional fields may be appended for tier-1 runtime services.
+    //
+    // Layout (8-byte slots):
+    //   0: top
+    //   8: saved_sp
+    //   16: next
+    //   24: call_depth (stack safety)
+    //
+    // Size: 32 bytes
     // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
-    var node = malloc_raw(24)
+    var node = malloc_raw(32)
     if node != 0 {
         ptr_set(node, top)
         ptr_set(iadd(node, 8), 0) // saved_sp
+        ptr_set(iadd(node, 24), 0) // call_depth
         
         // Link
         acquire_lock()

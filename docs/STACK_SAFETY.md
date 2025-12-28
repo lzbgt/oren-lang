@@ -46,8 +46,8 @@ Today, both backends have a **deterministic recursion guard** (rolling):
     (native runtime helpers are intentionally excluded to keep bootstrap stable)
   - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192)
   - validated by the same fixture under `--backend native`
-  - current limitation: the native v0 guard is process-global (not per-thread) and must be upgraded
-    once native threading becomes production-critical
+  - call depth is tracked per-thread via the registered native thread nodes (rolling v0:
+    thread selection is based on the same SP-vs-top heuristic used by the GC stack scanner)
 
 ## What “Stack Safe” Means for Oren
 

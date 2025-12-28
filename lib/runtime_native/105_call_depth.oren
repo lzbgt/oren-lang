@@ -23,11 +23,6 @@ fn native_runtime_call_depth_apply_env() {
     // Any invalid or zero value falls back to default.
     if g_storage == 0 { return 0 }
 
-    // Reset depth to a deterministic baseline at process start.
-    // Use literals (no global "const" vars): native backend does not reliably run
-    // global initializers during bootstrap.
-    ptr_set(iadd(g_storage, 304), 0)
-
     var max = ptr_get(iadd(g_storage, 312))
     if max <= 0 { max = 8192 }
     // Rolling safety: if something corrupt writes a ridiculous max, clamp to default.
@@ -54,23 +49,51 @@ fn oren_call_depth_enter() {
     var g = g_storage
     if g == 0 { return 0 }
 
-    var d_ptr = iadd(g, 304)
-    // Rolling safety:
-    // - If d_ptr points at unexpected data (e.g. because globals were not initialized),
-    //   avoid instant false-positive panics by resetting to 0.
-    var d0 = ptr_get(d_ptr)
-    if d0 < 0 { d0 = 0; ptr_set(d_ptr, 0) }
-    if d0 > 100000000 { d0 = 0; ptr_set(d_ptr, 0) }
+    // Prefer per-thread call-depth tracking (production direction).
+    // Find current thread node based on SP heuristics (same as GC stack scanning).
+    var sp = get_sp()
+    var node = ptr_get(iadd(g, GLOBAL_OFF_THREADS))
+    while node != 0 {
+        var top = ptr_get(node)
+        if sp < top {
+            var diff = top - sp
+            // 8MB = 8388608
+            if diff < 8388608 {
+                // call_depth @ node+24
+                var d_ptr2 = iadd(node, 24)
+                var d0 = ptr_get(d_ptr2)
+                if d0 < 0 { d0 = 0; ptr_set(d_ptr2, 0) }
+                if d0 > 100000000 { d0 = 0; ptr_set(d_ptr2, 0) }
+                var d = iadd(d0, 1)
+                ptr_set(d_ptr2, d)
 
-    // Use `iadd` (not `+`) to avoid lowering through `oren_add` (string concat / dynamic add).
-    var d = iadd(d0, 1)
-    ptr_set(d_ptr, d)
+                var max = ptr_get(iadd(g, 312))
+                if max <= 0 { max = 8192 }
+                if max > 100000000 { max = 8192 }
+                if d > max {
+                    g_panicking = 1
+                    oren_panic("call depth exceeded")
+                }
+                return 0
+            }
+        }
+        node = ptr_get(iadd(node, 16))
+    }
+
+    // Fallback: if a thread node is not registered yet, track process-global depth.
+    // This keeps behavior deterministic in rolling bootstrap stages.
+    var d_ptr = iadd(g, 304)
+    var d0g = ptr_get(d_ptr)
+    if d0g < 0 { d0g = 0; ptr_set(d_ptr, 0) }
+    if d0g > 100000000 { d0g = 0; ptr_set(d_ptr, 0) }
+    var d2 = iadd(d0g, 1)
+    ptr_set(d_ptr, d2)
 
     var max = ptr_get(iadd(g, 312))
     if max <= 0 { max = 8192 }
     if max > 100000000 { max = 8192 }
 
-    if d > max {
+    if d2 > max {
         // Disable call-depth checks (and runtime locks) while panicking so diagnostics can print.
         g_panicking = 1
         oren_panic("call depth exceeded")
@@ -84,8 +107,26 @@ fn oren_call_depth_exit() {
     var g = g_storage
     if g == 0 { return 0 }
 
-    var d_ptr = iadd(g, GLOBAL_OFF_CALL_DEPTH)
-    var d = ptr_get(d_ptr)
-    if d > 0 { ptr_set(d_ptr, iadd(d, -1)) }
+    // Prefer per-thread call-depth tracking.
+    var sp = get_sp()
+    var node = ptr_get(iadd(g, GLOBAL_OFF_THREADS))
+    while node != 0 {
+        var top = ptr_get(node)
+        if sp < top {
+            var diff = top - sp
+            if diff < 8388608 {
+                var d_ptr2 = iadd(node, 24)
+                var d = ptr_get(d_ptr2)
+                if d > 0 { ptr_set(d_ptr2, iadd(d, -1)) }
+                return 0
+            }
+        }
+        node = ptr_get(iadd(node, 16))
+    }
+
+    // Fallback: process-global depth.
+    var d_ptr = iadd(g, 304)
+    var d0 = ptr_get(d_ptr)
+    if d0 > 0 { ptr_set(d_ptr, iadd(d0, -1)) }
     return 0
 }
