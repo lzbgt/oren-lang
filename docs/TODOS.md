@@ -13,6 +13,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Next: varargs (`...rest`) lowering + spread semantics, including efficient list packing and tail-call-safe wrapper stubs.
    - Next: expand x64 parity for containers, pointers, floats/SIMD (keep fixtures small + deterministic; keep remote-run opt-in).
    - Next: implement tagged value representation (or boxed ints) so x64 supports full-range int keys/values (remove the `<4096` heuristic) and can align map key types with AVM (nil/bool/int/string) safely.
+     - Design: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` (staged plan; remove heuristics first, then converge native value model).
    - Next: implement x64 native runtime injection (allocator + strings + lists/maps) so x64 can run non-trivial stdlib code without host libc dependencies.
    - References: `docs/NATIVE_BACKEND.md`, `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`, `docs/REMOTE_X64_ENV.md` (includes the canonical SSH ProxyCommand snippet).
 
