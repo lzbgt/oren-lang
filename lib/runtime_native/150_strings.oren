@@ -1,14 +1,15 @@
 // --- Strings ---
 //
 // Rolling v0 native backend note:
-// - String literals are embedded in the program's data blob as raw C strings.
-// - To make runtime type introspection deterministic (especially for map key kind inference),
-//   we *intern* those const C strings into heap-allocated, tracked string objects on demand.
+// - Many “string” values are plain C strings (NUL-terminated bytes).
+// - Some strings are *owned* (heap allocated), some are *unowned* (argv/envp, embedded data, etc).
 //
-// This keeps the runtime invariant:
-//   every string value that can flow through generic container ops is a tracked heap string.
+// `oren_intern_cstr` is an **optional helper** that copies an unowned C string into an owned,
+// tracked heap string (kind=STRING), caching by pointer identity.
 //
-// It avoids unsafe heuristics like "treat unknown pointers as strings" (which breaks for ints >= 4096).
+// Today, the native backend codegen does **not** require heap-copying literals; it marks embedded
+// literals as tracked via `oren_ensure_tracked(ptr, kind=1)` so map key-kind inference can be safe
+// without relying on pointer/int heuristics.
 var g_intern_cstr_cache = 0 // map<int ptr -> string_ptr>
 
 fn oren_intern_cstr(cstr_ptr) {
