@@ -63,7 +63,9 @@ fn oren_list_push(list, value) {
     }
     ptr_set(buf + count * 8, value)
     ptr_set(list, count + 1)
-    return list
+    // Language-level semantics: `oren_list_push` is statement-like and returns `nil`.
+    // (The list header pointer is stable and does not need to be returned.)
+    return 0
 }
 
 fn oren_list_get(list, idx) {

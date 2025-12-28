@@ -36,7 +36,7 @@ OrenValue oren_list_len(OrenValue list) {
 OrenValue oren_list_push(OrenValue list, OrenValue value) {
     if (list.type != OREN_TYPE_LIST) {
         oren_panic("push on non-list");
-        return list; // Should not be reached
+        return OREN_NIL; // Should not be reached
     }
     OrenList *l = list.as.list_val;
     lock_collections();
@@ -48,7 +48,8 @@ OrenValue oren_list_push(OrenValue list, OrenValue value) {
     l->items[l->count] = value;
     l->count += 1;
     unlock_collections();
-    return list;
+    // Language-level semantics: `oren_list_push` returns `nil`.
+    return OREN_NIL;
 }
 
 OrenValue oren_list_get(OrenValue list, OrenValue index) {

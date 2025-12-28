@@ -654,7 +654,7 @@ Implementation note (current compiler):
 Oren supports a small amount of container method sugar to keep code modern and readable,
 while still lowering deterministically in v0:
 
-- `xs.push(v)` → `oren_list_push(xs, v)`
+- `xs.push(v)` → `oren_list_push(xs, v)` (**returns `nil`**)
 - `xs.len()` → `oren_list_len(xs)`
 - `m.set(k, v)` → `m[k] = v` (**statement-only sugar**)
 - `m.get(k)` → `m[k]`

@@ -1560,8 +1560,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
                 bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
 
-                // return list
-                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+                // Language-level semantics: return `nil` (0).
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_cdqe())
                 _patch_local_fixups(ctx, labels, local_fixups)
                 _intr_tmp_pop(ctx, base)
                 return nil

@@ -48,6 +48,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 4) **Container ops as operations (no hot-path stdlib overhead)** (M)
    - Make `xs[i]` / `xs[i]=v` / `len` / `push` lower to intrinsics for built-ins; keep generic + `dyn` story deterministic.
    - Define `clone`, `slice_copy`, and `slice_view` semantics and error conventions.
+   - Status (rolling):
+     - ✅ `oren_list_push` now returns `nil` consistently across backends (AVM/C/native arm64/x64), so `std:list.push(...)` and `xs.push(...)` can safely lower to `oren_list_push(...)` without semantic drift.
    - Reference: `docs/DESIGN_CONTAINER_OPS.md`, `docs/STDLIB_LAYERS.md`.
 
 5) **Stack safety parity (deterministic recursion failure)** (M)

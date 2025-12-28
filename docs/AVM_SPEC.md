@@ -135,9 +135,9 @@ Source of truth (rolling): `lib/avm/avm_native.inc` `avm_call_native(...)`.
 9. oren_string_char_code_at
 10. oren_int_to_string
 11. (reserved)
-12. oren_list_len
-13. oren_list_push
-14. oren_index_set
+12. oren_list_len(list) -> int
+13. oren_list_push(list, value) -> nil
+14. oren_index_set(container, index, value) -> nil
 15. int_mod
 16. oren_bytes_from_string
 17. oren_write_bytes
