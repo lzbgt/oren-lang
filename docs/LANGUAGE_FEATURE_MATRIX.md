@@ -63,6 +63,17 @@ Status legend:
 | AVM execution of `.obc` | Rolling | Runtime: `lib/avm/**`; codegen: `lib/compiler/codegen_bytecode/**` | Examples: `examples/avm_*`; Tests: `tests/avm/**` |
 | Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/TODOS.md` (P0.10), `docs/TOOLCHAIN_SELF_HOSTING.md` |
 
+## HPC / SIMD (arm64 NEON-first)
+
+| Feature | Status | Where (impl) | Evidence / notes |
+|---|---|---|---|
+| Typed buffers (`[]i32`, `[]f32`, `[]f64`, …) | Rolling | Stdlib/runtime surfaces under `lib/std/buffer.oren` + `lib/runtime_native/typed_buffers/**` | Manual: `docs/LANGUAGE_MANUAL.md` (Typed buffers section) |
+| Native SIMD toggle | Rolling | Native runtime parses `OREN_ENABLE_SIMD` / `OREN_NO_SIMD`: `lib/runtime_native/040_capsule_core.oren` | SIMD must be an optimization only; scalar semantics are authoritative |
+| SIMD intrinsics (arm64 NEON) | Rolling (arm64); Planned (x86_64) | Native arm64 codegen lowers `simd_*` intrinsics: `lib/compiler/arm64_native_expr/**` | Spec lists the intrinsic family: `docs/LANGUAGE_SPEC.md` (“Native Backend Intrinsics”) |
+| SIMD-backed typed-buffer kernels (dot/axpy/gemm/etc.) | Rolling (arm64); Planned (x86_64) | Runtime dispatch in `lib/runtime_native/typed_buffers/**` + arm64 intrinsic lowering | Determinism guard: SIMD and scalar paths must be bit-identical; validated by `tests/native/test_simd_suite.oren` |
+| AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM_NEON_MAPPING_PLAN.md` (determinism-first); not treated as mature until fully covered by AVM tests |
+| HPC roadmap (math/linalg + perf harness) | Rolling (in progress) | Design docs: `docs/HPC_SERVER_PLAN.md`, typed-buffer + linalg layers | Tracker: `docs/TODOS.md` (P1.3) |
+
 ## Tooling / ecosystem
 
 | Feature | Status | Where (impl) | Evidence / examples |
