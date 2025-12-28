@@ -14,8 +14,10 @@ Oren is in **rolling ABI mode**: until an explicit stabilization milestone is de
 Oren is an **agent-native**, syscall-first language and toolchain:
 
 - **Native** mode (server/desktop): compiles to native binaries (no libc shims for the *native backend output*).
-  - Primary/production path today: macOS `arm64` (syscall-first runtime surface is most complete here).
-  - Rolling bring-up path: Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent, but currently a growing “bring-up subset” (feature surface is expanding rapidly; see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md` for real-hardware validation).
+  - Tier‑1 targets (rolling intent): `arm64` and `x86_64` across **macOS / Linux / Windows**.
+  - Practical reality today:
+    - macOS `arm64` is the most feature-complete native backend surface.
+    - Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent but still a growing bring-up subset (see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md` for real-hardware validation).
 - **Portable** mode: compiles to `.obc` bytecode executed by AVM, supporting determinism, snapshots, and capability-governed virtualized domains (FS/NET/PROC/ENV/TIME).
 
 ## 0.1) Compiler CLI quick reference (modern, machine-friendly)
@@ -33,6 +35,49 @@ The Stage1 compiler (`./oren`) is intended to behave like a modern tool (Python 
   - `oren completion zsh`
 
 See `docs/CLI_COMPLETION.md` for activation instructions.
+
+### 0.2) Quickstart: build + run (all backends)
+
+Build and run a program on the **C backend** (portable via host toolchain):
+
+```bash
+./oren build your_prog.oren --backend c -o build/your_prog_c
+./build/your_prog_c
+```
+
+Build and run a program on the **native backend** (Tier‑1 targets, rolling):
+
+```bash
+./oren build your_prog.oren --backend native --target macos --arch arm64 -o build/your_prog_native
+./build/your_prog_native
+```
+
+Linux native build (arm64 or x64 depending on host/tooling):
+
+```bash
+./oren build your_prog.oren --backend native --target linux --arch arm64 -o build/your_prog_linux
+```
+
+Note: the resulting binary is a Linux ELF; run it on Linux (or via the Win11+WSL2 remote workflow in `docs/REMOTE_X64_ENV.md`).
+
+Build and run **bytecode** on AVM:
+
+```bash
+./oren build your_prog.oren --backend bytecode -o build/your_prog.obc
+./avm build/your_prog.obc
+```
+
+Passing program arguments in AVM (convention: `--` separates AVM flags and program args):
+
+```bash
+./avm build/your_prog.obc -- --flag value
+```
+
+Stack safety knobs (rolling):
+
+- AVM: `./avm --call-depth-max 64 build/your_prog.obc`
+- Native x64 bring-up: `./oren build ... --backend native --arch x64 --call-depth-max 64`
+- C backend: `OREN_CALL_DEPTH_MAX=64 ./build/your_prog_c`
 
 ## 1) Program structure
 
@@ -943,8 +988,14 @@ Fixtures covering this contract:
 In rolling mode, the canonical verification step is:
 
 ```sh
-timeout 900 ./oretest --target macos
+./oretest --target macos
 ```
+
+Notes:
+
+- `./oretest --target` currently accepts `macos|linux` (it selects which native backend target is used for the curated suite).
+- For x86_64 Windows + WSL2 validation, remote execution is opt-in; see `docs/REMOTE_X64_ENV.md`.
+- `timeout` is optional: oretest has internal timeouts and will warn if `timeout`/`gtimeout` is not installed.
 
 ## 12) Test fixtures are a living spec (recommended)
 

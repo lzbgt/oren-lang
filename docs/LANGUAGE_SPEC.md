@@ -847,14 +847,27 @@ match v {
 - Import paths are resolved at compile time using the compiler’s module resolver:
   - **Filesystem imports**: relative to the directory of the importing file; absolute paths are allowed.
   - **Stdlib imports (recommended for users)**:
-    - `import math "std:math"` (scheme form)
-    - `import json "std/json"` (path form)
-    - The `.oren` extension is optional (e.g. `"std/json"` resolves to `std/json.oren`).
+    - `import math "std:math"` (canonical scheme form)
+    - `import json "std/json"` (path form; accepted as an alias of `std:json`)
+    - The `.oren` extension is optional (e.g. `"std:json"` or `"std/json"` may resolve to `lib/std/json.oren` depending on the stdlib layout).
 - Imports are resolved recursively at compile time; cyclic imports are an error.
 - All top-level `var`, named `fn`, and `struct`/`class` declarations in an imported file are treated as module members.
 
 ## Evaluation Order
-Expression evaluation order is currently not specified by the language. Avoid relying on side effects inside subexpressions (especially in function call arguments and binary operators) when targeting the C backend.
+Expression evaluation order is currently not specified by the language (rolling v0).
+
+Practical guidance (all backends):
+
+- Avoid relying on side effects inside subexpressions (especially in function call arguments and binary operators).
+- If order matters, write explicit sequencing using `var` bindings:
+  - prefer:
+    - `var a = f()`
+    - `var b = g()`
+    - `h(a, b)`
+  - over:
+    - `h(f(), g())`
+
+This matters even more in rolling mode because compilers may apply safe transforms like tail-call elimination (stackless recursion) and other normalizations, and without a specified order there is no portable “happens-before” guarantee inside an expression.
 
 ## Builtins (C Backend)
 The C backend recognizes a few builtin functions and lowers them directly:
