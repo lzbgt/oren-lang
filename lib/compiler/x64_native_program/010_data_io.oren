@@ -86,6 +86,22 @@ fn _data_add_u64(ctx, val) {
     return off
 }
 
+fn _data_add_zeros(ctx, nbytes) {
+    // Reserve `nbytes` of zero-initialized space in the appended data blob and return its offset.
+    //
+    // Intended for small mutable buffers used by the entry stub (e.g. reading env vars on Win64)
+    // without touching the stack layout required by the ABI.
+    if ctx == nil { return nil }
+    if nbytes == nil || nbytes <= 0 { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    // Keep pointers 8-byte aligned so later u64 reads/writes remain well-formed.
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = oren_list_len(ctx["data"])
+    var i = 0
+    while i < nbytes { bytes_push(ctx["data"], 0); i = i + 1 }
+    return off
+}
+
 fn _data_reserve_call_depth_guard(ctx) {
     // Reserve global storage for the x64 native call depth guard.
     //

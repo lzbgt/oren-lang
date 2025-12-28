@@ -135,7 +135,8 @@ Passing program arguments in AVM (convention: `--` separates AVM flags and progr
 Stack safety knobs (rolling):
 
 - AVM: `./avm --call-depth-max 64 build/your_prog.obc`
-- Native x64 bring-up: `./oren build ... --backend native --arch x64 --call-depth-max 64`
+- Native backend: `OREN_CALL_DEPTH_MAX=64 ./build/your_prog_native` (runtime override)
+  - Native compile-time default: `./oren build ... --backend native --call-depth-max 64`
 - C backend: `OREN_CALL_DEPTH_MAX=64 ./build/your_prog_c`
 
 ## 1) Program structure

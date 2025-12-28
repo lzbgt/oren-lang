@@ -62,7 +62,7 @@ However, it now has a minimal deterministic recursion guard (rolling):
 Current limitations (tracked in `docs/TODOS.md`):
 
 - the call-depth max is configurable at **compile time** via `oren build --call-depth-max <n>` (default 8192)
-  - x64 v0 does **not** support runtime env override yet (no `OREN_CALL_DEPTH_MAX` parsing in the entry stub)
+  - runtime can also override via `OREN_CALL_DEPTH_MAX=<n>` (Linux ELF + Windows PE entry stubs)
 - the data blob must be writable for the counter; Linux ELF maps it RW in a dedicated segment, and Windows PE
   maps it into a dedicated `.data` section (RO/RW separation is still evolving as the runtime injection surface grows)
 
@@ -154,6 +154,31 @@ Rolling status (today):
 - Fixture: `tests/native/fixtures/tail_recursion_ok.oren` (expected to succeed under low `OREN_CALL_DEPTH_MAX`)
   - Fixture: `tests/native/fixtures/non_tail_modconst_ok.oren`
 
+### Option D — Heap-backed call frames / stack switching (future; for non-TCO recursion)
+
+Goal:
+
+- For recursive calls that cannot be TCO-optimized, avoid consuming unbounded **host** stack by
+  moving the “logical call stack” into heap-managed frames (or onto a heap-backed alternate stack).
+
+High-level approaches (Tier‑1 direction):
+
+- **Explicit heap call-frames** (stackless execution):
+  - lower calls to a loop over a heap stack of frames (similar to how AVM works)
+  - most deterministic across OS/arch, and naturally works with per-capsule budgets
+  - requires a well-defined calling convention at the IR boundary (closures/varargs/spread) and
+    runtime support for frame allocation and unwinding diagnostics
+
+- **Alternate stacks / fibers** (stackful execution):
+  - allocate large stacks on the heap and switch RSP (or use segmented stacks)
+  - can preserve “normal” native calling patterns, but is harder to make portable and ABI-clean,
+    and complicates GC and stack scanning
+
+Status:
+
+- Not implemented yet; tracked as a future production maturity item once CoreIR callables converge and
+  the native runtime injection surface stabilizes.
+
 ## Staged Plan (Rolling, Production-Oriented)
 
 ### P0 — Parity knob and deterministic diagnostic
@@ -161,7 +186,7 @@ Rolling status (today):
 1) Add a call-depth budget knob across backends:
    - AVM: `--call-depth-max` / `AVM_CALL_DEPTH_MAX` (already exists)
    - C backend: `OREN_CALL_DEPTH_MAX` env (already exists)
-   - native backend: `oren build --call-depth-max <n>` (x64 v0 uses compile-time max today; env parsing is still pending)
+   - native backend: `OREN_CALL_DEPTH_MAX` env (runtime override) and `oren build --call-depth-max <n>` (compile-time default)
 2) Lower the budget knob into a runtime-visible limit in a single, shared contract (so “default vs override” behaves the same everywhere).
 3) Implement entry/exit instrumentation in shared lowering (CoreIR boundary), so all
    backends inherit the same semantics.

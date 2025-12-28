@@ -48,7 +48,7 @@ fn cli_spec() {
     argparse.cmd_option(build, "--arch", nil, "string", "arm64", "(native backend) target arch: arm64|x64 (rolling)")
     argparse.cmd_flag(build, "--disasm", nil, "(native backend) disassemble output via otool/objdump")
     argparse.cmd_flag(build, "--debug", nil, "(native backend) embed debug info for stack traces")
-    argparse.cmd_option(build, "--call-depth-max", nil, "int", 8192, "(native backend) max call depth before abort (x64 v0: compile-time; arm64/c: runtime env OREN_CALL_DEPTH_MAX)")
+    argparse.cmd_option(build, "--call-depth-max", nil, "int", 8192, "(native backend) max call depth before abort (runtime override: OREN_CALL_DEPTH_MAX)")
     argparse.cmd_flag(build, "--lib", nil, "(native backend) build a shared library")
     argparse.cmd_flag(build, "--shared", nil, "(native backend) build a shared library (alias)")
     argparse.cmd_option_multi(build, "--link", "-l", "string", "(native backend, macOS) add LC_LOAD_DYLIB")

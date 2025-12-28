@@ -1,8 +1,8 @@
 // PE32+ (Windows x64) emitter for x86_64 native backend bring-up.
 //
 // v0:
-// - emits a PE executable with two sections: .text and .rdata
-// - imports kernel32!ExitProcess via an import table
+// - emits a PE executable with three sections: .text (RX), .rdata (R), .data (RW)
+// - imports a small kernel32 surface via an import table (ExitProcess, GetStdHandle, WriteFile, VirtualAlloc, GetEnvironmentVariableA)
 // - entry stub calls main(), then ExitProcess(main_ret)
 //
 // This is intentionally small and self-contained (no external toolchain required).
@@ -82,7 +82,8 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     //   1: GetStdHandle
     //   2: WriteFile
     //   3: VirtualAlloc
-    var n_imports = 4
+    //   4: GetEnvironmentVariableA
+    var n_imports = 5
     var i0 = 0
     while i0 < n_imports + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
 
@@ -113,6 +114,11 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     push_ascii_z(rdata, "VirtualAlloc")
     if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
 
+    var off_hint_getenv = oren_list_len(rdata)
+    push_u16_le(rdata, 0)
+    push_ascii_z(rdata, "GetEnvironmentVariableA")
+    if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+
     var off_dll_name = oren_list_len(rdata)
     push_ascii_z(rdata, "KERNEL32.dll")
 
@@ -138,16 +144,19 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     var hn_getstd_rva = rdata_rva + off_hint_getstd
     var hn_write_rva = rdata_rva + off_hint_write
     var hn_va_rva = rdata_rva + off_hint_va
+    var hn_getenv_rva = rdata_rva + off_hint_getenv
     // ILT
     set_u32_le(rdata, off_ilt + 0, hn_exit_rva)
     set_u32_le(rdata, off_ilt + 8, hn_getstd_rva)
     set_u32_le(rdata, off_ilt + 16, hn_write_rva)
     set_u32_le(rdata, off_ilt + 24, hn_va_rva)
+    set_u32_le(rdata, off_ilt + 32, hn_getenv_rva)
     // IAT
     set_u32_le(rdata, off_iat + 0, hn_exit_rva)
     set_u32_le(rdata, off_iat + 8, hn_getstd_rva)
     set_u32_le(rdata, off_iat + 16, hn_write_rva)
     set_u32_le(rdata, off_iat + 24, hn_va_rva)
+    set_u32_le(rdata, off_iat + 32, hn_getenv_rva)
 
     // Patch import descriptor for kernel32.
     //
@@ -208,6 +217,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             else if label == "IAT_GetStdHandle" { target_off = off_iat + 8 }
             else if label == "IAT_WriteFile" { target_off = off_iat + 16 }
             else if label == "IAT_VirtualAlloc" { target_off = off_iat + 24 }
+            else if label == "IAT_GetEnvironmentVariableA" { target_off = off_iat + 32 }
             else {
                 print("x64 pe: unknown data label " + label)
                 oren_exit(1)

@@ -7,6 +7,190 @@
 // - functions: map name->offset
 // - import_list: list of imports (for PE)
 // - errors: list of strings
+
+fn _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, start_ptr_reg, dst_reg, labels, local_fixups) {
+    // Parse decimal digits at *(char*)start_ptr_reg into dst_reg (u64).
+    //
+    // Stops at first non-digit. Returns 0 if there are no digits.
+    //
+    // Clobbers: RAX, R10, R11
+    if ctx == nil { return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(dst_reg, 0))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, start_ptr_reg)) // r11 = cursor
+
+    var l_loop = _new_label(ctx, "parse_u64_digits_loop")
+    var l_done = _new_label(ctx, "parse_u64_digits_done")
+    _emit_label(ctx, labels, l_loop)
+
+    // eax = *(u8*)r11
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    // if eax < '0' => done
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 48))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
+    // if eax > '9' => done
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 57))
+    _emit_jcc_to_label(ctx, local_fixups, "g", l_done)
+
+    // eax -= '0'
+    bytes_extend(ctx["code"], insn_sub_r32_imm32(0, 48))
+    // dst = dst*10 + eax
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(dst_reg, 10))
+    bytes_extend(ctx["code"], insn_movsxd_r64_r32(10, 0)) // r10 = digit
+    bytes_extend(ctx["code"], insn_add_r64_r64(dst_reg, 10))
+
+    // cursor++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    _emit_jmp_to_label(ctx, local_fixups, l_loop)
+
+    _emit_label(ctx, labels, l_done)
+    return nil
+}
+
+fn _emit_entry_call_depth_env_override_linux_x64(ctx, orig_rsp_reg) {
+    // Linux x86_64: parse initial stack envp for OREN_CALL_DEPTH_MAX=<n> and, if found,
+    // override the call depth max global in the appended data blob.
+    //
+    // Entry stack layout (SysV):
+    //   [rsp+0] argc (u64)
+    //   [rsp+8] argv[0] (char*)
+    //   ...
+    //   [rsp+8*(argc)] argv[argc-1]
+    //   [rsp+8*(argc+1)] NULL
+    //   [rsp+8*(argc+2)] envp[0]
+    //   ...
+    //   NULL
+    //
+    // Requires:
+    // - ctx["call_depth_max_off"] reserved by `_data_reserve_call_depth_guard`.
+    //
+    // Clobbers: RAX, RBX, R10, R11, R12, R14
+    if ctx == nil { return nil }
+    var off_max = ctx["call_depth_max_off"]
+    if off_max == nil { return nil }
+
+    var labels = {}
+    var local_fixups = []
+
+    // r10 = argc
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, orig_rsp_reg))
+    // r10 = (argc + 2) * 8
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 2))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+    // r14 = envp cursor = orig_rsp + (argc+2)*8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(14, orig_rsp_reg))
+    bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
+
+    var prefix = "OREN_CALL_DEPTH_MAX="
+    var pref_bytes = oren_bytes_from_string(prefix)
+
+    var l_loop = _new_label(ctx, "envp_loop")
+    var l_next = _new_label(ctx, "envp_next")
+    var l_done = _new_label(ctx, "envp_done")
+
+    _emit_label(ctx, labels, l_loop)
+    // rbx = *(u64*)r14 (env string ptr)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(3, 14))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(3, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+
+    // r12 = cursor into the env string
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 3))
+    var pi = 0
+    while pi < oren_list_len(pref_bytes) {
+        var c = pref_bytes[pi]
+        // eax = *(u8*)r12 ; cmp eax, c
+        bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 12))
+        bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, c))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_next)
+        bytes_extend(ctx["code"], insn_add_r64_imm32(12, 1))
+        pi = pi + 1
+    }
+
+    // Matched prefix: parse digits at r12 into r8.
+    _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, 12, 8, labels, local_fixups)
+    // If parsed value is 0, ignore (keep default/build-time).
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_next)
+
+    // Store to call_depth_max global: *(u64*)(&data[off_max]) = r8
+    var lea0 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea0 + 3, "data_off": off_max})
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 8))
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    _emit_label(ctx, labels, l_next)
+    bytes_extend(ctx["code"], insn_add_r64_imm32(14, 8)) // envp++
+    _emit_jmp_to_label(ctx, local_fixups, l_loop)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_entry_call_depth_env_override_windows_x64(ctx) {
+    // Windows x64: call GetEnvironmentVariableA("OREN_CALL_DEPTH_MAX", buf, n) and,
+    // if present, parse decimal and override call depth max.
+    //
+    // Requires:
+    // - PE emitter to import kernel32!GetEnvironmentVariableA and expose IAT label
+    //   "IAT_GetEnvironmentVariableA".
+    //
+    // Clobbers: RAX, RCX, RDX, R8, R10, R11, R12
+    if ctx == nil { return nil }
+    var off_max = ctx["call_depth_max_off"]
+    if off_max == nil { return nil }
+
+    // Keep buffer in `.data` so we don't disturb stack layout (Win64 shadow is required per call).
+    var off_name = _data_add_cstr0(ctx, "OREN_CALL_DEPTH_MAX")
+    var buf_size = 64
+    var off_buf = _data_add_zeros(ctx, buf_size)
+    if off_name == nil || off_buf == nil { return nil }
+
+    var labels = {}
+    var local_fixups = []
+    var l_done = _new_label(ctx, "win_env_done")
+
+    // r12 = &buf (preserve across the call; volatile regs can be clobbered)
+    var lea_buf = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(12, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_buf + 3, "data_off": off_buf})
+
+    // rcx = &name
+    var lea_name = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_name + 3, "data_off": off_name})
+    // rdx = &buf
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 12))
+    // r8d = buf_size
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, buf_size))
+
+    // call GetEnvironmentVariableA via IAT
+    var mov_iat = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat + 3, "data_label": "IAT_GetEnvironmentVariableA"})
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // if eax == 0 => not present
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+
+    // Parse digits from buffer into r8.
+    _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, 12, 8, labels, local_fixups)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+
+    // Store to call_depth_max global
+    var lea0 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea0 + 3, "data_off": off_max})
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 8))
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
 fn native_compile_program_x64(linked, platform) {
     var ctx = {
         "code": bytes_new(),
@@ -131,8 +315,21 @@ fn native_compile_program_x64(linked, platform) {
 
     // --- Entry stub ---
     //
+    // Tier‑1 stack safety: allow runtime override of the call depth max via:
+    //   OREN_CALL_DEPTH_MAX=<n>
+    //
+    // This mirrors C/native-arm64 behavior and closes a gap in x64 bring-up.
+    //
+    // Linux: parse envp from the initial stack before stack alignment.
+    // Win64: call GetEnvironmentVariableA (requires PE imports + Win64 shadow space).
+    if platform == nil || platform["os"] != "windows" {
+        // Save original RSP before aligning; SysV initial stack contains argc/argv/envp.
+        bytes_extend(ctx["code"], insn_mov_r64_r64(13, 4)) // r13 = rsp (orig)
+        _emit_entry_call_depth_env_override_linux_x64(ctx, 13)
+    }
+
     // Align stack to 16B boundary early so both SysV and Win64 calls stay well-formed as we grow
-    // the x64 backend surface. This is safe because we do not use argv/envp here and never return.
+    // the x64 backend surface. After this point we must treat the stack as ABI-owned.
     bytes_extend(ctx["code"], insn_and_rsp_imm8(240)) // 0xF0 == -16
 
     // call main
@@ -141,6 +338,10 @@ fn native_compile_program_x64(linked, platform) {
     // Since our entrypoint is not a C runtime, we explicitly reserve it here.
     var entry_shadow = abi.caller_shadow_bytes(ctx["abi"])
     if entry_shadow > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_shadow)) }
+
+    if platform != nil && platform["os"] == "windows" {
+        _emit_entry_call_depth_env_override_windows_x64(ctx)
+    }
 
     // Native heap registers (rolling Tier-1 design):
     //

@@ -20,10 +20,10 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)
      - ✅ x64 deterministic call depth guard (rolling): function prologues/epilogues increment/decrement a counter and abort via `oren_panic("call depth exceeded")` when depth > max
      - ✅ x64 Linux ELF now uses RX text + RW data PT_LOAD segments (no RWX pages)
-     - ✅ x64 Windows PE now uses `.text` (RX) + `.rdata` (R) + `.data` (RW) so mutable globals no longer force `.rdata` writable
-     - ✅ x64 call depth max is configurable at build time via `oren build --call-depth-max <n>` (default 8192)
-     - ⏭️ next: optionally support runtime env override (`OREN_CALL_DEPTH_MAX`) in the x64 entry stub (Linux + Windows) once env access is implemented
-     - ⏭️ next: fn+line mapping / source file mapping, fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
+	     - ✅ x64 Windows PE now uses `.text` (RX) + `.rdata` (R) + `.data` (RW) so mutable globals no longer force `.rdata` writable
+	     - ✅ x64 call depth max is configurable at build time via `oren build --call-depth-max <n>` (default 8192)
+	     - ✅ x64 runtime env override: `OREN_CALL_DEPTH_MAX=<n>` is now supported in the entry stub (Linux ELF + Windows PE)
+	     - ⏭️ next: fn+line mapping / source file mapping, fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
