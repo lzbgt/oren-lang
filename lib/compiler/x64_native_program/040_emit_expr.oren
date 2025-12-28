@@ -576,6 +576,51 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         //
         // Note: these intrinsics operate in the "int as i64 carrier" model where pointers
         // are plain 64-bit values.
+        if nm == "oren_trunc_int" {
+            // `oren_trunc_int(x)` is a deterministic cast helper used by shared lowering (type
+            // annotations, cast sugar). In x64 native v0, all values are already carried in the
+            // "int as i64" model and floats are not yet represented, so this is a passthrough.
+            //
+            // Still treat it as an intrinsic so x64 bring-up doesn't require linking the full
+            // runtime surface just to satisfy the symbol.
+            if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_trunc_int expects 1 argument"); return nil }
+            if expr["spread"] != nil { err(ctx, "x64 native v0: oren_trunc_int does not support spread"); return nil }
+            _emit_eval_int_to_rax(ctx, args[0], locals)
+            return nil
+        }
+        if nm == "oren_bool_norm" {
+            // `oren_bool_norm(x)` is used by type annotation lowering (`: bool`) to give bool
+            // annotations deterministic semantics across backends.
+            //
+            // For x64 native v0 (int-only carrier), implement it as `x != 0 ? 1 : 0`.
+            // (Float inputs are not supported in v0; once floats land this must adopt the same
+            // semantics as the C backend: numeric != 0 for int/float; nil => false.)
+            if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_bool_norm expects 1 argument"); return nil }
+            if expr["spread"] != nil { err(ctx, "x64 native v0: oren_bool_norm does not support spread"); return nil }
+            _emit_eval_int_to_rax(ctx, args[0], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            var labels = {}
+            var local_fixups = []
+            var l_true = _new_label(ctx, "bool_norm_true")
+            var l_done = _new_label(ctx, "bool_norm_done")
+
+            // if rax != 0 => rax = 1 else rax = 0
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+            _emit_label(ctx, labels, l_true)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+            bytes_extend(ctx["code"], insn_cdqe())
+
+            _emit_label(ctx, labels, l_done)
+            _patch_local_fixups(ctx, labels, local_fixups)
+            return nil
+        }
         if nm == "iadd" {
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: iadd expects 2 args"); return nil }
             // iadd(a, b) => (a + b) in RAX

@@ -57,9 +57,23 @@ fn _expr_int_check(ctx, expr) {
         if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
         var nm = fn_expr["value"]
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
-        var spread = expr["spread"]
-        var argc = 0
-        if args != nil { argc = oren_list_len(args) }
+
+        // --- Intrinsics ---
+        //
+        // Some helpers are compiler intrinsics in x64 native v0 (they do not require a user-visible
+        // function declaration). Keep their validation here so we fail early with a clear error.
+        var spread0 = expr["spread"]
+        var argc0 = 0
+        if args != nil { argc0 = oren_list_len(args) }
+        if nm == "oren_trunc_int" || nm == "oren_bool_norm" {
+            if spread0 != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return nil }
+            if argc0 != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 argument"); return nil }
+            _expr_int_check(ctx, args[0])
+            return nil
+        }
+
+        var spread = spread0
+        var argc = argc0
         // Rolling: stack args are supported; arg count is bounded only by frame/call-area capacity.
 
         // Direct calls enforce arity; indirect calls (callable value in a local/param) are permitted

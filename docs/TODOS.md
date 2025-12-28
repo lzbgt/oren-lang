@@ -18,6 +18,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names **and offsets** via an embedded symtab (fixed-base emitters)
      - ✅ x64 map key-kind selection centralized in shared lowering: `known_key_kind` is inferred conservatively and required for map paths; x64 codegen does not re-infer from syntax (tagged values remain the full fix)
      - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)
+     - ✅ x64 `oren_trunc_int(x)` treated as an intrinsic (passthrough in int-only v0) to unblock `: i64` / `: u64` type annotations in shared lowering
+     - ✅ x64 `oren_bool_norm(x)` treated as an intrinsic (`x != 0 ? 1 : 0` in v0) to unblock `: bool` type annotations in shared lowering
      - ✅ x64 deterministic call depth guard (rolling): function prologues/epilogues increment/decrement a counter and abort via `oren_panic("call depth exceeded")` when depth > max
      - ✅ x64 Linux ELF now uses RX text + RW data PT_LOAD segments (no RWX pages)
 	     - ✅ x64 Windows PE now uses `.text` (RX) + `.rdata` (R) + `.data` (RW) so mutable globals no longer force `.rdata` writable

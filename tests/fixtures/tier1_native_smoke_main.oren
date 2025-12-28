@@ -18,9 +18,15 @@ fn boom() {
     return 1 / 0
 }
 
-fn map_key_param_int(k: int) {
-    // Regression: numeric type annotations should imply "int kind" for map key-kind inference
-    // (native x64 cannot rely on pointer/int runtime heuristics).
+fn bool_norm_val(b: bool) {
+    return b
+}
+
+fn map_key_param_i64(k: i64) {
+    // Regression (Tier‑1 x64 bring-up):
+    //
+    // - Numeric type annotations should imply "int kind" for map key-kind inference.
+    // - x64 native v0 must accept `oren_trunc_int` inserted by `type_ann_lowering` for `: i64`.
     var m = {}
     m[k] = 123
     return m[k]
@@ -61,7 +67,7 @@ fn main() {
     var ks = "c"
     m[ks] = 11
     if m[ks] != 11 { return 54 }
-    if map_key_param_int(50000) != 123 { return 55 }
+    if map_key_param_i64(50000) != 123 { return 55 }
 
     // First-class function values + indirect call.
     var f = inc
@@ -81,6 +87,10 @@ fn main() {
     var addz = |x| x + z
     z = 100
     if addz(2) != 42 { return 63 }
+
+    // Bool annotation lowering (`: bool`) must normalize to 0/1 deterministically.
+    if bool_norm_val(0) != 0 { return 64 }
+    if bool_norm_val(2) != 1 { return 65 }
 
     // Short-circuit sanity (must not evaluate RHS when unnecessary).
     if 0 && boom() != 0 { return 70 }
