@@ -1,52 +1,7 @@
 fn _extract_functions_v0(ctx, linked) {
-    var stmts = nil
-    if linked != nil { stmts = linked["statements"] }
-    if stmts == nil { err(ctx, "x64 native v0: missing program statements"); return nil }
-
-    var out = []
-    var declared = {}
-    if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
-    if ctx["func_varargs_fixed"] == nil { ctx["func_varargs_fixed"] = {} }
-    var i = 0
-    while i < oren_list_len(stmts) {
-        var st = stmts[i]
-        var fn0 = nil
-        if st != nil {
-            if st["type"] == "Function" { fn0 = st }
-            if st["type"] == "ExprStmt" {
-                var e0 = st["expr"]
-                if e0 != nil && e0["type"] == "Function" { fn0 = e0 }
-            }
-        }
-        if fn0 != nil {
-            var name = fn0["name"]
-            if name == nil { err(ctx, "x64 native v0: function missing name"); return nil }
-            if declared[name] != nil { err(ctx, "x64 native v0: duplicate function " + name); return nil }
-            declared[name] = 1
-            var params = fn0["params"]
-            var pc = 0
-            if params != nil { pc = oren_list_len(params) }
-            var j = 0
-            while j < pc {
-                var p = params[j]
-                if p == nil || p["type"] != "Identifier" { err(ctx, "x64 native v0: param must be identifier: " + name); return nil }
-                j = j + 1
-            }
-
-            // Record arity and optional varargs fixed count (last param is `...rest`).
-            ctx["func_arity"][name] = pc
-            if pc > 0 {
-                var last = params[pc - 1]
-                if last != nil && last["is_varargs"] == true {
-                    ctx["func_varargs_fixed"][name] = pc - 1
-                }
-            }
-            oren_list_push(out, fn0)
-        }
-        i = i + 1
-    }
-    ctx["declared_functions"] = declared
-    return out
+    // CoreIR v0: keep function scanning/metadata deterministic and shared.
+    // This preserves existing x64 error message prefixes for compatibility with fixtures.
+    return coreir.collect_top_level_functions(ctx, linked, "x64 native v0")
 }
 
 fn _compile_function_v0(ctx, fn_node, platform) {

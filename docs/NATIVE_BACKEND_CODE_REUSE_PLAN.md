@@ -29,6 +29,14 @@ Examples of NativeIR ops:
 
 Key property: NativeIR encodes **semantics** (evaluation order, short-circuit rules, loop semantics), so backend authors don’t re-encode language rules per ISA.
 
+Rolling implementation status (today):
+
+- We are introducing the “shared frontend” incrementally.
+- The first shared native-facing piece is a CoreIR scaffold:
+  - `lib/compiler/coreir.oren` (top-level function list + arity/varargs metadata)
+  - consumed by the x86_64 backend prepass (Tier‑1 bring-up)
+- Next: expand the shared IR boundary to include call canonicalization and container ops so arm64 and x86_64 stop diverging as new features land.
+
 ### Layer B — ABI description (per target, shared interface)
 
 Define a `NativeABI` interface with data tables + helpers:

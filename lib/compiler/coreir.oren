@@ -1,0 +1,97 @@
+// CoreIR scaffolding (rolling, v0).
+//
+// This is the first step toward a shared, semantics-owning IR that unifies all backends.
+//
+// For now, "CoreIR v0" is intentionally minimal: it provides deterministic program metadata
+// extraction that multiple backends need (function list, arity, varargs info, declaration order).
+//
+// Design constraints:
+// - backend-neutral: this module must not depend on ISA/ABI emitters
+// - deterministic: preserve source order and stable error strings (by caller-provided prefix)
+// - rolling: fields may expand as we migrate more semantics into CoreIR (calls/closures/containers)
+
+fn _err(ctx, prefix, msg) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    var p = prefix
+    if p == nil || p == "" { p = "coreir" }
+    oren_list_push(ctx["errors"], p + ": " + msg)
+    return nil
+}
+
+fn _stmt_to_function_decl(stmt) {
+    if stmt == nil { return nil }
+    if stmt["type"] == "Function" { return stmt }
+    if stmt["type"] == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" { return e }
+    }
+    return nil
+}
+
+// Extract top-level named function declarations and populate function metadata in `ctx`.
+//
+// Side effects on `ctx`:
+// - ctx["declared_functions"]: map name->1 for declared functions
+// - ctx["func_arity"]: map name->param_count
+// - ctx["func_varargs_fixed"]: map name->fixed_param_count for varargs functions
+// - ctx["func_decl_order"]: list of function names in deterministic (source) order
+//
+// Returns a list of Function AST nodes (in source order), or nil on error.
+fn collect_top_level_functions(ctx, linked, err_prefix) {
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    if stmts == nil {
+        // Keep the caller's error prefix so existing backend messages stay stable.
+        if err_prefix != nil && err_prefix != "" { _err(ctx, err_prefix, "missing program statements") }
+        else { _err(ctx, "coreir", "missing program statements") }
+        return nil
+    }
+
+    if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
+    if ctx["func_varargs_fixed"] == nil { ctx["func_varargs_fixed"] = {} }
+    if ctx["func_decl_order"] == nil { ctx["func_decl_order"] = [] }
+
+    var out = []
+    var declared = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var fn0 = _stmt_to_function_decl(stmts[i])
+        if fn0 != nil {
+            var name = fn0["name"]
+            if name == nil { _err(ctx, err_prefix, "function missing name"); return nil }
+            if declared[name] != nil { _err(ctx, err_prefix, "duplicate function " + name); return nil }
+            declared[name] = 1
+
+            var params = fn0["params"]
+            var pc = 0
+            if params != nil { pc = oren_list_len(params) }
+            var j = 0
+            while j < pc {
+                var p = params[j]
+                if p == nil || p["type"] != "Identifier" {
+                    _err(ctx, err_prefix, "param must be identifier: " + name)
+                    return nil
+                }
+                j = j + 1
+            }
+
+            // Record arity and optional varargs fixed count (last param is `...rest`).
+            ctx["func_arity"][name] = pc
+            if pc > 0 {
+                var last = params[pc - 1]
+                if last != nil && last["is_varargs"] == true {
+                    ctx["func_varargs_fixed"][name] = pc - 1
+                }
+            }
+
+            if name != "" { oren_list_push(ctx["func_decl_order"], name) }
+            oren_list_push(out, fn0)
+        }
+        i = i + 1
+    }
+
+    ctx["declared_functions"] = declared
+    return out
+}
+

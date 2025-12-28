@@ -60,6 +60,14 @@ Call this canonical IR **CoreIR**:
   - closure capture layout rules
 - It must be deterministic (stable ordering, no map iteration dependence).
 
+Rolling implementation status (today):
+
+- CoreIR is being introduced incrementally. The first in-repo scaffold is:
+  - `lib/compiler/coreir.oren`
+  - currently: deterministic extraction of top-level function metadata (decl order, arity, varargs)
+  - initial consumer: x86_64 native backend prepass (Tier‑1 bring-up)
+- Next steps (tracked in `docs/TODOS.md`): migrate call canonicalization (callables + varargs + spread) into CoreIR so backends stop re-deciding semantics.
+
 **Stage B — Backend adapters (thin)**
 
 Each backend implements:

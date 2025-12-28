@@ -30,6 +30,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Start migration with “callables + varargs + spread” because they span C/native/bytecode.
    - Unify “program termination” semantics across backends (what does `main` return mean vs `exit(code)`); keep deterministic contract for tooling/agents.
    - Decide and document a stable **evaluation order** (or an effect model) so optimizations are semantics-preserving across backends.
+   - Concrete step landed: CoreIR v0 scaffold exists (`lib/compiler/coreir.oren`) and the x86_64 native backend now uses it for deterministic function metadata (decl order, arity, varargs).
    - Reference: `docs/BACKEND_ARCHITECTURE.md`.
 
 3) **Container ops as operations (no hot-path stdlib overhead)** (M)
@@ -103,5 +104,6 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - Native x86_64 emit hygiene: ELF/PE segment permissions (no RWX), and call-depth guard (`--call-depth-max`) for deterministic recursion failure.
 - C backend parity: user `fn main()` no longer collides with host `main`, and is auto-called after top-level statements.
 - Tooling throughput: `oretest` is integration-first and parallel where safe (fixtures + opt-in remote x64 runs).
+- Backend unification groundwork: CoreIR v0 scaffold (`lib/compiler/coreir.oren`) now powers x86_64 function metadata extraction so x64 and arm64 can converge on a shared frontend boundary.
 
 Rolling note: we avoid long “completed lists” here. If you need historical detail, use `docs/TODOS_ARCHIVE.md` and `git log`.
