@@ -1,7 +1,8 @@
 fn rec(n) {
     if n == 0 { return 0 }
     // Non-tail recursion: keep one frame per call so call-depth guards can be tested.
-    return rec(n - 1) + 1
+    // Use a non-constant post-recursion op so tail-modulo-const optimizations do not apply.
+    return rec(n - 1) + n
 }
 
 // With stack safety enabled (C backend call-depth guard), this must fail

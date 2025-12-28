@@ -128,6 +128,26 @@ func buildRuntimeFixtureCases(target string, gcArg string) []runtimeFixtureCase 
 			},
 			cleanup: []string{"build/tail_recursion_ok_native"},
 		},
+		{
+			name:  "non_tail_modconst_ok_c",
+			build: fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", "tests/native/fixtures/non_tail_modconst_ok.oren", target, "build/non_tail_modconst_ok_c", gcArg),
+			run:   "OREN_CALL_DEPTH_MAX=8 ./build/non_tail_modconst_ok_c",
+			log:   "build/logs/non_tail_modconst_ok_c.log",
+			ok: func(rc int, out string) bool {
+				return rc == 0 && !strings.Contains(out, "call depth exceeded")
+			},
+			cleanup: []string{"build/non_tail_modconst_ok_c"},
+		},
+		{
+			name:  "non_tail_modconst_ok_native",
+			build: fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", "tests/native/fixtures/non_tail_modconst_ok.oren", target, "build/non_tail_modconst_ok_native", gcArg),
+			run:   "OREN_CALL_DEPTH_MAX=8 ./build/non_tail_modconst_ok_native",
+			log:   "build/logs/non_tail_modconst_ok_native.log",
+			ok: func(rc int, out string) bool {
+				return rc == 0 && !strings.Contains(out, "call depth exceeded")
+			},
+			cleanup: []string{"build/non_tail_modconst_ok_native"},
+		},
 	}
 
 	return runtimeFixtures

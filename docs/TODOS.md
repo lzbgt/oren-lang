@@ -40,7 +40,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Reference: `docs/STACK_SAFETY.md`.
 
 7) **Tail-call optimization (stackless recursion)** (S)
-   - Direct self tail recursion now lowers to a loop (no host stack growth); fixture enforces it.
+   - Direct self tail recursion lowers to a loop (no host stack growth); fixture enforces it.
+   - Tail recursion modulo constant (`return f(..) + 1`) also lowers to a loop for a conservative subset; fixture enforces it.
    - Next: mutual tail recursion trampoline + varargs/spread tail calls once CoreIR callables converge.
    - Reference: `docs/STACK_SAFETY.md`.
 

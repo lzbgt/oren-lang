@@ -593,6 +593,217 @@ fn dce_block_in_place(block) {
 
 fn _tco_ident(name) { return {"type": "Identifier", "token": nil, "value": name} }
 
+fn _tco_expr_has_call(e) {
+    // Conservative effect marker for optimizer transforms that can change call order.
+    //
+    // Oren's evaluation order is not fully specified (see docs/LANGUAGE_SPEC.md), so we only
+    // apply non-trivial recursion rewrites when we can prove there are no calls in the
+    // affected expressions. This is a pragmatic v0 rule to keep transforms safe.
+    if e == nil { return false }
+    var t = e["type"]
+    if t == "Call" || t == "SpawnExpr" { return true }
+    if t == "Function" { return true } // closure literals can capture; keep it conservative
+    if t == "Prefix" { return _tco_expr_has_call(e["right"]) }
+    if t == "Infix" { return _tco_expr_has_call(e["left"]) || _tco_expr_has_call(e["right"]) }
+    if t == "If" {
+        if _tco_expr_has_call(e["cond"]) { return true }
+        if e["consq"] != nil && _tco_block_has_call(e["consq"]) { return true }
+        if e["alt"] != nil && _tco_block_has_call(e["alt"]) { return true }
+        return false
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            if _tco_expr_has_call(xs[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            if _tco_expr_has_call(ps[i2]["key"]) { return true }
+            if _tco_expr_has_call(ps[i2]["value"]) { return true }
+            i2 = i2 + 1
+        }
+        return false
+    }
+    if t == "Index" {
+        return _tco_expr_has_call(e["left"]) || _tco_expr_has_call(e["index"])
+    }
+    if t == "Member" {
+        return _tco_expr_has_call(e["left"])
+    }
+    return false
+}
+
+fn _tco_block_has_call(block) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st == nil { i = i + 1; continue }
+        var ty = st["type"]
+        if ty == "Return" { if _tco_expr_has_call(st["value"]) { return true } }
+        else if ty == "Var" { if _tco_expr_has_call(st["value"]) { return true } }
+        else if ty == "Assign" { if _tco_expr_has_call(st["value"]) { return true } }
+        else if ty == "Set" { if _tco_expr_has_call(st["value"]) { return true } }
+        else if ty == "ExprStmt" { if _tco_expr_has_call(st["expr"]) { return true } }
+        else if ty == "While" {
+            if _tco_expr_has_call(st["cond"]) { return true }
+            if _tco_block_has_call(st["body"]) { return true }
+        }
+        else if ty == "For" {
+            if st["init"] != nil && st["init"]["type"] == "ExprStmt" && _tco_expr_has_call(st["init"]["expr"]) { return true }
+            if _tco_expr_has_call(st["cond"]) { return true }
+            if st["post"] != nil && st["post"]["type"] == "ExprStmt" && _tco_expr_has_call(st["post"]["expr"]) { return true }
+            if _tco_block_has_call(st["body"]) { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn _tco_modconst_function_in_place(fun_expr) {
+    // Tail recursion modulo a constant (rolling v0, conservative).
+    //
+    // Convert patterns like:
+    //   fn f(...){
+    //     if <cond> { return <base_int> }
+    //     return f(args...) + <k_int>
+    //   }
+    // into a loop with an accumulator:
+    //   var __acc = 0
+    //   while true {
+    //     if <cond> { return <base_int> + __acc }
+    //     __acc = __acc + <k_int>
+    //     <params> = <args>
+    //     continue
+    //   }
+    //
+    // This is *not* a general recursion-to-loop transform. It is a small, safe step toward
+    // production stack safety and performance for common counting-style recursion.
+    if fun_expr == nil || fun_expr["type"] != "Function" { return false }
+    var fn_name = fun_expr["name"]
+    if fn_name == nil || fn_name == "" { return false }
+
+    // Params: identifiers only.
+    var params0 = []
+    var ps = fun_expr["params"]
+    var pi = 0
+    while pi < oren_list_len(ps) {
+        var p = ps[pi]
+        if p == nil || p["type"] != "Identifier" || p["value"] == nil { return false }
+        oren_list_push(params0, p["value"])
+        pi = pi + 1
+    }
+
+    var body = fun_expr["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var ss = body["stmts"]
+    if ss == nil || oren_list_len(ss) != 2 { return false }
+
+    // stmt0 must be `if cond { return base_int }` in ExprStmt form.
+    var st0 = ss[0]
+    if st0 == nil || st0["type"] != "ExprStmt" || st0["expr"] == nil || st0["expr"]["type"] != "If" { return false }
+    var ife = st0["expr"]
+    if ife["alt"] != nil { return false }
+    if ife["consq"] == nil || ife["consq"]["type"] != "Block" { return false }
+    var consq_ss = ife["consq"]["stmts"]
+    if consq_ss == nil || oren_list_len(consq_ss) != 1 { return false }
+    var st_base = consq_ss[0]
+    if st_base == nil || st_base["type"] != "Return" { return false }
+    var base_expr = st_base["value"]
+    if base_expr == nil || base_expr["type"] != "Integer" { return false }
+    // Avoid call-bearing conditions/returns; this transform can change timing.
+    if _tco_expr_has_call(ife["cond"]) { return false }
+    if _tco_expr_has_call(base_expr) { return false }
+
+    // stmt1 must be return infix with self call and integer const.
+    var st1 = ss[1]
+    if st1 == nil || st1["type"] != "Return" { return false }
+    var v1 = st1["value"]
+    if v1 == nil || v1["type"] != "Infix" { return false }
+    var op = v1["op"]
+    if op != "+" && op != "-" { return false }
+
+    // Match self call + integer const.
+    var call_expr = nil
+    var k_expr = nil
+    var acc_op = nil // "+" or "-"
+    // Case A: f(args...) + k  OR  f(args...) - k
+    if v1["left"] != nil && v1["left"]["type"] == "Call" && v1["right"] != nil && v1["right"]["type"] == "Integer" {
+        call_expr = v1["left"]
+        k_expr = v1["right"]
+        acc_op = op
+    }
+    // Case B: k + f(args...)  (commutative add only)
+    if call_expr == nil && op == "+" && v1["left"] != nil && v1["left"]["type"] == "Integer" && v1["right"] != nil && v1["right"]["type"] == "Call" {
+        call_expr = v1["right"]
+        k_expr = v1["left"]
+        acc_op = "+"
+    }
+    if call_expr == nil || k_expr == nil || acc_op == nil { return false }
+    if call_expr["spread"] != nil { return false }
+    if call_expr["fn"] == nil || call_expr["fn"]["type"] != "Identifier" || call_expr["fn"]["value"] != fn_name { return false }
+    var args = call_expr["args"]
+    if args == nil || oren_list_len(args) != oren_list_len(params0) { return false }
+
+    // NOTE: We do not attempt to prove global purity of the function here. We only rely on:
+    // - a very restrictive shape (if-return base, then one return recursion+const),
+    // - no calls in the base/cond,
+    // - recursion call is the only call in the recursive return expression (by construction).
+
+    var acc_name = "__oren__tco_acc__" + fn_name
+
+    // Build new loop body.
+    var loop_body = ast.new_block(nil)
+    loop_body["stmts"] = []
+
+    // if cond { return base + acc }
+    var new_consq = ast.new_block(nil)
+    var base_plus_acc = ast.new_infix(nil, base_expr, "+", _tco_ident(acc_name))
+    new_consq["stmts"] = [ast.new_return(nil, base_plus_acc)]
+    var new_if = ast.new_if(nil, ife["cond"], new_consq, nil)
+    oren_list_push(loop_body["stmts"], ast.new_expr_stmt(nil, new_if))
+
+    // acc = acc (+|-) k
+    var acc_update = ast.new_assign(nil, _tco_ident(acc_name), ast.new_infix(nil, _tco_ident(acc_name), acc_op, k_expr))
+    oren_list_push(loop_body["stmts"], acc_update)
+
+    // Evaluate args into temps, then rebind params, then continue.
+    var counter_ref = [0]
+    var ti = 0
+    var temps = []
+    while ti < oren_list_len(args) {
+        var tmpn = "__oren_tco_mod_" + fn_name + "_" + oren_int_to_string(counter_ref[0])
+        counter_ref[0] = counter_ref[0] + 1
+        oren_list_push(temps, tmpn)
+        oren_list_push(loop_body["stmts"], ast.new_var(nil, _tco_ident(tmpn), args[ti]))
+        ti = ti + 1
+    }
+    ti = 0
+    while ti < oren_list_len(params0) {
+        oren_list_push(loop_body["stmts"], ast.new_assign(nil, _tco_ident(params0[ti]), _tco_ident(temps[ti])))
+        ti = ti + 1
+    }
+    oren_list_push(loop_body["stmts"], ast.new_continue(nil))
+
+    var w = ast.new_while(nil, ast.new_boolean(nil, true), loop_body)
+    var new_body = ast.new_block(nil)
+    new_body["stmts"] = [
+        ast.new_var(nil, _tco_ident(acc_name), int_lit(0)),
+        w
+    ]
+
+    fun_expr["body"] = new_body
+    return true
+}
+
 fn _tco_rewrite_block(block, fn_name, params, loop_depth, counter_ref) {
     // Rewrite `return <fn_name>(args...)` in tail position (loop_depth == 0)
     // into:
@@ -739,6 +950,8 @@ fn lower_linked_program_in_place(linked) {
         fold_stmt(ss[i])
         // DCE for function bodies.
         if ss[i] != nil && ss[i]["type"] == "ExprStmt" && ss[i]["expr"] != nil && ss[i]["expr"]["type"] == "Function" {
+            // Try to eliminate simple non-tail recursion first (modulo constant), then do plain tail recursion elimination.
+            _tco_modconst_function_in_place(ss[i]["expr"])
             _tco_function_in_place(ss[i]["expr"])
             dce_block_in_place(ss[i]["expr"]["body"])
         }

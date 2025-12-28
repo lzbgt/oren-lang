@@ -1,0 +1,17 @@
+// Non-tail recursion that is still convertible to a loop (tail recursion modulo constant).
+//
+// Pattern:
+//   return f(n-1) + 1
+//
+// Rolling optimizer is expected to rewrite this into a loop with an accumulator so it
+// does not grow the host stack and does not trip call-depth guards under a small budget.
+
+fn rec(n) {
+    if n == 0 { return 0 }
+    return rec(n - 1) + 1
+}
+
+var r = rec(2000)
+if r != 2000 {
+    oren_fail(1, "non-tail modulo-const recursion failed: expected 2000")
+}

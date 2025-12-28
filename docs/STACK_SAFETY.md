@@ -148,7 +148,11 @@ Rolling status (today):
   - rewrites `return f(args...)` where `f` is the current function into parameter rebinding + loop `continue`
   - only when the tail return is not nested inside another loop (`while`/`for`) because we have no labeled continue
   - only for fixed-arity calls (no spread / varargs yet)
+- The compiler can also eliminate a narrow subset of **non-tail** self recursion (tail recursion modulo constant):
+  - rewrites `return f(args...) + <int>` and `return f(args...) - <int>` into a loop with an accumulator
+  - only for a restrictive function shape (one `if` base return + one recursive return) and only when the base/cond contain no calls
 - Fixture: `tests/native/fixtures/tail_recursion_ok.oren` (expected to succeed under low `OREN_CALL_DEPTH_MAX`)
+  - Fixture: `tests/native/fixtures/non_tail_modconst_ok.oren`
 
 ## Staged Plan (Rolling, Production-Oriented)
 
