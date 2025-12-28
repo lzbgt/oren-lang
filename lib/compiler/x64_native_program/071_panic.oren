@@ -278,25 +278,17 @@ fn _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, shift, pos) {
     // Requires:
     // - r13: hex table ptr
     //
-    // Important: our current x64 insn encoders reliably support 8-bit loads/stores
-    // only when the memory base register is one of the "low" GPRs (RAX..RDI).
-    // To keep this helper robust, we always use:
-    // - RCX as the base for the table byte load
-    // - RDX as the base for the destination byte store
-    //
-    // Clobbers: rax, rcx, rdx
+    // Clobbers: rax, r10
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, val_reg))
     if shift > 0 { bytes_extend(ctx["code"], insn_shr_r64_imm8(0, shift)) }
     bytes_extend(ctx["code"], insn_and_r64_imm32(0, 15)) // rax &= 0xF
-    // rcx = table + rax
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 13))
-    bytes_extend(ctx["code"], insn_add_r64_r64(1, 0))
+    // r10 = table + rax
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 13))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 0))
     // al = table[nibble]
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 1))
-    // *(buf+pos) = al
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(2, pos))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 10))
+    // *(buf+pos) = al  (supports any base reg, including r8-r15)
+    bytes_extend(ctx["code"], insn_mov_mr8_al_disp(buf_reg, pos))
     return nil
 }
 
@@ -311,13 +303,10 @@ fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
 
     // buf[0]='0'
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 48))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
+    bytes_extend(ctx["code"], insn_mov_mr8_al_disp(buf_reg, 0))
     // buf[1]='x'
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 120))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 1))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
+    bytes_extend(ctx["code"], insn_mov_mr8_al_disp(buf_reg, 1))
 
     // 16 hex digits, most-significant first.
     _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 60, 2)
@@ -339,9 +328,7 @@ fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
 
     // trailing space at buf[18]
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 32))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 18))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
+    bytes_extend(ctx["code"], insn_mov_mr8_al_disp(buf_reg, 18))
     return nil
 }
 

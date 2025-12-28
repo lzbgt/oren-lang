@@ -31,7 +31,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 	     - ✅ x64 `STACK_TRACE` symbolication now includes function definition location `fn@file:line` for user fns (best-effort; not call-site line mapping)
 	     - ✅ x64 `STACK_TRACE` now includes best-effort call-site `@file:line` (debug builds) via an embedded linetab (not DWARF/PDB)
 	     - ⏭️ next: fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure/call perf (avoid per-call `args_list` allocations for common cases)
-	     - ⏭️ next: harden x64 byte-load/store insn encoders to support r8–r15 memory bases so codegen isn't forced into "low-reg only" patterns in hot paths
+	     - ✅ x64 byte-load/store insn encoders now support `[r8..r15 + disp8/disp32]`, removing "low-reg only" constraints in Tier‑1 diagnostic hot paths
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).

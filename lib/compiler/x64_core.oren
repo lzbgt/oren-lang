@@ -188,6 +188,62 @@ fn _mem_base_modrm_and_sib(base_reg, reg_field_low3) {
     return {"modrm": modrm, "sib": sib, "disp8": disp8}
 }
 
+fn _mem_base_modrm_and_sib_disp(base_reg, reg_field_low3, disp) {
+    // Encode ModRM (+ optional SIB + optional disp8/disp32) for the addressing mode:
+    //   [base_reg + disp]
+    //
+    // `disp` is a signed Oren int; encoding uses either:
+    // - mod=00 with no disp (when disp==0 and base is not rbp/r13)
+    // - mod=01 with disp8
+    // - mod=10 with disp32
+    //
+    // Handles x86_64 quirks:
+    // - rm=100 (rsp/r12) requires a SIB byte
+    // - rm=101 (rbp/r13) cannot be encoded with mod=00; encode as mod=01 disp8=0
+    //
+    // Returns {"modrm": byte, "sib": byte|nil, "disp8": byte|nil, "disp32": int|nil}.
+    // (disp32 is returned as a signed int; caller encodes with push_u32_le)
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var rm = int_mod(base_reg, 8)
+    var sib = nil
+
+    // rsp/r12: require SIB byte with index=none, base=rsp/r12.
+    if rm == 4 {
+        sib = 36 // 0x24 (scale=0, index=100 (none), base=100 (rsp/r12 via REX.B))
+        rm = 4
+    }
+
+    // Decide mod/disp encoding.
+    var mod = 0
+    var disp8 = nil
+    var disp32 = nil
+
+    var want_no_disp = (disp == 0 && rm != 5)
+    if want_no_disp != true {
+        // Prefer disp8 when possible (including the rbp/r13 disp=0 special-case).
+        if disp >= -128 && disp <= 127 {
+            mod = 1
+            disp8 = int_mod(disp, 256)
+        } else {
+            mod = 2
+            disp32 = disp
+        }
+    }
+
+    // rbp/r13 with disp==0: force disp8=0 so it's [rbp+0] instead of RIP-relative.
+    if rm == 5 && disp == 0 {
+        mod = 1
+        disp8 = 0
+        disp32 = nil
+    }
+
+    var modrm = 0
+    if mod == 1 { modrm = 64 } // 0x40
+    if mod == 2 { modrm = 128 } // 0x80
+    modrm = modrm + int_mod(reg_field_low3, 8) * 8 + rm
+    return {"modrm": modrm, "sib": sib, "disp8": disp8, "disp32": disp32}
+}
+
 fn insn_mov_r64_mr64(dst_reg, base_reg) {
     // mov r64, qword ptr [base_reg]
     // Encoding: REX.W + 8B /r with ModRM addressing [base]
@@ -247,6 +303,28 @@ fn insn_movzx_r32_mr8(dst_reg, base_reg) {
     return out
 }
 
+fn insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) {
+    // movzx r32, byte ptr [base_reg + disp]
+    // Encoding: 0F B6 /r (+ optional REX for r8d-r15d or base r8-r15) + disp8/disp32
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    var rex = 64 // 0x40 base
+    var need = false
+    if dst_reg >= 8 { rex = rex + 4; need = true } // REX.R
+    if base_reg >= 8 { rex = rex + 1; need = true } // REX.B
+    if need { bytes_push(out, rex) }
+    bytes_push(out, 15) // 0F
+    bytes_push(out, 182) // B6
+    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(dst_reg, 8), disp)
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    return out
+}
+
 fn insn_mov_mr8_al(base_reg) {
     // mov byte ptr [base_reg], al
     // Encoding: 88 /r (reg=0) (+ optional REX.B for base r8-r15)
@@ -259,6 +337,22 @@ fn insn_mov_mr8_al(base_reg) {
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
     if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    return out
+}
+
+fn insn_mov_mr8_al_disp(base_reg, disp) {
+    // mov byte ptr [base_reg + disp], al
+    // Encoding: 88 /r (reg=0) (+ optional REX.B for base r8-r15) + disp8/disp32
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    if base_reg >= 8 { bytes_push(out, 65) } // 0x41 (REX.B)
+    bytes_push(out, 136) // 88
+    var enc = _mem_base_modrm_and_sib_disp(base_reg, 0, disp)
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }
 
