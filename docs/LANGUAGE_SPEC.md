@@ -77,6 +77,13 @@ when the following token sequence looks like a match statement, not an identifie
 Identifiers are ASCII letters, digits, and `_`:
 - Pattern: `[A-Za-z_][A-Za-z0-9_]*`
 
+Rolling restriction (practical today):
+- Prefixes `oren_` and `sys_` are **reserved** for runtime/compiler intrinsics.
+- Prefix `__oren_` is reserved for compiler-generated internal symbols (wrappers, lambdas, etc.).
+
+User code should not define variables/functions with these prefixes; the compiler may treat them as
+special globals (for example, they are not captured as closure variables in native backends).
+
 ### Literals
 - **Integer**: one or more digits: `[0-9]+`
 - **Float**: digits, then `.`, then optional digits: `[0-9]+ "." [0-9]*`

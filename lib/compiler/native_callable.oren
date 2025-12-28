@@ -94,6 +94,21 @@ fn lambda_gensym(ctx) {
 fn lambda_maybe_add_capture(ctx, name, declared, seen, out) {
     if name == nil { return nil }
     if declared[name] == true { return nil }
+    // Do not capture runtime/compiler intrinsics: they are global call targets, not values
+    // from the enclosing lexical environment.
+    //
+    // If captured, native backends would attempt to evaluate them as variables while building
+    // the lambda env (and fail with "unknown var ..."), even though the call emission treats
+    // them as intrinsics.
+    if _str_starts_with(name, "oren_") { return nil }
+    if _str_starts_with(name, "sys_") { return nil }
+    // Legacy/core builtins that are not `oren_`-prefixed but are still intrinsic/global today.
+    if name == "malloc" || name == "malloc_raw" ||
+        name == "ptr_get" || name == "ptr_set" || name == "ptr_get_byte" || name == "ptr_set_byte" ||
+        name == "iadd" ||
+        name == "print" || name == "exit" || name == "system" || name == "py_import" {
+        return nil
+    }
     if ctx["aliases"][name] != nil { return nil }
     // Treat named functions as global and do not capture them for call-only usage.
     if ctx["func_arity"][name] != nil { return nil }
@@ -585,4 +600,3 @@ fn synth_lambda_wrapper(def) {
     var wrapper_fun = {"type": "Function", "name": lname, "params": params, "body": node_block(stmts)}
     return node_expr_stmt(wrapper_fun)
 }
-

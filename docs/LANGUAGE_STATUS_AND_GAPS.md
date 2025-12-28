@@ -77,6 +77,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 - **Tier‑1 intent for x86_64**
   - Local build existence + format checks are validated by the curated runner.
   - Real-hardware x86_64 run validation is opt-in (Win11 + WSL2): `docs/REMOTE_X64_ENV.md`
+    - Tier‑1 parity fixture (closures + varargs): `tests/fixtures/tier1_native_lambda_varargs_main.oren` (gated by `OREN_REMOTE_RUN=1`)
 
 ## What’s Still Missing for Production Maturity (Gap List)
 
@@ -98,6 +99,7 @@ production maturity requires both implementation *and* regression coverage.
     - x64 native now also propagates `recv_kind` on `Index` so codegen can avoid dynamic LIST/MAP dispatch when the receiver kind is known (still validates runtime magic; remaining unknown cases need a principled representation)
 - **Varargs/spread parity (all backends + indirect calls)**
   - Varargs must be “boring and correct”: same semantics everywhere, including closures.
+  - Rolling status: x64 native supports `fn (x, ...rest) { ... }` lambdas; see Tier‑1 parity fixture above.
 
 - **Tier‑1 OS/arch parity: native backends must converge**
   - Targets (Tier‑1 intent): macOS + Linux + Windows, on arm64 + x86_64.

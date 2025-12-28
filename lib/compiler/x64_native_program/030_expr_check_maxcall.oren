@@ -32,7 +32,7 @@ fn _expr_int_check(ctx, expr) {
         //
         // Rolling v0: x64 native supports lambdas as first-class values via wrapper lowering.
         // - Only anonymous `fn` (name == "") is permitted in expression position.
-        // - Params must be plain identifiers (no varargs in lambda literal syntax yet).
+        // - Params must be plain identifiers (including optional trailing `...rest`).
         if expr["name"] != "" {
             err(ctx, "x64 native v0: function decl not allowed in expression position")
             return nil
@@ -44,7 +44,6 @@ fn _expr_int_check(ctx, expr) {
         while i < pc {
             var p = params[i]
             if p == nil || p["type"] != "Identifier" { err(ctx, "x64 native v0: lambda param must be identifier"); return nil }
-            if p["is_varargs"] == true { err(ctx, "x64 native v0: lambda varargs not supported yet"); return nil }
             i = i + 1
         }
         // Body can contain ops not supported by x64; those will be rejected when compiling the

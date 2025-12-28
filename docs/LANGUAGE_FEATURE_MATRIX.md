@@ -1,6 +1,6 @@
 # Oren Language Feature Matrix (Rolling, AI-Friendly)
 
-**Last updated:** 2025-12-28  
+**Last updated:** 2025-12-29  
 
 This document is a **quick index** for AI agents and maintainers:
 
@@ -30,7 +30,7 @@ Status legend:
 | Program termination (`exit`) | Rolling | Builtins/runtime: `exit(code)` lowered per-backend; termination semantics are standardized via `exit` | Use `exit(code)` for portability; do not rely on `main` return value (rolling) |
 | `fn` + named functions | Implemented | Parser + lowering + all backends | Everywhere; compile pipeline: `lib/compiler/compiler/040_build_pipeline.oren` |
 | Function values + lambdas | Rolling | C backend: `lib/compiler/transpiler.oren` (closures + wrappers); Native runtime: `lib/runtime_native/120_first_class_fn.oren`; Bytecode: `lib/compiler/codegen_bytecode/**` | AVM: `tests/avm/test_closure_fn_values.oren` |
-| Varargs (`...rest`) + spread calls | Rolling | Parser marks `is_varargs`; Bytecode/C/native lowering handle spread and rest list packing | Manual/spec sections; fixtures under `tests/**` that exercise spread/varargs |
+| Varargs (`...rest`) + spread calls | Rolling | Parser marks `is_varargs`; Bytecode/C/native lowering handle spread and rest list packing | Tier‑1 closure parity: `tests/fixtures/tier1_native_lambda_varargs_main.oren` (remote x86_64 gate via `OREN_REMOTE_RUN=1`) |
 | Control flow: `if/else`, `while`, `for`, `switch/case` | Implemented/Rolling | Parser + lowering; `for x in ...` is sugar in lowering | Example: `examples/hello.oren`; Tests: `tests/native/` + `tests/avm/test_switch.oren` |
 | `match` | Rolling | Parser contextual keyword + lowering into deterministic control flow | Tests: `tests/modules/test_match_enum.oren` |
 | `enum` | Rolling | Lowered as tagged-map constructors | Tests: `tests/modules/test_match_enum.oren`; Spec: `docs/LANGUAGE_SPEC.md` “enum/match” section |

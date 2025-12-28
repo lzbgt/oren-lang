@@ -1,0 +1,20 @@
+// Tier‑1 x86_64 native smoke: lambda varargs must work.
+//
+// This is a key parity requirement:
+// - Oren supports first-class functions and varargs in the language model.
+// - Lambda literals compile to uniform callable wrappers (`__oren_lambda_*`) which
+//   bind fixed args + pack `...rest` into a list.
+
+fn main() {
+    var f = fn (x, ...rest) {
+        // Return x + len(rest).
+        return x + oren_list_len(rest)
+    }
+
+    if f(10) != 10 { return 10 }
+    if f(10, 1, 2, 3) != 13 { return 11 }
+
+    print("tier1 lambda varargs ok")
+    return 0
+}
+
