@@ -16,6 +16,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic ...` line (best-effort) before aborting
      - ✅ `oren_panic(msg)` now emits a best-effort `STACK_TRACE` (RBP chain, up to 16 return addrs) on Linux+Win64 before aborting
      - ✅ x64 list/map intrinsics now abort via `oren_panic(msg)` (not silent `exit(1)`) on invalid use to preserve the Tier‑1 diagnostic contract
+     - ✅ x64 native now routes deterministic runtime aborts through `oren_panic(msg)` for clearer failures (Index/index_set, call spread checks, div/shift bounds, iter_next corruption)
      - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names **and offsets** via an embedded symtab (fixed-base emitters)
      - ✅ x64 map key-kind selection centralized in shared lowering: `known_key_kind` is inferred conservatively and required for map paths; x64 codegen does not re-infer from syntax (tagged values remain the full fix)
      - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)

@@ -1095,7 +1095,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var local_fixups = []
             var l_ok = _new_label(ctx, "index_set_non_nil")
             _emit_jcc_to_label(ctx, local_fixups, "ne", l_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "index_set on nil")
             _emit_label(ctx, labels, l_ok)
 
             // magic = *(container+24)
@@ -1111,17 +1111,17 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if recv_kind == "list" {
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
                 _emit_jcc_to_label(ctx, local_fixups, "e", l_list)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
             } else if recv_kind == "map" {
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
                 _emit_jcc_to_label(ctx, local_fixups, "e", l_map)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
             } else {
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
                 _emit_jcc_to_label(ctx, local_fixups, "e", l_list)
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
                 _emit_jcc_to_label(ctx, local_fixups, "e", l_map)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
             }
 
             // --- list path ---
@@ -1133,7 +1133,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
             var l_idx_nonneg = _new_label(ctx, "index_set_list_idx_nonneg")
             _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "index_set: list index < 0")
             _emit_label(ctx, labels, l_idx_nonneg)
 
             // count -> r8
@@ -1145,7 +1145,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
             var l_inbounds = _new_label(ctx, "index_set_list_inbounds")
             _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "index_set: list index out of bounds")
             _emit_label(ctx, labels, l_inbounds)
 
             // buf -> r9 = *(list+16)
@@ -1157,7 +1157,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
             var l_buf_ok = _new_label(ctx, "index_set_list_buf_ok")
             _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "index_set internal: list buf missing")
             _emit_label(ctx, labels, l_buf_ok)
 
             // addr = buf + idx*8 (r10)
@@ -1599,7 +1599,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
             var l_div_nonzero = _new_label(ctx, "div_nonzero")
             _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_nonzero)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "division by zero")
             _emit_label(ctx, labels, l_div_nonzero)
 
             // if rcx != -1 => continue; else check dividend == i64_min
@@ -1610,7 +1610,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_r64_imm64(2, i64_min)) // rdx = i64_min
             bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
             _emit_jcc_to_label(ctx, local_fixups, "ne", l_div_ok)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "division overflow (i64_min / -1)")
             _emit_label(ctx, labels, l_div_ok)
             _patch_local_fixups(ctx, labels, local_fixups)
 
@@ -1632,7 +1632,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 var n2 = intparse.parse_int_lit(r["value"])
                 if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
                 if n2 < 0 || n2 >= 64 {
-                    _emit_abort_exitcode(ctx, 1)
+                    _emit_abort_panic_str(ctx, "shift count out of range")
                     return nil
                 }
                 if op == "<<" { bytes_extend(ctx["code"], insn_shl_r64_imm8(0, n2)) }
@@ -1651,13 +1651,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
                 var l_nonneg = _new_label(ctx, "sh_nonneg")
                 _emit_jcc_to_label(ctx, local_fixups2, "ge", l_nonneg)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "shift count out of range")
                 _emit_label(ctx, labels2, l_nonneg)
                 // if rcx >= 64 => abort
                 bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 64))
                 var l_lt64 = _new_label(ctx, "sh_lt64")
                 _emit_jcc_to_label(ctx, local_fixups2, "l", l_lt64)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "shift count out of range")
                 _emit_label(ctx, labels2, l_lt64)
                 _patch_local_fixups(ctx, labels2, local_fixups2)
 
@@ -1680,13 +1680,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
             var l_nonneg2 = _new_label(ctx, "sh_nonneg")
             _emit_jcc_to_label(ctx, local_fixups3, "ge", l_nonneg2)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "shift count out of range")
             _emit_label(ctx, labels3, l_nonneg2)
             // if rcx >= 64 => abort
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 64))
             var l_lt642 = _new_label(ctx, "sh_lt64")
             _emit_jcc_to_label(ctx, local_fixups3, "l", l_lt642)
-            _emit_abort_exitcode(ctx, 1)
+            _emit_abort_panic_str(ctx, "shift count out of range")
             _emit_label(ctx, labels3, l_lt642)
             _patch_local_fixups(ctx, labels3, local_fixups3)
 

@@ -53,7 +53,7 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     var local_fixups = []
     var l_list_ok = _new_label(ctx, "idx_list_non_nil")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
-    _emit_abort_exitcode(ctx, 1)
+    _emit_abort_panic_str(ctx, "index on nil")
     _emit_label(ctx, labels, l_list_ok)
 
     // magic check: [container+24] == LIST or MAP
@@ -69,18 +69,18 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     if recv_kind == "list" {
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "index recv_kind=list but value is not a list")
     } else if recv_kind == "map" {
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "index recv_kind=map but value is not a map")
     } else {
         // Unknown at compile-time => dynamic magic check (LIST or MAP).
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "index on non-container (expected list or map)")
     }
 
     // --- list indexing path ---
@@ -95,14 +95,14 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
     var l_idx_nonneg = _new_label(ctx, "idx_nonneg")
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
-    _emit_abort_exitcode(ctx, 1)
+    _emit_abort_panic_str(ctx, "index: list index < 0")
     _emit_label(ctx, labels, l_idx_nonneg)
 
     // idx < count
     bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
     var l_inbounds = _new_label(ctx, "idx_inbounds")
     _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
-    _emit_abort_exitcode(ctx, 1)
+    _emit_abort_panic_str(ctx, "index: list index out of bounds")
     _emit_label(ctx, labels, l_inbounds)
 
     // buf -> r9 = *(list+16)
@@ -116,7 +116,7 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
     var l_buf_ok = _new_label(ctx, "idx_buf_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-    _emit_abort_exitcode(ctx, 1)
+    _emit_abort_panic_str(ctx, "index internal: list buf missing")
     _emit_label(ctx, labels, l_buf_ok)
 
     // addr = buf + idx*8  (r10)
@@ -146,7 +146,7 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
         }
         // If the receiver kind is unknown, we still support list-vs-map runtime dispatch.
         // However, the map path cannot guess key kind without tagging, so it aborts.
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "x64 native v0: map index requires inferred key kind (tagged values pending)")
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
     }
 
@@ -243,4 +243,3 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     _intr_tmp_pop(ctx, base0)
     return nil
 }
-

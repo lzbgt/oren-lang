@@ -117,7 +117,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
                 var fixups0 = []
                 var l_ok0 = _new_label(ctx, "varargs_spread_fixed_ok")
                 _emit_jcc_to_label(ctx, fixups0, "ge", l_ok0)
-                _emit_abort_exitcode(ctx, 1)
+                _emit_abort_panic_str(ctx, "call: varargs spread missing required fixed args")
                 _emit_label(ctx, labels0, l_ok0)
                 _patch_local_fixups(ctx, labels0, fixups0)
 
@@ -278,7 +278,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         var local_fixups = []
         var l_spread_ok = _new_label(ctx, "spread_len_ok")
         _emit_jcc_to_label(ctx, local_fixups, "e", l_spread_ok)
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "call: spread length mismatch")
         _emit_label(ctx, labels, l_spread_ok)
         _patch_local_fixups(ctx, labels, local_fixups)
 
@@ -589,7 +589,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         var fixupsFn = []
         var l_fn_ok = _new_label(ctx, "indirect_fnobj_ok")
         _emit_jcc_to_label(ctx, fixupsFn, "ne", l_fn_ok)
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "call on nil function value")
         _emit_label(ctx, labelsFn, l_fn_ok)
         _patch_local_fixups(ctx, labelsFn, fixupsFn)
         // env_reg = *(fnobj + 8)

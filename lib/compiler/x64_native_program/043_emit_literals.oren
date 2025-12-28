@@ -67,7 +67,7 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
         var local_fixups = []
         var l_buf_ok = _new_label(ctx, "array_lit_buf_ok")
         _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-        _emit_abort_exitcode(ctx, 1)
+        _emit_abort_panic_str(ctx, "array literal internal: buf missing")
         _emit_label(ctx, labels, l_buf_ok)
         _patch_local_fixups(ctx, labels, local_fixups)
     }
