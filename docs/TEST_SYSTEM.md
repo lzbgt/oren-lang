@@ -29,7 +29,7 @@ Legacy behavior (broader Makefile-driven lists) is preserved as:
 
 - `make test-legacy`
   - note: `test-legacy` is now a **compatibility alias** for `./oretest --full` (broader curated coverage, still parallel).
-  - the historical shell-heavy runner is kept only for reference as `make test-legacy-old` (and may be removed once confidence is high).
+- the historical shell-heavy Makefile runner has been removed (rolling); use git history if you need to recover it.
 
 ### 2) `./oretest` (repo runner, outside the compiler)
 
