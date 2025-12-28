@@ -84,14 +84,60 @@ func stdlibModernizationAudit() error {
 	return nil
 }
 
-const remoteX64Host = "lzbgt@pc.work"
+const remoteX64HostDefault = "lzbgt@pc.work"
 
 // Use backslash-escaped spaces so this can be embedded safely into `sh -c` commands without
 // nested-quote footguns.
-const remoteX64ProxyArg = "-o ProxyCommand=socat\\ -\\ PROXY:hubstack.cn:%h:%p,proxyport=6002"
-const remoteX64RemoteUnixRoot = "/Users/lzbgt/tmp_oren"
-const remoteX64RemoteWinRoot = `C:\Users\lzbgt\tmp_oren`
-const remoteX64RemoteWslRoot = "/mnt/c/Users/lzbgt/tmp_oren"
+const remoteX64ProxyArgDefault = "-o ProxyCommand=socat\\ -\\ PROXY:hubstack.cn:%h:%p,proxyport=6002"
+
+const remoteX64RemoteUnixRootDefault = "/Users/lzbgt/tmp_oren"
+const remoteX64RemoteWinRootDefault = `C:\Users\lzbgt\tmp_oren`
+const remoteX64RemoteWslRootDefault = "/mnt/c/Users/lzbgt/tmp_oren"
+
+func remoteX64Host() string {
+	if v := os.Getenv("OREN_REMOTE_X64_HOST"); v != "" {
+		return v
+	}
+	return remoteX64HostDefault
+}
+
+func remoteX64ProxyArg() string {
+	// This is intentionally low-level: callers pass an ssh/scp arg fragment, already escaped
+	// for embedding in a shell command string.
+	//
+	// Examples:
+	//   export OREN_REMOTE_X64_PROXY_ARG='-o ProxyCommand=socat\\ -\\ PROXY:hubstack.cn:%h:%p,proxyport=6002'
+	//   export OREN_REMOTE_X64_PROXY_ARG=''   # no proxy
+	if v := os.Getenv("OREN_REMOTE_X64_PROXY_ARG"); v != "" {
+		return v
+	}
+	// Allow explicit empty to disable proxy.
+	if _, ok := os.LookupEnv("OREN_REMOTE_X64_PROXY_ARG"); ok {
+		return ""
+	}
+	return remoteX64ProxyArgDefault
+}
+
+func remoteX64RemoteUnixRoot() string {
+	if v := os.Getenv("OREN_REMOTE_X64_UNIX_ROOT"); v != "" {
+		return v
+	}
+	return remoteX64RemoteUnixRootDefault
+}
+
+func remoteX64RemoteWinRoot() string {
+	if v := os.Getenv("OREN_REMOTE_X64_WIN_ROOT"); v != "" {
+		return v
+	}
+	return remoteX64RemoteWinRootDefault
+}
+
+func remoteX64RemoteWslRoot() string {
+	if v := os.Getenv("OREN_REMOTE_X64_WSL_ROOT"); v != "" {
+		return v
+	}
+	return remoteX64RemoteWslRootDefault
+}
 
 func remoteX64OutputPrefixFromSrc(src string) string {
 	base := filepath.Base(src)
@@ -103,14 +149,17 @@ func remoteX64RemoteSubdirFromWorkdir(workdir string) string {
 }
 
 func remoteX64RunExitcodeFixtureCmd(workdir, src string, expectExit int) string {
+	host := remoteX64Host()
+	proxyArg := remoteX64ProxyArg()
+
 	subdir := remoteX64RemoteSubdirFromWorkdir(workdir)
 	prefix := remoteX64OutputPrefixFromSrc(src)
 	linuxOut := prefix + "_linux"
 	winOut := prefix + "_win.exe"
 
-	remoteUnixDir := remoteX64RemoteUnixRoot + "/" + subdir
-	remoteWinDir := remoteX64RemoteWinRoot + "\\" + subdir
-	remoteWslDir := remoteX64RemoteWslRoot + "/" + subdir
+	remoteUnixDir := remoteX64RemoteUnixRoot() + "/" + subdir
+	remoteWinDir := remoteX64RemoteWinRoot() + "\\" + subdir
+	remoteWslDir := remoteX64RemoteWslRoot() + "/" + subdir
 
 	ensureDirCmd := fmt.Sprintf(
 		`cmd.exe /c "if not exist %%USERPROFILE%%\\tmp_oren\\%s mkdir %%USERPROFILE%%\\tmp_oren\\%s"`,
@@ -146,39 +195,42 @@ func remoteX64RunExitcodeFixtureCmd(workdir, src string, expectExit int) string 
 		linuxOut,
 		src,
 		winOut,
-		remoteX64ProxyArg,
-		remoteX64Host,
+		proxyArg,
+		host,
 		ensureDirCmd,
-		remoteX64ProxyArg,
+		proxyArg,
 		winOut,
-		remoteX64Host,
+		host,
 		remoteUnixDir,
 		winOut,
-		remoteX64ProxyArg,
+		proxyArg,
 		linuxOut,
-		remoteX64Host,
+		host,
 		remoteUnixDir,
 		linuxOut,
-		remoteX64ProxyArg,
-		remoteX64Host,
+		proxyArg,
+		host,
 		winRunCmd,
 		expectExit,
-		remoteX64ProxyArg,
-		remoteX64Host,
+		proxyArg,
+		host,
 		wslRunCmd,
 		expectExit,
 	)
 }
 
 func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) string {
+	host := remoteX64Host()
+	proxyArg := remoteX64ProxyArg()
+
 	subdir := remoteX64RemoteSubdirFromWorkdir(workdir)
 	prefix := remoteX64OutputPrefixFromSrc(src)
 	linuxOut := prefix + "_linux"
 	winOut := prefix + "_win.exe"
 
-	remoteUnixDir := remoteX64RemoteUnixRoot + "/" + subdir
-	remoteWinDir := remoteX64RemoteWinRoot + "\\" + subdir
-	remoteWslDir := remoteX64RemoteWslRoot + "/" + subdir
+	remoteUnixDir := remoteX64RemoteUnixRoot() + "/" + subdir
+	remoteWinDir := remoteX64RemoteWinRoot() + "\\" + subdir
+	remoteWslDir := remoteX64RemoteWslRoot() + "/" + subdir
 
 	ensureDirCmd := fmt.Sprintf(
 		`cmd.exe /c "if not exist %%USERPROFILE%%\\tmp_oren\\%s mkdir %%USERPROFILE%%\\tmp_oren\\%s"`,
@@ -219,25 +271,25 @@ func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) st
 		linuxOut,
 		src,
 		winOut,
-		remoteX64ProxyArg,
-		remoteX64Host,
+		proxyArg,
+		host,
 		ensureDirCmd,
-		remoteX64ProxyArg,
+		proxyArg,
 		winOut,
-		remoteX64Host,
+		host,
 		remoteUnixDir,
 		winOut,
-		remoteX64ProxyArg,
+		proxyArg,
 		linuxOut,
-		remoteX64Host,
+		host,
 		remoteUnixDir,
 		linuxOut,
-		remoteX64ProxyArg,
-		remoteX64Host,
+		proxyArg,
+		host,
 		winRunCmd,
 		expectSubstring,
-		remoteX64ProxyArg,
-		remoteX64Host,
+		proxyArg,
+		host,
 		wslRunCmd,
 		expectSubstring,
 	)

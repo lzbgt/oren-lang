@@ -9,6 +9,24 @@ To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled
   - macOS (Homebrew): `brew install socat`
   - Linux: `apt-get install socat` / `dnf install socat` / etc.
 
+## Optional overrides (for non-default hosts)
+
+`cmd/oretest` has a default Win11+WSL2 host and proxy configuration (documented below), but you can
+override the remote connection details without editing source:
+
+- `OREN_REMOTE_X64_HOST` (default: `lzbgt@pc.work`)
+- `OREN_REMOTE_X64_PROXY_ARG` (default: the `socat` ProxyCommand; set to empty to disable)
+- `OREN_REMOTE_X64_UNIX_ROOT` (default: `/Users/lzbgt/tmp_oren`)
+- `OREN_REMOTE_X64_WIN_ROOT` (default: `C:\Users\lzbgt\tmp_oren`)
+- `OREN_REMOTE_X64_WSL_ROOT` (default: `/mnt/c/Users/lzbgt/tmp_oren`)
+
+Example:
+
+```bash
+export OREN_REMOTE_X64_HOST="user@myhost"
+export OREN_REMOTE_X64_PROXY_ARG=""
+```
+
 ## Connect to the remote host
 
 Use this command to open the remote terminal session:
