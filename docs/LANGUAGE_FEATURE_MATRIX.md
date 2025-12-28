@@ -27,6 +27,7 @@ Status legend:
 |---|---|---|---|
 | Modules + `import` | Rolling | Parser: `lib/compiler/parser_parse/**`; Linking: `lib/compiler/compiler/020_modules_linking.oren` | Examples: `examples/module_app.oren`; Tests: `tests/modules/` |
 | Top-level statements + entry | Rolling | Native entry stubs: `lib/compiler/arm64_*`, `lib/compiler/x64_*`; Bytecode entry: `lib/compiler/codegen_bytecode/030_tail.oren`; C entry: `lib/compiler/transpiler.oren` | Manual: `docs/LANGUAGE_MANUAL.md`; Examples: `examples/hello.oren`, `examples/hello_c.oren` |
+| Program termination (`exit`) | Rolling | Builtins/runtime: `exit(code)` lowered per-backend; termination semantics are standardized via `exit` | Use `exit(code)` for portability; do not rely on `main` return value (rolling) |
 | `fn` + named functions | Implemented | Parser + lowering + all backends | Everywhere; compile pipeline: `lib/compiler/compiler/040_build_pipeline.oren` |
 | Function values + lambdas | Rolling | C backend: `lib/compiler/transpiler.oren` (closures + wrappers); Native runtime: `lib/runtime_native/120_first_class_fn.oren`; Bytecode: `lib/compiler/codegen_bytecode/**` | AVM: `tests/avm/test_closure_fn_values.oren` |
 | Varargs (`...rest`) + spread calls | Rolling | Parser marks `is_varargs`; Bytecode/C/native lowering handle spread and rest list packing | Manual/spec sections; fixtures under `tests/**` that exercise spread/varargs |

@@ -262,6 +262,11 @@ Implementation note (C backend):
 
 - User `fn main()` is emitted as a different C symbol to avoid colliding with the host `int main(...)` entrypoint; this is an internal detail and should not affect Oren source code.
 
+Program termination (rolling):
+
+- Do not rely on the **return value of `main`** for an exit code; backends do not yet agree on whether it is used.
+- Use `exit(code)` for deterministic, portable termination semantics across all backends.
+
 ### Notes on current (rolling) type annotations
 
 Oren is still in rolling mode without a full static type checker, but the parser already supports

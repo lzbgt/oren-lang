@@ -28,6 +28,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
    - Start migration with “callables + varargs + spread” because they span C/native/bytecode.
+   - Unify “program termination” semantics across backends (what does `main` return mean vs `exit(code)`); keep deterministic contract for tooling/agents.
    - Decide and document a stable **evaluation order** (or an effect model) so optimizations are semantics-preserving across backends.
    - Reference: `docs/BACKEND_ARCHITECTURE.md`.
 
