@@ -57,6 +57,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Reference: `docs/TEST_SYSTEM.md`.
    - Rolling docs hygiene: when fixtures or backends change, update the docs that claim invariants (`docs/LANGUAGE_MANUAL.md`, `docs/NATIVE_BACKEND.md`, `docs/CLI_COMPLETION.md`) in the same change to avoid drift.
    - Spec hygiene (AI-friendly): keep `docs/LANGUAGE_SPEC.md` and `docs/LANGUAGE_MANUAL.md` aligned with actual compiler behavior and mark planned vs implemented explicitly.
+   - Feature-index hygiene (AI-friendly): keep `docs/LANGUAGE_FEATURE_MATRIX.md` updated when feature status or implementation locations change.
 
 8) **Compiler UX: “modern argparse” (Click-style subcommands + UX polish)** (M)
    - Keep current subcommand structure, but raise ergonomics to production level:

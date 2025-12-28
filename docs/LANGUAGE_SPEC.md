@@ -22,6 +22,7 @@ If an AI agent needs the most “ground-truth” behavior, prioritize:
 
 - `docs/LANGUAGE_MANUAL.md` (practical usage today),
 - `docs/LANGUAGE_STATUS_AND_GAPS.md` (evidence-backed “what works today” + missing gaps),
+- `docs/LANGUAGE_FEATURE_MATRIX.md` (feature → status → implementation → fixtures),
 - the fixtures under `tests/native/fixtures/`, `tests/modules/`, `tests/avm/` (living spec).
 
 ## Non-normative: Implementation map (for maintainers and agents)

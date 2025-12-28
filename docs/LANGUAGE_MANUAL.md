@@ -16,6 +16,7 @@ This manual therefore follows a strict grounding rule:
 
 - **If you need the truth for execution semantics, trust code + fixtures first.**
   - Canonical “what works today” snapshot: `docs/LANGUAGE_STATUS_AND_GAPS.md`
+  - AI-friendly feature index: `docs/LANGUAGE_FEATURE_MATRIX.md`
   - Living spec fixtures: `tests/native/fixtures/`, `tests/modules/`, `tests/avm/`
   - Runnable integrated examples: `examples/` (suite: `make examples-test`)
 
