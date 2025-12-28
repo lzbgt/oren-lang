@@ -5,6 +5,8 @@
 //
 // Include order is identical to the former monolithic `codegen_bytecode.oren`.
 
+import coreir "coreir.oren"
+
 // @include "codegen_bytecode/000_prelude.oren"
 // @include "codegen_bytecode/010_codegen_a.oren"
 // @include "codegen_bytecode/020_codegen_b.oren"

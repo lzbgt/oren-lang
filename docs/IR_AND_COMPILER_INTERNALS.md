@@ -134,6 +134,10 @@ Initial consumer (today):
 
 - x86_64 native backend prepass:
   - `lib/compiler/x64_native_program/080_functions_compile.oren`
+- Bytecode backend prepass (declared funcs + varargs map):
+  - `lib/compiler/codegen_bytecode/030_tail.oren`
+- C backend transpiler prepass (direct-call + varargs lowering metadata):
+  - `lib/compiler/transpiler.oren`
 
 Why this matters:
 
@@ -186,4 +190,3 @@ When you add a new backend feature:
 - first add/extend a shared lowering pass or CoreIR rule if the feature is semantic,
 - then add the backend implementation,
 - then add fixtures that run under multiple backends (where possible).
-

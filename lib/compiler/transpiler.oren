@@ -1,5 +1,6 @@
 // ----- Transpiler helpers ----- 
 import intparse "int_lit.oren"
+import coreir "coreir.oren"
 fn new_transpiler() {
     return {"lines": [], "indent": 0, "functions": [], "func_varargs_fixed": {}, "aliases": {}, "type_ns": {}, "lambda_defs": [], "lambda_counter": 0}
 }
@@ -1296,21 +1297,41 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     i = 0
     while i < oren_list_len(units) {
         var funs = units[i]["parts"]["functions"]
-        var j = 0
-        while j < oren_list_len(funs) {
-            oren_list_push(t["functions"], funs[j]["name"])
-            if funs[j]["name"] == "main" { has_user_main = true }
-            var vf = fun_varargs_fixed(funs[j])
-            if vf >= 0 {
-                t["func_varargs_fixed"][funs[j]["name"]] = vf
+
+        // Rolling: share function metadata extraction with other backends via CoreIR v0.
+        // `funs` is already a list of Function nodes; treat it as a "statements" list for CoreIR.
+        var meta = {"errors": []}
+        coreir.collect_top_level_functions(meta, {"statements": funs}, "c backend v0")
+        if meta["errors"] != nil && oren_list_len(meta["errors"]) > 0 {
+            print("OREN_DIAG kind=transpiler code=1 msg=coreir metadata error")
+            print("transpiler: coreir metadata error:")
+            var ei = 0
+            while ei < oren_list_len(meta["errors"]) {
+                print(meta["errors"][ei])
+                ei = ei + 1
             }
-            j = j + 1
+            oren_exit(1)
         }
+
+        var order = meta["func_decl_order"]
+        if order != nil {
+            var j = 0
+            while j < oren_list_len(order) {
+                var nm = order[j]
+                oren_list_push(t["functions"], nm)
+                if nm == "main" { has_user_main = true }
+                var vf = nil
+                if meta["func_varargs_fixed"] != nil { vf = meta["func_varargs_fixed"][nm] }
+                if vf != nil { t["func_varargs_fixed"][nm] = vf }
+                j = j + 1
+            }
+        }
+
         var types = units[i]["parts"]["types"]
-        j = 0
-        while j < oren_list_len(types) {
-            oren_list_push(t["functions"], type_ctor_name(types[j]))
-            j = j + 1
+        var jt = 0
+        while jt < oren_list_len(types) {
+            oren_list_push(t["functions"], type_ctor_name(types[jt]))
+            jt = jt + 1
         }
         i = i + 1
     }

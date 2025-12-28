@@ -347,6 +347,9 @@ fn bytecode_compile_program(linked, config) {
 
     // Pre-pass: record declared top-level function names so identifiers can become function values
     // even before the function body is compiled (forward refs).
+    //
+    // Rolling: use CoreIR v0 metadata extraction to avoid per-backend drift in how varargs and
+    // declared-functions are recognized.
     var pi = 0
     while pi < oren_list_len(stmts) {
         var st = stmts[pi]
@@ -361,36 +364,32 @@ fn bytecode_compile_program(linked, config) {
             }
             ctx["types"][tname] = fns
         }
-        if st != nil && st["type"] == "Function" {
-            var nm = st["name"]
-            if nm != nil && nm != "" {
-                ctx["declared_funcs"][nm] = true
-                var params = st["params"]
-                if params != nil && oren_list_len(params) > 0 {
-                    var last = params[oren_list_len(params) - 1]
-                    if last != nil && last["is_varargs"] == true {
-                        ctx["func_varargs_fixed"][nm] = oren_list_len(params) - 1
-                    }
-                }
-            }
-        }
-        if st != nil && st["type"] == "ExprStmt" {
-            var ex = st["expr"]
-            if ex != nil && ex["type"] == "Function" {
-                var nm2 = ex["name"]
-                if nm2 != nil && nm2 != "" {
-                    ctx["declared_funcs"][nm2] = true
-                    var params2 = ex["params"]
-                    if params2 != nil && oren_list_len(params2) > 0 {
-                        var last2 = params2[oren_list_len(params2) - 1]
-                        if last2 != nil && last2["is_varargs"] == true {
-                            ctx["func_varargs_fixed"][nm2] = oren_list_len(params2) - 1
-                        }
-                    }
-                }
-            }
-        }
         pi = pi + 1
+    }
+
+    var meta = {"errors": []}
+    coreir.collect_top_level_functions(meta, linked, "bytecode v0")
+    if meta["errors"] != nil && oren_list_len(meta["errors"]) > 0 {
+        var ei = 0
+        while ei < oren_list_len(meta["errors"]) {
+            bytecode_error(ctx, meta["errors"][ei])
+            ei = ei + 1
+        }
+        return ctx
+    }
+
+    // declared_funcs: name -> true (use deterministic source order list when available)
+    if meta["func_decl_order"] != nil {
+        var di = 0
+        while di < oren_list_len(meta["func_decl_order"]) {
+            var nm0 = meta["func_decl_order"][di]
+            ctx["declared_funcs"][nm0] = true
+            di = di + 1
+        }
+    }
+    // varargs mapping: name -> fixed count (presence means trailing `...rest`)
+    if meta["func_varargs_fixed"] != nil {
+        ctx["func_varargs_fixed"] = meta["func_varargs_fixed"]
     }
 
     var i = 0
