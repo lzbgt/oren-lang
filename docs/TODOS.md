@@ -70,6 +70,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 8) **Tests: backend/arch neutral by default (integration-first)** (S)
    - Most `.oren` tests should be backend/arch neutral; keep ABI-specific tests isolated and minimal.
    - Reduce overlapping “atomic” tests in curated lists; prefer integration suites + fixtures as living spec.
+   - ✅ Iteration speed is now acceptable: `make test` completes in ~<3 minutes on the primary dev host (observed Dec 28, 2025). Keep this non-regressing.
    - Add profiling hooks to keep iteration fast: `./oretest --profile` (or `OREN_TEST_PROFILE=1`) prints slowest tests so we can target true bottlenecks.
    - Make `oren build` caching the default compiler behavior (Go/make-like): content-addressed build cache keyed by (compiler binary hash, flags/target, transitive sources); provide `oren clean` to clear caches and keep CI reproducible via `OREN_NO_CACHE=1`.
    - Keep `make test` iteration-fast by gating expensive fixture families behind explicit flags (`OREN_TEST_SIGNING=1`, `OREN_TEST_OREDOC=1`) or `--full`; document in `docs/TEST_SYSTEM.md`.
