@@ -18,6 +18,14 @@ fn boom() {
     return 1 / 0
 }
 
+fn map_key_param_int(k: int) {
+    // Regression: numeric type annotations should imply "int kind" for map key-kind inference
+    // (native x64 cannot rely on pointer/int runtime heuristics).
+    var m = {}
+    m[k] = 123
+    return m[k]
+}
+
 fn main() {
     // Sanity: printing works (remote-run checks substring).
     print("tier1 smoke ok")
@@ -53,6 +61,7 @@ fn main() {
     var ks = "c"
     m[ks] = 11
     if m[ks] != 11 { return 54 }
+    if map_key_param_int(50000) != 123 { return 55 }
 
     // First-class function values + indirect call.
     var f = inc
