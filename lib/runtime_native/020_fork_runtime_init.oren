@@ -82,6 +82,8 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_BUF_ALIGN = 280
     GLOBAL_OFF_BUF_FORCE_MMAP = 288
     GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
+    GLOBAL_OFF_CALL_DEPTH = 304
+    GLOBAL_OFF_CALL_DEPTH_MAX = 312
     GLOBAL_SLOTS_RESERVED = 56
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -154,6 +156,17 @@ fn native_runtime_init(target_os) {
     global_set_buf_align(64)
     global_set_buf_force_mmap(0)
     global_set_buf_payload_limit(0)
+
+    // Stack safety (rolling):
+    // - call_depth is tracked by compiler-inserted enter/exit hooks in the native backend
+    // - call_depth_max is a runtime-configurable budget (env override applied later once envp is known)
+    //
+    // Default mirrors C backend: 8192 nested calls.
+    //
+    // Use literal offsets here so this stays correct even if offset globals are still rolling.
+    // (See lib/runtime_native/105_call_depth.oren.)
+    ptr_set(iadd(g_storage, 304), 0)    // call_depth
+    ptr_set(iadd(g_storage, 312), 8192) // call_depth_max
 
     // NET per-fd capability tags (rolling; capsule hardening).
     // We intentionally keep this simple: a byte-per-fd kind table.
@@ -230,4 +243,3 @@ fn native_runtime_set_envp(envp) {
     global_set_envp(envp)
     return 0
 }
-

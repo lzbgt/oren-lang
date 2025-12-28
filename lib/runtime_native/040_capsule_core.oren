@@ -7,6 +7,11 @@ fn native_runtime_capsule_init() {
     global_set_capsule_mode(0)
     global_set_cap_allow_mask(0)
 
+    // Stack safety (rolling):
+    // Apply env override now that envp is captured.
+    // Keep call_depth deterministic at process start.
+    native_runtime_call_depth_apply_env()
+
     // SIMD runtime opt-in (rolling):
     // - Must never change semantics; scalar behavior is authoritative.
     // - Default off; enable explicitly via env.

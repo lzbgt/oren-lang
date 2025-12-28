@@ -82,6 +82,8 @@ fn oren_pipe() {
 //   280:buf_align (8|16|32|64; rolling)
 //   288:buf_force_mmap (0|1; rolling)
 //   296:buf_payload_limit_bytes (0 means unlimited; rolling)
+//   304:call_depth (rolling; stack safety)
+//   312:call_depth_max (rolling; stack safety)
 var g_storage = 0
 
 fn oren_globals() {
@@ -131,6 +133,8 @@ var GLOBAL_OFF_RAW_MMAP_THRESHOLD = 272
 var GLOBAL_OFF_BUF_ALIGN = 280
 var GLOBAL_OFF_BUF_FORCE_MMAP = 288
 var GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
+var GLOBAL_OFF_CALL_DEPTH = 304
+var GLOBAL_OFF_CALL_DEPTH_MAX = 312
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
@@ -179,6 +183,12 @@ fn global_set_buf_force_mmap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_FO
 
 fn global_get_buf_payload_limit() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT)) }
 fn global_set_buf_payload_limit(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT), v) }
+
+fn global_get_call_depth() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH)) }
+fn global_set_call_depth(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH), v) }
+
+fn global_get_call_depth_max() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH_MAX)) }
+fn global_set_call_depth_max(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH_MAX), v) }
 
 fn native_simd_enabled() { return global_get_enable_simd() }
 

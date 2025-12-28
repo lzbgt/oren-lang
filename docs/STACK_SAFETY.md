@@ -34,12 +34,20 @@ own call stack model).
 
 Native and C binaries execute on the host’s call stack.
 
-Today, recursion safety is primarily “best effort”:
+Today, both backends have a **deterministic recursion guard** (rolling):
 
-- some tests exercise recursion (e.g. `tests/native/test_integration_suite.oren` contains
-  recursion cases), but
-- there is no unified “call depth max” knob for native/C that is guaranteed to produce a
-  deterministic diagnostic instead of triggering an OS stack overflow.
+- **C backend**
+  - runtime implements `oren_call_depth_enter/exit()` with a per-thread counter + max
+  - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192)
+  - validated by `tests/native/fixtures/call_depth_overflow.oren` via oretest runtime fixture
+
+- **Native backend (arm64 today)**
+  - compiler inserts `oren_call_depth_enter()` on user-function entry and `oren_call_depth_exit()` on return
+    (native runtime helpers are intentionally excluded to keep bootstrap stable)
+  - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192)
+  - validated by the same fixture under `--backend native`
+  - current limitation: the native v0 guard is process-global (not per-thread) and must be upgraded
+    once native threading becomes production-critical
 
 ## What “Stack Safe” Means for Oren
 
@@ -138,4 +146,3 @@ This is valuable but should not be the only guard because:
 
 - Backend unification direction: `docs/BACKEND_ARCHITECTURE.md`
 - AVM semantics + determinism: `docs/AVM_SPEC.md`
-

@@ -1,0 +1,91 @@
+// --- Call Depth Guard (stack safety; rolling) ---
+//
+// Motivation:
+// - Deep recursion can overflow the host OS stack non-deterministically.
+// - We want a deterministic, tunable failure mode before a hard crash.
+//
+// Design (v0):
+// - A global call-depth counter tracked by compiler-inserted hooks:
+//     - `oren_call_depth_enter()` at function/lambda entry
+//     - `oren_call_depth_exit()` at function exit / return
+// - A configurable maximum:
+//     - default: 8192
+//     - env override: `OREN_CALL_DEPTH_MAX=<n>` (applied once envp is known)
+//
+// Notes:
+// - This is process-global, not per-thread. That is sufficient for current single-threaded
+//   tier-1 bootstrap, but must be upgraded to per-thread tracking for production multithreading.
+//   (Tracked in docs/TODOS.md.)
+
+fn native_runtime_call_depth_apply_env() {
+    // Apply env override after envp is captured.
+    //
+    // Any invalid or zero value falls back to default.
+    if g_storage == 0 { return 0 }
+
+    // Reset depth to a deterministic baseline at process start.
+    // Use literals (no global "const" vars): native backend does not reliably run
+    // global initializers during bootstrap.
+    ptr_set(iadd(g_storage, 304), 0)
+
+    var max = ptr_get(iadd(g_storage, 312))
+    if max <= 0 { max = 8192 }
+    // Rolling safety: if something corrupt writes a ridiculous max, clamp to default.
+    if max > 100000000 { max = 8192 }
+
+    var v = native_envp_get_value_ptr("OREN_CALL_DEPTH_MAX")
+    if v != 0 {
+        var parsed = native_parse_i64_dec_cstr_or_neg1(v)
+        if parsed > 0 { max = parsed }
+    }
+    if max <= 0 { max = 8192 }
+    if max > 100000000 { max = 8192 }
+    ptr_set(iadd(g_storage, 312), max)
+    return 0
+}
+
+fn oren_call_depth_enter() {
+    // Keep this leaf-like and allocation-free.
+    if g_panicking == 1 { return 0 }
+    // IMPORTANT:
+    // Do not call helpers like `oren_globals()` or `global_get_*` here.
+    // The native backend inserts `oren_call_depth_enter()` into *all* functions,
+    // including those helpers; calling them here would recurse indefinitely.
+    var g = g_storage
+    if g == 0 { return 0 }
+
+    var d_ptr = iadd(g, 304)
+    // Rolling safety:
+    // - If d_ptr points at unexpected data (e.g. because globals were not initialized),
+    //   avoid instant false-positive panics by resetting to 0.
+    var d0 = ptr_get(d_ptr)
+    if d0 < 0 { d0 = 0; ptr_set(d_ptr, 0) }
+    if d0 > 100000000 { d0 = 0; ptr_set(d_ptr, 0) }
+
+    // Use `iadd` (not `+`) to avoid lowering through `oren_add` (string concat / dynamic add).
+    var d = iadd(d0, 1)
+    ptr_set(d_ptr, d)
+
+    var max = ptr_get(iadd(g, 312))
+    if max <= 0 { max = 8192 }
+    if max > 100000000 { max = 8192 }
+
+    if d > max {
+        // Disable call-depth checks (and runtime locks) while panicking so diagnostics can print.
+        g_panicking = 1
+        oren_panic("call depth exceeded")
+    }
+    return 0
+}
+
+fn oren_call_depth_exit() {
+    // Keep this leaf-like and allocation-free.
+    // Same rule as enter(): no helper calls here (avoid recursion).
+    var g = g_storage
+    if g == 0 { return 0 }
+
+    var d_ptr = iadd(g, GLOBAL_OFF_CALL_DEPTH)
+    var d = ptr_get(d_ptr)
+    if d > 0 { ptr_set(d_ptr, iadd(d, -1)) }
+    return 0
+}

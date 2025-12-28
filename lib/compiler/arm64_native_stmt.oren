@@ -417,6 +417,30 @@ fn native_compile_stmt(ctx, stmt) {
     
     if stmt["type"] == "Return" {
         native_compile_expr(ctx, stmt["value"])
+
+        // Stack safety (native backend; rolling):
+        // Decrement call depth before returning, but preserve X0 (return value)
+        // across the helper call (AAPCS: X0 is caller-saved).
+        //
+        // IMPORTANT:
+        // Do NOT spill at SP==FP, because [FP-64..FP-8] is the fixed callee-saved area.
+        // Spill while SP is still below locals so we don't overwrite saved registers.
+        if ctx["call_depth_enabled"] == true {
+            // spill X0 below locals
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            var bl_exit = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit, "name": "oren_call_depth_exit"})
+
+            // restore X0
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+        }
+
         push_u32_le(ctx["code"], insn_mov_sp_fp())
 
         // Rolling ABI hygiene (native backend):
@@ -796,6 +820,7 @@ fn native_compile_stmt(ctx, stmt) {
             var old_locals_list_stringy = ctx["locals_list_stringy"]
             var old_stack_size = ctx["stack_size"]
             var old_scope = ctx["scope"]
+            var old_call_depth_enabled = ctx["call_depth_enabled"]
             ctx["locals"] = {}
             ctx["locals_floaty"] = {}
             ctx["locals_stringy"] = {}
@@ -804,6 +829,28 @@ fn native_compile_stmt(ctx, stmt) {
             ctx["scope"] = nil
             
             ctx["in_function"] = true
+            // Stack safety instrumentation (native backend; rolling):
+            //
+            // Only instrument **user code** functions.
+            // Do NOT instrument the injected native runtime itself, because the runtime init path
+            // intentionally runs before global initializers are reliable and uses bootstrap
+            // invariants that must not be perturbed by extra helper calls.
+            //
+            // Runtime functions are tagged with token.file == "lib/runtime_native.oren".
+            ctx["call_depth_enabled"] = true
+            var ftok0 = expr["token"]
+            var ffile0 = nil
+            if ftok0 != nil { ffile0 = ftok0["file"] }
+            if ffile0 == "lib/runtime_native.oren" { ctx["call_depth_enabled"] = false }
+            if ffile0 != nil {
+                var nff = oren_string_len(ffile0)
+                if nff >= 7 {
+                    if oren_string_slice(ffile0, 0, 7) == "<native:" { ctx["call_depth_enabled"] = false }
+                }
+            }
+            // Never instrument the helper functions themselves.
+            if fn_name == "oren_call_depth_enter" { ctx["call_depth_enabled"] = false }
+            if fn_name == "oren_call_depth_exit" { ctx["call_depth_enabled"] = false }
             scope_enter_codegen(ctx) // function scope
             
             push_u32_le(ctx["code"], insn_stp_pre())
@@ -887,10 +934,25 @@ fn native_compile_stmt(ctx, stmt) {
                 
                 i = i + 1
             }
+
+            // Stack safety: increment call depth after params are spilled so arg registers
+            // are free to be clobbered by the helper call.
+            if ctx["call_depth_enabled"] == true {
+                var bl_enter = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_enter, "name": "oren_call_depth_enter"})
+            }
             
             native_compile_stmt(ctx, expr["body"])
             
             push_u32_le(ctx["code"], insn_movz(0, 0))
+            if ctx["call_depth_enabled"] == true {
+                var bl_exit2 = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit2, "name": "oren_call_depth_exit"})
+                // Ensure X0 remains 0 (helper may clobber caller-saved regs).
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+            }
             push_u32_le(ctx["code"], insn_mov_sp_fp())
 
             // Restore callee-saved registers (X19-X26) from fixed FP-relative slots.
@@ -938,6 +1000,7 @@ fn native_compile_stmt(ctx, stmt) {
             ctx["locals_list_stringy"] = old_locals_list_stringy
             ctx["stack_size"] = old_stack_size
             ctx["scope"] = old_scope
+            ctx["call_depth_enabled"] = old_call_depth_enabled
             return nil
         }
         
