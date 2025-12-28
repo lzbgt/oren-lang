@@ -9,6 +9,61 @@ It is intentionally different from the formal spec:
 
 Oren is in **rolling ABI mode**: until an explicit stabilization milestone is declared, backwards compatibility is not guaranteed.
 
+## Reading guide (AI- and tool-friendly)
+
+Oren is designed to be usable by **humans and AI agents**. In rolling mode, the most common failure mode is “docs drift” (a doc claim that is no longer true).
+This manual therefore follows a strict grounding rule:
+
+- **If you need the truth for execution semantics, trust code + fixtures first.**
+  - Canonical “what works today” snapshot: `docs/LANGUAGE_STATUS_AND_GAPS.md`
+  - Living spec fixtures: `tests/native/fixtures/`, `tests/modules/`, `tests/avm/`
+  - Runnable integrated examples: `examples/` (suite: `make examples-test`)
+
+When you change behavior (compiler/runtime/stdlib):
+
+- add or update a fixture,
+- update the relevant section(s) in this manual and/or `docs/LANGUAGE_SPEC.md`,
+- update `docs/TODOS.md` if a new gap is discovered.
+
+## Implementation map (where semantics live)
+
+This section is a brief “map” for AI agents (and maintainers) to connect a language feature to the implementation that enforces it.
+
+### Compiler front-end (parsing + AST)
+
+- Tokens/lexer: `lib/compiler/token.oren`, `lib/compiler/lexer.oren`
+- Parser entrypoints: `lib/compiler/parser_parse/000_prelude.oren`, `lib/compiler/parser_parse/020_parser_b.oren`
+- AST node constructors: `lib/compiler/ast.oren`
+
+### Module system (imports + whole-program linking)
+
+- Import graph + whole-program merge + aliasing: `lib/compiler/compiler/020_modules_linking.oren`
+- Name rewriting (import prefixing): `lib/compiler/renamer.oren`
+
+### Lowering pipeline (rolling semantics)
+
+Many “language features” in rolling v0 are implemented as deterministic lowerings into simpler core constructs.
+Start from:
+
+- Build pipeline entry: `lib/compiler/compiler/040_build_pipeline.oren`
+
+And then follow the referenced passes (impl lowering, generic specialization, container sugar, etc.) under `lib/compiler/`.
+
+### Backends (code generation)
+
+- C backend (portable): `lib/compiler/transpiler.oren` (+ `lib/runtime.[ch]`)
+- Bytecode backend (`.obc`): `lib/compiler/codegen_bytecode/` (compiler) + `lib/avm/` (runtime, C)
+- Native backend (Tier‑1 intent):
+  - arm64: `lib/compiler/arm64_macho.oren`, `lib/compiler/arm64_elf.oren`
+  - x86_64: `lib/compiler/x64_elf.oren`, `lib/compiler/x64_pe.oren`, `lib/compiler/x64_native_program.oren`
+  - Runtime support: `lib/runtime_native/`
+
+### Tests as spec (recommended entrypoints)
+
+- Compile/runtime diagnostic contracts: `tests/native/fixtures/`
+- Module/trait behavior: `tests/modules/`
+- AVM determinism + capability model: `tests/avm/`
+
 ## 0) What Oren is
 
 Oren is an **agent-native**, syscall-first language and toolchain:

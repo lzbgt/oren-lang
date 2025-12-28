@@ -24,6 +24,26 @@ If an AI agent needs the most “ground-truth” behavior, prioritize:
 - `docs/LANGUAGE_STATUS_AND_GAPS.md` (evidence-backed “what works today” + missing gaps),
 - the fixtures under `tests/native/fixtures/`, `tests/modules/`, `tests/avm/` (living spec).
 
+## Non-normative: Implementation map (for maintainers and agents)
+
+The spec defines syntax/semantics. This section exists to help AI agents locate the implementation that enforces a given rule.
+It is **not** normative, but it should be kept accurate.
+
+Compiler pipeline (high level):
+
+1) parse → AST (`lib/compiler/parser_parse/**`, `lib/compiler/ast.oren`)
+2) link modules/imports → merged program (`lib/compiler/compiler/020_modules_linking.oren`)
+3) deterministic lowering passes (`lib/compiler/**`)
+4) backend codegen:
+   - C: `lib/compiler/transpiler.oren` → C + `lib/runtime.[ch]`
+   - bytecode: `lib/compiler/codegen_bytecode/**` → `.obc` + AVM runtime `lib/avm/**`
+   - native: `lib/compiler/arm64_*`, `lib/compiler/x64_*` + runtime `lib/runtime_native/**`
+
+When this spec says “Implemented/Rolling”, the expected evidence is one of:
+
+- a regression fixture under `tests/**`,
+- or an example under `examples/` that runs under `make examples-test`.
+
 ## Lexical Structure
 
 ### Whitespace
