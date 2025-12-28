@@ -1,6 +1,7 @@
-## Active Tracker (Keep Short)
+## Active Tracker (Succinct)
 
-This file tracks only the highest-priority active items (5–10 total).
+This file tracks the highest-priority active items in execution order.
+Keep it succinct and actionable (typically ~10–20 items in total).
 Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 ### P0 (Now)
@@ -40,21 +41,37 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Remaining work: mirror the same contract in x64 native as runtime injection lands.
    - Reference: `docs/STACK_SAFETY.md`.
 
-7) **Tail-call optimization (stackless recursion)** (S)
+5) **Tail-call optimization (stackless recursion)** (S)
    - Direct self tail recursion lowers to a loop (no host stack growth); fixture enforces it.
    - Tail recursion modulo constant (`return f(..) + 1`) also lowers to a loop for a conservative subset; fixture enforces it.
    - Next: mutual tail recursion trampoline + varargs/spread tail calls once CoreIR callables converge.
    - Reference: `docs/STACK_SAFETY.md`.
 
-5) **Stdlib modernization audit (grammar + intrinsics hygiene)** (S)
+6) **Stdlib modernization audit (grammar + intrinsics hygiene)** (S)
    - Keep `lib/std/**` on current grammar; keep `oren_*` calls confined to `std:*` wrappers where possible.
    - Expand `./oretest` audits carefully as grammar stabilizes.
 
-6) **Tests: backend/arch neutral by default (integration-first)** (S)
+7) **Tests: backend/arch neutral by default (integration-first)** (S)
    - Most `.oren` tests should be backend/arch neutral; keep ABI-specific tests isolated and minimal.
    - Reduce overlapping “atomic” tests in curated lists; prefer integration suites + fixtures as living spec.
    - Reference: `docs/TEST_SYSTEM.md`.
    - Rolling docs hygiene: when fixtures or backends change, update the docs that claim invariants (`docs/LANGUAGE_MANUAL.md`, `docs/NATIVE_BACKEND.md`, `docs/CLI_COMPLETION.md`) in the same change to avoid drift.
+
+8) **Compiler UX: “modern argparse” (Click-style subcommands + UX polish)** (M)
+   - Keep current subcommand structure, but raise ergonomics to production level:
+     - consistent error exit codes, `--json` outputs, stable env/flag precedence, structured diagnostics for tooling.
+   - Reference: `docs/CLI_COMPLETION.md`, `docs/TEST_SYSTEM.md` (tool integration expectations).
+
+9) **Stdlib distribution + module resolution (native + AVM)** (M)
+   - One coherent story for:
+     - `import math "std:math"` resolution for end users,
+     - distribution (source vs precompiled `.obc` bundles),
+     - AVM consuming the same stdlib (no host fs assumptions).
+   - Reference: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/OBC_MODULE_LINKING.md`.
+
+10) **Compiler-in-AVM (“compile inside the sandbox”)** (M)
+   - Make `.oren → .obc` compilation runnable inside AVM deterministically with budgets and a locked capability surface.
+   - Reference: `docs/AVM_SPEC_V1.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`.
 
 ### P1 (Soon)
 

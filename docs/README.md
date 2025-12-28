@@ -6,6 +6,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 ## 1) “Start Here”
 
 - `docs/TODOS.md` — the single source of truth task tracker (execution order).
+- `docs/LANGUAGE_STATUS_AND_GAPS.md` — fact-first snapshot of what works today and what’s missing (feeds `docs/TODOS.md`).
 - `docs/LANGUAGE_MANUAL.md` — practical guide for writing Oren *today* (examples, idioms, what works now).
 - `docs/EVOLUTION_GUIDE.md` — beginner guide: bootstrapping + backends + day0→final evolution narrative.
 - `docs/AGENTIC_REQUIREMENTS.md` — top agentic-AI requirements (language + compiler + AVM), prioritized and implementation-ordered.

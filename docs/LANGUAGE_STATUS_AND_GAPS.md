@@ -11,6 +11,22 @@ This document is a *fact-first* snapshot of:
 
 It is not meant to be aspirational prose; it is a checklist tied to code and tests.
 
+## North Star (Production Definition)
+
+“Production-ready Oren” means:
+
+1) **Language**: a modern, expressive surface with stable semantics, strong diagnostics, and a coherent standard library story.
+2) **Compiler**: one front-end with a shared, semantics-owning CoreIR, emitting 3 backends consistently:
+   - C backend (portable bootstrap + constrained targets),
+   - native backend (Tier‑1: arm64 + x86_64; macOS + Linux + Windows),
+   - bytecode backend (`.obc`) for AVM.
+3) **AVM**: a deterministic, budgeted execution environment where:
+   - `.obc` runs under capability gating,
+   - multiverse (AVM-in-AVM) can safely compose universes,
+   - **compiler-in-AVM** is supported (compile `.oren → .obc` inside the sandbox).
+
+This doc answers: “what’s real today?” and “what’s missing to reach that definition?”
+
 ## Implemented Today (Evidence-Backed)
 
 ### Core language surface
@@ -83,6 +99,15 @@ production maturity requires both implementation *and* regression coverage.
 - **Varargs/spread parity (all backends + indirect calls)**
   - Varargs must be “boring and correct”: same semantics everywhere, including closures.
 
+- **Tier‑1 OS/arch parity: native backends must converge**
+  - Targets (Tier‑1 intent): macOS + Linux + Windows, on arm64 + x86_64.
+  - Production readiness requires more than “it links”:
+    - stable entry semantics (`__top_level__` + `main`),
+    - deterministic panic/diagnostic contracts (`OREN_DIAG`),
+    - consistent container fast-path semantics (no backend-only behavior),
+    - capsule gating parity for syscall surfaces.
+  - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/NATIVE_BACKEND.md`.
+
 ### P1: Tooling quality (modern compiler UX)
 
 - **Modern CLI ergonomics (mostly done; polish remains)**
@@ -96,6 +121,14 @@ production maturity requires both implementation *and* regression coverage.
     - a stable, documented contract for env/flag precedence across all subcommands
     - optional `--json` structured output for build results (artifact list + hashes) beyond `--manifest`
 
+- **Production CLI ergonomics: “click-like” subcommands**
+  - The repo already has subcommands + completion, but production UX needs:
+    - consistent error formatting (human + machine),
+    - stable exit codes for parse/analyze/codegen/link phases,
+    - a consistent “flag precedence” contract (env vs CLI vs defaults),
+    - help output suitable for IDEs and wrappers.
+  - Track: `docs/TODOS.md` (P0.8).
+
 ### P1: Stdlib maturity
 
 - **Stdlib should track current grammar**
@@ -108,6 +141,20 @@ production maturity requires both implementation *and* regression coverage.
   - “User friendly imports” vs embedding vs precompiled `.obc` bundles needs a single
     coherent model that works for both native and AVM.
   - Related docs: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/OBC_MODULE_LINKING.md`
+
+- **Packages + registry + reproducible builds**
+  - For production, the language needs a coherent “package → build artifact” story:
+    - module naming / resolution,
+    - lockfiles, hashes, deterministic builds,
+    - support for precompiled `.obc` libraries (OBX exports/relocs) in AVM.
+  - Track: `docs/OBC_MODULE_LINKING.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`, `docs/TODOS.md` (P1.2, P1.4).
+
+- **Trust / signing / update channels for multiverse**
+  - Multiverse implies “code moves between universes”; production needs a root-of-trust:
+    - signed `.obc` artifacts, cert chains, key rotation,
+    - developer identity / org delegation model,
+    - update and patch workflows that do not break determinism.
+  - Track: `docs/APPSTORE_ROOTCA_AND_UPDATES.md`, `docs/CERT_CHAIN_FORMAT.md`, `docs/TODOS.md` (P1.1).
 
 ## How to Use This Doc
 
