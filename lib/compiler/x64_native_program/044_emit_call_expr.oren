@@ -375,17 +375,6 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         spill_n2 = argc + 1
         if has_spread {
             spill_n2 = argc + 5 // args_list + spread + idx + len + elem
-        } else {
-            // Fast path: build a stack-backed args_list (no heap allocation) for common indirect calls.
-            //
-            // Layout in `$tmp_intr` slots (8 bytes each):
-            // - base2 + [0..argc-1]   spilled explicit args
-            // - base2 + argc          args_list pointer spill slot
-            // - base2 + argc + [1..4] list header fields: count, cap, buf_ptr, magic
-            // - base2 + argc + [5..]  buf slots (argc entries) storing args in forward order
-            //
-            // Total slots: argc (args) + 1 (ptr) + 4 (hdr) + argc (buf) = 2*argc + 5
-            spill_n2 = 2 * argc + 5
         }
     }
     var base2 = _intr_tmp_push(ctx, spill_n2)
@@ -428,74 +417,24 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
                 k0 = k0 + 1
             }
         } else {
-            // Fast path: build stack-backed args_list so indirect call does not allocate.
+            // Indirect call (no spread): build args_list on the heap via the native runtime list
+            // intrinsics. This keeps correctness simple across Win64/SysV while x64 Tier‑1
+            // call semantics are still converging.
             //
-            // This list is only used by the synthesized wrapper to bind args, so it must only be
-            // valid for the duration of the call (stack lifetime is fine).
-            var hdr_base = base2 + argc + 1
-            var buf_base = base2 + argc + 5
-
-            var off_count = _intr_tmp_off(ctx, locals, hdr_base + 0)
-            var off_cap = _intr_tmp_off(ctx, locals, hdr_base + 1)
-            var off_bufptr = _intr_tmp_off(ctx, locals, hdr_base + 2)
-            var off_magic = _intr_tmp_off(ctx, locals, hdr_base + 3)
-            if off_count == nil || off_cap == nil || off_bufptr == nil || off_magic == nil {
-                _intr_tmp_pop(ctx, base2)
-                err(ctx, "x64 native v0: missing spill slots for indirect args_list header")
-                return nil
-            }
-
-            // Copy spilled args into the stack buffer slots in forward order.
-            // Because the stack frame grows downward, we store arg0 at the *last* buf slot so
-            // `buf_ptr + i*8` reads args in increasing index order.
-            if argc > 0 {
-                var i0 = 0
-                while i0 < argc {
-                    var src_off = _intr_tmp_off(ctx, locals, base2 + i0)
-                    var dst_off = _intr_tmp_off(ctx, locals, (buf_base + (argc - 1)) - i0)
-                    if src_off == nil || dst_off == nil {
-                        _intr_tmp_pop(ctx, base2)
-                        err(ctx, "x64 native v0: missing spill slots for indirect args_list buf")
-                        return nil
-                    }
-                    _emit_mov_r64_mrbp(ctx, 0, 0 - src_off)
-                    _emit_mov_mrbp_r64(ctx, 0 - dst_off, 0)
-                    i0 = i0 + 1
-                }
-            }
-
-            // count = argc
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
-            bytes_extend(ctx["code"], insn_cdqe())
-            _emit_mov_mrbp_r64(ctx, 0 - off_count, 0)
-
-            // cap = argc
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
-            bytes_extend(ctx["code"], insn_cdqe())
-            _emit_mov_mrbp_r64(ctx, 0 - off_cap, 0)
-
-            // buf_ptr = &buf[0] (or 0 for argc==0)
-            if argc == 0 {
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-                bytes_extend(ctx["code"], insn_cdqe())
-                _emit_mov_mrbp_r64(ctx, 0 - off_bufptr, 0)
-            } else {
-                var off_buf0 = _intr_tmp_off(ctx, locals, buf_base + (argc - 1))
-                if off_buf0 == nil { _intr_tmp_pop(ctx, base2); return nil }
-                // rax = rbp - off_buf0
-                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 5))
-                bytes_extend(ctx["code"], insn_sub_r64_imm32(0, off_buf0))
-                _emit_mov_mrbp_r64(ctx, 0 - off_bufptr, 0)
-            }
-
-            // magic = 'LIST' (matches `oren_new_list` intrinsic)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1279870019))
-            _emit_mov_mrbp_r64(ctx, 0 - off_magic, 0)
-
-            // args_list pointer = &header.count
-            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 5))
-            bytes_extend(ctx["code"], insn_sub_r64_imm32(0, off_count))
+            // TODO(rolling): re-introduce a stack-backed args_list fast path once we have
+            // - a single verified list header layout contract for intrinsics, and
+            // - a robust, target-independent way to materialize ephemeral list headers.
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+
+            var k00 = 0
+            while k00 < argc {
+                var arg_name00 = "$tmp_intr" + oren_int_to_string(base2 + k00)
+                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name00}]}, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+                k00 = k00 + 1
+            }
         }
 
         if has_spread {

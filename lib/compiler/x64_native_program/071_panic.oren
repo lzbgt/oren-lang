@@ -14,7 +14,11 @@ fn _emit_strlen_cstr0_to_rdx(ctx, ptr_reg) {
     // Output:
     // - RDX: length in bytes (u64)
     //
-    // Clobbers: RAX, R10, R11
+    // Clobbers: RAX, RCX, R10
+    //
+    // NOTE: keep this helper safe for callers that pass ptr_reg in R11:
+    // earlier versions used R11 as a scratch address register, which clobbered
+    // the input pointer and caused writes to use the wrong base address.
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, ptr_reg)) // r10 = ptr
     bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))      // edx = 0
 
@@ -24,11 +28,11 @@ fn _emit_strlen_cstr0_to_rdx(ctx, ptr_reg) {
     var l_done = _new_label(ctx, "strlen_done")
 
     _emit_label(ctx, labels, l_loop)
-    // r11 = ptr + len
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
-    bytes_extend(ctx["code"], insn_add_r64_r64(11, 2))
-    // eax = *(u8*)r11
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    // rcx = ptr + len
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 10))
+    bytes_extend(ctx["code"], insn_add_r64_r64(1, 2))
+    // eax = *(u8*)rcx
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 1))
     bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_done)
     bytes_extend(ctx["code"], insn_add_r64_imm32(2, 1)) // rdx++
@@ -43,9 +47,10 @@ fn _emit_linux_write_ptr_len(ctx, ptr_reg, len_reg) {
     // SYS_write(1, ptr, len) where ptr/len are registers.
     // Clobbers: RAX, RDI, RSI, RDX, RCX, R11 (syscall clobbers RCX/R11)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1)) // eax=SYS_write
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 1)) // edi=1 (stdout)
+    // Move ptr/len first so callers may pass ptr_reg==RDI without losing the pointer.
     bytes_extend(ctx["code"], insn_mov_r64_r64(6, ptr_reg)) // rsi = ptr
     bytes_extend(ctx["code"], insn_mov_r64_r64(2, len_reg)) // rdx = len
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 1)) // edi=1 (stdout)
     bytes_extend(ctx["code"], insn_syscall())
     return nil
 }
@@ -198,6 +203,17 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
     //   OREN_DIAG kind=panic code=1 msg=<msg>
     //
     // Then abort(1) deterministically.
+    //
+    // IMPORTANT:
+    // - On both Linux and Win64, our write syscalls / WinAPI calls clobber caller-saved regs.
+    // - `oren_panic(msg)` evaluation typically leaves `msg` in RAX (reg 0).
+    // Preserve the message pointer in a callee-saved register before emitting any I/O.
+    var msg_reg = msg_ptr_reg
+    if msg_reg == nil { msg_reg = 12 }
+    if msg_reg != 12 {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, msg_reg))
+        msg_reg = 12
+    }
     var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
         // NOTE: on Win64 we do not have a cheap way to write mixed literal+dynamic without
@@ -217,11 +233,11 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         _emit_windows_write_ptr_len(ctx, 2, 11)
 
         // msg dynamic: compute len in rdx
-        _emit_strlen_cstr0_to_rdx(ctx, msg_ptr_reg)
+        _emit_strlen_cstr0_to_rdx(ctx, msg_reg)
         // Move len to a stable temp reg (rdx will be overwritten when setting up args).
         bytes_extend(ctx["code"], insn_mov_r64_r64(11, 2)) // r11 = len
         // write msg
-        _emit_windows_write_ptr_len(ctx, msg_ptr_reg, 11)
+        _emit_windows_write_ptr_len(ctx, msg_reg, 11)
         // newline literal
         var nl_off = _data_add_cstr0(ctx, "\n")
         if nl_off == nil { _emit_abort_exitcode(ctx, 1); return nil }
@@ -238,8 +254,8 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
 
     // Linux: emit prefix + msg + newline (three writes).
     _emit_linux_write_str(ctx, "OREN_DIAG kind=panic code=1 msg=")
-    _emit_strlen_cstr0_to_rdx(ctx, msg_ptr_reg)
-    _emit_linux_write_ptr_len(ctx, msg_ptr_reg, 2)
+    _emit_strlen_cstr0_to_rdx(ctx, msg_reg)
+    _emit_linux_write_ptr_len(ctx, msg_reg, 2)
     _emit_linux_write_str(ctx, "\n")
     _emit_stack_trace_best_effort(ctx)
     _emit_abort_exitcode(ctx, 1)
@@ -262,19 +278,25 @@ fn _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, shift, pos) {
     // Requires:
     // - r13: hex table ptr
     //
-    // Clobbers: rax, r10, r11
+    // Important: our current x64 insn encoders reliably support 8-bit loads/stores
+    // only when the memory base register is one of the "low" GPRs (RAX..RDI).
+    // To keep this helper robust, we always use:
+    // - RCX as the base for the table byte load
+    // - RDX as the base for the destination byte store
+    //
+    // Clobbers: rax, rcx, rdx
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, val_reg))
     if shift > 0 { bytes_extend(ctx["code"], insn_shr_r64_imm8(0, shift)) }
     bytes_extend(ctx["code"], insn_and_r64_imm32(0, 15)) // rax &= 0xF
-    // r11 = table + rax
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 13))
-    bytes_extend(ctx["code"], insn_add_r64_r64(11, 0))
+    // rcx = table + rax
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 13))
+    bytes_extend(ctx["code"], insn_add_r64_r64(1, 0))
     // al = table[nibble]
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 1))
     // *(buf+pos) = al
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, pos))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(2, pos))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
     return nil
 }
 
@@ -285,17 +307,17 @@ fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
     //
     // Uses:
     // - r13: hex table ptr (must be initialized)
-    // Clobbers: rax, r10, r11, r12
+    // Clobbers: rax, rcx, rdx
 
     // buf[0]='0'
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 48))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
     // buf[1]='x'
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 120))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 1))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 1))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
 
     // 16 hex digits, most-significant first.
     _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 60, 2)
@@ -317,9 +339,9 @@ fn _emit_format_u64_hex_prefix(ctx, val_reg, buf_reg) {
 
     // trailing space at buf[18]
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 32))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 18))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 18))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
     return nil
 }
 
@@ -528,18 +550,18 @@ fn _emit_format_plus0x_u64_hex_line(ctx, val_reg, buf_reg) {
     // Requires:
     // - r13: hex table ptr
     //
-    // Clobbers: rax, r10, r11
+    // Clobbers: rax, rcx, rdx
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 43)) // '+'
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 48)) // '0'
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 1))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 1))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 120)) // 'x'
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 2))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 2))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
 
     // 16 hex digits at buf[3..18]
     _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 60, 3)
@@ -561,9 +583,9 @@ fn _emit_format_plus0x_u64_hex_line(ctx, val_reg, buf_reg) {
 
     // newline at buf[19]
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 10))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 19))
-    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(2, 19))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(2))
     return nil
 }
 
@@ -649,10 +671,15 @@ fn _emit_stack_trace_best_effort(ctx) {
 
         // Call-site location (debug-only linetab).
         if ctx["linetab_off"] != nil {
-            _emit_resolve_loc_ptr_best_effort(ctx, 15, 11)
-            _emit_strlen_cstr0_to_rdx(ctx, 11)
+            // Important: do not use R11 as the output pointer register here.
+            // `_emit_resolve_loc_ptr_best_effort` uses R11 as an internal scratch
+            // (linetab ptr / entries base). When no match is found it relies on the
+            // "default empty string" pointer remaining intact; if out_ptr_reg==R11,
+            // the scratch use clobbers it and we end up printing garbage bytes.
+            _emit_resolve_loc_ptr_best_effort(ctx, 15, 7) // rdi = loc ptr (or "")
+            _emit_strlen_cstr0_to_rdx(ctx, 7)
             bytes_extend(ctx["code"], insn_mov_r64_r64(9, 2))
-            _emit_windows_write_ptr_len(ctx, 11, 9)
+            _emit_windows_write_ptr_len(ctx, 7, 9)
         }
 
         // Restore offset into r10 for "+0x...".
@@ -712,9 +739,10 @@ fn _emit_stack_trace_best_effort(ctx) {
     _emit_linux_write_ptr_len(ctx, 11, 2)
 
     if ctx["linetab_off"] != nil {
-        _emit_resolve_loc_ptr_best_effort(ctx, 15, 11)
-        _emit_strlen_cstr0_to_rdx(ctx, 11)
-        _emit_linux_write_ptr_len(ctx, 11, 2)
+        // See Win64 comment above: keep loc ptr out of R11 so the default isn't clobbered.
+        _emit_resolve_loc_ptr_best_effort(ctx, 15, 7) // rdi = loc ptr (or "")
+        _emit_strlen_cstr0_to_rdx(ctx, 7)
+        _emit_linux_write_ptr_len(ctx, 7, 2)
     }
 
     // Restore offset into r10 for "+0x...".

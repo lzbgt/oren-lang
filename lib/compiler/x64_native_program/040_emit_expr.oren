@@ -328,238 +328,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         err(ctx, "x64 native v0: unknown var " + name)
         return nil
     }
-    if t == "Index" {
-        // Index expression `xs[i]`.
-        //
-        // In rolling Tier‑1, `Index` is polymorphic over list + map.
-        var left = expr["left"]
-        var idx = expr["index"]
-        if left == nil || idx == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
-
-        // Best-effort kind hint from the shared lowering pass.
-        // When present, we still validate the runtime magic and abort(1) on mismatch
-        // to avoid silent miscompilations if inference is wrong.
-        var recv_kind = expr["recv_kind"]
-
-        // For maps, key-kind must match the stored entry kind.
-        //
-        // Tier‑1 invariant:
-        // - x64 native codegen must not re-infer key kind from syntax.
-        // - shared lowering (`impl_lowering.oren`) annotates Index nodes with `known_key_kind`
-        //   when it can be inferred deterministically (e.g. literals, typed identifiers).
-        var known_key_kind = -1
-        if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
-
-        var tmp0 = locals["$tmp0"]
-        if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for index"); return nil }
-
-        // Eval container -> rax; spill
-        _emit_eval_int_to_rax(ctx, left, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
-
-        // Eval index -> rax; move to rcx
-        _emit_eval_int_to_rax(ctx, idx, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = idx
-
-        // list -> rdx
-        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
-
-        // list must be non-nil
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
-        var labels = {}
-        var local_fixups = []
-        var l_list_ok = _new_label(ctx, "idx_list_non_nil")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
-        _emit_abort_exitcode(ctx, 1)
-        _emit_label(ctx, labels, l_list_ok)
-
-        // magic check: [container+24] == LIST or MAP
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        var l_is_list = _new_label(ctx, "idx_is_list")
-        var l_is_map = _new_label(ctx, "idx_is_map")
-        var l_idx_done = _new_label(ctx, "idx_done")
-
-        // If the receiver kind is known, only accept that kind.
-        if recv_kind == "list" {
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-            _emit_abort_exitcode(ctx, 1)
-        } else if recv_kind == "map" {
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-            _emit_abort_exitcode(ctx, 1)
-        } else {
-            // Unknown at compile-time => dynamic magic check (LIST or MAP).
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-            _emit_abort_exitcode(ctx, 1)
-        }
-
-        // --- list indexing path ---
-        _emit_label(ctx, labels, l_is_list)
-
-        // load count -> r8
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
-
-        // idx >= 0
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
-        var l_idx_nonneg = _new_label(ctx, "idx_nonneg")
-        _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
-        _emit_abort_exitcode(ctx, 1)
-        _emit_label(ctx, labels, l_idx_nonneg)
-
-        // idx < count
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
-        var l_inbounds = _new_label(ctx, "idx_inbounds")
-        _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
-        _emit_abort_exitcode(ctx, 1)
-        _emit_label(ctx, labels, l_inbounds)
-
-        // buf -> r9 = *(list+16)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
-
-        // buf != 0
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
-        var l_buf_ok = _new_label(ctx, "idx_buf_ok")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-        _emit_abort_exitcode(ctx, 1)
-        _emit_label(ctx, labels, l_buf_ok)
-
-        // addr = buf + idx*8  (r10)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
-        bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
-        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
-
-        // load *(addr) into rax
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-
-        _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
-
-        // --- map indexing path ---
-        _emit_label(ctx, labels, l_is_map)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 1)) // rsi = key
-        // r13 = key_kind (0=int, 1=string)
-        if known_key_kind >= 0 {
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, known_key_kind))
-        } else {
-            // If the receiver is known to be a map, requiring an explicit key kind keeps
-            // the semantics deterministic and avoids runtime heuristics.
-            if recv_kind == "map" {
-                err(ctx, "x64 native v0: map index requires inferred key kind (annotate via known key kinds or use int/string key literals)")
-                return nil
-            }
-            // If the receiver kind is unknown, we still support list-vs-map runtime dispatch.
-            // However, the map path cannot guess key kind without tagging, so it aborts.
-            _emit_abort_exitcode(ctx, 1)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-        }
-
-        // r8 = count
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
-
-        // r11 = buf = [map+16]
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
-
-        var l_mloop = _new_label(ctx, "idx_map_loop")
-        var l_mfound = _new_label(ctx, "idx_map_found")
-        var l_mstr_loop = _new_label(ctx, "idx_map_str_loop")
-        var l_mstr_neq = _new_label(ctx, "idx_map_str_neq")
-        var l_mkind_int = _new_label(ctx, "idx_map_kind_int")
-        var l_mkind_str = _new_label(ctx, "idx_map_kind_str")
-
-        _emit_label(ctx, labels, l_mloop)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
-        var l_mmiss = _new_label(ctx, "idx_map_miss")
-        _emit_jcc_to_label(ctx, local_fixups, "le", l_mmiss)
-
-        // rdi = *(entry_ptr)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
-
-        // r12 = ek_kind = *(entry_ptr + 8)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
-
-        // kind mismatch => next
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 13))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_mstr_neq)
-
-        // kind==0 => integer compare, kind==1 => string compare
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_mkind_int)
-        _emit_jmp_to_label(ctx, local_fixups, l_mkind_str)
-
-        _emit_label(ctx, labels, l_mkind_int)
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
-        _emit_jmp_to_label(ctx, local_fixups, l_mstr_neq)
-
-        _emit_label(ctx, labels, l_mkind_str)
-        // pointer equality fast-path
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
-
-        // string eq
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // rcx=0
-        _emit_label(ctx, labels, l_mstr_loop)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 7))
-        bytes_extend(ctx["code"], insn_add_r64_r64(10, 1))
-        bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 10))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 6))
-        bytes_extend(ctx["code"], insn_add_r64_r64(12, 1))
-        bytes_extend(ctx["code"], insn_movzx_r32_mr8(9, 12))
-        bytes_extend(ctx["code"], insn_cmp_r32_r32(0, 9))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_mstr_neq)
-        bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
-        bytes_extend(ctx["code"], insn_add_r64_imm32(1, 1))
-        _emit_jmp_to_label(ctx, local_fixups, l_mstr_loop)
-
-        _emit_label(ctx, labels, l_mstr_neq)
-        // next entry
-        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 24))
-        bytes_extend(ctx["code"], insn_sub_r64_imm32(8, 1))
-        _emit_jmp_to_label(ctx, local_fixups, l_mloop)
-
-        _emit_label(ctx, labels, l_mfound)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
-
-        _emit_label(ctx, labels, l_mmiss)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-        bytes_extend(ctx["code"], insn_cdqe())
-
-        _emit_label(ctx, labels, l_idx_done)
-        _patch_local_fixups(ctx, labels, local_fixups)
-        return nil
-    }
+    if t == "Index" { return _emit_index_expr_v0(ctx, expr, locals) }
     if t == "Array" { return _emit_array_literal_expr(ctx, expr, locals) }
     if t == "Hash" { return _emit_hash_literal_expr(ctx, expr, locals) }
     if t == "Call" {
@@ -1934,16 +1703,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             }
 
             // General RHS expression: spill lhs, eval RHS into RAX, move to RDX, restore lhs, op.
-            var tmp_offb = locals["$tmp0"]
-            if tmp_offb == nil { err(ctx, "x64 native v0: missing temp slot for bitop"); return nil }
+            //
+            // IMPORTANT: use the intrinsic temp pool, not `$tmp0`, because RHS may include `Index`
+            // which needs its own spills and would clobber `$tmp0` (miscompile).
+            var baseb = _intr_tmp_push(ctx, 1)
+            if baseb == nil { return nil }
+            var tmp_offb = _intr_tmp_off(ctx, locals, baseb + 0)
+            if tmp_offb == nil { _intr_tmp_pop(ctx, baseb); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_offb, 0) // [tmp] = lhs
             _emit_eval_int_to_rax(ctx, r, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, baseb); return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_offb) // rax = lhs
             if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
             else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
             else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
+            _intr_tmp_pop(ctx, baseb)
             return nil
         }
 
@@ -1976,16 +1751,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
         // General RHS expression (including index, nested calls, etc): spill lhs, eval RHS, combine.
-        var tmp_off4 = locals["$tmp0"]
-        if tmp_off4 == nil { err(ctx, "x64 native v0: missing temp slot for rhs"); return nil }
+        //
+        // IMPORTANT: use the intrinsic temp pool, not `$tmp0`, because RHS may include `Index`
+        // which needs its own spills and would clobber `$tmp0` (miscompile).
+        var base4 = _intr_tmp_push(ctx, 1)
+        if base4 == nil { return nil }
+        var tmp_off4 = _intr_tmp_off(ctx, locals, base4 + 0)
+        if tmp_off4 == nil { _intr_tmp_pop(ctx, base4); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_off4, 0) // [tmp] = lhs
         _emit_eval_int_to_rax(ctx, r, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return nil }
         bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
         _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off4) // rax = lhs
         if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
         else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
         else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }
+        _intr_tmp_pop(ctx, base4)
         return nil
     }
     err(ctx, "x64 native v0: expr not supported: " + t)

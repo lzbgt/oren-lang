@@ -171,8 +171,17 @@ fn collect_impl_registries(linked, errs) {
 fn type_env_new() { return [{}] }
 
 fn type_env_push(env) {
-    oren_list_push(env, {})
-    return env
+    // Persistent env: do not mutate parent scopes.
+    // (We pass `env` down recursive traversals; mutating in-place leaks locals across
+    // unrelated scopes/functions and breaks kind/type inference determinism.)
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) {
+        oren_list_push(out, env[i])
+        i = i + 1
+    }
+    oren_list_push(out, {})
+    return out
 }
 
 fn type_env_pop(env) {
@@ -214,8 +223,15 @@ fn type_env_get(env, name) {
 fn kind_env_new() { return [{}] }
 
 fn kind_env_push(env) {
-    oren_list_push(env, {})
-    return env
+    // Persistent env: do not mutate parent scopes.
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) {
+        oren_list_push(out, env[i])
+        i = i + 1
+    }
+    oren_list_push(out, {})
+    return out
 }
 
 fn kind_env_pop(env) {

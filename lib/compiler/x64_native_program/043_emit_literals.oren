@@ -169,10 +169,15 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
             return nil
         }
 
+        var kk = 0
+        if k["type"] == "String" { kk = 1 }
         var set_call = {
             "type": "Call",
             "fn": {"type": "Identifier", "token": nil, "value": "oren_map_set"},
             "args": [{"type": "Identifier", "token": nil, "value": hn}, k, v],
+            // Tier‑1 x64 requirement: do not infer key kind at runtime (no heuristics).
+            // Hash literals have deterministic key types, so annotate them explicitly.
+            "known_key_kind": kk,
         }
         _emit_eval_int_to_rax(ctx, set_call, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {

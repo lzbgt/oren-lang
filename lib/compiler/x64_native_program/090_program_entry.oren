@@ -402,6 +402,16 @@ fn native_compile_program_x64(linked, platform) {
     bytes_extend(ctx["code"], insn_mov_r64_imm64(14, 0))
     bytes_extend(ctx["code"], insn_mov_r64_imm64(15, 0))
 
+    // Stack-trace safety (Tier‑1 bring-up):
+    //
+    // Our entry stub is not a C runtime and does not set up an RBP frame chain.
+    // If we call into compiled functions with an uninitialized RBP, the first compiled
+    // function will save that garbage into its frame, and best-effort stack walking in
+    // `oren_panic` can segfault when it follows the chain past `main`.
+    //
+    // Set RBP=0 before calling `main` so the chain terminates cleanly.
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(5, 0))
+
     var call_pos = oren_list_len(ctx["code"])
     // placeholder rel32=0
     bytes_extend(ctx["code"], insn_call_rel32(0))

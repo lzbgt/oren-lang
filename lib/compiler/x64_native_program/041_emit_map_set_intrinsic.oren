@@ -68,7 +68,6 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     } else if kk == 1 {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
     } else {
-        // No runtime heuristics in Tier‑1: key kind must be provided by the compiler.
         _emit_abort_exitcode(ctx, 1)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
     }

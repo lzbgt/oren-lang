@@ -20,7 +20,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)
      - ✅ x64 `oren_trunc_int(x)` treated as an intrinsic (passthrough in int-only v0) to unblock `: i64` / `: u64` type annotations in shared lowering
      - ✅ x64 `oren_bool_norm(x)` treated as an intrinsic (`x != 0 ? 1 : 0` in v0) to unblock `: bool` type annotations in shared lowering
-     - ✅ x64 indirect call fast path: stack-backed `args_list` for common no-spread calls (avoids per-call heap alloc + `oren_list_push` loop)
+     - ✅ x64 indirect calls now materialize `args_list` via heap list intrinsics (`oren_new_list` + `oren_list_push`) for correctness (no stack-backed `args_list` fast path yet)
      - ✅ x64 deterministic call depth guard (rolling): function prologues/epilogues increment/decrement a counter and abort via `oren_panic("call depth exceeded")` when depth > max
      - ✅ x64 Linux ELF now uses RX text + RW data PT_LOAD segments (no RWX pages)
 	     - ✅ x64 Windows PE now uses `.text` (RX) + `.rdata` (R) + `.data` (RW) so mutable globals no longer force `.rdata` writable
@@ -29,7 +29,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 	     - ✅ remote-run gate covers `OREN_CALL_DEPTH_MAX` on real x86_64 (Win11 PE + WSL2 ELF) when `OREN_REMOTE_RUN=1`
 	     - ✅ x64 `STACK_TRACE` symbolication now includes function definition location `fn@file:line` for user fns (best-effort; not call-site line mapping)
 	     - ✅ x64 `STACK_TRACE` now includes best-effort call-site `@file:line` (debug builds) via an embedded linetab (not DWARF/PDB)
-	     - ⏭️ next: fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
+	     - ⏭️ next: fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure/call perf (avoid per-call `args_list` allocations for common cases)
+	     - ⏭️ next: harden x64 byte-load/store insn encoders to support r8–r15 memory bases so codegen isn't forced into "low-reg only" patterns in hot paths
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
@@ -63,7 +64,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 5) **Stack safety parity (deterministic recursion failure)** (M)
    - Keep one contract across AVM/C/native: deterministic abort under a configured depth budget (`--call-depth-max` / `OREN_CALL_DEPTH_MAX`).
-   - Remaining work: mirror the same contract in x64 native as runtime injection lands.
+   - Status (rolling): ✅ x64 native now has the same call-depth override support as arm64/C (`OREN_CALL_DEPTH_MAX` in entry stub) with remote-run coverage.
+   - Remaining work: make the call-depth guard and panic/stack-trace behavior converge cleanly once full runtime injection lands (shared diagnostics + heap-frame option).
    - Reference: `docs/STACK_SAFETY.md`.
 
 6) **Tail-call optimization (stackless recursion)** (S)
@@ -111,7 +113,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - AVM consuming the same stdlib (no host fs assumptions).
    - Reference: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/OBC_MODULE_LINKING.md`.
 
-10) **Compiler-in-AVM (“compile inside the sandbox”)** (M)
+11) **Compiler-in-AVM (“compile inside the sandbox”)** (M)
    - Make `.oren → .obc` compilation runnable inside AVM deterministically with budgets and a locked capability surface.
    - Reference: `docs/AVM_SPEC_V1.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`.
 

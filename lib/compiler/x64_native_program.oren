@@ -15,6 +15,7 @@
 // @include "x64_native_program/042_emit_iter_next_intrinsic.oren"
 // @include "x64_native_program/043_emit_literals.oren"
 // @include "x64_native_program/071_panic.oren"
+// @include "x64_native_program/045_emit_index_expr.oren"
 // @include "x64_native_program/040_emit_expr.oren"
 // @include "x64_native_program/044_emit_call_expr.oren"
 // @include "x64_native_program/050_emit_cmp_labels.oren"
