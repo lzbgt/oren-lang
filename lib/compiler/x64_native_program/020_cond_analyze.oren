@@ -248,9 +248,9 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             var body_ops2 = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
             if body_ops2 == nil { return nil }
 
-            // Restrict post to a single assignment for now (prevents weird continue behavior).
-            if oren_list_len(post_ops) != 1 || post_ops[0]["op"] != "assign_i32" {
-                err(ctx, "x64 native v0: for post must be assignment")
+            // Restrict post to a single simple update for now (prevents weird continue behavior).
+            if oren_list_len(post_ops) != 1 || !_is_x64_for_post_ok(post_ops[0]) {
+                err(ctx, "x64 native v0: for post must be simple update")
                 return nil
             }
             oren_list_push(ops, {"op": "for", "init": init_ops, "cond": cond, "post": post_ops, "body": body_ops2})
@@ -271,4 +271,27 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
         return nil
     }
     return ops
+}
+
+fn _is_x64_for_post_ok(post_op) {
+    // x64 native v0 restriction: keep post as a single "simple" update so `continue`
+    // can reliably jump to post then re-check cond.
+    //
+    // Rolling extension:
+    // - allow index assignment lowering (`xs[i] = v`) which is represented as:
+    //   op="expr" with expr=`oren_index_set(xs, i, v)`
+    if post_op == nil { return 0 }
+    var op = post_op["op"]
+    if op == "assign_i32" { return 1 }
+    if op != "expr" { return 0 }
+
+    var e = post_op["expr"]
+    if e == nil || e["type"] != "Call" { return 0 }
+    var fn0 = e["fn"]
+    if fn0 == nil || fn0["type"] != "Identifier" { return 0 }
+    if fn0["value"] != "oren_index_set" { return 0 }
+    // Arity sanity (container, index, value)
+    var args = e["args"]
+    if args == nil || oren_list_len(args) != 3 { return 0 }
+    return 1
 }

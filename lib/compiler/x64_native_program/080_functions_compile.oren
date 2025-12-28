@@ -127,6 +127,24 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         ti = ti + 1
     }
 
+    // Reserve literal-building spill slots. These must be re-entrant because list/map literals
+    // can be nested (e.g. `[0, 1, [0, 0]]` in for-in lowering).
+    //
+    // Note: `oren_list_push` intrinsic lowering uses `$tmp1..$tmp6`, so we must not depend on
+    // those across nested expression evaluation. Dedicated `$tmp_lit_*` slots avoid clobbering.
+    var ld = 0
+    while ld < 8 {
+        var hn = "$tmp_lit_list_hdr" + oren_int_to_string(ld)
+        var bn = "$tmp_lit_list_buf" + oren_int_to_string(ld)
+        if locals[hn] != nil { err(ctx, "x64 native v0: reserved local name " + hn + " used"); return nil }
+        locals[hn] = local_next
+        local_next = local_next + 8
+        if locals[bn] != nil { err(ctx, "x64 native v0: reserved local name " + bn + " used"); return nil }
+        locals[bn] = local_next
+        local_next = local_next + 8
+        ld = ld + 1
+    }
+
     // Reserve arg temp spill slots used for call lowering.
     var tmp_i = 0
     while tmp_i < max_call_argc {

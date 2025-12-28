@@ -1,0 +1,26 @@
+// x64-native fixture (Tier-1 bring-up):
+// - exercises `for x in xs {}` lowering via `oren_iter_next`
+// - validates nested for-in does not collide internal state vars
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var xs = [10, 20, 30]
+    var sum = 0
+    for x in xs {
+        sum = sum + x
+    }
+    if sum != 60 { return 901 }
+
+    var cnt = 0
+    for a in [1, 2] {
+        for b in [3, 4, 5] {
+            cnt = cnt + 1
+        }
+    }
+    if cnt != 6 { return 902 }
+
+    return 0
+}
+

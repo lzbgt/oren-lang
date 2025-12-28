@@ -440,41 +440,98 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
     if t == "Array" {
         // List literal `[a, b, c]`.
         //
-        // Rolling x64 v0: represent arrays as native lists and build them via list intrinsics.
+        // Rolling x64 v0: represent arrays as native lists and build them by direct buffer fill
+        // to keep literal lowering re-entrant (nested literals must not clobber temp spill slots).
         var els = expr["elements"]
         if els == nil { els = [] }
 
-        var tmp_list = locals["$tmp7"]
-        if tmp_list == nil { err(ctx, "x64 native v0: missing $tmp7 slot for array literal"); return nil }
+        // Nested literal support: use per-depth spill slots reserved in the function frame
+        // (`$tmp_lit_list_hdr<i>`, `$tmp_lit_list_buf<i>`).
+        var d0 = 0
+        if ctx["lit_depth"] != nil { d0 = ctx["lit_depth"] }
+        if d0 >= 8 { err(ctx, "x64 native v0: list literal nesting too deep"); return nil }
+        ctx["lit_depth"] = d0 + 1
+
+        var hdr_name = "$tmp_lit_list_hdr" + oren_int_to_string(d0)
+        var buf_name = "$tmp_lit_list_buf" + oren_int_to_string(d0)
+        var tmp_hdr = locals[hdr_name]
+        var tmp_buf = locals[buf_name]
+        if tmp_hdr == nil || tmp_buf == nil {
+            ctx["lit_depth"] = d0
+            err(ctx, "x64 native v0: missing literal spill slots for array literal")
+            return nil
+        }
+
+        var cap = oren_list_len(els)
 
         // list = oren_new_list(len)
-        var cap = oren_list_len(els)
         var new_call = {
             "type": "Call",
             "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
             "args": [{"type": "Integer", "value": oren_int_to_string(cap)}],
         }
         _emit_eval_int_to_rax(ctx, new_call, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_list, 0)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+            ctx["lit_depth"] = d0
+            return nil
+        }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
 
-        // Push elements in order; store back the list pointer after each push to keep it future-proof
-        // if `oren_list_push` ever returns a different header (today it does not).
+        // buf = *(list+16)
+        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr) // rdx = list
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+
+        if cap > 0 {
+            // Cap>0 implies buf must be non-zero.
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            var labels = {}
+            var local_fixups = []
+            var l_buf_ok = _new_label(ctx, "array_lit_buf_ok")
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
+            _emit_abort_exitcode(ctx, 1)
+            _emit_label(ctx, labels, l_buf_ok)
+            _patch_local_fixups(ctx, labels, local_fixups)
+        }
+
+        // Fill elements: buf[i] = eval(els[i])
         var i = 0
         while i < cap {
-            var push_call = {
-                "type": "Call",
-                "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push"},
-                "args": [{"type": "Identifier", "token": nil, "value": "$tmp7"}, els[i]],
+            _emit_eval_int_to_rax(ctx, els[i], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+                ctx["lit_depth"] = d0
+                return nil
             }
-            _emit_eval_int_to_rax(ctx, push_call, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_list, 0)
+
+            // addr = buf + i*8
+            _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_buf) // r10 = buf
+            if i != 0 {
+                var off = i * 8
+                if off < 0 || off > 2147483647 {
+                    ctx["lit_depth"] = d0
+                    err(ctx, "x64 native v0: array literal element offset out of range")
+                    return nil
+                }
+                bytes_extend(ctx["code"], insn_add_r64_imm32(10, off))
+            }
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
             i = i + 1
         }
 
+        // count = cap
+        _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr) // rdx = list
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, cap))
+        bytes_extend(ctx["code"], insn_cdqe())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
         // return list
-        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_list)
+        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
+        ctx["lit_depth"] = d0
         return nil
     }
     if t == "Hash" {
@@ -1061,6 +1118,16 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
 
             return _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf)
+        }
+
+        if nm == "oren_iter_next" {
+            // Iterator contract (see lib/runtime_native/160_iteration.oren):
+            //   oren_iter_next(container, idx, out_pair) -> [ok, value]
+            //
+            // x64 Tier-1 uses an intrinsic to:
+            // - avoid full native runtime injection during bring-up
+            // - reuse out_pair to avoid per-iteration allocations
+            return _emit_intrinsic_iter_next(ctx, locals, args)
         }
 
         if nm == "oren_list_len" {
