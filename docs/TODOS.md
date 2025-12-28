@@ -43,6 +43,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Tooling: `tools/verify_obc_portability.sh`
    - Convenience: `make obc-portability`
    - Docs: `docs/OBC_PORTABILITY.md`
+   - ✅ Gate currently passes (observed Dec 28, 2025): hashes match across mac arm64 + linux/arm64 docker + linux/x64 WSL2.
    - Next: port AVM to native Windows so this can become “Win11 x64 (no WSL)” too.
 
 4) **Container ops as operations (no hot-path stdlib overhead)** (M)
