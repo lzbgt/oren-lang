@@ -1,0 +1,24 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates stdlib-style namespace calls work on x64:
+//     import list "std:list"
+//     list.push(xs, v)
+//     list.len(xs)
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+import list "std:list"
+
+fn main() {
+    var xs = []
+    list.push(xs, 7)
+    list.push(xs, 8)
+    list.push(xs, 9)
+
+    if list.len(xs) != 3 { return 1 }
+    if xs[0] != 7 { return 2 }
+    if xs[2] != 9 { return 3 }
+
+    return 0
+}
+

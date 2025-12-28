@@ -1,0 +1,262 @@
+// global_dce.oren
+//
+// Whole-program function DCE (rolling).
+//
+// Problem this solves:
+// - Module linking merges *all* imported module statements into one linked program.
+// - Tier-1 native backends may intentionally support only a subset of expressions
+//   (e.g. x64 v0), so unused stdlib helpers can fail codegen even when never called.
+//
+// Approach:
+// - Build a call/reference graph over top-level named functions.
+// - Keep only functions reachable from roots (main + __top_level__ + references from
+//   non-function top-level statements).
+//
+// Notes / tradeoffs:
+// - We conservatively treat any Identifier expression that matches a top-level function
+//   name as a reference, even if it might be shadowed locally. This prevents removing
+//   functions passed as first-class values (HOFs, lambdas, etc.).
+// - DCE is disabled for library-style builds (native --lib/--shared and bytecode --obc-lib)
+//   via config["keep_all_top_level_functions"].
+
+fn _maybe_get_toplevel_function_node(stmt) {
+    if stmt == nil { return nil }
+    if stmt["type"] == "Function" { return stmt }
+    if stmt["type"] == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" { return e }
+    }
+    return nil
+}
+
+fn _resolve_ns_member(aliases, expr) {
+    // Resolve an imported-namespace member access into a concrete prefixed symbol name.
+    //
+    // Example after module renaming:
+    //   R_list.push   ->  aliases["R_list"] + "push"  ->  "STD_list_push"
+    if aliases == nil { return nil }
+    if expr == nil || expr["type"] != "Member" { return nil }
+    var left = expr["left"]
+    var prop = expr["prop"]
+    if left == nil || prop == nil { return nil }
+    if left["type"] != "Identifier" { return nil }
+    if prop["type"] != "Identifier" { return nil }
+    var pref = aliases[left["value"]]
+    if pref == nil { return nil }
+    return pref + prop["value"]
+}
+
+fn _add_ref_if_toplevel_name(top_fns, reachable, queue, name) {
+    if name == nil || name == "" { return nil }
+    if top_fns[name] == nil { return nil }
+    if reachable[name] == true { return nil }
+    reachable[name] = true
+    oren_list_push(queue, name)
+    return nil
+}
+
+fn _collect_refs_expr(top_fns, aliases, reachable, queue, expr) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+
+    if t == "Identifier" {
+        _add_ref_if_toplevel_name(top_fns, reachable, queue, expr["value"])
+        return nil
+    }
+
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        if fn_expr != nil {
+            if fn_expr["type"] == "Identifier" {
+                _add_ref_if_toplevel_name(top_fns, reachable, queue, fn_expr["value"])
+            } else {
+                var resolved = _resolve_ns_member(aliases, fn_expr)
+                if resolved != nil {
+                    _add_ref_if_toplevel_name(top_fns, reachable, queue, resolved)
+                }
+            }
+        }
+        _collect_refs_expr(top_fns, aliases, reachable, queue, fn_expr)
+        var args = expr["args"]
+        if args != nil {
+            var i = 0
+            while i < oren_list_len(args) {
+                _collect_refs_expr(top_fns, aliases, reachable, queue, args[i])
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil { _collect_refs_expr(top_fns, aliases, reachable, queue, expr["spread"]) }
+        return nil
+    }
+
+    if t == "Prefix" { _collect_refs_expr(top_fns, aliases, reachable, queue, expr["right"]); return nil }
+    if t == "Infix" {
+        _collect_refs_expr(top_fns, aliases, reachable, queue, expr["left"])
+        _collect_refs_expr(top_fns, aliases, reachable, queue, expr["right"])
+        return nil
+    }
+    if t == "If" {
+        _collect_refs_expr(top_fns, aliases, reachable, queue, expr["cond"])
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, expr["consq"])
+        if expr["alt"] != nil { _collect_refs_stmt(top_fns, aliases, reachable, queue, expr["alt"]) }
+        return nil
+    }
+    if t == "Member" {
+        var resolved2 = _resolve_ns_member(aliases, expr)
+        if resolved2 != nil { _add_ref_if_toplevel_name(top_fns, reachable, queue, resolved2) }
+        _collect_refs_expr(top_fns, aliases, reachable, queue, expr["left"])
+        _collect_refs_expr(top_fns, aliases, reachable, queue, expr["prop"])
+        return nil
+    }
+    if t == "Index" {
+        _collect_refs_expr(top_fns, aliases, reachable, queue, expr["left"])
+        _collect_refs_expr(top_fns, aliases, reachable, queue, expr["index"])
+        return nil
+    }
+    if t == "Array" {
+        var j = 0
+        while j < oren_list_len(expr["elements"]) {
+            _collect_refs_expr(top_fns, aliases, reachable, queue, expr["elements"][j])
+            j = j + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var k = 0
+        while k < oren_list_len(expr["pairs"]) {
+            var pair = expr["pairs"][k]
+            _collect_refs_expr(top_fns, aliases, reachable, queue, pair["key"])
+            _collect_refs_expr(top_fns, aliases, reachable, queue, pair["value"])
+            k = k + 1
+        }
+        return nil
+    }
+    if t == "Function" {
+        // Traverse nested functions too: they can call top-level functions.
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, expr["body"])
+        return nil
+    }
+    if t == "SpawnExpr" { _collect_refs_expr(top_fns, aliases, reachable, queue, expr["call"]); return nil }
+    return nil
+}
+
+fn _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" { _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["value"]); return nil }
+    if t == "Assign" { _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["value"]); return nil }
+    if t == "Set" {
+        _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["left"])
+        _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["value"])
+        return nil
+    }
+    if t == "Return" { _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["value"]); return nil }
+    if t == "ExprStmt" { _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["expr"]); return nil }
+    if t == "Block" {
+        var i = 0
+        while i < oren_list_len(stmt["stmts"]) {
+            _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["stmts"][i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "While" {
+        _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["cond"])
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["body"])
+        return nil
+    }
+    if t == "For" {
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["init"])
+        _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["cond"])
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["post"])
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["body"])
+        return nil
+    }
+    if t == "If" {
+        _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["cond"])
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["consq"])
+        if stmt["alt"] != nil { _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["alt"]) }
+        return nil
+    }
+    if t == "Function" {
+        _collect_refs_stmt(top_fns, aliases, reachable, queue, stmt["body"])
+        return nil
+    }
+    if t == "Spawn" { _collect_refs_expr(top_fns, aliases, reachable, queue, stmt["call"]); return nil }
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    if linked == nil { return nil }
+
+    var config = linked["config"]
+    if config != nil && config["keep_all_top_level_functions"] == true {
+        return nil
+    }
+
+    var stmts = linked["statements"]
+    if stmts == nil { return nil }
+
+    // Collect all top-level named functions.
+    var top_fns = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var fn_node = _maybe_get_toplevel_function_node(stmts[i])
+        if fn_node != nil {
+            var name = fn_node["name"]
+            if name != nil && name != "" {
+                top_fns[name] = fn_node
+            }
+        }
+        i = i + 1
+    }
+
+    // Roots: main + __top_level__ (if present) + any references from top-level non-function statements.
+    var reachable = {}
+    var queue = []
+    _add_ref_if_toplevel_name(top_fns, reachable, queue, "main")
+    _add_ref_if_toplevel_name(top_fns, reachable, queue, "__top_level__")
+
+    var aliases = linked["aliases"]
+    i = 0
+    while i < oren_list_len(stmts) {
+        var fn2 = _maybe_get_toplevel_function_node(stmts[i])
+        if fn2 == nil {
+            _collect_refs_stmt(top_fns, aliases, reachable, queue, stmts[i])
+        }
+        i = i + 1
+    }
+
+    // Traverse reachable functions.
+    var qi = 0
+    while qi < oren_list_len(queue) {
+        var nm = queue[qi]
+        var fn_node = top_fns[nm]
+        if fn_node != nil {
+            _collect_refs_stmt(top_fns, aliases, reachable, queue, fn_node["body"])
+        }
+        qi = qi + 1
+    }
+
+    // Filter out unreachable top-level named functions.
+    var out = []
+    i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        var fn3 = _maybe_get_toplevel_function_node(st)
+        if fn3 != nil {
+            var n3 = fn3["name"]
+            if n3 != nil && n3 != "" {
+                if reachable[n3] == true {
+                    oren_list_push(out, st)
+                }
+                i = i + 1
+                continue
+            }
+        }
+        oren_list_push(out, st)
+        i = i + 1
+    }
+    linked["statements"] = out
+    return nil
+}

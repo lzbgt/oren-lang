@@ -24,6 +24,7 @@ fn _expr_int_check(ctx, expr) {
         return nil
     }
     if t == "Boolean" { return nil }
+    if t == "Nil" { return nil }
     if t == "Identifier" { return nil }
     if t == "Call" {
         var fn_expr = expr["fn"]
@@ -110,6 +111,7 @@ fn _expr_int_check(ctx, expr) {
 fn _max_call_argc_in_expr(expr) {
     if expr == nil { return 0 }
     var t = expr["type"]
+    if t == "Nil" { return 0 }
     if t == "Call" {
         var args = expr["args"]
         var argc = 0

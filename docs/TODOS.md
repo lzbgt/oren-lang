@@ -7,10 +7,11 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 1) **Native backend Tier‑1: x86_64 (Linux ELF + Windows PE)** (L)
    - Goal: x86_64 (Linux+Windows) is Tier‑1 alongside arm64 (macOS/Linux) with consistent semantics across native/C/bytecode backends.
-   - Status: x64 bring-up now includes syscall/WinAPI-backed `malloc`/`malloc_raw` + `ptr_get`/`ptr_set` (qword + byte) intrinsics, plus minimal list intrinsics (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_list_set`), list literal `[a,b,c]`, and list index sugar (`xs[i]`, `xs[i]=v` via `oren_index_set`) guarded by `tests/fixtures/x64_malloc_ptr_main.oren`, `tests/fixtures/x64_list_ops_main.oren`, and `tests/fixtures/x64_array_literal_main.oren` (remote-run on Win11+WSL2).
+   - Status: x64 bring-up now includes syscall/WinAPI-backed `malloc`/`malloc_raw` + `ptr_get`/`ptr_set` (qword + byte) intrinsics, plus minimal list intrinsics (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_list_set`), list literal `[a,b,c]`, list index sugar (`xs[i]`, `xs[i]=v` via `oren_index_set`), and stdlib-style namespace calls (`import list "std:list"; list.len/list.push`) guarded by `tests/fixtures/x64_malloc_ptr_main.oren`, `tests/fixtures/x64_list_ops_main.oren`, `tests/fixtures/x64_array_literal_main.oren`, and `tests/fixtures/x64_std_list_namespace_main.oren` (remote-run on Win11+WSL2).
    - Next: converge callable ABI on the canonical `{code_ptr, env_ptr}` + `args_list` model (closures + safe indirect calls) across arm64/x64.
    - Next: varargs (`...rest`) lowering + spread semantics, including efficient list packing and tail-call-safe wrapper stubs.
    - Next: expand x64 parity for containers, pointers, floats/SIMD (keep fixtures small + deterministic; keep remote-run opt-in).
+   - Next: implement x64 lowering for string/hash literals (or a runtime-backed lowering) so more stdlib helpers (slice views/errors) can run without relying on linker DCE.
    - Next: implement x64 native runtime injection (allocator + strings + lists/maps) so x64 can run non-trivial stdlib code without host libc dependencies.
    - References: `docs/NATIVE_BACKEND.md`, `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`, `docs/REMOTE_X64_ENV.md` (includes the canonical SSH ProxyCommand snippet).
 
@@ -18,9 +19,9 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Goal: ergonomic container operations (push/pop/len/get/set/slice) without stdlib call overhead in hot paths.
    - Direction: 3 layers — kernel intrinsics (`oren_*`) → std wrappers (`std:list`) → language-level sugar/operators.
    - Next: finish deterministic dispatch rules for generics + `dyn` and document the exact lowering contract.
-   - Status: x64 Tier‑1 now supports list literals (`[a,b,c]`), list indexing (`xs[i]`), index assignment (`xs[i]=v`), and validates builtin container method sugar (`xs.len()`, `xs.push(v)`, `xs.get(i)`) via lowering to list intrinsics.
+   - Status: x64 Tier‑1 now supports list literals (`[a,b,c]`), list indexing (`xs[i]`), index assignment (`xs[i]=v`), builtin container method sugar (`xs.len()`, `xs.push(v)`, `xs.get(i)`), and stdlib namespace wrappers (`list.len(xs)`, `list.push(xs, v)`) lowering to intrinsics.
    - Next: expand the native inlining fast-path beyond `xs[i]` / `xs[i]=v` (e.g. `len`, `push`) and port parity to the x64 native backend.
-   - Next: treat `std:list` calls (`list.len`, `list.push`) as intrinsics too so idiomatic stdlib usage stays zero-overhead in native mode.
+   - Next: define `slice_view` and error-return conventions so slice helpers can remain usable in native mode without forcing backends to support full map/string literal semantics on day 1.
    - References: `docs/DESIGN_CONTAINER_OPS.md`, `docs/STDLIB_LAYERS.md`.
 
 3) **Backend architecture unification (CoreIR boundary + canonical runtime ABI)** (L)
@@ -60,6 +61,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **Container ops first milestone (arm64 native)**: list indexing `xs[i]` and index assignment `xs[i]=v` now lower to native code directly (no `oren_list_get` / `oren_index_set` call), with a deterministic fallback to `oren_map_get` / `oren_map_set` for non-list containers; `oren_index_set` runtime semantics now match the spec (lists do not auto-grow).
 - **Container ops second milestone (arm64 native)**: `oren_list_len(xs)` and `oren_list_push(xs, v)` now use native fast-paths (len is fully inlined; push is inlined when `count < cap`, otherwise falls back to runtime growth).
 - **Container ops third milestone (arm64 native)**: `std:list` namespace calls `list.len(xs)` / `list.push(xs, v)` now lower to the same intrinsics (no wrapper call overhead); `list.push` preserves std semantics by returning `nil`.
+- **Whole-program function DCE (linker)**: module linking now prunes unreachable top-level functions for executable builds, so importing stdlib modules no longer forces tier‑1 native v0 backends to codegen unused helpers (e.g. `std:list.slice_view` string/map literals).
 - **Test throughput**: `oretest` now runs runtime diagnostic fixtures in parallel (bounded by `--fixture-jobs`) to reduce wall time during rolling development.
 - **HPC iteration performance**: `for x in iterable` no longer allocates a fresh `[ok, value]` pair on every iteration; the loop reuses a preallocated `out_pair` via `oren_iter_next(container, idx, out_pair)` across native/C/AVM, and the `Iterable` trait extension signature is updated to match.
 - **Docs coverage**: `docs/LANGUAGE_MANUAL.md` now includes a “fixtures as living spec” index pointing at key `tests/native/fixtures` and x64 bring-up fixtures.

@@ -195,6 +195,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_cdqe())
         return nil
     }
+    if t == "Nil" {
+        // Nil is represented as 0 in the "int as i64 carrier" model.
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+        bytes_extend(ctx["code"], insn_cdqe())
+        return nil
+    }
     if t == "Identifier" {
         var name = expr["value"]
         var off = locals[name]

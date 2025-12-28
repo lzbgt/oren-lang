@@ -532,6 +532,13 @@ fn link_program(entry_path, root_prog, config) {
     if trace_passes { print("[trace] pass: optimizer") }
     optimizer.lower_linked_program_in_place(linked)
 
+    // Whole-program function DCE (rolling):
+    // - keeps semantic/type/attr passes applied to the full program
+    // - removes unreachable functions before backend compilation
+    // - fixes "imported stdlib has unsupported exprs" for tier-1 native v0 backends
+    if trace_passes { print("[trace] pass: global_dce") }
+    global_dce.lower_linked_program_in_place(linked)
+
     if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
     return linked
 }
