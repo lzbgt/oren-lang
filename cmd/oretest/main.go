@@ -2808,6 +2808,43 @@ func main() {
 			},
 		},
 		{
+			name: "native_x64_varargs_builds",
+			cmd: fmt.Sprintf(
+				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q && "+
+					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
+					"file %q > %q && grep -Fq %q %q && grep -Fq %q %q",
+				"tests/fixtures/x64_varargs_main.oren",
+				"build/x64_varargs_linux",
+				"build/x64_varargs_linux.build.out",
+				"build/x64_varargs_linux",
+				"build/x64_varargs_linux.file.out",
+				"ELF 64-bit",
+				"build/x64_varargs_linux.file.out",
+				"x86-64",
+				"build/x64_varargs_linux.file.out",
+				"tests/fixtures/x64_varargs_main.oren",
+				"build/x64_varargs_win.exe",
+				"build/x64_varargs_win.build.out",
+				"build/x64_varargs_win.exe",
+				"build/x64_varargs_win.file.out",
+				"PE32+",
+				"build/x64_varargs_win.file.out",
+				"x86-64",
+				"build/x64_varargs_win.file.out",
+			),
+			log: "build/logs/native_x64_varargs_builds.log",
+			ok:  func(rc int) bool { return rc == 0 },
+			cleanup: []string{
+				"build/x64_varargs_linux",
+				"build/x64_varargs_linux.build.out",
+				"build/x64_varargs_linux.file.out",
+				"build/x64_varargs_win.exe",
+				"build/x64_varargs_win.build.out",
+				"build/x64_varargs_win.file.out",
+			},
+		},
+		{
 			name: "native_x64_not_expr_value_builds",
 			cmd: fmt.Sprintf(
 				"./oren build %q --backend native --target linux --arch x64 -o %q > %q && "+
@@ -3664,6 +3701,7 @@ func main() {
 			{name: "remote_x64_run_call_args4_exitcode", src: "tests/fixtures/x64_call_args4_main.oren", expectExit: 10, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_call_args5_exitcode", src: "tests/fixtures/x64_call_args5_main.oren", expectExit: 15, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_call_args7_exitcode", src: "tests/fixtures/x64_call_args7_main.oren", expectExit: 28, timeout: 5 * time.Minute},
+			{name: "remote_x64_run_varargs_exitcode", src: "tests/fixtures/x64_varargs_main.oren", expectExit: 0, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_nested_call_args_exitcode", src: "tests/fixtures/x64_nested_call_args_main.oren", expectExit: 10, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_fnptr_call_exitcode", src: "tests/fixtures/x64_fnptr_call_main.oren", expectExit: 5, timeout: 5 * time.Minute},
 			{name: "remote_x64_run_fnptr_pass_exitcode", src: "tests/fixtures/x64_fnptr_pass_main.oren", expectExit: 5, timeout: 5 * time.Minute},

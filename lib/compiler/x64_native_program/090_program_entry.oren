@@ -15,7 +15,13 @@ fn native_compile_program_x64(linked, platform) {
         "functions": {},
         "import_list": [],
         "errors": [],
-        "platform": platform
+        "platform": platform,
+        // Named function declarations (name -> arity) collected before codegen.
+        // Used for call arity checks and for first-class function values.
+        "func_arity": {},
+        // Named function varargs mapping (name -> fixed param count). Presence means varargs.
+        "func_varargs_fixed": {},
+        "declared_functions": {}
     }
     ctx["abi"] = abi.x64(platform)
 

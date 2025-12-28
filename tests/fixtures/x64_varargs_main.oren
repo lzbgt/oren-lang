@@ -1,0 +1,31 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates varargs (`fn f(a, ...rest)`) work on x64 by packing extra call args
+//   into a rest list and calling the real function as `f(a, rest_list)`.
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn count(...rest) {
+    return oren_list_len(rest)
+}
+
+fn sum1(x, ...rest) {
+    var s = x
+    var i = 0
+    while i < oren_list_len(rest) {
+        s = s + rest[i]
+        i = i + 1
+    }
+    return s
+}
+
+fn main() {
+    if count() != 0 { return 1 }
+    if count(1, 2, 3) != 3 { return 2 }
+
+    if sum1(5) != 5 { return 3 }
+    if sum1(1, 2, 3, 4) != 10 { return 4 }
+
+    return 0
+}
+

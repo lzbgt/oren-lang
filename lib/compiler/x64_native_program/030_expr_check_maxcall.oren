@@ -33,6 +33,10 @@ fn _expr_int_check(ctx, expr) {
         if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
         var nm = fn_expr["value"]
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+        if expr["spread"] != nil {
+            err(ctx, "x64 native v0: call-site spread not supported yet")
+            return nil
+        }
         var argc = 0
         if args != nil { argc = oren_list_len(args) }
         // Rolling: stack args are supported; arg count is bounded only by frame/call-area capacity.
@@ -44,7 +48,14 @@ fn _expr_int_check(ctx, expr) {
         if arity != nil {
             var declared = ctx["declared_functions"]
             if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
-            if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+
+            var vf = nil
+            if ctx["func_varargs_fixed"] != nil { vf = ctx["func_varargs_fixed"][nm] }
+            if vf != nil {
+                if argc < vf { err(ctx, "x64 native v0: varargs arity mismatch for " + nm); return nil }
+            } else {
+                if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+            }
         }
 
         var i = 0

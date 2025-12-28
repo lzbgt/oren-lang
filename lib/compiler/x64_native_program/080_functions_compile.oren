@@ -5,6 +5,8 @@ fn _extract_functions_v0(ctx, linked) {
 
     var out = []
     var declared = {}
+    if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
+    if ctx["func_varargs_fixed"] == nil { ctx["func_varargs_fixed"] = {} }
     var i = 0
     while i < oren_list_len(stmts) {
         var st = stmts[i]
@@ -28,25 +30,22 @@ fn _extract_functions_v0(ctx, linked) {
             while j < pc {
                 var p = params[j]
                 if p == nil || p["type"] != "Identifier" { err(ctx, "x64 native v0: param must be identifier: " + name); return nil }
-                if p["is_varargs"] == true { err(ctx, "x64 native v0: varargs not supported yet: " + name); return nil }
                 j = j + 1
+            }
+
+            // Record arity and optional varargs fixed count (last param is `...rest`).
+            ctx["func_arity"][name] = pc
+            if pc > 0 {
+                var last = params[pc - 1]
+                if last != nil && last["is_varargs"] == true {
+                    ctx["func_varargs_fixed"][name] = pc - 1
+                }
             }
             oren_list_push(out, fn0)
         }
         i = i + 1
     }
     ctx["declared_functions"] = declared
-    ctx["func_arity"] = {}
-    var k = 0
-    while k < oren_list_len(out) {
-        var f = out[k]
-        var nm = f["name"]
-        var pp = f["params"]
-        var n = 0
-        if pp != nil { n = oren_list_len(pp) }
-        ctx["func_arity"][nm] = n
-        k = k + 1
-    }
     return out
 }
 
