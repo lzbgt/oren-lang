@@ -513,3 +513,47 @@ fn parse_type_name_after_colon(p) {
 
     return tname
 }
+
+fn parse_type_name_after_for(p) {
+    // Precondition: current token is 'for' (TOK_FOR).
+    //
+    // This parses the same type-name sugar supported in annotations:
+    //   - pointer stars: *T, **T, *[]T, ...
+    //   - typed-buffer / slice prefix: []T, [][]T, ...
+    //   - dotted names: mod.Type
+    //   - fixed arrays: T[16], *T[16], ...
+    //
+    // Stored as a string (rolling), interpreted by lowerings/tooling.
+    var tname = ""
+
+    while peek_is(p, token.TOK_ASTERISK) {
+        parser_next_token(p) // '*'
+        tname = tname + "*"
+    }
+
+    while peek_is(p, token.TOK_LBRACKET) {
+        // In type-position, `[]T` is the only supported prefix-bracket form.
+        // Fixed arrays are suffix sugar (`T[N]`) parsed later.
+        parser_next_token(p) // '['
+        if !expect_peek(p, token.TOK_RBRACKET) { return nil }
+        tname = tname + "[]"
+    }
+
+    if !expect_peek_ident_like(p, "impl type name") { return nil }
+    tname = tname + p["cur"]["literal"]
+    while peek_is(p, token.TOK_DOT) {
+        parser_next_token(p) // .
+        if !expect_peek_ident_like(p, "impl type name segment") { return nil }
+        tname = tname + "." + p["cur"]["literal"]
+    }
+
+    while peek_is(p, token.TOK_LBRACKET) {
+        parser_next_token(p) // '['
+        if !expect_peek(p, token.TOK_INT) { return nil }
+        var n_lit = p["cur"]["literal"]
+        if !expect_peek(p, token.TOK_RBRACKET) { return nil }
+        tname = tname + "[" + n_lit + "]"
+    }
+
+    return tname
+}

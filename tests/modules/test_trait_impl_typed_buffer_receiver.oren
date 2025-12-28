@@ -1,0 +1,23 @@
+// Trait impl receiver should accept type spellings like `[]i32` (typed buffers).
+//
+// This is important for keeping method sugar deterministic and backend-neutral:
+// the compiler rewrites `x.method(...)` to a plain function call when `x` has a
+// known annotation in scope.
+
+import buffer "std:buffer"
+
+trait Z {
+    fn z(self);
+}
+
+impl Z for []i32 {
+    fn z(self) { return oren_buf_len(self) }
+}
+
+var b: []i32 = buffer.i32_new(4)
+var r = b.z()
+if r != 4 { exit(1) }
+
+print("ok")
+exit(0)
+

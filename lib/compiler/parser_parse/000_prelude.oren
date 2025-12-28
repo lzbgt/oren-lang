@@ -55,6 +55,7 @@ fn peek_is_ident_like(p) { return core.peek_is_ident_like(p) }
 fn expect_peek(p, t) { return core.expect_peek(p, t) }
 fn expect_peek_ident_like(p, what) { return core.expect_peek_ident_like(p, what) }
 fn parse_type_name_after_colon(p) { return core.parse_type_name_after_colon(p) }
+fn parse_type_name_after_for(p) { return core.parse_type_name_after_for(p) }
 
 fn parse_program(p) {
     var prog = ast.new_program()
@@ -399,24 +400,74 @@ fn impl_mangled_name(trait_name, type_name, method) {
     //   __oren_impl__<Trait>__<Type>__<method>
     //
     // Dots are replaced by underscores for C identifier stability downstream.
-    var tn = trait_name
-    var ty = type_name
-    // Replace '.' with '_'
-    var i = 0
-    var out_t = ""
-    while i < oren_string_len(tn) {
-        var c = oren_string_char_at(tn, i)
-        if c == "." { out_t = out_t + "_" } else { out_t = out_t + c }
-        i = i + 1
-    }
-    i = 0
-    var out_ty = ""
-    while i < oren_string_len(ty) {
-        var c2 = oren_string_char_at(ty, i)
-        if c2 == "." { out_ty = out_ty + "_" } else { out_ty = out_ty + c2 }
-        i = i + 1
-    }
+    var out_t = _impl_mangle_type_part(trait_name)
+    var out_ty = _impl_mangle_type_part(type_name)
     return "__oren_impl__" + out_t + "__" + out_ty + "__" + method
+}
+
+fn _impl_mangle_type_part(s) {
+    // Mangle a type-ish name into a valid identifier segment.
+    //
+    // Inputs include:
+    // - dotted names: `mod.Type`
+    // - pointer prefix: `*T`, `**T`
+    // - typed-buffer / slice prefix: `[]T`, `[][]T`
+    // - fixed arrays: `T[16]`, `*T[16]`
+    //
+    // Output must contain only `[A-Za-z0-9_]` so it can be used in a synthesized
+    // function name.
+    if s == nil { return "" }
+
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var c = oren_string_char_at(s, i)
+
+        if c == "." {
+            out = out + "_"
+            i = i + 1
+            continue
+        }
+        if c == "*" {
+            out = out + "ptr_"
+            i = i + 1
+            continue
+        }
+        if c == "[" {
+            // Typed-buffer prefix `[]`.
+            if i+1 < oren_string_len(s) && oren_string_char_at(s, i+1) == "]" {
+                out = out + "slice_"
+                i = i + 2
+                continue
+            }
+
+            // Fixed array suffix `[N]` (parser only emits numeric dims here).
+            var j = i + 1
+            var dims = ""
+            while j < oren_string_len(s) && oren_string_char_at(s, j) != "]" {
+                dims = dims + oren_string_char_at(s, j)
+                j = j + 1
+            }
+            if j < oren_string_len(s) && oren_string_char_at(s, j) == "]" && dims != "" {
+                out = out + "arr" + dims + "_"
+                i = j + 1
+                continue
+            }
+
+            // Fallback: keep deterministic but safe.
+            out = out + "_"
+            i = i + 1
+            continue
+        }
+
+        // In practice, the parser only emits identifier-safe characters in type names
+        // beyond the punctuators handled above; keep a conservative fallback anyway.
+        if c == "_" { out = out + c }
+        else { out = out + c }
+        i = i + 1
+    }
+
+    return out
 }
 
 fn parse_impl_decl(p) {
@@ -436,9 +487,7 @@ fn parse_impl_decl(p) {
     if trait_name == nil { return ast.new_stmt_list([]) }
 
     if !expect_peek(p, token.TOK_FOR) { return ast.new_stmt_list([]) }
-    if !expect_peek_ident_like(p, "impl type name") { return ast.new_stmt_list([]) }
-    // cur is IDENT after expect_peek
-    var type_name = parse_dotted_name(p)
+    var type_name = parse_type_name_after_for(p)
     if type_name == nil { return ast.new_stmt_list([]) }
 
     if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
@@ -485,4 +534,3 @@ fn parse_impl_decl(p) {
     // p["cur"] is '}'.
     return ast.new_stmt_list(out)
 }
-
