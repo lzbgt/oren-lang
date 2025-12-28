@@ -57,7 +57,12 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 7) **Tests: backend/arch neutral by default (integration-first)** (S)
    - Most `.oren` tests should be backend/arch neutral; keep ABI-specific tests isolated and minimal.
    - Reduce overlapping “atomic” tests in curated lists; prefer integration suites + fixtures as living spec.
+   - Add profiling hooks to keep iteration fast: `./oretest --profile` (or `OREN_TEST_PROFILE=1`) prints slowest tests so we can target true bottlenecks.
+   - Make `oren build` caching the default compiler behavior (Go/make-like): content-addressed build cache keyed by (compiler binary hash, flags/target, transitive sources); provide `oren clean` to clear caches and keep CI reproducible via `OREN_NO_CACHE=1`.
    - Keep `make test` iteration-fast by gating expensive fixture families behind explicit flags (`OREN_TEST_SIGNING=1`, `OREN_TEST_OREDOC=1`) or `--full`; document in `docs/TEST_SYSTEM.md`.
+   - Normalize build artifacts layout:
+     - compiler default outputs: `build/targets/<arch>-<os>/<backend>/...` and `build/targets/avm/bytecode/...`
+     - migrate `./oretest` fixtures off ad-hoc `build/*.out` paths over time (keep `build/logs/` stable)
    - Reference: `docs/TEST_SYSTEM.md`.
    - Rolling docs hygiene: when fixtures or backends change, update the docs that claim invariants (`docs/LANGUAGE_MANUAL.md`, `docs/NATIVE_BACKEND.md`, `docs/CLI_COMPLETION.md`) in the same change to avoid drift.
    - Spec hygiene (AI-friendly): keep `docs/LANGUAGE_SPEC.md` and `docs/LANGUAGE_MANUAL.md` aligned with actual compiler behavior and mark planned vs implemented explicitly.

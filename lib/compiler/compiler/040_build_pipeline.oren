@@ -169,6 +169,14 @@ fn compiler_main() {
         return nil
     }
 
+    if cmd_name == "clean" {
+        var cd = opts["cache-dir"]
+        if seen["cache-dir"] != true { cd = "" }
+        if cd == nil || cd == "" { cd = _cache_default_dir() }
+        cache_clean_dir(cd)
+        return nil
+    }
+
     if cmd_name == "selftest-native" {
         // This command must be fast and must not rely on the compiler pipelines.
         // It exists so the native self-host gate can validate runtime correctness without
@@ -310,7 +318,9 @@ fn compiler_main() {
         // Modern CLI: options already parsed/validated by std/argparse.
         var target = opts["target"]
         var arch = opts["arch"]
-        var out_meta = strip_suffix(path, ".oren") + ".meta.json"
+        // Default output: keep artifacts under build/targets/<arch>-<os>/<kind>/... for a clean repo layout.
+        // (Repo-local outputs make rolling iteration predictable for humans + AI agents.)
+        var out_meta = "build/targets/" + arch + "-" + target + "/meta/" + basename(strip_suffix(path, ".oren")) + ".meta.json"
 
         var deterministic = false
         var emit_manifest = false
@@ -360,6 +370,7 @@ fn compiler_main() {
         // declared symbols, not only those reachable from `main`.
         var linked = link_program(path, prog, {"target": target, "arch": arch, "keep_all_top_level_functions": true})
         var meta_json = metadata.generate_metadata(linked)
+        ensure_dir(dirname(out_meta))
         var w = oren_write_file(out_meta, meta_json)
         if oren_is_err(w) {
             var emsgW = "Failed to write metadata: " + out_meta
@@ -398,7 +409,7 @@ fn compiler_main() {
         oren_exit(2)
     }
     var path = pos[0]
-    var out_path = default_output_path(path)
+    var out_path = "" // computed after parsing target/arch/backend
     var emit_c = false
     var enable_python = false
     var cc = "cc"
@@ -451,7 +462,6 @@ fn compiler_main() {
         backend = opts["backend"]
         if seen["emit-c"] == true { emit_c = true }
     }
-    if seen["out"] == true { out_path = opts["out"] }
     cc = opts["cc"]
     target = opts["target"]
     arch = opts["arch"]
@@ -483,10 +493,113 @@ fn compiler_main() {
     if seen["capsule"] == true { CAPSULE = true }
     if seen["cap-allow-domains"] == true { CAP_ALLOW_DOMAINS = split_csv(opts["cap-allow-domains"]) }
 
+    // Bytecode is an AVM artifact; it is intended to be platform-neutral.
+    // Enforce a single "bytecode ABI profile" so `.obc` semantics do not vary by host.
+    //
+    // NOTE: until the compiler is proven fully portable, we still thread `target/arch`
+    // in the build cache key (now fixed to avm/avm64 for bytecode).
+    if backend == "bytecode" {
+        target = "avm"
+        arch = "avm64"
+    }
+
+    // Default output path:
+    // - `build/targets/<arch>-<os>/<backend>/<basename>` for native/c
+    // - `build/targets/avm/bytecode/<basename>.obc` for bytecode (platform-neutral intent)
+    //
+    // Notes (rolling):
+    // - even though bytecode is *intended* to be platform-neutral, current compilation still
+    //   threads `target/arch` through lowering; keep outputs separated until OBC is proven portable.
+    if seen["out"] == true {
+        out_path = opts["out"]
+    } else {
+        var stem = basename(default_output_path(path))
+        if backend == "bytecode" {
+            out_path = "build/targets/avm/bytecode/" + stem + ".obc"
+        } else {
+            var dir = "build/targets/" + arch + "-" + target + "/" + backend
+            out_path = dir + "/" + stem
+        }
+    }
+
     if deterministic {
         // Deterministic mode: avoid post-processing that can inject non-reproducible data.
         codesign_id = ""
         notarize = false
+    }
+
+    // Build cache (enabled by default).
+    // - use --no-cache / OREN_NO_CACHE=1 to disable
+    // - cache key includes compiler binary sha256 and transitive source closure sha256
+    var cache_enabled = _cache_enabled(seen, opts)
+    var cache_dir = _cache_dir_from_opts(seen, opts)
+    if cache_enabled && (seen["cache-dir"] != true) {
+        // CLI help prints default cache dir; if user passed "", treat as default.
+        if opts["cache-dir"] != nil && opts["cache-dir"] != "" {
+            cache_dir = path_norm(opts["cache-dir"])
+        }
+    }
+    // Keep caching conservative for now: skip in cases where build produces sidecar sources
+    // that we don't cache yet.
+    if emit_c { cache_enabled = false }
+    if emit_meta { cache_enabled = false }
+    if is_shared_lib { cache_enabled = false }
+    if notarize { cache_enabled = false }
+
+    var cache_key = nil
+    if cache_enabled {
+        // Compute a content-addressed cache key before running expensive passes.
+        var cfg = {
+            "backend": backend,
+            "target": target,
+            "arch": arch,
+            "cc": cc,
+            "codesign_id": codesign_id,
+            "emit_c": 0,
+            "no_gc": 0,
+            "enable_python": 0,
+            "debug_mode": 0,
+            "shared_lib": 0,
+            "call_depth_max": call_depth_max,
+            "capsule": 0,
+            "cap_domains": CAP_ALLOW_DOMAINS,
+            "stdlib_mode": stdlib_mode,
+            "stdlib_obc": stdlib_obc,
+            "link_obc": link_obc,
+        }
+        if no_gc { cfg["no_gc"] = 1 }
+        if enable_python { cfg["enable_python"] = 1 }
+        if debug_mode { cfg["debug_mode"] = 1 }
+        if is_shared_lib { cfg["shared_lib"] = 1 }
+        if CAPSULE { cfg["capsule"] = 1 }
+
+        var kk = cache_compute_key_build(path, cfg)
+        if kk["ok"] == true {
+            cache_key = kk["key"]
+            var chmod_mode = 0
+            if backend == "native" || backend == "c" { chmod_mode = 493 } // 0755
+            var hit = cache_try_restore_artifact(cache_dir, cache_key, out_path, chmod_mode)
+            if hit["hit"] == true {
+                // Keep user-facing output consistent with a normal build.
+                if backend == "bytecode" { print("Bytecode emitted: " + out_path) }
+                else { print("Build successful: " + out_path) }
+
+                var out_bytes = hit["bytes"]
+                if out_bytes != nil && deterministic { _emit_artifact_hash(backend, out_path, out_bytes) }
+                if out_bytes != nil && emit_manifest {
+                    var hh = _sha256_hex(out_bytes)
+                    _write_artifact_manifest(backend, out_path, hh, target, arch, deterministic, oren_list_len(out_bytes))
+                }
+                if disasm {
+                    if target == "macos" { oren_system("otool -tV " + shell_quote(out_path)) }
+                    else { oren_system("objdump -d " + shell_quote(out_path)) }
+                }
+                return nil
+            }
+        } else {
+            // Key computation failure shouldn't fail builds; just disable cache for this run.
+            cache_enabled = false
+        }
     }
 
     // Normalize call depth budget (shared contract across backends):
@@ -509,6 +622,10 @@ fn compiler_main() {
         print("Unknown backend: " + backend)
         oren_exit(2)
     }
+
+    // Build outputs should be able to target nested directories (oretest uses build/tmp/...).
+    // Ensure the output directory exists before any backend attempts to write.
+    ensure_dir(dirname(out_path))
 
     var src = expand_includes_file(path, [])
     if src == nil {
@@ -684,6 +801,9 @@ fn compiler_main() {
                 var h = _sha256_hex(out_bytes)
                 _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic, oren_list_len(out_bytes))
             }
+            if cache_enabled && cache_key != nil {
+                cache_store_artifact(cache_dir, cache_key, out_bytes)
+            }
             return nil
         }
 
@@ -694,6 +814,9 @@ fn compiler_main() {
         if emit_manifest {
             var h2 = _sha256_hex(out_bytes2)
             _write_artifact_manifest("bytecode", out_path, h2, target, arch, deterministic, oren_list_len(out_bytes2))
+        }
+        if cache_enabled && cache_key != nil {
+            cache_store_artifact(cache_dir, cache_key, out_bytes2)
         }
         return nil
     }
@@ -856,6 +979,14 @@ fn compiler_main() {
 
         print("Build successful: " + out_path)
         
+        if cache_enabled && cache_key != nil {
+            // Store native artifact bytes for future cache hits.
+            var bsn = oren_read_bytes(out_path)
+            if !oren_is_err(bsn) {
+                cache_store_artifact(cache_dir, cache_key, bsn)
+            }
+        }
+
         if disasm {
             if target == "macos" {
                 oren_system("otool -tV " + shell_quote(out_path))
@@ -966,6 +1097,15 @@ fn compiler_main() {
         if emit_manifest {
             var h = _sha256_hex(bsC)
             _write_artifact_manifest("c", out_path, h, target, arch, deterministic, oren_list_len(bsC))
+        }
+    }
+    if cache_enabled && cache_key != nil {
+        // Store C backend final artifact bytes for future cache hits.
+        var bsCache = oren_read_bytes(out_path)
+        if !oren_is_err(bsCache) {
+            cache_store_artifact(cache_dir, cache_key, bsCache)
+            // Ensure restored binaries are runnable (cp from cache uses write_bytes).
+            oren_chmod(out_path, 493) // 0755
         }
     }
     return nil

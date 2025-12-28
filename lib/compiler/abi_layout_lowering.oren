@@ -128,6 +128,9 @@ fn abi_ptr_size_align_for_target(target, arch) {
     // Rolling: all currently supported native targets are arm64 and use 64-bit pointers.
     // We keep this centralized so future arch additions can update here.
     if target == nil { return nil }
+    // Bytecode/AVM profile (platform-neutral intent):
+    // AVM defines a stable 64-bit word size for pointers/handles.
+    if target == "avm" { return {"size": 8, "align": 8} }
     if arch == nil { arch = "arm64" }
     if arch == "arm64" {
         if target == "macos" { return {"size": 8, "align": 8} }

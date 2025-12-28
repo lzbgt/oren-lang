@@ -31,12 +31,14 @@ type suiteResult struct {
 	pass   int
 	total  int
 	failed []testResult
+	all    []testResult
 }
 
 func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	envPrefix := sanitizedAllocatorEnvPrefix()
 	results := runParallel(jobs, tests, func(path string) testResult {
+		start := time.Now()
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		if verbose {
 			vprintln("native: " + path)
@@ -52,7 +54,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 		buildCmd := fmt.Sprintf("./oren build %q --backend native --target %s -o %q%s", path, target, out, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			_ = os.RemoveAll(workdir)
-			return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log}
+			return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}
 
 		rc := 0
@@ -373,23 +375,24 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			// Expected-failure regression: panic output must be readable and include a stack trace.
 			// We accept any non-zero exit except external timeout.
 			if rc == 0 || rc == 124 {
-				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog, dur: time.Since(start)}
 			}
 			outb, err := os.ReadFile(runLog)
 			if err != nil {
-				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog, dur: time.Since(start)}
 			}
 			s := string(outb)
 			if !strings.Contains(s, "Traceback") || !strings.Contains(s, "crash_me") {
-				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog, dur: time.Since(start)}
 			}
 		} else {
 			if rc != 0 {
-				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog}
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: runLog, dur: time.Since(start)}
 			}
 		}
-		return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: true, log: runLog}
+		return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: true, log: runLog, dur: time.Since(start)}
 	})
+	res.all = results
 	for _, r := range results {
 		if r.ok {
 			res.pass++
@@ -412,6 +415,7 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 	res := suiteResult{ok: true, total: len(tests)}
 	envPrefix := sanitizedAllocatorEnvPrefix()
 	results := runParallel(jobs, tests, func(path string) testResult {
+		start := time.Now()
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		if verbose {
 			vprintln("module: " + path)
@@ -426,7 +430,7 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 		// default to macOS and attempt codesigning.
 		buildCmd := fmt.Sprintf("./oren build %q --backend c --target %s -o %q%s", path, target, out, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
-			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
+			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}
 		runEnvPrefix := envPrefix
 		if name == "test_integration_suite" {
@@ -439,11 +443,12 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 			runEnvPrefix = "env OREN_RAW_MMAP_THRESHOLD= OREN_BUF_ALIGN= OREN_BUF_FORCE_MMAP= OREN_BUF_PAYLOAD_LIMIT_BYTES=1024"
 		}
 		if rc := runWithTimeout(timeoutBin, runTimeout, fmt.Sprintf("%s %q", runEnvPrefix, out), log); rc != 0 {
-			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log}
+			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}
 		_ = os.Remove(out)
-		return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: true, log: log}
+		return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: true, log: log, dur: time.Since(start)}
 	})
+	res.all = results
 	for _, r := range results {
 		if r.ok {
 			res.pass++
@@ -756,6 +761,7 @@ func runAVMTestsSequential(timeoutBin, gcArg string, buildTimeout, runTimeout ti
 func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeout, runTimeout time.Duration, verbose bool, vprintln func(string), jobs int, tests []string) suiteResult {
 	res := suiteResult{ok: true, total: len(tests)}
 	results := runParallel(jobs, tests, func(path string) testResult {
+		start := time.Now()
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
 		if verbose {
 			vprintln("avm: " + path)
@@ -768,7 +774,7 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 		obc := filepath.Join(workdir, "build", name+".obc")
 		buildCmd := fmt.Sprintf("%s build %q --backend bytecode -o %q%s", orenPath, path, obc, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
-			return testResult{tc: testCase{kind: "avm", name: name, path: path}, ok: false, log: log}
+			return testResult{tc: testCase{kind: "avm", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}
 
 		runOK := true
@@ -1102,10 +1108,11 @@ func runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg string, buildTimeo
 		_ = os.Remove(obc)
 		if runOK {
 			_ = os.RemoveAll(workdir)
-			return testResult{tc: testCase{kind: "avm", name: name, path: path}, ok: true, log: log}
+			return testResult{tc: testCase{kind: "avm", name: name, path: path}, ok: true, log: log, dur: time.Since(start)}
 		}
-		return testResult{tc: testCase{kind: "avm", name: name, path: path}, ok: false, log: log}
+		return testResult{tc: testCase{kind: "avm", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 	})
+	res.all = results
 	for _, r := range results {
 		if r.ok {
 			res.pass++

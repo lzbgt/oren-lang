@@ -41,10 +41,28 @@ Use the Stage 1 compiler (`oren`) to compile the Oren source code again. The res
 
 Once you have the `oren` executable (Stage 1), you can compile user applications.
 
+### Build Cache (Default On)
+
+`oren build` uses a **default-enabled build cache** (content-addressed) to make repeated builds fast (Go/make-like iteration):
+
+- enabled by default
+- default cache location: `./build/cache` (override via `OREN_CACHE_DIR` or `--cache-dir`)
+- cache key includes:
+  - compiler executable hash (so cache invalidates when `./oren` changes)
+  - build flags/target/backend that affect output
+  - transitive source closure (imports + `// @include` expansion)
+- disable per-invocation: `./oren build --no-cache ...` (or env `OREN_NO_CACHE=1`)
+- override cache location: `--cache-dir <dir>` or env `OREN_CACHE_DIR`
+- clear cache: `./oren clean` (or `./oren clean --cache-dir <dir>`)
+
 ### Native Backend (Tier‑1 intent: arm64 + x86_64)
 Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free for the emitted artifact (no libc shims for native output).
 
 ```bash
+# If you omit `-o/--out`, artifacts default under:
+#   build/targets/<arch>-<os>/<backend>/<basename>          (native/c)
+#   build/targets/avm/bytecode/<basename>.obc               (bytecode, platform-neutral intent)
+#
 # Build for macOS arm64 (primary development path today)
 ./oren build examples/hello.oren --backend native --target macos --arch arm64 -o hello
 

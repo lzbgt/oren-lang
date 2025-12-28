@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 )
@@ -30,6 +31,7 @@ type testResult struct {
 	ok  bool
 	log string
 	msg string
+	dur time.Duration
 }
 
 type syscallBlock struct {
@@ -46,6 +48,7 @@ func main() {
 		nativeJobs     = flag.Int("native-jobs", envInt("OREN_TEST_NATIVE_JOBS", 0), "parallel jobs for native tests (env OREN_TEST_NATIVE_JOBS); default min(--jobs,8)")
 		full           = flag.Bool("full", envBool("OREN_TEST_FULL", false), "run the full curated suite (env OREN_TEST_FULL=1)")
 		verbose        = flag.Bool("verbose", envBool("OREN_TEST_VERBOSE", false), "print per-test progress (env OREN_TEST_VERBOSE=1)")
+		profile        = flag.Bool("profile", envBool("OREN_TEST_PROFILE", false), "print slowest tests summary (env OREN_TEST_PROFILE=1)")
 		selfhost       = flag.Bool("selfhost", envBool("OREN_TEST_SELFHOST", false), "run self-hosting stability gate (env OREN_TEST_SELFHOST=1); implied by --full")
 		selfhostNative = flag.Bool("selfhost-native", envBool("OREN_TEST_SELFHOST_NATIVE", false), "also run the native self-hosting gate (build+run a stage2 native compiler) (env OREN_TEST_SELFHOST_NATIVE=1); implied by --full")
 	)
@@ -375,6 +378,7 @@ func main() {
 		name string
 		log  string
 		ok   bool
+		dur  time.Duration
 	}
 	fixtureResults := make([]fixtureResult, len(fixtures))
 	var wgFixtures sync.WaitGroup
@@ -393,7 +397,9 @@ func main() {
 			if fx.timeout != 0 {
 				t = fx.timeout
 			}
+			start := time.Now()
 			rc := runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
+			dur := time.Since(start)
 			ok := fx.ok(rc)
 			// Keep artifacts on failure to make debugging actionable (fixtures often redirect
 			// compiler/runtime output into side files under build/).
@@ -402,7 +408,7 @@ func main() {
 					_ = os.RemoveAll(c)
 				}
 			}
-			fixtureResults[i] = fixtureResult{name: fx.name, log: fx.log, ok: ok}
+			fixtureResults[i] = fixtureResult{name: fx.name, log: fx.log, ok: ok, dur: dur}
 		}(i)
 	}
 	wgFixtures.Wait()
@@ -423,6 +429,7 @@ func main() {
 		log  string
 		ok   bool
 		msg  string
+		dur  time.Duration
 	}
 	runtimeResults := make([]runtimeFixtureResult, len(runtimeFixtures))
 	var wgRuntime sync.WaitGroup
@@ -438,23 +445,24 @@ func main() {
 				vprintln("runtime fixture: " + fx.name)
 			}
 
+			start := time.Now()
 			rc := runWithTimeout(timeoutBin, buildTimeout, fx.build, fx.log)
 			if rc != 0 {
-				runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: false, msg: "build failed"}
+				runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: false, msg: "build failed", dur: time.Since(start)}
 				return
 			}
 
 			rc2 := runWithTimeout(timeoutBin, runTimeout, fx.run, fx.log)
 			outb, _ := os.ReadFile(fx.log)
 			if !fx.ok(rc2, string(outb)) {
-				runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: false, msg: "run failed"}
+				runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: false, msg: "run failed", dur: time.Since(start)}
 				return
 			}
 
 			for _, c := range fx.cleanup {
 				_ = os.RemoveAll(c)
 			}
-			runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: true}
+			runtimeResults[i] = runtimeFixtureResult{name: fx.name, log: fx.log, ok: true, dur: time.Since(start)}
 		}(i)
 	}
 	wgRuntime.Wait()
@@ -505,6 +513,44 @@ func main() {
 	fmt.Printf("%d/%d native tests passed\n", nativeRes.pass, nativeRes.total)
 	fmt.Printf("%d/%d module tests passed\n", moduleRes.pass, moduleRes.total)
 	fmt.Printf("%d/%d avm tests passed\n", avmRes.pass, avmRes.total)
+
+	if *profile {
+		type profRow struct {
+			kind string
+			path string
+			log  string
+			dur  time.Duration
+		}
+		rows := []profRow{}
+		for _, fr := range fixtureResults {
+			rows = append(rows, profRow{kind: "fixture", path: fr.name, log: fr.log, dur: fr.dur})
+		}
+		for _, rr := range runtimeResults {
+			rows = append(rows, profRow{kind: "runtime_fixture", path: rr.name, log: rr.log, dur: rr.dur})
+		}
+		for _, tr := range nativeRes.all {
+			rows = append(rows, profRow{kind: tr.tc.kind, path: tr.tc.path, log: tr.log, dur: tr.dur})
+		}
+		for _, tr := range moduleRes.all {
+			rows = append(rows, profRow{kind: tr.tc.kind, path: tr.tc.path, log: tr.log, dur: tr.dur})
+		}
+		for _, tr := range avmRes.all {
+			rows = append(rows, profRow{kind: tr.tc.kind, path: tr.tc.path, log: tr.log, dur: tr.dur})
+		}
+
+		// Note: these are per-test elapsed times; suites run in parallel so they do not sum to wall time.
+		sort.Slice(rows, func(i, j int) bool { return rows[i].dur > rows[j].dur })
+		n := 15
+		if len(rows) < n {
+			n = len(rows)
+		}
+		fmt.Println("")
+		fmt.Printf("Slowest %d tests (per-test elapsed; parallel suites may overlap):\n", n)
+		for i := 0; i < n; i++ {
+			r := rows[i]
+			fmt.Printf("  %6.2fs  %-14s  %s (log: %s)\n", r.dur.Seconds(), r.kind, r.path, r.log)
+		}
+	}
 
 	if len(moduleRes.failed) > 0 {
 		fmt.Println("module failed:")

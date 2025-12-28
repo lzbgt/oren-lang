@@ -1,0 +1,298 @@
+// Build cache (rolling).
+//
+// Goal: make `oren build` behave like a modern compiler:
+// - caching enabled by default
+// - reproducible cache keys (content-addressed)
+// - safe invalidation when compiler binary changes
+//
+// Current scope (v0):
+// - caches the *final artifact* only (native/c/bytecode) keyed by:
+//   - compiler executable sha256 (argv[0] when available)
+//   - build options that affect output
+//   - transitive source closure sha256 (imports + @include expansion)
+//
+// This intentionally does not attempt fine-grained incremental compilation yet.
+
+fn _cache_sort_strings(xs) {
+    // Insertion sort (small lists expected).
+    if xs == nil { return [] }
+    var i = 1
+    while i < oren_list_len(xs) {
+        var key = xs[i]
+        var j = i - 1
+        while j >= 0 && xs[j] > key {
+            xs[j + 1] = xs[j]
+            j = j - 1
+        }
+        xs[j + 1] = key
+        i = i + 1
+    }
+    return xs
+}
+
+fn _cache_default_dir() {
+    // Default (rolling):
+    // - keep build cache *repo-local* so it is predictable for humans + AI agents
+    // - override explicitly via env OREN_CACHE_DIR or CLI --cache-dir
+    //
+    // Priority:
+    // 1) env OREN_CACHE_DIR
+    // 2) build/cache (repo-local default)
+    var d = oren_env("OREN_CACHE_DIR")
+    if d != nil && d != "" { return path_norm(d) }
+    return path_norm("build/cache")
+}
+
+fn _cache_compiler_sig() {
+    // Best-effort: hash argv[0] bytes so cache invalidates when the compiler binary changes.
+    // When argv[0] is not a file path, fall back to OREN_VERSION (weaker).
+    var args = oren_args()
+    if args != nil && oren_list_len(args) > 0 {
+        var exe = args[0]
+        if exe != nil && exe != "" && file_exists(exe) {
+            var bs = oren_read_bytes(exe)
+            if !oren_is_err(bs) {
+                return _sha256_hex(bs)
+            }
+        }
+    }
+    return OREN_VERSION
+}
+
+fn _cache_enabled(seen, opts) {
+    // Enabled by default; disable via:
+    // - env OREN_NO_CACHE=1
+    // - CLI --no-cache
+    var no = oren_env("OREN_NO_CACHE")
+    if no != nil { return false }
+    if seen != nil && seen["no-cache"] == true { return false }
+    return true
+}
+
+fn _cache_dir_from_opts(seen, opts) {
+    var d = _cache_default_dir()
+    if seen != nil && seen["cache-dir"] == true {
+        var v = opts["cache-dir"]
+        if v != nil && v != "" { d = path_norm(v) }
+    }
+    return d
+}
+
+fn _cache_scan_imports_for_file(full_path, config) {
+    // Returns {"ok":bool, "imports":[full,...], "src_hash":hex, "err":string}
+    var src = expand_includes_file(full_path, [])
+    if src == nil {
+        var msg = include_last_err()
+        if msg == nil { msg = "failed to read" }
+        return {"ok": false, "err": msg}
+    }
+    var sh = _sha256_hex(oren_bytes_from_string(src))
+
+    var l = lexer.new_lexer(src)
+    l["file"] = full_path
+    var p = parser.new_parser(l)
+    // For cache scanning, use the same strictness as the build so dependencies are consistent.
+    p["strict_attrs"] = STRICT_ATTRS
+    p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    var prog = parser.parse_program(p)
+    if oren_list_len(p["errors"]) > 0 {
+        var first_err = p["errors"][0]
+        return {"ok": false, "err": first_err}
+    }
+
+    var imports = []
+    var stmts = prog["statements"]
+    if stmts == nil { stmts = [] }
+    var base_dir = dirname(full_path)
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        if s != nil && s["type"] == "Import" {
+            var imp_path = s["path"]
+            if imp_path != nil {
+                // In stdlib `.obc` mode, treat std imports as external (do not walk sources).
+                if config != nil && config["stdlib_mode"] == "obc" {
+                    if starts_with(imp_path, "std:") || starts_with(imp_path, "std/") {
+                        // Record the spec itself as a dependency marker.
+                        oren_list_push(imports, imp_path)
+                        i = i + 1
+                        continue
+                    }
+                }
+                var full = resolve_import_path(base_dir, imp_path)
+                oren_list_push(imports, full)
+            }
+        }
+        i = i + 1
+    }
+    return {"ok": true, "imports": imports, "src_hash": sh}
+}
+
+fn cache_compute_key_build(entry_path, build_cfg) {
+    // build_cfg fields used (expected):
+    // - backend, target, arch, cc, emit_c, no_gc, capsule, cap_domains, call_depth_max
+    // - stdlib_mode, stdlib_obc, link_obc, link_libs, enable_python, debug_mode, shared_lib
+    //
+    // Returns {"ok":bool, "key":hex, "err":string, "inputs":map(path->hash)}
+    var visited = {}
+    var inputs = {} // path/spec -> sha256
+    var stack = [entry_path]
+
+    while oren_list_len(stack) > 0 {
+        // pop
+        var pth = stack[oren_list_len(stack) - 1]
+        var tmp = []
+        var si = 0
+        while si + 1 < oren_list_len(stack) {
+            oren_list_push(tmp, stack[si])
+            si = si + 1
+        }
+        stack = tmp
+
+        if pth == nil || pth == "" { continue }
+        if visited[pth] == true { continue }
+        visited[pth] = true
+
+        // External std spec markers: hash the spec string itself.
+        if starts_with(pth, "std:") || starts_with(pth, "std/") {
+            inputs[pth] = _sha256_hex(oren_bytes_from_string(pth))
+            continue
+        }
+
+        var r = _cache_scan_imports_for_file(pth, build_cfg)
+        if r["ok"] != true {
+            return {"ok": false, "err": r["err"]}
+        }
+        inputs[pth] = r["src_hash"]
+        var imps = r["imports"]
+        if imps == nil { imps = [] }
+        var ii = 0
+        while ii < oren_list_len(imps) {
+            oren_list_push(stack, imps[ii])
+            ii = ii + 1
+        }
+    }
+
+    // Include stdlib `.obc` and linked `.obc` libraries (bytecode mode) into the key.
+    if build_cfg != nil && build_cfg["stdlib_mode"] == "obc" {
+        var std_obc = build_cfg["stdlib_obc"]
+        if std_obc != nil && std_obc != "" {
+            var bs = oren_read_bytes(std_obc)
+            if oren_is_err(bs) {
+                return {"ok": false, "err": "failed to read stdlib obc: " + std_obc}
+            }
+            inputs["OBC:" + std_obc] = _sha256_hex(bs)
+        }
+    }
+    if build_cfg != nil && build_cfg["link_obc"] != nil {
+        var li = 0
+        while li < oren_list_len(build_cfg["link_obc"]) {
+            var lp = build_cfg["link_obc"][li]
+            if lp != nil && lp != "" {
+                var bs2 = oren_read_bytes(lp)
+                if oren_is_err(bs2) {
+                    return {"ok": false, "err": "failed to read link obc: " + lp}
+                }
+                inputs["OBC:" + lp] = _sha256_hex(bs2)
+            }
+            li = li + 1
+        }
+    }
+
+    var compiler_sig = _cache_compiler_sig()
+
+    // Build a stable key string.
+    var s = "OREN_BUILD_CACHE_V1\n"
+    s = s + "compiler=" + compiler_sig + "\n"
+    if build_cfg != nil {
+        s = s + "backend=" + build_cfg["backend"] + "\n"
+        s = s + "target=" + build_cfg["target"] + "\n"
+        s = s + "arch=" + build_cfg["arch"] + "\n"
+        s = s + "cc=" + build_cfg["cc"] + "\n"
+        var cs = build_cfg["codesign_id"]
+        if cs == nil { cs = "" }
+        s = s + "codesign_id=" + cs + "\n"
+        s = s + "emit_c=" + oren_int_to_string(build_cfg["emit_c"]) + "\n"
+        s = s + "no_gc=" + oren_int_to_string(build_cfg["no_gc"]) + "\n"
+        s = s + "enable_python=" + oren_int_to_string(build_cfg["enable_python"]) + "\n"
+        s = s + "debug_mode=" + oren_int_to_string(build_cfg["debug_mode"]) + "\n"
+        s = s + "shared_lib=" + oren_int_to_string(build_cfg["shared_lib"]) + "\n"
+        s = s + "call_depth_max=" + oren_int_to_string(build_cfg["call_depth_max"]) + "\n"
+        s = s + "capsule=" + oren_int_to_string(build_cfg["capsule"]) + "\n"
+        // cap domains: stable, sorted
+        var cds = build_cfg["cap_domains"]
+        if cds == nil { cds = [] }
+        cds = _cache_sort_strings(cds)
+        s = s + "cap_domains="
+        var ci = 0
+        while ci < oren_list_len(cds) {
+            if ci != 0 { s = s + "," }
+            s = s + cds[ci]
+            ci = ci + 1
+        }
+        s = s + "\n"
+        s = s + "stdlib_mode=" + build_cfg["stdlib_mode"] + "\n"
+    }
+
+    // Input file hashes, stable sorted by key.
+    var keys = []
+    for k in inputs {
+        oren_list_push(keys, k)
+    }
+    keys = _cache_sort_strings(keys)
+    var ki = 0
+    while ki < oren_list_len(keys) {
+        var k2 = keys[ki]
+        s = s + "in " + k2 + " " + inputs[k2] + "\n"
+        ki = ki + 1
+    }
+    var key = _sha256_hex(oren_bytes_from_string(s))
+    return {"ok": true, "key": key, "inputs": inputs}
+}
+
+fn cache_artifact_path(cache_dir, key) {
+    return path_norm(cache_dir + "/" + key + "/artifact.bin")
+}
+
+fn cache_try_restore_artifact(cache_dir, key, out_path, chmod_mode) {
+    // Returns {"hit":bool, "bytes":list<int>, "err":string}
+    var p = cache_artifact_path(cache_dir, key)
+    if !file_exists(p) {
+        return {"hit": false}
+    }
+    var bs = oren_read_bytes(p)
+    if oren_is_err(bs) {
+        return {"hit": false, "err": "cache read failed: " + p}
+    }
+    ensure_dir(dirname(out_path))
+    var w = oren_write_bytes(out_path, bs)
+    if oren_is_err(w) {
+        return {"hit": false, "err": "cache write failed: " + out_path}
+    }
+    if chmod_mode != nil && chmod_mode > 0 {
+        // Best-effort: chmod may not exist on all targets; ignore failures.
+        oren_chmod(out_path, chmod_mode)
+    }
+    return {"hit": true, "bytes": bs}
+}
+
+fn cache_store_artifact(cache_dir, key, bytes) {
+    // Best-effort: cache failures must not fail the build.
+    if cache_dir == nil || cache_dir == "" { return nil }
+    if key == nil || key == "" { return nil }
+    if bytes == nil { return nil }
+    var bundle = path_norm(cache_dir + "/" + key)
+    ensure_dir(bundle)
+    var p = cache_artifact_path(cache_dir, key)
+    var w = oren_write_bytes(p, bytes)
+    if oren_is_err(w) { return nil }
+    return nil
+}
+
+fn cache_clean_dir(cache_dir) {
+    if cache_dir == nil || cache_dir == "" { cache_dir = _cache_default_dir() }
+    // Use shell for now (dev tooling).
+    oren_system("rm -rf " + shell_quote(cache_dir))
+    print("Cleaned cache dir: " + cache_dir)
+    return nil
+}

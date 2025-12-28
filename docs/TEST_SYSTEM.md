@@ -22,6 +22,16 @@ This document explains the current state and the planned evolution.
   - `OREN_TEST_JOBS` (`./oretest --jobs`)
   - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
   - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
+- build throughput note:
+  - `./oretest` shells out to `./oren build ...` many times; `oren build` has a default-enabled build cache to keep repeated runs fast
+  - default cache location is `./build/cache` (repo-local)
+  - you can isolate cache state per run by setting `OREN_CACHE_DIR=...` or disable caching via `OREN_NO_CACHE=1`
+  - `.obc` is an AVM artifact and is intended to be platform-neutral; `oren build --backend bytecode` uses an AVM ABI profile (`target=avm`, `arch=avm64`) to keep bytecode semantics stable across hosts
+  - artifact layout note:
+    - `oren build` has a repo-local default output layout under `build/targets/...`
+    - `./oretest` intentionally passes explicit `-o build/...` paths for many fixtures (so logs and cleanup lists stay stable); it does not rely on the compiler’s default output paths yet
+- quick bottleneck discovery:
+  - `OREN_TEST_PROFILE=1 make test` (or `./oretest --profile`) prints the slowest tests (per-test elapsed time)
 - SIMD validation note:
   - native SIMD is treated as an **optimization only** (scalar semantics are authoritative)
   - the native SIMD suite (`tests/native/test_simd_suite.oren`) is executed **twice**:

@@ -39,7 +39,9 @@ fn cli_spec() {
     var build = argparse.add_command(p, "build", "Build a .oren file (native/c/bytecode)")
     argparse.cmd_positional(build, "file.oren", true, "Input source file")
     argparse.cmd_option(build, "--backend", nil, "string", "c", "Backend: c|native|bytecode")
-    argparse.cmd_option(build, "--out", "-o", "string", "", "Output path (default: strip .oren)")
+    argparse.cmd_option(build, "--out", "-o", "string", "", "Output path (default: build/targets/<arch>-<os>/<backend>/<file> or build/targets/avm/bytecode/<file>.obc)")
+    argparse.cmd_flag(build, "--no-cache", nil, "Disable build cache (also via env OREN_NO_CACHE=1)")
+    argparse.cmd_option(build, "--cache-dir", nil, "string", "", "Build cache directory (default: $OREN_CACHE_DIR or ./build/cache)")
     argparse.cmd_flag(build, "--emit-c", nil, "(C backend) stop after generating <file.oren>.c")
     argparse.cmd_option(build, "--cc", nil, "string", "cc", "(C backend) C compiler")
     argparse.cmd_option(build, "--target", nil, "string", "macos", "(native backend) target OS: macos|linux|windows (rolling)")
@@ -94,6 +96,9 @@ fn cli_spec() {
 
     var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
     argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
+
+    var clean = argparse.add_command(p, "clean", "Remove Oren build caches")
+    argparse.cmd_option(clean, "--cache-dir", nil, "string", "", "Build cache directory to remove (default: $OREN_CACHE_DIR or ./build/cache)")
 
     var dumpcmd = argparse.add_command(p, "dump", "Dump compiler internals for troubleshooting (JSON)")
     argparse.cmd_positional(dumpcmd, "kind", true, "Dump kind: tokens|linked|graph")
