@@ -48,8 +48,8 @@ Status legend:
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
 | List literal `[]` and indexing `xs[i]` | Rolling | Shared lowering + backend intrinsics; C uses runtime helpers | Tests: `tests/native/fixtures/**`; Docs: `docs/DESIGN_CONTAINER_OPS.md` |
-| List `push/len` as operations (no wrapper overhead) | Rolling | Native fast-paths + lowering; std:list maps to intrinsics | Track: `docs/TODOS.md` (P0.3) |
-| `slice_view` / `clone` / `slice_copy` | Partially Rolling / Planned | stdlib + planned intrinsic semantics | Track: `docs/DESIGN_CONTAINER_OPS.md`, `docs/TODOS.md` |
+| List `push/len` as operations (no wrapper overhead) | Rolling | Lowering: `lib/compiler/impl_lowering.oren`; Intrinsics: `oren_list_len`, `oren_list_push` (returns `nil`) | Track: `docs/TODOS.md` (P0.4); Internals: `docs/IMPLEMENTATION_NOTES.md` |
+| `slice_view` / `clone` / `slice_copy` | Rolling | Stdlib: `lib/std/list.oren` (`clone`, `slice_copy`, `slice_view`) | Manual: `docs/LANGUAGE_MANUAL.md` (List helpers); Track: `docs/TODOS.md` (P0.4) |
 | Typed buffers `[]i32`, `[]f64`, ... | Rolling | Stdlib: `lib/std/buffer.oren` + runtime helpers | Docs: `docs/HPC_SERVER_PLAN.md` |
 
 ## Runtime model (determinism, safety, AVM)
