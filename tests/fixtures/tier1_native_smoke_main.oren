@@ -46,6 +46,13 @@ fn main() {
     if m["b"] != 8 { return 51 }
     m[50000] = 9
     if m[50000] != 9 { return 52 }
+    // Map ops with *non-literal* keys (x64 Tier‑1 must not rely on `key < 4096` heuristics).
+    var k = 50000
+    m[k] = 10
+    if m[k] != 10 { return 53 }
+    var ks = "c"
+    m[ks] = 11
+    if m[ks] != 11 { return 54 }
 
     // First-class function values + indirect call.
     var f = inc

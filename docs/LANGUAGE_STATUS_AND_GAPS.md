@@ -75,6 +75,7 @@ production maturity requires both implementation *and* regression coverage.
 - **Remove native map “key kind” heuristics**
   - Any heuristic that guesses key types (e.g. based on numeric range) is a semantics risk.
   - Direction: a tagged value model or explicit key typing at IR level.
+  - Rolling status: x64 native now infers key kinds for common non-literal keys (identifier int/string) during lowering, reducing reliance on runtime guessing; remaining cases still need a principled representation.
 - **Varargs/spread parity (all backends + indirect calls)**
   - Varargs must be “boring and correct”: same semantics everywhere, including closures.
 

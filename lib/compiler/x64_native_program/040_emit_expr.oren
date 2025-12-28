@@ -337,9 +337,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var idx = expr["index"]
         if left == nil || idx == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
 
-        // For maps, key-kind must match the stored entry kind. For literal Integer/String
-        // keys we can set kind explicitly; otherwise we fall back to the v0 heuristic.
+        // For maps, key-kind must match the stored entry kind.
+        //
+        // Key kind inference order (rolling):
+        // 1) If the frontend annotated the Index node with `known_key_kind`, use it.
+        // 2) Else if the key is a literal Integer/String, use that kind directly.
+        // 3) Else fall back to the v0 heuristic (key < 4096 => int; else string).
         var known_key_kind = -1
+        if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
         var idx_t = idx["type"]
         if idx_t == "Integer" { known_key_kind = 0 }
         else if idx_t == "String" { known_key_kind = 1 }
@@ -926,11 +931,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - kind=1 => C-string pointer key
             //
             // Incremental Tier-1 improvement:
+            // - if the frontend provided `known_key_kind`, use it (covers most identifier keys)
             // - if the key is a literal Integer/String, we can emit the correct kind directly
             // - otherwise we fall back to the v0 heuristic (key < 4096 => int; else string)
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
 
             var known_key_kind = -1
+            if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
             var key_t = args[1]["type"]
             if key_t == "Integer" { known_key_kind = 0 }
             else if key_t == "String" { known_key_kind = 1 }
@@ -1099,6 +1106,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: oren_map_set expects 3 args"); return nil }
 
             var known_key_kind = -1
+            if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
             var key_t = args[1]["type"]
             if key_t == "Integer" { known_key_kind = 0 }
             else if key_t == "String" { known_key_kind = 1 }
@@ -1201,6 +1209,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: oren_index_set expects 3 args"); return nil }
 
             var known_key_kind = -1
+            if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
             var key_t = args[1]["type"]
             if key_t == "Integer" { known_key_kind = 0 }
             else if key_t == "String" { known_key_kind = 1 }

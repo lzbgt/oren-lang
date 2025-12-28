@@ -312,6 +312,7 @@ fn infer_container_kind(expr, kind_env) {
     if t == "Array" { return "list" }
     if t == "Hash" { return "map" }
     if t == "String" { return "string" }
+    if t == "Integer" { return "int" }
     if t == "Call" {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
@@ -325,7 +326,48 @@ fn infer_container_kind(expr, kind_env) {
             if nm == "oren_bytes_from_string" { return "list" }
             if nm == "oren_bytes_from_string_ptr" { return "list" }
             if nm == "oren_bytes_unpack" { return "list" }
+            // Common string-returning helpers (best-effort) so map key-kind inference can
+            // avoid unsafe pointer/int heuristics in x64 native.
+            if nm == "string_concat" { return "string" }
+            if nm == "oren_int_to_string" { return "string" }
+            if nm == "oren_string_slice" { return "string" }
         }
+    }
+    return nil
+}
+
+fn infer_map_key_kind(expr, kind_env) {
+    // Best-effort key-kind inference for map indexing/set.
+    //
+    // x64 native stores `key_kind` per entry, but without tagged values the backend cannot
+    // safely infer kind for dynamic keys at runtime. This pass tries to infer a stable kind
+    // from syntax and local assignments, and annotates Index nodes so x64 codegen can emit
+    // deterministic key-kind selection without relying on `key < 4096` heuristics.
+    //
+    // Returns:
+    // - 0 for integer-like keys
+    // - 1 for string-like keys
+    // - nil when unknown
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Integer" { return 0 }
+    if t == "String" { return 1 }
+    if t == "Identifier" {
+        var k = kind_env_get(kind_env, expr["value"])
+        if k == "string" { return 1 }
+        if k == "int" { return 0 }
+        // Default to integer for unknown identifiers: most non-container values are i64 in
+        // the current rolling compiler pipeline, and map keys are restricted to int/string.
+        return 0
+    }
+    // Numeric expressions are treated as integer keys.
+    if t == "Prefix" || t == "Infix" { return 0 }
+    // String-producing calls we recognize.
+    if t == "Call" {
+        var k2 = infer_container_kind(expr, kind_env)
+        if k2 == "string" { return 1 }
+        // Default to int for unknown calls (safe for most numeric-key usage).
+        return 0
     }
     return nil
 }
@@ -592,6 +634,13 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
     if t == "Index" {
         expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, kind_env, errs)
         expr["index"] = lower_expr_in_place(expr["index"], regs, trait_set, env, kind_env, errs)
+        // If this is a map index expression and we can infer key kind, annotate it so
+        // x64 native can avoid runtime heuristics.
+        var recv_k = infer_container_kind(expr["left"], kind_env)
+        if recv_k == "map" {
+            var kk = infer_map_key_kind(expr["index"], kind_env)
+            if kk != nil { expr["known_key_kind"] = kk }
+        }
         return expr
     }
     if t == "Member" {
