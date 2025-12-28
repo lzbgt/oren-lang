@@ -336,13 +336,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
         // --- map indexing path ---
         _emit_label(ctx, labels, l_is_map)
-        // key must look like a pointer (avoid deref near-null)
         bytes_extend(ctx["code"], insn_mov_r64_r64(6, 1)) // rsi = key
+        // r13 = key_kind (0=int, 1=string)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-        var l_key_ok = _new_label(ctx, "idx_map_key_ok")
-        _emit_jcc_to_label(ctx, local_fixups, "ge", l_key_ok)
-        _emit_abort_exitcode(ctx, 1)
-        _emit_label(ctx, labels, l_key_ok)
+        var l_kind_done = _new_label(ctx, "idx_map_kind_done")
+        _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+        _emit_label(ctx, labels, l_kind_done)
 
         // r8 = count
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
@@ -360,6 +361,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var l_mfound = _new_label(ctx, "idx_map_found")
         var l_mstr_loop = _new_label(ctx, "idx_map_str_loop")
         var l_mstr_neq = _new_label(ctx, "idx_map_str_neq")
+        var l_mkind_int = _new_label(ctx, "idx_map_kind_int")
+        var l_mkind_str = _new_label(ctx, "idx_map_kind_str")
 
         _emit_label(ctx, labels, l_mloop)
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
@@ -370,6 +373,30 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
         bytes_extend(ctx["code"], insn_mov_rax_mrax())
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
+
+        // r12 = ek_kind = *(entry_ptr + 8)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
+
+        // kind mismatch => next
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 13))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_mstr_neq)
+
+        // kind==0 => integer compare, kind==1 => string compare
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_mkind_int)
+        _emit_jmp_to_label(ctx, local_fixups, l_mkind_str)
+
+        _emit_label(ctx, labels, l_mkind_int)
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
+        _emit_jmp_to_label(ctx, local_fixups, l_mstr_neq)
+
+        _emit_label(ctx, labels, l_mkind_str)
+        // pointer equality fast-path
         bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
 
@@ -485,8 +512,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var v = pair["value"]
             if k == nil { err(ctx, "x64 native v0: hash literal missing key"); return nil }
             if v == nil { err(ctx, "x64 native v0: hash literal missing value"); return nil }
-            if k["type"] != "String" {
-                err(ctx, "x64 native v0: hash literal key must be string literal")
+            if k["type"] != "String" && k["type"] != "Integer" {
+                err(ctx, "x64 native v0: hash literal key must be string literal or small integer")
                 return nil
             }
 
@@ -850,7 +877,11 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
 
         if nm == "oren_map_get" {
-            // Get value by string key. Returns 0 (nil) when key is missing.
+            // Get value by key. Returns 0 (nil) when key is missing.
+            //
+            // Rolling x64 v0 key kinds:
+            // - key < 4096  => treated as a small-integer key
+            // - key >= 4096 => treated as a C-string pointer key
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
 
             var tmp_map = locals["$tmp1"]
@@ -897,12 +928,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             // rsi = key
             _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key)
-            // key must look like a pointer (avoid deref near-null)
+            // r13 = key_kind (0=int, 1=string)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-            var l_key_ok = _new_label(ctx, "map_get_key_ok")
-            _emit_jcc_to_label(ctx, local_fixups, "ge", l_key_ok)
-            _emit_abort_exitcode(ctx, 1)
-            _emit_label(ctx, labels, l_key_ok)
+            var l_kind_done = _new_label(ctx, "map_get_kind_done")
+            _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+            _emit_label(ctx, labels, l_kind_done)
 
             // r8 = count
             bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
@@ -926,6 +958,30 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_rax_mrax())
             bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
 
+            // r12 = ek_kind = *(entry_ptr + 8)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
+
+            // kind mismatch => next
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 13))
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_next)
+
+            // kind==0 => integer compare, kind==1 => string compare
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
+            var l_kind_int = _new_label(ctx, "map_get_kind_int")
+            var l_kind_str = _new_label(ctx, "map_get_kind_str")
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_int)
+            _emit_jmp_to_label(ctx, local_fixups, l_kind_str)
+
+            _emit_label(ctx, labels, l_kind_int)
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_found)
+            _emit_jmp_to_label(ctx, local_fixups, l_next)
+
+            _emit_label(ctx, labels, l_kind_str)
             // pointer equality fast-path
             bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
             _emit_jcc_to_label(ctx, local_fixups, "e", l_found)
@@ -1052,7 +1108,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if nm == "oren_index_set" {
             // Polymorphic index assignment helper (rolling):
             // - Lists: strict in-bounds `xs[i] = v` (no auto-grow)
-            // - Maps: `m[key] = v` inserts/replaces (x64 v0: string-key-only discipline)
+            // - Maps: `m[key] = v` inserts/replaces (x64 v0: key < 4096 => int, else string)
             //
             // Return value:
             // - list path returns `v` (matches list_set convention)

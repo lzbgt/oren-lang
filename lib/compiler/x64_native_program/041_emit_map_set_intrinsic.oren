@@ -2,6 +2,14 @@
 //
 // Kept in a dedicated include file to keep `040_emit_expr.oren` under the repo
 // style size limit while x64 Tier-1 continues to grow.
+//
+// Key kinds (rolling x64 v0 limitation):
+// - kind=0: "small int" key (key < 4096)
+// - kind=1: C-string key pointer (key >= 4096)
+//
+// Note: without tagging, x64 v0 cannot safely represent integers >= 4096 as map keys
+// (they are indistinguishable from pointers). This will be fixed by a tagged value
+// representation (Tier-1 milestone).
 
 // Map intrinsic helper:
 // Assumes map/key/value have already been evaluated and spilled at the provided stack slots.
@@ -47,11 +55,13 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
 
     // rsi = key
     _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key)
+    // r13 = key_kind (0=int, 1=string)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-    var l_key_ok = _new_label(ctx, "map_set_key_ok")
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_key_ok)
-    _emit_abort_exitcode(ctx, 1)
-    _emit_label(ctx, labels, l_key_ok)
+    var l_kind_done = _new_label(ctx, "map_set_kind_done")
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+    _emit_label(ctx, labels, l_kind_done)
 
     // r8 = count
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
@@ -85,6 +95,30 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     bytes_extend(ctx["code"], insn_mov_rax_mrax())
     bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
 
+    // r12 = ek_kind = *(entry_ptr + 8)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
+
+    // kind mismatch => next
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 13))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_next)
+
+    // kind==0 => integer compare, kind==1 => string compare
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
+    var l_kind_int = _new_label(ctx, "map_set_kind_int")
+    var l_kind_str = _new_label(ctx, "map_set_kind_str")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_int)
+    _emit_jmp_to_label(ctx, local_fixups, l_kind_str)
+
+    _emit_label(ctx, labels, l_kind_int)
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_update)
+    _emit_jmp_to_label(ctx, local_fixups, l_next)
+
+    _emit_label(ctx, labels, l_kind_str)
     // pointer equality fast-path
     bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_update)
@@ -220,9 +254,17 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     // store key
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_key)
     bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 0))
-    // store kind=1 at +8
+    // store kind at +8
+    _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key) // rsi = key
+    // rax = kind (0=int, 1=string)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
+    var l_store_kind_done = _new_label(ctx, "map_set_store_kind_done")
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_store_kind_done)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_store_kind_done)
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
     bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))

@@ -1,0 +1,32 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates small-integer keys for maps work end-to-end on x64
+//   (map literal + m[k] + m[k]=v)
+//
+// Rolling x64 v0 limitation:
+// - keys are classified by a heuristic: key < 4096 => int, else string-pointer.
+//   This will be replaced by a tagged value representation in a later milestone.
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var m = {1: 10, 2: 20}
+
+    if oren_map_len(m) != 2 { return 1 }
+    if m[1] != 10 { return 2 }
+    if m[2] != 20 { return 3 }
+    if m[3] != 0 { return 4 }
+
+    // Insert new key via index assignment.
+    m[3] = 30
+    if oren_map_len(m) != 3 { return 5 }
+    if m[3] != 30 { return 6 }
+
+    // Update existing key.
+    var k = 2
+    m[k] = 99
+    if m[2] != 99 { return 7 }
+
+    return 0
+}
+
