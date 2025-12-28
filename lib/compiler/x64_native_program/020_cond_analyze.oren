@@ -86,18 +86,20 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
         var st = stmts[i]
         if st == nil { i = i + 1; continue }
         var t = st["type"]
+        var tok = st["token"]
         if t == "Var" {
             var name_node = st["name"]
             var v0 = st["value"]
             if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: var name must be identifier"); return nil }
             if v0 == nil { err(ctx, "x64 native v0: var init missing"); return nil }
-            oren_list_push(ops, {"op": "var_i32", "name": name_node["value"], "expr": v0})
+            oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": name_node["value"], "expr": v0})
             i = i + 1
             continue
         }
         if t == "ExprStmt" {
             var e = st["expr"]
             if e == nil { i = i + 1; continue }
+            if tok == nil { tok = e["token"] }
             // Some parts of the pipeline represent statement-forms as an ExprStmt wrapper.
             // Accept common control-flow nodes here to avoid backend fragility as the AST evolves.
             if e["type"] == "If" || e["type"] == "While" || e["type"] == "For" {
@@ -116,7 +118,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
                     var a0 = args[0]
                     if a0 == nil || a0["type"] != "String" { err(ctx, "x64 native v0: print only supports string literal"); return nil }
-                    oren_list_push(ops, {"op": "print_cstr", "value": a0["value"]})
+                    oren_list_push(ops, {"op": "print_cstr", "tok": tok, "value": a0["value"]})
                     i = i + 1
                     continue
                 }
@@ -124,7 +126,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 // Generic call expression statement: evaluate and discard return.
                 _expr_int_check(ctx, e)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                oren_list_push(ops, {"op": "expr", "expr": e})
+                oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e})
                 i = i + 1
                 continue
             }
@@ -136,7 +138,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             var v2 = st["value"]
             if name_node2 == nil || name_node2["type"] != "Identifier" { err(ctx, "x64 native v0: assign name must be identifier"); return nil }
             if v2 == nil { err(ctx, "x64 native v0: assign missing value"); return nil }
-            oren_list_push(ops, {"op": "assign_i32", "name": name_node2["value"], "expr": v2})
+            oren_list_push(ops, {"op": "assign_i32", "tok": tok, "name": name_node2["value"], "expr": v2})
             i = i + 1
             continue
         }
@@ -167,7 +169,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 if left["recv_kind"] != nil { call["recv_kind"] = left["recv_kind"] }
                 _expr_int_check(ctx, call)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                oren_list_push(ops, {"op": "expr", "expr": call})
+                oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call})
                 i = i + 1
                 continue
             }
@@ -178,7 +180,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
         if t == "Return" {
             var v = st["value"]
             if v == nil { err(ctx, "x64 native v0: return missing value"); return nil }
-            oren_list_push(ops, {"op": "return", "expr": v})
+            oren_list_push(ops, {"op": "return", "tok": tok, "expr": v})
             i = i + 1
             continue
         }
@@ -205,7 +207,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                     return nil
                 }
             }
-            oren_list_push(ops, {"op": "if", "cond": st["cond"], "then": then_ops, "else": else_ops})
+            oren_list_push(ops, {"op": "if", "tok": tok, "cond": st["cond"], "then": then_ops, "else": else_ops})
             i = i + 1
             continue
         }
@@ -216,7 +218,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             if body == nil || body["type"] != "Block" { err(ctx, "x64 native v0: while body must be Block"); return nil }
             var body_ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
             if body_ops == nil { return nil }
-            oren_list_push(ops, {"op": "while", "cond": st["cond"], "body": body_ops})
+            oren_list_push(ops, {"op": "while", "tok": tok, "cond": st["cond"], "body": body_ops})
             i = i + 1
             continue
         }
@@ -237,7 +239,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             if init == nil && post == nil {
                 var bops = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
                 if bops == nil { return nil }
-                oren_list_push(ops, {"op": "while", "cond": cond, "body": bops})
+                oren_list_push(ops, {"op": "while", "tok": tok, "cond": cond, "body": bops})
                 i = i + 1
                 continue
             }
@@ -259,17 +261,17 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 err(ctx, "x64 native v0: for post must be simple update")
                 return nil
             }
-            oren_list_push(ops, {"op": "for", "init": init_ops, "cond": cond, "post": post_ops, "body": body_ops2})
+            oren_list_push(ops, {"op": "for", "tok": tok, "init": init_ops, "cond": cond, "post": post_ops, "body": body_ops2})
             i = i + 1
             continue
         }
         if t == "Break" {
-            oren_list_push(ops, {"op": "break"})
+            oren_list_push(ops, {"op": "break", "tok": tok})
             i = i + 1
             continue
         }
         if t == "Continue" {
-            oren_list_push(ops, {"op": "continue"})
+            oren_list_push(ops, {"op": "continue", "tok": tok})
             i = i + 1
             continue
         }

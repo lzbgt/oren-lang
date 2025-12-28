@@ -363,7 +363,8 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     var l_done = _new_label(ctx, "sym_done")
     var l_loop = _new_label(ctx, "sym_loop")
     var l_match = _new_label(ctx, "sym_match")
-    _emit_jcc_to_label(ctx, fixups, "l", l_done)
+    // Treat return addresses as unsigned 64-bit domain values.
+    _emit_jcc_to_label(ctx, fixups, "b", l_done)
 
     // off_target (r9) = addr - text_base
     bytes_extend(ctx["code"], insn_mov_r64_r64(9, addr_reg))
@@ -401,7 +402,7 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     bytes_extend(ctx["code"], insn_mov_r32_r32(6, 0))
     // if off_target >= entry_off => match
     bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 6))
-    _emit_jcc_to_label(ctx, fixups, "ge", l_match)
+    _emit_jcc_to_label(ctx, fixups, "ae", l_match)
 
     // idx++
     bytes_extend(ctx["code"], insn_add_r64_imm32(3, 1))
@@ -421,6 +422,95 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     // name_off = high32(entry)
     bytes_extend(ctx["code"], insn_shr_r64_imm8(0, 32))
     // out_ptr_reg = data_base + name_off
+    bytes_extend(ctx["code"], insn_mov_r64_r64(out_ptr_reg, 8))
+    bytes_extend(ctx["code"], insn_add_r64_r64(out_ptr_reg, 0))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _emit_resolve_loc_ptr_best_effort(ctx, addr_reg, out_ptr_reg) {
+    // Resolve an absolute return address to a best-effort call-site location pointer.
+    //
+    // Requires:
+    // - ctx["linetab_off"] reserved by `_data_reserve_linetab` (debug-only).
+    //
+    // Returns:
+    // - out_ptr_reg = pointer to NUL-terminated location string (or "" when unknown)
+    //
+    // Clobbers: rax, rbx, r8, r9, r10, r11, rsi
+    var linetab_off = ctx["linetab_off"]
+    var empty_off = _data_add_cstr0(ctx, "")
+    if empty_off == nil { return nil }
+
+    // Default out_ptr_reg = "".
+    var lea_empty = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(out_ptr_reg, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_empty + 3, "data_off": empty_off})
+
+    if linetab_off == nil { return nil }
+
+    var platform = ctx["platform"]
+    var text_base = abi.x64_v0_text_base_addr(platform)
+
+    // if addr < text_base => keep ""
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(10, text_base)) // r10 = text_base
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(addr_reg, 10))
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "loc_done")
+    var l_loop = _new_label(ctx, "loc_loop")
+    var l_match = _new_label(ctx, "loc_match")
+    _emit_jcc_to_label(ctx, fixups, "b", l_done)
+
+    // off_target (r9) = addr - text_base
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, addr_reg))
+    bytes_extend(ctx["code"], insn_sub_r64_r64(9, 10))
+
+    // r11 = &linetab (RIP-relative into appended data)
+    var lea_tab = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_tab + 3, "data_off": linetab_off})
+
+    // data_base (r8) = linetab_ptr - linetab_off
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 11))
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(8, core.int_mod(linetab_off, 4294967296)))
+
+    // count (r10) = *(u64*)linetab_ptr
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 11))
+    // entries_base (r11) = linetab_ptr + 8
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+    // idx (rbx) = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(3, 0))
+
+    _emit_label(ctx, labels, l_loop)
+    // if idx >= count => done
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(3, 10))
+    _emit_jcc_to_label(ctx, fixups, "ge", l_done)
+
+    // entry_ptr (rax) = entries_base + idx*8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 3))
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(0, 8))
+    bytes_extend(ctx["code"], insn_add_r64_r64(0, 11))
+    // entry (rax) = *(u64*)entry_ptr
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 0))
+
+    // entry_off (rsi) = low32(entry)
+    bytes_extend(ctx["code"], insn_mov_r32_r32(6, 0))
+    // if off_target >= entry_off => match
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 6))
+    _emit_jcc_to_label(ctx, fixups, "ae", l_match)
+
+    // idx++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(3, 1))
+    _emit_jmp_to_label(ctx, fixups, l_loop)
+
+    _emit_label(ctx, labels, l_match)
+    // loc_off = high32(entry)
+    bytes_extend(ctx["code"], insn_shr_r64_imm8(0, 32))
+    // out_ptr_reg = data_base + loc_off
     bytes_extend(ctx["code"], insn_mov_r64_r64(out_ptr_reg, 8))
     bytes_extend(ctx["code"], insn_add_r64_r64(out_ptr_reg, 0))
     _emit_jmp_to_label(ctx, fixups, l_done)
@@ -502,7 +592,7 @@ fn _emit_stack_trace_best_effort(ctx) {
     //
     // Caveats:
     // - best-effort only: symbolication uses an embedded symtab (fixed-base emitters)
-    // - line mapping is currently "function definition @ file:line" (not call-site DWARF/PDB-style)
+    // - call-site mapping is best-effort and only available when a linetab is embedded (debug builds)
     // - relies on frame pointers being enabled (true for current x64 prologues)
     //
     // Clobbers: volatile regs; exits soon after anyway.
@@ -551,9 +641,22 @@ fn _emit_stack_trace_best_effort(ctx) {
         // - r11 = name ptr
         // - r10 = offset (clobberable after)
         _emit_resolve_symbol_ptr_and_off_best_effort(ctx, 15, 11, 10)
+        // Preserve offset across helper calls (strlen clobbers r10).
+        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(0, 10))
         _emit_strlen_cstr0_to_rdx(ctx, 11) // rdx = len
         bytes_extend(ctx["code"], insn_mov_r64_r64(9, 2)) // r9 = len
         _emit_windows_write_ptr_len(ctx, 11, 9)
+
+        // Call-site location (debug-only linetab).
+        if ctx["linetab_off"] != nil {
+            _emit_resolve_loc_ptr_best_effort(ctx, 15, 11)
+            _emit_strlen_cstr0_to_rdx(ctx, 11)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(9, 2))
+            _emit_windows_write_ptr_len(ctx, 11, 9)
+        }
+
+        // Restore offset into r10 for "+0x...".
+        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, 0))
         // print "+0x<off>\n"
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 64)) // buf2 = rsp + 0x40
         _emit_format_plus0x_u64_hex_line(ctx, 10, 11)
@@ -603,8 +706,19 @@ fn _emit_stack_trace_best_effort(ctx) {
     _emit_linux_write_ptr_len(ctx, 11, 10)
 
     _emit_resolve_symbol_ptr_and_off_best_effort(ctx, 15, 11, 10)
+    // Preserve offset across helper calls (strlen clobbers r10).
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(0, 10))
     _emit_strlen_cstr0_to_rdx(ctx, 11)
     _emit_linux_write_ptr_len(ctx, 11, 2)
+
+    if ctx["linetab_off"] != nil {
+        _emit_resolve_loc_ptr_best_effort(ctx, 15, 11)
+        _emit_strlen_cstr0_to_rdx(ctx, 11)
+        _emit_linux_write_ptr_len(ctx, 11, 2)
+    }
+
+    // Restore offset into r10 for "+0x...".
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, 0))
     // "+0x<off>\n" into buf2 then write it
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 64)) // buf2 = rsp + 0x40
     _emit_format_plus0x_u64_hex_line(ctx, 10, 11)

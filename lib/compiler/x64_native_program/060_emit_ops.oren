@@ -30,11 +30,48 @@ fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
     return local_next
 }
 
+fn _linetab_record_tok(ctx, tok) {
+    // Record a best-effort source location entry for stack traces.
+    //
+    // Only active when `_data_reserve_linetab` was called (debug builds).
+    if ctx == nil { return nil }
+    if ctx["linetab_off"] == nil { return nil }
+    if tok == nil { return nil }
+    var file = tok["file"]
+    var line = tok["line"]
+    if file == nil || line == nil { return nil }
+    if ctx["linetab_entries"] == nil || ctx["linetab_cap"] == nil { return nil }
+    if oren_list_len(ctx["linetab_entries"]) >= ctx["linetab_cap"] { return nil }
+
+    // Avoid inserting many redundant entries when several ops map to the same line.
+    var line_s = oren_int_to_string(line)
+    var loc = " @" + file + ":" + line_s + " "
+
+    if ctx["linetab_loc_offs"] == nil { ctx["linetab_loc_offs"] = {} }
+    var loc_off = ctx["linetab_loc_offs"][loc]
+    if loc_off == nil {
+        loc_off = _data_add_cstr0(ctx, loc)
+        if loc_off == nil { return nil }
+        ctx["linetab_loc_offs"][loc] = loc_off
+    }
+
+    if ctx["linetab_last_loc_off"] != nil && ctx["linetab_last_loc_off"] == loc_off {
+        return nil
+    }
+
+    var code_off = oren_list_len(ctx["code"])
+    ctx["linetab_last_code_off"] = code_off
+    ctx["linetab_last_loc_off"] = loc_off
+    oren_list_push(ctx["linetab_entries"], {"off": code_off, "loc_off": loc_off})
+    return nil
+}
+
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var j = 0
     while ops != nil && j < oren_list_len(ops) {
         var op = ops[j]
         if op == nil { j = j + 1; continue }
+        _linetab_record_tok(ctx, op["tok"])
         if op["op"] == "var_i32" {
             var off = locals[op["name"]]
             if off == nil { err(ctx, "x64 native v0: missing local slot"); return nil }

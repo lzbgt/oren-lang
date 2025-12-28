@@ -262,3 +262,100 @@ fn _data_finalize_symtab(ctx) {
     }
     return nil
 }
+
+fn _data_reserve_linetab(ctx, cap_entries) {
+    // Reserve a line table region in the appended data blob for best-effort call-site mapping.
+    //
+    // This is intended for x64 native panic stack traces, to display:
+    //   <fn>@<def_file>:<def_line> @<call_file>:<call_line> +0x...
+    //
+    // Unlike DWARF/PDB, this table is:
+    // - best-effort (statement/op granularity)
+    // - compact and deterministic (fixed cap; sorted by code offset)
+    // - embedded in the appended data blob and resolved via RIP-relative addressing
+    //
+    // Layout (in ctx["data"]):
+    //   linetab_off + 0: u32 count
+    //   linetab_off + 4: u32 reserved (0)
+    //   linetab_off + 8: entries[cap] each entry is u64:
+    //       low 32: code offset (u32) at which this location applies
+    //       high 32: loc string offset (u32) in data blob (NUL-terminated)
+    //
+    // The table is filled later by `_data_finalize_linetab`, after compilation.
+    if ctx == nil { return nil }
+    if cap_entries == nil || cap_entries <= 0 { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+
+    // 8-byte align for u64 reads.
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var linetab_off = oren_list_len(ctx["data"])
+    var total = 8 + cap_entries * 8
+    var i = 0
+    while i < total { bytes_push(ctx["data"], 0); i = i + 1 }
+
+    ctx["linetab_off"] = linetab_off
+    ctx["linetab_cap"] = cap_entries
+    ctx["linetab_entries"] = []
+    ctx["linetab_loc_offs"] = {}
+    // Cheap dedup across sequential ops (keeps size down when many ops share a line).
+    ctx["linetab_last_code_off"] = nil
+    ctx["linetab_last_loc_off"] = nil
+    return linetab_off
+}
+
+fn _data_finalize_linetab(ctx) {
+    // Fill the reserved linetab region (see `_data_reserve_linetab`).
+    if ctx == nil { return nil }
+    var linetab_off = ctx["linetab_off"]
+    var cap_entries = ctx["linetab_cap"]
+    var entries_in = ctx["linetab_entries"]
+    if linetab_off == nil || cap_entries == nil || cap_entries <= 0 || entries_in == nil { return nil }
+
+    // Header patched after we know how many entries we wrote.
+    set_u32_le(ctx["data"], linetab_off + 0, 0)
+    set_u32_le(ctx["data"], linetab_off + 4, 0)
+
+    // Copy entries then sort descending by off.
+    // Descending order lets runtime resolution pick the closest preceding entry via:
+    //   if off_target >= entry.off { return entry.loc }
+    var entries = []
+    var i = 0
+    while i < oren_list_len(entries_in) {
+        var e0 = entries_in[i]
+        if e0 != nil && e0["off"] != nil && e0["loc_off"] != nil {
+            oren_list_push(entries, e0)
+        }
+        i = i + 1
+    }
+
+    // Insertion sort (descending by off). Small N expected; keep deterministic.
+    var si = 1
+    while si < oren_list_len(entries) {
+        var key = entries[si]
+        var k_off = key["off"]
+        var k = si - 1
+        while k >= 0 {
+            if entries[k]["off"] >= k_off { break }
+            entries[k + 1] = entries[k]
+            k = k - 1
+        }
+        entries[k + 1] = key
+        si = si + 1
+    }
+
+    var write_n = oren_list_len(entries)
+    if write_n > cap_entries { write_n = cap_entries }
+    set_u32_le(ctx["data"], linetab_off + 0, write_n)
+
+    var j = 0
+    while j < write_n {
+        var e = entries[j]
+        var e_off = e["off"]
+        var e_loc_off = e["loc_off"]
+        var pos = linetab_off + 8 + j * 8
+        set_u32_le(ctx["data"], pos + 0, core.int_mod(e_off, 4294967296))
+        set_u32_le(ctx["data"], pos + 4, core.int_mod(e_loc_off, 4294967296))
+        j = j + 1
+    }
+    return nil
+}

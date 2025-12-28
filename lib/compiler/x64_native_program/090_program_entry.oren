@@ -344,6 +344,15 @@ fn native_compile_program_x64(linked, platform) {
     _data_reserve_symtab(ctx, sym_names)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
+    // --- Best-effort call-site line mapping (debug-only; rolling) ---
+    //
+    // Reserve a compact linetab for stack traces. This enables printing a call-site
+    // `@file:line` in addition to the function definition location in `symtab_display`.
+    if platform != nil && platform["debug"] == true {
+        _data_reserve_linetab(ctx, 16384)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    }
+
     // --- Stack safety (call depth guard; rolling Tier‑1) ---
     //
     // x64 native does not yet inject the full native runtime, so we keep a minimal
@@ -445,6 +454,10 @@ fn native_compile_program_x64(linked, platform) {
 
     // Fill the symtab now that `ctx["functions"]` contains final offsets.
     _data_finalize_symtab(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
+    // Fill the linetab now that code offsets are stable.
+    _data_finalize_linetab(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     return ctx
