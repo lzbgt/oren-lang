@@ -439,18 +439,38 @@ func runNativeSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Durati
 }
 
 func hostNativeTarget() string {
-	if runtime.GOOS == "darwin" {
-		return "macos"
-	}
-	if runtime.GOOS == "linux" {
+	// Only return targets that the native backend supports on the current host OS.
+	switch runtime.GOOS {
+	case "darwin":
+		// Rolling: native backend supports macOS only on arm64 today.
+		if runtime.GOARCH == "arm64" {
+			return "macos"
+		}
+		return ""
+	case "linux":
 		return "linux"
+	case "windows":
+		return "windows"
+	default:
+		return ""
 	}
-	return ""
 }
 
 func hostNativeArch() string {
-	// Rolling policy: the native backend supports only arm64 today.
-	return "arm64"
+	// Return the native backend arch string for the current host arch, but only
+	// for host OS combinations we actually support.
+	switch runtime.GOARCH {
+	case "arm64":
+		return "arm64"
+	case "amd64":
+		// Rolling: x64 native backend targets linux+windows today (ELF+PE).
+		if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+			return "x64"
+		}
+		return ""
+	default:
+		return ""
+	}
 }
 
 func main() {
@@ -580,12 +600,11 @@ func main() {
 		enableNative := *full || *selfhostNative
 		if enableNative {
 			nt := hostNativeTarget()
-			if nt == "" {
-				fmt.Fprintln(os.Stderr, "WARN: native self-host gate skipped: unsupported host OS:", runtime.GOOS)
-			} else if runtime.GOARCH != "arm64" {
-				fmt.Fprintln(os.Stderr, "WARN: native self-host gate skipped: unsupported host arch:", runtime.GOARCH)
+			na := hostNativeArch()
+			if nt == "" || na == "" {
+				fmt.Fprintln(os.Stderr, "WARN: native self-host gate skipped: unsupported host platform:", runtime.GOOS, runtime.GOARCH)
 			} else {
-				if err := runNativeSelfHostingGate(timeoutBin, gcArg, buildTimeout, nt, hostNativeArch()); err != nil {
+				if err := runNativeSelfHostingGate(timeoutBin, gcArg, buildTimeout, nt, na); err != nil {
 					fmt.Fprintln(os.Stderr, err.Error())
 					os.Exit(1)
 				}
