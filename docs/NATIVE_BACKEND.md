@@ -26,8 +26,14 @@ bring-up fixtures are **ABI facts**, not language constraints.
 
 - **Executable Formats**:
   - **macOS**: Mach-O 64-bit, PIE. Supports dynamic linking with `libSystem` (FFI) via `LC_DYLD_INFO_ONLY` binding opcodes and GOT stubs. The CLI signs the finished binary with your Developer ID by default.
-  - **Linux**: ELF 64-bit (`ET_EXEC`) with a minimal single `PT_LOAD` image (no dynamic section / no dynamic linker integration yet).
-  - **Windows (x86_64 bring-up)**: PE32+ with a minimal import table for `kernel32` and a small `.rdata` blob for string literals.
+  - **Linux**: ELF 64-bit (`ET_EXEC`) with **two PT_LOAD segments** (W^X):
+    - RX: headers + code
+    - RW: data blob (mutable globals like call-depth counters, plus string literals / fnobjs / symtab)
+    No dynamic linker integration yet (no `DT_NEEDED` / PLT / GOT relocations in v0).
+  - **Windows (x86_64 bring-up)**: PE32+ with a minimal import table for `kernel32` and a **3-section layout**:
+    - `.text` (RX) code
+    - `.rdata` (R) import table / constant metadata
+    - `.data` (RW) user data blob (mutable globals, string literals, fnobjs, symtab)
 
 - **Language Features**:
   - **Control Flow**: `if/else`, `while`, `Block`, `Return`.
@@ -38,7 +44,10 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - **Modules**: `import` loads code (merged).
 
 - **Memory & Concurrency**:
-  - **Allocation**: Bump-pointer heap (X28/X27) with on-demand `mmap` growth (max of request or 64KB) and a runtime hook `oren_alloc_struct` for struct buffers. Stack slots in inner blocks are released automatically to keep frames bounded across loops.
+  - **Allocation**: Bump-pointer heap with on-demand growth:
+    - arm64: `X28` = heap_ptr, `X27` = heap_limit
+    - x86_64: `R15` = heap_ptr, `R14` = heap_limit
+    Stack slots in inner blocks are released automatically to keep frames bounded across loops.
   - **GC**: Conservative mark/sweep GC lives in `lib/runtime_native.oren` (expanded from smaller parts under `lib/runtime_native/*.oren`) and can be triggered manually via `native_gc_collect()`.
   - **Access**: `ptr_get`, `ptr_set`, `ptr_get_byte`, `ptr_set_byte`.
   - **Lists**: `oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` (list-aware), plus array literal lowering in codegen.

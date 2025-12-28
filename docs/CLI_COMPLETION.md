@@ -11,8 +11,8 @@ The generated scripts are intentionally minimal and deterministic:
 - Completes option *names* (e.g. `--backend`, `--target`)
 - Completes a small set of enum-like option *values*:
   - `--backend={c|native|bytecode}`
-  - `--target={macos|linux}`
-  - `--arch={arm64}` (rolling; currently the only supported value)
+  - `--target={macos|linux|windows}` (rolling)
+  - `--arch={arm64|x64}` (rolling)
   - `--stdlib-mode={source|obc}`
   - `--help=json` / `-h=json`
 - Completes `oren dump <kind>` where `<kind>` is one of `tokens|linked|graph`

@@ -53,6 +53,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Most `.oren` tests should be backend/arch neutral; keep ABI-specific tests isolated and minimal.
    - Reduce overlapping “atomic” tests in curated lists; prefer integration suites + fixtures as living spec.
    - Reference: `docs/TEST_SYSTEM.md`.
+   - Rolling docs hygiene: when fixtures or backends change, update the docs that claim invariants (`docs/LANGUAGE_MANUAL.md`, `docs/NATIVE_BACKEND.md`, `docs/CLI_COMPLETION.md`) in the same change to avoid drift.
 
 ### P1 (Soon)
 

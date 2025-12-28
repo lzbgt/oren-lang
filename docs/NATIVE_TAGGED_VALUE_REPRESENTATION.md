@@ -20,10 +20,9 @@ This document is **design guidance** for converging the **native backend** (arm6
 3) **Native backend** (today):
    - values are mostly treated as **untagged `i64` carriers** in registers/stack.
    - heap objects (lists/maps) are recognized via **magic words** at fixed offsets (e.g. `'LIST'`, `'MAP\0'` in x64 bring‑up).
-   - **x86_64 bring‑up** currently uses a **map key heuristic**:
-     - if `key < 4096` treat it as an integer key
-     - else treat it as a C‑string pointer key
-   - this heuristic is not compatible with the language-level statement “`int` is a 64‑bit two’s complement value”, and it is not robust for production (it conflates numeric values and pointer‑like values).
+   - **Rolling status (x86_64 bring-up):** the historical “`key < 4096`” map key heuristic is removed.
+     - map get/set now require an explicit `known_key_kind` hint inferred during shared lowering (conservative; unknown cases abort on the map path)
+     - this is still not a final value model: it is an incremental step until the native backend adopts an explicit tagged representation (so key types are carried as data, not guessed or assumed)
 
 ### Why a tagged representation is required
 
@@ -35,6 +34,7 @@ The language semantics require:
 - predictable serialization and determinism (AVM + replay)
 
 So the native backend must not depend on “is it < 4096?” or “does it look like a pointer?”.
+Even “compiler-inferred key kind” is only a stopgap — production requires a principled tagged value model.
 
 ## 1) Design goals (production constraints)
 
@@ -163,4 +163,3 @@ This requires:
 - Performance can be recovered incrementally:
   - inline fast paths for small ints
   - typed buffers for HPC avoid dynamic boxing entirely
-
