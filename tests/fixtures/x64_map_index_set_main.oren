@@ -1,0 +1,26 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates map index assignment `m[key] = v` works on x64
+// - validates cross-pointer string equality (update existing key via different pointer)
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var m = {"a": 1, "b": 2}
+
+    // Insert via index assignment.
+    m["c"] = 3
+    if oren_map_len(m) != 3 { return 1 }
+    if m["c"] != 3 { return 2 }
+
+    // Update existing entry using a different pointer with the same bytes "c\0".
+    var k = malloc_raw(2)
+    ptr_set_byte(k, 99) // 'c'
+    ptr_set_byte(iadd(k, 1), 0)
+    m[k] = 9
+    if oren_map_len(m) != 3 { return 3 }
+    if m["c"] != 9 { return 4 }
+
+    return 0
+}
+

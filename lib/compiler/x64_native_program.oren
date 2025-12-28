@@ -10,6 +10,7 @@
 // @include "x64_native_program/010_data_io.oren"
 // @include "x64_native_program/020_cond_analyze.oren"
 // @include "x64_native_program/030_expr_check_maxcall.oren"
+// @include "x64_native_program/041_emit_map_set_intrinsic.oren"
 // @include "x64_native_program/040_emit_expr.oren"
 // @include "x64_native_program/050_emit_cmp_labels.oren"
 // @include "x64_native_program/060_emit_ops.oren"
