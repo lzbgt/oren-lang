@@ -1082,6 +1082,16 @@ The native ARM64 backend supports low-level intrinsics for performance and syste
 - **FFI**:
   - `ffi symbol` statement declares an external symbol (e.g., `ffi puts`).
 
+SIMD enablement (rolling):
+
+- SIMD is an **optimization only**; semantics must match the scalar reference behavior.
+- Native runtime uses env gating for native backend outputs:
+  - `OREN_ENABLE_SIMD=1` enables SIMD fast paths when available.
+  - `OREN_NO_SIMD=1` disables SIMD (wins over enable).
+- Determinism is enforced by regression tests that compare scalar vs SIMD paths (bit-identical for covered kernels):
+  - `tests/native/test_simd_suite.oren`
+  - Implementation: `lib/runtime_native/040_capsule_core.oren` (env parse) + `lib/runtime_native/typed_buffers/**` (dispatch/wrappers) + `lib/compiler/arm64_native_expr/**` (NEON lowering).
+
 ### Optional Python FFI
 Python interop is only available when the runtime is built with Python embedding (`-DOREN_ENABLE_PYTHON` / compiler `--python`).
 - Import: `var math = py_import("math")`

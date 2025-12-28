@@ -981,6 +981,15 @@ Design goals:
 - isolate hot loops so NEON microkernels can replace them without changing semantics
 - deterministic accumulation order for consensus and testing
 
+SIMD (arm64 NEON-first) in the native runtime (rolling):
+
+- SIMD is **opt-in** and must not change semantics (scalar results are authoritative).
+- Enable/disable (native backend outputs only):
+  - `OREN_ENABLE_SIMD=1` enables SIMD fast paths when available.
+  - `OREN_NO_SIMD=1` disables SIMD (wins over enable).
+- Determinism guard: scalar vs SIMD paths must remain bit-identical for the covered kernels.
+  - Primary regression suite: `tests/native/test_simd_suite.oren`.
+
 ## 9) Deterministic math (no host libm)
 
 The `std/math` module provides deterministic “libm-lite” functions implemented without calling host `libm`:
