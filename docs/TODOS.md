@@ -24,6 +24,7 @@ Rules for this tracker:
 
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
+   - Interim (done, keep): native runtime infers map key kind using tracking metadata (`oren_find_node(...).kind == STRING`), and native codegen ensures string literals / member keys are tracked via `oren_ensure_tracked`.
    - Deliverable: a native value representation that can distinguish:
      - immediates (ints/bools/nil) vs pointers
      - string/list/map/buf payload kinds
@@ -100,4 +101,3 @@ Rules for this tracker:
 2) **Stackless recursion beyond TCO (heap call frames)** (L)
    - For non-tail recursion that cannot be optimized by TCO, provide a deterministic heap-frame model (AVM-like).
    - Reference: `docs/STACK_SAFETY.md`
-

@@ -212,7 +212,8 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
     var pid = oren_fork()
     if pid < 0 {
         free(child_argv)
-        return -1
+        // Preserve syscall errno style (-errno) to keep failures actionable.
+        return pid
     }
 
     if pid == 0 {
@@ -232,14 +233,23 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
     ptr_set(status_ptr, 0)
 
     if timeout_ms < 0 {
-        var wpid = sys_wait4(pid, status_ptr, 0, 0)
-        if wpid < 0 {
-            free(status_ptr)
-            return -1
+        while 1 {
+            var wpid = sys_wait4(pid, status_ptr, 0, 0)
+            if wpid == pid {
+                var status = ptr_get(status_ptr)
+                free(status_ptr)
+                return status
+            }
+            if wpid == (0 - 4) { // EINTR
+                // Retry a blocking wait when interrupted by a signal.
+                continue
+            }
+            if wpid < 0 {
+                free(status_ptr)
+                // Preserve syscall errno style (-errno) to keep failures actionable.
+                return wpid
+            }
         }
-        var status = ptr_get(status_ptr)
-        free(status_ptr)
-        return status
     }
 
     // Poll: wait4(..., WNOHANG=1) until budget exhausted (deterministic; no TIME domain required).
@@ -251,9 +261,14 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
             free(status_ptr)
             return status2
         }
+        if wpid2 == (0 - 4) { // EINTR
+            // Retry without consuming timeout budget on signal interrupts.
+            continue
+        }
         if wpid2 < 0 {
             free(status_ptr)
-            return -1
+            // Preserve syscall errno style (-errno) to keep failures actionable.
+            return wpid2
         }
         remaining = remaining - 1
     }

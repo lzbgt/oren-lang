@@ -1,4 +1,52 @@
 // --- Strings ---
+//
+// Rolling v0 native backend note:
+// - String literals are embedded in the program's data blob as raw C strings.
+// - To make runtime type introspection deterministic (especially for map key kind inference),
+//   we *intern* those const C strings into heap-allocated, tracked string objects on demand.
+//
+// This keeps the runtime invariant:
+//   every string value that can flow through generic container ops is a tracked heap string.
+//
+// It avoids unsafe heuristics like "treat unknown pointers as strings" (which breaks for ints >= 4096).
+var g_intern_cstr_cache = 0 // map<int ptr -> string_ptr>
+
+fn oren_intern_cstr(cstr_ptr) {
+    // Convert a const C-string pointer (usually from embedded string literal data)
+    // into a tracked heap string, caching by the original pointer identity.
+    //
+    // Input:  cstr_ptr: raw pointer to NUL-terminated bytes (must be readable)
+    // Output: heap pointer to a tracked string allocation (kind=STRING)
+    if cstr_ptr == 0 { return 0 }
+    if cstr_ptr < 4096 { oren_panic("intern_cstr: pointer too small") }
+
+    if g_intern_cstr_cache == 0 {
+        // Keyed by the original pointer value (int-keyed map).
+        g_intern_cstr_cache = oren_new_map(0)
+    }
+
+    var cached = oren_map_get_int(g_intern_cstr_cache, cstr_ptr)
+    if cached != 0 { return cached }
+
+    var n = oren_string_len(cstr_ptr)
+    var out = malloc(n + 1)
+    if out == 0 { oren_panic("intern_cstr: malloc failed") }
+
+    var i = 0
+    while i < n {
+        ptr_set_byte(out + i, ptr_get_byte(cstr_ptr + i))
+        i = i + 1
+    }
+    ptr_set_byte(out + n, 0)
+
+    // Track as STRING (kind=1). This makes map key-kind inference safe and deterministic.
+    oren_track_alloc(out, n + 1, 1)
+
+    // Cache and return.
+    oren_map_set_int(g_intern_cstr_cache, cstr_ptr, out)
+    return out
+}
+
 fn oren_string_len(s) {
     if s == 0 { return 0 }
     var i = 0

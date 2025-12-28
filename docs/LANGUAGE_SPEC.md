@@ -1128,7 +1128,7 @@ Self-hosting relies on a small runtime API (implemented in C, callable from Oren
 - `oren_string_len(s)` / `oren_string_char_at(s, i)` / `oren_char(code)` for string/char work
 - `oren_list_len(xs)` / `oren_list_push(xs, v)` for list work
 - `oren_new_map(pairs...)` / `oren_map_len(m)`
-- `oren_map_get(m, key)` / `oren_map_set(m, key, value)` (string-key default)
+- `oren_map_get(m, key)` / `oren_map_set(m, key, value)` (key-kind aware: `int` vs `string`)
 - `oren_map_get_str/int` / `oren_map_set_str/int` (explicit key-kind, used by stdlib + native backends)
 
 ## Not Implemented (Yet)

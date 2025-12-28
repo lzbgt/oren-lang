@@ -291,6 +291,10 @@ fn native_compile_stmt(ctx, stmt) {
              push_u32_le(ctx["code"], 0)
              oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
              // X0 has key ptr
+             push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
+             var bl_track = oren_list_len(ctx["code"])
+             push_u32_le(ctx["code"], 0)
+             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
              
              push_u32_le(ctx["code"], insn_sub_sp(16))
              push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -666,6 +670,10 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+            push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
+            var bl_track = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
 
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))

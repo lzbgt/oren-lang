@@ -270,15 +270,14 @@ fn _oren_assert_string_ptr(k) {
     // Native v0 uses raw integers for non-pointer values, so we MUST NOT call `strcmp`
     // on arbitrary integers.
     //
-    // Strings can be:
-    // - tracked heap strings (created by runtime helpers, GC-visible)
-    // - untracked constant C strings emitted by the native backend
+    // Contract (rolling):
+    // - string values that flow through generic container ops are tracked heap strings (kind=1)
+    // - embedded string literals are marked tracked via `oren_ensure_tracked(ptr, kind=1)` in codegen
     if k == 0 { oren_panic("map: string key is nil") }
     if k < 4096 { oren_panic("map: string key is not a pointer") }
     var node = oren_find_node(k)
-    if node != 0 {
-        if ptr_get(iadd(node, 16)) != 1 { oren_panic("map: key is not a string") }
-    }
+    if node == 0 { oren_panic("map: string key is not tracked") }
+    if ptr_get(iadd(node, 16)) != 1 { oren_panic("map: key is not a string") }
     return 0
 }
 
@@ -365,11 +364,17 @@ fn oren_map_set_str(m, k, v) {
 }
 
 fn oren_map_set(m, k, v) {
-    // Default API: string-keyed maps.
-    //
-    // Int-keyed maps must call `oren_map_set_int` explicitly.
-    _oren_assert_string_ptr(k)
-    return _oren_map_set_kind(m, k, v, 1)
+    // Rolling v0 map key kind inference (native runtime):
+    // - ints are raw and untracked
+    // - strings are tracked heap strings (kind=1)
+    if k == 0 { oren_panic("map_set: key is nil") }
+    if k < 4096 { return _oren_map_set_kind(m, k, v, 0) }
+    var node = oren_find_node(k)
+    if node == 0 { return _oren_map_set_kind(m, k, v, 0) }
+    var kind = ptr_get(iadd(node, 16))
+    if kind == 1 { return _oren_map_set_kind(m, k, v, 1) }
+    oren_panic("map_set: unsupported key type (need int or string)")
+    return 0
 }
 
 fn map_cmp_keys(a_kind, a_key, b_kind, b_key) {
@@ -500,12 +505,17 @@ fn oren_map_get_str(m, k) {
 }
 
 fn oren_map_get(m, k) {
-    // Default API: string-keyed maps.
-    //
-    // Int-keyed maps must call `oren_map_get_int` explicitly.
+    // Rolling v0 map key kind inference (native runtime):
+    // - ints are raw and untracked
+    // - strings are tracked heap strings (kind=1)
     if k == 0 { return 0 }
-    _oren_assert_string_ptr(k)
-    return _oren_map_get_kind(m, k, 1)
+    if k < 4096 { return _oren_map_get_kind(m, k, 0) }
+    var node = oren_find_node(k)
+    if node == 0 { return _oren_map_get_kind(m, k, 0) }
+    var kind = ptr_get(iadd(node, 16))
+    if kind == 1 { return _oren_map_get_kind(m, k, 1) }
+    oren_panic("map_get: unsupported key type (need int or string)")
+    return 0
 }
 
 fn oren_map_len(m) {

@@ -222,11 +222,13 @@ fn native_expr_chunk_noncall(ctx, expr) {
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
-            
-            push_u32_le(ctx["code"], insn_movz(1, 1))
-            var bl_ensure = oren_list_len(ctx["code"])
+
+            // Ensure embedded C-string literals are tracked as STRING (kind=1).
+            // This keeps key-kind inference safe without forcing heap copies of literals.
+            push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
+            var bl_track = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_ensure, "name": "oren_ensure_tracked"})
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
             return true
         }
 
@@ -955,6 +957,10 @@ fn native_expr_chunk_noncall(ctx, expr) {
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+            push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
+            var bl_track = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
             
             // Push key -> stack
             push_u32_le(ctx["code"], insn_sub_sp(16))
