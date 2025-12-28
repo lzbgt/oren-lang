@@ -29,6 +29,7 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 - If **source code** changes, run a verification step before finishing:
   - Default: `make test`
   - If the user requests “skip time-consuming tests”, do minimal verification (format/build checks) and clearly note what was skipped.
+- If **only documentation** changes (`docs/**`, `*.md`, comments-only edits), tests are optional; prefer skipping full suites to save iteration time unless the doc change is about build/test instructions (in that case, run a targeted smoke like `make -n test` or a minimal command path check).
 - Use the fastest targeted check first, then broaden if needed.
 
 ## Test performance knobs (preferred)
