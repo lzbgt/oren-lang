@@ -331,11 +331,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
     if t == "Index" {
         // Index expression `xs[i]`.
         //
-        // In the current x64 bring-up subset we only support list indexing
-        // (maps/strings/bytes will come later with runtime injection).
+        // In rolling Tier‑1, `Index` is polymorphic over list + map.
         var left = expr["left"]
         var idx = expr["index"]
         if left == nil || idx == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
+
+        // Best-effort kind hint from the shared lowering pass.
+        // When present, we still validate the runtime magic and abort(1) on mismatch
+        // to avoid silent miscompilations if inference is wrong.
+        var recv_kind = expr["recv_kind"]
 
         // For maps, key-kind must match the stored entry kind.
         //
@@ -379,14 +383,27 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
         bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
         var l_is_list = _new_label(ctx, "idx_is_list")
         var l_is_map = _new_label(ctx, "idx_is_map")
         var l_idx_done = _new_label(ctx, "idx_done")
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-        _emit_abort_exitcode(ctx, 1)
+
+        // If the receiver kind is known, only accept that kind.
+        if recv_kind == "list" {
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+            _emit_abort_exitcode(ctx, 1)
+        } else if recv_kind == "map" {
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
+            _emit_abort_exitcode(ctx, 1)
+        } else {
+            // Unknown at compile-time => dynamic magic check (LIST or MAP).
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
+            _emit_abort_exitcode(ctx, 1)
+        }
 
         // --- list indexing path ---
         _emit_label(ctx, labels, l_is_list)
@@ -442,6 +459,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if known_key_kind >= 0 {
             bytes_extend(ctx["code"], insn_mov_r32_imm32(13, known_key_kind))
         } else {
+            // If the receiver is known to be a map, requiring an explicit key kind keeps
+            // the semantics deterministic and avoids runtime heuristics.
+            if recv_kind == "map" {
+                err(ctx, "x64 native v0: map index requires inferred key kind (annotate via known key kinds or use int/string key literals)")
+                return nil
+            }
             bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
             var l_kind_done = _new_label(ctx, "idx_map_kind_done")
@@ -1201,18 +1224,25 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if nm == "oren_index_set" {
             // Polymorphic index assignment helper (rolling):
             // - Lists: strict in-bounds `xs[i] = v` (no auto-grow)
-            // - Maps: `m[key] = v` inserts/replaces (x64 v0: dynamic key-kind heuristic; literal keys get explicit kind)
+            // - Maps: `m[key] = v` inserts/replaces
             //
             // Return value:
             // - list path returns `v` (matches list_set convention)
             // - map path returns `v` (matches C runtime; kept expression-friendly)
             if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: oren_index_set expects 3 args"); return nil }
 
+            var recv_kind = expr["recv_kind"]
+
             var known_key_kind = -1
             if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
             var key_t = args[1]["type"]
             if key_t == "Integer" { known_key_kind = 0 }
             else if key_t == "String" { known_key_kind = 1 }
+
+            if recv_kind == "map" && known_key_kind < 0 {
+                err(ctx, "x64 native v0: map index_set requires inferred key kind (avoid dynamic key heuristics)")
+                return nil
+            }
 
             // Use the intrinsic temp pool so nested evaluation cannot clobber spilled args.
             var base = _intr_tmp_push(ctx, 7)
@@ -1263,11 +1293,21 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var l_map = _new_label(ctx, "index_set_is_map")
             var l_done = _new_label(ctx, "index_set_done")
 
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_list)
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
-            _emit_jcc_to_label(ctx, local_fixups, "e", l_map)
-            _emit_abort_exitcode(ctx, 1)
+            if recv_kind == "list" {
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+                _emit_jcc_to_label(ctx, local_fixups, "e", l_list)
+                _emit_abort_exitcode(ctx, 1)
+            } else if recv_kind == "map" {
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
+                _emit_jcc_to_label(ctx, local_fixups, "e", l_map)
+                _emit_abort_exitcode(ctx, 1)
+            } else {
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+                _emit_jcc_to_label(ctx, local_fixups, "e", l_list)
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
+                _emit_jcc_to_label(ctx, local_fixups, "e", l_map)
+                _emit_abort_exitcode(ctx, 1)
+            }
 
             // --- list path ---
             _emit_label(ctx, labels, l_list)

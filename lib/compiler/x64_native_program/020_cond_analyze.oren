@@ -163,6 +163,8 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 // impl_lowering may annotate the Index node with `known_key_kind` so the x64
                 // backend can avoid unsafe dynamic heuristics for integer keys >= 4096.
                 if left["known_key_kind"] != nil { call["known_key_kind"] = left["known_key_kind"] }
+                // Preserve receiver kind when known so codegen can avoid dynamic LIST/MAP dispatch.
+                if left["recv_kind"] != nil { call["recv_kind"] = left["recv_kind"] }
                 _expr_int_check(ctx, call)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 oren_list_push(ops, {"op": "expr", "expr": call})

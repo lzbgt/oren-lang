@@ -637,6 +637,7 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
         // If this is a map index expression and we can infer key kind, annotate it so
         // x64 native can avoid runtime heuristics.
         var recv_k = infer_container_kind(expr["left"], kind_env)
+        if recv_k != nil { expr["recv_kind"] = recv_k }
         if recv_k == "map" {
             var kk = infer_map_key_kind(expr["index"], kind_env)
             if kk != nil { expr["known_key_kind"] = kk }
@@ -724,6 +725,12 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
                     if k3 == "map" || k3 == "list" {
                         stmt["type"] = "Set"
                         stmt["left"] = ast.new_index(e["token"], recv, args[0])
+                        // Preserve receiver + key kind inference on the synthesized Index node.
+                        stmt["left"]["recv_kind"] = k3
+                        if k3 == "map" {
+                            var kk = infer_map_key_kind(args[0], kind_env)
+                            if kk != nil { stmt["left"]["known_key_kind"] = kk }
+                        }
                         stmt["value"] = args[1]
                         stmt["expr"] = nil
                     }
