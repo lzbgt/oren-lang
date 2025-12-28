@@ -25,6 +25,7 @@ fn _expr_int_check(ctx, expr) {
     }
     if t == "Boolean" { return nil }
     if t == "Nil" { return nil }
+    if t == "String" { return nil }
     if t == "Identifier" { return nil }
     if t == "Call" {
         var fn_expr = expr["fn"]

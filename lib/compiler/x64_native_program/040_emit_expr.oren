@@ -201,6 +201,17 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_cdqe())
         return nil
     }
+    if t == "String" {
+        // Native strings are raw pointers to NUL-terminated bytes.
+        // Store literal bytes in the appended data blob and load its address via RIP-relative LEA.
+        var s = expr["value"]
+        var off = _data_add_cstr0(ctx, s)
+        if off == nil { err(ctx, "x64 native v0: failed to add string literal data"); return nil }
+        var lea_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
+        return nil
+    }
     if t == "Identifier" {
         var name = expr["value"]
         var off = locals[name]

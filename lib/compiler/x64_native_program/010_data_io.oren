@@ -13,6 +13,31 @@ fn _data_add_cstr_newline(ctx, s) {
     return {"off": off, "len": oren_list_len(b) - 1}
 }
 
+fn _data_add_cstr0(ctx, s) {
+    // Add a NUL-terminated C string to the appended data blob and return its byte offset.
+    //
+    // Unlike `_data_add_cstr_newline`, this does NOT append a newline; it is intended for
+    // language-level `"string literal"` values represented as raw pointers (native runtime model).
+    //
+    // Deduping:
+    // - For correctness it's not required (native string comparisons use strcmp-style logic),
+    //   but it reduces binary size and makes pointer identity stable for repeated literals.
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
+
+    if s == nil { s = "" }
+    if ctx["cstr0_offs"][s] != nil { return ctx["cstr0_offs"][s] }
+
+    var b = oren_bytes_from_string(s)
+    bytes_push(b, 0)
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = oren_list_len(ctx["data"])
+    bytes_extend(ctx["data"], b)
+    ctx["cstr0_offs"][s] = off
+    return off
+}
+
 fn _data_add_fnobj(ctx, fn_name) {
     // Create (or reuse) a function-value object in the appended data blob.
     //

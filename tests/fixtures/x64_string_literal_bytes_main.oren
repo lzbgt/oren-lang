@@ -1,0 +1,21 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates `"string literal"` can be used as a value in x64 v0
+// - validates string data is NUL-terminated and addressable via ptr_get_byte + iadd
+//
+// This does not require the full native runtime injection; it only relies on existing
+// x64 intrinsics:
+//   - iadd(ptr, int)
+//   - ptr_get_byte(ptr)
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var s = "abc"
+    if ptr_get_byte(s) != 97 { return 1 }          // 'a'
+    if ptr_get_byte(iadd(s, 1)) != 98 { return 2 } // 'b'
+    if ptr_get_byte(iadd(s, 2)) != 99 { return 3 } // 'c'
+    if ptr_get_byte(iadd(s, 3)) != 0 { return 4 }  // NUL terminator
+    return 0
+}
+
