@@ -212,7 +212,7 @@ fn _encode_value(out, v) {
         while i5 < list.len(keys) {
             var k2 = keys[i5]
             _encode_value(out, cstring(k2))
-            _encode_value(out, m[k2])
+            _encode_value(out, oren_map_get_str(m, k2))
             i5 = i5 + 1
         }
         return nil
@@ -351,7 +351,7 @@ fn _decode_value(bs, pos) {
             var key = rk["v"]["s"]
             var rv2 = _decode_value(bs, rk["pos"])
             if rv2["ok"] != 1 { return rv2 }
-            m[key] = rv2["v"]
+            oren_map_set_str(m, key, rv2["v"])
             p3 = rv2["pos"]
             i5 = i5 + 1
         }

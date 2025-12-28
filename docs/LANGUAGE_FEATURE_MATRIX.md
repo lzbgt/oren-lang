@@ -50,6 +50,9 @@ Status legend:
 | List literal `[]` and indexing `xs[i]` | Rolling | Shared lowering + backend intrinsics; C uses runtime helpers | Tests: `tests/native/fixtures/**`; Docs: `docs/DESIGN_CONTAINER_OPS.md` |
 | List `push/len` as operations (no wrapper overhead) | Rolling | Lowering: `lib/compiler/impl_lowering.oren`; Intrinsics: `oren_list_len`, `oren_list_push` (returns `nil`) | Track: `docs/TODOS.md` (P0.4); Internals: `docs/IMPLEMENTATION_NOTES.md` |
 | `slice_view` / `clone` / `slice_copy` | Rolling | Stdlib: `lib/std/list.oren` (`clone`, `slice_copy`, `slice_view`) | Manual: `docs/LANGUAGE_MANUAL.md` (List helpers); Track: `docs/TODOS.md` (P0.4) |
+| Map literal `{}` and indexing `m[k]` / `m[k]=v` | Rolling | Parser + lowering; C/AVM: dynamic keys; Native: key-kind must be deterministic | Tests: `tests/native/test_integration_suite.oren`; Manual: `docs/LANGUAGE_MANUAL.md` “Maps” |
+| Deterministic map iteration | Rolling | C runtime keeps keys sorted; native runtime sorts lazily on iteration | Tests: `tests/native/test_integration_suite.oren` (map iteration); Runtime: `lib/runtime/040_lists_maps.inc`, `lib/runtime_native/130_printing.oren` |
+| Typed map ops (`oren_map_get_str/int`, `oren_map_set_str/int`) | Rolling | Native runtime: `lib/runtime_native/130_printing.oren`; C runtime: `lib/runtime/040_lists_maps.inc`; Native lowering selects typed ops when key kind is known | Used by stdlib codecs: `lib/std/json.oren`, `lib/std/yaml.oren`, `lib/std/cbor.oren` |
 | Typed buffers `[]i32`, `[]f64`, ... | Rolling | Stdlib: `lib/std/buffer.oren` + runtime helpers | Docs: `docs/HPC_SERVER_PLAN.md` |
 
 ## Runtime model (determinism, safety, AVM)

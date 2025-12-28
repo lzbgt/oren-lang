@@ -421,14 +421,16 @@ fn _parse_block(lines, idx, indent) {
             if indn2 <= indent { return _err("expected indented nested block", ni2 + 1) }
             var r2 = _parse_block(lines, i2 + 1, indn2)
             if r2["ok"] != 1 { return r2 }
-            obj[key] = r2["v"]
+            // YAML object keys are strings in v0 subset.
+            oren_map_set_str(obj, key, r2["v"])
             i2 = r2["idx"]
             continue
         }
 
         var rv2 = _parse_scalar(val_raw, line_no)
         if rv2["ok"] != 1 { return rv2 }
-        obj[key] = rv2["v"]
+        // YAML object keys are strings in v0 subset.
+        oren_map_set_str(obj, key, rv2["v"])
         i2 = i2 + 1
     }
     return {"ok": 1, "v": yobject(obj), "idx": i2}
@@ -624,7 +626,7 @@ fn _encode_block(v, indent) {
             var k2 = keys[i2]
             var key_enc = k2
             if !_safe_bare_ident(k2) { key_enc = "\"" + _escape_string(k2) + "\"" }
-            var vv = o[k2]
+            var vv = oren_map_get_str(o, k2)
             var inl3 = _encode_inline(vv)
             if inl3 != nil {
                 out2 = out2 + _indent(indent) + key_enc + ": " + inl3 + "\n"

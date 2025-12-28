@@ -449,12 +449,31 @@ fn annotate_intrinsic_key_kinds(expr, kind_env) {
     var args = expr["args"]
     if args == nil { args = [] }
 
+    if nm == "oren_map_get_int" || nm == "oren_map_get_str" || nm == "oren_map_set_int" || nm == "oren_map_set_str" {
+        // Typed map intrinsics (no runtime key-kind inference).
+        expr["recv_kind"] = "map"
+        if nm == "oren_map_get_int" || nm == "oren_map_set_int" { expr["known_key_kind"] = 0 }
+        if nm == "oren_map_get_str" || nm == "oren_map_set_str" { expr["known_key_kind"] = 1 }
+        return nil
+    }
+
     if nm == "oren_map_get" || nm == "oren_map_set" {
-        // Map-only intrinsics.
+        // Rolling: `oren_map_get/set` require an explicit key kind at the IR/runtime boundary.
+        // When key kind can be inferred, rewrite to the typed entry points so all backends can
+        // stay deterministic without per-backend heuristics.
         expr["recv_kind"] = "map"
         if oren_list_len(args) >= 2 {
             var kk = infer_map_key_kind(args[1], kind_env)
-            if kk != nil { expr["known_key_kind"] = kk }
+            if kk != nil {
+                expr["known_key_kind"] = kk
+                if kk == 0 {
+                    if nm == "oren_map_get" { fnn["value"] = "oren_map_get_int" }
+                    else { fnn["value"] = "oren_map_set_int" }
+                } else {
+                    if nm == "oren_map_get" { fnn["value"] = "oren_map_get_str" }
+                    else { fnn["value"] = "oren_map_set_str" }
+                }
+            }
         }
         return nil
     }
@@ -731,6 +750,10 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
         while i2 < oren_list_len(ps) {
             ps[i2]["key"] = lower_expr_in_place(ps[i2]["key"], regs, trait_set, env, kind_env, errs)
             ps[i2]["value"] = lower_expr_in_place(ps[i2]["value"], regs, trait_set, env, kind_env, errs)
+            // If the key kind is inferable, annotate the pair so native backends can pick the
+            // correct typed map path without re-inferring at codegen time.
+            var kk = infer_map_key_kind(ps[i2]["key"], kind_env)
+            if kk != nil { ps[i2]["known_key_kind"] = kk }
             i2 = i2 + 1
         }
         return expr

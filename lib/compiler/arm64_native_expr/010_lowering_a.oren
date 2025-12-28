@@ -1,6 +1,6 @@
 fn native_emit_index_get_inline(ctx, expr) {
     // Fast-path list indexing directly in the native backend (no stdlib call),
-    // with a deterministic fallback to `oren_map_get` for non-lists.
+    // with a deterministic fallback to typed `oren_map_get_*` for non-lists.
     //
     // Runtime list layout (native runtime v0):
     //   [count][capacity][buffer_ptr][magic]
@@ -80,9 +80,49 @@ fn native_emit_index_get_inline(ctx, expr) {
     // --- Map fallback ---
     var map_pos = oren_list_len(ctx["code"])
     // X0=container, X1=index
-    var bl_pos = oren_list_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_map_get"})
+    var recv_kind = expr["recv_kind"]
+    if recv_kind == "list" {
+        // Deterministic contract: list indexing never falls back to map ops.
+        native_emit_panic(ctx, "Index recv_kind=list but value is not a list")
+    } else {
+        // If shared lowering inferred this is a map, validate magic deterministically.
+        if recv_kind == "map" {
+            push_u32_le(ctx["code"], insn_add_imm(2, 0, 24)) // X2 = container + 24
+            push_u32_le(ctx["code"], insn_ldr_ptr(3, 2))     // X3 = magic
+            emit_load_i64_imm(ctx, 4, 1296121168)            // X4 = map_magic
+            push_u32_le(ctx["code"], insn_cmp_reg(3, 4))
+            var br_is_map = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            native_emit_panic(ctx, "Index recv_kind=map but value is not a map")
+            var is_map_pos = oren_list_len(ctx["code"])
+            set_u32_le(ctx["code"], br_is_map, insn_b_cond((is_map_pos - br_is_map) / 4, 0)) // EQ
+        }
+
+        var kk = -1
+        if expr["known_key_kind"] != nil { kk = expr["known_key_kind"] }
+        if kk < 0 {
+            var ix = expr["index"]
+            if ix != nil {
+                if ix["type"] == "Integer" { kk = 0 }
+                if ix["type"] == "String" { kk = 1 }
+            }
+        }
+
+        var map_get_sym = nil
+        if kk == 0 { map_get_sym = "oren_map_get_int" }
+        if kk == 1 { map_get_sym = "oren_map_get_str" }
+
+        if map_get_sym == nil {
+            // Do not fail compilation: many list/bytes indexing sites are emitted as a single
+            // list-fast-path with a map fallback. If the fallback is actually taken at runtime,
+            // fail deterministically rather than guessing key kind from raw values/pointers.
+            native_emit_panic(ctx, "map index requires inferred key kind (int vs string)")
+        } else {
+            var bl_pos = oren_list_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": map_get_sym})
+        }
+    }
 
     // Done.
     var done_pos = oren_list_len(ctx["code"])
@@ -851,10 +891,29 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 // Peek m -> X0
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
                 
-                // oren_map_set(X0, X1, X2)
-                var bl_pos2 = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set"})
+                // Typed map set (no key-kind heuristics).
+                var kk = -1
+                if pairs[i]["known_key_kind"] != nil { kk = pairs[i]["known_key_kind"] }
+                if kk < 0 {
+                    if k != nil {
+                        if k["type"] == "Integer" { kk = 0 }
+                        if k["type"] == "String" { kk = 1 }
+                    }
+                }
+
+                var map_set_sym = nil
+                if kk == 0 { map_set_sym = "oren_map_set_int" }
+                if kk == 1 { map_set_sym = "oren_map_set_str" }
+
+                if map_set_sym == nil {
+                    native_error(ctx, expr["token"], "native backend: hash literal key kind must be inferable (int vs string)")
+                    native_emit_panic(ctx, "hash literal key kind must be inferable (int vs string)")
+                } else {
+                    // oren_map_set_* (X0, X1, X2)
+                    var bl_pos2 = oren_list_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": map_set_sym})
+                }
                 
                 i = i + 1
             }
@@ -914,7 +973,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
             
             var bl_pos3 = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos3, "name": "oren_map_get"})
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos3, "name": "oren_map_get_str"})
             
             return true
         }

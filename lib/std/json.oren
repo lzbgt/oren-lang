@@ -248,7 +248,8 @@ fn _parse_object(bs, pos) {
         pos = _skip_ws(bs, pos)
         var rv = _parse_value(bs, pos)
         if rv["ok"] != 1 { return rv }
-        obj[k] = rv["v"]
+        // JSON object keys are always strings.
+        oren_map_set_str(obj, k, rv["v"])
         pos = _skip_ws(bs, rv["pos"])
         if pos >= n { return _err("unexpected EOF in object", pos) }
         if bs[pos] == 44 {
@@ -378,7 +379,7 @@ fn encode(jv) {
         for k in o {
             if first != 1 { out2 = out2 + "," }
             first = 0
-            out2 = out2 + "\"" + _escape_string(k) + "\":" + encode(o[k])
+            out2 = out2 + "\"" + _escape_string(k) + "\":" + encode(oren_map_get_str(o, k))
         }
         out2 = out2 + "}"
         return out2

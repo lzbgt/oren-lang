@@ -1,156 +1,103 @@
-## Active Tracker (Succinct)
+# Active Tracker (Succinct)
 
-This file tracks the highest-priority active items in execution order.
-Keep it succinct and actionable (typically ~10–20 items in total).
-Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
+**Last updated:** 2025-12-28
 
-### P0 (Now)
+This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 
-1) **Tier‑1 native backend: x86_64 (Linux ELF + Windows PE)** (L)
-   - Converge x64 native with arm64 on **callables** (canonical `{code_ptr, env_ptr}` + `args_list`), runtime injection surface (strings/lists/maps), and deterministic failure contracts.
-   - Remove all “key kind” heuristics (tagged values or explicit key typing at IR/runtime boundary).
-   - Keep validation **integration-first**: local build smoke + opt-in remote run on Win11+WSL2 (`docs/REMOTE_X64_ENV.md`).
-   - Status (rolling):
-     - ✅ named function values + indirect calls now use `__oren_fnwrap_*` wrappers and an `args_list` call ABI (env is 0 in x64 v0)
-     - ✅ x64 lambdas/closures now lower to heap fnobj `{code_ptr, env_ptr}` where `env_ptr` is a capture-by-value list (when captures exist)
-     - ✅ `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic ...` line (best-effort) before aborting
-     - ✅ `oren_panic(msg)` now emits a best-effort `STACK_TRACE` (RBP chain, up to 16 return addrs) on Linux+Win64 before aborting
-     - ✅ x64 list/map intrinsics now abort via `oren_panic(msg)` (not silent `exit(1)`) on invalid use to preserve the Tier‑1 diagnostic contract
-     - ✅ x64 native now routes deterministic runtime aborts through `oren_panic(msg)` for clearer failures (Index/index_set, call spread checks, div/shift bounds, iter_next corruption)
-     - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names **and offsets** via an embedded symtab (fixed-base emitters)
-     - ✅ x64 map key-kind selection centralized in shared lowering: `known_key_kind` is inferred conservatively and required for map paths; x64 codegen does not re-infer from syntax (tagged values remain the full fix)
-     - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)
-     - ✅ x64 `oren_trunc_int(x)` treated as an intrinsic (passthrough in int-only v0) to unblock `: i64` / `: u64` type annotations in shared lowering
-     - ✅ x64 `oren_bool_norm(x)` treated as an intrinsic (`x != 0 ? 1 : 0` in v0) to unblock `: bool` type annotations in shared lowering
-     - ✅ x64 indirect calls use a Tier‑1 fast path for common calls: stack-backed `args_list` for `argc<=32` (contiguous stack block above Win64 shadow space); larger calls fall back to heap list intrinsics (`oren_new_list` + `oren_list_push`)
-     - ✅ x64 deterministic call depth guard (rolling): function prologues/epilogues increment/decrement a counter and abort via `oren_panic("call depth exceeded")` when depth > max
-     - ✅ x64 Linux ELF now uses RX text + RW data PT_LOAD segments (no RWX pages)
-	     - ✅ x64 Windows PE now uses `.text` (RX) + `.rdata` (R) + `.data` (RW) so mutable globals no longer force `.rdata` writable
-	     - ✅ x64 call depth max is configurable at build time via `oren build --call-depth-max <n>` (default 8192)
-	     - ✅ x64 runtime env override: `OREN_CALL_DEPTH_MAX=<n>` is now supported in the entry stub (Linux ELF + Windows PE)
-	     - ✅ remote-run gate covers `OREN_CALL_DEPTH_MAX` on real x86_64 (Win11 PE + WSL2 ELF) when `OREN_REMOTE_RUN=1`
-	     - ✅ x64 `STACK_TRACE` symbolication now includes function definition location `fn@file:line` for user fns (best-effort; not call-site line mapping)
-	     - ✅ x64 `STACK_TRACE` now includes best-effort call-site `@file:line` (debug builds) via an embedded linetab (not DWARF/PDB)
-	     - ⏭️ next: fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure/call perf (avoid per-call `args_list` allocations for common cases)
-	     - ✅ x64 byte-load/store insn encoders now support `[r8..r15 + disp8/disp32]`, removing "low-reg only" constraints in Tier‑1 diagnostic hot paths
+Rules for this tracker:
 
-2) **Backend architecture unification (CoreIR boundary)** (L)
-   - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
-   - Start migration with “callables + varargs + spread” because they span C/native/bytecode.
-   - Unify “program termination” semantics across backends (what does `main` return mean vs `exit(code)`); keep deterministic contract for tooling/agents.
-   - Decide and document a stable **evaluation order** (or an effect model) so optimizations are semantics-preserving across backends.
-   - Concrete step landed: CoreIR v0 scaffold exists (`lib/compiler/coreir.oren`) and the x86_64 native backend now uses it for deterministic function metadata (decl order, arity, varargs).
-   - Docs hygiene: keep IR docs aligned as CoreIR expands (`docs/IR_AND_COMPILER_INTERNALS.md`).
-   - Reference: `docs/BACKEND_ARCHITECTURE.md`.
-   - Rolling cleanup: remove legacy/duplicate symbol spellings that can cause backend drift (e.g. prefer stable `STD_*` names for stdlib symbols).
+- Keep it **succinct and actionable** (aim: 10–20 items total).
+- This is **not** a changelog; implemented feature status belongs in:
+  - `docs/LANGUAGE_FEATURE_MATRIX.md`
+  - `docs/LANGUAGE_STATUS_AND_GAPS.md`
+  - dedicated design docs under `docs/`
+- When an item is “done enough” (rolling), move details to `docs/TODOS_ARCHIVE.md` and keep this file focused on what’s next.
 
-3) **OBC portability gate (AVM-universal bytecode)** (M)
-   - `.obc` has no platform meaning; AVM should execute the same bytecode deterministically across hosts.
-   - Gate: compile one integrated `.obc` and verify identical `RESULT_HASH` + `TRACE_HASH` on:
-     - macOS arm64 (host),
-     - linux/arm64 (persistent docker),
-     - linux/x86_64 (WSL2 on remote Win11).
-   - Tooling: `tools/verify_obc_portability.sh`
-   - Convenience: `make obc-portability`
-   - Docs: `docs/OBC_PORTABILITY.md`
-   - ✅ Gate currently passes (observed Dec 28, 2025): hashes match across mac arm64 + linux/arm64 docker + linux/x64 WSL2.
-   - Next: port AVM to native Windows so this can become “Win11 x64 (no WSL)” too.
+## P0 (Now)
+
+1) **Tier‑1 native support parity (arm64 + x86_64; macOS/Linux/Windows)** (L)
+   - Converge the native backends on one semantics set:
+     - callables (function values), closures, varargs/spread, and deterministic failure modes (`OREN_DIAG` + stack traces)
+     - container ops (list/map/buf) with identical semantics across arch/OS
+   - Keep validation integration-first, and keep the remote x64 path as a hard gate:
+     - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
+
+2) **Native value tagging (remove “key kind inference” fragility)** (L)
+   - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
+   - Deliverable: a native value representation that can distinguish:
+     - immediates (ints/bools/nil) vs pointers
+     - string/list/map/buf payload kinds
+   - References:
+     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+     - `docs/DESIGN_CONTAINER_OPS.md`
+
+3) **Backend architecture unification (CoreIR boundary)** (L)
+   - Make one canonical CoreIR own semantics (eval order, short-circuit, varargs packing, closure ABI).
+   - Backends become thin adapters (ABI + emit).
+   - References:
+     - `docs/BACKEND_ARCHITECTURE.md`
+     - `docs/IR_AND_COMPILER_INTERNALS.md`
 
 4) **Container ops as operations (no hot-path stdlib overhead)** (M)
-   - Make `xs[i]` / `xs[i]=v` / `len` / `push` lower to intrinsics for built-ins; keep generic + `dyn` story deterministic.
-   - Define `clone`, `slice_copy`, and `slice_view` semantics and error conventions.
-   - Status (rolling):
-     - ✅ `oren_list_push` now returns `nil` consistently across backends (AVM/C/native arm64/x64), so `std:list.push(...)` and `xs.push(...)` can safely lower to `oren_list_push(...)` without semantic drift.
-     - ✅ bytecode backend treats `STD_list_len` / `STD_list_push` as native ops too (fast even if wrapper inlining is skipped).
-   - Reference: `docs/DESIGN_CONTAINER_OPS.md`, `docs/STDLIB_LAYERS.md`.
+   - Ensure `xs[i]`, `xs[i]=v`, `len`, `push` lower to intrinsics where appropriate.
+   - Make map/list iteration semantics deterministic across backends.
+   - Reference:
+     - `docs/DESIGN_CONTAINER_OPS.md`
+     - `docs/STDLIB_LAYERS.md`
 
-5) **Stack safety parity (deterministic recursion failure)** (M)
-   - Keep one contract across AVM/C/native: deterministic abort under a configured depth budget (`--call-depth-max` / `OREN_CALL_DEPTH_MAX`).
-   - Status (rolling): ✅ x64 native now has the same call-depth override support as arm64/C (`OREN_CALL_DEPTH_MAX` in entry stub) with remote-run coverage.
-   - Remaining work: make the call-depth guard and panic/stack-trace behavior converge cleanly once full runtime injection lands (shared diagnostics + heap-frame option).
-   - Reference: `docs/STACK_SAFETY.md`.
+5) **OBC portability gate (AVM‑universal bytecode)** (M)
+   - `.obc` must execute identically under AVM across hosts (hash-stable outputs).
+   - Gate: run one integrated `.obc` on macOS arm64 + linux/arm64 + linux/x86_64 and compare `RESULT_HASH`.
+   - References:
+     - `docs/OBC_PORTABILITY.md`
+     - `docs/AVM_SPEC.md`
 
-6) **Tail-call optimization (stackless recursion)** (S)
-   - Direct self tail recursion lowers to a loop (no host stack growth); fixture enforces it.
-   - Tail recursion modulo constant (`return f(..) + 1`) also lowers to a loop for a conservative subset; fixture enforces it.
-   - Next: mutual tail recursion trampoline + varargs/spread tail calls once CoreIR callables converge.
-   - Reference: `docs/STACK_SAFETY.md`.
+6) **AVM in AVM + compiler-in-AVM (deterministic toolchain in a capsule)** (M)
+   - Make `.oren → .obc` compilation runnable inside AVM with budgets and locked capability surfaces.
+   - References:
+     - `docs/AVM_MULTIVERSE.md`
+     - `docs/AVM_SPEC_V1.md`
+     - `docs/SELF_HOSTING.md`
 
-7) **Stdlib modernization audit (grammar + intrinsics hygiene)** (S)
-   - Keep `lib/std/**` on current grammar; keep `oren_*` calls confined to `std:*` wrappers where possible.
-   - Expand `./oretest` audits carefully as grammar stabilizes.
+7) **Stdlib distribution + module resolution (native + AVM)** (M)
+   - One coherent story for end users:
+     - `import ... "std:foo"` resolution
+     - source vs precompiled stdlib bundles
+     - AVM consuming the same stdlib without host-FS assumptions
+   - References:
+     - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`
+     - `docs/OBC_MODULE_LINKING.md`
 
-8) **Tests: backend/arch neutral by default (integration-first)** (S)
-   - Most `.oren` tests should be backend/arch neutral; keep ABI-specific tests isolated and minimal.
-   - Reduce overlapping “atomic” tests in curated lists; prefer integration suites + fixtures as living spec.
-   - ✅ Iteration speed is now acceptable: `make test` completes in ~<3 minutes on the primary dev host (observed Dec 28, 2025). Keep this non-regressing.
-   - Add profiling hooks to keep iteration fast: `./oretest --profile` (or `OREN_TEST_PROFILE=1`) prints slowest tests so we can target true bottlenecks.
-   - Make `oren build` caching the default compiler behavior (Go/make-like): content-addressed build cache keyed by (compiler binary hash, flags/target, transitive sources); provide `oren clean` to clear caches and keep CI reproducible via `OREN_NO_CACHE=1`.
-   - Keep `make test` iteration-fast by gating expensive fixture families behind explicit flags (`OREN_TEST_SIGNING=1`, `OREN_TEST_OREDOC=1`) or `--full`; document in `docs/TEST_SYSTEM.md`.
-   - Normalize build artifacts layout:
-     - compiler default outputs: `build/targets/<arch>-<os>/<backend>/...` and `build/targets/avm/bytecode/...`
-     - `./oretest` suites + runtime fixtures now use `build/targets/...` outputs
-     - `cmd/oretest/fixture_cases.go` migration in progress:
-       - ✅ meta outputs (`oren meta -o ...`) now go under `build/targets/<arch>-<os>/meta/`
-       - ✅ many compiler diagnostic fixtures (`parse/codegen/abi/packview/generics/...`) now write into `build/targets/<arch>-<os>/...`
-       - ⏭️ remaining “long tail” fixtures still write to `build/` directly (keep `build/logs/` stable)
-   - Reference: `docs/TEST_SYSTEM.md`.
-   - Rolling docs hygiene: when fixtures or backends change, update the docs that claim invariants (`docs/LANGUAGE_MANUAL.md`, `docs/NATIVE_BACKEND.md`, `docs/CLI_COMPLETION.md`) in the same change to avoid drift.
-   - Spec hygiene (AI-friendly): keep `docs/LANGUAGE_SPEC.md` and `docs/LANGUAGE_MANUAL.md` aligned with actual compiler behavior and mark planned vs implemented explicitly.
-   - Feature-index hygiene (AI-friendly): keep `docs/LANGUAGE_FEATURE_MATRIX.md` updated when feature status or implementation locations change (especially AVM multiverse/swarm, VirtualFS/VirtualPROC/VirtualNET, and signed `.obc` / cert-chain verification).
-   - Agent cache hygiene: keep `docs/IMPLEMENTATION_NOTES.md` updated when implementation details change (name resolution, lowering rewrites, cross-backend contracts).
+8) **HPC/SIMD parity (arm64 NEON today; x86_64 SSE2/AVX next)** (M)
+   - Keep determinism contract: scalar is authoritative; SIMD must be bit-identical for covered kernels.
+   - Expand x86_64 SIMD coverage once x64 native reaches semantic parity.
+   - References:
+     - `docs/HPC_SERVER_PLAN.md`
+     - `docs/AVM_NEON_MAPPING_PLAN.md`
 
-9) **Compiler UX: “modern argparse” (Click-style subcommands + UX polish)** (M)
-   - Keep current subcommand structure, but raise ergonomics to production level:
-     - consistent error exit codes, `--json` outputs, stable env/flag precedence, structured diagnostics for tooling.
-   - Progress (rolling):
-     - ✅ `std:argparse` now supports env-bound option defaults (env → defaults; argv overrides) and exposes `env` in `--help=json`.
-     - ✅ `std:argparse` now emits best-effort “did you mean …?” suggestions for mistyped commands / long options.
-   - Reference: `docs/CLI_COMPLETION.md`, `docs/TEST_SYSTEM.md` (tool integration expectations).
+9) **Tooling (modern compiler UX; self-hosting behind gates)** (M)
+   - Keep Go bootstrap canonical until Oren-native tooling meets reliability/perf gates.
+   - Track Oren-native tools as gated milestones: `fmt`, `test`, `pkg`, `lsp`.
+   - References:
+     - `docs/TEST_SYSTEM.md`
+     - `docs/CLI_COMPLETION.md`
+     - `docs/SELF_HOSTING.md`
 
-10) **Stdlib distribution + module resolution (native + AVM)** (M)
-   - One coherent story for:
-     - `import math "std:math"` resolution for end users,
-     - distribution (source vs precompiled `.obc` bundles),
-     - AVM consuming the same stdlib (no host fs assumptions).
-   - Reference: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/OBC_MODULE_LINKING.md`.
+10) **Tests & iteration speed (integration-first; backend/arch neutral by default)** (S)
+   - Keep `make test` iteration-fast and deterministic.
+   - Prefer a small number of high-signal integration suites + fixtures as living spec.
+   - Reference: `docs/TEST_SYSTEM.md`
 
-11) **Compiler-in-AVM (“compile inside the sandbox”)** (M)
-   - Make `.oren → .obc` compilation runnable inside AVM deterministically with budgets and a locked capability surface.
-   - Reference: `docs/AVM_SPEC_V1.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`.
-
-### P1 (Soon)
+## P1 (Soon)
 
 1) **Signed `.obc` + root trust (multiverse updates / “app store”)** (M)
-   - Formalize cert chain constraints and root pubkey distribution/rotation; keep private keys outside the repo (`../oren-ca/`).
-   - References: `docs/APPSTORE_ROOTCA_AND_UPDATES.md`, `docs/CERT_CHAIN_FORMAT.md`, `docs/CODESIGN.md`.
+   - Formalize cert chain constraints and root pubkey distribution/rotation.
+   - Keep private keys out of repo (`../oren-ca/`).
+   - References:
+     - `docs/APPSTORE_ROOTCA_AND_UPDATES.md`
+     - `docs/CERT_CHAIN_FORMAT.md`
 
-2) **Precompiled stdlib + OBX linking for AVM** (M)
-   - Stabilize `.obc` library linking and a formal search path (`OREN_PATH` / `--module-path`) for release builds.
-   - Reference: `docs/OBC_MODULE_LINKING.md`.
+2) **Stackless recursion beyond TCO (heap call frames)** (L)
+   - For non-tail recursion that cannot be optimized by TCO, provide a deterministic heap-frame model (AVM-like).
+   - Reference: `docs/STACK_SAFETY.md`
 
-3) **HPC server performance + math/linalg maturation** (M)
-   - Expand SIMD correctness coverage (NaN/Inf/sign-bit edges) + stable perf harness reporting.
-   - Tier‑1 SIMD parity roadmap:
-     - arm64: keep NEON fast paths deterministic and covered by `tests/native/test_simd_suite.oren`
-     - x86_64: implement SIMD kernels with an SSE2 baseline (AVX2 optional) once x64 native reaches full semantic parity (no “fast-math” shortcuts); add a scalar-vs-SIMD parity suite on Linux+Windows.
-   - References: `docs/HPC_SERVER_PLAN.md`, `docs/AVM_NEON_MAPPING_PLAN.md`.
-
-4) **Toolchain self-hosting gates (fmt/pkg/test/LSP)** (M)
-   - Keep Go bootstrap/tools canonical for now; add Oren-native tools behind explicit gates and promote only with reliability/perf acceptance tests.
-   - Reference: `docs/TOOLCHAIN_SELF_HOSTING.md`.
-
-5) **Stackless recursion beyond TCO (heap call frames)** (L)
-   - For non-tail recursion that cannot be optimized by TCO, provide an explicit heap call-frame model (AVM-like).
-   - Gate with one deep, deterministic non-tail recursion fixture that must not OS-stack-overflow on Tier‑1 targets.
-   - Reference: `docs/STACK_SAFETY.md` (Option D).
-
-### Recently Completed (Rolling)
-
-- Tier‑1 x86_64 native bring-up: callable wrappers (`__oren_fnwrap_*` + uniform `args_list`) and a deterministic `oren_panic` contract (stable `OREN_DIAG` + best-effort `STACK_TRACE`) on Linux+Win64.
-- Native x86_64 emit hygiene: ELF/PE segment permissions (no RWX), and call-depth guard (`--call-depth-max`) for deterministic recursion failure.
-- C backend parity: user `fn main()` no longer collides with host `main`, and is auto-called after top-level statements.
-- Tooling throughput: `oretest` is integration-first and parallel where safe (fixtures + opt-in remote x64 runs).
-- Backend unification groundwork: CoreIR v0 scaffold (`lib/compiler/coreir.oren`) now powers x86_64 function metadata extraction so x64 and arm64 can converge on a shared frontend boundary.
-
-Rolling note: we avoid long “completed lists” here. If you need historical detail, use `docs/TODOS_ARCHIVE.md` and `git log`.

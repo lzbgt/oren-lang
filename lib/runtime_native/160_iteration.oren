@@ -92,15 +92,15 @@ fn oren_iter_next(container, idx, out_pair) {
                     //   {"__iter":"range","start":0,"end":N,"step":1}
                     //
                     // Normal maps still iterate keys deterministically.
-                    var it = oren_map_get(container, "__iter")
+                    var it = oren_map_get_str(container, "__iter")
                     // Important native backend safety note:
                     // - Values are not tagged at runtime, so we must not call `strcmp` on an integer.
                     // - The stdlib `range(...)` helper uses a string literal "range", so pointer equality
                     //   is sufficient and avoids crashing on non-string values.
                     if it == "range" {
-                        var start = oren_map_get(container, "start")
-                        var end = oren_map_get(container, "end")
-                        var step = oren_map_get(container, "step")
+                        var start = oren_map_get_str(container, "start")
+                        var end = oren_map_get_str(container, "end")
+                        var step = oren_map_get_str(container, "step")
                         if step != 0 {
                             var v = start + (idx * step)
                             if step > 0 {
@@ -122,9 +122,9 @@ fn oren_iter_next(container, idx, out_pair) {
                         // - Treat malformed values as empty iteration (do not crash).
                         // - Use subtraction bounds checks to avoid overflow on `off + len`.
                         if it == "list_slice" {
-                            var base = oren_map_get(container, "base")
-                            var off2 = oren_map_get(container, "off")
-                            var n2 = oren_map_get(container, "len")
+                            var base = oren_map_get_str(container, "base")
+                            var off2 = oren_map_get_str(container, "off")
+                            var n2 = oren_map_get_str(container, "len")
 
                             if base != 0 && off2 >= 0 && n2 >= 0 && idx < n2 {
                                 var bnode2 = oren_find_node(base)

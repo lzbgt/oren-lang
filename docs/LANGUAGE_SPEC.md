@@ -817,6 +817,18 @@ Non-goal:
 - Assignment: `m[key] = value`
 - Duplicate keys in a map literal are unspecified; avoid them.
 
+Rolling (important for native backends):
+
+- The cross-backend, production-intent key kinds today are **`int`** and **`string`**.
+  - C backend and AVM currently support additional key kinds (`nil`/`bool`) but native backends intentionally stay conservative until native value tagging is complete.
+- Native backends must choose a key-compare strategy (`==` vs `strcmp`) deterministically.
+  - If a key is a literal (`"name"` or `123`), the compiler can lower it deterministically.
+  - If a key is a variable and the compiler cannot infer whether it is an `int` key or a `string` key, the native backends fail deterministically (panic) rather than guessing.
+- Explicit runtime helpers exist to remove ambiguity when you know the key kind:
+  - `oren_map_get_str(m, key)` / `oren_map_set_str(m, key, value)`
+  - `oren_map_get_int(m, key)` / `oren_map_set_int(m, key, value)`
+  - `oren_map_set_*` returns the written value (matches `xs[i] = v` returning `v`).
+
 ### Structs and Classes
 - `struct Name { a, b, c }` and `class Name { a, b, c }` declare a nominal “shape” with a fixed set of field names.
 - Construction:
@@ -1115,6 +1127,9 @@ Self-hosting relies on a small runtime API (implemented in C, callable from Oren
 - `oren_system(cmd)` / `oren_exit(code)` for building and exit status
 - `oren_string_len(s)` / `oren_string_char_at(s, i)` / `oren_char(code)` for string/char work
 - `oren_list_len(xs)` / `oren_list_push(xs, v)` for list work
+- `oren_new_map(pairs...)` / `oren_map_len(m)`
+- `oren_map_get(m, key)` / `oren_map_set(m, key, value)` (string-key default)
+- `oren_map_get_str/int` / `oren_map_set_str/int` (explicit key-kind, used by stdlib + native backends)
 
 ## Not Implemented (Yet)
 - user-defined methods / inheritance (classes are currently data-only; long-term direction is traits + composition)

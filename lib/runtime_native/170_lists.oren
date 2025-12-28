@@ -74,8 +74,8 @@ fn oren_list_get(list, idx) {
         return 0
     }
     if ptr_get(list + 24) != list_magic() {
-        // Not a list, try map get
-        return oren_map_get(list, idx)
+        // Not a list, try int-keyed map get (no key-kind heuristics).
+        return oren_map_get_int(list, idx)
     }
     var count = ptr_get(list)
     if idx < 0 { 

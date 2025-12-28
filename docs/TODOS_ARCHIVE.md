@@ -40,6 +40,17 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `docs/BACKEND_ARCHITECTURE.md`
   - `docs/REMOTE_X64_ENV.md`
 
+## Archived (2025-12-28) — Map key-kind determinism + typed map ops parity (native/C)
+
+- Native runtime map storage (int keys vs string keys) is explicitly kinded to keep `strcmp` safe and deterministic:
+  - `lib/runtime_native/130_printing.oren`
+- Added typed map helpers to the C runtime surface for cross-backend parity:
+  - `oren_map_get_str/int`, `oren_map_set_str/int`, plus `oren_map_set` wrapper in `lib/runtime/040_lists_maps.inc` and `lib/runtime.h`.
+- Stdlib codecs and option parsing now use explicit `oren_map_*_str` helpers when the key is dynamically produced as a string:
+  - `lib/std/json.oren`, `lib/std/yaml.oren`, `lib/std/cbor.oren`, `lib/std/argparse.oren`
+- Rolling contract alignment:
+  - `oren_map_set_*` returns the written value (consistent with `oren_list_set` / `xs[i]=v` semantics).
+
 ## Archived (2025-12-21) — Trig for huge |x|: Payne–Hanek range reduction
 
 - Stdlib math:

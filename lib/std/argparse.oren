@@ -527,7 +527,8 @@ fn _opts_defaults(cmd) {
                 }
             }
         }
-        m[key] = defv
+        // Options are always normalized string keys.
+        oren_map_set_str(m, key, defv)
     }
     return m
 }
@@ -813,19 +814,19 @@ fn _set_opt_value(res, key, opt, value) {
     // Stores option value into res["opts"] and tracks seen-ness.
     // Repeatable options collect values into a list.
     if res["seen"] == nil { res["seen"] = {} }
-    res["seen"][key] = true
+    oren_map_set_str(res["seen"], key, true)
 
     var multiple = false
     if opt != nil && list.len(opt) >= 7 { multiple = opt[6] }
     if multiple {
-        var cur = res["opts"][key]
+        var cur = oren_map_get_str(res["opts"], key)
         // Repeatable options always store a list (defaults ensure list-typed storage).
         if cur == nil { cur = [] }
         list.push(cur, value)
-        res["opts"][key] = cur
+        oren_map_set_str(res["opts"], key, cur)
         return nil
     }
-    res["opts"][key] = value
+    oren_map_set_str(res["opts"], key, value)
     return nil
 }
 
@@ -880,7 +881,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
         if !is_value_opt {
             if kind == 4 {
                 // Counted flag: increment.
-                var curc = res["opts"][key]
+                var curc = oren_map_get_str(res["opts"], key)
                 if curc == nil { curc = 0 }
                 _set_opt_value(res, key, opt, curc + 1)
             } else {
@@ -981,7 +982,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
 
     // Bool flags: allow -abc chaining (tail is remaining letters).
     if kind0 == 4 {
-        var curc0 = res["opts"][key0]
+        var curc0 = oren_map_get_str(res["opts"], key0)
         if curc0 == nil { curc0 = 0 }
         _set_opt_value(res, key0, opt0, curc0 + 1)
     } else {
@@ -1019,7 +1020,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
             return {"ok": false, "res": res}
         }
         if kk == 4 {
-            var curci = res["opts"][k]
+            var curci = oren_map_get_str(res["opts"], k)
             if curci == nil { curci = 0 }
             _set_opt_value(res, k, o, curci + 1)
         } else {
@@ -1188,7 +1189,7 @@ fn parse(p, argv) {
     var ri = 0
     while ri < list.len(req_cmd) {
         var rk = req_cmd[ri]
-        if res["seen"][rk] != true {
+        if oren_map_get_str(res["seen"], rk) != true {
             res["err"] = "missing required option: --" + rk
             res["help"] = render_help(p, cmd_name)
             return res
@@ -1199,7 +1200,7 @@ fn parse(p, argv) {
     var rj = 0
     while rj < list.len(req_root) {
         var rk2 = req_root[rj]
-        if res["seen"][rk2] != true {
+        if oren_map_get_str(res["seen"], rk2) != true {
             res["err"] = "missing required option: --" + rk2
             res["help"] = render_help(p, cmd_name)
             return res
@@ -1209,8 +1210,8 @@ fn parse(p, argv) {
 
     // Compute merged view for click-style access.
     var merged = {}
-    for k0 in res["root_opts"] { merged[k0] = res["root_opts"][k0] }
-    for k1 in res["opts"] { merged[k1] = res["opts"][k1] }
+    for k0 in res["root_opts"] { oren_map_set_str(merged, k0, oren_map_get_str(res["root_opts"], k0)) }
+    for k1 in res["opts"] { oren_map_set_str(merged, k1, oren_map_get_str(res["opts"], k1)) }
     res["all_opts"] = merged
 
     res["ok"] = true

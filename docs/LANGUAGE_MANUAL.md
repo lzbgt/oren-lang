@@ -822,6 +822,27 @@ var v = m["a"]
 m["c"] = 3
 ```
 
+Rolling notes (native backends, v0):
+
+- **Key kinds must be deterministic** for native codegen. Today the portable, fully-supported key kinds are:
+  - `string` keys (e.g. `"a"`, `"field"`)
+  - `int` keys (e.g. `0`, `42`)
+- If you write `m[key]` or `m[key] = v` and `key` is a **variable**, the native backends may require the compiler to infer whether `key` is an `int` key or a `string` key.
+  - If the key kind is not inferable, the native backends fail **deterministically** (panic) rather than guessing.
+- When you know the key is a string at runtime (common in parsers/codecs), you can use the explicit runtime helpers:
+  - `oren_map_get_str(m, key)` / `oren_map_set_str(m, key, value)`
+  - `oren_map_get_int(m, key)` / `oren_map_set_int(m, key, value)`
+  - `oren_map_set_*` returns the written value (matches `xs[i] = v` returning `v`).
+
+Example (dynamic string key):
+
+```oren
+var m = {}
+var key = "hello"
+oren_map_set_str(m, key, 123)
+print(oren_int_to_string(oren_map_get_str(m, key)))
+```
+
 Rolling note: map keys are restricted to a small set of runtime types (see `docs/AVM_SPEC.md` and runtime code for the exact set).
 
 ### Typed buffers (HPC)

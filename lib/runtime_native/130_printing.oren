@@ -259,38 +259,46 @@ fn oren_new_map(cap) {
     return header
 }
 
-fn oren_map_set(m, k, v) {
-    // stack_trace()
-    if m == 0 { exit(110) }
-    if m < 4096 { exit(111) }
-    // if m > 4096 { exit(12) } 
-    if ptr_get(m + 24) != map_magic() { exit(113) }
-    
+fn _oren_map_check(m) {
+    if m == 0 { oren_panic("map op on nil") }
+    if m < 4096 { oren_panic("map op on non-pointer") }
+    if ptr_get(m + 24) != map_magic() { oren_panic("map op on non-map") }
+    return 0
+}
+
+fn _oren_assert_string_ptr(k) {
+    // Native v0 uses raw integers for non-pointer values, so we MUST NOT call `strcmp`
+    // on arbitrary integers.
+    //
+    // Strings can be:
+    // - tracked heap strings (created by runtime helpers, GC-visible)
+    // - untracked constant C strings emitted by the native backend
+    if k == 0 { oren_panic("map: string key is nil") }
+    if k < 4096 { oren_panic("map: string key is not a pointer") }
+    var node = oren_find_node(k)
+    if node != 0 {
+        if ptr_get(iadd(node, 16)) != 1 { oren_panic("map: key is not a string") }
+    }
+    return 0
+}
+
+fn _oren_map_set_kind(m, k, v, k_kind) {
+    _oren_map_check(m)
+
+    if k_kind != 0 && k_kind != 1 { oren_panic("map_set: invalid key kind") }
+    if k_kind == 1 {
+        // String keys must be valid C strings (non-nil pointer).
+        _oren_assert_string_ptr(k)
+    }
+
     var count = ptr_get(m + 0)
     var cap = ptr_get(m + 8)
     if count < 0 { count = 0; ptr_set(m + 0, 0) }
     if cap < 0 { cap = 0; ptr_set(m + 8, 0) }
 
     var buf = ptr_get(m + 16)
-    if buf == 0 && cap > 0 { exit(114) }
-    if cap == 0 && buf != 0 { exit(114) }
-
-    // Key kind:
-    // - 0: integer key (safe for any int, including 0)
-    // - 1: string key (C-string pointer; may be tracked heap string or untracked literal/argv/env pointer)
-    var k_kind = 0
-    if k != 0 {
-        if k >= 4096 {
-            var kn = oren_find_node(k)
-            if kn != 0 {
-                var kk = ptr_get(iadd(kn, 16))
-                if kk == 1 { k_kind = 1 } else { k_kind = 0 }
-            } else {
-                // Untracked pointer (string literal / argv/env view) => treat as string key.
-                k_kind = 1
-            }
-        }
-    }
+    if buf == 0 && cap > 0 { oren_panic("map_set: buf missing") }
+    if cap == 0 && buf != 0 { oren_panic("map_set: cap/buf mismatch") }
 
     // Update existing entry if key already present.
     var i = 0
@@ -302,12 +310,12 @@ fn oren_map_set(m, k, v) {
             if k_kind == 0 {
                 if ek == k {
                     ptr_set(buf + off + 16, v)
-                    return m
+                    return v
                 }
             } else {
                 if strcmp(ek, k) == 0 {
                     ptr_set(buf + off + 16, v)
-                    return m
+                    return v
                 }
             }
         }
@@ -319,8 +327,8 @@ fn oren_map_set(m, k, v) {
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
         var new_buf = malloc(new_cap * 24)
-        if new_buf == 0 { exit(99) }
-        if new_buf == -1 { exit(99) }
+        if new_buf == 0 { oren_panic("map_set: out of memory") }
+        if new_buf == -1 { oren_panic("map_set: out of memory") }
         oren_track_alloc(new_buf, new_cap * 24, 0)
         var ci = 0
         while ci < count {
@@ -345,7 +353,23 @@ fn oren_map_set(m, k, v) {
     ptr_set(buf + offn + 16, v)
     ptr_set(m + 0, count + 1)
     ptr_set(m + 32, 1)
-    return m
+    return v
+}
+
+fn oren_map_set_int(m, k, v) {
+    return _oren_map_set_kind(m, k, v, 0)
+}
+
+fn oren_map_set_str(m, k, v) {
+    return _oren_map_set_kind(m, k, v, 1)
+}
+
+fn oren_map_set(m, k, v) {
+    // Default API: string-keyed maps.
+    //
+    // Int-keyed maps must call `oren_map_set_int` explicitly.
+    _oren_assert_string_ptr(k)
+    return _oren_map_set_kind(m, k, v, 1)
 }
 
 fn map_cmp_keys(a_kind, a_key, b_kind, b_key) {
@@ -438,24 +462,18 @@ fn oren_map_ensure_sorted(m) {
     return 0
 }
 
-fn oren_map_get(m, k) {
+fn _oren_map_get_kind(m, k, k_kind) {
     if m == 0 { return 0 }
     if ptr_get(m + 24) != map_magic() { return 0 }
+
+    if k_kind != 0 && k_kind != 1 { oren_panic("map_get: invalid key kind") }
+    if k_kind == 1 {
+        if k == 0 { return 0 }
+        _oren_assert_string_ptr(k)
+    }
+
     var count = ptr_get(m + 0)
     var buf = ptr_get(m + 16)
-    // Determine key kind using the same rule as `oren_map_set`.
-    var k_kind = 0
-    if k != 0 {
-        if k >= 4096 {
-            var kn = oren_find_node(k)
-            if kn != 0 {
-                var kk = ptr_get(iadd(kn, 16))
-                if kk == 1 { k_kind = 1 } else { k_kind = 0 }
-            } else {
-                k_kind = 1
-            }
-        }
-    }
     var i = 0
     while i < count {
         var off = i * 24
@@ -471,6 +489,23 @@ fn oren_map_get(m, k) {
         i = i + 1
     }
     return 0
+}
+
+fn oren_map_get_int(m, k) {
+    return _oren_map_get_kind(m, k, 0)
+}
+
+fn oren_map_get_str(m, k) {
+    return _oren_map_get_kind(m, k, 1)
+}
+
+fn oren_map_get(m, k) {
+    // Default API: string-keyed maps.
+    //
+    // Int-keyed maps must call `oren_map_get_int` explicitly.
+    if k == 0 { return 0 }
+    _oren_assert_string_ptr(k)
+    return _oren_map_get_kind(m, k, 1)
 }
 
 fn oren_map_len(m) {

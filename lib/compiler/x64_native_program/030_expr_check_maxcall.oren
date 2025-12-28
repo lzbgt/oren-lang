@@ -345,8 +345,8 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     if nm == "iadd" { return 1 }
     if nm == "ptr_set" { return 1 }
     if nm == "ptr_set_byte" { return 1 }
-    if nm == "oren_map_get" { return 2 }
-    if nm == "oren_map_set" { return 7 }
+    if nm == "oren_map_get" || nm == "oren_map_get_int" || nm == "oren_map_get_str" { return 2 }
+    if nm == "oren_map_set" || nm == "oren_map_set_int" || nm == "oren_map_set_str" { return 7 }
     if nm == "oren_index_set" { return 7 }
     if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" { return 2 }
     // Spread calls spill:

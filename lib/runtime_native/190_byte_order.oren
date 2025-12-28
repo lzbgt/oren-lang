@@ -560,6 +560,13 @@ fn oren_index_set(container, index, value) {
         return oren_list_set(container, index, value)
     }
 
-    // Fallback: behave like map set
-    return oren_map_set(container, index, value)
+    // Rolling (native v0): remove key-kind heuristics from the runtime.
+    //
+    // Map assignment remains supported via compiler lowerings/backends that know the key kind
+    // (`known_key_kind`) and can select `oren_map_set_int` or `oren_map_set_str` deterministically.
+    //
+    // If this helper is called on a non-list at runtime, fail deterministically rather than
+    // guessing key kind from raw values/pointers.
+    oren_panic("index_set on non-list (native v0 requires explicit map key kind)")
+    return 0
 }

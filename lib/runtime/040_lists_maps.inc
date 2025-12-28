@@ -750,6 +750,49 @@ OrenValue oren_map_get(OrenValue map, OrenValue key) {
     return OREN_NIL;
 }
 
+OrenValue oren_map_get_int(OrenValue map, OrenValue key) {
+    if (key.type != OREN_TYPE_INT) {
+        if (key.type == OREN_TYPE_NIL) return OREN_NIL;
+        oren_panic("map_get_int expects int key");
+        return OREN_NIL; // Should not be reached
+    }
+    return oren_map_get(map, key);
+}
+
+OrenValue oren_map_get_str(OrenValue map, OrenValue key) {
+    if (key.type != OREN_TYPE_STRING) {
+        if (key.type == OREN_TYPE_NIL) return OREN_NIL;
+        oren_panic("map_get_str expects string key");
+        return OREN_NIL; // Should not be reached
+    }
+    return oren_map_get(map, key);
+}
+
+OrenValue oren_map_set(OrenValue map, OrenValue key, OrenValue value) {
+    // Keep runtime behavior consistent with `m[key] = value`.
+    return oren_index_set(map, key, value);
+}
+
+OrenValue oren_map_set_int(OrenValue map, OrenValue key, OrenValue value) {
+    if (key.type != OREN_TYPE_INT) {
+        oren_panic("map_set_int expects int key");
+        return value; // Should not be reached
+    }
+    return oren_index_set(map, key, value);
+}
+
+OrenValue oren_map_set_str(OrenValue map, OrenValue key, OrenValue value) {
+    if (key.type != OREN_TYPE_STRING) {
+        if (key.type == OREN_TYPE_NIL) {
+            oren_panic("map_set_str expects non-nil string key");
+            return value; // Should not be reached
+        }
+        oren_panic("map_set_str expects string key");
+        return value; // Should not be reached
+    }
+    return oren_index_set(map, key, value);
+}
+
 OrenValue oren_map_len(OrenValue map) {
     if (map.type != OREN_TYPE_MAP) {
         oren_panic("len on non-map");

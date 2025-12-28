@@ -234,8 +234,35 @@ fn native_compile_stmt(ctx, stmt) {
             // --- Map fallback ---
             var map_pos = oren_list_len(ctx["code"])
             var bl_pos = oren_list_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_map_set"})
+            var recv_kind = stmt["left"]["recv_kind"]
+            if recv_kind == "list" {
+                // Deterministic contract: list index_set never falls back to map ops.
+                exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
+            } else {
+                // Typed map set (no key-kind heuristics).
+                var kk = -1
+                if stmt["left"]["known_key_kind"] != nil { kk = stmt["left"]["known_key_kind"] }
+                if kk < 0 {
+                    var ix = stmt["left"]["index"]
+                    if ix != nil {
+                        if ix["type"] == "Integer" { kk = 0 }
+                        if ix["type"] == "String" { kk = 1 }
+                    }
+                }
+
+                var map_set_sym = nil
+                if kk == 0 { map_set_sym = "oren_map_set_int" }
+                if kk == 1 { map_set_sym = "oren_map_set_str" }
+
+                if map_set_sym == nil {
+                    // Do not fail compilation: keep execution deterministic by panicking only if
+                    // the map fallback is taken at runtime.
+                    exprm.native_emit_panic(ctx, "map index_set requires inferred key kind (int vs string)")
+                } else {
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": map_set_sym})
+                }
+            }
 
             var done_pos = oren_list_len(ctx["code"])
             set_u32_le(ctx["code"], br_to_map, insn_b_cond((map_pos - br_to_map) / 4, 1)) // NE
@@ -290,7 +317,7 @@ fn native_compile_stmt(ctx, stmt) {
              
              var bl_pos2 = oren_list_len(ctx["code"])
              push_u32_le(ctx["code"], 0)
-             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set"})
+             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set_str"})
              
              return nil
         }
@@ -617,7 +644,7 @@ fn native_compile_stmt(ctx, stmt) {
         push_u32_le(ctx["code"], insn_str_x0_sp(0))
         ctx["stack_size"] = ctx["stack_size"] + 16
 
-        // For each field: oren_map_set(m, "field", value)
+        // For each field: oren_map_set_str(m, "field", value)
         i = 0
         while i < n_fields {
             var f_name2 = fields[i]["value"]
@@ -667,7 +694,7 @@ fn native_compile_stmt(ctx, stmt) {
 
             var bl_set = oren_list_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set, "name": "oren_map_set"})
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set, "name": "oren_map_set_str"})
 
             i = i + 1
         }

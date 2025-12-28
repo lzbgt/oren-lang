@@ -6,9 +6,9 @@
 // uses a tagged map pointer (map_magic) so `oren_is_err` can discriminate reliably.
 fn oren_err(code, msg) {
     var m = oren_new_map(8)
-    oren_map_set(m, "__err", 1)
-    oren_map_set(m, "code", code)
-    oren_map_set(m, "msg", msg)
+    oren_map_set_str(m, "__err", 1)
+    oren_map_set_str(m, "code", code)
+    oren_map_set_str(m, "msg", msg)
     return m
 }
 
@@ -23,17 +23,17 @@ fn oren_is_err(v) {
     // share the map header layout. Only maps (kind=3) can be structured errors.
     if ptr_get(iadd(node, 16)) != 3 { return 0 }
     if ptr_get(v + 24) != map_magic() { return 0 }
-    var marker = oren_map_get(v, "__err")
+    var marker = oren_map_get_str(v, "__err")
     if marker == 0 { return 0 }
     return 1
 }
 
 fn oren_err_code(v) {
     if oren_is_err(v) == 0 { return -1 }
-    return oren_map_get(v, "code")
+    return oren_map_get_str(v, "code")
 }
 
 fn oren_err_msg(v) {
     if oren_is_err(v) == 0 { return 0 }
-    return oren_map_get(v, "msg")
+    return oren_map_get_str(v, "msg")
 }

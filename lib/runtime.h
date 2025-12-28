@@ -182,6 +182,11 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value);
 
 OrenValue oren_new_map(int count, ...);
 OrenValue oren_map_get(OrenValue map, OrenValue key);
+OrenValue oren_map_get_int(OrenValue map, OrenValue key);
+OrenValue oren_map_get_str(OrenValue map, OrenValue key);
+OrenValue oren_map_set(OrenValue map, OrenValue key, OrenValue value);
+OrenValue oren_map_set_int(OrenValue map, OrenValue key, OrenValue value);
+OrenValue oren_map_set_str(OrenValue map, OrenValue key, OrenValue value);
 OrenValue oren_map_len(OrenValue map);
 
 OrenValue oren_string_len(OrenValue s);
