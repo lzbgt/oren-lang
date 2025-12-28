@@ -13,7 +13,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ named function values + indirect calls now use `__oren_fnwrap_*` wrappers and an `args_list` call ABI (env is 0 in x64 v0)
      - ✅ x64 lambdas/closures now lower to heap fnobj `{code_ptr, env_ptr}` where `env_ptr` is a capture-by-value list (when captures exist)
      - ✅ `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic ...` line (best-effort) before aborting
-     - ⏭️ next: stack trace parity for x64 native panics/fails, and closure perf (avoid per-call arg list allocation for common cases)
+     - ✅ `oren_panic(msg)` now emits a best-effort `STACK_TRACE` (RBP chain, up to 16 return addrs) on Linux+Win64 before aborting
+     - ⏭️ next: symbolic backtraces (addr→fn/line), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
@@ -59,6 +60,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **x86_64 native callables converge**: function values now point at `__oren_fnwrap_*` wrappers and indirect calls lower as `wrapper(env_ptr, args_list)`; `oren_panic` exists as a minimal deterministic abort for wrappers/invariants.
 - **x86_64 native lambdas/closures converge**: lambda literals now lower to heap-allocated fnobj records with env capture lists, and lambda wrappers `__oren_lambda_*` implement the uniform call ABI.
 - **x86_64 native panic contract converge (best-effort)**: `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic code=1 msg=<msg>` line (Linux+Win64) before aborting with exit code 1.
+- **x86_64 native stack trace converge (best-effort)**: `oren_panic(msg)` now emits `STACK_TRACE` and up to 16 raw return addresses via RBP-walking (Linux+Win64) before aborting.
 - **x64 backend modularized for reviewability**: `lib/compiler/x64_native_program.oren` now uses `// @include` chunks under `lib/compiler/x64_native_program/` to avoid large-file context overflow while keeping namespace stability.
 - **x64 re-entrant temp spilling**: x64 native v0 now sizes the `$tmp_intr*` spill pool per-function based on AST analysis (avoids large fixed stack frames while keeping nested calls/intrinsics correct).
 - **ARM64 `/` semantics fixed for Tier‑1 parity**: `int / int` now lowers to `SDIV` (signed trunc-toward-zero) in the arm64 native backend; integration suite adds signed division asserts.

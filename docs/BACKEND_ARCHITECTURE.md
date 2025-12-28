@@ -119,8 +119,8 @@ Some backends are still “mid-convergence”:
   - indirect calls build an `args_list` and call `code_ptr(env_ptr, args_list)`
   - named function values point at synthesized wrappers `__oren_fnwrap_*`
   - lambda literals lower to heap fnobj records where `env_ptr` points at a capture-by-value list (or `0` for capture-free lambdas), and `code_ptr` points at `__oren_lambda_*` wrappers
-- Remaining Tier‑1 gap: consistent panic/diagnostic output on x86_64 native (rich `OREN_DIAG` / stack trace parity) and performance work (avoid per-call `args_list` allocations for common cases).
-- Remaining Tier‑1 gap: stack trace parity on x86_64 native (rich `OREN_DIAG` + stack trace like `lib/runtime_native/110_mem_diag.oren`) and performance work (avoid per-call `args_list` allocations for common cases).
+- x86_64 native now has a **best-effort panic trace** (raw return addresses via RBP chain) so Tier‑1 bring-up failures are diagnosable without AVM.
+- Remaining Tier‑1 gaps: symbolic stack traces (addr→fn/line mapping), richer `OREN_DIAG` parity with runtime-native diagnostics, and performance work (avoid per-call `args_list` allocations for common cases).
 
 This is acceptable in rolling mode as long as:
 

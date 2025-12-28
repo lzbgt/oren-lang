@@ -148,6 +148,7 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1)) // r11d=1
         _emit_windows_write_ptr_len(ctx, 2, 11)
 
+        _emit_stack_trace_best_effort(ctx)
         _emit_abort_exitcode(ctx, 1)
         return nil
     }
@@ -157,6 +158,190 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
     _emit_strlen_cstr0_to_rdx(ctx, msg_ptr_reg)
     _emit_linux_write_ptr_len(ctx, msg_ptr_reg, 2)
     _emit_linux_write_str(ctx, "\n")
+    _emit_stack_trace_best_effort(ctx)
     _emit_abort_exitcode(ctx, 1)
+    return nil
+}
+
+fn _emit_hex_table_ptr_to_r13(ctx) {
+    // r13 = &"0123456789abcdef"
+    var off = _data_add_cstr0(ctx, "0123456789abcdef")
+    if off == nil { return nil }
+    var lea_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(13, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
+    return nil
+}
+
+fn _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, shift, pos) {
+    // Store one hex nibble from val_reg into *(buf_reg + pos), where nibble comes from (val >> shift) & 0xF.
+    //
+    // Requires:
+    // - r13: hex table ptr
+    //
+    // Clobbers: rax, r10, r11
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, val_reg))
+    if shift > 0 { bytes_extend(ctx["code"], insn_shr_r64_imm8(0, shift)) }
+    bytes_extend(ctx["code"], insn_and_r64_imm32(0, 15)) // rax &= 0xF
+    // r11 = table + rax
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 13))
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 0))
+    // al = table[nibble]
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    // *(buf+pos) = al
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, pos))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    return nil
+}
+
+fn _emit_format_u64_hex_line(ctx, val_reg, buf_reg) {
+    // Format into memory at buf_reg:
+    //   0x<16 hex digits>\n
+    // Total bytes: 19
+    //
+    // Uses:
+    // - r13: hex table ptr (must be initialized)
+    // Clobbers: rax, r10, r11, r12
+
+    // buf[0]='0'
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 48))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    // buf[1]='x'
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 120))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 1))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+
+    // 16 hex digits, most-significant first.
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 60, 2)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 56, 3)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 52, 4)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 48, 5)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 44, 6)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 40, 7)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 36, 8)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 32, 9)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 28, 10)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 24, 11)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 20, 12)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 16, 13)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 12, 14)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 8, 15)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 4, 16)
+    _emit_hex_nibble_to_buf_at(ctx, val_reg, buf_reg, 0, 17)
+
+    // newline at buf[18]
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 10))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 18))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(10))
+    return nil
+}
+
+fn _emit_stack_trace_best_effort(ctx) {
+    // Best-effort stack trace based on RBP chain.
+    //
+    // Rolling contract (Tier‑1):
+    // - prints a stable header and up to 16 return addresses
+    // - avoids allocations and does not depend on injected runtime
+    //
+    // Caveats:
+    // - this is not a symbolic trace (no debug info / line mapping on x64 yet)
+    // - relies on frame pointers being enabled (true for current x64 prologues)
+    //
+    // Clobbers: volatile regs; exits soon after anyway.
+    var platform = ctx["platform"]
+
+    // Reserve scratch on stack for formatting buffers.
+    // Use >= 128 so Win64 shadow space and our local buffer don't overlap.
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(128))
+
+    _emit_hex_table_ptr_to_r13(ctx)
+
+    if platform != nil && platform["os"] == "windows" {
+        // Header
+        _emit_windows_write_cstr(ctx, "STACK_TRACE:")
+        // Cursor (r12) = rbp
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 5))
+        // frame counter (r14) = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(14, 0))
+
+        var labels = {}
+        var fixups = []
+        var l_loop = _new_label(ctx, "stack_trace_loop")
+        var l_done = _new_label(ctx, "stack_trace_done")
+        _emit_label(ctx, labels, l_loop)
+
+        // if r14 >= 16 => done
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(14, 16))
+        _emit_jcc_to_label(ctx, fixups, "ge", l_done)
+        // if r12 == 0 => done
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
+        _emit_jcc_to_label(ctx, fixups, "e", l_done)
+
+        // ret = *(r12 + 8) into r15
+        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 12))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(15, 11))
+
+        // buf = rsp + 0x60
+        bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 96))
+        _emit_format_u64_hex_line(ctx, 15, 11)
+        // write buf (ptr=r11, len=19 in r10)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 19))
+        _emit_windows_write_ptr_len(ctx, 11, 10)
+
+        // r12 = *(r12) (next frame)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 12))
+        // r14++
+        bytes_extend(ctx["code"], insn_add_r64_imm32(14, 1))
+        _emit_jmp_to_label(ctx, fixups, l_loop)
+
+        _emit_label(ctx, labels, l_done)
+        _patch_local_fixups(ctx, labels, fixups)
+        bytes_extend(ctx["code"], insn_add_rsp_imm32(128))
+        return nil
+    }
+
+    // Linux header
+    _emit_linux_write_str(ctx, "STACK_TRACE:\n")
+    // Cursor (r12) = rbp
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 5))
+    // frame counter (r14) = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(14, 0))
+
+    var labels2 = {}
+    var fixups2 = []
+    var l_loop2 = _new_label(ctx, "stack_trace_loop")
+    var l_done2 = _new_label(ctx, "stack_trace_done")
+    _emit_label(ctx, labels2, l_loop2)
+
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(14, 16))
+    _emit_jcc_to_label(ctx, fixups2, "ge", l_done2)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
+    _emit_jcc_to_label(ctx, fixups2, "e", l_done2)
+
+    // ret = *(r12 + 8) into r15
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 12))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(15, 11))
+
+    // buf = rsp + 0x60
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 96))
+    _emit_format_u64_hex_line(ctx, 15, 11)
+    // len=19 in r10
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 19))
+    _emit_linux_write_ptr_len(ctx, 11, 10)
+
+    // r12 = *(r12)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 12))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(14, 1))
+    _emit_jmp_to_label(ctx, fixups2, l_loop2)
+
+    _emit_label(ctx, labels2, l_done2)
+    _patch_local_fixups(ctx, labels2, fixups2)
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(128))
     return nil
 }
