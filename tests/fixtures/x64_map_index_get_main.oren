@@ -1,0 +1,26 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates map indexing `m[key]` works on x64 for string keys
+// - validates slow-path string equality (non-interned key pointer)
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var m = {"a": 1, "b": 2}
+
+    // Fast-path: identical string literal pointer.
+    if m["a"] != 1 { return 1 }
+    if m["b"] != 2 { return 2 }
+    if m["c"] != 0 { return 3 }
+
+    // Slow-path: dynamically constructed NUL-terminated C string "a".
+    //
+    // This is deliberately a different pointer than the string-literal storage.
+    var s = malloc_raw(2)
+    ptr_set_byte(s, 97) // 'a'
+    ptr_set_byte(iadd(s, 1), 0)
+    if m[s] != 1 { return 4 }
+
+    return 0
+}
+

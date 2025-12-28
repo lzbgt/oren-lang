@@ -105,6 +105,21 @@ fn _expr_int_check(ctx, expr) {
         }
         return nil
     }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        if pairs == nil { return nil }
+        var i2 = 0
+        while i2 < oren_list_len(pairs) {
+            var pair = pairs[i2]
+            if pair == nil { err(ctx, "x64 native v0: hash literal has nil pair"); return nil }
+            _expr_int_check(ctx, pair["key"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _expr_int_check(ctx, pair["value"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i2 = i2 + 1
+        }
+        return nil
+    }
     err(ctx, "x64 native v0: expr not supported: " + t)
     return nil
 }
@@ -113,6 +128,7 @@ fn _max_call_argc_in_expr(expr) {
     if expr == nil { return 0 }
     var t = expr["type"]
     if t == "Nil" { return 0 }
+    if t == "String" { return 0 }
     if t == "Call" {
         var args = expr["args"]
         var argc = 0
@@ -157,6 +173,20 @@ fn _max_call_argc_in_expr(expr) {
             i = i + 1
         }
         return m
+    }
+    if t == "Hash" {
+        var m2 = 0
+        var pairs = expr["pairs"]
+        var i2 = 0
+        while pairs != nil && i2 < oren_list_len(pairs) {
+            var pair = pairs[i2]
+            var mk = _max_call_argc_in_expr(pair["key"])
+            if mk > m2 { m2 = mk }
+            var mv = _max_call_argc_in_expr(pair["value"])
+            if mv > m2 { m2 = mv }
+            i2 = i2 + 1
+        }
+        return m2
     }
     if t == "If" {
         // Conservative: if-expr isn't part of the x64 v0 expression surface yet, but keep it safe.

@@ -1,0 +1,29 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates map literals `{ "k": v }` compile on x64
+// - validates `oren_map_get` and `oren_map_set` work for string keys
+//
+// Notes:
+// - This is an incremental milestone; we use explicit `oren_map_get/set` rather than
+//   `m["k"]` / `m["k"]=v` until x64 v0 grows full Index(map) support.
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    var m = {"a": 1, "b": 2}
+
+    if oren_map_len(m) != 2 { return 1 }
+    if oren_map_get(m, "a") != 1 { return 2 }
+    if oren_map_get(m, "b") != 2 { return 3 }
+    if oren_map_get(m, "c") != 0 { return 4 }
+
+    oren_map_set(m, "c", 3)
+    if oren_map_len(m) != 3 { return 5 }
+    if oren_map_get(m, "c") != 3 { return 6 }
+
+    // Update existing key.
+    oren_map_set(m, "a", 9)
+    if oren_map_get(m, "a") != 9 { return 7 }
+    return 0
+}
+
