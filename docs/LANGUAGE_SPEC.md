@@ -1,8 +1,28 @@
 # Oren Language Specification (Draft)
 
-This document describes the **current Oren language** as implemented by the C backend (the transpiler + `lib/runtime.[ch]`) and as required for self-hosting (`oren.oren`).
+**Last updated:** 2025-12-28
+
+This document describes the **current Oren language** as accepted by the Stage1 compiler (`./oren`) and required for self-hosting (`oren.oren`).
+It includes both:
+
+- **normative “what exists today”** rules (grounded in compiler behavior and fixtures),
+- **explicitly marked planned design direction** items (tied to `docs/TODOS.md` / `docs/ROADMAP.md`).
 
 The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** the reference implementation (it supports only a subset and differs in some semantics like scoping).
+
+## How to read this spec (AI- and tool-friendly)
+
+This repo is in rolling mode. To keep the spec precise for both humans and AI agents, we use the following status markers:
+
+- **Implemented**: works today and should have fixture evidence (see `tests/**` and `docs/LANGUAGE_STATUS_AND_GAPS.md`).
+- **Rolling**: implemented but not stabilized (ABI/format/details may change; still regression-tested).
+- **Planned**: design intent; not implemented yet (must link to `docs/TODOS.md` or other canonical design docs).
+
+If an AI agent needs the most “ground-truth” behavior, prioritize:
+
+- `docs/LANGUAGE_MANUAL.md` (practical usage today),
+- `docs/LANGUAGE_STATUS_AND_GAPS.md` (evidence-backed “what works today” + missing gaps),
+- the fixtures under `tests/native/fixtures/`, `tests/modules/`, `tests/avm/` (living spec).
 
 ## Lexical Structure
 
@@ -21,6 +41,9 @@ Implemented today:
 Planned (not implemented yet):
 
 `yield`, `defer`, `assert`, `pub`
+
+Rolling note: “planned keywords” are *design placeholders* and are not guaranteed to be reserved today.
+Until a stabilization milestone, avoid using them as identifiers if you want forward compatibility.
 
 Rolling note: `match` is a **contextual** keyword to preserve compatibility with code that uses
 `match` as an identifier (variable/function name). The parser treats `match` as a statement only
@@ -196,6 +219,27 @@ cast_suffix     = "as" type_name ;
 All infix operators are left-associative.
 
 ## Semantics
+
+### Program structure and entry semantics (rolling, current toolchain)
+
+Oren is a module language: a file contains top-level statements and declarations.
+
+Entry behavior (current implementation across backends):
+
+- **Top-level statements execute** in source order as the module loads (lowered into an internal `__top_level__` function).
+- If a user-defined `fn main()` exists, the runtime may call it automatically depending on backend:
+  - bytecode backend appends a `CALL main` entry stub if `main` exists (see `lib/compiler/codegen_bytecode/030_tail.oren`),
+  - native backends use an entry stub that calls `main` (or `__top_level__` if `main` is absent; see `lib/compiler/arm64_elf.oren` / `lib/compiler/arm64_macho.oren`),
+  - **C backend (current)**: emits a host `int main(...)` that executes top-level statements in order, but **does not** auto-call user `fn main()` today (see `lib/compiler/transpiler.oren`).
+
+Practical rule:
+
+- For **native** and **AVM** builds, do **not** write `main()` as a top-level call unless you intentionally want `main` to run twice.
+- For the **C backend today**, the entrypoint is “top-level statements”; if you want `fn main()` to run, call `main()` at top-level (or use top-level script style).
+
+Planned (parity goal):
+
+- Unify entry semantics across backends so that “a typical program with `fn main()`” behaves consistently. Track: `docs/TODOS.md` (P0.2).
 
 ### Notes on current (rolling) type annotations
 
@@ -853,8 +897,19 @@ match v {
 - Imports are resolved recursively at compile time; cyclic imports are an error.
 - All top-level `var`, named `fn`, and `struct`/`class` declarations in an imported file are treated as module members.
 
+Rolling restriction (current behavior):
+
+- `import` is **compile-time only** and only meaningful at **module top level**.
+  - The parser may accept `import` inside blocks, but backends treat imports as compile-time only; a block-scoped import is not meaningful.
+  - This is expected to become a compile-time error in a future rolling milestone (so tools and AI agents should always emit top-level imports).
+
 ## Evaluation Order
 Expression evaluation order is currently not specified by the language (rolling v0).
+
+Status:
+
+- **Rolling**: current compilers/backends are free to choose internal evaluation strategies.
+- **Planned**: specify a stable evaluation order (or an explicit effect model) so optimizations are semantics-preserving across backends. Track: `docs/TODOS.md` (P0.2).
 
 Practical guidance (all backends):
 

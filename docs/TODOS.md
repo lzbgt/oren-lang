@@ -27,6 +27,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
+   - Unify **entry semantics** across backends (top-level + `main`): align C/native/AVM so “a typical program with `fn main()`” behaves consistently.
    - Start migration with “callables + varargs + spread” because they span C/native/bytecode.
    - Decide and document a stable **evaluation order** (or an effect model) so optimizations are semantics-preserving across backends.
    - Reference: `docs/BACKEND_ARCHITECTURE.md`.
@@ -56,6 +57,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Reduce overlapping “atomic” tests in curated lists; prefer integration suites + fixtures as living spec.
    - Reference: `docs/TEST_SYSTEM.md`.
    - Rolling docs hygiene: when fixtures or backends change, update the docs that claim invariants (`docs/LANGUAGE_MANUAL.md`, `docs/NATIVE_BACKEND.md`, `docs/CLI_COMPLETION.md`) in the same change to avoid drift.
+   - Spec hygiene (AI-friendly): keep `docs/LANGUAGE_SPEC.md` and `docs/LANGUAGE_MANUAL.md` aligned with actual compiler behavior and mark planned vs implemented explicitly.
 
 8) **Compiler UX: “modern argparse” (Click-style subcommands + UX polish)** (M)
    - Keep current subcommand structure, but raise ergonomics to production level:

@@ -93,7 +93,9 @@ fn main() {
 Entry semantics (rolling, by current toolchain implementation):
 
 - **Top-level statements execute** as the module loads (they compile into an internal `__top_level__` function).
-- If `fn main()` exists, the runtime **calls it automatically** (native entry stubs + AVM bytecode entry both do this).
+- If `fn main()` exists:
+  - **Native backend + AVM bytecode**: the runtime **calls it automatically**.
+  - **C backend (current)**: does **not** auto-call `main`; only top-level statements run (so call `main()` at top level, or write script-style top-level code).
 - Avoid writing `main()` as a top-level call unless you intentionally want `main` to run twice.
 
 ### Imports
@@ -109,7 +111,9 @@ Imported names can be qualified as `alias.symbol`.
 
 Notes (rolling):
 
-- `import` is a **module-level** declaration and must appear at **top level** (not inside `fn` bodies).
+- `import` is intended as a **compile-time, module-level** declaration.
+  - In practice, put `import ...` at **top level** (outside `fn` bodies / blocks).
+  - The parser currently accepts `import` inside blocks, but backends treat imports as compile-time only; a block-scoped import is not meaningful and may become a compile error in the future.
 
 ### FFI symbols (`ffi name`)
 
