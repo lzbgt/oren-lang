@@ -142,7 +142,29 @@ var x = 10
 x = x + 1
 ```
 
-Oren also supports typed annotations in some contexts (see “Types” below).
+### Short declarations (`:=`) (rolling)
+
+Oren also supports a Go-like short declaration form:
+
+```oren
+x := 10        // sugar for: var x = 10
+y := x + 2
+```
+
+And a typed variant (annotation sugar):
+
+```oren
+// typed short declaration (still non-semantic in rolling v0):
+b: u16be := 6
+```
+
+Rolling notes:
+
+- `:=` is a **declaration**, not an assignment.
+- Type annotations are **non-semantic** in rolling v0: they must not change runtime behavior (they primarily enable deterministic lowering + tooling).
+- `for ...; ...; post {}` does **not** allow `:=` in `post` (use `=` there).
+
+This is exercised by `tests/avm/test_smoke_suite.oren` (`test_type_annotations_sugar`).
 
 ## 4) Control flow
 
