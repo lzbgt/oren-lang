@@ -83,10 +83,10 @@ Integer arithmetic (rolling v0):
 Examples:
 
 ```oren
-if (7 / 3) != 2 { exit(1) }
-if (-7 / 3) != -2 { exit(2) }
-if (7 % 3) != 1 { exit(3) }
-if (-7 % 3) != -1 { exit(4) }
+if 7 / 3 != 2 { exit(1) }
+if -7 / 3 != -2 { exit(2) }
+if 7 % 3 != 1 { exit(3) }
+if -7 % 3 != -1 { exit(4) }
 ```
 
 ### Bitwise ops and shifts (`& | ^ ~ << >>`)
@@ -905,6 +905,7 @@ This is intentional: fixtures are small, high-signal, and regression-friendly.
   - Division by zero: `tests/native/fixtures/arith_div0.oren`
   - Signed overflow (`i64_min / -1`): `tests/native/fixtures/arith_div_overflow.oren`
   - Shift count out of range: `tests/native/fixtures/arith_shift_oob.oren`
+  - Deterministic recursion guard (call depth): `tests/native/fixtures/call_depth_overflow.oren`
 
 - **Struct field assignment (rolling semantics)**:
   - OK path: `tests/native/fixtures/struct_field_assign_ok.oren`
