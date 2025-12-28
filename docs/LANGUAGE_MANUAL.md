@@ -828,7 +828,10 @@ Rolling notes (native backends, v0):
   - `string` keys (e.g. `"a"`, `"field"`)
   - `int` keys (e.g. `0`, `42`)
 - If you write `m[key]` or `m[key] = v` and `key` is a **variable**, the native backends may require the compiler to infer whether `key` is an `int` key or a `string` key.
-  - If the key kind is not inferable, the native backends fail **deterministically** (panic) rather than guessing.
+  - Rolling behavior: if the key kind is not inferable statically, the compiler emits a **runtime dispatch**:
+    - if `key` is a tracked heap string (`oren_find_node(key).kind == STRING`), treat it as a string key
+    - otherwise treat it as an int key
+  - This avoids unsafe numeric-range heuristics, but it is still an interim design until Oren has a fully tagged value representation for native execution.
 - When you know the key is a string at runtime (common in parsers/codecs), you can use the explicit runtime helpers:
   - `oren_map_get_str(m, key)` / `oren_map_set_str(m, key, value)`
   - `oren_map_get_int(m, key)` / `oren_map_set_int(m, key, value)`

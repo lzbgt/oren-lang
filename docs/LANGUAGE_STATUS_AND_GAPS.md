@@ -94,7 +94,7 @@ production maturity requires both implementation *and* regression coverage.
   - Any heuristic that guesses key types (e.g. based on numeric range) is a semantics risk.
   - Direction: a tagged value model or explicit key typing at IR level.
   - Rolling status:
-    - x64 native key-kind guessing (`key < 4096`) is removed for map get/set; key kind is inferred conservatively during lowering, and unknown cases abort(1) on the map path (tagged values remain the full fix)
+    - Native backends (arm64 + x64): key-kind guessing (`key < 4096`) is removed for map get/set; when key kind is not inferable statically, native codegen performs a runtime dispatch via tracking metadata (`oren_find_node(key).kind == STRING` → string key; else int key). Tagged values remain the full fix.
     - x64 native now also propagates `recv_kind` on `Index` so codegen can avoid dynamic LIST/MAP dispatch when the receiver kind is known (still validates runtime magic; remaining unknown cases need a principled representation)
 - **Varargs/spread parity (all backends + indirect calls)**
   - Varargs must be “boring and correct”: same semantics everywhere, including closures.

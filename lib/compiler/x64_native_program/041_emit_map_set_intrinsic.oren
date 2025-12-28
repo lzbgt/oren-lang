@@ -60,6 +60,12 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
 
     // rsi = key
     _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key)
+    // Native runtime contract: key==0 is nil and not allowed for map_set.
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 0))
+    var l_key_ok = _new_label(ctx, "map_set_key_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_key_ok)
+    _emit_abort_panic_str(ctx, "map_set: key is nil")
+    _emit_label(ctx, labels, l_key_ok)
     // r13 = key_kind (0=int, 1=string)
     var kk = known_key_kind
     if kk == nil { kk = -1 }
@@ -68,8 +74,8 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     } else if kk == 1 {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
     } else {
-        _emit_abort_panic_str(ctx, "x64 native v0: map_set requires inferred key kind (tagged values pending)")
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+        // Rolling Tier‑1: infer kind using minimal tracking metadata (strings are tracked).
+        _emit_infer_map_key_kind_x64(ctx, locals, 6, 13)
     }
 
     // r8 = count

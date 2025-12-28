@@ -8,6 +8,7 @@
 
 // @include "x64_native_program/000_prelude.oren"
 // @include "x64_native_program/010_data_io.oren"
+// @include "x64_native_program/015_tracking.oren"
 // @include "x64_native_program/020_cond_analyze.oren"
 // @include "x64_native_program/030_expr_check_maxcall.oren"
 // @include "x64_native_program/035_intr_temps.oren"

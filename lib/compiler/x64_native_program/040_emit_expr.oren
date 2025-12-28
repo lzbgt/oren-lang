@@ -232,6 +232,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var lea_pos = oren_list_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
+        // Tier‑1 convergence (rolling): mark embedded string literals as tracked (kind=1)
+        // so container ops can safely infer key kinds without heuristics.
+        _emit_ensure_tracked_ptr_kind_x64(ctx, locals, 0, 1)
         return nil
     }
     if t == "Function" {
@@ -845,14 +848,17 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             // rsi = key
             _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key)
+            // Native runtime contract: key==0 is nil and always misses.
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_nil)
             // r13 = key_kind (0=int, 1=string)
             if known_key_kind == 0 {
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
             } else if known_key_kind == 1 {
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
             } else {
-                _emit_abort_panic_str(ctx, "x64 native v0: map_get requires inferred key kind (tagged values pending)")
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+                // Rolling Tier‑1: infer kind using minimal tracking metadata (strings are tracked).
+                _emit_infer_map_key_kind_x64(ctx, locals, 6, 13)
             }
 
             // r8 = count

@@ -231,6 +231,9 @@ fn native_compile_program_x64(linked, platform) {
         "declared_functions": {}
     }
     ctx["abi"] = abi.x64(platform)
+    // Reserve minimal tracking globals early so appended data offsets are deterministic
+    // regardless of when the first string literal is encountered during codegen.
+    _data_reserve_tracked_allocs_head_x64(ctx)
     // Import aliases are used by shared callable lowering to avoid capturing module aliases.
     if linked != nil { ctx["aliases"] = linked["aliases"] }
     if ctx["aliases"] == nil { ctx["aliases"] = {} }
@@ -358,6 +361,13 @@ fn native_compile_program_x64(linked, platform) {
     // x64 native does not yet inject the full native runtime, so we keep a minimal
     // call-depth counter and max in the data blob and instrument function entry/exit.
     _data_reserve_call_depth_guard(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
+    // --- Minimal tracking globals (rolling Tier‑1) ---
+    //
+    // Track embedded string pointers so map key-kind inference can safely decide
+    // between int vs string without heuristics.
+    _data_reserve_tracked_allocs_head_x64(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // --- Entry stub ---

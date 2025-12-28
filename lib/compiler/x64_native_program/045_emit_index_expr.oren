@@ -133,21 +133,17 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     // --- map indexing path ---
     _emit_label(ctx, labels, l_is_map)
     bytes_extend(ctx["code"], insn_mov_r64_r64(6, 1)) // rsi = key
+    // If key is nil (0), treat as "miss" (matches `oren_map_get` behavior).
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 0))
+    var l_mmiss = _new_label(ctx, "idx_map_miss")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_mmiss)
+
     // r13 = key_kind (0=int, 1=string)
     if known_key_kind >= 0 {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(13, known_key_kind))
     } else {
-        // If the receiver is known to be a map, requiring an explicit key kind keeps
-        // the semantics deterministic and avoids runtime heuristics.
-        if recv_kind == "map" {
-            _intr_tmp_pop(ctx, base0)
-            err(ctx, "x64 native v0: map index requires inferred key kind (annotate via known key kinds or use int/string key literals)")
-            return nil
-        }
-        // If the receiver kind is unknown, we still support list-vs-map runtime dispatch.
-        // However, the map path cannot guess key kind without tagging, so it aborts.
-        _emit_abort_panic_str(ctx, "x64 native v0: map index requires inferred key kind (tagged values pending)")
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+        // Rolling Tier‑1: infer kind using minimal tracking metadata (strings are tracked).
+        _emit_infer_map_key_kind_x64(ctx, locals, 6, 13)
     }
 
     // r8 = count
@@ -171,7 +167,6 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
 
     _emit_label(ctx, labels, l_mloop)
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
-    var l_mmiss = _new_label(ctx, "idx_map_miss")
     _emit_jcc_to_label(ctx, local_fixups, "le", l_mmiss)
 
     // rdi = *(entry_ptr)
