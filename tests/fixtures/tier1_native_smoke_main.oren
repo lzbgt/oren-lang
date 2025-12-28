@@ -1,0 +1,58 @@
+fn add7(a, b, c, d, e, f, g) {
+    return a + b + c + d + e + f + g
+}
+
+fn sum1(x, ...rest) {
+    var s = x
+    var i = 0
+    while i < oren_list_len(rest) {
+        s = s + rest[i]
+        i = i + 1
+    }
+    return s
+}
+
+fn inc(x) { return x + 1 }
+
+fn boom() {
+    return 1 / 0
+}
+
+fn main() {
+    // Sanity: printing works (remote-run checks substring).
+    print("tier1 smoke ok")
+
+    // Calls across reg+stack args.
+    if add7(1, 2, 3, 4, 5, 6, 7) != 28 { return 10 }
+
+    // Varargs + spread semantics.
+    var xs = [2, 3]
+    if sum1(1, xs...) != 6 { return 20 }
+
+    // List ops + index.
+    var ys = [1]
+    oren_list_push(ys, 2)
+    if ys[1] != 2 { return 30 }
+
+    // for-in (iterator contract).
+    var s = 0
+    for v in ys { s = s + v }
+    if s != 3 { return 40 }
+
+    // Map ops + index assignment/get with literal keys (including int >= 4096).
+    var m = {"a": 7}
+    m["b"] = 8
+    if m["a"] != 7 { return 50 }
+    if m["b"] != 8 { return 51 }
+    m[50000] = 9
+    if m[50000] != 9 { return 52 }
+
+    // First-class function values + indirect call.
+    var f = inc
+    if f(4) != 5 { return 60 }
+
+    // Short-circuit sanity (must not evaluate RHS when unnecessary).
+    if 0 && boom() != 0 { return 70 }
+
+    return 0
+}

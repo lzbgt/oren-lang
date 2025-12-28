@@ -7,7 +7,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 1) **Native backend Tier‑1: x86_64 (Linux ELF + Windows PE)** (L)
    - Goal: x86_64 (Linux+Windows) is Tier‑1 alongside arm64 (macOS/Linux) with consistent semantics across native/C/bytecode backends.
-   - Status: x64 bring-up now includes syscall/WinAPI-backed `malloc`/`malloc_raw` + `ptr_get`/`ptr_set` (qword + byte) intrinsics, minimal list intrinsics (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_list_set`), list literal `[a,b,c]` (lowered via direct buffer fill so nested literals like `[0,1,[0,0]]` are correct), list index sugar (`xs[i]`, `xs[i]=v` via `oren_index_set`), `for x in xs {}` via `oren_iter_next(container, idx, out_pair) -> [ok, value]`, stdlib-style namespace calls (`import list "std:list"; list.len/list.push`), `"string literal"` values as raw pointers (usable with `ptr_get_byte`/`iadd`), plus native-layout-compatible map intrinsics (`oren_new_map`, `oren_map_len`, `oren_map_get`, `oren_map_set`), map literal `{ "k": v }` and nested map literal `{ "a": {"b": 7} }`, map indexing `m[key]`, and map index assignment `m[key]=v` with literal key-kind emission (Integer/String literals set kind explicitly; dynamic keys still fall back to the v0 heuristic `key < 4096 => int`, else C-string pointer). x64 arg spilling is now re-entrant (intrinsics + nested call args) via a per-function `$tmp_intr*` temp pool, guarded by fixtures including `tests/fixtures/x64_nested_map_literal_main.oren`, `tests/fixtures/x64_intr_reentrancy_main.oren`, and `tests/fixtures/x64_nested_call_args_main.oren` (remote-run on Win11+WSL2).
+   - Status: x64 bring-up now includes syscall/WinAPI-backed `malloc`/`malloc_raw` + `ptr_get`/`ptr_set` (qword + byte) intrinsics, minimal list intrinsics (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_list_set`), list literal `[a,b,c]` (lowered via direct buffer fill so nested literals like `[0,1,[0,0]]` are correct), list index sugar (`xs[i]`, `xs[i]=v`), `for x in xs {}` via `oren_iter_next(container, idx, out_pair) -> [ok, value]`, stdlib-style namespace calls (`import list "std:list"; list.len/list.push`), `"string literal"` values as raw pointers (usable with `ptr_get_byte`/`iadd`), plus native-layout-compatible map intrinsics (`oren_new_map`, `oren_map_len`, `oren_map_get`, `oren_map_set`), map literal `{ "k": v }` and nested map literal `{ "a": {"b": 7} }`, map indexing `m[key]`, and map index assignment `m[key]=v` with literal key-kind emission (Integer/String literals set kind explicitly; dynamic keys still fall back to the v0 heuristic `key < 4096 => int`, else C-string pointer). x64 arg spilling is re-entrant (intrinsics + nested call args) via a per-function `$tmp_intr*` temp pool. Tier‑1 validation is now **integration-first**: local builds are checked via `tests/fixtures/tier1_native_smoke_main.oren` (ELF+PE existence + embedded string check), and opt-in remote-run on Win11+WSL2 is kept minimal (smoke + abort contract).
    - Next: converge callable ABI on the canonical `{code_ptr, env_ptr}` + `args_list` model (closures + safe indirect calls) across arm64/x64.
    - Next: enable the native self-hosting gate on Linux x86_64 CI (build+run stage2 via x64 backend) once the syscall-first runtime surface is sufficient.
    - Next: varargs (`...rest`) + spread semantics convergence across backends (x64 now supports named varargs calls, fixed-arity call-site spread with runtime length checks, and varargs+spread (spread contributes into `rest`) for named calls; see `tests/fixtures/x64_varargs_main.oren`, `tests/fixtures/x64_spread_fixed_arity_main.oren`, and `tests/fixtures/x64_varargs_spread_main.oren`; still missing indirect-call spread).
@@ -31,11 +31,16 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Next: define CoreIR schema + stability rules; migrate backends incrementally (start with callables + varargs).
    - References: `docs/BACKEND_ARCHITECTURE.md`.
 
-4) **Stdlib modernization audit (grammar + intrinsics)** (S)
+4) **Stack safety parity (recursion / deterministic failure)** (M)
+   - Goal: recursion must fail deterministically under a configured budget across AVM + native + C backends (no host stack overflow crashes).
+   - Status: AVM has `--call-depth-max`; native/C parity is not yet guaranteed.
+   - Design: `docs/STACK_SAFETY.md`.
+
+5) **Stdlib modernization audit (grammar + intrinsics)** (S)
    - Goal: no legacy grammar in `lib/std/**` (if/else/match/for-in syntax, legacy helper names) and no direct `oren_list_*` usage outside `std:list`.
    - Status: `oretest` now enforces “no `oren_list_*` outside `lib/std/list.oren`” and “no `string_concat(...)` in stdlib”; expand checks cautiously as grammar evolves.
 
-5) **Runtime native modularization (avoid “single huge file”)** (M)
+6) **Runtime native modularization (avoid “single huge file”)** (M)
    - Goal: keep native runtime sources reviewable and module-scoped (prevents context/merge pain).
    - Next: follow `docs/RUNTIME_NATIVE_LAYOUT.md` and split large runtime layers into cohesive modules with minimal cross-imports.
 
@@ -66,5 +71,6 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 - **Container ops third milestone (arm64 native)**: `std:list` namespace calls `list.len(xs)` / `list.push(xs, v)` now lower to the same intrinsics (no wrapper call overhead); `list.push` preserves std semantics by returning `nil`.
 - **Whole-program function DCE (linker)**: module linking now prunes unreachable top-level functions for executable builds, so importing stdlib modules no longer forces tier‑1 native v0 backends to codegen unused helpers (e.g. `std:list.slice_view` string/map literals).
 - **Test throughput**: `oretest` now runs runtime diagnostic fixtures in parallel (bounded by `--fixture-jobs`) to reduce wall time during rolling development.
+- **oretest modularized**: the curated runner is split into `cmd/oretest/*.go` modules, and x86_64 validation was consolidated into an integration-first Tier‑1 smoke (local build existence + minimal opt-in remote-run).
 - **HPC iteration performance**: `for x in iterable` no longer allocates a fresh `[ok, value]` pair on every iteration; the loop reuses a preallocated `out_pair` via `oren_iter_next(container, idx, out_pair)` across native/C/AVM, and the `Iterable` trait extension signature is updated to match.
 - **Docs coverage**: `docs/LANGUAGE_MANUAL.md` now includes a “fixtures as living spec” index pointing at key `tests/native/fixtures` and x64 bring-up fixtures.

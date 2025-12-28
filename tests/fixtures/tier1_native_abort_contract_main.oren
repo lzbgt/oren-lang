@@ -1,0 +1,12 @@
+fn add2(a, b, ...rest) {
+    // Returning something avoids unused warnings; the call should abort before this matters.
+    return a + b + oren_list_len(rest)
+}
+
+fn main() {
+    // Not enough args to satisfy fixed params (needs 2).
+    // x64 native should deterministically abort(1) (checked via remote-run).
+    var xs = [1]
+    return add2(xs...)
+}
+

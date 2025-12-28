@@ -1,0 +1,441 @@
+package main
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
+)
+
+func fileSHA256Hex(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(b)
+	return fmt.Sprintf("%x", sum[:]), nil
+}
+
+func stdlibModernizationAudit() error {
+	// Rolling guardrails: keep stdlib usage modern and layered.
+	//
+	// Enforced today:
+	// - No direct `oren_list_*` calls outside `lib/std/list.oren` (stdlib should use `std:list`).
+	// - No legacy `string_concat(...)` usage inside `lib/std/**` (prefer `+`).
+	allowOrenListCalls := map[string]bool{
+		filepath.Clean("lib/std/list.oren"): true,
+	}
+	denySubstrings := []string{
+		"string_concat(",
+	}
+
+	var violations []string
+	root := filepath.Clean("lib/std")
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".oren" {
+			return nil
+		}
+
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel := filepath.Clean(path)
+		lines := bytes.Split(b, []byte("\n"))
+		for i, line := range lines {
+			ln := i + 1
+			s := string(line)
+			if strings.Contains(s, "oren_list_") && !allowOrenListCalls[rel] {
+				violations = append(violations, fmt.Sprintf("%s:%d: stdlib must not call oren_list_* directly (use std:list)", rel, ln))
+			}
+			for _, bad := range denySubstrings {
+				if strings.Contains(s, bad) {
+					violations = append(violations, fmt.Sprintf("%s:%d: stdlib must not use %q (prefer modern syntax)", rel, ln, bad))
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(violations) > 0 {
+		var b strings.Builder
+		b.WriteString("stdlib modernization audit failed:\n")
+		for _, v := range violations {
+			b.WriteString("  - ")
+			b.WriteString(v)
+			b.WriteString("\n")
+		}
+		b.WriteString("fix: route list ops through `lib/std/list.oren` and prefer `+` over `string_concat`.\n")
+		return fmt.Errorf("%s", b.String())
+	}
+	return nil
+}
+
+const remoteX64Host = "lzbgt@pc.work"
+
+// Use backslash-escaped spaces so this can be embedded safely into `sh -c` commands without
+// nested-quote footguns.
+const remoteX64ProxyArg = "-o ProxyCommand=socat\\ -\\ PROXY:hubstack.cn:%h:%p,proxyport=6002"
+const remoteX64RemoteUnixRoot = "/Users/lzbgt/tmp_oren"
+const remoteX64RemoteWinRoot = `C:\Users\lzbgt\tmp_oren`
+const remoteX64RemoteWslRoot = "/mnt/c/Users/lzbgt/tmp_oren"
+
+func remoteX64OutputPrefixFromSrc(src string) string {
+	base := filepath.Base(src)
+	return strings.TrimSuffix(base, "_main.oren")
+}
+
+func remoteX64RemoteSubdirFromWorkdir(workdir string) string {
+	return filepath.Base(workdir)
+}
+
+func remoteX64RunExitcodeFixtureCmd(workdir, src string, expectExit int) string {
+	subdir := remoteX64RemoteSubdirFromWorkdir(workdir)
+	prefix := remoteX64OutputPrefixFromSrc(src)
+	linuxOut := prefix + "_linux"
+	winOut := prefix + "_win.exe"
+
+	remoteUnixDir := remoteX64RemoteUnixRoot + "/" + subdir
+	remoteWinDir := remoteX64RemoteWinRoot + "\\" + subdir
+	remoteWslDir := remoteX64RemoteWslRoot + "/" + subdir
+
+	ensureDirCmd := fmt.Sprintf(
+		`cmd.exe /c "if not exist %%USERPROFILE%%\\tmp_oren\\%s mkdir %%USERPROFILE%%\\tmp_oren\\%s"`,
+		subdir,
+		subdir,
+	)
+	winRunCmd := fmt.Sprintf(
+		// Use delayed expansion so EXIT reflects the program's final ERRORLEVEL.
+		`cmd.exe /v:on /c "%s\\%s & echo EXIT=!ERRORLEVEL!"`,
+		remoteWinDir,
+		winOut,
+	)
+	wslRunCmd := fmt.Sprintf(
+		`wsl.exe -e bash -lc "chmod +x %s/%s && %s/%s; echo EXIT=$?"`,
+		remoteWslDir,
+		linuxOut,
+		remoteWslDir,
+		linuxOut,
+	)
+
+	return fmt.Sprintf(
+		"set -e; wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+			"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \"$wd/%s\" > \"$wd/build_linux.out\"; "+
+			"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \"$wd/%s\" > \"$wd/build_win.out\"; "+
+			"echo '[remote] ensure dir'; ssh %s %s '%s'; "+
+			"echo '[remote] copy artifacts'; "+
+			"scp %s \"$wd/%s\" %s:%s/%s; "+
+			"scp %s \"$wd/%s\" %s:%s/%s; "+
+			"echo '[remote] run windows exe'; ssh %s %s '%s' > \"$wd/run_win.out\"; grep -Fq 'EXIT=%d' \"$wd/run_win.out\"; "+
+			"echo '[remote] run linux exe (wsl)'; ssh %s %s '%s' > \"$wd/run_wsl.out\"; grep -Fq 'EXIT=%d' \"$wd/run_wsl.out\"",
+		workdir,
+		src,
+		linuxOut,
+		src,
+		winOut,
+		remoteX64ProxyArg,
+		remoteX64Host,
+		ensureDirCmd,
+		remoteX64ProxyArg,
+		winOut,
+		remoteX64Host,
+		remoteUnixDir,
+		winOut,
+		remoteX64ProxyArg,
+		linuxOut,
+		remoteX64Host,
+		remoteUnixDir,
+		linuxOut,
+		remoteX64ProxyArg,
+		remoteX64Host,
+		winRunCmd,
+		expectExit,
+		remoteX64ProxyArg,
+		remoteX64Host,
+		wslRunCmd,
+		expectExit,
+	)
+}
+
+func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) string {
+	subdir := remoteX64RemoteSubdirFromWorkdir(workdir)
+	prefix := remoteX64OutputPrefixFromSrc(src)
+	linuxOut := prefix + "_linux"
+	winOut := prefix + "_win.exe"
+
+	remoteUnixDir := remoteX64RemoteUnixRoot + "/" + subdir
+	remoteWinDir := remoteX64RemoteWinRoot + "\\" + subdir
+	remoteWslDir := remoteX64RemoteWslRoot + "/" + subdir
+
+	ensureDirCmd := fmt.Sprintf(
+		`cmd.exe /c "if not exist %%USERPROFILE%%\\tmp_oren\\%s mkdir %%USERPROFILE%%\\tmp_oren\\%s"`,
+		subdir,
+		subdir,
+	)
+	winRunCmd := fmt.Sprintf(
+		// Use delayed expansion so EXIT reflects the program's final ERRORLEVEL.
+		`cmd.exe /v:on /c "%s\\%s > %s\\out_win.txt & echo EXIT=!ERRORLEVEL! & type %s\\out_win.txt"`,
+		remoteWinDir,
+		winOut,
+		remoteWinDir,
+		remoteWinDir,
+	)
+	// Note: preserve the program exit code by capturing it immediately, then printing output.
+	wslRunCmd := fmt.Sprintf(
+		`wsl.exe -e bash -lc "chmod +x %s/%s && %s/%s > %s/out_wsl.txt; rc=$?; echo EXIT=$rc; cat %s/out_wsl.txt"`,
+		remoteWslDir,
+		linuxOut,
+		remoteWslDir,
+		linuxOut,
+		remoteWslDir,
+		remoteWslDir,
+	)
+
+	return fmt.Sprintf(
+		"set -e; wd=%q; rm -rf \"$wd\"; mkdir -p \"$wd\"; "+
+			"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \"$wd/%s\" > \"$wd/build_linux.out\"; "+
+			"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \"$wd/%s\" > \"$wd/build_win.out\"; "+
+			"echo '[remote] ensure dir'; ssh %s %s '%s'; "+
+			"echo '[remote] copy artifacts'; "+
+			"scp %s \"$wd/%s\" %s:%s/%s; "+
+			"scp %s \"$wd/%s\" %s:%s/%s; "+
+			"echo '[remote] run windows exe'; ssh %s %s '%s' > \"$wd/run_win.out\"; grep -Fq 'EXIT=0' \"$wd/run_win.out\"; grep -Fq %q \"$wd/run_win.out\"; "+
+			"echo '[remote] run linux exe (wsl)'; ssh %s %s '%s' > \"$wd/run_wsl.out\"; grep -Fq 'EXIT=0' \"$wd/run_wsl.out\"; grep -Fq %q \"$wd/run_wsl.out\"",
+		workdir,
+		src,
+		linuxOut,
+		src,
+		winOut,
+		remoteX64ProxyArg,
+		remoteX64Host,
+		ensureDirCmd,
+		remoteX64ProxyArg,
+		winOut,
+		remoteX64Host,
+		remoteUnixDir,
+		winOut,
+		remoteX64ProxyArg,
+		linuxOut,
+		remoteX64Host,
+		remoteUnixDir,
+		linuxOut,
+		remoteX64ProxyArg,
+		remoteX64Host,
+		winRunCmd,
+		expectSubstring,
+		remoteX64ProxyArg,
+		remoteX64Host,
+		wslRunCmd,
+		expectSubstring,
+	)
+}
+
+func runSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Duration) error {
+	// Rolling stability gate:
+	// - Stage1 (./oren) builds Stage2 (a fresh ./oren_stage2)
+	// - Stage1 and Stage2 must agree on deterministic dumps of the compiler source
+	//
+	// This catches "bootstrap breaks itself" regressions early.
+	if os.Getenv("OREN_SKIP_SELFHOST") != "" {
+		return nil
+	}
+
+	workdir := filepath.Join("build", "selfhost")
+	_ = os.MkdirAll(workdir, 0o755)
+
+	stage2Obc := filepath.Join(workdir, "oren_stage2.obc")
+	stage1Graph := filepath.Join(workdir, "stage1.graph.json")
+	stage2Graph := filepath.Join(workdir, "stage2.graph.json")
+	stage1Meta := filepath.Join(workdir, "stage1.meta.json")
+	stage2Meta := filepath.Join(workdir, "stage2.meta.json")
+
+	logBuildObc := filepath.Join("build", "logs", "selfhost_build_stage2_obc.log")
+	logG1 := filepath.Join("build", "logs", "selfhost_stage1_dump_graph.log")
+	logG2 := filepath.Join("build", "logs", "selfhost_stage2_dump_graph.log")
+	logM1 := filepath.Join("build", "logs", "selfhost_stage1_meta.log")
+	logM2 := filepath.Join("build", "logs", "selfhost_stage2_meta.log")
+
+	// Self-hosting builds can be slower than ordinary test compilation, especially on
+	// cold caches or when the host toolchain is busy. Keep it bounded but generous.
+	selfHostTimeout := buildTimeout
+	if selfHostTimeout < 300*time.Second {
+		selfHostTimeout = 300 * time.Second
+	}
+
+	// Self-hosting build strategy (rolling, pragmatic):
+	//
+	// - Building a full Stage2 native binary currently depends on a much larger native-runtime surface
+	//   (syscall-first file I/O, float parsing, etc.) which is still evolving.
+	// - Building a full Stage2 C backend binary can be extremely memory hungry (clang compiling a
+	//   giant single-TU generated C file), and may be SIGKILL/OOM on developer machines.
+	//
+	// Therefore this gate uses the bytecode backend + AVM to validate self-hosting deterministically:
+	// Stage1 emits Stage2 compiler as `.obc`, then AVM runs Stage2 to reproduce Stage1 outputs.
+	buildObc := fmt.Sprintf("./oren build oren.oren --backend bytecode -o %q%s", stage2Obc, gcArg)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, buildObc, logBuildObc); rc != 0 {
+		return fmt.Errorf("self-host gate: failed to build stage2 .obc (rc=%d), see %s", rc, logBuildObc)
+	}
+
+	// Dump module graph from Stage1 and Stage2 and require byte-for-byte match.
+	g1 := fmt.Sprintf("./oren dump graph oren.oren --out %q", stage1Graph)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, g1, logG1); rc != 0 {
+		return fmt.Errorf("self-host gate: stage1 dump graph failed (rc=%d), see %s", rc, logG1)
+	}
+	// Run Stage2 under AVM with a narrow FS allowlist:
+	// - read: `oren.oren` + `lib/**`
+	// - write: `build/**`
+	//
+	// Note: AVM passes args after `--`.
+	fsAllow := "build/,lib/,oren.oren"
+	// Important: the compiler strips argv[0] as the program name. AVM passes only args-after-`--`
+	// (no implicit argv0), so we inject a dummy argv0 ("oren") here.
+	g2 := fmt.Sprintf("./avm --fs-allow-prefixes %q %q -- oren dump graph oren.oren --out %q", fsAllow, stage2Obc, stage2Graph)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, g2, logG2); rc != 0 {
+		return fmt.Errorf("self-host gate: stage2 (avm) dump graph failed (rc=%d), see %s", rc, logG2)
+	}
+	hg1, err := fileSHA256Hex(stage1Graph)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage1 graph: %w", err)
+	}
+	hg2, err := fileSHA256Hex(stage2Graph)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage2 graph: %w", err)
+	}
+	if hg1 != hg2 {
+		return fmt.Errorf("self-host gate: module graph mismatch (stage1=%s stage2=%s); diff %s vs %s", hg1, hg2, stage1Graph, stage2Graph)
+	}
+
+	// Also compare metadata output (API surface) under --deterministic.
+	m1 := fmt.Sprintf("./oren meta oren.oren --deterministic --out %q", stage1Meta)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, m1, logM1); rc != 0 {
+		return fmt.Errorf("self-host gate: stage1 meta failed (rc=%d), see %s", rc, logM1)
+	}
+	m2 := fmt.Sprintf("./avm --fs-allow-prefixes %q %q -- oren meta oren.oren --deterministic --out %q", fsAllow, stage2Obc, stage2Meta)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, m2, logM2); rc != 0 {
+		return fmt.Errorf("self-host gate: stage2 (avm) meta failed (rc=%d), see %s", rc, logM2)
+	}
+	hm1, err := fileSHA256Hex(stage1Meta)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage1 meta: %w", err)
+	}
+	hm2, err := fileSHA256Hex(stage2Meta)
+	if err != nil {
+		return fmt.Errorf("self-host gate: hash stage2 meta: %w", err)
+	}
+	if hm1 != hm2 {
+		return fmt.Errorf("self-host gate: metadata mismatch (stage1=%s stage2=%s); diff %s vs %s", hm1, hm2, stage1Meta, stage2Meta)
+	}
+
+	return nil
+}
+
+func runNativeSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Duration, target, arch string) error {
+	// Rolling stability gate (native backend):
+	// - Stage1 (./oren) builds Stage2 as a native binary (Mach-O/ELF)
+	// - Stage2 must be executable and responsive (basic smoke)
+	//
+	// This catches regressions in the syscall-first native runtime subset required to self-host.
+	if os.Getenv("OREN_SKIP_SELFHOST_NATIVE") != "" {
+		return nil
+	}
+
+	workdir := filepath.Join("build", "selfhost")
+	_ = os.MkdirAll(workdir, 0o755)
+
+	stage2Native := filepath.Join(workdir, "oren_stage2_native")
+
+	logBuildNative := filepath.Join("build", "logs", "selfhost_build_stage2_native.log")
+	logCodesign := filepath.Join("build", "logs", "selfhost_stage2_native_codesign.log")
+	logHelp := filepath.Join("build", "logs", "selfhost_stage2_native_help.log")
+
+	selfHostTimeout := buildTimeout
+	// Native stage2 operations can be significantly slower than AVM, even for a small entry, because
+	// the syscall-first native runtime currently has a larger constant-factor overhead (allocation,
+	// hashing, map ops, etc). Keep this gate reliable by using a more generous floor.
+	minTimeout := 600 * time.Second
+	if selfHostTimeout < minTimeout {
+		selfHostTimeout = minTimeout
+	}
+
+	// Build Stage2 native compiler (deterministic mode exercises hashing path too).
+	buildNative := fmt.Sprintf("./oren build oren.oren --backend native --target %s --arch %s --deterministic -o %q%s", target, arch, stage2Native, gcArg)
+	if rc := runWithTimeout(timeoutBin, selfHostTimeout, buildNative, logBuildNative); rc != 0 {
+		return fmt.Errorf("native self-host gate: failed to build stage2 native (rc=%d), see %s", rc, logBuildNative)
+	}
+
+	// macOS: unsigned binaries may be killed at exec by Gatekeeper/AMFI policies even when built locally.
+	// Use ad-hoc signing (`-s -`) so the stage2 native binary can be executed reliably in CI/dev.
+	if runtime.GOOS == "darwin" {
+		sign := fmt.Sprintf("codesign -s - -f %q", stage2Native)
+		if rc := runWithTimeout(timeoutBin, selfHostTimeout, sign, logCodesign); rc != 0 {
+			return fmt.Errorf("native self-host gate: failed to ad-hoc codesign stage2 native (rc=%d), see %s", rc, logCodesign)
+		}
+	}
+
+	// Stage2 native must be executable and have a minimally correct syscall-first runtime surface.
+	// Use `selftest-native` which is designed to be fast and avoids compiler pipelines.
+	runTimeout := 60 * time.Second
+	if runTimeout > selfHostTimeout {
+		runTimeout = selfHostTimeout
+	}
+	selftest := fmt.Sprintf("%q selftest-native", stage2Native)
+	if rc := runWithTimeout(timeoutBin, runTimeout, selftest, logHelp); rc != 0 {
+		return fmt.Errorf("native self-host gate: stage2(native) selftest-native failed (rc=%d), see %s", rc, logHelp)
+	}
+	b, err := os.ReadFile(logHelp)
+	if err == nil {
+		if !bytes.Contains(b, []byte("selftest-native OK")) {
+			return fmt.Errorf("native self-host gate: stage2(native) selftest-native output missing OK marker, see %s", logHelp)
+		}
+	}
+
+	return nil
+}
+
+func hostNativeTarget() string {
+	// Only return targets that the native backend supports on the current host OS.
+	switch runtime.GOOS {
+	case "darwin":
+		// Rolling: native backend supports macOS only on arm64 today.
+		if runtime.GOARCH == "arm64" {
+			return "macos"
+		}
+		return ""
+	case "linux":
+		return "linux"
+	case "windows":
+		return "windows"
+	default:
+		return ""
+	}
+}
+
+func hostNativeArch() string {
+	// Return the native backend arch string for the current host arch, but only
+	// for host OS combinations we actually support.
+	switch runtime.GOARCH {
+	case "arm64":
+		return "arm64"
+	case "amd64":
+		// Rolling: x64 native backend targets linux+windows today (ELF+PE).
+		if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+			return "x64"
+		}
+		return ""
+	default:
+		return ""
+	}
+}

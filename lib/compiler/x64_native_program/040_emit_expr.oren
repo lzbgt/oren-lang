@@ -248,6 +248,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var idx = expr["index"]
         if left == nil || idx == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
 
+        // For maps, key-kind must match the stored entry kind. For literal Integer/String
+        // keys we can set kind explicitly; otherwise we fall back to the v0 heuristic.
+        var known_key_kind = -1
+        var idx_t = idx["type"]
+        if idx_t == "Integer" { known_key_kind = 0 }
+        else if idx_t == "String" { known_key_kind = 1 }
+
         var tmp0 = locals["$tmp0"]
         if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for index"); return nil }
 
@@ -338,12 +345,16 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         _emit_label(ctx, labels, l_is_map)
         bytes_extend(ctx["code"], insn_mov_r64_r64(6, 1)) // rsi = key
         // r13 = key_kind (0=int, 1=string)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-        var l_kind_done = _new_label(ctx, "idx_map_kind_done")
-        _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
-        _emit_label(ctx, labels, l_kind_done)
+        if known_key_kind >= 0 {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, known_key_kind))
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
+            var l_kind_done = _new_label(ctx, "idx_map_kind_done")
+            _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+            _emit_label(ctx, labels, l_kind_done)
+        }
 
         // r8 = count
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))

@@ -658,7 +658,7 @@ In strict mode:
 
 - unknown/forbidden attribute prefixes are rejected at compile time
 
-See `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren` and the oretest fixture harness in `cmd/oretest/main.go`.
+See `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren` and the oretest fixture harness in `cmd/oretest/fixture_cases.go`.
 
 #### ABI layout example
 

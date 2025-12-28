@@ -43,6 +43,14 @@ Legacy behavior (broader Makefile-driven lists) is preserved as:
 This arrangement intentionally keeps “compiler as a library” as a future goal, without
 forcing repo tooling concerns into the compiler sources today.
 
+Rolling guidance:
+
+- Prefer **integration-first fixtures** that exercise multiple language features at once.
+- Keep Tier‑1 x86_64 validation small:
+  - one local “builds exist” smoke that checks ELF+PE outputs
+  - one opt-in remote-run smoke on real Win11+WSL2 (see `docs/REMOTE_X64_ENV.md`)
+  - grow this set only when a regression escapes the integration suite.
+
 ## Design Goals (What We’re Optimizing For)
 
 1) **No hangs**: every build/run step has a wall-time timeout.
