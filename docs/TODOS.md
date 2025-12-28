@@ -39,6 +39,11 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Remaining work: mirror the same contract in x64 native as runtime injection lands.
    - Reference: `docs/STACK_SAFETY.md`.
 
+7) **Tail-call optimization (stackless recursion)** (S)
+   - Direct self tail recursion now lowers to a loop (no host stack growth); fixture enforces it.
+   - Next: mutual tail recursion trampoline + varargs/spread tail calls once CoreIR callables converge.
+   - Reference: `docs/STACK_SAFETY.md`.
+
 5) **Stdlib modernization audit (grammar + intrinsics hygiene)** (S)
    - Keep `lib/std/**` on current grammar; keep `oren_*` calls confined to `std:*` wrappers where possible.
    - Expand `./oretest` audits carefully as grammar stabilizes.

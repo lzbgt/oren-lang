@@ -589,6 +589,146 @@ fn dce_block_in_place(block) {
     return nil
 }
 
+// --- Tail-call optimization (TCO): direct self tail recursion (rolling, conservative) ---
+
+fn _tco_ident(name) { return {"type": "Identifier", "token": nil, "value": name} }
+
+fn _tco_rewrite_block(block, fn_name, params, loop_depth, counter_ref) {
+    // Rewrite `return <fn_name>(args...)` in tail position (loop_depth == 0)
+    // into:
+    //   var tmp0 = arg0
+    //   ...
+    //   param0 = tmp0
+    //   ...
+    //   continue
+    //
+    // Returns {"block": block, "changed": bool}
+    if block == nil || block["type"] != "Block" { return {"block": block, "changed": false} }
+    var stmts = block["stmts"]
+    if stmts == nil { return {"block": block, "changed": false} }
+
+    var out = []
+    var changed = false
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil { oren_list_push(out, st); i = i + 1; continue }
+
+        if st["type"] == "Return" && loop_depth == 0 {
+            var v = st["value"]
+            if v != nil && v["type"] == "Call" && v["spread"] == nil {
+                var fn_expr = v["fn"]
+                if fn_expr != nil && fn_expr["type"] == "Identifier" && fn_expr["value"] == fn_name {
+                    var args = v["args"]
+                    if args != nil && oren_list_len(args) == oren_list_len(params) {
+                        // Evaluate args into temps first (preserve order, avoid param clobber).
+                        var ti = 0
+                        var temps = []
+                        while ti < oren_list_len(args) {
+                            var tmpn = "__oren_tco_" + fn_name + "_" + oren_int_to_string(counter_ref[0])
+                            counter_ref[0] = counter_ref[0] + 1
+                            oren_list_push(temps, tmpn)
+                            oren_list_push(out, ast.new_var(nil, _tco_ident(tmpn), args[ti]))
+                            ti = ti + 1
+                        }
+                        // Rebind params.
+                        ti = 0
+                        while ti < oren_list_len(params) {
+                            var pn = params[ti]
+                            oren_list_push(out, ast.new_assign(nil, _tco_ident(pn), _tco_ident(temps[ti])))
+                            ti = ti + 1
+                        }
+                        // Loop back to function top (requires outer loop wrapper).
+                        oren_list_push(out, ast.new_continue(nil))
+                        changed = true
+                        i = i + 1
+                        continue
+                    }
+                }
+            }
+        }
+
+        if st["type"] == "While" {
+            var r1 = _tco_rewrite_block(st["body"], fn_name, params, loop_depth + 1, counter_ref)
+            st["body"] = r1["block"]
+            if r1["changed"] { changed = true }
+            oren_list_push(out, st)
+            i = i + 1
+            continue
+        }
+        if st["type"] == "For" {
+            var r2 = _tco_rewrite_block(st["body"], fn_name, params, loop_depth + 1, counter_ref)
+            st["body"] = r2["block"]
+            if r2["changed"] { changed = true }
+            oren_list_push(out, st)
+            i = i + 1
+            continue
+        }
+        if st["type"] == "Block" {
+            var r3 = _tco_rewrite_block(st, fn_name, params, loop_depth, counter_ref)
+            st = r3["block"]
+            if r3["changed"] { changed = true }
+            oren_list_push(out, st)
+            i = i + 1
+            continue
+        }
+        if st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "If" {
+            var ife = st["expr"]
+            var r4 = _tco_rewrite_block(ife["consq"], fn_name, params, loop_depth, counter_ref)
+            ife["consq"] = r4["block"]
+            if r4["changed"] { changed = true }
+            if ife["alt"] != nil {
+                var r5 = _tco_rewrite_block(ife["alt"], fn_name, params, loop_depth, counter_ref)
+                ife["alt"] = r5["block"]
+                if r5["changed"] { changed = true }
+            }
+            st["expr"] = ife
+            oren_list_push(out, st)
+            i = i + 1
+            continue
+        }
+
+        // Do not rewrite inside nested functions here; they are optimized separately.
+        oren_list_push(out, st)
+        i = i + 1
+    }
+
+    block["stmts"] = out
+    return {"block": block, "changed": changed}
+}
+
+fn _tco_function_in_place(fun_expr) {
+    if fun_expr == nil || fun_expr["type"] != "Function" { return nil }
+    var fn_name = fun_expr["name"]
+    if fn_name == nil || fn_name == "" { return nil }
+
+    // Only handle plain identifier params.
+    var params0 = []
+    var ps = fun_expr["params"]
+    var pi = 0
+    while pi < oren_list_len(ps) {
+        var p = ps[pi]
+        if p == nil || p["type"] != "Identifier" || p["value"] == nil { return nil }
+        oren_list_push(params0, p["value"])
+        pi = pi + 1
+    }
+
+    var counter_ref = [0]
+    var r = _tco_rewrite_block(fun_expr["body"], fn_name, params0, 0, counter_ref)
+    if r["changed"] != true { return nil }
+
+    // Wrap the function body in an outer `while true` so `continue` is legal.
+    //
+    // Add a `break` at the end of the loop body so implicit fallthrough returns (return nil)
+    // keep working: if the function does not tail-recurse, we run one iteration and break.
+    var inner = r["block"]
+    oren_list_push(inner["stmts"], ast.new_break(nil))
+    var w = ast.new_while(nil, ast.new_boolean(nil, true), inner)
+    fun_expr["body"] = ast.new_block(nil)
+    fun_expr["body"]["stmts"] = [w]
+    return nil
+}
+
 fn lower_linked_program_in_place(linked) {
     if linked == nil { return nil }
 
@@ -599,6 +739,7 @@ fn lower_linked_program_in_place(linked) {
         fold_stmt(ss[i])
         // DCE for function bodies.
         if ss[i] != nil && ss[i]["type"] == "ExprStmt" && ss[i]["expr"] != nil && ss[i]["expr"]["type"] == "Function" {
+            _tco_function_in_place(ss[i]["expr"])
             dce_block_in_place(ss[i]["expr"]["body"])
         }
         i = i + 1

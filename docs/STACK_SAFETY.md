@@ -84,6 +84,11 @@ For production maturity, we want:
    - The default configuration should be safe for development, but production builds should
      be able to choose a budget appropriate to their service.
 
+3b) **Stackless when possible**
+   - Direct **tail recursion** should compile to a loop (no host stack growth).
+   - This is both a correctness feature (avoid OS stack overflow) and a performance feature
+     (avoid call/ret overhead and repeated prologues).
+
 4) **No secrets / no “security theater”**
    - Stack safety is about correctness and reliability (preventing host crashes),
      not anti-tamper.
@@ -136,6 +141,14 @@ This is valuable but should not be the only guard because:
 - not all recursion is tail-recursive,
 - indirect calls + closures make TCO harder,
 - it does not address deep mutual recursion unless we do more advanced transforms.
+
+Rolling status (today):
+
+- The compiler performs **direct self tail recursion** elimination (conservative):
+  - rewrites `return f(args...)` where `f` is the current function into parameter rebinding + loop `continue`
+  - only when the tail return is not nested inside another loop (`while`/`for`) because we have no labeled continue
+  - only for fixed-arity calls (no spread / varargs yet)
+- Fixture: `tests/native/fixtures/tail_recursion_ok.oren` (expected to succeed under low `OREN_CALL_DEPTH_MAX`)
 
 ## Staged Plan (Rolling, Production-Oriented)
 

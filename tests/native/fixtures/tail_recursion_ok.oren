@@ -1,0 +1,18 @@
+// Tail recursion should be stackless (rolling):
+//
+// This is a *direct self tail recursion* pattern:
+//   return sum(n-1, acc+1)
+//
+// The compiler is expected to lower it to a loop (TCO), so it should not
+// consume host stack and should not trip call-depth guards even with a
+// small budget.
+
+fn sum(n, acc) {
+    if n == 0 { return acc }
+    return sum(n - 1, acc + 1)
+}
+
+var r = sum(2000, 0)
+if r != 2000 {
+    oren_fail(1, "tail recursion failed: expected 2000")
+}
