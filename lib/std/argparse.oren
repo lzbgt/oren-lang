@@ -13,6 +13,71 @@
 
 import list "std:list"
 
+fn _lower_ascii(s) {
+    if s == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var c = oren_string_char_at(s, i)
+        // Map via hardcoded string index (ASCII-only, deterministic).
+        // This avoids relying on any locale/casefolding behavior.
+        var idx = nil
+        var alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        var j = 0
+        while j < 26 {
+            if oren_string_char_at(alpha, j) == c { idx = j; j = 26 }
+            else { j = j + 1 }
+        }
+        if idx != nil { out = out + oren_string_char_at("abcdefghijklmnopqrstuvwxyz", idx) }
+        else { out = out + c }
+        i = i + 1
+    }
+    return out
+}
+
+fn _trim_spaces(s) {
+    if s == nil { return "" }
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n && oren_string_char_at(s, i) == " " { i = i + 1 }
+    var j = n
+    while j > i && oren_string_char_at(s, j - 1) == " " { j = j - 1 }
+    return oren_string_slice(s, i, j)
+}
+
+fn _split_csv_simple(s) {
+    // Minimal CSV splitting: comma-separated, no quoting.
+    // Trims spaces around elements and drops empty segments.
+    var out = []
+    if s == nil { return out }
+    var i = 0
+    var start = 0
+    while i < oren_string_len(s) {
+        if oren_string_char_at(s, i) == "," {
+            var seg = _trim_spaces(oren_string_slice(s, start, i))
+            if seg != "" { list.push(out, seg) }
+            start = i + 1
+        }
+        i = i + 1
+    }
+    var last = _trim_spaces(oren_string_slice(s, start, oren_string_len(s)))
+    if last != "" { list.push(out, last) }
+    return out
+}
+
+fn _parse_bool_env(v) {
+    // Env semantics:
+    // - if env var is present but empty => true (compat with "presence means on")
+    // - accepts: 1/0, true/false, yes/no, on/off (case-insensitive)
+    if v == nil { return nil }
+    if v == "" { return true }
+    var x = _lower_ascii(_trim_spaces(v))
+    if x == "1" || x == "true" || x == "yes" || x == "on" { return true }
+    if x == "0" || x == "false" || x == "no" || x == "off" { return false }
+    // Unknown token => treat as true for backward compatibility (env presence means enabled).
+    return true
+}
+
 fn _starts_with(s, pref) {
     if s == nil || pref == nil { return false }
     var sl = oren_string_len(s)
@@ -125,6 +190,13 @@ fn _normalize_key(name) {
     return k
 }
 
+fn _opt_env(opt) {
+    // Option spec tail field (rolling):
+    // [kind, long, short, help, default, required, multiple, env]
+    if opt != nil && list.len(opt) >= 8 { return opt[7] }
+    return nil
+}
+
 fn new_parser(name, desc) {
     var p = {
         "name": name,
@@ -185,6 +257,12 @@ fn cmd_flag(cmd, long_name, short_name, help) {
     return nil
 }
 
+fn cmd_flag_env(cmd, long_name, short_name, help, env_name) {
+    var opt = [1, long_name, short_name, help, false, false, false, env_name]
+    list.push(cmd["options"], opt)
+    return nil
+}
+
 fn cmd_flag_count(cmd, long_name, short_name, help) {
     // Counted flag (like `-v -vv -vvv`).
     //
@@ -197,6 +275,12 @@ fn cmd_flag_count(cmd, long_name, short_name, help) {
     return nil
 }
 
+fn cmd_flag_count_env(cmd, long_name, short_name, help, env_name) {
+    var opt = [4, long_name, short_name, help, 0, false, false, env_name]
+    list.push(cmd["options"], opt)
+    return nil
+}
+
 fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     // kind: "string" | "int"
     var kind_code = nil
@@ -205,6 +289,16 @@ fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     if kind_code == nil { kind_code = 2 }
     // [kind, long, short, help, default, required, multiple]
     var opt = [kind_code, long_name, short_name, help, default_value, false, false]
+    list.push(cmd["options"], opt)
+    return nil
+}
+
+fn cmd_option_env(cmd, long_name, short_name, kind, default_value, help, env_name) {
+    var kind_code = nil
+    if kind == "string" { kind_code = 2 }
+    if kind == "int" { kind_code = 3 }
+    if kind_code == nil { kind_code = 2 }
+    var opt = [kind_code, long_name, short_name, help, default_value, false, false, env_name]
     list.push(cmd["options"], opt)
     return nil
 }
@@ -223,6 +317,16 @@ fn cmd_option_required(cmd, long_name, short_name, kind, help) {
     return nil
 }
 
+fn cmd_option_required_env(cmd, long_name, short_name, kind, help, env_name) {
+    var kind_code = nil
+    if kind == "string" { kind_code = 2 }
+    if kind == "int" { kind_code = 3 }
+    if kind_code == nil { kind_code = 2 }
+    var opt = [kind_code, long_name, short_name, help, nil, true, false, env_name]
+    list.push(cmd["options"], opt)
+    return nil
+}
+
 fn cmd_option_multi(cmd, long_name, short_name, kind, help) {
     // Repeatable option; collects values into a list.
     // Default is [].
@@ -231,6 +335,16 @@ fn cmd_option_multi(cmd, long_name, short_name, kind, help) {
     if kind == "int" { kind_code = 3 }
     if kind_code == nil { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, [], false, true]
+    list.push(cmd["options"], opt)
+    return nil
+}
+
+fn cmd_option_multi_env(cmd, long_name, short_name, kind, help, env_name) {
+    var kind_code = nil
+    if kind == "string" { kind_code = 2 }
+    if kind == "int" { kind_code = 3 }
+    if kind_code == nil { kind_code = 2 }
+    var opt = [kind_code, long_name, short_name, help, [], false, true, env_name]
     list.push(cmd["options"], opt)
     return nil
 }
@@ -260,6 +374,117 @@ fn _find_opt(cmd, tok) {
     return nil
 }
 
+fn _abs_int(x) {
+    if x == nil { return 0 }
+    if x < 0 { return -x }
+    return x
+}
+
+fn _min2(a, b) {
+    if a < b { return a }
+    return b
+}
+
+fn _min3(a, b, c) {
+    return _min2(_min2(a, b), c)
+}
+
+fn _edit_distance_limited(a, b, maxd) {
+    // Levenshtein distance with an optional cutoff (maxd).
+    // Returns maxd+1 when distance is definitely > maxd.
+    if a == nil { a = "" }
+    if b == nil { b = "" }
+    var al = oren_string_len(a)
+    var bl = oren_string_len(b)
+    if al == 0 { return bl }
+    if bl == 0 { return al }
+    if maxd != nil && _abs_int(al - bl) > maxd { return maxd + 1 }
+
+    // prev row: 0..bl
+    var prev = []
+    var j = 0
+    while j <= bl {
+        list.push(prev, j)
+        j = j + 1
+    }
+
+    var i = 1
+    while i <= al {
+        var cur = [i]
+        var min_row = i
+        j = 1
+        while j <= bl {
+            var cost = 0
+            if oren_string_char_at(a, i - 1) != oren_string_char_at(b, j - 1) { cost = 1 }
+            var del = prev[j] + 1
+            var ins = cur[j - 1] + 1
+            var sub = prev[j - 1] + cost
+            var v = _min3(del, ins, sub)
+            list.push(cur, v)
+            if v < min_row { min_row = v }
+            j = j + 1
+        }
+        if maxd != nil && min_row > maxd { return maxd + 1 }
+        prev = cur
+        i = i + 1
+    }
+    return prev[bl]
+}
+
+fn _suggest_option(cmd, tok) {
+    // Suggest the closest long option in cmd for a token like "--bakend".
+    // Returns e.g. "--backend" or nil.
+    if cmd == nil || tok == nil { return nil }
+    if !_starts_with(tok, "--") { return nil }
+    var want = _normalize_key(tok)
+    if want == "" { return nil }
+
+    var best = nil
+    var bestd = 999
+    var oi = 0
+    while oi < list.len(cmd["options"]) {
+        var o = cmd["options"][oi]
+        var ln = o[1]
+        if ln != nil && _starts_with(ln, "--") {
+            var cand = _normalize_key(ln)
+            var d = _edit_distance_limited(want, cand, 3)
+            if d < bestd {
+                bestd = d
+                best = ln
+            }
+        }
+        oi = oi + 1
+    }
+    if best != nil && bestd <= 3 { return best }
+    return nil
+}
+
+fn _suggest_command(p, name) {
+    // Suggest the closest command name.
+    if p == nil || name == nil { return nil }
+    if p["commands"] == nil { return nil }
+    var want = name
+    if want == "" { return nil }
+
+    var best = nil
+    var bestd = 999
+    var ci = 0
+    while ci < list.len(p["commands"]) {
+        var c = p["commands"][ci]
+        var cn = c["name"]
+        if cn != nil && cn != "" {
+            var d = _edit_distance_limited(want, cn, 3)
+            if d < bestd {
+                bestd = d
+                best = cn
+            }
+        }
+        ci = ci + 1
+    }
+    if best != nil && bestd <= 3 { return best }
+    return nil
+}
+
 fn _opts_defaults(cmd) {
     var m = {}
     for o in cmd["options"] {
@@ -270,6 +495,37 @@ fn _opts_defaults(cmd) {
         if list.len(o) >= 7 { multiple = o[6] }
         if multiple {
             defv = []
+        }
+        // Env default injection (rolling):
+        // CLI precedence remains: explicit argv options override defaults, and env-based defaults do
+        // NOT mark res["seen"] (seen only reflects argv).
+        var env_name = _opt_env(o)
+        if env_name != nil && env_name != "" {
+            var ev = oren_env(env_name)
+            if ev != nil {
+                var kind = o[0]
+                if multiple {
+                    // CSV for repeatable options (minimal, deterministic).
+                    defv = _split_csv_simple(ev)
+                } else {
+                    if kind == 1 {
+                        defv = _parse_bool_env(ev)
+                    } else {
+                        if kind == 4 {
+                            var nn = _to_int(ev)
+                            if nn != nil { defv = nn }
+                        } else {
+                            if kind == 3 {
+                                var n2 = _to_int(ev)
+                                if n2 != nil { defv = n2 }
+                            } else {
+                                // string
+                                defv = ev
+                            }
+                        }
+                    }
+                }
+            }
         }
         m[key] = defv
     }
@@ -346,6 +602,8 @@ fn render_help_lines(p, cmd_name) {
             if kind == 2 { line2 = line2 + " <str>" }
             if kind == 3 { line2 = line2 + " <int>" }
             if o[3] != nil && o[3] != "" { line2 = line2 + "    " + o[3] }
+            var envn = _opt_env(o)
+            if envn != nil && envn != "" { line2 = line2 + " (env: " + envn + ")" }
             list.push(lines, line2)
         }
         list.push(lines, "")
@@ -457,6 +715,10 @@ fn render_help_json(p, cmd_name) {
             out = out + "\"long\":" + _json_str(o[1]) + ","
             out = out + "\"short\":" + _json_str(o[2]) + ","
             out = out + "\"help\":" + _json_str(o[3]) + ","
+            // Optional env binding.
+            var envn = _opt_env(o)
+            if envn == nil { envn = "" }
+            out = out + "\"env\":" + _json_str(envn) + ","
 
             // Default value (kept simple and deterministic):
             // - flags: true/false/null
@@ -600,7 +862,13 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
 
         var opt = _find_opt(cmd, flag)
         if opt == nil {
-            res["err"] = "unknown option: " + tok
+            // Best-effort suggestion for UX (click-style): nearest option name.
+            var sugg = _suggest_option(cmd, flag)
+            if sugg != nil && sugg != "" {
+                res["err"] = "unknown option: " + tok + " (did you mean " + sugg + "?)"
+            } else {
+                res["err"] = "unknown option: " + tok
+            }
             res["help"] = render_help(p, cmd_name)
             return {"ok": false, "res": res}
         }
@@ -834,7 +1102,12 @@ fn parse(p, argv) {
 
         // If there are commands, this is an unknown command.
         if p != nil && p["commands"] != nil && list.len(p["commands"]) > 0 {
-            res["err"] = "unknown command: " + tok0
+            var cs = _suggest_command(p, tok0)
+            if cs != nil && cs != "" {
+                res["err"] = "unknown command: " + tok0 + " (did you mean " + cs + "?)"
+            } else {
+                res["err"] = "unknown command: " + tok0
+            }
             res["help"] = render_help(p, nil)
             return res
         }

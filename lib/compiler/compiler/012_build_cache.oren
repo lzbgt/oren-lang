@@ -61,11 +61,11 @@ fn _cache_compiler_sig() {
 
 fn _cache_enabled(seen, opts) {
     // Enabled by default; disable via:
-    // - env OREN_NO_CACHE=1
-    // - CLI --no-cache
-    var no = oren_env("OREN_NO_CACHE")
-    if no != nil { return false }
-    if seen != nil && seen["no-cache"] == true { return false }
+    // - `--no-cache`
+    // - env `OREN_NO_CACHE` (wired via std:argparse env defaults for the `oren` CLI)
+    //
+    // We intentionally rely on parsed opts here (so env "0" can re-enable caching).
+    if opts != nil && opts["no-cache"] == true { return false }
     return true
 }
 

@@ -170,8 +170,8 @@ fn compiler_main() {
     }
 
     if cmd_name == "clean" {
+        // Env-aware default is already handled by std:argparse (OREN_CACHE_DIR).
         var cd = opts["cache-dir"]
-        if seen["cache-dir"] != true { cd = "" }
         if cd == nil || cd == "" { cd = _cache_default_dir() }
         cache_clean_dir(cd)
         return nil
@@ -191,21 +191,14 @@ fn compiler_main() {
         var path = pos[1]
         if dbg_flow != nil { print("DEBUG_FLOW dump kind=" + kind + " path=" + path) }
 
-        // Modern CLI: options already parsed/validated by std/argparse.
-        // Keep env defaults but allow CLI flags to override.
+        // Modern CLI: options parsed/validated by std:argparse.
         var target = opts["target"]
         var arch = opts["arch"]
         var outp = ""
         if seen["out"] == true { outp = opts["out"] }
 
-        var strict = false
-        var allow = []
-        var env_strict = oren_env("OREN_STRICT_ATTRS")
-        if env_strict != nil { strict = true }
-        var env_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
-        if env_allow != nil { allow = split_csv(env_allow) }
-        if seen["strict-attrs"] == true { strict = true }
-        if seen["attr-allow-prefixes"] == true { allow = split_csv(opts["attr-allow-prefixes"]) }
+        var strict = (opts["strict-attrs"] == true)
+        var allow = split_csv(opts["attr-allow-prefixes"])
 
         if kind == "tokens" {
             if dbg_flow != nil { print("DEBUG_FLOW dump tokens start") }
@@ -322,19 +315,12 @@ fn compiler_main() {
         // (Repo-local outputs make rolling iteration predictable for humans + AI agents.)
         var out_meta = "build/targets/" + arch + "-" + target + "/meta/" + basename(strip_suffix(path, ".oren")) + ".meta.json"
 
-        var deterministic = false
+        var deterministic = (opts["deterministic"] == true)
         var emit_manifest = false
-        var env_det = oren_env("OREN_DETERMINISTIC")
-        if env_det != nil { deterministic = true }
-        if seen["deterministic"] == true { deterministic = true }
         if seen["manifest"] == true { emit_manifest = true }
 
-        var env_strict_attrs = oren_env("OREN_STRICT_ATTRS")
-        if env_strict_attrs != nil { STRICT_ATTRS = true }
-        var env_attr_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
-        if env_attr_allow != nil { ATTR_ALLOW_PREFIXES = split_csv(env_attr_allow) }
-        if seen["strict-attrs"] == true { STRICT_ATTRS = true }
-        if seen["attr-allow-prefixes"] == true { ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"]) }
+        STRICT_ATTRS = (opts["strict-attrs"] == true)
+        ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
         if seen["out"] == true { out_meta = opts["out"] }
 
         var src = expand_includes_file(path, [])
@@ -439,20 +425,10 @@ fn compiler_main() {
     var link_libs = []
     if target == "macos" { codesign_id = "Developer ID Application: Zongbao Lu (US56HHF2Y4)" }
     if cmd_name == "emit-c" { emit_c = true }
-    var env_no_gc = oren_env("OREN_NO_GC")
-    if env_no_gc != nil { no_gc = true }
+    // These options can also be configured via env (wired via std:argparse env defaults).
+    // Use parsed opts as the canonical source to keep precedence consistent.
     var env_native_no_debug = oren_env("OREN_NATIVE_NO_DEBUG")
     if env_native_no_debug != nil { debug_mode = false }
-    var env_strict_attrs = oren_env("OREN_STRICT_ATTRS")
-    if env_strict_attrs != nil { STRICT_ATTRS = true }
-    var env_attr_allow = oren_env("OREN_ATTR_ALLOW_PREFIXES")
-    if env_attr_allow != nil { ATTR_ALLOW_PREFIXES = split_csv(env_attr_allow) }
-    var env_capsule = oren_env("OREN_CAPSULE")
-    if env_capsule != nil { CAPSULE = true }
-    var env_cap_domains = oren_env("OREN_CAP_ALLOW_DOMAINS")
-    if env_cap_domains != nil { CAP_ALLOW_DOMAINS = split_csv(env_cap_domains) }
-    var env_det = oren_env("OREN_DETERMINISTIC")
-    if env_det != nil { deterministic = true }
 
     // Modern CLI: options already parsed/validated by std/argparse; map parsed fields to vars.
     if cmd_name == "emit-c" {
@@ -484,14 +460,14 @@ fn compiler_main() {
     notarize = seen["notarize"] == true
     if seen["notary-profile"] == true { notary_profile = opts["notary-profile"] }
 
-    if seen["no-gc"] == true { no_gc = true }
-    if seen["deterministic"] == true { deterministic = true }
+    no_gc = (opts["no-gc"] == true)
+    deterministic = (opts["deterministic"] == true)
     if seen["manifest"] == true { emit_manifest = true }
 
-    if seen["strict-attrs"] == true { STRICT_ATTRS = true }
-    if seen["attr-allow-prefixes"] == true { ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"]) }
-    if seen["capsule"] == true { CAPSULE = true }
-    if seen["cap-allow-domains"] == true { CAP_ALLOW_DOMAINS = split_csv(opts["cap-allow-domains"]) }
+    STRICT_ATTRS = (opts["strict-attrs"] == true)
+    ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
+    CAPSULE = (opts["capsule"] == true)
+    CAP_ALLOW_DOMAINS = split_csv(opts["cap-allow-domains"])
 
     // Bytecode is an AVM artifact; it is intended to be platform-neutral.
     // Enforce a single "bytecode ABI profile" so `.obc` semantics do not vary by host.

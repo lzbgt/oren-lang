@@ -86,6 +86,9 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 9) **Compiler UX: “modern argparse” (Click-style subcommands + UX polish)** (M)
    - Keep current subcommand structure, but raise ergonomics to production level:
      - consistent error exit codes, `--json` outputs, stable env/flag precedence, structured diagnostics for tooling.
+   - Progress (rolling):
+     - ✅ `std:argparse` now supports env-bound option defaults (env → defaults; argv overrides) and exposes `env` in `--help=json`.
+     - ✅ `std:argparse` now emits best-effort “did you mean …?” suggestions for mistyped commands / long options.
    - Reference: `docs/CLI_COMPLETION.md`, `docs/TEST_SYSTEM.md` (tool integration expectations).
 
 10) **Stdlib distribution + module resolution (native + AVM)** (M)

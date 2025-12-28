@@ -118,7 +118,10 @@ production maturity requires both implementation *and* regression coverage.
     - completion scripts: `oren completion bash|zsh` (see `docs/CLI_COMPLETION.md`)
   - Remaining “production polish” gaps:
     - consistent exit codes for all parse/validation errors
-    - a stable, documented contract for env/flag precedence across all subcommands
+    - env/flag precedence is now standardized:
+      - defaults come from the CLI spec (and may be sourced from env via `std:argparse` option bindings)
+      - CLI argv always wins over env
+      - machine-readable help (`--help=json`) exposes `env` for each option (when applicable)
     - optional `--json` structured output for build results (artifact list + hashes) beyond `--manifest`
 
 - **Production CLI ergonomics: “click-like” subcommands**
