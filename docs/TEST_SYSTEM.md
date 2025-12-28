@@ -23,7 +23,12 @@ This document explains the current state and the planned evolution.
   - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
   - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
 
-It requires `timeout` (Linux) or `gtimeout` (macOS coreutils).
+It benefits from `timeout` (Linux) or `gtimeout` (macOS coreutils) as an outer failsafe, but it is not required for correctness.
+
+Rolling update:
+
+- `timeout`/`gtimeout` is **recommended** as an outer failsafe (Makefile uses it when present).
+- `./oretest` also implements internal process-group timeouts and will warn (not fail) if `timeout` is missing.
 
 Legacy behavior (broader Makefile-driven lists) is preserved as:
 

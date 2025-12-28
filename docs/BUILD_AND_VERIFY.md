@@ -1,6 +1,6 @@
 # Building and Verifying Oren
 
-This guide documents the complete process of building the Oren compiler from source (bootstrapping), using it to build applications, and verifying cross-compiled Linux binaries from a macOS development machine.
+This guide documents the complete process of building the Oren compiler from source (bootstrapping), using it to build applications, and validating Tier‑1 targets in rolling mode (including remote x86_64 workflows where needed).
 
 ## 1. Bootstrapping Oren (Stage 0 to Self-Hosting)
 
@@ -41,16 +41,25 @@ Use the Stage 1 compiler (`oren`) to compile the Oren source code again. The res
 
 Once you have the `oren` executable (Stage 1), you can compile user applications.
 
-### Native Backend (macOS/Linux ARM64)
-Compiles directly to machine code (Mach-O or ELF). Fast and dependency-free.
+### Native Backend (Tier‑1 intent: arm64 + x86_64)
+Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free for the emitted artifact (no libc shims for native output).
 
 ```bash
-# Build for the host OS
-./oren build examples/hello.oren --backend native -o hello
+# Build for macOS arm64 (primary development path today)
+./oren build examples/hello.oren --backend native --target macos --arch arm64 -o hello
 
-# Cross-compile for Linux (from macOS)
-./oren build examples/hello.oren --backend native --target linux -o hello_linux
+# Build a Linux ELF (arm64 or x64 depending on your use case)
+./oren build examples/hello.oren --backend native --target linux --arch arm64 -o hello_linux_arm64
+./oren build examples/hello.oren --backend native --target linux --arch x64   -o hello_linux_x64
+
+# Build a Windows PE32+ executable (x64 bring-up)
+./oren build examples/hello.oren --backend native --target windows --arch x64 -o hello_win_x64.exe
 ```
+
+Notes (rolling):
+
+- A Linux/Windows native artifact may not be runnable on a macOS host. Use a Linux machine or the Win11+WSL2 remote workflow (`docs/REMOTE_X64_ENV.md`) to execute x86_64 outputs.
+- The x86_64 native backend is Tier‑1 intent but still in bring-up; `docs/TODOS.md` tracks what is implemented today.
 
 ### C Backend (Portable)
 Transpiles Oren to C, then compiles with the system C compiler (`cc`). Best for stability and platform compatibility (x86_64, etc.).
@@ -80,7 +89,12 @@ Environment knobs:
 - `OREN_TEST_JOBS` (default `4`): parallelism for module + AVM tests.
 - `OREN_NO_GC=1`: disable GC scanning for stress/debug (also available as `./oretest --no-gc`).
 
-If `timeout` is not available, `make test` will fail with a clear message (install coreutils on macOS: `brew install coreutils`).
+Timeout behavior (rolling):
+
+- `./oretest` has internal timeouts and will warn (not fail) if `timeout`/`gtimeout` is missing.
+- The Makefile will use `timeout`/`gtimeout` as an extra *outer* failsafe when available.
+- Installing coreutils on macOS is still recommended for a stronger outer guard:
+  - `brew install coreutils`
 
 ## 3. Using FFI (Foreign Function Interface)
 

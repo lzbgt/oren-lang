@@ -1,6 +1,6 @@
 # Docs Index (Canonical Map)
 
-**Last updated:** 2025-12-20  
+**Last updated:** 2025-12-28  
 This folder contains both **canonical specs** and a few **compatibility stubs** kept to avoid link rot while the repo evolves in rolling mode.
 
 ## 1) “Start Here”

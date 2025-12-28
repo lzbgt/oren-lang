@@ -46,10 +46,13 @@ Authoritative specs/strategy docs:
 ## Status (Current Reality)
 - **Backends**
   - **C backend (default):** transpile to C and compile with `cc` (used for the self-hosting chain).
-  - **Native backend (ARM64):** emits Mach-O (macOS) or ELF (Linux) directly (`--backend native`).
+  - **Native backend (Tier‑1 intent):** emits Mach-O (macOS), ELF (Linux), or PE32+ (Windows) directly (`--backend native`).
   - **Bytecode backend (experimental):** emits `.obc` (`--backend bytecode`) for the AVM prototype.
 - **Platforms**
-  - Native backend targets **macOS arm64** and **Linux arm64**.
+  - **Tier‑1 intent (rolling):** `arm64` + `x86_64` across **macOS / Linux / Windows**.
+  - Practical reality today:
+    - native arm64 is the most feature-complete
+    - native x86_64 exists for Linux ELF + Windows PE32+ but is still bring-up (see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md`)
   - C backend is portable to any platform with a C toolchain.
 
 ## Stdlib (Rolling highlights)
@@ -78,7 +81,7 @@ This repo is intentionally syscall-first and “no libc shims” for native runt
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler (default target)
 make test       # curated native + module + AVM bytecode tests (wrapper over `./oretest`)
-make test-legacy # broader Makefile-driven suite (slower)
+make test-legacy # compatibility alias for `./oretest --full` (broader curated coverage, still parallel)
 make verify     # clean + stage2 self-hosting verification
 ```
 
@@ -97,14 +100,20 @@ make verify     # clean + stage2 self-hosting verification
 
 ### Build a native ARM64 binary (macOS/Linux)
 ```bash
-./oren build examples/hello.oren --backend native -o hello_native
-./oren build examples/hello.oren --backend native --target linux -o hello_linux
+./oren build examples/hello.oren --backend native --target macos --arch arm64 -o hello_native
+./oren build examples/hello.oren --backend native --target linux --arch arm64 -o hello_linux_arm64
 ```
 
-### Run native tests (single file)
+### Build a native x86_64 binary (Linux ELF / Windows PE32+ bring-up)
 ```bash
-./oren test tests/native/test_gc.oren --target macos
+./oren build examples/hello.oren --backend native --target linux --arch x64 -o hello_linux_x64
+./oren build examples/hello.oren --backend native --target windows --arch x64 -o hello_win_x64.exe
 ```
+
+Notes:
+
+- The Linux/Windows x86_64 backend is Tier‑1 intent but still in bring-up; see `docs/TODOS.md`.
+- To run x86_64 artifacts on real hardware (Win11 + WSL2), use the documented remote workflow: `docs/REMOTE_X64_ENV.md`.
 
 ### Run the curated suite (recommended)
 ```bash

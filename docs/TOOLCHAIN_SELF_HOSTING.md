@@ -62,7 +62,7 @@ Self-hosting the LSP in Oren becomes realistic once:
 - compiler diagnostics are stable and machine-readable
 - stdlib has robust FS/process/JSON IO on macOS/Linux/Windows
 
-### C) `oren test` (test runner)
+### C) `oren test` (test runner; future)
 
 Right now `./oretest` is **already integration-first and parallel** (and it deliberately lives outside `lib/compiler/*.oren`).
 
@@ -145,4 +145,3 @@ Until those are specified, a packages repo is useful mainly as:
 - a testbed for module resolution rules
 
 Once the spec exists, the repo can become a real registry mirror or a git-based index.
-
