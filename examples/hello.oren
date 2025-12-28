@@ -1,3 +1,26 @@
+import list "std:list"
+import iter "std:iter"
+
 fn main() {
+    // Keep this example small but non-trivial: it should exercise
+    // a few core language+stdlib features across all backends.
+    var xs = []
+    for i in iter.range(3) {
+        list.push(xs, i + 1)
+    }
+
+    // Closure literal + indirect call.
+    var add2 = |x| { return x + 2 }
+    var y = add2(xs[0])
+
+    if list.len(xs) != 3 { exit(1) }
+
+    // Control flow: switch/case (matches current rolling grammar).
+    switch y {
+        case 3 { }
+        default { exit(2) }
+    }
+
     print("hello, oren")
+    exit(0)
 }

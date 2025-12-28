@@ -172,7 +172,7 @@ Individual examples:
   - `examples/module_app.oren` + `examples/modules/math.oren` (module import + name resolution)
   - `examples/spawn_c.oren` (threads via `spawn` + `oren_join`)
 - **Native backend**
-  - `examples/gc_native.oren` (allocation + `native_gc_collect()` sanity)
+  - `examples/gc_test.oren` (allocation + `native_gc_collect()` sanity; used by `make examples-test`)
   - `examples/ffi_test.oren` (FFI against `libSystem` via `ffi puts`)
   - `examples/libmath.oren` + `examples/ffi_from_libmath.oren` (build dylib via `--lib`, auto-generate header `.h`, `oren scan`, then link via `--link`)
 

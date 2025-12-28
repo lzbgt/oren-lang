@@ -1,8 +1,11 @@
-import math "modules/math.oren"
+import math_local "modules/math.oren"
+import math "std:math"
 
-var x = math.add(40, 2)
+var x = math_local.add(40, 2)
 print(x)
 if x == 42 {
+    // stdlib usage (portable, deterministic)
+    if math.abs_i(-1) != 1 { exit(2) }
     print("module_app: OK")
     exit(0)
 }

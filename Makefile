@@ -251,6 +251,9 @@ examples-test-inner: oren avm
 	@# 1) Native hello world
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello.oren --backend native -o build/ex_hello_native $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_hello_native >/dev/null
+	@# 1b) Native module import + stdlib import
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/module_app.oren --backend native -o build/ex_module_app_native $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/ex_module_app_native >/dev/null
 	@# 2) GC suite (native)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/gc_test.oren --backend native -o build/ex_gc_native $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_gc_native
@@ -265,6 +268,8 @@ examples-test-inner: oren avm
 	@# 4) Bytecode + AVM
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello.oren --backend bytecode -o build/ex_hello.obc
 	@$(RUN_WITH_TIMEOUT) ./avm build/ex_hello.obc >/dev/null
+	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/module_app.oren --backend bytecode -o build/ex_module_app.obc
+	@$(RUN_WITH_TIMEOUT) ./avm build/ex_module_app.obc >/dev/null
 	@# 5) AVM Virtual backends demos (VFS / VPROC / VNET)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_vfs_demo.oren --backend bytecode -o build/ex_avm_vfs_demo.obc
 	@rm -f build/ex_avm_vfs_demo.bin

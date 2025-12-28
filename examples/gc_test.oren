@@ -1,0 +1,28 @@
+// GC smoke for the native backend.
+//
+// This file is used by `make examples-test` and is intended to stay:
+// - deterministic
+// - short
+// - representative of "real" heap pressure (allocations + GC + validation)
+
+struct Node { value, next }
+
+fn main() {
+    print("gc_test: start")
+    var head = Node(999, 0)
+
+    var i = 0
+    while i < 100 {
+        var n = Node(i, 0)
+        i = i + 1
+    }
+
+    native_gc_collect()
+
+    if head.value != 999 {
+        print("gc_test: FAIL (head corrupted)")
+        exit(1)
+    }
+    print("gc_test: OK")
+    exit(0)
+}
