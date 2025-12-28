@@ -33,6 +33,9 @@ This document explains the current state and the planned evolution.
       - native: `build/targets/<arch>-<os>/native/<test>`
       - c: `build/targets/<arch>-<os>/c/<test>`
       - bytecode: `build/targets/avm/bytecode/<test>.obc`
+  - portability note:
+    - the `.obc` portability contract is verified via `tools/verify_obc_portability.sh` (compiles once, runs the same `.obc` across macOS arm64 + linux/arm64 docker + linux/x64 WSL2 and compares `RESULT_HASH`/`TRACE_HASH`)
+    - details: `docs/OBC_PORTABILITY.md`
 - quick bottleneck discovery:
   - `OREN_TEST_PROFILE=1 make test` (or `./oretest --profile`) prints the slowest tests (per-test elapsed time)
 - SIMD validation note:

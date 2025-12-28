@@ -34,27 +34,37 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Docs hygiene: keep IR docs aligned as CoreIR expands (`docs/IR_AND_COMPILER_INTERNALS.md`).
    - Reference: `docs/BACKEND_ARCHITECTURE.md`.
 
-3) **Container ops as operations (no hot-path stdlib overhead)** (M)
+3) **OBC portability gate (AVM-universal bytecode)** (M)
+   - `.obc` has no platform meaning; AVM should execute the same bytecode deterministically across hosts.
+   - Gate: compile one integrated `.obc` and verify identical `RESULT_HASH` + `TRACE_HASH` on:
+     - macOS arm64 (host),
+     - linux/arm64 (persistent docker),
+     - linux/x86_64 (WSL2 on remote Win11).
+   - Tooling: `tools/verify_obc_portability.sh`
+   - Docs: `docs/OBC_PORTABILITY.md`
+   - Next: port AVM to native Windows so this can become “Win11 x64 (no WSL)” too.
+
+4) **Container ops as operations (no hot-path stdlib overhead)** (M)
    - Make `xs[i]` / `xs[i]=v` / `len` / `push` lower to intrinsics for built-ins; keep generic + `dyn` story deterministic.
    - Define `clone`, `slice_copy`, and `slice_view` semantics and error conventions.
    - Reference: `docs/DESIGN_CONTAINER_OPS.md`, `docs/STDLIB_LAYERS.md`.
 
-4) **Stack safety parity (deterministic recursion failure)** (M)
+5) **Stack safety parity (deterministic recursion failure)** (M)
    - Keep one contract across AVM/C/native: deterministic abort under a configured depth budget (`--call-depth-max` / `OREN_CALL_DEPTH_MAX`).
    - Remaining work: mirror the same contract in x64 native as runtime injection lands.
    - Reference: `docs/STACK_SAFETY.md`.
 
-5) **Tail-call optimization (stackless recursion)** (S)
+6) **Tail-call optimization (stackless recursion)** (S)
    - Direct self tail recursion lowers to a loop (no host stack growth); fixture enforces it.
    - Tail recursion modulo constant (`return f(..) + 1`) also lowers to a loop for a conservative subset; fixture enforces it.
    - Next: mutual tail recursion trampoline + varargs/spread tail calls once CoreIR callables converge.
    - Reference: `docs/STACK_SAFETY.md`.
 
-6) **Stdlib modernization audit (grammar + intrinsics hygiene)** (S)
+7) **Stdlib modernization audit (grammar + intrinsics hygiene)** (S)
    - Keep `lib/std/**` on current grammar; keep `oren_*` calls confined to `std:*` wrappers where possible.
    - Expand `./oretest` audits carefully as grammar stabilizes.
 
-7) **Tests: backend/arch neutral by default (integration-first)** (S)
+8) **Tests: backend/arch neutral by default (integration-first)** (S)
    - Most `.oren` tests should be backend/arch neutral; keep ABI-specific tests isolated and minimal.
    - Reduce overlapping “atomic” tests in curated lists; prefer integration suites + fixtures as living spec.
    - Add profiling hooks to keep iteration fast: `./oretest --profile` (or `OREN_TEST_PROFILE=1`) prints slowest tests so we can target true bottlenecks.
@@ -68,12 +78,12 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Spec hygiene (AI-friendly): keep `docs/LANGUAGE_SPEC.md` and `docs/LANGUAGE_MANUAL.md` aligned with actual compiler behavior and mark planned vs implemented explicitly.
    - Feature-index hygiene (AI-friendly): keep `docs/LANGUAGE_FEATURE_MATRIX.md` updated when feature status or implementation locations change (especially AVM multiverse/swarm, VirtualFS/VirtualPROC/VirtualNET, and signed `.obc` / cert-chain verification).
 
-8) **Compiler UX: “modern argparse” (Click-style subcommands + UX polish)** (M)
+9) **Compiler UX: “modern argparse” (Click-style subcommands + UX polish)** (M)
    - Keep current subcommand structure, but raise ergonomics to production level:
      - consistent error exit codes, `--json` outputs, stable env/flag precedence, structured diagnostics for tooling.
    - Reference: `docs/CLI_COMPLETION.md`, `docs/TEST_SYSTEM.md` (tool integration expectations).
 
-9) **Stdlib distribution + module resolution (native + AVM)** (M)
+10) **Stdlib distribution + module resolution (native + AVM)** (M)
    - One coherent story for:
      - `import math "std:math"` resolution for end users,
      - distribution (source vs precompiled `.obc` bundles),
