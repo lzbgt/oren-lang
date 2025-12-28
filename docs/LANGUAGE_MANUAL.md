@@ -90,6 +90,12 @@ fn main() {
 }
 ```
 
+Entry semantics (rolling, by current toolchain implementation):
+
+- **Top-level statements execute** as the module loads (they compile into an internal `__top_level__` function).
+- If `fn main()` exists, the runtime **calls it automatically** (native entry stubs + AVM bytecode entry both do this).
+- Avoid writing `main()` as a top-level call unless you intentionally want `main` to run twice.
+
 ### Imports
 
 Import with an alias:
@@ -100,6 +106,10 @@ import buffer "std:buffer"
 ```
 
 Imported names can be qualified as `alias.symbol`.
+
+Notes (rolling):
+
+- `import` is a **module-level** declaration and must appear at **top level** (not inside `fn` bodies).
 
 ### FFI symbols (`ffi name`)
 
