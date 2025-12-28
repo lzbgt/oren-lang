@@ -302,6 +302,11 @@ Oren therefore allows a small set of *conventional* annotation spellings to act 
 
 These are hints used by compiler lowerings in rolling v0; they are not yet “real types” in the v1 sense.
 
+Additionally (rolling, native backends):
+
+- numeric annotations like `: int`, `: i64`, `: u64`, ... are treated as an **“int kind” hint** for deterministic map key-kind inference (avoids runtime pointer/int heuristics in x86_64 native bring-up)
+- typed buffer annotations of the form `[]T` (e.g. `[]i32`, `[]f64`) are treated as a **“buf kind” hint** for receiver sugar like `b.len()`
+
 Typed buffers also have a width-specialized type spelling used throughout the HPC stdlib:
 
 - `[]i32`, `[]i64`, `[]f32`, `[]f64`, `[]u8`, ...

@@ -577,6 +577,11 @@ var s: string = "hello"      // string receiver hint
 These annotations are **compiler hints** in rolling v0, not stable “v1 types”.
 See `docs/LANGUAGE_SPEC.md` (“kind annotations”) for the normative description.
 
+Rolling note (native backends):
+
+- numeric annotations like `: i64`, `: u64`, `: int` are treated as an “int kind” hint so map indexing `m[k]` can infer whether `k` is an integer key without relying on runtime pointer/int heuristics
+- typed buffer annotations like `[]i32` / `[]f64` are treated as a “buf kind” hint for receiver sugar like `b.len()`
+
 ### Traits and `impl` (practical)
 
 Oren supports `trait` declarations and `impl Trait for Type` blocks as a **compile-time** mechanism.
