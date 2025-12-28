@@ -11,7 +11,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Keep validation **integration-first**: local build smoke + opt-in remote run on Win11+WSL2 (`docs/REMOTE_X64_ENV.md`).
    - Status (rolling):
      - ✅ named function values + indirect calls now use `__oren_fnwrap_*` wrappers and an `args_list` call ABI (env is 0 in x64 v0)
-     - ⏭️ next: x64 lambdas/closures (`env_ptr != 0`), and richer `oren_panic` / `OREN_DIAG` parity
+     - ✅ x64 lambdas/closures now lower to heap fnobj `{code_ptr, env_ptr}` where `env_ptr` is a capture-by-value list (when captures exist)
+     - ⏭️ next: richer `oren_panic` / `OREN_DIAG` parity (print + stack trace), and closure perf (avoid per-call arg list allocation for common cases)
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
@@ -55,6 +56,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 - **Compiler int literals unified**: `lib/compiler/int_lit.oren` is the single source of truth for int literal parsing across optimizer/transpiler/native backends, including u64 bit-pattern literals (e.g. `9223372036854775808` → `i64_min`).
 - **x86_64 native callables converge**: function values now point at `__oren_fnwrap_*` wrappers and indirect calls lower as `wrapper(env_ptr, args_list)`; `oren_panic` exists as a minimal deterministic abort for wrappers/invariants.
+- **x86_64 native lambdas/closures converge**: lambda literals now lower to heap-allocated fnobj records with env capture lists, and lambda wrappers `__oren_lambda_*` implement the uniform call ABI.
 - **x64 backend modularized for reviewability**: `lib/compiler/x64_native_program.oren` now uses `// @include` chunks under `lib/compiler/x64_native_program/` to avoid large-file context overflow while keeping namespace stability.
 - **x64 re-entrant temp spilling**: x64 native v0 now sizes the `$tmp_intr*` spill pool per-function based on AST analysis (avoids large fixed stack frames while keeping nested calls/intrinsics correct).
 - **ARM64 `/` semantics fixed for Tier‑1 parity**: `int / int` now lowers to `SDIV` (signed trunc-toward-zero) in the arm64 native backend; integration suite adds signed division asserts.

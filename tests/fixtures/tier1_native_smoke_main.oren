@@ -56,6 +56,16 @@ fn main() {
     var g = sum1
     if g(1, 2, 3) != 6 { return 61 }
 
+    // Lambdas as values (capture-free).
+    var h = |x| x + 2
+    if h(3) != 5 { return 62 }
+
+    // Lambdas with captures (capture-by-value).
+    var z = 40
+    var addz = |x| x + z
+    z = 100
+    if addz(2) != 42 { return 63 }
+
     // Short-circuit sanity (must not evaluate RHS when unnecessary).
     if 0 && boom() != 0 { return 70 }
 

@@ -214,6 +214,86 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
         return nil
     }
+    if t == "Function" {
+        // Lambda literal (anonymous function) in expression position.
+        //
+        // Representation:
+        // - returns a pointer to a heap-allocated `{code_ptr, env_ptr}` fnobj record
+        // - `code_ptr` points to the synthesized wrapper `__oren_lambda_N`
+        // - `env_ptr` is either 0 (no captures) or a list of captured values (capture-by-value)
+        var name = expr["name"]
+        if name != "" { err(ctx, "x64 native v0: function decl not allowed in expression position"); return nil }
+
+        // Ensure lambda has a stable name + capture list.
+        if expr["lambda_name"] == nil {
+            // Fallback: if collection was skipped, synthesize metadata here.
+            expr["lambda_name"] = callable.lambda_gensym(ctx)
+            expr["captures"] = callable.lambda_free_vars(ctx, expr)
+            oren_list_push(ctx["lambda_defs"], {"name": expr["lambda_name"], "fun": expr, "captures": expr["captures"]})
+        }
+        var lname = expr["lambda_name"]
+        var caps = expr["captures"]
+        if caps == nil { caps = [] }
+
+        // Spill slots: fnobj ptr, env ptr, tmp code ptr.
+        var base = _intr_tmp_push(ctx, 2)
+        if base == nil { return nil }
+        var tmp_fnobj = _intr_tmp_off(ctx, locals, base + 0)
+        var tmp_env = _intr_tmp_off(ctx, locals, base + 1)
+        if tmp_fnobj == nil || tmp_env == nil {
+            _intr_tmp_pop(ctx, base)
+            err(ctx, "x64 native v0: missing spill slots for lambda literal")
+            return nil
+        }
+
+        // env_ptr = 0 or a list of captures (capture-by-value, deterministic order)
+        if oren_list_len(caps) == 0 {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_cdqe())
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
+        } else {
+            // env = oren_new_list(0)
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
+            var env_name = "$tmp_intr" + oren_int_to_string(base + 1)
+
+            // Push captured values in deterministic order.
+            var i = 0
+            while i < oren_list_len(caps) {
+                var cname = caps[i]
+                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": env_name}, {"type": "Identifier", "value": cname}]}, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+                i = i + 1
+            }
+        }
+
+        // fnobj = malloc_raw(16)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "16"}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_fnobj, 0)
+
+        // code_ptr = &__oren_lambda_N
+        //
+        // lea r11, [rip+disp32]  (patched to function entry)
+        var lea_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": lname})
+
+        // Store code_ptr at [fnobj+0]
+        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_fnobj) // r10 = fnobj
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
+
+        // Store env_ptr at [fnobj+8]
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+        _emit_mov_r64_mrbp(ctx, 12, 0 - tmp_env) // r12 = env ptr
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 12))
+
+        // Return fnobj pointer in RAX.
+        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_fnobj)
+        _intr_tmp_pop(ctx, base)
+        return nil
+    }
     if t == "Identifier" {
         var name = expr["value"]
         var off = locals[name]

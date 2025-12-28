@@ -24,10 +24,26 @@ fn native_compile_program_x64(linked, platform) {
         "declared_functions": {}
     }
     ctx["abi"] = abi.x64(platform)
+    // Import aliases are used by shared callable lowering to avoid capturing module aliases.
+    if linked != nil { ctx["aliases"] = linked["aliases"] }
+    if ctx["aliases"] == nil { ctx["aliases"] = {} }
+    // Lambda collection state (lambdas are parsed as Function nodes with name="").
+    ctx["lambda_defs"] = []
+    ctx["lambda_counter"] = 0
 
     var fns = _extract_functions_v0(ctx, linked)
     if fns == nil { return ctx }
     if ctx["declared_functions"]["main"] == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
+
+    // Collect lambdas in function bodies before wrapper synthesis.
+    var li = 0
+    while li < oren_list_len(fns) {
+        var fn0 = fns[li]
+        if fn0 != nil && fn0["body"] != nil {
+            callable.collect_lambdas_in_statement(ctx, fn0["body"])
+        }
+        li = li + 1
+    }
 
     // --- Callable wrappers (Tier‑1 convergence) ---
     //
@@ -58,6 +74,22 @@ fn native_compile_program_x64(linked, platform) {
             }
         }
         wi = wi + 1
+    }
+
+    // Lambda wrappers are named `__oren_lambda_N` and already implement the uniform call ABI:
+    //   fn __oren_lambda_N(__env, __args_list) { ... }
+    // They inline the original lambda body and bind captures/params from env/args.
+    var lj = 0
+    while lj < oren_list_len(ctx["lambda_defs"]) {
+        var def = ctx["lambda_defs"][lj]
+        var st = callable.synth_lambda_wrapper(def)
+        if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
+            oren_list_push(wrappers, st["expr"])
+        } else {
+            err(ctx, "x64 native v0: failed to synthesize lambda wrapper")
+            return ctx
+        }
+        lj = lj + 1
     }
 
     // --- Entry stub ---

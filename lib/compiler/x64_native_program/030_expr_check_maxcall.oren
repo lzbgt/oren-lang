@@ -27,6 +27,30 @@ fn _expr_int_check(ctx, expr) {
     if t == "Nil" { return nil }
     if t == "String" { return nil }
     if t == "Identifier" { return nil }
+    if t == "Function" {
+        // Lambda literal in expression position.
+        //
+        // Rolling v0: x64 native supports lambdas as first-class values via wrapper lowering.
+        // - Only anonymous `fn` (name == "") is permitted in expression position.
+        // - Params must be plain identifiers (no varargs in lambda literal syntax yet).
+        if expr["name"] != "" {
+            err(ctx, "x64 native v0: function decl not allowed in expression position")
+            return nil
+        }
+        var params = expr["params"]
+        var pc = 0
+        if params != nil { pc = oren_list_len(params) }
+        var i = 0
+        while i < pc {
+            var p = params[i]
+            if p == nil || p["type"] != "Identifier" { err(ctx, "x64 native v0: lambda param must be identifier"); return nil }
+            if p["is_varargs"] == true { err(ctx, "x64 native v0: lambda varargs not supported yet"); return nil }
+            i = i + 1
+        }
+        // Body can contain ops not supported by x64; those will be rejected when compiling the
+        // synthesized `__oren_lambda_*` wrapper function.
+        return nil
+    }
     if t == "Call" {
         var fn_expr = expr["fn"]
         var args = expr["args"]
@@ -337,6 +361,7 @@ fn _max_intr_tmp_in_expr(ctx, expr) {
     if expr == nil { return 0 }
     var t = expr["type"]
     if t == "Nil" || t == "Boolean" || t == "Integer" || t == "String" || t == "Identifier" { return 0 }
+    if t == "Function" { return 0 }
 
     if t == "Call" {
         var fn_expr = expr["fn"]

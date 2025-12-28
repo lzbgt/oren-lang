@@ -117,8 +117,9 @@ Some backends are still “mid-convergence”:
 - x86_64 native now uses the **uniform callable ABI** for *function values + indirect calls*:
   - `FuncValue = { code_ptr, env_ptr }` stored in a small “fnobj” record
   - indirect calls build an `args_list` and call `code_ptr(env_ptr, args_list)`
-  - named function values point at synthesized wrappers `__oren_fnwrap_*` (env is `0` in x64 v0)
-- Remaining Tier‑1 gap: closures/lambdas in x86_64 native (non‑zero `env_ptr`) and consistent panic/diagnostic output.
+  - named function values point at synthesized wrappers `__oren_fnwrap_*`
+  - lambda literals lower to heap fnobj records where `env_ptr` points at a capture-by-value list (or `0` for capture-free lambdas), and `code_ptr` points at `__oren_lambda_*` wrappers
+- Remaining Tier‑1 gap: consistent panic/diagnostic output on x86_64 native (rich `OREN_DIAG` / stack trace parity) and performance work (avoid per-call `args_list` allocations for common cases).
 
 This is acceptable in rolling mode as long as:
 
