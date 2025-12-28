@@ -4,17 +4,18 @@
 // style size limit while x64 Tier-1 continues to grow.
 //
 // Key kinds (rolling x64 v0 limitation):
-// - kind=0: "small int" key (key < 4096)
-// - kind=1: C-string key pointer (key >= 4096)
+// - kind=0: integer key
+// - kind=1: C-string key pointer
 //
-// Note: without tagging, x64 v0 cannot safely represent integers >= 4096 as map keys
-// (they are indistinguishable from pointers). This will be fixed by a tagged value
-// representation (Tier-1 milestone).
+// Note: without tagging, x64 v0 cannot safely infer key kinds for *dynamic* keys
+// (integers >= 4096 are indistinguishable from pointers). As an incremental step,
+// callers may pass a compile-time known key_kind (for literal keys) so integer keys
+// >= 4096 work when the compiler knows they're integers. Full fix: tagged values.
 
 // Map intrinsic helper:
 // Assumes map/key/value have already been evaluated and spilled at the provided stack slots.
 // Returns the map pointer in RAX.
-fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf) {
+fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf, known_key_kind) {
     // Initialize optional scratch slot deterministically.
     // `$tmp_newbuf` is used to hold `new_buf` only on the grow path.
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
@@ -56,12 +57,21 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     // rsi = key
     _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key)
     // r13 = key_kind (0=int, 1=string)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-    var l_kind_done = _new_label(ctx, "map_set_kind_done")
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
-    _emit_label(ctx, labels, l_kind_done)
+    var kk = known_key_kind
+    if kk == nil { kk = -1 }
+    if kk == 0 {
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+    } else if kk == 1 {
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+    } else {
+        // Fallback heuristic for dynamic keys (v0 limitation).
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
+        var l_kind_done = _new_label(ctx, "map_set_kind_done")
+        _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+        _emit_label(ctx, labels, l_kind_done)
+    }
 
     // r8 = count
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))

@@ -812,9 +812,18 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // Get value by key. Returns 0 (nil) when key is missing.
             //
             // Rolling x64 v0 key kinds:
-            // - key < 4096  => treated as a small-integer key
-            // - key >= 4096 => treated as a C-string pointer key
+            // - kind=0 => integer key
+            // - kind=1 => C-string pointer key
+            //
+            // Incremental Tier-1 improvement:
+            // - if the key is a literal Integer/String, we can emit the correct kind directly
+            // - otherwise we fall back to the v0 heuristic (key < 4096 => int; else string)
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
+
+            var known_key_kind = -1
+            var key_t = args[1]["type"]
+            if key_t == "Integer" { known_key_kind = 0 }
+            else if key_t == "String" { known_key_kind = 1 }
 
             var base = _intr_tmp_push(ctx, 2)
             if base == nil { return nil }
@@ -866,12 +875,18 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // rsi = key
             _emit_mov_r64_mrbp(ctx, 6, 0 - tmp_key)
             // r13 = key_kind (0=int, 1=string)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
-            var l_kind_done = _new_label(ctx, "map_get_kind_done")
-            _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
-            _emit_label(ctx, labels, l_kind_done)
+            if known_key_kind == 0 {
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+            } else if known_key_kind == 1 {
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+            } else {
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 4096))
+                var l_kind_done = _new_label(ctx, "map_get_kind_done")
+                _emit_jcc_to_label(ctx, local_fixups, "l", l_kind_done)
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
+                _emit_label(ctx, labels, l_kind_done)
+            }
 
             // r8 = count
             bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
@@ -970,8 +985,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
 
         if nm == "oren_map_set" {
-            // Set value by string key. Returns the map pointer.
+            // Set value by key. Returns the map pointer.
             if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: oren_map_set expects 3 args"); return nil }
+
+            var known_key_kind = -1
+            var key_t = args[1]["type"]
+            if key_t == "Integer" { known_key_kind = 0 }
+            else if key_t == "String" { known_key_kind = 1 }
 
             // Use the intrinsic temp pool so nested expression evaluation cannot clobber
             // spilled args (required for nested map literals like `{ "a": {"b": 7} }`).
@@ -1003,7 +1023,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
 
-            var r = _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf)
+            var r = _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf, known_key_kind)
             _intr_tmp_pop(ctx, base)
             return r
         }
@@ -1063,12 +1083,17 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if nm == "oren_index_set" {
             // Polymorphic index assignment helper (rolling):
             // - Lists: strict in-bounds `xs[i] = v` (no auto-grow)
-            // - Maps: `m[key] = v` inserts/replaces (x64 v0: key < 4096 => int, else string)
+            // - Maps: `m[key] = v` inserts/replaces (x64 v0: dynamic key-kind heuristic; literal keys get explicit kind)
             //
             // Return value:
             // - list path returns `v` (matches list_set convention)
             // - map path returns `v` (matches C runtime; kept expression-friendly)
             if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: oren_index_set expects 3 args"); return nil }
+
+            var known_key_kind = -1
+            var key_t = args[1]["type"]
+            if key_t == "Integer" { known_key_kind = 0 }
+            else if key_t == "String" { known_key_kind = 1 }
 
             // Use the intrinsic temp pool so nested evaluation cannot clobber spilled args.
             var base = _intr_tmp_push(ctx, 7)
@@ -1175,7 +1200,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             // --- map path ---
             _emit_label(ctx, labels, l_map)
-            _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf)
+            _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf, known_key_kind)
             // return v (expression-friendly)
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val)
             _emit_label(ctx, labels, l_done)

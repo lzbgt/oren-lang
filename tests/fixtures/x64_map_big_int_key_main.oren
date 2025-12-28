@@ -1,0 +1,25 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates integer map keys >= 4096 work when the compiler can prove the key kind
+//   (literal Integer keys set kind=0 explicitly; dynamic keys still use the v0 heuristic)
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    // Literal key >= 4096: should be treated as an integer key, not a string-pointer key.
+    var m = {50000: 7}
+
+    if oren_map_len(m) != 1 { return 1 }
+    if m[50000] != 7 { return 2 }
+
+    // Update existing key via index assignment (also uses a literal key).
+    m[50000] = 9
+    if oren_map_len(m) != 1 { return 3 }
+    if m[50000] != 9 { return 4 }
+
+    // Missing key returns 0 (nil).
+    if m[60000] != 0 { return 5 }
+
+    return 0
+}
+
