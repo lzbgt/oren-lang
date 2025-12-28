@@ -1,0 +1,14 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates nested calls used as call arguments are correct
+// - guards against clobbering when arg spilling is not re-entrant
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn add2(a, b) { return a + b }
+
+fn main() {
+    // add2(3, 7) => 10, but both args are computed via nested calls.
+    return add2(add2(1, 2), add2(3, 4))
+}
+

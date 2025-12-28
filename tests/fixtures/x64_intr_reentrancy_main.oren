@@ -1,0 +1,25 @@
+// x64-native fixture (Tier-1 bring-up):
+// - validates intrinsic arg evaluation is re-entrant for nested expressions
+//   (no hidden dependence on fixed `$tmp*` spill slots or register liveness)
+//
+// Intended to be executed in remote-run mode on Win11 + WSL2:
+//   OREN_REMOTE_RUN=1 ./oretest --target macos
+
+fn main() {
+    // Nested iadd: inner call must not clobber outer spill.
+    if iadd(iadd(1, 2), 3) != 6 { return 1 }
+
+    // ptr_set must preserve `ptr` across nested expression evaluation.
+    var m = {"a": 123}
+    var p = malloc(8)
+    ptr_set(p, oren_map_get(m, "a"))
+    if ptr_get(p) != 123 { return 2 }
+
+    // list_set must preserve idx across nested expression evaluation of the value.
+    var xs = [0]
+    oren_list_set(xs, 0, oren_map_get({"a": 9}, "a"))
+    if oren_list_get(xs, 0) != 9 { return 3 }
+
+    return 0
+}
+

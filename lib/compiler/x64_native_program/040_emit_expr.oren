@@ -456,16 +456,23 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if nm == "iadd" {
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: iadd expects 2 args"); return nil }
             // iadd(a, b) => (a + b) in RAX
-            var tmp_off_iadd = locals["$tmp0"]
-            if tmp_off_iadd == nil { err(ctx, "x64 native v0: missing temp slot for iadd"); return nil }
+            // Must be re-entrant: nested `iadd` calls must not clobber the outer LHS spill.
+            var base = _intr_tmp_push(ctx, 1)
+            if base == nil { return nil }
+            var tmp_off_iadd = _intr_tmp_off(ctx, locals, base + 0)
+            if tmp_off_iadd == nil {
+                _intr_tmp_pop(ctx, base)
+                return nil
+            }
             _emit_eval_int_to_rax(ctx, args[0], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_off_iadd, 0)
             _emit_eval_int_to_rax(ctx, args[1], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off_iadd)      // rax = lhs
             bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) // rax += rdx
+            _intr_tmp_pop(ctx, base)
             return nil
         }
         if nm == "ptr_get" {
@@ -479,13 +486,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if nm == "ptr_set" {
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: ptr_set expects 2 args"); return nil }
             // ptr_set(ptr, val) => store qword and return val
+            // Must not keep `ptr` only in a register across nested expression evaluation.
+            var base = _intr_tmp_push(ctx, 1)
+            if base == nil { return nil }
+            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+            if tmp_ptr == nil { _intr_tmp_pop(ctx, base); return nil }
+
             _emit_eval_int_to_rax(ctx, args[0], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = ptr
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+
             _emit_eval_int_to_rax(ctx, args[1], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            // [rdx] = rax
-            bytes_extend(ctx["code"], insn_mov_mr64_r64(2, 0))
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+            _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_ptr) // rdx = ptr
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(2, 0)) // [rdx] = rax
+            _intr_tmp_pop(ctx, base)
             return nil
         }
         if nm == "ptr_get_byte" {
@@ -498,15 +514,24 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
         if nm == "ptr_set_byte" {
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: ptr_set_byte expects 2 args"); return nil }
+            // Must not keep `ptr` only in a register across nested expression evaluation.
+            var base = _intr_tmp_push(ctx, 1)
+            if base == nil { return nil }
+            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+            if tmp_ptr == nil { _intr_tmp_pop(ctx, base); return nil }
+
             _emit_eval_int_to_rax(ctx, args[0], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = ptr
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+
             _emit_eval_int_to_rax(ctx, args[1], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            // byte [rdx] = al
-            bytes_extend(ctx["code"], insn_mov_mr8_al(2))
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+            _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_ptr) // rdx = ptr
+            bytes_extend(ctx["code"], insn_mov_mr8_al(2)) // byte [rdx] = al
             // Return the stored value (as int, 0..255) in RAX.
             bytes_extend(ctx["code"], insn_and_r64_imm32(0, 255))
+            _intr_tmp_pop(ctx, base)
             return nil
         }
         if nm == "malloc" || nm == "malloc_raw" {
@@ -791,18 +816,23 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - key >= 4096 => treated as a C-string pointer key
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
 
-            var tmp_map = locals["$tmp1"]
-            var tmp_key = locals["$tmp2"]
-            if tmp_map == nil || tmp_key == nil { err(ctx, "x64 native v0: missing temp slots for map_get"); return nil }
+            var base = _intr_tmp_push(ctx, 2)
+            if base == nil { return nil }
+            var tmp_map = _intr_tmp_off(ctx, locals, base + 0)
+            var tmp_key = _intr_tmp_off(ctx, locals, base + 1)
+            if tmp_map == nil || tmp_key == nil {
+                _intr_tmp_pop(ctx, base)
+                return nil
+            }
 
             // map -> spill
             _emit_eval_int_to_rax(ctx, args[0], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_map, 0)
 
             // key -> spill
             _emit_eval_int_to_rax(ctx, args[1], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_key, 0)
 
             // rdx = map
@@ -935,6 +965,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_cdqe())
             _emit_label(ctx, labels, l_done)
             _patch_local_fixups(ctx, labels, local_fixups)
+            _intr_tmp_pop(ctx, base)
             return nil
         }
 
@@ -1169,13 +1200,17 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             else { want = 2 }
             if args == nil || oren_list_len(args) != want { err(ctx, "x64 native v0: list op arity mismatch"); return nil }
 
-            var tmp_list = locals["$tmp1"]
+            var base = _intr_tmp_push(ctx, 2)
+            if base == nil { return nil }
+            var tmp_list = _intr_tmp_off(ctx, locals, base + 0)
+            var tmp_idx = _intr_tmp_off(ctx, locals, base + 1)
             var tmp_val = locals["$tmp2"]
             var tmp_count = locals["$tmp3"]
             var tmp_cap = locals["$tmp4"]
             var tmp_buf = locals["$tmp5"]
             var tmp_aux = locals["$tmp6"]
-            if tmp_list == nil || tmp_val == nil || tmp_count == nil || tmp_cap == nil || tmp_buf == nil || tmp_aux == nil {
+            if tmp_list == nil || tmp_idx == nil || tmp_val == nil || tmp_count == nil || tmp_cap == nil || tmp_buf == nil || tmp_aux == nil {
+                _intr_tmp_pop(ctx, base)
                 err(ctx, "x64 native v0: missing temp slots for list ops")
                 return nil
             }
@@ -1184,20 +1219,20 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             //
             // list/container -> rax, spill
             _emit_eval_int_to_rax(ctx, args[0], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_list, 0)
 
             // get/set/index_set: spill idx (arg#1) now.
             if !is_push {
                 _emit_eval_int_to_rax(ctx, args[1], locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                _emit_mov_mrbp_r64(ctx, 0 - tmp_aux, 0)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+                _emit_mov_mrbp_r64(ctx, 0 - tmp_idx, 0)
             }
 
             // set/index_set/push: spill value (last arg) now.
             if is_set || is_push {
                 _emit_eval_int_to_rax(ctx, args[want - 1], locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
                 _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
             }
 
@@ -1363,13 +1398,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 // return list
                 bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
                 _patch_local_fixups(ctx, labels, local_fixups)
+                _intr_tmp_pop(ctx, base)
                 return nil
             }
 
             // --- get / set ---
             //
-            // idx is in tmp_aux
-            _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_aux) // rcx = idx
+            // idx is in tmp_idx
+            _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx) // rcx = idx
 
             // idx >= 0
             bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
@@ -1403,6 +1439,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
                 bytes_extend(ctx["code"], insn_mov_rax_mrax())
                 _patch_local_fixups(ctx, labels, local_fixups)
+                _intr_tmp_pop(ctx, base)
                 return nil
             }
 
@@ -1410,6 +1447,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val)
             bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
             _patch_local_fixups(ctx, labels, local_fixups)
+            _intr_tmp_pop(ctx, base)
             return nil
         }
 
@@ -1436,13 +1474,18 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
         // Evaluate args left-to-right, spill to stack temps, then load into ABI arg registers.
         // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
+        //
+        // Important: this must be re-entrant for nested calls used as arguments, e.g.
+        //   add2(add2(1,2), add2(3,4))
+        // so we allocate spill slots from the intrinsic temp pool rather than fixed `$tmp_arg<i>` names.
+        var base = _intr_tmp_push(ctx, argc)
+        if base == nil { return nil }
         var i = 0
         while i < argc {
             _emit_eval_int_to_rax(ctx, args[i], locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var tmp_name = "$tmp_arg" + oren_int_to_string(i)
-            var tmp_off = locals[tmp_name]
-            if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name); return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            var tmp_off = _intr_tmp_off(ctx, locals, base + i)
+            if tmp_off == nil { _intr_tmp_pop(ctx, base); return nil }
             // Spill the full 64-bit value (keeps function pointer args intact).
             _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = rax
             i = i + 1
@@ -1452,23 +1495,23 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var regc = abi.max_int_reg_args(ctx["abi"])
         var shadow = abi.caller_shadow_bytes(ctx["abi"])
         while i < argc {
-            var tmp_name2 = "$tmp_arg" + oren_int_to_string(i)
-            var tmp_off2 = locals[tmp_name2]
-            if tmp_off2 == nil { err(ctx, "x64 native v0: missing temp slot " + tmp_name2); return nil }
+            var tmp_off2 = _intr_tmp_off(ctx, locals, base + i)
+            if tmp_off2 == nil { _intr_tmp_pop(ctx, base); return nil }
 
             if i < regc {
                 var reg = abi.int_arg_reg(ctx["abi"], i)
-                if reg == nil { err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+                if reg == nil { _intr_tmp_pop(ctx, base); err(ctx, "x64 native v0: unsupported call arg index"); return nil }
                 _emit_mov_r64_mrbp(ctx, reg, 0 - tmp_off2)
             } else {
                 // Stack args beyond register count are passed in the caller-reserved call area
                 // at [rsp + shadow + 8*(i-regc)].
                 _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2) // rax = arg[i]
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
                 var stack_disp = shadow + 8 * (i - regc)
                 var call_area = ctx["cur_call_area_bytes"]
                 if call_area == nil { call_area = 0 }
                 if stack_disp + 8 > call_area {
+                    _intr_tmp_pop(ctx, base)
                     err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+8) + ", have " + oren_int_to_string(call_area) + ")")
                     return nil
                 }
@@ -1486,6 +1529,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = [fnobj].code_ptr
             bytes_extend(ctx["code"], insn_call_rax())
         }
+        _intr_tmp_pop(ctx, base)
         return nil
     }
     if t == "Prefix" {

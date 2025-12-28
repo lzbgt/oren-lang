@@ -59,14 +59,15 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if ops == nil { return nil }
 
     // Compute the maximum argument count among calls in this function so we can:
-    // - reserve enough `$tmp_arg<i>` spill slots (argument evaluation is LTR and can contain nested calls)
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
     var max_call_argc = _max_call_argc_in_ops(ops)
 
     // Reset the intrinsic temp allocator for this function.
     // This protects intrinsic arg spilling from nested expression evaluation clobbering.
     ctx["intr_tmp_cursor"] = 0
-    ctx["intr_tmp_limit"] = 64
+    // Note: we intentionally keep this generous so nested calls and nested intrinsics can
+    // spill independently without clobbering each other. (Rolling: tune later.)
+    ctx["intr_tmp_limit"] = 256
 
     var fn_off = oren_list_len(ctx["code"])
     ctx["functions"][name] = fn_off
@@ -135,7 +136,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
     // These are distinct from `$tmp1..$tmp8` and are allocated via `_intr_tmp_push/_intr_tmp_pop`.
     var it = 0
-    while it < 64 {
+    while it < 256 {
         var nm_intr = "$tmp_intr" + oren_int_to_string(it)
         if locals[nm_intr] != nil { err(ctx, "x64 native v0: reserved local name " + nm_intr + " used"); return nil }
         locals[nm_intr] = local_next
@@ -168,16 +169,6 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         locals[bn2] = local_next
         local_next = local_next + 8
         ld = ld + 1
-    }
-
-    // Reserve arg temp spill slots used for call lowering.
-    var tmp_i = 0
-    while tmp_i < max_call_argc {
-        var nm = "$tmp_arg" + oren_int_to_string(tmp_i)
-        if locals[nm] != nil { err(ctx, "x64 native v0: reserved local name " + nm + " used"); return nil }
-        locals[nm] = local_next
-        local_next = local_next + 8
-        tmp_i = tmp_i + 1
     }
 
     var locals_size = local_next - 8
