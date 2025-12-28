@@ -23,6 +23,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 	     - ✅ x64 Windows PE now uses `.text` (RX) + `.rdata` (R) + `.data` (RW) so mutable globals no longer force `.rdata` writable
 	     - ✅ x64 call depth max is configurable at build time via `oren build --call-depth-max <n>` (default 8192)
 	     - ✅ x64 runtime env override: `OREN_CALL_DEPTH_MAX=<n>` is now supported in the entry stub (Linux ELF + Windows PE)
+	     - ✅ remote-run gate covers `OREN_CALL_DEPTH_MAX` on real x86_64 (Win11 PE + WSL2 ELF) when `OREN_REMOTE_RUN=1`
 	     - ⏭️ next: fn+line mapping / source file mapping, fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
 
 2) **Backend architecture unification (CoreIR boundary)** (L)

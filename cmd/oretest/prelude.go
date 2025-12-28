@@ -148,7 +148,60 @@ func remoteX64RemoteSubdirFromWorkdir(workdir string) string {
 	return filepath.Base(workdir)
 }
 
+func remoteX64SplitEnvAssignments(env string) []string {
+	// env is a space-separated list of KEY=VALUE pairs (no quoting).
+	// Keep this intentionally simple for Tier‑1 remote gates.
+	env = strings.TrimSpace(env)
+	if env == "" {
+		return nil
+	}
+	parts := strings.Fields(env)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if strings.Contains(p, "=") {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func remoteX64WinEnvPrefix(env string) string {
+	// Return a cmd.exe snippet that sets env vars and chains into the actual program command.
+	// Example: `set OREN_CALL_DEPTH_MAX=8&& set FOO=bar&& `
+	assign := remoteX64SplitEnvAssignments(env)
+	if len(assign) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, a := range assign {
+		b.WriteString("set ")
+		b.WriteString(a)
+		b.WriteString("&& ")
+	}
+	return b.String()
+}
+
+func remoteX64WslEnvPrefix(env string) string {
+	// Return a bash snippet that exports env vars for the program run.
+	// Example: `export OREN_CALL_DEPTH_MAX=8; export FOO=bar; `
+	assign := remoteX64SplitEnvAssignments(env)
+	if len(assign) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, a := range assign {
+		b.WriteString("export ")
+		b.WriteString(a)
+		b.WriteString("; ")
+	}
+	return b.String()
+}
+
 func remoteX64RunExitcodeFixtureCmd(workdir, src string, expectExit int) string {
+	return remoteX64RunExitcodeFixtureCmdEnv(workdir, src, expectExit, "")
+}
+
+func remoteX64RunExitcodeFixtureCmdEnv(workdir, src string, expectExit int, env string) string {
 	host := remoteX64Host()
 	proxyArg := remoteX64ProxyArg()
 
@@ -166,14 +219,18 @@ func remoteX64RunExitcodeFixtureCmd(workdir, src string, expectExit int) string 
 		subdir,
 		subdir,
 	)
+	winEnvPref := remoteX64WinEnvPrefix(env)
+	wslEnvPref := remoteX64WslEnvPrefix(env)
 	winRunCmd := fmt.Sprintf(
 		// Use delayed expansion so EXIT reflects the program's final ERRORLEVEL.
-		`cmd.exe /v:on /c "%s\\%s & echo EXIT=!ERRORLEVEL!"`,
+		`cmd.exe /v:on /c "%s%s\\%s & echo EXIT=!ERRORLEVEL!"`,
+		winEnvPref,
 		remoteWinDir,
 		winOut,
 	)
 	wslRunCmd := fmt.Sprintf(
-		`wsl.exe -e bash -lc "chmod +x %s/%s && %s/%s; echo EXIT=$?"`,
+		`wsl.exe -e bash -lc "%schmod +x %s/%s && %s/%s; echo EXIT=$?"`,
+		wslEnvPref,
 		remoteWslDir,
 		linuxOut,
 		remoteWslDir,
@@ -215,11 +272,15 @@ func remoteX64RunExitcodeFixtureCmd(workdir, src string, expectExit int) string 
 		proxyArg,
 		host,
 		wslRunCmd,
-		expectExit,
-	)
+			expectExit,
+		)
 }
 
 func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) string {
+	return remoteX64RunPrintFixtureCmdEnv(workdir, src, expectSubstring, "")
+}
+
+func remoteX64RunPrintFixtureCmdEnv(workdir, src string, expectSubstring string, env string) string {
 	host := remoteX64Host()
 	proxyArg := remoteX64ProxyArg()
 
@@ -237,9 +298,12 @@ func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) st
 		subdir,
 		subdir,
 	)
+	winEnvPref := remoteX64WinEnvPrefix(env)
+	wslEnvPref := remoteX64WslEnvPrefix(env)
 	winRunCmd := fmt.Sprintf(
 		// Use delayed expansion so EXIT reflects the program's final ERRORLEVEL.
-		`cmd.exe /v:on /c "%s\\%s > %s\\out_win.txt & echo EXIT=!ERRORLEVEL! & type %s\\out_win.txt"`,
+		`cmd.exe /v:on /c "%s%s\\%s > %s\\out_win.txt & echo EXIT=!ERRORLEVEL! & type %s\\out_win.txt"`,
+		winEnvPref,
 		remoteWinDir,
 		winOut,
 		remoteWinDir,
@@ -247,7 +311,8 @@ func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) st
 	)
 	// Note: preserve the program exit code by capturing it immediately, then printing output.
 	wslRunCmd := fmt.Sprintf(
-		`wsl.exe -e bash -lc "chmod +x %s/%s && %s/%s > %s/out_wsl.txt; rc=$?; echo EXIT=$rc; cat %s/out_wsl.txt"`,
+		`wsl.exe -e bash -lc "%schmod +x %s/%s && %s/%s > %s/out_wsl.txt; rc=$?; echo EXIT=$rc; cat %s/out_wsl.txt"`,
+		wslEnvPref,
 		remoteWslDir,
 		linuxOut,
 		remoteWslDir,
@@ -291,8 +356,8 @@ func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) st
 		proxyArg,
 		host,
 		wslRunCmd,
-		expectSubstring,
-	)
+			expectSubstring,
+		)
 }
 
 func runSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Duration) error {

@@ -1,0 +1,25 @@
+// Tier‑1 x86_64 remote-run fixture (Win11 + WSL2).
+//
+// Purpose:
+// - Validate that x64 native entry stubs honor the runtime env override:
+//     OREN_CALL_DEPTH_MAX=<n>
+//
+// Expected behavior:
+// - Default (no env override): returns 0.
+// - With `OREN_CALL_DEPTH_MAX=8`: should deterministically abort(1) via "call depth exceeded".
+
+fn sum_rec(n) {
+    // Non-tail recursion (not eligible for current TCO rewrite rules):
+    // return f(n-1) + n
+    if n <= 0 { return 0 }
+    return sum_rec(n - 1) + n
+}
+
+fn main() {
+    // Depth 50 is safe under the default max (8192), but should exceed max=8 quickly.
+    var s = sum_rec(50)
+    // 1..50 sum = 1275; keep a deterministic sanity check.
+    if s != 1275 { return 10 }
+    return 0
+}
+

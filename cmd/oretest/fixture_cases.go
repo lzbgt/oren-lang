@@ -1027,28 +1027,41 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 		})
 	}
 
-	if envBool("OREN_REMOTE_RUN", false) {
-		// Opt-in remote-run gate for x86_64 artifacts (Win11 + WSL2).
-		// See docs/REMOTE_X64_ENV.md for the proxy access workflow.
-		remoteX64 := []struct {
-			name            string
-			src             string
-			expectExit      int
-			expectSubstring string
-			timeout         time.Duration
-		}{
-			{name: "remote_x64_run_tier1_smoke_print", src: "tests/fixtures/tier1_native_smoke_main.oren", expectSubstring: "tier1 smoke ok", timeout: 5 * time.Minute},
-			{name: "remote_x64_run_tier1_abort_contract", src: "tests/fixtures/tier1_native_abort_contract_main.oren", expectExit: 1, timeout: 5 * time.Minute},
-		}
-
-		for _, rf := range remoteX64 {
-			workdir := filepath.Join("build", "tmp", "fixture_"+rf.name)
-			cmd := ""
-			if rf.expectSubstring != "" {
-				cmd = remoteX64RunPrintFixtureCmd(workdir, rf.src, rf.expectSubstring)
-			} else {
-				cmd = remoteX64RunExitcodeFixtureCmd(workdir, rf.src, rf.expectExit)
+		if envBool("OREN_REMOTE_RUN", false) {
+			// Opt-in remote-run gate for x86_64 artifacts (Win11 + WSL2).
+			// See docs/REMOTE_X64_ENV.md for the proxy access workflow.
+			remoteX64 := []struct {
+				name            string
+				src             string
+				env             string
+				expectExit      int
+				expectSubstring string
+				timeout         time.Duration
+			}{
+				{name: "remote_x64_run_tier1_smoke_print", src: "tests/fixtures/tier1_native_smoke_main.oren", expectSubstring: "tier1 smoke ok", timeout: 5 * time.Minute},
+				{name: "remote_x64_run_tier1_abort_contract", src: "tests/fixtures/tier1_native_abort_contract_main.oren", expectExit: 1, timeout: 5 * time.Minute},
+				// Validate runtime env override parity (x64 entry stubs):
+				// - Without env, this fixture should return 0.
+				// - With OREN_CALL_DEPTH_MAX=8, it should deterministically abort(1) via the call depth guard.
+				{name: "remote_x64_run_call_depth_env_override", src: "tests/fixtures/tier1_native_call_depth_env_override_main.oren", env: "OREN_CALL_DEPTH_MAX=8", expectExit: 1, timeout: 5 * time.Minute},
 			}
+
+			for _, rf := range remoteX64 {
+				workdir := filepath.Join("build", "tmp", "fixture_"+rf.name)
+				cmd := ""
+				if rf.expectSubstring != "" {
+					if rf.env != "" {
+						cmd = remoteX64RunPrintFixtureCmdEnv(workdir, rf.src, rf.expectSubstring, rf.env)
+					} else {
+						cmd = remoteX64RunPrintFixtureCmd(workdir, rf.src, rf.expectSubstring)
+					}
+				} else {
+					if rf.env != "" {
+						cmd = remoteX64RunExitcodeFixtureCmdEnv(workdir, rf.src, rf.expectExit, rf.env)
+					} else {
+						cmd = remoteX64RunExitcodeFixtureCmd(workdir, rf.src, rf.expectExit)
+					}
+				}
 
 			t := rf.timeout
 			if t == 0 {
