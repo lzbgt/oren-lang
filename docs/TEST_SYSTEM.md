@@ -22,6 +22,15 @@ This document explains the current state and the planned evolution.
   - `OREN_TEST_JOBS` (`./oretest --jobs`)
   - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
   - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
+- SIMD validation note:
+  - native SIMD is treated as an **optimization only** (scalar semantics are authoritative)
+  - the native SIMD suite (`tests/native/test_simd_suite.oren`) is executed **twice**:
+    - scalar baseline: `OREN_NO_SIMD=1` (expects `SIMD_ENABLED=0`)
+    - SIMD run: `OREN_ENABLE_SIMD=1` (expects `SIMD_ENABLED=1`) and compares stable outputs to scalar
+  - today, `./oretest` only performs the SIMD-on comparison when the *runner host* is `arm64` (NEON); x86_64 SIMD parity will expand this gate once SSE/AVX backends land
+  - logs:
+    - scalar: `build/logs/native_test_simd_suite.log`
+    - SIMD: `build/logs/native_test_simd_suite_simd.log`
 - rolling split (speed vs coverage):
   - default fast suite skips expensive fixture families (signing / OpenAPI export)
   - enable when needed:
