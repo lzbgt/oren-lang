@@ -45,9 +45,12 @@ fn _data_add_fnobj(ctx, fn_name) {
     //   [0] code_ptr (u64)  -- patched by emitter
     //   [8] env_ptr  (u64)  -- 0 for now (no closures in x64 v0)
     //
-    // NOTE: this does not yet implement the full canonical callable ABI
-    // (env,args_list wrappers). It is a convergence step so function values are
-    // not raw code pointers.
+    // Tier‑1 convergence note (rolling):
+    // - `code_ptr` is intended to point at a uniform callable wrapper
+    //   (`__oren_fnwrap_*` / `__oren_lambda_*`) so indirect calls are:
+    //     wrapper(env_ptr, args_list)
+    // - `env_ptr` is reserved for closures (captures); for now it is always 0 in
+    //   the x64 native backend.
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if ctx["fnobj_offs"] == nil { ctx["fnobj_offs"] = {} }

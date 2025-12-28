@@ -224,9 +224,18 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
 
         // Named function used in expression position => treat as a first-class function value.
-        // v0 representation: pointer to a small `{code_ptr, env_ptr}` object in the data blob.
+        // Representation: pointer to a small `{code_ptr, env_ptr}` object in the data blob.
+        //
+        // Tier‑1 convergence (rolling):
+        // - `code_ptr` points to a uniform callable wrapper `__oren_fnwrap_<name>` with signature:
+        //     fn __oren_fnwrap_name(__env, __args_list)
+        // - `env_ptr` is 0 for now (no closures on x64 native yet).
+        //
+        // This makes indirect calls backend/arch neutral and matches the shared lowering helpers
+        // in `lib/compiler/native_callable.oren`.
         if ctx["func_arity"] != nil && ctx["func_arity"][name] != nil {
-            var fnobj_off = _data_add_fnobj(ctx, name)
+            var wname = "__oren_fnwrap_" + name
+            var fnobj_off = _data_add_fnobj(ctx, wname)
             if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
 
             var lea_pos = oren_list_len(ctx["code"])
@@ -562,6 +571,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_malloc_size_in_rax(ctx, locals)
+            return nil
+        }
+
+        if nm == "oren_panic" {
+            // Minimal Tier‑1 convergence: `oren_panic(msg)` is a deterministic abort.
+            //
+            // Rolling note:
+            // - The x64 native backend does not inject the full diagnostic runtime yet, so the
+            //   message is not emitted (future: unify with `OREN_DIAG` contract).
+            // - The process exit code is stable (1), which is sufficient for invariants and
+            //   for shared callable wrappers (`native_callable.oren`).
+            if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_panic expects 1 arg"); return nil }
+            // Evaluate msg for side-effect parity (even though it is usually a string literal).
+            _emit_eval_int_to_rax(ctx, args[0], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _emit_abort_exitcode(ctx, 1)
             return nil
         }
 

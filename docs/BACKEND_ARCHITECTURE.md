@@ -114,8 +114,11 @@ This model makes:
 
 Some backends are still “mid-convergence”:
 
-- x86_64 native currently has a bring‑up path that supports function pointers and indirect calls without injecting the full runtime.
-- The roadmap is to converge x86_64 native on the same callable object ABI and runtime helpers as arm64.
+- x86_64 native now uses the **uniform callable ABI** for *function values + indirect calls*:
+  - `FuncValue = { code_ptr, env_ptr }` stored in a small “fnobj” record
+  - indirect calls build an `args_list` and call `code_ptr(env_ptr, args_list)`
+  - named function values point at synthesized wrappers `__oren_fnwrap_*` (env is `0` in x64 v0)
+- Remaining Tier‑1 gap: closures/lambdas in x86_64 native (non‑zero `env_ptr`) and consistent panic/diagnostic output.
 
 This is acceptable in rolling mode as long as:
 
@@ -179,4 +182,3 @@ To keep the codebase maintainable as targets grow:
 - AVM bytecode + capabilities: `docs/AVM_SPEC.md` and `docs/AVM_SPEC_V1.md`
 - `.obc` module linking (“OBX”): `docs/OBC_MODULE_LINKING.md`
 - Stdlib layering / distribution: `docs/STDLIB_LAYERS.md` and `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`
-

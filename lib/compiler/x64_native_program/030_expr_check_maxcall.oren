@@ -60,11 +60,9 @@ fn _expr_int_check(ctx, expr) {
                 if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
             }
         } else {
-            // No static arity info: do not allow spread on indirect/untracked calls.
-            if spread != nil {
-                err(ctx, "x64 native v0: call-site spread requires a named function")
-                return nil
-            }
+            // No static arity info: this is an indirect/untracked call (callable value in a
+            // local/param). Spread is permitted here: lowering expands the spread list into the
+            // synthesized args_list and the callee wrapper enforces arity at runtime.
         }
 
         var i = 0
@@ -291,6 +289,18 @@ fn _max_call_argc_in_ops(ctx, ops) {
 // but we should not over-reserve (large fixed pools bloat every stack frame and hurt recursion).
 fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     if nm == nil { return argc }
+
+    // Indirect calls (`f(x,y)` where `f` is a local/param holding a fnobj pointer) lower to:
+    // - build args_list (plus optional spread expansion loop temps)
+    // - call wrapper(env_ptr, args_list)
+    //
+    // This requires an extra spill slot for the synthesized args_list and, when spread is
+    // present, additional loop spills (spread/idx/len/elem).
+    if ctx != nil && ctx["declared_functions"] != nil && ctx["declared_functions"][nm] == nil {
+        if expr != nil && expr["spread"] != nil { return argc + 5 }
+        return argc + 1
+    }
+
     // Intrinsics with custom spill needs.
     if nm == "iadd" { return 1 }
     if nm == "ptr_set" { return 1 }

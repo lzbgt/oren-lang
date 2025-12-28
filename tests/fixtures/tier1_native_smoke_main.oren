@@ -51,6 +51,11 @@ fn main() {
     var f = inc
     if f(4) != 5 { return 60 }
 
+    // First-class function values for varargs functions:
+    // - indirect call must route through the uniform-call wrapper and preserve varargs packing.
+    var g = sum1
+    if g(1, 2, 3) != 6 { return 61 }
+
     // Short-circuit sanity (must not evaluate RHS when unnecessary).
     if 0 && boom() != 0 { return 70 }
 
