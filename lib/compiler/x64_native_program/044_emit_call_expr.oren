@@ -417,23 +417,96 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
                 k0 = k0 + 1
             }
         } else {
-            // Indirect call (no spread): build args_list on the heap via the native runtime list
-            // intrinsics. This keeps correctness simple across Win64/SysV while x64 Tier‑1
-            // call semantics are still converging.
-            //
-            // TODO(rolling): re-introduce a stack-backed args_list fast path once we have
-            // - a single verified list header layout contract for intrinsics, and
-            // - a robust, target-independent way to materialize ephemeral list headers.
-            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+            if argc <= 32 {
+                // Indirect call (no spread, small argc): stack-backed args_list fast path.
+                //
+                // IMPORTANT: do NOT use `$tmp_intrN` spill slots as the element buffer, because
+                // those stack slots are not guaranteed to be contiguous in memory (locals layout
+                // is map-driven). The list runtime expects `buf[idx]` at `buf + idx*8`.
+                //
+                // Instead, we reserve a small contiguous block on the stack at the call site:
+                //   [shadow space]            (Win64: 32 bytes; SysV: 0)
+                //   [list header: 4*qword]    (count, cap, buf_ptr, magic)
+                //   [buf: argc*qword]         (args)
+                //
+                // The callee may clobber only the shadow space; our header+buf live above it.
+                var shadow0 = abi.caller_shadow_bytes(ctx["abi"])
+                var payload = 32 + argc * 8
+                var alloc = shadow0 + payload
+                var rem = core.int_mod(alloc, 16)
+                if rem != 0 { alloc = alloc + (16 - rem) }
 
-            var k00 = 0
-            while k00 < argc {
-                var arg_name00 = "$tmp_intr" + oren_int_to_string(base2 + k00)
-                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name00}]}, locals)
+                // rsp -= alloc
+                bytes_extend(ctx["code"], insn_sub_rsp_imm32(alloc))
+
+                // r11 = header_ptr = rsp + shadow
+                bytes_extend(ctx["code"], insn_mov_r64_r64(11, 4)) // r11 = rsp
+                if shadow0 != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(11, shadow0)) }
+
+                // r12 = buf_ptr = header_ptr + 32
+                bytes_extend(ctx["code"], insn_mov_r64_r64(12, 11))
+                bytes_extend(ctx["code"], insn_add_r64_imm32(12, 32))
+
+                // header.count = argc  at [r11 + 0]
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
+                bytes_extend(ctx["code"], insn_cdqe())
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+                // header.cap = argc    at [r11 + 8]
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
+                bytes_extend(ctx["code"], insn_cdqe())
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+                // header.buf = (argc==0 ? 0 : buf_ptr)  at [r11 + 16]
+                if argc == 0 {
+                    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                    bytes_extend(ctx["code"], insn_cdqe())
+                } else {
+                    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
+                }
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+                // header.magic = LIST_MAGIC (1279870019)  at [r11 + 24]
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1279870019))
+                bytes_extend(ctx["code"], insn_cdqe())
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+                // Write buf[i] = spilled_arg[i]
+                var wi = 0
+                while wi < argc {
+                    var src_off = _intr_tmp_off(ctx, locals, base2 + wi)
+                    if src_off == nil { _intr_tmp_pop(ctx, base2); return nil }
+                    _emit_mov_r64_mrbp(ctx, 0, 0 - src_off) // rax = arg
+
+                    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 12)) // r10 = buf_ptr
+                    if wi != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(10, wi * 8)) }
+                    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+                    wi = wi + 1
+                }
+
+                // Spill args_list pointer for uniform downstream code.
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+                _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+            } else {
+                // Indirect call (no spread, large argc): heap list path (simple + avoids big stack frames).
+                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-                k00 = k00 + 1
+                _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+
+                var k00 = 0
+                while k00 < argc {
+                    var arg_name00 = "$tmp_intr" + oren_int_to_string(base2 + k00)
+                    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name00}]}, locals)
+                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+                    k00 = k00 + 1
+                }
             }
         }
 
@@ -531,6 +604,17 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
         bytes_extend(ctx["code"], insn_mov_rax_mrax())
         bytes_extend(ctx["code"], insn_call_rax())
+
+        // If we used the stack-backed args_list fast path, restore RSP now.
+        // (For other paths, this is a no-op; `alloc` is local to the branch above.)
+        if has_spread != true && argc <= 32 {
+            var shadow1 = abi.caller_shadow_bytes(ctx["abi"])
+            var payload1 = 32 + argc * 8
+            var alloc1 = shadow1 + payload1
+            var rem1 = core.int_mod(alloc1, 16)
+            if rem1 != 0 { alloc1 = alloc1 + (16 - rem1) }
+            bytes_extend(ctx["code"], insn_add_rsp_imm32(alloc1))
+        }
 
         _intr_tmp_pop(ctx, base2)
         return nil
