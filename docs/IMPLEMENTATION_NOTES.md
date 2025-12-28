@@ -142,6 +142,11 @@ Backends/runtime behavior (source of truth locations):
 - Native arm64 inliner: `lib/compiler/arm64_native_expr/030_lowering_c.oren`
 - Native x64 inliner: `lib/compiler/x64_native_program/040_emit_expr.oren`
 
+Naming note:
+
+- Stable stdlib symbols use the `STD_*` prefix (`STD_list_push`, `STD_list_len`).
+- Legacy lowercase `std_list_*` spellings are not part of the current linking scheme and should not be relied on.
+
 Docs that reference this contract:
 
 - `docs/LANGUAGE_SPEC.md` (builtin container sugar section)
@@ -172,4 +177,3 @@ rg -n \"case 13\" lib/avm/avm_native.inc
 
 Shell note (zsh): if you put backticks in an unquoted command string, zsh treats them as command substitution.
 Prefer code fences in docs, or escape backticks when running commands interactively.
-

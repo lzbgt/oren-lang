@@ -33,6 +33,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Concrete step landed: CoreIR v0 scaffold exists (`lib/compiler/coreir.oren`) and the x86_64 native backend now uses it for deterministic function metadata (decl order, arity, varargs).
    - Docs hygiene: keep IR docs aligned as CoreIR expands (`docs/IR_AND_COMPILER_INTERNALS.md`).
    - Reference: `docs/BACKEND_ARCHITECTURE.md`.
+   - Rolling cleanup: remove legacy/duplicate symbol spellings that can cause backend drift (e.g. prefer stable `STD_*` names for stdlib symbols).
 
 3) **OBC portability gate (AVM-universal bytecode)** (M)
    - `.obc` has no platform meaning; AVM should execute the same bytecode deterministically across hosts.
