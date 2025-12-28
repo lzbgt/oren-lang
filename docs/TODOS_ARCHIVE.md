@@ -31,6 +31,15 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `tests/modules/test_integration_suite.oren` exercises wrap/truncate, endian casts, and f32 rounding boundary.
 - Verified: `make stage1` + `./oretest --target macos` pass at the time this was moved out of the active TODO list.
 
+## Archived (2025-12-28) — Active TODO list compacted (x64/CoreIR focus)
+
+- Compressed `docs/TODOS.md` back to a short “top items only” tracker (rolling rule: 5–10 items).
+- The detailed x86_64 bring-up notes remain in git history and in the dedicated design docs:
+  - `docs/NATIVE_BACKEND.md`
+  - `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`
+  - `docs/BACKEND_ARCHITECTURE.md`
+  - `docs/REMOTE_X64_ENV.md`
+
 ## Archived (2025-12-21) — Trig for huge |x|: Payne–Hanek range reduction
 
 - Stdlib math:

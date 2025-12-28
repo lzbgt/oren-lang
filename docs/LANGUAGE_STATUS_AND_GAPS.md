@@ -80,10 +80,16 @@ production maturity requires both implementation *and* regression coverage.
 
 ### P1: Tooling quality (modern compiler UX)
 
-- **Modern CLI ergonomics**
-  - A modern compiler needs subcommands, structured help, and predictable flags
-    (Python `click`-like UX direction).
-  - This is a product maturity issue, not just “nice to have”.
+- **Modern CLI ergonomics (mostly done; polish remains)**
+  - The Stage1 compiler (`./oren`) already uses a structured subcommand model backed by `std:argparse`:
+    - `oren build|emit-c|meta|dump|scan|completion`
+    - `oren --help` and `oren <cmd> --help`
+    - machine-readable help: `oren --help=json`
+    - completion scripts: `oren completion bash|zsh` (see `docs/CLI_COMPLETION.md`)
+  - Remaining “production polish” gaps:
+    - consistent exit codes for all parse/validation errors
+    - a stable, documented contract for env/flag precedence across all subcommands
+    - optional `--json` structured output for build results (artifact list + hashes) beyond `--manifest`
 
 ### P1: Stdlib maturity
 
@@ -103,4 +109,3 @@ production maturity requires both implementation *and* regression coverage.
 - When a new feature lands, add a **test/fixture reference** here (it becomes living spec).
 - When an incompatibility is introduced, record it as a **rolling limitation** and link the
   TODO item that will remove it.
-

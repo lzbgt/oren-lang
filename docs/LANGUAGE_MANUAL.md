@@ -18,6 +18,22 @@ Oren is an **agent-native**, syscall-first language and toolchain:
   - Rolling bring-up path: Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent, but currently a growing “bring-up subset” (feature surface is expanding rapidly; see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md` for real-hardware validation).
 - **Portable** mode: compiles to `.obc` bytecode executed by AVM, supporting determinism, snapshots, and capability-governed virtualized domains (FS/NET/PROC/ENV/TIME).
 
+## 0.1) Compiler CLI quick reference (modern, machine-friendly)
+
+The Stage1 compiler (`./oren`) is intended to behave like a modern tool (Python `click` style):
+
+- Subcommands: `oren build`, `oren emit-c`, `oren meta`, `oren dump`, `oren scan`, `oren completion`
+- Human help:
+  - `oren --help`
+  - `oren build --help`
+- Machine-readable help (for tools/agents):
+  - `oren --help=json`
+- Shell completion (generate scripts):
+  - `oren completion bash`
+  - `oren completion zsh`
+
+See `docs/CLI_COMPLETION.md` for activation instructions.
+
 ## 1) Program structure
 
 Oren files are modules. A typical program has a `main` function:
