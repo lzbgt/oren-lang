@@ -390,7 +390,11 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     push_u32_le(out, rdata_raw_ptr)
     push_u32_le(out, 0); push_u32_le(out, 0)
     push_u16_le(out, 0); push_u16_le(out, 0)
-    push_u32_le(out, 1073741888) // Characteristics: CNT_INITIALIZED_DATA | MEM_READ (0x40000040)
+    // Rolling v0 note:
+    // - We keep just `.text` + `.rdata` for bring-up.
+    // - Some Tier‑1 features (e.g. call depth counters) require writable global storage.
+    //   Until we add a dedicated `.data` section, `.rdata` is marked writable.
+    push_u32_le(out, 3221225536) // CNT_INITIALIZED_DATA | MEM_READ | MEM_WRITE (0xC0000040)
 
     // Pad headers to SizeOfHeaders
     while oren_list_len(out) < size_of_headers { bytes_push(out, 0) }

@@ -73,6 +73,10 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - Prefer `+` everywhere.
   - `string_concat(a, b)` exists as a low-level native runtime helper but is treated as an internal primitive; the repo’s curated tests and audits intentionally avoid using it in higher-level code.
 - **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).
+- **W^X (x86_64 bring-up):** the minimal x64 ELF/PE emitters currently map the “data blob” writable to support
+  Tier‑1 bring-up features like a deterministic recursion guard (call depth counter). The production direction is:
+  - ELF: RX text PT_LOAD + RW data PT_LOAD
+  - PE: `.text` (RX) + `.rdata` (R) + `.data` (RW)
 
 ## CLI Usage
 ```bash

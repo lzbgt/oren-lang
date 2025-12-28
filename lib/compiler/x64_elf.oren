@@ -54,7 +54,11 @@ fn elf_build_prefix_x64(code, data, entry_off) {
 
     // Program Header (56 bytes)
     push_u32_le(p, 1) // PT_LOAD
-    push_u32_le(p, 5) // PF_R | PF_X
+    // Rolling v0 note:
+    // - We keep a single PT_LOAD segment for simplicity.
+    // - Some Tier‑1 features (e.g. call depth counters) require writable memory, so the
+    //   segment is temporarily RWX until we split into RX text + RW data segments.
+    push_u32_le(p, 7) // PF_R | PF_W | PF_X
     push_u64_le(p, 0)       // p_offset
     push_u64_le(p, base)    // p_vaddr
     push_u64_le(p, base)    // p_paddr

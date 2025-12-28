@@ -120,6 +120,13 @@ fn native_compile_program_x64(linked, platform) {
     _data_reserve_symtab(ctx, sym_names)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
+    // --- Stack safety (call depth guard; rolling Tier‑1) ---
+    //
+    // x64 native does not yet inject the full native runtime, so we keep a minimal
+    // call-depth counter and max in the data blob and instrument function entry/exit.
+    _data_reserve_call_depth_guard(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
     // --- Entry stub ---
     //
     // Align stack to 16B boundary early so both SysV and Win64 calls stay well-formed as we grow

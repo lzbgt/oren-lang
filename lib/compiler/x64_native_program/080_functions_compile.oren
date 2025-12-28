@@ -237,10 +237,15 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     var labels = {}
     var local_fixups = []
     var epilogue_label = _new_label(ctx, name + "_epilogue")
+
+    // Deterministic recursion guard (Tier‑1 direction): track a call-depth counter in the
+    // data blob. This requires the emitter to map the data blob writable (rolling v0).
+    _emit_call_depth_enter_guard_x64(ctx, labels, local_fixups)
     _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     _emit_label(ctx, labels, epilogue_label)
+    _emit_call_depth_exit_guard_x64(ctx)
     if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }
     bytes_extend(ctx["code"], insn_pop_rbp())
     bytes_extend(ctx["code"], insn_ret())

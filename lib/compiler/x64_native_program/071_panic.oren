@@ -109,6 +109,86 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
     return nil
 }
 
+fn _emit_call_depth_enter_guard_x64(ctx, labels, fixups) {
+    // Deterministic call depth guard (rolling Tier‑1):
+    //
+    // - increments a global call depth counter
+    // - aborts via `oren_panic("call depth exceeded")` when depth > max
+    //
+    // This is intentionally runtime-free: x64 native does not yet inject
+    // `lib/runtime_native.oren`, so we keep the state in the appended data blob.
+    //
+    // Requires:
+    // - ctx["call_depth_off"] and ctx["call_depth_max_off"] reserved in program entry.
+    // - the final ELF/PE emitter maps the data blob writable (rolling v0; see TODOs).
+    var off_depth = ctx["call_depth_off"]
+    var off_max = ctx["call_depth_max_off"]
+    if off_depth == nil || off_max == nil { err(ctx, "x64 native v0: call depth globals missing"); return nil }
+
+    // r10 = &call_depth
+    var lea0 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea0 + 3, "data_off": off_depth})
+    // r11 = *r10
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
+    // r11++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    // *r10 = r11
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
+
+    // r10 = &call_depth_max
+    var lea1 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea1 + 3, "data_off": off_max})
+    // r12 = *r10 (max)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 10))
+
+    // if depth <= max => ok
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(11, 12))
+    var l_ok = _new_label(ctx, "call_depth_ok")
+    _emit_jcc_to_label(ctx, fixups, "le", l_ok)
+
+    // Exceeded: panic with a stable message.
+    var msg_off = _data_add_cstr0(ctx, "call depth exceeded")
+    if msg_off == nil { _emit_abort_exitcode(ctx, 1); return nil }
+    var lea2 = oren_list_len(ctx["code"])
+    // Use a non-syscall-clobbered register: Linux syscalls clobber RCX/R11.
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(12, 0)) // r12 = msg ptr
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea2 + 3, "data_off": msg_off})
+    _emit_panic_with_msg_ptr(ctx, 12)
+
+    _emit_label(ctx, labels, l_ok)
+    return nil
+}
+
+fn _emit_call_depth_exit_guard_x64(ctx) {
+    // Decrement the global call depth counter (best-effort).
+    //
+    // Important: preserve RAX (return value). Only clobber scratch regs.
+    var off_depth = ctx["call_depth_off"]
+    if off_depth == nil { return nil }
+
+    // r10 = &call_depth
+    var lea0 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea0 + 3, "data_off": off_depth})
+    // r11 = *r10
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
+    // if r11 <= 0 => done
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "call_depth_exit_done")
+    _emit_jcc_to_label(ctx, fixups, "le", l_done)
+    // r11--
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(11, 1))
+    // *r10 = r11
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
 fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
     // Best-effort panic printing compatible with Tier‑1 bring-up.
     //

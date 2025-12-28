@@ -17,7 +17,9 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names **and offsets** via an embedded symtab (fixed-base emitters)
      - ✅ x64 map key-kind selection centralized in shared lowering: `known_key_kind` is inferred conservatively and required for map paths; x64 codegen does not re-infer from syntax (tagged values remain the full fix)
      - ✅ x64 `Index` / `oren_index_set` now honor `recv_kind` hints from shared lowering to avoid dynamic LIST/MAP dispatch (still validates runtime magic; inferred-map requires deterministic `known_key_kind`)
+     - ✅ x64 deterministic call depth guard (rolling): function prologues/epilogues increment/decrement a counter and abort via `oren_panic("call depth exceeded")` when depth > max
      - ⏭️ next: fn+line mapping / source file mapping, fully remove remaining key-kind heuristics (tagged values or explicit key typing), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
+     - ⏭️ next: restore W^X by splitting RX code and RW data in both emitters (ELF PT_LOAD split; PE add `.data`) and make `OREN_CALL_DEPTH_MAX` configurable for x64 (env parse in entry stub or a `--call-depth-max` flag)
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).

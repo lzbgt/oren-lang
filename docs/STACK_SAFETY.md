@@ -49,6 +49,22 @@ Today, both backends have a **deterministic recursion guard** (rolling):
   - call depth is tracked per-thread via the registered native thread nodes (rolling v0:
     thread selection is based on the same SP-vs-top heuristic used by the GC stack scanner)
 
+### x86_64 native bring-up (Tier‑1 direction)
+
+The x86_64 native backend is still in bring-up and does **not** inject the full native runtime yet.
+
+However, it now has a minimal deterministic recursion guard (rolling):
+
+- compiler inserts a call-depth enter/exit sequence into every compiled function
+- state is kept in the x64 “data blob” (counter + max), and `oren_panic("call depth exceeded")`
+  is used as the deterministic failure mode
+
+Current limitations (tracked in `docs/TODOS.md`):
+
+- the call-depth max is currently a fixed default (8192) in x64 v0 (no env override yet)
+- the ELF/PE emitters currently map the data blob writable as a rolling simplification; the
+  production direction is RX text + RW data (W^X)
+
 ## What “Stack Safe” Means for Oren
 
 For production maturity, we want:

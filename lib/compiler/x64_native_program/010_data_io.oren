@@ -70,6 +70,37 @@ fn _data_add_fnobj(ctx, fn_name) {
     return off
 }
 
+fn _data_add_u64(ctx, val) {
+    // Append a raw u64 to the data blob and return its byte offset.
+    //
+    // x64 native uses the appended data blob for:
+    // - string literals
+    // - fnobj records (function values)
+    // - best-effort panic symbolication tables
+    // - (rolling) mutable globals like call-depth counters (requires writable mappings)
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = oren_list_len(ctx["data"])
+    push_u64_le(ctx["data"], val)
+    return off
+}
+
+fn _data_reserve_call_depth_guard(ctx) {
+    // Reserve global storage for the x64 native call depth guard.
+    //
+    // Note: x64 v0 does not yet inject the full native runtime, so we keep this minimal
+    // and self-contained (counter + max in the data blob, updated by compiler-inserted code).
+    if ctx == nil { return nil }
+    if ctx["call_depth_off"] != nil { return nil }
+    var off_depth = _data_add_u64(ctx, 0)
+    var off_max = _data_add_u64(ctx, 8192)
+    if off_depth == nil || off_max == nil { err(ctx, "x64 native v0: failed to reserve call depth globals"); return nil }
+    ctx["call_depth_off"] = off_depth
+    ctx["call_depth_max_off"] = off_max
+    return nil
+}
+
 fn _emit_linux_write_cstr(ctx, s) {
     // Emit SYS_write(1, s_ptr, len) where s_ptr is a RIP-relative pointer to appended data.
     var meta = _data_add_cstr_newline(ctx, s)
