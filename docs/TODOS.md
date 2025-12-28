@@ -14,8 +14,8 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
      - ✅ x64 lambdas/closures now lower to heap fnobj `{code_ptr, env_ptr}` where `env_ptr` is a capture-by-value list (when captures exist)
      - ✅ `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic ...` line (best-effort) before aborting
      - ✅ `oren_panic(msg)` now emits a best-effort `STACK_TRACE` (RBP chain, up to 16 return addrs) on Linux+Win64 before aborting
-     - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names via an embedded symtab (fixed-base emitters)
-     - ⏭️ next: richer symbolication (addr→fn+offset, fn+line mapping), richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
+     - ✅ x64 `STACK_TRACE` now symbolicates to best-effort function names **and offsets** via an embedded symtab (fixed-base emitters)
+     - ⏭️ next: fn+line mapping / source file mapping, richer `OREN_DIAG` parity with `lib/runtime_native/110_mem_diag.oren`, and closure perf (avoid per-call `args_list` allocations for common cases)
 
 2) **Backend architecture unification (CoreIR boundary)** (L)
    - Define a canonical CoreIR that owns semantics (closures/varargs/container ops/short-circuit), and make backends thin adapters (ABI + emit only).
