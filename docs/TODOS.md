@@ -11,6 +11,7 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Next: converge callable ABI on the canonical `{code_ptr, env_ptr}` + `args_list` model (closures + safe indirect calls) across arm64/x64.
    - Next: varargs (`...rest`) lowering + spread semantics, including efficient list packing and tail-call-safe wrapper stubs.
    - Next: expand x64 parity for containers, pointers, floats/SIMD (keep fixtures small + deterministic; keep remote-run opt-in).
+   - Next: make x64 intrinsic arg evaluation re-entrant (remove hidden dependence on `$tmp1..$tmp8` across nested expression evaluation; use dedicated arg spill slots / a temp allocator), so nested container literals + nested intrinsic calls are always correct.
    - Next: implement tagged value representation (or boxed ints) so x64 supports full-range int keys/values (remove the `<4096` heuristic) and can align map key types with AVM (nil/bool/int/string) safely.
    - Next: implement x64 native runtime injection (allocator + strings + lists/maps) so x64 can run non-trivial stdlib code without host libc dependencies.
    - References: `docs/NATIVE_BACKEND.md`, `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`, `docs/REMOTE_X64_ENV.md` (includes the canonical SSH ProxyCommand snippet).
