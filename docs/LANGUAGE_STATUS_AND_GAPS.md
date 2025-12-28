@@ -97,6 +97,7 @@ production maturity requires both implementation *and* regression coverage.
   - Rolling status:
     - Native backends (arm64 + x64): key-kind guessing (`key < 4096`) is removed for map get/set; when key kind is not inferable statically, native codegen performs a runtime dispatch via tracking metadata (`oren_find_node(key).kind == STRING` → string key; else int key). Tagged values remain the full fix.
     - x64 native now also propagates `recv_kind` on `Index` so codegen can avoid dynamic LIST/MAP dispatch when the receiver kind is known (still validates runtime magic; remaining unknown cases need a principled representation)
+    - Tier‑1 x86_64 evidence (empty map + dynamic string key): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote gate via `OREN_REMOTE_RUN=1`)
 - **Varargs/spread parity (all backends + indirect calls)**
   - Varargs must be “boring and correct”: same semantics everywhere, including closures.
   - Rolling status: x64 native supports `fn (x, ...rest) { ... }` lambdas; see Tier‑1 parity fixture above.

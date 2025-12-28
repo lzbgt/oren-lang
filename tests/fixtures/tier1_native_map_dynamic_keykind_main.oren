@@ -1,0 +1,32 @@
+// Tier‑1 x86_64 native parity: maps must accept dynamic string keys without explicit key-kind.
+//
+// Why this matters:
+// - In the language model, `m[k]` should work when `k` is a string value produced at runtime,
+//   even when the map starts empty (`{}`) and therefore has no syntactic key kind to infer.
+// - Tier‑1 native backends implement this by inferring key kind using allocation tracking
+//   metadata for string values (kind=STRING).
+//
+// This fixture is gated by `OREN_REMOTE_RUN=1` and executed on Win11 + WSL2 x86_64.
+// See: docs/REMOTE_X64_ENV.md
+
+fn main() {
+    // Empty map => key kind is not known at compile-time.
+    var m = {}
+
+    // Dynamic string key produced at runtime (must be tracked as kind=STRING).
+    //
+    // We build a NUL-terminated "ab" manually to avoid depending on higher-level string helpers
+    // that may not yet be available in every Tier‑1 x64 runtime slice.
+    var k = malloc_raw(3)
+    ptr_set_byte(k, 97) // 'a'
+    ptr_set_byte(iadd(k, 1), 98) // 'b'
+    ptr_set_byte(iadd(k, 2), 0)
+    oren_track_alloc(k, 3, 1) // 1=STRING
+    m[k] = 7
+
+    // Validate lookup via literal key too.
+    if m["ab"] != 7 { return 1 }
+
+    print("tier1 map dynamic keykind ok")
+    return 0
+}

@@ -7,14 +7,15 @@
 // - kind=0: integer key
 // - kind=1: C-string key pointer
 //
-// Note: without tagging, x64 v0 cannot safely infer key kinds for *dynamic* keys
-// (integers >= 4096 are indistinguishable from pointers). As an incremental step,
-// callers may pass a compile-time known key_kind (for literal keys) so integer keys
-// >= 4096 work when the compiler knows they're integers.
+// Note: without full tagged values, x64 v0 must avoid guessing key kinds from syntax.
+// Tier‑1 uses a minimal tracked-allocation list:
+// - tracked kind=1 values are strings
+// - untracked values are treated as integers (including integers >= 4096)
 //
-// Tier‑1 correctness rule:
-// - when key kind is unknown at compile time, the map path aborts(1) (no heuristics).
-// Full fix: tagged values.
+// This avoids unsafe `strcmp` on integers and removes the old "key < 4096" heuristic
+// dependency for dynamic keys.
+//
+// Full fix remains a real tagged value representation.
 
 // Map intrinsic helper:
 // Assumes map/key/value have already been evaluated and spilled at the provided stack slots.
