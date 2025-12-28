@@ -1,0 +1,28 @@
+// Type name resolver must normalize alias-qualified type strings even when they
+// have leading typed-buffer / slice prefixes like `[]`.
+//
+// This matters for whole-program impl lowering:
+// - module renamer namespaces import aliases (e.g. `itmod` -> `M0_itmod`)
+// - type_name_resolve rewrites `<alias_ns>.Type` -> `<dep_prefix>Type`
+// - impl receiver types must be normalized too, otherwise method sugar breaks
+//
+// This test is intentionally "type-only": it does not rely on the existence of a
+// runtime typed buffer for `MyRange`; it only validates compile-time normalization.
+
+import itmod "iterable_mod.oren"
+
+trait Z {
+    fn z(self);
+}
+
+impl Z for []itmod.MyRange {
+    fn z(self) { return 7 }
+}
+
+var x: []itmod.MyRange = nil
+var r = x.z()
+if r != 7 { exit(1) }
+
+print("ok")
+exit(0)
+

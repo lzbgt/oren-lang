@@ -26,6 +26,13 @@ fn _rename_ann_type(pairs, ann) {
         ann = oren_string_slice(ann, 1, oren_string_len(ann))
     }
 
+    // Preserve leading typed-buffer / slice prefixes: `[]T`, `[][]T`, ...
+    var slices = ""
+    while oren_string_len(ann) >= 2 && oren_string_char_at(ann, 0) == "[" && oren_string_char_at(ann, 1) == "]" {
+        slices = slices + "[]"
+        ann = oren_string_slice(ann, 2, oren_string_len(ann))
+    }
+
     // Split base name vs array suffixes like `T[16][4]`.
     var base = ann
     var suffix = ""
@@ -42,7 +49,7 @@ fn _rename_ann_type(pairs, ann) {
     // Fast path: plain name.
     var mapped = rename_lookup(pairs, base)
     if mapped != "" {
-        return stars + mapped + suffix
+        return stars + slices + mapped + suffix
     }
 
     // Dotted: rename only the leftmost segment (alias).
@@ -53,14 +60,14 @@ fn _rename_ann_type(pairs, ann) {
             var tail = oren_string_slice(base, i, oren_string_len(base))
             var head2 = rename_lookup(pairs, head)
             if head2 != "" {
-                return stars + head2 + tail + suffix
+                return stars + slices + head2 + tail + suffix
             }
             break
         }
         i = i + 1
     }
 
-    return stars + base + suffix
+    return stars + slices + base + suffix
 }
 
 fn collect_toplevel_rename_pairs(prog, prefix) {

@@ -211,6 +211,8 @@ func main() {
 		"tests/modules/test_spawn_join_timeout.oren",
 		// Core language lowering guard: impl receivers must accept typed-buffer spellings like `[]i32`.
 		"tests/modules/test_trait_impl_typed_buffer_receiver.oren",
+		// Core compiler invariant: `[]alias.Type` must normalize before impl lowering.
+		"tests/modules/test_type_name_resolve_slice_prefix_alias.oren",
 		// Deterministic "OOM-like" behavior guard for typed buffers.
 		"tests/modules/test_buffer_payload_limit.oren",
 	}
@@ -259,6 +261,7 @@ func main() {
 		"tests/modules/test_trait_cross_module_calls.oren",
 		"tests/modules/test_trait_blanket_impl_any.oren",
 		"tests/modules/test_trait_impl_typed_buffer_receiver.oren",
+		"tests/modules/test_type_name_resolve_slice_prefix_alias.oren",
 		"tests/modules/test_optimizer_baseline.oren",
 		"tests/modules/test_enum.oren",
 		"tests/modules/test_match_enum.oren",
