@@ -88,6 +88,9 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 3) **HPC server performance + math/linalg maturation** (M)
    - Expand SIMD correctness coverage (NaN/Inf/sign-bit edges) + stable perf harness reporting.
+   - Tier‑1 SIMD parity roadmap:
+     - arm64: keep NEON fast paths deterministic and covered by `tests/native/test_simd_suite.oren`
+     - x86_64: implement SIMD kernels with an SSE2 baseline (AVX2 optional) once x64 native reaches full semantic parity (no “fast-math” shortcuts); add a scalar-vs-SIMD parity suite on Linux+Windows.
    - References: `docs/HPC_SERVER_PLAN.md`, `docs/AVM_NEON_MAPPING_PLAN.md`.
 
 4) **Toolchain self-hosting gates (fmt/pkg/test/LSP)** (M)
@@ -96,27 +99,9 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
 
 ### Recently Completed (Rolling)
 
-- **C backend entry parity**: the C backend now supports `fn main()` without colliding with the host `int main(...)` symbol, and auto-calls the user `main` after module top-level statements.
-- **Compiler int literals unified**: `lib/compiler/int_lit.oren` is the single source of truth for int literal parsing across optimizer/transpiler/native backends, including u64 bit-pattern literals (e.g. `9223372036854775808` → `i64_min`).
-- **x86_64 native callables converge**: function values now point at `__oren_fnwrap_*` wrappers and indirect calls lower as `wrapper(env_ptr, args_list)`; `oren_panic` exists as a minimal deterministic abort for wrappers/invariants.
-- **x86_64 native lambdas/closures converge**: lambda literals now lower to heap-allocated fnobj records with env capture lists, and lambda wrappers `__oren_lambda_*` implement the uniform call ABI.
-- **x86_64 native panic contract converge (best-effort)**: `oren_panic(msg)` now emits a stable `OREN_DIAG kind=panic code=1 msg=<msg>` line (Linux+Win64) before aborting with exit code 1.
-- **x86_64 native stack trace converge (best-effort)**: `oren_panic(msg)` now emits `STACK_TRACE` and up to 16 raw return addresses via RBP-walking (Linux+Win64) before aborting.
-- **x86_64 native stack trace symbolication (best-effort)**: x64 native now embeds a symtab in the data blob and prints best-effort function names alongside return addresses (fixed-base ELF/PE).
-- **x64 backend modularized for reviewability**: `lib/compiler/x64_native_program.oren` now uses `// @include` chunks under `lib/compiler/x64_native_program/` to avoid large-file context overflow while keeping namespace stability.
-- **x64 re-entrant temp spilling**: x64 native v0 now sizes the `$tmp_intr*` spill pool per-function based on AST analysis (avoids large fixed stack frames while keeping nested calls/intrinsics correct).
-- **ARM64 `/` semantics fixed for Tier‑1 parity**: `int / int` now lowers to `SDIV` (signed trunc-toward-zero) in the arm64 native backend; integration suite adds signed division asserts.
-- **Arithmetic invalid cases standardized**: native backends now deterministically abort on div-by-zero / `i64_min / -1` and shift counts outside `0..63`, matching AVM and the C backend runtime.
-- **Invalid arithmetic fixtures added**: `oretest` now exercises div0 / overflow / shift-oob panic behavior in the local native+C backends and ensures x64 ELF/PE builds exist for the same cases.
-- **Container ops first milestone (arm64 native)**: list indexing `xs[i]` and index assignment `xs[i]=v` now lower to native code directly (no `oren_list_get` / `oren_index_set` call), with a deterministic fallback to `oren_map_get` / `oren_map_set` for non-list containers; `oren_index_set` runtime semantics now match the spec (lists do not auto-grow).
-- **Container ops second milestone (arm64 native)**: `oren_list_len(xs)` and `oren_list_push(xs, v)` now use native fast-paths (len is fully inlined; push is inlined when `count < cap`, otherwise falls back to runtime growth).
-- **Container ops third milestone (arm64 native)**: `std:list` namespace calls `list.len(xs)` / `list.push(xs, v)` now lower to the same intrinsics (no wrapper call overhead); `list.push` preserves std semantics by returning `nil`.
-- **Whole-program function DCE (linker)**: module linking now prunes unreachable top-level functions for executable builds, so importing stdlib modules no longer forces tier‑1 native v0 backends to codegen unused helpers (e.g. `std:list.slice_view` string/map literals).
-- **Type-name resolution parity (`[]` + aliases)**: the compiler now preserves `[]` prefixes in annotation renaming and resolves `[]alias.Type` across modules before impl/method-call lowering; impl receivers now accept full type spellings like `[]i32`.
-- **Key-kind inference unification (x64 native)**: `impl_lowering.oren` now annotates `oren_map_get` / `oren_map_set` / `oren_index_set` calls with `known_key_kind` when deterministically inferable; x64 native emit no longer inspects key AST types as a fallback.
-- **Test throughput**: `oretest` now runs runtime diagnostic fixtures in parallel (bounded by `--fixture-jobs`) to reduce wall time during rolling development.
-- **oretest modularized**: the curated runner is split into `cmd/oretest/*.go` modules, and x86_64 validation was consolidated into an integration-first Tier‑1 smoke (local build existence + minimal opt-in remote-run).
-- **oretest x64 remote configurability**: the Win11+WSL2 remote host/proxy/paths can be overridden via env (`OREN_REMOTE_X64_*`) without editing source; see `docs/REMOTE_X64_ENV.md`.
-- **Legacy Makefile runner removed**: `make test-legacy` now aliases `./oretest --full` (parallel, curated) and the old sequential shell runner has been deleted.
-- **HPC iteration performance**: `for x in iterable` no longer allocates a fresh `[ok, value]` pair on every iteration; the loop reuses a preallocated `out_pair` via `oren_iter_next(container, idx, out_pair)` across native/C/AVM, and the `Iterable` trait extension signature is updated to match.
-- **Docs coverage**: `docs/LANGUAGE_MANUAL.md` now includes a “fixtures as living spec” index pointing at key `tests/native/fixtures` and x64 bring-up fixtures.
+- Tier‑1 x86_64 native bring-up: callable wrappers (`__oren_fnwrap_*` + uniform `args_list`) and a deterministic `oren_panic` contract (stable `OREN_DIAG` + best-effort `STACK_TRACE`) on Linux+Win64.
+- Native x86_64 emit hygiene: ELF/PE segment permissions (no RWX), and call-depth guard (`--call-depth-max`) for deterministic recursion failure.
+- C backend parity: user `fn main()` no longer collides with host `main`, and is auto-called after top-level statements.
+- Tooling throughput: `oretest` is integration-first and parallel where safe (fixtures + opt-in remote x64 runs).
+
+Rolling note: we avoid long “completed lists” here. If you need historical detail, use `docs/TODOS_ARCHIVE.md` and `git log`.

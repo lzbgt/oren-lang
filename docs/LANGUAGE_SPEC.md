@@ -1085,6 +1085,7 @@ The native ARM64 backend supports low-level intrinsics for performance and syste
 SIMD enablement (rolling):
 
 - SIMD is an **optimization only**; semantics must match the scalar reference behavior.
+- Tier‑1 direction: x86_64 will expose a matching intrinsic family mapped to SSE2 (baseline) and optionally AVX2, but this is not yet treated as implemented until it has parity tests and stable feature detection across Linux+Windows.
 - Native runtime uses env gating for native backend outputs:
   - `OREN_ENABLE_SIMD=1` enables SIMD fast paths when available.
   - `OREN_NO_SIMD=1` disables SIMD (wins over enable).

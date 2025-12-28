@@ -981,7 +981,7 @@ Design goals:
 - isolate hot loops so NEON microkernels can replace them without changing semantics
 - deterministic accumulation order for consensus and testing
 
-SIMD (arm64 NEON-first) in the native runtime (rolling):
+SIMD (Tier‑1 HPC: arm64 NEON now, x86_64 SSE/AVX next) in the native runtime (rolling):
 
 - SIMD is **opt-in** and must not change semantics (scalar results are authoritative).
 - Enable/disable (native backend outputs only):
@@ -989,6 +989,7 @@ SIMD (arm64 NEON-first) in the native runtime (rolling):
   - `OREN_NO_SIMD=1` disables SIMD (wins over enable).
 - Determinism guard: scalar vs SIMD paths must remain bit-identical for the covered kernels.
   - Primary regression suite: `tests/native/test_simd_suite.oren`.
+  - Current reality: arm64 NEON fast paths are the most mature (macOS + Linux). x86_64 SIMD (SSE2 baseline, AVX2 optional) is planned once the x64 backend reaches full Tier‑1 semantic parity.
 
 ## 9) Deterministic math (no host libm)
 

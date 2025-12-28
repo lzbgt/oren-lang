@@ -60,13 +60,16 @@ Eigen-style libraries require **monomorphization**:
 
 Runtime trait objects are optional and should not be in hot loops.
 
-### 5) SIMD support (arm64 NEON first)
+### 5) SIMD support (Tier‑1: arm64 NEON + x86_64 SSE/AVX)
 
-Server-side HPC on arm64 requires:
+Server-side HPC on Tier‑1 platforms requires:
 
-- SIMD vector types and/or intrinsics (NEON)
+- SIMD vector types and/or intrinsics:
+  - arm64: NEON (128-bit)
+  - x86_64: SSE2 baseline (128-bit), AVX2 optional (256-bit) once determinism constraints are met
 - feature gating and dispatch (scalar fallback + NEON fast path)
 - deterministic rounding rules (especially around `f32`)
+- fixed reduction order (no reassociation) so results are replayable / consensus-safe
 
 ### 6) Concurrency (server runtime reality)
 

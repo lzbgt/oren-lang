@@ -29,6 +29,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 - Native backend notes: `docs/NATIVE_BACKEND.md`
 - C backend notes: `docs/C_BACKEND.md`
 - Memory notes: `docs/MEMORY.md`
+- Remote x86_64 (Win11 + WSL2) workflow: `docs/REMOTE_X64_ENV.md`
 
 ## 4) Concurrency
 
