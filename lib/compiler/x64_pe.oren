@@ -63,7 +63,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     //   IAT (N+1 entries)
     //   hint/name for each imported func
     //   dll name
-    //   user data blob (string literals, etc.)
+    //   (no user data; user data lives in `.data` so `.rdata` can stay read-only)
     //
     // We record offsets for RVAs and patch descriptors later.
     var rdata = bytes_new()
@@ -130,6 +130,8 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     var text_rva = abi.x64_v0_windows_text_rva()
     var text_vsize = oren_list_len(code)
     var rdata_rva = text_rva + align_up(text_vsize, sect_align)
+    // `.data` follows `.rdata` (SectAlign pages). `.rdata` contains only the import table.
+    var data_rva = rdata_rva + align_up(oren_list_len(rdata), sect_align)
 
     // Patch thunk entries with RVA to hint/name.
     var hn_exit_rva = rdata_rva + off_hint_exit
@@ -163,12 +165,18 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     var import_dir_rva = rdata_rva + off_import_desc
     var import_dir_size = 40
 
-    // ---- Append user data ----
+    // ---- Build `.data` (user data blob) ----
     //
-    // Keep user data 8-byte aligned for future u64 tables.
-    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
-    var off_user_data = oren_list_len(rdata)
-    if user_data != nil { bytes_extend(rdata, user_data) }
+    // This contains:
+    // - string literals
+    // - fnobj records (function values)
+    // - symtab / debug tables
+    // - mutable globals (e.g. call depth counters)
+    //
+    // Keep it 8-byte aligned for u64 tables.
+    var data = bytes_new()
+    if user_data != nil { bytes_extend(data, user_data) }
+    while int_mod(oren_list_len(data), 8) != 0 { bytes_push(data, 0) }
 
     // ---- Apply code fixups (rel32 call + rip-relative IAT load) ----
     //
@@ -213,18 +221,19 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
             set_u32_le(code, disp_pos, disp2)
         }
         if f["type"] == "rip_rdata_lea" {
-            // lea rdx, [rip+disp32] where target points into appended user data.
+            // Backward-compatible alias: previously we used `rip_rdata_lea` for user-data.
+            // User-data now lives in `.data`.
             var disp_pos2 = f["pos"]
             var data_off = f["data_off"]
             var insn_start2 = disp_pos2 - 3
             var next_rip2 = text_rva + (insn_start2 + 7)
-            var target_rva2 = rdata_rva + off_user_data + data_off
+            var target_rva2 = data_rva + data_off
             var disp3 = target_rva2 - next_rip2
             if disp3 < 0 { disp3 = 4294967296 + disp3 }
             set_u32_le(code, disp_pos2, disp3)
         }
         if f["type"] == "rip_data_lea" || f["type"] == "rip_data_lea_rsi" {
-            // lea r64, [rip+disp32] where target points into appended user data (fnobj, cstr, etc).
+            // lea r64, [rip+disp32] where target points into `.data` (fnobj, cstr, etc).
             //
             // x64_native_program.oren uses this fixup for first-class function values:
             // it emits `lea rax,[rip+disp32]` and later the caller loads `[rax]` as code_ptr.
@@ -232,7 +241,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
             var data_off = f["data_off"]
             var insn_start2 = disp_pos2 - 3
             var next_rip2 = text_rva + (insn_start2 + 7)
-            var target_rva2 = rdata_rva + off_user_data + data_off
+            var target_rva2 = data_rva + data_off
             var disp3 = target_rva2 - next_rip2
             if disp3 < 0 { disp3 = 4294967296 + disp3 }
             set_u32_le(code, disp_pos2, disp3)
@@ -248,7 +257,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
             // Store absolute VA (ImageBase + .text RVA + fn offset). This emitter does not
             // produce relocations, so the base is fixed (0x400000).
             var addr = image_base + text_rva + target_off2
-            set_u64_le(rdata, off_user_data + data_off2, addr)
+            set_u64_le(data, data_off2, addr)
         }
         if f["type"] == "rip_code_lea" {
             // lea r64, [rip+disp32] where target is a function entry in .text.
@@ -270,9 +279,10 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     }
 
     // ---- Build headers ----
-    var n_sections = 2
+    var n_sections = 3
     var text_raw_size = align_up(oren_list_len(code), file_align)
     var rdata_raw_size = align_up(oren_list_len(rdata), file_align)
+    var data_raw_size = align_up(oren_list_len(data), file_align)
 
     // PE headers size:
     // DOS(64) + stub/pad to e_lfanew (0x80) + PE sig(4) + COFF(20) + OPT(240) + SECHDR(40*n)
@@ -283,11 +293,12 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
 
     var text_raw_ptr = size_of_headers
     var rdata_raw_ptr = align_up(text_raw_ptr + text_raw_size, file_align)
+    var data_raw_ptr = align_up(rdata_raw_ptr + rdata_raw_size, file_align)
 
     var size_of_code = text_raw_size
-    var size_of_init_data = rdata_raw_size
+    var size_of_init_data = rdata_raw_size + data_raw_size
 
-    var size_of_image = align_up(rdata_rva + align_up(oren_list_len(rdata), sect_align), sect_align)
+    var size_of_image = align_up(data_rva + align_up(oren_list_len(data), sect_align), sect_align)
 
     // ---- DOS header ----
     var out = bytes_new()
@@ -359,7 +370,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     // Pad optional header to 240 bytes
     while oren_list_len(out) - opt_start < 240 { bytes_push(out, 0) }
 
-    // ---- Section headers (2 * 40 bytes) ----
+    // ---- Section headers (3 * 40 bytes) ----
     // .text
     var name_text = ".text"
     var nb = oren_bytes_from_string(name_text)
@@ -390,10 +401,22 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     push_u32_le(out, rdata_raw_ptr)
     push_u32_le(out, 0); push_u32_le(out, 0)
     push_u16_le(out, 0); push_u16_le(out, 0)
-    // Rolling v0 note:
-    // - We keep just `.text` + `.rdata` for bring-up.
-    // - Some Tier‑1 features (e.g. call depth counters) require writable global storage.
-    //   Until we add a dedicated `.data` section, `.rdata` is marked writable.
+    push_u32_le(out, 1073741888) // CNT_INITIALIZED_DATA | MEM_READ (0x40000040)
+
+    // .data (user data blob)
+    var name_data = ".data"
+    nb = oren_bytes_from_string(name_data)
+    j = 0
+    while j < 8 {
+        if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
+        j = j + 1
+    }
+    push_u32_le(out, oren_list_len(data)) // VirtualSize
+    push_u32_le(out, data_rva)
+    push_u32_le(out, data_raw_size)
+    push_u32_le(out, data_raw_ptr)
+    push_u32_le(out, 0); push_u32_le(out, 0)
+    push_u16_le(out, 0); push_u16_le(out, 0)
     push_u32_le(out, 3221225536) // CNT_INITIALIZED_DATA | MEM_READ | MEM_WRITE (0xC0000040)
 
     // Pad headers to SizeOfHeaders
@@ -405,6 +428,9 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, capsule, cap_allow_d
     while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
     // .rdata raw
     bytes_extend(out, rdata)
+    while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
+    // .data raw
+    bytes_extend(out, data)
     while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
 
     var w = oren_write_bytes(out_path, out)

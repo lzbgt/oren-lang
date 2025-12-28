@@ -75,8 +75,8 @@ bring-up fixtures are **ABI facts**, not language constraints.
 - **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).
 - **W^X (x86_64 bring-up):**
   - Linux ELF now uses **separate PT_LOAD segments**: RX (headers+code) + RW (data blob). No RWX pages.
-  - Windows PE still uses a minimal 2-section layout; mutable globals currently live in the same “data blob”
-    as literals/import tables until we add a dedicated `.data` section for RW state.
+  - Windows PE now uses a **3-section layout**: `.text` (RX) + `.rdata` (R) + `.data` (RW). Mutable globals
+    (e.g. call depth counters) live in `.data`.
 
 ## CLI Usage
 ```bash
