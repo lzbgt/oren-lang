@@ -57,6 +57,10 @@ Older details live in `docs/TODOS_ARCHIVE.md` (and in git history).
    - Expand SIMD correctness coverage (NaN/Inf/sign-bit edges) + stable perf harness reporting.
    - References: `docs/HPC_SERVER_PLAN.md`, `docs/AVM_NEON_MAPPING_PLAN.md`.
 
+4) **Toolchain self-hosting gates (fmt/pkg/test/LSP)** (M)
+   - Keep Go bootstrap/tools canonical for now; add Oren-native tools behind explicit gates and promote only with reliability/perf acceptance tests.
+   - Reference: `docs/TOOLCHAIN_SELF_HOSTING.md`.
+
 ### Recently Completed (Rolling)
 
 - **Compiler int literals unified**: `lib/compiler/int_lit.oren` is the single source of truth for int literal parsing across optimizer/transpiler/native backends, including u64 bit-pattern literals (e.g. `9223372036854775808` → `i64_min`).
