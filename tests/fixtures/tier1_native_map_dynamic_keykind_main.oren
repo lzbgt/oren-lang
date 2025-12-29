@@ -27,6 +27,19 @@ fn main() {
     // Validate lookup via literal key too.
     if m["ab"] != 7 { return 1 }
 
+    // Deterministic map iteration (Tier‑1 parity rule):
+    // iteration order must be stable and key-sorted (matches C backend + native runtime).
+    //
+    // Insert in reverse order to ensure the implementation does not accidentally return insertion order.
+    var m2 = {}
+    m2["b"] = 1
+    m2["a"] = 2
+    var ks = []
+    for k2 in m2 { oren_list_push(ks, k2) }
+    if oren_list_len(ks) != 2 { return 2 }
+    if ks[0] != "a" { return 3 }
+    if ks[1] != "b" { return 4 }
+
     print("tier1 map dynamic keykind ok")
     return 0
 }

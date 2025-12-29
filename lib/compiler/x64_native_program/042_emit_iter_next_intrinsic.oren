@@ -10,7 +10,7 @@
 // - LIST heap objects (magic='LIST'): yield list elements
 //   - Special-case: list slice views for typed buffers:
 //     - [buf, off, len] or [buf, off, len, stride]
-// - MAP heap objects (magic='MAP\\0'): yield keys (in insertion order; v0 does not sort yet)
+// - MAP heap objects (magic='MAP\\0'): yield keys in deterministic order (entries kept sorted)
 // - BUF heap objects (magic='BUF\\0'): yield numeric elements by tag
 // - Raw pointers treated as C strings (container>=4096): yield bytes until NUL
 //
@@ -326,7 +326,7 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     _emit_mov_mrbp_r64(ctx, 0 - tmp_ok, 0)
     _emit_jmp_to_label(ctx, local_fixups, l_compute_done)
 
-    // --- Map path: yield key at idx (in insertion order) ---
+    // --- Map path: yield key at idx (deterministic order) ---
     _emit_label(ctx, labels, l_is_map)
     // count -> r8
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
