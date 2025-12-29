@@ -62,6 +62,54 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
     return nil
 }
 
+fn _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, false_label) {
+    // Emit branch to `false_label` when `cond` is false.
+    //
+    // Rolling note:
+    // - integer comparisons use `cmp` flags + Jcc mapping
+    // - float comparisons must be lowered via IEEE-aware ucomisd sequences
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+    if local_fixups == nil { err(ctx, "x64 native v0: missing local_fixups"); return nil }
+    if false_label == nil { err(ctx, "x64 native v0: missing false label"); return nil }
+
+    // Float compare condition: compute boolean into RAX, then branch on RAX==0.
+    if _cond_is_cmp_infix(cond) != nil {
+        var l = cond["left"]
+        var r = cond["right"]
+        if _x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r) {
+            _emit_float_cmp_to_bool_x64(ctx, cond["op"], l, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "e", false_label)
+            return nil
+        }
+    }
+    if cond["type"] == "Prefix" && cond["op"] == "!" {
+        var inner = cond["right"]
+        if _cond_is_cmp_infix(inner) != nil {
+            var l2 = inner["left"]
+            var r2 = inner["right"]
+            if _x64_expr_is_floaty(ctx, l2) || _x64_expr_is_floaty(ctx, r2) {
+                _emit_float_cmp_to_bool_x64(ctx, inner["op"], l2, r2, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                // !x : invert boolean then branch on RAX==0.
+                bytes_extend(ctx["code"], insn_xor_r64_imm32(0, 1))
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+                _emit_jcc_to_label(ctx, local_fixups, "e", false_label)
+                return nil
+            }
+        }
+    }
+
+    // Integer/truthy condition fallback.
+    _emit_cmp_from_cond(ctx, cond, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    var false_cc = _cond_false_cc_for_cond(cond)
+    if false_cc == nil { err(ctx, "x64 native v0: unsupported condition"); return nil }
+    _emit_jcc_to_label(ctx, local_fixups, false_cc, false_label)
+    return nil
+}
+
 fn _new_label(ctx, prefix) {
     if ctx["label_seq"] == nil { ctx["label_seq"] = 0 }
     ctx["label_seq"] = ctx["label_seq"] + 1

@@ -42,7 +42,7 @@ Status legend:
 | Type annotations (syntax) | Rolling | Parser supports `: type_name`; lowering uses hints | Manual/spec: type annotation sections |
 | Traits + impl blocks (static-first) | Rolling | Parser: `lib/compiler/parser_parse/**`; Lowering: impl rewrite passes under `lib/compiler/**` | Tests: `tests/modules/test_trait_*.oren` |
 | `dyn` / runtime trait objects | Planned | Design docs (static-first + opt-in runtime polymorphism) | Track: `docs/TODOS.md` |
-| Floats (`f64` container) + cast sugar (`f32/f64/i64/u64`) | Rolling | Front-end cast lowering: `lib/compiler/type_ann_lowering.oren`; Bytecode: `lib/compiler/codegen_bytecode/**`; C runtime helpers: `lib/runtime/050_io_misc.inc`; Native: arm64 `lib/compiler/arm64_native_expr/**`, x86_64 `lib/compiler/x64_native_program/047_emit_float_intrinsics.oren` | Tier‑1 x86_64 fixture: `tests/fixtures/tier1_native_float_ops_main.oren` (remote gate via `OREN_REMOTE_RUN=1`); SIMD suite exercises float kernels: `tests/native/test_simd_suite.oren` |
+| Floats (`f64` container) + casts (`f32/f64/i64/u64/bool`) + comparisons | Rolling | Front-end cast lowering: `lib/compiler/type_ann_lowering.oren`; Bytecode: `lib/compiler/codegen_bytecode/**`; C runtime helpers: `lib/runtime/050_io_misc.inc`; Native: arm64 `lib/compiler/arm64_native_expr/**`, x86_64 `lib/compiler/x64_native_program/047_emit_float_intrinsics.oren` + `lib/compiler/x64_native_program/050_emit_cmp_labels.oren` | Tier‑1 x86_64 fixture: `tests/fixtures/tier1_native_float_ops_main.oren` (remote gate via `OREN_REMOTE_RUN=1`); SIMD suite exercises float kernels: `tests/native/test_simd_suite.oren` |
 
 ## Containers and performance
 

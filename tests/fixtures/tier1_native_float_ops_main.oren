@@ -28,6 +28,18 @@ fn main() {
     if bool(-0.0) != false { return 8 }
     if bool(1.0 / 2.0) != true { return 9 }
 
+    // Float comparisons in expression + condition context (IEEE-ordered; -0.0 == 0.0).
+    if 1.0 < 2.0 != true { return 10 }
+    if 2.0 < 1.0 != false { return 11 }
+    if 2.0 >= 2.0 != true { return 12 }
+    if 2.0 > 2.0 != false { return 13 }
+    if 0.0 == -0.0 != true { return 14 }
+    if 0.0 != -0.0 != false { return 15 }
+
+    // Prefix ! on float comparisons inside conditions.
+    if !(1.0 < 2.0) { return 16 }
+    if !(0.0 == -0.0) { return 17 }
+
     print("tier1 float ops ok")
     return 0
 }

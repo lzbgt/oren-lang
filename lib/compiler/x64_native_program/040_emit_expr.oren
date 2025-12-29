@@ -1574,6 +1574,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - for compare operand: reuse cmp lowering and setcc based on "false"
             // - otherwise: compare operand to 0 and set if equal
             if _cond_is_cmp_infix(r) != nil {
+                // Float compares require IEEE-aware lowering (ucomisd + unordered handling).
+                if _x64_expr_is_floaty(ctx, r["left"]) || _x64_expr_is_floaty(ctx, r["right"]) {
+                    _emit_float_cmp_to_bool_x64(ctx, r["op"], r["left"], r["right"], locals)
+                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                    // Invert the boolean (0/1).
+                    bytes_extend(ctx["code"], insn_xor_r64_imm32(0, 1))
+                    return nil
+                }
                 _emit_cmp_from_cond(ctx, r, locals)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
@@ -1684,6 +1692,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
         if _cond_is_cmp_infix(expr) != nil {
             // Compare-expression lowering: result is 0/1 in RAX (bool-as-int).
+            if _x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r) {
+                _emit_float_cmp_to_bool_x64(ctx, op, l, r, locals)
+                return nil
+            }
             _emit_cmp_from_cond(ctx, expr, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))

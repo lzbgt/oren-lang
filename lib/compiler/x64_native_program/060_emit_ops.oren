@@ -119,12 +119,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             var cond = op["cond"]
             var else_label = _new_label(ctx, "if_else")
             var end_label = _new_label(ctx, "if_end")
-            _emit_cmp_from_cond(ctx, cond, locals)
+            _emit_jcc_false_for_cond_x64(ctx, cond, locals, local_fixups, else_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            // Jump to else if condition is false.
-            var false_cc = _cond_false_cc_for_cond(cond)
-            if false_cc == nil { err(ctx, "x64 native v0: unsupported if op"); return nil }
-            _emit_jcc_to_label(ctx, local_fixups, false_cc, else_label)
 
             _emit_ops_in_fn(ctx, op["then"], locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -139,11 +135,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             var end_label2 = _new_label(ctx, "while_end")
 
             _emit_label(ctx, labels, cond_label)
-            _emit_cmp_from_cond(ctx, op["cond"], locals)
+            _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label2)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var w_false = _cond_false_cc_for_cond(op["cond"])
-            if w_false == nil { err(ctx, "x64 native v0: unsupported while op"); return nil }
-            _emit_jcc_to_label(ctx, local_fixups, w_false, end_label2)
 
             _emit_label(ctx, labels, body_label)
             _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
@@ -167,11 +160,8 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_label(ctx, labels, cond_label2)
-            _emit_cmp_from_cond(ctx, op["cond"], locals)
+            _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label3)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var f_false = _cond_false_cc_for_cond(op["cond"])
-            if f_false == nil { err(ctx, "x64 native v0: unsupported for op"); return nil }
-            _emit_jcc_to_label(ctx, local_fixups, f_false, end_label3)
 
             _emit_label(ctx, labels, body_label2)
             _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, post_label2, end_label3)
