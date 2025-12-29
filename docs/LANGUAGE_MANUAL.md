@@ -256,6 +256,43 @@ Strings are double-quoted:
 var s = "hello"
 ```
 
+Rolling semantics (today):
+
+- Strings are **immutable byte strings** (UTF‑8 by convention).
+- All current backends store strings as **NUL‑terminated byte sequences** internally.
+  - Practical consequence: embedded `\\0` is not supported as a stable cross-backend value.
+
+Common operations:
+
+- Concatenation uses `+`:
+
+  ```oren
+  var s = "hello" + " " + "world"
+  ```
+
+- Length uses `s.len()` (when the receiver is known as `: string`) or the explicit helper:
+
+  ```oren
+  var n = s.len()
+  // or:
+  var n2 = oren_string_len(s)
+  ```
+
+- Slice uses `oren_string_slice(s, start, end)`:
+  - indices clamp to `[0, len]`
+  - empty/out-of-range slices return `""`
+
+  ```oren
+  var mid = oren_string_slice("abcdef", 1, 5) // "bcde"
+  ```
+
+- Single-byte char extraction uses `oren_string_char_at(s, i)` (returns a 1-byte string).
+
+Notes:
+
+- Legacy code sometimes uses `string_concat(a, b)` directly; prefer `a + b` in modern Oren so
+  backends can choose the optimal lowering.
+
 ## 3) Variables and assignment
 
 Declare with `var`:
@@ -1172,6 +1209,10 @@ are the canonical incremental contract for what the x64 backend supports today:
 
 - `tests/fixtures/x64_*_main.oren` are compiled for Linux ELF + Windows PE in `oretest`.
 - Remote execution (Win11 + WSL2) is opt-in; see `docs/REMOTE_X64_ENV.md`.
+- High-signal Tier‑1 fixtures (remote-gated via `OREN_REMOTE_RUN=1`):
+  - Closures + varargs: `tests/fixtures/tier1_native_lambda_varargs_main.oren`
+  - Maps (empty map + dynamic string key kind): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren`
+  - Strings (`+`, `len`, `slice`): `tests/fixtures/tier1_native_string_ops_main.oren`
 
 ## 13) Where to go next
 

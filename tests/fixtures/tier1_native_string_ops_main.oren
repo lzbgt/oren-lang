@@ -1,0 +1,22 @@
+fn main() {
+    var s0 = "ab"
+    var s1 = "cd"
+    var s = s0 + s1
+
+    if oren_string_eq(s, "abcd") != true { return 1 }
+    if oren_string_len(s) != 4 { return 2 }
+
+    var mid = oren_string_slice(s, 1, 3)
+    if oren_string_eq(mid, "bc") != true { return 3 }
+
+    // Clamp behavior (out of range => whole string).
+    var cl = oren_string_slice(s, -5, 100)
+    if oren_string_eq(cl, "abcd") != true { return 4 }
+
+    // Ensure concat works with non-literal string temporaries.
+    var t = "X" + mid + "Y"
+    if oren_string_eq(t, "XbcY") != true { return 5 }
+
+    print("tier1 string ops ok")
+    return 0
+}

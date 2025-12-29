@@ -78,6 +78,8 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
   - Local build existence + format checks are validated by the curated runner.
   - Real-hardware x86_64 run validation is opt-in (Win11 + WSL2): `docs/REMOTE_X64_ENV.md`
     - Tier‑1 parity fixture (closures + varargs): `tests/fixtures/tier1_native_lambda_varargs_main.oren` (gated by `OREN_REMOTE_RUN=1`)
+    - Tier‑1 parity fixture (map dynamic key-kind on empty maps): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (gated by `OREN_REMOTE_RUN=1`)
+    - Tier‑1 parity fixture (string ops: `+` / `len` / `slice`): `tests/fixtures/tier1_native_string_ops_main.oren` (gated by `OREN_REMOTE_RUN=1`)
 
 ## What’s Still Missing for Production Maturity (Gap List)
 
@@ -95,7 +97,7 @@ production maturity requires both implementation *and* regression coverage.
   - Any heuristic that guesses key types (e.g. based on numeric range) is a semantics risk.
   - Direction: a tagged value model or explicit key typing at IR level.
   - Rolling status:
-    - Native backends (arm64 + x64): key-kind guessing (`key < 4096`) is removed for map get/set; when key kind is not inferable statically, native codegen performs a runtime dispatch via tracking metadata (`oren_find_node(key).kind == STRING` → string key; else int key). Tagged values remain the full fix.
+    - Native backends (arm64 + x64): “magic numeric range” key typing is removed from compiler lowering/codegen decisions; when key kind is not inferable statically, native codegen can perform a runtime dispatch via tracking metadata (`oren_find_node(key).kind == STRING` → string key; else treat as int key). The native runtime still keeps a small-int fast path (`key < 4096`) to avoid allocation-list scans; this is a bring-up optimization, not a semantics rule. Tagged values remain the full fix.
     - x64 native now also propagates `recv_kind` on `Index` so codegen can avoid dynamic LIST/MAP dispatch when the receiver kind is known (still validates runtime magic; remaining unknown cases need a principled representation)
     - Tier‑1 x86_64 evidence (empty map + dynamic string key): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote gate via `OREN_REMOTE_RUN=1`)
 - **Varargs/spread parity (all backends + indirect calls)**

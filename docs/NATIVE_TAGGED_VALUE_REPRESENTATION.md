@@ -20,9 +20,13 @@ This document is **design guidance** for converging the **native backend** (arm6
 3) **Native backend** (today):
    - values are mostly treated as **untagged `i64` carriers** in registers/stack.
    - heap objects (lists/maps) are recognized via **magic words** at fixed offsets (e.g. `'LIST'`, `'MAP\0'` in x64 bring‑up).
-   - **Rolling status (x86_64 bring-up):** the historical “`key < 4096`” map key heuristic is removed.
-     - map get/set now require an explicit `known_key_kind` hint inferred during shared lowering (conservative; unknown cases abort on the map path)
-     - this is still not a final value model: it is an incremental step until the native backend adopts an explicit tagged representation (so key types are carried as data, not guessed or assumed)
+   - **Rolling status (arm64 + x86_64):** maps still need to distinguish key kinds (`int` vs `string`) because the native runtime stores a `key_kind` per entry.
+     - Current interim strategy avoids “magic numeric range” semantics by using **tracked-allocation metadata**:
+       - string keys are tracked heap strings (`oren_track_alloc(..., kind=STRING)`),
+       - dynamic `oren_map_get(m, key)` can consult `oren_find_node(key)` to detect `STRING` vs “untracked” (treat as `int`).
+     - For performance, the native runtime keeps a small-int fast path (`key < 4096`) to avoid scanning the tracked allocation list; this is a bring-up optimization, not a semantics rule.
+     - The compiler still performs best-effort key-kind inference from syntax and local assignments so hot code can avoid runtime dispatch where possible.
+     - This remains a stopgap until the native backend adopts an explicit tagged value representation where the key kind is carried in the value itself.
 
 ### Why a tagged representation is required
 

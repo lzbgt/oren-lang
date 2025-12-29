@@ -494,6 +494,26 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _intr_tmp_pop(ctx, base)
             return nil
         }
+        if nm == "oren_string_len" {
+            _emit_intrinsic_oren_string_len_x64(ctx, expr, locals)
+            return nil
+        }
+        if nm == "oren_string_slice" {
+            _emit_intrinsic_oren_string_slice_x64(ctx, expr, locals)
+            return nil
+        }
+        if nm == "string_concat" {
+            _emit_intrinsic_string_concat_x64(ctx, expr, locals)
+            return nil
+        }
+        if nm == "oren_string_eq" {
+            _emit_intrinsic_oren_string_eq_x64(ctx, expr, locals)
+            return nil
+        }
+        if nm == "oren_int_from_string" {
+            _emit_intrinsic_oren_int_from_string_x64(ctx, expr, locals)
+            return nil
+        }
         if nm == "malloc" || nm == "malloc_raw" {
             if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: malloc expects 1 arg"); return nil }
 
@@ -1569,6 +1589,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var op = expr["op"]
         var l = expr["left"]
         var r = expr["right"]
+        if op == "+" {
+            var handled = _emit_infix_add_or_string_concat_x64(ctx, expr, locals)
+            if handled == 1 { return nil }
+        }
         if op == "&&" || op == "||" {
             // Short-circuit boolean operators.
             //

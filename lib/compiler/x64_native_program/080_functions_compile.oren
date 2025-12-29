@@ -15,6 +15,11 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     var ops = _analyze_supported_fn_body(ctx, fn_node)
     if ops == nil { return nil }
 
+    // Best-effort "stringy" tracking (rolling):
+    // Used to decide whether `+` lowers to numeric add or `string_concat`.
+    // This is per-function state; do not carry across functions.
+    ctx["locals_stringy"] = {}
+
     // Compute the maximum argument count among calls in this function so we can:
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
     var max_call_argc = _max_call_argc_in_ops(ctx, ops)

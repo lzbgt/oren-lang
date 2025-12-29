@@ -1132,11 +1132,22 @@ Self-hosting relies on a small runtime API (implemented in C, callable from Oren
 - `oren_args()` for CLI args
 - `oren_read_file(path)` / `oren_write_file(path, content)` for I/O
 - `oren_system(cmd)` / `oren_exit(code)` for building and exit status
-- `oren_string_len(s)` / `oren_string_char_at(s, i)` / `oren_char(code)` for string/char work
+- **Strings / chars (portable core surface):**
+  - `oren_string_len(s)`
+  - `oren_string_char_at(s, i)` (returns a 1-byte string)
+  - `oren_string_slice(s, start, end)` (clamps indices; empty/out-of-range returns `""`)
+  - `oren_char(code)` (build 1-byte string from `0..255`)
+- **String concatenation (portable syntax):**
+  - use `a + b` (backends lower to the appropriate helper; do not rely on `string_concat(...)` existing outside native mode)
 - `oren_list_len(xs)` / `oren_list_push(xs, v)` for list work
 - `oren_new_map(pairs...)` / `oren_map_len(m)`
 - `oren_map_get(m, key)` / `oren_map_set(m, key, value)` (key-kind aware: `int` vs `string`)
 - `oren_map_get_str/int` / `oren_map_set_str/int` (explicit key-kind, used by stdlib + native backends)
+
+Native backend note (rolling):
+
+- Some helper symbols exist in the syscall-first native runtime (e.g. `oren_string_eq`, `oren_int_from_string`, `string_concat`) to support bring-up and stdlib glue.
+- These should be treated as **native-only** unless/until we standardize them across C + AVM + native.
 
 ## Not Implemented (Yet)
 - user-defined methods / inheritance (classes are currently data-only; long-term direction is traits + composition)

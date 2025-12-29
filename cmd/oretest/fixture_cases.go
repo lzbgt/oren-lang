@@ -1041,6 +1041,7 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			{name: "remote_x64_run_tier1_smoke_print", src: "tests/fixtures/tier1_native_smoke_main.oren", expectSubstring: "tier1 smoke ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_lambda_varargs_print", src: "tests/fixtures/tier1_native_lambda_varargs_main.oren", expectSubstring: "tier1 lambda varargs ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_map_dynamic_keykind_print", src: "tests/fixtures/tier1_native_map_dynamic_keykind_main.oren", expectSubstring: "tier1 map dynamic keykind ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_string_ops_print", src: "tests/fixtures/tier1_native_string_ops_main.oren", expectSubstring: "tier1 string ops ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_abort_contract", src: "tests/fixtures/tier1_native_abort_contract_main.oren", expectExit: 1, timeout: 5 * time.Minute},
 			// Validate runtime env override parity (x64 entry stubs):
 			// - Without env, this fixture should return 0.

@@ -55,6 +55,7 @@ Status legend:
 | Deterministic map iteration | Rolling | C runtime keeps keys sorted; native runtime sorts lazily on iteration | Tests: `tests/native/test_integration_suite.oren` (map iteration); Runtime: `lib/runtime/040_lists_maps.inc`, `lib/runtime_native/130_printing.oren` |
 | Typed map ops (`oren_map_get_str/int`, `oren_map_set_str/int`) | Rolling | Native runtime: `lib/runtime_native/130_printing.oren`; C runtime: `lib/runtime/040_lists_maps.inc`; Native lowering selects typed ops when key kind is known | Used by stdlib codecs: `lib/std/json.oren`, `lib/std/yaml.oren`, `lib/std/cbor.oren` |
 | Typed buffers `[]i32`, `[]f64`, ... | Rolling | Stdlib: `lib/std/buffer.oren` + runtime helpers | Docs: `docs/HPC_SERVER_PLAN.md` |
+| Strings: concat (`+`), `len`, `slice` (Tier‑1 x86_64) | Rolling | C backend: string `+` via `oren_add` (`lib/runtime/030_ops_compare.inc`), plus `oren_string_len`/`oren_string_slice`; Native backend: `string_concat`/`oren_string_len`/`oren_string_slice`/`oren_string_eq` (`lib/runtime_native/150_strings.oren`, `lib/runtime_native/160_iteration.oren`); x64 native lowering: `lib/compiler/x64_native_program/046_emit_string_intrinsics.oren` | Tier‑1 remote fixture: `tests/fixtures/tier1_native_string_ops_main.oren` (`OREN_REMOTE_RUN=1`) |
 
 ## Runtime model (determinism, safety, AVM)
 
