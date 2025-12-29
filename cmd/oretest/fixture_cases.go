@@ -1041,6 +1041,7 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			{name: "remote_x64_run_tier1_smoke_print", src: "tests/fixtures/tier1_native_smoke_main.oren", expectSubstring: "tier1 smoke ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_atomics_print", src: "tests/fixtures/tier1_native_atomics_main.oren", expectSubstring: "tier1 atomics ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_typed_buffers_print", src: "tests/fixtures/tier1_native_typed_buffers_main.oren", expectSubstring: "tier1 typed buffers ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_forin_typed_buffers_print", src: "tests/fixtures/tier1_native_forin_typed_buffers_main.oren", expectSubstring: "tier1 forin typed buffers ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_lambda_varargs_print", src: "tests/fixtures/tier1_native_lambda_varargs_main.oren", expectSubstring: "tier1 lambda varargs ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_map_dynamic_keykind_print", src: "tests/fixtures/tier1_native_map_dynamic_keykind_main.oren", expectSubstring: "tier1 map dynamic keykind ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_map_get_dynamic_key_print", src: "tests/fixtures/tier1_native_map_get_dynamic_key_main.oren", expectSubstring: "tier1 map get dynamic key ok", timeout: 5 * time.Minute},

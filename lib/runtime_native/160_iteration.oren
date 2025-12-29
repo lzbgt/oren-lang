@@ -23,12 +23,17 @@ fn oren_iter_next(container, idx, out_pair) {
             // List: yield elements.
             if kind == 2 {
                 var count = ptr_get(container)
+                var view_ok = 0
 
                 // Typed buffer views are represented as lists for portability:
                 // - slice view:   [buf, off, len]
                 // - strided view: [buf, off, len, stride]
                 //
                 // `for x in view` should iterate the underlying buffer values, not the metadata fields.
+                //
+                // Rolling semantic rule:
+                // - If the list matches the view shape and `buf` is a valid typed buffer, iteration is
+                //   bounded by `len` (element2) and must not leak the metadata fields.
                 if count == 3 || count == 4 {
                     var b = oren_list_get(container, 0)
                     var off = oren_list_get(container, 1)
@@ -36,36 +41,39 @@ fn oren_iter_next(container, idx, out_pair) {
                     var stride = 1
                     if count == 4 { stride = oren_list_get(container, 3) }
 
-                    if off >= 0 && n >= 0 && stride > 0 && idx < n {
+                    if off >= 0 && n >= 0 && stride > 0 {
                         var bnode = oren_find_node(b)
                         if bnode != 0 {
                             var bkind = ptr_get(iadd(bnode, 16))
                             if bkind == 7 {
                                 if ptr_get(b + 24) == buf_magic() {
+                                    view_ok = 1
                                     var tag = ptr_get(b + 32)
                                     var blen = ptr_get(b + 0)
-                                    var elem_idx = off + (idx * stride)
-                                    if elem_idx >= 0 && elem_idx < blen {
-                                        var data = native_buf_data_ptr(b)
-                                        if tag == BUF_TAG_U8 {
-                                            ok = 1
-                                            val = ptr_get_byte(data + elem_idx) & 255
-                                        } else {
-                                            if tag == BUF_TAG_I32 {
+                                    if idx < n {
+                                        var elem_idx = off + (idx * stride)
+                                        if elem_idx >= 0 && elem_idx < blen {
+                                            var data = native_buf_data_ptr(b)
+                                            if tag == BUF_TAG_U8 {
                                                 ok = 1
-                                                val = oren_ptr_get_i32_le(data + elem_idx * 4)
+                                                val = ptr_get_byte(data + elem_idx) & 255
                                             } else {
-                                                if tag == BUF_TAG_I64 {
+                                                if tag == BUF_TAG_I32 {
                                                     ok = 1
-                                                    val = oren_ptr_get_i64_le(data + elem_idx * 8)
+                                                    val = oren_ptr_get_i32_le(data + elem_idx * 4)
                                                 } else {
-                                                    if tag == BUF_TAG_F32 {
+                                                    if tag == BUF_TAG_I64 {
                                                         ok = 1
-                                                        val = oren_u32_bits_to_f32(oren_ptr_get_u32_le(data + elem_idx * 4))
+                                                        val = oren_ptr_get_i64_le(data + elem_idx * 8)
                                                     } else {
-                                                        if tag == BUF_TAG_F64 {
+                                                        if tag == BUF_TAG_F32 {
                                                             ok = 1
-                                                            val = oren_u64_bits_to_f64(oren_ptr_get_u64_le(data + elem_idx * 8))
+                                                            val = oren_u32_bits_to_f32(oren_ptr_get_u32_le(data + elem_idx * 4))
+                                                        } else {
+                                                            if tag == BUF_TAG_F64 {
+                                                                ok = 1
+                                                                val = oren_u64_bits_to_f64(oren_ptr_get_u64_le(data + elem_idx * 8))
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -78,7 +86,8 @@ fn oren_iter_next(container, idx, out_pair) {
                     }
                 }
 
-                if ok == 0 && idx < count {
+                // Fallback to plain list iteration only when this is not a valid buffer view.
+                if ok == 0 && idx < count && view_ok == 0 {
                     ok = 1
                     // Use the well-tested list accessor to avoid relying on raw buffer math here.
                     val = oren_list_get(container, idx)

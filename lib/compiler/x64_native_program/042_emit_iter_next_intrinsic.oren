@@ -6,13 +6,16 @@
 // - when out_pair is a valid list with cap>=2 and buf!=0, it is filled in-place
 //   to avoid per-iteration allocations
 //
-// Rolling x64 v0 supported containers:
+// Rolling x64 v0 supported containers (converging toward lib/runtime_native/160_iteration.oren):
 // - LIST heap objects (magic='LIST'): yield list elements
-// - MAP heap objects (magic='MAP\\0'): yield keys (in insertion order; v0 does not sort)
+//   - Special-case: list slice views for typed buffers:
+//     - [buf, off, len] or [buf, off, len, stride]
+// - MAP heap objects (magic='MAP\\0'): yield keys (in insertion order; v0 does not sort yet)
+// - BUF heap objects (magic='BUF\\0'): yield numeric elements by tag
 // - Raw pointers treated as C strings (container>=4096): yield bytes until NUL
 //
 // Note: This intrinsic intentionally does not depend on `oren_find_node` / GC tracking.
-// It uses simple magic checks to avoid dereferencing small integers.
+// It uses conservative guards to avoid dereferencing small integers.
 
 fn _emit_intrinsic_iter_next(ctx, locals, args) {
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: oren_iter_next expects 3 args"); return nil }
@@ -52,6 +55,7 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     var l_compute_done = _new_label(ctx, "iter_next_compute_done")
     var l_is_list = _new_label(ctx, "iter_next_is_list")
     var l_is_map = _new_label(ctx, "iter_next_is_map")
+    var l_is_buf = _new_label(ctx, "iter_next_is_buf")
     var l_try_string = _new_label(ctx, "iter_next_try_string")
     var l_out_select = _new_label(ctx, "iter_next_out_select")
     var l_out_ok = _new_label(ctx, "iter_next_out_ok")
@@ -67,6 +71,10 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_compute_done)
 
+    // Do not probe magic tags on small integers.
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 4096))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_compute_done)
+
     // magic = *(container+24)
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
@@ -79,6 +87,9 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     // MAP?
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
+    // BUF?
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4609346))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_is_buf)
     _emit_jmp_to_label(ctx, local_fixups, l_try_string)
 
     // --- List path: yield element at idx ---
@@ -87,9 +98,6 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
     bytes_extend(ctx["code"], insn_mov_rax_mrax())
     bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
-    // if idx >= count => done
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_compute_done)
     // buf -> r9 = *(list+16)
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
@@ -102,6 +110,209 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_buf_ok)
     _emit_abort_panic_str(ctx, "iter_next: corrupt list (buf=0)")
     _emit_label(ctx, labels, l_list_buf_ok)
+
+    // Typed-buffer view list special-case:
+    // - slice view:   [buf, off, len]
+    // - strided view: [buf, off, len, stride]
+    //
+    // Matches the runtime behavior in lib/runtime_native/160_iteration.oren.
+    var l_list_view_try3 = _new_label(ctx, "iter_next_list_view_try3")
+    var l_list_view_try4 = _new_label(ctx, "iter_next_list_view_try4")
+    var l_list_view_fail = _new_label(ctx, "iter_next_list_view_fail")
+    var l_list_view_done = _new_label(ctx, "iter_next_list_view_done")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 3))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_list_view_try3)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 4))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_list_view_try4)
+    _emit_jmp_to_label(ctx, local_fixups, l_list_view_fail)
+
+    // --- View list (count==3): [buf, off, len] ---
+    _emit_label(ctx, labels, l_list_view_try3)
+    // b -> r11, off -> r10, n -> r8, stride -> r9 (set to 1)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // r11 = b
+
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 9))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // r10 = off
+
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 16))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0)) // r8 = n
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 1)) // r9 = stride=1
+    var l_list_view_validate = _new_label(ctx, "iter_next_list_view_validate")
+    _emit_jmp_to_label(ctx, local_fixups, l_list_view_validate)
+
+    // --- View list (count==4): [buf, off, len, stride] ---
+    _emit_label(ctx, labels, l_list_view_try4)
+    // b -> r11, off -> r10, n -> r8, stride -> r9 (load)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // r11 = b
+
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 9))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // r10 = off
+
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 16))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0)) // r8 = n
+
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 24))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0)) // r9 = stride
+
+    _emit_label(ctx, labels, l_list_view_validate)
+
+    // Validate off>=0, n>=0, stride>0.
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_list_view_fail)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_list_view_fail)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_list_view_fail)
+
+    // b must be a plausible pointer (>=4096) and have BUF magic at +24 (view discriminator).
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 4096))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_list_view_fail)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 24))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4609346))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_view_fail)
+
+    // Valid view: bounded by n. If idx >= n => done (do not leak metadata fields).
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8)) // idx vs n
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_compute_done)
+
+    // Compute elem_idx = off + (idx * stride) into r10.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10)) // rax = off
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1)) // r10 = idx
+    bytes_extend(ctx["code"], insn_imul_r64_r64(10, 9)) // r10 *= stride
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 0)) // r10 += off
+
+    // blen -> r8 (overwrite n)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
+
+    // elem_idx >=0 and < blen
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_compute_done)
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 8))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_compute_done)
+
+    // data_ptr -> r9 = *(b+40) else *(b+16)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 40))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    var l_view_data_ok = _new_label(ctx, "iter_next_list_view_data_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_view_data_ok)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 16))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    _emit_label(ctx, labels, l_view_data_ok)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_compute_done)
+
+    // tag -> rax = *(b+32)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 32))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+
+    // Dispatch by tag (1=i32,2=i64,3=f32,4=f64,5=u8)
+    var l_view_tag_i32 = _new_label(ctx, "iter_next_list_view_tag_i32")
+    var l_view_tag_i64 = _new_label(ctx, "iter_next_list_view_tag_i64")
+    var l_view_tag_f32 = _new_label(ctx, "iter_next_list_view_tag_f32")
+    var l_view_tag_f64 = _new_label(ctx, "iter_next_list_view_tag_f64")
+    var l_view_tag_u8 = _new_label(ctx, "iter_next_list_view_tag_u8")
+
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 5))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_view_tag_u8)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_view_tag_i32)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 2))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_view_tag_i64)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 3))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_view_tag_f32)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_view_tag_f64)
+    _emit_jmp_to_label(ctx, local_fixups, l_compute_done)
+
+    _emit_label(ctx, labels, l_view_tag_u8)
+    // val = *(u8*)(data + elem_idx)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 9))
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_list_view_done)
+
+    _emit_label(ctx, labels, l_view_tag_i32)
+    // val = signext(*(i32*)(data + elem_idx*4))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(11, 2))
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 9))
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(0, 11, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_list_view_done)
+
+    _emit_label(ctx, labels, l_view_tag_i64)
+    // val = *(i64*)(data + elem_idx*8)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(11, 3))
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 9))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_list_view_done)
+
+    _emit_label(ctx, labels, l_view_tag_f64)
+    // val = raw f64 bits *(u64*)(data + elem_idx*8)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(11, 3))
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 9))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_list_view_done)
+
+    _emit_label(ctx, labels, l_view_tag_f32)
+    // Load f32 bits then widen to f64 container bits:
+    // xmm0 = f32(bits); xmm0 = (double)xmm0; rax = bits(xmm0)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(11, 2))
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 9))
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(0, 11, 0))
+    bytes_extend(ctx["code"], insn_movd_xmm_r32(0, 0))
+    bytes_extend(ctx["code"], insn_cvtss2sd_xmm_xmm(0, 0))
+    bytes_extend(ctx["code"], insn_movq_r64_xmm(0, 0))
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+
+    _emit_label(ctx, labels, l_list_view_done)
+    // ok = 1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_ok, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_compute_done)
+
+    _emit_label(ctx, labels, l_list_view_fail)
+
+    // Normal list path: if idx >= count => done
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_compute_done)
     // val = *(buf + idx*8)
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
     bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
@@ -143,6 +354,110 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], insn_mov_rax_mrax())
     _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    // ok = 1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_ok, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_compute_done)
+
+    // --- Buffer path: yield numeric element at idx (by tag) ---
+    _emit_label(ctx, labels, l_is_buf)
+    // len -> r8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
+    // if idx >= len => done
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_compute_done)
+
+    // data_ptr -> r9 = *(buf+40) else *(buf+16)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 40))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    var l_buf_data_ok = _new_label(ctx, "iter_next_buf_data_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_data_ok)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+    _emit_label(ctx, labels, l_buf_data_ok)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_compute_done)
+
+    // tag -> rax = *(buf+32)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+
+    var l_buf_tag_i32 = _new_label(ctx, "iter_next_buf_tag_i32")
+    var l_buf_tag_i64 = _new_label(ctx, "iter_next_buf_tag_i64")
+    var l_buf_tag_f32 = _new_label(ctx, "iter_next_buf_tag_f32")
+    var l_buf_tag_f64 = _new_label(ctx, "iter_next_buf_tag_f64")
+    var l_buf_tag_u8 = _new_label(ctx, "iter_next_buf_tag_u8")
+    var l_buf_done = _new_label(ctx, "iter_next_buf_done")
+
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 5))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_buf_tag_u8)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_buf_tag_i32)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 2))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_buf_tag_i64)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 3))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_buf_tag_f32)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_buf_tag_f64)
+    _emit_jmp_to_label(ctx, local_fixups, l_compute_done)
+
+    _emit_label(ctx, labels, l_buf_tag_u8)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 9))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 1))
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 10))
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_buf_done)
+
+    _emit_label(ctx, labels, l_buf_tag_i32)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(0, 10, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_buf_done)
+
+    _emit_label(ctx, labels, l_buf_tag_i64)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_buf_done)
+
+    _emit_label(ctx, labels, l_buf_tag_f64)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_buf_done)
+
+    _emit_label(ctx, labels, l_buf_tag_f32)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(0, 10, 0))
+    bytes_extend(ctx["code"], insn_movd_xmm_r32(0, 0))
+    bytes_extend(ctx["code"], insn_cvtss2sd_xmm_xmm(0, 0))
+    bytes_extend(ctx["code"], insn_movq_r64_xmm(0, 0))
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_val, 0)
+
+    _emit_label(ctx, labels, l_buf_done)
     // ok = 1
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], insn_cdqe())
