@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2025-12-29
+**Last updated:** 2025-12-30
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 
@@ -41,7 +41,7 @@ Rules for this tracker:
 
 4) **Container ops as operations (no hot-path stdlib overhead)** (M)
    - Ensure `xs[i]`, `xs[i]=v`, `len`, `push` lower to intrinsics where appropriate.
-   - Make map/list iteration semantics deterministic across backends.
+   - Make map/list/buf iteration semantics deterministic across backends (add a unified iterator protocol so `for x in buf` works identically on arm64/x86_64 and across native/C/AVM).
    - Reference:
      - `docs/DESIGN_CONTAINER_OPS.md`
      - `docs/STDLIB_LAYERS.md`

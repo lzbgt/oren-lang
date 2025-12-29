@@ -44,6 +44,8 @@ fn insn_movzx_r32_mr8(dst_reg, base_reg) { return core.insn_movzx_r32_mr8(dst_re
 fn insn_mov_mr8_al(base_reg) { return core.insn_mov_mr8_al(base_reg) }
 fn insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) { return core.insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) }
 fn insn_mov_mr8_al_disp(base_reg, disp) { return core.insn_mov_mr8_al_disp(base_reg, disp) }
+fn insn_mov_r32_mr32_disp(dst_reg, base_reg, disp) { return core.insn_mov_r32_mr32_disp(dst_reg, base_reg, disp) }
+fn insn_mov_mr32_r32_disp(base_reg, disp, src_reg) { return core.insn_mov_mr32_r32_disp(base_reg, disp, src_reg) }
 fn insn_lea_rsi_rip_disp32(disp32) { return core.insn_lea_rsi_rip_disp32(disp32) }
 fn insn_lea_r64_rip_disp32(reg, disp32) { return core.insn_lea_r64_rip_disp32(reg, disp32) }
 fn insn_lea_r64_rsp_disp8(reg, disp8) { return core.insn_lea_r64_rsp_disp8(reg, disp8) }
