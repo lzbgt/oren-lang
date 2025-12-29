@@ -346,6 +346,238 @@ fn _emit_intrinsic_iter_next(ctx, locals, args) {
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_map_buf_ok)
     _emit_abort_panic_str(ctx, "iter_next: corrupt map (buf=0)")
     _emit_label(ctx, labels, l_map_buf_ok)
+
+    // Lazy deterministic map ordering:
+    // if dirty_sort==1, sort entries in-place once and clear dirty_sort.
+    //
+    // Mirrors native runtime semantics (dirty flag at +32), but implemented here because
+    // x64 Tier‑1 does not inject the full `lib/runtime_native.oren` yet.
+    //
+    // Register constraints:
+    // - R14/R15 are reserved for heap allocator state; do not clobber.
+    // - Avoid ABI callee-saved regs (RBX, R12–R15) since x64 v0 does not save/restore them.
+    var l_map_sort_skip = _new_label(ctx, "iter_next_map_sort_skip")
+    var l_map_sort_outer = _new_label(ctx, "iter_next_map_sort_outer")
+    var l_map_sort_inner = _new_label(ctx, "iter_next_map_sort_inner")
+    var l_map_sort_inner_done = _new_label(ctx, "iter_next_map_sort_inner_done")
+    var l_map_sort_cmp_int = _new_label(ctx, "iter_next_map_sort_cmp_int")
+    var l_map_sort_cmp_str = _new_label(ctx, "iter_next_map_sort_cmp_str")
+    var l_map_sort_str_loop = _new_label(ctx, "iter_next_map_sort_str_loop")
+    var l_map_sort_do_swap = _new_label(ctx, "iter_next_map_sort_do_swap")
+    var l_map_sort_done = _new_label(ctx, "iter_next_map_sort_done")
+
+    // r10 = *(map+32) dirty_sort
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_map_sort_skip)
+    // count <= 1 => clear dirty and skip
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 1))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_map_sort_done)
+
+    // Insertion sort: for i=1..count-1 bubble entry i down.
+    // r11 = i (starts at 1)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_map_sort_outer)
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(11, 8))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_map_sort_done)
+
+    // r10 = j = i
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+    _emit_label(ctx, labels, l_map_sort_inner)
+    // if j <= 0 => done inner
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_map_sort_inner_done)
+
+    // prev_ptr -> RSI = buf + (j-1)*24
+    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 10))
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(6, 1))
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(6, 24))
+    bytes_extend(ctx["code"], insn_add_r64_r64(6, 9))
+    // cur_ptr -> RDI = buf + j*24
+    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 10))
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(7, 24))
+    bytes_extend(ctx["code"], insn_add_r64_r64(7, 9))
+
+    // Load prev_kind into RAX.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 6))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 8))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = prev_kind
+    // Load cur_kind into RCX.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 7))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 8))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = cur_kind
+
+    // If kinds differ: int keys first (kind==0).
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 1))
+    var l_kind_same = _new_label(ctx, "iter_next_map_sort_kind_same")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_same)
+    // if prev_kind==1 and cur_kind==0 => swap, else ordered
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1))
+    var l_kind_prev_not_str = _new_label(ctx, "iter_next_map_sort_kind_prev_not_str")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_kind_prev_not_str)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_map_sort_do_swap)
+    _emit_label(ctx, labels, l_kind_prev_not_str)
+    _emit_jmp_to_label(ctx, local_fixups, l_map_sort_inner_done)
+
+    _emit_label(ctx, labels, l_kind_same)
+    // kind==0 => int compare
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_map_sort_cmp_int)
+    // kind==1 => string compare
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_map_sort_cmp_str)
+    _emit_jmp_to_label(ctx, local_fixups, l_map_sort_inner_done)
+
+    _emit_label(ctx, labels, l_map_sort_cmp_int)
+    // prev_key -> RAX, cur_key -> RCX
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 6))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = prev_key
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 7))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = cur_key
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 1))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_map_sort_inner_done)
+    _emit_jmp_to_label(ctx, local_fixups, l_map_sort_do_swap)
+
+    _emit_label(ctx, labels, l_map_sort_cmp_str)
+    // prev_str -> RSI, cur_str -> RDI
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 6))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = prev_str
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = cur_str
+
+    // rcx = 0 (byte index)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_map_sort_str_loop)
+    // b1 -> eax = *(u8)(prev + rcx)
+    //
+    // Note: we must not clobber R10 (j). Use RAX/RDX as address temporaries.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 6))      // rax = prev_str
+    bytes_extend(ctx["code"], insn_add_r64_r64(0, 1))      // rax += rcx
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 0))    // eax = *(u8*)rax
+    // b2 -> edx = *(u8)(cur + rcx)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 7))      // rdx = cur_str
+    bytes_extend(ctx["code"], insn_add_r64_r64(2, 1))      // rdx += rcx
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(2, 2))    // edx = *(u8*)rdx
+
+    // if b1 == 0 => ordered (equal or shorter)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_map_sort_inner_done)
+    // if b2 == 0 => swap
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(2, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_map_sort_do_swap)
+    // if b1 < b2 => ordered
+    bytes_extend(ctx["code"], insn_cmp_r32_r32(0, 2))
+    _emit_jcc_to_label(ctx, local_fixups, "b", l_map_sort_inner_done)
+    // if b1 > b2 => swap
+    _emit_jcc_to_label(ctx, local_fixups, "a", l_map_sort_do_swap)
+    // equal => rcx++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 1))
+    _emit_jmp_to_label(ctx, local_fixups, l_map_sort_str_loop)
+
+    _emit_label(ctx, labels, l_map_sort_do_swap)
+    // Recompute entry pointers (string compare clobbers RSI/RDI).
+    // prev_ptr -> RSI = buf + (j-1)*24
+    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 10))
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(6, 1))
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(6, 24))
+    bytes_extend(ctx["code"], insn_add_r64_r64(6, 9))
+    // cur_ptr -> RDI = buf + j*24
+    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 10))
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(7, 24))
+    bytes_extend(ctx["code"], insn_add_r64_r64(7, 9))
+
+    // Swap key @ +0 using RDX as temp.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 6))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = prev.key
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())     // rax = cur.key
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(6, 0)) // prev.key = cur.key
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(7, 2)) // cur.key = prev.key
+
+    // Swap kind @ +8 (use RCX as address scratch; do not touch RBX/R12+)
+    // prev.kind -> rdx
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 6))      // rcx = prev_ptr
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 8))    // rcx = prev_ptr+8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))      // rax = rcx
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())         // rax = prev.kind
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0))      // rdx = prev.kind
+    // cur.kind -> rax
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 7))      // rcx = cur_ptr
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 8))    // rcx = cur_ptr+8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))      // rax = rcx
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())         // rax = cur.kind
+    // store prev.kind = cur.kind
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 6))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 8))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(1, 0))
+    // store cur.kind = prev.kind
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 7))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 8))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(1, 2))
+
+    // Swap value @ +16
+    // prev.val -> rdx
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 6))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())         // rax = prev.val
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0))      // rdx = prev.val
+    // cur.val -> rax
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 7))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())         // rax = cur.val
+    // store prev.val = cur.val
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 6))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 16))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(1, 0))
+    // store cur.val = prev.val
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 7))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 16))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(1, 2))
+
+    // j-- and continue bubbling
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(10, 1))
+    _emit_jmp_to_label(ctx, local_fixups, l_map_sort_inner)
+
+    _emit_label(ctx, labels, l_map_sort_inner_done)
+    // i++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    _emit_jmp_to_label(ctx, local_fixups, l_map_sort_outer)
+
+    _emit_label(ctx, labels, l_map_sort_done)
+    // dirty_sort = 0
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_container) // reload map into rdx
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    _emit_label(ctx, labels, l_map_sort_skip)
+    // Reload idx into rcx (string compare clobbered it).
+    _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx)
+    // Reload buf (sorting swaps used temp regs).
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_container) // rdx = map
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+
     // entry_ptr = buf + idx*24
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
     bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 24))

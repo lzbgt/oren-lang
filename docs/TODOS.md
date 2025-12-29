@@ -20,7 +20,7 @@ Rules for this tracker:
      - callables (function values), closures, varargs/spread, and deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
-       (e.g. replace “sorted-on-insert” map iteration with the shared lazy-sort helper path once available)
+       (e.g. replace the x86_64 `oren_iter_next` intrinsic’s map sorting with shared runtime helpers once runtime injection exists)
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
 
