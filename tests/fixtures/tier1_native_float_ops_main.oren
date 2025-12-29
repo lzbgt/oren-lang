@@ -1,0 +1,33 @@
+fn main() {
+    // Basic float arithmetic (binary64), validated via deterministic trunc-to-int cast.
+    var a = 1.5 + 0.5
+    if i64(a) != 2 { return 1 }
+
+    // Mixed int/float promotion (int -> f64).
+    var b = 2 + 0.5
+    if i64(b) != 2 { return 2 }
+
+    // Division keeps float domain.
+    var c = 7.0 / 2.0
+    if i64(c) != 3 { return 3 }
+
+    // f32 cast boundary: 2^24 + 1 is not exactly representable in float32.
+    var d = f32(16777217.0)
+    if i64(d) != 16777216 { return 4 }
+
+    // Float negation + truncation toward zero.
+    var e = -1.5
+    if i64(e) != -1 { return 5 }
+
+    // More ops: subtraction and multiplication.
+    var f = (10.0 - 3.25) * 2.0 // 13.5
+    if i64(f) != 13 { return 6 }
+
+    // Bool cast semantics (numeric != 0.0), including -0.0.
+    if bool(0.0) != false { return 7 }
+    if bool(-0.0) != false { return 8 }
+    if bool(1.0 / 2.0) != true { return 9 }
+
+    print("tier1 float ops ok")
+    return 0
+}

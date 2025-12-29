@@ -1,0 +1,148 @@
+// x64 native v0: float support (Tier‑1 x86_64).
+//
+// Oren v0 represents `float` as raw IEEE-754 binary64 bits stored in the same 64-bit carrier
+// register used for ints/pointers.
+//
+// Because x64 native v0 does not yet have tagged values, we use the same rolling heuristic
+// as the arm64 native backend to decide when to emit float operations.
+
+fn _x64_expr_is_floaty(ctx, expr) {
+    // Heuristic, rolling "float propagation" for x64 native.
+    //
+    // This must be conservative: float ops reinterpret bits, so applying them to integers
+    // would miscompile.
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "Float" { return true }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_floaty"] != nil && ctx["locals_floaty"][name] == true { return true }
+            if ctx["globals_floaty"] != nil && ctx["globals_floaty"][name] == true { return true }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            // Native cast/bitcast intrinsics and common float-returning helpers.
+            if nm == "oren_f32_round" { return true }
+            if nm == "oren_u32_bits_to_f32" { return true }
+            if nm == "oren_u64_bits_to_f64" { return true }
+            if nm == "oren_buf_load_f32" { return true }
+            if nm == "oren_buf_load_f64" { return true }
+        }
+        return false
+    }
+    if et == "Prefix" {
+        if expr["op"] == "-" { return _x64_expr_is_floaty(ctx, expr["right"]) }
+        return false
+    }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "+" || op == "-" || op == "*" || op == "/" {
+            if _x64_expr_is_floaty(ctx, expr["left"]) { return true }
+            if _x64_expr_is_floaty(ctx, expr["right"]) { return true }
+        }
+        return false
+    }
+    return false
+}
+
+fn _emit_float64_binop_x64(ctx, op, left_expr, right_expr, locals) {
+    // Emit float64 arithmetic:
+    // - operands are either float bits (if floaty) or ints (converted via cvtsi2sd)
+    // - result is returned as float bits in RAX
+    //
+    // Uses XMM0/XMM1 as scratch.
+    if ctx == nil { return nil }
+    if left_expr == nil || right_expr == nil { err(ctx, "x64 native v0: float binop missing operands"); return nil }
+
+    var base = _intr_tmp_push(ctx, 2)
+    if base == nil { return nil }
+    var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_a == nil || tmp_b == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    // Evaluate LTR.
+    _emit_eval_int_to_rax(ctx, left_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
+
+    _emit_eval_int_to_rax(ctx, right_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
+
+    // Load/convert A into XMM0.
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_a) // rax = a
+    if _x64_expr_is_floaty(ctx, left_expr) {
+        bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0)) // xmm0 = bits(rax)
+    } else {
+        bytes_extend(ctx["code"], insn_cvtsi2sd_xmm_r64(0, 0)) // xmm0 = (double)rax
+    }
+
+    // Load/convert B into XMM1.
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_b) // rax = b
+    if _x64_expr_is_floaty(ctx, right_expr) {
+        bytes_extend(ctx["code"], insn_movq_xmm_r64(1, 0)) // xmm1 = bits(rax)
+    } else {
+        bytes_extend(ctx["code"], insn_cvtsi2sd_xmm_r64(1, 0)) // xmm1 = (double)rax
+    }
+
+    if op == "+" { bytes_extend(ctx["code"], insn_addsd_xmm_xmm(0, 1)) }
+    else if op == "-" { bytes_extend(ctx["code"], insn_subsd_xmm_xmm(0, 1)) }
+    else if op == "*" { bytes_extend(ctx["code"], insn_mulsd_xmm_xmm(0, 1)) }
+    else if op == "/" { bytes_extend(ctx["code"], insn_divsd_xmm_xmm(0, 1)) }
+    else {
+        _intr_tmp_pop(ctx, base)
+        err(ctx, "x64 native v0: unsupported float binop op: " + op)
+        return nil
+    }
+
+    // Return bits in RAX.
+    bytes_extend(ctx["code"], insn_movq_r64_xmm(0, 0))
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_oren_f32_round_x64(ctx, expr, locals) {
+    if ctx == nil { return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f32_round expects 1 arg"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f32_round does not support spread"); return nil }
+    if !_x64_expr_is_floaty(ctx, args[0]) { err(ctx, "x64 native v0: oren_f32_round expects float arg"); return nil }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals) // f64 bits
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    // XMM0 = bits -> f64
+    bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0))
+    // XMM0 = f32(XMM0)
+    bytes_extend(ctx["code"], insn_cvtsd2ss_xmm_xmm(0, 0))
+    // XMM0 = f64(XMM0)
+    bytes_extend(ctx["code"], insn_cvtss2sd_xmm_xmm(0, 0))
+    // RAX = bits
+    bytes_extend(ctx["code"], insn_movq_r64_xmm(0, 0))
+    return nil
+}
+
+fn _emit_intrinsic_oren_trunc_int_x64(ctx, expr, locals) {
+    // Intrinsic: truncate float bits to an int (toward zero), or identity for int-like values.
+    if ctx == nil { return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_trunc_int expects 1 arg"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_trunc_int does not support spread"); return nil }
+
+    var a0 = args[0]
+    _emit_eval_int_to_rax(ctx, a0, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    if _x64_expr_is_floaty(ctx, a0) {
+        // xmm0 = bits(rax); rax = (int64)xmm0 (truncate)
+        bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0))
+        bytes_extend(ctx["code"], insn_cvttsd2si_r64_xmm(0, 0))
+    }
+    return nil
+}
+

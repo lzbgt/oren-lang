@@ -208,6 +208,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
         return nil
     }
+    if t == "Float" {
+        // Float literal lowering:
+        // - parse literal string to raw IEEE-754 binary64 bits at compile time
+        // - load bits into RAX
+        var bits = oren_string_to_float_bits(expr["value"])
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(0, bits))
+        return nil
+    }
     if t == "Boolean" {
         // Map boolean literal to i32 0/1, then sign-extend to rax.
         var v = expr["value"]
@@ -369,27 +377,25 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Note: these intrinsics operate in the "int as i64 carrier" model where pointers
         // are plain 64-bit values.
         if nm == "oren_trunc_int" {
-            // `oren_trunc_int(x)` is a deterministic cast helper used by shared lowering (type
-            // annotations, cast sugar). In x64 native v0, all values are already carried in the
-            // "int as i64" model and floats are not yet represented, so this is a passthrough.
-            //
-            // Still treat it as an intrinsic so x64 bring-up doesn't require linking the full
-            // runtime surface just to satisfy the symbol.
-            if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_trunc_int expects 1 argument"); return nil }
-            if expr["spread"] != nil { err(ctx, "x64 native v0: oren_trunc_int does not support spread"); return nil }
-            _emit_eval_int_to_rax(ctx, args[0], locals)
+            _emit_intrinsic_oren_trunc_int_x64(ctx, expr, locals)
+            return nil
+        }
+        if nm == "oren_f32_round" {
+            _emit_intrinsic_oren_f32_round_x64(ctx, expr, locals)
             return nil
         }
         if nm == "oren_bool_norm" {
             // `oren_bool_norm(x)` is used by type annotation lowering (`: bool`) to give bool
             // annotations deterministic semantics across backends.
             //
-            // For x64 native v0 (int-only carrier), implement it as `x != 0 ? 1 : 0`.
-            // (Float inputs are not supported in v0; once floats land this must adopt the same
-            // semantics as the C backend: numeric != 0 for int/float; nil => false.)
+            // Semantics:
+            // - int: x != 0
+            // - float: x != 0.0 (where NaN counts as true; +0.0 and -0.0 count as false)
             if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_bool_norm expects 1 argument"); return nil }
             if expr["spread"] != nil { err(ctx, "x64 native v0: oren_bool_norm does not support spread"); return nil }
-            _emit_eval_int_to_rax(ctx, args[0], locals)
+            var a0 = args[0]
+            var is_float = _x64_expr_is_floaty(ctx, a0)
+            _emit_eval_int_to_rax(ctx, a0, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             var labels = {}
@@ -397,9 +403,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var l_true = _new_label(ctx, "bool_norm_true")
             var l_done = _new_label(ctx, "bool_norm_done")
 
-            // if rax != 0 => rax = 1 else rax = 0
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-            _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+            if is_float {
+                // Compare float value to 0.0:
+                // - unordered (NaN): PF=1 => treat as true (NaN != 0.0)
+                // - ordered not-equal: ZF=0 => true
+                // - equal (incl -0.0): ZF=1, PF=0 => false
+                bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0))     // xmm0 = bits(rax)
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))    // edx = 0
+                bytes_extend(ctx["code"], insn_movq_xmm_r64(1, 2))     // xmm1 = 0.0
+                bytes_extend(ctx["code"], insn_ucomisd_xmm_xmm(0, 1))  // compare xmm0 vs xmm1
+                _emit_jcc_to_label(ctx, local_fixups, "p", l_true)     // unordered => true
+                _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)    // != => true
+            } else {
+                // if rax != 0 => rax = 1 else rax = 0
+                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+                _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+            }
 
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
             bytes_extend(ctx["code"], insn_cdqe())
@@ -1575,7 +1594,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         _emit_eval_int_to_rax(ctx, r, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if op == "-" {
-            bytes_extend(ctx["code"], insn_neg_r64(0)) // neg rax
+            if _x64_expr_is_floaty(ctx, r) {
+                // Float negation: flip the sign bit to preserve IEEE-754 semantics (incl -0.0).
+                var sign_mask = 0 - (1 << 63) // 0x8000_0000_0000_0000 (i64_min)
+                bytes_extend(ctx["code"], insn_mov_r64_imm64(2, sign_mask)) // rdx = mask
+                bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2))           // rax ^= mask
+                return nil
+            }
+            bytes_extend(ctx["code"], insn_neg_r64(0)) // neg rax (int)
             return nil
         }
         if op == "~" {
@@ -1589,6 +1615,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var op = expr["op"]
         var l = expr["left"]
         var r = expr["right"]
+        var is_float_op = op == "+" || op == "-" || op == "*" || op == "/"
+        if is_float_op && (_x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r)) {
+            // Float arithmetic (binary64):
+            // - operands are carried as raw f64 bits in integer registers
+            // - mixed int/float promotes ints to f64 via cvtsi2sd
+            _emit_float64_binop_x64(ctx, op, l, r, locals)
+            return nil
+        }
         if op == "+" {
             var handled = _emit_infix_add_or_string_concat_x64(ctx, expr, locals)
             if handled == 1 { return nil }

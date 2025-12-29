@@ -747,6 +747,8 @@ fn insn_jcc_rel32(cc, disp32) {
     // Supported:
     // - "e"  => JE  (0F 84)
     // - "ne" => JNE (0F 85)
+    // - "p"  => JP  (0F 8A)  parity set (PF=1) (used for unordered float compares)
+    // - "np" => JNP (0F 8B)  parity clear (PF=0)
     // - "b"  => JB  (0F 82)  unsigned below (CF=1)
     // - "ae" => JAE (0F 83)  unsigned above/equal (CF=0)
     // - "be" => JBE (0F 86)  unsigned below/equal (CF=1 or ZF=1)
@@ -755,10 +757,12 @@ fn insn_jcc_rel32(cc, disp32) {
     // - "ge" => JGE (0F 8D)  signed greater/equal
     // - "le" => JLE (0F 8E)  signed less/equal
     // - "g"  => JG  (0F 8F)  signed greater than
-    if cc != "e" && cc != "ne" && cc != "b" && cc != "ae" && cc != "be" && cc != "a" && cc != "l" && cc != "ge" && cc != "le" && cc != "g" { return nil }
+    if cc != "e" && cc != "ne" && cc != "p" && cc != "np" && cc != "b" && cc != "ae" && cc != "be" && cc != "a" && cc != "l" && cc != "ge" && cc != "le" && cc != "g" { return nil }
     var out = [15]
     if cc == "e" { bytes_push(out, 132) }
     else if cc == "ne" { bytes_push(out, 133) }
+    else if cc == "p" { bytes_push(out, 138) }
+    else if cc == "np" { bytes_push(out, 139) }
     else if cc == "b" { bytes_push(out, 130) }
     else if cc == "ae" { bytes_push(out, 131) }
     else if cc == "be" { bytes_push(out, 134) }
@@ -768,6 +772,201 @@ fn insn_jcc_rel32(cc, disp32) {
     else if cc == "le" { bytes_push(out, 142) }
     else { bytes_push(out, 143) } // g
     push_u32_le(out, disp32)
+    return out
+}
+
+// --- SSE2 (scalar float64; Tier‑1 x86_64) ---
+//
+// Oren v0 represents `float` as raw IEEE-754 binary64 bits carried in a 64-bit register.
+// These encoders provide the minimal operations needed to implement deterministic float
+// arithmetic and cast intrinsics in the x64 native backend.
+
+fn _rex_base_xmm_rm(xmm_reg, rm_reg, rex_w) {
+    // Build a REX prefix byte for encodings where:
+    // - ModRM.reg encodes XMM register
+    // - ModRM.rm encodes a GPR or XMM register
+    //
+    // Order for SSE: prefix bytes (66/F2/F3), then REX, then opcode bytes.
+    var rex = 64 // 0x40
+    if rex_w == true { rex = rex + 8 } // REX.W
+    if xmm_reg >= 8 { rex = rex + 4 }  // REX.R
+    if rm_reg >= 8 { rex = rex + 1 }   // REX.B
+    return rex
+}
+
+fn insn_movq_xmm_r64(xmm_dst, r_src) {
+    // MOVQ xmm, r/m64 (GPR form) => 66 REX.W 0F 6E /r
+    // modrm: 11 reg=xmm rm=r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if r_src < 0 || r_src > 15 { return nil }
+    var out = [102] // 66
+    var rex = _rex_base_xmm_rm(xmm_dst, r_src, true)
+    bytes_push(out, rex)
+    bytes_push(out, 15)
+    bytes_push(out, 110) // 6E
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(r_src, 8))
+    return out
+}
+
+fn insn_movq_r64_xmm(r_dst, xmm_src) {
+    // MOVQ r/m64, xmm (GPR form) => 66 REX.W 0F 7E /r
+    // modrm: 11 reg=xmm rm=r
+    if r_dst < 0 || r_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [102] // 66
+    var rex = _rex_base_xmm_rm(xmm_src, r_dst, true)
+    bytes_push(out, rex)
+    bytes_push(out, 15)
+    bytes_push(out, 126) // 7E
+    bytes_push(out, 192 + int_mod(xmm_src, 8) * 8 + int_mod(r_dst, 8))
+    return out
+}
+
+fn insn_movd_xmm_r32(xmm_dst, r_src) {
+    // MOVD xmm, r/m32 => 66 0F 6E /r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if r_src < 0 || r_src > 15 { return nil }
+    var out = [102] // 66
+    var rex = _rex_base_xmm_rm(xmm_dst, r_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 110) // 6E
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(r_src, 8))
+    return out
+}
+
+fn insn_movd_r32_xmm(r_dst, xmm_src) {
+    // MOVD r/m32, xmm => 66 0F 7E /r
+    if r_dst < 0 || r_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [102] // 66
+    var rex = _rex_base_xmm_rm(xmm_src, r_dst, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 126) // 7E
+    bytes_push(out, 192 + int_mod(xmm_src, 8) * 8 + int_mod(r_dst, 8))
+    return out
+}
+
+fn insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) {
+    // CVTSI2SD xmm, r/m64 => F2 0F 2A /r with REX.W=1
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if r_src < 0 || r_src > 15 { return nil }
+    var out = [242] // F2
+    var rex = _rex_base_xmm_rm(xmm_dst, r_src, true)
+    bytes_push(out, rex)
+    bytes_push(out, 15)
+    bytes_push(out, 42) // 2A
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(r_src, 8))
+    return out
+}
+
+fn insn_cvttsd2si_r64_xmm(r_dst, xmm_src) {
+    // CVTTSD2SI r64, xmm/m64 => F2 0F 2C /r with REX.W=1
+    // modrm: 11 reg=r rm=xmm
+    if r_dst < 0 || r_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [242] // F2
+    // Here ModRM.reg is a GPR, ModRM.rm is XMM; treat reg as "xmm_reg" slot for REX.R.
+    var rex = 64 + 8 // base + W
+    if r_dst >= 8 { rex = rex + 4 } // REX.R (because reg field is r_dst)
+    if xmm_src >= 8 { rex = rex + 1 } // REX.B (because rm field is xmm_src)
+    bytes_push(out, rex)
+    bytes_push(out, 15)
+    bytes_push(out, 44) // 2C
+    bytes_push(out, 192 + int_mod(r_dst, 8) * 8 + int_mod(xmm_src, 8))
+    return out
+}
+
+fn insn_addsd_xmm_xmm(xmm_dst, xmm_src) {
+    // ADDSD xmm, xmm/m64 => F2 0F 58 /r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [242] // F2
+    var rex = _rex_base_xmm_rm(xmm_dst, xmm_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 88) // 58
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(xmm_src, 8))
+    return out
+}
+
+fn insn_subsd_xmm_xmm(xmm_dst, xmm_src) {
+    // SUBSD xmm, xmm/m64 => F2 0F 5C /r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [242]
+    var rex = _rex_base_xmm_rm(xmm_dst, xmm_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 92) // 5C
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(xmm_src, 8))
+    return out
+}
+
+fn insn_mulsd_xmm_xmm(xmm_dst, xmm_src) {
+    // MULSD xmm, xmm/m64 => F2 0F 59 /r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [242]
+    var rex = _rex_base_xmm_rm(xmm_dst, xmm_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 89) // 59
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(xmm_src, 8))
+    return out
+}
+
+fn insn_divsd_xmm_xmm(xmm_dst, xmm_src) {
+    // DIVSD xmm, xmm/m64 => F2 0F 5E /r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [242]
+    var rex = _rex_base_xmm_rm(xmm_dst, xmm_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 94) // 5E
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(xmm_src, 8))
+    return out
+}
+
+fn insn_ucomisd_xmm_xmm(xmm_dst, xmm_src) {
+    // UCOMISD xmm, xmm/m64 => 66 0F 2E /r
+    // Sets flags (ZF/PF/CF) for scalar double compare; used for float->bool normalization.
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [102] // 66
+    var rex = _rex_base_xmm_rm(xmm_dst, xmm_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 46) // 2E
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(xmm_src, 8))
+    return out
+}
+
+fn insn_cvtsd2ss_xmm_xmm(xmm_dst, xmm_src) {
+    // CVTSD2SS xmm, xmm/m64 => F2 0F 5A /r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [242]
+    var rex = _rex_base_xmm_rm(xmm_dst, xmm_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 90) // 5A
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(xmm_src, 8))
+    return out
+}
+
+fn insn_cvtss2sd_xmm_xmm(xmm_dst, xmm_src) {
+    // CVTSS2SD xmm, xmm/m32 => F3 0F 5A /r
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    var out = [243] // F3
+    var rex = _rex_base_xmm_rm(xmm_dst, xmm_src, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)
+    bytes_push(out, 90) // 5A
+    bytes_push(out, 192 + int_mod(xmm_dst, 8) * 8 + int_mod(xmm_src, 8))
     return out
 }
 

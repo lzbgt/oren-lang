@@ -95,6 +95,19 @@ fn insn_cqo() { return core.insn_cqo() }
 fn insn_idiv_r64(reg) { return core.insn_idiv_r64(reg) }
 fn insn_not_r64(reg) { return core.insn_not_r64(reg) }
 fn insn_neg_r64(reg) { return core.insn_neg_r64(reg) }
+fn insn_movq_xmm_r64(xmm_dst, r_src) { return core.insn_movq_xmm_r64(xmm_dst, r_src) }
+fn insn_movq_r64_xmm(r_dst, xmm_src) { return core.insn_movq_r64_xmm(r_dst, xmm_src) }
+fn insn_movd_xmm_r32(xmm_dst, r_src) { return core.insn_movd_xmm_r32(xmm_dst, r_src) }
+fn insn_movd_r32_xmm(r_dst, xmm_src) { return core.insn_movd_r32_xmm(r_dst, xmm_src) }
+fn insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) { return core.insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) }
+fn insn_cvttsd2si_r64_xmm(r_dst, xmm_src) { return core.insn_cvttsd2si_r64_xmm(r_dst, xmm_src) }
+fn insn_addsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_addsd_xmm_xmm(xmm_dst, xmm_src) }
+fn insn_subsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_subsd_xmm_xmm(xmm_dst, xmm_src) }
+fn insn_mulsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_mulsd_xmm_xmm(xmm_dst, xmm_src) }
+fn insn_divsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_divsd_xmm_xmm(xmm_dst, xmm_src) }
+fn insn_ucomisd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_ucomisd_xmm_xmm(xmm_dst, xmm_src) }
+fn insn_cvtsd2ss_xmm_xmm(xmm_dst, xmm_src) { return core.insn_cvtsd2ss_xmm_xmm(xmm_dst, xmm_src) }
+fn insn_cvtss2sd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_cvtss2sd_xmm_xmm(xmm_dst, xmm_src) }
 
 fn err(ctx, msg) {
     if ctx["errors"] == nil { ctx["errors"] = [] }

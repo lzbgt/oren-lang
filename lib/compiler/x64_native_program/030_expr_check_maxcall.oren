@@ -23,6 +23,11 @@ fn _expr_int_check(ctx, expr) {
         if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
         return nil
     }
+    if t == "Float" {
+        // Float literals are represented as a string token and lowered by the backend
+        // into raw IEEE-754 binary64 bits.
+        return nil
+    }
     if t == "Boolean" { return nil }
     if t == "Nil" { return nil }
     if t == "String" { return nil }
@@ -64,7 +69,7 @@ fn _expr_int_check(ctx, expr) {
         var spread0 = expr["spread"]
         var argc0 = 0
         if args != nil { argc0 = oren_list_len(args) }
-        if nm == "oren_trunc_int" || nm == "oren_bool_norm" {
+        if nm == "oren_trunc_int" || nm == "oren_bool_norm" || nm == "oren_f32_round" {
             if spread0 != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return nil }
             if argc0 != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 argument"); return nil }
             _expr_int_check(ctx, args[0])
