@@ -79,6 +79,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
   - Real-hardware x86_64 run validation is opt-in (Win11 + WSL2): `docs/REMOTE_X64_ENV.md`
     - Tier‑1 parity fixture (closures + varargs): `tests/fixtures/tier1_native_lambda_varargs_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (map dynamic key-kind on empty maps): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (gated by `OREN_REMOTE_RUN=1`)
+    - Tier‑1 parity fixture (map get via dynamic key; nil-key miss semantics): `tests/fixtures/tier1_native_map_get_dynamic_key_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (string ops: `+` / `len` / `slice`): `tests/fixtures/tier1_native_string_ops_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (float literals + `+ - * /` + casts `f32/i64`): `tests/fixtures/tier1_native_float_ops_main.oren` (gated by `OREN_REMOTE_RUN=1`)
 
