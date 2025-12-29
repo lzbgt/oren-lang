@@ -1603,6 +1603,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
 
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+
+        if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
+        if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
+
         // All non-intrinsic calls (direct/indirect, varargs, spread) are handled by the
         // dedicated call-lowering chunk for reviewability.
         return _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
