@@ -1365,52 +1365,67 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 
                 if (idx >= 0) {
                     // Typed buffer "view" lists (rolling, HPC):
-                    // - slice view:   [buf, off, len]
-                    // - strided view: [buf, off, len, stride]
-                    // These should iterate the underlying buffer elements rather than the metadata fields.
-                    if (container.type == AVM_VAL_LIST && container.as.l) {
-                        AvmList* l = container.as.l;
-                        if (l->count == 3 || l->count == 4) {
-                            AvmValue b = l->items[0];
-                            if (b.type == AVM_VAL_I32_BUF || b.type == AVM_VAL_I64_BUF || b.type == AVM_VAL_F32_BUF || b.type == AVM_VAL_F64_BUF) {
-                                AvmValue offv = l->items[1];
-                                AvmValue lenv = l->items[2];
-                                AvmValue stridev = (l->count == 4) ? l->items[3] : avm_int(1);
-                                if (offv.type == AVM_VAL_INT && lenv.type == AVM_VAL_INT && stridev.type == AVM_VAL_INT) {
-                                    int64_t off = offv.as.i;
-                                    int64_t n = lenv.as.i;
-                                    int64_t stride = stridev.as.i;
-                                    if (off >= 0 && n >= 0 && stride > 0 && idx < n) {
-                                        int64_t elem_idx = off + idx * stride;
-                                        AvmBuf* buf = b.as.buf;
-                                        if (buf && elem_idx >= 0 && (uint64_t)elem_idx < (uint64_t)buf->len) {
-                                            okv = avm_int(1);
-                                            if (b.type == AVM_VAL_I32_BUF) {
-                                                int32_t v; memcpy(&v, buf->data + (size_t)elem_idx * 4u, 4u);
-                                                val = avm_int((int64_t)v);
-                                            } else if (b.type == AVM_VAL_I64_BUF) {
-                                                int64_t v; memcpy(&v, buf->data + (size_t)elem_idx * 8u, 8u);
-                                                val = avm_int(v);
-                                            } else if (b.type == AVM_VAL_F32_BUF) {
-                                                float fv; memcpy(&fv, buf->data + (size_t)elem_idx * 4u, 4u);
-                                                val.type = AVM_VAL_FLOAT;
-                                                val.as.f = (double)fv;
-                                            } else {
-                                                double dv; memcpy(&dv, buf->data + (size_t)elem_idx * 8u, 8u);
-                                                val.type = AVM_VAL_FLOAT;
-                                                val.as.f = dv;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if (okv.as.i == 0 && idx < l->count) {
-                            okv = avm_int(1);
-                            val = l->items[(int)idx];
-                        }
-                    } else if (container.type == AVM_VAL_MAP && container.as.m) {
-                        AvmMap* m = container.as.m;
+	                    // - slice view:   [buf, off, len]
+	                    // - strided view: [buf, off, len, stride]
+	                    // These should iterate the underlying buffer elements rather than the metadata fields.
+	                    if (container.type == AVM_VAL_LIST && container.as.l) {
+	                        AvmList* l = container.as.l;
+	                        int view_ok = 0;
+	                        if (l->count == 3 || l->count == 4) {
+	                            AvmValue b = l->items[0];
+	                            // In AVM, u8 buffers are represented as BYTES. Support views for BYTES too.
+	                            if (b.type == AVM_VAL_BYTES ||
+	                                b.type == AVM_VAL_I32_BUF || b.type == AVM_VAL_I64_BUF || b.type == AVM_VAL_F32_BUF || b.type == AVM_VAL_F64_BUF) {
+	                                AvmValue offv = l->items[1];
+	                                AvmValue lenv = l->items[2];
+	                                AvmValue stridev = (l->count == 4) ? l->items[3] : avm_int(1);
+	                                if (offv.type == AVM_VAL_INT && lenv.type == AVM_VAL_INT && stridev.type == AVM_VAL_INT) {
+	                                    int64_t off = offv.as.i;
+	                                    int64_t n = lenv.as.i;
+	                                    int64_t stride = stridev.as.i;
+	                                    if (off >= 0 && n >= 0 && stride > 0) {
+	                                        // Valid view shape: do not fall back to list metadata iteration.
+	                                        view_ok = 1;
+	                                        if (idx < n) {
+	                                            int64_t elem_idx = off + idx * stride;
+	                                            if (b.type == AVM_VAL_BYTES) {
+	                                                AvmBytes* bb = b.as.b;
+	                                                if (bb && elem_idx >= 0 && (uint64_t)elem_idx < (uint64_t)bb->len) {
+	                                                    okv = avm_int(1);
+	                                                    val = avm_int((int64_t)bb->data[(int)elem_idx]);
+	                                                }
+	                                            } else {
+	                                                AvmBuf* buf = b.as.buf;
+	                                                if (buf && elem_idx >= 0 && (uint64_t)elem_idx < (uint64_t)buf->len) {
+	                                                    okv = avm_int(1);
+	                                                    if (b.type == AVM_VAL_I32_BUF) {
+	                                                        int32_t v; memcpy(&v, buf->data + (size_t)elem_idx * 4u, 4u);
+	                                                        val = avm_int((int64_t)v);
+	                                                    } else if (b.type == AVM_VAL_I64_BUF) {
+	                                                        int64_t v; memcpy(&v, buf->data + (size_t)elem_idx * 8u, 8u);
+	                                                        val = avm_int(v);
+	                                                    } else if (b.type == AVM_VAL_F32_BUF) {
+	                                                        float fv; memcpy(&fv, buf->data + (size_t)elem_idx * 4u, 4u);
+	                                                        val.type = AVM_VAL_FLOAT;
+	                                                        val.as.f = (double)fv;
+	                                                    } else {
+	                                                        double dv; memcpy(&dv, buf->data + (size_t)elem_idx * 8u, 8u);
+	                                                        val.type = AVM_VAL_FLOAT;
+	                                                        val.as.f = dv;
+	                                                    }
+	                                                }
+	                                            }
+	                                        }
+	                                    }
+	                                }
+	                            }
+	                        }
+	                        if (view_ok == 0 && okv.as.i == 0 && idx < l->count) {
+	                            okv = avm_int(1);
+	                            val = l->items[(int)idx];
+	                        }
+	                    } else if (container.type == AVM_VAL_MAP && container.as.m) {
+	                        AvmMap* m = container.as.m;
                         // Iterable map protocol (rolling): allow maps to represent stream-like iterables.
                         // Used by std/iter.oren:
                         //   {"__iter":"range","start":0,"end":N,"step":1}
@@ -1755,20 +1770,77 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
-        case 58: { // oren_buf_len(buf) -> int
-            if (nargs > 0 && (args[0].type == AVM_VAL_I32_BUF || args[0].type == AVM_VAL_I64_BUF || args[0].type == AVM_VAL_F32_BUF || args[0].type == AVM_VAL_F64_BUF)) {
-                AvmBuf* b = args[0].as.buf;
-                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_len: null buffer"); break; }
-                res = avm_int((int64_t)b->len);
-            } else {
-                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_len expects (buf)");
-            }
-            break;
-        }
-        case 59: { // oren_buf_load_i32(i32_buf, idx) -> int
-            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT) {
-                AvmBuf* b = args[0].as.buf;
-                int64_t idx = args[1].as.i;
+	        case 58: { // oren_buf_len(buf) -> int
+	            // In AVM, u8 buffers are represented as BYTES.
+	            if (nargs > 0 && args[0].type == AVM_VAL_BYTES) {
+	                AvmBytes* b = args[0].as.b;
+	                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_len: null u8 buffer"); break; }
+	                res = avm_int((int64_t)b->len);
+	            } else if (nargs > 0 && (args[0].type == AVM_VAL_I32_BUF || args[0].type == AVM_VAL_I64_BUF || args[0].type == AVM_VAL_F32_BUF || args[0].type == AVM_VAL_F64_BUF)) {
+	                AvmBuf* b = args[0].as.buf;
+	                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_len: null buffer"); break; }
+	                res = avm_int((int64_t)b->len);
+	            } else {
+	                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_len expects (buf)");
+	            }
+	            break;
+	        }
+	        case 142: { // oren_u8_buf_new(len:int) -> u8_buf (AVM: BYTES)
+	            if (nargs > 0 && args[0].type == AVM_VAL_INT) {
+	                int64_t n = args[0].as.i;
+	                if (n < 0 || n > 0x7fffffffLL) { res = avm_err(AVM_ERR_INVALID_ARG, "u8_buf_new: invalid length"); break; }
+	                AvmValue bv = avm_bytes_new((int)n);
+	                if (bv.type != AVM_VAL_BYTES || !bv.as.b) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+	                res = bv;
+	            } else {
+	                res = avm_err(AVM_ERR_INVALID_ARG, "oren_u8_buf_new expects (int)");
+	            }
+	            break;
+	        }
+	        case 143: { // oren_buf_load_u8(u8_buf, idx) -> int
+	            if (nargs > 1 && args[0].type == AVM_VAL_BYTES && args[1].type == AVM_VAL_INT) {
+	                AvmBytes* b = args[0].as.b;
+	                int64_t idx = args[1].as.i;
+	                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_u8: null buffer"); break; }
+	                if (idx < 0 || idx >= (int64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_u8: index out of bounds"); break; }
+	                res = avm_int((int64_t)b->data[(int)idx]);
+	            } else {
+	                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_load_u8 expects (u8_buf, int)");
+	            }
+	            break;
+	        }
+	        case 144: { // oren_buf_store_u8(u8_buf, idx, val) -> u8_buf
+	            if (nargs > 2 && args[0].type == AVM_VAL_BYTES && args[1].type == AVM_VAL_INT && args[2].type == AVM_VAL_INT) {
+	                AvmBytes* b = args[0].as.b;
+	                int64_t idx = args[1].as.i;
+	                int64_t v = args[2].as.i;
+	                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_u8: null buffer"); break; }
+	                if (idx < 0 || idx >= (int64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_u8: index out of bounds"); break; }
+	                if (v < 0 || v > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_store_u8: byte out of range"); break; }
+	                b->data[(int)idx] = (uint8_t)v;
+	                res = args[0];
+	            } else {
+	                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_store_u8 expects (u8_buf, int, int)");
+	            }
+	            break;
+	        }
+	        case 145: { // oren_buf_fill_u8(u8_buf, v) -> u8_buf
+	            if (nargs > 1 && args[0].type == AVM_VAL_BYTES && args[1].type == AVM_VAL_INT) {
+	                AvmBytes* b = args[0].as.b;
+	                int64_t v = args[1].as.i;
+	                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_fill_u8: null buffer"); break; }
+	                if (v < 0 || v > 255) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_fill_u8: byte out of range"); break; }
+	                if (b->len > 0 && b->data) memset(b->data, (unsigned char)v, (size_t)b->len);
+	                res = args[0];
+	            } else {
+	                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_fill_u8 expects (u8_buf, int)");
+	            }
+	            break;
+	        }
+	        case 59: { // oren_buf_load_i32(i32_buf, idx) -> int
+	            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT) {
+	                AvmBuf* b = args[0].as.buf;
+	                int64_t idx = args[1].as.i;
                 if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_i32: invalid buffer"); break; }
                 if (idx < 0 || (uint64_t)idx >= (uint64_t)b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_load_i32: index out of bounds"); break; }
                 uint32_t off = (uint32_t)idx * 4u;

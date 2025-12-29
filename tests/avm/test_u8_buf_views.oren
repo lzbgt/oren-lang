@@ -1,0 +1,64 @@
+@myorg.tag(name="avm-u8-buf-views")
+
+import buf "../../lib/std/buffer.oren"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_u8_buf_views() {
+    var b = buf.u8_new(6)
+    assert_eq(buf.len(b), 6)
+
+    // Fill with 10,20,30,40,50,60.
+    var i = 0
+    while i < 6 {
+        oren_buf_store_u8(b, i, (i + 1) * 10)
+        i = i + 1
+    }
+
+    // Direct iteration over u8 buffer.
+    var s = 0
+    for x in b { s = s + x }
+    assert_eq(s, 210)
+
+    // View iteration: [buf, off, len]
+    var view = [b, 2, 3]
+    var s2 = 0
+    for x2 in view { s2 = s2 + x2 }
+    assert_eq(s2, 120)
+
+    // Strided view iteration: [buf, off, len, stride]
+    var view2 = [b, 1, 3, 2]
+    var expect = [20, 40, 60]
+    var j = 0
+    var s3 = 0
+    for x3 in view2 {
+        assert_eq(x3, expect[j])
+        s3 = s3 + x3
+        j = j + 1
+    }
+    assert_eq(j, 3)
+    assert_eq(s3, 120)
+
+    // Fill helper should work on u8 buffers.
+    oren_buf_fill_u8(b, 7)
+    var s4 = 0
+    for x4 in b { s4 = s4 + x4 }
+    assert_eq(s4, 42)
+}
+
+fn main() {
+    test_u8_buf_views()
+    print("avm u8 buf views ok")
+    return 0
+}
+
