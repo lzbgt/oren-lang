@@ -1,3 +1,7 @@
+fn _mk_hi() {
+    return "hi"
+}
+
 fn main() {
     var s0 = "ab"
     var s1 = "cd"
@@ -16,6 +20,12 @@ fn main() {
     // Ensure concat works with non-literal string temporaries.
     var t = "X" + mid + "Y"
     if oren_string_eq(t, "XbcY") != true { return 5 }
+
+    // IMPORTANT: concat must work even when the string flows through a call boundary
+    // (not just when it is a literal or a known stdlib helper return).
+    var hi = _mk_hi()
+    var hx = hi + "x"
+    if oren_string_eq(hx, "hix") != true { return 6 }
 
     print("tier1 string ops ok")
     return 0

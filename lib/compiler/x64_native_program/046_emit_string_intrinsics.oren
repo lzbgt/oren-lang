@@ -599,13 +599,23 @@ fn _emit_intrinsic_oren_int_from_string_x64(ctx, expr, locals) {
 }
 
 fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
-    // Infix '+' special-case: if both operands are proven stringy, lower to `string_concat`.
+    // Infix '+' lowering (x64 native bring-up).
+    //
+    // Tier‑1 semantic goal: match the rolling native runtime helper `oren_add`:
+    // - if both operands are tracked heap strings (kind=1), perform string concatenation
+    // - otherwise, perform integer addition
+    //
+    // Rationale:
+    // - arm64 native lowers `+` via `oren_add`, which performs runtime detection based on
+    //   tracked-allocation metadata (`oren_find_node` + node.kind).
+    // - x64 native values are still untagged u64 carriers, so compile-time-only heuristics
+    //   for string `+` are not sufficient (e.g. strings returned from helper functions).
+    //
+    // This remains a stopgap until the native tagged-value model lands.
     if expr == nil { return nil }
     if expr["op"] != "+" { return nil }
-    if !_x64_expr_is_stringy(ctx, expr["left"]) { return nil }
-    if !_x64_expr_is_stringy(ctx, expr["right"]) { return nil }
 
-    // Evaluate LTR, then concat.
+    // Evaluate LTR, then decide at runtime whether to concat or add.
     var base = _intr_tmp_push(ctx, 2)
     if base == nil { return nil }
     var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
@@ -620,9 +630,54 @@ fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
 
+    var labels = {}
+    var fixups = []
+    var l_do_add = _new_label(ctx, "add_do_add")
+    var l_do_concat = _new_label(ctx, "add_do_concat")
+    var l_done = _new_label(ctx, "add_done")
+
+    // is_string(a) ?
+    _emit_mov_r64_mrbp(ctx, 12, 0 - tmp_a) // r12 = a
+    _emit_find_tracked_node_x64(ctx, 12, 10) // r10 = node(a) or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    // find_node clobbers r12: reload a from spill for later paths.
+    _emit_mov_r64_mrbp(ctx, 12, 0 - tmp_a)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_do_add)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 11)) // r11 = kind
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 1))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_do_add)
+
+    // is_string(b) ?
+    _emit_mov_r64_mrbp(ctx, 12, 0 - tmp_b) // r12 = b
+    _emit_find_tracked_node_x64(ctx, 12, 10) // r10 = node(b) or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_r64_mrbp(ctx, 12, 0 - tmp_b)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_do_add)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 11)) // r11 = kind
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 1))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_do_add)
+
+    _emit_jmp_to_label(ctx, fixups, l_do_concat)
+
+    _emit_label(ctx, labels, l_do_concat)
     _emit_mov_r64_mrbp(ctx, 12, 0 - tmp_a)
     _emit_mov_r64_mrbp(ctx, 13, 0 - tmp_b)
     _emit_string_concat_from_regs_x64(ctx, locals, 12, 13, 0)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_do_add)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_a) // rax = a
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_b) // rdx = b
+    bytes_extend(ctx["code"], insn_add_r64_r64(0, 2))
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
     return 1
 }
