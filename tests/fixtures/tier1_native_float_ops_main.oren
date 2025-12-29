@@ -40,6 +40,25 @@ fn main() {
     if !(1.0 < 2.0) { return 16 }
     if !(0.0 == -0.0) { return 17 }
 
+    // Float bitcast intrinsics (used by typed buffers and serialization layers).
+    //
+    // f32 bits for 1.0: 0x3f800000 = 1065353216
+    var f1 = f32(1.0)
+    var b1 = oren_f32_to_u32_bits(f1)
+    if b1 != 1065353216 { return 18 }
+
+    var f1b = oren_u32_bits_to_f32(b1)
+    var eq1 = f1b == 1.0
+    if eq1 != true { return 19 }
+    if i64(f1b) != 1 { return 20 }
+
+    // f64 bits for 1.0: 0x3ff0000000000000 = 4607182418800017408
+    var bits64 = oren_f64_to_u64_bits(1.0)
+    if bits64 != 4607182418800017408 { return 21 }
+    var f64b = oren_u64_bits_to_f64(bits64)
+    var eq2 = f64b == 1.0
+    if eq2 != true { return 22 }
+
     print("tier1 float ops ok")
     return 0
 }

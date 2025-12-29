@@ -243,6 +243,22 @@ Supported forms:
 - Decimal: `12.5`, `0.125`
 - Scientific notation: `1e3`, `5e-1`, `12.5E+2`
 
+Rolling notes (important for backends):
+
+- Oren’s `float` value is represented as a **64-bit IEEE‑754 bit pattern** (an `f64` container) in v0.
+- Casts like `f32(x)` / `f64(x)` are **numeric conversions** (rounding / widening), not bit reinterprets.
+- For bit-level reinterpretation (useful for typed buffers and serialization), the native toolchain exposes:
+  - `oren_f32_to_u32_bits(f32) -> u32` and `oren_u32_bits_to_f32(u32) -> f32`
+  - `oren_f64_to_u64_bits(f64) -> u64` and `oren_u64_bits_to_f64(u64) -> f64`
+
+Example (bit-cast roundtrip):
+
+```oren
+var bits = oren_f64_to_u64_bits(1.0)      // 0x3ff0_0000_0000_0000
+var x = oren_u64_bits_to_f64(bits)
+if i64(x) != 1 { exit(1) }
+```
+
 ### Booleans and nil
 
 - `true`, `false`

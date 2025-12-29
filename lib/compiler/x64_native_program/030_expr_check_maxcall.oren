@@ -69,7 +69,9 @@ fn _expr_int_check(ctx, expr) {
         var spread0 = expr["spread"]
         var argc0 = 0
         if args != nil { argc0 = oren_list_len(args) }
-        if nm == "oren_trunc_int" || nm == "oren_bool_norm" || nm == "oren_f32_round" {
+        if nm == "oren_trunc_int" || nm == "oren_bool_norm" || nm == "oren_f32_round" ||
+            nm == "oren_f32_to_u32_bits" || nm == "oren_u32_bits_to_f32" ||
+            nm == "oren_f64_to_u64_bits" || nm == "oren_u64_bits_to_f64" {
             if spread0 != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return nil }
             if argc0 != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 argument"); return nil }
             _expr_int_check(ctx, args[0])

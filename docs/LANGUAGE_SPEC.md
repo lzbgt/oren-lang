@@ -1094,25 +1094,38 @@ Constraints the design must enforce (for determinism + safety):
 Until then, the endian helpers (`oren_bytes_get_u16_be`, etc.) are the stable base primitive.
 
 ### Native Backend Intrinsics
-The native ARM64 backend supports low-level intrinsics for performance and system access:
+The native backend supports low-level **compiler/runtime intrinsics** for performance and system access.
+
+Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and may be lowered differently by each native backend, but must preserve **deterministic semantics**.
+
+**Portable native intrinsics (Tier‑1 intent: ARM64 + x86_64):**
+
+- **Float bit-casts (bitwise, no numeric conversion):**
+  - `oren_f32_to_u32_bits(f32) -> u32`
+  - `oren_u32_bits_to_f32(u32) -> f32`
+  - `oren_f64_to_u64_bits(f64) -> u64`
+  - `oren_u64_bits_to_f64(u64) -> f64`
+- **Memory:**
+  - `malloc(size)`: Allocate raw memory (pages).
+  - `ptr_get(ptr)`, `ptr_set(ptr, val)`: Read/Write 64-bit word.
+  - `ptr_get_byte(ptr)`, `ptr_set_byte(ptr, val)`: Read/Write 8-bit byte.
+- **FFI:**
+  - `ffi symbol` statement declares an external symbol (e.g., `ffi puts`).
+
+**ARM64-only today (rolling):**
+
 - **SIMD (NEON)**:
   - `simd_add_2d`, `simd_sub_2d`: 128-bit integer addition/subtraction.
   - `simd_mul_4s`: 4x32-bit integer multiplication.
   - `simd_and_2d`, `simd_orr_2d`, `simd_eor_2d`: 128-bit bitwise operations.
-- **Memory**:
-  - `malloc(size)`: Allocate raw memory (pages).
-  - `ptr_get(ptr)`, `ptr_set(ptr, val)`: Read/Write 64-bit word.
-  - `ptr_get_byte(ptr)`, `ptr_set_byte(ptr, val)`: Read/Write 8-bit byte.
 - **Atomics (LSE)**:
   - `atomic_add(ptr, val)`: Atomic add, returns old value.
   - `atomic_cas(ptr, expected, new)`: Atomic compare-and-swap, returns old value.
-- **FFI**:
-  - `ffi symbol` statement declares an external symbol (e.g., `ffi puts`).
 
 SIMD enablement (rolling):
 
 - SIMD is an **optimization only**; semantics must match the scalar reference behavior.
-- Tier‑1 direction: x86_64 will expose a matching intrinsic family mapped to SSE2 (baseline) and optionally AVX2, but this is not yet treated as implemented until it has parity tests and stable feature detection across Linux+Windows.
+- Tier‑1 direction: x86_64 will expose a matching intrinsic family mapped to SSE2 (baseline) and optionally AVX2, but this is not treated as implemented until it has parity tests and stable feature detection across Linux+Windows.
 - Native runtime uses env gating for native backend outputs:
   - `OREN_ENABLE_SIMD=1` enables SIMD fast paths when available.
   - `OREN_NO_SIMD=1` disables SIMD (wins over enable).
