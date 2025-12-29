@@ -5,6 +5,20 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2025-12-29) — OBC portability gate hardened (timeouts + WSL progress)
+
+- Confirmed the `.obc` portability contract with an integration gate that compares `RESULT_HASH` and `TRACE_HASH` across:
+  - macOS arm64 (host)
+  - linux/arm64 (docker container)
+  - linux/x86_64 (WSL2 on remote Win11 host)
+- Hardened the portability script so it can’t hang silently in rolling workflows:
+  - Added configurable timeouts (`OREN_REMOTE_WSL_TIMEOUT_SECS`, `OREN_REMOTE_TIMEOUT_SECS`, `OREN_DOCKER_TIMEOUT_SECS`).
+  - Added minimal progress markers for the WSL step (`[wsl] unpack/build/run`) while keeping build output quiet.
+- References:
+  - Script: `tools/verify_obc_portability.sh`
+  - Docs: `docs/OBC_PORTABILITY.md`
+  - Make target: `make obc-portability`
+
 ## Archived (2025-12-21) — Native SIMD scale/axpy + matmul scratch reuse (HPC)
 
 - Native backend:

@@ -46,21 +46,14 @@ Rules for this tracker:
      - `docs/DESIGN_CONTAINER_OPS.md`
      - `docs/STDLIB_LAYERS.md`
 
-5) **OBC portability gate (AVM‑universal bytecode)** (M)
-   - `.obc` must execute identically under AVM across hosts (hash-stable outputs).
-   - Gate: run one integrated `.obc` on macOS arm64 + linux/arm64 + linux/x86_64 and compare `RESULT_HASH`.
-   - References:
-     - `docs/OBC_PORTABILITY.md`
-     - `docs/AVM_SPEC.md`
-
-6) **AVM in AVM + compiler-in-AVM (deterministic toolchain in a capsule)** (M)
+5) **AVM in AVM + compiler-in-AVM (deterministic toolchain in a capsule)** (M)
    - Make `.oren → .obc` compilation runnable inside AVM with budgets and locked capability surfaces.
    - References:
      - `docs/AVM_MULTIVERSE.md`
      - `docs/AVM_SPEC_V1.md`
      - `docs/SELF_HOSTING.md`
 
-7) **Stdlib distribution + module resolution (native + AVM)** (M)
+6) **Stdlib distribution + module resolution (native + AVM)** (M)
    - One coherent story for end users:
      - `import ... "std:foo"` resolution
      - source vs precompiled stdlib bundles
@@ -69,14 +62,14 @@ Rules for this tracker:
      - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`
      - `docs/OBC_MODULE_LINKING.md`
 
-8) **HPC/SIMD parity (arm64 NEON today; x86_64 SSE2/AVX next)** (M)
+7) **HPC/SIMD parity (arm64 NEON today; x86_64 SSE2/AVX next)** (M)
    - Keep determinism contract: scalar is authoritative; SIMD must be bit-identical for covered kernels.
    - Expand x86_64 SIMD coverage once x64 native reaches semantic parity.
    - References:
      - `docs/HPC_SERVER_PLAN.md`
      - `docs/AVM_NEON_MAPPING_PLAN.md`
 
-9) **Tooling (modern compiler UX; self-hosting behind gates)** (M)
+8) **Tooling (modern compiler UX; self-hosting behind gates)** (M)
    - Keep Go bootstrap canonical until Oren-native tooling meets reliability/perf gates.
    - Track Oren-native tools as gated milestones: `fmt`, `test`, `pkg`, `lsp`.
    - References:
@@ -84,7 +77,7 @@ Rules for this tracker:
      - `docs/CLI_COMPLETION.md`
      - `docs/SELF_HOSTING.md`
 
-10) **Tests & iteration speed (integration-first; backend/arch neutral by default)** (S)
+9) **Tests & iteration speed (integration-first; backend/arch neutral by default)** (S)
    - Keep `make test` iteration-fast and deterministic.
    - Prefer a small number of high-signal integration suites + fixtures as living spec.
    - Reference: `docs/TEST_SYSTEM.md`

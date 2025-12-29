@@ -29,6 +29,26 @@ cd "$ROOT_DIR"
 OUT_DIR="build/tmp/obc_portability"
 mkdir -p "$OUT_DIR"
 
+TIMEOUT_BIN="${OREN_TIMEOUT_BIN:-}"
+if [[ -z "$TIMEOUT_BIN" ]]; then
+  if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="timeout"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="gtimeout"
+  fi
+fi
+
+run_with_timeout() {
+  local secs="$1"
+  shift
+  if [[ -n "$TIMEOUT_BIN" ]]; then
+    # -k 2: allow a short grace period before hard kill.
+    "$TIMEOUT_BIN" -k 2 "$secs" "$@"
+  else
+    "$@"
+  fi
+}
+
 OB_SRC="tests/avm/test_smoke_suite.oren"
 OB_OBC="$OUT_DIR/test_smoke_suite.obc"
 OB_SHA="$OUT_DIR/obc.sha256"
@@ -76,8 +96,9 @@ docker start "$NAME" >/dev/null || true
 git ls-files -z | tar -czf - --null -T - | docker exec -i "$NAME" bash -lc 'set -euo pipefail; rm -rf /work/repo/*; mkdir -p /work/repo; tar -xzf - -C /work/repo'
 
 # Rebuild avm (fast; avoids running the full test suite).
-docker exec "$NAME" bash -lc 'set -euo pipefail; cd /work/repo; rm -f ./avm; make avm CC=gcc >/dev/null'
-docker exec "$NAME" bash -lc "set -euo pipefail; cd /work/repo; ./avm --print-result-hash --print-trace-hash /repo/$OB_OBC" \
+DOCKER_TIMEOUT_SECS="${OREN_DOCKER_TIMEOUT_SECS:-600}"
+run_with_timeout "$DOCKER_TIMEOUT_SECS" docker exec "$NAME" bash -lc 'set -euo pipefail; cd /work/repo; rm -f ./avm; make avm CC=gcc >/dev/null'
+run_with_timeout "$DOCKER_TIMEOUT_SECS" docker exec "$NAME" bash -lc "set -euo pipefail; cd /work/repo; ./avm --print-result-hash --print-trace-hash /repo/$OB_OBC" \
   | tee "$OUT_DIR/linux_docker_arm64.out" >/dev/null
 LINUX_HASHES="$(extract_hashes "$OUT_DIR/linux_docker_arm64.out")"
 echo "[obc-portability] linux/arm64 RESULT/TRACE: $LINUX_HASHES"
@@ -93,18 +114,20 @@ REMOTE_UNIX_ROOT="${OREN_REMOTE_X64_UNIX_ROOT:-/Users/lzbgt/tmp_oren}"
 REMOTE_SUBDIR="obc_portability"
 
 echo "[obc-portability] remote mkdir"
-"${SSH[@]}" 'cmd.exe /c "if not exist %USERPROFILE%\\tmp_oren\\obc_portability mkdir %USERPROFILE%\\tmp_oren\\obc_portability"' >/dev/null
+REMOTE_TIMEOUT_SECS="${OREN_REMOTE_TIMEOUT_SECS:-600}"
+REMOTE_WSL_TIMEOUT_SECS="${OREN_REMOTE_WSL_TIMEOUT_SECS:-900}"
+run_with_timeout "$REMOTE_TIMEOUT_SECS" "${SSH[@]}" 'cmd.exe /c "if not exist %USERPROFILE%\\tmp_oren\\obc_portability mkdir %USERPROFILE%\\tmp_oren\\obc_portability"' >/dev/null
 
 # Ship the same `.obc` and a tarball of tracked sources so WSL can build AVM.
 REPO_TGZ="$OUT_DIR/repo.tgz"
 git ls-files -z | tar -czf "$REPO_TGZ" --null -T -
 
 echo "[obc-portability] remote scp obc + repo.tgz"
-"${SCP[@]}" "$OB_OBC" "$REMOTE_HOST:$REMOTE_UNIX_ROOT/$REMOTE_SUBDIR/test_smoke_suite.obc" >/dev/null
-"${SCP[@]}" "$REPO_TGZ" "$REMOTE_HOST:$REMOTE_UNIX_ROOT/$REMOTE_SUBDIR/repo.tgz" >/dev/null
+run_with_timeout "$REMOTE_TIMEOUT_SECS" "${SCP[@]}" "$OB_OBC" "$REMOTE_HOST:$REMOTE_UNIX_ROOT/$REMOTE_SUBDIR/test_smoke_suite.obc" >/dev/null
+run_with_timeout "$REMOTE_TIMEOUT_SECS" "${SCP[@]}" "$REPO_TGZ" "$REMOTE_HOST:$REMOTE_UNIX_ROOT/$REMOTE_SUBDIR/repo.tgz" >/dev/null
 
 echo "[obc-portability] remote build+run in WSL"
-"${SSH[@]}" 'wsl.exe -e bash -lc "set -euo pipefail; root=/mnt/c/Users/lzbgt/tmp_oren/obc_portability; mkdir -p $root/repo; tar -xzf $root/repo.tgz -C $root/repo; cd $root/repo; make avm CC=gcc >/dev/null; ./avm --print-result-hash --print-trace-hash $root/test_smoke_suite.obc"' \
+run_with_timeout "$REMOTE_WSL_TIMEOUT_SECS" "${SSH[@]}" 'wsl.exe -e bash -lc "set -euo pipefail; root=/mnt/c/Users/lzbgt/tmp_oren/obc_portability; echo \"[wsl] unpack\"; mkdir -p $root/repo; tar -xzf $root/repo.tgz -C $root/repo; echo \"[wsl] build avm\"; cd $root/repo; make avm CC=gcc >/dev/null; echo \"[wsl] run\"; ./avm --print-result-hash --print-trace-hash $root/test_smoke_suite.obc"' \
   | tee "$OUT_DIR/wsl_x64.out" >/dev/null
 WSL_HASHES="$(extract_hashes "$OUT_DIR/wsl_x64.out")"
 echo "[obc-portability] wsl/x64 RESULT/TRACE: $WSL_HASHES"
@@ -120,4 +143,3 @@ if [[ "$MAC_HASHES" != "$WSL_HASHES" ]]; then
 fi
 
 echo "[obc-portability] OK: hashes match across mac arm64 + linux/arm64 docker + linux/x64 WSL2"
-
