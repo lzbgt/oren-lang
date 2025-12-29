@@ -1,0 +1,31 @@
+fn main() {
+    // Tier‑1 requirement: atomic intrinsics must behave identically on:
+    // - Linux x86_64 SysV
+    // - Windows x64
+    //
+    // Contract:
+    // - atomic_add(ptr, v) returns the old value and stores old+v
+    // - atomic_cas(ptr, expected, new) returns the old value and stores new iff old==expected
+
+    var p = malloc(8)
+    if p == 0 { return 1 }
+    if p == -1 { return 1 }
+
+    ptr_set(p, 10)
+
+    var old = atomic_add(p, 5)
+    if old != 10 { return 2 }
+    if ptr_get(p) != 15 { return 3 }
+
+    var cas0 = atomic_cas(p, 15, 20)
+    if cas0 != 15 { return 4 }
+    if ptr_get(p) != 20 { return 5 }
+
+    var cas1 = atomic_cas(p, 999, 30)
+    if cas1 != 20 { return 6 }
+    if ptr_get(p) != 20 { return 7 }
+
+    print("tier1 atomics ok")
+    return 0
+}
+

@@ -1105,6 +1105,9 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
   - `oren_u32_bits_to_f32(u32) -> f32`
   - `oren_f64_to_u64_bits(f64) -> u64`
   - `oren_u64_bits_to_f64(u64) -> f64`
+- **Atomics (deterministic semantics; 64-bit word):**
+  - `atomic_add(ptr, val) -> old` (fetch-add)
+  - `atomic_cas(ptr, expected, new) -> old` (compare-and-swap)
 - **Memory:**
   - `malloc(size)`: Allocate raw memory (pages).
   - `ptr_get(ptr)`, `ptr_set(ptr, val)`: Read/Write 64-bit word.
@@ -1118,9 +1121,8 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
   - `simd_add_2d`, `simd_sub_2d`: 128-bit integer addition/subtraction.
   - `simd_mul_4s`: 4x32-bit integer multiplication.
   - `simd_and_2d`, `simd_orr_2d`, `simd_eor_2d`: 128-bit bitwise operations.
-- **Atomics (LSE)**:
-  - `atomic_add(ptr, val)`: Atomic add, returns old value.
-  - `atomic_cas(ptr, expected, new)`: Atomic compare-and-swap, returns old value.
+- **Atomics (LSE)**: ARM64 backend may lower the portable atomics to LSE instructions when available,
+  but must preserve the same semantics as the portable intrinsic contract.
 
 SIMD enablement (rolling):
 

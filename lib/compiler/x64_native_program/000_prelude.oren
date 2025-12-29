@@ -38,6 +38,8 @@ fn insn_mov_rax_mrip_disp32(disp32) { return core.insn_mov_rax_mrip_disp32(disp3
 fn insn_mov_rax_mrax() { return core.insn_mov_rax_mrax() }
 fn insn_mov_r64_mr64(dst_reg, base_reg) { return core.insn_mov_r64_mr64(dst_reg, base_reg) }
 fn insn_mov_mr64_r64(base_reg, src_reg) { return core.insn_mov_mr64_r64(base_reg, src_reg) }
+fn insn_lock_xadd_mr64_r64(base_reg, src_reg) { return core.insn_lock_xadd_mr64_r64(base_reg, src_reg) }
+fn insn_lock_cmpxchg_mr64_r64(base_reg, src_reg) { return core.insn_lock_cmpxchg_mr64_r64(base_reg, src_reg) }
 fn insn_movzx_r32_mr8(dst_reg, base_reg) { return core.insn_movzx_r32_mr8(dst_reg, base_reg) }
 fn insn_mov_mr8_al(base_reg) { return core.insn_mov_mr8_al(base_reg) }
 fn insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) { return core.insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) }

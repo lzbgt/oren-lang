@@ -282,6 +282,60 @@ fn insn_mov_mr64_r64(base_reg, src_reg) {
     return out
 }
 
+fn insn_lock_xadd_mr64_r64(base_reg, src_reg) {
+    // lock xadd qword ptr [base_reg], src_reg
+    //
+    // Semantics:
+    // - tmp := [mem]
+    // - [mem] := tmp + src_reg
+    // - src_reg := tmp
+    //
+    // Encoding: F0 REX.W 0F C1 /r
+    if src_reg < 0 || src_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    bytes_push(out, 240) // F0 (LOCK)
+    var rex = 72 // 0x48 (REX.W)
+    if src_reg >= 8 { rex = rex + 4 }  // REX.R
+    if base_reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 15)  // 0F
+    bytes_push(out, 193) // C1
+    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(src_reg, 8))
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    return out
+}
+
+fn insn_lock_cmpxchg_mr64_r64(base_reg, src_reg) {
+    // lock cmpxchg qword ptr [base_reg], src_reg
+    //
+    // Semantics (64-bit form):
+    // - compare RAX (expected) with [mem]
+    // - if equal: [mem] := src_reg (new), ZF=1
+    // - else: RAX := [mem] (old), ZF=0
+    //
+    // Encoding: F0 REX.W 0F B1 /r
+    if src_reg < 0 || src_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    bytes_push(out, 240) // F0 (LOCK)
+    var rex = 72 // 0x48 (REX.W)
+    if src_reg >= 8 { rex = rex + 4 }  // REX.R
+    if base_reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 15)  // 0F
+    bytes_push(out, 177) // B1
+    var enc = _mem_base_modrm_and_sib(base_reg, int_mod(src_reg, 8))
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    return out
+}
+
 fn insn_movzx_r32_mr8(dst_reg, base_reg) {
     // movzx r32, byte ptr [base_reg]
     // Encoding: 0F B6 /r (+ optional REX for r8d-r15d or base r8-r15)

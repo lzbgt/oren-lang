@@ -66,6 +66,7 @@ Status legend:
 | Deterministic diagnostics (`OREN_DIAG`) | Rolling | Runtime + emit points (native/C) | Fixtures: `tests/native/fixtures/diag_fail.oren` |
 | Stack safety (call depth guard) | Rolling | AVM flag; C env; native guards | Docs: `docs/STACK_SAFETY.md`; fixtures: `tests/native/fixtures/call_depth_overflow.oren` |
 | Tail-call optimization | Rolling (subset) | Lowering/codegen passes | Docs: `docs/STACK_SAFETY.md` |
+| Atomics (`atomic_add`, `atomic_cas`) | Rolling | ARM64: `lib/compiler/arm64_native_expr/**` (LL/SC lowering); x86_64: `lib/compiler/x64_native_program/040_emit_expr.oren` (LOCK XADD / CMPXCHG) | Native tests: `tests/native/test_atomics.oren`; Tier‑1 x86_64 fixture: `tests/fixtures/tier1_native_atomics_main.oren` (`OREN_REMOTE_RUN=1`) |
 | Capsule model (native capability gating) | Rolling | Native runtime + syscall emit constraints | Fixtures: `tests/native/fixtures/capsule_*` |
 | AVM execution of `.obc` | Rolling | Runtime: `lib/avm/**`; codegen: `lib/compiler/codegen_bytecode/**` | Examples: `examples/avm_*`; Tests: `tests/avm/**` |
 | Capability domains (CORE/FS/NET/PROC/AVM) | Rolling | `.obc` verifier + dispatch: `lib/avm/avm_native.inc`, `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (domains vs backends); fixtures cover capsule constraints |

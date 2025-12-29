@@ -551,6 +551,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _intr_tmp_pop(ctx, base)
             return nil
         }
+        if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return nil }
+        if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return nil }
         if nm == "oren_string_len" {
             _emit_intrinsic_oren_string_len_x64(ctx, expr, locals)
             return nil
