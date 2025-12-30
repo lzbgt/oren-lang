@@ -18,7 +18,7 @@ Rules for this tracker:
 1) **Tier‑1 native support parity (arm64 + x86_64; macOS/Linux/Windows)** (L)
    - Converge the native backends on one semantics set:
      - callables (function values), closures, varargs/spread, and deterministic failure modes (`OREN_DIAG` + stack traces)
-     - **language concurrency**: `spawn`/`oren_join` must work on Windows (today it is fork+pipe based in the native runtime, so Windows needs a different implementation or a new unified primitive)
+     - **language concurrency**: `spawn`/`oren_join` must work on Windows (thread-based; no fork/pipe assumptions)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
        - **runtime injection is default-on** for x86_64 (same runtime source as arm64; expanded `// @include` tree)
@@ -35,13 +35,17 @@ Rules for this tracker:
        - NOTE: `tests/native/test_spawn_*` include language-level `spawn/join` which is currently fork+pipe based and not Windows-safe yet.
        - Next: extend beyond “spawn+wait” to a full PROC story on Windows: pid/kill/wait semantics (or define a cross‑OS `sys_spawn` CoreIR boundary).
      - POSIX `oren_system_timeout` robustness in minimal/container environments: **done** — runtime now performs deterministic shell discovery (supports `OREN_SYSTEM_SHELL` override) and returns `-2` (ENOENT) if no shell exists.
-     - Next: Windows x86_64 FS syscall surface parity (real file handles beyond stdio; `sys_open/sys_read/sys_write/sys_close`, basic stat/unlink/rename/mkdir) so capsules remain meaningful cross‑OS.
+     - Windows x86_64 FS syscall surface parity (capsule-safe): **rolling**
+       - **done**: `sys_open` (CreateFileA), `sys_read/sys_write` (generic HANDLEs, not just stdio), `sys_close` (closesocket→CloseHandle fallback)
+       - next: stat/unlink/rename/mkdir/chmod equivalents (define a syscall-first FS surface that is stable across OSes)
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
      - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
    - Entry semantics (native): standardize on a single model for `__top_level__` + `main` so test files do not accidentally run `main()` twice; update docs/tests to match once the contract is finalized.
+   - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:
+     - **done**: `== != < <= > >=` in condition lowering treat tracked strings by content/lexicographic order (no pointer-compare regressions).
 
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.

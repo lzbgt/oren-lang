@@ -69,6 +69,15 @@ fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
 // - `cmdline` must be a mutable NUL-terminated cstr (CreateProcessA requirement).
 // - `envblock` is either 0 (inherit) or a double-NUL-terminated environment block.
 fn sys_win_createprocess(app, cmdline, envblock, timeout_ms) { return 0 }
+// Windows-only THREAD helpers (CreateThread-based language `spawn` support):
+// - sys_win_createthread(start_addr, arg_ptr) -> HANDLE (u64) or 0 on failure
+// - sys_win_wait_single_object(handle, timeout_ms) -> 0 (signaled) | -60 (timeout) | -1 (failed)
+// - sys_win_terminate_thread(handle, exit_code) -> 0 on success or -1 on failure
+// - sys_win_close_handle(handle) -> 0 on success or -5 (EIO) on failure
+fn sys_win_createthread(start_addr, arg_ptr) { return 0 }
+fn sys_win_wait_single_object(handle, timeout_ms) { return 0 }
+fn sys_win_terminate_thread(handle, exit_code) { return 0 }
+fn sys_win_close_handle(handle) { return 0 }
 fn sys_mmap_private_anon(len) { return 0 }
 fn sys_munmap(addr, len) { return 0 }
 fn sys_clone(flags, stack) { return 0 }

@@ -991,7 +991,15 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
-    // Try closesocket(fd) first; if WSAENOTSOCK, fall back to CloseHandle(fd).
+    // Close semantics (rolling):
+    // - Prefer closesocket(fd) (socket handles)
+    // - If it fails, fall back to CloseHandle(fd) (file/thread/process handles)
+    //
+    // Note:
+    // - Some non-socket HANDLE values can cause closesocket to fail with WSA errors
+    //   other than WSAENOTSOCK. To make sys_close robust for files created by `sys_open`,
+    //   we always attempt CloseHandle on closesocket failure and only return an error
+    //   if BOTH close paths fail.
     _intr_load_x64(ctx, 1, tmp_fd)
     _emit_call_iat_x64(ctx, "IAT_closesocket")
 
@@ -1000,18 +1008,9 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     var l_ok = _new_label(ctx, "sys_close_ok")
     bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_ok)
-
-    // closesocket failed; check WSAENOTSOCK to decide fallback.
-    _emit_wsa_get_last_error_x64(ctx) // eax=WSA
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10038)) // WSAENOTSOCK
-    var l_not_sock = _new_label(ctx, "sys_close_not_sock")
-    _emit_jcc_to_label(ctx, fixups, "e", l_not_sock)
-
-    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
     var l_post = _new_label(ctx, "sys_close_post")
-    _emit_jmp_to_label(ctx, fixups, l_post)
 
-    _emit_label(ctx, labels, l_not_sock)
+    // closesocket failed => attempt CloseHandle(fd).
     _intr_load_x64(ctx, 1, tmp_fd) // rcx = HANDLE
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
     // CloseHandle returns BOOL; if 0 => failure => -EIO

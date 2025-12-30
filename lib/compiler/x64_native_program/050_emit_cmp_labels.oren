@@ -1,3 +1,135 @@
+fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
+    // Set CPU flags for `lhs <op> rhs`-style comparisons in conditions.
+    //
+    // Tier‑1 convergence rule:
+    // - If both operands are tracked STRING (kind=1), lower compare via an inline
+    //   `strcmp`-equivalent and then `cmp rax, 0`.
+    // - Otherwise, fall back to raw integer compare (`cmp lhs, rhs`).
+    //
+    // This keeps condition Jcc mapping identical for ints and strings because both paths
+    // end with a `cmp <result>, 0` semantics: ints use flags from `cmp lhs,rhs`, strings
+    // use flags from `cmp strcmp(lhs,rhs), 0`.
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: missing locals"); return nil }
+
+    // Spill operands to preserve across runtime calls.
+    var off_l = locals["$tmp_cmp"]
+    var off_r = locals["$tmp0"]
+    if off_l == nil || off_r == nil {
+        err(ctx, "x64 native v0: missing spill slots for string-aware compare")
+        return nil
+    }
+    _emit_mov_mrbp_r64(ctx, 0 - off_l, lhs_reg)
+    _emit_mov_mrbp_r64(ctx, 0 - off_r, rhs_reg)
+
+    var labels = {}
+    var fixups = []
+    var l_int = _new_label(ctx, "cmp_int")
+    var l_str = _new_label(ctx, "cmp_str")
+    var l_done = _new_label(ctx, "cmp_done")
+
+    // Fast path: if either operand is a small integer (<4096 in the native v0 model),
+    // it cannot be a tracked heap string. Skip the tracking scan in that case.
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_l) // rax = lhs
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4096))
+    _emit_jcc_to_label(ctx, fixups, "l", l_int)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_r) // rax = rhs
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4096))
+    _emit_jcc_to_label(ctx, fixups, "l", l_int)
+
+    // Check lhs tracked kind == 1 (STRING).
+    _emit_mov_r64_mrbp(ctx, 8, 0 - off_l) // r8 = lhs
+    _emit_find_tracked_node_x64(ctx, 8, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_int)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 1))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_int)
+
+    // Check rhs tracked kind == 1 (STRING).
+    _emit_mov_r64_mrbp(ctx, 8, 0 - off_r) // r8 = rhs
+    _emit_find_tracked_node_x64(ctx, 8, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_int)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 1))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_int)
+
+    // Both are tracked strings.
+    _emit_jmp_to_label(ctx, fixups, l_str)
+
+    _emit_label(ctx, labels, l_str)
+    // Inline `strcmp` semantics returning -1/0/1 in RAX, then `cmp rax,0` for Jcc mapping.
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_l) // r10 = s1 cursor
+    _emit_mov_r64_mrbp(ctx, 11, 0 - off_r) // r11 = s2 cursor
+
+    var l_loop = _new_label(ctx, "cmp_str_loop")
+    var l_ret_m1 = _new_label(ctx, "cmp_str_ret_m1")
+    var l_ret_0 = _new_label(ctx, "cmp_str_ret_0")
+    var l_ret_p1 = _new_label(ctx, "cmp_str_ret_p1")
+    _emit_label(ctx, labels, l_loop)
+    // r8d = *s1 ; r9d = *s2
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(8, 10))
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(9, 11))
+
+    // if b1 == 0
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(8, 0))
+    var l_b1_nz = _new_label(ctx, "cmp_str_b1_nz")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_b1_nz)
+    // b1 == 0: if b2 == 0 => 0 else -1
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(9, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_ret_0)
+    _emit_jmp_to_label(ctx, fixups, l_ret_m1)
+
+    _emit_label(ctx, labels, l_b1_nz)
+    // if b2 == 0 => +1
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(9, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_ret_p1)
+
+    // if b1 < b2 => -1 ; if b1 > b2 => +1
+    bytes_extend(ctx["code"], insn_cmp_r32_r32(8, 9))
+    _emit_jcc_to_label(ctx, fixups, "b", l_ret_m1)
+    _emit_jcc_to_label(ctx, fixups, "a", l_ret_p1)
+
+    // Equal: advance and continue.
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 1))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    _emit_jmp_to_label(ctx, fixups, l_loop)
+
+    _emit_label(ctx, labels, l_ret_m1)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_ret_0)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_ret_p1)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_int)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_l)
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_r)
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
 fn _emit_cmp_from_cond(ctx, cond, locals) {
     // Emits a compare that sets flags according to `cond`.
     // Uses RAX for evaluated LHS/expr; RDX as scratch for RHS when needed.
@@ -22,11 +154,11 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
             }
             return nil
         }
-        if r["type"] == "Identifier" {
-            var rhs_name = r["value"]
-            var off = locals[rhs_name]
-            if off != nil {
-                _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs (local)
+	        if r["type"] == "Identifier" {
+	            var rhs_name = r["value"]
+	            var off = locals[rhs_name]
+	            if off != nil {
+	                _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs (local)
             } else {
                 // Global var RHS (top-level `var`).
                 var goff = nil
@@ -39,22 +171,22 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
                 var lea_pos0 = oren_list_len(ctx["code"])
                 bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
                 oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
-                bytes_extend(ctx["code"], insn_mov_r64_mr64(2, 10))
-            }
-            bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
-            return nil
-        }
+	                bytes_extend(ctx["code"], insn_mov_r64_mr64(2, 10))
+	            }
+	            _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, 0, 2)
+	            return nil
+	        }
         // General RHS expression: spill LHS, evaluate RHS, then cmp lhs,rhs.
         var tmp_off = locals["$tmp_cmp"]
         if tmp_off == nil { err(ctx, "x64 native v0: missing temp slot for cmp"); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0) // [tmp] = lhs (rax)
         _emit_eval_int_to_rax(ctx, r, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
-        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
-        return nil
-    }
+	        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rhs
+	        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off) // rax = lhs
+	        _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, 0, 2)
+	        return nil
+	    }
 
     // Truthy expression condition: compare expr to 0.
     if cond["type"] == "Prefix" && cond["op"] == "!" {

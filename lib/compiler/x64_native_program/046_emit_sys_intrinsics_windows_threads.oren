@@ -1,0 +1,228 @@
+// x64-native (Windows): THREAD syscall intrinsics (CreateThread + join/terminate).
+//
+// Goal (rolling Tier‑1):
+// - Provide a syscall-first thread primitive so language-level `spawn`/`oren_join(_timeout)`
+//   can work on Windows where fork/exec do not exist.
+// - Keep Win32 host effects behind `sys_*` intrinsics so capsule auditing remains possible.
+//
+// Intrinsics:
+//   sys_win_createthread(start_addr, arg_ptr) -> handle(u64) or 0 on failure
+//     - start_addr: raw function pointer (LPTHREAD_START_ROUTINE)
+//     - arg_ptr:    LPVOID passed to the thread entrypoint
+//
+//   sys_win_wait_single_object(handle, timeout_ms) -> rc
+//     - rc: 0 (WAIT_OBJECT_0), -60 (timeout), -1 (failed/unexpected)
+//     - timeout_ms: -1 => INFINITE ; 0 => no wait ; >0 => timeout in ms
+//
+//   sys_win_terminate_thread(handle, exit_code) -> 0 on success or -1 on failure
+//   sys_win_close_handle(handle) -> 0 on success or -5 (EIO) on failure
+//
+// NOTE:
+// This file uses `_emit_call_iat_x64` helper defined in `046_emit_sys_intrinsics_windows_net.oren`.
+
+fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_win_createthread expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_createthread does not support spread"); return nil }
+
+    // Spill args (start, arg_ptr)
+    var base = _intr_tmp_push(ctx, 2)
+    if base == nil { return nil }
+    var tmp_start = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_arg = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_start == nil || tmp_arg == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_start)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // CreateThread(NULL, 0, start, arg, 0, NULL)
+    // Win64:
+    //   rcx, rdx, r8, r9  + stack args at [rsp+0x20]
+    //
+    // Reserve minimal scratch:
+    // - 32B shadow (required)
+    // - 16B stack args (dwCreationFlags, lpThreadId)
+    var SCRATCH = 48
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(SCRATCH))
+
+    // rcx = lpThreadAttributes = NULL
+    bytes_extend(ctx["code"], insn_xor_r64_r64(1, 1))
+    // rdx = dwStackSize = 0
+    bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2))
+    // r8 = lpStartAddress = start
+    _intr_load_x64(ctx, 8, tmp_start)
+    // r9 = lpParameter = arg
+    _intr_load_x64(ctx, 9, tmp_arg)
+
+    // dwCreationFlags = 0
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0))
+    // lpThreadId = NULL
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(40, 0))
+
+    _emit_call_iat_x64(ctx, "IAT_CreateThread")
+
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(SCRATCH))
+    // rax already contains HANDLE (or 0 on failure)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_win_wait_single_object expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_wait_single_object does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 2) // handle, timeout
+    if base == nil { return nil }
+    var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_to = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_h == nil || tmp_to == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // WaitForSingleObject(handle, timeout_ms)
+    // - timeout_ms < 0 => INFINITE (0xFFFFFFFF)
+    var SCRATCH = 32 // shadow only
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(SCRATCH))
+
+    _intr_load_x64(ctx, 1, tmp_h)   // rcx = handle
+    _intr_load_x64(ctx, 0, tmp_to)  // rax = timeout (i64)
+
+    var labels = {}
+    var fixups = []
+    var l_infinite = _new_label(ctx, "win_wso_infinite")
+    var l_after_to = _new_label(ctx, "win_wso_after_to")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "l", l_infinite)
+    // edx = (u32)timeout
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0))
+    _emit_jmp_to_label(ctx, fixups, l_after_to)
+    _emit_label(ctx, labels, l_infinite)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 4294967295)) // INFINITE
+    _emit_label(ctx, labels, l_after_to)
+
+    _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
+    // eax is the WAIT_* code
+
+    var l_ok = _new_label(ctx, "win_wso_ok")
+    var l_timeout = _new_label(ctx, "win_wso_timeout")
+    var l_fail = _new_label(ctx, "win_wso_fail")
+    var l_done = _new_label(ctx, "win_wso_done")
+
+    // WAIT_OBJECT_0 == 0
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_ok)
+    // WAIT_TIMEOUT == 258
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 258))
+    _emit_jcc_to_label(ctx, fixups, "e", l_timeout)
+    // WAIT_FAILED == 0xFFFFFFFF
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "e", l_fail)
+    // unexpected => fail
+    _emit_jmp_to_label(ctx, fixups, l_fail)
+
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_timeout)
+    _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_fail)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(SCRATCH))
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_win_terminate_thread_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_win_terminate_thread expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_terminate_thread does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 2) // handle, exit_code
+    if base == nil { return nil }
+    var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_code = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_h == nil || tmp_code == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_code)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    var SCRATCH = 32 // shadow only
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(SCRATCH))
+
+    _intr_load_x64(ctx, 1, tmp_h)     // rcx = handle
+    _intr_load_x64(ctx, 2, tmp_code)  // rdx = exit code (u32)
+    _emit_call_iat_x64(ctx, "IAT_TerminateThread")
+    // BOOL in eax: 0 => failure
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "win_tt_ok")
+    var l_done = _new_label(ctx, "win_tt_done")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(SCRATCH))
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_win_close_handle expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_close_handle does not support spread"); return nil }
+
+    // CloseHandle(handle)
+    var base = _intr_tmp_push(ctx, 1)
+    if base == nil { return nil }
+    var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
+    if tmp_h == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    var SCRATCH = 32
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(SCRATCH))
+    _intr_load_x64(ctx, 1, tmp_h) // rcx = handle
+    _emit_call_iat_x64(ctx, "IAT_CloseHandle")
+    // BOOL in eax; 0 => failure => -EIO
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "win_ch_ok")
+    var l_done = _new_label(ctx, "win_ch_done")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_set_rax_neg_errno_x64(ctx, 5)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(SCRATCH))
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+

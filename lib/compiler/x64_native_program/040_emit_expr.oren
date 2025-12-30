@@ -651,6 +651,25 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_malloc_size_in_rax(ctx, locals)
+
+            // Tier‑1 convergence:
+            // - On the syscall-first native runtime, `malloc` produces a tracked allocation so
+            //   helpers like `native_buf_wrap_ptr` can validate payload lifetimes and so `oren_add`
+            //   can safely discriminate strings from integers.
+            // - `malloc_raw` remains untracked by design (used for internal node storage, scratch,
+            //   and "raw bytes" that must not be scanned).
+            //
+            // x64 native v0 uses a lightweight tracked-allocs list; track `malloc` by default.
+            if nm == "malloc" {
+                var tmp0 = locals["$tmp0"]
+                if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for malloc tracking"); return nil }
+                // r12 = ptr ; r13 = aligned_size ; r10 = kind(0)
+                bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
+                _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0) // tmp0 holds the aligned allocation size
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0))
+                _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
+            }
             return nil
         }
 

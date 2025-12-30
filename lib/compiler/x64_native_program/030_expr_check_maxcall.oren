@@ -464,6 +464,11 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     if nm == "sys_fork" || nm == "sys_execve" || nm == "sys_wait4" { return true }
     // Windows-only PROC helper (CreateProcessA-based spawn+wait)
     if nm == "sys_win_createprocess" { return true }
+    // Windows-only THREAD helpers (CreateThread-based spawn/join)
+    if nm == "sys_win_createthread" { return true }
+    if nm == "sys_win_wait_single_object" { return true }
+    if nm == "sys_win_terminate_thread" { return true }
+    if nm == "sys_win_close_handle" { return true }
     if nm == "sys_kill" { return true }
     if nm == "sys_gettimeofday" || nm == "sys_getcwd" || nm == "sys_nanosleep" { return true }
     // VM / threads / fcntl / fd ops

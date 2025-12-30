@@ -100,6 +100,31 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     return handle
 }
 
+// --- Windows x64 Tier‑1: thread entry for language `spawn` ---
+//
+// Windows does not have fork/exec; the x64 backend lowers `spawn` to CreateThread, passing
+// a pointer to a small arg struct.
+//
+// Arg layout (written by the x64 code generator):
+//   [0]  fn_obj
+//   [8]  args_list
+//   [16] result_ptr (u64*)
+//
+// Returns a DWORD (u32) to satisfy CreateThread's LPTHREAD_START_ROUTINE signature.
+// The actual Oren result is written to *result_ptr.
+@oren.keep
+fn __oren_win_spawn_thread_entry(arg_ptr) {
+    if arg_ptr == 0 { return 0 }
+    var fn_obj = ptr_get(arg_ptr + 0)
+    var args_list = ptr_get(arg_ptr + 8)
+    var out_ptr = ptr_get(arg_ptr + 16)
+    if out_ptr != 0 {
+        var ret = oren_call_obj_list(fn_obj, args_list)
+        ptr_set(out_ptr, ret)
+    }
+    return 0
+}
+
 // ... existing code ...
 
 // Centralized struct allocation hook (uses the compiler's special-cased malloc).

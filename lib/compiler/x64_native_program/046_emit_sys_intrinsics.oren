@@ -147,11 +147,13 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
 
     var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
-        // Best-effort stdin reader:
-        // - fd 0 => STD_INPUT_HANDLE
-        // - other fds => unsupported (returns 0)
+        // Windows: ReadFile-based reader.
+        // - fd 0 => STD_INPUT_HANDLE (GetStdHandle(-10))
+        // - other fds => treat as Win32 HANDLE (returned by sys_open)
         //
-        // ReadFile(handle, ptr, (u32)len, &read, NULL) => return bytes read, or 0 on failure.
+        // ReadFile(handle, ptr, (u32)len, &read, NULL) => return bytes read
+        // - EOF: ReadFile succeeds and bytesRead==0 => return 0
+        // - error: return -EIO (rolling)
         var base = _intr_tmp_push(ctx, 3)
         if base == nil { return nil }
         var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -176,6 +178,8 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
         var labels = {}
         var local_fixups = []
         var l_ret0 = _new_label(ctx, "sys_read_ret0")
+        var l_fail = _new_label(ctx, "sys_read_fail")
+        var l_have_handle = _new_label(ctx, "sys_read_have_handle")
         var l_done = _new_label(ctx, "sys_read_done")
 
         // if len <= 0 => return 0
@@ -183,10 +187,12 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
         _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
 
-        // if fd != 0 => return 0 (v0)
+        // Determine handle:
+        // - fd==0 => GetStdHandle(STD_INPUT_HANDLE)
+        // - else  => fd itself is a Win32 HANDLE
         _intr_load_x64(ctx, 0, tmp_fd)
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_ret0)
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_have_handle)
 
         // STD_INPUT_HANDLE = -10
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967286)) // ecx = -10
@@ -197,6 +203,17 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
 
         // rcx = handle
         bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+        _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
+
+        _emit_label(ctx, labels, l_have_handle)
+        // If fd != 0, override rcx with the handle value.
+        _intr_load_x64(ctx, 0, tmp_fd)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        var l_skip_fd = _new_label(ctx, "sys_read_skip_fd")
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_skip_fd)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = fd(handle)
+        _emit_label(ctx, labels, l_skip_fd)
+
         // rdx = ptr
         _intr_load_x64(ctx, 2, tmp_ptr)
         // r8 = len (low 32 used)
@@ -214,14 +231,20 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_ReadFile"})
         bytes_extend(ctx["code"], insn_call_rax())
 
-        // if eax == 0 => failure => return 0
+        // if eax == 0 => failure => return -EIO (rolling)
         bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_ret0)
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
 
         // rax = *(u64*)(&read)
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(10, 40))
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
         bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+        _emit_label(ctx, labels, l_fail)
+        // -5 (EIO)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967291))
+        bytes_extend(ctx["code"], insn_cdqe())
         _emit_jmp_to_label(ctx, local_fixups, l_done)
 
         _emit_label(ctx, labels, l_ret0)
@@ -303,29 +326,48 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
 
     if platform != nil && platform["os"] == "windows" {
-        // Windows: map fd 1/2 to STDOUT/STDERR and call:
-        //   h = GetStdHandle(id)
-        //   WriteFile(h, ptr, (u32)len, &written, NULL)
+        // Windows: WriteFile-based writer.
+        // - fd 1/2 => STDOUT/STDERR (GetStdHandle)
+        // - other  => treat fd as Win32 HANDLE (returned by sys_open)
         //
-        // Returns bytes written (best-effort), or 0 on failure.
+        // WriteFile(handle, ptr, (u32)len, &written, NULL)
+        //
+        // Returns bytes written, or -EIO on failure (rolling).
 
-        // Default id = STD_OUTPUT_HANDLE (-11), if fd==2 => STD_ERROR_HANDLE (-12).
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
-        _intr_load_x64(ctx, 0, tmp_fd)
+        // Determine handle:
+        // - fd==1 => STD_OUTPUT_HANDLE (-11)
+        // - fd==2 => STD_ERROR_HANDLE  (-12)
+        // - else  => fd itself is the handle
+        var l_use_stdout = _new_label(ctx, "sys_write_use_stdout")
+        var l_use_stderr = _new_label(ctx, "sys_write_use_stderr")
+        var l_have_handle = _new_label(ctx, "sys_write_have_handle")
+        _intr_load_x64(ctx, 0, tmp_fd) // rax = fd
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stdout)
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 2))
-        var l_fd_done = _new_label(ctx, "sys_write_fd_done")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_fd_done)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
-        _emit_label(ctx, labels, l_fd_done)
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_use_stderr)
+        // rcx = fd (HANDLE)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+        _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
 
-        // call GetStdHandle
+        _emit_label(ctx, labels, l_use_stdout)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
         var mov_iat0 = oren_list_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
         bytes_extend(ctx["code"], insn_call_rax())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = handle
+        _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
 
-        // rcx = handle
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+        _emit_label(ctx, labels, l_use_stderr)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
+        var mov_iat1 = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_GetStdHandle"})
+        bytes_extend(ctx["code"], insn_call_rax())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = handle
+
+        _emit_label(ctx, labels, l_have_handle)
         // rdx = ptr
         _intr_load_x64(ctx, 2, tmp_ptr)
         // r8  = len (low 32 used by WinAPI)
@@ -339,19 +381,26 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(9, 40)) // r9 = &written
 
         // call WriteFile
-        var mov_iat1 = oren_list_len(ctx["code"])
+        var mov_iat2 = oren_list_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_WriteFile"})
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat2 + 3, "data_label": "IAT_WriteFile"})
         bytes_extend(ctx["code"], insn_call_rax())
 
-        // if eax == 0 => failure => return 0
+        // if eax == 0 => failure => return -EIO (rolling)
         bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_ret0)
+        var l_fail = _new_label(ctx, "sys_write_fail")
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
 
         // rax = *(u64*)(&written)
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(10, 40))
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
         bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+        _emit_label(ctx, labels, l_fail)
+        // -5 (EIO)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967291))
+        bytes_extend(ctx["code"], insn_cdqe())
         _emit_jmp_to_label(ctx, local_fixups, l_done)
     } else {
         // Linux x86_64: write(fd, ptr, len) via syscall.

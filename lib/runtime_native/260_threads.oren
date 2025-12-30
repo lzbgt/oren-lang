@@ -893,6 +893,77 @@ fn free(ptr) {
 fn oren_join_timeout(handle, timeout_ms) {
     if handle == 0 { return 0 }
 
+    // Windows Tier‑1: `spawn` is lowered to CreateThread(...) by the x64 native backend.
+    // Handle layout (opaque to user code):
+    //   [0]  thread_handle (HANDLE, u64)
+    //   [8]  result_ptr    (u64*)
+    //   [16] arg_ptr       (spawn arg struct ptr; freed by join)
+    //
+    // Thread arg struct layout:
+    //   [0]  fn_obj
+    //   [8]  args_list
+    //   [16] result_ptr
+    //
+    // NOTE: This is intentionally separate from POSIX fork+pipe semantics; the goal is
+    // Tier‑1 correctness first, then backend unification.
+    if g_target_os == 3 {
+        var h = ptr_get(handle)
+        var result_ptr = ptr_get(handle + 8)
+        var arg_ptr = ptr_get(handle + 16)
+
+        if h == 0 {
+            if result_ptr != 0 { free(result_ptr) }
+            if arg_ptr != 0 { free(arg_ptr) }
+            free(handle)
+            return -1
+        }
+
+        if timeout_ms < 0 {
+            var rcw = sys_win_wait_single_object(h, -1)
+            if rcw != 0 {
+                sys_win_close_handle(h)
+                if result_ptr != 0 { free(result_ptr) }
+                if arg_ptr != 0 { free(arg_ptr) }
+                free(handle)
+                return rcw
+            }
+        } else {
+            var remaining = timeout_ms
+            while remaining > 0 {
+                var rc0 = sys_win_wait_single_object(h, 0)
+                if rc0 == 0 { break }
+                if rc0 != (0 - 60) {
+                    // Unexpected failure.
+                    sys_win_close_handle(h)
+                    if result_ptr != 0 { free(result_ptr) }
+                    if arg_ptr != 0 { free(arg_ptr) }
+                    free(handle)
+                    return rc0
+                }
+                remaining = remaining - 1
+            }
+            if remaining <= 0 {
+                // Timeout: forcibly terminate (rolling Tier‑1). This is not ideal for production,
+                // but it matches the native suite's cancellation expectation and unblocks parity.
+                sys_win_terminate_thread(h, 1)
+                sys_win_wait_single_object(h, -1)
+                sys_win_close_handle(h)
+                if result_ptr != 0 { free(result_ptr) }
+                if arg_ptr != 0 { free(arg_ptr) }
+                free(handle)
+                return 0 - 60
+            }
+        }
+
+        var ret_val = 0
+        if result_ptr != 0 { ret_val = ptr_get(result_ptr) }
+        sys_win_close_handle(h)
+        if result_ptr != 0 { free(result_ptr) }
+        if arg_ptr != 0 { free(arg_ptr) }
+        free(handle)
+        return ret_val
+    }
+
     // Spawn handle layout (native backend, macOS v0 fork+pipe):
     // 0: pid (u64)
     // 8: read_fd (u64)
