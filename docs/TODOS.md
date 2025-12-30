@@ -103,6 +103,7 @@ Rules for this tracker:
    - Keep `make test` iteration-fast and deterministic.
    - Prefer a small number of high-signal integration suites + fixtures as living spec.
    - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
+   - Make test tooling robust in minimal environments too: `oretest` now supports deterministic shell discovery and an override via `ORETEST_SHELL`.
    - Reference: `docs/TEST_SYSTEM.md`
 
 ## P1 (Soon)

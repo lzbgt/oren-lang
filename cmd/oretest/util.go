@@ -7,10 +7,76 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 )
+
+type shellPrefix struct {
+	argv0 string
+	args  []string // includes argv0
+}
+
+func fileExistsAndExecutable(path string) bool {
+	if path == "" {
+		return false
+	}
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return false
+	}
+	// Best-effort executable bit check on POSIX. On Windows this is meaningless.
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return st.Mode()&0o111 != 0
+}
+
+func detectShellPrefix() (shellPrefix, bool) {
+	// `oretest` historically ran commands via `sh -c` to support env prefixes and simple chaining.
+	// In minimal/container environments, `/bin/sh` may not exist.
+	//
+	// Deterministic shell discovery:
+	// 1) ORETEST_SHELL (absolute path preferred; if set but invalid -> fail)
+	// 2) SHELL (if absolute and executable)
+	// 3) common absolute shells
+	// 4) PATH search for sh/bash
+	//
+	// Note: we intentionally do NOT try to parse arbitrary user-provided shell+args;
+	// ORETEST_SHELL must point to an executable that supports `-c <cmd>`.
+	if v := os.Getenv("ORETEST_SHELL"); v != "" {
+		// Treat any non-empty override as authoritative to avoid silently executing a different shell.
+		if filepath.IsAbs(v) && fileExistsAndExecutable(v) {
+			return shellPrefix{argv0: v, args: []string{v, "-c"}}, true
+		}
+		// Allow PATH-based override as a convenience (e.g. busybox-provided sh in PATH).
+		if p, err := exec.LookPath(v); err == nil {
+			return shellPrefix{argv0: p, args: []string{p, "-c"}}, true
+		}
+		return shellPrefix{}, false
+	}
+
+	if v := os.Getenv("SHELL"); v != "" {
+		if filepath.IsAbs(v) && fileExistsAndExecutable(v) {
+			return shellPrefix{argv0: v, args: []string{v, "-c"}}, true
+		}
+	}
+
+	for _, p := range []string{"/bin/sh", "/usr/bin/sh", "/bin/bash", "/usr/bin/bash"} {
+		if fileExistsAndExecutable(p) {
+			return shellPrefix{argv0: p, args: []string{p, "-c"}}, true
+		}
+	}
+
+	for _, name := range []string{"sh", "bash"} {
+		if p, err := exec.LookPath(name); err == nil {
+			return shellPrefix{argv0: p, args: []string{p, "-c"}}, true
+		}
+	}
+
+	return shellPrefix{}, false
+}
 
 func runWithTimeout(timeoutBin string, d time.Duration, cmd string, logPath string) int {
 	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
@@ -24,12 +90,25 @@ func runWithTimeout(timeoutBin string, d time.Duration, cmd string, logPath stri
 	// Important: `exec.CommandContext` does not reliably kill child processes.
 	// We always run each test in its own process group, and on timeout we kill the group.
 	var c *exec.Cmd
+	sh, ok := detectShellPrefix()
+	if !ok {
+		// Make the log actionable even in minimal environments.
+		// (We do not silently degrade to `cmd.exe` because our command strings are POSIX-shell syntax.)
+		_ = os.WriteFile(logPath, []byte("oretest: no POSIX shell found; set ORETEST_SHELL to an executable that supports `-c`\n"), 0o644)
+		return 1
+	}
+
 	if timeoutBin != "" {
 		// Keep using GNU timeout if available for parity with Makefile behavior, but
 		// still rely on our internal process-group kill as the ultimate backstop.
-		c = exec.CommandContext(ctx, timeoutBin, "-k", "2", fmt.Sprintf("%d", int(d.Seconds())), "sh", "-c", cmd)
+		args := []string{"-k", "2", fmt.Sprintf("%d", int(d.Seconds()))}
+		args = append(args, sh.args...)
+		args = append(args, cmd)
+		c = exec.CommandContext(ctx, timeoutBin, args...)
 	} else {
-		c = exec.Command("sh", "-c", cmd)
+		// Always use CommandContext so ctx cancellation is wired even without external `timeout`.
+		args := append(sh.args, cmd)
+		c = exec.CommandContext(ctx, sh.argv0, args[1:]...)
 	}
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	var buf bytes.Buffer
