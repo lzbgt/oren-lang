@@ -1,0 +1,205 @@
+// x64-native: Windows syscall surface (Win32 API shims) + dispatch.
+//
+// This file exists to keep `046_emit_sys_intrinsics.oren` below the repo style limit.
+// It contains Windows-only implementations of the syscall-first TIME substrate and
+// the top-level syscall dispatch used by the native runtime injection boundary.
+
+fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return nil }
+
+    // Windows: best-effort sleep implemented via KERNEL32!Sleep(DWORD ms).
+    //
+    // Contract: sys_nanosleep(ns) returns 0 on success, or -errno.
+    // We do not attempt to model EINTR; we only guarantee it returns and doesn't hang.
+    //
+    // Implementation:
+    // - ns is adjusted by capsule prehook: native_capsule_sys_nanosleep_pre(ns) -> ns
+    // - ns <= 0 => return 0
+    // - ms = ceil(ns / 1_000_000), clamp to 0xFFFFFFFF (Sleep max)
+    var base = _intr_tmp_push(ctx, 1) // ns
+    if base == nil { return nil }
+    var tmp_ns = _intr_tmp_off(ctx, locals, base + 0)
+    if tmp_ns == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_ns)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_nanosleep_pre(ns) -> ns
+    _intr_load_x64(ctx, 7, tmp_ns) // rdi = ns
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
+
+    var labels = {}
+    var fixups = []
+    var l_sleep = _new_label(ctx, "sys_nanosleep_win_sleep")
+    var l_done = _new_label(ctx, "sys_nanosleep_win_done")
+
+    // if ns <= 0 => return 0
+    _intr_load_x64(ctx, 0, tmp_ns)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "g", l_sleep)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_sleep)
+
+    // rax = ceil(ns / 1_000_000)
+    _intr_load_x64(ctx, 0, tmp_ns)
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 999999))
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(10, 1000000))
+    bytes_extend(ctx["code"], insn_idiv_r64(10))
+
+    // Clamp to 0x00000000FFFFFFFF to avoid overflow in Sleep(DWORD).
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(10, 4294967295))
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 10))
+    var l_no_clamp = _new_label(ctx, "sys_nanosleep_win_no_clamp")
+    _emit_jcc_to_label(ctx, fixups, "be", l_no_clamp) // unsigned <=
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    _emit_label(ctx, labels, l_no_clamp)
+
+    // Sleep((DWORD)ms)
+    bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
+    var mov_iat = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat + 3, "data_label": "IAT_Sleep"})
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_gettimeofday expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_gettimeofday does not support spread"); return nil }
+
+    // Windows: implement a syscall-first TIME substrate without libc.
+    //
+    // Signature matches Oren runtime:
+    //   sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> rc
+    //
+    // - tv_ptr: points to 16 bytes (2x u64): tv_sec, tv_usec
+    // - abs_ptr: optional out-arg (u64) for monotonic/raw compare-only time
+    //
+    // We use:
+    // - KERNEL32!GetSystemTimeAsFileTime for wall time (FILETIME 100ns since 1601-01-01 UTC)
+    // - KERNEL32!QueryPerformanceCounter for monotonic raw ticks (compare-only)
+    //
+    // Returns 0 on success; negative errno on obvious invalid pointers.
+    var base = _intr_tmp_push(ctx, 3) // tv, tz, abs
+    if base == nil { return nil }
+    var tmp_tv = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_tz = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_abs = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_tv == nil || tmp_tz == nil || tmp_abs == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_tv)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_tz)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_abs)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
+    _intr_load_x64(ctx, 7, tmp_tv)
+    _intr_load_x64(ctx, 6, tmp_tz)
+    _intr_load_x64(ctx, 2, tmp_abs)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
+
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "sys_gettimeofday_win_done")
+    var l_skip_abs = _new_label(ctx, "sys_gettimeofday_win_skip_abs")
+
+    // Validate tv_ptr != 0 (otherwise -EFAULT).
+    _intr_load_x64(ctx, 0, tmp_tv)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    var l_tv_ok = _new_label(ctx, "sys_gettimeofday_win_tv_ok")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_tv_ok)
+    // -14 (EFAULT)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967282))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_tv_ok)
+
+    // filetime (u64) output at [rsp+0x20]
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(1, 32)) // rcx = &filetime
+    var mov_iat0 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetSystemTimeAsFileTime"})
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // rax = filetime (100ns ticks since 1601-01-01 UTC)
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, 32))
+
+    // unix_100ns = filetime - 116444736000000000 (100ns ticks between 1601-01-01 and 1970-01-01)
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(10, 116444736000000000))
+    bytes_extend(ctx["code"], insn_sub_r64_r64(0, 10))
+
+    // sec = unix_100ns / 10_000_000; rem100ns = unix_100ns % 10_000_000
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(10, 10000000))
+    bytes_extend(ctx["code"], insn_idiv_r64(10)) // rax=sec, rdx=rem100ns
+
+    // Store tv_sec at [tv_ptr+0]
+    _intr_load_x64(ctx, 11, tmp_tv) // r11 = tv_ptr
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 0))
+
+    // usec = rem100ns / 10
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2)) // rax = rdx
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(10, 10))
+    bytes_extend(ctx["code"], insn_idiv_r64(10)) // rax=usec
+
+    // Store tv_usec at [tv_ptr+8]
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 0))
+
+    // abs_ptr optional: write monotonic raw ticks via QueryPerformanceCounter.
+    _intr_load_x64(ctx, 0, tmp_abs)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_skip_abs)
+
+    // qpc (u64) output at [rsp+0x28]
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(1, 40)) // rcx = &qpc
+    var mov_iat1 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_QueryPerformanceCounter"})
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, 40)) // rax = qpc
+    _intr_load_x64(ctx, 11, tmp_abs)
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 0))
+
+    _emit_label(ctx, labels, l_skip_abs)
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
+    var platform = ctx["platform"]
+    if platform != nil && platform["os"] == "windows" {
+        // Windows currently supports only a minimal syscall surface needed for Tier‑1 bring-up.
+        if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
+        if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
+        if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
+        if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+    return _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args)
+}

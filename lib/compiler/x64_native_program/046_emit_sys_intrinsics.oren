@@ -1818,16 +1818,3 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
     err(ctx, "x64 native v0: unhandled syscall intrinsic: " + nm)
     return nil
 }
-
-fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
-    var platform = ctx["platform"]
-    if platform != nil && platform["os"] == "windows" {
-        // Windows currently supports only a minimal syscall surface needed for Tier‑1 bring-up.
-        if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
-        if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
-        if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
-        _emit_return_enosys_x64(ctx)
-        return nil
-    }
-    return _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args)
-}

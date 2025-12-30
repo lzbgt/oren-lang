@@ -40,161 +40,86 @@ fn fail(code) {
 
 fn test_tcp_loopback() {
     // Loopback-only TCP smoke test (no external network).
-    // Uses fork + pipe to coordinate a local server and client.
-    // All socket operations must be timeout-bounded (no hanging).
+    // Single-process: listen, connect, accept, then exchange data with timeouts.
+    // This keeps the suite OS-neutral (no dependency on fork/pipe semantics).
 
-    var ch = oren_pipe()
-    var r = oren_list_get(ch, 0)
-    var w = oren_list_get(ch, 1)
+    var lfd = oren_tcp_listen_local(0) // port 0 => ephemeral
+    if lfd < 0 { fail(600) }
 
-    var pid = sys_fork()
-    if pid < 0 { fail(600) }
+    // Determine the port chosen by the OS via getsockname.
+    var sa = malloc(32)
+    if sa == 0 { fail(601) }
+    var lenp = malloc(8)
+    if lenp == 0 { fail(602) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(lfd, sa, lenp)
+    if grc < 0 { fail(0 - grc) }
+    var port = u16be_at(sa, 2)
+    if port <= 0 { fail(603) }
 
-    if pid == 0 {
-        // Child: server
-        // Child owns the write end only.
-        sys_close(r)
-
-        var port = 40000
-        var lfd = oren_tcp_listen_local(port)
-        var last_err = lfd
-        if lfd < 0 {
-            print("tcp loopback: listen failed")
-            if last_err < 0 { exit(0 - last_err) }
-            exit(601)
-        }
-
-        var pbuf = malloc(8)
-        if pbuf == 0 { exit(602) }
-        ptr_set(pbuf, port)
-        var wn0 = sys_write(w, pbuf, 8)
-        if wn0 != 8 { exit(620) }
-        sys_close(w)
-
-        var cfd = oren_tcp_accept(lfd, 2000)
-        if cfd < 0 { exit(603) }
-
-        var inb = malloc(5)
-        if inb == 0 { exit(604) }
-        var rn = oren_tcp_read_into(cfd, inb, 5, 2000)
-        if rn != 5 { exit(605) }
-        if eq5(inb, 104, 101, 108, 108, 111) == 0 { exit(606) } // "hello"
-
-        var outb = malloc(5)
-        if outb == 0 { exit(607) }
-        fill5(outb, 119, 111, 114, 108, 100) // "world"
-        var wn = oren_tcp_write_from(cfd, outb, 5, 2000)
-        if wn != 5 { exit(608) }
-
-        oren_tcp_close(cfd)
-        oren_tcp_close(lfd)
-        exit(0)
-    }
-
-    // Parent: client
-    sys_close(w)
-    var pbuf2 = malloc(8)
-    if pbuf2 == 0 { fail(610) }
-    var got = 0
-    while got < 8 {
-        var n = sys_read(r, pbuf2 + got, 8 - got)
-        if n <= 0 { fail(611) }
-        got = got + n
-    }
-    var port2 = ptr_get(pbuf2)
-    if port2 < 1 { fail(612) }
-    sys_close(r)
-
-    var cfd2 = oren_tcp_connect("127.0.0.1", port2, 2000)
+    // Client connects first; accept picks up the queued connection.
+    var cfd2 = oren_tcp_connect("127.0.0.1", port, 2000)
     if cfd2 < 0 { fail(0 - cfd2) }
 
+    var cfd = oren_tcp_accept(lfd, 2000)
+    if cfd < 0 { fail(604) }
+
+    // Client -> server: "hello"
     var outb2 = malloc(5)
-    if outb2 == 0 { fail(614) }
+    if outb2 == 0 { fail(610) }
     fill5(outb2, 104, 101, 108, 108, 111) // "hello"
     var wn2 = oren_tcp_write_from(cfd2, outb2, 5, 2000)
-    if wn2 != 5 { fail(615) }
+    if wn2 != 5 { fail(611) }
+
+    var inb = malloc(5)
+    if inb == 0 { fail(612) }
+    var rn = oren_tcp_read_into(cfd, inb, 5, 2000)
+    if rn != 5 { fail(613) }
+    if eq5(inb, 104, 101, 108, 108, 111) == 0 { fail(614) } // "hello"
+
+    // Server -> client: "world"
+    var outb = malloc(5)
+    if outb == 0 { fail(615) }
+    fill5(outb, 119, 111, 114, 108, 100) // "world"
+    var wn = oren_tcp_write_from(cfd, outb, 5, 2000)
+    if wn != 5 { fail(616) }
 
     var inb2 = malloc(5)
-    if inb2 == 0 { fail(616) }
+    if inb2 == 0 { fail(617) }
     var rn2 = oren_tcp_read_into(cfd2, inb2, 5, 2000)
-    if rn2 != 5 { fail(617) }
-    if eq5(inb2, 119, 111, 114, 108, 100) == 0 { fail(618) } // "world"
+    if rn2 != 5 { fail(618) }
+    if eq5(inb2, 119, 111, 114, 108, 100) == 0 { fail(619) } // "world"
 
     oren_tcp_close(cfd2)
-
-    var st = malloc(8)
-    if st == 0 { fail(619) }
-    ptr_set(st, 0)
-    sys_wait4(pid, st, 0, 0)
+    oren_tcp_close(cfd)
+    oren_tcp_close(lfd)
+    return 0
 }
 
 fn test_tcp_send_recv_intrinsics() {
     // Validates syscall-first sys_send/sys_recv intrinsics.
-    // Loopback-only, timeout-bounded using kqueue/kevent (no hangs).
+    // Loopback-only, timeout-bounded (no hangs), single-process (no fork/pipe).
 
-    var ch = oren_pipe()
-    var r = oren_list_get(ch, 0)
-    var w = oren_list_get(ch, 1)
+    var lfd = oren_tcp_listen_local(0)
+    if lfd < 0 { fail(800) }
 
-    var pid = sys_fork()
-    if pid < 0 { fail(800) }
+    var sa = malloc(32)
+    if sa == 0 { fail(801) }
+    var lenp = malloc(8)
+    if lenp == 0 { fail(802) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(lfd, sa, lenp)
+    if grc < 0 { fail(0 - grc) }
+    var port = u16be_at(sa, 2)
+    if port <= 0 { fail(803) }
 
-    if pid == 0 {
-        // Child: server
-        sys_close(r)
-
-        var port = 40002
-        var lfd = oren_tcp_listen_local(port)
-        if lfd < 0 { exit(801) }
-
-        var pbuf = malloc(8)
-        if pbuf == 0 { exit(802) }
-        ptr_set(pbuf, port)
-        var wn0 = sys_write(w, pbuf, 8)
-        if wn0 != 8 { exit(803) }
-        sys_close(w)
-
-        var cfd = oren_tcp_accept(lfd, 2000)
-        if cfd < 0 { exit(804) }
-
-        var rn_ready = oren_fd_wait_readable(cfd, 2000)
-        if rn_ready <= 0 { exit(805) }
-        var inb = malloc(5)
-        if inb == 0 { exit(806) }
-        var rn = sys_recv(cfd, inb, 5, 0)
-        if rn != 5 { exit(807) }
-        if eq5(inb, 104, 101, 108, 108, 111) == 0 { exit(808) } // "hello"
-
-        var wn_ready = oren_fd_wait_writable(cfd, 2000)
-        if wn_ready <= 0 { exit(809) }
-        var outb = malloc(5)
-        if outb == 0 { exit(810) }
-        fill5(outb, 119, 111, 114, 108, 100) // "world"
-        var wn = sys_send(cfd, outb, 5, 0)
-        if wn != 5 { exit(811) }
-
-        oren_tcp_close(cfd)
-        oren_tcp_close(lfd)
-        exit(0)
-    }
-
-    // Parent: client
-    sys_close(w)
-    var pbuf2 = malloc(8)
-    if pbuf2 == 0 { fail(820) }
-    var got = 0
-    while got < 8 {
-        var n = sys_read(r, pbuf2 + got, 8 - got)
-        if n <= 0 { fail(821) }
-        got = got + n
-    }
-    var port2 = ptr_get(pbuf2)
-    if port2 < 1 { fail(822) }
-    sys_close(r)
-
-    var cfd2 = oren_tcp_connect("127.0.0.1", port2, 2000)
+    var cfd2 = oren_tcp_connect("127.0.0.1", port, 2000)
     if cfd2 < 0 { fail(0 - cfd2) }
 
+    var cfd = oren_tcp_accept(lfd, 2000)
+    if cfd < 0 { fail(804) }
+
+    // Client -> server: sys_send + sys_recv path (wait-based readiness).
     var wn_ready2 = oren_fd_wait_writable(cfd2, 2000)
     if wn_ready2 <= 0 { fail(830) }
     var outb2 = malloc(5)
@@ -203,20 +128,35 @@ fn test_tcp_send_recv_intrinsics() {
     var wn2 = sys_send(cfd2, outb2, 5, 0)
     if wn2 != 5 { fail(832) }
 
+    var rn_ready = oren_fd_wait_readable(cfd, 2000)
+    if rn_ready <= 0 { fail(833) }
+    var inb = malloc(5)
+    if inb == 0 { fail(834) }
+    var rn = sys_recv(cfd, inb, 5, 0)
+    if rn != 5 { fail(835) }
+    if eq5(inb, 104, 101, 108, 108, 111) == 0 { fail(836) } // "hello"
+
+    // Server -> client: response
+    var wn_ready = oren_fd_wait_writable(cfd, 2000)
+    if wn_ready <= 0 { fail(840) }
+    var outb = malloc(5)
+    if outb == 0 { fail(841) }
+    fill5(outb, 119, 111, 114, 108, 100) // "world"
+    var wn = sys_send(cfd, outb, 5, 0)
+    if wn != 5 { fail(842) }
+
     var rn_ready2 = oren_fd_wait_readable(cfd2, 2000)
-    if rn_ready2 <= 0 { fail(833) }
+    if rn_ready2 <= 0 { fail(843) }
     var inb2 = malloc(5)
-    if inb2 == 0 { fail(834) }
+    if inb2 == 0 { fail(844) }
     var rn2 = sys_recv(cfd2, inb2, 5, 0)
-    if rn2 != 5 { fail(835) }
-    if eq5(inb2, 119, 111, 114, 108, 100) == 0 { fail(836) } // "world"
+    if rn2 != 5 { fail(845) }
+    if eq5(inb2, 119, 111, 114, 108, 100) == 0 { fail(846) } // "world"
 
     oren_tcp_close(cfd2)
-
-    var st = malloc(8)
-    if st == 0 { fail(837) }
-    ptr_set(st, 0)
-    sys_wait4(pid, st, 0, 0)
+    oren_tcp_close(cfd)
+    oren_tcp_close(lfd)
+    return 0
 }
 
 fn test_tcp_sockname_peername() {
@@ -226,58 +166,25 @@ fn test_tcp_sockname_peername() {
     //
     // Loopback-only and timeout-bounded (no external network).
 
-    var ch = oren_pipe()
-    var r = oren_list_get(ch, 0)
-    var w = oren_list_get(ch, 1)
+    // Single-process: listen, connect, accept, then perform sockaddr introspection.
+    var lfd = oren_tcp_listen_local(0)
+    if lfd < 0 { fail(700) }
 
-    var pid = sys_fork()
-    if pid < 0 { fail(700) }
-
-    if pid == 0 {
-        // Child: server
-        sys_close(r)
-
-        var port = 40001
-        var lfd = oren_tcp_listen_local(port)
-        if lfd < 0 { exit(701) }
-
-        var pbuf = malloc(8)
-        if pbuf == 0 { exit(702) }
-        ptr_set(pbuf, port)
-        var wn0 = sys_write(w, pbuf, 8)
-        if wn0 != 8 { exit(703) }
-        sys_close(w)
-
-        var cfd = oren_tcp_accept(lfd, 2000)
-        if cfd < 0 { exit(704) }
-
-        // Keep connection alive briefly; parent performs getsockname/getpeername.
-        var inb = malloc(1)
-        if inb == 0 { exit(705) }
-        var rn = oren_tcp_read_into(cfd, inb, 1, 2000)
-        if rn < 0 { exit(0 - rn) }
-
-        oren_tcp_close(cfd)
-        oren_tcp_close(lfd)
-        exit(0)
-    }
-
-    // Parent: client
-    sys_close(w)
-    var pbuf2 = malloc(8)
-    if pbuf2 == 0 { fail(710) }
-    var got = 0
-    while got < 8 {
-        var n = sys_read(r, pbuf2 + got, 8 - got)
-        if n <= 0 { fail(711) }
-        got = got + n
-    }
-    var port2 = ptr_get(pbuf2)
-    if port2 < 1 { fail(712) }
-    sys_close(r)
+    var sa0 = malloc(32)
+    if sa0 == 0 { fail(701) }
+    var lenp0 = malloc(8)
+    if lenp0 == 0 { fail(702) }
+    ptr_set(lenp0, 32)
+    var grc0 = sys_getsockname(lfd, sa0, lenp0)
+    if grc0 < 0 { fail(0 - grc0) }
+    var port2 = u16be_at(sa0, 2)
+    if port2 <= 0 { fail(703) }
 
     var cfd2 = oren_tcp_connect("127.0.0.1", port2, 2000)
     if cfd2 < 0 { fail(0 - cfd2) }
+
+    var cfd = oren_tcp_accept(lfd, 2000)
+    if cfd < 0 { fail(704) }
 
     var peer_sa = malloc(16)
     if peer_sa == 0 { fail(720) }
@@ -315,91 +222,48 @@ fn test_tcp_sockname_peername() {
     var local_port = u16be_at(sock_sa, 2)
     if local_port == 0 { fail(734) }
 
-    // Nudge the server so it can exit cleanly.
+    // Nudge the server side so we know the socket is live.
     var one = malloc(1)
     if one == 0 { fail(740) }
     ptr_set_byte(one + 0, 88)
     var wn1 = oren_tcp_write_from(cfd2, one, 1, 2000)
     if wn1 != 1 { fail(741) }
 
-    oren_tcp_close(cfd2)
+    var inb = malloc(1)
+    if inb == 0 { fail(742) }
+    var rn = oren_tcp_read_into(cfd, inb, 1, 2000)
+    if rn != 1 { fail(743) }
 
-    var st = malloc(8)
-    if st == 0 { fail(742) }
-    ptr_set(st, 0)
-    sys_wait4(pid, st, 0, 0)
+    oren_tcp_close(cfd2)
+    oren_tcp_close(cfd)
+    oren_tcp_close(lfd)
+    return 0
 }
 
-fn test_http_get_loopback() {
-    // Robust loopback HTTP: child chooses an available port and tells parent via pipe
-    // (avoids flakiness if a fixed port is already in use).
+fn test_http_helpers() {
+    // HTTP stdlib sanity (no fork/threads required):
+    // - URL parsing (host/port/path)
+    // - request formatting (GET)
+    //
+    // Full loopback `http.get_text` should live in a separate suite once we have
+    // a Tier‑1 cross‑OS concurrency primitive (thread/spawn) for Windows.
 
-    var ch = oren_pipe()
-    var r = oren_list_get(ch, 0)
-    var w = oren_list_get(ch, 1)
+    var pu = http._parse_http_url("http://127.0.0.1:8080/abc")
+    if pu["ok"] != 1 { fail(1001) }
+    if strcmp(pu["host"], "127.0.0.1") != 0 { fail(1002) }
+    if pu["port"] != 8080 { fail(1003) }
+    if strcmp(pu["path"], "/abc") != 0 { fail(1004) }
 
-    var pid = oren_fork()
-    if pid == 0 {
-        sys_close(r)
+    var pu2 = http._parse_http_url("http://127.0.0.1/")
+    if pu2["ok"] != 1 { fail(1010) }
+    if pu2["port"] != 80 { fail(1011) }
+    if strcmp(pu2["path"], "/") != 0 { fail(1012) }
 
-        var port = 48080
-        var listen_fd = -1
-        var tries = 0
-        while tries < 50 {
-            listen_fd = oren_tcp_listen_local(port)
-            if listen_fd >= 0 { break }
-            port = port + 1
-            tries = tries + 1
-        }
-        if listen_fd < 0 { exit(10) }
-
-        var pbuf = malloc(8)
-        if pbuf == 0 { exit(11) }
-        ptr_set(pbuf, port)
-        var wn0 = sys_write(w, pbuf, 8)
-        if wn0 != 8 { exit(12) }
-        sys_close(w)
-
-        var fd = oren_tcp_accept(listen_fd, 5000)
-        if fd < 0 { exit(13) }
-
-        var body = "HELLO"
-        var hdr = "HTTP/1.0 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n"
-        var resp = hdr + body
-        var n = oren_tcp_write_from(fd, resp, oren_string_len(resp), 5000)
-        if n < 0 { exit(14) }
-
-        oren_tcp_close(fd)
-        oren_tcp_close(listen_fd)
-        exit(0)
-    }
-
-    // Parent
-    sys_close(w)
-    var pbuf2 = malloc(8)
-    if pbuf2 == 0 { fail(1010) }
-    var got = 0
-    while got < 8 {
-        var n = sys_read(r, pbuf2 + got, 8 - got)
-        if n <= 0 { fail(1011) }
-        got = got + n
-    }
-    var port2 = ptr_get(pbuf2)
-    if port2 < 1 { fail(1012) }
-    sys_close(r)
-
-    // Give the child a moment to accept (v0).
-    oren_sleep_ms(50)
-
-    var url = "http://127.0.0.1:" + oren_int_to_string(port2) + "/"
-    var body2 = http.get(url)
-    if body2 == 0 { fail(1001) }
-    if strcmp(body2, "HELLO") != 0 { fail(1002) }
-
-    var status_ptr = malloc(8)
-    ptr_set(status_ptr, 0)
-    sys_wait4(pid, status_ptr, 0, 0)
-    free(status_ptr)
+    var req = http._build_get_request("127.0.0.1", "/abc")
+    if req == 0 { fail(1020) }
+    if http._starts_with(req, "GET /abc HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n") == 0 { fail(1021) }
+    free(req)
+    return 0
 }
 
 fn test_tcp_timeouts() {
@@ -413,61 +277,35 @@ fn test_tcp_timeouts() {
     if afd != 0 - 60 { fail(901) }
     oren_tcp_close(lfd)
 
-    // read timeout on an established connection with no data
-    var ch = oren_pipe()
-    var r = oren_list_get(ch, 0)
-    var w = oren_list_get(ch, 1)
+    // read timeout on an established connection with no data (single-process)
+    var lfd2 = oren_tcp_listen_local(0)
+    if lfd2 < 0 { fail(910) }
 
-    var pid = sys_fork()
-    if pid < 0 { fail(910) }
+    var sa = malloc(32)
+    if sa == 0 { fail(911) }
+    var lenp = malloc(8)
+    if lenp == 0 { fail(912) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(lfd2, sa, lenp)
+    if grc < 0 { fail(0 - grc) }
+    var port2 = u16be_at(sa, 2)
+    if port2 <= 0 { fail(913) }
 
-    if pid == 0 {
-        sys_close(r)
-        var port2 = 40012
-        var lfd2 = oren_tcp_listen_local(port2)
-        if lfd2 < 0 { exit(911) }
-        var pbuf = malloc(8)
-        if pbuf == 0 { exit(912) }
-        ptr_set(pbuf, port2)
-        var wn = sys_write(w, pbuf, 8)
-        if wn != 8 { exit(913) }
-        sys_close(w)
+    var cfd2 = oren_tcp_connect("127.0.0.1", port2, 2000)
+    if cfd2 < 0 { fail(914) }
+    var cfd = oren_tcp_accept(lfd2, 2000)
+    if cfd < 0 { fail(915) }
 
-        var cfd = oren_tcp_accept(lfd2, 2000)
-        if cfd < 0 { exit(914) }
-        var one = malloc(1)
-        if one == 0 { exit(915) }
-        var rn = oren_tcp_read_into(cfd, one, 1, 20)
-        if rn != 0 - 60 { exit(916) }
-        oren_tcp_close(cfd)
-        oren_tcp_close(lfd2)
-        exit(0)
-    }
+    // Server observes no data within a short deadline.
+    var one = malloc(1)
+    if one == 0 { fail(916) }
+    var rn = oren_tcp_read_into(cfd, one, 1, 20)
+    if rn != 0 - 60 { fail(917) } // ETIMEDOUT
 
-    // Parent: connect and keep the socket open briefly without sending.
-    sys_close(w)
-    var pbuf2 = malloc(8)
-    if pbuf2 == 0 { fail(920) }
-    var got = 0
-    while got < 8 {
-        var n = sys_read(r, pbuf2 + got, 8 - got)
-        if n <= 0 { fail(921) }
-        got = got + n
-    }
-    var port3 = ptr_get(pbuf2)
-    if port3 < 1 { fail(922) }
-    sys_close(r)
-
-    var cfd2 = oren_tcp_connect("127.0.0.1", port3, 2000)
-    if cfd2 < 0 { fail(923) }
-    // keep open long enough for child to observe no data
-    oren_sleep_ms(50)
+    oren_tcp_close(cfd)
     oren_tcp_close(cfd2)
-
-    var st = malloc(8)
-    if st == 0 { fail(924) }
-    ptr_set(st, 0)
-    sys_wait4(pid, st, 0, 0)
+    oren_tcp_close(lfd2)
+    return 0
 }
 
 fn test_udp_loopback() {
@@ -513,7 +351,7 @@ fn main() {
     test_tcp_send_recv_intrinsics()
     test_tcp_timeouts()
     test_udp_loopback()
-    test_http_get_loopback()
+    test_http_helpers()
     print("net suite: OK")
     exit(0)
 }

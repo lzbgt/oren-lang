@@ -77,6 +77,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 - **Tier‑1 intent for x86_64**
   - Local build existence + format checks are validated by the curated runner.
   - Real-hardware x86_64 run validation is opt-in (Win11 + WSL2): `docs/REMOTE_X64_ENV.md`
+    - Tier‑1 TIME substrate (Linux+Windows): `tests/native/test_time_suite.oren` (expects `oren_sleep_ms` + wall/mono time to work without libc)
     - Tier‑1 parity fixture (closures + varargs): `tests/fixtures/tier1_native_lambda_varargs_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (map dynamic key-kind on empty maps): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (map get via dynamic key; nil-key miss semantics): `tests/fixtures/tier1_native_map_get_dynamic_key_main.oren` (gated by `OREN_REMOTE_RUN=1`)
@@ -114,6 +115,9 @@ production maturity requires both implementation *and* regression coverage.
     - deterministic panic/diagnostic contracts (`OREN_DIAG`),
     - consistent container fast-path semantics (no backend-only behavior),
     - capsule gating parity for syscall surfaces.
+  - Rolling evidence (x86_64 Windows):
+    - TIME substrate is now proved by `tests/native/test_time_suite.oren` on Win11 (sleep + gettimeofday shims).
+    - NET substrate is still incomplete (Win32 socket syscall mapping is pending).
   - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/NATIVE_BACKEND.md`.
 
 ### P1: Tooling quality (modern compiler UX)

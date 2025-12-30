@@ -4,7 +4,8 @@
 // - emits a PE executable with three sections: .text (RX), .rdata (R), .data (RW)
 // - imports a small Win32 surface via an import table:
 //   - KERNEL32.dll: ExitProcess, GetStdHandle, WriteFile, ReadFile, VirtualAlloc, GetEnvironmentVariableA,
-//                   GetEnvironmentStringsA, GetCommandLineW, WideCharToMultiByte, LocalFree
+//                   GetEnvironmentStringsA, GetCommandLineW, WideCharToMultiByte, LocalFree,
+//                   Sleep, GetSystemTimeAsFileTime, QueryPerformanceCounter
 //   - SHELL32.dll: CommandLineToArgvW
 // - entry stub calls main(), then ExitProcess(main_ret)
 //
@@ -85,7 +86,11 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         "GetEnvironmentStringsA",
         "GetCommandLineW",
         "WideCharToMultiByte",
-        "LocalFree"
+        "LocalFree",
+        // TIME substrate
+        "Sleep",
+        "GetSystemTimeAsFileTime",
+        "QueryPerformanceCounter"
     ]
     var shell32_funcs = ["CommandLineToArgvW"]
     var n_k32 = oren_list_len(kernel32_funcs)
@@ -249,6 +254,9 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             else if label == "IAT_GetCommandLineW" { target_off = off_iat_k32 + 56 }
             else if label == "IAT_WideCharToMultiByte" { target_off = off_iat_k32 + 64 }
             else if label == "IAT_LocalFree" { target_off = off_iat_k32 + 72 }
+            else if label == "IAT_Sleep" { target_off = off_iat_k32 + 80 }
+            else if label == "IAT_GetSystemTimeAsFileTime" { target_off = off_iat_k32 + 88 }
+            else if label == "IAT_QueryPerformanceCounter" { target_off = off_iat_k32 + 96 }
             // SHELL32.dll IAT slots
             else if label == "IAT_CommandLineToArgvW" { target_off = off_iat_s32 + 0 }
             else {
