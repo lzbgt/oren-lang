@@ -1034,6 +1034,7 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			name            string
 			src             string
 			env             string
+			args            string
 			expectExit      int
 			expectSubstring string
 			timeout         time.Duration
@@ -1042,6 +1043,9 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			// Tier‑1: Windows must expose env vars to the injected native runtime (no CRT envp),
 			// so capsule init can honor toggles like OREN_ENABLE_SIMD.
 			{name: "remote_x64_run_tier1_smoke_simd_env_print", src: "tests/fixtures/tier1_native_smoke_main.oren", env: "OREN_ENABLE_SIMD=1", expectSubstring: "SIMD_ENABLED=1", timeout: 5 * time.Minute},
+			// Tier‑1: Windows must expose argv to the injected runtime (no CRT argv),
+			// so `oren_args()` works the same as Linux (SysV entry stack).
+			{name: "remote_x64_run_tier1_args_print", src: "tests/fixtures/tier1_native_args_main.oren", args: "ARG_A ARG_B", expectSubstring: "tier1 args ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_atomics_print", src: "tests/fixtures/tier1_native_atomics_main.oren", expectSubstring: "tier1 atomics ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_typed_buffers_print", src: "tests/fixtures/tier1_native_typed_buffers_main.oren", expectSubstring: "tier1 typed buffers ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_forin_typed_buffers_print", src: "tests/fixtures/tier1_native_forin_typed_buffers_main.oren", expectSubstring: "tier1 forin typed buffers ok", timeout: 5 * time.Minute},
@@ -1064,17 +1068,9 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			workdir := filepath.Join("build", "tmp", "fixture_"+rf.name)
 			cmd := ""
 			if rf.expectSubstring != "" {
-				if rf.env != "" {
-					cmd = remoteX64RunPrintFixtureCmdEnv(workdir, rf.src, rf.expectSubstring, rf.env)
-				} else {
-					cmd = remoteX64RunPrintFixtureCmd(workdir, rf.src, rf.expectSubstring)
-				}
+				cmd = remoteX64RunPrintFixtureCmdEnvArgs(workdir, rf.src, rf.expectSubstring, rf.env, rf.args)
 			} else {
-				if rf.env != "" {
-					cmd = remoteX64RunExitcodeFixtureCmdEnv(workdir, rf.src, rf.expectExit, rf.env)
-				} else {
-					cmd = remoteX64RunExitcodeFixtureCmd(workdir, rf.src, rf.expectExit)
-				}
+				cmd = remoteX64RunExitcodeFixtureCmdEnvArgs(workdir, rf.src, rf.expectExit, rf.env, rf.args)
 			}
 
 			t := rf.timeout

@@ -1,0 +1,21 @@
+// Tier‑1 x86_64 native: argc/argv must be available to the injected native runtime on:
+// - Linux x86_64 (SysV entry stack)
+// - Windows x64 (no CRT: entry stub must synthesize argv)
+//
+// This fixture is executed only in the remote x64 gate (Win11 + WSL2) because the host
+// dev machine may be arm64 and cannot run x86_64 native outputs locally.
+
+fn main() {
+    var args = oren_args()
+    var n = oren_list_len(args)
+    print("ARGS_LEN=" + oren_int_to_string(n))
+    if n > 0 && args[0] != 0 { print("ARG0=" + args[0]) }
+    if n > 1 && args[1] != 0 { print("ARG1=" + args[1]) }
+    if n > 2 && args[2] != 0 { print("ARG2=" + args[2]) }
+
+    if n < 3 { return 10 }
+    if oren_string_eq(args[1], "ARG_A") == false { return 11 }
+    if oren_string_eq(args[2], "ARG_B") == false { return 12 }
+    print("tier1 args ok")
+    return 0
+}

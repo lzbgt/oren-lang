@@ -202,6 +202,10 @@ func remoteX64RunExitcodeFixtureCmd(workdir, src string, expectExit int) string 
 }
 
 func remoteX64RunExitcodeFixtureCmdEnv(workdir, src string, expectExit int, env string) string {
+	return remoteX64RunExitcodeFixtureCmdEnvArgs(workdir, src, expectExit, env, "")
+}
+
+func remoteX64RunExitcodeFixtureCmdEnvArgs(workdir, src string, expectExit int, env string, args string) string {
 	host := remoteX64Host()
 	proxyArg := remoteX64ProxyArg()
 
@@ -221,20 +225,28 @@ func remoteX64RunExitcodeFixtureCmdEnv(workdir, src string, expectExit int, env 
 	)
 	winEnvPref := remoteX64WinEnvPrefix(env)
 	wslEnvPref := remoteX64WslEnvPrefix(env)
+	winArgs := ""
+	wslArgs := ""
+	if args != "" {
+		winArgs = " " + args
+		wslArgs = " " + args
+	}
 	winRunCmd := fmt.Sprintf(
 		// Use delayed expansion so EXIT reflects the program's final ERRORLEVEL.
-		`cmd.exe /v:on /c "%s%s\\%s & echo EXIT=!ERRORLEVEL!"`,
+		`cmd.exe /v:on /c "%s%s\\%s%s & echo EXIT=!ERRORLEVEL!"`,
 		winEnvPref,
 		remoteWinDir,
 		winOut,
+		winArgs,
 	)
 	wslRunCmd := fmt.Sprintf(
-		`wsl.exe -e bash -lc "%schmod +x %s/%s && %s/%s; echo EXIT=$?"`,
+		`wsl.exe -e bash -lc "%schmod +x %s/%s && %s/%s%s; echo EXIT=$?"`,
 		wslEnvPref,
 		remoteWslDir,
 		linuxOut,
 		remoteWslDir,
 		linuxOut,
+		wslArgs,
 	)
 
 	return fmt.Sprintf(
@@ -281,6 +293,10 @@ func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) st
 }
 
 func remoteX64RunPrintFixtureCmdEnv(workdir, src string, expectSubstring string, env string) string {
+	return remoteX64RunPrintFixtureCmdEnvArgs(workdir, src, expectSubstring, env, "")
+}
+
+func remoteX64RunPrintFixtureCmdEnvArgs(workdir, src string, expectSubstring string, env string, args string) string {
 	host := remoteX64Host()
 	proxyArg := remoteX64ProxyArg()
 
@@ -300,23 +316,31 @@ func remoteX64RunPrintFixtureCmdEnv(workdir, src string, expectSubstring string,
 	)
 	winEnvPref := remoteX64WinEnvPrefix(env)
 	wslEnvPref := remoteX64WslEnvPrefix(env)
+	winArgs := ""
+	wslArgs := ""
+	if args != "" {
+		winArgs = " " + args
+		wslArgs = " " + args
+	}
 	winRunCmd := fmt.Sprintf(
 		// Use delayed expansion so EXIT reflects the program's final ERRORLEVEL.
-		`cmd.exe /v:on /c "%s%s\\%s > %s\\out_win.txt & echo EXIT=!ERRORLEVEL! & type %s\\out_win.txt"`,
+		`cmd.exe /v:on /c "%s%s\\%s%s > %s\\out_win.txt & echo EXIT=!ERRORLEVEL! & type %s\\out_win.txt"`,
 		winEnvPref,
 		remoteWinDir,
 		winOut,
+		winArgs,
 		remoteWinDir,
 		remoteWinDir,
 	)
 	// Note: preserve the program exit code by capturing it immediately, then printing output.
 	wslRunCmd := fmt.Sprintf(
-		`wsl.exe -e bash -lc "%schmod +x %s/%s && %s/%s > %s/out_wsl.txt; rc=$?; echo EXIT=$rc; cat %s/out_wsl.txt"`,
+		`wsl.exe -e bash -lc "%schmod +x %s/%s && %s/%s%s > %s/out_wsl.txt; rc=$?; echo EXIT=$rc; cat %s/out_wsl.txt"`,
 		wslEnvPref,
 		remoteWslDir,
 		linuxOut,
 		remoteWslDir,
 		linuxOut,
+		wslArgs,
 		remoteWslDir,
 		remoteWslDir,
 	)
