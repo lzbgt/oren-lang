@@ -35,9 +35,12 @@ Rules for this tracker:
        - NOTE: `tests/native/test_spawn_*` include language-level `spawn/join` which is currently fork+pipe based and not Windows-safe yet.
        - Next: extend beyond “spawn+wait” to a full PROC story on Windows: pid/kill/wait semantics (or define a cross‑OS `sys_spawn` CoreIR boundary).
      - POSIX `oren_system_timeout` robustness in minimal/container environments: **done** — runtime now performs deterministic shell discovery (supports `OREN_SYSTEM_SHELL` override) and returns `-2` (ENOENT) if no shell exists.
-     - Windows x86_64 FS syscall surface parity (capsule-safe): **rolling**
-       - **done**: `sys_open` (CreateFileA), `sys_read/sys_write` (generic HANDLEs, not just stdio), `sys_close` (closesocket→CloseHandle fallback)
-       - next: stat/unlink/rename/mkdir/chmod equivalents (define a syscall-first FS surface that is stable across OSes)
+     - Windows x86_64 FS syscall surface parity (capsule-safe): **done** (rolling)
+       - `sys_open` (CreateFileA), `sys_read/sys_write` (generic HANDLEs, not just stdio), `sys_close` (closesocket→CloseHandle fallback)
+       - `sys_stat/sys_lstat/sys_fstat` (Win32 probes; note: Windows does not populate a POSIX `struct stat` layout yet)
+       - `sys_unlink/sys_rmdir/sys_rename/sys_mkdir` (Win32 shims)
+       - `sys_chmod` (currently a no-op on Windows; still enforces capsule FS write enrollment via prehook)
+       - Next: define an **Oren-owned cross-OS Stat representation** + helpers (stop tests/libs from assuming platform `struct stat` layouts).
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:

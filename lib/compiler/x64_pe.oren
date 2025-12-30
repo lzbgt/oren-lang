@@ -105,7 +105,15 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         // THREAD substrate (CreateThread spawn+join/terminate)
         "CreateThread",
         "TerminateThread",
-        "CreateFileA"
+        "CreateFileA",
+        // FS substrate (Win32 API shims, capsule-safe syscalls)
+        "GetLastError",
+        "GetFileAttributesA",
+        "DeleteFileA",
+        "RemoveDirectoryA",
+        "CreateDirectoryA",
+        "MoveFileExA",
+        "SetFileAttributesA"
     ]
     // WinSock NET substrate (WS2_32.dll).
     // Keep this list minimal and explicit so the IAT label mapping below stays auditable.
@@ -339,6 +347,13 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             else if label == "IAT_CreateThread" { target_off = off_iat_k32 + 144 }
             else if label == "IAT_TerminateThread" { target_off = off_iat_k32 + 152 }
             else if label == "IAT_CreateFileA" { target_off = off_iat_k32 + 160 }
+            else if label == "IAT_GetLastError" { target_off = off_iat_k32 + 168 }
+            else if label == "IAT_GetFileAttributesA" { target_off = off_iat_k32 + 176 }
+            else if label == "IAT_DeleteFileA" { target_off = off_iat_k32 + 184 }
+            else if label == "IAT_RemoveDirectoryA" { target_off = off_iat_k32 + 192 }
+            else if label == "IAT_CreateDirectoryA" { target_off = off_iat_k32 + 200 }
+            else if label == "IAT_MoveFileExA" { target_off = off_iat_k32 + 208 }
+            else if label == "IAT_SetFileAttributesA" { target_off = off_iat_k32 + 216 }
             // WS2_32.dll IAT slots (order matches ws2_32_funcs above)
             else if label == "IAT_WSAStartup" { target_off = off_iat_ws2 + 0 }
             else if label == "IAT_WSAGetLastError" { target_off = off_iat_ws2 + 8 }

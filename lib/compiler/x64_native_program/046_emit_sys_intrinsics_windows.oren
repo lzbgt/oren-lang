@@ -338,6 +338,12 @@ fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
         if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
         if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
         if nm == "sys_open" { return _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) }
+        // FS substrate (rolling, Tier‑1): Win32 API shims + capsule gating.
+        if nm == "sys_stat" || nm == "sys_lstat" { return _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) }
+        if nm == "sys_fstat" { return _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_unlink" || nm == "sys_rmdir" { return _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) }
+        if nm == "sys_rename" { return _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_mkdir" || nm == "sys_chmod" { return _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) }
         if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
         if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }

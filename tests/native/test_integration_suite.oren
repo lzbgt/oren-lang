@@ -746,6 +746,79 @@ fn test_read_bytes_roundtrip() {
     }
 }
 
+fn test_sys_fs_basic() {
+    // Cross-platform FS syscall smoke test (Tier‑1 unification guard):
+    // - exercise the syscall-first FS boundary (capsule pre/post hooks still run in host mode)
+    // - avoid any platform-specific `struct stat` layout assumptions
+    //
+    // Windows x64 native backend implements this surface via Win32 APIs; macOS/Linux via syscalls.
+    var dir = "build/_integration_fs_tmp"
+    var a = dir + "/a.txt"
+    var b = dir + "/b.txt"
+
+    // Best-effort cleanup from prior runs (ignore rc).
+    sys_unlink(b)
+    sys_unlink(a)
+    sys_rmdir(dir)
+
+    // mkdir
+    var rc = sys_mkdir(dir, 511) // 0o777
+    if rc < 0 {
+        // In a rolling repo, allow EEXIST-like behavior if cleanup failed; try again once.
+        sys_rmdir(dir)
+        rc = sys_mkdir(dir, 511)
+    }
+    assert_true(rc >= 0, 650)
+
+    // create file `a`
+    oren_write_bytes(a, [1, 2, 3])
+
+    // stat/lstat must succeed on an existing path.
+    var st = malloc(144)
+    if st == 0 { fail(651) }
+    assert_true(sys_stat(a, st) >= 0, 652)
+    assert_true(sys_lstat(a, st) >= 0, 653)
+
+    // fstat on an opened handle/fd must succeed.
+    var fd = sys_open(a, 0, 0)
+    assert_true(fd >= 0, 654)
+    assert_true(sys_fstat(fd, st) >= 0, 655)
+    assert_true(sys_close(fd) >= 0, 656)
+
+    // rename `a` -> `b`
+    var rrc = sys_rename(a, b)
+    if rrc < 0 {
+        print("sys_rename rc=" + oren_int_to_string(rrc))
+        fail(657)
+    }
+    var sra = sys_stat(a, st)
+    if sra >= 0 {
+        print("sys_stat(a) expected <0, got=" + oren_int_to_string(sra))
+        fail(658)
+    }
+    var srb = sys_stat(b, st)
+    if srb < 0 {
+        print("sys_stat(b) expected >=0, got=" + oren_int_to_string(srb))
+        fail(659)
+    }
+    var fd2 = sys_open(b, 0, 0)
+    if fd2 < 0 {
+        print("sys_open(b) rc=" + oren_int_to_string(fd2))
+        fail(659)
+    }
+    sys_close(fd2)
+
+    // chmod should be best-effort (no-op on Windows in v0).
+    assert_true(sys_chmod(b, 438) >= 0, 660) // 0o666
+
+    // unlink + rmdir
+    assert_true(sys_unlink(b) >= 0, 661)
+    assert_true(sys_stat(b, st) < 0, 662)
+    assert_true(sys_rmdir(dir) >= 0, 663)
+
+    free(st)
+}
+
 fn test_gc_mem_stats() {
     var live0 = native_mem_live_count()
     var free0 = native_mem_free_blocks_count()
@@ -1210,6 +1283,13 @@ fn test_sockaddr_packers() {
 }
 
 fn main() {
+    // Ensure a local scratch directory exists.
+    //
+    // The integration suite is sometimes executed from ad-hoc working directories
+    // (e.g., remote Tier‑1 x64 staging on Windows), where `build/` may not exist.
+    // Create it explicitly so file roundtrip tests remain deterministic.
+    sys_mkdir("build", 511) // 0o777; ignore rc
+
     // ENV test must run first because it may execve() once.
     test_env_execve_getenv()
 
@@ -1231,6 +1311,7 @@ fn main() {
     test_u8_buf_wrap_ptr_zero_copy()
     test_string_eq_semantics()
     test_read_bytes_roundtrip()
+    test_sys_fs_basic()
     test_gc_mem_stats()
     test_net_loopback_minimal()
     test_sockaddr_packers()

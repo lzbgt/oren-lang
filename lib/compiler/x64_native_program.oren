@@ -22,6 +22,7 @@
 // @include "x64_native_program/045_emit_index_expr.oren"
 // @include "x64_native_program/046_emit_string_intrinsics.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics.oren"
+// @include "x64_native_program/046_emit_sys_intrinsics_windows_fs.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics_windows.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics_windows_net.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics_windows_threads.oren"
