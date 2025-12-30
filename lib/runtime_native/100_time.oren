@@ -419,6 +419,11 @@ fn native_gc_unregister_root(ptr) {
 
 fn oren_find_node(ptr) {
     if oren_globals() == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    // Native runtime safety/perf rule:
+    // - Small integers are not pointers; don't scan the alloc list for them.
+    // - This also avoids accidental "pointer probing" semantics in places like map key-kind inference.
+    if ptr < 4096 { return 0 }
     acquire_lock()
     var cur = global_get_allocs()
     while cur != 0 {

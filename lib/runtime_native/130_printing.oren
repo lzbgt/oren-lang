@@ -368,7 +368,6 @@ fn oren_map_set(m, k, v) {
     // - ints are raw and untracked
     // - strings are tracked heap strings (kind=1)
     if k == 0 { oren_panic("map_set: key is nil") }
-    if k < 4096 { return _oren_map_set_kind(m, k, v, 0) }
     var node = oren_find_node(k)
     if node == 0 { return _oren_map_set_kind(m, k, v, 0) }
     var kind = ptr_get(iadd(node, 16))
@@ -509,7 +508,6 @@ fn oren_map_get(m, k) {
     // - ints are raw and untracked
     // - strings are tracked heap strings (kind=1)
     if k == 0 { return 0 }
-    if k < 4096 { return _oren_map_get_kind(m, k, 0) }
     var node = oren_find_node(k)
     if node == 0 { return _oren_map_get_kind(m, k, 0) }
     var kind = ptr_get(iadd(node, 16))
