@@ -25,10 +25,12 @@ fn oren_new_list(cap) {
 
 fn oren_list_len(list) {
     if list == 0 { return 0 }
-    if ptr_get(list + 24) != list_magic() {
-        oren_panic("list_len on non-list")
-        return 0
-    }
+    // Safety: do not dereference arbitrary large integers as pointers.
+    // Rely on the tracked-alloc metadata (native) / runtime tracking (C) to discriminate.
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("list_len on non-list"); return 0 }
+    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_len on non-list"); return 0 }
+    if ptr_get(list + 24) != list_magic() { oren_panic("list_len on non-list"); return 0 }
     return ptr_get(list)
 }
 
@@ -37,10 +39,11 @@ fn oren_list_push(list, value) {
         oren_panic("list_push on nil")
         return 0
     }
-    if ptr_get(list + 24) != list_magic() {
-        oren_panic("list_push on non-list")
-        return 0
-    }
+    // Safety: do not dereference arbitrary large integers as pointers.
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("list_push on non-list"); return 0 }
+    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_push on non-list"); return 0 }
+    if ptr_get(list + 24) != list_magic() { oren_panic("list_push on non-list"); return 0 }
     var count = ptr_get(list)
     var cap = ptr_get(list + 8)
     var buf = ptr_get(list + 16)
@@ -73,10 +76,20 @@ fn oren_list_get(list, idx) {
         oren_panic("Indexing on nil")
         return 0
     }
-    if ptr_get(list + 24) != list_magic() {
-        // Not a list, try int-keyed map get (no key-kind heuristics).
-        return oren_map_get_int(list, idx)
+    // Safety: do not dereference arbitrary large integers as pointers.
+    // `x[i]` is defined for lists and maps; reject other values deterministically.
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("Indexing on non-container"); return 0 }
+    var kind = ptr_get(iadd(node, 16))
+    if kind != 2 {
+        if kind == 3 {
+            // Not a list, treat as int-keyed map get (no key-kind heuristics).
+            return oren_map_get_int(list, idx)
+        }
+        oren_panic("Indexing on non-container")
+        return 0
     }
+    if ptr_get(list + 24) != list_magic() { oren_panic("Indexing on non-list"); return 0 }
     var count = ptr_get(list)
     if idx < 0 { 
         oren_panic("Index out of bounds (negative)")
@@ -93,6 +106,10 @@ fn oren_list_get(list, idx) {
 // Set list element in-bounds (does not grow). Returns the written value.
 fn oren_list_set(list, idx, value) {
     if list == 0 { oren_panic("list_set on nil") }
+    // Safety: do not dereference arbitrary large integers as pointers.
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("list_set on non-list"); return 0 }
+    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_set on non-list"); return 0 }
     if ptr_get(list + 24) != list_magic() { oren_panic("list_set on non-list") }
     var count = ptr_get(list)
     if idx < 0 { oren_panic("Index out of bounds (negative)") }

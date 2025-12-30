@@ -261,7 +261,11 @@ fn oren_new_map(cap) {
 
 fn _oren_map_check(m) {
     if m == 0 { oren_panic("map op on nil") }
-    if m < 4096 { oren_panic("map op on non-pointer") }
+    // Safety: do not dereference arbitrary large integers as pointers.
+    // Require a tracked heap object, then validate kind+magic.
+    var node = oren_find_node(m)
+    if node == 0 { oren_panic("map op on non-map") }
+    if ptr_get(iadd(node, 16)) != 3 { oren_panic("map op on non-map") }
     if ptr_get(m + 24) != map_magic() { oren_panic("map op on non-map") }
     return 0
 }
@@ -453,6 +457,9 @@ fn map_qsort_entries(buf, lo, hi) {
 
 fn oren_map_ensure_sorted(m) {
     if m == 0 { return 0 }
+    var node = oren_find_node(m)
+    if node == 0 { return 0 }
+    if ptr_get(iadd(node, 16)) != 3 { return 0 }
     if ptr_get(m + 24) != map_magic() { return 0 }
     if ptr_get(m + 32) == 0 { return 0 }
     var count = ptr_get(m + 0)
@@ -468,6 +475,9 @@ fn oren_map_ensure_sorted(m) {
 
 fn _oren_map_get_kind(m, k, k_kind) {
     if m == 0 { return 0 }
+    var node = oren_find_node(m)
+    if node == 0 { return 0 }
+    if ptr_get(iadd(node, 16)) != 3 { return 0 }
     if ptr_get(m + 24) != map_magic() { return 0 }
 
     if k_kind != 0 && k_kind != 1 { oren_panic("map_get: invalid key kind") }
@@ -518,12 +528,18 @@ fn oren_map_get(m, k) {
 
 fn oren_map_len(m) {
     if m == 0 { return 0 }
+    var node = oren_find_node(m)
+    if node == 0 { return 0 }
+    if ptr_get(iadd(node, 16)) != 3 { return 0 }
     if ptr_get(m + 24) != map_magic() { return 0 }
     return ptr_get(m + 0)
 }
 
 fn oren_map_key_at(m, idx) {
     if m == 0 { return 0 }
+    var node = oren_find_node(m)
+    if node == 0 { return 0 }
+    if ptr_get(iadd(node, 16)) != 3 { return 0 }
     if ptr_get(m + 24) != map_magic() { return 0 }
     oren_map_ensure_sorted(m)
     var count = ptr_get(m + 0)

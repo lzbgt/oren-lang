@@ -30,6 +30,7 @@ Rules for this tracker:
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
    - Interim (done, keep): native runtime infers map key kind using tracking metadata (`oren_find_node(...).kind == STRING`), and native codegen ensures string literals / member keys are tracked via `oren_ensure_tracked`.
+   - Harden runtime safety in the interim model: container ops must never dereference untracked values; prefer `oren_find_node` + `kind` guards before any `ptr_get(x+...)` on user-provided values.
    - Deliverable: a native value representation that can distinguish:
      - immediates (ints/bools/nil) vs pointers
      - string/list/map/buf payload kinds
