@@ -1,0 +1,6 @@
+// Tier‑1 native parity: programs without `fn main()` should still run:
+// - top-level statements execute (via synthesized `__top_level__`)
+// - process exits 0 if no explicit `exit(...)` is called
+
+print("tier1 no-main ok")
+

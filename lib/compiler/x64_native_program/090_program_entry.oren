@@ -252,7 +252,10 @@ fn native_compile_program_x64(linked, platform) {
 
     var fns = _extract_functions_v0(ctx, linked)
     if fns == nil { return ctx }
-    if ctx["declared_functions"]["main"] == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
+    // Rolling parity with other backends:
+    // - `fn main()` is optional; if absent, only `__top_level__` runs.
+    var has_main = false
+    if ctx["declared_functions"] != nil && ctx["declared_functions"]["main"] != nil { has_main = true }
 
     // --- Global vars + top-level statements (Tier‑1 convergence) ---
     //
@@ -451,10 +454,12 @@ fn native_compile_program_x64(linked, platform) {
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
 
-    var call_pos = oren_list_len(ctx["code"])
-    // placeholder rel32=0
-    bytes_extend(ctx["code"], insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "main"})
+    if has_main {
+        var call_pos = oren_list_len(ctx["code"])
+        // placeholder rel32=0
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "main"})
+    }
 
     if platform != nil && platform["os"] == "windows" {
         // Windows x64: ExitProcess(ret)
