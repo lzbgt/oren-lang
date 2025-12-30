@@ -117,7 +117,11 @@ production maturity requires both implementation *and* regression coverage.
     - capsule gating parity for syscall surfaces.
   - Rolling evidence (x86_64 Windows):
     - TIME substrate is now proved by `tests/native/test_time_suite.oren` on Win11 (sleep + gettimeofday shims).
-    - NET substrate is still incomplete (Win32 socket syscall mapping is pending).
+    - NET substrate is now proved by `tests/native/test_net_suite.oren` on Win11 (WinSock + select wait backend + WSAStartup gated in runtime).
+    - PROC substrate (Tier‑1 Windows): rolling but now regression-gated:
+      - POSIX fork/exec/wait4 do not exist, so the runtime uses `CreateProcessA` via `sys_win_createprocess` for `oren_proc_spawn`/`oren_system`.
+      - Proof gate: `OREN_REMOTE_RUN=1 make test` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11+WSL2; the fixture calls `oren_system("echo tier1 smoke proc ok")` and returns non‑zero on failure.
+      - Note: `tests/native/test_spawn_*` also exercise language-level `spawn/join` which is currently fork+pipe based and not Windows-safe yet (separate Tier‑1 gap).
   - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/NATIVE_BACKEND.md`.
 
 ### P1: Tooling quality (modern compiler UX)

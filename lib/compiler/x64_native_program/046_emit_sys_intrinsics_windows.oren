@@ -27,7 +27,7 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: native_capsule_sys_nanosleep_pre(ns) -> ns
-    _intr_load_x64(ctx, 7, tmp_ns) // rdi = ns
+    _intr_load_x64(ctx, 1, tmp_ns) // rcx = ns (Win64 ABI)
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
     _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
 
@@ -108,9 +108,9 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
-    _intr_load_x64(ctx, 7, tmp_tv)
-    _intr_load_x64(ctx, 6, tmp_tz)
-    _intr_load_x64(ctx, 2, tmp_abs)
+    _intr_load_x64(ctx, 1, tmp_tv)  // rcx = tv
+    _intr_load_x64(ctx, 2, tmp_tz)  // rdx = tz
+    _intr_load_x64(ctx, 8, tmp_abs) // r8  = abs
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
 
     var labels = {}
@@ -192,12 +192,36 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
 fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
     var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
-        // Windows currently supports only a minimal syscall surface needed for Tier‑1 bring-up.
+        // Windows syscall surface (rolling):
+        // - core IO + exit
+        // - TIME substrate
+        // - NET substrate (WinSock)
         if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
         if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
         if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
         if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }
+        // NET + wait backend
+        if nm == "sys_wsa_startup" { return _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_select" { return _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_socket" { return _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_connect" { return _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_bind" { return _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_listen" { return _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_accept" { return _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_getsockname" { return _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_getpeername" { return _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_setsockopt" { return _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_getsockopt" { return _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_shutdown" { return _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_sendto" { return _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_recvfrom" { return _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_close" { return _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) }
+        // PROC (CreateProcessA spawn+wait)
+        if nm == "sys_win_createprocess" { return _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) }
+        // Socket nonblocking (mapped to ioctlsocket(FIONBIO))
+        if nm == "sys_fcntl_getfl" { return _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_fcntl_setfl" { return _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) }
         _emit_return_enosys_x64(ctx)
         return nil
     }

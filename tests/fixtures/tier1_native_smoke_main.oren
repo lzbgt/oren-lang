@@ -102,5 +102,11 @@ fn main() {
     // Short-circuit sanity (must not evaluate RHS when unnecessary).
     if 0 && boom() != 0 { return 70 }
 
+    // PROC substrate smoke (Tier‑1):
+    // - ensures `oren_system` and the Windows CreateProcess path are wired correctly
+    // - keeps the smoke program OS-neutral (no `spawn` / fork dependencies)
+    var rc = oren_system("echo tier1 smoke proc ok")
+    if rc != 0 { return 80 }
+
     return 0
 }

@@ -128,6 +128,20 @@ fn _cache_scan_imports_for_file(full_path, config) {
     return {"ok": true, "imports": imports, "src_hash": sh}
 }
 
+fn _cache_hash_expanded_includes(path) {
+    // Hash the fully expanded source (including `// @include` expansion).
+    //
+    // This is used for injected sources that are not necessarily visible through the
+    // user's `import` graph (e.g. the native runtime bundle injected by native backends).
+    var src = expand_includes_file(path, [])
+    if src == nil {
+        var msg = include_last_err()
+        if msg == nil { msg = "failed to read" }
+        return {"ok": false, "err": msg}
+    }
+    return {"ok": true, "hash": _sha256_hex(oren_bytes_from_string(src))}
+}
+
 fn cache_compute_key_build(entry_path, build_cfg) {
     // build_cfg fields used (expected):
     // - backend, target, arch, cc, emit_c, no_gc, capsule, cap_domains, call_depth_max
@@ -199,6 +213,32 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         }
     }
 
+    // Native backend runtime injection:
+    //
+    // The native backends inject `lib/runtime_native.oren` into the compiled program (Tier‑1),
+    // but this file is not necessarily reachable from the user's `import` graph.
+    //
+    // Without hashing the injected runtime bundle, changing runtime source files would not
+    // invalidate the build cache (observed as stale Windows x64 artifacts).
+    if build_cfg != nil && build_cfg["backend"] == "native" {
+        var inject_runtime = true
+        // Rolling escape hatch: x64 can disable injection for bring-up/debug.
+        if build_cfg["arch"] == "x64" {
+            var no_inject = oren_env("OREN_X64_NO_INJECT_RUNTIME")
+            if no_inject != nil && no_inject != "" && no_inject != "0" {
+                inject_runtime = false
+            }
+        }
+        if inject_runtime {
+            var rt_path = "lib/runtime_native.oren"
+            var rh = _cache_hash_expanded_includes(rt_path)
+            if rh["ok"] != true {
+                return {"ok": false, "err": "failed to read injected runtime: " + rt_path + " (" + rh["err"] + ")"}
+            }
+            inputs["RUNTIME:" + rt_path] = rh["hash"]
+        }
+    }
+
     var compiler_sig = _cache_compiler_sig()
 
     // Build a stable key string.
@@ -219,6 +259,21 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         s = s + "shared_lib=" + oren_int_to_string(build_cfg["shared_lib"]) + "\n"
         s = s + "call_depth_max=" + oren_int_to_string(build_cfg["call_depth_max"]) + "\n"
         s = s + "capsule=" + oren_int_to_string(build_cfg["capsule"]) + "\n"
+        // Runtime injection toggle (native backend).
+        //
+        // The injected runtime's content is hashed via `inputs["RUNTIME:..."]` above; this flag
+        // is included as a readable key field so cache debugging is straightforward.
+        var inject_runtime_k = 0
+        if build_cfg["backend"] == "native" {
+            inject_runtime_k = 1
+            if build_cfg["arch"] == "x64" {
+                var no_inject2 = oren_env("OREN_X64_NO_INJECT_RUNTIME")
+                if no_inject2 != nil && no_inject2 != "" && no_inject2 != "0" {
+                    inject_runtime_k = 0
+                }
+            }
+        }
+        s = s + "inject_runtime=" + oren_int_to_string(inject_runtime_k) + "\n"
         // cap domains: stable, sorted
         var cds = build_cfg["cap_domains"]
         if cds == nil { cds = [] }

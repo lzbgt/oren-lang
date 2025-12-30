@@ -8,6 +8,8 @@
 @cap.requires(domain="NET")
 fn oren_udp_bind_local(port) {
     native_capsule_require(CAP_NET, "NET")
+    var init_rc = native_net_init_once()
+    if init_rc < 0 { return init_rc }
     // Bind to 127.0.0.1:<port> for loopback-only tests and simple local services.
     var fd = sys_socket(OREN_AF_INET, OREN_SOCK_DGRAM, 0)
     if fd < 0 { return fd }
@@ -110,4 +112,3 @@ fn oren_udp_close(fd) {
     sys_close(fd)
     return 0
 }
-

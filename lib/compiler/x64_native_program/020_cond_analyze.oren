@@ -301,6 +301,20 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             i = i + 1
             continue
         }
+        if t == "Spawn" {
+            // Statement-form spawn:
+            //   spawn f(...)
+            //
+            // Normalize to the expression form so we share the SpawnExpr lowering path.
+            var call = st["call"]
+            if call == nil || call["type"] != "Call" { err(ctx, "x64 native v0: Spawn missing call"); return nil }
+            var e2 = {"type": "SpawnExpr", "token": tok, "call": call}
+            _expr_int_check(ctx, e2, nil)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e2})
+            i = i + 1
+            continue
+        }
         if t == "ExprStmt" {
             var e = st["expr"]
             if e == nil { i = i + 1; continue }

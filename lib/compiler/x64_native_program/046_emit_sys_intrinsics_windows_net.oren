@@ -1,0 +1,1141 @@
+// x64-native (Windows): WinSock-based NET syscall intrinsics.
+//
+// Goal: bring Windows x64 NET substrate to Tier‑1 parity with macOS/Linux syscall-first runtime:
+// - implement socket/connect/bind/listen/accept/sendto/recvfrom/getsockname/getpeername
+// - implement setsockopt/getsockopt (SO_REUSEADDR, SO_ERROR)
+// - implement shutdown/close
+// - provide a wait backend via WinSock select()
+// - provide WinSock init via WSAStartup (called from runtime `native_net_init_once`)
+//
+// Design principles (rolling):
+// - keep host effects behind `sys_*` intrinsics so capsule gating stays centralized
+// - return convention: success => >=0, failure => negative errno (POSIX-like)
+// - map common WSA error codes to the POSIX errno numbers used by the runtime
+
+fn _emit_call_iat_x64(ctx, data_label) {
+    var mov_iat = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat + 3, "data_label": data_label})
+    bytes_extend(ctx["code"], insn_call_rax())
+    return nil
+}
+
+fn _emit_set_rax_neg_errno_x64(ctx, errno) {
+    // rax = -errno
+    var imm = 4294967296 - (errno & 4294967295)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm))
+    bytes_extend(ctx["code"], insn_cdqe())
+    return nil
+}
+
+fn _emit_wsa_get_last_error_x64(ctx) {
+    // eax = WSAGetLastError()
+    _emit_call_iat_x64(ctx, "IAT_WSAGetLastError")
+    return nil
+}
+
+fn _emit_wsa_last_error_to_neg_errno_common_x64(ctx) {
+    // rax = -errno (POSIX-like) mapped from WSAGetLastError()
+    //
+    // Uses: eax
+    _emit_wsa_get_last_error_x64(ctx)
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "wsa_err_done")
+
+    // WSAEWOULDBLOCK(10035) -> EAGAIN(11)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10035))
+    var l_next0 = _new_label(ctx, "wsa_err_next0")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
+    _emit_set_rax_neg_errno_x64(ctx, 11)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next0)
+
+    // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10036))
+    var l_next1 = _new_label(ctx, "wsa_err_next1")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
+    _emit_set_rax_neg_errno_x64(ctx, 115)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next1)
+
+    // WSAEALREADY(10037) -> EALREADY(114)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10037))
+    var l_next2 = _new_label(ctx, "wsa_err_next2")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
+    _emit_set_rax_neg_errno_x64(ctx, 114)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next2)
+
+    // WSAETIMEDOUT(10060) -> ETIMEDOUT(60)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10060))
+    var l_next3 = _new_label(ctx, "wsa_err_next3")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
+    _emit_set_rax_neg_errno_x64(ctx, 60)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next3)
+
+    // WSAECONNREFUSED(10061) -> ECONNREFUSED(111)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10061))
+    var l_next4 = _new_label(ctx, "wsa_err_next4")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next4)
+    _emit_set_rax_neg_errno_x64(ctx, 111)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next4)
+
+    // WSAEADDRINUSE(10048) -> EADDRINUSE(98)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10048))
+    var l_next5 = _new_label(ctx, "wsa_err_next5")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next5)
+    _emit_set_rax_neg_errno_x64(ctx, 98)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next5)
+
+    // WSAEINVAL(10022) -> EINVAL(22)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10022))
+    var l_next6 = _new_label(ctx, "wsa_err_next6")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next6)
+    _emit_set_rax_neg_errno_x64(ctx, 22)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next6)
+
+    // WSAENOTSOCK(10038) -> ENOTSOCK(88) (Linux number; used only for diagnostics)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10038))
+    var l_next7 = _new_label(ctx, "wsa_err_next7")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next7)
+    _emit_set_rax_neg_errno_x64(ctx, 88)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next7)
+
+    // WSAECONNRESET(10054) -> ECONNRESET(104)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10054))
+    var l_next8 = _new_label(ctx, "wsa_err_next8")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next8)
+    _emit_set_rax_neg_errno_x64(ctx, 104)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next8)
+
+    // Default: -EIO(5)
+    _emit_set_rax_neg_errno_x64(ctx, 5)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _emit_wsa_last_error_to_neg_errno_connect_x64(ctx) {
+    // connect() on nonblocking sockets typically reports WSAEWOULDBLOCK (10035) on Windows.
+    // For parity with Linux, map it to -EINPROGRESS(-115) so the runtime waits and then checks SO_ERROR.
+    _emit_wsa_get_last_error_x64(ctx)
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "wsa_err_connect_done")
+
+    // WSAEWOULDBLOCK(10035) -> EINPROGRESS(115)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10035))
+    var l_next0 = _new_label(ctx, "wsa_err_connect_next0")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
+    _emit_set_rax_neg_errno_x64(ctx, 115)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next0)
+
+    // WSAEINPROGRESS(10036) -> EINPROGRESS(115)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10036))
+    var l_next1 = _new_label(ctx, "wsa_err_connect_next1")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
+    _emit_set_rax_neg_errno_x64(ctx, 115)
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next1)
+
+    // Otherwise, fall back to common mapping.
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx) {
+    // Input:  eax = WSA error code (0 => ok)
+    // Output: eax = POSIX errno number (0 => ok)
+    //
+    // Used for SO_ERROR normalization so runtime logic can stay platform-neutral.
+    var labels = {}
+    var fixups = []
+    var l_done = _new_label(ctx, "wsa_to_posix_done")
+
+    // if eax == 0 => keep 0
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_done)
+
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10060)) // WSAETIMEDOUT
+    var l_next0 = _new_label(ctx, "wsa_to_posix_next0")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next0)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next0)
+
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10061)) // WSAECONNREFUSED
+    var l_next1 = _new_label(ctx, "wsa_to_posix_next1")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next1)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 111))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next1)
+
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10048)) // WSAEADDRINUSE
+    var l_next2 = _new_label(ctx, "wsa_to_posix_next2")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next2)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 98))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next2)
+
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10022)) // WSAEINVAL
+    var l_next3 = _new_label(ctx, "wsa_to_posix_next3")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_next3)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 22))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_next3)
+
+    // Default: EIO(5)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 5))
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
+fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_wsa_startup expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsa_startup does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 1) // wsadata_ptr
+    if base == nil { return nil }
+    var tmp_ws = _intr_tmp_off(ctx, locals, base + 0)
+    if tmp_ws == nil { _intr_tmp_pop(ctx, base); return nil }
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_ws)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // WSAStartup(MAKEWORD(2,2), wsadata_ptr)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 514)) // ecx = 0x0202
+    _intr_load_x64(ctx, 2, tmp_ws) // rdx = wsadata_ptr
+    _emit_call_iat_x64(ctx, "IAT_WSAStartup")
+
+    // If rc != 0 => return -EIO (best-effort; keeps runtime stable).
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "wsa_startup_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_ok)
+    _emit_set_rax_neg_errno_x64(ctx, 5)
+    var l_done = _new_label(ctx, "wsa_startup_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_select expects 5 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_select does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 5) // nfds, readfds, writefds, exceptfds, tv
+    if base == nil { return nil }
+    var tmp_nfds = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_r = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_w = _intr_tmp_off(ctx, locals, base + 2)
+    var tmp_e = _intr_tmp_off(ctx, locals, base + 3)
+    var tmp_tv = _intr_tmp_off(ctx, locals, base + 4)
+    if tmp_nfds == nil || tmp_r == nil || tmp_w == nil || tmp_e == nil || tmp_tv == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_nfds)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_r)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_w)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_e)
+    _intr_eval_spill_x64(ctx, locals, args[4], tmp_tv)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // select(nfds, readfds, writefds, exceptfds, tv)
+    _intr_load_x64(ctx, 1, tmp_nfds) // rcx
+    _intr_load_x64(ctx, 2, tmp_r)    // rdx
+    _intr_load_x64(ctx, 8, tmp_w)    // r8
+    _intr_load_x64(ctx, 9, tmp_e)    // r9
+    _intr_load_x64(ctx, 10, tmp_tv)  // r10 = tv
+    _emit_mov_mrsp_r64(ctx, 32, 10)  // arg5 at [rsp+0x20]
+    _emit_call_iat_x64(ctx, "IAT_select")
+
+    // If rc == SOCKET_ERROR (-1), translate WSAGetLastError to -errno.
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_select_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_select_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_cdqe()) // widen rc to i64
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_socket expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_socket does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 3) // domain,type,proto
+    if base == nil { return nil }
+    var tmp_dom = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_type = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_proto = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_dom == nil || tmp_type == nil || tmp_proto == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_dom)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_proto)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_socket_pre(domain, type, protocol)
+    _intr_load_x64(ctx, 1, tmp_dom)
+    _intr_load_x64(ctx, 2, tmp_type)
+    _intr_load_x64(ctx, 8, tmp_proto)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre")
+
+    // socket(domain, type, proto) -> SOCKET
+    _intr_load_x64(ctx, 1, tmp_dom)
+    _intr_load_x64(ctx, 2, tmp_type)
+    _intr_load_x64(ctx, 8, tmp_proto)
+    _emit_call_iat_x64(ctx, "IAT_socket")
+
+    // if rax == INVALID_SOCKET(-1) => error
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_socket_ok")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_socket_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_ok)
+    // post: native_capsule_sys_socket_post(fd, domain, type, protocol) -> fd
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = fd
+    _intr_load_x64(ctx, 2, tmp_dom)
+    _intr_load_x64(ctx, 8, tmp_type)
+    _intr_load_x64(ctx, 9, tmp_proto)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post")
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_connect expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_connect does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 3) // fd, addr, len
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_fd == nil || tmp_addr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_connect_pre(fd, addr, addrlen)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre")
+
+    // connect(fd, addr, len) -> 0 or SOCKET_ERROR(-1)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _emit_call_iat_x64(ctx, "IAT_connect")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_connect_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_connect_x64(ctx)
+    var l_post = _new_label(ctx, "sys_connect_post")
+    _emit_jmp_to_label(ctx, fixups, l_post)
+
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+
+    _emit_label(ctx, labels, l_post)
+    // post: native_capsule_sys_connect_post(rc, fd, addr, addrlen) -> rc
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    _intr_load_x64(ctx, 2, tmp_fd)
+    _intr_load_x64(ctx, 8, tmp_addr)
+    _intr_load_x64(ctx, 9, tmp_len)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post")
+
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_bind expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_bind does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 3) // fd, addr, len
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_fd == nil || tmp_addr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre")
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _emit_call_iat_x64(ctx, "IAT_bind")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_bind_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_post = _new_label(ctx, "sys_bind_post")
+    _emit_jmp_to_label(ctx, fixups, l_post)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_post)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    _intr_load_x64(ctx, 2, tmp_fd)
+    _intr_load_x64(ctx, 8, tmp_addr)
+    _intr_load_x64(ctx, 9, tmp_len)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post")
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_listen expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_listen does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 2) // fd, backlog
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_backlog = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_fd == nil || tmp_backlog == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_backlog)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_backlog)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre")
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_backlog)
+    _emit_call_iat_x64(ctx, "IAT_listen")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_listen_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_post = _new_label(ctx, "sys_listen_post")
+    _emit_jmp_to_label(ctx, fixups, l_post)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_post)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    _intr_load_x64(ctx, 2, tmp_fd)
+    _intr_load_x64(ctx, 8, tmp_backlog)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_accept expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_accept does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 3) // fd, addr, lenptr
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_lenp = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_fd == nil || tmp_addr == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_lenp)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_lenp)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_pre")
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_lenp)
+    _emit_call_iat_x64(ctx, "IAT_accept")
+
+    // if rax == INVALID_SOCKET(-1) => error
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_accept_ok")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_accept_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_ok)
+    // post: native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) -> newfd
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = newfd
+    _intr_load_x64(ctx, 2, tmp_fd)
+    _intr_load_x64(ctx, 8, tmp_addr)
+    _intr_load_x64(ctx, 9, tmp_lenp)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post")
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_getsockname expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getsockname does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 3) // fd, addr, lenp
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_lenp = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_fd == nil || tmp_addr == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_lenp)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_lenp)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockname_pre")
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_lenp)
+    _emit_call_iat_x64(ctx, "IAT_getsockname")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_getsockname_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_getsockname_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_getpeername expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getpeername does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 3) // fd, addr, lenp
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_lenp = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_fd == nil || tmp_addr == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_lenp)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_lenp)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getpeername_pre")
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_addr)
+    _intr_load_x64(ctx, 8, tmp_lenp)
+    _emit_call_iat_x64(ctx, "IAT_getpeername")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_getpeername_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_getpeername_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_setsockopt expects 5 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_setsockopt does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 5) // fd, level, opt, val, len
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_lvl = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_opt = _intr_tmp_off(ctx, locals, base + 2)
+    var tmp_val = _intr_tmp_off(ctx, locals, base + 3)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 4)
+    if tmp_fd == nil || tmp_lvl == nil || tmp_opt == nil || tmp_val == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_lvl)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_opt)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_val)
+    _intr_eval_spill_x64(ctx, locals, args[4], tmp_len)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_setsockopt_pre(fd, level, optname, optval, optlen)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_lvl)
+    _intr_load_x64(ctx, 8, tmp_opt)
+    _intr_load_x64(ctx, 9, tmp_val)
+    _intr_load_x64(ctx, 10, tmp_len)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre")
+
+    // Translate Oren-level (portable) constants to WinSock constants.
+    //
+    // level:
+    // - OREN_SOL_SOCKET(1) => SOL_SOCKET(65535)
+    _intr_load_x64(ctx, 2, tmp_lvl) // rdx = level
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 1))
+    var labels = {}
+    var fixups = []
+    var l_skip_lvl = _new_label(ctx, "setsockopt_skip_lvl")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_skip_lvl)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 65535))
+    _emit_label(ctx, labels, l_skip_lvl)
+
+    // optname:
+    // - OREN_SO_REUSEADDR(2) => SO_REUSEADDR(4)
+    // - OREN_SO_ERROR(4)     => SO_ERROR(4103)
+    _intr_load_x64(ctx, 8, tmp_opt) // r8 = optname (original)
+    var l_opt_done = _new_label(ctx, "setsockopt_opt_done")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 2))
+    var l_opt_not_reuse = _new_label(ctx, "setsockopt_opt_not_reuse")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_reuse)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4))
+    _emit_jmp_to_label(ctx, fixups, l_opt_done)
+    _emit_label(ctx, labels, l_opt_not_reuse)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 4))
+    var l_opt_not_err = _new_label(ctx, "setsockopt_opt_not_err")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_err)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4103))
+    _emit_label(ctx, labels, l_opt_not_err)
+    _emit_label(ctx, labels, l_opt_done)
+
+    // setsockopt(fd, level, opt, optval, optlen)
+    _intr_load_x64(ctx, 1, tmp_fd)  // rcx = fd
+    // rdx already has level
+    // r8 already has optname
+    _intr_load_x64(ctx, 9, tmp_val) // r9 = optval
+    _intr_load_x64(ctx, 10, tmp_len)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_call_iat_x64(ctx, "IAT_setsockopt")
+
+    var l_ok = _new_label(ctx, "setsockopt_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "setsockopt_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_getsockopt expects 5 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getsockopt does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 5) // fd, level, opt, val, lenp
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_lvl = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_opt = _intr_tmp_off(ctx, locals, base + 2)
+    var tmp_val = _intr_tmp_off(ctx, locals, base + 3)
+    var tmp_lenp = _intr_tmp_off(ctx, locals, base + 4)
+    if tmp_fd == nil || tmp_lvl == nil || tmp_opt == nil || tmp_val == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_lvl)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_opt)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_val)
+    _intr_eval_spill_x64(ctx, locals, args[4], tmp_lenp)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_getsockopt_pre(fd, level, optname, optval, optlen_ptr)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_lvl)
+    _intr_load_x64(ctx, 8, tmp_opt)
+    _intr_load_x64(ctx, 9, tmp_val)
+    _intr_load_x64(ctx, 10, tmp_lenp)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre")
+
+    // Translate level/optname.
+    _intr_load_x64(ctx, 2, tmp_lvl)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 1))
+    var labels = {}
+    var fixups = []
+    var l_skip_lvl = _new_label(ctx, "getsockopt_skip_lvl")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_skip_lvl)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 65535))
+    _emit_label(ctx, labels, l_skip_lvl)
+
+    _intr_load_x64(ctx, 8, tmp_opt) // r8 = optname (original)
+    var l_opt_done = _new_label(ctx, "getsockopt_opt_done")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 2))
+    var l_opt_not_reuse = _new_label(ctx, "getsockopt_opt_not_reuse")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_reuse)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4))
+    _emit_jmp_to_label(ctx, fixups, l_opt_done)
+    _emit_label(ctx, labels, l_opt_not_reuse)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 4))
+    var l_opt_not_err = _new_label(ctx, "getsockopt_opt_not_err")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_opt_not_err)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 4103))
+    _emit_label(ctx, labels, l_opt_not_err)
+    _emit_label(ctx, labels, l_opt_done)
+
+    // getsockopt(fd, level, opt, optval, optlen_ptr)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 9, tmp_val)
+    _intr_load_x64(ctx, 10, tmp_lenp)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_call_iat_x64(ctx, "IAT_getsockopt")
+
+    var l_ok = _new_label(ctx, "getsockopt_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "getsockopt_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_ok)
+    // Normalize SO_ERROR to POSIX errno numbers.
+    _intr_load_x64(ctx, 11, tmp_opt) // r11 = original optname
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 4)) // OREN_SO_ERROR
+    var l_skip_norm = _new_label(ctx, "getsockopt_skip_norm")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_skip_norm)
+    _intr_load_x64(ctx, 10, tmp_val) // r10 = optval
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(0, 10, 0)) // eax = *(u32*)optval
+    _emit_map_wsa_eax_to_posix_errno_eax_x64(ctx)
+    bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(10, 0, 0)) // *(u32*)optval = eax
+    _emit_label(ctx, labels, l_skip_norm)
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_shutdown expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_shutdown does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 2) // fd, how
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_how = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_fd == nil || tmp_how == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_how)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_how)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre")
+
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_how)
+    _emit_call_iat_x64(ctx, "IAT_shutdown")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_shutdown_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_shutdown_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_sendto expects 6 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_sendto does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 6) // fd,buf,len,flags,to,tolen
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_buf = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    var tmp_flags = _intr_tmp_off(ctx, locals, base + 3)
+    var tmp_to = _intr_tmp_off(ctx, locals, base + 4)
+    var tmp_tolen = _intr_tmp_off(ctx, locals, base + 5)
+    if tmp_fd == nil || tmp_buf == nil || tmp_len == nil || tmp_flags == nil || tmp_to == nil || tmp_tolen == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_flags)
+    _intr_eval_spill_x64(ctx, locals, args[4], tmp_to)
+    _intr_eval_spill_x64(ctx, locals, args[5], tmp_tolen)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_sendto_pre(fd, buf, len, flags, to, tolen)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_buf)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _intr_load_x64(ctx, 9, tmp_flags)
+    _intr_load_x64(ctx, 10, tmp_to)
+    _intr_load_x64(ctx, 11, tmp_tolen)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_mov_mrsp_r64(ctx, 40, 11)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sendto_pre")
+
+    // sendto(fd, buf, len, flags, to, tolen)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_buf)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _intr_load_x64(ctx, 9, tmp_flags)
+    _intr_load_x64(ctx, 10, tmp_to)
+    _intr_load_x64(ctx, 11, tmp_tolen)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_mov_mrsp_r64(ctx, 40, 11)
+    _emit_call_iat_x64(ctx, "IAT_sendto")
+
+    // If rc == SOCKET_ERROR(-1), translate last error; else widen rc.
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_sendto_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_sendto_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_recvfrom expects 6 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_recvfrom does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 6) // fd,buf,len,flags,from,fromlen
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_buf = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    var tmp_flags = _intr_tmp_off(ctx, locals, base + 3)
+    var tmp_from = _intr_tmp_off(ctx, locals, base + 4)
+    var tmp_fromlen = _intr_tmp_off(ctx, locals, base + 5)
+    if tmp_fd == nil || tmp_buf == nil || tmp_len == nil || tmp_flags == nil || tmp_from == nil || tmp_fromlen == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_len)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_flags)
+    _intr_eval_spill_x64(ctx, locals, args[4], tmp_from)
+    _intr_eval_spill_x64(ctx, locals, args[5], tmp_fromlen)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_recvfrom_pre(fd, buf, len, flags, from, fromlen)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_buf)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _intr_load_x64(ctx, 9, tmp_flags)
+    _intr_load_x64(ctx, 10, tmp_from)
+    _intr_load_x64(ctx, 11, tmp_fromlen)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_mov_mrsp_r64(ctx, 40, 11)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_recvfrom_pre")
+
+    // recvfrom(fd, buf, len, flags, from, fromlen)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _intr_load_x64(ctx, 2, tmp_buf)
+    _intr_load_x64(ctx, 8, tmp_len)
+    _intr_load_x64(ctx, 9, tmp_flags)
+    _intr_load_x64(ctx, 10, tmp_from)
+    _intr_load_x64(ctx, 11, tmp_fromlen)
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    _emit_mov_mrsp_r64(ctx, 40, 11)
+    _emit_call_iat_x64(ctx, "IAT_recvfrom")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_recvfrom_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_done = _new_label(ctx, "sys_recvfrom_done")
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_close expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_close does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 1) // fd
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    if tmp_fd == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+    // pre: native_capsule_sys_close_pre(fd) -> fd
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+    // Try closesocket(fd) first; if WSAENOTSOCK, fall back to CloseHandle(fd).
+    _intr_load_x64(ctx, 1, tmp_fd)
+    _emit_call_iat_x64(ctx, "IAT_closesocket")
+
+    var labels = {}
+    var fixups = []
+    var l_ok = _new_label(ctx, "sys_close_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_ok)
+
+    // closesocket failed; check WSAENOTSOCK to decide fallback.
+    _emit_wsa_get_last_error_x64(ctx) // eax=WSA
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 10038)) // WSAENOTSOCK
+    var l_not_sock = _new_label(ctx, "sys_close_not_sock")
+    _emit_jcc_to_label(ctx, fixups, "e", l_not_sock)
+
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_post = _new_label(ctx, "sys_close_post")
+    _emit_jmp_to_label(ctx, fixups, l_post)
+
+    _emit_label(ctx, labels, l_not_sock)
+    _intr_load_x64(ctx, 1, tmp_fd) // rcx = HANDLE
+    _emit_call_iat_x64(ctx, "IAT_CloseHandle")
+    // CloseHandle returns BOOL; if 0 => failure => -EIO
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    var l_ch_ok = _new_label(ctx, "sys_close_ch_ok")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ch_ok)
+    _emit_set_rax_neg_errno_x64(ctx, 5)
+    _emit_jmp_to_label(ctx, fixups, l_post)
+    _emit_label(ctx, labels, l_ch_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_post)
+
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+
+    _emit_label(ctx, labels, l_post)
+    // post: native_capsule_sys_close_post(rc, fd) -> rc
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
+
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_fcntl_getfl expects 1 arg"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_getfl does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 1) // fd
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    if tmp_fd == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+    // pre: native_capsule_sys_fcntl_pre(fd, F_GETFL, 0)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl()))
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 0))
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+
+    // WinSock does not expose an equivalent F_GETFL for sockets; return 0 (blocking).
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+
+    // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, labi.posix_fcntl_f_getfl())) // r8 = cmd
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0)) // r9 = arg
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fcntl_setfl expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_setfl does not support spread"); return nil }
+
+    var base = _intr_tmp_push(ctx, 2) // fd, oren_flags
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_flags = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_fd == nil || tmp_flags == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // pre: native_capsule_sys_fcntl_pre(fd, F_SETFL, oren_flags)
+    _intr_load_x64(ctx, 1, tmp_fd)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
+    _intr_load_x64(ctx, 8, tmp_flags)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+
+    // ioctlsocket(fd, FIONBIO, &mode)
+    //
+    // mode is u_long (32-bit). Use the call-area scratch at [rsp+0x20] as storage.
+    // Initialize to 0, set to 1 if (flags & OREN_O_NONBLOCK) != 0.
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0)) // mode=0
+    _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
+    bytes_extend(ctx["code"], insn_and_r64_imm32(10, OREN_O_NONBLOCK))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    var labels = {}
+    var fixups = []
+    var l_skip = _new_label(ctx, "fcntl_setfl_win_skip")
+    _emit_jcc_to_label(ctx, fixups, "e", l_skip)
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 1)) // mode=1
+    _emit_label(ctx, labels, l_skip)
+
+    _intr_load_x64(ctx, 1, tmp_fd) // rcx = fd
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 2147772030)) // edx = FIONBIO (0x8004667e)
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(8, 32)) // r8 = &mode
+    _emit_call_iat_x64(ctx, "IAT_ioctlsocket")
+
+    // If rc == SOCKET_ERROR(-1), map; else return 0.
+    var l_ok = _new_label(ctx, "fcntl_setfl_win_ok")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    _emit_wsa_last_error_to_neg_errno_common_x64(ctx)
+    var l_post = _new_label(ctx, "fcntl_setfl_win_post")
+    _emit_jmp_to_label(ctx, fixups, l_post)
+    _emit_label(ctx, labels, l_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+
+    _emit_label(ctx, labels, l_post)
+    // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+    _intr_load_x64(ctx, 2, tmp_fd)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, labi.posix_fcntl_f_setfl()))
+    _intr_load_x64(ctx, 9, tmp_flags) // r9 = original oren flags (debug)
+    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}

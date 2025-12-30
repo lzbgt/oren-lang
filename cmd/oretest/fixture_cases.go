@@ -145,11 +145,13 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 					"grep -Fq %q %q && "+
 					"strings %q > %q && "+
 					"grep -Fq %q %q && "+
+					"grep -Fq %q %q && "+
 					"./oren build %q --backend native --target windows --arch x64 -o %q > %q && "+
 					"file %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"strings %q > %q && "+
+					"grep -Fq %q %q && "+
 					"grep -Fq %q %q",
 				"tests/fixtures/tier1_native_smoke_main.oren",
 				targetsOutPath("linux", "x64", "native", "tier1_native_smoke"),
@@ -164,6 +166,8 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 				"build/tmp/tier1_native_smoke_x64_linux.strings.out",
 				"tier1 smoke ok",
 				"build/tmp/tier1_native_smoke_x64_linux.strings.out",
+				"tier1 smoke proc ok",
+				"build/tmp/tier1_native_smoke_x64_linux.strings.out",
 				"tests/fixtures/tier1_native_smoke_main.oren",
 				targetsOutPath("windows", "x64", "native", "tier1_native_smoke.exe"),
 				"build/tmp/tier1_native_smoke_x64_win.build.out",
@@ -176,6 +180,8 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 				targetsOutPath("windows", "x64", "native", "tier1_native_smoke.exe"),
 				"build/tmp/tier1_native_smoke_x64_win.strings.out",
 				"tier1 smoke ok",
+				"build/tmp/tier1_native_smoke_x64_win.strings.out",
+				"tier1 smoke proc ok",
 				"build/tmp/tier1_native_smoke_x64_win.strings.out",
 			),
 			log: "build/logs/native_x64_tier1_smoke_builds.log",

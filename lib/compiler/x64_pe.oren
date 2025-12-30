@@ -5,7 +5,8 @@
 // - imports a small Win32 surface via an import table:
 //   - KERNEL32.dll: ExitProcess, GetStdHandle, WriteFile, ReadFile, VirtualAlloc, GetEnvironmentVariableA,
 //                   GetEnvironmentStringsA, GetCommandLineW, WideCharToMultiByte, LocalFree,
-//                   Sleep, GetSystemTimeAsFileTime, QueryPerformanceCounter
+//                   Sleep, GetSystemTimeAsFileTime, QueryPerformanceCounter,
+//                   CreateProcessA, WaitForSingleObject, GetExitCodeProcess, SetHandleInformation, CloseHandle
 //   - SHELL32.dll: CommandLineToArgvW
 // - entry stub calls main(), then ExitProcess(main_ret)
 //
@@ -73,8 +74,8 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     var rdata = bytes_new()
 
     var off_import_desc = oren_list_len(rdata)
-    // 3 descriptors * 20 bytes: kernel32 + shell32 + null
-    push_u8_n(rdata, 0, 60)
+    // 4 descriptors * 20 bytes: kernel32 + ws2_32 + shell32 + null
+    push_u8_n(rdata, 0, 80)
 
     var kernel32_funcs = [
         "ExitProcess",
@@ -90,10 +91,40 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         // TIME substrate
         "Sleep",
         "GetSystemTimeAsFileTime",
-        "QueryPerformanceCounter"
+        "QueryPerformanceCounter",
+        // PROC substrate (CreateProcessA spawn+wait)
+        "CreateProcessA",
+        "WaitForSingleObject",
+        "GetExitCodeProcess",
+        // Ensure inherited std handles are inheritable when launched under OpenSSH (pipe stdio).
+        "SetHandleInformation",
+        // Handle closing (used by sys_close fallback for non-socket handles).
+        "CloseHandle"
+    ]
+    // WinSock NET substrate (WS2_32.dll).
+    // Keep this list minimal and explicit so the IAT label mapping below stays auditable.
+    var ws2_32_funcs = [
+        "WSAStartup",
+        "WSAGetLastError",
+        "socket",
+        "connect",
+        "bind",
+        "listen",
+        "accept",
+        "sendto",
+        "recvfrom",
+        "getsockname",
+        "getpeername",
+        "setsockopt",
+        "getsockopt",
+        "shutdown",
+        "closesocket",
+        "ioctlsocket",
+        "select"
     ]
     var shell32_funcs = ["CommandLineToArgvW"]
     var n_k32 = oren_list_len(kernel32_funcs)
+    var n_ws2 = oren_list_len(ws2_32_funcs)
     var n_s32 = oren_list_len(shell32_funcs)
 
     // Align to 8 for thunk arrays.
@@ -102,6 +133,12 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // ILT(KERNEL32): imports + null entry
     var i0 = 0
     while i0 < n_k32 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
+
+    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_ilt_ws2 = oren_list_len(rdata)
+    // ILT(WS2_32): imports + null entry
+    i0 = 0
+    while i0 < n_ws2 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
 
     while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
     var off_ilt_s32 = oren_list_len(rdata)
@@ -114,6 +151,12 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // IAT(KERNEL32): imports + null entry
     var i1 = 0
     while i1 < n_k32 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
+
+    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_iat_ws2 = oren_list_len(rdata)
+    // IAT(WS2_32): imports + null entry
+    i1 = 0
+    while i1 < n_ws2 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
 
     while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
     var off_iat_s32 = oren_list_len(rdata)
@@ -133,6 +176,15 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         i0 = i0 + 1
     }
     i0 = 0
+    while i0 < n_ws2 {
+        var nmw = ws2_32_funcs[i0]
+        hn_offs[nmw] = oren_list_len(rdata)
+        push_u16_le(rdata, 0)
+        push_ascii_z(rdata, nmw)
+        if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        i0 = i0 + 1
+    }
+    i0 = 0
     while i0 < n_s32 {
         var nm2 = shell32_funcs[i0]
         hn_offs[nm2] = oren_list_len(rdata)
@@ -144,6 +196,8 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
 
     var off_dll_k32 = oren_list_len(rdata)
     push_ascii_z(rdata, "KERNEL32.dll")
+    var off_dll_ws2 = oren_list_len(rdata)
+    push_ascii_z(rdata, "WS2_32.dll")
     var off_dll_s32 = oren_list_len(rdata)
     push_ascii_z(rdata, "SHELL32.dll")
 
@@ -174,6 +228,14 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         i0 = i0 + 1
     }
     i0 = 0
+    while i0 < n_ws2 {
+        var nmw2 = ws2_32_funcs[i0]
+        var hn_rva_w = rdata_rva + hn_offs[nmw2]
+        set_u32_le(rdata, off_ilt_ws2 + i0 * 8, hn_rva_w)
+        set_u32_le(rdata, off_iat_ws2 + i0 * 8, hn_rva_w)
+        i0 = i0 + 1
+    }
+    i0 = 0
     while i0 < n_s32 {
         var nm4 = shell32_funcs[i0]
         var hn_rva2 = rdata_rva + hn_offs[nm4]
@@ -182,7 +244,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         i0 = i0 + 1
     }
 
-    // Patch import descriptor for kernel32 and shell32.
+    // Patch import descriptors.
     //
     // IMAGE_IMPORT_DESCRIPTOR (20 bytes):
     //   0: OriginalFirstThunk (RVA ILT)
@@ -195,14 +257,20 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     set_u32_le(rdata, off_import_desc + 12, dll_k32_rva)
     set_u32_le(rdata, off_import_desc + 16, rdata_rva + off_iat_k32)
 
+    var dll_ws2_rva = rdata_rva + off_dll_ws2
+    // second descriptor (+20): WS2_32.dll
+    set_u32_le(rdata, off_import_desc + 20 + 0, rdata_rva + off_ilt_ws2)
+    set_u32_le(rdata, off_import_desc + 20 + 12, dll_ws2_rva)
+    set_u32_le(rdata, off_import_desc + 20 + 16, rdata_rva + off_iat_ws2)
+
     var dll_s32_rva = rdata_rva + off_dll_s32
-    // second descriptor starts at +20
-    set_u32_le(rdata, off_import_desc + 20 + 0, rdata_rva + off_ilt_s32)
-    set_u32_le(rdata, off_import_desc + 20 + 12, dll_s32_rva)
-    set_u32_le(rdata, off_import_desc + 20 + 16, rdata_rva + off_iat_s32)
+    // third descriptor (+40): SHELL32.dll
+    set_u32_le(rdata, off_import_desc + 40 + 0, rdata_rva + off_ilt_s32)
+    set_u32_le(rdata, off_import_desc + 40 + 12, dll_s32_rva)
+    set_u32_le(rdata, off_import_desc + 40 + 16, rdata_rva + off_iat_s32)
 
     var import_dir_rva = rdata_rva + off_import_desc
-    var import_dir_size = 60
+    var import_dir_size = 80
 
     // ---- Build `.data` (user data blob) ----
     //
@@ -257,6 +325,29 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             else if label == "IAT_Sleep" { target_off = off_iat_k32 + 80 }
             else if label == "IAT_GetSystemTimeAsFileTime" { target_off = off_iat_k32 + 88 }
             else if label == "IAT_QueryPerformanceCounter" { target_off = off_iat_k32 + 96 }
+            else if label == "IAT_CreateProcessA" { target_off = off_iat_k32 + 104 }
+            else if label == "IAT_WaitForSingleObject" { target_off = off_iat_k32 + 112 }
+            else if label == "IAT_GetExitCodeProcess" { target_off = off_iat_k32 + 120 }
+            else if label == "IAT_SetHandleInformation" { target_off = off_iat_k32 + 128 }
+            else if label == "IAT_CloseHandle" { target_off = off_iat_k32 + 136 }
+            // WS2_32.dll IAT slots (order matches ws2_32_funcs above)
+            else if label == "IAT_WSAStartup" { target_off = off_iat_ws2 + 0 }
+            else if label == "IAT_WSAGetLastError" { target_off = off_iat_ws2 + 8 }
+            else if label == "IAT_socket" { target_off = off_iat_ws2 + 16 }
+            else if label == "IAT_connect" { target_off = off_iat_ws2 + 24 }
+            else if label == "IAT_bind" { target_off = off_iat_ws2 + 32 }
+            else if label == "IAT_listen" { target_off = off_iat_ws2 + 40 }
+            else if label == "IAT_accept" { target_off = off_iat_ws2 + 48 }
+            else if label == "IAT_sendto" { target_off = off_iat_ws2 + 56 }
+            else if label == "IAT_recvfrom" { target_off = off_iat_ws2 + 64 }
+            else if label == "IAT_getsockname" { target_off = off_iat_ws2 + 72 }
+            else if label == "IAT_getpeername" { target_off = off_iat_ws2 + 80 }
+            else if label == "IAT_setsockopt" { target_off = off_iat_ws2 + 88 }
+            else if label == "IAT_getsockopt" { target_off = off_iat_ws2 + 96 }
+            else if label == "IAT_shutdown" { target_off = off_iat_ws2 + 104 }
+            else if label == "IAT_closesocket" { target_off = off_iat_ws2 + 112 }
+            else if label == "IAT_ioctlsocket" { target_off = off_iat_ws2 + 120 }
+            else if label == "IAT_select" { target_off = off_iat_ws2 + 128 }
             // SHELL32.dll IAT slots
             else if label == "IAT_CommandLineToArgvW" { target_off = off_iat_s32 + 0 }
             else {

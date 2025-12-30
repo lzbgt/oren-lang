@@ -462,6 +462,8 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     if nm == "sys_mkdir" || nm == "sys_chmod" { return true }
     if nm == "sys_getdirentries64" { return true }
     if nm == "sys_fork" || nm == "sys_execve" || nm == "sys_wait4" { return true }
+    // Windows-only PROC helper (CreateProcessA-based spawn+wait)
+    if nm == "sys_win_createprocess" { return true }
     if nm == "sys_kill" { return true }
     if nm == "sys_gettimeofday" || nm == "sys_getcwd" || nm == "sys_nanosleep" { return true }
     // VM / threads / fcntl / fd ops
@@ -475,6 +477,8 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     if nm == "sys_getpeername" || nm == "sys_getsockname" { return true }
     if nm == "sys_getsockopt" || nm == "sys_setsockopt" || nm == "sys_shutdown" { return true }
     if nm == "sys_sendto" || nm == "sys_recvfrom" { return true }
+    // Windows-only NET helpers
+    if nm == "sys_wsa_startup" || nm == "sys_select" { return true }
     // epoll
     if nm == "sys_epoll_create1" || nm == "sys_epoll_ctl" || nm == "sys_epoll_pwait" { return true }
     // Darwin-only (still compiler intrinsics; may return -ENOSYS on non-Darwin)

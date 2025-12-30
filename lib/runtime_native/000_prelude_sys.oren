@@ -63,6 +63,12 @@ fn sys_getdirentries64(fd, buf, bufsize, pos_ptr) { return 0 }
 fn sys_fork() { return 0 }
 fn sys_execve(path, argv, envp) { return 0 }
 fn sys_wait4(pid, status_ptr, options, rusage) { return 0 }
+// Windows-only PROC helper (CreateProcess-based spawn+wait):
+//   sys_win_createprocess(app, cmdline, envblock, timeout_ms) -> raw wait status (exit_code<<8) or -60 on timeout.
+// Notes:
+// - `cmdline` must be a mutable NUL-terminated cstr (CreateProcessA requirement).
+// - `envblock` is either 0 (inherit) or a double-NUL-terminated environment block.
+fn sys_win_createprocess(app, cmdline, envblock, timeout_ms) { return 0 }
 fn sys_mmap_private_anon(len) { return 0 }
 fn sys_munmap(addr, len) { return 0 }
 fn sys_clone(flags, stack) { return 0 }
@@ -102,6 +108,11 @@ fn sys_recvfrom(fd, buf, len, flags, from, fromlen) { return 0 }
 // These are pure wrappers; no new syscall lowering required.
 fn sys_send(fd, buf, len, flags) { return sys_sendto(fd, buf, len, flags, 0, 0) }
 fn sys_recv(fd, buf, len, flags) { return sys_recvfrom(fd, buf, len, flags, 0, 0) }
+// Windows-only NET helpers (WinSock):
+// - sys_wsa_startup(wsadata_ptr) initializes WinSock once per process
+// - sys_select(...) provides a portable wait backend for Windows (no epoll/kqueue)
+fn sys_wsa_startup(wsadata_ptr) { return 0 }
+fn sys_select(nfds, readfds, writefds, exceptfds, timeout_ptr) { return 0 }
 fn sys_kqueue() { return 0 }
 fn sys_kevent(kq, changelist, nchanges, eventlist, nevents, timeout_ptr) { return 0 }
 fn sys_epoll_create1(flags) { return 0 }

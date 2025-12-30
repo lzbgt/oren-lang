@@ -82,6 +82,335 @@ fn native_envp_push_unique(out, oi, max_out, ptr) {
     return oi + 1
 }
 
+// --- Windows PROC helpers (CreateProcessA command line + environment block) ---
+//
+// Windows uses:
+// - A single command-line string (`lpCommandLine`) rather than argv[]
+// - A double-NUL-terminated environment block rather than envp[]
+//
+// To keep the syscall-first model consistent, the runtime builds those blobs and
+// calls `sys_win_createprocess(...)`, which is a Windows-only compiler intrinsic
+// lowered by the x86_64 native backend via PE IAT.
+
+fn native_windows_cmdline_quoted_len(arg) {
+    // Returns the number of bytes written by `native_windows_cmdline_write_quoted`.
+    //
+    // We always quote args to keep parsing deterministic, and escape according to the
+    // MSVC / CommandLineToArgvW rules:
+    // - backslashes are doubled when they precede a quote or the end of the string
+    // - a quote is escaped by a preceding backslash
+    //
+    // Encoding:
+    //   " ... "  (ASCII quotes)
+    //
+    // Empty arg becomes: ""
+    if arg == 0 { return 2 }
+    var len = 1 // opening '"'
+    var bs = 0
+    var i = 0
+    while true {
+        var ch = ptr_get_byte(iadd(arg, i))
+        if ch == 0 { break }
+        if ch == 92 { // '\\'
+            bs = bs + 1
+            i = i + 1
+            continue
+        }
+        if ch == 34 { // '"'
+            // (2*bs + 1) backslashes + '"'  => 2*bs + 2 bytes
+            len = len + (bs * 2) + 2
+            bs = 0
+            i = i + 1
+            continue
+        }
+        // Normal char: bs backslashes + char
+        len = len + bs + 1
+        bs = 0
+        i = i + 1
+    }
+    // End: double remaining backslashes before closing quote.
+    len = len + (bs * 2)
+    len = len + 1 // closing '"'
+    return len
+}
+
+fn native_windows_cmdline_write_quoted(dst, pos, arg) {
+    // Writes a quoted+escaped arg at dst[pos..] and returns the updated pos.
+    if dst == 0 { return pos }
+    // Opening quote
+    ptr_set_byte(iadd(dst, pos), 34)
+    pos = pos + 1
+    if arg == 0 {
+        // Closing quote
+        ptr_set_byte(iadd(dst, pos), 34)
+        return pos + 1
+    }
+
+    var bs = 0
+    var i = 0
+    while true {
+        var ch = ptr_get_byte(iadd(arg, i))
+        if ch == 0 { break }
+        if ch == 92 { // '\\'
+            bs = bs + 1
+            i = i + 1
+            continue
+        }
+        if ch == 34 { // '"'
+            // Emit 2*bs + 1 backslashes
+            var k = 0
+            var need = bs * 2 + 1
+            while k < need {
+                ptr_set_byte(iadd(dst, pos), 92)
+                pos = pos + 1
+                k = k + 1
+            }
+            // Emit quote
+            ptr_set_byte(iadd(dst, pos), 34)
+            pos = pos + 1
+            bs = 0
+            i = i + 1
+            continue
+        }
+
+        // Emit bs backslashes
+        var j = 0
+        while j < bs {
+            ptr_set_byte(iadd(dst, pos), 92)
+            pos = pos + 1
+            j = j + 1
+        }
+        bs = 0
+        // Emit char
+        ptr_set_byte(iadd(dst, pos), ch)
+        pos = pos + 1
+        i = i + 1
+    }
+
+    // End: emit 2*bs backslashes before closing quote.
+    var t = 0
+    var tail = bs * 2
+    while t < tail {
+        ptr_set_byte(iadd(dst, pos), 92)
+        pos = pos + 1
+        t = t + 1
+    }
+
+    // Closing quote
+    ptr_set_byte(iadd(dst, pos), 34)
+    return pos + 1
+}
+
+fn native_windows_cmdline_needs_quotes(arg) {
+    // Decide whether an argument must be quoted for a Windows command line.
+    //
+    // Rationale:
+    // - We used to quote *every* arg, but that breaks some programs that do their own
+    //   option parsing on the raw command line (notably `cmd.exe`, where quoting `/C`
+    //   makes it fail to recognize the switch).
+    // - For most programs, quoting only when necessary is both deterministic and compatible.
+    //
+    // Quote when:
+    // - empty string (would disappear otherwise)
+    // - contains whitespace (space/tab/newline)
+    // - contains a double quote (needs escaping)
+    if arg == 0 { return true }
+    var ch0 = ptr_get_byte(arg)
+    if ch0 == 0 { return true } // empty => must be ""
+
+    var i = 0
+    while i < 4096 {
+        var ch = ptr_get_byte(iadd(arg, i))
+        if ch == 0 { break }
+        if ch == 32 { return true } // space
+        if ch == 9 { return true }  // tab
+        if ch == 10 { return true } // '\n'
+        if ch == 13 { return true } // '\r'
+        if ch == 34 { return true } // '"'
+        i = i + 1
+    }
+    return false
+}
+
+fn native_windows_cmdline_write_plain(dst, pos, arg) {
+    // Writes arg as-is (no surrounding quotes) and returns updated pos.
+    if dst == 0 { return pos }
+    if arg == 0 { return pos }
+    var i = 0
+    while i < 4096 {
+        var ch = ptr_get_byte(iadd(arg, i))
+        if ch == 0 { break }
+        ptr_set_byte(iadd(dst, pos), ch)
+        pos = pos + 1
+        i = i + 1
+    }
+    return pos
+}
+
+fn native_windows_cmdline_arg_len(arg) {
+    if native_windows_cmdline_needs_quotes(arg) { return native_windows_cmdline_quoted_len(arg) }
+    return native_cstr_len(arg)
+}
+
+fn native_windows_cmdline_write_arg(dst, pos, arg) {
+    if native_windows_cmdline_needs_quotes(arg) { return native_windows_cmdline_write_quoted(dst, pos, arg) }
+    return native_windows_cmdline_write_plain(dst, pos, arg)
+}
+
+fn native_windows_cmdline_from_argvp(argvp, argc) {
+    // Build a mutable NUL-terminated Windows command line from a c argv[] pointer array.
+    if argvp == 0 { return 0 }
+    if argc <= 0 { return 0 }
+
+    // Pass 1: compute total length.
+    var total = 0
+    var i = 0
+    while i < argc {
+        var a = ptr_get(iadd(argvp, i * 8))
+        if i > 0 { total = total + 1 } // space
+        total = total + native_windows_cmdline_arg_len(a)
+        i = i + 1
+    }
+
+    var buf = malloc(total + 1)
+    if buf == 0 { return 0 }
+
+    // Pass 2: write.
+    var pos = 0
+    i = 0
+    while i < argc {
+        var a2 = ptr_get(iadd(argvp, i * 8))
+        if i > 0 {
+            ptr_set_byte(iadd(buf, pos), 32) // space
+            pos = pos + 1
+        }
+        pos = native_windows_cmdline_write_arg(buf, pos, a2)
+        i = i + 1
+    }
+    ptr_set_byte(iadd(buf, pos), 0)
+    return buf
+}
+
+fn native_windows_envblock_from_envp(envp) {
+    // Build a double-NUL-terminated environment block for CreateProcessA.
+    // Returns malloc()'d memory that the caller must free.
+    //
+    // If envp == 0, returns 0 (inherit environment).
+    if envp == 0 { return 0 }
+
+    // Compute total bytes including final double NUL.
+    var total = 1 // final extra NUL
+    var i = 0
+    while i < 65536 {
+        var ent = ptr_get(iadd(envp, i * 8))
+        if ent == 0 { break }
+        var l = native_cstr_len(ent)
+        // Defensive cap to avoid unbounded allocation.
+        if l < 0 || l > 1048576 { return 0 }
+        total = total + l + 1
+        i = i + 1
+    }
+
+    var block = malloc(total + 1)
+    if block == 0 { return 0 }
+
+    var pos = 0
+    i = 0
+    while i < 65536 {
+        var ent2 = ptr_get(iadd(envp, i * 8))
+        if ent2 == 0 { break }
+        var j = 0
+        while true {
+            var ch = ptr_get_byte(iadd(ent2, j))
+            if ch == 0 { break }
+            ptr_set_byte(iadd(block, pos), ch)
+            pos = pos + 1
+            j = j + 1
+        }
+        // NUL terminator for this entry
+        ptr_set_byte(iadd(block, pos), 0)
+        pos = pos + 1
+        i = i + 1
+    }
+
+    // Final double NUL
+    ptr_set_byte(iadd(block, pos), 0)
+    ptr_set_byte(iadd(block, pos + 1), 0)
+    return block
+}
+
+fn native_windows_envblock_for_proc_child() {
+    // Build an env block for a proc child using the same capsule policy as POSIX execve.
+    //
+    // Returns malloc()'d memory (or 0 to inherit), caller must free when non-zero.
+    var parent_envp = native_runtime_get_envp_ptr()
+    if global_get_capsule_mode() != 1 {
+        return native_windows_envblock_from_envp(parent_envp)
+    }
+    if global_get_proc_inherit_env() == 1 {
+        return native_windows_envblock_from_envp(parent_envp)
+    }
+
+    var keys = global_get_proc_allow_env_keys_ptr()
+    var max_out = 256
+    var out = malloc((max_out + 1) * 8)
+    if out == 0 { return 0 }
+    var oi = 0
+
+    // Mandatory capsule env (kept small and focused).
+    var must_capsule = native_envp_get_entry_ptr("OREN_CAPSULE")
+    if must_capsule != 0 { oi = native_envp_push_unique(out, oi, max_out, must_capsule) }
+    else { oi = native_envp_push_unique(out, oi, max_out, "OREN_CAPSULE=1") }
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_CAP_ALLOW_DOMAINS"))
+    // FS enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_READ_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_ALLOW_WRITE_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS_READ"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_FS_MOUNTS_WRITE"))
+    // NET enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_LOOPBACK"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_TCP_CONNECT"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_ALLOW_TCP_LISTEN"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_TCP_CONNECT_MAP"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_NET_TCP_LISTEN_MAP"))
+    // PROC enrollment
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_EXEC_PREFIXES"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_SYSTEM"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_INHERIT_ENV"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_ENV_KEYS"))
+    oi = native_envp_push_unique(out, oi, max_out, native_envp_get_entry_ptr("OREN_PROC_ALLOW_ARGV"))
+
+    // Optional allowlisted keys from parent env.
+    if keys != 0 {
+        var i = 0
+        while i < 4096 && oi < max_out {
+            var ent = ptr_get(iadd(parent_envp, i * 8))
+            if ent == 0 { break }
+
+            var key_len = 0
+            while key_len < 256 {
+                var ch = ptr_get_byte(iadd(ent, key_len))
+                if ch == 0 { key_len = 0; break }
+                if ch == 61 { break } // '='
+                key_len = key_len + 1
+            }
+            if key_len > 0 && key_len < 256 {
+                if native_csv_has_key(keys, ent, key_len) {
+                    oi = native_envp_push_unique(out, oi, max_out, ent)
+                }
+            }
+            i = i + 1
+        }
+    }
+
+    ptr_set(out + (oi * 8), 0)
+    var block = native_windows_envblock_from_envp(out)
+    free(out)
+    return block
+}
+
 fn native_runtime_get_envp_for_proc_child() {
     // Determine envp for subprocess exec in the child (after fork, before execve).
     //
@@ -209,6 +538,27 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
     // In capsule mode, enforce argv allowlist before forking.
     native_capsule_require_proc_argv(path, child_argv, out_argc)
 
+    // Windows does not support fork/exec; use CreateProcessA-based spawn+wait.
+    //
+    // Contract: preserve the existing "raw wait status" return convention:
+    // - exit_code 0 => status 0
+    // - exit_code n => status (n & 0xFF) << 8
+    if g_target_os == 3 {
+        var cmdline = native_windows_cmdline_from_argvp(child_argv, out_argc)
+        if cmdline == 0 {
+            free(child_argv)
+            return -1
+        }
+        var envblock = native_windows_envblock_for_proc_child()
+        // envblock may be 0 (inherit env), which is valid.
+
+        var rc = sys_win_createprocess(path, cmdline, envblock, timeout_ms)
+        free(cmdline)
+        if envblock != 0 { free(envblock) }
+        free(child_argv)
+        return rc
+    }
+
     var pid = oren_fork()
     if pid < 0 {
         free(child_argv)
@@ -288,6 +638,16 @@ fn oren_system_timeout(cmd, timeout_ms) {
     native_capsule_require_proc_system()
 
     if cmd == 0 { return -1 }
+    if g_target_os == 3 {
+        // Windows: use cmd.exe /C <cmd>
+        //
+        // Prefer COMSPEC if present, otherwise fall back to the canonical System32 path.
+        var comspec = oren_getenv("ComSpec")
+        if comspec == 0 { comspec = oren_getenv("COMSPEC") }
+        if comspec == 0 { comspec = "C:\\Windows\\System32\\cmd.exe" }
+        var args = [comspec, "/C", cmd]
+        return oren_proc_spawn(comspec, args, timeout_ms)
+    }
     var args = ["sh", "-c", cmd]
     return oren_proc_spawn("/bin/sh", args, timeout_ms)
 }

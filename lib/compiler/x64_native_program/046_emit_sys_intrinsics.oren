@@ -162,7 +162,9 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
         // fd (with capsule gating)
         _emit_eval_int_to_rax(ctx, args[0], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = fd
+        // Capsule prehook is an internal Oren call and must use the platform ABI.
+        // Win64: arg0 in RCX; SysV: arg0 in RDI.
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = fd
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_read_pre")
         _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
@@ -264,6 +266,8 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_write expects 3 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_write does not support spread"); return nil }
 
+    var platform = ctx["platform"]
+
     // Spill args LTR.
     var base = _intr_tmp_push(ctx, 3)
     if base == nil { return nil }
@@ -275,7 +279,11 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     // fd (with capsule gating)
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi=fd
+    if platform != nil && platform["os"] == "windows" {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx=fd
+    } else {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi=fd
+    }
     _emit_call_rel32_named_x64(ctx, "native_capsule_sys_write_pre")
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
@@ -294,7 +302,6 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, local_fixups, "le", l_ret0)
 
-    var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
         // Windows: map fd 1/2 to STDOUT/STDERR and call:
         //   h = GetStdHandle(id)
@@ -413,6 +420,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
 
     if args == nil { args = [] }
+
+    // Windows-only helpers that may appear in the injected runtime but must never lower on Linux.
+    // Keep them as explicit -ENOSYS so cross-target builds remain deterministic.
+    if nm == "sys_wsa_startup" || nm == "sys_select" || nm == "sys_win_createprocess" {
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
 
     // --- FS / PROC / NET syscalls (Linux) ---
     if nm == "sys_pipe" {

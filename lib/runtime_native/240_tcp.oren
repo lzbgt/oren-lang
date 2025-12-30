@@ -241,6 +241,29 @@ fn oren_tcp_set_nonblock(fd) {
 }
 
 @cap.requires(domain="NET")
+fn native_net_init_once() {
+    // Windows requires WinSock initialization (WSAStartup) before any socket operations.
+    //
+    // Design:
+    // - keep the host effect behind the NET capability boundary
+    // - avoid doing it in the entry stub (keeps capsule policy explicit)
+    // - no-op on non-Windows targets
+    native_capsule_require(CAP_NET, "NET")
+    if g_target_os != 3 { return 0 }
+    if g_net_wsa_inited == 1 { return 0 }
+
+    // WSADATA is ~400 bytes; allocate a little slack (rolling).
+    var ws = malloc(512)
+    if ws == 0 { return 0 - 12 } // ENOMEM
+    oren_track_alloc(ws, 512, 0)
+    var rc = sys_wsa_startup(ws)
+    free(ws)
+    if rc < 0 { return rc }
+    g_net_wsa_inited = 1
+    return 0
+}
+
+@cap.requires(domain="NET")
 fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     // Returns 1 if ready, 0 if timed out, or negative errno.
@@ -359,8 +382,63 @@ fn oren_fd_wait_epoll(fd, events_mask, timeout_ms) {
 }
 
 @cap.requires(domain="NET")
+fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
+    native_capsule_require(CAP_NET, "NET")
+    // Windows-only readiness wait using WinSock select().
+    //
+    // Returns 1 if ready, 0 if timed out, or negative errno.
+    if g_target_os != 3 { return 0 - 78 } // ENOSYS
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    // fd_set (Windows, x64):
+    //   u32 fd_count @0
+    //   u32 pad      @4
+    //   SOCKET fd0   @8
+    var fds = malloc(16)
+    if fds == 0 { return 0 - 12 } // ENOMEM
+    oren_track_alloc(fds, 16, 0)
+    var zi = 0
+    while zi < 16 { ptr_set_byte(fds + zi, 0); zi = zi + 1 }
+    oren_ptr_set_u32_le(fds + 0, 1)
+    oren_ptr_set_u64_le(fds + 8, fd)
+
+    // timeval (Windows uses 32-bit longs even on x64: LLP64).
+    //   u32 tv_sec  @0
+    //   u32 tv_usec @4
+    var tv = malloc(16)
+    if tv == 0 { free(fds); return 0 - 12 } // ENOMEM
+    oren_track_alloc(tv, 16, 0)
+    zi = 0
+    while zi < 16 { ptr_set_byte(tv + zi, 0); zi = zi + 1 }
+    var sec = timeout_ms / 1000
+    var usec = (timeout_ms - sec * 1000) * 1000
+    // Clamp to u32 range (select uses 32-bit fields).
+    if sec < 0 { sec = 0 }
+    if sec > 4294967295 { sec = 4294967295 }
+    if usec < 0 { usec = 0 }
+    if usec > 4294967295 { usec = 4294967295 }
+    oren_ptr_set_u32_le(tv + 0, sec)
+    oren_ptr_set_u32_le(tv + 4, usec)
+
+    // select ignores nfds on Windows; keep it 0 for determinism.
+    var rc = 0
+    if want_write == 1 {
+        rc = sys_select(0, 0, fds, 0, tv)
+    } else {
+        rc = sys_select(0, fds, 0, 0, tv)
+    }
+    free(fds)
+    free(tv)
+    if rc > 0 { return 1 }
+    return rc
+}
+
+@cap.requires(domain="NET")
 fn oren_fd_wait_readable(fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    if g_target_os == 3 {
+        return oren_fd_wait_select_one(fd, 0, timeout_ms)
+    }
     if g_net_has_kqueue == 1 {
         return oren_tcp_wait_kqueue(fd, -1, timeout_ms) // EVFILT_READ
     }
@@ -370,6 +448,9 @@ fn oren_fd_wait_readable(fd, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_writable(fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    if g_target_os == 3 {
+        return oren_fd_wait_select_one(fd, 1, timeout_ms)
+    }
     if g_net_has_kqueue == 1 {
         return oren_tcp_wait_kqueue(fd, -2, timeout_ms) // EVFILT_WRITE
     }
@@ -533,6 +614,53 @@ fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
     native_capsule_require(CAP_NET, "NET")
+    if g_target_os == 3 {
+        // Minimal Windows implementation: build a single fd_set and return the first ready fd.
+        if fds == nil { return 0 - 22 } // EINVAL
+        if out_fd_ptr == 0 { return 0 - 22 } // EINVAL
+        var nfds = oren_list_len(fds)
+        if nfds <= 0 { return 0 - 22 } // EINVAL
+        // Windows FD_SETSIZE default is 64; keep v0 explicit.
+        if nfds > 64 { return 0 - 22 } // EINVAL
+        if timeout_ms < 0 { timeout_ms = 0 }
+
+        var set = malloc(8 + 8 * 64)
+        if set == 0 { return 0 - 12 } // ENOMEM
+        oren_track_alloc(set, 8 + 8 * 64, 0)
+        var zi = 0
+        while zi < 8 + 8 * 64 { ptr_set_byte(set + zi, 0); zi = zi + 1 }
+        oren_ptr_set_u32_le(set + 0, nfds)
+        var i = 0
+        while i < nfds {
+            oren_ptr_set_u64_le(set + 8 + i * 8, oren_list_get(fds, i))
+            i = i + 1
+        }
+
+        var tv = malloc(16)
+        if tv == 0 { free(set); return 0 - 12 } // ENOMEM
+        oren_track_alloc(tv, 16, 0)
+        zi = 0
+        while zi < 16 { ptr_set_byte(tv + zi, 0); zi = zi + 1 }
+        var sec = timeout_ms / 1000
+        var usec = (timeout_ms - sec * 1000) * 1000
+        if sec < 0 { sec = 0 }
+        if sec > 4294967295 { sec = 4294967295 }
+        if usec < 0 { usec = 0 }
+        if usec > 4294967295 { usec = 4294967295 }
+        oren_ptr_set_u32_le(tv + 0, sec)
+        oren_ptr_set_u32_le(tv + 4, usec)
+
+        var rc = sys_select(0, set, 0, 0, tv)
+        if rc > 0 {
+            // select compacts the set to ready fds and updates fd_count.
+            var ready = oren_ptr_get_u64_le(set + 8)
+            ptr_set(out_fd_ptr, ready)
+            rc = 1
+        }
+        free(set)
+        free(tv)
+        return rc
+    }
     if g_net_has_kqueue == 1 {
         return oren_fd_wait_any_kqueue(fds, -1, timeout_ms, out_fd_ptr) // EVFILT_READ
     }
@@ -542,6 +670,50 @@ fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
     native_capsule_require(CAP_NET, "NET")
+    if g_target_os == 3 {
+        if fds == nil { return 0 - 22 } // EINVAL
+        if out_fd_ptr == 0 { return 0 - 22 } // EINVAL
+        var nfds = oren_list_len(fds)
+        if nfds <= 0 { return 0 - 22 } // EINVAL
+        if nfds > 64 { return 0 - 22 } // EINVAL
+        if timeout_ms < 0 { timeout_ms = 0 }
+
+        var set = malloc(8 + 8 * 64)
+        if set == 0 { return 0 - 12 } // ENOMEM
+        oren_track_alloc(set, 8 + 8 * 64, 0)
+        var zi = 0
+        while zi < 8 + 8 * 64 { ptr_set_byte(set + zi, 0); zi = zi + 1 }
+        oren_ptr_set_u32_le(set + 0, nfds)
+        var i = 0
+        while i < nfds {
+            oren_ptr_set_u64_le(set + 8 + i * 8, oren_list_get(fds, i))
+            i = i + 1
+        }
+
+        var tv = malloc(16)
+        if tv == 0 { free(set); return 0 - 12 } // ENOMEM
+        oren_track_alloc(tv, 16, 0)
+        zi = 0
+        while zi < 16 { ptr_set_byte(tv + zi, 0); zi = zi + 1 }
+        var sec = timeout_ms / 1000
+        var usec = (timeout_ms - sec * 1000) * 1000
+        if sec < 0 { sec = 0 }
+        if sec > 4294967295 { sec = 4294967295 }
+        if usec < 0 { usec = 0 }
+        if usec > 4294967295 { usec = 4294967295 }
+        oren_ptr_set_u32_le(tv + 0, sec)
+        oren_ptr_set_u32_le(tv + 4, usec)
+
+        var rc = sys_select(0, 0, set, 0, tv)
+        if rc > 0 {
+            var ready = oren_ptr_get_u64_le(set + 8)
+            ptr_set(out_fd_ptr, ready)
+            rc = 1
+        }
+        free(set)
+        free(tv)
+        return rc
+    }
     if g_net_has_kqueue == 1 {
         return oren_fd_wait_any_kqueue(fds, -2, timeout_ms, out_fd_ptr) // EVFILT_WRITE
     }
@@ -551,6 +723,8 @@ fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
 @cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
     native_capsule_require_net_connect(ip, port)
+    var init_rc = native_net_init_once()
+    if init_rc < 0 { return init_rc }
     var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
     if fd < 0 { return fd }
 
@@ -626,6 +800,8 @@ fn oren_tcp_connect(ip, port, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_tcp_listen_local(port) {
     native_capsule_require_net_listen(0, port)
+    var init_rc = native_net_init_once()
+    if init_rc < 0 { return init_rc }
     var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
     if fd < 0 { return fd }
 

@@ -31,6 +31,7 @@ fn native_runtime_init(target_os) {
 
     // NET wait backend probe state (must not rely on global initializers).
     g_target_os = target_os
+    g_net_wsa_inited = 0
     // Prefer target knowledge from codegen over probing syscalls at runtime.
     // This avoids unnecessary OS feature probes in tight paths and keeps behavior
     // deterministic across nested execution.
@@ -70,6 +71,11 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_NET_TCP_LISTEN_MAP_PTR = 216
     GLOBAL_OFF_NET_FD_CAPS_PTR = 224
     GLOBAL_OFF_NET_FD_CAPS_LEN = 232
+    GLOBAL_OFF_NET_FD_CAPS_MAP_KEYS_PTR = 320
+    GLOBAL_OFF_NET_FD_CAPS_MAP_VALS_PTR = 328
+    GLOBAL_OFF_NET_FD_CAPS_MAP_CAP = 336
+    GLOBAL_OFF_NET_FD_CAPS_MAP_LEN = 344
+    GLOBAL_OFF_NET_FD_CAPS_LOCK = 352
     GLOBAL_OFF_PROC_ALLOW_SYSTEM = 168
     GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR = 176
     GLOBAL_OFF_PROC_INHERIT_ENV = 184
@@ -103,7 +109,11 @@ fn native_runtime_init(target_os) {
     // POSIX socket constants.
     OREN_AF_INET = 2
     // AF_INET6 differs across macOS/Linux.
-    if target_os == 1 { OREN_AF_INET6 = 30 } else { OREN_AF_INET6 = 10 }
+    //
+    // Windows uses the same sockaddr_in6 layout as Linux but a different AF_INET6 value (23).
+    if target_os == 1 { OREN_AF_INET6 = 30 }
+    else if target_os == 3 { OREN_AF_INET6 = 23 }
+    else { OREN_AF_INET6 = 10 }
     OREN_AF_UNIX = 1
     OREN_SOCK_STREAM = 1
     OREN_SOCK_DGRAM = 2
@@ -186,6 +196,38 @@ fn native_runtime_init(target_os) {
     }
     global_set_net_fd_caps_ptr(caps)
     global_set_net_fd_caps_len(max_fds)
+
+    // NET fd kind overflow map (rolling; capsule hardening).
+    //
+    // Why:
+    // - POSIX fds are small dense integers, so a byte-per-fd table is efficient.
+    // - Windows SOCKET/HANDLE values are pointer-sized and can be large/sparse, so an
+    //   array indexed by fd is not viable.
+    //
+    // Approach:
+    // - Keep the small dense table for fast-path fds < max_fds.
+    // - Add an open-addressing hash map for any fd >= max_fds (and for future sparse cases).
+    //
+    // Encoding:
+    // - keys are stored as (fd + 2), with:
+    //     0 => empty
+    //     1 => tombstone
+    // - vals is a byte-per-entry kind.
+    var map_cap = 16384
+    var keys = malloc_raw(map_cap * 8)
+    var vals = malloc_raw(map_cap)
+    if keys == 0 || vals == 0 { exit(199) }
+    zi = 0
+    while zi < map_cap {
+        ptr_set(iadd(keys, zi * 8), 0)
+        ptr_set_byte(vals + zi, 0)
+        zi = zi + 1
+    }
+    global_set_net_fd_caps_map_keys_ptr(keys)
+    global_set_net_fd_caps_map_vals_ptr(vals)
+    global_set_net_fd_caps_map_cap(map_cap)
+    global_set_net_fd_caps_map_len(0)
+    global_set_net_fd_caps_lock(0)
 
     // PROC allowed pid table (rolling; capsule hardening).
     //

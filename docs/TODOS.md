@@ -18,6 +18,7 @@ Rules for this tracker:
 1) **Tier‑1 native support parity (arm64 + x86_64; macOS/Linux/Windows)** (L)
    - Converge the native backends on one semantics set:
      - callables (function values), closures, varargs/spread, and deterministic failure modes (`OREN_DIAG` + stack traces)
+     - **language concurrency**: `spawn`/`oren_join` must work on Windows (today it is fork+pipe based in the native runtime, so Windows needs a different implementation or a new unified primitive)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
        - **runtime injection is default-on** for x86_64 (same runtime source as arm64; expanded `// @include` tree)
@@ -28,14 +29,18 @@ Rules for this tracker:
      - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
        - Follow-up: decide whether we should copy+free the Win32 env block (to avoid a tiny intentional leak) vs keep it for pointer stability (current behavior).
      - Windows x86_64: **done** — TIME substrate now works without libc (`sys_nanosleep`, `sys_gettimeofday` via PE IAT shims); remote `tests/native/test_time_suite.oren` passes on Win11.
-     - Windows x86_64: next — NET syscall surface (socket/bind/listen/accept/connect/send/recv/select/poll + closesocket) to bring `tests/native/test_net_suite.oren` to parity.
+     - Windows x86_64: **done** — NET substrate now works without libc (WinSock + `select` wait backend + WSAStartup gated inside NET runtime); remote `tests/native/test_net_suite.oren` passes on Win11.
+     - Windows x86_64: **rolling** — PROC spawn now has a Windows implementation via `CreateProcessA` (`sys_win_createprocess`), used by `oren_proc_spawn` when `g_target_os==3`.
+       - Proof (Tier‑1 remote gate): `OREN_REMOTE_RUN=1 make test` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11+WSL2; the fixture now calls `oren_system("echo tier1 smoke proc ok")` and returns non‑zero on failure.
+       - NOTE: `tests/native/test_spawn_*` include language-level `spawn/join` which is currently fork+pipe based and not Windows-safe yet.
+       - Next: extend beyond “spawn+wait” to a full PROC story on Windows: pid/kill/wait semantics (or define a cross‑OS `sys_spawn` CoreIR boundary).
+     - Next: Windows x86_64 FS syscall surface parity (real file handles beyond stdio; `sys_open/sys_read/sys_write/sys_close`, basic stat/unlink/rename/mkdir) so capsules remain meaningful cross‑OS.
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
-     - Stopgap (Linux/x86_64 execution while remote is flaky): run linux/x64 artifacts under `qemu-x86_64` inside the already-running Ubuntu container `c7e5f7bd9f5c`.
-       - This caught a real Tier‑1 bug: x64 linux `sys_nanosleep(ns)` must build a `timespec` and pass a pointer (not the raw ns value).
-       - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
+     - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
+   - Entry semantics (native): standardize on a single model for `__top_level__` + `main` so test files do not accidentally run `main()` twice; update docs/tests to match once the contract is finalized.
 
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.

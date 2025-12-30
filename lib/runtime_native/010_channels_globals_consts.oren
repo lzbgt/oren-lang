@@ -84,6 +84,11 @@ fn oren_pipe() {
 //   296:buf_payload_limit_bytes (0 means unlimited; rolling)
 //   304:call_depth (rolling; stack safety)
 //   312:call_depth_max (rolling; stack safety)
+//   320:net_fd_caps_map_keys_ptr (u64[] raw; open-addressing keys) (rolling)
+//   328:net_fd_caps_map_vals_ptr (u8[] raw; per-key kind) (rolling)
+//   336:net_fd_caps_map_cap (entry count; power of two) (rolling)
+//   344:net_fd_caps_map_len (live entries) (rolling)
+//   352:net_fd_caps_lock (spinlock; 0|1) (rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -135,6 +140,11 @@ var GLOBAL_OFF_BUF_FORCE_MMAP = 288
 var GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
 var GLOBAL_OFF_CALL_DEPTH = 304
 var GLOBAL_OFF_CALL_DEPTH_MAX = 312
+var GLOBAL_OFF_NET_FD_CAPS_MAP_KEYS_PTR = 320
+var GLOBAL_OFF_NET_FD_CAPS_MAP_VALS_PTR = 328
+var GLOBAL_OFF_NET_FD_CAPS_MAP_CAP = 336
+var GLOBAL_OFF_NET_FD_CAPS_MAP_LEN = 344
+var GLOBAL_OFF_NET_FD_CAPS_LOCK = 352
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
@@ -251,6 +261,21 @@ fn global_set_net_fd_caps_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_F
 fn global_get_net_fd_caps_len() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LEN)) }
 fn global_set_net_fd_caps_len(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LEN), v) }
 
+fn global_get_net_fd_caps_map_keys_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_KEYS_PTR)) }
+fn global_set_net_fd_caps_map_keys_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_KEYS_PTR), v) }
+
+fn global_get_net_fd_caps_map_vals_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_VALS_PTR)) }
+fn global_set_net_fd_caps_map_vals_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_VALS_PTR), v) }
+
+fn global_get_net_fd_caps_map_cap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_CAP)) }
+fn global_set_net_fd_caps_map_cap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_CAP), v) }
+
+fn global_get_net_fd_caps_map_len() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_LEN)) }
+fn global_set_net_fd_caps_map_len(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_LEN), v) }
+
+fn global_get_net_fd_caps_lock() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK)) }
+fn global_set_net_fd_caps_lock(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK), v) }
+
 fn global_get_proc_allow_system() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM)) }
 fn global_set_proc_allow_system(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM), v) }
 
@@ -346,10 +371,20 @@ var FD_KIND_EPOLL = 21
 // -  1: has kqueue backend
 var g_net_has_kqueue = -1
 
+// Windows WinSock init state (rolling):
+// - 0: WSAStartup not called yet
+// - 1: WSAStartup completed successfully
+//
+// NOTE: This is intentionally a plain runtime global (not a GC root). It is set
+// by `native_runtime_init` because global initializers are not reliably executed
+// by the native backend during bring-up.
+var g_net_wsa_inited = 0
+
 // Native target OS (rolling):
 // - 0: unknown (should not happen after runtime init)
 // - 1: macOS
 // - 2: Linux
+// - 3: Windows
 var g_target_os = 0
 
 // Linux epoll constants (stable on Linux; unused on macOS).

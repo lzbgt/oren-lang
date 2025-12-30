@@ -51,7 +51,7 @@ ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.wo
 Run a compiled Windows PE executable and see its exit code:
 
 ```bash
-ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /c "C:\\Users\\lzbgt\\tmp_oren\\x64_format_win.exe & echo EXIT=%ERRORLEVEL%"'
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /v:on /c "C:\\Users\\lzbgt\\tmp_oren\\x64_format_win.exe & echo EXIT=!ERRORLEVEL!"'
 ```
 
 ## Windows toolchain (VS2022 + Windows Kits)

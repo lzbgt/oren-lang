@@ -159,6 +159,128 @@ fn native_capsule_require_net_listen(ip, port) {
     return 0
 }
 
+fn native_capsule_net_fdmap_lock_acquire() {
+    // Spinlock for capsule fd-kind map updates.
+    //
+    // We keep this separate from the allocator lock:
+    // - it must work on Linux + Windows (sys_ulock_wait is Darwin-only)
+    // - the fd-kind map is used on syscall boundaries where taking the allocator lock
+    //   could introduce unexpected recursion/cycles.
+    if oren_globals() == 0 { return 0 }
+    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK)
+    while atomic_cas(lock_ptr, 0, 1) != 0 {
+        // spin
+    }
+    return 0
+}
+
+fn native_capsule_net_fdmap_lock_release() {
+    if oren_globals() == 0 { return 0 }
+    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK)
+    ptr_set(lock_ptr, 0)
+    return 0
+}
+
+fn native_capsule_net_fdmap_hash(fd) {
+    // Multiplicative hash (Knuth) for 64-bit keys.
+    return fd * 11400714819323198485
+}
+
+fn native_capsule_net_fdmap_get(fd) {
+    var cap = global_get_net_fd_caps_map_cap()
+    var keys = global_get_net_fd_caps_map_keys_ptr()
+    var vals = global_get_net_fd_caps_map_vals_ptr()
+    if cap <= 0 || keys == 0 || vals == 0 { return 0 }
+
+    var mask = cap - 1
+    var key_enc = fd + 2
+    var idx = native_capsule_net_fdmap_hash(fd) & mask
+    var steps = 0
+    while steps < cap {
+        var k = ptr_get(iadd(keys, idx * 8))
+        if k == 0 { return 0 }
+        if k == key_enc {
+            return ptr_get_byte(vals + idx)
+        }
+        idx = (idx + 1) & mask
+        steps = steps + 1
+    }
+    return 0
+}
+
+fn native_capsule_net_fdmap_set(fd, kind) {
+    if kind < 0 { kind = 0 }
+    if kind > 255 { kind = 255 }
+    var cap = global_get_net_fd_caps_map_cap()
+    var keys = global_get_net_fd_caps_map_keys_ptr()
+    var vals = global_get_net_fd_caps_map_vals_ptr()
+    if cap <= 0 || keys == 0 || vals == 0 { return 0 }
+
+    native_capsule_net_fdmap_lock_acquire()
+
+    var mask = cap - 1
+    var key_enc = fd + 2
+    var idx = native_capsule_net_fdmap_hash(fd) & mask
+    var first_tomb = -1
+    var steps = 0
+    while steps < cap {
+        var off = iadd(keys, idx * 8)
+        var k = ptr_get(off)
+        if k == 0 {
+            if first_tomb >= 0 { idx = first_tomb }
+            ptr_set(iadd(keys, idx * 8), key_enc)
+            ptr_set_byte(vals + idx, kind)
+            global_set_net_fd_caps_map_len(global_get_net_fd_caps_map_len() + 1)
+            native_capsule_net_fdmap_lock_release()
+            return 0
+        }
+        if k == 1 {
+            if first_tomb < 0 { first_tomb = idx }
+        } else if k == key_enc {
+            ptr_set_byte(vals + idx, kind)
+            native_capsule_net_fdmap_lock_release()
+            return 0
+        }
+        idx = (idx + 1) & mask
+        steps = steps + 1
+    }
+
+    // Table full: fail-closed by leaving it unset (future operations will deny on kind==0).
+    native_capsule_net_fdmap_lock_release()
+    return 0
+}
+
+fn native_capsule_net_fdmap_clear(fd) {
+    var cap = global_get_net_fd_caps_map_cap()
+    var keys = global_get_net_fd_caps_map_keys_ptr()
+    var vals = global_get_net_fd_caps_map_vals_ptr()
+    if cap <= 0 || keys == 0 || vals == 0 { return 0 }
+
+    native_capsule_net_fdmap_lock_acquire()
+
+    var mask = cap - 1
+    var key_enc = fd + 2
+    var idx = native_capsule_net_fdmap_hash(fd) & mask
+    var steps = 0
+    while steps < cap {
+        var k = ptr_get(iadd(keys, idx * 8))
+        if k == 0 { break }
+        if k == key_enc {
+            // Mark tombstone so probing remains valid.
+            ptr_set(iadd(keys, idx * 8), 1)
+            ptr_set_byte(vals + idx, 0)
+            var cur = global_get_net_fd_caps_map_len()
+            if cur > 0 { global_set_net_fd_caps_map_len(cur - 1) }
+            break
+        }
+        idx = (idx + 1) & mask
+        steps = steps + 1
+    }
+
+    native_capsule_net_fdmap_lock_release()
+    return 0
+}
+
 fn native_capsule_net_fd_kind_get(fd) {
     if global_get_capsule_mode() != 1 { return 0 }
     if fd < 0 { return 0 }
@@ -166,8 +288,8 @@ fn native_capsule_net_fd_kind_get(fd) {
     if caps == 0 { return 0 }
     var max_fds = global_get_net_fd_caps_len()
     if max_fds <= 0 { return 0 }
-    if fd >= max_fds { return 0 }
-    return ptr_get_byte(caps + fd)
+    if fd < max_fds { return ptr_get_byte(caps + fd) }
+    return native_capsule_net_fdmap_get(fd)
 }
 
 fn native_capsule_net_fd_kind_set(fd, kind) {
@@ -177,15 +299,28 @@ fn native_capsule_net_fd_kind_set(fd, kind) {
     if caps == 0 { return 0 }
     var max_fds = global_get_net_fd_caps_len()
     if max_fds <= 0 { return 0 }
-    if fd >= max_fds { return 0 }
     if kind < 0 { kind = 0 }
     if kind > 255 { kind = 255 }
-    ptr_set_byte(caps + fd, kind)
+    if fd < max_fds {
+        ptr_set_byte(caps + fd, kind)
+        return 0
+    }
+    return native_capsule_net_fdmap_set(fd, kind)
     return 0
 }
 
 fn native_capsule_net_fd_kind_clear(fd) {
-    return native_capsule_net_fd_kind_set(fd, 0)
+    if global_get_capsule_mode() != 1 { return 0 }
+    if fd < 0 { return 0 }
+    var caps = global_get_net_fd_caps_ptr()
+    if caps != 0 {
+        var max_fds = global_get_net_fd_caps_len()
+        if max_fds > 0 && fd < max_fds {
+            ptr_set_byte(caps + fd, 0)
+            return 0
+        }
+    }
+    return native_capsule_net_fdmap_clear(fd)
 }
 
 fn native_parse_ipv4_sub(s, start, end, out4_ptr) {
@@ -507,4 +642,3 @@ fn native_capsule_net_tcp_map_apply(addr, addrlen, map_csv) {
     free(req_port_ptr)
     return 0
 }
-
