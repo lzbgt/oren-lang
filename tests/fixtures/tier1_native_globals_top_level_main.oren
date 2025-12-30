@@ -8,9 +8,9 @@ print("tier1 globals top-level pre-main")
 SEEN = 1
 
 fn main() {
-    if G != 40 { return 1 }
-    if H != 2 { return 2 }
-    if SEEN != 1 { return 3 }
+    if G != 40 { exit(1) }
+    if H != 2 { exit(2) }
+    if SEEN != 1 { exit(3) }
     print("tier1 globals top-level ok")
-    return 0
+    exit(0)
 }
