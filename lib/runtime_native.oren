@@ -36,5 +36,6 @@
 // @include "runtime_native/220_path_helpers.oren"
 // @include "runtime_native/230_binary_io.oren"
 // @include "runtime_native/240_tcp.oren"
+// @include "runtime_native/245_select.oren"
 // @include "runtime_native/250_udp.oren"
 // @include "runtime_native/260_threads.oren"

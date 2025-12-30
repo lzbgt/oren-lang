@@ -1128,6 +1128,35 @@ Concurrency in AVM differs from native mode; see:
 - `docs/CONCURRENCY_MODEL.md`
 - `docs/AVM_CONCURRENCY.md`
 
+### Channels + select (rolling; AVM + native macOS/Linux)
+
+Oren also exposes low-level **channel primitives** (runtime builtins; not keywords yet):
+
+- `oren_new_channel() -> ch`
+- `oren_chan_send(ch, val) -> ok` (rolling: `1`)
+- `oren_chan_recv(ch) -> val` (blocks if empty)
+- `oren_select_recv([ch1, ch2, ...]) -> [idx, val]` (blocks)
+- `oren_select(cases) -> [idx, payload]` (blocks)
+  - recv case: `[0, ch]`
+  - send case: `[1, ch, val]`
+  - payload is the received value (recv) or `1` (send)
+
+Example (recv-only select):
+
+```oren
+var c1 = oren_new_channel()
+var c2 = oren_new_channel()
+oren_chan_send(c2, 111)
+
+var r = oren_select_recv([c1, c2])
+// r == [1, 111]
+```
+
+Backend notes (rolling):
+
+- AVM: channels + select are deterministic VM opcodes.
+- Native: implemented over pipe fds (macOS: kqueue, Linux: epoll). Windows support is pending.
+
 ## 11) Tooling quick reference
 
 The authoritative build/test workflow is in:

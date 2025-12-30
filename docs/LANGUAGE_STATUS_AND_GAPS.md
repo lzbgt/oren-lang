@@ -85,6 +85,16 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
     - Tier‑1 parity fixture (float literals + `+ - * /` + casts `f32/i64`): `tests/fixtures/tier1_native_float_ops_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (process args / `oren_args()` across Linux+Windows): `tests/fixtures/tier1_native_args_main.oren` (gated by `OREN_REMOTE_RUN=1`)
 
+### Concurrency primitives (runtime-level; rolling)
+
+- **Channels + select in AVM**
+  - Deterministic VM opcodes: `SELECT_RECV` / `SELECT` in `lib/avm/avm_vm.c`
+  - Evidence: `tests/avm/test_smoke_suite.oren` (channels + select cases)
+- **Channels + select in native runtime (macOS/Linux)**
+  - Pipe-based channels: `lib/runtime_native/010_channels_globals_consts.oren`
+  - Select over channels: `lib/runtime_native/245_select.oren` (macOS kqueue, Linux epoll)
+  - Evidence: `tests/native/test_integration_suite.oren` (`test_select_primitives`)
+
 ## What’s Still Missing for Production Maturity (Gap List)
 
 This section is intentionally phrased as “missing or not yet proved by tests”, because
@@ -123,6 +133,11 @@ production maturity requires both implementation *and* regression coverage.
       - Proof gate: `OREN_REMOTE_RUN=1 make test` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11+WSL2; the fixture calls `oren_system("echo tier1 smoke proc ok")` and returns non‑zero on failure.
       - Note: `tests/native/test_spawn_*` also exercise language-level `spawn/join` which is currently fork+pipe based and not Windows-safe yet (separate Tier‑1 gap).
   - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/NATIVE_BACKEND.md`.
+
+  - **Async IO + scheduler integration (planned)**
+    - Today, NET fd waits are runtime helpers that block OS threads (`lib/runtime_native/240_tcp.oren`).
+    - The production direction is a native scheduler + netpoller so IO readiness can feed channels and `select`.
+    - Track: `docs/TODOS.md` (P1.3), `docs/ASYNC_IO_AND_SELECT.md`.
 
 ### P1: Tooling quality (modern compiler UX)
 

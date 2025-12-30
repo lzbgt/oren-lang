@@ -9,7 +9,7 @@ fn oren_chan_send(ch, val) {
     if buf == 0 { return 0 }
     ptr_set(buf, val)
     sys_write(w, buf, 8)
-    // free(buf) - no free yet
+    free(buf)
     return 1
 }
 
@@ -19,7 +19,7 @@ fn oren_chan_recv(ch) {
     if buf == 0 { return 0 }
     sys_read(r, buf, 8)
     var val = ptr_get(buf)
-    // free(buf)
+    free(buf)
     return val
 }
 
@@ -29,10 +29,11 @@ fn oren_pipe() {
     if buf == 0 { return oren_new_list(0) }
     
     var res = sys_pipe(buf)
-    if res != 0 { return oren_new_list(0) }
+    if res != 0 { free(buf); return oren_new_list(0) }
     
     var r = ptr_get(buf)
     var w = ptr_get(iadd(buf, 8))
+    free(buf)
     
     var l = oren_new_list(2)
     oren_list_push(l, r)
@@ -386,6 +387,11 @@ var g_net_wsa_inited = 0
 // - 2: Linux
 // - 3: Windows
 var g_target_os = 0
+
+// Rolling select fairness cursor (native runtime):
+// - Used by `oren_select` / `oren_select_recv` to avoid always picking case 0 when multiple are ready.
+// - In AVM this cursor is per-task; in native runtime (no scheduler yet) we keep a single global cursor.
+var g_select_cursor = 0
 
 // Linux epoll constants (stable on Linux; unused on macOS).
 // Used by syscall-first NET wait to avoid libc poll/select shims.

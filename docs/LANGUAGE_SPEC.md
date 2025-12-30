@@ -681,17 +681,60 @@ can infer the receiver kind from syntax/local assignments (needed because the na
 runtime values are untagged).
 
 ### Concurrency (v0)
-- `spawn f(...)` starts a new OS thread.
-- **Arguments**: Arguments passed to `spawn` (`spawn f(a, b)`) are evaluated in the parent thread and passed to the new thread's entry function `f`.
-- **Implementation**:
-  - `spawn foo(arg)` returns a thread handle (integer/pointer).
-  - Use `oren_join(handle)` to wait for completion and retrieve the return value.
-  - Use `oren_detach(handle)` to detach.
-  - `oren_join_all()` exists as a coarse “join everything” helper (used at shutdown).
-- **GC Integration**:
-  - `oren_gc_collect()` uses a cooperative stop-the-world handshake.
-  - Loop bodies are instrumented with `oren_gc_safepoint()` to ensure timely pausing.
-  - Stacks are conservatively scanned.
+Rolling note: Oren has **multiple execution backends** (C, native, AVM). The syntax surface is shared,
+but concurrency is still **rolling** and backend-specific.
+
+#### `spawn` / `join` (exists today; backend-dependent)
+
+- Surface syntax:
+  - statement form: `spawn f(x, y)`
+  - expression form: `var h = spawn f(x, y)`
+- **Evaluation**: argument expressions are evaluated in the parent context before spawning.
+- Return value: a backend-defined “handle” (opaque integer/pointer; treated as `Any` in v0).
+
+Backend behavior (rolling):
+
+- **AVM backend**: `spawn` creates a **deterministic VM task** (green thread) scheduled by the AVM runtime.
+  - `oren_join(handle)` and `oren_yield()` are VM opcodes (portable, snapshot-safe).
+  - See `docs/AVM_SPEC_V1.md` (tasks + channels + select).
+- **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
+  - `oren_join(handle)` waits and returns the spawned function’s return value.
+  - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).
+- **Native backend (Tier‑1 bring-up)**: `spawn` is currently implemented syscall-first as **fork + pipe** on POSIX.
+  - Handle layout (implementation detail): `[pid, read_fd]` stored in a small heap object.
+  - `oren_join(handle)` waits for child termination and reads the return value from the pipe.
+  - Windows does not support `fork`; native `spawn/join` is not Tier‑1 complete on Windows yet.
+    Use PROC primitives (`oren_proc_spawn`, `oren_system`) for Windows process execution in the interim.
+
+#### Channels + `oren_select*` (rolling; AVM + native macOS/Linux)
+
+Two low-level concurrency primitives exist today as **runtime builtins** (not keywords):
+
+- `oren_new_channel() -> ch`
+- `oren_chan_send(ch, val) -> ok` (rolling: returns `1`)
+- `oren_chan_recv(ch) -> val` (blocks if empty)
+- `oren_select_recv([ch1, ch2, ...]) -> [idx, val]` (blocks until any channel has a queued value)
+- `oren_select(cases) -> [idx, payload]` (blocks)
+  - case encoding (data):
+    - recv case: `[0, ch]`
+    - send case: `[1, ch, val]`
+  - payload:
+    - recv: received value
+    - send: `1` (rolling “ok” marker)
+
+Backend behavior (rolling):
+
+- **AVM backend**: channels + select are **VM opcodes** (deterministic + snapshot-safe).
+- **Native backend**:
+  - On macOS: implemented over **pipes + kqueue/kevent**.
+  - On Linux: implemented over **pipes + epoll**.
+  - On Windows: pipe-based channels/select are not implemented yet (needs IOCP or a new channel implementation).
+  - See `lib/runtime_native/010_channels_globals_consts.oren` and `lib/runtime_native/245_select.oren`.
+
+Design direction:
+
+- A future language-level `select { case ... }` syntax is planned as sugar over `oren_select(...)`,
+  after the CoreIR + scheduler model stabilizes (see `docs/CONCURRENCY_MODEL.md` and `docs/NATIVE_GMP_SCHEDULER.md`).
 
 ### Functions
 - `fn name(params) { ... }` defines a named function.

@@ -233,6 +233,46 @@ fn test_spawn_join_timeout() {
     assert_eq(r, 0 - 60, 130) // ETIMEDOUT (BSD)
 }
 
+fn test_select_primitives() {
+    // Native select is implemented over pipe-based channels on macOS/Linux.
+    // Windows is not supported yet for pipe channels (needs IOCP or a different channel impl).
+    if g_target_os == 3 { return 0 }
+
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    if c1 == 0 || c2 == 0 { fail(140) }
+
+    // select-recv chooses the ready channel and returns [idx, val]
+    oren_chan_send(c2, 111)
+    var sel = oren_select_recv([c1, c2])
+    if sel == 0 { fail(141) }
+    assert_eq(oren_list_len(sel), 2, 142)
+    assert_eq(oren_list_get(sel, 0), 1, 143)
+    assert_eq(oren_list_get(sel, 1), 111, 144)
+
+    // General select supports send cases encoded as [1, ch, val].
+    // Use two calls to validate the rolling round-robin cursor behavior.
+    var s1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    if s1 == 0 { fail(145) }
+    assert_eq(oren_list_len(s1), 2, 146)
+    assert_eq(oren_list_get(s1, 1), 1, 147) // send payload is 1
+    var v1 = oren_chan_recv(c1)
+    assert_eq(v1, 11, 148)
+
+    var s2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    if s2 == 0 { fail(149) }
+    assert_eq(oren_list_len(s2), 2, 150)
+    assert_eq(oren_list_get(s2, 1), 1, 151)
+    // Second selection should round-robin to the other case in steady state.
+    // We accept either idx (rolling), but we must observe that exactly one channel received its value.
+    var idx2 = oren_list_get(s2, 0)
+    if idx2 == 0 {
+        assert_eq(oren_chan_recv(c1), 33, 152)
+    } else {
+        assert_eq(oren_chan_recv(c2), 44, 153)
+    }
+}
+
 fn test_err_predicate_and_bytes_safety() {
     // Regression: `oren_is_err` and byte helpers must not probe memory when given large ints.
     // These were a real source of native segfaults during rolling refactors.
@@ -974,6 +1014,7 @@ fn main() {
     test_sys_execve_fail_safe()
     test_time_proc()
     test_spawn_join_timeout()
+    test_select_primitives()
     test_err_predicate_and_bytes_safety()
     test_bytes_endian_and_pack_view()
     test_bytes_hex_pack_unpack_u8_buf()

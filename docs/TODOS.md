@@ -115,3 +115,18 @@ Rules for this tracker:
 2) **Stackless recursion beyond TCO (heap call frames)** (L)
    - For non-tail recursion that cannot be optimized by TCO, provide a deterministic heap-frame model (AVM-like).
    - Reference: `docs/STACK_SAFETY.md`
+
+3) **Native scheduler + netpoller (IO readiness → channels + select)** (L)
+   - Keep `select` **channel-based** at the language surface; fd readiness integrates by producing channel events.
+   - Bring native closer to AVM semantics:
+     - mature channels beyond pipe-based bring-up
+     - deterministic fairness rules where practical (round-robin cursor)
+     - structured cancellation/timeouts
+   - OS backends (planned):
+     - macOS: kqueue/kevent + ulock parking
+     - Linux: epoll (or io_uring later) + futex-like parking
+     - Windows: IOCP for sockets (WinSock `select` is not sufficient for general async IO); unify with PROC/FS strategy
+   - References:
+     - `docs/CONCURRENCY_MODEL.md`
+     - `docs/NATIVE_GMP_SCHEDULER.md`
+     - `docs/ASYNC_IO_AND_SELECT.md`
