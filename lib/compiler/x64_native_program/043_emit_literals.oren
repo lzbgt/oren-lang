@@ -175,8 +175,9 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
             "type": "Call",
             "fn": {"type": "Identifier", "token": nil, "value": "oren_map_set"},
             "args": [{"type": "Identifier", "token": nil, "value": hn}, k, v],
-            // Tier‑1 x64 requirement: do not infer key kind at runtime (no heuristics).
             // Hash literals have deterministic key types, so annotate them explicitly.
+            // Note: x64 native currently infers key kind at runtime for safety; this hint
+            // is kept for other backends and future x64 optimizations.
             "known_key_kind": kk,
         }
         _emit_eval_int_to_rax(ctx, set_call, locals)

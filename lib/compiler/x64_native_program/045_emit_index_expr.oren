@@ -19,12 +19,11 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
 
     // For maps, key-kind must match the stored entry kind.
     //
-    // Tier‑1 invariant:
-    // - x64 native codegen must not re-infer key kind from syntax.
-    // - shared lowering (`impl_lowering.oren`) annotates Index nodes with `known_key_kind`
-    //   when it can be inferred deterministically (e.g. literals, typed identifiers).
-    var known_key_kind = -1
-    if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
+    // Rolling x64 Tier‑1 rule (safety > micro-optimizations):
+    // - do not trust any compile-time key-kind hints for `m[k]`
+    // - infer at runtime using the same contract as `lib/runtime_native/130_printing.oren`
+    //   (tracked strings are kind=1; everything else is treated as int kind=0, with a panic
+    //   for unsupported tracked key types).
 
     // Use the intrinsic temp pool for re-entrancy:
     // - container and idx subexpressions may themselves contain Index/Call nodes that need spills
@@ -139,12 +138,8 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     _emit_jcc_to_label(ctx, local_fixups, "e", l_mmiss)
 
     // r13 = key_kind (0=int, 1=string)
-    if known_key_kind >= 0 {
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(13, known_key_kind))
-    } else {
-        // Rolling Tier‑1: infer kind using minimal tracking metadata (strings are tracked).
-        _emit_infer_map_key_kind_x64(ctx, locals, 6, 13)
-    }
+    // Always infer dynamically (do not trust compile-time hints).
+    _emit_infer_map_key_kind_x64(ctx, locals, 6, 13)
 
     // r8 = count
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))

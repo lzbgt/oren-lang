@@ -933,18 +933,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - kind=0 => integer key
             // - kind=1 => C-string pointer key
             //
-            // Tier‑1 invariant:
-            // - key kind is inferred and attached by shared lowering (`impl_lowering.oren`)
-            // - x64 native does not guess from syntax here (tagged values are the full fix).
+            // Rolling x64 Tier‑1 rule (safety > micro-optimizations):
+            // - `oren_map_get_int/str` are strict and do not infer (typed ops)
+            // - `oren_map_get` always infers key kind at runtime (matches native runtime)
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_map_get expects 2 args"); return nil }
 
             var known_key_kind = -1
             if nm == "oren_map_get_int" { known_key_kind = 0 }
             else {
                 if nm == "oren_map_get_str" { known_key_kind = 1 }
-                else {
-                    if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
-                }
             }
 
             var base = _intr_tmp_push(ctx, 2)
@@ -1005,7 +1002,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             } else if known_key_kind == 1 {
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 1))
             } else {
-                // Rolling Tier‑1: infer kind using minimal tracking metadata (strings are tracked).
+                // `oren_map_get`: always infer dynamically (do not trust compile-time hints).
                 _emit_infer_map_key_kind_x64(ctx, locals, 6, 13)
             }
 
@@ -1113,9 +1110,6 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if nm == "oren_map_set_int" { known_key_kind = 0 }
             else {
                 if nm == "oren_map_set_str" { known_key_kind = 1 }
-                else {
-                    if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
-                }
             }
 
             // Use the intrinsic temp pool so nested expression evaluation cannot clobber
@@ -1217,8 +1211,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             var recv_kind = expr["recv_kind"]
 
+            // Rolling x64 Tier‑1: for `container[idx]=v` with a map receiver, always infer the
+            // key kind dynamically (do not trust compile-time hints).
             var known_key_kind = -1
-            if expr["known_key_kind"] != nil { known_key_kind = expr["known_key_kind"] }
 
             // Use the intrinsic temp pool so nested evaluation cannot clobber spilled args.
             var base = _intr_tmp_push(ctx, 7)
@@ -1335,7 +1330,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             // --- map path ---
             _emit_label(ctx, labels, l_map)
-            _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf, known_key_kind)
+            _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf, -1)
             // return v (expression-friendly)
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val)
             _emit_label(ctx, labels, l_done)

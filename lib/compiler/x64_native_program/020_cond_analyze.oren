@@ -175,10 +175,8 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                     "fn": {"type": "Identifier", "token": nil, "value": "oren_index_set"},
                     "args": [recv, idx, v3],
                 }
-                // Preserve best-effort key-kind inference for map assignments:
-                // impl_lowering may annotate the Index node with `known_key_kind` so the x64
-                // backend can avoid unsafe dynamic heuristics for integer keys >= 4096.
-                if left["known_key_kind"] != nil { call["known_key_kind"] = left["known_key_kind"] }
+                // Rolling x64 Tier‑1: map index assignment always infers key kind at runtime,
+                // so do not propagate any compile-time hints here.
                 // Preserve receiver kind when known so codegen can avoid dynamic LIST/MAP dispatch.
                 if left["recv_kind"] != nil { call["recv_kind"] = left["recv_kind"] }
                 _expr_int_check(ctx, call)
