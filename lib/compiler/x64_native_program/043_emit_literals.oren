@@ -171,9 +171,11 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
 
         var kk = 0
         if k["type"] == "String" { kk = 1 }
+        var set_nm = "oren_map_set_int"
+        if kk == 1 { set_nm = "oren_map_set_str" }
         var set_call = {
             "type": "Call",
-            "fn": {"type": "Identifier", "token": nil, "value": "oren_map_set"},
+            "fn": {"type": "Identifier", "token": nil, "value": set_nm},
             "args": [{"type": "Identifier", "token": nil, "value": hn}, k, v],
             // Hash literals have deterministic key types, so annotate them explicitly.
             // Note: x64 native currently infers key kind at runtime for safety; this hint
@@ -185,8 +187,6 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
             _lit_exit(ctx, d0)
             return nil
         }
-        // Store back the map pointer in case future runtimes return a new header.
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
 
         i = i + 1
     }

@@ -19,7 +19,7 @@
 
 // Map intrinsic helper:
 // Assumes map/key/value have already been evaluated and spilled at the provided stack slots.
-// Returns the map pointer in RAX.
+// Returns the written value in RAX (matches `oren_map_set` semantics across backends).
 fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_count, tmp_cap, tmp_buf, tmp_newbuf, known_key_kind) {
     // Initialize optional scratch slot deterministically.
     // `$tmp_newbuf` is used to hold `new_buf` only on the grow path.
@@ -167,8 +167,8 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
     bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
-    // return map
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_map)
+    // return value
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val)
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_insert)
@@ -306,8 +306,8 @@ fn _emit_intrinsic_map_set_spilled(ctx, locals, tmp_map, tmp_key, tmp_val, tmp_c
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
     bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
 
-    // return map
-    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_map)
+    // return value
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_val)
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)
     return nil

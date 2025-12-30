@@ -24,6 +24,7 @@ fn oren_new_list(cap) {
     return header
 }
 
+@oren.keep
 fn oren_list_len(list) {
     if list == 0 { return 0 }
     // Safety: do not dereference arbitrary large integers as pointers.
@@ -85,8 +86,9 @@ fn oren_list_get(list, idx) {
     var kind = ptr_get(iadd(node, 16))
     if kind != 2 {
         if kind == 3 {
-            // Not a list, treat as int-keyed map get (no key-kind heuristics).
-            return oren_map_get_int(list, idx)
+            // Not a list: treat as map indexing.
+            // Key kind is selected by `oren_map_get` using tracking metadata.
+            return oren_map_get(list, idx)
         }
         oren_panic("Indexing on non-container")
         return 0

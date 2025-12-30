@@ -482,7 +482,14 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
                 k0 = k0 + 1
             }
         } else {
-            if argc <= 32 {
+            // Stack-backed args_list is a bring-up optimization that relies on x64-only
+            // container intrinsics tolerating untracked stack objects.
+            //
+            // Once the native runtime is injected, lists are tracked heap objects and
+            // runtime helpers like `oren_list_len` must reject non-tracked pointers for
+            // safety. Therefore, avoid the stack-backed fast path under runtime injection
+            // and always build a real heap list.
+            if argc <= 32 && ctx["runtime_injected"] != true {
                 // Indirect call (no spread, small argc): stack-backed args_list fast path.
                 //
                 // IMPORTANT: do NOT use `$tmp_intrN` spill slots as the element buffer, because
@@ -672,7 +679,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
 
         // If we used the stack-backed args_list fast path, restore RSP now.
         // (For other paths, this is a no-op; `alloc` is local to the branch above.)
-        if has_spread != true && argc <= 32 {
+        if has_spread != true && argc <= 32 && ctx["runtime_injected"] != true {
             var shadow1 = abi.caller_shadow_bytes(ctx["abi"])
             var payload1 = 32 + argc * 8
             var alloc1 = shadow1 + payload1

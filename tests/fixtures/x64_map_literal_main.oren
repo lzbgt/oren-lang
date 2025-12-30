@@ -17,13 +17,12 @@ fn main() {
     if oren_map_get(m, "b") != 2 { return 3 }
     if oren_map_get(m, "c") != 0 { return 4 }
 
-    oren_map_set(m, "c", 3)
-    if oren_map_len(m) != 3 { return 5 }
-    if oren_map_get(m, "c") != 3 { return 6 }
+    if oren_map_set(m, "c", 3) != 3 { return 5 }
+    if oren_map_len(m) != 3 { return 6 }
+    if oren_map_get(m, "c") != 3 { return 7 }
 
     // Update existing key.
-    oren_map_set(m, "a", 9)
-    if oren_map_get(m, "a") != 9 { return 7 }
+    if oren_map_set(m, "a", 9) != 9 { return 8 }
+    if oren_map_get(m, "a") != 9 { return 9 }
     return 0
 }
-

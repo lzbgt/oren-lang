@@ -398,6 +398,21 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Typed buffer intrinsics live in a dedicated module to keep this file under the repo size ceiling.
         if _emit_intrinsic_typed_buffers_x64(ctx, nm, expr, locals) { return nil }
 
+        // Tier‑1 parity: once the native runtime is injected, prefer calling the injected
+        // runtime helpers instead of duplicating container logic as x64-only intrinsics.
+        //
+        // This removes a major bring-up divergence between arm64 and x86_64 and fixes
+        // semantics gaps (e.g. `oren_map_set` return value) by using the shared runtime
+        // source-of-truth.
+        if ctx != nil && ctx["runtime_injected"] == true {
+            if nm == "oren_new_list" || nm == "oren_list_len" || nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" ||
+               nm == "oren_new_map" || nm == "oren_map_len" || nm == "oren_map_get" || nm == "oren_map_get_int" || nm == "oren_map_get_str" ||
+               nm == "oren_map_set" || nm == "oren_map_set_int" || nm == "oren_map_set_str" ||
+               nm == "oren_index_set" {
+                return _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
+            }
+        }
+
         // --- Intrinsics (Tier-1 convergence step) ---
         //
         // Treat core runtime/ABI helpers as compiler intrinsics so x64 can grow toward

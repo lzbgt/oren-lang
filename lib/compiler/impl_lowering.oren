@@ -458,9 +458,12 @@ fn annotate_intrinsic_key_kinds(expr, kind_env) {
     }
 
     if nm == "oren_map_get" || nm == "oren_map_set" {
-        // Rolling: `oren_map_get/set` require an explicit key kind at the IR/runtime boundary.
-        // When key kind can be inferred, rewrite to the typed entry points so all backends can
-        // stay deterministic without per-backend heuristics.
+        // Rolling: `oren_map_get/set` are dynamic (runtime selects int vs string key kind safely
+        // using tracked-allocation metadata on native, and tagged values on C/AVM).
+        //
+        // When key kind can be inferred statically, rewrite to the typed entry points:
+        // - reduces runtime dispatch work
+        // - keeps native backends deterministic without relying on numeric-range heuristics
         expr["recv_kind"] = "map"
         if oren_list_len(args) >= 2 {
             var kk = infer_map_key_kind(args[1], kind_env)

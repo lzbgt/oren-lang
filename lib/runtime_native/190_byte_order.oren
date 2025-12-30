@@ -549,6 +549,7 @@ fn oren_bytes_put_u32_le(bytes, idx, v) {
 // Semantics (per `docs/LANGUAGE_SPEC.md`):
 // - Lists: `xs[i] = v` must be in-bounds (does not grow); out-of-range is a panic.
 // - Maps: `m[key] = v` inserts/replaces and returns `v`.
+@oren.keep
 fn oren_index_set(container, index, value) {
     if container == 0 {
         oren_panic("index_set on nil")
@@ -560,13 +561,16 @@ fn oren_index_set(container, index, value) {
         return oren_list_set(container, index, value)
     }
 
-    // Rolling (native v0): remove key-kind heuristics from the runtime.
+    // Map assignment (rolling):
+    // - Delegate key-kind selection to `oren_map_set`, which uses tracked allocation metadata
+    //   to distinguish int keys (raw/untracked) from string keys (tracked kind=1).
     //
-    // Map assignment remains supported via compiler lowerings/backends that know the key kind
-    // (`known_key_kind`) and can select `oren_map_set_int` or `oren_map_set_str` deterministically.
-    //
-    // If this helper is called on a non-list at runtime, fail deterministically rather than
-    // guessing key kind from raw values/pointers.
-    oren_panic("index_set on non-list (native v0 requires explicit map key kind)")
+    // This keeps user-facing semantics independent of key kind while staying safe
+    // (never `strcmp` arbitrary integers).
+    if ptr_get(container + 24) == map_magic() {
+        return oren_map_set(container, index, value)
+    }
+
+    oren_panic("index_set on non-container (expected list or map)")
     return 0
 }

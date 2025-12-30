@@ -107,3 +107,16 @@ scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_f
 
 - Keep the remote-run steps **opt-in** in automated tests (use env flags like `OREN_REMOTE_RUN=1`) so CI remains deterministic/offline by default.
 - Never copy root CA private keys or other secrets into the repo or remote host unless explicitly designed for secure storage (`../oren-ca/` remains the secret boundary).
+
+## Troubleshooting
+
+### `socat ... CONNECT pc.work:22: Not Found`
+
+This indicates the HTTP proxy at `hubstack.cn:6002` is not currently able to proxy the requested host/port.
+
+What to do:
+
+- Re-try later (this has been observed as intermittent).
+- Verify `socat` is installed and that the command is exactly:
+  - `ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work ...`
+- If the proxy stays unavailable, use the environment overrides above to point `oretest` at an alternate reachable x86_64 host.
