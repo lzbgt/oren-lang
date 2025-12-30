@@ -1032,7 +1032,11 @@ These knobs are exercised by the “capsule runtime” fixtures under `tests/nat
 
 - **PROC allowlists**
   - `OREN_PROC_ALLOW_EXEC_PREFIXES="/usr/bin/,/bin/"` (CSV path prefixes)
-  - `OREN_PROC_ALLOW_SYSTEM=1` (enables `/bin/sh` only; convenience for bootstrapping)
+  - `OREN_PROC_ALLOW_SYSTEM=1` (enables `oren_system(_timeout)`; shell-based convenience)
+    - POSIX shell selection (rolling):
+      - if `OREN_SYSTEM_SHELL` is set, it must be an absolute executable path (otherwise `oren_system_timeout` returns `-2`)
+      - else `SHELL` is used if it is an absolute executable path
+      - else fall back to common shells (`/bin/sh`, `/usr/bin/sh`, `/bin/bash`, `/usr/bin/bash`)
   - Env inheritance controls:
     - `OREN_PROC_INHERIT_ENV=1` inherit all parent env vars (**dangerous**, use sparingly)
     - `OREN_PROC_ALLOW_ENV_KEYS="PATH,HOME,OREN_TEST_SECRET"` only allow specific keys

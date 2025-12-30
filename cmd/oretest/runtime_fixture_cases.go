@@ -10,6 +10,16 @@ func buildRuntimeFixtureCases(target string, gcArg string) []runtimeFixtureCase 
 	// Runtime diagnostics fixtures (expected non-zero exit, machine-readable header).
 	runtimeFixtures := []runtimeFixtureCase{
 		{
+			name:  "system_shell_missing_native",
+			build: fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", "tests/native/fixtures/system_shell_missing.oren", target, arch, targetsOutPath(target, arch, "native", "system_shell_missing_native"), gcArg),
+			run:   "OREN_SYSTEM_SHELL=/no_such_shell ./" + targetsOutPath(target, arch, "native", "system_shell_missing_native"),
+			log:   "build/logs/system_shell_missing_native.log",
+			ok: func(rc int, out string) bool {
+				return rc == 0
+			},
+			cleanup: []string{targetsOutPath(target, arch, "native", "system_shell_missing_native")},
+		},
+		{
 			name:  "diag_fail_native",
 			build: fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", "tests/native/fixtures/diag_fail.oren", target, arch, targetsOutPath(target, arch, "native", "diag_fail_native"), gcArg),
 			run:   "./" + targetsOutPath(target, arch, "native", "diag_fail_native"),

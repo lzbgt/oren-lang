@@ -648,8 +648,53 @@ fn oren_system_timeout(cmd, timeout_ms) {
         var args = [comspec, "/C", cmd]
         return oren_proc_spawn(comspec, args, timeout_ms)
     }
-    var args = ["sh", "-c", cmd]
-    return oren_proc_spawn("/bin/sh", args, timeout_ms)
+
+    // POSIX (macOS/Linux): `system` requires a shell. In minimal/container environments
+    // `/bin/sh` may not exist, so we do deterministic shell discovery:
+    //
+    // 1) If `OREN_SYSTEM_SHELL` is set:
+    //    - it must be an absolute path
+    //    - it must exist and be executable
+    //    - if invalid, return `-ENOENT` (do NOT silently fall back)
+    // 2) If `SHELL` is set to an absolute, executable path, use it.
+    // 3) Try common absolute shells: /bin/sh, /usr/bin/sh, /bin/bash, /usr/bin/bash
+    //
+    // If no shell is found, return `-ENOENT` so callers can fall back to `oren_proc_spawn(...)`.
+
+    fn _system_shell_is_exec_abs(path) {
+        if path == 0 { return 0 }
+        // Absolute path only (no PATH search in syscall-first runtime).
+        if ptr_get_byte(path) != 47 { return 0 } // '/'
+        // X_OK = 1 on POSIX.
+        var rc = sys_access(path, 1)
+        if rc == 0 { return 1 }
+        return 0
+    }
+
+    fn _system_find_shell() {
+        var override = oren_getenv("OREN_SYSTEM_SHELL")
+        if override != 0 {
+            if _system_shell_is_exec_abs(override) == 1 { return override }
+            // Explicit override is authoritative: invalid override is an error.
+            return 0 - 2 // ENOENT
+        }
+
+        var sh = oren_getenv("SHELL")
+        if _system_shell_is_exec_abs(sh) == 1 { return sh }
+
+        if _system_shell_is_exec_abs("/bin/sh") == 1 { return "/bin/sh" }
+        if _system_shell_is_exec_abs("/usr/bin/sh") == 1 { return "/usr/bin/sh" }
+        if _system_shell_is_exec_abs("/bin/bash") == 1 { return "/bin/bash" }
+        if _system_shell_is_exec_abs("/usr/bin/bash") == 1 { return "/usr/bin/bash" }
+        return 0
+    }
+
+    var shell = _system_find_shell()
+    if shell < 0 { return shell }
+    if shell == 0 { return 0 - 2 } // ENOENT
+
+    var args = [shell, "-c", cmd]
+    return oren_proc_spawn(shell, args, timeout_ms)
 }
 
 fn oren_net_get(url) {

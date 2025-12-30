@@ -1,0 +1,17 @@
+fn main() {
+    // `oren_system_timeout` is a convenience API that requires a shell.
+    // This fixture validates the deterministic error path when the user forces
+    // a missing shell via `OREN_SYSTEM_SHELL`.
+    //
+    // Windows uses cmd.exe, so this fixture is POSIX-only.
+    if g_target_os == 3 { exit(0) }
+
+    // With `OREN_SYSTEM_SHELL=/no_such_shell`, runtime should return -ENOENT (-2).
+    var rc = oren_system_timeout("echo hi", 0)
+    if rc == (0 - 2) { exit(0) }
+    print("expected -2 (ENOENT), got " + oren_int_to_string(rc))
+    exit(1)
+}
+
+main()
+
