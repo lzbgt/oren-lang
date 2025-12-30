@@ -149,7 +149,10 @@ fn oren_exists(path) {
 
     // Darwin: stat64 syscall; Linux: newfstatat.
     // We only use the return code here (no struct layout dependency).
-    var st = malloc(144)
+    //
+    // IMPORTANT (rolling, OS-neutral): do not assume `struct stat` size/layout.
+    // Allocate a generously-sized buffer to avoid kernel overwrites across targets.
+    var st = malloc(512)
     if st == 0 { exit(285) }
     var rc = sys_stat(rpath, st)
     free(st)
@@ -214,4 +217,3 @@ fn oren_getcwd() {
     oren_track_alloc(buf, 4096, 1) // STRING
     return buf
 }
-

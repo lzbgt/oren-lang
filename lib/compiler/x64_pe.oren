@@ -513,8 +513,15 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     push_u32_le(out, 0) // CheckSum
     push_u16_le(out, 3) // Subsystem: Windows CUI
     push_u16_le(out, 0) // DllCharacteristics
-    push_u64_le(out, 1048576) // SizeOfStackReserve (1MB)
-    push_u64_le(out, 4096)    // SizeOfStackCommit
+    // Stack sizing (Tier‑1, rolling):
+    // Windows default 1MB stack is too small for some of Oren's integration tests that
+    // exercise recursion and deep call stacks. Since we do not yet have a full stackless
+    // recursion implementation (heap frames) for native, increase the PE stack reserve.
+    //
+    // This is a pragmatic Tier‑1 gate to keep behavior aligned with arm64/macOS/Linux while
+    // we land the proper design (TCO + heap frames for non‑TCO recursion).
+    push_u64_le(out, 67108864) // SizeOfStackReserve (64MB)
+    push_u64_le(out, 65536)    // SizeOfStackCommit (64KB)
     push_u64_le(out, 1048576) // SizeOfHeapReserve
     push_u64_le(out, 4096)    // SizeOfHeapCommit
     push_u32_le(out, 0) // LoaderFlags

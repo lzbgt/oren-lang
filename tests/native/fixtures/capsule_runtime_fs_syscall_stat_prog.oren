@@ -2,22 +2,16 @@ fn main() {
     // Raw sys_stat capsule FS test:
     // - In capsule mode, sys_stat must be enforced at syscall boundary (no bypass).
     // - With OREN_FS_MOUNTS_READ=v/=... and allow domains FS, stat("v/in.txt") should be allowed.
-    // - Validate st_size (macOS arm64 struct stat: st_size @96, sizeof=144).
-    var st = malloc(144)
+    //
+    // IMPORTANT (rolling, OS-neutral):
+    // Do not assert platform `struct stat` field offsets here. This fixture only checks that:
+    // - mount enrollment is enforced
+    // - syscall returns success for an allowed path
+    //
+    // Use a generously-sized buffer so the kernel can write its native struct layout.
+    var st = malloc(512)
     if st == 0 { exit(3) }
     var rc = sys_stat("v/in.txt", st)
     if rc < 0 { exit(2) }
-    // st_size is u64 little-endian at offset 96 on macOS arm64.
-    // Avoid ptr_get here to keep the test robust even if 8-byte loads change.
-    var b0 = ptr_get_byte(iadd(st, 96))
-    var b1 = ptr_get_byte(iadd(st, 97))
-    var b2 = ptr_get_byte(iadd(st, 98))
-    var b3 = ptr_get_byte(iadd(st, 99))
-    var b4 = ptr_get_byte(iadd(st, 100))
-    var b5 = ptr_get_byte(iadd(st, 101))
-    var b6 = ptr_get_byte(iadd(st, 102))
-    var b7 = ptr_get_byte(iadd(st, 103))
-    var sz = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24) | (b4 << 32) | (b5 << 40) | (b6 << 48) | (b7 << 56)
-    if sz != 3 { exit(4) }
     print("ok")
 }

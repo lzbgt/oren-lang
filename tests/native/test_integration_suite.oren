@@ -164,18 +164,8 @@ fn test_core_smoke() {
     assert_eq(r2, 13, 61) // 3 + (0+1+2+3+4)
 
     // Recursion depth stress (rolling):
-    // - On POSIX native (fork+pipe spawn) this historically stayed within the default stack.
-    // - On Windows x64, current per-frame stack usage is higher and the default 1MB stack can overflow.
-    //
-    // Until we land the Tier‑1 stack-safety plan (TCO + heap frames for non‑TCO recursion),
-    // keep the integration suite from hard-crashing on Windows.
-    //
     // sum 1..2000 = 2000*2001/2 = 2001000
-    if g_target_os == 3 {
-        assert_eq(2000 * 2001 / 2, 2001000, 70)
-    } else {
-        assert_eq(sum_rec(2000), 2001000, 70)
-    }
+    assert_eq(sum_rec(2000), 2001000, 70)
 
     // Attributes inside blocks (metadata-only; must not affect semantics).
     @myorg.local(tag="smoke")
@@ -774,7 +764,8 @@ fn test_sys_fs_basic() {
     oren_write_bytes(a, [1, 2, 3])
 
     // stat/lstat must succeed on an existing path.
-    var st = malloc(144)
+    // Oversized stat buffer: OS-neutral (do not assume platform `struct stat` size).
+    var st = malloc(512)
     if st == 0 { fail(651) }
     assert_true(sys_stat(a, st) >= 0, 652)
     assert_true(sys_lstat(a, st) >= 0, 653)

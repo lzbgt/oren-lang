@@ -42,6 +42,7 @@ Rules for this tracker:
        - `sys_chmod` (currently a no-op on Windows; still enforces capsule FS write enrollment via prehook)
        - Next: define an **Oren-owned cross-OS Stat representation** + helpers (stop tests/libs from assuming platform `struct stat` layouts).
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
+     - Windows PE stack sizing: **done** — increased PE `SizeOfStackReserve` so deep recursion tests no longer need Windows skips (still a stopgap until heap-frame stackless recursion lands).
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
@@ -64,6 +65,7 @@ Rules for this tracker:
 3) **Backend architecture unification (CoreIR boundary)** (L)
    - Make one canonical CoreIR own semantics (eval order, short-circuit, varargs packing, closure ABI).
    - Backends become thin adapters (ABI + emit).
+   - Rolling progress: extracted native stmt→ops lowering + expr validation to a shared module (`lib/compiler/native_ops_v0.oren`) to reduce backend drift and prep for deeper unification.
    - References:
      - `docs/BACKEND_ARCHITECTURE.md`
      - `docs/IR_AND_COMPILER_INTERNALS.md`
@@ -110,6 +112,7 @@ Rules for this tracker:
    - Keep `make test` iteration-fast and deterministic.
    - Prefer a small number of high-signal integration suites + fixtures as living spec.
    - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
+   - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts (use oversized buffers + return-code checks unless an Oren-owned Stat ABI is introduced).
    - Make test tooling robust in minimal environments too: `oretest` now supports deterministic shell discovery and an override via `ORETEST_SHELL`.
    - Reference: `docs/TEST_SYSTEM.md`
 

@@ -1,0 +1,1391 @@
+// native_ops_v0.oren
+//
+// Shared “native backend v0” statement-to-ops lowering + expression validation.
+//
+// Rolling goal:
+// - Converge Tier‑1 native backends (arm64 + x86_64) on one semantics set.
+// - Keep backend/arch-specific code limited to ABI + instruction/binary emission.
+//
+// Today:
+// - x86_64 native backend uses an intermediate op-list lowering (`_analyze_stmt_list_to_ops`).
+// - This file extracts that lowering + the associated expression validator from the x86_64 backend
+//   so other native backends can reuse it during backend unification work.
+//
+// IMPORTANT:
+// - This module intentionally does not do code emission.
+// - It only validates AST shapes and produces a normalized op list.
+
+import intparse "int_lit.oren"
+
+fn err(ctx, msg) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    oren_list_push(ctx["errors"], msg)
+    return nil
+}
+
+// ---- begin extracted code (x64 native v0) ----
+fn _cond_check(ctx, cond) {
+    // Supported cond forms (rolling v0):
+    // - Any int-ish expression, using language truthiness semantics (0 is false).
+    // - Comparison infix: == != < <= > >= (keeps "cmp+Jcc" lowering compact).
+    if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
+
+    // Comparison form is a special-case: we currently only support comparing
+    // an evaluated LHS expression against a restricted RHS subset (rolling forward).
+    if _cond_is_cmp_infix(cond) != nil {
+        var op = cond["op"]
+        var l = cond["left"]
+        var r = cond["right"]
+        if l == nil || r == nil { err(ctx, "x64 native v0: condition infix missing operands"); return nil }
+        _expr_int_check(ctx, l, nil)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        _expr_int_check(ctx, r, nil)
+        return nil
+    }
+
+    // Truthy expression form.
+    // Special-case `!x` so `if !x { ... }` works without needing full bool lowering in v0.
+    if cond["type"] == "Prefix" && cond["op"] == "!" {
+        var r2 = cond["right"]
+        if r2 == nil { err(ctx, "x64 native v0: condition prefix ! missing operand"); return nil }
+        if _cond_is_cmp_infix(r2) != nil { return nil }
+        _expr_int_check(ctx, r2, nil)
+        return nil
+    }
+    _expr_int_check(ctx, cond, nil)
+    return nil
+}
+
+fn _cond_is_cmp_infix(cond) {
+    if cond == nil { return nil }
+    if cond["type"] != "Infix" { return nil }
+    var op = cond["op"]
+    if op == "==" || op == "!=" || op == "<" || op == "<=" || op == ">" || op == ">=" { return 1 }
+    return nil
+}
+
+fn _cond_false_cc(cond_op) {
+    // Return the Jcc condition code for "cond is false", given `cond_op`.
+    if cond_op == "==" { return "ne" }
+    if cond_op == "!=" { return "e" }
+    if cond_op == "<" { return "ge" }
+    if cond_op == "<=" { return "g" }
+    if cond_op == ">" { return "le" }
+    if cond_op == ">=" { return "l" }
+    return nil
+}
+
+fn _cond_true_cc(cond_op) {
+    // Return the Jcc condition code for "cond is true", given `cond_op`.
+    if cond_op == "==" { return "e" }
+    if cond_op == "!=" { return "ne" }
+    if cond_op == "<" { return "l" }
+    if cond_op == "<=" { return "le" }
+    if cond_op == ">" { return "g" }
+    if cond_op == ">=" { return "ge" }
+    return nil
+}
+
+fn contains_curly_braces(s) {
+    // Match the shared compiler helper semantics:
+    // treat "{}" as a formatting marker for `print(fmt, ...)`.
+    var i = 0
+    var len = oren_string_len(s)
+    while i < len - 1 {
+        if oren_string_char_at(s, i) == "{" {
+            if oren_string_char_at(s, i + 1) == "}" { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_tmp_counter_next(ctx, key) {
+    if ctx == nil { return 0 }
+    if ctx[key] == nil { ctx[key] = 0 }
+    var n = ctx[key]
+    ctx[key] = n + 1
+    return n
+}
+
+fn _x64_print_tmp_name(ctx, prefix) {
+    // Generate deterministic, collision-resistant temp names for x64 op lowering.
+    var n = _x64_tmp_counter_next(ctx, "x64_print_tmp_counter")
+    return prefix + oren_int_to_string(n)
+}
+
+fn _x64_print_emit_build_list_ops(ctx, ops, tok, args, start_idx) {
+    // Synthesize:
+    //   var tmp = oren_new_list(0)
+    //   tmp.push(args[start_idx])
+    //   ...
+    //
+    // Returns tmp variable name.
+    if ops == nil { return nil }
+    if args == nil { args = [] }
+
+    var tmp = _x64_print_tmp_name(ctx, "__oren_print_args_")
+    var new_list_call = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
+        "args": [{"type": "Integer", "token": nil, "value": "0"}],
+    }
+    _expr_int_check(ctx, new_list_call, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": tmp, "expr": new_list_call})
+
+    var i = start_idx
+    while i < oren_list_len(args) {
+        var ai = args[i]
+        if ai == nil { err(ctx, "x64 native: print missing arg"); return nil }
+        _expr_int_check(ctx, ai, nil)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        var push_call = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push"},
+            "args": [{"type": "Identifier", "token": nil, "value": tmp}, ai],
+        }
+        _expr_int_check(ctx, push_call, nil)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": push_call})
+        i = i + 1
+    }
+    return tmp
+}
+
+fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
+    // Lower `print(...)` statement into explicit calls to injected native runtime helpers.
+    //
+    // We do this as an x64-backend-only lowering step (post-DCE) so:
+    // - x64 can converge quickly to arm64 semantics without requiring global front-end rewrites
+    // - printing stays capsule-safe (runtime sys_write gating)
+    //
+    // NOTE: these runtime helpers must be pinned as DCE roots (see native_runtime_bundle.oren),
+    // because the calls are synthesized after DCE and are not visible in the linked AST.
+    if call_expr == nil { return nil }
+    var args = call_expr["args"]
+    if args == nil { args = [] }
+    var argc = oren_list_len(args)
+    var spread = call_expr["spread"]
+
+    var arg0 = nil
+    if argc > 0 { arg0 = args[0] }
+
+    var is_fmt = false
+    if arg0 != nil && arg0["type"] == "String" && contains_curly_braces(arg0["value"]) {
+        if argc > 1 || spread != nil { is_fmt = true }
+    }
+
+    if spread != nil {
+        _expr_int_check(ctx, spread, nil)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if is_fmt {
+            // fmt, fixed..., ...spread
+            var fixed_name = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 1)
+            if fixed_name == nil { return nil }
+            var call_fmt_sp = {
+                "type": "Call",
+                "fn": {"type": "Identifier", "token": nil, "value": "oren_print_fmt_spread"},
+                "args": [arg0,
+                         {"type": "Identifier", "token": nil, "value": fixed_name},
+                         spread],
+            }
+            _expr_int_check(ctx, call_fmt_sp, nil)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_fmt_sp})
+            return nil
+        }
+
+        // fixed..., ...spread
+        var fixed_name2 = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 0)
+        if fixed_name2 == nil { return nil }
+        var call_sp = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print_spread"},
+            "args": [{"type": "Identifier", "token": nil, "value": fixed_name2}, spread],
+        }
+        _expr_int_check(ctx, call_sp, nil)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_sp})
+        return nil
+    }
+
+    if is_fmt {
+        // fmt, fixed...
+        var fixed_name3 = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 1)
+        if fixed_name3 == nil { return nil }
+        var call_fmt = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print_fmt"},
+            "args": [arg0, {"type": "Identifier", "token": nil, "value": fixed_name3}],
+        }
+        _expr_int_check(ctx, call_fmt, nil)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_fmt})
+        return nil
+    }
+
+    // Non-format.
+    if argc == 0 {
+        var call_nl = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print_list"},
+            "args": [{"type": "Nil", "token": nil}],
+        }
+    _expr_int_check(ctx, call_nl, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_nl})
+        return nil
+    }
+    if argc == 1 {
+    _expr_int_check(ctx, arg0, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        var call_one = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print"},
+            "args": [arg0],
+        }
+    _expr_int_check(ctx, call_one, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_one})
+        return nil
+    }
+
+    var fixed_name4 = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 0)
+    if fixed_name4 == nil { return nil }
+    var call_list = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "oren_print_list"},
+        "args": [{"type": "Identifier", "token": nil, "value": fixed_name4}],
+    }
+    _expr_int_check(ctx, call_list, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_list})
+    return nil
+}
+
+fn _cond_false_cc_for_cond(cond) {
+    // After `_emit_cmp_from_cond`, flags are:
+    // - comparison: based on `cmp lhs, rhs`
+    // - truthy expr: based on `cmp expr, 0`
+    if _cond_is_cmp_infix(cond) != nil { return _cond_false_cc(cond["op"]) }
+    if cond != nil && cond["type"] == "Prefix" && cond["op"] == "!" {
+        // !x is false when x is truthy (x != 0)
+        var inner = cond["right"]
+        if _cond_is_cmp_infix(inner) != nil {
+            // !(lhs op rhs) is false when (lhs op rhs) is true.
+            return _cond_true_cc(inner["op"])
+        }
+        return "ne"
+    }
+    // expr is false when expr == 0
+    return "e"
+}
+
+fn _analyze_stmt_list_to_ops(ctx, stmts) {
+    var ops = []
+    if stmts == nil { return ops }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil { i = i + 1; continue }
+        var t = st["type"]
+        var tok = st["token"]
+        if t == "Block" {
+            // Rolling: allow naked blocks as statements and treat them as an inline statement list.
+            // x64 native uses a single function-scope locals model, so this is a safe flattening.
+            var inner = _analyze_stmt_list_to_ops(ctx, st["stmts"])
+            if inner == nil { return nil }
+            var k0 = 0
+            while k0 < oren_list_len(inner) { oren_list_push(ops, inner[k0]); k0 = k0 + 1 }
+            i = i + 1
+            continue
+        }
+        if t == "Function" {
+            // Local function declaration (rolling): `fn name(params...) { ... }` in statement position.
+            //
+            // x64 native v0 lowers this as:
+            //   var name = fn(params...) { ... }
+            //
+            // so calls to `name(...)` inside the enclosing function become indirect calls through a
+            // first-class fn object (uniform callable ABI). This keeps semantics aligned with arm64
+            // without needing a separate "nested function hoisting" pass in the x64 backend.
+            var nmf = st["name"]
+            if nmf == nil || nmf == "" { err(ctx, "x64 native v0: function decl missing name"); return nil }
+            st["decl_name"] = nmf
+            st["name"] = "" // convert to lambda literal
+            oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": nmf, "expr": st})
+            i = i + 1
+            continue
+        }
+        if t == "Var" {
+            var name_node = st["name"]
+            var v0 = st["value"]
+            if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: var name must be identifier"); return nil }
+            if v0 == nil { err(ctx, "x64 native v0: var init missing"); return nil }
+            oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": name_node["value"], "expr": v0})
+            i = i + 1
+            continue
+        }
+        if t == "Spawn" {
+            // Statement-form spawn:
+            //   spawn f(...)
+            //
+            // Normalize to the expression form so we share the SpawnExpr lowering path.
+            var call = st["call"]
+            if call == nil || call["type"] != "Call" { err(ctx, "x64 native v0: Spawn missing call"); return nil }
+            var e2 = {"type": "SpawnExpr", "token": tok, "call": call}
+            _expr_int_check(ctx, e2, nil)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e2})
+            i = i + 1
+            continue
+        }
+        if t == "ExprStmt" {
+            var e = st["expr"]
+            if e == nil { i = i + 1; continue }
+            if tok == nil { tok = e["token"] }
+            // Some parts of the pipeline represent statement-forms as an ExprStmt wrapper.
+            // Accept common control-flow nodes here to avoid backend fragility as the AST evolves.
+            if e["type"] == "If" || e["type"] == "While" || e["type"] == "For" {
+                var tmp = _analyze_stmt_list_to_ops(ctx, [e])
+                if tmp == nil { return nil }
+                // Splice in the ops produced by the wrapped statement.
+                var k = 0
+                while k < oren_list_len(tmp) { oren_list_push(ops, tmp[k]); k = k + 1 }
+                i = i + 1
+                continue
+            }
+            if e["type"] == "SpawnExpr" {
+                // `spawn f(...)` can appear in statement position; evaluate and discard the result.
+                _expr_int_check(ctx, e, nil)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e})
+                i = i + 1
+                continue
+            }
+            if e["type"] == "Function" {
+                // Some parser paths wrap statement-form `fn name(...) { ... }` as an ExprStmt.
+                // Normalize to the same lowering as the direct `t == "Function"` case.
+                var nmf2 = e["name"]
+                if nmf2 == nil || nmf2 == "" { err(ctx, "x64 native v0: function decl missing name"); return nil }
+                e["decl_name"] = nmf2
+                e["name"] = "" // convert to lambda literal
+                oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": nmf2, "expr": e})
+                i = i + 1
+                continue
+            }
+            if e["type"] == "Call" {
+                var callee = e["fn"]
+                var args = e["args"]
+                if callee != nil && callee["type"] == "Identifier" && callee["value"] == "print" {
+                    // Tier‑1 parity: when native runtime injection is enabled (default),
+                    // lower `print(...)` to runtime helpers so:
+                    // - printing supports multi-arg, fmt, and spread (same semantics as arm64)
+                    // - capsule sys_write gating applies (no direct syscall/WinAPI bypass)
+                    if ctx != nil && ctx["inject_runtime"] == true {
+                        _x64_print_lower_to_runtime_ops(ctx, ops, tok, e)
+                        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                        i = i + 1
+                        continue
+                    }
+
+                    // Bring-up mode: keep the legacy x64-only print lowering.
+                    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
+                    var a0 = args[0]
+                    if a0 == nil { err(ctx, "x64 native v0: print missing arg"); return nil }
+
+                    // Fast-path: print("literal") uses the OS-specific cstr write helper.
+                    if a0["type"] == "String" {
+                        oren_list_push(ops, {"op": "print_cstr", "tok": tok, "value": a0["value"]})
+                        i = i + 1
+                        continue
+                    }
+
+                    // Rolling bring-up: allow printing any expression that evaluates to a string pointer.
+                    _expr_int_check(ctx, a0, nil)
+                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                    oren_list_push(ops, {"op": "print_str_expr", "tok": tok, "expr": a0})
+                    i = i + 1
+                    continue
+                }
+
+                // Generic call expression statement: evaluate and discard return.
+                _expr_int_check(ctx, e, nil)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e})
+                i = i + 1
+                continue
+            }
+            err(ctx, "x64 native v0: unsupported expr statement: " + e["type"])
+            return nil
+        }
+        if t == "Assign" {
+            var name_node2 = st["name"]
+            var v2 = st["value"]
+            if name_node2 == nil || name_node2["type"] != "Identifier" { err(ctx, "x64 native v0: assign name must be identifier"); return nil }
+            if v2 == nil { err(ctx, "x64 native v0: assign missing value"); return nil }
+            oren_list_push(ops, {"op": "assign_i32", "tok": tok, "name": name_node2["value"], "expr": v2})
+            i = i + 1
+            continue
+        }
+        if t == "Set" {
+            // Statement assignment to a non-identifier lvalue (rolling):
+            // - index assignment: xs[i] = v   ->   expr-stmt: oren_index_set(xs, i, v)
+            //
+            // Note: Member assignment (`obj.field = v`) is not part of the x64 v0 subset yet.
+            var left = st["left"]
+            var v3 = st["value"]
+            if left == nil { err(ctx, "x64 native v0: set missing left"); return nil }
+            if v3 == nil { err(ctx, "x64 native v0: set missing value"); return nil }
+
+            if left["type"] == "Index" {
+                var recv = left["left"]
+                var idx = left["index"]
+                if recv == nil || idx == nil { err(ctx, "x64 native v0: set index missing operands"); return nil }
+                var call = {
+                    "type": "Call",
+                    "fn": {"type": "Identifier", "token": nil, "value": "oren_index_set"},
+                    "args": [recv, idx, v3],
+                }
+                // Rolling x64 Tier‑1: map index assignment always infers key kind at runtime,
+                // so do not propagate any compile-time hints here.
+                // Preserve receiver kind when known so codegen can avoid dynamic LIST/MAP dispatch.
+                if left["recv_kind"] != nil { call["recv_kind"] = left["recv_kind"] }
+                _expr_int_check(ctx, call, nil)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call})
+                i = i + 1
+                continue
+            }
+
+            err(ctx, "x64 native v0: unsupported set left: " + left["type"])
+            return nil
+        }
+        if t == "Return" {
+            var v = st["value"]
+            if v == nil { err(ctx, "x64 native v0: return missing value"); return nil }
+            oren_list_push(ops, {"op": "return", "tok": tok, "expr": v})
+            i = i + 1
+            continue
+        }
+        if t == "If" {
+            _cond_check(ctx, st["cond"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var then_block = st["consq"]
+            var else_node = st["alt"]
+            if then_block == nil || then_block["type"] != "Block" { err(ctx, "x64 native v0: if then must be Block"); return nil }
+            var then_ops = _analyze_stmt_list_to_ops(ctx, then_block["stmts"])
+            if then_ops == nil { return nil }
+            var else_ops = []
+            if else_node != nil {
+                if else_node["type"] == "Block" {
+                    else_ops = _analyze_stmt_list_to_ops(ctx, else_node["stmts"])
+                    if else_ops == nil { return nil }
+                } else if else_node["type"] == "If" {
+                    // else-if chain: represent as else { if ... }
+                    var tmp = _analyze_stmt_list_to_ops(ctx, [else_node])
+                    if tmp == nil { return nil }
+                    else_ops = tmp
+                } else {
+                    err(ctx, "x64 native v0: unsupported else node: " + else_node["type"])
+                    return nil
+                }
+            }
+            oren_list_push(ops, {"op": "if", "tok": tok, "cond": st["cond"], "then": then_ops, "else": else_ops})
+            i = i + 1
+            continue
+        }
+        if t == "While" {
+            _cond_check(ctx, st["cond"])
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var body = st["body"]
+            if body == nil || body["type"] != "Block" { err(ctx, "x64 native v0: while body must be Block"); return nil }
+            var body_ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
+            if body_ops == nil { return nil }
+            oren_list_push(ops, {"op": "while", "tok": tok, "cond": st["cond"], "body": body_ops})
+            i = i + 1
+            continue
+        }
+        if t == "For" {
+            // Support a tiny subset:
+            // - `for <cond> { ... }` (cond-only form)
+            // - `for var i = 0; <cond>; i = i + 1 { ... }` (3-clause form)
+            var init = st["init"]
+            var cond = st["cond"]
+            var post = st["post"]
+            var body3 = st["body"]
+            if body3 == nil || body3["type"] != "Block" { err(ctx, "x64 native v0: for body must be Block"); return nil }
+            if cond == nil { err(ctx, "x64 native v0: for missing cond"); return nil }
+            _cond_check(ctx, cond)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+            // Cond-only form => lower to while.
+            if init == nil && post == nil {
+                var bops = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
+                if bops == nil { return nil }
+                oren_list_push(ops, {"op": "while", "tok": tok, "cond": cond, "body": bops})
+                i = i + 1
+                continue
+            }
+
+            // 3-clause form: init and post must be present.
+            if init == nil || post == nil {
+                err(ctx, "x64 native v0: for init/post required in 3-clause form")
+                return nil
+            }
+            var init_ops = _analyze_stmt_list_to_ops(ctx, [init])
+            if init_ops == nil { return nil }
+            var post_ops = _analyze_stmt_list_to_ops(ctx, [post])
+            if post_ops == nil { return nil }
+            var body_ops2 = _analyze_stmt_list_to_ops(ctx, body3["stmts"])
+            if body_ops2 == nil { return nil }
+
+            // Restrict post to a single simple update for now (prevents weird continue behavior).
+            if oren_list_len(post_ops) != 1 || !_is_x64_for_post_ok(post_ops[0]) {
+                err(ctx, "x64 native v0: for post must be simple update")
+                return nil
+            }
+            oren_list_push(ops, {"op": "for", "tok": tok, "init": init_ops, "cond": cond, "post": post_ops, "body": body_ops2})
+            i = i + 1
+            continue
+        }
+        if t == "Break" {
+            oren_list_push(ops, {"op": "break", "tok": tok})
+            i = i + 1
+            continue
+        }
+        if t == "Continue" {
+            oren_list_push(ops, {"op": "continue", "tok": tok})
+            i = i + 1
+            continue
+        }
+        err(ctx, "x64 native v0: unsupported stmt: " + t)
+        return nil
+    }
+    return ops
+}
+
+fn _is_x64_for_post_ok(post_op) {
+    // x64 native v0 restriction: keep post as a single "simple" update so `continue`
+    // can reliably jump to post then re-check cond.
+    //
+    // Rolling extension:
+    // - allow index assignment lowering (`xs[i] = v`) which is represented as:
+    //   op="expr" with expr=`oren_index_set(xs, i, v)`
+    if post_op == nil { return 0 }
+    var op = post_op["op"]
+    if op == "assign_i32" { return 1 }
+    if op != "expr" { return 0 }
+
+    var e = post_op["expr"]
+    if e == nil || e["type"] != "Call" { return 0 }
+    var fn0 = e["fn"]
+    if fn0 == nil || fn0["type"] != "Identifier" { return 0 }
+    if fn0["value"] != "oren_index_set" { return 0 }
+    // Arity sanity (container, index, value)
+    var args = e["args"]
+    if args == nil || oren_list_len(args) != 3 { return 0 }
+    return 1
+}
+
+
+fn _analyze_supported_fn_body(ctx, fn_node) {
+    var body = fn_node["body"]
+    if body == nil { err(ctx, "x64 native v0: function has no body"); return nil }
+    if body["type"] != "Block" {
+        err(ctx, "x64 native v0: function body must be Block")
+        return nil
+    }
+    var ops = _analyze_stmt_list_to_ops(ctx, body["stmts"])
+    if ops == nil { return nil }
+
+    // If last statement is not a return, add an implicit `return 0` to keep the ABI sane.
+    if oren_list_len(ops) == 0 || ops[oren_list_len(ops) - 1]["op"] != "return" {
+        oren_list_push(ops, {"op": "return", "expr": {"type": "Integer", "value": "0"}})
+    }
+    return ops
+}
+
+fn _expr_int_check(ctx, expr, locals) {
+    if expr == nil { err(ctx, "x64 native v0: missing expr"); return nil }
+    var t = expr["type"]
+    if t == "Integer" {
+        var n = intparse.parse_int_lit(expr["value"])
+        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+        return nil
+    }
+    if t == "Float" {
+        // Float literals are represented as a string token and lowered by the backend
+        // into raw IEEE-754 binary64 bits.
+        return nil
+    }
+    if t == "Boolean" { return nil }
+    if t == "Nil" { return nil }
+    if t == "String" { return nil }
+    if t == "Identifier" { return nil }
+    if t == "Function" {
+        // Lambda literal in expression position.
+        //
+        // Rolling v0: x64 native supports lambdas as first-class values via wrapper lowering.
+        // - Only anonymous `fn` (name == "") is permitted in expression position.
+        // - Params must be plain identifiers (including optional trailing `...rest`).
+        if expr["name"] != "" {
+            err(ctx, "x64 native v0: function decl not allowed in expression position")
+            return nil
+        }
+        var params = expr["params"]
+        var pc = 0
+        if params != nil { pc = oren_list_len(params) }
+        var i = 0
+        while i < pc {
+            var p = params[i]
+            if p == nil || p["type"] != "Identifier" { err(ctx, "x64 native v0: lambda param must be identifier"); return nil }
+            i = i + 1
+        }
+        // Body can contain ops not supported by x64; those will be rejected when compiling the
+        // synthesized `__oren_lambda_*` wrapper function.
+        return nil
+    }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var args = expr["args"]
+        if fn_expr == nil { err(ctx, "x64 native v0: call missing target"); return nil }
+
+        // Rolling v0: Oren permits first-class function values and calling a function-valued
+        // expression directly (e.g. `(cond ? f : g)(x)`).
+        //
+        // x64 native v0 supports this through the uniform callable ABI:
+        //   fn_obj(args...) => args_list = [args...] ; oren_call_obj_list(fn_obj, args_list)
+        //
+        // For analysis, only identifier call targets participate in intrinsic validation
+        // and provable direct-call arity checks.
+        var nm = nil
+        if fn_expr["type"] == "Identifier" { nm = fn_expr["value"] }
+        if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
+
+        // --- Intrinsics ---
+        //
+        // Some helpers are compiler intrinsics in x64 native v0 (they do not require a user-visible
+        // function declaration). Keep their validation here so we fail early with a clear error.
+        var spread0 = expr["spread"]
+        var argc0 = 0
+        if args != nil { argc0 = oren_list_len(args) }
+        if nm != nil && (nm == "oren_trunc_int" || nm == "oren_bool_norm" || nm == "oren_f32_round" ||
+            nm == "oren_f32_to_u32_bits" || nm == "oren_u32_bits_to_f32" ||
+            nm == "oren_f64_to_u64_bits" || nm == "oren_u64_bits_to_f64") {
+            if spread0 != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return nil }
+            if argc0 != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 argument"); return nil }
+            _expr_int_check(ctx, args[0], locals)
+            return nil
+        }
+
+        // Portable termination helper (preferred over relying on `main` return value).
+        if nm == "exit" {
+            if spread0 != nil { err(ctx, "x64 native v0: exit does not support spread"); return nil }
+            if argc0 != 0 && argc0 != 1 { err(ctx, "x64 native v0: exit expects 0 or 1 arguments"); return nil }
+            if argc0 == 1 {
+                _expr_int_check(ctx, args[0], locals)
+            }
+            return nil
+        }
+
+        var spread = spread0
+        var argc = argc0
+        // Rolling: stack args are supported; arg count is bounded only by frame/call-area capacity.
+
+        // Direct calls enforce arity; indirect calls (callable value in a local/param) are permitted
+        // in v0 bring-up without static arity tracking.
+        var arity = nil
+        if nm != nil && ctx["func_arity"] != nil { arity = ctx["func_arity"][nm] }
+        // NOTE (rolling): without name resolution, a call target `nm` may be either:
+        // - a direct call to a named function, or
+        // - an indirect call through a local/global var that shadows that name.
+        //
+        // We only enforce static arity when `locals` is provided and we can prove it is a direct call.
+        var can_prove_direct = false
+        if locals != nil {
+            if locals[nm] == nil {
+                if ctx == nil || ctx["globals"] == nil || ctx["globals"][nm] == nil {
+                    can_prove_direct = true
+                }
+            }
+        }
+        if nm != nil && arity != nil && can_prove_direct {
+            var declared = ctx["declared_functions"]
+            if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
+
+            var vf = nil
+            if ctx["func_varargs_fixed"] != nil { vf = ctx["func_varargs_fixed"][nm] }
+            if spread != nil {
+                // Rolling: spread is supported for named calls.
+                //
+                // - fixed-arity: spread must fill exactly (checked at codegen/runtime)
+                // - varargs: spread contributes elements into the `...rest` list; total runtime arg count is dynamic
+                if vf == nil && argc > arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+            } else if vf != nil {
+                if argc < vf { err(ctx, "x64 native v0: varargs arity mismatch for " + nm); return nil }
+            } else {
+                if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
+            }
+        } else {
+            // No provable static arity (either the call is indirect, or we are in an analysis
+            // phase without `locals`): the callee wrapper enforces arity at runtime/codegen.
+        }
+
+        // Validate call target expression itself (for non-identifier targets).
+        if nm == nil {
+            _expr_int_check(ctx, fn_expr, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        }
+
+        var i = 0
+        while i < argc {
+            _expr_int_check(ctx, args[i], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i = i + 1
+        }
+        if spread != nil {
+            _expr_int_check(ctx, spread, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        }
+        return nil
+    }
+    if t == "SpawnExpr" {
+        // Spawn is an expression node produced by the parser/transpiler.
+        // It carries an inner Call node: { "call": { "type":"Call", "fn":..., "args":[...], "spread":...? } }.
+        var call2 = expr["call"]
+        if call2 == nil || call2["type"] != "Call" { err(ctx, "x64 native v0: SpawnExpr missing call"); return nil }
+        var fn2 = call2["fn"]
+        var args2 = call2["args"]
+        if fn2 == nil { err(ctx, "x64 native v0: SpawnExpr missing callee"); return nil }
+        _expr_int_check(ctx, fn2, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        var i2 = 0
+        var argc2 = 0
+        if args2 != nil { argc2 = oren_list_len(args2) }
+        while i2 < argc2 {
+            _expr_int_check(ctx, args2[i2], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i2 = i2 + 1
+        }
+        if call2["spread"] != nil {
+            _expr_int_check(ctx, call2["spread"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        }
+        return nil
+    }
+    if t == "Infix" {
+        var op = expr["op"]
+        if op != "+" && op != "-" && op != "*" && op != "/" && op != "%" &&
+            op != "==" && op != "!=" && op != "<" && op != "<=" && op != ">" && op != ">=" &&
+            op != "&&" && op != "||" &&
+            op != "&" && op != "|" && op != "^" && op != "<<" && op != ">>" {
+            err(ctx, "x64 native v0: infix op not supported: " + op)
+            return nil
+        }
+        var l = expr["left"]
+        var r = expr["right"]
+        if l == nil || r == nil { err(ctx, "x64 native v0: infix missing operands"); return nil }
+
+        // Rolling: allow nested infix expressions for + and - (and as the LHS of `*`)
+        // so chains like `a + b + c + d` work.
+        _expr_int_check(ctx, l, locals)
+        _expr_int_check(ctx, r, locals)
+        return nil
+    }
+    if t == "Prefix" {
+        var op = expr["op"]
+        if op != "-" && op != "~" && op != "!" {
+            err(ctx, "x64 native v0: prefix op not supported: " + op)
+            return nil
+        }
+        var r = expr["right"]
+        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
+        _expr_int_check(ctx, r, locals)
+        return nil
+    }
+    if t == "Member" {
+        // Rolling v0: `obj.field` is permitted and lowers to map indexing with a string key.
+        //
+        // Namespace resolution for `mod.fn` is handled later in codegen; for analysis we just
+        // validate the shape and recurse into the receiver expression.
+        var l2m = expr["left"]
+        var propm = expr["prop"]
+        if l2m == nil { err(ctx, "x64 native v0: member missing receiver"); return nil }
+        if propm == nil || propm["type"] != "Identifier" { err(ctx, "x64 native v0: member prop must be identifier"); return nil }
+        _expr_int_check(ctx, l2m, locals)
+        return nil
+    }
+    if t == "Index" {
+        var l2 = expr["left"]
+        var idx2 = expr["index"]
+        if l2 == nil || idx2 == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
+        _expr_int_check(ctx, l2, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        _expr_int_check(ctx, idx2, locals)
+        return nil
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els == nil { return nil }
+        var i = 0
+        while i < oren_list_len(els) {
+            _expr_int_check(ctx, els[i], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        if pairs == nil { return nil }
+        var i2 = 0
+        while i2 < oren_list_len(pairs) {
+            var pair = pairs[i2]
+            if pair == nil { err(ctx, "x64 native v0: hash literal has nil pair"); return nil }
+            _expr_int_check(ctx, pair["key"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            _expr_int_check(ctx, pair["value"], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    err(ctx, "x64 native v0: expr not supported: " + t)
+    return nil
+}
+
+fn _max_call_argc_in_expr(ctx, expr) {
+    if expr == nil { return 0 }
+    var t = expr["type"]
+    if t == "Nil" { return 0 }
+    if t == "String" { return 0 }
+    if t == "SpawnExpr" {
+        var call2 = expr["call"]
+        if call2 == nil { return 0 }
+        var fn2 = call2["fn"]
+        var args2 = call2["args"]
+        var m = 0
+        // Count nested calls inside the callee expression and arguments.
+        var mf = _max_call_argc_in_expr(ctx, fn2)
+        if mf > m { m = mf }
+        var i = 0
+        while args2 != nil && i < oren_list_len(args2) {
+            var mi = _max_call_argc_in_expr(ctx, args2[i])
+            if mi > m { m = mi }
+            i = i + 1
+        }
+        if call2["spread"] != nil {
+            var ms = _max_call_argc_in_expr(ctx, call2["spread"])
+            if ms > m { m = ms }
+        }
+        return m
+    }
+    if t == "Call" {
+        var args = expr["args"]
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        var m = argc
+
+        // Spread/varargs adjust the *actual* outgoing call argc (important for call-area sizing).
+        var fn_expr = expr["fn"]
+        if fn_expr != nil && fn_expr["type"] == "Identifier" {
+            var nm = fn_expr["value"]
+            var declared = nil
+            if ctx != nil { declared = ctx["declared_functions"] }
+
+            // Tier‑1 parity: when runtime injection is enabled, spread calls are lowered via:
+            //   oren_call_obj_spread(fn_obj, fixed_args, spread_list)
+            // so the outgoing ABI call has 3 arguments (reg-only on SysV/Win64).
+            if ctx != nil && ctx["runtime_injected"] == true && expr["spread"] != nil {
+                if m < 3 { m = 3 }
+            } else if declared != nil && declared[nm] == nil {
+                // Indirect call through a fn value: codegen calls code_ptr(env,args_list).
+                if m < 2 { m = 2 }
+            } else if ctx != nil && ctx["runtime_injected"] == true && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+                // Tier‑1 parity: varargs named calls lower through the uniform callable ABI
+                // (args_list + wrapper), so the outgoing ABI call has 2 arguments.
+                var cur_fn = ctx["cur_fn_name"]
+                if cur_fn == nil || cur_fn != "__oren_fnwrap_" + nm {
+                    if m < 2 { m = 2 }
+                } else {
+                    // Inside the wrapper we call the real function directly at its declared arity.
+                    if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+                        var arity2 = ctx["func_arity"][nm]
+                        if m < arity2 { m = arity2 }
+                    }
+                }
+            } else if nm != nil && ctx != nil && ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+                var arity = ctx["func_arity"][nm]
+                if expr["spread"] != nil {
+                    m = arity
+                } else if ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+                    // Bring-up mode: x64 packs varargs to a single rest_list, so the real call argc is the declared arity.
+                    m = arity
+                }
+            }
+        }
+        // Count calls in call target and in each arg expression too.
+        var mf = _max_call_argc_in_expr(ctx, fn_expr)
+        if mf > m { m = mf }
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            var mi = _max_call_argc_in_expr(ctx, args[i])
+            if mi > m { m = mi }
+            i = i + 1
+        }
+        if expr["spread"] != nil {
+            var ms = _max_call_argc_in_expr(ctx, expr["spread"])
+            if ms > m { m = ms }
+        }
+        return m
+    }
+    if t == "Infix" {
+        var l = expr["left"]
+        var r = expr["right"]
+        var ml = _max_call_argc_in_expr(ctx, l)
+        var mr = _max_call_argc_in_expr(ctx, r)
+        if mr > ml { return mr }
+        return ml
+    }
+    if t == "Prefix" {
+        return _max_call_argc_in_expr(ctx, expr["right"])
+    }
+    if t == "Member" {
+        // Only the receiver expression can contain calls.
+        return _max_call_argc_in_expr(ctx, expr["left"])
+    }
+    if t == "Index" {
+        var ml = _max_call_argc_in_expr(ctx, expr["left"])
+        var mi = _max_call_argc_in_expr(ctx, expr["index"])
+        if mi > ml { return mi }
+        return ml
+    }
+    if t == "Array" {
+        var m = 0
+        var els = expr["elements"]
+        var i = 0
+        while els != nil && i < oren_list_len(els) {
+            var mi = _max_call_argc_in_expr(ctx, els[i])
+            if mi > m { m = mi }
+            i = i + 1
+        }
+        return m
+    }
+    if t == "Hash" {
+        var m2 = 0
+        var pairs = expr["pairs"]
+        var i2 = 0
+        while pairs != nil && i2 < oren_list_len(pairs) {
+            var pair = pairs[i2]
+            var mk = _max_call_argc_in_expr(ctx, pair["key"])
+            if mk > m2 { m2 = mk }
+            var mv = _max_call_argc_in_expr(ctx, pair["value"])
+            if mv > m2 { m2 = mv }
+            i2 = i2 + 1
+        }
+        return m2
+    }
+    if t == "If" {
+        // Conservative: if-expr isn't part of the x64 v0 expression surface yet, but keep it safe.
+        var m0 = _max_call_argc_in_expr(ctx, expr["cond"])
+        var consq = expr["consq"]
+        if consq != nil { var m1 = _max_call_argc_in_expr(ctx, consq["expr"]); if m1 > m0 { m0 = m1 } }
+        var alt = expr["alt"]
+        if alt != nil { var m2 = _max_call_argc_in_expr(ctx, alt["expr"]); if m2 > m0 { m0 = m2 } }
+        return m0
+    }
+    return 0
+}
+
+fn _max_call_argc_in_ops(ctx, ops) {
+    if ops == nil { return 0 }
+    var m = 0
+    var i = 0
+    while i < oren_list_len(ops) {
+        var op = ops[i]
+        if op == nil { i = i + 1; continue }
+        var k = op["op"]
+        if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" {
+            var e = op["expr"]
+            var me = _max_call_argc_in_expr(ctx, e)
+            if me > m { m = me }
+        } else if k == "if" {
+            var mc = _max_call_argc_in_expr(ctx, op["cond"])
+            if mc > m { m = mc }
+            var mt = _max_call_argc_in_ops(ctx, op["then"])
+            if mt > m { m = mt }
+            var mf = _max_call_argc_in_ops(ctx, op["else"])
+            if mf > m { m = mf }
+        } else if k == "while" {
+            var mc2 = _max_call_argc_in_expr(ctx, op["cond"])
+            if mc2 > m { m = mc2 }
+            var mb = _max_call_argc_in_ops(ctx, op["body"])
+            if mb > m { m = mb }
+        } else if k == "for" {
+            var mi = _max_call_argc_in_ops(ctx, op["init"])
+            if mi > m { m = mi }
+            var mc3 = _max_call_argc_in_expr(ctx, op["cond"])
+            if mc3 > m { m = mc3 }
+            var mp = _max_call_argc_in_ops(ctx, op["post"])
+            if mp > m { m = mp }
+            var mb2 = _max_call_argc_in_ops(ctx, op["body"])
+            if mb2 > m { m = mb2 }
+        }
+        i = i + 1
+    }
+    return m
+}
+
+fn _x64_is_syscall_intrinsic_name(nm) {
+    // NOTE (native runtime): many `sys_*` symbols exist in `lib/runtime_native/000_prelude_sys.oren`.
+    // Only a subset are *compiler intrinsics* lowered directly by the native backend.
+    //
+    // Other `sys_*` functions (e.g. `sys_send`, `sys_recv`, `sys_read_u8_buf`) are normal
+    // Oren wrappers implemented in the runtime and must NOT be intercepted as syscall intrinsics.
+    if nm == nil { return false }
+    // Core
+    if nm == "sys_read" || nm == "sys_write" || nm == "sys_exit" { return true }
+    // FS / PROC / TIME
+    if nm == "sys_pipe" || nm == "sys_open" || nm == "sys_close" || nm == "sys_access" { return true }
+    if nm == "sys_stat" || nm == "sys_lstat" || nm == "sys_fstat" { return true }
+    if nm == "sys_unlink" || nm == "sys_rmdir" || nm == "sys_rename" { return true }
+    if nm == "sys_mkdir" || nm == "sys_chmod" { return true }
+    if nm == "sys_getdirentries64" { return true }
+    if nm == "sys_fork" || nm == "sys_execve" || nm == "sys_wait4" { return true }
+    // Windows-only PROC helper (CreateProcessA-based spawn+wait)
+    if nm == "sys_win_createprocess" { return true }
+    // Windows-only THREAD helpers (CreateThread-based spawn/join)
+    if nm == "sys_win_createthread" { return true }
+    if nm == "sys_win_wait_single_object" { return true }
+    if nm == "sys_win_terminate_thread" { return true }
+    if nm == "sys_win_close_handle" { return true }
+    if nm == "sys_kill" { return true }
+    if nm == "sys_gettimeofday" || nm == "sys_getcwd" || nm == "sys_nanosleep" { return true }
+    // VM / threads / fcntl / fd ops
+    if nm == "sys_mmap_private_anon" || nm == "sys_munmap" { return true }
+    if nm == "sys_clone" || nm == "sys_gettid" { return true }
+    if nm == "sys_fcntl" || nm == "sys_fcntl_getfl" || nm == "sys_fcntl_setfl" || nm == "sys_fcntl_getpath" { return true }
+    if nm == "sys_dup" || nm == "sys_dup2" || nm == "sys_dup3" { return true }
+    if nm == "sys_ioctl" { return true }
+    // NET (send/recv aliases are runtime wrappers; the intrinsics are sendto/recvfrom)
+    if nm == "sys_socket" || nm == "sys_connect" || nm == "sys_bind" || nm == "sys_listen" || nm == "sys_accept" { return true }
+    if nm == "sys_getpeername" || nm == "sys_getsockname" { return true }
+    if nm == "sys_getsockopt" || nm == "sys_setsockopt" || nm == "sys_shutdown" { return true }
+    if nm == "sys_sendto" || nm == "sys_recvfrom" { return true }
+    // Windows-only NET helpers
+    if nm == "sys_wsa_startup" || nm == "sys_select" { return true }
+    // epoll
+    if nm == "sys_epoll_create1" || nm == "sys_epoll_ctl" || nm == "sys_epoll_pwait" { return true }
+    // Darwin-only (still compiler intrinsics; may return -ENOSYS on non-Darwin)
+    if nm == "sys_ulock_wait" || nm == "sys_ulock_wake" { return true }
+    if nm == "sys_bsdthread_create" || nm == "sys_bsdthread_terminate" || nm == "sys_bsdthread_register" { return true }
+    if nm == "sys_kqueue" || nm == "sys_kevent" { return true }
+    return false
+}
+
+// Compute the maximum intrinsic temp pool usage needed to compile expressions in this function.
+//
+// x64 native v0 uses a per-function `$tmp_intr<i>` pool as a re-entrant spill allocator for:
+// - nested calls used as arguments
+// - intrinsic implementations that must spill args (map/list ops, ptr_set, etc.)
+//
+// We must reserve enough `$tmp_intr<i>` stack slots to cover the maximum *nested* usage,
+// but we should not over-reserve (large fixed pools bloat every stack frame and hurt recursion).
+fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
+    // Rolling: decide whether a `Call` lowers as a direct ABI call or as an indirect callable-object
+    // call (`oren_call_obj_list` / `oren_call_obj_spread`), because the intrinsic spill demand differs.
+    //
+    // NOTE: This sizing must match the codegen strategy in `lib/compiler/x64_native_program/044_emit_call_expr.oren`.
+    var fn_expr = nil
+    var has_spread = false
+    if expr != nil {
+        fn_expr = expr["fn"]
+        if expr["spread"] != nil { has_spread = true }
+    }
+
+    // Indirect calls:
+    // - callee is a non-identifier expression, OR
+    // - callee is an identifier shadowed by locals/globals, OR
+    // - identifier is not a declared function (must be a variable call).
+    var is_indirect = false
+    if fn_expr != nil && fn_expr["type"] != "Identifier" {
+        is_indirect = true
+    } else if nm != nil {
+        var is_shadowed = false
+        if locals != nil && locals[nm] != nil { is_shadowed = true }
+        else if ctx != nil && ctx["globals"] != nil && ctx["globals"][nm] != nil { is_shadowed = true }
+
+        var declared = nil
+        if ctx != nil { declared = ctx["declared_functions"] }
+        var is_declared = false
+        if declared != nil && declared[nm] != nil { is_declared = true }
+
+        if is_shadowed || is_declared != true { is_indirect = true }
+    }
+
+    if is_indirect {
+        // Preferred Tier‑1 semantics: under runtime injection, spread lowers through the shared runtime helper:
+        //   oren_call_obj_spread(fn_obj, fixed_list, spread_list)
+        // Spill layout: explicit args (argc) + fixed_list + spread_list + fn_obj.
+        if has_spread && ctx != nil && ctx["runtime_injected"] == true {
+            return argc + 3
+        }
+        // Bring-up path (no runtime injection): spill explicit args + args_list + fn_obj (+ loop temps when spread).
+        if has_spread { return argc + 6 }
+        return argc + 2
+    }
+
+    if nm == nil { return argc }
+
+    // `sys_*` are compiler intrinsics (not user-declared functions). Their implementations
+    // use the intrinsic temp pool for spill slots and must be sized conservatively here.
+    //
+    // Keep this aligned with `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`.
+    // Current max literal `_intr_tmp_push(ctx, N)` in sys lowering is 6.
+    if _x64_is_syscall_intrinsic_name(nm) {
+        if argc > 6 { return argc }
+        return 6
+    }
+
+    // Intrinsics with custom spill needs.
+    if nm == "iadd" { return 1 }
+    if nm == "ptr_set" { return 1 }
+    if nm == "ptr_set_byte" { return 1 }
+    if nm == "atomic_add" { return 1 }
+    if nm == "atomic_cas" { return 2 }
+    if nm == "oren_u8_buf_new" || nm == "oren_i32_buf_new" || nm == "oren_i64_buf_new" || nm == "oren_f32_buf_new" || nm == "oren_f64_buf_new" { return 2 }
+    if nm == "oren_buf_store_i32" || nm == "oren_buf_store_u8" || nm == "oren_buf_store_i64" || nm == "oren_buf_store_f32" || nm == "oren_buf_store_f64" { return 3 }
+    if nm == "oren_buf_load_i32" || nm == "oren_buf_load_u8" || nm == "oren_buf_load_i64" || nm == "oren_buf_load_f32" || nm == "oren_buf_load_f64" { return 1 }
+    if nm == "oren_map_get" || nm == "oren_map_get_int" || nm == "oren_map_get_str" { return 2 }
+    if nm == "oren_map_set" || nm == "oren_map_set_int" || nm == "oren_map_set_str" {
+        // In bring-up mode (no injected runtime), x64 inlines map_set via an intrinsic that
+        // requires extra spill slots. Once the native runtime is injected, these calls are
+        // lowered as normal direct calls and should not bloat every frame.
+        if ctx != nil && ctx["runtime_injected"] == true { return argc }
+        return 7
+    }
+    if nm == "oren_index_set" {
+        // Same rationale as map_set: only needs extra spills when compiled as a large intrinsic.
+        if ctx != nil && ctx["runtime_injected"] == true { return argc }
+        return 7
+    }
+    if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" { return 2 }
+    // Tier‑1 parity: when runtime injection is enabled, spread calls are lowered via the shared
+    // runtime helper `oren_call_obj_spread`. The x64 emitter needs:
+    // - evaluated args (argc)
+    // - fixed_list (1)
+    // - spread_list (1)
+    // - fn_obj (1)
+    if expr != nil && expr["spread"] != nil && ctx != nil && ctx["runtime_injected"] == true {
+        return argc + 3
+    }
+    // Named varargs packing:
+    // - bring-up mode: uses an extra spill slot for the packed rest_list.
+    // - runtime-injected mode: lowers through args_list + fnobj wrapper (needs args_list + fnobj).
+    if ctx != nil && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+        if ctx["runtime_injected"] == true {
+            var cur_fn = ctx["cur_fn_name"]
+            if cur_fn == nil || cur_fn != "__oren_fnwrap_" + nm {
+                return argc + 2
+            }
+        }
+        return argc + 1
+    }
+    // Spread calls in bring-up mode spill:
+    // - fixed-arity: fixed args + spread list + spread elems (arity-fixed_argc)
+    // - varargs: explicit args + spread list + loop temps + missing-fixed spills
+    if expr != nil && expr["spread"] != nil && ctx != nil {
+        var vf = nil
+        if ctx["func_varargs_fixed"] != nil { vf = ctx["func_varargs_fixed"][nm] }
+        if vf != nil {
+            // Conservative: explicit args (argc) + spread + rest + idx+len+elem + missing fixed spills (<= vf).
+            return argc + 5 + vf
+        }
+        if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+            var arity = ctx["func_arity"][nm]
+            return arity + 1
+        }
+        return argc + 1
+    }
+    // Normal calls: spill all args.
+    return argc
+}
+
+fn _max_intr_tmp_in_expr(ctx, expr, locals) {
+    if expr == nil { return 0 }
+    var t = expr["type"]
+    if t == "Nil" || t == "Boolean" || t == "Integer" || t == "String" || t == "Identifier" { return 0 }
+    if t == "Function" { return 0 }
+
+    if t == "SpawnExpr" {
+        // Conservative intrinsic-temp sizing for SpawnExpr lowering (runtime-injected path):
+        // - spill explicit args (argc)
+        // - args_list (1)
+        // - fn_obj (1)
+        // - optional spread expansion loop temps (4)
+        var call2 = expr["call"]
+        if call2 == nil { return 0 }
+        var args2 = call2["args"]
+        var argc2 = 0
+        if args2 != nil { argc2 = oren_list_len(args2) }
+        var base = argc2 + 2
+        if call2["spread"] != nil { base = argc2 + 6 }
+
+        var max_child = 0
+        var mf = _max_intr_tmp_in_expr(ctx, call2["fn"], locals)
+        if mf > max_child { max_child = mf }
+        var i = 0
+        while args2 != nil && i < argc2 {
+            var mi = _max_intr_tmp_in_expr(ctx, args2[i], locals)
+            if mi > max_child { max_child = mi }
+            i = i + 1
+        }
+        if call2["spread"] != nil {
+            var ms = _max_intr_tmp_in_expr(ctx, call2["spread"], locals)
+            if ms > max_child { max_child = ms }
+        }
+        return base + max_child
+    }
+
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var args = expr["args"]
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+
+        var nm = nil
+        if fn_expr != nil && fn_expr["type"] == "Identifier" { nm = fn_expr["value"] }
+
+        var base = _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc)
+
+        // While compiling this call, we keep `base` spill slots live across evaluation of each arg.
+        // Args are evaluated LTR, so peak additional usage is the max over arg subexpressions.
+        var max_child = 0
+        var i = 0
+        while args != nil && i < argc {
+            var mi = _max_intr_tmp_in_expr(ctx, args[i], locals)
+            if mi > max_child { max_child = mi }
+            i = i + 1
+        }
+        if expr["spread"] != nil {
+            var ms = _max_intr_tmp_in_expr(ctx, expr["spread"], locals)
+            if ms > max_child { max_child = ms }
+        }
+        return base + max_child
+    }
+
+    if t == "Infix" {
+        var ml = _max_intr_tmp_in_expr(ctx, expr["left"], locals)
+        var mr = _max_intr_tmp_in_expr(ctx, expr["right"], locals)
+        if mr > ml { return mr }
+        return ml
+    }
+
+    if t == "Prefix" {
+        return _max_intr_tmp_in_expr(ctx, expr["right"], locals)
+    }
+
+    if t == "Member" {
+        // Member lowers to a map index internally; only the receiver can contain nested calls.
+        return _max_intr_tmp_in_expr(ctx, expr["left"], locals)
+    }
+
+    if t == "Index" {
+        var ml2 = _max_intr_tmp_in_expr(ctx, expr["left"], locals)
+        var mi2 = _max_intr_tmp_in_expr(ctx, expr["index"], locals)
+        if mi2 > ml2 { return mi2 }
+        return ml2
+    }
+
+    if t == "Array" {
+        var m = 0
+        var els = expr["elements"]
+        var j = 0
+        while els != nil && j < oren_list_len(els) {
+            var mj = _max_intr_tmp_in_expr(ctx, els[j], locals)
+            if mj > m { m = mj }
+            j = j + 1
+        }
+        return m
+    }
+
+    if t == "Hash" {
+        var m2 = 0
+        var pairs = expr["pairs"]
+        var k = 0
+        while pairs != nil && k < oren_list_len(pairs) {
+            var pair = pairs[k]
+            var mk = _max_intr_tmp_in_expr(ctx, pair["key"], locals)
+            if mk > m2 { m2 = mk }
+            var mv = _max_intr_tmp_in_expr(ctx, pair["value"], locals)
+            if mv > m2 { m2 = mv }
+            k = k + 1
+        }
+        return m2
+    }
+
+    if t == "If" {
+        // Conservative: keep structure in sync with `_max_call_argc_in_expr`.
+        var m0 = _max_intr_tmp_in_expr(ctx, expr["cond"], locals)
+        var consq = expr["consq"]
+        if consq != nil { var m1 = _max_intr_tmp_in_expr(ctx, consq["expr"], locals); if m1 > m0 { m0 = m1 } }
+        var alt = expr["alt"]
+        if alt != nil { var m2 = _max_intr_tmp_in_expr(ctx, alt["expr"], locals); if m2 > m0 { m0 = m2 } }
+        return m0
+    }
+
+    return 0
+}
+
+fn _max_intr_tmp_in_ops(ctx, ops, locals) {
+    if ops == nil { return 0 }
+    var m = 0
+    var i = 0
+    while i < oren_list_len(ops) {
+        var op = ops[i]
+        if op == nil { i = i + 1; continue }
+        var k = op["op"]
+        if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" {
+            var e = op["expr"]
+            var me = _max_intr_tmp_in_expr(ctx, e, locals)
+            if me > m { m = me }
+        } else if k == "if" {
+            var mc = _max_intr_tmp_in_expr(ctx, op["cond"], locals)
+            if mc > m { m = mc }
+            var mt = _max_intr_tmp_in_ops(ctx, op["then"], locals)
+            if mt > m { m = mt }
+            var mf = _max_intr_tmp_in_ops(ctx, op["else"], locals)
+            if mf > m { m = mf }
+        } else if k == "while" {
+            var mc2 = _max_intr_tmp_in_expr(ctx, op["cond"], locals)
+            if mc2 > m { m = mc2 }
+            var mb = _max_intr_tmp_in_ops(ctx, op["body"], locals)
+            if mb > m { m = mb }
+        } else if k == "for" {
+            var mi = _max_intr_tmp_in_ops(ctx, op["init"], locals)
+            if mi > m { m = mi }
+            var mc3 = _max_intr_tmp_in_expr(ctx, op["cond"], locals)
+            if mc3 > m { m = mc3 }
+            var mp = _max_intr_tmp_in_ops(ctx, op["post"], locals)
+            if mp > m { m = mp }
+            var mb2 = _max_intr_tmp_in_ops(ctx, op["body"], locals)
+            if mb2 > m { m = mb2 }
+        }
+        i = i + 1
+    }
+    return m
+}
+
+// ---- end extracted code ----
+
+// Public wrappers (avoid relying on underscore-prefixed names from imports).
+fn native_analyze_stmt_list_to_ops(ctx, stmts) { return _analyze_stmt_list_to_ops(ctx, stmts) }
+fn native_analyze_supported_fn_body(ctx, fn_node) { return _analyze_supported_fn_body(ctx, fn_node) }
+fn native_expr_int_check(ctx, expr, locals) { return _expr_int_check(ctx, expr, locals) }
+fn native_cond_is_cmp_infix(cond) { return _cond_is_cmp_infix(cond) }
+fn native_cond_false_cc(cond_op) { return _cond_false_cc(cond_op) }
+fn native_cond_true_cc(cond_op) { return _cond_true_cc(cond_op) }
+fn native_cond_false_cc_for_cond(cond) { return _cond_false_cc_for_cond(cond) }
