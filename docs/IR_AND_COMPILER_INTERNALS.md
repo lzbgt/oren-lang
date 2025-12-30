@@ -83,13 +83,13 @@ Implementation:
 
 - Shared include expander: `lib/compiler/native_runtime_inject.oren`
 - arm64 native injects runtime by default: `lib/compiler/arm64_native_program.oren`
-- x86_64 native injection is currently gated (rolling): `OREN_X64_INJECT_RUNTIME=1`
-  - `lib/compiler/x64_native_program/090_program_entry.oren`
+- x86_64 native injects runtime by default: `lib/compiler/x64_native_program/090_program_entry.oren`
+  - escape hatch (debug / bring-up): `OREN_X64_NO_INJECT_RUNTIME=1`
 
-Why a gate exists today:
+Why an escape hatch still exists:
 
 - the injected native runtime references syscall stubs (`sys_*`) that must be correctly lowered by the backend.
-- until syscall lowering parity is complete, the x86_64 backend keeps runtime injection opt-in so Tier‑1 fixtures stay deterministic.
+- for Tier‑1 bring-up and debugging, being able to disable injection helps isolate “runtime vs backend” failures without needing to delete runtime code.
 
 The CLI entry and dispatch live under `lib/compiler/compiler/**` (including `040_build_pipeline.oren`).
 

@@ -1450,8 +1450,11 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var stack_intr = _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args)
         if stack_intr == 1 { return nil }
 
-        if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
-        if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
+        // System-call boundary: keep all host effects gated behind `sys_*` intrinsics
+        // so the capsule sandbox can enforce policy consistently.
+        if nm != nil && oren_string_len(nm) >= 4 && oren_string_slice(nm, 0, 4) == "sys_" {
+            return _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args)
+        }
         if nm == "exit" { return _emit_intrinsic_exit_x64(ctx, expr, locals, args) }
 
         // All non-intrinsic calls (direct/indirect, varargs, spread) are handled by the

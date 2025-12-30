@@ -143,8 +143,8 @@ func auditNativeNoDirectSvcBypass() error {
 	// does not start emitting direct `svc` instructions in new places.
 	//
 	// Policy:
-	// - Syscall lowering belongs in `arm64_native_expr_syscalls.oren` (where capsule
-	//   prehooks are enforced).
+	// - Syscall number references belong in the dedicated syscall lowering modules
+	//   (where capsule prehooks are enforced).
 	// - A small number of `svc` sites are allowed for internal plumbing:
 	//     - entry stub `exit` (arm64_native_program.oren)
 	//     - early heap mapping `mmap` + fail-fast `exit` (arm64_native_expr.oren)
@@ -157,10 +157,22 @@ func auditNativeNoDirectSvcBypass() error {
 		filepath.Join("lib", "compiler", "arm64_native_program.oren"):       true, // entry stub exit
 		filepath.Join("lib", "compiler", "arm64_native_expr.oren"):          true, // heap mmap + fail-fast exit
 		filepath.Join("lib", "compiler", "arm64_macho.oren"):                true, // tooling helper exit
+		// x86_64 native backend syscall lowering (Linux/Windows sys_* intrinsics).
+		filepath.Join("lib", "compiler", "x64_native_program", "046_emit_sys_intrinsics.oren"): true,
 	}
 	allowedSyms := map[string]bool{
 		"sys_exit": true,
 		"sys_mmap": true,
+	}
+
+	isSyscallLoweringModule := func(path string) bool {
+		if strings.HasSuffix(path, "arm64_native_expr_syscalls.oren") {
+			return true
+		}
+		if strings.HasSuffix(path, filepath.Join("x64_native_program", "046_emit_sys_intrinsics.oren")) {
+			return true
+		}
+		return false
 	}
 
 	// When a large compiler module is split via `// @include`, we scan only the
@@ -184,6 +196,11 @@ func auditNativeNoDirectSvcBypass() error {
 			return nil
 		}
 		if !strings.HasSuffix(path, ".oren") {
+			return nil
+		}
+		// `x64_native_program.oren` is a thin include-wrapper; scanning its expanded form
+		// would duplicate checks against the real chunk files and cause false positives.
+		if filepath.Clean(path) == filepath.Join("lib", "compiler", "x64_native_program.oren") {
 			return nil
 		}
 
@@ -219,7 +236,7 @@ func auditNativeNoDirectSvcBypass() error {
 
 			// For allowed files other than the dedicated syscall lowering module,
 			// ensure the direct svc sites are only for `sys_exit`/`sys_mmap`.
-			if strings.HasSuffix(path, "arm64_native_expr_syscalls.oren") {
+			if isSyscallLoweringModule(path) {
 				return nil
 			}
 			lines := strings.Split(src, "\n")
@@ -256,7 +273,7 @@ func auditNativeNoDirectSvcBypass() error {
 				offenders = append(offenders, fmt.Sprintf("%s: contains abi.darwin_sys_ / labi.linux_sys_", path))
 				return nil
 			}
-			if strings.HasSuffix(path, "arm64_native_expr_syscalls.oren") {
+			if isSyscallLoweringModule(path) {
 				return nil
 			}
 			for _, line := range strings.Split(src, "\n") {

@@ -1,0 +1,98 @@
+// Linux x86_64 ABI constants used by the syscall-first native backend.
+//
+// Policy:
+// - Prefer repo-owned constants (this file + docs/refs) over depending on host SDK headers.
+// - System headers may be used for audit/verification, but must not be a build dependency.
+//
+// References (vendored for audit):
+// - `docs/refs/linux_x86_64_syscall_64.tbl`
+// - `docs/refs/linux_asm_generic_socket.h`
+// - `docs/refs/linux_asm_generic_fcntl.h`
+// - `docs/refs/linux_uapi_fcntl.h`
+
+// --- Syscall numbers (x86_64, Linux) ---
+// NOTE: Numbers below are from `docs/refs/linux_x86_64_syscall_64.tbl`.
+fn linux_sys_read() { return 0 }
+fn linux_sys_write() { return 1 }
+fn linux_sys_close() { return 3 }
+fn linux_sys_fstat() { return 5 }
+fn linux_sys_mmap() { return 9 }
+fn linux_sys_munmap() { return 11 }
+fn linux_sys_ioctl() { return 16 }
+fn linux_sys_access() { return 21 } // legacy; prefer faccessat for syscall-first paths
+fn linux_sys_pipe2() { return 293 }
+fn linux_sys_dup() { return 32 }
+fn linux_sys_dup2() { return 33 }
+fn linux_sys_dup3() { return 292 }
+fn linux_sys_nanosleep() { return 35 }
+fn linux_sys_socket() { return 41 }
+fn linux_sys_connect() { return 42 }
+fn linux_sys_accept() { return 43 }
+fn linux_sys_sendto() { return 44 }
+fn linux_sys_recvfrom() { return 45 }
+fn linux_sys_shutdown() { return 48 }
+fn linux_sys_bind() { return 49 }
+fn linux_sys_listen() { return 50 }
+fn linux_sys_getsockname() { return 51 }
+fn linux_sys_getpeername() { return 52 }
+fn linux_sys_setsockopt() { return 54 }
+fn linux_sys_getsockopt() { return 55 }
+fn linux_sys_clone() { return 56 }
+fn linux_sys_fork() { return 57 }
+fn linux_sys_execve() { return 59 }
+fn linux_sys_exit() { return 60 }
+fn linux_sys_wait4() { return 61 }
+fn linux_sys_kill() { return 62 }
+fn linux_sys_gettimeofday() { return 96 }
+fn linux_sys_getcwd() { return 79 }
+fn linux_sys_fcntl() { return 72 }
+fn linux_sys_gettid() { return 186 }
+fn linux_sys_getdents64() { return 217 }
+
+// "at" syscalls used by syscall-first path-based operations:
+fn linux_sys_openat() { return 257 }
+fn linux_sys_mkdirat() { return 258 }
+fn linux_sys_unlinkat() { return 263 }
+fn linux_sys_renameat() { return 264 }
+fn linux_sys_fchmodat() { return 268 }
+fn linux_sys_faccessat() { return 269 }
+fn linux_sys_newfstatat() { return 262 }
+
+// epoll (from `docs/refs/linux_x86_64_syscall_64.tbl`)
+fn linux_sys_epoll_create1() { return 291 }
+fn linux_sys_epoll_ctl() { return 233 }
+fn linux_sys_epoll_pwait() { return 281 }
+
+// --- Syscall instruction ABI (x86_64, Linux) ---
+// Linux x86_64 syscall convention:
+// - syscall number in RAX
+// - args in RDI, RSI, RDX, R10, R8, R9
+// - syscall clobbers RCX and R11
+fn linux_syscall_reg() { return 0 } // rax
+
+// --- Repo-owned open(2) flag constants (Linux) ---
+// Used by syscall-first native backend; do not rely on glibc headers at build time.
+fn linux_open_flag_creat() { return 64 }   // O_CREAT = 0x0040
+fn linux_open_flag_trunc() { return 512 }  // O_TRUNC = 0x0200
+fn linux_open_flag_nonblock() { return 2048 } // O_NONBLOCK = 0x0800
+
+// --- Linux AT_* constants (syscall args) ---
+fn linux_at_fdcwd() { return -100 } // AT_FDCWD
+fn linux_at_symlink_nofollow() { return 256 } // AT_SYMLINK_NOFOLLOW (0x100)
+fn linux_at_removedir() { return 512 } // AT_REMOVEDIR (0x200)
+
+// fcntl(2) command values used by syscall-first helpers.
+// These are POSIX-stable across Darwin/Linux (verified via headers; audit-only).
+fn posix_fcntl_f_getfl() { return 3 }
+fn posix_fcntl_f_setfl() { return 4 }
+
+// --- socket(2) / getsockopt(2) / setsockopt(2) constants (Linux) ---
+// From `docs/refs/linux_asm_generic_socket.h` (uapi, audit-only; not a build dependency).
+fn linux_sol_socket() { return 1 }
+fn linux_so_reuseaddr() { return 2 }
+fn linux_so_error() { return 4 }
+
+// --- mmap constants (Linux) ---
+// Repo-owned constants used by syscall-first allocator / runtime paths.
+fn linux_mmap_prot_read_write() { return 3 } // PROT_READ|PROT_WRITE
+fn linux_mmap_flags_private_anon() { return 34 } // MAP_PRIVATE|MAP_ANONYMOUS (0x22)

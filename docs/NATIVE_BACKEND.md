@@ -58,7 +58,10 @@ bring-up fixtures are **ABI facts**, not language constraints.
 
 - **Runtime**:
   - **ARM64**: automatically injects `lib/runtime_native.oren` (expanded from `lib/runtime_native/*.oren` via `// @include "..."`) which implements `String` comparison and `Map` logic.
-  - **x86_64 bring-up**: does not yet inject the full native runtime, but it now includes syscall/WinAPI-backed intrinsics for core primitives (`malloc`/`malloc_raw` bump allocator state and `ptr_get`/`ptr_set` qword+byte access), plus small target-specific helpers for I/O and process exit. The Tier-1 roadmap is to converge on the same injected runtime surface for callables/closures, lists/maps/strings, and capsule gating.
+  - **x86_64 (Tier‑1; rolling)**: injects the **same native runtime source bundle** by default (matching arm64), and keeps only a small set of true “bootstrap intrinsics” in the backend:
+    - bump allocator state (`malloc`/`malloc_raw`) and raw memory ops (`ptr_get`/`ptr_set` + byte variants),
+    - syscall/WinAPI ABI surfaces needed for entry + IO + capsule gating.
+    - Escape hatch (debug / bring-up): `OREN_X64_NO_INJECT_RUNTIME=1` disables runtime injection.
   - Includes `oren_readdir(path)` built on syscall-first `sys_getdirentries64`.
   - `oren_net_get(url)` is implemented on native as a minimal HTTP/1.0 GET over syscall-first TCP:
     - supported form: `http://<ipv4>[:port][/path]`

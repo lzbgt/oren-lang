@@ -15,7 +15,7 @@ fn _analyze_supported_fn_body(ctx, fn_node) {
     return ops
 }
 
-fn _expr_int_check(ctx, expr) {
+fn _expr_int_check(ctx, expr, locals) {
     if expr == nil { err(ctx, "x64 native v0: missing expr"); return nil }
     var t = expr["type"]
     if t == "Integer" {
@@ -74,7 +74,7 @@ fn _expr_int_check(ctx, expr) {
             nm == "oren_f64_to_u64_bits" || nm == "oren_u64_bits_to_f64" {
             if spread0 != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return nil }
             if argc0 != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 argument"); return nil }
-            _expr_int_check(ctx, args[0])
+            _expr_int_check(ctx, args[0], locals)
             return nil
         }
 
@@ -83,7 +83,7 @@ fn _expr_int_check(ctx, expr) {
             if spread0 != nil { err(ctx, "x64 native v0: exit does not support spread"); return nil }
             if argc0 != 0 && argc0 != 1 { err(ctx, "x64 native v0: exit expects 0 or 1 arguments"); return nil }
             if argc0 == 1 {
-                _expr_int_check(ctx, args[0])
+                _expr_int_check(ctx, args[0], locals)
             }
             return nil
         }
@@ -96,7 +96,20 @@ fn _expr_int_check(ctx, expr) {
         // in v0 bring-up without static arity tracking.
         var arity = nil
         if ctx["func_arity"] != nil { arity = ctx["func_arity"][nm] }
-        if arity != nil {
+        // NOTE (rolling): without name resolution, a call target `nm` may be either:
+        // - a direct call to a named function, or
+        // - an indirect call through a local/global var that shadows that name.
+        //
+        // We only enforce static arity when `locals` is provided and we can prove it is a direct call.
+        var can_prove_direct = false
+        if locals != nil {
+            if locals[nm] == nil {
+                if ctx == nil || ctx["globals"] == nil || ctx["globals"][nm] == nil {
+                    can_prove_direct = true
+                }
+            }
+        }
+        if arity != nil && can_prove_direct {
             var declared = ctx["declared_functions"]
             if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
 
@@ -114,19 +127,18 @@ fn _expr_int_check(ctx, expr) {
                 if argc != arity { err(ctx, "x64 native v0: call arity mismatch for " + nm); return nil }
             }
         } else {
-            // No static arity info: this is an indirect/untracked call (callable value in a
-            // local/param). Spread is permitted here: lowering expands the spread list into the
-            // synthesized args_list and the callee wrapper enforces arity at runtime.
+            // No provable static arity (either the call is indirect, or we are in an analysis
+            // phase without `locals`): the callee wrapper enforces arity at runtime/codegen.
         }
 
         var i = 0
         while i < argc {
-            _expr_int_check(ctx, args[i])
+            _expr_int_check(ctx, args[i], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             i = i + 1
         }
         if spread != nil {
-            _expr_int_check(ctx, spread)
+            _expr_int_check(ctx, spread, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         }
         return nil
@@ -146,8 +158,8 @@ fn _expr_int_check(ctx, expr) {
 
         // Rolling: allow nested infix expressions for + and - (and as the LHS of `*`)
         // so chains like `a + b + c + d` work.
-        _expr_int_check(ctx, l)
-        _expr_int_check(ctx, r)
+        _expr_int_check(ctx, l, locals)
+        _expr_int_check(ctx, r, locals)
         return nil
     }
     if t == "Prefix" {
@@ -158,16 +170,16 @@ fn _expr_int_check(ctx, expr) {
         }
         var r = expr["right"]
         if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
-        _expr_int_check(ctx, r)
+        _expr_int_check(ctx, r, locals)
         return nil
     }
     if t == "Index" {
         var l2 = expr["left"]
         var idx2 = expr["index"]
         if l2 == nil || idx2 == nil { err(ctx, "x64 native v0: index missing operands"); return nil }
-        _expr_int_check(ctx, l2)
+        _expr_int_check(ctx, l2, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        _expr_int_check(ctx, idx2)
+        _expr_int_check(ctx, idx2, locals)
         return nil
     }
     if t == "Array" {
@@ -175,7 +187,7 @@ fn _expr_int_check(ctx, expr) {
         if els == nil { return nil }
         var i = 0
         while i < oren_list_len(els) {
-            _expr_int_check(ctx, els[i])
+            _expr_int_check(ctx, els[i], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             i = i + 1
         }
@@ -188,9 +200,9 @@ fn _expr_int_check(ctx, expr) {
         while i2 < oren_list_len(pairs) {
             var pair = pairs[i2]
             if pair == nil { err(ctx, "x64 native v0: hash literal has nil pair"); return nil }
-            _expr_int_check(ctx, pair["key"])
+            _expr_int_check(ctx, pair["key"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _expr_int_check(ctx, pair["value"])
+            _expr_int_check(ctx, pair["value"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             i2 = i2 + 1
         }
@@ -215,12 +227,36 @@ fn _max_call_argc_in_expr(ctx, expr) {
         var fn_expr = expr["fn"]
         if fn_expr != nil && fn_expr["type"] == "Identifier" {
             var nm = fn_expr["value"]
-            if nm != nil && ctx != nil && ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+            var declared = nil
+            if ctx != nil { declared = ctx["declared_functions"] }
+
+            // Tier‑1 parity: when runtime injection is enabled, spread calls are lowered via:
+            //   oren_call_obj_spread(fn_obj, fixed_args, spread_list)
+            // so the outgoing ABI call has 3 arguments (reg-only on SysV/Win64).
+            if ctx != nil && ctx["runtime_injected"] == true && expr["spread"] != nil {
+                if m < 3 { m = 3 }
+            } else if declared != nil && declared[nm] == nil {
+                // Indirect call through a fn value: codegen calls code_ptr(env,args_list).
+                if m < 2 { m = 2 }
+            } else if ctx != nil && ctx["runtime_injected"] == true && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+                // Tier‑1 parity: varargs named calls lower through the uniform callable ABI
+                // (args_list + wrapper), so the outgoing ABI call has 2 arguments.
+                var cur_fn = ctx["cur_fn_name"]
+                if cur_fn == nil || cur_fn != "__oren_fnwrap_" + nm {
+                    if m < 2 { m = 2 }
+                } else {
+                    // Inside the wrapper we call the real function directly at its declared arity.
+                    if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+                        var arity2 = ctx["func_arity"][nm]
+                        if m < arity2 { m = arity2 }
+                    }
+                }
+            } else if nm != nil && ctx != nil && ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
                 var arity = ctx["func_arity"][nm]
                 if expr["spread"] != nil {
                     m = arity
                 } else if ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
-                    // x64 packs varargs to a single rest_list, so the real call argc is the declared arity.
+                    // Bring-up mode: x64 packs varargs to a single rest_list, so the real call argc is the declared arity.
                     m = arity
                 }
             }
@@ -344,6 +380,16 @@ fn _max_call_argc_in_ops(ctx, ops) {
 fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     if nm == nil { return argc }
 
+    // `sys_*` are compiler intrinsics (not user-declared functions). Their implementations
+    // use the intrinsic temp pool for spill slots and must be sized conservatively here.
+    //
+    // Keep this aligned with `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`.
+    // Current max literal `_intr_tmp_push(ctx, N)` in sys lowering is 6.
+    if oren_string_len(nm) >= 4 && oren_string_slice(nm, 0, 4) == "sys_" {
+        if argc > 6 { return argc }
+        return 6
+    }
+
     // Indirect calls (`f(x,y)` where `f` is a local/param holding a fnobj pointer) lower to:
     // - build args_list (plus optional spread expansion loop temps)
     // - call wrapper(env_ptr, args_list)
@@ -351,10 +397,14 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     // This requires an extra spill slot for the synthesized args_list and, when spread is
     // present, additional loop spills (spread/idx/len/elem).
     if ctx != nil && ctx["declared_functions"] != nil && ctx["declared_functions"][nm] == nil {
-        if expr != nil && expr["spread"] != nil { return argc + 5 }
-        // Indirect call fast path builds a stack-backed args_list:
-        //   spills: argc (args) + 1 (args_list ptr) + 4 (hdr) + argc (buf) = 2*argc + 5
-        return 2 * argc + 5
+        // Indirect calls spill:
+        // - evaluated args (argc)
+        // - args_list pointer (1)
+        // - callee fnobj pointer (1)
+        //
+        // Spread in bring-up mode adds loop temps (spread/idx/len/elem).
+        if expr != nil && expr["spread"] != nil { return argc + 6 }
+        return argc + 2
     }
 
     // Intrinsics with custom spill needs.
@@ -380,7 +430,28 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
         return 7
     }
     if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" { return 2 }
-    // Spread calls spill:
+    // Tier‑1 parity: when runtime injection is enabled, spread calls are lowered via the shared
+    // runtime helper `oren_call_obj_spread`. The x64 emitter needs:
+    // - evaluated args (argc)
+    // - fixed_list (1)
+    // - spread_list (1)
+    // - fn_obj (1)
+    if expr != nil && expr["spread"] != nil && ctx != nil && ctx["runtime_injected"] == true {
+        return argc + 3
+    }
+    // Named varargs packing:
+    // - bring-up mode: uses an extra spill slot for the packed rest_list.
+    // - runtime-injected mode: lowers through args_list + fnobj wrapper (needs args_list + fnobj).
+    if ctx != nil && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
+        if ctx["runtime_injected"] == true {
+            var cur_fn = ctx["cur_fn_name"]
+            if cur_fn == nil || cur_fn != "__oren_fnwrap_" + nm {
+                return argc + 2
+            }
+        }
+        return argc + 1
+    }
+    // Spread calls in bring-up mode spill:
     // - fixed-arity: fixed args + spread list + spread elems (arity-fixed_argc)
     // - varargs: explicit args + spread list + loop temps + missing-fixed spills
     if expr != nil && expr["spread"] != nil && ctx != nil {
@@ -394,10 +465,6 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
             var arity = ctx["func_arity"][nm]
             return arity + 1
         }
-        return argc + 1
-    }
-    // Named varargs packing uses an extra spill slot for the packed rest_list.
-    if ctx != nil && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
         return argc + 1
     }
     // Normal calls: spill all args.

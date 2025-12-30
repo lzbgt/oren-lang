@@ -46,6 +46,14 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 - `make test-native-all` supports parallelism:
   - `NATIVE_TEST_JOBS=... make test-native-all`
 
+## Containers / Docker
+
+- Do **not** start new containers (no `docker run`, no `docker compose up`).
+- Always use the already-running Ubuntu toolchain container:
+  - Container ID: `c7e5f7bd9f5c`
+  - Use `docker exec -it c7e5f7bd9f5c ...` for all Linux/x86_64 validation and tooling.
+  - If the container is not running, stop and ask the user to restore it (do not create a replacement).
+
 ## Security / secrets
 
 - Never commit private keys or secrets.

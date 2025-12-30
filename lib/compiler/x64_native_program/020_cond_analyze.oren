@@ -11,9 +11,9 @@ fn _cond_check(ctx, cond) {
         var l = cond["left"]
         var r = cond["right"]
         if l == nil || r == nil { err(ctx, "x64 native v0: condition infix missing operands"); return nil }
-        _expr_int_check(ctx, l)
+        _expr_int_check(ctx, l, nil)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-        _expr_int_check(ctx, r)
+        _expr_int_check(ctx, r, nil)
         return nil
     }
 
@@ -23,10 +23,10 @@ fn _cond_check(ctx, cond) {
         var r2 = cond["right"]
         if r2 == nil { err(ctx, "x64 native v0: condition prefix ! missing operand"); return nil }
         if _cond_is_cmp_infix(r2) != nil { return nil }
-        _expr_int_check(ctx, r2)
+        _expr_int_check(ctx, r2, nil)
         return nil
     }
-    _expr_int_check(ctx, cond)
+    _expr_int_check(ctx, cond, nil)
     return nil
 }
 
@@ -104,7 +104,7 @@ fn _x64_print_emit_build_list_ops(ctx, ops, tok, args, start_idx) {
         "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
         "args": [{"type": "Integer", "token": nil, "value": "0"}],
     }
-    _expr_int_check(ctx, new_list_call)
+    _expr_int_check(ctx, new_list_call, nil)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": tmp, "expr": new_list_call})
 
@@ -112,14 +112,14 @@ fn _x64_print_emit_build_list_ops(ctx, ops, tok, args, start_idx) {
     while i < oren_list_len(args) {
         var ai = args[i]
         if ai == nil { err(ctx, "x64 native: print missing arg"); return nil }
-        _expr_int_check(ctx, ai)
+        _expr_int_check(ctx, ai, nil)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         var push_call = {
             "type": "Call",
             "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push"},
             "args": [{"type": "Identifier", "token": nil, "value": tmp}, ai],
         }
-        _expr_int_check(ctx, push_call)
+        _expr_int_check(ctx, push_call, nil)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         oren_list_push(ops, {"op": "expr", "tok": tok, "expr": push_call})
         i = i + 1
@@ -151,7 +151,7 @@ fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
     }
 
     if spread != nil {
-        _expr_int_check(ctx, spread)
+        _expr_int_check(ctx, spread, nil)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if is_fmt {
             // fmt, fixed..., ...spread
@@ -164,7 +164,7 @@ fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
                          {"type": "Identifier", "token": nil, "value": fixed_name},
                          spread],
             }
-            _expr_int_check(ctx, call_fmt_sp)
+            _expr_int_check(ctx, call_fmt_sp, nil)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_fmt_sp})
             return nil
@@ -178,7 +178,7 @@ fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
             "fn": {"type": "Identifier", "token": nil, "value": "oren_print_spread"},
             "args": [{"type": "Identifier", "token": nil, "value": fixed_name2}, spread],
         }
-        _expr_int_check(ctx, call_sp)
+        _expr_int_check(ctx, call_sp, nil)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_sp})
         return nil
@@ -193,7 +193,7 @@ fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
             "fn": {"type": "Identifier", "token": nil, "value": "oren_print_fmt"},
             "args": [arg0, {"type": "Identifier", "token": nil, "value": fixed_name3}],
         }
-        _expr_int_check(ctx, call_fmt)
+        _expr_int_check(ctx, call_fmt, nil)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_fmt})
         return nil
@@ -206,21 +206,21 @@ fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
             "fn": {"type": "Identifier", "token": nil, "value": "oren_print_list"},
             "args": [{"type": "Nil", "token": nil}],
         }
-        _expr_int_check(ctx, call_nl)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _expr_int_check(ctx, call_nl, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_nl})
         return nil
     }
     if argc == 1 {
-        _expr_int_check(ctx, arg0)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _expr_int_check(ctx, arg0, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         var call_one = {
             "type": "Call",
             "fn": {"type": "Identifier", "token": nil, "value": "oren_print"},
             "args": [arg0],
         }
-        _expr_int_check(ctx, call_one)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _expr_int_check(ctx, call_one, nil)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_one})
         return nil
     }
@@ -232,7 +232,7 @@ fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
         "fn": {"type": "Identifier", "token": nil, "value": "oren_print_list"},
         "args": [{"type": "Identifier", "token": nil, "value": fixed_name4}],
     }
-    _expr_int_check(ctx, call_list)
+    _expr_int_check(ctx, call_list, nil)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_list})
     return nil
@@ -317,7 +317,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                     }
 
                     // Rolling bring-up: allow printing any expression that evaluates to a string pointer.
-                    _expr_int_check(ctx, a0)
+                    _expr_int_check(ctx, a0, nil)
                     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                     oren_list_push(ops, {"op": "print_str_expr", "tok": tok, "expr": a0})
                     i = i + 1
@@ -325,7 +325,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 }
 
                 // Generic call expression statement: evaluate and discard return.
-                _expr_int_check(ctx, e)
+                _expr_int_check(ctx, e, nil)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e})
                 i = i + 1
@@ -366,7 +366,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 // so do not propagate any compile-time hints here.
                 // Preserve receiver kind when known so codegen can avoid dynamic LIST/MAP dispatch.
                 if left["recv_kind"] != nil { call["recv_kind"] = left["recv_kind"] }
-                _expr_int_check(ctx, call)
+                _expr_int_check(ctx, call, nil)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call})
                 i = i + 1

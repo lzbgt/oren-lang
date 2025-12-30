@@ -28,7 +28,10 @@ Rules for this tracker:
      - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
        - Follow-up: decide whether we should copy+free the Win32 env block (to avoid a tiny intentional leak) vs keep it for pointer stability (current behavior).
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
-     - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
+   - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
+   - Native syscall safety audits (keep capsule enforcement regression-proof):
+     - Extend the capsule prehook static audit to cover x86_64 syscall lowering (`lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`), not just arm64.
+     - Keep “no direct syscall number bypass” audit aware of x86_64 syscall lowering modules (so sysno references are allowed *only* in the dedicated lowering chunks).
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
 

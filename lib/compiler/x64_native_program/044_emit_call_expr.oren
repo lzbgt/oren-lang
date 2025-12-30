@@ -3,6 +3,221 @@
 // Kept in a dedicated chunk to prevent `040_emit_expr.oren` from growing beyond
 // reviewable limits as x64 Tier‑1 call semantics converge with AVM/C.
 
+fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_expr) {
+    // Intrinsic: indirect call through a native function object.
+    // Signature: oren_call_obj_list(fn_obj, args_list) -> value
+    //
+    // Layout (kind=6):
+    //   [0] code_ptr
+    //   [8] env_ptr
+    //
+    // This is inlined (like arm64) so injected runtime code can call it even
+    // when the symbol is not present in the source module.
+    if fn_obj_expr == nil || args_list_expr == nil {
+        err(ctx, "x64 native v0: oren_call_obj_list expects 2 args")
+        return nil
+    }
+
+    var spill = _intr_tmp_push(ctx, 1)
+    if spill == nil { return nil }
+    var fn_off = _intr_tmp_off(ctx, locals, spill)
+    if fn_off == nil { _intr_tmp_pop(ctx, spill); return nil }
+
+    // Spill fn_obj.
+    _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
+
+    // Eval args_list -> rax.
+    _emit_eval_int_to_rax(ctx, args_list_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
+
+    var env_reg = abi.int_arg_reg(ctx["abi"], 0)
+    var args_reg = abi.int_arg_reg(ctx["abi"], 1)
+    if env_reg == nil || args_reg == nil {
+        _intr_tmp_pop(ctx, spill)
+        err(ctx, "x64 native v0: missing ABI arg regs for oren_call_obj_list")
+        return nil
+    }
+
+    // args_reg = args_list (value already in rax)
+    if args_reg != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(args_reg, 0)) }
+
+    // r10 = fnobj ptr
+    _emit_mov_r64_mrbp(ctx, 10, 0 - fn_off)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    var labelsFn2 = {}
+    var fixupsFn2 = []
+    var l_fn_ok2 = _new_label(ctx, "oren_call_obj_list_fnobj_ok")
+    _emit_jcc_to_label(ctx, fixupsFn2, "ne", l_fn_ok2)
+    _emit_abort_panic_str(ctx, "call on nil function value")
+    _emit_label(ctx, labelsFn2, l_fn_ok2)
+    _patch_local_fixups(ctx, labelsFn2, fixupsFn2)
+
+    // env_reg = *(fnobj + 8)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(env_reg, 0))
+
+    // rax = *(fnobj + 0) (code_ptr), then call.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    _intr_tmp_pop(ctx, spill)
+    return nil
+}
+
+fn _emit_call_spread_via_runtime_helper_x64(ctx, locals, nm, args, spread) {
+    // Tier‑1 convergence: if the injected native runtime is enabled, lower call-site spread
+    // via the shared helper:
+    //   oren_call_obj_spread(fn_obj, fixed_args_list, spread_list)
+    //
+    // This matches the arm64 native backend lowering and avoids x64-only spread semantics.
+    if ctx == nil || ctx["runtime_injected"] != true { return nil }
+    if spread == nil { return nil }
+
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+
+    // Spill layout:
+    // - explicit args: [base + 0 .. base + argc-1]
+    // - fixed_list:    base + argc
+    // - spread_list:   base + argc + 1
+    // - fn_obj:        base + argc + 2
+    var spill_n = argc + 3
+    var base = _intr_tmp_push(ctx, spill_n)
+    if base == nil { return nil }
+
+    // Spill explicit args (evaluate once; preserve LTR semantics).
+    var i = 0
+    while i < argc {
+        _emit_eval_int_to_rax(ctx, args[i], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        var off = _intr_tmp_off(ctx, locals, base + i)
+        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+        i = i + 1
+    }
+
+    var fixed_slot = base + argc
+    var spread_slot = base + argc + 1
+    var fn_slot = base + argc + 2
+    var fixed_off = _intr_tmp_off(ctx, locals, fixed_slot)
+    var spread_off = _intr_tmp_off(ctx, locals, spread_slot)
+    var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
+    if fixed_off == nil || spread_off == nil || fn_off == nil {
+        _intr_tmp_pop(ctx, base)
+        err(ctx, "x64 native v0: missing spill slots for spread call")
+        return nil
+    }
+
+    // fixed_list = oren_new_list(0)
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - fixed_off, 0)
+    var fixed_name = "$tmp_intr" + oren_int_to_string(fixed_slot)
+
+    // Push explicit args into fixed_list.
+    var j = 0
+    while j < argc {
+        var arg_name = "$tmp_intr" + oren_int_to_string(base + j)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": fixed_name}, {"type": "Identifier", "value": arg_name}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        j = j + 1
+    }
+
+    // Spill spread_list.
+    _emit_eval_int_to_rax(ctx, spread, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - spread_off, 0)
+    var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
+
+    // Spill fn_obj.
+    _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": nm}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
+    var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
+
+    // Call runtime helper: oren_call_obj_spread(fn_obj, fixed_args, spread_list)
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_call_obj_spread"}, "args": [{"type": "Identifier", "value": fn_name}, {"type": "Identifier", "value": fixed_name}, {"type": "Identifier", "value": spread_name}]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
+    // Tier‑1 convergence: if the injected native runtime is enabled, lower varargs named calls
+    // through the uniform callable ABI, matching arm64:
+    //   fn_obj(args...)  =>  args_list = [args...] ; oren_call_obj_list(fn_obj, args_list)
+    //
+    // This avoids x64-only call-site varargs packing and centralizes varargs semantics
+    // into the synthesized `__oren_fnwrap_*` wrapper.
+    if ctx == nil || ctx["runtime_injected"] != true { return nil }
+
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+
+    // Spill layout:
+    // - explicit args: [base + 0 .. base + argc-1]
+    // - args_list:     base + argc
+    // - fn_obj:        base + argc + 1
+    var spill_n = argc + 2
+    var base = _intr_tmp_push(ctx, spill_n)
+    if base == nil { return nil }
+
+    var i = 0
+    while i < argc {
+        _emit_eval_int_to_rax(ctx, args[i], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        var off = _intr_tmp_off(ctx, locals, base + i)
+        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+        i = i + 1
+    }
+
+    var args_slot = base + argc
+    var fn_slot = base + argc + 1
+    var args_off = _intr_tmp_off(ctx, locals, args_slot)
+    var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
+    if args_off == nil || fn_off == nil {
+        _intr_tmp_pop(ctx, base)
+        err(ctx, "x64 native v0: missing spill slots for varargs call")
+        return nil
+    }
+
+    // args_list = oren_new_list(argc)
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+    var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
+
+    // Push args into args_list in order.
+    var j = 0
+    while j < argc {
+        var arg_name = "$tmp_intr" + oren_int_to_string(base + j)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        j = j + 1
+    }
+
+    // Spill fn_obj (named function used as value => fnobj record pointing at `__oren_fnwrap_*`).
+    _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": nm}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
+    var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
+
+    // Inline-call: oren_call_obj_list(fn_obj, args_list)
+    _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, {"type": "Identifier", "value": fn_name}, {"type": "Identifier", "value": args_name})
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
 fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
 
@@ -12,73 +227,27 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     var spread = expr["spread"]
 
     if nm == "oren_call_obj_list" {
-        // Intrinsic: indirect call through a native function object.
-        // Signature: oren_call_obj_list(fn_obj, args_list) -> value
-        //
-        // Layout (kind=6):
-        //   [0] code_ptr
-        //   [8] env_ptr
-        //
-        // This is inlined (like arm64) so injected runtime code can call it even
-        // when the symbol is not present in the source module.
         if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return nil }
         if argc != 2 { err(ctx, "x64 native v0: oren_call_obj_list expects 2 args"); return nil }
+        _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, args[0], args[1])
+        return nil
+    }
 
-        var spill = _intr_tmp_push(ctx, 1)
-        if spill == nil { return nil }
-        var fn_off = _intr_tmp_off(ctx, locals, spill)
-        if fn_off == nil { _intr_tmp_pop(ctx, spill); return nil }
-
-        // Spill fn_obj.
-        _emit_eval_int_to_rax(ctx, args[0], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
-
-        // Eval args_list -> rax.
-        _emit_eval_int_to_rax(ctx, args[1], locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
-
-        var env_reg = abi.int_arg_reg(ctx["abi"], 0)
-        var args_reg = abi.int_arg_reg(ctx["abi"], 1)
-        if env_reg == nil || args_reg == nil {
-            _intr_tmp_pop(ctx, spill)
-            err(ctx, "x64 native v0: missing ABI arg regs for oren_call_obj_list")
-            return nil
-        }
-
-        // args_reg = args_list (value already in rax)
-        if args_reg != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(args_reg, 0)) }
-
-        // r10 = fnobj ptr
-        _emit_mov_r64_mrbp(ctx, 10, 0 - fn_off)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
-        var labelsFn2 = {}
-        var fixupsFn2 = []
-        var l_fn_ok2 = _new_label(ctx, "oren_call_obj_list_fnobj_ok")
-        _emit_jcc_to_label(ctx, fixupsFn2, "ne", l_fn_ok2)
-        _emit_abort_panic_str(ctx, "call on nil function value")
-        _emit_label(ctx, labelsFn2, l_fn_ok2)
-        _patch_local_fixups(ctx, labelsFn2, fixupsFn2)
-
-        // env_reg = *(fnobj + 8)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(env_reg, 0))
-
-        // rax = *(fnobj + 0) (code_ptr), then call.
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_call_rax())
-
-        _intr_tmp_pop(ctx, spill)
+    // Tier‑1 parity: when runtime injection is enabled, lower call-site spread through the
+    // shared runtime helper (matches arm64). This also works for indirect calls (callee in a var).
+    if spread != nil && ctx != nil && ctx["runtime_injected"] == true {
+        _emit_call_spread_via_runtime_helper_x64(ctx, locals, nm, args, spread)
         return nil
     }
 
     var is_direct = false
     var declared = ctx["declared_functions"]
-    if declared != nil && declared[nm] != nil { is_direct = true }
+    // Rolling shadowing rule: locals/global vars override named functions.
+    // If `nm` is a local/global, treat this as an indirect call (callable value).
+    var is_shadowed = false
+    if locals != nil && locals[nm] != nil { is_shadowed = true }
+    else if ctx != nil && ctx["globals"] != nil && ctx["globals"][nm] != nil { is_shadowed = true }
+    if is_shadowed != true && declared != nil && declared[nm] != nil { is_direct = true }
 
     // Varargs packing (rolling): if the callee is a known named function with a trailing
     // `...rest`, pack extra args into a list and call the real function with:
@@ -97,6 +266,13 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
             is_varargs_named = false
             varargs_fixed = nil
         }
+    }
+
+    // Tier‑1 parity: when runtime injection is enabled, lower varargs named calls through the
+    // uniform callable ABI (args_list + fnobj wrapper), matching arm64.
+    if is_varargs_named && ctx != nil && ctx["runtime_injected"] == true {
+        _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args)
+        return nil
     }
 
     // Spread support (rolling): only for known fixed-arity named functions.
@@ -408,15 +584,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     //     call code_ptr(env_ptr, args_list)
     //
     // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
-
-    var callee_off = nil
-    if is_direct != true {
-        callee_off = locals[nm]
-        if callee_off == nil {
-            err(ctx, "x64 native v0: undefined function or fn var " + nm)
-            return nil
-        }
-    } else {
+    if is_direct == true {
         var arity2 = ctx["func_arity"][nm]
         if arity2 == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
         if is_varargs_named {
@@ -436,10 +604,14 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     var spill_n2 = argc
     if is_varargs_named { spill_n2 = argc + 1 } // +1 for the packed rest_list
     if is_direct != true {
-        // Indirect call needs an args_list spill slot (+ spread loop temps if present).
-        spill_n2 = argc + 1
+        // Indirect call needs:
+        // - args_list spill slot
+        // - callee fnobj spill slot (callee can be a local or a global var)
+        //
+        // Spread calls in bring-up mode also need loop temps (spread/idx/len/elem).
+        spill_n2 = argc + 2
         if has_spread {
-            spill_n2 = argc + 5 // args_list + spread + idx + len + elem
+            spill_n2 = argc + 6 // args_list + spread + idx + len + elem + callee
         }
     }
     var base2 = _intr_tmp_push(ctx, spill_n2)
@@ -466,6 +638,15 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         if args_off == nil { _intr_tmp_pop(ctx, base2); return nil }
 
         var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
+
+        // Spill callee fnobj value (supports locals and top-level globals).
+        var callee_slot = base2 + argc + 1
+        if has_spread { callee_slot = base2 + argc + 5 }
+        var callee_spill_off = _intr_tmp_off(ctx, locals, callee_slot)
+        if callee_spill_off == nil { _intr_tmp_pop(ctx, base2); return nil }
+        _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": nm}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - callee_spill_off, 0)
 
         if has_spread {
             // args_list = oren_new_list(0)
@@ -655,7 +836,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         }
 
         // r10 = fnobj ptr
-        _emit_mov_r64_mrbp(ctx, 10, 0 - callee_off)
+        _emit_mov_r64_mrbp(ctx, 10, 0 - callee_spill_off)
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
         var labelsFn = {}
         var fixupsFn = []
@@ -757,9 +938,8 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos2, "name": nm})
     } else {
-        _emit_mov_r64_mrbp(ctx, 0, 0 - callee_off) // rax = fnobj ptr
-        bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = [fnobj].code_ptr
-        bytes_extend(ctx["code"], insn_call_rax())
+        // Should be unreachable: indirect calls return in the branch above.
+        err(ctx, "x64 native v0: internal: fell through to non-direct call tail")
     }
     _intr_tmp_pop(ctx, base2)
     return nil
