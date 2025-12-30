@@ -35,6 +35,9 @@ fn map_key_param_i64(k: i64) {
 fn main() {
     // Sanity: printing works (remote-run checks substring).
     print("tier1 smoke ok")
+    // Tier‑1 parity: x86_64 native must print non-literal string expressions too.
+    var dyn = "dyn ok"
+    print("tier1 smoke " + dyn)
 
     // Calls across reg+stack args.
     if add7(1, 2, 3, 4, 5, 6, 7) != 28 { return 10 }

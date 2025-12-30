@@ -1,0 +1,84 @@
+// x64 native: `print(<string_expr>)` statement lowering (Tier‑1 parity).
+//
+// Contract (rolling, current manual/spec):
+// - `print(...)` is statement-only and prints a string plus newline.
+// - Call sites are expected to pass a string pointer (NUL-terminated bytes).
+//
+// Prior x64 v0 limitation:
+// - only accepted `print("literal")`.
+//
+// This module adds support for printing an arbitrary string expression (e.g. `"a"+b`),
+// without requiring full native runtime injection yet.
+
+fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: print requires locals"); return nil }
+
+    // Evaluate the string expression into RAX, preserve in r12.
+    _emit_eval_int_to_rax(ctx, str_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0)) // r12 = s
+
+    // Compute len in r8 (strlen). Treat s==0 as empty.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 12))
+    _emit_string_len_from_ptr_x64(ctx, 8, 8)
+
+    // Prepare intr temp slots and call the `sys_write` intrinsic to keep
+    // Linux/Windows behavior unified (syscall vs WinAPI).
+    var base = _intr_tmp_push(ctx, 3)
+    if base == nil { return nil }
+    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_fd == nil || tmp_ptr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    // fd=1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    // ptr=s
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+    // len=r8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 8))
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
+
+    // sys_write(1, s, len)
+    var nm_fd = "$tmp_intr" + oren_int_to_string(base + 0)
+    var nm_ptr = "$tmp_intr" + oren_int_to_string(base + 1)
+    var nm_len = "$tmp_intr" + oren_int_to_string(base + 2)
+    var call_write = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "sys_write"},
+        "args": [{"type": "Identifier", "token": nil, "value": nm_fd},
+                 {"type": "Identifier", "token": nil, "value": nm_ptr},
+                 {"type": "Identifier", "token": nil, "value": nm_len}],
+    }
+    _emit_eval_int_to_rax(ctx, call_write, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // newline via a compile-time data literal so repeated prints don't leak heap.
+    var nl_off = _data_add_cstr0(ctx, "\n")
+    if nl_off == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    // fd=1, ptr=&"\n", len=1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+
+    var lea_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
+
+    _emit_eval_int_to_rax(ctx, call_write, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+

@@ -117,8 +117,22 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 if callee != nil && callee["type"] == "Identifier" && callee["value"] == "print" {
                     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
                     var a0 = args[0]
-                    if a0 == nil || a0["type"] != "String" { err(ctx, "x64 native v0: print only supports string literal"); return nil }
-                    oren_list_push(ops, {"op": "print_cstr", "tok": tok, "value": a0["value"]})
+                    if a0 == nil { err(ctx, "x64 native v0: print missing arg"); return nil }
+
+                    // Fast-path: print("literal") uses the OS-specific cstr write helper.
+                    if a0["type"] == "String" {
+                        oren_list_push(ops, {"op": "print_cstr", "tok": tok, "value": a0["value"]})
+                        i = i + 1
+                        continue
+                    }
+
+                    // Rolling: allow printing any expression that evaluates to a string pointer.
+                    // This unlocks Tier‑1 parity for common cases like:
+                    //   print(string_concat("a", b))
+                    // without requiring full runtime injection yet.
+                    _expr_int_check(ctx, a0)
+                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                    oren_list_push(ops, {"op": "print_str_expr", "tok": tok, "expr": a0})
                     i = i + 1
                     continue
                 }
