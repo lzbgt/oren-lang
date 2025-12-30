@@ -166,6 +166,7 @@ fn native_parse_cap_allow_mask(csv_cstr) {
 // Notes:
 // - We intentionally do not free the Win32 env block (the pointers in envp refer to it).
 // - The runtime env scanners are bounded to 4096 entries for safety; we match that cap here.
+@oren.keep
 fn native_envp_build_from_win_envblock(env_block) {
     if env_block == 0 { return 0 }
 

@@ -81,6 +81,7 @@ fn oren_time_mono_raw() {
     return t
 }
 
+@oren.keep
 fn oren_register_thread(top) {
     // Thread Node (rolling):
     // - [top, saved_sp, next] must stay at offsets 0/8/16 because GC stack scanning depends on it.
@@ -118,6 +119,7 @@ fn get_sp() { return 0 } // Intrinsic
 // - disabled (deterministic/manual): disable scanning/collection; keep tracking so `free()` can reuse blocks
 var g_gc_enabled = 1
 
+@oren.keep
 fn native_runtime_init_gc_mode(default_enabled) {
     // default_enabled is provided by the compiler from `--no-gc`.
     g_gc_enabled = default_enabled
@@ -174,6 +176,7 @@ fn native_gc_scan_stack() {
 // Try to reuse a raw node allocation (used by malloc_raw callers like root lists).
 // This must NOT reuse freed "blocks" (which are tracked allocation records pointing at object memory),
 // otherwise we'd lose pointers to freed object memory and create leaks/corruption.
+@oren.keep
 fn native_try_reuse_node(size) {
     if oren_globals() == 0 { return 0 }
     acquire_lock()
@@ -200,6 +203,7 @@ fn native_try_reuse_node(size) {
     return 0
 }
 
+@oren.keep
 fn native_try_reuse(size) {
     if oren_globals() == 0 { return 0 }
     acquire_lock()
@@ -306,6 +310,7 @@ fn release_lock() {
 
 fn malloc_raw(size) { return 0 }
 
+@oren.keep
 fn oren_track_alloc(ptr, size, kind) {
     if oren_globals() == 0 { return ptr }
     // Safety: do not allow tracking metadata to be attached to non-pointers.
@@ -425,6 +430,7 @@ fn native_gc_unregister_root(ptr) {
     return 0
 }
 
+@oren.keep
 fn oren_find_node(ptr) {
     if oren_globals() == 0 { return 0 }
     if ptr == 0 { return 0 }

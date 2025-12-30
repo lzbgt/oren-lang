@@ -110,6 +110,9 @@ fn new_parser(l) {
             "doc", "deprecated",
             // Capability-governed host effects (enforced only when capsule mode is enabled).
             "cap.requires",
+            // Compiler/runtime internal: pin a function as a DCE root (kept even if unreachable).
+            // Used for Tier‑1 native runtime helpers invoked via codegen fixups/entry stubs.
+            "oren.keep",
             // Packed struct / byte views (compile-time lowering).
             "oren.packed",
             // ABI/FFI layout mode (compile-time meaning; does not use host headers).

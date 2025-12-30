@@ -86,6 +86,7 @@ fn native_mem_free_nodes_count() {
     return n
 }
 
+@oren.keep
 fn native_gc_shutdown() {
     return 0
 }
@@ -148,6 +149,7 @@ fn compute_program_pc_bounds() {
     return 0
 }
 
+@oren.keep
 fn oren_set_debug_info(ptr, static_addr) {
     g_debug_info = ptr
     g_debug_static_addr = static_addr
@@ -333,6 +335,7 @@ fn stack_trace_debug() {
     return 0
 }
 
+@oren.keep
 fn oren_ensure_tracked(ptr, kind) {
     if ptr == 0 { return 0 }
     if oren_find_node(ptr) == 0 {
@@ -421,6 +424,7 @@ fn oren_fail(code, msg) {
     return 0
 }
 
+@oren.keep
 fn oren_panic(msg) {
     g_panicking = 1
     oren_diag_emit("panic", 1, msg)

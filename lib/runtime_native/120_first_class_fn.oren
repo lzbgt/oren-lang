@@ -3,6 +3,7 @@
 // Representation (tracked allocation kind=6):
 //   [0] code_ptr (u64)  - entrypoint taking (env, args_list)
 //   [8] env_ptr  (u64)  - closure environment (typically a list), or 0
+@oren.keep
 fn oren_func(code_ptr, env_ptr) {
     if code_ptr == 0 { return 0 }
     var obj = malloc(16)
@@ -23,6 +24,7 @@ fn oren_func(code_ptr, env_ptr) {
 // It returns the same handle layout expected by `oren_join(handle)`:
 //   0: pid (u64)
 //   8: read_fd (u64)
+@oren.keep
 fn oren_spawn_call_list(fn_obj, args_list) {
     var pipe_buf = malloc(16)
     if pipe_buf == 0 { exit(321) }
@@ -117,6 +119,7 @@ fn oren_free_struct(ptr) {
     return free(ptr)
 }
 
+@oren.keep
 fn strcmp(s1, s2) {
     // Nil-safe lexicographic compare for NUL-terminated strings.
     // This is intentionally defensive: native codegen may still compare against 0 in rolling mode.
@@ -142,6 +145,7 @@ fn strcmp(s1, s2) {
 }
 
 
+@oren.keep
 fn oren_add(a, b) {
     var na = oren_find_node(a)
     if na != 0 {
@@ -159,6 +163,7 @@ fn oren_add(a, b) {
     return iadd(a, b)
 }
 
+@oren.keep
 fn oren_mod(a, b) {
     // Deterministic signed remainder with explicit error on:
     // - modulo by zero

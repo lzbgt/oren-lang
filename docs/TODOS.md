@@ -28,7 +28,7 @@ Rules for this tracker:
      - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
        - Follow-up: decide whether we should copy+free the Win32 env block (to avoid a tiny intentional leak) vs keep it for pointer stability (current behavior).
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
-     - Tighten post-injection DCE: replace the current conservative “codegen fixup roots” allowlist with a principled CoreIR/annotation approach so DCE can stay effective without risking missing runtime helper symbols.
+     - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
 

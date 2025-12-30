@@ -95,6 +95,26 @@ Strict attribute mode is implemented and enforced at parse-time:
 
 This is intended for audited builds and later swarm/consensus workflows.
 
+## 3.1 Compiler/runtime internal attributes (reserved)
+
+These are **not** intended for user code. They exist to keep the compiler + Tier‑1 native runtime maintainable while still running whole-program DCE.
+
+### `@oren.keep` (pin as a DCE root)
+
+`@oren.keep` pins a top-level function as a **global DCE root**, even if the function is not reachable from `main` / `__top_level__` in the linked AST.
+
+Why this exists (Tier‑1 native backends):
+
+- Entry stubs can call runtime init helpers (not visible in the AST).
+- Some compiler passes can emit calls via **codegen fixups** (direct calls by symbol name) without emitting a corresponding AST call expression.
+
+Without `@oren.keep`, whole-program DCE can delete these functions, causing native codegen/linking to fail with an undefined symbol.
+
+Notes:
+
+- Capsule syscall hook functions are also treated as an internal ABI surface and are kept by name prefix (`native_capsule_sys_*`) in the DCE pass, because syscall lowering may reference them without emitting AST calls.
+- This is a rolling mechanism; longer-term, the goal is to make these dependencies explicit in a shared CoreIR boundary so DCE does not need backend-specific knowledge.
+
 ## 4) Cookbook examples
 
 ### 4.1 Packed struct view over bytes (`@pack`)

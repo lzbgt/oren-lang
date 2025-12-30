@@ -29,6 +29,32 @@ fn _maybe_get_toplevel_function_node(stmt) {
     return nil
 }
 
+fn _has_attr(node, name) {
+    if node == nil || name == nil { return false }
+    var attrs = node["attrs"]
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _starts_with(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn _resolve_ns_member(aliases, expr) {
     // Resolve an imported-namespace member access into a concrete prefixed symbol name.
     //
@@ -219,6 +245,27 @@ fn lower_linked_program_in_place(linked) {
     var queue = []
     _add_ref_if_toplevel_name(top_fns, reachable, queue, "main")
     _add_ref_if_toplevel_name(top_fns, reachable, queue, "__top_level__")
+    // Compiler/runtime internal: keep explicitly pinned functions even when unreachable.
+    //
+    // Tier‑1 native codegen can call runtime helpers via entry stubs or fixups (BL/call_rel32)
+    // that are not visible in the linked AST. `@oren.keep` provides a principled way for the
+    // runtime to mark such functions as DCE roots without maintaining huge per-backend root lists.
+    i = 0
+    while i < oren_list_len(stmts) {
+        var fn0 = _maybe_get_toplevel_function_node(stmts[i])
+        if fn0 != nil {
+            var nm0 = fn0["name"]
+            // Capsule syscall hooks are a compiler/runtime ABI surface: syscall lowering
+            // can reference them directly in codegen without emitting AST calls, so keep
+            // them available when whole-program DCE runs after runtime injection.
+            if _starts_with(nm0, "native_capsule_sys_") == true {
+                _add_ref_if_toplevel_name(top_fns, reachable, queue, nm0)
+            } else if _has_attr(fn0, "oren.keep") == true {
+                _add_ref_if_toplevel_name(top_fns, reachable, queue, fn0["name"])
+            }
+        }
+        i = i + 1
+    }
     if config != nil {
         var extra = config["roots"]
         if extra != nil {

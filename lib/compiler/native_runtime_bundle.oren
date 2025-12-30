@@ -53,159 +53,29 @@ fn _bundle_list_contains(xs, v) {
 }
 
 fn _bundle_roots_base() {
-    // Functions called by Tier‑1 native entry stubs.
+    // Whole-program DCE can run after runtime injection (Tier‑1 native backends).
     //
-    // These are NOT necessarily referenced from the AST, so whole-program DCE must keep them.
+    // Historically we pinned a giant list of runtime helper symbols here to keep
+    // entry-stub / fixup-only call targets alive. That was brittle and back-end
+    // specific, and forced compiler-side maintenance.
     //
-    // IMPORTANT (rolling, Tier‑1 correctness):
-    // Native backends sometimes call runtime helpers via *codegen fixups* (BL/call_rel32)
-    // that are not visible in the linked AST. If we run whole-program DCE after runtime
-    // injection, we must conservatively pin those helper functions here, otherwise native
-    // codegen can fail at link/fixup time with "undefined function <name>".
-    return [
-        "native_runtime_init",
-        "native_runtime_set_args",
-        "native_runtime_set_envp",
-        "native_runtime_capsule_init",
-        "native_runtime_init_gc_mode",
-        "oren_register_thread",
-        // Compiler-inserted hooks (not AST-visible):
-        "oren_call_depth_enter",
-        "oren_call_depth_exit",
-        // `print(...)` is a language-level statement lowered by native backends via
-        // runtime helpers (often injected as raw fixups, not visible in AST).
-        //
-        // When DCE runs after runtime injection, these must remain available so:
-        // - arm64 print lowering can call them via fixups, and
-        // - x86_64 can converge to the same runtime-based printing (capsule-safe).
-        "oren_print",
-        "oren_print_list",
-        "oren_print_fmt",
-        "oren_print_spread",
-        "oren_print_fmt_spread",
-        // String literal tracking / key-kind safety:
-        // native backends may call this via raw fixups (not AST-visible), so it must survive DCE.
-        "oren_ensure_tracked",
-
-        // --- Core operator/runtime helpers referenced via fixups ---
-        "oren_add",
-        "oren_mod",
-        "strcmp",
-        "oren_find_node",
-        "oren_track_alloc",
-        "oren_new_list",
-        "oren_list_push",
-        "oren_new_map",
-        "oren_map_get_int",
-        "oren_map_get_str",
-        "oren_map_set_int",
-        "oren_map_set_str",
-        "oren_func",
-        "oren_call_obj_spread",
-        "oren_spawn_call_list",
-        "oren_panic",
-
-        // --- Capsule syscall gating hooks (called by syscall lowering, not AST-visible) ---
-        "native_capsule_sys_accept_pre",
-        "native_capsule_sys_accept_post",
-        "native_capsule_sys_access_pre",
-        "native_capsule_sys_access_post",
-        "native_capsule_sys_bind_pre",
-        "native_capsule_sys_bind_post",
-        "native_capsule_sys_bsdthread_register_pre",
-        "native_capsule_sys_chmod_pre",
-        "native_capsule_sys_chmod_post",
-        "native_capsule_sys_clone_pre",
-        "native_capsule_sys_close_pre",
-        "native_capsule_sys_close_post",
-        "native_capsule_sys_connect_pre",
-        "native_capsule_sys_connect_post",
-        "native_capsule_sys_dup_pre",
-        "native_capsule_sys_dup_post",
-        "native_capsule_sys_dup2_pre",
-        "native_capsule_sys_dup2_post",
-        "native_capsule_sys_epoll_create1_pre",
-        "native_capsule_sys_epoll_create1_post",
-        "native_capsule_sys_epoll_ctl_pre",
-        "native_capsule_sys_epoll_pwait_pre",
-        "native_capsule_sys_execve_pre",
-        "native_capsule_sys_fcntl_pre",
-        "native_capsule_sys_fcntl_post",
-        "native_capsule_sys_fork_pre",
-        "native_capsule_sys_fork_post",
-        "native_capsule_sys_fstat_pre",
-        "native_capsule_sys_fstat_post",
-        "native_capsule_sys_getcwd_pre",
-        "native_capsule_sys_getdirentries64_pre",
-        "native_capsule_sys_getdirentries64_post",
-        "native_capsule_sys_getpeername_pre",
-        "native_capsule_sys_getsockname_pre",
-        "native_capsule_sys_getsockopt_pre",
-        "native_capsule_sys_gettimeofday_pre",
-        "native_capsule_sys_ioctl_pre",
-        "native_capsule_sys_kevent_pre",
-        "native_capsule_sys_kill_pre",
-        "native_capsule_sys_kqueue_pre",
-        "native_capsule_sys_kqueue_post",
-        "native_capsule_sys_listen_pre",
-        "native_capsule_sys_listen_post",
-        "native_capsule_sys_lstat_pre",
-        "native_capsule_sys_lstat_post",
-        "native_capsule_sys_mkdir_pre",
-        "native_capsule_sys_mkdir_post",
-        "native_capsule_sys_mmap_private_anon_pre",
-        "native_capsule_sys_munmap_pre",
-        "native_capsule_sys_nanosleep_pre",
-        "native_capsule_sys_open_pre",
-        "native_capsule_sys_open_post",
-        "native_capsule_sys_pipe_pre",
-        "native_capsule_sys_pipe_post",
-        "native_capsule_sys_read_pre",
-        "native_capsule_sys_recvfrom_pre",
-        "native_capsule_sys_rename_pre",
-        "native_capsule_sys_rename_post",
-        "native_capsule_sys_rmdir_pre",
-        "native_capsule_sys_rmdir_post",
-        "native_capsule_sys_sendto_pre",
-        "native_capsule_sys_setsockopt_pre",
-        "native_capsule_sys_shutdown_pre",
-        "native_capsule_sys_socket_pre",
-        "native_capsule_sys_socket_post",
-        "native_capsule_sys_stat_pre",
-        "native_capsule_sys_stat_post",
-        "native_capsule_sys_unlink_pre",
-        "native_capsule_sys_unlink_post",
-        "native_capsule_sys_wait4_pre",
-        "native_capsule_sys_write_pre",
-
-        // --- Alloc reuse helpers (used by runtime, sometimes via fixups) ---
-        "native_try_reuse",
-        "native_try_reuse_node"
-    ]
+    // Rolling approach (preferred):
+    // - Runtime functions that must survive DCE are annotated with `@oren.keep`.
+    // - Capsule syscall hooks are kept by name prefix (`native_capsule_sys_`) because
+    //   syscall lowering may reference them directly in codegen without emitting AST calls.
+    //
+    // Keep this list empty unless we discover a truly non-annotatable root.
+    return []
 }
 
 fn _bundle_roots_arm64_extra(platform) {
-    // arm64 entry stubs (today) also call a GC shutdown hook and, in debug mode,
-    // set debug info pointers before user code.
-    var out = []
-    oren_list_push(out, "native_gc_shutdown")
-    if platform != nil && platform["debug"] == true {
-        oren_list_push(out, "oren_set_debug_info")
-    }
-    return out
+    // `@oren.keep` is used for arm64 entry-stub helpers; no extra roots required.
+    return []
 }
 
 fn _bundle_roots_x64_extra(platform) {
-    // x86_64 entry stubs have some OS-specific helpers that are not referenced in the AST.
-    // Keep them pinned so post-injection DCE does not drop them.
-    var out = []
-    if platform != nil && platform["os"] == "windows" {
-        // Win64 builds envp by calling GetEnvironmentStringsA in the entry stub and then
-        // invoking this runtime helper to convert the Win32 env block into a POSIX-style
-        // `envp` pointer array.
-        oren_list_push(out, "native_envp_build_from_win_envblock")
-    }
-    return out
+    // `@oren.keep` is used for x86_64 entry-stub helpers; no extra roots required.
+    return []
 }
 
 fn _bundle_roots_for_backend(backend, platform) {

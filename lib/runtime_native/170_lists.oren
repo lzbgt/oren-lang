@@ -1,5 +1,6 @@
 // --- Lists ---
 // Layout: [count][capacity][buffer_ptr][magic]
+@oren.keep
 fn oren_new_list(cap) {
     if cap < 0 { cap = 0 }
     var header = malloc(32)
@@ -34,6 +35,7 @@ fn oren_list_len(list) {
     return ptr_get(list)
 }
 
+@oren.keep
 fn oren_list_push(list, value) {
     if list == 0 {
         oren_panic("list_push on nil")

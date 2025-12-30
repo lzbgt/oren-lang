@@ -23,6 +23,7 @@ fn oren_fork() {
     return pid
 }
 
+@oren.keep
 fn native_runtime_init(target_os) {
     // The native backend is still rolling and does not reliably run global initializers
     // before entering the runtime. Ensure globals used by early allocation are safe.
@@ -231,12 +232,14 @@ fn native_runtime_threading_init(threadstart, wqthread) {
     return rv
 }
 
+@oren.keep
 fn native_runtime_set_args(argc, argv) {
     global_set_argc(argc)
     global_set_argv(argv)
     return 0
 }
 
+@oren.keep
 fn native_runtime_set_envp(envp) {
     // Keep this function leaf-like (no calls) to avoid any stack-offset bugs
     // while the compiler/runtime ABI is still evolving.

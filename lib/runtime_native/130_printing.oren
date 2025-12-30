@@ -59,6 +59,7 @@ fn oren_print_any_no_nl(val) {
     return 0
 }
 
+@oren.keep
 fn oren_print_fmt(fmt, args) {
     // fmt is string ptr, args is list ptr
     var len = oren_string_len(fmt)
@@ -104,6 +105,7 @@ fn print_bytes(ptr, len) {
     sys_write(1, ptr, len)
 }
 
+@oren.keep
 fn oren_print(v) {
     oren_print_any_no_nl(v)
     var nl = malloc(1)
@@ -112,6 +114,7 @@ fn oren_print(v) {
     return 0
 }
 
+@oren.keep
 fn oren_print_list(args_list) {
     // Print list elements separated by spaces and trailing newline.
     if args_list == 0 {
@@ -140,6 +143,7 @@ fn oren_print_list(args_list) {
 
 fn oren_print_fmt_list(fmt, args_list) { return oren_print_fmt(fmt, args_list) }
 
+@oren.keep
 fn oren_print_spread(fixed_args, spread_list) {
     var args = oren_new_list(0)
     if fixed_args != 0 {
@@ -161,6 +165,7 @@ fn oren_print_spread(fixed_args, spread_list) {
     return oren_print_list(args)
 }
 
+@oren.keep
 fn oren_print_fmt_spread(fmt, fixed_args, spread_list) {
     var args = oren_new_list(0)
     if fixed_args != 0 {
@@ -182,6 +187,7 @@ fn oren_print_fmt_spread(fmt, fixed_args, spread_list) {
     return oren_print_fmt(fmt, args)
 }
 
+@oren.keep
 fn oren_call_obj_spread(fn_obj, fixed_args, spread_list) {
     var args = oren_new_list(0)
     if fixed_args != 0 {
@@ -206,6 +212,7 @@ fn oren_call_obj_spread(fn_obj, fixed_args, spread_list) {
 fn list_magic() { return 1279870019 } // 'LIST'
 fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
 
+@oren.keep
 fn oren_new_map(cap) {
     // Map header layout mirrors list layout for safety and future growth:
     //   [count][cap][entries_ptr][magic][dirty_sort]
@@ -359,10 +366,12 @@ fn _oren_map_set_kind(m, k, v, k_kind) {
     return v
 }
 
+@oren.keep
 fn oren_map_set_int(m, k, v) {
     return _oren_map_set_kind(m, k, v, 0)
 }
 
+@oren.keep
 fn oren_map_set_str(m, k, v) {
     return _oren_map_set_kind(m, k, v, 1)
 }
@@ -505,10 +514,12 @@ fn _oren_map_get_kind(m, k, k_kind) {
     return 0
 }
 
+@oren.keep
 fn oren_map_get_int(m, k) {
     return _oren_map_get_kind(m, k, 0)
 }
 
+@oren.keep
 fn oren_map_get_str(m, k) {
     return _oren_map_get_kind(m, k, 1)
 }
