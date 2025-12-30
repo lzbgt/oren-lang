@@ -221,6 +221,15 @@ fn native_compile_program_x64(linked, platform) {
         "import_list": [],
         "errors": [],
         "platform": platform,
+        // Global variable storage (top-level `var`).
+        //
+        // x64 native v0 stores globals as 8-byte slots in the appended data blob.
+        // This is the minimum needed to:
+        // - converge toward native runtime injection (runtime uses many globals initialized to 0),
+        // - support Tier‑1 parity with backends that permit top-level `var`.
+        //
+        // Values are u64 slots holding the Oren value representation (rolling: tagged/pointer).
+        "globals": {},
         // Named function declarations (name -> arity) collected before codegen.
         // Used for call arity checks and for first-class function values.
         "func_arity": {},
@@ -244,6 +253,15 @@ fn native_compile_program_x64(linked, platform) {
     var fns = _extract_functions_v0(ctx, linked)
     if fns == nil { return ctx }
     if ctx["declared_functions"]["main"] == nil { err(ctx, "x64 native v0: missing fn main()"); return ctx }
+
+    // --- Global vars + top-level statements (Tier‑1 convergence) ---
+    //
+    // Collect top-level `var` declarations into `ctx["globals"]` and build the statement list
+    // that will run before `main` as a synthesized `__top_level__` function.
+    //
+    // We scan after function collection so we can reject global names that shadow functions.
+    var top_info = _x64_collect_top_level_globals_and_stmts(ctx, linked)
+    if top_info == nil { return ctx }
 
     // Collect lambdas in function bodies before wrapper synthesis.
     var li = 0
@@ -316,6 +334,9 @@ fn native_compile_program_x64(linked, platform) {
     ctx["symtab_display"] = {}
     oren_list_push(sym_names, "__entry_stub__")
     ctx["symtab_display"]["__entry_stub__"] = "__entry_stub__"
+    // Top-level synthetic init frame.
+    oren_list_push(sym_names, "__top_level__")
+    ctx["symtab_display"]["__top_level__"] = "__top_level__@<top-level>"
     // User functions (deterministic: source order).
     var si0 = 0
     while si0 < oren_list_len(fns) {
@@ -422,6 +443,14 @@ fn native_compile_program_x64(linked, platform) {
     // Set RBP=0 before calling `main` so the chain terminates cleanly.
     bytes_extend(ctx["code"], insn_mov_r64_imm64(5, 0))
 
+    // Run top-level statements (including non-constant global initializers) before `main`.
+    //
+    // This converges x64 behavior with the other backends while keeping the x64 v0
+    // "fn main() required" rule.
+    var call_top_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
+
     var call_pos = oren_list_len(ctx["code"])
     // placeholder rel32=0
     bytes_extend(ctx["code"], insn_call_rel32(0))
@@ -456,6 +485,14 @@ fn native_compile_program_x64(linked, platform) {
     }
 
     // --- functions ---
+    // Compile the synthesized top-level initializer function first so:
+    // - its symbol exists for the entry stub call fixup, and
+    // - stack traces can include a stable `__top_level__` frame when it panics.
+    var top_fn = top_info["top_level_fn"]
+    if top_fn == nil { err(ctx, "x64 native v0: missing synthesized __top_level__ fn"); return ctx }
+    _compile_function_v0(ctx, top_fn, platform)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
     var i1 = 0
     while i1 < oren_list_len(fns) {
         _compile_function_v0(ctx, fns[i1], platform)
@@ -481,6 +518,118 @@ fn native_compile_program_x64(linked, platform) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     return ctx
+}
+
+fn _x64_collect_top_level_globals_and_stmts(ctx, linked) {
+    // Collect top-level `var` declarations as globals and build the statement list to run
+    // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
+    //
+    // Rolling rules:
+    // - Every global is an 8-byte slot in the appended data blob.
+    // - Constant init (Integer/Boolean/Nil) is stored directly into the data blob.
+    // - Non-constant init is lowered as an `Assign` executed in `__top_level__`.
+    //
+    // This keeps the x64 backend usable for injecting more of `lib/runtime_native/**`
+    // (which relies heavily on globals initialized to 0) without forcing immediate
+    // full runtime injection in this turn.
+    if ctx == nil { return nil }
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    if stmts == nil { return {"top_level_fn": _x64_synth_top_level_fn([])} }
+
+    var init_stmts = []
+    var other_stmts = []
+
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil { i = i + 1; continue }
+
+        // Skip function declarations (they are compiled separately).
+        var fn0 = coreir._stmt_to_function_decl(st)
+        if fn0 != nil { i = i + 1; continue }
+
+        if st["type"] == "Var" {
+            var name_node = st["name"]
+            var v = st["value"]
+            if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: global var name must be identifier"); return nil }
+            var nm = name_node["value"]
+            if nm == nil || nm == "" { err(ctx, "x64 native v0: global var name is empty"); return nil }
+            if nm == "__top_level__" { err(ctx, "x64 native v0: reserved global name __top_level__"); return nil }
+            if ctx["globals"] != nil && ctx["globals"][nm] != nil { err(ctx, "x64 native v0: duplicate global var " + nm); return nil }
+            if ctx["declared_functions"] != nil && ctx["declared_functions"][nm] != nil {
+                err(ctx, "x64 native v0: global var shadows function " + nm)
+                return nil
+            }
+            if v == nil { err(ctx, "x64 native v0: global var init missing for " + nm); return nil }
+
+            // Allocate storage slot.
+            var init_bits = _x64_try_const_global_init_bits(v)
+            var off = nil
+            if init_bits != nil {
+                off = _data_add_u64(ctx, init_bits)
+            } else {
+                off = _data_add_u64(ctx, 0)
+                // Defer init into __top_level__ as an assignment to the global.
+                oren_list_push(init_stmts, {"type": "Assign", "token": st["token"], "name": name_node, "value": v})
+            }
+            if off == nil { err(ctx, "x64 native v0: failed to allocate global var slot"); return nil }
+            ctx["globals"][nm] = off
+            i = i + 1
+            continue
+        }
+
+        // Any other non-function statement is part of top-level execution.
+        oren_list_push(other_stmts, st)
+        i = i + 1
+    }
+
+    // Top-level exec order:
+    // - non-const global initializers
+    // - other top-level statements (expr/assign/control flow)
+    var top_stmts = []
+    var j = 0
+    while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
+    j = 0
+    while j < oren_list_len(other_stmts) { oren_list_push(top_stmts, other_stmts[j]); j = j + 1 }
+
+    return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
+}
+
+fn _x64_try_const_global_init_bits(expr) {
+    // Return an i64/u64 bit-pattern to store into the global slot if the initializer
+    // is a safe compile-time constant for x64 v0 globals.
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Integer" {
+        return intparse.parse_int_lit(expr["value"])
+    }
+    if t == "Boolean" {
+        if expr["value"] == "true" { return 1 }
+        return 0
+    }
+    if t == "Nil" { return 0 }
+    return nil
+}
+
+fn _x64_synth_top_level_fn(stmts) {
+    // Synthesize: `fn __top_level__() { <stmts>; return 0 }`
+    //
+    // `_analyze_supported_fn_body` will append an implicit return if needed, but we keep
+    // this explicit so the AST is well-formed even if that rule changes.
+    if stmts == nil { stmts = [] }
+    var out_stmts = []
+    var i = 0
+    while i < oren_list_len(stmts) { oren_list_push(out_stmts, stmts[i]); i = i + 1 }
+    // Ensure a deterministic trailing return in the synthesized block.
+    oren_list_push(out_stmts, {"type": "Return", "token": nil, "value": {"type": "Integer", "value": "0"}})
+    return {
+        "type": "Function",
+        "token": nil,
+        "name": "__top_level__",
+        "params": [],
+        "body": {"type": "Block", "stmts": out_stmts},
+    }
 }
 
 fn native_emit_errors_and_exit(ctx) {

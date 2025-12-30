@@ -145,3 +145,24 @@ fn _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) {
     return nil
 }
 
+fn _emit_intrinsic_exit_x64(ctx, expr, locals, args) {
+    // User-level `exit(code)` lowering for x64 native v0.
+    //
+    // Portable contract (rolling):
+    // - `exit(code)` terminates the process with the given code (default 0).
+    // - This is preferred over relying on `main` return value, because backends differ.
+    //
+    // Implementation:
+    // - Lower directly to the `sys_exit` intrinsic path for native x64 (Linux syscall / WinAPI).
+    if ctx == nil { return nil }
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: exit does not support spread"); return nil }
+
+    if argc == 0 {
+        // Default exit(0).
+        return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, [ {"type": "Integer", "value": "0"} ])
+    }
+    if argc != 1 { err(ctx, "x64 native v0: exit expects 0 or 1 args"); return nil }
+    return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args)
+}
