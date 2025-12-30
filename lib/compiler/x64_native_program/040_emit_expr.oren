@@ -1422,7 +1422,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
 
-        var stack_intr = _emit_intrinsic_stack_helpers_x64(ctx, nm)
+        var stack_intr = _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args)
         if stack_intr == 1 { return nil }
 
         if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }

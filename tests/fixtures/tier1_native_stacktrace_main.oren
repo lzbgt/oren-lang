@@ -1,0 +1,17 @@
+fn stacktrace_leaf() {
+    // Validates Tier‑1 x64 symbolication path:
+    // - runtime `stack_trace()` calls `resolve_symbol(pc)` for each frame
+    // - x64 native must resolve PCs to per-binary symtab entries (not "???")
+    stack_trace()
+    print("tier1 stack trace ok")
+    return 0
+}
+
+fn stacktrace_mid() {
+    return stacktrace_leaf()
+}
+
+fn main() {
+    return stacktrace_mid()
+}
+

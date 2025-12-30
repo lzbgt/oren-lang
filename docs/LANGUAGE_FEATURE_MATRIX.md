@@ -69,6 +69,7 @@ Status legend:
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
 | Deterministic diagnostics (`OREN_DIAG`) | Rolling | Runtime + emit points (native/C) | Fixtures: `tests/native/fixtures/diag_fail.oren` |
+| Native stack traces (`stack_trace`, `resolve_symbol`) on Tier‑1 x86_64 | Rolling | Runtime: `lib/runtime_native/000_prelude_sys.oren` (`stack_trace`); x64 native: `resolve_symbol` intrinsic over the embedded symtab (`lib/compiler/x64_native_program/043_emit_stack_intrinsics.oren`, reserved by `lib/compiler/x64_native_program/010_data_io.oren` `_data_reserve_symtab`) | Tier‑1 remote fixture: `tests/fixtures/tier1_native_stacktrace_main.oren` (`OREN_REMOTE_RUN=1`) |
 | Stack safety (call depth guard) | Rolling | AVM flag; C env; native guards | Docs: `docs/STACK_SAFETY.md`; fixtures: `tests/native/fixtures/call_depth_overflow.oren` |
 | Tail-call optimization | Rolling (subset) | Lowering/codegen passes | Docs: `docs/STACK_SAFETY.md` |
 | Native runtime injection (`lib/runtime_native.oren` expanded includes) | Rolling | Shared include expander: `lib/compiler/native_runtime_inject.oren`; arm64 native injects by default: `lib/compiler/arm64_native_program.oren`; x86_64 native injects by default: `lib/compiler/x64_native_program/090_program_entry.oren` (re-runs global DCE after injection to avoid compiling the entire runtime when unused) | Escape hatch: `OREN_X64_NO_INJECT_RUNTIME=1`; Tier‑1 x86_64 gate: `OREN_REMOTE_RUN=1 make test` |
