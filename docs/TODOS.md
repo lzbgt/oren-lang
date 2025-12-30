@@ -37,10 +37,10 @@ Rules for this tracker:
      - POSIX `oren_system_timeout` robustness in minimal/container environments: **done** — runtime now performs deterministic shell discovery (supports `OREN_SYSTEM_SHELL` override) and returns `-2` (ENOENT) if no shell exists.
      - Windows x86_64 FS syscall surface parity (capsule-safe): **done** (rolling)
        - `sys_open` (CreateFileA), `sys_read/sys_write` (generic HANDLEs, not just stdio), `sys_close` (closesocket→CloseHandle fallback)
-       - `sys_stat/sys_lstat/sys_fstat` (Win32 probes; note: Windows does not populate a POSIX `struct stat` layout yet)
+       - `sys_stat/sys_lstat/sys_fstat` now populate an **Oren-owned Stat ABI** (OrenStatV0) rather than mirroring host `struct stat` layouts.
        - `sys_unlink/sys_rmdir/sys_rename/sys_mkdir` (Win32 shims)
        - `sys_chmod` (currently a no-op on Windows; still enforces capsule FS write enrollment via prehook)
-       - Next: define an **Oren-owned cross-OS Stat representation** + helpers (stop tests/libs from assuming platform `struct stat` layouts).
+       - Stat ABI (done): `sys_stat/sys_lstat/sys_fstat` write OrenStatV0 into the caller buffer; callers/tests should allocate via `oren_stat_alloc()` (64B), not oversized host `struct stat` buffers.
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
      - Windows PE stack sizing: **done** — increased PE `SizeOfStackReserve` so deep recursion tests no longer need Windows skips (still a stopgap until heap-frame stackless recursion lands).
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
@@ -112,7 +112,7 @@ Rules for this tracker:
    - Keep `make test` iteration-fast and deterministic.
    - Prefer a small number of high-signal integration suites + fixtures as living spec.
    - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
-   - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts (use oversized buffers + return-code checks unless an Oren-owned Stat ABI is introduced).
+   - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts; prefer Oren-owned stable ABIs (e.g. OrenStatV0 via `oren_stat_alloc()`).
    - Make test tooling robust in minimal environments too: `oretest` now supports deterministic shell discovery and an override via `ORETEST_SHELL`.
    - Reference: `docs/TEST_SYSTEM.md`
 

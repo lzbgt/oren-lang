@@ -28,10 +28,21 @@ translation unit, but stays maintainable in source form.
 2) Add a corresponding include line to `lib/runtime_native.oren`.
 3) Run `make test` to ensure the include expansion and runtime audits stay green.
 
+## Oren-owned stable ABIs (recommended)
+
+Some low-level “syscall-first” APIs expose raw buffers for performance. In rolling mode we prefer an
+**Oren-owned stable layout** rather than mirroring host C structs, so tests and libraries remain
+OS/arch neutral.
+
+Current example:
+
+- **OrenStatV0** (used by `sys_stat/sys_lstat/sys_fstat`):
+  - Compiler-side layout source: `lib/compiler/native_stat_abi.oren`
+  - Runtime-side helpers: `lib/runtime_native/215_stat.oren`
+
 ## Notes / Footguns
 
 - Prefer modern surface syntax in higher-level helpers:
   - string concatenation: use `+` rather than `string_concat(...)` chains
   - list operations: use container method sugar where possible
 - Do not edit generated `.c` artifacts (they are build outputs / debug aids).
-

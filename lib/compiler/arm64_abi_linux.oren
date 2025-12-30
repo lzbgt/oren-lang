@@ -99,3 +99,14 @@ fn linux_so_error() { return 4 }
 //   MAP_ANONYMOUS = 0x20
 fn linux_mmap_prot_read_write() { return 3 } // PROT_READ|PROT_WRITE
 fn linux_mmap_flags_private_anon() { return 34 } // MAP_PRIVATE|MAP_ANONYMOUS (0x22)
+
+// --- struct stat ABI (Linux, arm64) ---
+//
+// Used internally by the syscall-first native backend when lowering:
+//   sys_stat / sys_lstat / sys_fstat
+//
+// References:
+// - `docs/refs/linux_arm64_abi.md`
+fn linux_stat_size_bytes() { return 128 }
+fn linux_stat_off_st_mode() { return 16 }
+fn linux_stat_off_st_size() { return 48 }

@@ -1,6 +1,7 @@
 import core "arm64_core.oren"
 import abi "arm64_abi_macos.oren"
 import labi "arm64_abi_linux.oren"
+import nstat "native_stat_abi.oren"
 
 // Re-export core helpers locally so the native expr compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -77,6 +78,7 @@ fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
 fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
+fn insn_str_w(rt, rn, offset) { return core.insn_str_w(rt, rn, offset) }
 fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_ldadd(rs, rt, rn) { return core.insn_ldadd(rs, rt, rn) }
@@ -277,4 +279,3 @@ fn native_compile_syscall_call(ctx, fn_name, args, compile_expr) {
     if native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) { return true }
     return false
 }
-

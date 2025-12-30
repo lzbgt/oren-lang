@@ -33,6 +33,7 @@
 // @include "runtime_native/190_byte_order.oren"
 // @include "runtime_native/200_typed_buffers.oren"
 // @include "runtime_native/210_args.oren"
+// @include "runtime_native/215_stat.oren"
 // @include "runtime_native/220_path_helpers.oren"
 // @include "runtime_native/230_binary_io.oren"
 // @include "runtime_native/240_tcp.oren"

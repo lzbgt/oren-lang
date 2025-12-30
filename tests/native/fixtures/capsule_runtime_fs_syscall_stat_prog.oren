@@ -8,8 +8,8 @@ fn main() {
     // - mount enrollment is enforced
     // - syscall returns success for an allowed path
     //
-    // Use a generously-sized buffer so the kernel can write its native struct layout.
-    var st = malloc(512)
+    // Use the Oren-owned Stat ABI buffer.
+    var st = oren_stat_alloc()
     if st == 0 { exit(3) }
     var rc = sys_stat("v/in.txt", st)
     if rc < 0 { exit(2) }

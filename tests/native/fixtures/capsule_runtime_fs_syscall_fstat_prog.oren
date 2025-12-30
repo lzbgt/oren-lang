@@ -2,8 +2,8 @@ fn main() {
     // Raw sys_fstat capsule FS test:
     // - In capsule mode, sys_fstat must require FS domain at syscall boundary (no bypass).
     // - Use fd=1 (stdout) so we don't depend on any mount/path enrollment.
-    // Oversized buffer: OS-neutral (do not assume platform `struct stat` size).
-    var st = malloc(512)
+    // Use the Oren-owned Stat ABI buffer.
+    var st = oren_stat_alloc()
     if st == 0 { exit(3) }
     var rc = sys_fstat(1, st)
     if rc < 0 { exit(2) }

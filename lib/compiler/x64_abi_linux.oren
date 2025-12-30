@@ -96,3 +96,16 @@ fn linux_so_error() { return 4 }
 // Repo-owned constants used by syscall-first allocator / runtime paths.
 fn linux_mmap_prot_read_write() { return 3 } // PROT_READ|PROT_WRITE
 fn linux_mmap_flags_private_anon() { return 34 } // MAP_PRIVATE|MAP_ANONYMOUS (0x22)
+
+// --- struct stat ABI (Linux, x86_64) ---
+//
+// Used internally by the syscall-first native backend when lowering:
+//   sys_stat / sys_lstat / sys_fstat
+//
+// Verified on the Tier‑1 remote x86_64 Linux environment (WSL2) via `offsetof`:
+//   sizeof(struct stat)=144
+//   offsetof(st_mode)=24
+//   offsetof(st_size)=48
+fn linux_stat_size_bytes() { return 144 }
+fn linux_stat_off_st_mode() { return 24 }
+fn linux_stat_off_st_size() { return 48 }

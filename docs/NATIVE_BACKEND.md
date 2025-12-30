@@ -72,9 +72,9 @@ bring-up fixtures are **ABI facts**, not language constraints.
 - The native backend emits syscalls as **inline `svc`** instructions (Darwin arm64 uses `X16` as the syscall register) and does **not** call libc’s `syscall(2)` wrapper.
 - Syscall numbers are taken from Darwin/XNU references (see `docs/refs/darwin_xnu_syscalls.master`).
 - Repo-owned ABI constants (syscalls + offsets) live in `lib/compiler/arm64_abi_macos.oren` (see `docs/refs/darwin_arm64_abi.md`).
-- `sys_stat(path, st_ptr)` on macOS uses **`stat64` (syscall 338)** for correct 64-bit `struct stat` behavior on arm64.
-- `sys_lstat(path, st_ptr)` on macOS uses **`lstat64` (syscall 340)** (no-follow symlink metadata).
-- `sys_fstat(fd, st_ptr)` on macOS uses **`fstat64` (syscall 339)**.
+- `sys_stat(path, st_ptr)` uses **`stat64` (macOS)** / **`newfstatat` (Linux)** into a private host `struct stat` buffer, then translates into an **Oren-owned stable layout** (OrenStatV0) at `st_ptr` (no host `struct stat` layout exposed to user code).
+- `sys_lstat(path, st_ptr)` uses **`lstat64` (macOS)** / **`newfstatat(..., AT_SYMLINK_NOFOLLOW)` (Linux)** into a private host buffer, then translates into OrenStatV0.
+- `sys_fstat(fd, st_ptr)` uses **`fstat64` (macOS)** / **`fstat` (Linux)** into a private host buffer, then translates into OrenStatV0.
 - `sys_getdirentries64(fd, buf, bufsize, pos_ptr)` on macOS uses **`getdirentries64` (syscall 344)**; on Linux it maps to `getdents64` (61) and ignores `pos_ptr` (v0).
 ## Notes / Limitations
 - **String concatenation:** on the native backend, `+` lowers to the runtime helper `oren_add` and supports:

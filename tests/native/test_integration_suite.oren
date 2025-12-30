@@ -764,8 +764,8 @@ fn test_sys_fs_basic() {
     oren_write_bytes(a, [1, 2, 3])
 
     // stat/lstat must succeed on an existing path.
-    // Oversized stat buffer: OS-neutral (do not assume platform `struct stat` size).
-    var st = malloc(512)
+    // Uses the Oren-owned Stat ABI (no host `struct stat` assumptions).
+    var st = oren_stat_alloc()
     if st == 0 { fail(651) }
     assert_true(sys_stat(a, st) >= 0, 652)
     assert_true(sys_lstat(a, st) >= 0, 653)

@@ -1,0 +1,35 @@
+// Oren-owned cross-platform Stat ABI (native backends).
+//
+// Motivation (Tier‑1 parity):
+// - Host `struct stat` layouts differ across OS/arch (Darwin vs Linux; arm64 vs x86_64).
+// - Using the host layout as the public `sys_stat` contract is not portable and forces
+//   tests and libraries to encode platform-specific offsets.
+//
+// Policy:
+// - `sys_stat/sys_lstat/sys_fstat` write an **Oren-owned stable layout** into `st_ptr`.
+// - Native backends may call host syscalls/APIs using a private temporary buffer and then
+//   translate into this stable layout.
+//
+// Layout (OrenStatV0, little-endian, 64 bytes):
+//   +0x00: i64 size
+//   +0x08: u32 mode
+//   +0x0C: u32 _pad0
+//   +0x10: i64 atime_ns   (0 for now in native v0)
+//   +0x18: i64 mtime_ns   (0 for now in native v0)
+//   +0x20: i64 ctime_ns   (0 for now in native v0)
+//   +0x28: u64 _reserved0
+//   +0x30: u64 _reserved1
+//   +0x38: u32 _reserved2
+//   +0x3C: u32 _reserved3
+//
+// Notes:
+// - `mode` follows POSIX `st_mode` bit patterns where possible. Windows native backend
+//   approximates file-vs-dir at minimum.
+// - The reserved fields are kept to allow future expansion without changing size.
+
+fn oren_stat_v0_size_bytes() { return 64 }
+fn oren_stat_v0_off_size() { return 0 }
+fn oren_stat_v0_off_mode() { return 8 }
+fn oren_stat_v0_off_atime_ns() { return 16 }
+fn oren_stat_v0_off_mtime_ns() { return 24 }
+fn oren_stat_v0_off_ctime_ns() { return 32 }

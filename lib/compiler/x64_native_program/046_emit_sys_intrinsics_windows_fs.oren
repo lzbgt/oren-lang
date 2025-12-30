@@ -135,16 +135,28 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _intr_load_x64(ctx, 11, tmp_pair)
     bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
 
-    // GetFileAttributesA(path) -> attrs (0xFFFFFFFF on failure)
-    _emit_call_iat_x64(ctx, "IAT_GetFileAttributesA")
+    // GetFileAttributesExA(path, GetFileExInfoStandard=0, &WIN32_FILE_ATTRIBUTE_DATA) -> BOOL
+    //
+    // Use a fixed stack buffer (48 bytes, aligned) to avoid depending on host libc.
+    // WIN32_FILE_ATTRIBUTE_DATA layout (documented; 36 bytes) is:
+    //   +0  DWORD dwFileAttributes
+    //   +4  FILETIME ftCreationTime (8)
+    //   +12 FILETIME ftLastAccessTime (8)
+    //   +20 FILETIME ftLastWriteTime (8)
+    //   +28 DWORD nFileSizeHigh
+    //   +32 DWORD nFileSizeLow
+    bytes_extend(ctx["code"], insn_sub_rsp_imm8(48))
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))          // edx = 0 (GetFileExInfoStandard)
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(8, 0))      // r8  = &buf
+    _emit_call_iat_x64(ctx, "IAT_GetFileAttributesExA")
 
     var labels = {}
     var fixups = []
     var l_ok = _new_label(ctx, "sys_stat_win_ok")
     var l_done = _new_label(ctx, "sys_stat_win_done")
 
-    // if eax != 0xFFFFFFFF => ok
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
+    // if eax != 0 => ok
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
 
     // fail: map GetLastError() -> -errno
@@ -152,10 +164,47 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
+    // --- Translate into OrenStatV0 at st_ptr ---
+    // Load st_ptr into r9 (from intrinsic temp spill).
+    _intr_load_x64(ctx, 9, tmp_st)
+
+    // Zero OrenStatV0 (64 bytes) for determinism.
+    bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // r8 = 0
+    var zoff = 0
+    while zoff < nstat.oren_stat_v0_size_bytes() {
+        bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, zoff, 8))
+        zoff = zoff + 4
+    }
+
+    // size = (nFileSizeHigh<<32) | nFileSizeLow
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(11, 4, 32)) // r11d = low
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(8, 4, 28))  // r8d  = high
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(8, 32))          // r8  <<= 32
+    bytes_extend(ctx["code"], insn_or_r64_r64(8, 11))            // r8   |= low
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(9, 8))           // [st_ptr+0] = size
+
+    // mode: at minimum distinguish directory vs file.
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 4, 0))  // r10d = attrs
+    bytes_extend(ctx["code"], insn_and_r64_imm32(10, 16))        // FILE_ATTRIBUTE_DIRECTORY (0x10)
+    var l_is_dir = _new_label(ctx, "sys_stat_win_is_dir")
+    var l_mode_done = _new_label(ctx, "sys_stat_win_mode_done")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_is_dir)
+    // regular file (approx): 0o100644 = 33188
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 33188))
+    _emit_jmp_to_label(ctx, fixups, l_mode_done)
+    _emit_label(ctx, labels, l_is_dir)
+    // directory (approx): 0o40755 = 16877
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 16877))
+    _emit_label(ctx, labels, l_mode_done)
+    bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
+
+    // rc = 0
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
+    bytes_extend(ctx["code"], insn_add_rsp_imm8(48))
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
@@ -251,6 +300,39 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
+    // Best-effort: populate OrenStatV0 at st_ptr.
+    //
+    // For non-file handles (console/pipes), GetFileSizeEx may fail; we still treat
+    // sys_fstat as success and report size=0 (POSIX-like "fstat exists" semantics).
+    var l_size_ok = _new_label(ctx, "sys_fstat_size_ok")
+    var l_size_done = _new_label(ctx, "sys_fstat_size_done")
+
+    // LARGE_INTEGER tmp (16B, aligned)
+    bytes_extend(ctx["code"], insn_sub_rsp_imm8(16))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 11))      // rcx = handle
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, 0))  // rdx = &li
+    _emit_call_iat_x64(ctx, "IAT_GetFileSizeEx")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_size_ok)
+    // size = 0
+    bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10))
+    _emit_jmp_to_label(ctx, fixups, l_size_done)
+    _emit_label(ctx, labels, l_size_ok)
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, 0)) // r10 = li.QuadPart
+    _emit_label(ctx, labels, l_size_done)
+    bytes_extend(ctx["code"], insn_add_rsp_imm8(16))
+
+    // st_ptr
+    _intr_load_x64(ctx, 8, tmp_st) // r8 = st_ptr
+    bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9)) // r9 = 0
+    var zoff2 = 0
+    while zoff2 < nstat.oren_stat_v0_size_bytes() {
+        bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(8, zoff2, 9))
+        zoff2 = zoff2 + 4
+    }
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(8, 10)) // size
+
+    // rc = 0
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], insn_cdqe())
 

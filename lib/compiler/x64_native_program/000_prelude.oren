@@ -16,6 +16,7 @@ import abi "native_abi.oren"
 	import coreir "coreir.oren"
 	import bundle "native_runtime_bundle.oren"
 	import labi "x64_abi_linux.oren"
+	import nstat "native_stat_abi.oren"
 import nops "native_ops_v0.oren"
 
 fn bytes_new() { return core.bytes_new() }

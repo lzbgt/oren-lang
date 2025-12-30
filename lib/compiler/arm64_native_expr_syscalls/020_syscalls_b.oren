@@ -27,10 +27,18 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
-                // X0 = resolved path, X1 = st_ptr
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // pair
+                // Use a private host `struct stat` buffer and translate into OrenStatV0
+                // (stable cross-OS layout) in the caller-provided `st_ptr`.
+                var host_stat_bytes = abi.darwin_stat_size_bytes()
+                if ctx["platform"]["os"] == "linux" { host_stat_bytes = labi.linux_stat_size_bytes() }
+                var host_stat_aligned = align_up(host_stat_bytes, 16)
+                push_u32_le(ctx["code"], insn_sub_sp(host_stat_aligned))
+                ctx["stack_size"] = ctx["stack_size"] + host_stat_aligned
+
+                // X0 = resolved path, X1 = tmp_host_stat_ptr (SP)
+                emit_ldr_reg_sp_any(ctx, 2, host_stat_aligned) // pair (above tmp buffer)
                 push_u32_le(ctx["code"], insn_ldr_ptr(0, 2))    // path_ptr
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // st_ptr (below pair slot)
+                emit_add_sp_offset_to_reg(ctx, 1, 0)            // buf = SP
     
                 var svc_imm = abi.darwin_svc_imm()
                 var sys_reg = abi.darwin_syscall_reg()
@@ -56,19 +64,69 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_newfstatat()))
                     emit_svc_preserve_heap(ctx, svc_imm)
                 }
+
+                // If rc >= 0, translate host stat into OrenStatV0 at st_ptr.
+                //
+                // Stack layout at this point (top first):
+                //   [SP+0 .. host_stat_aligned)       tmp host stat
+                //   [SP+host_stat_aligned]            pair
+                //   [SP+host_stat_aligned+16]         st_ptr
+                //   [SP+host_stat_aligned+32]         path
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp x0, xzr
+                var br_skip_norm = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // b.lt skip
+
+                // out_ptr (X4)
+                emit_ldr_reg_sp_any(ctx, 4, host_stat_aligned + 16)
+                // tmp_ptr (X6) = SP
+                emit_add_sp_offset_to_reg(ctx, 6, 0)
+
+                // Zero OrenStatV0 (64 bytes) for determinism.
+                push_u32_le(ctx["code"], insn_movz(5, 0))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 0))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 8))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 16))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 24))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 32))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 40))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 48))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 56))
+
+                // size (i64) -> OrenStatV0.size
+                var off_size = abi.darwin_stat_off_st_size()
+                var off_mode = abi.darwin_stat_off_st_mode()
+                if ctx["platform"]["os"] == "linux" {
+                    off_size = labi.linux_stat_off_st_size()
+                    off_mode = labi.linux_stat_off_st_mode()
+                }
+                push_u32_le(ctx["code"], insn_ldur_reg(7, 6, off_size))
+                push_u32_le(ctx["code"], insn_stur_reg(7, 4, nstat.oren_stat_v0_off_size()))
+
+                // mode (u16/u32) -> OrenStatV0.mode (u32)
+                push_u32_le(ctx["code"], insn_ldr_w(8, 6, off_mode))
+                if ctx["platform"]["os"] != "linux" {
+                    // Darwin: st_mode is u16; mask to low 16 bits.
+                    push_u32_le(ctx["code"], insn_movz(9, 65535))
+                    push_u32_le(ctx["code"], insn_and_reg(8, 8, 9))
+                }
+                push_u32_le(ctx["code"], insn_str_w(8, 4, nstat.oren_stat_v0_off_mode()))
+
+                var norm_end = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
                 // post: native_capsule_sys_stat_post(pair, rc) -> rc
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pair
+                emit_ldr_reg_sp_any(ctx, 0, host_stat_aligned) // pair
                 var bl_post_st = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_st, "name": "native_capsule_sys_stat_post"})
     
-                // Pop pair + st_ptr + path
+                // Pop tmp host stat + pair + st_ptr + path
+                push_u32_le(ctx["code"], insn_add_sp(host_stat_aligned))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 48
+                ctx["stack_size"] = ctx["stack_size"] - (host_stat_aligned + 48)
                 return true
             }
     
@@ -99,10 +157,17 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
-                // X0 = resolved path, X1 = st_ptr
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0)) // pair
+                // Use a private host `struct stat` buffer and translate into OrenStatV0.
+                var host_stat_bytes = abi.darwin_stat_size_bytes()
+                if ctx["platform"]["os"] == "linux" { host_stat_bytes = labi.linux_stat_size_bytes() }
+                var host_stat_aligned = align_up(host_stat_bytes, 16)
+                push_u32_le(ctx["code"], insn_sub_sp(host_stat_aligned))
+                ctx["stack_size"] = ctx["stack_size"] + host_stat_aligned
+
+                // X0 = resolved path, X1 = tmp_host_stat_ptr (SP)
+                emit_ldr_reg_sp_any(ctx, 2, host_stat_aligned) // pair (above tmp buffer)
                 push_u32_le(ctx["code"], insn_ldr_ptr(0, 2))    // path_ptr
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // st_ptr (below pair slot)
+                emit_add_sp_offset_to_reg(ctx, 1, 0)            // buf = SP
     
                 var svc_imm = abi.darwin_svc_imm()
                 var sys_reg = abi.darwin_syscall_reg()
@@ -128,19 +193,58 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_newfstatat()))
                     emit_svc_preserve_heap(ctx, svc_imm)
                 }
+
+                // If rc >= 0, translate host stat into OrenStatV0 at st_ptr.
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp x0, xzr
+                var br_skip_norm = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // b.lt skip
+
+                emit_ldr_reg_sp_any(ctx, 4, host_stat_aligned + 16) // out_ptr (st_ptr)
+                emit_add_sp_offset_to_reg(ctx, 6, 0)                // tmp_ptr = SP
+
+                // Zero OrenStatV0 (64 bytes).
+                push_u32_le(ctx["code"], insn_movz(5, 0))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 0))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 8))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 16))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 24))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 32))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 40))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 48))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 56))
+
+                var off_size = abi.darwin_stat_off_st_size()
+                var off_mode = abi.darwin_stat_off_st_mode()
+                if ctx["platform"]["os"] == "linux" {
+                    off_size = labi.linux_stat_off_st_size()
+                    off_mode = labi.linux_stat_off_st_mode()
+                }
+                push_u32_le(ctx["code"], insn_ldur_reg(7, 6, off_size))
+                push_u32_le(ctx["code"], insn_stur_reg(7, 4, nstat.oren_stat_v0_off_size()))
+
+                push_u32_le(ctx["code"], insn_ldr_w(8, 6, off_mode))
+                if ctx["platform"]["os"] != "linux" {
+                    push_u32_le(ctx["code"], insn_movz(9, 65535))
+                    push_u32_le(ctx["code"], insn_and_reg(8, 8, 9))
+                }
+                push_u32_le(ctx["code"], insn_str_w(8, 4, nstat.oren_stat_v0_off_mode()))
+
+                var norm_end = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
                 // post: native_capsule_sys_lstat_post(pair, rc) -> rc
                 push_u32_le(ctx["code"], insn_mov_reg(1, 0))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pair
+                emit_ldr_reg_sp_any(ctx, 0, host_stat_aligned) // pair
                 var bl_post_lst = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_lst, "name": "native_capsule_sys_lstat_post"})
     
-                // Pop pair + st_ptr + path
+                // Pop tmp host stat + pair + st_ptr + path
+                push_u32_le(ctx["code"], insn_add_sp(host_stat_aligned))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 48
+                ctx["stack_size"] = ctx["stack_size"] - (host_stat_aligned + 48)
                 return true
             }
     
@@ -167,8 +271,15 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_fst, "name": "native_capsule_sys_fstat_pre"})
     
-                // X0 = fd, X1 = st_ptr
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // st_ptr
+                // Use a private host `struct stat` buffer and translate into OrenStatV0.
+                var host_stat_bytes = abi.darwin_stat_size_bytes()
+                if ctx["platform"]["os"] == "linux" { host_stat_bytes = labi.linux_stat_size_bytes() }
+                var host_stat_aligned = align_up(host_stat_bytes, 16)
+                push_u32_le(ctx["code"], insn_sub_sp(host_stat_aligned))
+                ctx["stack_size"] = ctx["stack_size"] + host_stat_aligned
+
+                // X0 = fd (already), X1 = tmp_host_stat_ptr (SP)
+                emit_add_sp_offset_to_reg(ctx, 1, 0)
     
                 var svc_imm = abi.darwin_svc_imm()
                 var sys_reg = abi.darwin_syscall_reg()
@@ -189,16 +300,56 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_fstat()))
                     emit_svc_preserve_heap(ctx, svc_imm)
                 }
+
+                // If rc >= 0, translate host stat into OrenStatV0 at st_ptr.
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp x0, xzr
+                var br_skip_norm = oren_list_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // b.lt skip
+
+                // st_ptr is above tmp buffer at SP+host_stat_aligned
+                emit_ldr_reg_sp_any(ctx, 4, host_stat_aligned) // out_ptr (st_ptr)
+                emit_add_sp_offset_to_reg(ctx, 6, 0)           // tmp_ptr = SP
+
+                // Zero OrenStatV0 (64 bytes).
+                push_u32_le(ctx["code"], insn_movz(5, 0))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 0))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 8))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 16))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 24))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 32))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 40))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 48))
+                push_u32_le(ctx["code"], insn_stur_reg(5, 4, 56))
+
+                var off_size = abi.darwin_stat_off_st_size()
+                var off_mode = abi.darwin_stat_off_st_mode()
+                if ctx["platform"]["os"] == "linux" {
+                    off_size = labi.linux_stat_off_st_size()
+                    off_mode = labi.linux_stat_off_st_mode()
+                }
+                push_u32_le(ctx["code"], insn_ldur_reg(7, 6, off_size))
+                push_u32_le(ctx["code"], insn_stur_reg(7, 4, nstat.oren_stat_v0_off_size()))
+
+                push_u32_le(ctx["code"], insn_ldr_w(8, 6, off_mode))
+                if ctx["platform"]["os"] != "linux" {
+                    push_u32_le(ctx["code"], insn_movz(9, 65535))
+                    push_u32_le(ctx["code"], insn_and_reg(8, 8, 9))
+                }
+                push_u32_le(ctx["code"], insn_str_w(8, 4, nstat.oren_stat_v0_off_mode()))
+
+                var norm_end = oren_list_len(ctx["code"])
+                set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
                 // post: native_capsule_sys_fstat_post(rc) -> rc
                 var bl_post_fst = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_fst, "name": "native_capsule_sys_fstat_post"})
     
-                // Pop st_ptr + fd
+                // Pop tmp host stat + st_ptr + fd
+                push_u32_le(ctx["code"], insn_add_sp(host_stat_aligned))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 32
+                ctx["stack_size"] = ctx["stack_size"] - (host_stat_aligned + 32)
                 return true
             }
     

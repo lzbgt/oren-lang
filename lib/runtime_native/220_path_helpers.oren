@@ -147,13 +147,8 @@ fn oren_exists(path) {
     var owned = ptr_get(pair + 8)
     free(pair)
 
-    // Darwin: stat64 syscall; Linux: newfstatat.
-    // We only use the return code here (no struct layout dependency).
-    //
-    // IMPORTANT (rolling, OS-neutral): do not assume `struct stat` size/layout.
-    // Allocate a generously-sized buffer to avoid kernel overwrites across targets.
-    var st = malloc(512)
-    if st == 0 { exit(285) }
+    // Cross-platform Stat ABI: sys_stat writes an Oren-owned stable layout into `st`.
+    var st = oren_stat_alloc()
     var rc = sys_stat(rpath, st)
     free(st)
 
