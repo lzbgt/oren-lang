@@ -1,0 +1,11 @@
+fn main() {
+    // Helper program built by `oretest` to validate subprocess env inheritance without
+    // requiring a host shell or external utilities.
+    var v = oren_getenv("OREN_TEST_ENV")
+    if v == 0 { exit(1) }
+    if strcmp(v, "1") != 0 { exit(1) }
+    exit(0)
+}
+
+main()
+

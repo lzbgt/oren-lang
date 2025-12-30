@@ -102,6 +102,7 @@ Rules for this tracker:
 9) **Tests & iteration speed (integration-first; backend/arch neutral by default)** (S)
    - Keep `make test` iteration-fast and deterministic.
    - Prefer a small number of high-signal integration suites + fixtures as living spec.
+   - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
    - Reference: `docs/TEST_SYSTEM.md`
 
 ## P1 (Soon)

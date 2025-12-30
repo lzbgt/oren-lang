@@ -57,6 +57,33 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 		runLog := log
 
 		switch name {
+		case "test_integration_suite":
+			// Keep integration suite hermetic: it validates PROC cancellation by spawning a helper
+			// binary (built from Oren source) instead of relying on `/bin/sh` + `sleep`.
+			//
+			// Provide the helper path via env so the test program does not need to hardcode
+			// target/arch-specific build output paths.
+			sleepName := "oretest_sleep_long"
+			sleepSrc := filepath.Join("tests", "native", "tools", sleepName+".oren")
+			sleepOut := targetsOutPath(target, arch, "native", sleepName)
+			sleepLog := filepath.Join("build", "logs", "native_"+sleepName+".log")
+			buildSleep := fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", sleepSrc, target, arch, sleepOut, gcArg)
+			if rc2 := runWithTimeout(timeoutBin, buildTimeout, buildSleep, sleepLog); rc2 != 0 {
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: sleepLog, dur: time.Since(start)}
+			}
+
+			envName := "oretest_check_env"
+			envSrc := filepath.Join("tests", "native", "tools", envName+".oren")
+			envOut := targetsOutPath(target, arch, "native", envName)
+			envLog := filepath.Join("build", "logs", "native_"+envName+".log")
+			buildEnv := fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", envSrc, target, arch, envOut, gcArg)
+			if rc2 := runWithTimeout(timeoutBin, buildTimeout, buildEnv, envLog); rc2 != 0 {
+				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: envLog, dur: time.Since(start)}
+			}
+
+			// Use %q so paths remain safe even if the repo root contains spaces.
+			cmd := fmt.Sprintf("%s OREN_TEST_SLEEP_BIN=%q OREN_TEST_ENV_CHECK_BIN=%q ./%s", envPrefix, sleepOut, envOut, out)
+			rc = runWithTimeout(timeoutBin, runTimeout, cmd, runLog)
 		case "test_simd_suite":
 			// Validate scalar vs SIMD results by running the same binary twice with env toggles,
 			// and comparing stable key/value outputs.

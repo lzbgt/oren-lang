@@ -1,0 +1,11 @@
+fn main() {
+    // Helper program built by `oretest` to validate PROC cancellation without depending
+    // on host shells or external utilities like `/bin/sleep`.
+    //
+    // Sleep long enough that a small parent timeout should trigger cancellation.
+    oren_sleep_ms(5000)
+    exit(0)
+}
+
+main()
+

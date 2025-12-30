@@ -22,6 +22,8 @@
 # Test/build byproducts (keep sources)
 tests/native/*
 !tests/native/*.oren
+!tests/native/tools/
+!tests/native/tools/*.oren
 !tests/native/fixtures/
 !tests/native/fixtures/*.oren
 tests/modules/*

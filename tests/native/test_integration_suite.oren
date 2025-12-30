@@ -222,9 +222,17 @@ fn test_time_proc() {
     if b < a { fail(122) }
 
     // PROC cancellation: system must be cancellable without hanging.
+    //
+    // IMPORTANT (rolling portability):
+    // - `oren_system_timeout(...)` is shell-based by definition; minimal container envs may not ship a shell.
+    // - Keep the integration suite hermetic by testing cancellation via `oren_proc_spawn` on a helper binary,
+    //   whose path is provided by the test runner via `OREN_TEST_SLEEP_BIN`.
+    //
     // Expect: returns -ETIMEDOUT (we use BSD's 60 as the v0 convention).
-    var rc = oren_system_timeout("sleep 5", 20)
-    assert_eq(rc, 0 - 60, 123)
+    var bin = oren_getenv("OREN_TEST_SLEEP_BIN")
+    if bin == 0 { fail(123) }
+    var rc = oren_proc_spawn(bin, [bin], 20)
+    assert_eq(rc, 0 - 60, 124)
 }
 
 fn test_spawn_join_timeout() {
@@ -293,7 +301,7 @@ fn test_env_execve_getenv() {
     // ENV correctness without libc:
     // - execve envp override works
     // - oren_getenv matches key
-    // - oren_system inherits envp (child sees $OREN_TEST_ENV)
+    // - subprocess inherits envp (child sees $OREN_TEST_ENV)
     //
     // NOTE: This test re-execs the current binary once. We gate it with OREN_INTEGRATION_RAN.
     var ran = oren_getenv("OREN_INTEGRATION_RAN")
@@ -305,11 +313,27 @@ fn test_env_execve_getenv() {
 
         var env0 = "OREN_TEST_ENV=1"
         var env1 = "OREN_INTEGRATION_RAN=1"
-        var envp = malloc(24) // 3 pointers
+
+        // Preserve test-runner-provided helper paths across the re-exec.
+        // This keeps the integration suite hermetic (no dependency on /bin/sh, /usr/bin/true, etc.).
+        // IMPORTANT: `oren_getenv` returns an untracked pointer view into envp.
+        // Native `+` string concatenation only operates on tracked strings, so
+        // use `oren_env` to copy values into tracked heap strings first.
+        var sleep_bin = oren_env("OREN_TEST_SLEEP_BIN")
+        var check_bin = oren_env("OREN_TEST_ENV_CHECK_BIN")
+        var env2 = 0
+        var env3 = 0
+        if sleep_bin != 0 { env2 = "OREN_TEST_SLEEP_BIN=" + sleep_bin }
+        if check_bin != 0 { env3 = "OREN_TEST_ENV_CHECK_BIN=" + check_bin }
+
+        var envp = malloc(40) // up to 4 pointers + NULL
         if envp == 0 { fail(142) }
-        ptr_set(envp + 0, env0)
-        ptr_set(envp + 8, env1)
-        ptr_set(envp + 16, 0)
+        var ei = 0
+        ptr_set(envp + ei * 8, env0); ei = ei + 1
+        ptr_set(envp + ei * 8, env1); ei = ei + 1
+        if env2 != 0 { ptr_set(envp + ei * 8, env2); ei = ei + 1 }
+        if env3 != 0 { ptr_set(envp + ei * 8, env3); ei = ei + 1 }
+        ptr_set(envp + ei * 8, 0)
 
         sys_execve(path, argvp, envp)
         // If we reached here, execve failed.
@@ -319,8 +343,12 @@ fn test_env_execve_getenv() {
     var val = oren_getenv("OREN_TEST_ENV")
     if val == 0 { fail(144) }
     assert_streq(val, "1", 145)
-    var rc = oren_system("test \"$OREN_TEST_ENV\" = \"1\"")
-    assert_eq(rc, 0, 146)
+
+    // Validate subprocess env inheritance without relying on a shell or host tools.
+    var check = oren_getenv("OREN_TEST_ENV_CHECK_BIN")
+    if check == 0 { fail(146) }
+    var st = oren_proc_spawn(check, [check], 1000000)
+    if st != 0 { fail(147) }
 }
 
 fn test_bytes_endian_and_pack_view() {
