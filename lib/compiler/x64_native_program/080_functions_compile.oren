@@ -206,14 +206,58 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     var local_fixups = []
     var epilogue_label = _new_label(ctx, name + "_epilogue")
 
-    // Deterministic recursion guard (Tier‑1 direction): track a call-depth counter in the
-    // data blob. This requires the emitter to map the data blob writable (rolling v0).
-    _emit_call_depth_enter_guard_x64(ctx, labels, local_fixups)
+    // Stack safety (Tier‑1 parity with arm64):
+    //
+    // - When the injected native runtime is enabled, prefer the shared runtime call-depth
+    //   hooks (`oren_call_depth_enter/exit`) so arm64/x64 converge on one semantics set.
+    // - When runtime injection is disabled (bring-up/debug), keep the legacy x64-only
+    //   data-blob guard (`_emit_call_depth_*_guard_x64`) so stack safety remains deterministic.
+    var call_depth_enabled = true
+    if ctx != nil && ctx["inject_runtime"] == true {
+        // Do not instrument the injected runtime itself; it contains the call-depth hooks.
+        // If we instrument those functions, we recurse indefinitely.
+        var tok0 = fn_node["token"]
+        var ffile0 = nil
+        if tok0 != nil { ffile0 = tok0["file"] }
+        if ffile0 == "lib/runtime_native.oren" { call_depth_enabled = false }
+        if ffile0 != nil && oren_string_len(ffile0) >= 7 {
+            if oren_string_slice(ffile0, 0, 7) == "<native:" { call_depth_enabled = false }
+        }
+        if name == "oren_call_depth_enter" { call_depth_enabled = false }
+        if name == "oren_call_depth_exit" { call_depth_enabled = false }
+    }
+    if call_depth_enabled == true {
+        if ctx != nil && ctx["inject_runtime"] == true {
+            // Call runtime hook (no args).
+            var pos_enter = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_enter, "name": "oren_call_depth_enter"})
+        } else {
+            // Legacy x64-only data-blob guard.
+            _emit_call_depth_enter_guard_x64(ctx, labels, local_fixups)
+        }
+    }
     _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
     _emit_label(ctx, labels, epilogue_label)
-    _emit_call_depth_exit_guard_x64(ctx)
+    if call_depth_enabled == true {
+        if ctx != nil && ctx["inject_runtime"] == true {
+            // Preserve RAX (function return value) across the exit hook call.
+            //
+            // The runtime hook returns 0 in RAX; without preserving, every function would
+            // accidentally return 0.
+            var off_ret = locals["$tmp0"]
+            if off_ret == nil { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0) // [tmp] = rax
+            var pos_exit = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_exit, "name": "oren_call_depth_exit"})
+            _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret) // rax = [tmp]
+        } else {
+            _emit_call_depth_exit_guard_x64(ctx)
+        }
+    }
     if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }
     bytes_extend(ctx["code"], insn_pop_rbp())
     bytes_extend(ctx["code"], insn_ret())

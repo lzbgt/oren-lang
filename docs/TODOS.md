@@ -25,7 +25,8 @@ Rules for this tracker:
        - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
        - next: replace remaining “bring-up-only” intrinsics with shared runtime helpers (goal: single semantics set, thin ABI emit layers)
    - Next (Tier‑1 correctness):
-     - Windows x86_64: decide whether we need **full env enumeration** beyond the current fixed-key envp synthesis (today we synthesize `envp` from a fixed allowlist of runtime-relevant keys via `GetEnvironmentVariableA`).
+     - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
+       - Follow-up: decide whether we should copy+free the Win32 env block (to avoid a tiny intentional leak) vs keep it for pointer stability (current behavior).
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)

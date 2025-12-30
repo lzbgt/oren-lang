@@ -212,196 +212,36 @@ fn _emit_entry_call_depth_env_override_windows_x64(ctx) {
     return nil
 }
 
-fn _emit_entry_build_envp_windows_x64(ctx, scratch_base) {
-    // Windows x64: build a minimal envp array for the injected native runtime.
+fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {
+    // Windows x64: capture the Win32 environment block pointer for the injected runtime.
     //
-    // Why this exists:
-    // - The native runtime’s env parsing (`native_envp_get_value_ptr`) expects a POSIX-style
-    //   `envp` array of pointers to "KEY=VALUE\\0" strings.
-    // - Windows does not provide `envp` at process entry, and we do not use a CRT.
+    // Strategy (Tier‑1 production):
+    // - Call kernel32!GetEnvironmentStringsA() to obtain the environment block:
+    //     "K=V\\0K2=V2\\0...\\0\\0"
+    // - Store the returned pointer in the entry scratch region.
+    // - After `native_runtime_init` (so `malloc_raw` is available), build a POSIX-style `envp`
+    //   array from this block by calling the runtime helper:
+    //     `native_envp_build_from_win_envblock(env_block)`.
     //
-    // Strategy (rolling, deterministic, avoids extra imports):
-    // - Probe a fixed list of runtime-relevant keys via GetEnvironmentVariableA.
-    // - For each present key, write "KEY=VALUE\\0" into a fixed pool in `.data` and append a
-    //   pointer to the envp array in `.data`.
-    // - Terminate envp with a NULL entry.
-    //
-    // This is sufficient to make capsule/SIMD/GC/call-depth env overrides work on Tier‑1 Win64.
-    //
-    // NOTE:
-    // - This is not a full env enumeration; it intentionally captures only keys we care about
-    //   for runtime init and capsule enforcement.
-    // - If the pool overflows, we abort deterministically (exit code 201).
+    // Notes:
+    // - We intentionally do not free the env block (envp entries point into it).
+    // - This removes the previous fixed-allowlist envp synthesis and makes ENV semantics match
+    //   Linux/macOS (full environment visible to `env()` / `native_envp_get_value_ptr`).
     //
     // Requires:
-    // - PE emitter imports kernel32!GetEnvironmentVariableA and exposes IAT label
-    //   "IAT_GetEnvironmentVariableA".
+    // - PE emitter imports kernel32!GetEnvironmentStringsA and exposes IAT label
+    //   "IAT_GetEnvironmentStringsA".
     //
-    // Clobbers: RAX, RBX, RCX, RDX, R8, R10, R11, R12, R13, R14, R15
+    // Clobbers: RAX
     if ctx == nil { return nil }
 
-    var keys = [
-        // Stack safety / debug:
-        "OREN_CALL_DEPTH_MAX",
-        // Capsule toggles:
-        "OREN_CAPSULE",
-        "OREN_CAP_ALLOW_DOMAINS",
-        // GC mode:
-        "OREN_NO_GC",
-        // SIMD toggles:
-        "OREN_NO_SIMD",
-        "OREN_ENABLE_SIMD",
-        // Allocator policy:
-        "OREN_RAW_MMAP_THRESHOLD",
-        "OREN_BUF_ALIGN",
-        "OREN_BUF_FORCE_MMAP",
-        "OREN_BUF_PAYLOAD_LIMIT_BYTES",
-        // FS policy:
-        "OREN_FS_ALLOW_PREFIXES",
-        "OREN_FS_ALLOW_READ_PREFIXES",
-        "OREN_FS_ALLOW_WRITE_PREFIXES",
-        "OREN_FS_MOUNTS",
-        "OREN_FS_MOUNTS_READ",
-        "OREN_FS_MOUNTS_WRITE",
-        // NET policy:
-        "OREN_NET_ALLOW_LOOPBACK",
-        "OREN_NET_ALLOW_TCP_CONNECT",
-        "OREN_NET_ALLOW_TCP_LISTEN",
-        "OREN_NET_TCP_CONNECT_MAP",
-        "OREN_NET_TCP_LISTEN_MAP",
-        // PROC policy:
-        "OREN_PROC_ALLOW_EXEC_PREFIXES",
-        "OREN_PROC_ALLOW_SYSTEM",
-        "OREN_PROC_INHERIT_ENV",
-        "OREN_PROC_ALLOW_ENV_KEYS",
-        "OREN_PROC_ALLOW_ARGV"
-    ]
+    var mov_iat_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_GetEnvironmentStringsA"})
+    bytes_extend(ctx["code"], insn_call_rax()) // rax = env_block (or 0)
 
-    var n = oren_list_len(keys)
-    // envp array: (n+1) pointers
-    var off_envp = _data_add_zeros(ctx, (n + 1) * 8)
-    // pool for synthesized "KEY=VALUE\\0" strings (rolling: 64KiB is enough for runtime knobs)
-    var pool_cap = 65536
-    var off_pool = _data_add_zeros(ctx, pool_cap)
-    if off_envp == nil || off_pool == nil { return nil }
-
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "win_envp_done")
-    var l_overflow = _new_label(ctx, "win_envp_overflow")
-
-    // r13 = envp_cur = &envp[0]
-    var lea_envp = oren_list_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(13, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_envp + 3, "data_off": off_envp})
-
-    // Persist envp pointer for runtime_set_envp (in the entry scratch region).
-    _emit_mov_mrsp_r64(ctx, scratch_base + 16, 13)
-
-    // r12 = pool_cur = &pool[0]
-    var lea_pool = oren_list_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(12, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pool + 3, "data_off": off_pool})
-    // r15 = pool_end = pool_cur + pool_cap
-    bytes_extend(ctx["code"], insn_mov_r64_r64(15, 12))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(15, pool_cap))
-
-    var ki = 0
-    while ki < n {
-        var k = keys[ki]
-        var k_bytes = oren_bytes_from_string(k)
-        var k_len = oren_list_len(k_bytes)
-
-        var off_k = _data_add_cstr0(ctx, k)
-        if off_k == nil { return nil }
-
-        var l_next = _new_label(ctx, "win_envp_next_" + oren_int_to_string(ki))
-        var l_have = _new_label(ctx, "win_envp_have_" + oren_int_to_string(ki))
-        var l_ok = _new_label(ctx, "win_envp_ok_" + oren_int_to_string(ki))
-
-        // rcx = &key
-        var lea_k = oren_list_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_k + 3, "data_off": off_k})
-
-        // First probe: GetEnvironmentVariableA(key, NULL, 0) => required size (incl NUL) in eax, or 0 if missing.
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // rdx = 0
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 0)) // r8d = 0
-        var mov_iat0 = oren_list_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetEnvironmentVariableA"})
-        bytes_extend(ctx["code"], insn_call_rax())
-
-        // if eax == 0 => missing/empty => skip
-        bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_next)
-
-        // required_size_u64 in r14
-        bytes_extend(ctx["code"], insn_cdqe())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
-
-        // needed = required + (k_len + 1)   (includes KEY + '=' plus VALUE+NUL)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 14)) // r10 = required
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, k_len + 1))
-
-        // new_cur = pool_cur + needed
-        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 12)) // r11 = pool_cur
-        bytes_extend(ctx["code"], insn_add_r64_r64(11, 10)) // r11 = new_cur
-        // if new_cur > pool_end => overflow
-        bytes_extend(ctx["code"], insn_cmp_r64_r64(11, 15))
-        _emit_jcc_to_label(ctx, local_fixups, "le", l_ok)
-        _emit_jmp_to_label(ctx, local_fixups, l_overflow)
-        _emit_label(ctx, labels, l_ok)
-
-        // Write "KEY=" prefix into pool_cur (unrolled byte stores).
-        var bi = 0
-        while bi < k_len {
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, k_bytes[bi]))
-            bytes_extend(ctx["code"], insn_mov_mr8_al_disp(12, bi))
-            bi = bi + 1
-        }
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 61)) // '='
-        bytes_extend(ctx["code"], insn_mov_mr8_al_disp(12, k_len))
-
-        _emit_label(ctx, labels, l_have)
-        // Second call: GetEnvironmentVariableA(key, pool_cur + k_len + 1, required_size)
-        // Restore rcx = &key (Win64 ABI treats rcx as volatile; the first call can clobber it).
-        var lea_k2 = oren_list_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_k2 + 3, "data_off": off_k})
-        // rdx = dest
-        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 12)) // rdx = pool_cur
-        bytes_extend(ctx["code"], insn_add_r64_imm32(2, k_len + 1))
-        // r8d = required_size (low 32 is fine)
-        bytes_extend(ctx["code"], insn_mov_r32_r32(8, 14))
-
-        var mov_iat1 = oren_list_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_GetEnvironmentVariableA"})
-        bytes_extend(ctx["code"], insn_call_rax())
-
-        // Append pool_cur pointer to envp array: *envp_cur = pool_cur; envp_cur += 8
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 12))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(13, 8))
-
-        // Advance pool_cur = new_cur (r11 computed above)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 11))
-
-        _emit_label(ctx, labels, l_next)
-        ki = ki + 1
-    }
-
-    // envp terminator: *envp_cur = 0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 0))
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _emit_label(ctx, labels, l_overflow)
-    _emit_abort_exitcode(ctx, 201)
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
+    // scratch[16] = env_block (later overwritten with envp pointer)
+    _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0)
     return nil
 }
 
@@ -708,82 +548,15 @@ fn native_compile_program_x64(linked, platform) {
     ctx["lambda_counter"] = 0
 
     // Runtime injection (default-on; see comment at top of function).
+    //
+    // Use the shared Tier‑1 native runtime bundle so arm64/x64 converge on:
+    // - identical include expansion + parsing,
+    // - capsule enforcement (compile-time) when `--capsule` is enabled,
+    // - post-injection DCE + pinned entry-stub roots.
     if inject_runtime {
-        var runtime_src = rtinj.runtime_expand_includes_file(ctx, "lib/runtime_native.oren", [])
-        if runtime_src == nil { return ctx }
-        // Debug aid: dump expanded runtime after include expansion, before parsing.
-        var dump_runtime = oren_env("OREN_DUMP_NATIVE_RUNTIME")
-        if dump_runtime != nil {
-            var p = dump_runtime
-            if p == "" { p = "build/runtime_native.expanded.oren" }
-            oren_write_file(p, runtime_src)
-        }
-        var lrt = lexer.new_lexer(runtime_src)
-        lrt["file"] = "lib/runtime_native.oren"
-        var prt = parser.new_parser(lrt)
-        var runtime_prog = parser.parse_program(prt)
-        if oren_list_len(prt["errors"]) != 0 {
-            err(ctx, "Parse errors in lib/runtime_native.oren")
-            var ei = 0
-            while ei < oren_list_len(prt["errors"]) {
-                err(ctx, prt["errors"][ei])
-                ei = ei + 1
-            }
-            return ctx
-        }
-
-        // Merge runtime statements ahead of user statements.
-        // This ensures runtime vars and helper functions are visible during x64 codegen.
-        var merged = []
-        var rs = runtime_prog["statements"]
-        if rs != nil {
-            var ri = 0
-            while ri < oren_list_len(rs) { oren_list_push(merged, rs[ri]); ri = ri + 1 }
-        }
-        var us = nil
-        if linked != nil { us = linked["statements"] }
-        if us != nil {
-            var ui = 0
-            while ui < oren_list_len(us) { oren_list_push(merged, us[ui]); ui = ui + 1 }
-        }
-        // Preserve DCE config from the original linked program where possible, but
-        // also add extra roots needed by the entry stub (which is emitted after DCE
-        // and thus cannot itself create AST references).
-        var cfg0 = nil
-        if linked != nil { cfg0 = linked["config"] }
-        var cfg = {}
-        if cfg0 != nil && cfg0["keep_all_top_level_functions"] == true {
-            cfg["keep_all_top_level_functions"] = true
-        }
-        // Copy existing roots list (if any) so we don't mutate shared config state.
-        var roots = []
-        if cfg0 != nil && cfg0["roots"] != nil {
-            var r0 = cfg0["roots"]
-            var ri0 = 0
-            while ri0 < oren_list_len(r0) { oren_list_push(roots, r0[ri0]); ri0 = ri0 + 1 }
-        }
-        // Entry-stub runtime init pipeline (Tier‑1 parity with arm64).
-        //
-        // These are referenced by the emitted entry stub machine code, not by AST,
-        // so they must be pinned to survive global DCE after runtime injection.
-        oren_list_push(roots, "native_runtime_init")
-        oren_list_push(roots, "native_runtime_set_args")
-        oren_list_push(roots, "native_runtime_set_envp")
-        oren_list_push(roots, "native_runtime_capsule_init")
-        oren_list_push(roots, "native_runtime_init_gc_mode")
-        oren_list_push(roots, "oren_register_thread")
-        cfg["roots"] = roots
-
-        linked2 = {"statements": merged, "aliases": ctx["aliases"], "config": cfg}
-        // Re-run whole-program DCE after injecting the runtime.
-        //
-        // The build pipeline already runs global DCE on the user program + imported modules,
-        // but the native runtime injection happens inside this backend entrypoint and would
-        // otherwise force compilation of the entire runtime regardless of reachability.
-        //
-        // This keeps Tier‑1 cross-compilation time bounded (important for the x64 backend),
-        // and matches modern toolchains where unused stdlib/runtime code is removed.
-        global_dce.lower_linked_program_in_place(linked2)
+        var bun = bundle.prepare_native_runtime_bundle(ctx, "x64", linked, platform, {"runtime_path": "lib/runtime_native.oren", "inject_runtime": true})
+        if bun == nil { return ctx }
+        linked2 = bun["linked"]
         ctx["runtime_injected"] = true
     }
 
@@ -917,12 +690,19 @@ fn native_compile_program_x64(linked, platform) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     }
 
-    // --- Stack safety (call depth guard; rolling Tier‑1) ---
+    // --- Stack safety (call depth guard; Tier‑1 parity) ---
     //
-    // x64 native does not yet inject the full native runtime, so we keep a minimal
-    // call-depth counter and max in the data blob and instrument function entry/exit.
-    _data_reserve_call_depth_guard(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    // When runtime injection is enabled (default), x64 uses the injected runtime hooks:
+    // - `oren_call_depth_enter()` / `oren_call_depth_exit()` inserted by the function compiler
+    //   (see `080_functions_compile.oren`)
+    // - `native_runtime_call_depth_apply_env()` applied during `native_runtime_capsule_init()`
+    //
+    // When runtime injection is disabled (bring-up/debug), keep the legacy x64-only guard
+    // in the appended data blob.
+    if inject_runtime != true {
+        _data_reserve_call_depth_guard(ctx)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    }
 
     // --- Minimal tracking globals (rolling Tier‑1) ---
     //
@@ -933,17 +713,26 @@ fn native_compile_program_x64(linked, platform) {
 
     // --- Entry stub ---
     //
-    // Tier‑1 stack safety: allow runtime override of the call depth max via:
-    //   OREN_CALL_DEPTH_MAX=<n>
+    // Stack safety: call depth max config.
     //
-    // This mirrors C/native-arm64 behavior and closes a gap in x64 bring-up.
-    //
-    // Linux: parse envp from the initial stack before stack alignment.
-    // Win64: call GetEnvironmentVariableA (requires PE imports + Win64 shadow space).
-    if platform == nil || platform["os"] != "windows" {
-        // Save original RSP before aligning; SysV initial stack contains argc/argv/envp.
-        bytes_extend(ctx["code"], insn_mov_r64_r64(13, 4)) // r13 = rsp (orig)
-        _emit_entry_call_depth_env_override_linux_x64(ctx, 13)
+    // - With runtime injection enabled, call depth max is configured by the injected runtime
+    //   using envp (`native_runtime_call_depth_apply_env()`), so we do not need to parse env
+    //   in the entry stub.
+    // - Without runtime injection, we keep a minimal entry-stub env override to support
+    //   deterministic bring-up fixtures.
+    if inject_runtime != true {
+        // Linux: parse envp from the initial stack before stack alignment.
+        // Win64: call GetEnvironmentVariableA (requires PE imports + Win64 shadow space).
+        if platform == nil || platform["os"] != "windows" {
+            // Save original RSP before aligning; SysV initial stack contains argc/argv/envp.
+            bytes_extend(ctx["code"], insn_mov_r64_r64(13, 4)) // r13 = rsp (orig)
+            _emit_entry_call_depth_env_override_linux_x64(ctx, 13)
+        }
+    } else {
+        // Save original RSP before aligning; needed later for argc/argv/envp capture on Linux.
+        if platform == nil || platform["os"] != "windows" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(13, 4)) // r13 = rsp (orig)
+        }
     }
 
     // Align stack to 16B boundary early so both SysV and Win64 calls stay well-formed as we grow
@@ -970,11 +759,13 @@ fn native_compile_program_x64(linked, platform) {
     var scratch_base = entry_shadow + entry_stack_args
 
     if platform != nil && platform["os"] == "windows" {
-        _emit_entry_call_depth_env_override_windows_x64(ctx)
+        if inject_runtime != true {
+            _emit_entry_call_depth_env_override_windows_x64(ctx)
+        }
     }
     if platform != nil && platform["os"] == "windows" && inject_runtime {
         _emit_entry_build_args_windows_x64(ctx, scratch_base)
-        _emit_entry_build_envp_windows_x64(ctx, scratch_base)
+        _emit_entry_capture_envblock_windows_x64(ctx, scratch_base)
     }
 
     // Native heap registers (rolling Tier-1 design):
@@ -1054,6 +845,20 @@ fn native_compile_program_x64(linked, platform) {
         var call_set_args_pos = oren_list_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_args_pos, "name": "native_runtime_set_args"})
+
+        // Windows: convert Win32 env block -> POSIX envp (Tier‑1 parity).
+        //
+        // scratch[16] currently holds `env_block` captured by `_emit_entry_capture_envblock_windows_x64`.
+        // Build envp using the runtime helper and overwrite scratch[16] with the envp pointer.
+        if platform != nil && platform["os"] == "windows" {
+            // rcx = env_block
+            _emit_mov_r64_mrsp(ctx, 1, scratch_base + 16)
+            var call_build_envp_pos = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_build_envp_pos, "name": "native_envp_build_from_win_envblock"})
+            // scratch[16] = envp
+            _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0)
+        }
 
         // native_runtime_set_envp(envp)
         if platform != nil && platform["os"] == "windows" {

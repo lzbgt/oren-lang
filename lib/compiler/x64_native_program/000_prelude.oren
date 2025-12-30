@@ -14,10 +14,7 @@ import abi "native_abi.oren"
 import intparse "int_lit.oren"
 import callable "native_callable.oren"
 import coreir "coreir.oren"
-import global_dce "global_dce.oren"
-import lexer "lexer.oren"
-import parser "parser.oren"
-import rtinj "native_runtime_inject.oren"
+import bundle "native_runtime_bundle.oren"
 
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }

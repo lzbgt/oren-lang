@@ -60,6 +60,184 @@ fn _cond_true_cc(cond_op) {
     return nil
 }
 
+fn contains_curly_braces(s) {
+    // Match the shared compiler helper semantics:
+    // treat "{}" as a formatting marker for `print(fmt, ...)`.
+    var i = 0
+    var len = oren_string_len(s)
+    while i < len - 1 {
+        if oren_string_char_at(s, i) == "{" {
+            if oren_string_char_at(s, i + 1) == "}" { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_tmp_counter_next(ctx, key) {
+    if ctx == nil { return 0 }
+    if ctx[key] == nil { ctx[key] = 0 }
+    var n = ctx[key]
+    ctx[key] = n + 1
+    return n
+}
+
+fn _x64_print_tmp_name(ctx, prefix) {
+    // Generate deterministic, collision-resistant temp names for x64 op lowering.
+    var n = _x64_tmp_counter_next(ctx, "x64_print_tmp_counter")
+    return prefix + oren_int_to_string(n)
+}
+
+fn _x64_print_emit_build_list_ops(ctx, ops, tok, args, start_idx) {
+    // Synthesize:
+    //   var tmp = oren_new_list(0)
+    //   tmp.push(args[start_idx])
+    //   ...
+    //
+    // Returns tmp variable name.
+    if ops == nil { return nil }
+    if args == nil { args = [] }
+
+    var tmp = _x64_print_tmp_name(ctx, "__oren_print_args_")
+    var new_list_call = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
+        "args": [{"type": "Integer", "token": nil, "value": "0"}],
+    }
+    _expr_int_check(ctx, new_list_call)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": tmp, "expr": new_list_call})
+
+    var i = start_idx
+    while i < oren_list_len(args) {
+        var ai = args[i]
+        if ai == nil { err(ctx, "x64 native: print missing arg"); return nil }
+        _expr_int_check(ctx, ai)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        var push_call = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push"},
+            "args": [{"type": "Identifier", "token": nil, "value": tmp}, ai],
+        }
+        _expr_int_check(ctx, push_call)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": push_call})
+        i = i + 1
+    }
+    return tmp
+}
+
+fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
+    // Lower `print(...)` statement into explicit calls to injected native runtime helpers.
+    //
+    // We do this as an x64-backend-only lowering step (post-DCE) so:
+    // - x64 can converge quickly to arm64 semantics without requiring global front-end rewrites
+    // - printing stays capsule-safe (runtime sys_write gating)
+    //
+    // NOTE: these runtime helpers must be pinned as DCE roots (see native_runtime_bundle.oren),
+    // because the calls are synthesized after DCE and are not visible in the linked AST.
+    if call_expr == nil { return nil }
+    var args = call_expr["args"]
+    if args == nil { args = [] }
+    var argc = oren_list_len(args)
+    var spread = call_expr["spread"]
+
+    var arg0 = nil
+    if argc > 0 { arg0 = args[0] }
+
+    var is_fmt = false
+    if arg0 != nil && arg0["type"] == "String" && contains_curly_braces(arg0["value"]) {
+        if argc > 1 || spread != nil { is_fmt = true }
+    }
+
+    if spread != nil {
+        _expr_int_check(ctx, spread)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        if is_fmt {
+            // fmt, fixed..., ...spread
+            var fixed_name = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 1)
+            if fixed_name == nil { return nil }
+            var call_fmt_sp = {
+                "type": "Call",
+                "fn": {"type": "Identifier", "token": nil, "value": "oren_print_fmt_spread"},
+                "args": [arg0,
+                         {"type": "Identifier", "token": nil, "value": fixed_name},
+                         spread],
+            }
+            _expr_int_check(ctx, call_fmt_sp)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_fmt_sp})
+            return nil
+        }
+
+        // fixed..., ...spread
+        var fixed_name2 = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 0)
+        if fixed_name2 == nil { return nil }
+        var call_sp = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print_spread"},
+            "args": [{"type": "Identifier", "token": nil, "value": fixed_name2}, spread],
+        }
+        _expr_int_check(ctx, call_sp)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_sp})
+        return nil
+    }
+
+    if is_fmt {
+        // fmt, fixed...
+        var fixed_name3 = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 1)
+        if fixed_name3 == nil { return nil }
+        var call_fmt = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print_fmt"},
+            "args": [arg0, {"type": "Identifier", "token": nil, "value": fixed_name3}],
+        }
+        _expr_int_check(ctx, call_fmt)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_fmt})
+        return nil
+    }
+
+    // Non-format.
+    if argc == 0 {
+        var call_nl = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print_list"},
+            "args": [{"type": "Nil", "token": nil}],
+        }
+        _expr_int_check(ctx, call_nl)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_nl})
+        return nil
+    }
+    if argc == 1 {
+        _expr_int_check(ctx, arg0)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        var call_one = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_print"},
+            "args": [arg0],
+        }
+        _expr_int_check(ctx, call_one)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_one})
+        return nil
+    }
+
+    var fixed_name4 = _x64_print_emit_build_list_ops(ctx, ops, tok, args, 0)
+    if fixed_name4 == nil { return nil }
+    var call_list = {
+        "type": "Call",
+        "fn": {"type": "Identifier", "token": nil, "value": "oren_print_list"},
+        "args": [{"type": "Identifier", "token": nil, "value": fixed_name4}],
+    }
+    _expr_int_check(ctx, call_list)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call_list})
+    return nil
+}
+
 fn _cond_false_cc_for_cond(cond) {
     // After `_emit_cmp_from_cond`, flags are:
     // - comparison: based on `cmp lhs, rhs`
@@ -115,6 +293,18 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 var callee = e["fn"]
                 var args = e["args"]
                 if callee != nil && callee["type"] == "Identifier" && callee["value"] == "print" {
+                    // Tier‑1 parity: when native runtime injection is enabled (default),
+                    // lower `print(...)` to runtime helpers so:
+                    // - printing supports multi-arg, fmt, and spread (same semantics as arm64)
+                    // - capsule sys_write gating applies (no direct syscall/WinAPI bypass)
+                    if ctx != nil && ctx["inject_runtime"] == true {
+                        _x64_print_lower_to_runtime_ops(ctx, ops, tok, e)
+                        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                        i = i + 1
+                        continue
+                    }
+
+                    // Bring-up mode: keep the legacy x64-only print lowering.
                     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
                     var a0 = args[0]
                     if a0 == nil { err(ctx, "x64 native v0: print missing arg"); return nil }
@@ -126,10 +316,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                         continue
                     }
 
-                    // Rolling: allow printing any expression that evaluates to a string pointer.
-                    // This unlocks Tier‑1 parity for common cases like:
-                    //   print(string_concat("a", b))
-                    // without requiring full runtime injection yet.
+                    // Rolling bring-up: allow printing any expression that evaluates to a string pointer.
                     _expr_int_check(ctx, a0)
                     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                     oren_list_push(ops, {"op": "print_str_expr", "tok": tok, "expr": a0})

@@ -8,6 +8,7 @@ import abi "arm64_abi_macos.oren"
 import labi "arm64_abi_linux.oren"
 import callable "native_callable.oren"
 import rtinj "native_runtime_inject.oren"
+import bundle "native_runtime_bundle.oren"
 
 // Re-export core helpers locally so the native program compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -272,67 +273,48 @@ fn native_compile_program_arm64(linked, platform) {
     // without overlapping the injected runtime function ranges.
     ctx["entry_stub_end"] = oren_list_len(ctx["code"])
     
-    // Inject Runtime (supports `// @include "..."` expansion for modular runtime sources).
-    var runtime_src = rtinj.runtime_expand_includes_file(ctx, "lib/runtime_native.oren", [])
-    if runtime_src == nil { return ctx }
-    // Debug aid: dump expanded runtime after include expansion, before parsing.
-    // This is intentionally opt-in because the expanded runtime is large.
-    var dump_runtime = oren_env("OREN_DUMP_NATIVE_RUNTIME")
-    if dump_runtime != nil {
-        var p = dump_runtime
-        if p == "" { p = "build/runtime_native.expanded.oren" }
-        oren_write_file(p, runtime_src)
-    }
-    var l = lexer.new_lexer(runtime_src)
-    l["file"] = "lib/runtime_native.oren"
-    var p = parser.new_parser(l)
-    var runtime_prog = parser.parse_program(p)
-    if oren_list_len(p["errors"]) != 0 {
-        oren_list_push(ctx["errors"], "Parse errors in lib/runtime_native.oren")
-        var ei = 0
-        while ei < oren_list_len(p["errors"]) {
-            oren_list_push(ctx["errors"], p["errors"][ei])
-            ei = ei + 1
-        }
-        return ctx
-    }
-
-    // Capsule mode: enforce capability gating on user code before codegen.
-    // Note: enforced against runtime annotations, but scanned on user program only.
-    if platform["capsule"] == true {
-        capsule.enforce_capsule(runtime_prog, linked, platform["cap_allow_domains"])
-    }
+    // Inject Runtime (supports `// @include "..."` expansion for modular runtime sources),
+    // and re-run whole-program DCE after injection to keep compilation time bounded.
+    //
+    // This is shared with the x86_64 native backend so Tier‑1 backends converge on one
+    // injection + DCE policy (and the same entry-stub DCE roots).
+    var bun = bundle.prepare_native_runtime_bundle(ctx, "arm64", linked, platform, {"runtime_path": "lib/runtime_native.oren", "inject_runtime": true})
+    if bun == nil { return ctx }
+    var runtime_prog = bun["runtime_prog"]
+    var runtime_stmts = bun["runtime_stmts"]
+    var user_stmts = bun["user_stmts"]
+    if runtime_stmts == nil { runtime_stmts = [] }
+    if user_stmts == nil { user_stmts = [] }
 
     // Collect named function declarations (runtime + user) so the native backend can:
     // - treat named functions as first-class values (Identifier -> callable object)
     // - compute lambda free-var captures without accidentally capturing global functions
-    callable.func_decl_scan_stmt_list(ctx, runtime_prog["statements"])
-    callable.func_decl_scan_stmt_list(ctx, linked["statements"])
+    callable.func_decl_scan_stmt_list(ctx, runtime_stmts)
+    callable.func_decl_scan_stmt_list(ctx, user_stmts)
 
     // Collect lambdas from user code (lambdas are anonymous Function nodes with name="").
     // This annotates lambda nodes with:
     //   - lambda_name: generated wrapper name
     //   - captures: free vars in deterministic first-use order
     var li = 0
-    while li < oren_list_len(linked["statements"]) {
-        callable.collect_lambdas_in_statement(ctx, linked["statements"][li])
+    while li < oren_list_len(user_stmts) {
+        callable.collect_lambdas_in_statement(ctx, user_stmts[li])
         li = li + 1
     }
     
     // Compile runtime functions
     var i = 0
-    while i < oren_list_len(runtime_prog["statements"]) {
-        native_compile_stmt(ctx, runtime_prog["statements"][i])
+    while i < oren_list_len(runtime_stmts) {
+        native_compile_stmt(ctx, runtime_stmts[i])
         i = i + 1
     }
 
     // Register start of user code
     ctx["functions"]["__top_level__"] = oren_list_len(ctx["code"])
 
-    var stmts = linked["statements"]
     i = 0
-    while i < oren_list_len(stmts) {
-        native_compile_stmt(ctx, stmts[i])
+    while i < oren_list_len(user_stmts) {
+        native_compile_stmt(ctx, user_stmts[i])
         i = i + 1
     }
 
@@ -443,8 +425,8 @@ fn native_compile_program_arm64(linked, platform) {
 
     // User functions
     j = 0
-    while j < oren_list_len(stmts) {
-        var st2 = stmts[j]
+    while j < oren_list_len(user_stmts) {
+        var st2 = user_stmts[j]
         if st2["type"] == "Function" {
             var name2 = st2["name"]
             var off2 = ctx["functions"][name2]

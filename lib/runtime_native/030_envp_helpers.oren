@@ -152,3 +152,61 @@ fn native_parse_cap_allow_mask(csv_cstr) {
     return mask
 }
 
+// --- Windows env block → POSIX envp ---
+//
+// Win32 `GetEnvironmentStringsA()` returns an environment "block" in the form:
+//   "K=V\\0K2=V2\\0...\\0\\0"
+//
+// The native runtime expects a POSIX-style `envp`:
+//   [ptr to "K=V\\0", ptr to "K2=V2\\0", ..., 0]
+//
+// The x86_64 Windows entry stub uses this helper to convert the Win32 env block into
+// an `envp` pointer array that can be scanned by `native_envp_get_value_ptr`.
+//
+// Notes:
+// - We intentionally do not free the Win32 env block (the pointers in envp refer to it).
+// - The runtime env scanners are bounded to 4096 entries for safety; we match that cap here.
+fn native_envp_build_from_win_envblock(env_block) {
+    if env_block == 0 { return 0 }
+
+    // First pass: count entries (bounded).
+    var p = env_block
+    var count = 0
+    // Bound total bytes scanned so malformed blocks cannot spin forever.
+    var scanned = 0
+    while scanned < 1048576 { // 1 MiB
+        var b0 = ptr_get_byte(p)
+        if b0 == 0 {
+            var b1 = ptr_get_byte(iadd(p, 1))
+            if b1 == 0 { break } // end of block (double NUL)
+        }
+
+        count = count + 1
+        if count >= 4096 { break }
+        var n = native_cstr_len(p)
+        // Defensive: `native_cstr_len` returns at most 65536.
+        scanned = scanned + n + 1
+        p = iadd(p, n + 1)
+    }
+    if count <= 0 { return 0 }
+
+    // Allocate envp pointer array: (count + 1) * 8 bytes (u64 pointers), terminated by NULL.
+    //
+    // Use raw allocation: envp is not part of the tracked heap object model.
+    var bytes = (count + 1) * 8
+    var envp = malloc_raw(bytes)
+    if envp == 0 { exit(203) }
+    if envp == -1 { exit(203) }
+
+    // Second pass: fill pointers.
+    p = env_block
+    var i = 0
+    while i < count {
+        ptr_set(iadd(envp, i * 8), p)
+        var n2 = native_cstr_len(p)
+        p = iadd(p, n2 + 1)
+        i = i + 1
+    }
+    ptr_set(iadd(envp, count * 8), 0)
+    return envp
+}

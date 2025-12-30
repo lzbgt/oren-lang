@@ -1,0 +1,421 @@
+// native_runtime_bundle.oren
+//
+// Shared native-runtime injection pipeline for Tier‑1 native backends (arm64 + x86_64).
+//
+// Why this exists:
+// - Both native backends inject `lib/runtime_native.oren` (expanded from `lib/runtime_native/**`).
+// - Entry stubs call runtime init helpers, but those calls are not visible in the AST.
+// - Whole-program DCE may run after injection (x86_64 already does), so entry-stub-only
+//   functions must be pinned as extra roots.
+//
+// Goal:
+// - Make the runtime-injection pipeline consistent across native backends so we can:
+//   - converge semantics quickly (x64 ↔ arm64),
+//   - share tooling and invariants (capsule enforcement, DCE roots),
+//   - keep compile time bounded by removing unused runtime code.
+//
+// Notes:
+// - This file is intentionally "compiler-internal"; it should not be used by user code.
+// - This module does not perform codegen; it prepares a linked program + runtime AST.
+
+import lexer "lexer.oren"
+import parser "parser.oren"
+import rtinj "native_runtime_inject.oren"
+import global_dce "global_dce.oren"
+import capsule "capsule.oren"
+
+fn _bundle_err(ctx, msg) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    oren_list_push(ctx["errors"], msg)
+    return nil
+}
+
+fn _bundle_clone_list(xs) {
+    if xs == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(xs) {
+        oren_list_push(out, xs[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn _bundle_list_contains(xs, v) {
+    if xs == nil { return false }
+    var i = 0
+    while i < oren_list_len(xs) {
+        if xs[i] == v { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _bundle_roots_base() {
+    // Functions called by Tier‑1 native entry stubs.
+    //
+    // These are NOT necessarily referenced from the AST, so whole-program DCE must keep them.
+    //
+    // IMPORTANT (rolling, Tier‑1 correctness):
+    // Native backends sometimes call runtime helpers via *codegen fixups* (BL/call_rel32)
+    // that are not visible in the linked AST. If we run whole-program DCE after runtime
+    // injection, we must conservatively pin those helper functions here, otherwise native
+    // codegen can fail at link/fixup time with "undefined function <name>".
+    return [
+        "native_runtime_init",
+        "native_runtime_set_args",
+        "native_runtime_set_envp",
+        "native_runtime_capsule_init",
+        "native_runtime_init_gc_mode",
+        "oren_register_thread",
+        // Compiler-inserted hooks (not AST-visible):
+        "oren_call_depth_enter",
+        "oren_call_depth_exit",
+        // `print(...)` is a language-level statement lowered by native backends via
+        // runtime helpers (often injected as raw fixups, not visible in AST).
+        //
+        // When DCE runs after runtime injection, these must remain available so:
+        // - arm64 print lowering can call them via fixups, and
+        // - x86_64 can converge to the same runtime-based printing (capsule-safe).
+        "oren_print",
+        "oren_print_list",
+        "oren_print_fmt",
+        "oren_print_spread",
+        "oren_print_fmt_spread",
+        // String literal tracking / key-kind safety:
+        // native backends may call this via raw fixups (not AST-visible), so it must survive DCE.
+        "oren_ensure_tracked",
+
+        // --- Core operator/runtime helpers referenced via fixups ---
+        "oren_add",
+        "oren_mod",
+        "strcmp",
+        "oren_find_node",
+        "oren_track_alloc",
+        "oren_new_list",
+        "oren_list_push",
+        "oren_new_map",
+        "oren_map_get_int",
+        "oren_map_get_str",
+        "oren_map_set_int",
+        "oren_map_set_str",
+        "oren_func",
+        "oren_call_obj_spread",
+        "oren_spawn_call_list",
+        "oren_panic",
+
+        // --- Capsule syscall gating hooks (called by syscall lowering, not AST-visible) ---
+        "native_capsule_sys_accept_pre",
+        "native_capsule_sys_accept_post",
+        "native_capsule_sys_access_pre",
+        "native_capsule_sys_access_post",
+        "native_capsule_sys_bind_pre",
+        "native_capsule_sys_bind_post",
+        "native_capsule_sys_bsdthread_register_pre",
+        "native_capsule_sys_chmod_pre",
+        "native_capsule_sys_chmod_post",
+        "native_capsule_sys_clone_pre",
+        "native_capsule_sys_close_pre",
+        "native_capsule_sys_close_post",
+        "native_capsule_sys_connect_pre",
+        "native_capsule_sys_connect_post",
+        "native_capsule_sys_dup_pre",
+        "native_capsule_sys_dup_post",
+        "native_capsule_sys_dup2_pre",
+        "native_capsule_sys_dup2_post",
+        "native_capsule_sys_epoll_create1_pre",
+        "native_capsule_sys_epoll_create1_post",
+        "native_capsule_sys_epoll_ctl_pre",
+        "native_capsule_sys_epoll_pwait_pre",
+        "native_capsule_sys_execve_pre",
+        "native_capsule_sys_fcntl_pre",
+        "native_capsule_sys_fcntl_post",
+        "native_capsule_sys_fork_pre",
+        "native_capsule_sys_fork_post",
+        "native_capsule_sys_fstat_pre",
+        "native_capsule_sys_fstat_post",
+        "native_capsule_sys_getcwd_pre",
+        "native_capsule_sys_getdirentries64_pre",
+        "native_capsule_sys_getdirentries64_post",
+        "native_capsule_sys_getpeername_pre",
+        "native_capsule_sys_getsockname_pre",
+        "native_capsule_sys_getsockopt_pre",
+        "native_capsule_sys_gettimeofday_pre",
+        "native_capsule_sys_ioctl_pre",
+        "native_capsule_sys_kevent_pre",
+        "native_capsule_sys_kill_pre",
+        "native_capsule_sys_kqueue_pre",
+        "native_capsule_sys_kqueue_post",
+        "native_capsule_sys_listen_pre",
+        "native_capsule_sys_listen_post",
+        "native_capsule_sys_lstat_pre",
+        "native_capsule_sys_lstat_post",
+        "native_capsule_sys_mkdir_pre",
+        "native_capsule_sys_mkdir_post",
+        "native_capsule_sys_mmap_private_anon_pre",
+        "native_capsule_sys_munmap_pre",
+        "native_capsule_sys_nanosleep_pre",
+        "native_capsule_sys_open_pre",
+        "native_capsule_sys_open_post",
+        "native_capsule_sys_pipe_pre",
+        "native_capsule_sys_pipe_post",
+        "native_capsule_sys_read_pre",
+        "native_capsule_sys_recvfrom_pre",
+        "native_capsule_sys_rename_pre",
+        "native_capsule_sys_rename_post",
+        "native_capsule_sys_rmdir_pre",
+        "native_capsule_sys_rmdir_post",
+        "native_capsule_sys_sendto_pre",
+        "native_capsule_sys_setsockopt_pre",
+        "native_capsule_sys_shutdown_pre",
+        "native_capsule_sys_socket_pre",
+        "native_capsule_sys_socket_post",
+        "native_capsule_sys_stat_pre",
+        "native_capsule_sys_stat_post",
+        "native_capsule_sys_unlink_pre",
+        "native_capsule_sys_unlink_post",
+        "native_capsule_sys_wait4_pre",
+        "native_capsule_sys_write_pre",
+
+        // --- Alloc reuse helpers (used by runtime, sometimes via fixups) ---
+        "native_try_reuse",
+        "native_try_reuse_node"
+    ]
+}
+
+fn _bundle_roots_arm64_extra(platform) {
+    // arm64 entry stubs (today) also call a GC shutdown hook and, in debug mode,
+    // set debug info pointers before user code.
+    var out = []
+    oren_list_push(out, "native_gc_shutdown")
+    if platform != nil && platform["debug"] == true {
+        oren_list_push(out, "oren_set_debug_info")
+    }
+    return out
+}
+
+fn _bundle_roots_x64_extra(platform) {
+    // x86_64 entry stubs have some OS-specific helpers that are not referenced in the AST.
+    // Keep them pinned so post-injection DCE does not drop them.
+    var out = []
+    if platform != nil && platform["os"] == "windows" {
+        // Win64 builds envp by calling GetEnvironmentStringsA in the entry stub and then
+        // invoking this runtime helper to convert the Win32 env block into a POSIX-style
+        // `envp` pointer array.
+        oren_list_push(out, "native_envp_build_from_win_envblock")
+    }
+    return out
+}
+
+fn _bundle_roots_for_backend(backend, platform) {
+    // backend: "arm64" | "x64"
+    var roots = _bundle_clone_list(_bundle_roots_base())
+    var extra = []
+    if backend == "arm64" { extra = _bundle_roots_arm64_extra(platform) }
+    else if backend == "x64" { extra = _bundle_roots_x64_extra(platform) }
+    var i = 0
+    while i < oren_list_len(extra) {
+        if _bundle_list_contains(roots, extra[i]) == false {
+            oren_list_push(roots, extra[i])
+        }
+        i = i + 1
+    }
+    return roots
+}
+
+fn _bundle_config_merge_roots(cfg0, roots_add) {
+    // Preserve config knobs that affect the linker / DCE decisions.
+    //
+    // We intentionally do not mutate cfg0 in place (it may be shared).
+    var cfg = {}
+    if cfg0 != nil && cfg0["keep_all_top_level_functions"] == true {
+        cfg["keep_all_top_level_functions"] = true
+    }
+    // Copy existing roots if present.
+    var roots = []
+    if cfg0 != nil && cfg0["roots"] != nil {
+        roots = _bundle_clone_list(cfg0["roots"])
+    }
+    if roots_add != nil {
+        var i = 0
+        while i < oren_list_len(roots_add) {
+            var nm = roots_add[i]
+            if nm != nil && nm != "" && _bundle_list_contains(roots, nm) == false {
+                oren_list_push(roots, nm)
+            }
+            i = i + 1
+        }
+    }
+    cfg["roots"] = roots
+    return cfg
+}
+
+fn _bundle_tag_stmt_list(stmts, is_runtime) {
+    if stmts == nil { return nil }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st != nil {
+            st["__oren_from_runtime"] = is_runtime
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _bundle_split_stmt_list_by_runtime_tag(stmts) {
+    // Split linked statements into:
+    // - runtime statements (tagged __oren_from_runtime=true)
+    // - user statements (everything else)
+    var runtime = []
+    var user = []
+    if stmts == nil { return {"runtime": runtime, "user": user} }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st != nil && st["__oren_from_runtime"] == true {
+            oren_list_push(runtime, st)
+        } else {
+            oren_list_push(user, st)
+        }
+        i = i + 1
+    }
+    return {"runtime": runtime, "user": user}
+}
+
+fn load_and_parse_runtime_native(ctx, runtime_path) {
+    // Expand and parse a native runtime source file.
+    //
+    // Returns a program AST {statements: ...} or nil (errors recorded in ctx).
+    if ctx == nil { return nil }
+    if runtime_path == nil || runtime_path == "" {
+        _bundle_err(ctx, "native runtime bundle: missing runtime_path")
+        return nil
+    }
+
+    var runtime_src = rtinj.runtime_expand_includes_file(ctx, runtime_path, [])
+    if runtime_src == nil { return nil }
+
+    // Debug aid: dump expanded runtime after include expansion, before parsing.
+    // This is intentionally opt-in because the expanded runtime is large.
+    var dump_runtime = oren_env("OREN_DUMP_NATIVE_RUNTIME")
+    if dump_runtime != nil {
+        var p = dump_runtime
+        if p == "" { p = "build/runtime_native.expanded.oren" }
+        oren_write_file(p, runtime_src)
+    }
+
+    var l = lexer.new_lexer(runtime_src)
+    l["file"] = runtime_path
+    var p2 = parser.new_parser(l)
+    var runtime_prog = parser.parse_program(p2)
+    if p2 != nil && p2["errors"] != nil && oren_list_len(p2["errors"]) != 0 {
+        _bundle_err(ctx, "Parse errors in " + runtime_path)
+        var ei = 0
+        while ei < oren_list_len(p2["errors"]) {
+            _bundle_err(ctx, p2["errors"][ei])
+            ei = ei + 1
+        }
+        return nil
+    }
+
+    return runtime_prog
+}
+
+fn inject_runtime_into_linked_and_dce(ctx, backend, linked, runtime_prog, platform, aliases) {
+    // Build a merged linked program:
+    //   [runtime stmts...] + [user stmts...]
+    //
+    // Then run whole-program DCE (function-only) to keep compilation time bounded and
+    // to reduce the surface area of backend-only unimplemented features.
+    //
+    // Returns:
+    // - linked2: merged linked program after DCE
+    // - runtime_stmts: tagged runtime statements still present after DCE
+    // - user_stmts: remaining user statements after DCE
+    if ctx == nil { return nil }
+    if linked == nil { _bundle_err(ctx, "native runtime bundle: linked is nil"); return nil }
+    if runtime_prog == nil { _bundle_err(ctx, "native runtime bundle: runtime_prog is nil"); return nil }
+
+    var rs = runtime_prog["statements"]
+    if rs == nil { rs = [] }
+    var us = linked["statements"]
+    if us == nil { us = [] }
+
+    // Tag runtime statements so callers can split after DCE without relying on indices.
+    _bundle_tag_stmt_list(rs, true)
+    _bundle_tag_stmt_list(us, false)
+
+    var merged = []
+    var i = 0
+    while i < oren_list_len(rs) { oren_list_push(merged, rs[i]); i = i + 1 }
+    i = 0
+    while i < oren_list_len(us) { oren_list_push(merged, us[i]); i = i + 1 }
+
+    var cfg0 = linked["config"]
+    var roots = _bundle_roots_for_backend(backend, platform)
+    var cfg = _bundle_config_merge_roots(cfg0, roots)
+
+    var linked2 = {"statements": merged, "aliases": aliases, "config": cfg}
+
+    // Run DCE after injection unless explicitly disabled by config.
+    global_dce.lower_linked_program_in_place(linked2)
+
+    var stmts2 = linked2["statements"]
+    var split = _bundle_split_stmt_list_by_runtime_tag(stmts2)
+    return {"linked": linked2, "runtime_stmts": split["runtime"], "user_stmts": split["user"]}
+}
+
+fn prepare_native_runtime_bundle(ctx, backend, linked, platform, opts) {
+    // High-level entrypoint used by native backends.
+    //
+    // backend:
+    // - "arm64" for arm64 native backend
+    // - "x64"   for x86_64 native backend
+    //
+    // opts:
+    // - runtime_path: path to the runtime entry file (default: "lib/runtime_native.oren")
+    // - inject_runtime: bool (default: true)
+    //
+    // Returns:
+    // - inject_runtime: bool
+    // - runtime_prog: runtime program AST (if injected)
+    // - linked2: merged linked program after DCE (if injected)
+    // - runtime_stmts, user_stmts: statement lists after DCE split by runtime tag
+    if ctx == nil { return nil }
+    if linked == nil { _bundle_err(ctx, "native runtime bundle: linked is nil"); return nil }
+    if platform == nil { platform = {} }
+
+    var runtime_path = "lib/runtime_native.oren"
+    var inject_runtime = true
+    if opts != nil {
+        if opts["runtime_path"] != nil { runtime_path = opts["runtime_path"] }
+        if opts["inject_runtime"] == false { inject_runtime = false }
+    }
+
+    if inject_runtime == false {
+        return {"inject_runtime": false, "runtime_prog": nil, "linked2": linked, "runtime_stmts": [], "user_stmts": linked["statements"]}
+    }
+
+    var runtime_prog = load_and_parse_runtime_native(ctx, runtime_path)
+    if runtime_prog == nil { return nil }
+
+    // Capsule enforcement (compile-time):
+    //
+    // - enforced against runtime annotations, but scanned on user program only.
+    // - consistent across native backends (Tier‑1 parity).
+    if platform["capsule"] == true {
+        capsule.enforce_capsule(runtime_prog, linked, platform["cap_allow_domains"])
+    }
+
+    var aliases = linked["aliases"]
+    if aliases == nil { aliases = {} }
+
+    var out = inject_runtime_into_linked_and_dce(ctx, backend, linked, runtime_prog, platform, aliases)
+    if out == nil { return nil }
+
+    out["inject_runtime"] = true
+    out["runtime_prog"] = runtime_prog
+    return out
+}

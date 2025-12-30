@@ -4,7 +4,7 @@
 // - emits a PE executable with three sections: .text (RX), .rdata (R), .data (RW)
 // - imports a small Win32 surface via an import table:
 //   - KERNEL32.dll: ExitProcess, GetStdHandle, WriteFile, VirtualAlloc, GetEnvironmentVariableA,
-//                   GetCommandLineW, WideCharToMultiByte, LocalFree
+//                   GetEnvironmentStringsA, GetCommandLineW, WideCharToMultiByte, LocalFree
 //   - SHELL32.dll: CommandLineToArgvW
 // - entry stub calls main(), then ExitProcess(main_ret)
 //
@@ -81,6 +81,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         "WriteFile",
         "VirtualAlloc",
         "GetEnvironmentVariableA",
+        "GetEnvironmentStringsA",
         "GetCommandLineW",
         "WideCharToMultiByte",
         "LocalFree"
@@ -242,9 +243,10 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             else if label == "IAT_WriteFile" { target_off = off_iat_k32 + 16 }
             else if label == "IAT_VirtualAlloc" { target_off = off_iat_k32 + 24 }
             else if label == "IAT_GetEnvironmentVariableA" { target_off = off_iat_k32 + 32 }
-            else if label == "IAT_GetCommandLineW" { target_off = off_iat_k32 + 40 }
-            else if label == "IAT_WideCharToMultiByte" { target_off = off_iat_k32 + 48 }
-            else if label == "IAT_LocalFree" { target_off = off_iat_k32 + 56 }
+            else if label == "IAT_GetEnvironmentStringsA" { target_off = off_iat_k32 + 40 }
+            else if label == "IAT_GetCommandLineW" { target_off = off_iat_k32 + 48 }
+            else if label == "IAT_WideCharToMultiByte" { target_off = off_iat_k32 + 56 }
+            else if label == "IAT_LocalFree" { target_off = off_iat_k32 + 64 }
             // SHELL32.dll IAT slots
             else if label == "IAT_CommandLineToArgvW" { target_off = off_iat_s32 + 0 }
             else {
