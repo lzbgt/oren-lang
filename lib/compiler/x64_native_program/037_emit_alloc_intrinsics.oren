@@ -1,0 +1,250 @@
+// x64-native container allocation intrinsics.
+//
+// Motivation (Tier‑1 convergence):
+// - The rolling native runtime (`lib/runtime_native/*`) uses `oren_find_node(ptr)` + a "kind"
+//   field to safely identify heap objects (list/map/buf/func env) without probing arbitrary
+//   integers as pointers.
+// - The x64 backend brings up its own lightweight tracking list (`015_tracking.oren`) and
+//   implements `oren_track_alloc/oren_find_node` as intrinsics.
+//
+// Therefore, x64 container alloc intrinsics must insert entries into the tracked-allocs list,
+// matching the runtime's assumptions about `kind` (2=list, 3=map, 7=typed buffer).
+
+fn _emit_intrinsic_oren_new_list_x64(ctx, expr, locals) {
+    // Native list layout (matches native runtime contract):
+    //   header (32 bytes): [count][cap][buf_ptr][magic]
+    // Where buffer holds 8-byte slots (u64 carriers).
+    if expr == nil { err(ctx, "x64 native v0: oren_new_list missing expr"); return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_new_list expects 1 arg"); return nil }
+
+    var tmp_cap = locals["$tmp1"]
+    var tmp_hdr = locals["$tmp2"]
+    var tmp_buf = locals["$tmp3"]
+    if tmp_cap == nil || tmp_hdr == nil || tmp_buf == nil { err(ctx, "x64 native v0: missing temp slots for list alloc"); return nil }
+
+    // cap -> rax
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    // if cap < 0 => cap = 0
+    var labels = {}
+    var local_fixups = []
+    var l_cap_ok = _new_label(ctx, "list_cap_ok")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_cap_ok)
+    _patch_local_fixups(ctx, labels, local_fixups)
+
+    // spill cap
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_cap, 0)
+
+    // header = malloc(32)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 32))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_malloc_size_in_rax(ctx, locals)
+    // spill header
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
+
+    // buf = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+
+    // if cap > 0 => buf = malloc(cap*8)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_cap) // rax = cap
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    labels = {}
+    local_fixups = []
+    var l_no_buf = _new_label(ctx, "list_no_buf")
+    var l_buf_done = _new_label(ctx, "list_buf_done")
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_no_buf)
+    // size = cap << 3
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    _emit_malloc_size_in_rax(ctx, locals)
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_buf_done)
+    _emit_label(ctx, labels, l_no_buf)
+    _emit_label(ctx, labels, l_buf_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+
+    // Initialize header fields.
+    //
+    // Load hdr -> rdx (base pointer).
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr) // rdx = hdr
+
+    // [hdr+0] count = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // [hdr+8] cap = cap
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_cap) // rax = cap
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // [hdr+16] buf = buf
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_buf) // rax = buf
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // [hdr+24] magic = 'LIST'
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1279870019))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // Track header + buffer so runtime helpers (e.g. `oren_iter_next`) can safely detect list kinds.
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr) // ptr_reg = hdr
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 32)) // size_reg = 32
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 2))  // kind_reg = LIST
+    _emit_track_alloc_x64(ctx, locals, 2, 13, 10)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_buf) // ptr_reg = buf (may be 0)
+    _emit_mov_r64_mrbp(ctx, 13, 0 - tmp_cap) // size_reg = cap
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(13, 3)) // cap*8
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0)) // kind 0 for raw buffer
+    _emit_track_alloc_x64(ctx, locals, 2, 13, 10)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    // return hdr
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
+    return nil
+}
+
+fn _emit_intrinsic_oren_new_map_x64(ctx, expr, locals) {
+    // Native map layout (matches native runtime contract):
+    //   header (40 bytes): [count][cap][entries_ptr][magic][dirty_sort]
+    //
+    // entries is an array of 24-byte entries:
+    //   [key][key_kind][value]
+    if expr == nil { err(ctx, "x64 native v0: oren_new_map missing expr"); return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_new_map expects 1 arg"); return nil }
+
+    var tmp_cap = locals["$tmp1"]
+    var tmp_hdr = locals["$tmp2"]
+    var tmp_buf = locals["$tmp3"]
+    if tmp_cap == nil || tmp_hdr == nil || tmp_buf == nil { err(ctx, "x64 native v0: missing temp slots for map alloc"); return nil }
+
+    // cap -> rax
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    // if cap < 0 => cap = 0
+    var labels = {}
+    var local_fixups = []
+    var l_cap_ok = _new_label(ctx, "map_cap_ok")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_cap_ok)
+
+    // if cap > 0 && cap < 4 => cap = 4
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    var l_cap_le0 = _new_label(ctx, "map_cap_le0")
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_cap_le0)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4))
+    var l_cap_ge4 = _new_label(ctx, "map_cap_ge4")
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ge4)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_label(ctx, labels, l_cap_ge4)
+    _emit_label(ctx, labels, l_cap_le0)
+    _patch_local_fixups(ctx, labels, local_fixups)
+
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_cap, 0)
+
+    // header = malloc(40)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 40))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_malloc_size_in_rax(ctx, locals)
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
+
+    // buf = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+
+    // if cap > 0 => buf = malloc(cap * 24)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_cap)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    labels = {}
+    local_fixups = []
+    var l_no_buf = _new_label(ctx, "map_no_buf")
+    var l_buf_done = _new_label(ctx, "map_buf_done")
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_no_buf)
+    // size = cap * 24
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    _emit_malloc_size_in_rax(ctx, locals)
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+    _emit_jmp_to_label(ctx, local_fixups, l_buf_done)
+    _emit_label(ctx, labels, l_no_buf)
+    _emit_label(ctx, labels, l_buf_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+
+    // Initialize header fields.
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr) // rdx = hdr
+
+    // [hdr+0] count = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // [hdr+8] cap = cap
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_cap)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // [hdr+16] entries_ptr = buf
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_buf)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // [hdr+24] magic = 'MAP\\0' (rolling; must match native runtime)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1296121168))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // [hdr+32] dirty_sort = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // Track header + entries buffer so runtime helpers can safely detect map kinds.
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr) // ptr_reg = hdr
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 40)) // size_reg = 40
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 3))  // kind_reg = MAP
+    _emit_track_alloc_x64(ctx, locals, 2, 13, 10)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_buf) // ptr_reg = buf (may be 0)
+    _emit_mov_r64_mrbp(ctx, 13, 0 - tmp_cap) // size_reg = cap
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(13, 24)) // cap*24
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0)) // kind 0 for raw buffer
+    _emit_track_alloc_x64(ctx, locals, 2, 13, 10)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)
+    return nil
+}
+
