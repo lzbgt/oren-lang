@@ -82,6 +82,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
     - Tier‑1 parity fixture (map get via dynamic key; nil-key miss semantics): `tests/fixtures/tier1_native_map_get_dynamic_key_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (string ops: `+` / `len` / `slice`): `tests/fixtures/tier1_native_string_ops_main.oren` (gated by `OREN_REMOTE_RUN=1`)
     - Tier‑1 parity fixture (float literals + `+ - * /` + casts `f32/i64`): `tests/fixtures/tier1_native_float_ops_main.oren` (gated by `OREN_REMOTE_RUN=1`)
+    - Tier‑1 parity fixture (process args / `oren_args()` across Linux+Windows): `tests/fixtures/tier1_native_args_main.oren` (gated by `OREN_REMOTE_RUN=1`)
 
 ## What’s Still Missing for Production Maturity (Gap List)
 
