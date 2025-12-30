@@ -582,25 +582,35 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         }
         if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return nil }
         if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return nil }
-        if nm == "oren_string_len" {
-            _emit_intrinsic_oren_string_len_x64(ctx, expr, locals)
-            return nil
-        }
-        if nm == "oren_string_slice" {
-            _emit_intrinsic_oren_string_slice_x64(ctx, expr, locals)
-            return nil
-        }
-        if nm == "string_concat" {
-            _emit_intrinsic_string_concat_x64(ctx, expr, locals)
-            return nil
-        }
-        if nm == "oren_string_eq" {
-            _emit_intrinsic_oren_string_eq_x64(ctx, expr, locals)
-            return nil
-        }
-        if nm == "oren_int_from_string" {
-            _emit_intrinsic_oren_int_from_string_x64(ctx, expr, locals)
-            return nil
+
+        // Tier‑1 convergence:
+        // - When native runtime injection is enabled (default), prefer compiling and calling
+        //   the shared runtime implementations (arm64/x64 semantics converge).
+        // - When injection is disabled (bring-up debug mode), keep minimal x64 intrinsics so
+        //   programs can still run without the injected runtime module set.
+        var inject_runtime = true
+        if ctx != nil && ctx["inject_runtime"] == false { inject_runtime = false }
+        if !inject_runtime {
+            if nm == "oren_string_len" {
+                _emit_intrinsic_oren_string_len_x64(ctx, expr, locals)
+                return nil
+            }
+            if nm == "oren_string_slice" {
+                _emit_intrinsic_oren_string_slice_x64(ctx, expr, locals)
+                return nil
+            }
+            if nm == "string_concat" {
+                _emit_intrinsic_string_concat_x64(ctx, expr, locals)
+                return nil
+            }
+            if nm == "oren_string_eq" {
+                _emit_intrinsic_oren_string_eq_x64(ctx, expr, locals)
+                return nil
+            }
+            if nm == "oren_int_from_string" {
+                _emit_intrinsic_oren_int_from_string_x64(ctx, expr, locals)
+                return nil
+            }
         }
         if nm == "malloc" || nm == "malloc_raw" {
             if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: malloc expects 1 arg"); return nil }

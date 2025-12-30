@@ -268,6 +268,9 @@ fn native_compile_program_x64(linked, platform) {
         "func_decl_order": [],
         "declared_functions": {}
     }
+    // Expose whether runtime injection is enabled so lowering can progressively
+    // switch from x64 bring-up intrinsics to shared runtime helpers (Tier‑1 parity).
+    ctx["inject_runtime"] = inject_runtime
     ctx["abi"] = abi.x64(platform)
     // Reserve minimal tracking globals early so appended data offsets are deterministic
     // regardless of when the first string literal is encountered during codegen.
