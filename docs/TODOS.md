@@ -31,6 +31,9 @@ Rules for this tracker:
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
+     - Stopgap (Linux/x86_64 execution while remote is flaky): run linux/x64 artifacts under `qemu-x86_64` inside the already-running Ubuntu container `c7e5f7bd9f5c`.
+       - This caught a real Tier‑1 bug: x64 linux `sys_nanosleep(ns)` must build a `timespec` and pass a pointer (not the raw ns value).
+       - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
 
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.

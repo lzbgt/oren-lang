@@ -157,7 +157,7 @@ fn test_tcp_send_recv_intrinsics() {
         var cfd = oren_tcp_accept(lfd, 2000)
         if cfd < 0 { exit(804) }
 
-        var rn_ready = oren_tcp_wait_kqueue(cfd, -1, 2000)
+        var rn_ready = oren_fd_wait_readable(cfd, 2000)
         if rn_ready <= 0 { exit(805) }
         var inb = malloc(5)
         if inb == 0 { exit(806) }
@@ -165,7 +165,7 @@ fn test_tcp_send_recv_intrinsics() {
         if rn != 5 { exit(807) }
         if eq5(inb, 104, 101, 108, 108, 111) == 0 { exit(808) } // "hello"
 
-        var wn_ready = oren_tcp_wait_kqueue(cfd, -2, 2000)
+        var wn_ready = oren_fd_wait_writable(cfd, 2000)
         if wn_ready <= 0 { exit(809) }
         var outb = malloc(5)
         if outb == 0 { exit(810) }
@@ -195,7 +195,7 @@ fn test_tcp_send_recv_intrinsics() {
     var cfd2 = oren_tcp_connect("127.0.0.1", port2, 2000)
     if cfd2 < 0 { fail(0 - cfd2) }
 
-    var wn_ready2 = oren_tcp_wait_kqueue(cfd2, -2, 2000)
+    var wn_ready2 = oren_fd_wait_writable(cfd2, 2000)
     if wn_ready2 <= 0 { fail(830) }
     var outb2 = malloc(5)
     if outb2 == 0 { fail(831) }
@@ -203,7 +203,7 @@ fn test_tcp_send_recv_intrinsics() {
     var wn2 = sys_send(cfd2, outb2, 5, 0)
     if wn2 != 5 { fail(832) }
 
-    var rn_ready2 = oren_tcp_wait_kqueue(cfd2, -1, 2000)
+    var rn_ready2 = oren_fd_wait_readable(cfd2, 2000)
     if rn_ready2 <= 0 { fail(833) }
     var inb2 = malloc(5)
     if inb2 == 0 { fail(834) }
@@ -288,7 +288,13 @@ fn test_tcp_sockname_peername() {
     var prc = sys_getpeername(cfd2, peer_sa, peer_lenp)
     if prc < 0 { fail(0 - prc) }
 
-    if ptr_get_byte(peer_sa + 1) != OREN_AF_INET { fail(722) } // AF_INET
+    // sockaddr_in layout differs by OS:
+    // - macOS/BSD: [0]=len, [1]=family (AF_INET)
+    // - Linux:     [0]=family (u16 LE), [1]=0
+    var fam1 = ptr_get_byte(peer_sa + 1)
+    if fam1 != OREN_AF_INET {
+        if ptr_get_byte(peer_sa + 0) != OREN_AF_INET { fail(722) } // AF_INET
+    }
     var peer_port = u16be_at(peer_sa, 2)
     if peer_port != port2 { fail(723) }
     if ipv4_eq(peer_sa, 4, 127, 0, 0, 1) == 0 { fail(724) }
@@ -301,7 +307,10 @@ fn test_tcp_sockname_peername() {
 
     var src = sys_getsockname(cfd2, sock_sa, sock_lenp)
     if src < 0 { fail(0 - src) }
-    if ptr_get_byte(sock_sa + 1) != OREN_AF_INET { fail(732) } // AF_INET
+    var fam2 = ptr_get_byte(sock_sa + 1)
+    if fam2 != OREN_AF_INET {
+        if ptr_get_byte(sock_sa + 0) != OREN_AF_INET { fail(732) } // AF_INET
+    }
     if ipv4_eq(sock_sa, 4, 127, 0, 0, 1) == 0 { fail(733) }
     var local_port = u16be_at(sock_sa, 2)
     if local_port == 0 { fail(734) }

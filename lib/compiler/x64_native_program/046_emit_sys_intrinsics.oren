@@ -1319,14 +1319,65 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_ns)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base25); return nil }
 
-        // pre: native_capsule_sys_nanosleep_pre(ns) -> ns
-        _intr_load_x64(ctx, 7, tmp_ns)
+        // pre: native_capsule_sys_nanosleep_pre(ns) -> ns (may return <=0 to skip sleep)
+        _intr_load_x64(ctx, 7, tmp_ns) // rdi = ns
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0)
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
 
-        _intr_load_x64(ctx, 7, tmp_ns)
+        // Fast path: ns <= 0 => return 0 (skip syscall).
+        var labels25 = {}
+        var fixups25 = []
+        var l_do = _new_label(ctx, "sys_nanosleep_do")
+        var l_done = _new_label(ctx, "sys_nanosleep_done")
+        _intr_load_x64(ctx, 0, tmp_ns) // rax = ns
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, fixups25, "g", l_do)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+        bytes_extend(ctx["code"], insn_cdqe())
+        _emit_jmp_to_label(ctx, fixups25, l_done)
+
+        _emit_label(ctx, labels25, l_do)
+
+        // Linux x86_64: nanosleep(const struct timespec* req, struct timespec* rem)
+        // Build `struct timespec { tv_sec(u64), tv_nsec(u64) }` on stack.
+        //
+        // - tv_sec  = ns / 1_000_000_000
+        // - tv_nsec = ns % 1_000_000_000
+        //
+        // Syscall ABI:
+        // - rax = __NR_nanosleep (35)
+        // - rdi = &timespec
+        // - rsi = NULL
+        bytes_extend(ctx["code"], insn_sub_rsp_imm8(16))
+
+        // rax = ns
+        _intr_load_x64(ctx, 0, tmp_ns)
+        // rdx:rax = sign-extend rax (ns is positive here)
+        bytes_extend(ctx["code"], insn_cqo())
+        // r10 = 1_000_000_000
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(10, 1000000000))
+        // rax = sec, rdx = nsec
+        bytes_extend(ctx["code"], insn_idiv_r64(10))
+
+        // [rsp+0] = tv_sec (rax)
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(4, 0))
+        // [rsp+8] = tv_nsec (rdx)
+        bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 8))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 2))
+
+        // rdi = req = rsp
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 4))
+        // rsi = rem = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(6, 0))
+
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_nanosleep()))
         bytes_extend(ctx["code"], insn_syscall())
+
+        // Pop timespec
+        bytes_extend(ctx["code"], insn_add_rsp_imm8(16))
+
+        _emit_label(ctx, labels25, l_done)
+        _patch_local_fixups(ctx, labels25, fixups25)
 
         _intr_tmp_pop(ctx, base25)
         return nil
