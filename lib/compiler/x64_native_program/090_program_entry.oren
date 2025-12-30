@@ -212,6 +212,205 @@ fn _emit_entry_call_depth_env_override_windows_x64(ctx) {
     return nil
 }
 
+fn _emit_entry_build_envp_windows_x64(ctx, scratch_base) {
+    // Windows x64: build a minimal envp array for the injected native runtime.
+    //
+    // Why this exists:
+    // - The native runtime’s env parsing (`native_envp_get_value_ptr`) expects a POSIX-style
+    //   `envp` array of pointers to "KEY=VALUE\\0" strings.
+    // - Windows does not provide `envp` at process entry, and we do not use a CRT.
+    //
+    // Strategy (rolling, deterministic, avoids extra imports):
+    // - Probe a fixed list of runtime-relevant keys via GetEnvironmentVariableA.
+    // - For each present key, write "KEY=VALUE\\0" into a fixed pool in `.data` and append a
+    //   pointer to the envp array in `.data`.
+    // - Terminate envp with a NULL entry.
+    //
+    // This is sufficient to make capsule/SIMD/GC/call-depth env overrides work on Tier‑1 Win64.
+    //
+    // NOTE:
+    // - This is not a full env enumeration; it intentionally captures only keys we care about
+    //   for runtime init and capsule enforcement.
+    // - If the pool overflows, we abort deterministically (exit code 201).
+    //
+    // Requires:
+    // - PE emitter imports kernel32!GetEnvironmentVariableA and exposes IAT label
+    //   "IAT_GetEnvironmentVariableA".
+    //
+    // Clobbers: RAX, RBX, RCX, RDX, R8, R10, R11, R12, R13, R14, R15
+    if ctx == nil { return nil }
+
+    var keys = [
+        // Stack safety / debug:
+        "OREN_CALL_DEPTH_MAX",
+        // Capsule toggles:
+        "OREN_CAPSULE",
+        "OREN_CAP_ALLOW_DOMAINS",
+        // GC mode:
+        "OREN_NO_GC",
+        // SIMD toggles:
+        "OREN_NO_SIMD",
+        "OREN_ENABLE_SIMD",
+        // Allocator policy:
+        "OREN_RAW_MMAP_THRESHOLD",
+        "OREN_BUF_ALIGN",
+        "OREN_BUF_FORCE_MMAP",
+        "OREN_BUF_PAYLOAD_LIMIT_BYTES",
+        // FS policy:
+        "OREN_FS_ALLOW_PREFIXES",
+        "OREN_FS_ALLOW_READ_PREFIXES",
+        "OREN_FS_ALLOW_WRITE_PREFIXES",
+        "OREN_FS_MOUNTS",
+        "OREN_FS_MOUNTS_READ",
+        "OREN_FS_MOUNTS_WRITE",
+        // NET policy:
+        "OREN_NET_ALLOW_LOOPBACK",
+        "OREN_NET_ALLOW_TCP_CONNECT",
+        "OREN_NET_ALLOW_TCP_LISTEN",
+        "OREN_NET_TCP_CONNECT_MAP",
+        "OREN_NET_TCP_LISTEN_MAP",
+        // PROC policy:
+        "OREN_PROC_ALLOW_EXEC_PREFIXES",
+        "OREN_PROC_ALLOW_SYSTEM",
+        "OREN_PROC_INHERIT_ENV",
+        "OREN_PROC_ALLOW_ENV_KEYS",
+        "OREN_PROC_ALLOW_ARGV"
+    ]
+
+    var n = oren_list_len(keys)
+    // envp array: (n+1) pointers
+    var off_envp = _data_add_zeros(ctx, (n + 1) * 8)
+    // pool for synthesized "KEY=VALUE\\0" strings (rolling: 64KiB is enough for runtime knobs)
+    var pool_cap = 65536
+    var off_pool = _data_add_zeros(ctx, pool_cap)
+    if off_envp == nil || off_pool == nil { return nil }
+
+    var labels = {}
+    var local_fixups = []
+    var l_done = _new_label(ctx, "win_envp_done")
+    var l_overflow = _new_label(ctx, "win_envp_overflow")
+
+    // r13 = envp_cur = &envp[0]
+    var lea_envp = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(13, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_envp + 3, "data_off": off_envp})
+
+    // Persist envp pointer for runtime_set_envp (in the entry scratch region).
+    _emit_mov_mrsp_r64(ctx, scratch_base + 16, 13)
+
+    // Also store default argc/argv=0 for now (Windows args capture is a separate Tier‑1 item).
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrsp_r64(ctx, scratch_base + 0, 0)  // argc
+    _emit_mov_mrsp_r64(ctx, scratch_base + 8, 0)  // argv
+
+    // r12 = pool_cur = &pool[0]
+    var lea_pool = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(12, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pool + 3, "data_off": off_pool})
+    // r15 = pool_end = pool_cur + pool_cap
+    bytes_extend(ctx["code"], insn_mov_r64_r64(15, 12))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(15, pool_cap))
+
+    var ki = 0
+    while ki < n {
+        var k = keys[ki]
+        var k_bytes = oren_bytes_from_string(k)
+        var k_len = oren_list_len(k_bytes)
+
+        var off_k = _data_add_cstr0(ctx, k)
+        if off_k == nil { return nil }
+
+        var l_next = _new_label(ctx, "win_envp_next_" + oren_int_to_string(ki))
+        var l_have = _new_label(ctx, "win_envp_have_" + oren_int_to_string(ki))
+        var l_ok = _new_label(ctx, "win_envp_ok_" + oren_int_to_string(ki))
+
+        // rcx = &key
+        var lea_k = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_k + 3, "data_off": off_k})
+
+        // First probe: GetEnvironmentVariableA(key, NULL, 0) => required size (incl NUL) in eax, or 0 if missing.
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // rdx = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 0)) // r8d = 0
+        var mov_iat0 = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetEnvironmentVariableA"})
+        bytes_extend(ctx["code"], insn_call_rax())
+
+        // if eax == 0 => missing/empty => skip
+        bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_next)
+
+        // required_size_u64 in r14
+        bytes_extend(ctx["code"], insn_cdqe())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 0))
+
+        // needed = required + (k_len + 1)   (includes KEY + '=' plus VALUE+NUL)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 14)) // r10 = required
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, k_len + 1))
+
+        // new_cur = pool_cur + needed
+        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 12)) // r11 = pool_cur
+        bytes_extend(ctx["code"], insn_add_r64_r64(11, 10)) // r11 = new_cur
+        // if new_cur > pool_end => overflow
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(11, 15))
+        _emit_jcc_to_label(ctx, local_fixups, "le", l_ok)
+        _emit_jmp_to_label(ctx, local_fixups, l_overflow)
+        _emit_label(ctx, labels, l_ok)
+
+        // Write "KEY=" prefix into pool_cur (unrolled byte stores).
+        var bi = 0
+        while bi < k_len {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, k_bytes[bi]))
+            bytes_extend(ctx["code"], insn_mov_mr8_al_disp(12, bi))
+            bi = bi + 1
+        }
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 61)) // '='
+        bytes_extend(ctx["code"], insn_mov_mr8_al_disp(12, k_len))
+
+        _emit_label(ctx, labels, l_have)
+        // Second call: GetEnvironmentVariableA(key, pool_cur + k_len + 1, required_size)
+        // Restore rcx = &key (Win64 ABI treats rcx as volatile; the first call can clobber it).
+        var lea_k2 = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_k2 + 3, "data_off": off_k})
+        // rdx = dest
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 12)) // rdx = pool_cur
+        bytes_extend(ctx["code"], insn_add_r64_imm32(2, k_len + 1))
+        // r8d = required_size (low 32 is fine)
+        bytes_extend(ctx["code"], insn_mov_r32_r32(8, 14))
+
+        var mov_iat1 = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_GetEnvironmentVariableA"})
+        bytes_extend(ctx["code"], insn_call_rax())
+
+        // Append pool_cur pointer to envp array: *envp_cur = pool_cur; envp_cur += 8
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 12))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(13, 8))
+
+        // Advance pool_cur = new_cur (r11 computed above)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 11))
+
+        _emit_label(ctx, labels, l_next)
+        ki = ki + 1
+    }
+
+    // envp terminator: *envp_cur = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 0))
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    _emit_label(ctx, labels, l_overflow)
+    _emit_abort_exitcode(ctx, 201)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Rolling: native runtime injection on x86_64 (default-on).
     //
@@ -540,6 +739,9 @@ fn native_compile_program_x64(linked, platform) {
     if platform != nil && platform["os"] == "windows" {
         _emit_entry_call_depth_env_override_windows_x64(ctx)
     }
+    if platform != nil && platform["os"] == "windows" && inject_runtime {
+        _emit_entry_build_envp_windows_x64(ctx, scratch_base)
+    }
 
     // Native heap registers (rolling Tier-1 design):
     //
@@ -609,8 +811,8 @@ fn native_compile_program_x64(linked, platform) {
 
         // native_runtime_set_args(argc, argv)
         if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // rcx=argc
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // rdx=argv
+            _emit_mov_r64_mrsp(ctx, 1, scratch_base + 0) // rcx=argc
+            _emit_mov_r64_mrsp(ctx, 2, scratch_base + 8) // rdx=argv
         } else {
             _emit_mov_r64_mrsp(ctx, 7, scratch_base + 0) // rdi=argc
             _emit_mov_r64_mrsp(ctx, 6, scratch_base + 8) // rsi=argv
@@ -621,7 +823,7 @@ fn native_compile_program_x64(linked, platform) {
 
         // native_runtime_set_envp(envp)
         if platform != nil && platform["os"] == "windows" {
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // rcx=envp
+            _emit_mov_r64_mrsp(ctx, 1, scratch_base + 16) // rcx=envp
         } else {
             _emit_mov_r64_mrsp(ctx, 7, scratch_base + 16) // rdi=envp
         }

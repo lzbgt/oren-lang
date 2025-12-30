@@ -25,7 +25,7 @@ Rules for this tracker:
        - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
        - next: replace remaining “bring-up-only” intrinsics with shared runtime helpers (goal: single semantics set, thin ABI emit layers)
    - Next (Tier‑1 correctness):
-     - Windows x86_64: capture `argc/argv` + environment in the native entry path so `ore_args()` / `ore_getenv()` / capsule env parsing behave like Linux/macOS (likely via WinAPI `GetCommandLineA` + `GetEnvironmentStringsA` + `FreeEnvironmentStringsA`, or a runtime-side fallback when `envp==0`).
+     - Windows x86_64: finish `argc/argv` capture in the native entry path (`oren_args()` parity) and decide whether we need full env enumeration (today we synthesize `envp` from a fixed allowlist of runtime-relevant keys via `GetEnvironmentVariableA`).
      - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
