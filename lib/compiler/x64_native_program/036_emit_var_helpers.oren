@@ -1,0 +1,36 @@
+// x64 native: helpers for loading locals/globals by name.
+//
+// This exists primarily to keep `040_emit_expr.oren` under the repo style limit (<= 2000 lines)
+// while converging semantics with arm64 (globals may be used as "constants" inside runtime code).
+
+fn _emit_load_var_to_reg_x64(ctx, locals, name, dst_reg) {
+    // Loads a variable value into `dst_reg`:
+    // - locals: [rbp - off]
+    // - globals: *(u64*)(&slot) via RIP-relative LEA
+    //
+    // Returns 1 if loaded, otherwise 0 (and records an error).
+    if name == nil { err(ctx, "x64 native v0: unknown var <nil>"); return 0 }
+
+    if locals != nil {
+        var off = locals[name]
+        if off != nil {
+            _emit_mov_r64_mrbp(ctx, dst_reg, 0 - off)
+            return 1
+        }
+    }
+
+    var goff = nil
+    if ctx["globals"] != nil { goff = ctx["globals"][name] }
+    if goff != nil {
+        // r10 = &global_slot ; dst_reg = *(u64*)r10
+        var lea_pos0 = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(dst_reg, 10))
+        return 1
+    }
+
+    err(ctx, "x64 native v0: unknown var " + name)
+    return 0
+}
+

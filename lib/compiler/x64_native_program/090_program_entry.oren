@@ -213,15 +213,20 @@ fn _emit_entry_call_depth_env_override_windows_x64(ctx) {
 }
 
 fn native_compile_program_x64(linked, platform) {
-    // Rolling: optional native runtime injection on x86_64.
+    // Rolling: native runtime injection on x86_64 (default-on).
     //
     // Goal: converge with the ARM64 native backend, which injects `lib/runtime_native.oren`
     // (expanded from `lib/runtime_native/**`) into the compiled program.
     //
-    // Gate:
-    // - `OREN_X64_INJECT_RUNTIME=1` enables injecting *all* runtime functions/vars into x64
-    //   compilation. This is intentionally opt-in until syscall intrinsic coverage reaches
-    //   full parity (so runtime helpers never accidentally execute stub bodies).
+    // Default:
+    // - x86_64 now injects the native runtime by default, matching arm64.
+    //
+    // Escape hatch (debug / bring-up):
+    // - set `OREN_X64_NO_INJECT_RUNTIME=1` to disable runtime injection.
+    //
+    // Rationale:
+    // - this is the primary architectural lever for removing x86_64 bring-up-only intrinsics
+    //   and converging semantics across native backends.
     //
     // Implementation strategy (rolling):
     // - Parse the expanded runtime source into an AST program.
@@ -230,7 +235,11 @@ fn native_compile_program_x64(linked, platform) {
     // - Keep x64's existing intrinsics for now; as we converge, we will progressively replace
     //   intrinsic implementations with calls into injected runtime functions.
 
-    var inject_runtime = oren_env("OREN_X64_INJECT_RUNTIME")
+    var no_inject_runtime = oren_env("OREN_X64_NO_INJECT_RUNTIME")
+    var inject_runtime = true
+    if no_inject_runtime != nil && no_inject_runtime != "" && no_inject_runtime != "0" {
+        inject_runtime = false
+    }
     var linked2 = linked
 
     var ctx = {
@@ -270,8 +279,8 @@ fn native_compile_program_x64(linked, platform) {
     ctx["lambda_defs"] = []
     ctx["lambda_counter"] = 0
 
-    // Optional runtime injection (opt-in gate; see comment at top of function).
-    if inject_runtime != nil && inject_runtime != "" && inject_runtime != "0" {
+    // Runtime injection (default-on; see comment at top of function).
+    if inject_runtime {
         var runtime_src = rtinj.runtime_expand_includes_file(ctx, "lib/runtime_native.oren", [])
         if runtime_src == nil { return ctx }
         // Debug aid: dump expanded runtime after include expansion, before parsing.
@@ -310,6 +319,15 @@ fn native_compile_program_x64(linked, platform) {
             while ui < oren_list_len(us) { oren_list_push(merged, us[ui]); ui = ui + 1 }
         }
         linked2 = {"statements": merged, "aliases": ctx["aliases"]}
+        // Re-run whole-program DCE after injecting the runtime.
+        //
+        // The build pipeline already runs global DCE on the user program + imported modules,
+        // but the native runtime injection happens inside this backend entrypoint and would
+        // otherwise force compilation of the entire runtime regardless of reachability.
+        //
+        // This keeps Tier‑1 cross-compilation time bounded (important for the x64 backend),
+        // and matches modern toolchains where unused stdlib/runtime code is removed.
+        global_dce.lower_linked_program_in_place(linked2)
         ctx["runtime_injected"] = true
     }
 

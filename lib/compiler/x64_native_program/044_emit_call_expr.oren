@@ -11,6 +11,71 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
 
     var spread = expr["spread"]
 
+    if nm == "oren_call_obj_list" {
+        // Intrinsic: indirect call through a native function object.
+        // Signature: oren_call_obj_list(fn_obj, args_list) -> value
+        //
+        // Layout (kind=6):
+        //   [0] code_ptr
+        //   [8] env_ptr
+        //
+        // This is inlined (like arm64) so injected runtime code can call it even
+        // when the symbol is not present in the source module.
+        if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return nil }
+        if argc != 2 { err(ctx, "x64 native v0: oren_call_obj_list expects 2 args"); return nil }
+
+        var spill = _intr_tmp_push(ctx, 1)
+        if spill == nil { return nil }
+        var fn_off = _intr_tmp_off(ctx, locals, spill)
+        if fn_off == nil { _intr_tmp_pop(ctx, spill); return nil }
+
+        // Spill fn_obj.
+        _emit_eval_int_to_rax(ctx, args[0], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
+
+        // Eval args_list -> rax.
+        _emit_eval_int_to_rax(ctx, args[1], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
+
+        var env_reg = abi.int_arg_reg(ctx["abi"], 0)
+        var args_reg = abi.int_arg_reg(ctx["abi"], 1)
+        if env_reg == nil || args_reg == nil {
+            _intr_tmp_pop(ctx, spill)
+            err(ctx, "x64 native v0: missing ABI arg regs for oren_call_obj_list")
+            return nil
+        }
+
+        // args_reg = args_list (value already in rax)
+        if args_reg != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(args_reg, 0)) }
+
+        // r10 = fnobj ptr
+        _emit_mov_r64_mrbp(ctx, 10, 0 - fn_off)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+        var labelsFn2 = {}
+        var fixupsFn2 = []
+        var l_fn_ok2 = _new_label(ctx, "oren_call_obj_list_fnobj_ok")
+        _emit_jcc_to_label(ctx, fixupsFn2, "ne", l_fn_ok2)
+        _emit_abort_panic_str(ctx, "call on nil function value")
+        _emit_label(ctx, labelsFn2, l_fn_ok2)
+        _patch_local_fixups(ctx, labelsFn2, fixupsFn2)
+
+        // env_reg = *(fnobj + 8)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_mov_r64_r64(env_reg, 0))
+
+        // rax = *(fnobj + 0) (code_ptr), then call.
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_call_rax())
+
+        _intr_tmp_pop(ctx, spill)
+        return nil
+    }
+
     var is_direct = false
     var declared = ctx["declared_functions"]
     if declared != nil && declared[nm] != nil { is_direct = true }

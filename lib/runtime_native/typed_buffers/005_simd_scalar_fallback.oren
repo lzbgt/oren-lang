@@ -1,0 +1,398 @@
+// Scalar fallback implementations for SIMD pointer kernels.
+//
+// Motivation:
+// - arm64 native backend inlines many `simd_*_ptr` calls as compiler intrinsics.
+// - x64 native backend is converging toward arm64 parity and currently injects the
+//   full native runtime by default; without definitions, unresolved `simd_*_ptr`
+//   symbols break compilation even if the SIMD fast paths are never executed.
+//
+// Contract:
+// - These implementations are **semantics-first** and backend-agnostic.
+// - They operate on the canonical typed-buffer payload encoding (little-endian).
+// - If a backend has a true SIMD intrinsic, it may still override these calls
+//   at codegen time (by-name intrinsic lowering).
+
+fn _simd_load_u32_le(p) {
+    var b0 = ptr_get_byte(p + 0) & 255
+    var b1 = ptr_get_byte(p + 1) & 255
+    var b2 = ptr_get_byte(p + 2) & 255
+    var b3 = ptr_get_byte(p + 3) & 255
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+}
+
+fn _simd_store_u32_le(p, u) {
+    var x = u & 4294967295
+    ptr_set_byte(p + 0, x & 255)
+    ptr_set_byte(p + 1, (x >> 8) & 255)
+    ptr_set_byte(p + 2, (x >> 16) & 255)
+    ptr_set_byte(p + 3, (x >> 24) & 255)
+    return 0
+}
+
+fn _simd_load_i32_le(p) {
+    var u = _simd_load_u32_le(p)
+    if u >= 2147483648 { return u - 4294967296 }
+    return u
+}
+
+fn _simd_load_u64_le(p) {
+    var u = 0
+    var i = 0
+    while i < 8 {
+        var b = ptr_get_byte(p + i) & 255
+        u = u | (b << (i * 8))
+        i = i + 1
+    }
+    return u
+}
+
+fn _simd_store_u64_le(p, v) {
+    var i = 0
+    while i < 8 {
+        ptr_set_byte(p + i, (v >> (i * 8)) & 255)
+        i = i + 1
+    }
+    return 0
+}
+
+fn simd_add_i32_ptr(dst_ptr, a_ptr, b_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var x = _simd_load_i32_le(a_ptr + off)
+        var y = _simd_load_i32_le(b_ptr + off)
+        _simd_store_u32_le(dst_ptr + off, x + y)
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_mul_i32_ptr(dst_ptr, a_ptr, b_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var x = _simd_load_i32_le(a_ptr + off)
+        var y = _simd_load_i32_le(b_ptr + off)
+        _simd_store_u32_le(dst_ptr + off, x * y)
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_add_i64_ptr(dst_ptr, a_ptr, b_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 8
+        var x = _simd_load_u64_le(a_ptr + off)
+        var y = _simd_load_u64_le(b_ptr + off)
+        _simd_store_u64_le(dst_ptr + off, x + y)
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_add_f32_ptr(dst_ptr, a_ptr, b_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var ax = oren_u32_bits_to_f32(_simd_load_u32_le(a_ptr + off))
+        var by = oren_u32_bits_to_f32(_simd_load_u32_le(b_ptr + off))
+        var out = ax + by
+        _simd_store_u32_le(dst_ptr + off, oren_f32_to_u32_bits(out))
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_mul_f32_ptr(dst_ptr, a_ptr, b_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var ax = oren_u32_bits_to_f32(_simd_load_u32_le(a_ptr + off))
+        var by = oren_u32_bits_to_f32(_simd_load_u32_le(b_ptr + off))
+        var out = ax * by
+        _simd_store_u32_le(dst_ptr + off, oren_f32_to_u32_bits(out))
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_add_f64_ptr(dst_ptr, a_ptr, b_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 8
+        var ax = oren_u64_bits_to_f64(_simd_load_u64_le(a_ptr + off))
+        var by = oren_u64_bits_to_f64(_simd_load_u64_le(b_ptr + off))
+        var out = ax + by
+        _simd_store_u64_le(dst_ptr + off, oren_f64_to_u64_bits(out))
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_mul_f64_ptr(dst_ptr, a_ptr, b_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 8
+        var ax = oren_u64_bits_to_f64(_simd_load_u64_le(a_ptr + off))
+        var by = oren_u64_bits_to_f64(_simd_load_u64_le(b_ptr + off))
+        var out = ax * by
+        _simd_store_u64_le(dst_ptr + off, oren_f64_to_u64_bits(out))
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_dot_i32_ptr(a_ptr, b_ptr, n) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var ax = _simd_load_i32_le(a_ptr + off)
+        var by = _simd_load_i32_le(b_ptr + off)
+        sum = sum + (ax * by)
+        i = i + 1
+    }
+    return sum
+}
+
+fn simd_dot_f32_ptr(a_ptr, b_ptr, n) {
+    var sum: f64 = 0.0
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var ax = oren_u32_bits_to_f32(_simd_load_u32_le(a_ptr + off))
+        var by = oren_u32_bits_to_f32(_simd_load_u32_le(b_ptr + off))
+        sum = sum + (ax * by)
+        i = i + 1
+    }
+    return oren_f64_to_u64_bits(sum)
+}
+
+fn simd_dot_f64_ptr(a_ptr, b_ptr, n) {
+    var sum: f64 = 0.0
+    var i = 0
+    while i < n {
+        var off = i * 8
+        var ax = oren_u64_bits_to_f64(_simd_load_u64_le(a_ptr + off))
+        var by = oren_u64_bits_to_f64(_simd_load_u64_le(b_ptr + off))
+        sum = sum + (ax * by)
+        i = i + 1
+    }
+    return oren_f64_to_u64_bits(sum)
+}
+
+fn simd_dot_i32_4_ptr(out_ptr, a_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) {
+    var s0 = 0
+    var s1 = 0
+    var s2 = 0
+    var s3 = 0
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var av = _simd_load_i32_le(a_ptr + off)
+        s0 = s0 + av * _simd_load_i32_le(b0_ptr + off)
+        s1 = s1 + av * _simd_load_i32_le(b1_ptr + off)
+        s2 = s2 + av * _simd_load_i32_le(b2_ptr + off)
+        s3 = s3 + av * _simd_load_i32_le(b3_ptr + off)
+        i = i + 1
+    }
+    _simd_store_u64_le(out_ptr + 0, s0)
+    _simd_store_u64_le(out_ptr + 8, s1)
+    _simd_store_u64_le(out_ptr + 16, s2)
+    _simd_store_u64_le(out_ptr + 24, s3)
+    return out_ptr
+}
+
+fn simd_dot_f32_4_ptr(out_ptr, a_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) {
+    var s0: f64 = 0.0
+    var s1: f64 = 0.0
+    var s2: f64 = 0.0
+    var s3: f64 = 0.0
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var av = oren_u32_bits_to_f32(_simd_load_u32_le(a_ptr + off))
+        s0 = s0 + av * oren_u32_bits_to_f32(_simd_load_u32_le(b0_ptr + off))
+        s1 = s1 + av * oren_u32_bits_to_f32(_simd_load_u32_le(b1_ptr + off))
+        s2 = s2 + av * oren_u32_bits_to_f32(_simd_load_u32_le(b2_ptr + off))
+        s3 = s3 + av * oren_u32_bits_to_f32(_simd_load_u32_le(b3_ptr + off))
+        i = i + 1
+    }
+    _simd_store_u64_le(out_ptr + 0, oren_f64_to_u64_bits(s0))
+    _simd_store_u64_le(out_ptr + 8, oren_f64_to_u64_bits(s1))
+    _simd_store_u64_le(out_ptr + 16, oren_f64_to_u64_bits(s2))
+    _simd_store_u64_le(out_ptr + 24, oren_f64_to_u64_bits(s3))
+    return out_ptr
+}
+
+fn simd_dot_f64_4_ptr(out_ptr, a_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) {
+    var s0: f64 = 0.0
+    var s1: f64 = 0.0
+    var s2: f64 = 0.0
+    var s3: f64 = 0.0
+    var i = 0
+    while i < n {
+        var off = i * 8
+        var av = oren_u64_bits_to_f64(_simd_load_u64_le(a_ptr + off))
+        s0 = s0 + av * oren_u64_bits_to_f64(_simd_load_u64_le(b0_ptr + off))
+        s1 = s1 + av * oren_u64_bits_to_f64(_simd_load_u64_le(b1_ptr + off))
+        s2 = s2 + av * oren_u64_bits_to_f64(_simd_load_u64_le(b2_ptr + off))
+        s3 = s3 + av * oren_u64_bits_to_f64(_simd_load_u64_le(b3_ptr + off))
+        i = i + 1
+    }
+    _simd_store_u64_le(out_ptr + 0, oren_f64_to_u64_bits(s0))
+    _simd_store_u64_le(out_ptr + 8, oren_f64_to_u64_bits(s1))
+    _simd_store_u64_le(out_ptr + 16, oren_f64_to_u64_bits(s2))
+    _simd_store_u64_le(out_ptr + 24, oren_f64_to_u64_bits(s3))
+    return out_ptr
+}
+
+fn simd_gemm_i32_4x4_ptr(out_ptr, a0_ptr, a1_ptr, a2_ptr, a3_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) {
+    var c00 = 0; var c01 = 0; var c02 = 0; var c03 = 0
+    var c10 = 0; var c11 = 0; var c12 = 0; var c13 = 0
+    var c20 = 0; var c21 = 0; var c22 = 0; var c23 = 0
+    var c30 = 0; var c31 = 0; var c32 = 0; var c33 = 0
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var a0 = _simd_load_i32_le(a0_ptr + off)
+        var a1 = _simd_load_i32_le(a1_ptr + off)
+        var a2 = _simd_load_i32_le(a2_ptr + off)
+        var a3 = _simd_load_i32_le(a3_ptr + off)
+        var b0 = _simd_load_i32_le(b0_ptr + off)
+        var b1 = _simd_load_i32_le(b1_ptr + off)
+        var b2 = _simd_load_i32_le(b2_ptr + off)
+        var b3 = _simd_load_i32_le(b3_ptr + off)
+        c00 = c00 + a0 * b0; c01 = c01 + a0 * b1; c02 = c02 + a0 * b2; c03 = c03 + a0 * b3
+        c10 = c10 + a1 * b0; c11 = c11 + a1 * b1; c12 = c12 + a1 * b2; c13 = c13 + a1 * b3
+        c20 = c20 + a2 * b0; c21 = c21 + a2 * b1; c22 = c22 + a2 * b2; c23 = c23 + a2 * b3
+        c30 = c30 + a3 * b0; c31 = c31 + a3 * b1; c32 = c32 + a3 * b2; c33 = c33 + a3 * b3
+        i = i + 1
+    }
+    _simd_store_u64_le(out_ptr + 0, c00); _simd_store_u64_le(out_ptr + 8, c01); _simd_store_u64_le(out_ptr + 16, c02); _simd_store_u64_le(out_ptr + 24, c03)
+    _simd_store_u64_le(out_ptr + 32, c10); _simd_store_u64_le(out_ptr + 40, c11); _simd_store_u64_le(out_ptr + 48, c12); _simd_store_u64_le(out_ptr + 56, c13)
+    _simd_store_u64_le(out_ptr + 64, c20); _simd_store_u64_le(out_ptr + 72, c21); _simd_store_u64_le(out_ptr + 80, c22); _simd_store_u64_le(out_ptr + 88, c23)
+    _simd_store_u64_le(out_ptr + 96, c30); _simd_store_u64_le(out_ptr + 104, c31); _simd_store_u64_le(out_ptr + 112, c32); _simd_store_u64_le(out_ptr + 120, c33)
+    return out_ptr
+}
+
+fn simd_gemm_f64_4x4_ptr(out_ptr, a0_ptr, a1_ptr, a2_ptr, a3_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) {
+    var c00: f64 = 0.0; var c01: f64 = 0.0; var c02: f64 = 0.0; var c03: f64 = 0.0
+    var c10: f64 = 0.0; var c11: f64 = 0.0; var c12: f64 = 0.0; var c13: f64 = 0.0
+    var c20: f64 = 0.0; var c21: f64 = 0.0; var c22: f64 = 0.0; var c23: f64 = 0.0
+    var c30: f64 = 0.0; var c31: f64 = 0.0; var c32: f64 = 0.0; var c33: f64 = 0.0
+    var i = 0
+    while i < n {
+        var off = i * 8
+        var a0 = oren_u64_bits_to_f64(_simd_load_u64_le(a0_ptr + off))
+        var a1 = oren_u64_bits_to_f64(_simd_load_u64_le(a1_ptr + off))
+        var a2 = oren_u64_bits_to_f64(_simd_load_u64_le(a2_ptr + off))
+        var a3 = oren_u64_bits_to_f64(_simd_load_u64_le(a3_ptr + off))
+        var b0 = oren_u64_bits_to_f64(_simd_load_u64_le(b0_ptr + off))
+        var b1 = oren_u64_bits_to_f64(_simd_load_u64_le(b1_ptr + off))
+        var b2 = oren_u64_bits_to_f64(_simd_load_u64_le(b2_ptr + off))
+        var b3 = oren_u64_bits_to_f64(_simd_load_u64_le(b3_ptr + off))
+        c00 = c00 + a0 * b0; c01 = c01 + a0 * b1; c02 = c02 + a0 * b2; c03 = c03 + a0 * b3
+        c10 = c10 + a1 * b0; c11 = c11 + a1 * b1; c12 = c12 + a1 * b2; c13 = c13 + a1 * b3
+        c20 = c20 + a2 * b0; c21 = c21 + a2 * b1; c22 = c22 + a2 * b2; c23 = c23 + a2 * b3
+        c30 = c30 + a3 * b0; c31 = c31 + a3 * b1; c32 = c32 + a3 * b2; c33 = c33 + a3 * b3
+        i = i + 1
+    }
+    _simd_store_u64_le(out_ptr + 0, oren_f64_to_u64_bits(c00)); _simd_store_u64_le(out_ptr + 8, oren_f64_to_u64_bits(c01)); _simd_store_u64_le(out_ptr + 16, oren_f64_to_u64_bits(c02)); _simd_store_u64_le(out_ptr + 24, oren_f64_to_u64_bits(c03))
+    _simd_store_u64_le(out_ptr + 32, oren_f64_to_u64_bits(c10)); _simd_store_u64_le(out_ptr + 40, oren_f64_to_u64_bits(c11)); _simd_store_u64_le(out_ptr + 48, oren_f64_to_u64_bits(c12)); _simd_store_u64_le(out_ptr + 56, oren_f64_to_u64_bits(c13))
+    _simd_store_u64_le(out_ptr + 64, oren_f64_to_u64_bits(c20)); _simd_store_u64_le(out_ptr + 72, oren_f64_to_u64_bits(c21)); _simd_store_u64_le(out_ptr + 80, oren_f64_to_u64_bits(c22)); _simd_store_u64_le(out_ptr + 88, oren_f64_to_u64_bits(c23))
+    _simd_store_u64_le(out_ptr + 96, oren_f64_to_u64_bits(c30)); _simd_store_u64_le(out_ptr + 104, oren_f64_to_u64_bits(c31)); _simd_store_u64_le(out_ptr + 112, oren_f64_to_u64_bits(c32)); _simd_store_u64_le(out_ptr + 120, oren_f64_to_u64_bits(c33))
+    return out_ptr
+}
+
+fn simd_gemm_f32_4x4_ptr(out_ptr, a0_ptr, a1_ptr, a2_ptr, a3_ptr, b0_ptr, b1_ptr, b2_ptr, b3_ptr, n) {
+    var c00: f64 = 0.0; var c01: f64 = 0.0; var c02: f64 = 0.0; var c03: f64 = 0.0
+    var c10: f64 = 0.0; var c11: f64 = 0.0; var c12: f64 = 0.0; var c13: f64 = 0.0
+    var c20: f64 = 0.0; var c21: f64 = 0.0; var c22: f64 = 0.0; var c23: f64 = 0.0
+    var c30: f64 = 0.0; var c31: f64 = 0.0; var c32: f64 = 0.0; var c33: f64 = 0.0
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var a0 = oren_u32_bits_to_f32(_simd_load_u32_le(a0_ptr + off))
+        var a1 = oren_u32_bits_to_f32(_simd_load_u32_le(a1_ptr + off))
+        var a2 = oren_u32_bits_to_f32(_simd_load_u32_le(a2_ptr + off))
+        var a3 = oren_u32_bits_to_f32(_simd_load_u32_le(a3_ptr + off))
+        var b0 = oren_u32_bits_to_f32(_simd_load_u32_le(b0_ptr + off))
+        var b1 = oren_u32_bits_to_f32(_simd_load_u32_le(b1_ptr + off))
+        var b2 = oren_u32_bits_to_f32(_simd_load_u32_le(b2_ptr + off))
+        var b3 = oren_u32_bits_to_f32(_simd_load_u32_le(b3_ptr + off))
+        c00 = c00 + a0 * b0; c01 = c01 + a0 * b1; c02 = c02 + a0 * b2; c03 = c03 + a0 * b3
+        c10 = c10 + a1 * b0; c11 = c11 + a1 * b1; c12 = c12 + a1 * b2; c13 = c13 + a1 * b3
+        c20 = c20 + a2 * b0; c21 = c21 + a2 * b1; c22 = c22 + a2 * b2; c23 = c23 + a2 * b3
+        c30 = c30 + a3 * b0; c31 = c31 + a3 * b1; c32 = c32 + a3 * b2; c33 = c33 + a3 * b3
+        i = i + 1
+    }
+    _simd_store_u64_le(out_ptr + 0, oren_f64_to_u64_bits(c00)); _simd_store_u64_le(out_ptr + 8, oren_f64_to_u64_bits(c01)); _simd_store_u64_le(out_ptr + 16, oren_f64_to_u64_bits(c02)); _simd_store_u64_le(out_ptr + 24, oren_f64_to_u64_bits(c03))
+    _simd_store_u64_le(out_ptr + 32, oren_f64_to_u64_bits(c10)); _simd_store_u64_le(out_ptr + 40, oren_f64_to_u64_bits(c11)); _simd_store_u64_le(out_ptr + 48, oren_f64_to_u64_bits(c12)); _simd_store_u64_le(out_ptr + 56, oren_f64_to_u64_bits(c13))
+    _simd_store_u64_le(out_ptr + 64, oren_f64_to_u64_bits(c20)); _simd_store_u64_le(out_ptr + 72, oren_f64_to_u64_bits(c21)); _simd_store_u64_le(out_ptr + 80, oren_f64_to_u64_bits(c22)); _simd_store_u64_le(out_ptr + 88, oren_f64_to_u64_bits(c23))
+    _simd_store_u64_le(out_ptr + 96, oren_f64_to_u64_bits(c30)); _simd_store_u64_le(out_ptr + 104, oren_f64_to_u64_bits(c31)); _simd_store_u64_le(out_ptr + 112, oren_f64_to_u64_bits(c32)); _simd_store_u64_le(out_ptr + 120, oren_f64_to_u64_bits(c33))
+    return out_ptr
+}
+
+fn simd_reduce_sum_f64_ptr(a_ptr, n) {
+    var sum: f64 = 0.0
+    var i = 0
+    while i < n {
+        var off = i * 8
+        sum = sum + oren_u64_bits_to_f64(_simd_load_u64_le(a_ptr + off))
+        i = i + 1
+    }
+    return oren_f64_to_u64_bits(sum)
+}
+
+fn simd_scale_f32_ptr(dst_ptr, a_ptr, scalar_bits, n) {
+    var s = oren_u32_bits_to_f32(scalar_bits)
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var x = oren_u32_bits_to_f32(_simd_load_u32_le(a_ptr + off))
+        var out = x * s
+        _simd_store_u32_le(dst_ptr + off, oren_f32_to_u32_bits(out))
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_scale_i32_ptr(dst_ptr, a_ptr, scalar, n) {
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var x = _simd_load_i32_le(a_ptr + off)
+        _simd_store_u32_le(dst_ptr + off, x * scalar)
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_axpy_f32_ptr(dst_ptr, alpha_bits, x_ptr, y_ptr, n) {
+    var a = oren_u32_bits_to_f32(alpha_bits)
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var x = oren_u32_bits_to_f32(_simd_load_u32_le(x_ptr + off))
+        var y = oren_u32_bits_to_f32(_simd_load_u32_le(y_ptr + off))
+        var out = (a * x) + y
+        _simd_store_u32_le(dst_ptr + off, oren_f32_to_u32_bits(out))
+        i = i + 1
+    }
+    return dst_ptr
+}
+
+fn simd_axpy_i32_ptr(dst_ptr, alpha, x_ptr, y_ptr, n) {
+    var i = 0
+    while i < n {
+        var off = i * 4
+        var x = _simd_load_i32_le(x_ptr + off)
+        var y = _simd_load_i32_le(y_ptr + off)
+        _simd_store_u32_le(dst_ptr + off, (alpha * x) + y)
+        i = i + 1
+    }
+    return dst_ptr
+}
+

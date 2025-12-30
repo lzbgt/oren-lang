@@ -62,6 +62,14 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         if locals[pnm] != nil { err(ctx, "x64 native v0: duplicate param " + pnm); return nil }
         locals[pnm] = local_next
         local_next = local_next + 8
+        // Type annotation hinting (rolling):
+        //
+        // Parameters annotated as `f32`/`f64` must participate in the float-propagation
+        // heuristic so float intrinsics (e.g. `oren_f32_to_u32_bits`) accept identifiers.
+        var ann = p["ann_type"]
+        if ann != nil && ctx["locals_floaty"] != nil {
+            if ann == "f32" || ann == "f64" { ctx["locals_floaty"][pnm] = true }
+        }
         i = i + 1
     }
 

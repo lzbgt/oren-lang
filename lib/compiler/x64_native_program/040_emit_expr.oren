@@ -24,7 +24,6 @@ fn _emit_abort_exitcode(ctx, exit_code) {
 fn _emit_abort_panic_str(ctx, msg) {
     // Emit a deterministic abort via `oren_panic(msg)` so failures produce the Tier‑1
     // diagnostic contract (OREN_DIAG + best-effort stack trace) instead of a silent exit.
-    //
     // - msg must be a compile-time string literal (this helper stores it in the appended data blob)
     // - aborts with exit code 1 (the `oren_panic` contract)
     if msg == nil { msg = "" }
@@ -43,17 +42,13 @@ fn _emit_abort_panic_str(ctx, msg) {
 
 fn _emit_malloc_size_in_rax(ctx, locals) {
     // malloc(size) / malloc_raw(size) intrinsic core.
-    //
     // Input:
     // - RAX: requested size (signed int)
-    //
     // Output:
     // - RAX: allocated pointer (0 on size<=0; otherwise non-zero on success)
-    //
     // Global state (callee-saved registers, initialized in entry stub):
     // - R15: heap_ptr
     // - R14: heap_limit
-    //
     // Clobbers:
     // - R10, R11, RCX (kernel syscall clobbers RCX/R11)
     var platform = ctx["platform"]
@@ -185,7 +180,6 @@ fn _emit_malloc_size_in_rax(ctx, locals) {
 
 fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // Evaluate a tiny integer expression into RAX (64-bit register).
-    //
     // Values are stored/propagated through 64-bit registers and stack slots.
     // Supports:
     // - Integer
@@ -368,6 +362,24 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // Patch disp32 to point at the fnobj data record.
             oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})
             return nil
+        }
+
+        // Debug aid for runtime injection bring-up (disabled by default).
+        // Helps diagnose string/identifier mismatches between injected runtime AST nodes.
+        var dump_base = ctx["dump_globals_path"]
+        if dump_base != nil {
+            var p0 = dump_base + ".unknown_var"
+            var eq0 = 0
+            if name == "GLOBAL_SLOT_BYTES" { eq0 = 1 }
+            var s0 = ""
+            s0 = s0 + "name=" + name + "\n"
+            s0 = s0 + "len=" + oren_int_to_string(oren_string_len(name)) + "\n"
+            s0 = s0 + "eq_GLOBAL_SLOT_BYTES=" + oren_int_to_string(eq0) + "\n"
+            // Does the globals table contain a canonical entry?
+            var g0 = 0
+            if ctx["globals"] != nil && ctx["globals"]["GLOBAL_SLOT_BYTES"] != nil { g0 = 1 }
+            s0 = s0 + "globals_has_GLOBAL_SLOT_BYTES=" + oren_int_to_string(g0) + "\n"
+            oren_write_file(p0, s0)
         }
 
         err(ctx, "x64 native v0: unknown var " + name)
@@ -1613,6 +1625,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
 
+        var stack_intr = _emit_intrinsic_stack_helpers_x64(ctx, nm)
+        if stack_intr == 1 { return nil }
+
         if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
         if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
         if nm == "exit" { return _emit_intrinsic_exit_x64(ctx, expr, locals, args) }
@@ -1832,9 +1847,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 return nil
             }
             if r != nil && r["type"] == "Identifier" {
-                var off2 = locals[r["value"]]
-                if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-                _emit_mov_r64_mrbp(ctx, 2, 0 - off2) // rdx = rhs
+                if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
                 bytes_extend(ctx["code"], insn_mov_r64_r64(1, 2)) // rcx = rhs (CL)
 
                 var labels2 = {}
@@ -1909,9 +1922,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 return nil
             }
             if r != nil && r["type"] == "Identifier" {
-                var off3 = locals[r["value"]]
-                if off3 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-                _emit_mov_r64_mrbp(ctx, 2, 0 - off3) // rdx = rhs
+                if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
                 if op == "&" { bytes_extend(ctx["code"], insn_and_r64_r64(0, 2)) }
                 else if op == "|" { bytes_extend(ctx["code"], insn_or_r64_r64(0, 2)) }
                 else { bytes_extend(ctx["code"], insn_xor_r64_r64(0, 2)) }
@@ -1958,9 +1969,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
         if r != nil && r["type"] == "Identifier" {
-            var off2 = locals[r["value"]]
-            if off2 == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-            _emit_mov_r64_mrbp(ctx, 2, 0 - off2) // rdx = rhs
+            if _emit_load_var_to_reg_x64(ctx, locals, r["value"], 2) == 0 { return nil }
             if op == "+" { bytes_extend(ctx["code"], insn_add_r64_r64(0, 2)) }
             else if op == "-" { bytes_extend(ctx["code"], insn_sub_r64_r64(0, 2)) }
             else { bytes_extend(ctx["code"], insn_imul_r64_r64(0, 2)) }

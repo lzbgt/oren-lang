@@ -1,0 +1,36 @@
+// Stack/diagnostic intrinsics for x64 native.
+//
+// Kept in a dedicated include file to keep `040_emit_expr.oren` under the repo
+// style limit (<= 2000 lines) while x64 Tier‑1 semantics converge with arm64.
+
+fn _emit_intrinsic_stack_helpers_x64(ctx, nm) {
+    // Returns 1 if handled, otherwise 0.
+    //
+    // These are treated as compiler intrinsics even if not declared as source-level
+    // functions, so injected native runtime code can call them directly.
+    if nm == "get_fp" {
+        // Return current frame pointer (RBP) as a raw u64.
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 5)) // rax = rbp
+        return 1
+    }
+    if nm == "get_sp" {
+        // Return current stack pointer (RSP) as a raw u64.
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 4)) // rax = rsp
+        return 1
+    }
+    if nm == "resolve_symbol" {
+        // Best-effort symbolication hook used by the injected runtime stack tracer.
+        //
+        // arm64 currently generates a real per-binary symbol table; x86_64 is converging
+        // but can return a stable placeholder without breaking determinism.
+        //
+        // Return a pointer to a NUL-terminated C string (native string model).
+        var off = _data_add_cstr0(ctx, "???")
+        if off == nil { err(ctx, "x64 native v0: resolve_symbol: failed to add cstr"); return 1 }
+        var lea_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // rax = &cstr
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
+        return 1
+    }
+    return 0
+}

@@ -63,10 +63,12 @@ func main() {
 	fixtureJobsEff := *fixtureJobs
 	if fixtureJobsEff == 0 {
 		fixtureJobsEff = *jobs
-		// Fixtures are typically short and IO-bound (compiler invocations + small grep checks).
-		// Use a higher default ceiling than module tests to reduce wall time on multi-core hosts.
-		if fixtureJobsEff > 8 {
-			fixtureJobsEff = 8
+		// Fixtures include some CPU-heavy cross-compilation (Tier‑1 x64 smoke builds),
+		// and running too many concurrently can cause build timeouts under contention.
+		// Keep the default ceiling conservative; callers can still override via
+		// --fixture-jobs / OREN_TEST_FIXTURE_JOBS for beefier CI hosts.
+		if fixtureJobsEff > 4 {
+			fixtureJobsEff = 4
 		}
 	}
 	if fixtureJobsEff < 1 {

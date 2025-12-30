@@ -5,9 +5,14 @@ fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
         if op != nil {
             if op["op"] == "var_i32" {
                 var nm = op["name"]
-                if locals[nm] != nil { err(ctx, "x64 native v0: duplicate var " + nm); return nil }
-                locals[nm] = local_next
-                local_next = local_next + 8
+                // Rolling scoping rule (x64 v0):
+                // - Allow `var` redeclaration in disjoint blocks by reusing the same slot.
+                // - This matches the existing "locals are identified by name" lowering model
+                //   while runtime injection is converging toward full parity.
+                if locals[nm] == nil {
+                    locals[nm] = local_next
+                    local_next = local_next + 8
+                }
             } else if op["op"] == "if" {
                 local_next = _collect_locals_from_ops(ctx, op["then"], locals, local_next)
                 if local_next == nil { return nil }

@@ -20,9 +20,10 @@ Rules for this tracker:
      - callables (function values), closures, varargs/spread, and deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
-       - **runtime injection now exists** for x86_64 behind `OREN_X64_INJECT_RUNTIME=1` (shared include expander; same runtime source as arm64)
-       - next: expand syscall lowering parity so the x86_64 injected runtime can become the default path
-       - then: replace remaining “bring-up-only” intrinsics (e.g. `oren_iter_next` map sorting) with shared runtime helpers
+       - **runtime injection is default-on** for x86_64 (same runtime source as arm64; expanded `// @include` tree)
+         - escape hatch: `OREN_X64_NO_INJECT_RUNTIME=1` (debug / bring-up)
+         - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
+       - next: replace remaining “bring-up-only” intrinsics with shared runtime helpers (goal: single semantics set, thin ABI emit layers)
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
 

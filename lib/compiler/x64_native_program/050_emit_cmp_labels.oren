@@ -23,9 +23,24 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
             return nil
         }
         if r["type"] == "Identifier" {
-            var off = locals[r["value"]]
-            if off == nil { err(ctx, "x64 native v0: unknown var " + r["value"]); return nil }
-            _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs
+            var rhs_name = r["value"]
+            var off = locals[rhs_name]
+            if off != nil {
+                _emit_mov_r64_mrbp(ctx, 2, 0 - off) // rdx = rhs (local)
+            } else {
+                // Global var RHS (top-level `var`).
+                var goff = nil
+                if ctx["globals"] != nil { goff = ctx["globals"][rhs_name] }
+                if goff == nil {
+                    err(ctx, "x64 native v0: unknown var " + rhs_name)
+                    return nil
+                }
+                // r10 = &global_slot ; rdx = *(u64*)r10
+                var lea_pos0 = oren_list_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
+                bytes_extend(ctx["code"], insn_mov_r64_mr64(2, 10))
+            }
             bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2)) // cmp rax, rdx
             return nil
         }
