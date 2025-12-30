@@ -22,8 +22,11 @@ Rules for this tracker:
      - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
        - **runtime injection is default-on** for x86_64 (same runtime source as arm64; expanded `// @include` tree)
          - escape hatch: `OREN_X64_NO_INJECT_RUNTIME=1` (debug / bring-up)
-         - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
+       - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
        - next: replace remaining “bring-up-only” intrinsics with shared runtime helpers (goal: single semantics set, thin ABI emit layers)
+   - Next (Tier‑1 correctness):
+     - Windows x86_64: capture `argc/argv` + environment in the native entry path so `ore_args()` / `ore_getenv()` / capsule env parsing behave like Linux/macOS (likely via WinAPI `GetCommandLineA` + `GetEnvironmentStringsA` + `FreeEnvironmentStringsA`, or a runtime-side fallback when `envp==0`).
+     - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
 
