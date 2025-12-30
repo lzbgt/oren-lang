@@ -24,23 +24,6 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
     var max_call_argc = _max_call_argc_in_ops(ctx, ops)
 
-    // Reset the intrinsic temp allocator for this function.
-    // This protects intrinsic arg spilling from nested expression evaluation clobbering.
-    //
-    // Reserve only as much as needed (plus a small cushion) to avoid bloating every stack frame.
-    var max_intr = _max_intr_tmp_in_ops(ctx, ops)
-    if max_intr == nil { max_intr = 0 }
-    var intr_lim = max_intr + 8
-    if intr_lim < 16 { intr_lim = 16 }
-    // Rolling safety ceiling: if a function needs an extreme amount of temp spilling,
-    // fail fast rather than silently capping and producing miscompiles.
-    if intr_lim > 4096 {
-        err(ctx, "x64 native v0: intrinsic temp demand too high (need " + oren_int_to_string(intr_lim) + ")")
-        return nil
-    }
-    ctx["intr_tmp_cursor"] = 0
-    ctx["intr_tmp_limit"] = intr_lim
-
     var fn_off = oren_list_len(ctx["code"])
     ctx["functions"][name] = fn_off
 
@@ -112,6 +95,26 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         local_next = local_next + 8
         ti = ti + 1
     }
+
+    // Now that we have a complete locals map (params + locals + reserved `$tmp*`), compute the
+    // maximum intrinsic-temp pool usage needed for this function.
+    //
+    // This MUST be done after local collection so we can correctly size indirect call lowering:
+    // - calling a local/global variable that shadows a function name (`locals > globals > functions`)
+    // - calling a non-identifier callee expression (first-class callables)
+    var max_intr = _max_intr_tmp_in_ops(ctx, ops, locals)
+    if max_intr == nil { max_intr = 0 }
+    var intr_lim = max_intr + 8
+    if intr_lim < 16 { intr_lim = 16 }
+    // Rolling safety ceiling: if a function needs an extreme amount of temp spilling,
+    // fail fast rather than silently capping and producing miscompiles.
+    if intr_lim > 4096 {
+        err(ctx, "x64 native v0: intrinsic temp demand too high (need " + oren_int_to_string(intr_lim) + ")")
+        return nil
+    }
+    // Reset the intrinsic temp allocator for this function.
+    ctx["intr_tmp_cursor"] = 0
+    ctx["intr_tmp_limit"] = intr_lim
 
     // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
     // These are distinct from `$tmp1..$tmp8` and are allocated via `_intr_tmp_push/_intr_tmp_pop`.

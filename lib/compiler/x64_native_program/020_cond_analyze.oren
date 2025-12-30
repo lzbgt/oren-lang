@@ -265,6 +265,33 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
         if st == nil { i = i + 1; continue }
         var t = st["type"]
         var tok = st["token"]
+        if t == "Block" {
+            // Rolling: allow naked blocks as statements and treat them as an inline statement list.
+            // x64 native uses a single function-scope locals model, so this is a safe flattening.
+            var inner = _analyze_stmt_list_to_ops(ctx, st["stmts"])
+            if inner == nil { return nil }
+            var k0 = 0
+            while k0 < oren_list_len(inner) { oren_list_push(ops, inner[k0]); k0 = k0 + 1 }
+            i = i + 1
+            continue
+        }
+        if t == "Function" {
+            // Local function declaration (rolling): `fn name(params...) { ... }` in statement position.
+            //
+            // x64 native v0 lowers this as:
+            //   var name = fn(params...) { ... }
+            //
+            // so calls to `name(...)` inside the enclosing function become indirect calls through a
+            // first-class fn object (uniform callable ABI). This keeps semantics aligned with arm64
+            // without needing a separate "nested function hoisting" pass in the x64 backend.
+            var nmf = st["name"]
+            if nmf == nil || nmf == "" { err(ctx, "x64 native v0: function decl missing name"); return nil }
+            st["decl_name"] = nmf
+            st["name"] = "" // convert to lambda literal
+            oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": nmf, "expr": st})
+            i = i + 1
+            continue
+        }
         if t == "Var" {
             var name_node = st["name"]
             var v0 = st["value"]
@@ -286,6 +313,25 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 // Splice in the ops produced by the wrapped statement.
                 var k = 0
                 while k < oren_list_len(tmp) { oren_list_push(ops, tmp[k]); k = k + 1 }
+                i = i + 1
+                continue
+            }
+            if e["type"] == "SpawnExpr" {
+                // `spawn f(...)` can appear in statement position; evaluate and discard the result.
+                _expr_int_check(ctx, e, nil)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e})
+                i = i + 1
+                continue
+            }
+            if e["type"] == "Function" {
+                // Some parser paths wrap statement-form `fn name(...) { ... }` as an ExprStmt.
+                // Normalize to the same lowering as the direct `t == "Function"` case.
+                var nmf2 = e["name"]
+                if nmf2 == nil || nmf2 == "" { err(ctx, "x64 native v0: function decl missing name"); return nil }
+                e["decl_name"] = nmf2
+                e["name"] = "" // convert to lambda literal
+                oren_list_push(ops, {"op": "var_i32", "tok": tok, "name": nmf2, "expr": e})
                 i = i + 1
                 continue
             }
@@ -331,7 +377,7 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 i = i + 1
                 continue
             }
-            err(ctx, "x64 native v0: unsupported expr statement")
+            err(ctx, "x64 native v0: unsupported expr statement: " + e["type"])
             return nil
         }
         if t == "Assign" {

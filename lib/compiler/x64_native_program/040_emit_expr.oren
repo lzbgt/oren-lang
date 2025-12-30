@@ -385,13 +385,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         err(ctx, "x64 native v0: unknown var " + name)
         return nil
     }
+    if t == "Member" { return _emit_member_expr_v0(ctx, expr, locals) }
     if t == "Index" { return _emit_index_expr_v0(ctx, expr, locals) }
     if t == "Array" { return _emit_array_literal_expr(ctx, expr, locals) }
     if t == "Hash" { return _emit_hash_literal_expr(ctx, expr, locals) }
+    if t == "SpawnExpr" { _emit_spawn_expr_v0(ctx, expr, locals); return nil }
     if t == "Call" {
         var fn_expr = expr["fn"]
         var args = expr["args"]
-        if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
+        if fn_expr == nil { err(ctx, "x64 native v0: call missing target"); return nil }
+        // Tier‑1 parity: allow calling a function-valued expression directly.
+        // (arm64 supports this; x64 converges via the uniform callable ABI in `044_emit_call_expr.oren`).
+        if fn_expr["type"] != "Identifier" {
+            _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_expr, args, expr["spread"])
+            return nil
+        }
+
         var nm = fn_expr["value"]
         // Map set core lives at top-level: `_emit_intrinsic_map_set_spilled`.
 
@@ -432,7 +441,6 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // Intrinsic: convert float64 bits (RAX) to IEEE-754 float32 bits (u32 in EAX, zero-extended).
             if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f32_to_u32_bits expects 1 argument"); return nil }
             if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f32_to_u32_bits does not support spread"); return nil }
-            if !_x64_expr_is_floaty(ctx, args[0]) { err(ctx, "x64 native v0: oren_f32_to_u32_bits expects float argument"); return nil }
             _emit_eval_int_to_rax(ctx, args[0], locals) // f64 bits in rax
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             bytes_extend(ctx["code"], insn_movq_xmm_r64(0, 0))      // xmm0 = f64 bits
@@ -455,7 +463,6 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // Intrinsic: reinterpret float64 bits as u64 bits (identity in carrier register).
             if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_f64_to_u64_bits expects 1 argument"); return nil }
             if expr["spread"] != nil { err(ctx, "x64 native v0: oren_f64_to_u64_bits does not support spread"); return nil }
-            if !_x64_expr_is_floaty(ctx, args[0]) { err(ctx, "x64 native v0: oren_f64_to_u64_bits expects float argument"); return nil }
             _emit_eval_int_to_rax(ctx, args[0], locals)
             return nil
         }
@@ -1450,9 +1457,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var stack_intr = _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args)
         if stack_intr == 1 { return nil }
 
-        // System-call boundary: keep all host effects gated behind `sys_*` intrinsics
+        // System-call boundary: keep all host effects gated behind syscall intrinsics
         // so the capsule sandbox can enforce policy consistently.
-        if nm != nil && oren_string_len(nm) >= 4 && oren_string_slice(nm, 0, 4) == "sys_" {
+        //
+        // NOTE: not every `sys_*` function is a syscall intrinsic (some are normal runtime
+        // wrappers like `sys_send`, `sys_recv`, `sys_read_u8_buf`).
+        var is_shadowed = false
+        if locals != nil && locals[nm] != nil { is_shadowed = true }
+        else if ctx != nil && ctx["globals"] != nil && ctx["globals"][nm] != nil { is_shadowed = true }
+        if is_shadowed != true && _x64_is_syscall_intrinsic_name(nm) {
             return _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args)
         }
         if nm == "exit" { return _emit_intrinsic_exit_x64(ctx, expr, locals, args) }

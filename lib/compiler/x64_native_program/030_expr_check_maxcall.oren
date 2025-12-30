@@ -58,8 +58,18 @@ fn _expr_int_check(ctx, expr, locals) {
     if t == "Call" {
         var fn_expr = expr["fn"]
         var args = expr["args"]
-        if fn_expr == nil || fn_expr["type"] != "Identifier" { err(ctx, "x64 native v0: call target must be identifier"); return nil }
-        var nm = fn_expr["value"]
+        if fn_expr == nil { err(ctx, "x64 native v0: call missing target"); return nil }
+
+        // Rolling v0: Oren permits first-class function values and calling a function-valued
+        // expression directly (e.g. `(cond ? f : g)(x)`).
+        //
+        // x64 native v0 supports this through the uniform callable ABI:
+        //   fn_obj(args...) => args_list = [args...] ; oren_call_obj_list(fn_obj, args_list)
+        //
+        // For analysis, only identifier call targets participate in intrinsic validation
+        // and provable direct-call arity checks.
+        var nm = nil
+        if fn_expr["type"] == "Identifier" { nm = fn_expr["value"] }
         if nm == "print" { err(ctx, "x64 native v0: print is statement-only"); return nil }
 
         // --- Intrinsics ---
@@ -69,9 +79,9 @@ fn _expr_int_check(ctx, expr, locals) {
         var spread0 = expr["spread"]
         var argc0 = 0
         if args != nil { argc0 = oren_list_len(args) }
-        if nm == "oren_trunc_int" || nm == "oren_bool_norm" || nm == "oren_f32_round" ||
+        if nm != nil && (nm == "oren_trunc_int" || nm == "oren_bool_norm" || nm == "oren_f32_round" ||
             nm == "oren_f32_to_u32_bits" || nm == "oren_u32_bits_to_f32" ||
-            nm == "oren_f64_to_u64_bits" || nm == "oren_u64_bits_to_f64" {
+            nm == "oren_f64_to_u64_bits" || nm == "oren_u64_bits_to_f64") {
             if spread0 != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return nil }
             if argc0 != 1 { err(ctx, "x64 native v0: " + nm + " expects 1 argument"); return nil }
             _expr_int_check(ctx, args[0], locals)
@@ -95,7 +105,7 @@ fn _expr_int_check(ctx, expr, locals) {
         // Direct calls enforce arity; indirect calls (callable value in a local/param) are permitted
         // in v0 bring-up without static arity tracking.
         var arity = nil
-        if ctx["func_arity"] != nil { arity = ctx["func_arity"][nm] }
+        if nm != nil && ctx["func_arity"] != nil { arity = ctx["func_arity"][nm] }
         // NOTE (rolling): without name resolution, a call target `nm` may be either:
         // - a direct call to a named function, or
         // - an indirect call through a local/global var that shadows that name.
@@ -109,7 +119,7 @@ fn _expr_int_check(ctx, expr, locals) {
                 }
             }
         }
-        if arity != nil && can_prove_direct {
+        if nm != nil && arity != nil && can_prove_direct {
             var declared = ctx["declared_functions"]
             if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
 
@@ -131,6 +141,12 @@ fn _expr_int_check(ctx, expr, locals) {
             // phase without `locals`): the callee wrapper enforces arity at runtime/codegen.
         }
 
+        // Validate call target expression itself (for non-identifier targets).
+        if nm == nil {
+            _expr_int_check(ctx, fn_expr, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        }
+
         var i = 0
         while i < argc {
             _expr_int_check(ctx, args[i], locals)
@@ -139,6 +155,30 @@ fn _expr_int_check(ctx, expr, locals) {
         }
         if spread != nil {
             _expr_int_check(ctx, spread, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        }
+        return nil
+    }
+    if t == "SpawnExpr" {
+        // Spawn is an expression node produced by the parser/transpiler.
+        // It carries an inner Call node: { "call": { "type":"Call", "fn":..., "args":[...], "spread":...? } }.
+        var call2 = expr["call"]
+        if call2 == nil || call2["type"] != "Call" { err(ctx, "x64 native v0: SpawnExpr missing call"); return nil }
+        var fn2 = call2["fn"]
+        var args2 = call2["args"]
+        if fn2 == nil { err(ctx, "x64 native v0: SpawnExpr missing callee"); return nil }
+        _expr_int_check(ctx, fn2, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        var i2 = 0
+        var argc2 = 0
+        if args2 != nil { argc2 = oren_list_len(args2) }
+        while i2 < argc2 {
+            _expr_int_check(ctx, args2[i2], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i2 = i2 + 1
+        }
+        if call2["spread"] != nil {
+            _expr_int_check(ctx, call2["spread"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         }
         return nil
@@ -171,6 +211,18 @@ fn _expr_int_check(ctx, expr, locals) {
         var r = expr["right"]
         if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
         _expr_int_check(ctx, r, locals)
+        return nil
+    }
+    if t == "Member" {
+        // Rolling v0: `obj.field` is permitted and lowers to map indexing with a string key.
+        //
+        // Namespace resolution for `mod.fn` is handled later in codegen; for analysis we just
+        // validate the shape and recurse into the receiver expression.
+        var l2m = expr["left"]
+        var propm = expr["prop"]
+        if l2m == nil { err(ctx, "x64 native v0: member missing receiver"); return nil }
+        if propm == nil || propm["type"] != "Identifier" { err(ctx, "x64 native v0: member prop must be identifier"); return nil }
+        _expr_int_check(ctx, l2m, locals)
         return nil
     }
     if t == "Index" {
@@ -217,6 +269,27 @@ fn _max_call_argc_in_expr(ctx, expr) {
     var t = expr["type"]
     if t == "Nil" { return 0 }
     if t == "String" { return 0 }
+    if t == "SpawnExpr" {
+        var call2 = expr["call"]
+        if call2 == nil { return 0 }
+        var fn2 = call2["fn"]
+        var args2 = call2["args"]
+        var m = 0
+        // Count nested calls inside the callee expression and arguments.
+        var mf = _max_call_argc_in_expr(ctx, fn2)
+        if mf > m { m = mf }
+        var i = 0
+        while args2 != nil && i < oren_list_len(args2) {
+            var mi = _max_call_argc_in_expr(ctx, args2[i])
+            if mi > m { m = mi }
+            i = i + 1
+        }
+        if call2["spread"] != nil {
+            var ms = _max_call_argc_in_expr(ctx, call2["spread"])
+            if ms > m { m = ms }
+        }
+        return m
+    }
     if t == "Call" {
         var args = expr["args"]
         var argc = 0
@@ -286,6 +359,10 @@ fn _max_call_argc_in_expr(ctx, expr) {
     }
     if t == "Prefix" {
         return _max_call_argc_in_expr(ctx, expr["right"])
+    }
+    if t == "Member" {
+        // Only the receiver expression can contain calls.
+        return _max_call_argc_in_expr(ctx, expr["left"])
     }
     if t == "Index" {
         var ml = _max_call_argc_in_expr(ctx, expr["left"])
@@ -369,6 +446,44 @@ fn _max_call_argc_in_ops(ctx, ops) {
     return m
 }
 
+fn _x64_is_syscall_intrinsic_name(nm) {
+    // NOTE (native runtime): many `sys_*` symbols exist in `lib/runtime_native/000_prelude_sys.oren`.
+    // Only a subset are *compiler intrinsics* lowered directly by the native backend.
+    //
+    // Other `sys_*` functions (e.g. `sys_send`, `sys_recv`, `sys_read_u8_buf`) are normal
+    // Oren wrappers implemented in the runtime and must NOT be intercepted as syscall intrinsics.
+    if nm == nil { return false }
+    // Core
+    if nm == "sys_read" || nm == "sys_write" || nm == "sys_exit" { return true }
+    // FS / PROC / TIME
+    if nm == "sys_pipe" || nm == "sys_open" || nm == "sys_close" || nm == "sys_access" { return true }
+    if nm == "sys_stat" || nm == "sys_lstat" || nm == "sys_fstat" { return true }
+    if nm == "sys_unlink" || nm == "sys_rmdir" || nm == "sys_rename" { return true }
+    if nm == "sys_mkdir" || nm == "sys_chmod" { return true }
+    if nm == "sys_getdirentries64" { return true }
+    if nm == "sys_fork" || nm == "sys_execve" || nm == "sys_wait4" { return true }
+    if nm == "sys_kill" { return true }
+    if nm == "sys_gettimeofday" || nm == "sys_getcwd" || nm == "sys_nanosleep" { return true }
+    // VM / threads / fcntl / fd ops
+    if nm == "sys_mmap_private_anon" || nm == "sys_munmap" { return true }
+    if nm == "sys_clone" || nm == "sys_gettid" { return true }
+    if nm == "sys_fcntl" || nm == "sys_fcntl_getfl" || nm == "sys_fcntl_setfl" || nm == "sys_fcntl_getpath" { return true }
+    if nm == "sys_dup" || nm == "sys_dup2" || nm == "sys_dup3" { return true }
+    if nm == "sys_ioctl" { return true }
+    // NET (send/recv aliases are runtime wrappers; the intrinsics are sendto/recvfrom)
+    if nm == "sys_socket" || nm == "sys_connect" || nm == "sys_bind" || nm == "sys_listen" || nm == "sys_accept" { return true }
+    if nm == "sys_getpeername" || nm == "sys_getsockname" { return true }
+    if nm == "sys_getsockopt" || nm == "sys_setsockopt" || nm == "sys_shutdown" { return true }
+    if nm == "sys_sendto" || nm == "sys_recvfrom" { return true }
+    // epoll
+    if nm == "sys_epoll_create1" || nm == "sys_epoll_ctl" || nm == "sys_epoll_pwait" { return true }
+    // Darwin-only (still compiler intrinsics; may return -ENOSYS on non-Darwin)
+    if nm == "sys_ulock_wait" || nm == "sys_ulock_wake" { return true }
+    if nm == "sys_bsdthread_create" || nm == "sys_bsdthread_terminate" || nm == "sys_bsdthread_register" { return true }
+    if nm == "sys_kqueue" || nm == "sys_kevent" { return true }
+    return false
+}
+
 // Compute the maximum intrinsic temp pool usage needed to compile expressions in this function.
 //
 // x64 native v0 uses a per-function `$tmp_intr<i>` pool as a re-entrant spill allocator for:
@@ -377,7 +492,50 @@ fn _max_call_argc_in_ops(ctx, ops) {
 //
 // We must reserve enough `$tmp_intr<i>` stack slots to cover the maximum *nested* usage,
 // but we should not over-reserve (large fixed pools bloat every stack frame and hurt recursion).
-fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
+fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
+    // Rolling: decide whether a `Call` lowers as a direct ABI call or as an indirect callable-object
+    // call (`oren_call_obj_list` / `oren_call_obj_spread`), because the intrinsic spill demand differs.
+    //
+    // NOTE: This sizing must match the codegen strategy in `lib/compiler/x64_native_program/044_emit_call_expr.oren`.
+    var fn_expr = nil
+    var has_spread = false
+    if expr != nil {
+        fn_expr = expr["fn"]
+        if expr["spread"] != nil { has_spread = true }
+    }
+
+    // Indirect calls:
+    // - callee is a non-identifier expression, OR
+    // - callee is an identifier shadowed by locals/globals, OR
+    // - identifier is not a declared function (must be a variable call).
+    var is_indirect = false
+    if fn_expr != nil && fn_expr["type"] != "Identifier" {
+        is_indirect = true
+    } else if nm != nil {
+        var is_shadowed = false
+        if locals != nil && locals[nm] != nil { is_shadowed = true }
+        else if ctx != nil && ctx["globals"] != nil && ctx["globals"][nm] != nil { is_shadowed = true }
+
+        var declared = nil
+        if ctx != nil { declared = ctx["declared_functions"] }
+        var is_declared = false
+        if declared != nil && declared[nm] != nil { is_declared = true }
+
+        if is_shadowed || is_declared != true { is_indirect = true }
+    }
+
+    if is_indirect {
+        // Preferred Tier‑1 semantics: under runtime injection, spread lowers through the shared runtime helper:
+        //   oren_call_obj_spread(fn_obj, fixed_list, spread_list)
+        // Spill layout: explicit args (argc) + fixed_list + spread_list + fn_obj.
+        if has_spread && ctx != nil && ctx["runtime_injected"] == true {
+            return argc + 3
+        }
+        // Bring-up path (no runtime injection): spill explicit args + args_list + fn_obj (+ loop temps when spread).
+        if has_spread { return argc + 6 }
+        return argc + 2
+    }
+
     if nm == nil { return argc }
 
     // `sys_*` are compiler intrinsics (not user-declared functions). Their implementations
@@ -385,26 +543,9 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     //
     // Keep this aligned with `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`.
     // Current max literal `_intr_tmp_push(ctx, N)` in sys lowering is 6.
-    if oren_string_len(nm) >= 4 && oren_string_slice(nm, 0, 4) == "sys_" {
+    if _x64_is_syscall_intrinsic_name(nm) {
         if argc > 6 { return argc }
         return 6
-    }
-
-    // Indirect calls (`f(x,y)` where `f` is a local/param holding a fnobj pointer) lower to:
-    // - build args_list (plus optional spread expansion loop temps)
-    // - call wrapper(env_ptr, args_list)
-    //
-    // This requires an extra spill slot for the synthesized args_list and, when spread is
-    // present, additional loop spills (spread/idx/len/elem).
-    if ctx != nil && ctx["declared_functions"] != nil && ctx["declared_functions"][nm] == nil {
-        // Indirect calls spill:
-        // - evaluated args (argc)
-        // - args_list pointer (1)
-        // - callee fnobj pointer (1)
-        //
-        // Spread in bring-up mode adds loop temps (spread/idx/len/elem).
-        if expr != nil && expr["spread"] != nil { return argc + 6 }
-        return argc + 2
     }
 
     // Intrinsics with custom spill needs.
@@ -471,11 +612,41 @@ fn _intr_tmp_base_slots_for_call(ctx, expr, nm, argc) {
     return argc
 }
 
-fn _max_intr_tmp_in_expr(ctx, expr) {
+fn _max_intr_tmp_in_expr(ctx, expr, locals) {
     if expr == nil { return 0 }
     var t = expr["type"]
     if t == "Nil" || t == "Boolean" || t == "Integer" || t == "String" || t == "Identifier" { return 0 }
     if t == "Function" { return 0 }
+
+    if t == "SpawnExpr" {
+        // Conservative intrinsic-temp sizing for SpawnExpr lowering (runtime-injected path):
+        // - spill explicit args (argc)
+        // - args_list (1)
+        // - fn_obj (1)
+        // - optional spread expansion loop temps (4)
+        var call2 = expr["call"]
+        if call2 == nil { return 0 }
+        var args2 = call2["args"]
+        var argc2 = 0
+        if args2 != nil { argc2 = oren_list_len(args2) }
+        var base = argc2 + 2
+        if call2["spread"] != nil { base = argc2 + 6 }
+
+        var max_child = 0
+        var mf = _max_intr_tmp_in_expr(ctx, call2["fn"], locals)
+        if mf > max_child { max_child = mf }
+        var i = 0
+        while args2 != nil && i < argc2 {
+            var mi = _max_intr_tmp_in_expr(ctx, args2[i], locals)
+            if mi > max_child { max_child = mi }
+            i = i + 1
+        }
+        if call2["spread"] != nil {
+            var ms = _max_intr_tmp_in_expr(ctx, call2["spread"], locals)
+            if ms > max_child { max_child = ms }
+        }
+        return base + max_child
+    }
 
     if t == "Call" {
         var fn_expr = expr["fn"]
@@ -486,38 +657,43 @@ fn _max_intr_tmp_in_expr(ctx, expr) {
         var nm = nil
         if fn_expr != nil && fn_expr["type"] == "Identifier" { nm = fn_expr["value"] }
 
-        var base = _intr_tmp_base_slots_for_call(ctx, expr, nm, argc)
+        var base = _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc)
 
         // While compiling this call, we keep `base` spill slots live across evaluation of each arg.
         // Args are evaluated LTR, so peak additional usage is the max over arg subexpressions.
         var max_child = 0
         var i = 0
         while args != nil && i < argc {
-            var mi = _max_intr_tmp_in_expr(ctx, args[i])
+            var mi = _max_intr_tmp_in_expr(ctx, args[i], locals)
             if mi > max_child { max_child = mi }
             i = i + 1
         }
         if expr["spread"] != nil {
-            var ms = _max_intr_tmp_in_expr(ctx, expr["spread"])
+            var ms = _max_intr_tmp_in_expr(ctx, expr["spread"], locals)
             if ms > max_child { max_child = ms }
         }
         return base + max_child
     }
 
     if t == "Infix" {
-        var ml = _max_intr_tmp_in_expr(ctx, expr["left"])
-        var mr = _max_intr_tmp_in_expr(ctx, expr["right"])
+        var ml = _max_intr_tmp_in_expr(ctx, expr["left"], locals)
+        var mr = _max_intr_tmp_in_expr(ctx, expr["right"], locals)
         if mr > ml { return mr }
         return ml
     }
 
     if t == "Prefix" {
-        return _max_intr_tmp_in_expr(ctx, expr["right"])
+        return _max_intr_tmp_in_expr(ctx, expr["right"], locals)
+    }
+
+    if t == "Member" {
+        // Member lowers to a map index internally; only the receiver can contain nested calls.
+        return _max_intr_tmp_in_expr(ctx, expr["left"], locals)
     }
 
     if t == "Index" {
-        var ml2 = _max_intr_tmp_in_expr(ctx, expr["left"])
-        var mi2 = _max_intr_tmp_in_expr(ctx, expr["index"])
+        var ml2 = _max_intr_tmp_in_expr(ctx, expr["left"], locals)
+        var mi2 = _max_intr_tmp_in_expr(ctx, expr["index"], locals)
         if mi2 > ml2 { return mi2 }
         return ml2
     }
@@ -527,7 +703,7 @@ fn _max_intr_tmp_in_expr(ctx, expr) {
         var els = expr["elements"]
         var j = 0
         while els != nil && j < oren_list_len(els) {
-            var mj = _max_intr_tmp_in_expr(ctx, els[j])
+            var mj = _max_intr_tmp_in_expr(ctx, els[j], locals)
             if mj > m { m = mj }
             j = j + 1
         }
@@ -540,9 +716,9 @@ fn _max_intr_tmp_in_expr(ctx, expr) {
         var k = 0
         while pairs != nil && k < oren_list_len(pairs) {
             var pair = pairs[k]
-            var mk = _max_intr_tmp_in_expr(ctx, pair["key"])
+            var mk = _max_intr_tmp_in_expr(ctx, pair["key"], locals)
             if mk > m2 { m2 = mk }
-            var mv = _max_intr_tmp_in_expr(ctx, pair["value"])
+            var mv = _max_intr_tmp_in_expr(ctx, pair["value"], locals)
             if mv > m2 { m2 = mv }
             k = k + 1
         }
@@ -551,18 +727,18 @@ fn _max_intr_tmp_in_expr(ctx, expr) {
 
     if t == "If" {
         // Conservative: keep structure in sync with `_max_call_argc_in_expr`.
-        var m0 = _max_intr_tmp_in_expr(ctx, expr["cond"])
+        var m0 = _max_intr_tmp_in_expr(ctx, expr["cond"], locals)
         var consq = expr["consq"]
-        if consq != nil { var m1 = _max_intr_tmp_in_expr(ctx, consq["expr"]); if m1 > m0 { m0 = m1 } }
+        if consq != nil { var m1 = _max_intr_tmp_in_expr(ctx, consq["expr"], locals); if m1 > m0 { m0 = m1 } }
         var alt = expr["alt"]
-        if alt != nil { var m2 = _max_intr_tmp_in_expr(ctx, alt["expr"]); if m2 > m0 { m0 = m2 } }
+        if alt != nil { var m2 = _max_intr_tmp_in_expr(ctx, alt["expr"], locals); if m2 > m0 { m0 = m2 } }
         return m0
     }
 
     return 0
 }
 
-fn _max_intr_tmp_in_ops(ctx, ops) {
+fn _max_intr_tmp_in_ops(ctx, ops, locals) {
     if ops == nil { return 0 }
     var m = 0
     var i = 0
@@ -572,28 +748,28 @@ fn _max_intr_tmp_in_ops(ctx, ops) {
         var k = op["op"]
         if k == "var_i32" || k == "assign_i32" || k == "return" || k == "expr" {
             var e = op["expr"]
-            var me = _max_intr_tmp_in_expr(ctx, e)
+            var me = _max_intr_tmp_in_expr(ctx, e, locals)
             if me > m { m = me }
         } else if k == "if" {
-            var mc = _max_intr_tmp_in_expr(ctx, op["cond"])
+            var mc = _max_intr_tmp_in_expr(ctx, op["cond"], locals)
             if mc > m { m = mc }
-            var mt = _max_intr_tmp_in_ops(ctx, op["then"])
+            var mt = _max_intr_tmp_in_ops(ctx, op["then"], locals)
             if mt > m { m = mt }
-            var mf = _max_intr_tmp_in_ops(ctx, op["else"])
+            var mf = _max_intr_tmp_in_ops(ctx, op["else"], locals)
             if mf > m { m = mf }
         } else if k == "while" {
-            var mc2 = _max_intr_tmp_in_expr(ctx, op["cond"])
+            var mc2 = _max_intr_tmp_in_expr(ctx, op["cond"], locals)
             if mc2 > m { m = mc2 }
-            var mb = _max_intr_tmp_in_ops(ctx, op["body"])
+            var mb = _max_intr_tmp_in_ops(ctx, op["body"], locals)
             if mb > m { m = mb }
         } else if k == "for" {
-            var mi = _max_intr_tmp_in_ops(ctx, op["init"])
+            var mi = _max_intr_tmp_in_ops(ctx, op["init"], locals)
             if mi > m { m = mi }
-            var mc3 = _max_intr_tmp_in_expr(ctx, op["cond"])
+            var mc3 = _max_intr_tmp_in_expr(ctx, op["cond"], locals)
             if mc3 > m { m = mc3 }
-            var mp = _max_intr_tmp_in_ops(ctx, op["post"])
+            var mp = _max_intr_tmp_in_ops(ctx, op["post"], locals)
             if mp > m { m = mp }
-            var mb2 = _max_intr_tmp_in_ops(ctx, op["body"])
+            var mb2 = _max_intr_tmp_in_ops(ctx, op["body"], locals)
             if mb2 > m { m = mb2 }
         }
         i = i + 1

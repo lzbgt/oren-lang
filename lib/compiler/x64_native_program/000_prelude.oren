@@ -120,6 +120,51 @@ fn err(ctx, msg) {
     oren_list_push(ctx["errors"], msg)
 }
 
+fn _x64_trim_trailing_underscores(s) {
+    if s == nil { return "" }
+    var end = oren_string_len(s)
+    while end > 0 {
+        if oren_string_char_at(s, end - 1) != "_" { break }
+        end = end - 1
+    }
+    return oren_string_slice(s, 0, end)
+}
+
+// Resolve module/type namespace paths (import aliases + type namespaces) into
+// flattened symbol names, matching the C-backend's `ns_resolve` convention.
+//
+// Examples:
+// - `http.get` => `http_get` (if `http` is an import alias mapping to `http_`)
+// - `math.PI`  => `math_PI`
+// - returns nil if the expression is not a namespace path.
+fn _x64_ns_resolve(ctx, exp) {
+    if ctx == nil || exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        var name = exp["value"]
+        if ctx["aliases"] != nil && ctx["aliases"][name] != nil { return {"name": ctx["aliases"][name], "is_ns": true} }
+        if ctx["type_ns"] != nil {
+            if ctx["type_ns"][name] == true { return {"name": name, "is_ns": true} }
+        }
+        return nil
+    }
+    if et == "Member" {
+        var left = _x64_ns_resolve(ctx, exp["left"])
+        if left == nil { return nil }
+        if left["is_ns"] != true { return nil }
+        var base = _x64_trim_trailing_underscores(left["name"])
+        var prop = exp["prop"]
+        if prop == nil || prop["type"] != "Identifier" { return nil }
+        var name2 = base + "_" + prop["value"]
+        var is_ns2 = false
+        if ctx["type_ns"] != nil {
+            if ctx["type_ns"][name2] == true { is_ns2 = true }
+        }
+        return {"name": name2, "is_ns": is_ns2}
+    }
+    return nil
+}
+
 fn _is_i8(n) {
     return n >= -128 && n <= 127
 }

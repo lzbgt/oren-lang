@@ -477,6 +477,90 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     return nil
 }
 
+fn _x64_rewrite_local_fn_decl_to_var_stmt(ctx, fun_node, tok) {
+    if fun_node == nil || fun_node["type"] != "Function" { return nil }
+    var nm = fun_node["name"]
+    if nm == nil || nm == "" { return nil }
+
+    // Convert to a lambda literal:
+    // - name="" marks it as a first-class function value for lambda wrapper synthesis.
+    // - keep the original declared name for debugging / future symbolication.
+    fun_node["decl_name"] = nm
+    fun_node["name"] = ""
+
+    // Rewrite nested local function declarations inside the local function body too.
+    if fun_node["body"] != nil { fun_node["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, fun_node["body"]) }
+
+    return {"type": "Var", "token": tok, "name": {"type": "Identifier", "token": nil, "value": nm}, "value": fun_node}
+}
+
+// Normalize local function declarations into lambda + var assignment so:
+// - lambda wrappers (`__oren_lambda_N`) can be synthesized up-front
+// - x64 native v0 can compile nested functions via the uniform callable ABI (indirect calls)
+//
+// Example:
+//   fn outer() {
+//     fn addf(x: f64, y: f64): f64 { return x + y }
+//     return addf(1.0, 2.0)
+//   }
+//
+// Rewrites to:
+//   fn outer() {
+//     var addf = fn(x: f64, y: f64): f64 { return x + y }
+//     return addf(1.0, 2.0)
+//   }
+fn _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st == "Block" {
+        var stmts = stmt["stmts"]
+        if stmts != nil {
+            var i = 0
+            while i < oren_list_len(stmts) {
+                var s = stmts[i]
+                var r = _x64_rewrite_local_fn_decls_in_stmt(ctx, s)
+                if r != nil { stmts[i] = r }
+                i = i + 1
+            }
+        }
+        return stmt
+    }
+    if st == "Function" {
+        // Local `fn name(...) { ... }` in statement position.
+        return _x64_rewrite_local_fn_decl_to_var_stmt(ctx, stmt, stmt["token"])
+    }
+    if st == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" {
+            var tok = stmt["token"]
+            if tok == nil { tok = e["token"] }
+            var r2 = _x64_rewrite_local_fn_decl_to_var_stmt(ctx, e, tok)
+            if r2 != nil { return r2 }
+            // Named function in expression position: still recurse into its body to find nested lambdas.
+            if e["body"] != nil { e["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, e["body"]) }
+            return stmt
+        }
+        return stmt
+    }
+    if st == "If" {
+        if stmt["consq"] != nil { stmt["consq"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["consq"]) }
+        if stmt["alt"] != nil { stmt["alt"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["alt"]) }
+        return stmt
+    }
+    if st == "While" {
+        if stmt["body"] != nil { stmt["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["body"]) }
+        return stmt
+    }
+    if st == "For" {
+        if stmt["init"] != nil { stmt["init"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["init"]) }
+        if stmt["post"] != nil { stmt["post"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["post"]) }
+        if stmt["body"] != nil { stmt["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["body"]) }
+        return stmt
+    }
+    // Other statement types: no nested statement list to rewrite.
+    return stmt
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Rolling: native runtime injection on x86_64 (default-on).
     //
@@ -562,6 +646,18 @@ fn native_compile_program_x64(linked, platform) {
 
     var fns = _extract_functions_v0(ctx, linked2)
     if fns == nil { return ctx }
+
+    // --- Type constructors (Tier‑1 parity with arm64 native) ---
+    //
+    // `Type` declarations are first-class constructors in Oren native codegen:
+    //   type User { id, name }  =>  fn User(id, name) { return {"id": id, "name": name} }
+    //
+    // arm64 implements this in its native stmt compiler; x64 must synthesize the same
+    // constructor functions so programs using type constructors compile on x86_64 too.
+    var type_ctors = _x64_extract_type_constructors_v0(ctx, linked2)
+    if type_ctors == nil { return ctx }
+    var tci = 0
+    while tci < oren_list_len(type_ctors) { oren_list_push(fns, type_ctors[tci]); tci = tci + 1 }
     // Rolling parity with other backends:
     // - `fn main()` is optional; if absent, only `__top_level__` runs.
     var has_main = false
@@ -581,6 +677,9 @@ fn native_compile_program_x64(linked, platform) {
     while li < oren_list_len(fns) {
         var fn0 = fns[li]
         if fn0 != nil && fn0["body"] != nil {
+            // Normalize local `fn name(...) { ... }` declarations into lambdas before lambda collection,
+            // otherwise their wrappers won't be synthesized and x64 would fail to link.
+            fn0["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, fn0["body"])
             callable.collect_lambdas_in_statement(ctx, fn0["body"])
         }
         li = li + 1
@@ -1007,6 +1106,10 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, linked) {
         var fn0 = coreir._stmt_to_function_decl(st)
         if fn0 != nil { i = i + 1; continue }
 
+        // Skip type declarations: they are compiled as synthetic constructor functions
+        // (see `_x64_extract_type_constructors_v0`), not executed at top-level.
+        if st["type"] == "Type" { i = i + 1; continue }
+
         if st["type"] == "Var" {
             var name_node = st["name"]
             var v = st["value"]
@@ -1052,6 +1155,62 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, linked) {
     while j < oren_list_len(other_stmts) { oren_list_push(top_stmts, other_stmts[j]); j = j + 1 }
 
     return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
+}
+
+fn _x64_extract_type_constructors_v0(ctx, linked) {
+    if ctx == nil { return nil }
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    if stmts == nil { return [] }
+
+    var out = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil { i = i + 1; continue }
+        if st["type"] != "Type" { i = i + 1; continue }
+
+        var name_node = st["name"]
+        var fields = st["fields"]
+        if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: Type name must be identifier"); return nil }
+        var nm = name_node["value"]
+        if nm == nil || nm == "" { err(ctx, "x64 native v0: Type name is empty"); return nil }
+        if ctx["declared_functions"] != nil && ctx["declared_functions"][nm] != nil {
+            err(ctx, "x64 native v0: Type constructor name conflicts with existing function " + nm)
+            return nil
+        }
+
+        // Params: one per field.
+        var params = []
+        var pairs = []
+        var n_fields = 0
+        if fields != nil { n_fields = oren_list_len(fields) }
+        var j = 0
+        while j < n_fields {
+            var f = fields[j]
+            if f == nil || f["type"] != "Identifier" { err(ctx, "x64 native v0: Type field must be identifier"); return nil }
+            var fnm = f["value"]
+            if fnm == nil || fnm == "" { err(ctx, "x64 native v0: Type field name is empty"); return nil }
+            oren_list_push(params, callable.node_id(fnm))
+            oren_list_push(pairs, {"key": callable.node_string(fnm), "value": callable.node_id(fnm)})
+            j = j + 1
+        }
+
+        // Body: return {"field": field, ...}
+        var ret = callable.node_return({"type": "Hash", "pairs": pairs})
+        var fun = {"type": "Function", "token": st["token"], "name": nm, "params": params, "body": callable.node_block([ret])}
+        oren_list_push(out, fun)
+
+        // Register arity + declaration (needed for wrappers + function values).
+        if ctx["declared_functions"] == nil { ctx["declared_functions"] = {} }
+        ctx["declared_functions"][nm] = true
+        if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
+        ctx["func_arity"][nm] = n_fields
+        if ctx["func_decl_order"] != nil { oren_list_push(ctx["func_decl_order"], nm) }
+
+        i = i + 1
+    }
+    return out
 }
 
 fn _x64_try_const_global_init_bits(expr) {

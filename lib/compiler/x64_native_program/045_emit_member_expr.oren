@@ -1,0 +1,46 @@
+// x64-native Member expression lowering.
+//
+// Oren uses `Member` both for:
+// - namespace paths (import aliases / type namespaces): `http.get`
+// - map-shaped "struct" field access (rolling v0): `obj.field`
+//
+// Tier‑1 rule (rolling): structs are map-shaped across backends, so member access lowers to
+// map indexing with a string literal key.
+
+fn _emit_member_expr_v0(ctx, expr, locals) {
+    if expr == nil { err(ctx, "x64 native v0: missing member expr"); return nil }
+
+    // Namespace path fast-path: resolve to a flattened symbol name (like the C backend).
+    // This is required for:
+    // - calling `mod.fn(...)`
+    // - taking a first-class function value `var f = mod.fn`
+    var nsr = _x64_ns_resolve(ctx, expr)
+    if nsr != nil {
+        if nsr["is_ns"] == true {
+            err(ctx, "x64 native v0: cannot use namespace '" + nsr["name"] + "' as a value")
+            return nil
+        }
+        _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": nsr["name"]}, locals)
+        return nil
+    }
+
+    // Non-namespace Member: treat as map indexing with a string key.
+    var left = expr["left"]
+    var prop = expr["prop"]
+    if left == nil { err(ctx, "x64 native v0: member missing receiver"); return nil }
+    if prop == nil || prop["type"] != "Identifier" { err(ctx, "x64 native v0: member prop must be identifier"); return nil }
+
+    // Preserve best-effort receiver-kind hints from shared lowering if present.
+    // For plain member access we force map kind to avoid treating a string key as a list index.
+    var idx_expr = {
+        "type": "Index",
+        "left": left,
+        "index": {"type": "String", "value": prop["value"]},
+        "recv_kind": "map",
+    }
+    if expr["recv_kind"] != nil { idx_expr["recv_kind"] = expr["recv_kind"] }
+
+    _emit_index_expr_v0(ctx, idx_expr, locals)
+    return nil
+}
+

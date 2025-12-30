@@ -70,7 +70,7 @@ fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_ex
     return nil
 }
 
-fn _emit_call_spread_via_runtime_helper_x64(ctx, locals, nm, args, spread) {
+fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, args, spread) {
     // Tier‑1 convergence: if the injected native runtime is enabled, lower call-site spread
     // via the shared helper:
     //   oren_call_obj_spread(fn_obj, fixed_args_list, spread_list)
@@ -78,6 +78,7 @@ fn _emit_call_spread_via_runtime_helper_x64(ctx, locals, nm, args, spread) {
     // This matches the arm64 native backend lowering and avoids x64-only spread semantics.
     if ctx == nil || ctx["runtime_injected"] != true { return nil }
     if spread == nil { return nil }
+    if fn_obj_expr == nil { err(ctx, "x64 native v0: spread call missing callee"); return nil }
 
     var argc = 0
     if args != nil { argc = oren_list_len(args) }
@@ -136,13 +137,465 @@ fn _emit_call_spread_via_runtime_helper_x64(ctx, locals, nm, args, spread) {
     var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
 
     // Spill fn_obj.
-    _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": nm}, locals)
+    _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
     var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
 
     // Call runtime helper: oren_call_obj_spread(fn_obj, fixed_args, spread_list)
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_call_obj_spread"}, "args": [{"type": "Identifier", "value": fn_name}, {"type": "Identifier", "value": fixed_name}, {"type": "Identifier", "value": spread_name}]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
+    // Indirect call path (Tier‑1 convergence): callee is a first-class function value, not a direct symbol call.
+    //
+    // Lowering:
+    // - without spread: build args_list and inline-call `oren_call_obj_list(fn_obj, args_list)`
+    // - with spread:
+    //     - if runtime injection is enabled, prefer `oren_call_obj_spread(fn_obj, fixed_list, spread_list)`
+    //     - otherwise, expand spread elements into args_list via a loop and call the wrapper
+    //
+    // This mirrors the arm64 native semantics in `lib/compiler/arm64_native_expr/020_lowering_b.oren`.
+    if ctx == nil { return nil }
+    if fn_obj_expr == nil { err(ctx, "x64 native v0: indirect call missing callee"); return nil }
+
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+    var has_spread = (spread != nil)
+
+    // Prefer shared runtime helper for spread when runtime injection is enabled.
+    if has_spread && ctx["runtime_injected"] == true {
+        _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, args, spread)
+        return nil
+    }
+
+    // Spill layout:
+    // - explicit args: [base + 0 .. base + argc-1]
+    // - args_list:     base + argc
+    // - callee fnobj:  base + argc + 1        (no spread)
+    //
+    // With spread (bring-up path):
+    // - spread list:   base + argc + 1
+    // - idx:           base + argc + 2
+    // - len:           base + argc + 3
+    // - elem:          base + argc + 4
+    // - callee fnobj:  base + argc + 5
+    var spill_n = argc + 2
+    if has_spread { spill_n = argc + 6 }
+    var base = _intr_tmp_push(ctx, spill_n)
+    if base == nil { return nil }
+
+    // Spill explicit args (evaluate once; preserve LTR semantics).
+    var i = 0
+    while i < argc {
+        _emit_eval_int_to_rax(ctx, args[i], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        var off = _intr_tmp_off(ctx, locals, base + i)
+        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+        i = i + 1
+    }
+
+    var args_slot = base + argc
+    var args_off = _intr_tmp_off(ctx, locals, args_slot)
+    if args_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
+
+    // Spill callee fnobj value (can be an arbitrary expression).
+    var callee_slot = base + argc + 1
+    if has_spread { callee_slot = base + argc + 5 }
+    var callee_off = _intr_tmp_off(ctx, locals, callee_slot)
+    if callee_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - callee_off, 0)
+
+    // Build args_list.
+    //
+    // - With spread: always build a heap list (must be a tracked list when runtime is injected later).
+    // - Without spread: use a stack-backed fast path only in bring-up mode (no runtime injection).
+    var used_stack_argslist = false
+    if has_spread {
+        // args_list = oren_new_list(0)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+
+        // Push explicit args in order.
+        var k0 = 0
+        while k0 < argc {
+            var arg_name0 = "$tmp_intr" + oren_int_to_string(base + k0)
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name0}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            k0 = k0 + 1
+        }
+    } else {
+        // Stack-backed args_list is a bring-up optimization that relies on x64-only
+        // container intrinsics tolerating untracked stack objects.
+        //
+        // Once the native runtime is injected, lists are tracked heap objects and
+        // runtime helpers like `oren_list_len` must reject non-tracked pointers for
+        // safety. Therefore, avoid the stack-backed fast path under runtime injection
+        // and always build a real heap list.
+        if argc <= 32 && ctx["runtime_injected"] != true {
+            used_stack_argslist = true
+
+            var shadow0 = abi.caller_shadow_bytes(ctx["abi"])
+            var payload = 32 + argc * 8
+            var alloc = shadow0 + payload
+            var rem = core.int_mod(alloc, 16)
+            if rem != 0 { alloc = alloc + (16 - rem) }
+
+            // rsp -= alloc
+            bytes_extend(ctx["code"], insn_sub_rsp_imm32(alloc))
+
+            // r11 = header_ptr = rsp + shadow
+            bytes_extend(ctx["code"], insn_mov_r64_r64(11, 4)) // r11 = rsp
+            if shadow0 != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(11, shadow0)) }
+
+            // r12 = buf_ptr = header_ptr + 32
+            bytes_extend(ctx["code"], insn_mov_r64_r64(12, 11))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(12, 32))
+
+            // header.count = argc  at [r11 + 0]
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
+            bytes_extend(ctx["code"], insn_cdqe())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // header.cap = argc    at [r11 + 8]
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
+            bytes_extend(ctx["code"], insn_cdqe())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // header.buf = (argc==0 ? 0 : buf_ptr)  at [r11 + 16]
+            if argc == 0 {
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+                bytes_extend(ctx["code"], insn_cdqe())
+            } else {
+                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
+            }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // header.magic = LIST_MAGIC (1279870019)  at [r11 + 24]
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1279870019))
+            bytes_extend(ctx["code"], insn_cdqe())
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+            // Write buf[i] = spilled_arg[i]
+            var wi = 0
+            while wi < argc {
+                var src_off = _intr_tmp_off(ctx, locals, base + wi)
+                if src_off == nil { _intr_tmp_pop(ctx, base); return nil }
+                _emit_mov_r64_mrbp(ctx, 0, 0 - src_off) // rax = arg
+
+                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 12)) // r10 = buf_ptr
+                if wi != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(10, wi * 8)) }
+                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+                wi = wi + 1
+            }
+
+            // Spill args_list pointer for uniform downstream code.
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+            _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+        } else {
+            // Heap list path.
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+
+            var k1 = 0
+            while k1 < argc {
+                var arg_name1 = "$tmp_intr" + oren_int_to_string(base + k1)
+                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name1}]}, locals)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+                k1 = k1 + 1
+            }
+        }
+    }
+
+    // Bring-up spread expansion loop (only used when runtime injection is disabled; see early return above).
+    if has_spread {
+        var spread_slot = base + argc + 1
+        var idx_slot = base + argc + 2
+        var len_slot = base + argc + 3
+        var elem_slot = base + argc + 4
+        var spread_off = _intr_tmp_off(ctx, locals, spread_slot)
+        var idx_off = _intr_tmp_off(ctx, locals, idx_slot)
+        var len_off = _intr_tmp_off(ctx, locals, len_slot)
+        var elem_off = _intr_tmp_off(ctx, locals, elem_slot)
+        if spread_off == nil || idx_off == nil || len_off == nil || elem_off == nil {
+            _intr_tmp_pop(ctx, base)
+            err(ctx, "x64 native v0: missing spill slots for indirect spread call")
+            return nil
+        }
+
+        // Spill spread list value.
+        _emit_eval_int_to_rax(ctx, spread, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - spread_off, 0)
+        var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
+
+        // len = oren_list_len(spread)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_len"}, "args": [{"type": "Identifier", "value": spread_name}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - len_off, 0)
+
+        // idx = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+        bytes_extend(ctx["code"], insn_cdqe())
+        _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
+        var idx_name = "$tmp_intr" + oren_int_to_string(idx_slot)
+        var elem_name = "$tmp_intr" + oren_int_to_string(elem_slot)
+
+        // while idx < len { elem = spread[idx]; args.push(elem); idx++ }
+        var labels = {}
+        var fixups = []
+        var l_loop = _new_label(ctx, "indirect_spread_loop")
+        var l_done = _new_label(ctx, "indirect_spread_done")
+        _emit_label(ctx, labels, l_loop)
+        _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off) // rax = idx
+        _emit_mov_r64_mrbp(ctx, 2, 0 - len_off) // rdx = len
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
+        _emit_jcc_to_label(ctx, fixups, "ge", l_done)
+
+        // elem = spread[idx]
+        _emit_eval_int_to_rax(ctx, {"type": "Index", "left": {"type": "Identifier", "value": spread_name}, "index": {"type": "Identifier", "value": idx_name}}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - elem_off, 0)
+
+        // args.push(elem)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": elem_name}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        // idx++
+        _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off)
+        bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
+        _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
+        _emit_jmp_to_label(ctx, fixups, l_loop)
+
+        _emit_label(ctx, labels, l_done)
+        _patch_local_fixups(ctx, labels, fixups)
+    }
+
+    // Load wrapper args and call wrapper(env_ptr, args_list).
+    var env_reg = abi.int_arg_reg(ctx["abi"], 0)
+    var args_reg = abi.int_arg_reg(ctx["abi"], 1)
+    if env_reg == nil || args_reg == nil {
+        _intr_tmp_pop(ctx, base)
+        err(ctx, "x64 native v0: missing ABI arg regs for indirect call")
+        return nil
+    }
+
+    // r10 = fnobj ptr
+    _emit_mov_r64_mrbp(ctx, 10, 0 - callee_off)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    var labelsFn = {}
+    var fixupsFn = []
+    var l_fn_ok = _new_label(ctx, "indirect_fnobj_ok")
+    _emit_jcc_to_label(ctx, fixupsFn, "ne", l_fn_ok)
+    _emit_abort_panic_str(ctx, "call on nil function value")
+    _emit_label(ctx, labelsFn, l_fn_ok)
+    _patch_local_fixups(ctx, labelsFn, fixupsFn)
+    // env_reg = *(fnobj + 8)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(env_reg, 0))
+    // args_reg = args_list
+    _emit_mov_r64_mrbp(ctx, args_reg, 0 - args_off)
+    // rax = *(fnobj + 0) (code_ptr)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // If we used the stack-backed args_list fast path, restore RSP now.
+    if used_stack_argslist {
+        var shadow2 = abi.caller_shadow_bytes(ctx["abi"])
+        var payload2 = 32 + argc * 8
+        var alloc2 = shadow2 + payload2
+        var rem2 = core.int_mod(alloc2, 16)
+        if rem2 != 0 { alloc2 = alloc2 + (16 - rem2) }
+        bytes_extend(ctx["code"], insn_add_rsp_imm32(alloc2))
+    }
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_spawn_expr_v0(ctx, expr, locals) {
+    // Spawn expression lowering (Tier‑1): `spawn f(args...)`
+    //
+    // This is intentionally lowered through the injected native runtime helper:
+    //   oren_spawn_call_list(fn_obj, args_list)
+    //
+    // so OS-specific details (threads, pipes, budgets, capsule) remain centralized in runtime.
+    if ctx == nil { return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: SpawnExpr requires injected runtime")
+        return nil
+    }
+    if expr == nil { err(ctx, "x64 native v0: missing SpawnExpr"); return nil }
+    var call2 = expr["call"]
+    if call2 == nil || call2["type"] != "Call" { err(ctx, "x64 native v0: SpawnExpr missing call"); return nil }
+    var fn_expr = call2["fn"]
+    var args = call2["args"]
+    var spread = call2["spread"]
+    if fn_expr == nil { err(ctx, "x64 native v0: SpawnExpr missing callee"); return nil }
+
+    var argc = 0
+    if args != nil { argc = oren_list_len(args) }
+    var has_spread = (spread != nil)
+
+    // Spill layout:
+    // - explicit args: [base + 0 .. base + argc-1]
+    // - args_list:     base + argc
+    //
+    // No spread:
+    // - fn_obj:        base + argc + 1
+    //
+    // With spread:
+    // - spread list:   base + argc + 1
+    // - idx:           base + argc + 2
+    // - len:           base + argc + 3
+    // - elem:          base + argc + 4
+    // - fn_obj:        base + argc + 5
+    var spill_n = argc + 2
+    if has_spread { spill_n = argc + 6 }
+    var base = _intr_tmp_push(ctx, spill_n)
+    if base == nil { return nil }
+
+    // Spill explicit args.
+    var i = 0
+    while i < argc {
+        _emit_eval_int_to_rax(ctx, args[i], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        var off = _intr_tmp_off(ctx, locals, base + i)
+        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - off, 0)
+        i = i + 1
+    }
+
+    var args_slot = base + argc
+    var args_off = _intr_tmp_off(ctx, locals, args_slot)
+    if args_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
+
+    // Build args_list.
+    if has_spread {
+        // args_list = oren_new_list(0)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+
+        // Push explicit args.
+        var j = 0
+        while j < argc {
+            var arg_name = "$tmp_intr" + oren_int_to_string(base + j)
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            j = j + 1
+        }
+
+        // Spill + expand spread list into args_list.
+        var spread_slot = base + argc + 1
+        var idx_slot = base + argc + 2
+        var len_slot = base + argc + 3
+        var elem_slot = base + argc + 4
+        var spread_off = _intr_tmp_off(ctx, locals, spread_slot)
+        var idx_off = _intr_tmp_off(ctx, locals, idx_slot)
+        var len_off = _intr_tmp_off(ctx, locals, len_slot)
+        var elem_off = _intr_tmp_off(ctx, locals, elem_slot)
+        if spread_off == nil || idx_off == nil || len_off == nil || elem_off == nil {
+            _intr_tmp_pop(ctx, base)
+            err(ctx, "x64 native v0: missing spill slots for SpawnExpr spread")
+            return nil
+        }
+
+        _emit_eval_int_to_rax(ctx, spread, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - spread_off, 0)
+        var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
+
+        // len = oren_list_len(spread)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_len"}, "args": [{"type": "Identifier", "value": spread_name}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - len_off, 0)
+
+        // idx = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+        bytes_extend(ctx["code"], insn_cdqe())
+        _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
+        var idx_name = "$tmp_intr" + oren_int_to_string(idx_slot)
+        var elem_name = "$tmp_intr" + oren_int_to_string(elem_slot)
+
+        var labels = {}
+        var fixups = []
+        var l_loop = _new_label(ctx, "spawn_spread_loop")
+        var l_done = _new_label(ctx, "spawn_spread_done")
+        _emit_label(ctx, labels, l_loop)
+
+        _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off) // rax = idx
+        _emit_mov_r64_mrbp(ctx, 2, 0 - len_off) // rdx = len
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
+        _emit_jcc_to_label(ctx, fixups, "ge", l_done)
+
+        // elem = spread[idx]
+        _emit_eval_int_to_rax(ctx, {"type": "Index", "left": {"type": "Identifier", "value": spread_name}, "index": {"type": "Identifier", "value": idx_name}}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - elem_off, 0)
+
+        // args_list.push(elem)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": elem_name}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        // idx++
+        _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off)
+        bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
+        _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
+        _emit_jmp_to_label(ctx, fixups, l_loop)
+
+        _emit_label(ctx, labels, l_done)
+        _patch_local_fixups(ctx, labels, fixups)
+    } else {
+        // args_list = oren_new_list(argc)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
+
+        // Push args into args_list in order.
+        var j2 = 0
+        while j2 < argc {
+            var arg_name2 = "$tmp_intr" + oren_int_to_string(base + j2)
+            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name2}]}, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            j2 = j2 + 1
+        }
+    }
+
+    // Spill fn_obj (callee evaluated as a first-class callable value).
+    var fn_slot = base + argc + 1
+    if has_spread { fn_slot = base + argc + 5 }
+    var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
+    if fn_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    _emit_eval_int_to_rax(ctx, fn_expr, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
+    var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
+
+    // Call runtime helper: oren_spawn_call_list(fn_obj, args_list)
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_spawn_call_list"}, "args": [{"type": "Identifier", "value": fn_name}, {"type": "Identifier", "value": args_name}]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_tmp_pop(ctx, base)
@@ -236,7 +689,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     // Tier‑1 parity: when runtime injection is enabled, lower call-site spread through the
     // shared runtime helper (matches arm64). This also works for indirect calls (callee in a var).
     if spread != nil && ctx != nil && ctx["runtime_injected"] == true {
-        _emit_call_spread_via_runtime_helper_x64(ctx, locals, nm, args, spread)
+        _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, {"type": "Identifier", "value": nm}, args, spread)
         return nil
     }
 
@@ -599,21 +1052,15 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         }
     }
 
+    if is_direct != true {
+        _emit_indirect_call_via_fnobj_x64(ctx, locals, {"type": "Identifier", "value": nm}, args, spread)
+        return nil
+    }
+
     // Evaluate explicit args left-to-right, spill to stack temps, then load into ABI arg registers.
     // This avoids clobbering Win64 arg registers (EDX, R8D, R9D) by our expression scratch.
     var spill_n2 = argc
     if is_varargs_named { spill_n2 = argc + 1 } // +1 for the packed rest_list
-    if is_direct != true {
-        // Indirect call needs:
-        // - args_list spill slot
-        // - callee fnobj spill slot (callee can be a local or a global var)
-        //
-        // Spread calls in bring-up mode also need loop temps (spread/idx/len/elem).
-        spill_n2 = argc + 2
-        if has_spread {
-            spill_n2 = argc + 6 // args_list + spread + idx + len + elem + callee
-        }
-    }
     var base2 = _intr_tmp_push(ctx, spill_n2)
     if base2 == nil { return nil }
     var i2 = 0
@@ -625,252 +1072,6 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         // Spill the full 64-bit value (keeps function pointer args intact).
         _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0)
         i2 = i2 + 1
-    }
-
-    if is_direct != true {
-        // --- Indirect call: call wrapper(env_ptr, args_list) ---
-        //
-        // Build args_list from spilled explicit args (and optional spread list elements), then:
-        // - load env_ptr + code_ptr from fnobj
-        // - call code_ptr(env_ptr, args_list)
-        var args_slot = base2 + argc
-        var args_off = _intr_tmp_off(ctx, locals, args_slot)
-        if args_off == nil { _intr_tmp_pop(ctx, base2); return nil }
-
-        var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
-
-        // Spill callee fnobj value (supports locals and top-level globals).
-        var callee_slot = base2 + argc + 1
-        if has_spread { callee_slot = base2 + argc + 5 }
-        var callee_spill_off = _intr_tmp_off(ctx, locals, callee_slot)
-        if callee_spill_off == nil { _intr_tmp_pop(ctx, base2); return nil }
-        _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": nm}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - callee_spill_off, 0)
-
-        if has_spread {
-            // args_list = oren_new_list(0)
-            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
-
-            // Push explicit args in order.
-            var k0 = 0
-            while k0 < argc {
-                var arg_name0 = "$tmp_intr" + oren_int_to_string(base2 + k0)
-                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name0}]}, locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-                k0 = k0 + 1
-            }
-        } else {
-            // Stack-backed args_list is a bring-up optimization that relies on x64-only
-            // container intrinsics tolerating untracked stack objects.
-            //
-            // Once the native runtime is injected, lists are tracked heap objects and
-            // runtime helpers like `oren_list_len` must reject non-tracked pointers for
-            // safety. Therefore, avoid the stack-backed fast path under runtime injection
-            // and always build a real heap list.
-            if argc <= 32 && ctx["runtime_injected"] != true {
-                // Indirect call (no spread, small argc): stack-backed args_list fast path.
-                //
-                // IMPORTANT: do NOT use `$tmp_intrN` spill slots as the element buffer, because
-                // those stack slots are not guaranteed to be contiguous in memory (locals layout
-                // is map-driven). The list runtime expects `buf[idx]` at `buf + idx*8`.
-                //
-                // Instead, we reserve a small contiguous block on the stack at the call site:
-                //   [shadow space]            (Win64: 32 bytes; SysV: 0)
-                //   [list header: 4*qword]    (count, cap, buf_ptr, magic)
-                //   [buf: argc*qword]         (args)
-                //
-                // The callee may clobber only the shadow space; our header+buf live above it.
-                var shadow0 = abi.caller_shadow_bytes(ctx["abi"])
-                var payload = 32 + argc * 8
-                var alloc = shadow0 + payload
-                var rem = core.int_mod(alloc, 16)
-                if rem != 0 { alloc = alloc + (16 - rem) }
-
-                // rsp -= alloc
-                bytes_extend(ctx["code"], insn_sub_rsp_imm32(alloc))
-
-                // r11 = header_ptr = rsp + shadow
-                bytes_extend(ctx["code"], insn_mov_r64_r64(11, 4)) // r11 = rsp
-                if shadow0 != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(11, shadow0)) }
-
-                // r12 = buf_ptr = header_ptr + 32
-                bytes_extend(ctx["code"], insn_mov_r64_r64(12, 11))
-                bytes_extend(ctx["code"], insn_add_r64_imm32(12, 32))
-
-                // header.count = argc  at [r11 + 0]
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
-                bytes_extend(ctx["code"], insn_cdqe())
-                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
-
-                // header.cap = argc    at [r11 + 8]
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, argc))
-                bytes_extend(ctx["code"], insn_cdqe())
-                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
-
-                // header.buf = (argc==0 ? 0 : buf_ptr)  at [r11 + 16]
-                if argc == 0 {
-                    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-                    bytes_extend(ctx["code"], insn_cdqe())
-                } else {
-                    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
-                }
-                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
-
-                // header.magic = LIST_MAGIC (1279870019)  at [r11 + 24]
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1279870019))
-                bytes_extend(ctx["code"], insn_cdqe())
-                bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-                bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-                bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
-
-                // Write buf[i] = spilled_arg[i]
-                var wi = 0
-                while wi < argc {
-                    var src_off = _intr_tmp_off(ctx, locals, base2 + wi)
-                    if src_off == nil { _intr_tmp_pop(ctx, base2); return nil }
-                    _emit_mov_r64_mrbp(ctx, 0, 0 - src_off) // rax = arg
-
-                    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 12)) // r10 = buf_ptr
-                    if wi != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(10, wi * 8)) }
-                    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
-                    wi = wi + 1
-                }
-
-                // Spill args_list pointer for uniform downstream code.
-                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-                _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
-            } else {
-                // Indirect call (no spread, large argc): heap list path (simple + avoids big stack frames).
-                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-                _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
-
-                var k00 = 0
-                while k00 < argc {
-                    var arg_name00 = "$tmp_intr" + oren_int_to_string(base2 + k00)
-                    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name00}]}, locals)
-                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-                    k00 = k00 + 1
-                }
-            }
-        }
-
-        if has_spread {
-            var spread_slot = base2 + argc + 1
-            var idx_slot = base2 + argc + 2
-            var len_slot = base2 + argc + 3
-            var elem_slot = base2 + argc + 4
-            var spread_off = _intr_tmp_off(ctx, locals, spread_slot)
-            var idx_off = _intr_tmp_off(ctx, locals, idx_slot)
-            var len_off = _intr_tmp_off(ctx, locals, len_slot)
-            var elem_off = _intr_tmp_off(ctx, locals, elem_slot)
-            if spread_off == nil || idx_off == nil || len_off == nil || elem_off == nil {
-                _intr_tmp_pop(ctx, base2)
-                err(ctx, "x64 native v0: missing spill slots for indirect spread call")
-                return nil
-            }
-
-            // Spill spread list value.
-            _emit_eval_int_to_rax(ctx, spread, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - spread_off, 0)
-            var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
-
-            // len = oren_list_len(spread)
-            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_len"}, "args": [{"type": "Identifier", "value": spread_name}]}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - len_off, 0)
-
-            // idx = 0
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-            bytes_extend(ctx["code"], insn_cdqe())
-            _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
-            var idx_name = "$tmp_intr" + oren_int_to_string(idx_slot)
-            var elem_name = "$tmp_intr" + oren_int_to_string(elem_slot)
-
-            // while idx < len { elem = spread[idx]; args.push(elem); idx++ }
-            var labels = {}
-            var fixups = []
-            var l_loop = _new_label(ctx, "indirect_spread_loop")
-            var l_done = _new_label(ctx, "indirect_spread_done")
-            _emit_label(ctx, labels, l_loop)
-            _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off) // rax = idx
-            _emit_mov_r64_mrbp(ctx, 2, 0 - len_off) // rdx = len
-            bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 2))
-            _emit_jcc_to_label(ctx, fixups, "ge", l_done)
-
-            // elem = spread[idx]
-            _emit_eval_int_to_rax(ctx, {"type": "Index", "left": {"type": "Identifier", "value": spread_name}, "index": {"type": "Identifier", "value": idx_name}}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - elem_off, 0)
-
-            // args.push(elem)
-            _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": elem_name}]}, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-
-            // idx++
-            _emit_mov_r64_mrbp(ctx, 0, 0 - idx_off)
-            bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
-            _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
-            _emit_jmp_to_label(ctx, fixups, l_loop)
-
-            _emit_label(ctx, labels, l_done)
-            _patch_local_fixups(ctx, labels, fixups)
-        }
-
-        // Load wrapper args.
-        var env_reg = abi.int_arg_reg(ctx["abi"], 0)
-        var args_reg = abi.int_arg_reg(ctx["abi"], 1)
-        if env_reg == nil || args_reg == nil {
-            _intr_tmp_pop(ctx, base2)
-            err(ctx, "x64 native v0: missing ABI arg regs for indirect call")
-            return nil
-        }
-
-        // r10 = fnobj ptr
-        _emit_mov_r64_mrbp(ctx, 10, 0 - callee_spill_off)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
-        var labelsFn = {}
-        var fixupsFn = []
-        var l_fn_ok = _new_label(ctx, "indirect_fnobj_ok")
-        _emit_jcc_to_label(ctx, fixupsFn, "ne", l_fn_ok)
-        _emit_abort_panic_str(ctx, "call on nil function value")
-        _emit_label(ctx, labelsFn, l_fn_ok)
-        _patch_local_fixups(ctx, labelsFn, fixupsFn)
-        // env_reg = *(fnobj + 8)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 10))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_mov_r64_r64(env_reg, 0))
-        // args_reg = args_list
-        _emit_mov_r64_mrbp(ctx, args_reg, 0 - args_off)
-        // rax = *(fnobj + 0) (code_ptr)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-        bytes_extend(ctx["code"], insn_mov_rax_mrax())
-        bytes_extend(ctx["code"], insn_call_rax())
-
-        // If we used the stack-backed args_list fast path, restore RSP now.
-        // (For other paths, this is a no-op; `alloc` is local to the branch above.)
-        if has_spread != true && argc <= 32 && ctx["runtime_injected"] != true {
-            var shadow1 = abi.caller_shadow_bytes(ctx["abi"])
-            var payload1 = 32 + argc * 8
-            var alloc1 = shadow1 + payload1
-            var rem1 = core.int_mod(alloc1, 16)
-            if rem1 != 0 { alloc1 = alloc1 + (16 - rem1) }
-            bytes_extend(ctx["code"], insn_add_rsp_imm32(alloc1))
-        }
-
-        _intr_tmp_pop(ctx, base2)
-        return nil
     }
 
     // Varargs packing: build rest_list and spill it in the extra slot.
