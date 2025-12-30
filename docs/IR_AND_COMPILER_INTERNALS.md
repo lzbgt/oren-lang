@@ -1,6 +1,6 @@
 # IR and Compiler Internals (Rolling, AI-Friendly)
 
-**Last updated:** 2025-12-28  
+**Last updated:** 2025-12-30  
 
 This document is an **implementation map** for AI agents and maintainers:
 
@@ -69,6 +69,27 @@ Suggested “follow the code” order:
    - Native backends:
      - arm64 facade: `lib/compiler/codegen_arm64.oren`
      - x86_64 facade: `lib/compiler/codegen_x64.oren`
+
+### Native runtime injection (compiler-side)
+
+Both native backends ultimately want the same model:
+
+- compile user program + the Oren “native runtime” sources into one output binary
+- the runtime sources are modularized using a tiny include directive:
+  - `// @include "relative/path.oren"`
+- includes are expanded at compile time (compiler-side), then parsed as normal Oren source.
+
+Implementation:
+
+- Shared include expander: `lib/compiler/native_runtime_inject.oren`
+- arm64 native injects runtime by default: `lib/compiler/arm64_native_program.oren`
+- x86_64 native injection is currently gated (rolling): `OREN_X64_INJECT_RUNTIME=1`
+  - `lib/compiler/x64_native_program/090_program_entry.oren`
+
+Why a gate exists today:
+
+- the injected native runtime references syscall stubs (`sys_*`) that must be correctly lowered by the backend.
+- until syscall lowering parity is complete, the x86_64 backend keeps runtime injection opt-in so Tier‑1 fixtures stay deterministic.
 
 The CLI entry and dispatch live under `lib/compiler/compiler/**` (including `040_build_pipeline.oren`).
 

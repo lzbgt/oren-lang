@@ -1,6 +1,6 @@
 # Oren Language Feature Matrix (Rolling, AI-Friendly)
 
-**Last updated:** 2025-12-29  
+**Last updated:** 2025-12-30  
 
 This document is a **quick index** for AI agents and maintainers:
 
@@ -56,7 +56,7 @@ Status legend:
 | Map literal `{}` and indexing `m[k]` / `m[k]=v` | Rolling | Parser + lowering; C/AVM: dynamic keys; Native: key-kind must be deterministic | Tests: `tests/native/test_integration_suite.oren`; Manual: `docs/LANGUAGE_MANUAL.md` “Maps” |
 | Map dynamic string keys on empty maps (Tier‑1 x86_64) | Rolling | x64 native uses tracked-allocation metadata for key-kind inference; no syntax heuristics | Tier‑1 remote fixture: `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (requires `OREN_REMOTE_RUN=1`) |
 | Map get with dynamic string key (Tier‑1 x86_64) | Rolling | x64 native map lookup must infer key kind from value metadata and perform string compare when needed | Tier‑1 remote fixture: `tests/fixtures/tier1_native_map_get_dynamic_key_main.oren` (requires `OREN_REMOTE_RUN=1`) |
-| Deterministic map iteration | Rolling | C runtime keeps keys sorted; native runtime sorts lazily on demand; x86_64 native follows the same `dirty_sort` contract and sorts on-demand inside `oren_iter_next` (Tier‑1 bring-up; until full runtime injection) | Tests: `tests/native/test_integration_suite.oren` (map iteration); Tier‑1 x86_64: `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (`OREN_REMOTE_RUN=1`); Runtime: `lib/runtime/040_lists_maps.inc`, `lib/runtime_native/130_printing.oren` |
+| Deterministic map iteration | Rolling | C runtime keeps keys sorted; native runtime sorts lazily on demand; x86_64 native still has a bring-up path that sorts on-demand inside `oren_iter_next`, but can now opt into **full native runtime injection** behind `OREN_X64_INJECT_RUNTIME=1` | Tests: `tests/native/test_integration_suite.oren` (map iteration); Tier‑1 x86_64: `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (`OREN_REMOTE_RUN=1`); Runtime: `lib/runtime_native/160_iteration.oren`, `lib/runtime_native/130_printing.oren` |
 | Typed map ops (`oren_map_get_str/int`, `oren_map_set_str/int`) | Rolling | Native runtime: `lib/runtime_native/130_printing.oren`; C runtime: `lib/runtime/040_lists_maps.inc`; Native lowering selects typed ops when key kind is known | Used by stdlib codecs: `lib/std/json.oren`, `lib/std/yaml.oren`, `lib/std/cbor.oren` |
 | Typed buffers `[]i32`, `[]f64`, ... | Rolling | Stdlib: `lib/std/buffer.oren` + runtime helpers | Docs: `docs/HPC_SERVER_PLAN.md` |
 | Typed buffers `[]u8` in AVM (bytes-backed) + buffer views | Rolling | AVM core natives: `lib/avm/avm_native.inc` (`oren_u8_buf_new`, `oren_buf_*_u8`, `oren_iter_next` view handling); Bytecode lowering: `lib/compiler/codegen_bytecode/010_codegen_a.oren` | AVM test: `tests/avm/test_u8_buf_views.oren` |
@@ -71,6 +71,7 @@ Status legend:
 | Deterministic diagnostics (`OREN_DIAG`) | Rolling | Runtime + emit points (native/C) | Fixtures: `tests/native/fixtures/diag_fail.oren` |
 | Stack safety (call depth guard) | Rolling | AVM flag; C env; native guards | Docs: `docs/STACK_SAFETY.md`; fixtures: `tests/native/fixtures/call_depth_overflow.oren` |
 | Tail-call optimization | Rolling (subset) | Lowering/codegen passes | Docs: `docs/STACK_SAFETY.md` |
+| Native runtime injection (`lib/runtime_native.oren` expanded includes) | Rolling | Shared include expander: `lib/compiler/native_runtime_inject.oren`; arm64 native injects by default: `lib/compiler/arm64_native_program.oren`; x86_64 native injection is currently gated by `OREN_X64_INJECT_RUNTIME=1`: `lib/compiler/x64_native_program/090_program_entry.oren` | Local smoke: `OREN_X64_INJECT_RUNTIME=1 make test`; Tier‑1: `OREN_X64_INJECT_RUNTIME=1 OREN_REMOTE_RUN=1 make test` |
 | Atomics (`atomic_add`, `atomic_cas`) | Rolling | ARM64: `lib/compiler/arm64_native_expr/**` (LL/SC lowering); x86_64: `lib/compiler/x64_native_program/040_emit_expr.oren` (LOCK XADD / CMPXCHG) | Native tests: `tests/native/test_atomics.oren`; Tier‑1 x86_64 fixture: `tests/fixtures/tier1_native_atomics_main.oren` (`OREN_REMOTE_RUN=1`) |
 | Capsule model (native capability gating) | Rolling | Native runtime + syscall emit constraints | Fixtures: `tests/native/fixtures/capsule_*` |
 | AVM execution of `.obc` | Rolling | Runtime: `lib/avm/**`; codegen: `lib/compiler/codegen_bytecode/**` | Examples: `examples/avm_*`; Tests: `tests/avm/**` |

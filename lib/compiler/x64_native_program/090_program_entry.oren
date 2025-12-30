@@ -213,6 +213,26 @@ fn _emit_entry_call_depth_env_override_windows_x64(ctx) {
 }
 
 fn native_compile_program_x64(linked, platform) {
+    // Rolling: optional native runtime injection on x86_64.
+    //
+    // Goal: converge with the ARM64 native backend, which injects `lib/runtime_native.oren`
+    // (expanded from `lib/runtime_native/**`) into the compiled program.
+    //
+    // Gate:
+    // - `OREN_X64_INJECT_RUNTIME=1` enables injecting *all* runtime functions/vars into x64
+    //   compilation. This is intentionally opt-in until syscall intrinsic coverage reaches
+    //   full parity (so runtime helpers never accidentally execute stub bodies).
+    //
+    // Implementation strategy (rolling):
+    // - Parse the expanded runtime source into an AST program.
+    // - Merge runtime statements ahead of user statements so function/var declarations are
+    //   available to user code just like on arm64.
+    // - Keep x64's existing intrinsics for now; as we converge, we will progressively replace
+    //   intrinsic implementations with calls into injected runtime functions.
+
+    var inject_runtime = oren_env("OREN_X64_INJECT_RUNTIME")
+    var linked2 = linked
+
     var ctx = {
         "code": bytes_new(),
         "data": bytes_new(),
@@ -250,7 +270,50 @@ fn native_compile_program_x64(linked, platform) {
     ctx["lambda_defs"] = []
     ctx["lambda_counter"] = 0
 
-    var fns = _extract_functions_v0(ctx, linked)
+    // Optional runtime injection (opt-in gate; see comment at top of function).
+    if inject_runtime != nil && inject_runtime != "" && inject_runtime != "0" {
+        var runtime_src = rtinj.runtime_expand_includes_file(ctx, "lib/runtime_native.oren", [])
+        if runtime_src == nil { return ctx }
+        // Debug aid: dump expanded runtime after include expansion, before parsing.
+        var dump_runtime = oren_env("OREN_DUMP_NATIVE_RUNTIME")
+        if dump_runtime != nil {
+            var p = dump_runtime
+            if p == "" { p = "build/runtime_native.expanded.oren" }
+            oren_write_file(p, runtime_src)
+        }
+        var lrt = lexer.new_lexer(runtime_src)
+        lrt["file"] = "lib/runtime_native.oren"
+        var prt = parser.new_parser(lrt)
+        var runtime_prog = parser.parse_program(prt)
+        if oren_list_len(prt["errors"]) != 0 {
+            err(ctx, "Parse errors in lib/runtime_native.oren")
+            var ei = 0
+            while ei < oren_list_len(prt["errors"]) {
+                err(ctx, prt["errors"][ei])
+                ei = ei + 1
+            }
+            return ctx
+        }
+
+        // Merge runtime statements ahead of user statements.
+        // This ensures runtime vars and helper functions are visible during x64 codegen.
+        var merged = []
+        var rs = runtime_prog["statements"]
+        if rs != nil {
+            var ri = 0
+            while ri < oren_list_len(rs) { oren_list_push(merged, rs[ri]); ri = ri + 1 }
+        }
+        var us = nil
+        if linked != nil { us = linked["statements"] }
+        if us != nil {
+            var ui = 0
+            while ui < oren_list_len(us) { oren_list_push(merged, us[ui]); ui = ui + 1 }
+        }
+        linked2 = {"statements": merged, "aliases": ctx["aliases"]}
+        ctx["runtime_injected"] = true
+    }
+
+    var fns = _extract_functions_v0(ctx, linked2)
     if fns == nil { return ctx }
     // Rolling parity with other backends:
     // - `fn main()` is optional; if absent, only `__top_level__` runs.
@@ -263,7 +326,7 @@ fn native_compile_program_x64(linked, platform) {
     // that will run before `main` as a synthesized `__top_level__` function.
     //
     // We scan after function collection so we can reject global names that shadow functions.
-    var top_info = _x64_collect_top_level_globals_and_stmts(ctx, linked)
+    var top_info = _x64_collect_top_level_globals_and_stmts(ctx, linked2)
     if top_info == nil { return ctx }
 
     // Collect lambdas in function bodies before wrapper synthesis.

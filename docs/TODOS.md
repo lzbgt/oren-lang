@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2025-12-29
+**Last updated:** 2025-12-30
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 
@@ -20,7 +20,9 @@ Rules for this tracker:
      - callables (function values), closures, varargs/spread, and deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
-       (e.g. replace the x86_64 `oren_iter_next` intrinsic’s map sorting with shared runtime helpers once runtime injection exists)
+       - **runtime injection now exists** for x86_64 behind `OREN_X64_INJECT_RUNTIME=1` (shared include expander; same runtime source as arm64)
+       - next: expand syscall lowering parity so the x86_64 injected runtime can become the default path
+       - then: replace remaining “bring-up-only” intrinsics (e.g. `oren_iter_next` map sorting) with shared runtime helpers
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
 
