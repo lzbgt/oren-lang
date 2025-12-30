@@ -15,13 +15,14 @@ func auditNativeCapsuleSyscallPrehooks() error {
 	//
 	// This is intentionally a static audit (no compilation). It is cheap, fast,
 	// and catches bypasses introduced by refactors.
-	compilerPath := filepath.Join("lib", "compiler", "arm64_native_expr_syscalls.oren")
+	compilerPaths := []string{
+		// arm64 syscall lowering module (Darwin/Linux).
+		filepath.Join("lib", "compiler", "arm64_native_expr_syscalls.oren"),
+		// x86_64 syscall lowering module (Linux/Windows).
+		filepath.Join("lib", "compiler", "x64_native_program", "046_emit_sys_intrinsics.oren"),
+	}
 	runtimePath := filepath.Join("lib", "runtime_native.oren")
 
-	compilerExpanded, err := expandOrenIncludes(compilerPath)
-	if err != nil {
-		return fmt.Errorf("expand includes %s: %w", compilerPath, err)
-	}
 	rt, err := expandOrenIncludes(runtimePath)
 	if err != nil {
 		return fmt.Errorf("expand includes %s: %w", runtimePath, err)
@@ -42,12 +43,6 @@ func auditNativeCapsuleSyscallPrehooks() error {
 		if strings.HasSuffix(name, "_pre") {
 			runtimePrehooks[name] = true
 		}
-	}
-
-	src := compilerExpanded
-	blocks := parseSyscallBlocks(src)
-	if len(blocks) == 0 {
-		return fmt.Errorf("no syscall blocks found in %s (unexpected)", compilerPath)
 	}
 
 	// Exceptions: sys_exit is always permitted as an immediate termination.
@@ -85,40 +80,51 @@ func auditNativeCapsuleSyscallPrehooks() error {
 	}
 
 	var missing []string
-	for _, b := range blocks {
-		usesSyscall := strings.Contains(b.text, "emit_svc_preserve_heap") ||
-			strings.Contains(b.text, "abi.darwin_sys_") ||
-			strings.Contains(b.text, "labi.linux_sys_") ||
-			strings.Contains(b.text, "insn_svc(")
-		if !usesSyscall {
-			continue
+	for _, compilerPath := range compilerPaths {
+		compilerExpanded, err := expandOrenIncludes(compilerPath)
+		if err != nil {
+			return fmt.Errorf("expand includes %s: %w", compilerPath, err)
 		}
-		for _, sysName := range b.sysNames {
-			if exempt[sysName] {
+		blocks := parseSyscallBlocks(compilerPath, compilerExpanded)
+		if len(blocks) == 0 {
+			return fmt.Errorf("no syscall blocks found in %s (unexpected)", compilerPath)
+		}
+
+		for _, b := range blocks {
+			usesSyscall := strings.Contains(b.text, "emit_svc_preserve_heap") ||
+				strings.Contains(b.text, "abi.darwin_sys_") ||
+				strings.Contains(b.text, "labi.linux_sys_") ||
+				strings.Contains(b.text, "insn_svc(")
+			if !usesSyscall {
 				continue
 			}
+			for _, sysName := range b.sysNames {
+				if exempt[sysName] {
+					continue
+				}
 
-			expected := prehookAlias[sysName]
-			if len(expected) == 0 {
-				expected = []string{"native_capsule_" + sysName + "_pre"}
-			}
+				expected := prehookAlias[sysName]
+				if len(expected) == 0 {
+					expected = []string{"native_capsule_" + sysName + "_pre"}
+				}
 
-			ok := false
-			for _, want := range expected {
-				if strings.Contains(b.text, want) {
-					ok = true
-					break
+				ok := false
+				for _, want := range expected {
+					if strings.Contains(b.text, want) {
+						ok = true
+						break
+					}
+				}
+				if !ok {
+					missing = append(missing, sysName+" ("+filepath.ToSlash(compilerPath)+")")
 				}
 			}
-			if !ok {
-				missing = append(missing, sysName)
-			}
-		}
 
-		// Also ensure every referenced prehook actually exists in runtime_native.oren.
-		for _, pre := range extractPrehookNames(b.text) {
-			if !runtimePrehooks[pre] {
-				return fmt.Errorf("lowering references %s but runtime does not define it (%s)", pre, runtimePath)
+			// Also ensure every referenced prehook actually exists in runtime_native.oren.
+			for _, pre := range extractPrehookNames(b.text) {
+				if !runtimePrehooks[pre] {
+					return fmt.Errorf("lowering references %s but runtime does not define it (%s)", pre, runtimePath)
+				}
 			}
 		}
 	}
@@ -1140,7 +1146,7 @@ func braceBalanceOren(src []byte) (bal int, min int) {
 	return bal, min
 }
 
-func parseSyscallBlocks(src string) []syscallBlock {
+func parseSyscallBlocks(path string, src string) []syscallBlock {
 	// Heuristic parser: split the syscall lowering function into blocks beginning at:
 	//   if fn_name == "sys_..."
 	// The Oren source is stable enough for this audit, and we don't want a full parser here.
@@ -1149,13 +1155,33 @@ func parseSyscallBlocks(src string) []syscallBlock {
 	// In `arm64_native_expr_syscalls.oren`, nested `if fn_name == ...` checks can appear
 	// inside a larger syscall block (e.g. `sys_send`/`sys_recv`). Those must not split blocks.
 	//
-	// Convention today: top-level syscall cases are indented by exactly 8 spaces.
+	//
+	// Convention today:
+	// - arm64: top-level syscall cases are indented by exactly 8 spaces:
+	//     `        if fn_name == "sys_..."`
+	// - x86_64: syscall cases in the syscall lowering chunk are indented by exactly 4 spaces:
+	//     `    if nm == "sys_..."`
+	//
+	// Keep these conventions stable because they are part of the capsule regression guardrail.
+	cleanPath := filepath.Clean(path)
+	var prefixes []string
+	if strings.HasSuffix(cleanPath, "arm64_native_expr_syscalls.oren") {
+		prefixes = []string{"        if fn_name == \"sys_"}
+	} else if strings.HasSuffix(cleanPath, filepath.Join("x64_native_program", "046_emit_sys_intrinsics.oren")) {
+		prefixes = []string{"    if nm == \"sys_"}
+	} else {
+		return nil
+	}
+
 	var starts []int
 	lines := strings.SplitAfter(src, "\n")
 	offset := 0
 	for _, line := range lines {
-		if strings.HasPrefix(line, "        if fn_name == \"sys_") {
-			starts = append(starts, offset)
+		for _, p := range prefixes {
+			if strings.HasPrefix(line, p) {
+				starts = append(starts, offset)
+				break
+			}
 		}
 		offset += len(line)
 	}
