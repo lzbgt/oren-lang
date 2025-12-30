@@ -321,7 +321,35 @@ fn native_compile_program_x64(linked, platform) {
             var ui = 0
             while ui < oren_list_len(us) { oren_list_push(merged, us[ui]); ui = ui + 1 }
         }
-        linked2 = {"statements": merged, "aliases": ctx["aliases"]}
+        // Preserve DCE config from the original linked program where possible, but
+        // also add extra roots needed by the entry stub (which is emitted after DCE
+        // and thus cannot itself create AST references).
+        var cfg0 = nil
+        if linked != nil { cfg0 = linked["config"] }
+        var cfg = {}
+        if cfg0 != nil && cfg0["keep_all_top_level_functions"] == true {
+            cfg["keep_all_top_level_functions"] = true
+        }
+        // Copy existing roots list (if any) so we don't mutate shared config state.
+        var roots = []
+        if cfg0 != nil && cfg0["roots"] != nil {
+            var r0 = cfg0["roots"]
+            var ri0 = 0
+            while ri0 < oren_list_len(r0) { oren_list_push(roots, r0[ri0]); ri0 = ri0 + 1 }
+        }
+        // Entry-stub runtime init pipeline (Tier‑1 parity with arm64).
+        //
+        // These are referenced by the emitted entry stub machine code, not by AST,
+        // so they must be pinned to survive global DCE after runtime injection.
+        oren_list_push(roots, "native_runtime_init")
+        oren_list_push(roots, "native_runtime_set_args")
+        oren_list_push(roots, "native_runtime_set_envp")
+        oren_list_push(roots, "native_runtime_capsule_init")
+        oren_list_push(roots, "native_runtime_init_gc_mode")
+        oren_list_push(roots, "oren_register_thread")
+        cfg["roots"] = roots
+
+        linked2 = {"statements": merged, "aliases": ctx["aliases"], "config": cfg}
         // Re-run whole-program DCE after injecting the runtime.
         //
         // The build pipeline already runs global DCE on the user program + imported modules,
@@ -502,7 +530,12 @@ fn native_compile_program_x64(linked, platform) {
     // Windows x64 ABI note: calls require 32 bytes of shadow space allocated by the caller.
     // Since our entrypoint is not a C runtime, we explicitly reserve it here.
     var entry_shadow = abi.caller_shadow_bytes(ctx["abi"])
-    if entry_shadow > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_shadow)) }
+    // Also reserve a small scratch region for entry-level values (argc/argv/envp on Linux).
+    // On Win64, keep shadow space at [rsp+0..31] by placing scratch above it.
+    var entry_scratch = 32
+    var entry_total = entry_shadow + entry_scratch
+    if entry_total > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_total)) }
+    var scratch_base = entry_shadow
 
     if platform != nil && platform["os"] == "windows" {
         _emit_entry_call_depth_env_override_windows_x64(ctx)
@@ -529,6 +562,100 @@ fn native_compile_program_x64(linked, platform) {
     //
     // Set RBP=0 before calling `main` so the chain terminates cleanly.
     bytes_extend(ctx["code"], insn_mov_r64_imm64(5, 0))
+
+    // --- Native runtime init (Tier‑1 parity with arm64) ---
+    //
+    // NOTE:
+    // - The runtime is injected by default (see top of file), but entry stub calls are not part
+    //   of the AST, so we pin the init symbols in global DCE via config["roots"] above.
+    // - In bring-up mode (OREN_X64_NO_INJECT_RUNTIME=1), these functions may be absent; skip.
+    if inject_runtime {
+        // Convention (rolling):
+        // - 1: macos
+        // - 2: linux
+        // - 3: windows
+        var target_os_id = 2
+        if platform != nil && platform["os"] == "windows" { target_os_id = 3 }
+
+        // Capture argc/argv/envp from the original SysV entry stack (Linux only).
+        // We store them in the entry scratch region so subsequent calls cannot clobber them.
+        if platform == nil || platform["os"] != "windows" {
+            // r10 = argc
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 13))
+            _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
+
+            // r11 = argv = orig_rsp + 8
+            bytes_extend(ctx["code"], insn_mov_r64_r64(11, 13))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
+            _emit_mov_mrsp_r64(ctx, scratch_base + 8, 11)
+
+            // r12 = envp = orig_rsp + (argc + 2) * 8
+            bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(12, 2))
+            bytes_extend(ctx["code"], insn_shl_r64_imm8(12, 3))
+            bytes_extend(ctx["code"], insn_add_r64_r64(12, 13))
+            _emit_mov_mrsp_r64(ctx, scratch_base + 16, 12)
+        }
+
+        // native_runtime_init(target_os_id)
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(1, target_os_id)) // rcx
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(7, target_os_id)) // rdi
+        }
+        var call_init_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_init_pos, "name": "native_runtime_init"})
+
+        // native_runtime_set_args(argc, argv)
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // rcx=argc
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // rdx=argv
+        } else {
+            _emit_mov_r64_mrsp(ctx, 7, scratch_base + 0) // rdi=argc
+            _emit_mov_r64_mrsp(ctx, 6, scratch_base + 8) // rsi=argv
+        }
+        var call_set_args_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_args_pos, "name": "native_runtime_set_args"})
+
+        // native_runtime_set_envp(envp)
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // rcx=envp
+        } else {
+            _emit_mov_r64_mrsp(ctx, 7, scratch_base + 16) // rdi=envp
+        }
+        var call_set_envp_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_envp_pos, "name": "native_runtime_set_envp"})
+
+        // native_runtime_capsule_init()
+        var call_capsule_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
+
+        // native_runtime_init_gc_mode(default_enabled)
+        var gc_default = 1
+        if platform != nil && platform["no_gc"] == true { gc_default = 0 }
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(1, gc_default)) // rcx
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(7, gc_default)) // rdi
+        }
+        var call_gc_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_gc_pos, "name": "native_runtime_init_gc_mode"})
+
+        // Register main thread for GC/stack safety.
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 4)) // rcx = rsp
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 4)) // rdi = rsp
+        }
+        var call_reg_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_reg_pos, "name": "oren_register_thread"})
+    }
 
     // Run top-level statements (including non-constant global initializers) before `main`.
     //
@@ -557,7 +684,7 @@ fn native_compile_program_x64(linked, platform) {
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
         bytes_extend(ctx["code"], insn_call_rax())
         // Should not return; if it does, just ret.
-        if entry_shadow > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_shadow)) }
+        if entry_total > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_total)) }
         bytes_extend(ctx["code"], insn_ret())
         // Record entrypoint offset (start of code).
         ctx["entry_off"] = 0
@@ -569,6 +696,7 @@ fn native_compile_program_x64(linked, platform) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))
         bytes_extend(ctx["code"], insn_syscall())
         // Should not return; if it does, ret.
+        if entry_total > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_total)) }
         bytes_extend(ctx["code"], insn_ret())
         ctx["entry_off"] = 0
     }

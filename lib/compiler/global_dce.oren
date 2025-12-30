@@ -211,11 +211,24 @@ fn lower_linked_program_in_place(linked) {
         i = i + 1
     }
 
-    // Roots: main + __top_level__ (if present) + any references from top-level non-function statements.
+    // Roots:
+    // - main + __top_level__ (if present)
+    // - any references from top-level non-function statements
+    // - optional extra roots via linked["config"]["roots"] (list<string>)
     var reachable = {}
     var queue = []
     _add_ref_if_toplevel_name(top_fns, reachable, queue, "main")
     _add_ref_if_toplevel_name(top_fns, reachable, queue, "__top_level__")
+    if config != nil {
+        var extra = config["roots"]
+        if extra != nil {
+            var ei = 0
+            while ei < oren_list_len(extra) {
+                _add_ref_if_toplevel_name(top_fns, reachable, queue, extra[ei])
+                ei = ei + 1
+            }
+        }
+    }
 
     var aliases = linked["aliases"]
     i = 0

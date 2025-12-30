@@ -33,6 +33,10 @@ fn map_key_param_i64(k: i64) {
 }
 
 fn main() {
+    // Runtime init sanity (Tier‑1): the x86_64 entry stub must run the injected native runtime init
+    // pipeline before user code, so runtime-global reads are safe.
+    print("SIMD_ENABLED=" + oren_int_to_string(native_simd_enabled()))
+
     // Sanity: printing works (remote-run checks substring).
     print("tier1 smoke ok")
     // Tier‑1 parity: x86_64 native must print non-literal string expressions too.
