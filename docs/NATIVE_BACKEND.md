@@ -40,7 +40,10 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - **Functions**: Definitions, direct calls, and first-class function values (callable pointers) with indirect calls (rolling; x86_64 bring-up). Stack frames (`FP`/`LR` on arm64; `RBP` on x86_64). Entry trampolines align the stack for ABI-correct calls and terminate via syscall (Linux) or imported `ExitProcess` (Windows).
   - **Variables**: Local (stack-allocated) with block-scoped cleanup to prevent loop leaks.
   - **Structs**: Constructors generate `Map` objects (Duck Typing). Access via `obj.field`. Nested struct offsets are honoured in native layout.
-  - **Lists (WIP)**: Minimal list runtime/intrinsics for bring-up (`oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_list_set`, plus `oren_index_set` for list-aware index assignment) for future native feature parity.
+  - **Lists / Maps (Tier‑1; runtime-defined semantics)**:
+    - Both arm64 and x86_64 lower container ops to the **shared injected native runtime** (same source bundle).
+    - List and map literals lower through runtime helpers (`oren_new_list` + `oren_list_push`, `oren_new_map` + `oren_map_set_*`) so container semantics do not diverge between architectures.
+    - Indexing is polymorphic: `xs[i]` / `m[k]` dispatches based on **tracked allocation metadata** (see `docs/RUNTIME_NATIVE_LAYOUT.md`).
   - **Modules**: `import` loads code (merged).
 
 - **Memory & Concurrency**:
@@ -61,7 +64,7 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - **x86_64 (Tier‑1; rolling)**: injects the **same native runtime source bundle** by default (matching arm64), and keeps only a small set of true “bootstrap intrinsics” in the backend:
     - bump allocator state (`malloc`/`malloc_raw`) and raw memory ops (`ptr_get`/`ptr_set` + byte variants),
     - syscall/WinAPI ABI surfaces needed for entry + IO + capsule gating.
-    - Escape hatch (debug / bring-up): `OREN_X64_NO_INJECT_RUNTIME=1` disables runtime injection.
+    - Escape hatch (debug / bring-up): `OREN_X64_NO_INJECT_RUNTIME=1` disables runtime injection; in rolling Tier‑1 this mode is intentionally limited and does **not** support general container/string semantics.
   - Includes `oren_readdir(path)` built on syscall-first `sys_getdirentries64`.
   - `oren_net_get(url)` is implemented on native as a minimal HTTP/1.0 GET over syscall-first TCP:
     - supported form: `http://<ipv4>[:port][/path]`

@@ -1,0 +1,91 @@
+// x64-native: small string helpers used by expression + print lowering.
+//
+// NOTE:
+// - x64 Tier‑1 now prefers the injected native runtime for string operations (shared semantics
+//   with arm64).
+// - This file only keeps the minimal helpers needed in the emitter itself (e.g. `print`).
+
+fn _emit_string_len_from_ptr_x64(ctx, ptr_reg, dst_reg) {
+    // dst_reg = strlen((char*)ptr_reg) (NUL-terminated).
+    //
+    // Semantics:
+    // - if ptr == 0 => 0
+    //
+    // Clobbers: R10, R11, RAX
+    if ctx == nil { return nil }
+    var labels = {}
+    var local_fixups = []
+    var l_done = _new_label(ctx, "str_len_done")
+    var l_loop = _new_label(ctx, "str_len_loop")
+
+    // r11 = ptr
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, ptr_reg))
+    // dst = 0  (must happen after capturing ptr, because ptr_reg may alias dst_reg)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(dst_reg, 0))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+
+    _emit_label(ctx, labels, l_loop)
+    // Use EAX/AL as the loaded-byte temp to avoid clobbering common ABI arg regs.
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+    bytes_extend(ctx["code"], insn_add_r64_imm32(dst_reg, 1))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    _emit_jmp_to_label(ctx, local_fixups, l_loop)
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
+    // Infix '+' lowering:
+    // - under native runtime injection: call the shared runtime helper `oren_add(a, b)`
+    // - without injection: fall back to integer addition (bring-up)
+    //
+    // `oren_add` performs runtime detection based on tracked-allocation metadata:
+    // - if both operands are strings, concat via `string_concat`
+    // - otherwise, add as integers
+    if expr == nil { return nil }
+    if expr["op"] != "+" { return nil }
+
+    // Evaluate LTR, then decide at runtime whether to concat or add.
+    var base = _intr_tmp_push(ctx, 2)
+    if base == nil { return nil }
+    var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_a == nil || tmp_b == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _emit_eval_int_to_rax(ctx, expr["left"], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
+
+    _emit_eval_int_to_rax(ctx, expr["right"], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
+
+    if ctx != nil && ctx["runtime_injected"] == true {
+        var a0 = abi.int_arg_reg(ctx["abi"], 0)
+        var a1 = abi.int_arg_reg(ctx["abi"], 1)
+        if a0 == nil || a1 == nil {
+            err(ctx, "x64 native v0: missing ABI arg regs for oren_add")
+            _intr_tmp_pop(ctx, base)
+            return nil
+        }
+        _emit_mov_r64_mrbp(ctx, a0, 0 - tmp_a)
+        _emit_mov_r64_mrbp(ctx, a1, 0 - tmp_b)
+        var call_pos = oren_list_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_add"})
+        _intr_tmp_pop(ctx, base)
+        return 1
+    }
+
+    // Bring-up fallback: integer addition only.
+    _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_a) // rax = a
+    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_b) // rdx = b
+    bytes_extend(ctx["code"], insn_add_r64_r64(0, 2))
+    _intr_tmp_pop(ctx, base)
+    return 1
+}

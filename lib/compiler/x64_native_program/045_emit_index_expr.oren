@@ -3,6 +3,21 @@
 // Extracted from `040_emit_expr.oren` to keep the main emitter file reviewable and under
 // the repo style ceiling, and to make the nested-spill invariants explicit.
 
+fn _emit_call_rel32_2args_x64(ctx, locals, sym, arg0_off, arg1_off) {
+    var a0 = abi.int_arg_reg(ctx["abi"], 0)
+    var a1 = abi.int_arg_reg(ctx["abi"], 1)
+    if a0 == nil || a1 == nil {
+        err(ctx, "x64 native v0: missing ABI arg regs for call2 " + sym)
+        return nil
+    }
+    _emit_mov_r64_mrbp(ctx, a0, 0 - arg0_off)
+    _emit_mov_r64_mrbp(ctx, a1, 0 - arg1_off)
+    var call_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": sym})
+    return nil
+}
+
 fn _emit_index_expr_v0(ctx, expr, locals) {
     // Index expression `xs[i]`.
     //
@@ -17,73 +32,115 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     // to avoid silent miscompilations if inference is wrong.
     var recv_kind = expr["recv_kind"]
 
-    // For maps, key-kind must match the stored entry kind.
+    // Tier‑1 convergence: map indexing is implemented via the injected native runtime.
     //
-    // Rolling x64 Tier‑1 rule (safety > micro-optimizations):
-    // - do not trust any compile-time key-kind hints for `m[k]`
-    // - infer at runtime using the same contract as `lib/runtime_native/130_printing.oren`
-    //   (tracked strings are kind=1; everything else is treated as int kind=0, with a panic
-    //   for unsupported tracked key types).
+    // This aligns x86_64 with arm64 (single semantics set) and avoids duplicating container
+    // logic inside x64-only intrinsics.
+    //
+    // If runtime injection is disabled, we only support list indexing when `recv_kind=list`
+    // is explicitly forced by the shared lowering.
+    if ctx == nil || ctx["runtime_injected"] != true {
+        if recv_kind != "list" {
+            err(ctx, "x64 native v0: map indexing requires injected native runtime (OREN_X64_NO_INJECT_RUNTIME is no longer supported for container ops)")
+            return nil
+        }
+    }
 
     // Use the intrinsic temp pool for re-entrancy:
     // - container and idx subexpressions may themselves contain Index/Call nodes that need spills
     // - using a fixed `$tmp0` slot here breaks expressions like `xs[ys[0]]`
-    var base0 = _intr_tmp_push(ctx, 1)
+    var base0 = _intr_tmp_push(ctx, 2)
     if base0 == nil { return nil }
-    var tmp0 = _intr_tmp_off(ctx, locals, base0 + 0)
-    if tmp0 == nil { _intr_tmp_pop(ctx, base0); return nil }
+    var tmp0 = _intr_tmp_off(ctx, locals, base0 + 0)      // container
+    var tmp_idx = _intr_tmp_off(ctx, locals, base0 + 1)   // index/key
+    if tmp0 == nil || tmp_idx == nil { _intr_tmp_pop(ctx, base0); return nil }
 
     // Eval container -> rax; spill
     _emit_eval_int_to_rax(ctx, left, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
 
-    // Eval index -> rax; move to rcx
+    // Eval index -> rax; spill
     _emit_eval_int_to_rax(ctx, idx, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = idx
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_idx, 0)
 
     // list -> rdx
     _emit_mov_r64_mrbp(ctx, 2, 0 - tmp0)
 
-    // list must be non-nil
+    // If container is nil, panic deterministically.
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
     var labels = {}
     var local_fixups = []
     var l_list_ok = _new_label(ctx, "idx_list_non_nil")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_list_ok)
-    _emit_abort_panic_str(ctx, "index on nil")
+    _emit_abort_panic_str(ctx, "Indexing on nil")
     _emit_label(ctx, labels, l_list_ok)
 
-    // magic check: [container+24] == LIST or MAP
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    // Tier‑1 safety: never read object headers from untracked pointers.
+    //
+    // In the native v0 carrier model, "ints" and pointers share the same i64 representation.
+    // Therefore, we must only treat `container` as a list/map pointer if it is tracked.
+    _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+
+    // r11 != 0 (tracked) ?
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
     var l_is_list = _new_label(ctx, "idx_is_list")
     var l_is_map = _new_label(ctx, "idx_is_map")
     var l_idx_done = _new_label(ctx, "idx_done")
 
-    // If the receiver kind is known, only accept that kind.
     if recv_kind == "list" {
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+        var l_trk_ok = _new_label(ctx, "idx_list_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok)
+        _emit_abort_panic_str(ctx, "Index recv_kind=list but value is not a list")
+        _emit_label(ctx, labels, l_trk_ok)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        // kind == 2 (LIST)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        _emit_abort_panic_str(ctx, "index recv_kind=list but value is not a list")
+        _emit_abort_panic_str(ctx, "Index recv_kind=list but value is not a list")
     } else if recv_kind == "map" {
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
+        var l_trk_ok2 = _new_label(ctx, "idx_map_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok2)
+        _emit_abort_panic_str(ctx, "Index recv_kind=map but value is not a map")
+        _emit_label(ctx, labels, l_trk_ok2)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        // kind == 3 (MAP)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-        _emit_abort_panic_str(ctx, "index recv_kind=map but value is not a map")
+        _emit_abort_panic_str(ctx, "Index recv_kind=map but value is not a map")
     } else {
-        // Unknown at compile-time => dynamic magic check (LIST or MAP).
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+        // Unknown at compile-time => dynamic kind check (LIST or MAP).
+        var l_trk_ok3 = _new_label(ctx, "idx_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok3)
+        _emit_abort_panic_str(ctx, "Indexing on non-container (expected list or map)")
+        _emit_label(ctx, labels, l_trk_ok3)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+
+        // kind == 2 => list, kind == 3 => map
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
-        _emit_abort_panic_str(ctx, "index on non-container (expected list or map)")
+        _emit_abort_panic_str(ctx, "Indexing on non-container (expected list or map)")
     }
 
     // --- list indexing path ---
     _emit_label(ctx, labels, l_is_list)
+    _emit_mov_r64_mrbp(ctx, 1, 0 - tmp_idx) // rcx = idx
 
     // load count -> r8
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
@@ -94,14 +151,14 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
     var l_idx_nonneg = _new_label(ctx, "idx_nonneg")
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
-    _emit_abort_panic_str(ctx, "index: list index < 0")
+    _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
     _emit_label(ctx, labels, l_idx_nonneg)
 
     // idx < count
     bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
     var l_inbounds = _new_label(ctx, "idx_inbounds")
     _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
-    _emit_abort_panic_str(ctx, "index: list index out of bounds")
+    _emit_abort_panic_str(ctx, "Index out of bounds")
     _emit_label(ctx, labels, l_inbounds)
 
     // buf -> r9 = *(list+16)
@@ -115,7 +172,7 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
     var l_buf_ok = _new_label(ctx, "idx_buf_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-    _emit_abort_panic_str(ctx, "index internal: list buf missing")
+    _emit_abort_panic_str(ctx, "list buffer is nil")
     _emit_label(ctx, labels, l_buf_ok)
 
     // addr = buf + idx*8  (r10)
@@ -131,102 +188,39 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
 
     // --- map indexing path ---
     _emit_label(ctx, labels, l_is_map)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 1)) // rsi = key
-    // If key is nil (0), treat as "miss" (matches `oren_map_get` behavior).
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(6, 0))
-    var l_mmiss = _new_label(ctx, "idx_map_miss")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_mmiss)
+    // Runtime-injected path: call typed helpers `oren_map_get_{int,str}`.
+    //
+    // Note: for dynamic keys, we infer key kind using the same tracking contract as the
+    // native runtime (strings are tracked kind=1), then dispatch to the typed helper.
+    var known_kk = -1
+    if idx["type"] == "Integer" { known_kk = 0 }
+    else if idx["type"] == "String" { known_kk = 1 }
 
-    // r13 = key_kind (0=int, 1=string)
-    // Always infer dynamically (do not trust compile-time hints).
-    _emit_infer_map_key_kind_x64(ctx, locals, 6, 13)
+    if known_kk == 0 {
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int", tmp0, tmp_idx)
+        _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
+    } else if known_kk == 1 {
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_str", tmp0, tmp_idx)
+        _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
+    } else {
+        // Compute key kind into r13 using a scratch key register.
+        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_idx) // r10 = key
+        _emit_infer_map_key_kind_x64(ctx, locals, 10, 13)
 
-    // r8 = count
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
+        var l_kk_int = _new_label(ctx, "idx_map_kk_int")
+        var l_kk_done = _new_label(ctx, "idx_map_kk_done")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_kk_int)
 
-    // r11 = buf = [map+16]
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_str", tmp0, tmp_idx)
+        _emit_jmp_to_label(ctx, local_fixups, l_kk_done)
 
-    var l_mloop = _new_label(ctx, "idx_map_loop")
-    var l_mfound = _new_label(ctx, "idx_map_found")
-    var l_mstr_loop = _new_label(ctx, "idx_map_str_loop")
-    var l_mstr_neq = _new_label(ctx, "idx_map_str_neq")
-    var l_mkind_int = _new_label(ctx, "idx_map_kind_int")
-    var l_mkind_str = _new_label(ctx, "idx_map_kind_str")
+        _emit_label(ctx, labels, l_kk_int)
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int", tmp0, tmp_idx)
+        _emit_label(ctx, labels, l_kk_done)
 
-    _emit_label(ctx, labels, l_mloop)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "le", l_mmiss)
-
-    // rdi = *(entry_ptr)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
-
-    // r12 = ek_kind = *(entry_ptr + 8)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
-
-    // kind mismatch => next
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 13))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_mstr_neq)
-
-    // kind==0 => integer compare, kind==1 => string compare
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_mkind_int)
-    _emit_jmp_to_label(ctx, local_fixups, l_mkind_str)
-
-    _emit_label(ctx, labels, l_mkind_int)
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
-    _emit_jmp_to_label(ctx, local_fixups, l_mstr_neq)
-
-    _emit_label(ctx, labels, l_mkind_str)
-    // pointer equality fast-path
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 6))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
-
-    // string eq
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // rcx=0
-    _emit_label(ctx, labels, l_mstr_loop)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 7))
-    bytes_extend(ctx["code"], insn_add_r64_r64(10, 1))
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 10))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 6))
-    bytes_extend(ctx["code"], insn_add_r64_r64(12, 1))
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(9, 12))
-    bytes_extend(ctx["code"], insn_cmp_r32_r32(0, 9))
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_mstr_neq)
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_mfound)
-    bytes_extend(ctx["code"], insn_add_r64_imm32(1, 1))
-    _emit_jmp_to_label(ctx, local_fixups, l_mstr_loop)
-
-    _emit_label(ctx, labels, l_mstr_neq)
-    // next entry
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 24))
-    bytes_extend(ctx["code"], insn_sub_r64_imm32(8, 1))
-    _emit_jmp_to_label(ctx, local_fixups, l_mloop)
-
-    _emit_label(ctx, labels, l_mfound)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
-
-    _emit_label(ctx, labels, l_mmiss)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
+        _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
+    }
 
     _emit_label(ctx, labels, l_idx_done)
     _patch_local_fixups(ctx, labels, local_fixups)

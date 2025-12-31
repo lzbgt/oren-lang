@@ -17,10 +17,12 @@ fn _lit_exit(ctx, d0) {
 }
 
 fn _emit_array_literal_expr(ctx, expr, locals) {
-    // List literal `[a, b, c]` lowered as:
-    // - allocate list with cap=len
-    // - fill buffer slots directly
-    // - set count=len
+    // List literal `[a, b, c]` lowered as a sequence of native runtime calls:
+    // - list = oren_new_list(0)
+    // - for each element: oren_list_push(list, elem)
+    //
+    // This matches the arm64 backend behavior and avoids baking list-layout offsets
+    // into the x64 emitter (Tier‑1 arch unification).
     var els = nil
     if expr != nil { els = expr["elements"] }
     if els == nil { els = [] }
@@ -40,10 +42,11 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
 
     var n = oren_list_len(els)
 
+    // list = oren_new_list(0)
     var new_call = {
         "type": "Call",
         "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
-        "args": [{"type": "Integer", "value": oren_int_to_string(n)}],
+        "args": [{"type": "Integer", "value": "0"}],
     }
     _emit_eval_int_to_rax(ctx, new_call, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
@@ -52,56 +55,21 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
     }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_hdr, 0)
 
-    // buf = *(list+16)
-    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
-
-    if n > 0 {
-        // n>0 implies buf must be non-zero.
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-        var labels = {}
-        var local_fixups = []
-        var l_buf_ok = _new_label(ctx, "array_lit_buf_ok")
-        _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-        _emit_abort_panic_str(ctx, "array literal internal: buf missing")
-        _emit_label(ctx, labels, l_buf_ok)
-        _patch_local_fixups(ctx, labels, local_fixups)
-    }
-
-    // Fill elements.
+    // Push elements in order (LTR).
     var i = 0
     while i < n {
-        _emit_eval_int_to_rax(ctx, els[i], locals)
+        var push_call = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push"},
+            "args": [{"type": "Identifier", "token": nil, "value": hn}, els[i]],
+        }
+        _emit_eval_int_to_rax(ctx, push_call, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
             _lit_exit(ctx, d0)
             return nil
         }
-
-        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_buf) // r10 = buf
-        if i != 0 {
-            var off = i * 8
-            if off < 0 || off > 2147483647 {
-                _lit_exit(ctx, d0)
-                err(ctx, "x64 native v0: array literal element offset out of range")
-                return nil
-            }
-            bytes_extend(ctx["code"], insn_add_r64_imm32(10, off))
-        }
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
         i = i + 1
     }
-
-    // count = n
-    _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_hdr)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, n))
-    bytes_extend(ctx["code"], insn_cdqe())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 0))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
 
     // return list
     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_hdr)

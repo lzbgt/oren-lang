@@ -20,11 +20,12 @@ Rules for this tracker:
      - callables (function values), closures, varargs/spread, and deterministic failure modes (`OREN_DIAG` + stack traces)
      - **language concurrency**: `spawn`/`oren_join` must work on Windows (thread-based; no fork/pipe assumptions)
      - container ops (list/map/buf) with identical semantics across arch/OS
-     - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
-       - **runtime injection is default-on** for x86_64 (same runtime source as arm64; expanded `// @include` tree)
-         - escape hatch: `OREN_X64_NO_INJECT_RUNTIME=1` (debug / bring-up)
-       - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
-       - next: replace remaining “bring-up-only” intrinsics with shared runtime helpers (goal: single semantics set, thin ABI emit layers)
+	     - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
+	       - **runtime injection is default-on** for x86_64 (same runtime source as arm64; expanded `// @include` tree)
+	         - escape hatch: `OREN_X64_NO_INJECT_RUNTIME=1` (debug / bring-up)
+	       - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
+	       - **done (rolling):** list/map container ops no longer rely on x86_64-only bring-up intrinsics; x86_64 now routes container semantics through the injected native runtime (same source bundle as arm64), and indirect-call argument packing no longer uses stack-backed fake lists.
+	       - next: finish deleting remaining x86_64 bring-up-only paths (keep `OREN_X64_NO_INJECT_RUNTIME=1` as a narrow debug mode), and converge the last container fast-paths on the same tracked-kind safety contract.
    - Next (Tier‑1 correctness):
      - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
        - Follow-up: **done** — env block is copied into runtime-owned memory during envp conversion, then freed via `FreeEnvironmentStringsA` (no intentional env-block leak; envp pointers remain stable).
@@ -50,10 +51,11 @@ Rules for this tracker:
    - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:
      - **done**: `== != < <= > >=` in condition lowering treat tracked strings by content/lexicographic order (no pointer-compare regressions).
 
-2) **Native value tagging (remove “key kind inference” fragility)** (L)
-   - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
-   - Interim (done, keep): native runtime infers map key kind using tracking metadata (`oren_find_node(...).kind == STRING`), and native codegen ensures string literals / member keys are tracked via `oren_ensure_tracked`.
-   - Harden runtime safety in the interim model: container ops must never dereference untracked values; prefer `oren_find_node` + `kind` guards before any `ptr_get(x+...)` on user-provided values.
+	2) **Native value tagging (remove “key kind inference” fragility)** (L)
+	   - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
+	   - Interim (done, keep): native runtime infers map key kind using tracking metadata (`oren_find_node(...).kind == STRING`), and native codegen ensures string literals / member keys are tracked via `oren_ensure_tracked`.
+	   - Harden runtime safety in the interim model: container ops must never dereference untracked values; prefer `oren_find_node` + `kind` guards before any `ptr_get(x+...)` on user-provided values.
+	     - **done (rolling):** arm64 + x86_64 Index get/set dispatch now checks tracked node kind (LIST/MAP) before touching container headers (no untracked `*(x+24)` probes).
    - Deliverable: a native value representation that can distinguish:
      - immediates (ints/bools/nil) vs pointers
      - string/list/map/buf payload kinds

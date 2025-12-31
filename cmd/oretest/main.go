@@ -383,20 +383,34 @@ func main() {
 		runtimeFixtures = buildRuntimeFixtureCases(*target, gcArg)
 	}
 
-	remoteRun := envBool("OREN_REMOTE_RUN", false)
-	remoteRunAll := envBool("OREN_REMOTE_RUN_ALL", false)
-	if remoteRun && !remoteRunAll && !*full {
-		// Opt-in Tier‑1 x86_64 gate mode: keep the run integration-first and avoid doing
-		// a full host-native suite in the same invocation.
-		//
-		// Use OREN_REMOTE_RUN_ALL=1 if you explicitly want to run the entire local suite too.
-		nativeTests = nil
-		moduleTests = nil
-		avmTests = nil
-		runtimeFixtures = nil
-	}
+		remoteRun := envBool("OREN_REMOTE_RUN", false)
+		remoteRunAll := envBool("OREN_REMOTE_RUN_ALL", false)
+		if remoteRun && !remoteRunAll && !*full {
+			// Opt-in Tier‑1 x86_64 gate mode: keep the run integration-first and avoid doing
+			// a full host-native suite in the same invocation.
+			//
+			// Use OREN_REMOTE_RUN_ALL=1 if you explicitly want to run the entire local suite too.
+			nativeTests = nil
+			moduleTests = nil
+			avmTests = nil
+			runtimeFixtures = nil
+		}
 
-	// Run fixtures in parallel (bounded by --fixture-jobs).
+		tier1X64 := envBool("OREN_TEST_TIER1_X64", false)
+		tier1X64All := envBool("OREN_TEST_TIER1_X64_ALL", false)
+		if tier1X64 && !tier1X64All && !*full {
+			// Tier‑1 x86_64 build gate mode (Linux ELF + Windows PE):
+			// keep the invocation focused on the cross-arch build smoke so it can remain
+			// within the default 60s iteration budget.
+			//
+			// Use OREN_TEST_TIER1_X64_ALL=1 if you explicitly want to run the full local suite too.
+			nativeTests = nil
+			moduleTests = nil
+			avmTests = nil
+			runtimeFixtures = nil
+		}
+
+		// Run fixtures in parallel (bounded by --fixture-jobs).
 	//
 	// Fixtures are intended to be small, high-signal correctness guards. Most are
 	// independent and safe to parallelize for wall-time reduction.

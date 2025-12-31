@@ -34,15 +34,83 @@ fn native_emit_index_get_inline(ctx, expr) {
     var non_nil_pos = oren_list_len(ctx["code"])
     set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
 
-    // Load magic and dispatch: list fast-path vs map fallback.
-    push_u32_le(ctx["code"], insn_add_imm(2, 0, 24)) // X2 = container + 24
-    push_u32_le(ctx["code"], insn_ldr_ptr(3, 2))     // X3 = magic
-    emit_load_i64_imm(ctx, 4, 1279870019)            // X4 = list_magic
-    push_u32_le(ctx["code"], insn_cmp_reg(3, 4))
-    var br_to_map = oren_list_len(ctx["code"])
+    // Tier‑1 safety: never read object headers from untracked pointers.
+    //
+    // In the native v0 carrier model, immediates and pointers share the same i64 slot, so we
+    // must only treat `container` as a list/map pointer if it is tracked.
+    //
+    // Use the same tracked-node kind contract as the runtime (and as x86_64):
+    // - kind==2 => LIST
+    // - kind==3 => MAP
+    //
+    // Preserve container/index across the probe call using callee-saved registers.
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = container
+    push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = index
+
+    // node = oren_find_node(container)
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+    var bl_find_node = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
+
+    // If node == 0 => not a tracked container => panic deterministically.
+    push_u32_le(ctx["code"], insn_movz(4, 0))
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
+    var br_node_nonzero = oren_list_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    var recv_kind0 = expr["recv_kind"]
+    if recv_kind0 == "list" {
+        native_emit_panic(ctx, "Index recv_kind=list but value is not a list")
+    } else if recv_kind0 == "map" {
+        native_emit_panic(ctx, "Index recv_kind=map but value is not a map")
+    } else {
+        native_emit_panic(ctx, "Indexing on non-container (expected list or map)")
+    }
+    var node_ok_pos = oren_list_len(ctx["code"])
+    set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
+
+    // kind = *(node + 16)
+    emit_load_ptr_from_base_plus(ctx, 4, 0, 16) // X4 = kind
+
+    // Dispatch to list vs map.
+    var br_to_map = nil
+    if recv_kind0 == "list" {
+        emit_load_i64_imm(ctx, 5, 2) // X5 = LIST
+        push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+        var br_is_list = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        native_emit_panic(ctx, "Index recv_kind=list but value is not a list")
+        var list_ok_pos = oren_list_len(ctx["code"])
+        set_u32_le(ctx["code"], br_is_list, insn_b_cond((list_ok_pos - br_is_list) / 4, 0)) // EQ
+    } else if recv_kind0 == "map" {
+        emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
+        push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+        br_to_map = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        native_emit_panic(ctx, "Index recv_kind=map but value is not a map")
+        // map label is patched later; list block will be skipped by the branch.
+    } else {
+        // Unknown at compile-time => dynamic kind dispatch (LIST or MAP).
+        emit_load_i64_imm(ctx, 5, 2) // X5 = LIST
+        push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+        var br_is_list2 = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+
+        emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
+        push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+        br_to_map = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+
+        native_emit_panic(ctx, "Indexing on non-container (expected list or map)")
+        var list_pos = oren_list_len(ctx["code"])
+        set_u32_le(ctx["code"], br_is_list2, insn_b_cond((list_pos - br_is_list2) / 4, 0)) // EQ
+        // If kind==MAP, `br_to_map` is patched later to map_pos.
+    }
 
     // --- List fast-path ---
+    // Restore container/index (X0=container, X1=index).
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+    push_u32_le(ctx["code"], insn_mov_reg(1, 20))
     // count = *(container + 0)
     push_u32_le(ctx["code"], insn_ldr_ptr(5, 0)) // X5 = count
 
@@ -79,6 +147,9 @@ fn native_emit_index_get_inline(ctx, expr) {
 
     // --- Map fallback ---
     var map_pos = oren_list_len(ctx["code"])
+    // Restore container/index (X0=container, X1=index).
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+    push_u32_le(ctx["code"], insn_mov_reg(1, 20))
     // X0=container, X1=index
     var recv_kind = expr["recv_kind"]
     if recv_kind == "list" {
@@ -179,7 +250,9 @@ fn native_emit_index_get_inline(ctx, expr) {
 
     // Done.
     var done_pos = oren_list_len(ctx["code"])
-    set_u32_le(ctx["code"], br_to_map, insn_b_cond((map_pos - br_to_map) / 4, 1)) // NE
+    if br_to_map != nil {
+        set_u32_le(ctx["code"], br_to_map, insn_b_cond((map_pos - br_to_map) / 4, 0)) // EQ
+    }
     set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
     return true
 }
