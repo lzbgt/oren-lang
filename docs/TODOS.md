@@ -52,6 +52,7 @@ Rules for this tracker:
      - `./oretest --matrix tier1` runs the practical Tier‑1 platform matrix from the dev host (arm64-macos + arm64-linux docker + x64 remote gate).
      - **done (rolling):** `./oretest --matrix ...` writes a dedicated matrix summary log + rc under `build/logs/oretest_matrix_<name>.log` and `build/logs/oretest_matrix_<name>.rc` (per-step logs remain `build/logs/matrix_*.log`).
      - **done (rolling):** the compiler CLI supports `--platform <arch>-<os>` for `oren build|meta|dump` (overrides legacy `--target/--arch`), and Tier‑1 x64 gates use it to avoid OS/arch flag drift.
+     - **done (rolling):** `OREN_PLATFORM=<arch>-<os>` is honored by `oren` as a fallback when `--platform` is omitted, and Tier‑1 fixture suites pass `--platform` explicitly to keep host-defaults irrelevant.
      - **done (rolling):** Tier‑1 native supports local `fn name(...) { ... }` declarations inside blocks by lowering them to `var name = fn (...) { ... }` (lambda wrapper path), validated by the Tier‑1 x64 remote fixture output `tier1 local fn ok`.
      - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
    - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:

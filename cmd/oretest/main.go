@@ -157,8 +157,8 @@ func main() {
 		os.Exit(rc)
 	}
 
-	// Platform mode maps <arch>-<os> onto the existing suite structure:
-	// - local native backend runs are selected via --target (macos|linux) and the host arch
+	// Platform mode maps <arch>-<os> onto the Tier-1 suite structure:
+	// - host-native builds always pass `--platform <host-arch>-<target-os>` to `./oren` (avoids default OS/arch drift)
 	// - x64 execution runs through the remote Win11+WSL2 gate (OREN_REMOTE_RUN=1)
 	// - linux/arm64 execution from macOS runs through the persistent Docker runner
 	nativeTarget := *target

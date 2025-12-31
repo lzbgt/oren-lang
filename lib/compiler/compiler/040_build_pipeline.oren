@@ -195,6 +195,7 @@ fn compiler_main() {
         var target = opts["target"]
         var arch = opts["arch"]
         var platform0 = opts["platform"]
+        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
         if platform0 != nil && platform0 != "" {
             var ps0 = parse_platform_spec(platform0)
             if ps0 == nil {
@@ -324,6 +325,7 @@ fn compiler_main() {
         var target = opts["target"]
         var arch = opts["arch"]
         var platform0 = opts["platform"]
+        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
         if platform0 != nil && platform0 != "" {
             var ps0 = parse_platform_spec(platform0)
             if ps0 == nil {
@@ -462,6 +464,7 @@ fn compiler_main() {
     target = opts["target"]
     arch = opts["arch"]
     var platform0 = opts["platform"]
+        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
     if platform0 != nil && platform0 != "" {
         var ps0 = parse_platform_spec(platform0)
         if ps0 == nil {

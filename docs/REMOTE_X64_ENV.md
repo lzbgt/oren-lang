@@ -14,6 +14,7 @@ To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled
 
 - For direct compilation, prefer the unified platform flag on the compiler too:
   - `./oren build ... --platform <arch>-<os>`
+  - env fallback: `OREN_PLATFORM=<arch>-<os>` is used when `--platform` is not provided.
   - `--target`/`--arch` are legacy (still supported).
 
 - The remote x64 gate can also be controlled directly by env flags and runs **x64-windows + x64-linux (WSL2)** on the remote Win11 machine:

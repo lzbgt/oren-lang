@@ -14,6 +14,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 	includeSigning := full || os.Getenv("OREN_TEST_SIGNING") == "1"
 	includeOredoc := full || os.Getenv("OREN_TEST_OREDOC") == "1"
 	arch := hostOrenArch()
+	plat := platformKey(target, arch)
 
 	// Compile-fail fixtures (portable semantics guards).
 	fixtures := []fixtureCase{
@@ -68,14 +69,13 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "manifest_meta",
 			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s --arch %s --deterministic --manifest -o %q > %q && "+
+				"./oren meta %q --platform %s --deterministic --manifest -o %q > %q && "+
 					"test -s %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Eq %q %q",
 				"tests/fixtures/meta_attrs_src.oren",
-				target,
-				arch,
+				plat,
 				targetsMetaPath(target, arch, "manifest_meta"),
 				"build/tmp/manifest_meta.out",
 				targetsMetaPath(target, arch, "manifest_meta")+".manifest.json",
@@ -207,10 +207,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "oren_meta_emit",
 			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s --arch %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
+				"./oren meta %q --platform %s -o %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q && grep -Fq %q %q",
 				"tests/fixtures/meta_attrs_src.oren",
-				target,
-				arch,
+				plat,
 				targetsMetaPath(target, arch, "meta_attrs"),
 				"f: doc line 1",
 				targetsMetaPath(target, arch, "meta_attrs"),
@@ -228,10 +227,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "oren_meta_globals_attrs",
 			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s --arch %s -o %q && grep -Fq %q %q && grep -Fq %q %q",
+				"./oren meta %q --platform %s -o %q && grep -Fq %q %q && grep -Fq %q %q",
 				"tests/fixtures/meta_attrs_globals.oren",
-				target,
-				arch,
+				plat,
 				targetsMetaPath(target, arch, "meta_attrs_globals"),
 				"\"globals\": [",
 				targetsMetaPath(target, arch, "meta_attrs_globals"),
@@ -245,14 +243,14 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "oren_meta_serde_schema",
 			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s --arch %s -o %q && "+
+				"./oren meta %q --platform %s -o %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q",
 				"tests/modules/test_json_serde_attrs.oren",
-				target,
+				plat,
 				arch,
 				targetsMetaPath(target, arch, "serde_schema"),
 				"\"serde\": {\"version\": 1, \"format\": \"json\", \"tag\": \"User\"",
@@ -273,12 +271,11 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "oren_meta_serde_formats",
 			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s --arch %s -o %q && "+
+				"./oren meta %q --platform %s -o %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q",
 				"tests/fixtures/meta_serde_formats.oren",
-				target,
-				arch,
+				plat,
 				targetsMetaPath(target, arch, "serde_formats"),
 				"\"serde\": {\"version\": 1, \"format\": \"json\", \"tag\": \"User\"",
 				targetsMetaPath(target, arch, "serde_formats"),
@@ -292,19 +289,17 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "deterministic_meta_hash",
 			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s --arch %s --deterministic -o %q > %q && "+
-					"./oren meta %q --target %s --arch %s --deterministic -o %q > %q && "+
+				"./oren meta %q --platform %s --deterministic -o %q > %q && "+
+					"./oren meta %q --platform %s --deterministic -o %q > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
 					"diff -q %q %q",
 				"tests/fixtures/meta_attrs_src.oren",
-				target,
-				arch,
+				plat,
 				targetsMetaPath(target, arch, "deterministic_meta_1"),
 				"build/tmp/deterministic_meta_1.out",
 				"tests/fixtures/meta_attrs_src.oren",
-				target,
-				arch,
+				plat,
 				targetsMetaPath(target, arch, "deterministic_meta_2"),
 				"build/tmp/deterministic_meta_2.out",
 				"build/tmp/deterministic_meta_1.out",
@@ -328,8 +323,8 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "deterministic_native_meta_hash",
 			cmd: fmt.Sprintf(
-				"./oren build %q --backend native --target %s --arch %s --metadata --deterministic --manifest -o %q > %q && "+
-					"./oren build %q --backend native --target %s --arch %s --metadata --deterministic --manifest -o %q > %q && "+
+				"./oren build %q --backend native --platform %s --metadata --deterministic --manifest -o %q > %q && "+
+					"./oren build %q --backend native --platform %s --metadata --deterministic --manifest -o %q > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
 					"grep -E '^OREN_ARTIFACT kind=meta sha256=' %q | sed 's/^.* sha256=\\([0-9a-f]*\\) path=.*$/\\1/' > %q && "+
 					"diff -q %q %q && "+
@@ -337,13 +332,11 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 					"grep -Fq %q %q && grep -Fq %q %q && grep -Eq %q %q && "+
 					"grep -Fq %q %q && grep -Fq %q %q && grep -Eq %q %q",
 				"tests/modules/test_strings.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "native", "deterministic_native_meta_1"),
 				"build/tmp/deterministic_native_meta_1.out",
 				"tests/modules/test_strings.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "native", "deterministic_native_meta_2"),
 				"build/tmp/deterministic_native_meta_2.out",
 				"build/tmp/deterministic_native_meta_1.out",
@@ -387,10 +380,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "compiler_parse_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=parse code=1\"'",
+				"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=parse code=1\"'",
 				"tests/native/fixtures/parse_error.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "parse_error"),
 				gcArg,
 			),
@@ -401,10 +393,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "compiler_codegen_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend native --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"'",
+				"sh -c 'out=$(./oren build %q --backend native --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"'",
 				"tests/native/fixtures/codegen_error.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "native", "codegen_error"),
 				gcArg,
 			),
@@ -439,10 +430,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "compiler_impl_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"'",
+				"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"'",
 				"tests/native/fixtures/trait_impl_duplicate.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "impl_err"),
 				gcArg,
 			),
@@ -453,10 +443,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "compiler_packview_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"Packview errors:\"'",
+				"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"Packview errors:\"'",
 				"tests/native/fixtures/packview_error.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "packview_err"),
 				gcArg,
 			),
@@ -467,10 +456,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "compiler_abi_layout_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"ABI layout errors:\"'",
+				"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"ABI layout errors:\"'",
 				"tests/native/fixtures/abi_layout_error.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "abi_layout_err"),
 				gcArg,
 			),
@@ -481,10 +469,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "compiler_generic_call_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"unspecialized call to generic function\"'",
+				"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"unspecialized call to generic function\"'",
 				"tests/native/fixtures/generic_unspecialized_call.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "generic_unspecialized_call"),
 				gcArg,
 			),
@@ -495,10 +482,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "compiler_generic_constraint_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"missing impl for trait\"'",
+				"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"missing impl for trait\"'",
 				"tests/native/fixtures/generic_constraint_missing_impl.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "generic_constraint_missing_impl"),
 				gcArg,
 			),
@@ -509,10 +495,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "missing_file_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
+				"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
 				"tests/native/fixtures/__missing__.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "missing_file"),
 				gcArg,
 			),
@@ -523,11 +508,10 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "unknown_backend_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend %q --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"; printf \"%%s\\n\" \"$out\" | grep -F \"Unknown backend:\"'",
+				"sh -c 'out=$(./oren build %q --backend %q --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"; printf \"%%s\\n\" \"$out\" | grep -F \"Unknown backend:\"'",
 				"tests/modules/test_strings.oren",
 				"nope",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "unknown_backend"),
 				gcArg,
 			),
@@ -538,9 +522,8 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "build_cli_modern_equals_and_ordering",
 			cmd: fmt.Sprintf(
-				"./oren build --backend=native --target=%s --arch=%s --out=%q %q%s",
-				target,
-				arch,
+				"./oren build --backend=native --platform=%s --out=%q %q%s",
+				plat,
 				targetsOutPath(target, arch, "native", "cli_modern_eq"),
 				"tests/native/fixtures/struct_field_assign_ok.oren",
 				gcArg,
@@ -582,7 +565,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "dump_tokens_missing_file_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren dump tokens %q -o %q --target %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
+				"sh -c 'out=$(./oren dump tokens %q -o %q --platform %s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"'",
 				"tests/native/fixtures/__missing__.oren",
 				"build/dump_tokens_missing.json",
 				target,
@@ -604,10 +587,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "build_emit_c_with_native_diag",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend native --emit-c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"; printf \"%%s\\n\" \"$out\" | grep -F -- \"--emit-c is only supported\"'",
+				"sh -c 'out=$(./oren build %q --backend native --emit-c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=compile code=2\"; printf \"%%s\\n\" \"$out\" | grep -F -- \"--emit-c is only supported\"'",
 				"tests/modules/test_strings.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "native", "emit_c_native_bad"),
 				gcArg,
 			),
@@ -618,10 +600,9 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "typecheck_rejects_bad_cast",
 			cmd: fmt.Sprintf(
-				"sh -c 'out=$(./oren build %q --backend c --typecheck --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=typecheck code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"typecheck:\"'",
+				"sh -c 'out=$(./oren build %q --backend c --typecheck --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=typecheck code=1\"; printf \"%%s\\n\" \"$out\" | grep -F \"typecheck:\"'",
 				"tests/fixtures/typecheck_bad_cast.oren",
-				target,
-				arch,
+				plat,
 				targetsOutPath(target, arch, "c", "typecheck_bad_cast"),
 				gcArg,
 			),
@@ -631,70 +612,70 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		},
 		{
 			name:    "strict_attrs_ok",
-			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q --strict-attrs --attr-allow-prefixes myorg.%s", "tests/native/fixtures/strict_attrs_ok.oren", target, arch, targetsOutPath(target, arch, "native", "strict_attrs_ok"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend native --platform %s -o %q --strict-attrs --attr-allow-prefixes myorg.%s", "tests/native/fixtures/strict_attrs_ok.oren", plat, targetsOutPath(target, arch, "native", "strict_attrs_ok"), gcArg),
 			log:     "build/logs/strict_attrs_ok.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{targetsOutPath(target, arch, "native", "strict_attrs_ok")},
 		},
 		{
 			name:    "strict_attrs_bad",
-			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q --strict-attrs%s", "tests/native/fixtures/strict_attrs_bad.oren", target, arch, targetsOutPath(target, arch, "native", "strict_attrs_bad"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend native --platform %s -o %q --strict-attrs%s", "tests/native/fixtures/strict_attrs_bad.oren", plat, targetsOutPath(target, arch, "native", "strict_attrs_bad"), gcArg),
 			log:     "build/logs/strict_attrs_bad.log",
 			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
 			cleanup: []string{targetsOutPath(target, arch, "native", "strict_attrs_bad")},
 		},
 		{
 			name:    "struct_field_assign_ok",
-			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", "tests/native/fixtures/struct_field_assign_ok.oren", target, arch, targetsOutPath(target, arch, "native", "struct_field_assign_ok"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend native --platform %s -o %q%s", "tests/native/fixtures/struct_field_assign_ok.oren", plat, targetsOutPath(target, arch, "native", "struct_field_assign_ok"), gcArg),
 			log:     "build/logs/struct_field_assign_ok.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{targetsOutPath(target, arch, "native", "struct_field_assign_ok")},
 		},
 		{
 			name:    "trait_impl_ambiguous_method",
-			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s --arch %s -o %q%s", "tests/native/fixtures/trait_impl_ambiguous_method.oren", target, arch, targetsOutPath(target, arch, "c", "trait_impl_ambiguous_method"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend c --platform %s -o %q%s", "tests/native/fixtures/trait_impl_ambiguous_method.oren", plat, targetsOutPath(target, arch, "c", "trait_impl_ambiguous_method"), gcArg),
 			log:     "build/logs/trait_impl_ambiguous_method.log",
 			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
 			cleanup: []string{targetsOutPath(target, arch, "c", "trait_impl_ambiguous_method")},
 		},
 		{
 			name:    "trait_impl_duplicate",
-			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s --arch %s -o %q%s", "tests/native/fixtures/trait_impl_duplicate.oren", target, arch, targetsOutPath(target, arch, "c", "trait_impl_duplicate"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend c --platform %s -o %q%s", "tests/native/fixtures/trait_impl_duplicate.oren", plat, targetsOutPath(target, arch, "c", "trait_impl_duplicate"), gcArg),
 			log:     "build/logs/trait_impl_duplicate.log",
 			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
 			cleanup: []string{targetsOutPath(target, arch, "c", "trait_impl_duplicate")},
 		},
 		{
 			name:    "trait_impl_split_blocks",
-			cmd:     fmt.Sprintf("./oren build %q --backend c --target %s --arch %s -o %q%s", "tests/native/fixtures/trait_impl_split_blocks.oren", target, arch, targetsOutPath(target, arch, "c", "trait_impl_split_blocks"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend c --platform %s -o %q%s", "tests/native/fixtures/trait_impl_split_blocks.oren", plat, targetsOutPath(target, arch, "c", "trait_impl_split_blocks"), gcArg),
 			log:     "build/logs/trait_impl_split_blocks.log",
 			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
 			cleanup: []string{targetsOutPath(target, arch, "c", "trait_impl_split_blocks")},
 		},
 		{
 			name:    "capsule_ok_compile",
-			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q --capsule%s", "tests/native/fixtures/capsule_ok.oren", target, arch, targetsOutPath(target, arch, "native", "capsule_ok"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend native --platform %s -o %q --capsule%s", "tests/native/fixtures/capsule_ok.oren", plat, targetsOutPath(target, arch, "native", "capsule_ok"), gcArg),
 			log:     "build/logs/capsule_ok.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{targetsOutPath(target, arch, "native", "capsule_ok")},
 		},
 		{
 			name:    "capsule_bad_syscall_compile",
-			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q --capsule%s", "tests/native/fixtures/capsule_bad_syscall.oren", target, arch, targetsOutPath(target, arch, "native", "capsule_bad_syscall"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend native --platform %s -o %q --capsule%s", "tests/native/fixtures/capsule_bad_syscall.oren", plat, targetsOutPath(target, arch, "native", "capsule_bad_syscall"), gcArg),
 			log:     "build/logs/capsule_bad_syscall.log",
 			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
 			cleanup: []string{targetsOutPath(target, arch, "native", "capsule_bad_syscall")},
 		},
 		{
 			name:    "capsule_bad_fs_compile",
-			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q --capsule%s", "tests/native/fixtures/capsule_bad_fs.oren", target, arch, targetsOutPath(target, arch, "native", "capsule_bad_fs"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend native --platform %s -o %q --capsule%s", "tests/native/fixtures/capsule_bad_fs.oren", plat, targetsOutPath(target, arch, "native", "capsule_bad_fs"), gcArg),
 			log:     "build/logs/capsule_bad_fs.log",
 			ok:      func(rc int) bool { return rc != 0 && rc != 124 },
 			cleanup: []string{targetsOutPath(target, arch, "native", "capsule_bad_fs")},
 		},
 		{
 			name:    "capsule_ok_fs_allow_compile",
-			cmd:     fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q --capsule --cap-allow-domains FS%s", "tests/native/fixtures/capsule_ok_fs_allow.oren", target, arch, targetsOutPath(target, arch, "native", "capsule_ok_fs_allow"), gcArg),
+			cmd:     fmt.Sprintf("./oren build %q --backend native --platform %s -o %q --capsule --cap-allow-domains FS%s", "tests/native/fixtures/capsule_ok_fs_allow.oren", plat, targetsOutPath(target, arch, "native", "capsule_ok_fs_allow"), gcArg),
 			log:     "build/logs/capsule_ok_fs_allow.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: []string{targetsOutPath(target, arch, "native", "capsule_ok_fs_allow")},
@@ -876,7 +857,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		fixtures = append(fixtures, fixtureCase{
 			name: "oredoc_openapi_export",
 			cmd: fmt.Sprintf(
-				"./oren meta %q --target %s -o %q && "+
+				"./oren meta %q --platform %s -o %q && "+
 					"./oredoc openapi %q -o %q --title %q --version %q --format %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
