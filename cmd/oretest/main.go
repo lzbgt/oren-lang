@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -54,7 +55,7 @@ func main() {
 	var (
 		target         = flag.String("target", defaultTarget, "legacy native backend OS target: macos|linux (prefer --platform <arch>-<os>)")
 		platform       = flag.String("platform", os.Getenv("OREN_PLATFORM"), "platform selector (shorthand for host/remote runners): macos|linux|arm64-macos|arm64-linux|x64-windows|x64-linux (env OREN_PLATFORM)")
-		matrix         = flag.String("matrix", os.Getenv("OREN_TEST_MATRIX"), "run a multi-platform matrix (host orchestrator): tier1 (env OREN_TEST_MATRIX)")
+		matrix         = flag.String("matrix", os.Getenv("OREN_TEST_MATRIX"), "run a multi-platform matrix (host orchestrator): tier1|tier1-obc (env OREN_TEST_MATRIX)")
 		noGC           = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
 		jobs           = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
 		fixtureJobs    = flag.Int("fixture-jobs", envInt("OREN_TEST_FIXTURE_JOBS", 0), "parallel jobs for fixtures (env OREN_TEST_FIXTURE_JOBS); default min(--jobs,8)")
@@ -123,15 +124,37 @@ func main() {
 	// Matrix mode is a host-side orchestrator. It is intended to be run from the dev host
 	// (arm64 macOS) and will delegate to Docker and/or remote runners as needed.
 	if strings.TrimSpace(*matrix) != "" {
-		switch strings.ToLower(strings.TrimSpace(*matrix)) {
+		matrixKey := strings.ToLower(strings.TrimSpace(*matrix))
+		includeOBC := false
+		switch matrixKey {
 		case "tier1":
-			os.Exit(runTier1Matrix(timeoutBin, false))
+			// ok
 		case "tier1-obc":
-			os.Exit(runTier1Matrix(timeoutBin, true))
+			includeOBC = true
 		default:
 			fmt.Fprintf(os.Stderr, "ERROR: unknown --matrix %q (supported: tier1, tier1-obc)\n", *matrix)
 			os.Exit(2)
 		}
+		_ = os.MkdirAll("build/logs", 0o755)
+		_ = os.MkdirAll("build/tmp", 0o755)
+
+		logPath := fmt.Sprintf("build/logs/oretest_matrix_%s.log", matrixKey)
+		rcPath := fmt.Sprintf("build/logs/oretest_matrix_%s.rc", matrixKey)
+		logFile, err := os.Create(logPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: failed to create matrix log %s: %v\n", logPath, err)
+			os.Exit(2)
+		}
+		defer logFile.Close()
+
+		out := io.MultiWriter(os.Stderr, logFile)
+		matrixStart := time.Now()
+		fmt.Fprintf(out, "[matrix] start name=%s at=%s host=%s/%s\n", matrixKey, matrixStart.Format(time.RFC3339), runtime.GOOS, runtime.GOARCH)
+		rc := runTier1Matrix(timeoutBin, includeOBC, out)
+		dur := time.Since(matrixStart)
+		fmt.Fprintf(out, "[matrix] done name=%s rc=%d dur=%s\n", matrixKey, rc, dur)
+		_ = os.WriteFile(rcPath, []byte(fmt.Sprintf("%d\n", rc)), 0o644)
+		os.Exit(rc)
 	}
 
 	// Platform mode maps <arch>-<os> onto the existing suite structure:

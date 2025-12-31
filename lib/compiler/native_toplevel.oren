@@ -1,0 +1,184 @@
+// native_toplevel.oren
+//
+// Shared Tier-1 native entry semantics helpers (rolling).
+//
+// Purpose:
+// - keep arm64 and x86_64 native backends aligned on:
+//   - what counts as a "runtime declaration" vs "user executable top-level"
+//   - which top-level names are reserved
+//   - deterministic startup ordering policy
+//
+// This module is compiler-internal.
+
+import coreir "coreir.oren"
+
+fn _nt_err(ctx, prefix, msg) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { ctx["errors"] = [] }
+    var p = prefix
+    if p == nil || p == "" { p = "native_toplevel" }
+    oren_list_push(ctx["errors"], p + ": " + msg)
+    return nil
+}
+
+fn _nt_get_var_name(ctx, prefix, st, role) {
+    if st == nil || st["type"] != "Var" {
+        _nt_err(ctx, prefix, "internal error: expected Var")
+        return nil
+    }
+    var name_node = st["name"]
+    if name_node == nil || name_node["type"] != "Identifier" {
+        _nt_err(ctx, prefix, role + " global var name must be identifier")
+        return nil
+    }
+    var nm = name_node["value"]
+    if nm == nil || nm == "" {
+        _nt_err(ctx, prefix, role + " global var name is empty")
+        return nil
+    }
+    if nm == "__top_level__" {
+        _nt_err(ctx, prefix, "reserved global name __top_level__")
+        return nil
+    }
+    // Ensure initializer exists (even if we do not execute runtime initializers).
+    if st["value"] == nil {
+        _nt_err(ctx, prefix, role + " global var init missing for " + nm)
+        return nil
+    }
+    return nm
+}
+
+fn split_tier1_runtime_user(ctx, err_prefix, runtime_stmts, user_stmts, declared_functions) {
+    // Split injected+user statements into:
+    // - runtime_decls: Function/Type/FFI declarations (no executable statements)
+    // - runtime_vars: top-level Var declarations (allocated as zero; init owned by native_runtime_init)
+    // - user_decls: Function/Type/FFI declarations
+    // - user_vars: top-level Var declarations (allocated as zero; init deferred into __top_level__)
+    // - user_exec: all other user top-level statements (executed in __top_level__)
+    //
+    // Returns a map or nil (errors recorded in ctx).
+    if ctx == nil { return nil }
+    if runtime_stmts == nil { runtime_stmts = [] }
+    if user_stmts == nil { user_stmts = [] }
+
+    var runtime_decls = []
+    var runtime_vars = []
+    var user_decls = []
+    var user_vars = []
+    var user_exec = []
+
+    // Track global var names across runtime+user to detect duplicates deterministically.
+    var seen_vars = {}
+
+    // Runtime: declarations only (no top-level executable statements).
+    var i = 0
+    while i < oren_list_len(runtime_stmts) {
+        var st = runtime_stmts[i]
+        if st == nil { i = i + 1; continue }
+
+        var fn0 = coreir._stmt_to_function_decl(st)
+        if fn0 != nil {
+            if fn0["name"] == "__top_level__" {
+                _nt_err(ctx, err_prefix, "injected runtime defines reserved __top_level__")
+                return nil
+            }
+            oren_list_push(runtime_decls, st)
+            i = i + 1
+            continue
+        }
+
+        if st["type"] == "Type" || st["type"] == "FFI" {
+            oren_list_push(runtime_decls, st)
+            i = i + 1
+            continue
+        }
+
+        if st["type"] == "Var" {
+            var nm = _nt_get_var_name(ctx, err_prefix, st, "runtime")
+            if nm == nil { return nil }
+            if seen_vars[nm] != nil {
+                _nt_err(ctx, err_prefix, "duplicate global var " + nm)
+                return nil
+            }
+            if declared_functions != nil && declared_functions[nm] != nil {
+                _nt_err(ctx, err_prefix, "global var shadows function " + nm)
+                return nil
+            }
+            seen_vars[nm] = true
+            oren_list_push(runtime_vars, st)
+            i = i + 1
+            continue
+        }
+
+        _nt_err(ctx, err_prefix, "injected runtime must not contain top-level executable stmt type=" + st["type"])
+        return nil
+    }
+
+    // User: declarations + vars + executable top-level.
+    i = 0
+    while i < oren_list_len(user_stmts) {
+        var st2 = user_stmts[i]
+        if st2 == nil { i = i + 1; continue }
+
+        var fn1 = coreir._stmt_to_function_decl(st2)
+        if fn1 != nil {
+            if fn1["name"] == "__top_level__" {
+                _nt_err(ctx, err_prefix, "reserved function name __top_level__")
+                return nil
+            }
+            oren_list_push(user_decls, st2)
+            i = i + 1
+            continue
+        }
+
+        if st2["type"] == "Type" || st2["type"] == "FFI" {
+            oren_list_push(user_decls, st2)
+            i = i + 1
+            continue
+        }
+
+        if st2["type"] == "Var" {
+            var nm2 = _nt_get_var_name(ctx, err_prefix, st2, "user")
+            if nm2 == nil { return nil }
+            if seen_vars[nm2] != nil {
+                _nt_err(ctx, err_prefix, "duplicate global var " + nm2)
+                return nil
+            }
+            if declared_functions != nil && declared_functions[nm2] != nil {
+                _nt_err(ctx, err_prefix, "global var shadows function " + nm2)
+                return nil
+            }
+            seen_vars[nm2] = true
+            oren_list_push(user_vars, st2)
+            i = i + 1
+            continue
+        }
+
+        // Any other top-level statement is executed in __top_level__.
+        oren_list_push(user_exec, st2)
+        i = i + 1
+    }
+
+    return {
+        "runtime_decls": runtime_decls,
+        "runtime_vars": runtime_vars,
+        "user_decls": user_decls,
+        "user_vars": user_vars,
+        "user_exec": user_exec
+    }
+}
+
+fn user_global_init_assign_stmts(user_vars) {
+    // Convert user global `var x = expr` into `Assign` statements executed in __top_level__.
+    if user_vars == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(user_vars) {
+        var st = user_vars[i]
+        if st != nil {
+            oren_list_push(out, {"type": "Assign", "token": st["token"], "name": st["name"], "value": st["value"]})
+        }
+        i = i + 1
+    }
+    return out
+}

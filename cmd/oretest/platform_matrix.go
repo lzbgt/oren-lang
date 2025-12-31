@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -126,7 +127,10 @@ func applyPlatformSpec(timeoutBin string, raw string, nativeTarget string, passT
 	return true, 2, newNativeTarget
 }
 
-func runTier1Matrix(timeoutBin string, includeOBCPortability bool) int {
+func runTier1Matrix(timeoutBin string, includeOBCPortability bool, out io.Writer) int {
+	if out == nil {
+		out = os.Stderr
+	}
 	// Each step must stay within the default 3-minute budget.
 	stepTimeout := 3 * time.Minute
 
@@ -154,19 +158,19 @@ func runTier1Matrix(timeoutBin string, includeOBCPortability bool) int {
 	}
 
 	for _, s := range steps {
-		fmt.Fprintf(os.Stderr, "[matrix] %s\n", s.name)
+		fmt.Fprintf(out, "[matrix] %s\n", s.name)
 		rc := runWithTimeout(timeoutBin, stepTimeout, s.cmd, s.log)
 		if rc != 0 {
-			fmt.Fprintf(os.Stderr, "FAIL: matrix step %s failed (log: %s)\n", s.name, s.log)
+			fmt.Fprintf(out, "FAIL: matrix step %s failed (log: %s)\n", s.name, s.log)
 			return rc
 		}
 	}
 
 	if includeOBCPortability {
-		fmt.Fprintf(os.Stderr, "[matrix] obc-portability\n")
+		fmt.Fprintf(out, "[matrix] obc-portability\n")
 		rc := runOBCPortabilityGate(stepTimeout)
 		if rc != 0 {
-			fmt.Fprintf(os.Stderr, "FAIL: obc portability failed (log: build/logs/obc_portability.log)\n")
+			fmt.Fprintf(out, "FAIL: obc portability failed (log: build/logs/obc_portability.log)\n")
 			return rc
 		}
 	}

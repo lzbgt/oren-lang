@@ -10,6 +10,8 @@ import callable "native_callable.oren"
 import exprm "arm64_native_expr.oren"
 import rtinj "native_runtime_inject.oren"
 import bundle "native_runtime_bundle.oren"
+import coreir "coreir.oren"
+import nt "native_toplevel.oren"
 import nabi "native_abi.oren"
 
 // Re-export core helpers locally so the native program compiler stays readable.
@@ -74,23 +76,13 @@ fn native_emit_errors_and_exit(ctx) {
     return nil
 }
 
-fn _arm64_stmt_to_toplevel_function_decl(stmt) {
-    if stmt == nil { return nil }
-    if stmt["type"] == "Function" { return stmt }
-    if stmt["type"] == "ExprStmt" {
-        var e = stmt["expr"]
-        if e != nil && e["type"] == "Function" { return e }
-    }
-    return nil
-}
-
 fn _arm64_linked_has_toplevel_fn_named(linked, name) {
     if linked == nil || name == nil { return false }
     var stmts = linked["statements"]
     if stmts == nil { return false }
     var i = 0
     while i < oren_list_len(stmts) {
-        var fn0 = _arm64_stmt_to_toplevel_function_decl(stmts[i])
+        var fn0 = coreir._stmt_to_function_decl(stmts[i])
         if fn0 != nil && fn0["name"] == name { return true }
         i = i + 1
     }
@@ -146,93 +138,56 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
     // - Entry stub calls `__top_level__` before `main` (if present).
     //
     // IMPORTANT (runtime):
-    // The injected native runtime intentionally does not rely on global initializers for many
-    // constants (see `native_runtime_init`). To avoid overriding runtime init decisions (e.g.
-    // OS-dependent constants), we allocate runtime global slots but do NOT run their initializers
-    // inside `__top_level__`.
+    // The injected native runtime is treated as a library. Its side effects must be driven by
+    // `native_runtime_init` (and explicit runtime calls), not by implicit top-level execution.
+    // Therefore we allocate runtime global slots but do NOT run their initializers in __top_level__.
     if ctx == nil { return nil }
-    if runtime_stmts == nil { runtime_stmts = [] }
-    if user_stmts == nil { user_stmts = [] }
 
-    var runtime_decls = []
-    var user_decls = []
-    var init_stmts = []
-    var other_stmts = []
+    var declared = ctx["declared_functions"]
+    var split = nt.split_tier1_runtime_user(ctx, "arm64 native", runtime_stmts, user_stmts, declared)
+    if split == nil { return nil }
 
-    // Runtime statements: keep only declarations; allocate globals but never execute them at top-level.
+    var runtime_decls = split["runtime_decls"]
+    var runtime_vars = split["runtime_vars"]
+    var user_decls = split["user_decls"]
+    var user_vars = split["user_vars"]
+    var user_exec = split["user_exec"]
+    if runtime_decls == nil { runtime_decls = [] }
+    if runtime_vars == nil { runtime_vars = [] }
+    if user_decls == nil { user_decls = [] }
+    if user_vars == nil { user_vars = [] }
+    if user_exec == nil { user_exec = [] }
+
+    // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var i = 0
-    while i < oren_list_len(runtime_stmts) {
-        var st = runtime_stmts[i]
-        if st == nil { i = i + 1; continue }
-
-        var fn0 = _arm64_stmt_to_toplevel_function_decl(st)
-        if fn0 != nil {
-            if fn0["name"] == "__top_level__" {
-                oren_list_push(ctx["errors"], "arm64 native: injected runtime defines reserved __top_level__")
-                return nil
-            }
-            oren_list_push(runtime_decls, st)
-            i = i + 1
-            continue
-        }
-        if st["type"] == "Type" || st["type"] == "FFI" {
-            oren_list_push(runtime_decls, st)
-            i = i + 1
-            continue
-        }
-        if st["type"] == "Var" {
+    while i < oren_list_len(runtime_vars) {
+        var st = runtime_vars[i]
+        if st != nil {
             _arm64_alloc_global_slot(ctx, st["name"], st["value"], true)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            i = i + 1
-            continue
         }
-
-        oren_list_push(ctx["errors"], "arm64 native: injected runtime must not contain top-level executable stmt type=" + st["type"])
-        return nil
-    }
-
-    // User statements: split declarations vs executable top-level.
-    i = 0
-    while i < oren_list_len(user_stmts) {
-        var st2 = user_stmts[i]
-        if st2 == nil { i = i + 1; continue }
-
-        var fn1 = _arm64_stmt_to_toplevel_function_decl(st2)
-        if fn1 != nil {
-            if fn1["name"] == "__top_level__" {
-                oren_list_push(ctx["errors"], "arm64 native: reserved function name __top_level__")
-                return nil
-            }
-            oren_list_push(user_decls, st2)
-            i = i + 1
-            continue
-        }
-        if st2["type"] == "Type" || st2["type"] == "FFI" {
-            oren_list_push(user_decls, st2)
-            i = i + 1
-            continue
-        }
-        if st2["type"] == "Var" {
-            var nm2 = _arm64_alloc_global_slot(ctx, st2["name"], st2["value"], false)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            // Defer user global initialization into __top_level__ so globals are initialized
-            // deterministically before `main` runs.
-            oren_list_push(init_stmts, {"type": "Assign", "token": st2["token"], "name": st2["name"], "value": st2["value"]})
-            i = i + 1
-            continue
-        }
-
-        // Any other top-level statement is executed in __top_level__.
-        oren_list_push(other_stmts, st2)
         i = i + 1
     }
+
+    // Allocate user globals; defer all initializers into __top_level__.
+    i = 0
+    while i < oren_list_len(user_vars) {
+        var st2 = user_vars[i]
+        if st2 != nil {
+            _arm64_alloc_global_slot(ctx, st2["name"], st2["value"], false)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        }
+        i = i + 1
+    }
+
+    var init_stmts = nt.user_global_init_assign_stmts(user_vars)
 
     // Synthesize: `fn __top_level__() { <init_stmts>; <other_stmts>; return 0 }`
     var top_stmts = []
     var j = 0
     while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
     j = 0
-    while j < oren_list_len(other_stmts) { oren_list_push(top_stmts, other_stmts[j]); j = j + 1 }
+    while j < oren_list_len(user_exec) { oren_list_push(top_stmts, user_exec[j]); j = j + 1 }
     oren_list_push(top_stmts, {"type": "Return", "token": nil, "value": {"type": "Integer", "value": "0"}})
 
     var top_fn = {"type": "Function", "token": nil, "name": "__top_level__", "params": [], "body": {"type": "Block", "stmts": top_stmts}}
@@ -470,11 +425,13 @@ fn native_compile_program_arm64(linked, platform) {
     if runtime_stmts == nil { runtime_stmts = [] }
     if user_stmts == nil { user_stmts = [] }
 
-    // Collect named function declarations (runtime + user) so the native backend can:
+    // Collect top-level named function declarations (runtime + user) so the native backend can:
     // - treat named functions as first-class values (Identifier -> callable object)
     // - compute lambda free-var captures without accidentally capturing global functions
-    callable.func_decl_scan_stmt_list(ctx, runtime_stmts)
-    callable.func_decl_scan_stmt_list(ctx, user_stmts)
+    //
+    // CoreIR v0 keeps function metadata deterministic across backends.
+    coreir.collect_top_level_functions(ctx, bun["linked"], "arm64 native")
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Collect lambdas from user code (lambdas are anonymous Function nodes with name="").
     // This annotates lambda nodes with:
