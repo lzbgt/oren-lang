@@ -1,58 +1,61 @@
-// x64 native: minimal allocation tracking (rolling Tier‑1 convergence).
+// x64 native: allocation tracking hooks (Tier‑1 convergence).
 //
-// Motivation:
-// - Native v0 represents non-pointer values as raw integers, so we need a safe way to
-//   classify tracked heap pointers for container/string safety.
-// - To keep container/string semantics safe (no dereference of untracked integers), we use a
-//   minimal "tracked allocations" list to classify heap pointers by kind.
+// Native v0 uses an i64 carrier for *all* values (pointers and immediates).
+// To keep container/string operations safe, backends must never dereference
+// untrusted values as pointers unless they are known-tracked allocations.
 //
-// Rolling parity note:
-// - The syscall-first native runtime treats values < 4096 as non-pointers for tracking/list-scan
-//   purposes (perf + avoids accidental tracking of small integers).
-// - Keep the same guard here so x64 behavior matches arm64 Tier‑1 until native value tagging lands.
+// arm64 native already routes this through the injected syscall-first runtime:
+// - `oren_find_node(ptr)`    -> returns tracking node or 0
+// - `oren_track_alloc(ptr, size, kind)`
+// - `oren_ensure_tracked(ptr, kind)`
 //
-// Design (rolling, x64 v0):
-// - Track only what we need for correctness of key-kind inference:
-//   - kind=1: string (C-string pointer)
-// - Node layout intentionally matches the native runtime tracking node layout so we can
-//   converge toward shared runtime injection later:
-//   node (40 bytes):
-//     +0  ptr
-//     +8  size (unused by x64 v0; 0)
-//     +16 kind
-//     +24 flags (unused; 0)
-//     +32 next
-
-fn _data_reserve_tracked_allocs_head_x64(ctx) {
-    if ctx == nil { return nil }
-    if ctx["tracked_allocs_head_off"] != nil { return nil }
-    // A single u64 slot in the appended data blob holds the head pointer.
-    var off = _data_add_u64(ctx, 0)
-    if off == nil { err(ctx, "x64 native v0: failed to reserve tracked allocs head") }
-    ctx["tracked_allocs_head_off"] = off
-    return nil
-}
-
-fn _emit_load_tracked_allocs_head_addr_x64(ctx, dst_reg) {
-    // dst_reg = &tracked_allocs_head (address of u64 slot in appended data blob)
-    if ctx == nil { return nil }
-    var off = ctx["tracked_allocs_head_off"]
-    if off == nil { err(ctx, "x64 native v0: tracked allocs head not reserved"); return nil }
-    var lea_pos = oren_list_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(dst_reg, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
-    return nil
-}
+// x86_64 originally had a backend-local tracking list (bring-up hack). That created
+// drift and forced the compiler to carry x64-only globals. In rolling Tier‑1,
+// x86_64 now always injects the same runtime bundle as arm64, so we can converge
+// by routing all tracking through the runtime helpers too.
+//
+// NOTE: This file intentionally keeps the former helper names so call sites stay
+// simple while we delete the last x64 bring-up paths.
 
 fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
-    // dst_node_reg = node pointer if tracked; otherwise 0.
+    // dst_node_reg = tracking node pointer if `ptr_reg` is tracked; otherwise 0.
     //
-    // Clobbers: R10, R11, R12
+    // IMPORTANT:
+    // - Do *not* implement this by calling runtime `oren_find_node`.
+    // - `oren_find_node` itself uses comparisons that consult tracking metadata (string-aware compares).
+    // - Calling `oren_find_node` from the tracking lookup introduces recursion and can stack overflow.
+    //
+    // Implementation: inline a minimal scan of the injected runtime alloc list head.
+    //
+    // Runtime globals:
+    // - `g_storage` holds the globals storage pointer (see `lib/runtime_native/010_channels_globals_consts.oren`).
+    // - `GLOBAL_OFF_ALLOCS` is 0, so `*(u64*)g_storage` is the alloc-list head.
+    //
+    // Node layout matches runtime:
+    //   +0  ptr
+    //   +16 kind
+    //   +32 next
+    //
+    // Clobbers: R10, R11, R12.
     if ctx == nil { return nil }
-    _data_reserve_tracked_allocs_head_x64(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: internal error: tracking requires injected runtime")
+        return nil
+    }
 
-    // Save ptr into r12 (callee-saved in our generated code paths; we use it as scratch).
+    if dst_node_reg == 12 {
+        err(ctx, "x64 native v0: internal error: tracking dst reg cannot be r12")
+        return nil
+    }
+
+    var goff = nil
+    if ctx["globals"] != nil { goff = ctx["globals"]["g_storage"] }
+    if goff == nil {
+        err(ctx, "x64 native v0: internal error: missing runtime global g_storage")
+        return nil
+    }
+
+    // Save ptr into r12.
     bytes_extend(ctx["code"], insn_mov_r64_r64(12, ptr_reg))
 
     // Default dst = 0.
@@ -63,31 +66,43 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     var l_done = _new_label(ctx, "trk_find_done")
     var l_scan = _new_label(ctx, "trk_find_scan")
 
-    // Match the native runtime guard: do not scan for small integers.
+    // ptr == 0 => done
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+
+    // Match runtime safety/perf guard: small integers are not pointers.
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
 
-    // r10 = &head_slot ; r11 = head
-    _emit_load_tracked_allocs_head_addr_x64(ctx, 10)
+    // r10 = g_storage
+    var lea_pos0 = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+
+    // If globals not initialized yet => done.
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+
+    // r11 = head = *(u64*)g_storage (GLOBAL_OFF_ALLOCS = 0)
     bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
 
     _emit_label(ctx, labels, l_scan)
-    // while r11 != 0
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
 
-    // r10 = *(u64*)r11 (node.ptr)
+    // r10 = node.ptr ; compare with ptr
     bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 11))
     bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 12))
     var l_next = _new_label(ctx, "trk_find_next")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_next)
 
-    // Found: dst_node_reg = r11
+    // Found: dst = node
     bytes_extend(ctx["code"], insn_mov_r64_r64(dst_node_reg, 11))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_next)
-    // r11 = *(u64*)(r11 + 32)
+    // r11 = node.next (at +32)
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
     bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
@@ -98,252 +113,97 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     return nil
 }
 
-
 fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
-    // x64 native: lightweight `oren_track_alloc(ptr,size,kind)` implementation.
+    // x64 native: call the runtime `oren_track_alloc(ptr,size,kind)`.
     //
-    // Motivation:
-    // - Many runtime helpers (e.g. string constructors) call `oren_track_alloc` to mark
-    //   allocations as STRING/LIST/MAP/etc.
-    // - x64 native key-kind inference relies on the x64-side tracked list (not the full
-    //   native runtime globals model), so we must ensure runtime calls update the same list.
+    // IMPORTANT: do not rely on SysV/Win64 callee-saved regs here.
+    // The x64 backend uses registers like R12 as scratch in many helpers, so the
+    // safest rule is: treat *all* registers as volatile across runtime calls.
     //
-    // Semantics (match the rolling runtime contract closely enough for Tier‑1):
-    // - If ptr == 0: no-op (return ptr).
-    // - If ptr is already tracked: update `size` when size!=0; update `kind` when kind!=0.
-    // - Otherwise: allocate a node and insert at head; store ptr/size/kind; flags=0.
+    // Therefore, preserve the original pointer in a stack spill slot.
     //
-    // Return:
-    // - ptr_reg remains the pointer (caller can move it to RAX as the expression result)
-    //
-    // Clobbers: R10, R11, R12, R13, RAX
+    // Return contract (legacy helper): `ptr_reg` stays the original pointer.
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: track_alloc requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: internal error: track_alloc requires injected runtime")
+        return nil
+    }
 
-    _data_reserve_tracked_allocs_head_x64(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    var a0 = abi.int_arg_reg(ctx["abi"], 0)
+    var a1 = abi.int_arg_reg(ctx["abi"], 1)
+    var a2 = abi.int_arg_reg(ctx["abi"], 2)
+    if a0 == nil || a1 == nil || a2 == nil {
+        err(ctx, "x64 native v0: missing ABI arg regs for oren_track_alloc")
+        return nil
+    }
 
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "trk_alloc_done")
-    var l_scan = _new_label(ctx, "trk_alloc_scan")
-    var l_found = _new_label(ctx, "trk_alloc_found")
-    var l_alloc = _new_label(ctx, "trk_alloc_new")
+    // Spill the args we need to keep stable across the call.
+    var base = _intr_tmp_push(ctx, 3)
+    if base == nil { return nil }
+    var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
+    var off_size = _intr_tmp_off(ctx, locals, base + 1)
+    var off_kind = _intr_tmp_off(ctx, locals, base + 2)
+    if off_ptr == nil || off_size == nil || off_kind == nil { _intr_tmp_pop(ctx, base); return nil }
 
-    // Save ptr into r12.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, ptr_reg))
-    // Save size into r13.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(13, size_reg))
-    // Save kind into r10.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, kind_reg))
+    _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
+    _emit_mov_mrbp_r64(ctx, 0 - off_size, size_reg)
+    _emit_mov_mrbp_r64(ctx, 0 - off_kind, kind_reg)
 
-    // if ptr == 0 => done
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-    // Match the native runtime guard: do not attach tracking metadata to small integers.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
-    // r11 = head
-    _emit_load_tracked_allocs_head_addr_x64(ctx, 11)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 11))
+    _emit_mov_r64_mrbp(ctx, a0, 0 - off_ptr)
+    _emit_mov_r64_mrbp(ctx, a1, 0 - off_size)
+    _emit_mov_r64_mrbp(ctx, a2, 0 - off_kind)
 
-    _emit_label(ctx, labels, l_scan)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_alloc)
+    var call_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_track_alloc"})
 
-    // Compare node.ptr with ptr (r12)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 11)) // rax = *(u64*)node (node.ptr)
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 12))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_found)
+    // Restore pointer to satisfy legacy helper contract.
+    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - off_ptr)
 
-    // r11 = node.next
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 32))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 0))
-    _emit_jmp_to_label(ctx, local_fixups, l_scan)
-
-    _emit_label(ctx, labels, l_found)
-    // Update size when size != 0.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
-    var l_skip_size = _new_label(ctx, "trk_alloc_skip_size")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_skip_size)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 8))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(0, 13))
-    _emit_label(ctx, labels, l_skip_size)
-
-    // Update kind when kind != 0.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
-    var l_skip_kind = _new_label(ctx, "trk_alloc_skip_kind")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_skip_kind)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 16))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(0, 10))
-    _emit_label(ctx, labels, l_skip_kind)
-
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _emit_label(ctx, labels, l_alloc)
-    // Allocate a new node: malloc_raw(40) via the bump allocator intrinsic.
-    //
-    // NOTE: `_emit_malloc_size_in_rax` clobbers volatile regs including r10, so preserve
-    // the requested `kind` across the call.
-    var spill_kind = locals["$tmp1"]
-    if spill_kind == nil { err(ctx, "x64 native v0: track_alloc missing $tmp1 spill slot"); return nil }
-    _emit_mov_mrbp_r64(ctx, 0 - spill_kind, 10)
-
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 40))
-    bytes_extend(ctx["code"], insn_cdqe())
-    _emit_malloc_size_in_rax(ctx, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-
-    // Restore kind into r10.
-    _emit_mov_r64_mrbp(ctx, 10, 0 - spill_kind)
-
-    // r11 = node (returned in rax)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
-
-    // node.ptr = ptr (r12)
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 12))
-
-    // node.size = size (r13)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 8))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(0, 13))
-
-    // node.kind = kind (r10)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 16))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(0, 10))
-
-    // node.flags = 0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-    bytes_extend(ctx["code"], insn_cdqe())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(13, 0))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 24))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(0, 13))
-
-    // node.next = old_head
-    _emit_load_tracked_allocs_head_addr_x64(ctx, 0)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(13, 0)) // r13 = old head
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 32))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(0, 13))
-
-    // head = node
-    _emit_load_tracked_allocs_head_addr_x64(ctx, 0)
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(0, 11))
-
-    _emit_label(ctx, labels, l_done)
-    // Return original ptr (restore into ptr_reg).
-    bytes_extend(ctx["code"], insn_mov_r64_r64(ptr_reg, 12))
-    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base)
     return nil
 }
 
 fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
-    // Ensure the pointer is present in the tracked list; if not, append a node.
+    // Ensure the pointer is tracked as `kind_imm` via runtime `oren_ensure_tracked(ptr, kind)`.
     //
-    // Used primarily to mark embedded string literals as tracked (kind=1) so map
-    // key-kind inference can safely treat them as strings.
+    // IMPORTANT: do not rely on callee-saved regs across runtime calls.
+    // Preserve the original pointer in a stack spill slot and restore it after the call.
     //
-    // Clobbers: R10, R11, R12, R13, RAX
+    // Return contract (matches runtime): returns the pointer. Legacy helper also
+    // preserved the original pointer in `ptr_reg`.
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: ensure_tracked requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: internal error: ensure_tracked requires injected runtime")
+        return nil
+    }
 
-    _data_reserve_tracked_allocs_head_x64(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    var a0 = abi.int_arg_reg(ctx["abi"], 0)
+    var a1 = abi.int_arg_reg(ctx["abi"], 1)
+    if a0 == nil || a1 == nil {
+        err(ctx, "x64 native v0: missing ABI arg regs for oren_ensure_tracked")
+        return nil
+    }
 
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "trk_ensure_done")
-    var l_scan = _new_label(ctx, "trk_ensure_scan")
-    var l_found = _new_label(ctx, "trk_ensure_found")
-    var l_alloc = _new_label(ctx, "trk_ensure_alloc")
+    var base = _intr_tmp_push(ctx, 1)
+    if base == nil { return nil }
+    var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
+    if off_ptr == nil { _intr_tmp_pop(ctx, base); return nil }
 
-    // Save ptr into r12.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, ptr_reg))
+    _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
 
-    // if ptr == 0 => done
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-    // Match the native runtime guard: do not track small integers as pointers.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
+    _emit_mov_r64_mrbp(ctx, a0, 0 - off_ptr)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(a1, kind_imm))
 
-    // r10 = &head_slot ; r11 = head
-    _emit_load_tracked_allocs_head_addr_x64(ctx, 10)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
+    var call_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_ensure_tracked"})
 
-    _emit_label(ctx, labels, l_scan)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_alloc)
+    // Restore the original pointer into the requested register.
+    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - off_ptr)
 
-    // Compare node.ptr with ptr
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(13, 11)) // r13 = *(u64*)node
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(13, 12))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_found)
-
-    // r11 = node.next
-    bytes_extend(ctx["code"], insn_mov_r64_r64(13, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(13, 32))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 13))
-    _emit_jmp_to_label(ctx, local_fixups, l_scan)
-
-    _emit_label(ctx, labels, l_found)
-    // Update kind in-place (best-effort; kind_imm is tiny).
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, kind_imm))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 13))
-    _emit_jmp_to_label(ctx, local_fixups, l_done)
-
-    _emit_label(ctx, labels, l_alloc)
-    // Allocate a new node: malloc_raw(40) via the bump allocator intrinsic.
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 40))
-    bytes_extend(ctx["code"], insn_cdqe())
-    _emit_malloc_size_in_rax(ctx, locals)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-
-    // r11 = node (returned in rax)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
-
-    // node.ptr = ptr
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 12))
-
-    // node.size = 0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 13))
-
-    // node.kind = kind_imm
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, kind_imm))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 13))
-
-    // node.flags = 0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(13, 0))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 13))
-
-    // node.next = old_head
-    _emit_load_tracked_allocs_head_addr_x64(ctx, 10)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(13, 10)) // r13 = *(u64*)head_slot
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 13))
-
-    // head = node
-    _emit_load_tracked_allocs_head_addr_x64(ctx, 10)
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
-
-    _emit_label(ctx, labels, l_done)
-    // Return the original pointer in the requested register (matches `oren_ensure_tracked`).
-    bytes_extend(ctx["code"], insn_mov_r64_r64(ptr_reg, 12))
-    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base)
     return nil
 }

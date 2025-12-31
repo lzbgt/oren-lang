@@ -366,9 +366,6 @@ fn native_compile_program_x64(linked, platform) {
     // switch from x64 bring-up intrinsics to shared runtime helpers (Tier‑1 parity).
     ctx["inject_runtime"] = true
     ctx["abi"] = abi.x64(platform)
-    // Reserve minimal tracking globals early so appended data offsets are deterministic
-    // regardless of when the first string literal is encountered during codegen.
-    _data_reserve_tracked_allocs_head_x64(ctx)
     // Import aliases are used by shared callable lowering to avoid capturing module aliases.
     if linked != nil { ctx["aliases"] = linked["aliases"] }
     if ctx["aliases"] == nil { ctx["aliases"] = {} }
@@ -397,8 +394,8 @@ fn native_compile_program_x64(linked, platform) {
 
     // --- Type constructors (Tier‑1 parity with arm64 native) ---
     //
-    // `Type` declarations are first-class constructors in Oren native codegen:
-    //   type User { id, name }  =>  fn User(id, name) { return {"id": id, "name": name} }
+    // `struct`/`class` declarations are first-class constructors in Oren native codegen:
+    //   struct User { id, name }  =>  fn User(id, name) { return {"id": id, "name": name} }
     //
     // arm64 implements this in its native stmt compiler; x64 must synthesize the same
     // constructor functions so programs using type constructors compile on x86_64 too.
@@ -585,13 +582,6 @@ fn native_compile_program_x64(linked, platform) {
     // - `oren_call_depth_enter()` / `oren_call_depth_exit()` inserted by the function compiler
     //   (see `080_functions_compile.oren`)
     // - `native_runtime_call_depth_apply_env()` applied during `native_runtime_capsule_init()`
-
-    // --- Minimal tracking globals (rolling Tier‑1) ---
-    //
-    // Track embedded string pointers so map key-kind inference can safely decide
-    // between int vs string without heuristics.
-    _data_reserve_tracked_allocs_head_x64(ctx)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // --- Entry stub ---
     //

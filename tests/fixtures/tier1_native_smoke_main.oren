@@ -1,3 +1,29 @@
+// Tier‑1 native smoke / living spec (rolling).
+//
+// This fixture is intentionally integration-first:
+// - one program covers most Tier‑1 semantics
+// - it runs on: arm64-macos, arm64-linux (docker), x64-windows (remote), x64-linux (remote wsl)
+// - it is also re-run under mode switches to validate deterministic failure contracts.
+//
+// NOTE: Keep this fast. Avoid large loops; prefer many small deterministic assertions.
+
+// --- Top-level globals + statements (Tier‑1 parity) ---
+//
+// Validates that `__top_level__` runs before `main` and that global initializers are evaluated.
+var TL_G = 40
+var TL_H = 1 + 1
+var TL_SEEN = 0
+TL_SEEN = TL_G + TL_H // 42
+
+// --- Struct constructors (Tier‑1 parity) ---
+//
+// `struct` constructors must compile and behave consistently across arch/OS.
+// x86_64 native synthesizes constructors to match arm64.
+
+struct User { id, name }
+
+struct Pair { a, b }
+
 fn add7(a, b, c, d, e, f, g) {
     return a + b + c + d + e + f + g
 }
@@ -118,6 +144,85 @@ fn main() {
     // Tier‑1 parity: x86_64 native must print non-literal string expressions too.
     var dyn = "dyn ok"
     print("tier1 smoke " + dyn)
+
+
+    // --- Top-level globals + statements ---
+    if TL_G != 40 { return 901 }
+    if TL_H != 2 { return 902 }
+    if TL_SEEN != 42 { return 903 }
+
+    // --- Type constructors ---
+    var u0 = User(7, "alice")
+    if u0["id"] != 7 { return 910 }
+    if oren_string_eq(u0["name"], "alice") == false { return 911 }
+    // First-class constructor values.
+    var U = User
+    var u1 = U(8, "bob")
+    if u1["id"] != 8 { return 912 }
+    if oren_string_eq(u1["name"], "bob") == false { return 913 }
+    // Another constructor to ensure multi-field order is stable.
+    var p0 = Pair(1, 2)
+    if p0["a"] != 1 { return 914 }
+    if p0["b"] != 2 { return 915 }
+
+    // --- Runtime tracking APIs (arm64/x64 unified via injected runtime) ---
+    //
+    // String literals are embedded data pointers; native backends must mark them as tracked
+    // (kind=STRING) so key-kind inference and string-aware compares are safe.
+    var node0 = oren_find_node("trk_literal")
+    if node0 == 0 { return 920 }
+    var kind0 = ptr_get(node0 + 16)
+    if kind0 != 1 { return 921 }
+
+    // Small integers must never be treated as heap pointers by the tracking model.
+    if oren_find_node(1) != 0 { return 922 }
+    if oren_find_node(4095) != 0 { return 923 }
+
+    // `oren_intern_cstr` copies an unowned C-string into a tracked heap string.
+    var intern0 = oren_intern_cstr("trk_literal")
+    if intern0 == 0 { return 924 }
+    // Do not assert pointer identity here: `==` on strings is content-based (Tier‑1).
+    if oren_string_eq(intern0, "trk_literal") == false { return 925 }
+    var node1 = oren_find_node(intern0)
+    if node1 == 0 { return 926 }
+    var kind1 = ptr_get(node1 + 16)
+    if kind1 != 1 { return 927 }
+    // Re-run to ensure the helper remains deterministic and safe (idempotent on content).
+    var intern1 = oren_intern_cstr("trk_literal")
+    if oren_string_eq(intern1, "trk_literal") == false { return 928 }
+
+    // --- String ops (extra coverage; keep fast) ---
+    if oren_string_len("abc") != 3 { return 930 }
+    var ch = oren_string_char_at("abc", 1)
+    var bch = ptr_get_byte(ch) & 255
+    if bch != 98 { return 931 } // 'b'
+    var cc = oren_char(65)
+    var bcc = ptr_get_byte(cc) & 255
+    if bcc != 65 { return 932 } // 'A'
+    if oren_string_eq("ab", "ab") == false { return 933 }
+    if oren_string_eq("ab", "ac") == true { return 934 }
+
+    // Language-level string compare lowering (must be content-based, not pointer-compare).
+    var ab_lt_ac = "ab" < "ac"
+    if ab_lt_ac != true { return 935 }
+    var ab_le_ab = "ab" <= "ab"
+    if ab_le_ab != true { return 936 }
+    var ab_gt_ac = "ab" > "ac"
+    if ab_gt_ac != false { return 937 }
+    var ab_ge_ac = "ab" >= "ac"
+    if ab_ge_ac != false { return 938 }
+
+    // --- Control flow: break/continue and bit ops ---
+    var w = 0
+    var t = 0
+    while w < 10 {
+        w = w + 1
+        var odd = w & 1
+        if odd == 0 { continue }
+        t = t + w
+        if w >= 7 { break }
+    }
+    if t != 16 { return 940 }
 
     // Calls across reg+stack args.
     if add7(1, 2, 3, 4, 5, 6, 7) != 28 { return 10 }
