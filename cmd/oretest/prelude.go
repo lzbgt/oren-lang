@@ -223,6 +223,31 @@ func remoteX64RunExitcodeFixtureCmdEnvArgs(workdir, src string, expectExit int, 
 		subdir,
 		subdir,
 	)
+	// Remote-run fixtures can be re-run locally while a previous Windows/WSL process is still alive
+	// (e.g., if the local ssh session was interrupted). On Windows, a running executable prevents
+	// overwriting the file, so proactively kill+remove previous artifacts as a best-effort step.
+	//
+	// IMPORTANT: These cleanup commands must be idempotent and must exit 0 so `set -e` doesn't
+	// turn a "process not found" into a fixture failure.
+	cleanupWinCmd := fmt.Sprintf(
+		`cmd.exe /c "taskkill /f /im %s >nul 2>nul & del /f /q %s\\%s >nul 2>nul & del /f /q %s\\out_win.txt >nul 2>nul & exit /b 0"`,
+		winOut,
+		remoteWinDir,
+		winOut,
+		remoteWinDir,
+	)
+	cleanupWslCmd := fmt.Sprintf(
+		// NOTE: avoid `pkill -f <name>` here. When invoked via `bash -lc "...<name>..."`,
+		// the pattern appears in the bash process command line and `pkill -f` can kill the
+		// current shell (causing the ssh command to return a non-zero code).
+		//
+		// Best-effort cleanup: removing old artifacts is sufficient for our scp overwrite
+		// path; WSL processes do not generally prevent unlink on Linux semantics.
+		`wsl.exe -e bash -lc "rm -f %s/%s %s/out_wsl.txt >/dev/null 2>&1 || true; exit 0"`,
+		remoteWslDir,
+		linuxOut,
+		remoteWslDir,
+	)
 	winEnvPref := remoteX64WinEnvPrefix(env)
 	wslEnvPref := remoteX64WslEnvPrefix(env)
 	winArgs := ""
@@ -254,6 +279,7 @@ func remoteX64RunExitcodeFixtureCmdEnvArgs(workdir, src string, expectExit int, 
 			"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \"$wd/%s\" > \"$wd/build_linux.out\"; "+
 			"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \"$wd/%s\" > \"$wd/build_win.out\"; "+
 			"echo '[remote] ensure dir'; ssh %s %s '%s'; "+
+			"echo '[remote] pre-clean'; ssh %s %s '%s'; ssh %s %s '%s'; "+
 			"echo '[remote] copy artifacts'; "+
 			"scp %s \"$wd/%s\" %s:%s/%s; "+
 			"scp %s \"$wd/%s\" %s:%s/%s; "+
@@ -267,6 +293,12 @@ func remoteX64RunExitcodeFixtureCmdEnvArgs(workdir, src string, expectExit int, 
 		proxyArg,
 		host,
 		ensureDirCmd,
+		proxyArg,
+		host,
+		cleanupWinCmd,
+		proxyArg,
+		host,
+		cleanupWslCmd,
 		proxyArg,
 		winOut,
 		host,
@@ -284,8 +316,8 @@ func remoteX64RunExitcodeFixtureCmdEnvArgs(workdir, src string, expectExit int, 
 		proxyArg,
 		host,
 		wslRunCmd,
-			expectExit,
-		)
+		expectExit,
+	)
 }
 
 func remoteX64RunPrintFixtureCmd(workdir, src string, expectSubstring string) string {
@@ -313,6 +345,21 @@ func remoteX64RunPrintFixtureCmdEnvArgs(workdir, src string, expectSubstring str
 		`cmd.exe /c "if not exist %%USERPROFILE%%\\tmp_oren\\%s mkdir %%USERPROFILE%%\\tmp_oren\\%s"`,
 		subdir,
 		subdir,
+	)
+	// Best-effort cleanup for re-runs: see `remoteX64RunExitcodeFixtureCmdEnvArgs` for rationale.
+	// Must always exit 0 to keep `set -e` stable.
+	cleanupWinCmd := fmt.Sprintf(
+		`cmd.exe /c "taskkill /f /im %s >nul 2>nul & del /f /q %s\\%s >nul 2>nul & del /f /q %s\\out_win.txt >nul 2>nul & exit /b 0"`,
+		winOut,
+		remoteWinDir,
+		winOut,
+		remoteWinDir,
+	)
+	cleanupWslCmd := fmt.Sprintf(
+		`wsl.exe -e bash -lc "rm -f %s/%s %s/out_wsl.txt >/dev/null 2>&1 || true; exit 0"`,
+		remoteWslDir,
+		linuxOut,
+		remoteWslDir,
 	)
 	winEnvPref := remoteX64WinEnvPrefix(env)
 	wslEnvPref := remoteX64WslEnvPrefix(env)
@@ -350,6 +397,7 @@ func remoteX64RunPrintFixtureCmdEnvArgs(workdir, src string, expectSubstring str
 			"echo '[build] linux x64'; ./oren build %q --backend native --target linux --arch x64 -o \"$wd/%s\" > \"$wd/build_linux.out\"; "+
 			"echo '[build] windows x64'; ./oren build %q --backend native --target windows --arch x64 -o \"$wd/%s\" > \"$wd/build_win.out\"; "+
 			"echo '[remote] ensure dir'; ssh %s %s '%s'; "+
+			"echo '[remote] pre-clean'; ssh %s %s '%s'; ssh %s %s '%s'; "+
 			"echo '[remote] copy artifacts'; "+
 			"scp %s \"$wd/%s\" %s:%s/%s; "+
 			"scp %s \"$wd/%s\" %s:%s/%s; "+
@@ -363,6 +411,12 @@ func remoteX64RunPrintFixtureCmdEnvArgs(workdir, src string, expectSubstring str
 		proxyArg,
 		host,
 		ensureDirCmd,
+		proxyArg,
+		host,
+		cleanupWinCmd,
+		proxyArg,
+		host,
+		cleanupWslCmd,
 		proxyArg,
 		winOut,
 		host,
@@ -380,8 +434,8 @@ func remoteX64RunPrintFixtureCmdEnvArgs(workdir, src string, expectSubstring str
 		proxyArg,
 		host,
 		wslRunCmd,
-			expectSubstring,
-		)
+		expectSubstring,
+	)
 }
 
 func runSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Duration) error {

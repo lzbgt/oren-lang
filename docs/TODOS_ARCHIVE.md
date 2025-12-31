@@ -5,6 +5,16 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2025-12-31) — Native entry semantics unified (`__top_level__` + optional `main`)
+
+- Standardized the native entry contract across arm64 + x86_64:
+  - User top-level statements and non-constant global initializers compile into a synthesized `fn __top_level__(){...}`.
+  - The runtime entrypoint executes `__top_level__` first, then calls `main` if it exists.
+  - `fn main()` is optional; programs with only top-level code exit 0 deterministically.
+- Updated the native test suite to match the contract by removing accidental `main()` calls at top-level (tests should define `fn main()` only).
+- Added a Tier‑1 remote x64 fixture covering language-level concurrency on both Linux x86_64 (WSL2) and Windows x64:
+  - `tests/fixtures/tier1_native_spawn_join_main.oren` (run via `OREN_REMOTE_RUN=1 make test`).
+
 ## Archived (2025-12-29) — OBC portability gate hardened (timeouts + WSL progress)
 
 - Confirmed the `.obc` portability contract with an integration gate that compares `RESULT_HASH` and `TRACE_HASH` across:

@@ -224,7 +224,8 @@ fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {
     //     `native_envp_build_from_win_envblock(env_block)`.
     //
     // Notes:
-    // - We intentionally do not free the env block (envp entries point into it).
+    // - The runtime helper copies env strings into runtime-owned memory, so the env block
+    //   can be safely freed after `native_envp_build_from_win_envblock` returns.
     // - This removes the previous fixed-allowlist envp synthesis and makes ENV semantics match
     //   Linux/macOS (full environment visible to `env()` / `native_envp_get_value_ptr`).
     //
@@ -852,7 +853,9 @@ fn native_compile_program_x64(linked, platform) {
     if platform != nil && platform["os"] == "windows" { entry_stack_args = 32 }
     // Also reserve a small scratch region for entry-level values (argc/argv/envp).
     // Place scratch above the stack-arg area so calls with >4 args don't clobber it.
-    var entry_scratch = 32
+    // Windows note: we also keep a saved copy of the Win32 env block pointer so we can
+    // free it after converting to a POSIX-style envp array.
+    var entry_scratch = 48
     var entry_total = entry_shadow + entry_stack_args + entry_scratch
     if entry_total > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_total)) }
     var scratch_base = entry_shadow + entry_stack_args
@@ -950,13 +953,31 @@ fn native_compile_program_x64(linked, platform) {
         // scratch[16] currently holds `env_block` captured by `_emit_entry_capture_envblock_windows_x64`.
         // Build envp using the runtime helper and overwrite scratch[16] with the envp pointer.
         if platform != nil && platform["os"] == "windows" {
+            // Save env_block so we can free it after the helper copies strings.
+            _emit_mov_r64_mrsp(ctx, 10, scratch_base + 16) // r10 = env_block
+            _emit_mov_mrsp_r64(ctx, scratch_base + 32, 10) // scratch[32] = env_block
+
             // rcx = env_block
-            _emit_mov_r64_mrsp(ctx, 1, scratch_base + 16)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 10))
             var call_build_envp_pos = oren_list_len(ctx["code"])
             bytes_extend(ctx["code"], insn_call_rel32(0))
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_build_envp_pos, "name": "native_envp_build_from_win_envblock"})
             // scratch[16] = envp
             _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0)
+
+            // FreeEnvironmentStringsA(env_block) if non-null.
+            var labels_free_env = {}
+            var local_fixups_free_env = []
+            var l_skip_free_env = _new_label(ctx, "win_envblock_free_skip")
+            _emit_mov_r64_mrsp(ctx, 1, scratch_base + 32) // rcx = env_block
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+            _emit_jcc_to_label(ctx, local_fixups_free_env, "e", l_skip_free_env)
+            var mov_iat_free_pos = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+            oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_free_pos + 3, "data_label": "IAT_FreeEnvironmentStringsA"})
+            bytes_extend(ctx["code"], insn_call_rax())
+            _emit_label(ctx, labels_free_env, l_skip_free_env)
+            _patch_local_fixups(ctx, labels_free_env, local_fixups_free_env)
         }
 
         // native_runtime_set_envp(envp)

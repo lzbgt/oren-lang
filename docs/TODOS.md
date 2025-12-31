@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2025-12-30
+**Last updated:** 2025-12-31
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 
@@ -27,12 +27,12 @@ Rules for this tracker:
        - next: replace remaining “bring-up-only” intrinsics with shared runtime helpers (goal: single semantics set, thin ABI emit layers)
    - Next (Tier‑1 correctness):
      - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
-       - Follow-up: decide whether we should copy+free the Win32 env block (to avoid a tiny intentional leak) vs keep it for pointer stability (current behavior).
+       - Follow-up: **done** — env block is copied into runtime-owned memory during envp conversion, then freed via `FreeEnvironmentStringsA` (no intentional env-block leak; envp pointers remain stable).
      - Windows x86_64: **done** — TIME substrate now works without libc (`sys_nanosleep`, `sys_gettimeofday` via PE IAT shims); remote `tests/native/test_time_suite.oren` passes on Win11.
      - Windows x86_64: **done** — NET substrate now works without libc (WinSock + `select` wait backend + WSAStartup gated inside NET runtime); remote `tests/native/test_net_suite.oren` passes on Win11.
      - Windows x86_64: **rolling** — PROC spawn now has a Windows implementation via `CreateProcessA` (`sys_win_createprocess`), used by `oren_proc_spawn` when `g_target_os==3`.
        - Proof (Tier‑1 remote gate): `OREN_REMOTE_RUN=1 make test` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11+WSL2; the fixture now calls `oren_system("echo tier1 smoke proc ok")` and returns non‑zero on failure.
-       - NOTE: `tests/native/test_spawn_*` include language-level `spawn/join` which is currently fork+pipe based and not Windows-safe yet.
+       - NOTE (concurrency): Windows Tier‑1 `spawn` is lowered to CreateThread and `oren_join(_timeout)` waits via `WaitForSingleObject` (see the Tier‑1 remote fixture `tests/fixtures/tier1_native_spawn_join_main.oren`). Still rolling: timeout cancellation uses `TerminateThread` today (needs a cooperative cancellation story later).
        - Next: extend beyond “spawn+wait” to a full PROC story on Windows: pid/kill/wait semantics (or define a cross‑OS `sys_spawn` CoreIR boundary).
      - POSIX `oren_system_timeout` robustness in minimal/container environments: **done** — runtime now performs deterministic shell discovery (supports `OREN_SYSTEM_SHELL` override) and returns `-2` (ENOENT) if no shell exists.
      - Windows x86_64 FS syscall surface parity (capsule-safe): **done** (rolling)
@@ -47,7 +47,6 @@ Rules for this tracker:
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
      - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
-   - Entry semantics (native): standardize on a single model for `__top_level__` + `main` so test files do not accidentally run `main()` twice; update docs/tests to match once the contract is finalized.
    - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:
      - **done**: `== != < <= > >=` in condition lowering treat tracked strings by content/lexicographic order (no pointer-compare regressions).
 

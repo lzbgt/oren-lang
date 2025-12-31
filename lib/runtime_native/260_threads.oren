@@ -918,6 +918,21 @@ fn oren_join_timeout(handle, timeout_ms) {
             return -1
         }
 
+        // Non-blocking probe (no cancellation): if not done, return ETIMEDOUT but keep handle alive.
+        if timeout_ms == 0 {
+            var rc0 = sys_win_wait_single_object(h, 0)
+            if rc0 == 0 {
+                // Completed: fall through to result extraction + cleanup below.
+            } else {
+                if rc0 == (0 - 60) { return 0 - 60 }
+                // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
+                sys_win_close_handle(h)
+                if result_ptr != 0 { free(result_ptr) }
+                if arg_ptr != 0 { free(arg_ptr) }
+                free(handle)
+                return rc0
+            }
+        } else {
         if timeout_ms < 0 {
             var rcw = sys_win_wait_single_object(h, -1)
             if rcw != 0 {
@@ -954,6 +969,7 @@ fn oren_join_timeout(handle, timeout_ms) {
                 return 0 - 60
             }
         }
+        }
 
         var ret_val = 0
         if result_ptr != 0 { ret_val = ptr_get(result_ptr) }
@@ -971,10 +987,6 @@ fn oren_join_timeout(handle, timeout_ms) {
     var pid = ptr_get(handle)
     var fd = ptr_get(handle + 8)
 
-    var buf = malloc(8)
-    if buf == 0 { exit(270) }
-    ptr_set(buf, 0)
-
     // Read exactly 8 bytes (result value) with an optional timeout budget.
     var got = 0
 
@@ -989,6 +1001,19 @@ fn oren_join_timeout(handle, timeout_ms) {
     // - This keeps behavior portable and makes tests deterministic.
     var reaped = 0
     if timeout_ms >= 0 {
+        // Non-blocking probe (no cancellation): if not done, return ETIMEDOUT but keep handle alive.
+        if timeout_ms == 0 {
+            var wpid_probe = sys_wait4(pid, 0, 1, 0) // WNOHANG
+            if wpid_probe == 0 { return 0 - 60 }     // not done
+            if wpid_probe < 0 {
+                sys_close(fd)
+                free(handle)
+                return wpid_probe
+            }
+            if wpid_probe == pid {
+                reaped = 1
+            }
+        } else {
         var remaining = timeout_ms
         while remaining > 0 {
             var wpid0 = sys_wait4(pid, 0, 1, 0) // WNOHANG
@@ -1012,7 +1037,13 @@ fn oren_join_timeout(handle, timeout_ms) {
             return 0 - 60 // ETIMEDOUT (BSD)
         }
         // Child is already reaped by the WNOHANG wait4 above; proceed to read pipe.
+        }
     }
+
+    var buf = malloc_raw(8)
+    if buf == 0 { exit(270) }
+    if buf == -1 { exit(270) }
+    ptr_set(buf, 0)
 
     while got < 8 {
         var n = sys_read(fd, buf + got, 8 - got)
@@ -1020,6 +1051,7 @@ fn oren_join_timeout(handle, timeout_ms) {
         if n < 0 {
             sys_close(fd)
             if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
+            free(buf)
             free(handle)
             return n
         }
@@ -1032,11 +1064,13 @@ fn oren_join_timeout(handle, timeout_ms) {
     if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
 
     if got != 8 {
+        free(buf)
         free(handle)
         return -1
     }
 
     var ret_val = ptr_get(buf)
+    free(buf)
     free(handle)
     return ret_val
 }

@@ -63,6 +63,13 @@ func main() {
 	fixtureJobsEff := *fixtureJobs
 	if fixtureJobsEff == 0 {
 		fixtureJobsEff = *jobs
+		// Remote x64 fixtures (Win11+WSL2 over proxy+scp) are sensitive to concurrent
+		// ssh/scp sessions and can fail spuriously (truncated uploads, remote dest open
+		// failures). Keep the default remote-run behavior serialized unless the caller
+		// explicitly opts into parallelism via --fixture-jobs / OREN_TEST_FIXTURE_JOBS.
+		if os.Getenv("OREN_REMOTE_RUN") == "1" {
+			fixtureJobsEff = 1
+		}
 		// Fixtures include some CPU-heavy cross-compilation (Tier‑1 x64 smoke builds),
 		// and running too many concurrently can cause build timeouts under contention.
 		// Keep the default ceiling conservative; callers can still override via
@@ -313,30 +320,30 @@ func main() {
 		"tests/modules/test_switch.oren",
 		"tests/modules/test_varargs.oren",
 	}
-		avmTestsFast := []string{
-			// Broad smoke covers the common surface area quickly.
-			"tests/avm/test_smoke_suite.oren",
-			// Crypto primitives needed for signed artifact verification in AVM.
-			"tests/avm/test_crypto_sha256_vectors.oren",
-			// Ensure u8 buffers + buffer views work under AVM (u8 buffers are bytes-backed).
-			"tests/avm/test_u8_buf_views.oren",
-			// Snapshot/resume and multiverse are core AVM differentiators.
-			"tests/avm/test_snapshot_tasks_resume.oren",
-			"tests/avm/test_multiverse_invalid_obc.oren",
-			// Determinism + sandbox guards.
-			"tests/avm/test_time_rng_deterministic.oren",
+	avmTestsFast := []string{
+		// Broad smoke covers the common surface area quickly.
+		"tests/avm/test_smoke_suite.oren",
+		// Crypto primitives needed for signed artifact verification in AVM.
+		"tests/avm/test_crypto_sha256_vectors.oren",
+		// Ensure u8 buffers + buffer views work under AVM (u8 buffers are bytes-backed).
+		"tests/avm/test_u8_buf_views.oren",
+		// Snapshot/resume and multiverse are core AVM differentiators.
+		"tests/avm/test_snapshot_tasks_resume.oren",
+		"tests/avm/test_multiverse_invalid_obc.oren",
+		// Determinism + sandbox guards.
+		"tests/avm/test_time_rng_deterministic.oren",
 		"tests/avm/test_vfs_no_host_fs.oren",
 		"tests/avm/test_vproc_no_host_proc.oren",
 		"tests/avm/test_vnet_no_host_net.oren",
 	}
-		avmTestsFull := []string{
-			"tests/avm/test_smoke_suite.oren",
-			"tests/avm/test_crypto_sha256_vectors.oren",
-			"tests/avm/test_u8_buf_views.oren",
-			"tests/avm/test_map_iter_deterministic.oren",
-			"tests/avm/test_iter_range.oren",
-			"tests/avm/test_int_literal_bases.oren",
-			"tests/avm/test_generic_call_specialization.oren",
+	avmTestsFull := []string{
+		"tests/avm/test_smoke_suite.oren",
+		"tests/avm/test_crypto_sha256_vectors.oren",
+		"tests/avm/test_u8_buf_views.oren",
+		"tests/avm/test_map_iter_deterministic.oren",
+		"tests/avm/test_iter_range.oren",
+		"tests/avm/test_int_literal_bases.oren",
+		"tests/avm/test_generic_call_specialization.oren",
 		"tests/avm/test_spawn_join_timeout.oren",
 		"tests/avm/test_policy_scan.oren",
 		"tests/avm/test_job_scan.oren",

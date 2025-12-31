@@ -472,7 +472,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
     // Windows-only helpers that may appear in the injected runtime but must never lower on Linux.
     // Keep them as explicit -ENOSYS so cross-target builds remain deterministic.
-    if nm == "sys_wsa_startup" || nm == "sys_select" || nm == "sys_win_createprocess" {
+    //
+    // NOTE: the injected runtime is a single portable source that contains Windows-only branches
+    // guarded by `g_target_os`. The compiler still must be able to compile those branches when
+    // cross-targeting Linux, so we treat these names as "return -ENOSYS" rather than hard errors.
+    if nm == "sys_wsa_startup" || nm == "sys_select" ||
+        nm == "sys_win_createprocess" ||
+        nm == "sys_win_createthread" || nm == "sys_win_wait_single_object" || nm == "sys_win_terminate_thread" || nm == "sys_win_close_handle" {
         _emit_return_enosys_x64(ctx)
         return nil
     }

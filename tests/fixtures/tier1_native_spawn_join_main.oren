@@ -1,0 +1,40 @@
+// Tier‑1 x86_64 native: language-level `spawn` + `oren_join(_timeout)` must work on:
+// - Linux x86_64 (POSIX fork+pipe implementation today)
+// - Windows x64 (CreateThread-based spawn; join via WaitForSingleObject)
+//
+// This fixture is executed only in the remote x64 gate (Win11 + WSL2) because the host
+// dev machine may be arm64 and cannot run x86_64 native outputs locally.
+
+fn worker_add(a, b) {
+    return a + b
+}
+
+fn worker_sleep_long() {
+    // Intentionally longer than the join timeout budget.
+    oren_sleep_ms(5000)
+    return 123
+}
+
+fn main() {
+    // Spawn a lambda with capture-by-value.
+    var base = 10
+    var f = |y| base + y
+    base = 999
+    var h1 = spawn f(5)
+    var r1 = oren_join(h1)
+    if r1 != 15 { return 10 }
+
+    // Spawn a named function (direct call lowered through callable ABI).
+    var h2 = spawn worker_add(40, 2)
+    var r2 = oren_join(h2)
+    if r2 != 42 { return 11 }
+
+    // Join timeout contract (rolling): should deterministically return -ETIMEDOUT (BSD 60).
+    var h3 = spawn worker_sleep_long()
+    var r3 = oren_join_timeout(h3, 20)
+    if r3 != 0 - 60 { return 12 }
+
+    print("tier1 spawn join ok")
+    return 0
+}
+

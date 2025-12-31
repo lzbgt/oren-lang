@@ -1122,6 +1122,8 @@ Timeout join is also available:
 
 ```oren
 // timeout_ms < 0 means “wait forever” (equivalent to oren_join).
+// timeout_ms == 0 is a non-blocking probe (returns -60 if not done yet).
+// timeout_ms > 0 waits up to a rolling join budget and returns -60 on timeout.
 var r2 = oren_join_timeout(t, 20)
 ```
 

@@ -31,5 +31,4 @@ fn main() {
     exit(0)
 }
 
-main()
-
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

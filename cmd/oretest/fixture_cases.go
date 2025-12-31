@@ -1049,19 +1049,21 @@ func buildFixtureCases(target string, gcArg string, full bool) []fixtureCase {
 			// Tier‑1: Windows must expose env vars to the injected native runtime (no CRT envp),
 			// so capsule init can honor toggles like OREN_ENABLE_SIMD.
 			{name: "remote_x64_run_tier1_smoke_simd_env_print", src: "tests/fixtures/tier1_native_smoke_main.oren", env: "OREN_ENABLE_SIMD=1", expectSubstring: "SIMD_ENABLED=1", timeout: 5 * time.Minute},
+			// Tier‑1: language-level spawn/join must work on Windows (thread-based) and Linux (POSIX).
+			{name: "remote_x64_run_tier1_spawn_join_print", src: "tests/fixtures/tier1_native_spawn_join_main.oren", expectSubstring: "tier1 spawn join ok", timeout: 5 * time.Minute},
 			// Tier‑1: Windows must expose argv to the injected runtime (no CRT argv),
 			// so `oren_args()` works the same as Linux (SysV entry stack).
 			{name: "remote_x64_run_tier1_args_print", src: "tests/fixtures/tier1_native_args_main.oren", args: "ARG_A ARG_B", expectSubstring: "tier1 args ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_atomics_print", src: "tests/fixtures/tier1_native_atomics_main.oren", expectSubstring: "tier1 atomics ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_typed_buffers_print", src: "tests/fixtures/tier1_native_typed_buffers_main.oren", expectSubstring: "tier1 typed buffers ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_forin_typed_buffers_print", src: "tests/fixtures/tier1_native_forin_typed_buffers_main.oren", expectSubstring: "tier1 forin typed buffers ok", timeout: 5 * time.Minute},
-				{name: "remote_x64_run_tier1_lambda_varargs_print", src: "tests/fixtures/tier1_native_lambda_varargs_main.oren", expectSubstring: "tier1 lambda varargs ok", timeout: 5 * time.Minute},
-				{name: "remote_x64_run_tier1_map_dynamic_keykind_print", src: "tests/fixtures/tier1_native_map_dynamic_keykind_main.oren", expectSubstring: "tier1 map dynamic keykind ok", timeout: 5 * time.Minute},
-				{name: "remote_x64_run_tier1_map_get_dynamic_key_print", src: "tests/fixtures/tier1_native_map_get_dynamic_key_main.oren", expectSubstring: "tier1 map get dynamic key ok", timeout: 5 * time.Minute},
-				{name: "remote_x64_run_tier1_stack_trace_symbolication_print", src: "tests/fixtures/tier1_native_stacktrace_main.oren", expectSubstring: "stacktrace_leaf@tests/fixtures/tier1_native_stacktrace_main.oren", timeout: 5 * time.Minute},
-				{name: "remote_x64_run_tier1_string_ops_print", src: "tests/fixtures/tier1_native_string_ops_main.oren", expectSubstring: "tier1 string ops ok", timeout: 5 * time.Minute},
-				{name: "remote_x64_run_tier1_float_ops_print", src: "tests/fixtures/tier1_native_float_ops_main.oren", expectSubstring: "tier1 float ops ok", timeout: 5 * time.Minute},
-				{name: "remote_x64_run_tier1_globals_top_level_print", src: "tests/fixtures/tier1_native_globals_top_level_main.oren", expectSubstring: "tier1 globals top-level ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_lambda_varargs_print", src: "tests/fixtures/tier1_native_lambda_varargs_main.oren", expectSubstring: "tier1 lambda varargs ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_map_dynamic_keykind_print", src: "tests/fixtures/tier1_native_map_dynamic_keykind_main.oren", expectSubstring: "tier1 map dynamic keykind ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_map_get_dynamic_key_print", src: "tests/fixtures/tier1_native_map_get_dynamic_key_main.oren", expectSubstring: "tier1 map get dynamic key ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_stack_trace_symbolication_print", src: "tests/fixtures/tier1_native_stacktrace_main.oren", expectSubstring: "stacktrace_leaf@tests/fixtures/tier1_native_stacktrace_main.oren", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_string_ops_print", src: "tests/fixtures/tier1_native_string_ops_main.oren", expectSubstring: "tier1 string ops ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_float_ops_print", src: "tests/fixtures/tier1_native_float_ops_main.oren", expectSubstring: "tier1 float ops ok", timeout: 5 * time.Minute},
+			{name: "remote_x64_run_tier1_globals_top_level_print", src: "tests/fixtures/tier1_native_globals_top_level_main.oren", expectSubstring: "tier1 globals top-level ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_no_main_top_level_only_print", src: "tests/fixtures/tier1_native_no_main_top_level_only.oren", expectSubstring: "tier1 no-main ok", timeout: 5 * time.Minute},
 			{name: "remote_x64_run_tier1_abort_contract", src: "tests/fixtures/tier1_native_abort_contract_main.oren", expectExit: 1, timeout: 5 * time.Minute},
 			// Validate runtime env override parity (x64 entry stubs):

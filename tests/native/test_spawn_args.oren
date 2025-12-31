@@ -6,4 +6,4 @@ fn main() {
     var res = oren_join(t)
     oren_system("echo Joined " + oren_int_to_string(res))
 }
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

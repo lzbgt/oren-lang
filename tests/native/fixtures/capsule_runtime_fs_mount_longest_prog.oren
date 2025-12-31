@@ -6,4 +6,4 @@ fn main() {
     print(oren_int_to_string(oren_list_len(b)))
 }
 
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

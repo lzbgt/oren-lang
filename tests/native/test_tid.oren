@@ -14,4 +14,4 @@ fn main() {
         print("FAIL: Res = " + oren_int_to_string(res))
     }
 }
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

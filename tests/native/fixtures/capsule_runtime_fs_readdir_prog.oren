@@ -19,4 +19,4 @@ fn main() {
     print("ok")
 }
 
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

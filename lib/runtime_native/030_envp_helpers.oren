@@ -164,7 +164,8 @@ fn native_parse_cap_allow_mask(csv_cstr) {
 // an `envp` pointer array that can be scanned by `native_envp_get_value_ptr`.
 //
 // Notes:
-// - We intentionally do not free the Win32 env block (the pointers in envp refer to it).
+// - This function **copies** the env block strings into runtime-owned memory so the caller
+//   can safely free the Win32 env block after this returns.
 // - The runtime env scanners are bounded to 4096 entries for safety; we match that cap here.
 @oren.keep
 fn native_envp_build_from_win_envblock(env_block) {
@@ -175,6 +176,7 @@ fn native_envp_build_from_win_envblock(env_block) {
     var count = 0
     // Bound total bytes scanned so malformed blocks cannot spin forever.
     var scanned = 0
+    var total_bytes = 0
     while scanned < 1048576 { // 1 MiB
         var b0 = ptr_get_byte(p)
         if b0 == 0 {
@@ -187,9 +189,11 @@ fn native_envp_build_from_win_envblock(env_block) {
         var n = native_cstr_len(p)
         // Defensive: `native_cstr_len` returns at most 65536.
         scanned = scanned + n + 1
+        total_bytes = total_bytes + n + 1
         p = iadd(p, n + 1)
     }
     if count <= 0 { return 0 }
+    if total_bytes <= 0 { return 0 }
 
     // Allocate envp pointer array: (count + 1) * 8 bytes (u64 pointers), terminated by NULL.
     //
@@ -199,13 +203,28 @@ fn native_envp_build_from_win_envblock(env_block) {
     if envp == 0 { exit(203) }
     if envp == -1 { exit(203) }
 
-    // Second pass: fill pointers.
+    // Allocate a contiguous pool to hold all "K=V\0" strings copied from env_block.
+    var pool = malloc_raw(total_bytes)
+    if pool == 0 { exit(203) }
+    if pool == -1 { exit(203) }
+
+    // Second pass: copy strings into pool and fill envp pointers.
     p = env_block
     var i = 0
+    var pool_cur = pool
     while i < count {
-        ptr_set(iadd(envp, i * 8), p)
+        ptr_set(iadd(envp, i * 8), pool_cur)
+
         var n2 = native_cstr_len(p)
+        // Copy n2 bytes plus trailing NUL.
+        var j = 0
+        while j <= n2 {
+            ptr_set_byte(iadd(pool_cur, j), ptr_get_byte(iadd(p, j)))
+            j = j + 1
+        }
+
         p = iadd(p, n2 + 1)
+        pool_cur = iadd(pool_cur, n2 + 1)
         i = i + 1
     }
     ptr_set(iadd(envp, count * 8), 0)

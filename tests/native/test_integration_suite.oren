@@ -49,6 +49,12 @@ fn integration_spawn_worker_sleep_long() {
     return 123
 }
 
+fn integration_spawn_worker_sleep_short() {
+    // Used for non-blocking join probe: should still complete normally after the probe returns.
+    oren_sleep_ms(200)
+    return 55
+}
+
 fn integration_alloc_garbage() {
     var xs = []
     oren_list_push(xs, 1)
@@ -247,6 +253,18 @@ fn test_spawn_join_timeout() {
     var h = spawn integration_spawn_worker_sleep_long()
     var r = oren_join_timeout(h, 20)
     assert_eq(r, 0 - 60, 130) // ETIMEDOUT (BSD)
+}
+
+fn test_spawn_join_timeout_probe_zero() {
+    // `timeout_ms == 0` is a non-blocking probe:
+    // - if not finished, returns ETIMEDOUT but must NOT cancel/kill the spawned worker
+    // - a later `oren_join` must still return the worker's value.
+    var h = spawn integration_spawn_worker_sleep_short()
+    var r0 = oren_join_timeout(h, 0)
+    assert_eq(r0, 0 - 60, 131) // not done yet
+
+    var r1 = oren_join(h)
+    assert_eq(r1, 55, 132)
 }
 
 fn test_select_primitives() {
@@ -1290,6 +1308,7 @@ fn main() {
     test_sys_execve_fail_safe()
     test_time_proc()
     test_spawn_join_timeout()
+    test_spawn_join_timeout_probe_zero()
     test_select_primitives()
     test_err_predicate_and_bytes_safety()
     test_bytes_endian_and_pack_view()
@@ -1311,4 +1330,4 @@ fn main() {
     exit(0)
 }
 
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

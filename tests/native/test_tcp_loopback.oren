@@ -114,4 +114,4 @@ fn main() {
     print("tcp loopback: OK")
 }
 
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

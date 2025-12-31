@@ -37,5 +37,4 @@ fn main() {
     print("for/break/continue OK")
 }
 
-main()
-
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

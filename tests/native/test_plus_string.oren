@@ -4,4 +4,4 @@ fn main() {
     var c = a + b
     print(c)
 }
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

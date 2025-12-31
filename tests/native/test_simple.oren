@@ -1,4 +1,4 @@
 fn main() {
     print("Simple Test")
 }
-main()
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

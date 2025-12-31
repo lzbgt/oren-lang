@@ -7,6 +7,7 @@ import capsule "capsule.oren"
 import abi "arm64_abi_macos.oren"
 import labi "arm64_abi_linux.oren"
 import callable "native_callable.oren"
+import exprm "arm64_native_expr.oren"
 import rtinj "native_runtime_inject.oren"
 import bundle "native_runtime_bundle.oren"
 
@@ -72,6 +73,172 @@ fn native_emit_errors_and_exit(ctx) {
     return nil
 }
 
+fn _arm64_stmt_to_toplevel_function_decl(stmt) {
+    if stmt == nil { return nil }
+    if stmt["type"] == "Function" { return stmt }
+    if stmt["type"] == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" { return e }
+    }
+    return nil
+}
+
+fn _arm64_linked_has_toplevel_fn_named(linked, name) {
+    if linked == nil || name == nil { return false }
+    var stmts = linked["statements"]
+    if stmts == nil { return false }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var fn0 = _arm64_stmt_to_toplevel_function_decl(stmts[i])
+        if fn0 != nil && fn0["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
+    if ctx == nil { return nil }
+    if name_node == nil || name_node["type"] != "Identifier" {
+        oren_list_push(ctx["errors"], "arm64 native: global var name must be identifier")
+        return nil
+    }
+    var nm = name_node["value"]
+    if nm == nil || nm == "" {
+        oren_list_push(ctx["errors"], "arm64 native: global var name is empty")
+        return nil
+    }
+    if nm == "__top_level__" {
+        oren_list_push(ctx["errors"], "arm64 native: reserved global name __top_level__")
+        return nil
+    }
+    if ctx["globals"] != nil && ctx["globals"][nm] != nil {
+        var msg = "arm64 native: duplicate global var " + nm
+        if from_runtime == true { msg = "arm64 native: runtime global var conflicts with existing global " + nm }
+        oren_list_push(ctx["errors"], msg)
+        return nil
+    }
+
+    // Globals live in `.data` as 8-byte slots. Do not rely on runtime execution order to
+    // initialize them; the entry stub calls `__top_level__` before `main` to handle user
+    // initializers deterministically.
+    while int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var data_off = oren_list_len(ctx["data"])
+    var k = 0
+    while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
+    ctx["globals"][nm] = data_off
+
+    var is_floaty = exprm.native_expr_is_floaty(ctx, init_expr)
+    var is_stringy = exprm.native_expr_is_stringy(ctx, init_expr)
+    var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, init_expr)
+    if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm] = is_floaty }
+    if ctx["globals_stringy"] != nil { ctx["globals_stringy"][nm] = is_stringy }
+    if ctx["globals_list_stringy"] != nil { ctx["globals_list_stringy"][nm] = is_list_stringy }
+    return nm
+}
+
+fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
+    // Normalize entry semantics for Tier‑1 native (arm64 parity with x86_64 + docs):
+    // - Collect top-level globals (`var`) into `.data` slots
+    // - Synthesize `fn __top_level__(){...}` that runs:
+    //   - user global initializers (as Assign to globals)
+    //   - user top-level executable statements
+    // - Entry stub calls `__top_level__` before `main` (if present).
+    //
+    // IMPORTANT (runtime):
+    // The injected native runtime intentionally does not rely on global initializers for many
+    // constants (see `native_runtime_init`). To avoid overriding runtime init decisions (e.g.
+    // OS-dependent constants), we allocate runtime global slots but do NOT run their initializers
+    // inside `__top_level__`.
+    if ctx == nil { return nil }
+    if runtime_stmts == nil { runtime_stmts = [] }
+    if user_stmts == nil { user_stmts = [] }
+
+    var runtime_decls = []
+    var user_decls = []
+    var init_stmts = []
+    var other_stmts = []
+
+    // Runtime statements: keep only declarations; allocate globals but never execute them at top-level.
+    var i = 0
+    while i < oren_list_len(runtime_stmts) {
+        var st = runtime_stmts[i]
+        if st == nil { i = i + 1; continue }
+
+        var fn0 = _arm64_stmt_to_toplevel_function_decl(st)
+        if fn0 != nil {
+            if fn0["name"] == "__top_level__" {
+                oren_list_push(ctx["errors"], "arm64 native: injected runtime defines reserved __top_level__")
+                return nil
+            }
+            oren_list_push(runtime_decls, st)
+            i = i + 1
+            continue
+        }
+        if st["type"] == "Type" || st["type"] == "FFI" {
+            oren_list_push(runtime_decls, st)
+            i = i + 1
+            continue
+        }
+        if st["type"] == "Var" {
+            _arm64_alloc_global_slot(ctx, st["name"], st["value"], true)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i = i + 1
+            continue
+        }
+
+        oren_list_push(ctx["errors"], "arm64 native: injected runtime must not contain top-level executable stmt type=" + st["type"])
+        return nil
+    }
+
+    // User statements: split declarations vs executable top-level.
+    i = 0
+    while i < oren_list_len(user_stmts) {
+        var st2 = user_stmts[i]
+        if st2 == nil { i = i + 1; continue }
+
+        var fn1 = _arm64_stmt_to_toplevel_function_decl(st2)
+        if fn1 != nil {
+            if fn1["name"] == "__top_level__" {
+                oren_list_push(ctx["errors"], "arm64 native: reserved function name __top_level__")
+                return nil
+            }
+            oren_list_push(user_decls, st2)
+            i = i + 1
+            continue
+        }
+        if st2["type"] == "Type" || st2["type"] == "FFI" {
+            oren_list_push(user_decls, st2)
+            i = i + 1
+            continue
+        }
+        if st2["type"] == "Var" {
+            var nm2 = _arm64_alloc_global_slot(ctx, st2["name"], st2["value"], false)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            // Defer user global initialization into __top_level__ so globals are initialized
+            // deterministically before `main` runs.
+            oren_list_push(init_stmts, {"type": "Assign", "token": st2["token"], "name": st2["name"], "value": st2["value"]})
+            i = i + 1
+            continue
+        }
+
+        // Any other top-level statement is executed in __top_level__.
+        oren_list_push(other_stmts, st2)
+        i = i + 1
+    }
+
+    // Synthesize: `fn __top_level__() { <init_stmts>; <other_stmts>; return 0 }`
+    var top_stmts = []
+    var j = 0
+    while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
+    j = 0
+    while j < oren_list_len(other_stmts) { oren_list_push(top_stmts, other_stmts[j]); j = j + 1 }
+    oren_list_push(top_stmts, {"type": "Return", "token": nil, "value": {"type": "Integer", "value": "0"}})
+
+    var top_fn = {"type": "Function", "token": nil, "name": "__top_level__", "params": [], "body": {"type": "Block", "stmts": top_stmts}}
+    var top_stmt = {"type": "ExprStmt", "token": nil, "expr": top_fn}
+    return {"runtime_decls": runtime_decls, "user_decls": user_decls, "top_stmt": top_stmt}
+}
+
 fn native_compile_program_arm64(linked, platform) {
     var ctx = {
         "code": bytes_new(),
@@ -115,6 +282,11 @@ fn native_compile_program_arm64(linked, platform) {
     if platform["debug"] == true {
         ctx["debug_info"] = {"funcs": []}
     }
+
+    // Entry semantics (Tier‑1 native parity):
+    // - Always call `__top_level__` first
+    // - Call `main` only if the user defines it
+    var has_main = _arm64_linked_has_toplevel_fn_named(linked, "main")
     
     // Entry stub: calls main and exits with its result
     var sys_exit = abi.darwin_sys_exit()
@@ -255,11 +427,21 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reg, "name": "oren_register_thread"})
     
-    var main_fix = oren_list_len(ctx["code"])
+    // Run synthesized top-level initializers/statements before main.
+    var bl_top = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
-    // Preserve exit code across shutdown
-    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_top, "name": "__top_level__"})
+
+    // Run user main if present; otherwise exit with 0.
+    if has_main {
+        var main_fix = oren_list_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
+        // Preserve exit code across shutdown
+        push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
+    } else {
+        push_u32_le(ctx["code"], insn_movz(19, 0)) // X19 = 0
+    }
     var shutdown_fix = oren_list_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
@@ -302,26 +484,30 @@ fn native_compile_program_arm64(linked, platform) {
         li = li + 1
     }
     
-    // Compile runtime functions
+    // Prepare globals + top-level wrapper for Tier‑1 parity.
+    var prep = _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts)
+    if prep == nil { return ctx }
+    var runtime_decls = prep["runtime_decls"]
+    var user_decls = prep["user_decls"]
+    var top_stmt = prep["top_stmt"]
+
+    // Compile runtime declarations (functions/types/ffi), but not runtime global initializers.
     var i = 0
-    while i < oren_list_len(runtime_stmts) {
-        native_compile_stmt(ctx, runtime_stmts[i])
+    while i < oren_list_len(runtime_decls) {
+        native_compile_stmt(ctx, runtime_decls[i])
         i = i + 1
     }
 
-    // Register start of user code
-    ctx["functions"]["__top_level__"] = oren_list_len(ctx["code"])
-
+    // Compile user declarations (functions/types/ffi).
     i = 0
-    while i < oren_list_len(user_stmts) {
-        native_compile_stmt(ctx, user_stmts[i])
+    while i < oren_list_len(user_decls) {
+        native_compile_stmt(ctx, user_decls[i])
         i = i + 1
     }
 
-    // Record end of top-level statement lowering (before wrapper emission).
-    // This lets debug stack traces show a stable "__top_level__" frame for
-    // programs that run statements at top-level without an explicit fn main().
-    var top_level_end = oren_list_len(ctx["code"])
+    // Compile synthesized __top_level__ last (it can reference any user/runtime symbols).
+    // The entry stub calls it before main.
+    native_compile_stmt(ctx, top_stmt)
 
     // Synthesize wrappers for first-class named functions and for lambda literals.
     // These wrappers implement the uniform callable ABI:
@@ -345,9 +531,8 @@ fn native_compile_program_arm64(linked, platform) {
         wi = wi + 1
     }
 
-    // Debug pseudo-symbols for code regions that are not Function nodes:
-    // - the entry stub (prologue + runtime init + call main + exit)
-    // - top-level statement lowering ("main" alias) for programs without fn main()
+    // Debug pseudo-symbol for code region that is not a Function node:
+    // - the entry stub (prologue + runtime init + call __top_level__/main + exit)
     if ctx["platform"]["debug"] == true {
         var entry_end = ctx["entry_stub_end"]
         if entry_end != nil && entry_end > 0 {
@@ -362,27 +547,11 @@ fn native_compile_program_arm64(linked, platform) {
             })
         }
 
-        var top_start = ctx["functions"]["__top_level__"]
-        if top_start != nil && top_level_end > top_start {
-            oren_list_push(ctx["debug_info"]["funcs"], {
-                "name": "__top_level__",
-                "start": top_start,
-                "end": top_level_end,
-                "file": "<native>",
-                "line": 0,
-                "col": 0,
-                "params": []
-            })
-        }
+        // __top_level__ is a real function symbol now; it will be included via normal function debug info.
     }
     
     // Record entry (main) offset if present
     ctx["entry_idx"] = 0
-    
-    // Implicit exit(0)
-    push_u32_le(ctx["code"], insn_movz(0, 0))
-    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
-    push_u32_le(ctx["code"], insn_svc(svc_imm))
     
     // Generate resolve_symbol function
     // NOTE: resolve_symbol is used by the native runtime's non-debug stack trace.
