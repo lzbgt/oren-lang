@@ -109,6 +109,7 @@ fn oren_spawn_call_list(fn_obj, args_list) {
 //   [0]  fn_obj
 //   [8]  args_list
 //   [16] result_ptr (u64*)
+//   [24] auto_free (u64; 0=normal, 1=detach cleanup by thread)
 //
 // Returns a DWORD (u32) to satisfy CreateThread's LPTHREAD_START_ROUTINE signature.
 // The actual Oren result is written to *result_ptr.
@@ -121,6 +122,17 @@ fn __oren_win_spawn_thread_entry(arg_ptr) {
     if out_ptr != 0 {
         var ret = oren_call_obj_list(fn_obj, args_list)
         ptr_set(out_ptr, ret)
+    }
+    // Detach support (Tier‑1 safety):
+    // `oren_join_timeout` on Windows may "detach" a thread on timeout to avoid
+    // `TerminateThread` (unsafe: can deadlock the process if a lock is held).
+    //
+    // In detach mode, the joiner closes its handle and drops the join-handle object;
+    // the thread cleans up its own arg/result allocations before returning.
+    var auto_free = ptr_get(arg_ptr + 24)
+    if auto_free != 0 {
+        if out_ptr != 0 { free(out_ptr) }
+        free(arg_ptr)
     }
     return 0
 }

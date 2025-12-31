@@ -40,6 +40,7 @@ type syscallBlock struct {
 }
 
 func main() {
+	startWall := time.Now()
 	var (
 		target         = flag.String("target", "macos", "native backend target: macos|linux")
 		noGC           = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
@@ -142,11 +143,10 @@ func main() {
 	_ = os.MkdirAll("build/tmp", 0o755)
 
 	// Timeouts: iteration-friendly defaults.
+	//
+	// Red line (production iteration): no single test build step should exceed ~1 minute in the curated runner.
+	// If this is flaky on slow hosts, the fix is to reduce test count and/or speed up the compiler, not to inflate timeouts.
 	buildTimeout := 60 * time.Second
-	if *jobs > 1 {
-		// Parallel builds can contend for CPU and take longer.
-		buildTimeout = 120 * time.Second
-	}
 	runTimeout := 10 * time.Second
 
 	gcArg := ""
@@ -222,22 +222,22 @@ func main() {
 	// Curated lists: keep small and integration-first.
 	nativeTests := []string{
 		"tests/native/test_integration_suite.oren",
-		"tests/native/test_simd_suite.oren",
 		"tests/native/test_debug_panic.oren",
-		// Pure-functional encoder goldens; no syscalls; should stay fast + deterministic.
-		"tests/native/test_arm64_encoding.oren",
+	}
+	// SIMD determinism is a valuable guard but expensive; keep opt-in unless --full.
+	// Enable via: OREN_TEST_SIMD=1 make test
+	if *full || envBool("OREN_TEST_SIMD", false) {
+		nativeTests = append(nativeTests, "tests/native/test_simd_suite.oren")
+	}
+	if *full {
+		// Pure-functional encoder goldens; no syscalls; deterministic correctness guard.
+		nativeTests = append(nativeTests, "tests/native/test_arm64_encoding.oren")
 	}
 	moduleTestsFast := []string{
-		// Keep fast suite small: prefer a few integration-first programs.
+		// Keep the default suite integration-first and under 1 minute wall time.
 		"tests/modules/test_integration_suite.oren",
-		// Spawn/join timeout is a critical "no hangs" guard.
+		// Critical no-hangs guard (spawn/join cancellation).
 		"tests/modules/test_spawn_join_timeout.oren",
-		// Core language lowering guard: impl receivers must accept typed-buffer spellings like `[]i32`.
-		"tests/modules/test_trait_impl_typed_buffer_receiver.oren",
-		// Core compiler invariant: `[]alias.Type` must normalize before impl lowering.
-		"tests/modules/test_type_name_resolve_slice_prefix_alias.oren",
-		// Deterministic "OOM-like" behavior guard for typed buffers.
-		"tests/modules/test_buffer_payload_limit.oren",
 	}
 	moduleTestsFull := []string{
 		"tests/modules/test_integration_suite.oren",
@@ -321,20 +321,9 @@ func main() {
 		"tests/modules/test_varargs.oren",
 	}
 	avmTestsFast := []string{
-		// Broad smoke covers the common surface area quickly.
 		"tests/avm/test_smoke_suite.oren",
-		// Crypto primitives needed for signed artifact verification in AVM.
-		"tests/avm/test_crypto_sha256_vectors.oren",
-		// Ensure u8 buffers + buffer views work under AVM (u8 buffers are bytes-backed).
-		"tests/avm/test_u8_buf_views.oren",
-		// Snapshot/resume and multiverse are core AVM differentiators.
-		"tests/avm/test_snapshot_tasks_resume.oren",
-		"tests/avm/test_multiverse_invalid_obc.oren",
-		// Determinism + sandbox guards.
+		// Determinism guard that doesn't depend on host wall clock.
 		"tests/avm/test_time_rng_deterministic.oren",
-		"tests/avm/test_vfs_no_host_fs.oren",
-		"tests/avm/test_vproc_no_host_proc.oren",
-		"tests/avm/test_vnet_no_host_net.oren",
 	}
 	avmTestsFull := []string{
 		"tests/avm/test_smoke_suite.oren",
@@ -369,6 +358,15 @@ func main() {
 		"tests/avm/test_varargs_spawn.oren",
 	}
 
+	// Fast-suite knobs: keep the default run under 60s wall time even on cold caches.
+	// Enable additional suites only when needed.
+	if !*full && !envBool("OREN_TEST_C", false) {
+		moduleTestsFast = nil
+	}
+	if !*full && !envBool("OREN_TEST_AVM", false) {
+		avmTestsFast = nil
+	}
+
 	moduleTests := moduleTestsFast
 	avmTests := avmTestsFast
 	if *full {
@@ -380,7 +378,23 @@ func main() {
 	fixtures := buildFixtureCases(*target, gcArg, *full)
 
 	// Runtime diagnostics fixtures: validate OREN_DIAG headers.
-	runtimeFixtures := buildRuntimeFixtureCases(*target, gcArg)
+	runtimeFixtures := []runtimeFixtureCase{}
+	if *full || envBool("OREN_TEST_RUNTIME_FIXTURES", false) {
+		runtimeFixtures = buildRuntimeFixtureCases(*target, gcArg)
+	}
+
+	remoteRun := envBool("OREN_REMOTE_RUN", false)
+	remoteRunAll := envBool("OREN_REMOTE_RUN_ALL", false)
+	if remoteRun && !remoteRunAll && !*full {
+		// Opt-in Tier‑1 x86_64 gate mode: keep the run integration-first and avoid doing
+		// a full host-native suite in the same invocation.
+		//
+		// Use OREN_REMOTE_RUN_ALL=1 if you explicitly want to run the entire local suite too.
+		nativeTests = nil
+		moduleTests = nil
+		avmTests = nil
+		runtimeFixtures = nil
+	}
 
 	// Run fixtures in parallel (bounded by --fixture-jobs).
 	//
@@ -410,7 +424,12 @@ func main() {
 				t = fx.timeout
 			}
 			start := time.Now()
-			rc := runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
+			rc := 0
+			if fx.run != nil {
+				rc = fx.run(timeoutBin, t, fx.log)
+			} else {
+				rc = runWithTimeout(timeoutBin, t, fx.cmd, fx.log)
+			}
 			dur := time.Since(start)
 			ok := fx.ok(rc)
 			// Keep artifacts on failure to make debugging actionable (fixtures often redirect
@@ -487,9 +506,12 @@ func main() {
 	}
 
 	// Native tests: parallel for wall-time reduction (bounded by --native-jobs).
-	nativeRes := runNativeTests(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, nativeJobsEff, nativeTests)
-	if !nativeRes.ok {
-		os.Exit(1)
+	nativeRes := suiteResult{ok: true}
+	if len(nativeTests) > 0 {
+		nativeRes = runNativeTests(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, nativeJobsEff, nativeTests)
+		if !nativeRes.ok {
+			os.Exit(1)
+		}
 	}
 
 	// Module + AVM tests: parallel for wall-time reduction.
@@ -511,20 +533,36 @@ func main() {
 		avmRes    suiteResult
 		wgSuites  sync.WaitGroup
 	)
-	wgSuites.Add(2)
-	go func() {
-		defer wgSuites.Done()
-		moduleRes = runModuleTestsParallel(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, moduleJobs, moduleTests)
-	}()
-	go func() {
-		defer wgSuites.Done()
-		avmRes = runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg, buildTimeout, runTimeout, *verbose, vprintln, avmJobs, avmTests)
-	}()
-	wgSuites.Wait()
+	if len(moduleTests) > 0 || len(avmTests) > 0 {
+		wgSuites.Add(2)
+		go func() {
+			defer wgSuites.Done()
+			if len(moduleTests) == 0 {
+				moduleRes = suiteResult{ok: true}
+				return
+			}
+			moduleRes = runModuleTestsParallel(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, moduleJobs, moduleTests)
+		}()
+		go func() {
+			defer wgSuites.Done()
+			if len(avmTests) == 0 {
+				avmRes = suiteResult{ok: true}
+				return
+			}
+			avmRes = runAVMTestsParallel(timeoutBin, orenPath, avmPath, gcArg, buildTimeout, runTimeout, *verbose, vprintln, avmJobs, avmTests)
+		}()
+		wgSuites.Wait()
+	}
 
-	fmt.Printf("%d/%d native tests passed\n", nativeRes.pass, nativeRes.total)
-	fmt.Printf("%d/%d module tests passed\n", moduleRes.pass, moduleRes.total)
-	fmt.Printf("%d/%d avm tests passed\n", avmRes.pass, avmRes.total)
+	if len(nativeTests) > 0 {
+		fmt.Printf("%d/%d native tests passed\n", nativeRes.pass, nativeRes.total)
+	}
+	if len(moduleTests) > 0 {
+		fmt.Printf("%d/%d module tests passed\n", moduleRes.pass, moduleRes.total)
+	}
+	if len(avmTests) > 0 {
+		fmt.Printf("%d/%d avm tests passed\n", avmRes.pass, avmRes.total)
+	}
 
 	if *profile {
 		type profRow struct {
@@ -579,6 +617,24 @@ func main() {
 			_ = catFile(os.Stdout, f.log)
 		}
 		os.Exit(1)
+	}
+
+	// Enforce an iteration budget for the default runner.
+	// Disable via: OREN_TEST_BUDGET_SECS=0
+	if !*full {
+		// Only enforce the wall-time budget for the default fast suite. When callers opt in to
+		// additional suites (C backend, AVM, diag fixtures, x64 gates), they are explicitly asking
+		// for more work.
+		if envBool("OREN_TEST_C", false) || envBool("OREN_TEST_AVM", false) || envBool("OREN_TEST_DIAG", false) ||
+			envBool("OREN_TEST_SIMD", false) {
+			fmt.Println("All Tests Passed.")
+			return
+		}
+		budget := envInt("OREN_TEST_BUDGET_SECS", 60)
+		if budget > 0 && time.Since(startWall) > time.Duration(budget)*time.Second {
+			fmt.Fprintf(os.Stderr, "ERROR: oretest exceeded time budget: dur=%s budget=%ds (set OREN_TEST_BUDGET_SECS=0 to disable)\n", time.Since(startWall), budget)
+			os.Exit(1)
+		}
 	}
 
 	fmt.Println("All Tests Passed.")

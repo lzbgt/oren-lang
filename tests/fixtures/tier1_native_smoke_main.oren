@@ -32,6 +32,16 @@ fn map_key_param_i64(k: i64) {
     return m[k]
 }
 
+fn worker_add(a, b) {
+    return a + b
+}
+
+fn worker_sleep_long() {
+    // Intentionally longer than the join timeout budget.
+    oren_sleep_ms(5000)
+    return 123
+}
+
 fn main() {
     // Runtime init sanity (Tier‑1): the x86_64 entry stub must run the injected native runtime init
     // pipeline before user code, so runtime-global reads are safe.
@@ -102,9 +112,43 @@ fn main() {
     // Short-circuit sanity (must not evaluate RHS when unnecessary).
     if 0 && boom() != 0 { return 70 }
 
+    // Tier‑1: language-level spawn/join must work on Windows (thread-based) and Linux (POSIX).
+    // Spawn a lambda with capture-by-value.
+    var base = 10
+    var f2 = |y| base + y
+    base = 999
+    var h1 = spawn f2(5)
+    var r1 = oren_join(h1)
+    if r1 != 15 { return 71 }
+
+    // Spawn a named function (direct call lowered through callable ABI).
+    var h2 = spawn worker_add(40, 2)
+    var r2 = oren_join(h2)
+    if r2 != 42 { return 72 }
+
+    // Join timeout contract (rolling): should deterministically return -ETIMEDOUT (BSD 60).
+    var h3 = spawn worker_sleep_long()
+    var r3 = oren_join_timeout(h3, 20)
+    if r3 != 0 - 60 { return 73 }
+    print("tier1 spawn join ok")
+
+    // Tier‑1: argv must be exposed to the injected runtime on:
+    // - Linux x86_64 (SysV entry stack)
+    // - Windows x64 (no CRT: entry stub must synthesize argv)
+    //
+    // Contract: when args are provided, validate them; otherwise skip.
+    var args = oren_args()
+    var n = oren_list_len(args)
+    print("ARGS_LEN=" + oren_int_to_string(n))
+    if n >= 3 {
+        if oren_string_eq(args[1], "ARG_A") == false { return 74 }
+        if oren_string_eq(args[2], "ARG_B") == false { return 75 }
+        print("tier1 args ok")
+    }
+
     // PROC substrate smoke (Tier‑1):
     // - ensures `oren_system` and the Windows CreateProcess path are wired correctly
-    // - keeps the smoke program OS-neutral (no `spawn` / fork dependencies)
+    // - keeps the smoke program OS-neutral (`oren_system` should work on Windows + Linux)
     var rc = oren_system("echo tier1 smoke proc ok")
     if rc != 0 { return 80 }
 

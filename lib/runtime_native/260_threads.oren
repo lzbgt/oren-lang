@@ -903,6 +903,7 @@ fn oren_join_timeout(handle, timeout_ms) {
     //   [0]  fn_obj
     //   [8]  args_list
     //   [16] result_ptr
+    //   [24] auto_free (u64; set by join_timeout detach)
     //
     // NOTE: This is intentionally separate from POSIX fork+pipe semantics; the goal is
     // Tier‑1 correctness first, then backend unification.
@@ -918,7 +919,10 @@ fn oren_join_timeout(handle, timeout_ms) {
             return -1
         }
 
-        // Non-blocking probe (no cancellation): if not done, return ETIMEDOUT but keep handle alive.
+        // Wait model (Windows):
+        // - timeout_ms < 0 => wait forever (blocking).
+        // - timeout_ms == 0 => non-blocking probe; on timeout keep handle alive.
+        // - timeout_ms > 0 => wait up to N ms; on timeout detach safely (no TerminateThread).
         if timeout_ms == 0 {
             var rc0 = sys_win_wait_single_object(h, 0)
             if rc0 == 0 {
@@ -932,8 +936,7 @@ fn oren_join_timeout(handle, timeout_ms) {
                 free(handle)
                 return rc0
             }
-        } else {
-        if timeout_ms < 0 {
+        } else if timeout_ms < 0 {
             var rcw = sys_win_wait_single_object(h, -1)
             if rcw != 0 {
                 sys_win_close_handle(h)
@@ -943,32 +946,23 @@ fn oren_join_timeout(handle, timeout_ms) {
                 return rcw
             }
         } else {
-            var remaining = timeout_ms
-            while remaining > 0 {
-                var rc0 = sys_win_wait_single_object(h, 0)
-                if rc0 == 0 { break }
-                if rc0 != (0 - 60) {
-                    // Unexpected failure.
+            var rcw2 = sys_win_wait_single_object(h, timeout_ms)
+            if rcw2 != 0 {
+                if rcw2 == (0 - 60) {
+                    // Timeout: detach instead of TerminateThread (unsafe). The running thread will
+                    // free its own arg/result buffers if we set auto_free=1 in the arg struct.
+                    if arg_ptr != 0 { ptr_set(arg_ptr + 24, 1) }
                     sys_win_close_handle(h)
-                    if result_ptr != 0 { free(result_ptr) }
-                    if arg_ptr != 0 { free(arg_ptr) }
                     free(handle)
-                    return rc0
+                    return 0 - 60
                 }
-                remaining = remaining - 1
-            }
-            if remaining <= 0 {
-                // Timeout: forcibly terminate (rolling Tier‑1). This is not ideal for production,
-                // but it matches the native suite's cancellation expectation and unblocks parity.
-                sys_win_terminate_thread(h, 1)
-                sys_win_wait_single_object(h, -1)
+                // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
                 sys_win_close_handle(h)
                 if result_ptr != 0 { free(result_ptr) }
                 if arg_ptr != 0 { free(arg_ptr) }
                 free(handle)
-                return 0 - 60
+                return rcw2
             }
-        }
         }
 
         var ret_val = 0

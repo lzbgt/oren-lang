@@ -619,6 +619,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         //   [0]  fn_obj
         //   [8]  args_list
         //   [16] result_ptr
+        //   [24] auto_free (u64; 0=normal, 1=detach cleanup by thread)
 
         var win_base = base + spill_n - win_extra
         var slot_res = win_base + 0
@@ -645,12 +646,12 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_xor_r64_r64(11, 11))
         bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
 
-        // arg_ptr = malloc_raw(24)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "24"}]}, locals)
+        // arg_ptr = malloc_raw(32)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "32"}]}, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off_arg, 0)
 
-        // Store [fn_obj, args_list, result_ptr] into arg struct.
+        // Store [fn_obj, args_list, result_ptr, auto_free=0] into arg struct.
         _emit_mov_r64_mrbp(ctx, 10, 0 - off_arg) // r10 = arg_ptr
         _emit_mov_r64_mrbp(ctx, 11, 0 - fn_off)  // r11 = fn_obj
         bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11)) // [arg+0]=fn_obj
@@ -660,6 +661,9 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
         _emit_mov_r64_mrbp(ctx, 11, 0 - off_res) // r11 = result_ptr
         bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11)) // [arg+16]=result_ptr
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+        bytes_extend(ctx["code"], insn_xor_r64_r64(11, 11))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11)) // [arg+24]=auto_free=0
 
         // start_ptr = &__oren_win_spawn_thread_entry
         //
