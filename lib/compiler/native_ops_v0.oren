@@ -378,35 +378,10 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             }
             if e["type"] == "Call" {
                 var callee = e["fn"]
-                var args = e["args"]
                 if callee != nil && callee["type"] == "Identifier" && callee["value"] == "print" {
-                    // Tier‑1 parity: when native runtime injection is enabled (default),
-                    // lower `print(...)` to runtime helpers so:
-                    // - printing supports multi-arg, fmt, and spread (same semantics as arm64)
-                    // - capsule sys_write gating applies (no direct syscall/WinAPI bypass)
-                    if ctx != nil && ctx["inject_runtime"] == true {
-                        _x64_print_lower_to_runtime_ops(ctx, ops, tok, e)
-                        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                        i = i + 1
-                        continue
-                    }
-
-                    // Bring-up mode: keep the legacy x64-only print lowering.
-                    if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: print expects 1 arg"); return nil }
-                    var a0 = args[0]
-                    if a0 == nil { err(ctx, "x64 native v0: print missing arg"); return nil }
-
-                    // Fast-path: print("literal") uses the OS-specific cstr write helper.
-                    if a0["type"] == "String" {
-                        oren_list_push(ops, {"op": "print_cstr", "tok": tok, "value": a0["value"]})
-                        i = i + 1
-                        continue
-                    }
-
-                    // Rolling bring-up: allow printing any expression that evaluates to a string pointer.
-                    _expr_int_check(ctx, a0, nil)
+                    // Tier‑1: lower `print(...)` through the injected native runtime helpers.
+                    _x64_print_lower_to_runtime_ops(ctx, ops, tok, e)
                     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                    oren_list_push(ops, {"op": "print_str_expr", "tok": tok, "expr": a0})
                     i = i + 1
                     continue
                 }
@@ -584,8 +559,8 @@ fn _is_x64_for_post_ok(post_op) {
     var fn0 = e["fn"]
     if fn0 == nil || fn0["type"] != "Identifier" { return 0 }
     if fn0["value"] != "oren_index_set" { return 0 }
-    // Arity sanity (container, index, value)
     var args = e["args"]
+    // Arity sanity (container, index, value)
     if args == nil || oren_list_len(args) != 3 { return 0 }
     return 1
 }
@@ -1127,14 +1102,10 @@ fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
     }
 
     if is_indirect {
-        // Preferred Tier‑1 semantics: under runtime injection, spread lowers through the shared runtime helper:
+        // Tier‑1 semantics: spread lowers through the shared runtime helper:
         //   oren_call_obj_spread(fn_obj, fixed_list, spread_list)
         // Spill layout: explicit args (argc) + fixed_list + spread_list + fn_obj.
-        if has_spread && ctx != nil && ctx["runtime_injected"] == true {
-            return argc + 3
-        }
-        // Bring-up path (no runtime injection): spill explicit args + args_list + fn_obj (+ loop temps when spread).
-        if has_spread { return argc + 6 }
+        if has_spread { return argc + 3 }
         return argc + 2
     }
 
@@ -1160,18 +1131,8 @@ fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
     if nm == "oren_buf_store_i32" || nm == "oren_buf_store_u8" || nm == "oren_buf_store_i64" || nm == "oren_buf_store_f32" || nm == "oren_buf_store_f64" { return 3 }
     if nm == "oren_buf_load_i32" || nm == "oren_buf_load_u8" || nm == "oren_buf_load_i64" || nm == "oren_buf_load_f32" || nm == "oren_buf_load_f64" { return 1 }
     if nm == "oren_map_get" || nm == "oren_map_get_int" || nm == "oren_map_get_str" { return 2 }
-    if nm == "oren_map_set" || nm == "oren_map_set_int" || nm == "oren_map_set_str" {
-        // In bring-up mode (no injected runtime), x64 inlines map_set via an intrinsic that
-        // requires extra spill slots. Once the native runtime is injected, these calls are
-        // lowered as normal direct calls and should not bloat every frame.
-        if ctx != nil && ctx["runtime_injected"] == true { return argc }
-        return 7
-    }
-    if nm == "oren_index_set" {
-        // Same rationale as map_set: only needs extra spills when compiled as a large intrinsic.
-        if ctx != nil && ctx["runtime_injected"] == true { return argc }
-        return 7
-    }
+    if nm == "oren_map_set" || nm == "oren_map_set_int" || nm == "oren_map_set_str" { return argc }
+    if nm == "oren_index_set" { return argc }
     if nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" { return 2 }
     // Tier‑1 parity: when runtime injection is enabled, spread calls are lowered via the shared
     // runtime helper `oren_call_obj_spread`. The x64 emitter needs:
@@ -1182,31 +1143,13 @@ fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
     if expr != nil && expr["spread"] != nil && ctx != nil && ctx["runtime_injected"] == true {
         return argc + 3
     }
-    // Named varargs packing:
-    // - bring-up mode: uses an extra spill slot for the packed rest_list.
-    // - runtime-injected mode: lowers through args_list + fnobj wrapper (needs args_list + fnobj).
+    // Named varargs packing (Tier‑1):
+    // - call sites lower through args_list + fnobj wrapper (needs args_list + fnobj)
+    // - inside the wrapper, the real function is called directly at its declared arity
     if ctx != nil && ctx["func_varargs_fixed"] != nil && ctx["func_varargs_fixed"][nm] != nil {
-        if ctx["runtime_injected"] == true {
-            var cur_fn = ctx["cur_fn_name"]
-            if cur_fn == nil || cur_fn != "__oren_fnwrap_" + nm {
-                return argc + 2
-            }
-        }
-        return argc + 1
-    }
-    // Spread calls in bring-up mode spill:
-    // - fixed-arity: fixed args + spread list + spread elems (arity-fixed_argc)
-    // - varargs: explicit args + spread list + loop temps + missing-fixed spills
-    if expr != nil && expr["spread"] != nil && ctx != nil {
-        var vf = nil
-        if ctx["func_varargs_fixed"] != nil { vf = ctx["func_varargs_fixed"][nm] }
-        if vf != nil {
-            // Conservative: explicit args (argc) + spread + rest + idx+len+elem + missing fixed spills (<= vf).
-            return argc + 5 + vf
-        }
-        if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
-            var arity = ctx["func_arity"][nm]
-            return arity + 1
+        var cur_fn = ctx["cur_fn_name"]
+        if cur_fn == nil || cur_fn != "__oren_fnwrap_" + nm {
+            return argc + 2
         }
         return argc + 1
     }
@@ -1218,7 +1161,7 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
     if expr == nil { return 0 }
     var t = expr["type"]
     if t == "Nil" || t == "Boolean" || t == "Integer" || t == "String" || t == "Identifier" { return 0 }
-    if t == "Function" { return 0 }
+    if t == "Function" { return 2 }
 
     if t == "SpawnExpr" {
         // Conservative intrinsic-temp sizing for SpawnExpr lowering (runtime-injected path):
@@ -1280,8 +1223,21 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
     if t == "Infix" {
         var ml = _max_intr_tmp_in_expr(ctx, expr["left"], locals)
         var mr = _max_intr_tmp_in_expr(ctx, expr["right"], locals)
-        if mr > ml { return mr }
-        return ml
+
+        // x64 native v0 uses the intrinsic temp pool for some infix operators to preserve
+        // LTR evaluation order while remaining re-entrant under nested expressions.
+        var extra = 0
+        var op = expr["op"]
+        // `+` lowers via `oren_add` (needs two spills).
+        if op == "+" { extra = 2 }
+        // `%` lowers via `oren_mod` (needs two spills).
+        else if op == "%" { extra = 2 }
+        // Some infix ops spill the LHS across RHS evaluation in the general case.
+        else if op == "-" || op == "*" || op == "&" || op == "|" || op == "^" { extra = 1 }
+
+        var m = ml
+        if mr > m { m = mr }
+        return extra + m
     }
 
     if t == "Prefix" {
@@ -1289,15 +1245,19 @@ fn _max_intr_tmp_in_expr(ctx, expr, locals) {
     }
 
     if t == "Member" {
-        // Member lowers to a map index internally; only the receiver can contain nested calls.
-        return _max_intr_tmp_in_expr(ctx, expr["left"], locals)
+        // Member lowers to `Index` internally (map-shaped struct access), which uses the
+        // intrinsic temp pool to remain re-entrant under nested expressions.
+        var ml3 = _max_intr_tmp_in_expr(ctx, expr["left"], locals)
+        return 2 + ml3
     }
 
     if t == "Index" {
+        // Index uses the intrinsic temp pool to spill container + index/key.
         var ml2 = _max_intr_tmp_in_expr(ctx, expr["left"], locals)
         var mi2 = _max_intr_tmp_in_expr(ctx, expr["index"], locals)
-        if mi2 > ml2 { return mi2 }
-        return ml2
+        var m2 = ml2
+        if mi2 > m2 { m2 = mi2 }
+        return 2 + m2
     }
 
     if t == "Array" {

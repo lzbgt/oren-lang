@@ -36,14 +36,9 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     //
     // This aligns x86_64 with arm64 (single semantics set) and avoids duplicating container
     // logic inside x64-only intrinsics.
-    //
-    // If runtime injection is disabled, we only support list indexing when `recv_kind=list`
-    // is explicitly forced by the shared lowering.
     if ctx == nil || ctx["runtime_injected"] != true {
-        if recv_kind != "list" {
-            err(ctx, "x64 native v0: map indexing requires injected native runtime (OREN_X64_NO_INJECT_RUNTIME is no longer supported for container ops)")
-            return nil
-        }
+        err(ctx, "x64 native v0: internal error: native runtime bundle missing (required for Index semantics)")
+        return nil
     }
 
     // Use the intrinsic temp pool for re-entrancy:

@@ -64,7 +64,7 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - **x86_64 (Tier‑1; rolling)**: injects the **same native runtime source bundle** by default (matching arm64), and keeps only a small set of true “bootstrap intrinsics” in the backend:
     - bump allocator state (`malloc`/`malloc_raw`) and raw memory ops (`ptr_get`/`ptr_set` + byte variants),
     - syscall/WinAPI ABI surfaces needed for entry + IO + capsule gating.
-    - Escape hatch (debug / bring-up): `OREN_X64_NO_INJECT_RUNTIME=1` disables runtime injection; in rolling Tier‑1 this mode is intentionally limited and does **not** support general container/string semantics.
+    - Tier‑1 rule: x86_64 always injects the shared native runtime bundle (no bring-up toggle).
   - Includes `oren_readdir(path)` built on syscall-first `sys_getdirentries64`.
   - `oren_net_get(url)` is implemented on native as a minimal HTTP/1.0 GET over syscall-first TCP:
     - supported form: `http://<ipv4>[:port][/path]`

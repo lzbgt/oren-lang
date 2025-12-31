@@ -21,12 +21,12 @@ Rules for this tracker:
      - **language concurrency**: `spawn`/`oren_join` must work on Windows (thread-based; no fork/pipe assumptions)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - remove x86_64 bring-up hacks by linking the full native runtime module set where possible
-       - **runtime injection is default-on** for x86_64 (same runtime source as arm64; expanded `// @include` tree)
-         - escape hatch: `OREN_X64_NO_INJECT_RUNTIME=1` (debug / bring-up)
+       - runtime injection is **mandatory** for x86_64 (same runtime source as arm64; expanded `// @include` tree; no bring-up toggle)
        - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
        - **done (rolling):** list/map container ops no longer rely on x86_64-only bring-up intrinsics; x86_64 now routes container semantics through the injected native runtime (same source bundle as arm64), and indirect-call argument packing no longer uses stack-backed fake lists.
        - **done (rolling):** typed buffers are runtime-defined on x86_64 too (x64 no longer has a separate typed-buffer intrinsic emitter; `oren_buf_*` / `*_buf_new` route through the injected runtime bundle like arm64).
-       - next: finish deleting remaining x86_64 bring-up-only paths (keep `OREN_X64_NO_INJECT_RUNTIME=1` as a narrow debug mode), and converge the last container fast-paths on the same tracked-kind safety contract.
+       - **done (rolling):** removed `OREN_X64_NO_INJECT_RUNTIME` and made x86_64 runtime injection mandatory; build cache keys always hash the injected runtime bundle so runtime edits invalidate caches.
+       - next: finish deleting remaining x86_64 bring-up-only paths and converge the last container fast-paths on the same tracked-kind safety contract.
    - Next (Tier‑1 correctness):
      - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
        - Follow-up: **done** — env block is copied into runtime-owned memory during envp conversion, then freed via `FreeEnvironmentStringsA` (no intentional env-block leak; envp pointers remain stable).
@@ -53,6 +53,7 @@ Rules for this tracker:
      - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
    - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:
      - **done**: `== != < <= > >=` in condition lowering treat tracked strings by content/lexicographic order (no pointer-compare regressions).
+     - **done (rolling):** x86_64 `%` lowering now routes through the shared runtime helper `oren_mod` (panic/message parity with arm64 and AVM MOD contract).
 
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
@@ -148,10 +149,4 @@ Rules for this tracker:
      - `docs/CONCURRENCY_MODEL.md`
      - `docs/NATIVE_GMP_SCHEDULER.md`
      - `docs/ASYNC_IO_AND_SELECT.md`
-
-4) **macOS Mach-O signing story (embedded vs external)** (S)
-   - Today Tier‑1 relies on external ad-hoc signing (`codesign -s -`) for reliable local execution on macOS.
-   - Decide and implement one coherent production rule:
-     - either remove/disable the custom embedded code signature generator in `lib/compiler/arm64_macho.oren`
-     - or make the embedded signature pass `codesign -dv` / `spctl --assess` without requiring an external signing step.
 

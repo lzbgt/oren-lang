@@ -1088,6 +1088,16 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 				args:       "ARG_A ARG_B MODE_CALL_DEPTH",
 				expectExit: 1,
 			},
+			{
+				name:       "tier1_native_modulo_by_zero_contract",
+				artifact:   "tier1_native_smoke",
+				src:        "tests/fixtures/tier1_native_smoke_main.oren",
+				args:       "ARG_A ARG_B MODE_MOD0",
+				expectExit: 1,
+				expectSubstrings: []string{
+					"modulo by zero",
+				},
+			},
 		}
 
 		if envBool("OREN_REMOTE_RUN_FULL", false) {

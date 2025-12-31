@@ -101,6 +101,13 @@ fn main() {
         print("tier1 call depth ok")
         return 0
     }
+    if mode == "MODE_MOD0" {
+        // Tier-1 modulo contract: `%` must panic with a modulo-specific message,
+        // matching the shared runtime helper `oren_mod` (arm64 + x86_64).
+        var _ = 1 % 0
+        // Unreachable: panic exits(1).
+        return 0
+    }
 
     // Runtime init sanity (Tier‑1): the x86_64 entry stub must run the injected native runtime init
     // pipeline before user code, so runtime-global reads are safe.

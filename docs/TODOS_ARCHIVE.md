@@ -5,6 +5,12 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2025-12-31) — macOS Mach-O signing rule simplified (external `codesign`)
+
+- Removed the custom embedded ad-hoc code signature generator from `lib/compiler/arm64_macho.oren` (it did not produce a signature accepted by macOS tooling).
+- Tier‑1 macOS reliability relies on external signing (`codesign -s - --force`) in the build pipeline when available.
+- Docs: `docs/CODESIGN.md`
+
 ## Archived (2025-12-31) — Native entry semantics unified (`__top_level__` + optional `main`)
 
 - Standardized the native entry contract across arm64 + x86_64:

@@ -18,6 +18,11 @@ codesign -s - --force <output>
 
 - Deterministic builds (`--deterministic`) disable external signing by design (signing mutates the output and breaks reproducibility).
 
+## Embedded signatures (compiler)
+
+- The Mach-O emitters do **not** attempt to embed a custom code signature blob.
+- For reliable local execution on macOS, the build pipeline signs outputs externally via `codesign` (ad-hoc by default).
+
 ## Notarization
 
 - `--notarize [--notary-profile name]` submits via `xcrun notarytool` and staples the ticket.

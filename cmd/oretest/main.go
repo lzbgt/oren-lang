@@ -52,7 +52,7 @@ func main() {
 		defaultTarget = "windows"
 	}
 	var (
-		target         = flag.String("target", defaultTarget, "native backend target: macos|linux")
+		target         = flag.String("target", defaultTarget, "legacy native backend OS target: macos|linux (prefer --platform <arch>-<os>)")
 		platform       = flag.String("platform", os.Getenv("OREN_PLATFORM"), "platform selector (shorthand for host/remote runners): macos|linux|arm64-macos|arm64-linux|x64-windows|x64-linux (env OREN_PLATFORM)")
 		matrix         = flag.String("matrix", os.Getenv("OREN_TEST_MATRIX"), "run a multi-platform matrix (host orchestrator): tier1 (env OREN_TEST_MATRIX)")
 		noGC           = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")

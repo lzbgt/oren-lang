@@ -414,23 +414,14 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     // Without hashing the injected runtime bundle, changing runtime source files would not
     // invalidate the build cache (observed as stale Windows x64 artifacts).
     if build_cfg != nil && build_cfg["backend"] == "native" {
-        var inject_runtime = true
-        // Rolling escape hatch: x64 can disable injection for bring-up/debug.
-        if build_cfg["arch"] == "x64" {
-            var no_inject = oren_env("OREN_X64_NO_INJECT_RUNTIME")
-            if no_inject != nil && no_inject != "" && no_inject != "0" {
-                inject_runtime = false
-            }
+        var rt_path = "lib/runtime_native.oren"
+        var rh = _cache_hash_expanded_includes(rt_path)
+        if rh["ok"] != true {
+            return {"ok": false, "err": "failed to read injected runtime: " + rt_path + " (" + rh["err"] + ")"}
         }
-        if inject_runtime {
-            var rt_path = "lib/runtime_native.oren"
-            var rh = _cache_hash_expanded_includes(rt_path)
-            if rh["ok"] != true {
-                return {"ok": false, "err": "failed to read injected runtime: " + rt_path + " (" + rh["err"] + ")"}
-            }
-            inputs["RUNTIME:" + rt_path] = rh["hash"]
-        }
+        inputs["RUNTIME:" + rt_path] = rh["hash"]
     }
+
 
     var compiler_sig = _cache_compiler_sig()
 
@@ -457,15 +448,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         // The injected runtime's content is hashed via `inputs["RUNTIME:..."]` above; this flag
         // is included as a readable key field so cache debugging is straightforward.
         var inject_runtime_k = 0
-        if build_cfg["backend"] == "native" {
-            inject_runtime_k = 1
-            if build_cfg["arch"] == "x64" {
-                var no_inject2 = oren_env("OREN_X64_NO_INJECT_RUNTIME")
-                if no_inject2 != nil && no_inject2 != "" && no_inject2 != "0" {
-                    inject_runtime_k = 0
-                }
-            }
-        }
+        if build_cfg["backend"] == "native" { inject_runtime_k = 1 }
         s = s + "inject_runtime=" + oren_int_to_string(inject_runtime_k) + "\n"
         // cap domains: stable, sorted
         var cds = build_cfg["cap_domains"]

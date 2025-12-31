@@ -3,13 +3,31 @@
 This repo now has an x86_64 native backend bring-up path (Linux ELF + Windows PE).
 To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled.
 
-## Terminology: `--target` vs remote x64
+## Terminology: platform, target, and the remote x64 gate
 
-- `./oretest --target <os>` selects the **host** native-backend target (`macos` or `linux`) for tests that run locally (or in the local Linux Docker runner).
-- The remote x64 gate is controlled by env flags and runs **x64-windows + x64-linux (WSL2)** on the remote Win11 machine:
+- Prefer `./oretest --platform <arch>-<os>` (or env `OREN_PLATFORM`) for anything Tier‑1:
+  - `arm64-macos` runs locally on the Mac host.
+  - `arm64-linux` runs via the persistent Docker runner.
+  - `x64-windows` / `x64-linux` run via the remote Win11+WSL2 batch gate.
+
+- `./oretest --target <os>` is legacy and only selects the **host** native-backend target (`macos` or `linux`) for tests that run locally (or in the local Linux Docker runner).
+
+- The remote x64 gate can also be controlled directly by env flags and runs **x64-windows + x64-linux (WSL2)** on the remote Win11 machine:
   - enable: `OREN_REMOTE_RUN=1`
   - choose run kind: `OREN_REMOTE_X64_RUN_KIND=both|windows|wsl` (default: `both`)
-- You generally do **not** pass `--target windows` when using the remote x64 gate; the remote runner cross-compiles and executes Windows+WSL artifacts internally.
+
+Examples:
+
+```bash
+# Run the full Tier‑1 matrix from the Mac host (includes remote x64 gate)
+./oretest --matrix tier1
+
+# Run only the remote Windows PE fixture batch
+./oretest --platform x64-windows
+
+# Run only the remote WSL2 Linux x64 fixture batch
+./oretest --platform x64-linux
+```
 
 ## Prerequisites (local machine)
 

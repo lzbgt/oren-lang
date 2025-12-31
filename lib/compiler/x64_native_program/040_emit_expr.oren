@@ -366,24 +366,6 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
 
-        // Debug aid for runtime injection bring-up (disabled by default).
-        // Helps diagnose string/identifier mismatches between injected runtime AST nodes.
-        var dump_base = ctx["dump_globals_path"]
-        if dump_base != nil {
-            var p0 = dump_base + ".unknown_var"
-            var eq0 = 0
-            if name == "GLOBAL_SLOT_BYTES" { eq0 = 1 }
-            var s0 = ""
-            s0 = s0 + "name=" + name + "\n"
-            s0 = s0 + "len=" + oren_int_to_string(oren_string_len(name)) + "\n"
-            s0 = s0 + "eq_GLOBAL_SLOT_BYTES=" + oren_int_to_string(eq0) + "\n"
-            // Does the globals table contain a canonical entry?
-            var g0 = 0
-            if ctx["globals"] != nil && ctx["globals"]["GLOBAL_SLOT_BYTES"] != nil { g0 = 1 }
-            s0 = s0 + "globals_has_GLOBAL_SLOT_BYTES=" + oren_int_to_string(g0) + "\n"
-            oren_write_file(p0, s0)
-        }
-
         err(ctx, "x64 native v0: unknown var " + name)
         return nil
     }
@@ -884,8 +866,44 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
 
-        if op == "/" || op == "%" {
-            // Integer division/modulo (trunc toward zero, like x86 idiv).
+        if op == "%" {
+            // Deterministic modulo semantics are implemented in the injected runtime helper `oren_mod`.
+            // This keeps x86_64 aligned with arm64 and matches the AVM MOD contract.
+            if ctx == nil || ctx["runtime_injected"] != true {
+                err(ctx, "x64 native v0: '%' requires injected native runtime (oren_mod)")
+                return nil
+            }
+
+            // Evaluate LTR into spill slots, then call oren_mod(a, b).
+            var base_mod = _intr_tmp_push(ctx, 2)
+            if base_mod == nil { return nil }
+            var tmp_a = _intr_tmp_off(ctx, locals, base_mod + 0)
+            var tmp_b = _intr_tmp_off(ctx, locals, base_mod + 1)
+            if tmp_a == nil || tmp_b == nil { _intr_tmp_pop(ctx, base_mod); return nil }
+
+            _emit_eval_int_to_rax(ctx, l, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_a, 0)
+
+            _emit_eval_int_to_rax(ctx, r, locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
+
+            var a0m = abi.int_arg_reg(ctx["abi"], 0)
+            var a1m = abi.int_arg_reg(ctx["abi"], 1)
+            if a0m == nil || a1m == nil { err(ctx, "x64 native v0: missing ABI arg regs for oren_mod"); _intr_tmp_pop(ctx, base_mod); return nil }
+            _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp_a)
+            _emit_mov_r64_mrbp(ctx, a1m, 0 - tmp_b)
+            var call_posm = oren_list_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_posm, "name": "oren_mod"})
+
+            _intr_tmp_pop(ctx, base_mod)
+            return nil
+        }
+
+        if op == "/" {
+            // Integer division (trunc toward zero, like x86 idiv).
             //
             // idiv uses RDX:RAX as the dividend and overwrites both; divisor is r/m64.
             // We keep divisor in RCX and preserve dividend in $tmp_div across RHS evaluation.
@@ -929,10 +947,6 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             bytes_extend(ctx["code"], insn_cqo()) // sign-extend rax into rdx
             bytes_extend(ctx["code"], insn_idiv_r64(1)) // idiv rcx
-            if op == "%" {
-                // remainder in rdx
-                bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2)) // rax = rdx
-            }
             return nil
         }
 
