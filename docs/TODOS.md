@@ -25,6 +25,7 @@ Rules for this tracker:
          - escape hatch: `OREN_X64_NO_INJECT_RUNTIME=1` (debug / bring-up)
        - x86_64 backend re-runs global DCE after injection to keep cross-compilation time bounded (modern “unused stdlib removed” behavior)
        - **done (rolling):** list/map container ops no longer rely on x86_64-only bring-up intrinsics; x86_64 now routes container semantics through the injected native runtime (same source bundle as arm64), and indirect-call argument packing no longer uses stack-backed fake lists.
+       - **done (rolling):** typed buffers are runtime-defined on x86_64 too (x64 no longer has a separate typed-buffer intrinsic emitter; `oren_buf_*` / `*_buf_new` route through the injected runtime bundle like arm64).
        - next: finish deleting remaining x86_64 bring-up-only paths (keep `OREN_X64_NO_INJECT_RUNTIME=1` as a narrow debug mode), and converge the last container fast-paths on the same tracked-kind safety contract.
    - Next (Tier‑1 correctness):
      - Windows x86_64: **done** — full env enumeration now uses `GetEnvironmentStringsA` (entry stub) + runtime conversion to a POSIX-style `envp` pointer array (no fixed allowlist).
@@ -47,6 +48,7 @@ Rules for this tracker:
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
+     - `./oretest --matrix tier1` runs the practical Tier‑1 platform matrix from the dev host (arm64-macos + arm64-linux docker + x64 remote gate).
      - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
    - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:
      - **done**: `== != < <= > >=` in condition lowering treat tracked strings by content/lexicographic order (no pointer-compare regressions).

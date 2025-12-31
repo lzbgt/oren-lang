@@ -26,7 +26,6 @@
 // @include "x64_native_program/046_emit_sys_intrinsics_windows_proc.oren"
 // @include "x64_native_program/047_emit_float_intrinsics.oren"
 // @include "x64_native_program/048_emit_atomic_intrinsics.oren"
-// @include "x64_native_program/049_emit_typed_buffer_intrinsics.oren"
 // @include "x64_native_program/043_emit_stack_intrinsics.oren"
 // @include "x64_native_program/040_emit_expr.oren"
 // @include "x64_native_program/044_emit_call_expr.oren"

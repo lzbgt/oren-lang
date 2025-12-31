@@ -95,7 +95,7 @@ This repo runs in **rolling ABI** mode, so the priority is fast iteration and av
 The canonical curated runner is:
 
 ```bash
-./oretest --target macos
+./oretest --platform arm64-macos
 ```
 
 `make test` is a thin wrapper over `./oretest`.

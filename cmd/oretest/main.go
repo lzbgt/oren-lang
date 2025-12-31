@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -43,6 +44,8 @@ func main() {
 	startWall := time.Now()
 	var (
 		target         = flag.String("target", "macos", "native backend target: macos|linux")
+		platform       = flag.String("platform", os.Getenv("OREN_PLATFORM"), "platform selector (shorthand for host/remote runners): macos|linux|arm64-macos|arm64-linux|x64-windows|x64-linux (env OREN_PLATFORM)")
+		matrix         = flag.String("matrix", os.Getenv("OREN_TEST_MATRIX"), "run a multi-platform matrix (host orchestrator): tier1 (env OREN_TEST_MATRIX)")
 		noGC           = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")
 		jobs           = flag.Int("jobs", envInt("OREN_TEST_JOBS", runtime.NumCPU()), "parallel jobs for module+avm tests (env OREN_TEST_JOBS)")
 		fixtureJobs    = flag.Int("fixture-jobs", envInt("OREN_TEST_FIXTURE_JOBS", 0), "parallel jobs for fixtures (env OREN_TEST_FIXTURE_JOBS); default min(--jobs,8)")
@@ -108,6 +111,31 @@ func main() {
 		fmt.Fprintln(os.Stderr, "WARN: `timeout`/`gtimeout` not found; oretest will use internal timeouts only.")
 	}
 
+	// Matrix mode is a host-side orchestrator. It is intended to be run from the dev host
+	// (arm64 macOS) and will delegate to Docker and/or remote runners as needed.
+	if strings.TrimSpace(*matrix) != "" {
+		switch strings.ToLower(strings.TrimSpace(*matrix)) {
+		case "tier1":
+			os.Exit(runTier1Matrix(timeoutBin))
+		default:
+			fmt.Fprintf(os.Stderr, "ERROR: unknown --matrix %q (supported: tier1)\n", *matrix)
+			os.Exit(2)
+		}
+	}
+
+	// Platform mode maps <arch>-<os> onto the existing suite structure:
+	// - local native backend runs are selected via --target (macos|linux) and the host arch
+	// - x64 execution runs through the remote Win11+WSL2 gate (OREN_REMOTE_RUN=1)
+	// - linux/arm64 execution from macOS runs through the persistent Docker runner
+	nativeTarget := *target
+	if strings.TrimSpace(*platform) != "" {
+		didExit, exitCode, newTarget := applyPlatformSpec(timeoutBin, *platform, nativeTarget, os.Args[1:])
+		if didExit {
+			os.Exit(exitCode)
+		}
+		nativeTarget = newTarget
+	}
+
 	if _, err := os.Stat("./oren"); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR: ./oren not found; run `make stage1` or `make test`.")
 		os.Exit(2)
@@ -142,12 +170,12 @@ func main() {
 	_ = os.MkdirAll("build/logs", 0o755)
 	_ = os.MkdirAll("build/tmp", 0o755)
 
-		// Timeouts: iteration-friendly defaults.
-		//
-		// Constraint (production iteration): keep the curated runner bounded and predictable.
-		// If this is flaky on slow hosts, the fix is to reduce test count and/or speed up the compiler, not to inflate timeouts indefinitely.
-		buildTimeout := 3 * time.Minute
-		runTimeout := 10 * time.Second
+	// Timeouts: iteration-friendly defaults.
+	//
+	// Constraint (production iteration): keep the curated runner bounded and predictable.
+	// If this is flaky on slow hosts, the fix is to reduce test count and/or speed up the compiler, not to inflate timeouts indefinitely.
+	buildTimeout := 3 * time.Minute
+	runTimeout := 10 * time.Second
 
 	gcArg := ""
 	if *noGC {
@@ -375,42 +403,42 @@ func main() {
 	}
 
 	// Fixtures: portable semantics + determinism guards.
-	fixtures := buildFixtureCases(*target, gcArg, *full)
+	fixtures := buildFixtureCases(nativeTarget, gcArg, *full)
 
 	// Runtime diagnostics fixtures: validate OREN_DIAG headers.
 	runtimeFixtures := []runtimeFixtureCase{}
 	if *full || envBool("OREN_TEST_RUNTIME_FIXTURES", false) {
-		runtimeFixtures = buildRuntimeFixtureCases(*target, gcArg)
+		runtimeFixtures = buildRuntimeFixtureCases(nativeTarget, gcArg)
 	}
 
-		remoteRun := envBool("OREN_REMOTE_RUN", false)
-		remoteRunAll := envBool("OREN_REMOTE_RUN_ALL", false)
-		if remoteRun && !remoteRunAll && !*full {
-			// Opt-in Tier‑1 x86_64 gate mode: keep the run integration-first and avoid doing
-			// a full host-native suite in the same invocation.
-			//
-			// Use OREN_REMOTE_RUN_ALL=1 if you explicitly want to run the entire local suite too.
-			nativeTests = nil
-			moduleTests = nil
-			avmTests = nil
-			runtimeFixtures = nil
-		}
+	remoteRun := envBool("OREN_REMOTE_RUN", false)
+	remoteRunAll := envBool("OREN_REMOTE_RUN_ALL", false)
+	if remoteRun && !remoteRunAll && !*full {
+		// Opt-in Tier‑1 x86_64 gate mode: keep the run integration-first and avoid doing
+		// a full host-native suite in the same invocation.
+		//
+		// Use OREN_REMOTE_RUN_ALL=1 if you explicitly want to run the entire local suite too.
+		nativeTests = nil
+		moduleTests = nil
+		avmTests = nil
+		runtimeFixtures = nil
+	}
 
-		tier1X64 := envBool("OREN_TEST_TIER1_X64", false)
-		tier1X64All := envBool("OREN_TEST_TIER1_X64_ALL", false)
-			if tier1X64 && !tier1X64All && !*full {
-				// Tier‑1 x86_64 build gate mode (Linux ELF + Windows PE):
-				// keep the invocation focused on the cross-arch build smoke so it can remain
-				// within the default iteration budget.
-				//
-				// Use OREN_TEST_TIER1_X64_ALL=1 if you explicitly want to run the full local suite too.
-				nativeTests = nil
-				moduleTests = nil
-				avmTests = nil
-				runtimeFixtures = nil
-			}
+	tier1X64 := envBool("OREN_TEST_TIER1_X64", false)
+	tier1X64All := envBool("OREN_TEST_TIER1_X64_ALL", false)
+	if tier1X64 && !tier1X64All && !*full {
+		// Tier‑1 x86_64 build gate mode (Linux ELF + Windows PE):
+		// keep the invocation focused on the cross-arch build smoke so it can remain
+		// within the default iteration budget.
+		//
+		// Use OREN_TEST_TIER1_X64_ALL=1 if you explicitly want to run the full local suite too.
+		nativeTests = nil
+		moduleTests = nil
+		avmTests = nil
+		runtimeFixtures = nil
+	}
 
-		// Run fixtures in parallel (bounded by --fixture-jobs).
+	// Run fixtures in parallel (bounded by --fixture-jobs).
 	//
 	// Fixtures are intended to be small, high-signal correctness guards. Most are
 	// independent and safe to parallelize for wall-time reduction.
@@ -522,7 +550,7 @@ func main() {
 	// Native tests: parallel for wall-time reduction (bounded by --native-jobs).
 	nativeRes := suiteResult{ok: true}
 	if len(nativeTests) > 0 {
-		nativeRes = runNativeTests(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, nativeJobsEff, nativeTests)
+		nativeRes = runNativeTests(timeoutBin, nativeTarget, gcArg, buildTimeout, runTimeout, *verbose, vprintln, nativeJobsEff, nativeTests)
 		if !nativeRes.ok {
 			os.Exit(1)
 		}
@@ -555,7 +583,7 @@ func main() {
 				moduleRes = suiteResult{ok: true}
 				return
 			}
-			moduleRes = runModuleTestsParallel(timeoutBin, *target, gcArg, buildTimeout, runTimeout, *verbose, vprintln, moduleJobs, moduleTests)
+			moduleRes = runModuleTestsParallel(timeoutBin, nativeTarget, gcArg, buildTimeout, runTimeout, *verbose, vprintln, moduleJobs, moduleTests)
 		}()
 		go func() {
 			defer wgSuites.Done()
@@ -633,8 +661,8 @@ func main() {
 		os.Exit(1)
 	}
 
-		// Enforce an iteration budget for the default runner.
-		// Disable via: OREN_TEST_BUDGET_SECS=0
+	// Enforce an iteration budget for the default runner.
+	// Disable via: OREN_TEST_BUDGET_SECS=0
 	if !*full {
 		// Only enforce the wall-time budget for the default fast suite. When callers opt in to
 		// additional suites (C backend, AVM, diag fixtures, x64 gates), they are explicitly asking

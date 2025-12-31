@@ -405,13 +405,26 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
         var nm = fn_expr["value"]
 
-        // Typed buffer intrinsics live in a dedicated module to keep this file under the repo size ceiling.
-        if _emit_intrinsic_typed_buffers_x64(ctx, nm, expr, locals) { return nil }
-
         // Tier‑1 convergence: container ops and core stdlib helpers live in the injected native runtime.
         // x64 now requires runtime injection for these ops, matching arm64 and removing x64-only bring-up
         // intrinsics (single semantics set).
-        if nm == "oren_new_list" || nm == "oren_list_len" || nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" ||
+        // Typed buffers are also runtime-defined (Tier‑1): any `oren_buf_*` or `*_buf_new` op
+        // must route through the injected runtime so arm64/x64 share one semantics+layout.
+        var is_buf_runtime = false
+        if nm != nil {
+            if oren_string_len(nm) >= 8 {
+                if oren_string_slice(nm, 0, 8) == "oren_buf_" { is_buf_runtime = true }
+            }
+            if is_buf_runtime == false && oren_string_len(nm) >= 7 {
+                // Suffix match: "_buf_new"
+                var nml = oren_string_len(nm)
+                if oren_string_slice(nm, nml - 7, nml) == "_buf_new" { is_buf_runtime = true }
+            }
+            if nm == "oren_u8_buf_wrap_ptr" { is_buf_runtime = true }
+        }
+
+        if is_buf_runtime ||
+           nm == "oren_new_list" || nm == "oren_list_len" || nm == "oren_list_get" || nm == "oren_list_set" || nm == "oren_list_push" ||
            nm == "oren_new_map" || nm == "oren_map_len" || nm == "oren_map_get" || nm == "oren_map_get_int" || nm == "oren_map_get_str" ||
            nm == "oren_map_set" || nm == "oren_map_set_int" || nm == "oren_map_set_str" ||
            nm == "oren_index_set" || nm == "oren_iter_next" ||

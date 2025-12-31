@@ -1048,32 +1048,68 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		// - Keep per-command retries for proxy flakiness (broken pipes).
 		//
 		// See docs/REMOTE_X64_ENV.md for the proxy access workflow.
+		// Keep the remote gate integration-first:
+		// - build+upload one Tier-1 binary
+		// - run it in a few modes to validate both success and deterministic-fail contracts
+		//
+		// If you want to run the full set of remote x86_64 fixtures, use:
+		//   OREN_REMOTE_RUN_FULL=1
 		tests := []remoteX64Test{
-			{name: "tier1_native_smoke", src: "tests/fixtures/tier1_native_smoke_main.oren", expectSubstring: "tier1 smoke ok"},
-			// Tier‑1: Windows must expose env vars to the injected native runtime (no CRT envp),
-			// so capsule init can honor toggles like OREN_ENABLE_SIMD.
-			{name: "tier1_native_smoke_simd_env", artifact: "tier1_native_smoke", src: "tests/fixtures/tier1_native_smoke_main.oren", env: "OREN_ENABLE_SIMD=1", expectSubstring: "SIMD_ENABLED=1"},
-			// Tier‑1: language-level spawn/join must work on Windows (thread-based) and Linux (POSIX).
-			{name: "tier1_native_spawn_join", src: "tests/fixtures/tier1_native_spawn_join_main.oren", expectSubstring: "tier1 spawn join ok"},
-			// Tier‑1: Windows must expose argv to the injected runtime (no CRT argv),
-			// so `oren_args()` works the same as Linux (SysV entry stack).
-			{name: "tier1_native_args", src: "tests/fixtures/tier1_native_args_main.oren", args: "ARG_A ARG_B", expectSubstring: "tier1 args ok"},
-			{name: "tier1_native_atomics", src: "tests/fixtures/tier1_native_atomics_main.oren", expectSubstring: "tier1 atomics ok"},
-			{name: "tier1_native_typed_buffers", src: "tests/fixtures/tier1_native_typed_buffers_main.oren", expectSubstring: "tier1 typed buffers ok"},
-			{name: "tier1_native_forin_typed_buffers", src: "tests/fixtures/tier1_native_forin_typed_buffers_main.oren", expectSubstring: "tier1 forin typed buffers ok"},
-			{name: "tier1_native_lambda_varargs", src: "tests/fixtures/tier1_native_lambda_varargs_main.oren", expectSubstring: "tier1 lambda varargs ok"},
-			{name: "tier1_native_map_dynamic_keykind", src: "tests/fixtures/tier1_native_map_dynamic_keykind_main.oren", expectSubstring: "tier1 map dynamic keykind ok"},
-			{name: "tier1_native_map_get_dynamic_key", src: "tests/fixtures/tier1_native_map_get_dynamic_key_main.oren", expectSubstring: "tier1 map get dynamic key ok"},
-			{name: "tier1_native_stacktrace", src: "tests/fixtures/tier1_native_stacktrace_main.oren", expectSubstring: "stacktrace_leaf@tests/fixtures/tier1_native_stacktrace_main.oren"},
-			{name: "tier1_native_string_ops", src: "tests/fixtures/tier1_native_string_ops_main.oren", expectSubstring: "tier1 string ops ok"},
-			{name: "tier1_native_float_ops", src: "tests/fixtures/tier1_native_float_ops_main.oren", expectSubstring: "tier1 float ops ok"},
-			{name: "tier1_native_globals_top_level", src: "tests/fixtures/tier1_native_globals_top_level_main.oren", expectSubstring: "tier1 globals top-level ok"},
-			{name: "tier1_native_no_main_top_level_only", src: "tests/fixtures/tier1_native_no_main_top_level_only.oren", expectSubstring: "tier1 no-main ok"},
-			{name: "tier1_native_abort_contract", src: "tests/fixtures/tier1_native_abort_contract_main.oren", expectExit: 1},
-			// Validate runtime env override parity (x64 entry stubs):
-			// - Without env, this fixture should return 0.
-			// - With OREN_CALL_DEPTH_MAX=8, it should deterministically abort(1) via the call depth guard.
-			{name: "tier1_native_call_depth_env_override", src: "tests/fixtures/tier1_native_call_depth_env_override_main.oren", env: "OREN_CALL_DEPTH_MAX=8", expectExit: 1},
+			{
+				name: "tier1_native_smoke",
+				src:  "tests/fixtures/tier1_native_smoke_main.oren",
+				env:  "OREN_ENABLE_SIMD=1",
+				args: "ARG_A ARG_B",
+				expectSubstrings: []string{
+					"tier1 smoke ok",
+					"tier1 spawn join ok",
+					"tier1 args ok",
+					"SIMD_ENABLED=1",
+					"tier1 typed buffers ok",
+					"tier1 forin typed buffers ok",
+					"tier1 atomics ok",
+					"tier1 stack trace ok",
+					"stacktrace_leaf@tests/fixtures/tier1_native_smoke_main.oren",
+					"tier1 proc ok",
+				},
+			},
+			{
+				name:       "tier1_native_abort_contract",
+				artifact:   "tier1_native_smoke",
+				src:        "tests/fixtures/tier1_native_smoke_main.oren",
+				args:       "ARG_A ARG_B MODE_ABORT",
+				expectExit: 1,
+			},
+			{
+				name:       "tier1_native_call_depth_env_override",
+				artifact:   "tier1_native_smoke",
+				src:        "tests/fixtures/tier1_native_smoke_main.oren",
+				env:        "OREN_CALL_DEPTH_MAX=8",
+				args:       "ARG_A ARG_B MODE_CALL_DEPTH",
+				expectExit: 1,
+			},
+		}
+
+		if envBool("OREN_REMOTE_RUN_FULL", false) {
+			// Full remote gate: keep this behind an explicit knob because it is slow
+			// (many cross-compiled artifacts + multiple remote runs).
+			tests = append(tests,
+				remoteX64Test{name: "tier1_native_spawn_join", src: "tests/fixtures/tier1_native_spawn_join_main.oren", expectSubstrings: []string{"tier1 spawn join ok"}},
+				remoteX64Test{name: "tier1_native_args", src: "tests/fixtures/tier1_native_args_main.oren", args: "ARG_A ARG_B", expectSubstrings: []string{"tier1 args ok"}},
+				remoteX64Test{name: "tier1_native_atomics", src: "tests/fixtures/tier1_native_atomics_main.oren", expectSubstrings: []string{"tier1 atomics ok"}},
+				remoteX64Test{name: "tier1_native_typed_buffers", src: "tests/fixtures/tier1_native_typed_buffers_main.oren", expectSubstrings: []string{"tier1 typed buffers ok"}},
+				remoteX64Test{name: "tier1_native_forin_typed_buffers", src: "tests/fixtures/tier1_native_forin_typed_buffers_main.oren", expectSubstrings: []string{"tier1 forin typed buffers ok"}},
+				remoteX64Test{name: "tier1_native_lambda_varargs", src: "tests/fixtures/tier1_native_lambda_varargs_main.oren", expectSubstrings: []string{"tier1 lambda varargs ok"}},
+				remoteX64Test{name: "tier1_native_map_dynamic_keykind", src: "tests/fixtures/tier1_native_map_dynamic_keykind_main.oren", expectSubstrings: []string{"tier1 map dynamic keykind ok"}},
+				remoteX64Test{name: "tier1_native_map_get_dynamic_key", src: "tests/fixtures/tier1_native_map_get_dynamic_key_main.oren", expectSubstrings: []string{"tier1 map get dynamic key ok"}},
+				remoteX64Test{name: "tier1_native_stacktrace", src: "tests/fixtures/tier1_native_stacktrace_main.oren", expectSubstrings: []string{"stacktrace_leaf@tests/fixtures/tier1_native_stacktrace_main.oren"}},
+				remoteX64Test{name: "tier1_native_string_ops", src: "tests/fixtures/tier1_native_string_ops_main.oren", expectSubstrings: []string{"tier1 string ops ok"}},
+				remoteX64Test{name: "tier1_native_float_ops", src: "tests/fixtures/tier1_native_float_ops_main.oren", expectSubstrings: []string{"tier1 float ops ok"}},
+				remoteX64Test{name: "tier1_native_globals_top_level", src: "tests/fixtures/tier1_native_globals_top_level_main.oren", expectSubstrings: []string{"tier1 globals top-level ok"}},
+				remoteX64Test{name: "tier1_native_no_main_top_level_only", src: "tests/fixtures/tier1_native_no_main_top_level_only.oren", expectSubstrings: []string{"tier1 no-main ok"}},
+				remoteX64Test{name: "tier1_native_abort_contract_old", src: "tests/fixtures/tier1_native_abort_contract_main.oren", expectExit: 1},
+				remoteX64Test{name: "tier1_native_call_depth_env_override_old", src: "tests/fixtures/tier1_native_call_depth_env_override_main.oren", env: "OREN_CALL_DEPTH_MAX=8", expectExit: 1},
+			)
 		}
 		fixtures = append(fixtures, remoteX64BatchFixture(tests))
 	}

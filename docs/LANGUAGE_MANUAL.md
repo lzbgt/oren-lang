@@ -1193,12 +1193,13 @@ Fixtures covering this contract:
 In rolling mode, the canonical verification step is:
 
 ```sh
-./oretest --target macos
+./oretest --platform arm64-macos
 ```
 
 Notes:
 
-- `./oretest --target` currently accepts `macos|linux` (it selects which native backend target is used for the curated suite).
+- `./oretest --target` still exists and currently accepts `macos|linux` (it selects which native backend target OS is used for the curated suite).
+- `./oretest --platform` is a higher-level platform selector (`<arch>-<os>`) that can delegate to docker/remote gates when needed.
 - For x86_64 Windows + WSL2 validation, remote execution is opt-in; see `docs/REMOTE_X64_ENV.md`.
 - `timeout` is optional: oretest has internal timeouts and will warn if `timeout`/`gtimeout` is not installed.
 

@@ -4,6 +4,7 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 
 ## [user] Rule of Turns
 - if TODOs.md has over 1 task left, prefer to do code change over 4000 lines in one turn, to maximize the knowlege acquired by source code inspecting (this is a huge code base), to keep fast moving with low overhead, because just understanding the code base would cost 90% of the context window and 90% time of executing a plan, so must do multiple many plans in a turn as possible leverating the context compaction feature. you don't want 90% time and context in a turn is spent on understanding the codebase and do a tiny plan in each turn.
+- try to do at least 3 plans(each with multiple tasks) in each turn, commit and push don't mean to end a turn.
 - in a large turn, can update docs and do git commit & push frequently to be safe to intteruptions or session compaction.
 - RED LINE: keep iteration fast — `./oretest` default path must complete within 3 minutes; avoid scattered low-signal tests and prefer integrated, high-signal Tier-1 fixtures.
 

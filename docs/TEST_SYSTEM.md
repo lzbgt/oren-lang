@@ -16,6 +16,7 @@ This document explains the current state and the planned evolution.
 `make test` is a curated, timeout-protected suite intended for fast iteration:
 
 - runs the canonical curated runner: `./oretest --target macos`
+- platform shorthand (preferred mental model): `./oretest --platform arm64-macos`
 - captures per-test logs under `build/logs/`
 - prints **only summaries** on success; prints **details only on failures**
 - runs tests/fixtures in parallel by default (bounded); tune with:
@@ -76,6 +77,20 @@ Legacy behavior (broader Makefile-driven lists) is preserved as:
 - shells out to:
   - `./oren` (self-hosted compiler binary) for compilation
   - `./avm` (C VM) for running `.obc` tests
+
+Platform terminology (important for arch/OS unification work):
+
+- `oren build` always has two axes:
+  - `--target`: OS (`macos|linux|windows`)
+  - `--arch`: CPU (`arm64|x64|...`)
+- `./oretest --target` is **only the native backend OS target** for the *host-run* suite:
+  - it currently accepts `macos|linux` because the curated runner executes on the host.
+- `./oretest --platform` is a convenience layer that matches the repo artifact naming:
+  - examples: `arm64-macos`, `arm64-linux` (docker), `x64-windows` (remote gate), `x64-linux` (WSL2 gate)
+- `./oretest --matrix tier1` runs a practical Tier‑1 platform matrix from the dev host:
+  - `arm64-macos` (host)
+  - `arm64-linux` (docker, persistent container)
+  - `x64-windows` + `x64-linux` (remote Win11 + WSL2 batch gate)
 
 This arrangement intentionally keeps “compiler as a library” as a future goal, without
 forcing repo tooling concerns into the compiler sources today.

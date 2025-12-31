@@ -49,11 +49,8 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 	//
 	// Enable via:
 	//   OREN_TEST_TIER1_X64=1 make test
-	//
-	// Also enable automatically when the remote x64 gate is enabled so the remote runner can
-	// reuse the built artifacts (avoid rebuilding the same sources twice).
-	if envBool("OREN_TEST_TIER1_X64", false) || envBool("OREN_REMOTE_RUN", false) {
-		keepArtifacts := envBool("OREN_REMOTE_RUN", false)
+	if envBool("OREN_TEST_TIER1_X64", false) {
+		keepArtifacts := false
 		cleanup := []string{
 			"build/tmp/tier1_native_smoke_x64_linux.build.out",
 			"build/tmp/tier1_native_smoke_x64_linux.file.out",
@@ -137,9 +134,39 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 	// - re-run the same artifact with env/args to validate runtime propagation
 	if envBool("OREN_REMOTE_RUN", false) {
 		tests := []remoteX64Test{
-			{name: "tier1_native_smoke", src: "tests/fixtures/tier1_native_smoke_main.oren", expectSubstring: "tier1 spawn join ok"},
-			{name: "tier1_native_smoke_simd_env", artifact: "tier1_native_smoke", src: "tests/fixtures/tier1_native_smoke_main.oren", env: "OREN_ENABLE_SIMD=1", expectSubstring: "SIMD_ENABLED=1"},
-			{name: "tier1_native_smoke_args", artifact: "tier1_native_smoke", src: "tests/fixtures/tier1_native_smoke_main.oren", args: "ARG_A ARG_B", expectSubstring: "tier1 args ok"},
+			{
+				name: "tier1_native_smoke",
+				src:  "tests/fixtures/tier1_native_smoke_main.oren",
+				env:  "OREN_ENABLE_SIMD=1",
+				args: "ARG_A ARG_B",
+				expectSubstrings: []string{
+					"tier1 smoke ok",
+					"tier1 spawn join ok",
+					"tier1 args ok",
+					"SIMD_ENABLED=1",
+					"tier1 typed buffers ok",
+					"tier1 forin typed buffers ok",
+					"tier1 atomics ok",
+					"tier1 stack trace ok",
+					"stacktrace_leaf@tests/fixtures/tier1_native_smoke_main.oren",
+					"tier1 proc ok",
+				},
+			},
+			{
+				name:       "tier1_native_abort_contract",
+				artifact:   "tier1_native_smoke",
+				src:        "tests/fixtures/tier1_native_smoke_main.oren",
+				args:       "ARG_A ARG_B MODE_ABORT",
+				expectExit: 1,
+			},
+			{
+				name:       "tier1_native_call_depth_env_override",
+				artifact:   "tier1_native_smoke",
+				src:        "tests/fixtures/tier1_native_smoke_main.oren",
+				env:        "OREN_CALL_DEPTH_MAX=8",
+				args:       "ARG_A ARG_B MODE_CALL_DEPTH",
+				expectExit: 1,
+			},
 		}
 		fixtures = append(fixtures, remoteX64BatchFixture(tests))
 	}

@@ -19,6 +19,11 @@ override the remote connection details without editing source:
 - `OREN_REMOTE_X64_UNIX_ROOT` (default: `/Users/lzbgt/tmp_oren`)
 - `OREN_REMOTE_X64_WIN_ROOT` (default: `C:\Users\lzbgt\tmp_oren`)
 - `OREN_REMOTE_X64_WSL_ROOT` (default: `/mnt/c/Users/lzbgt/tmp_oren`)
+- `OREN_REMOTE_X64_RUN_KIND` (default: `both`)
+  - `both`: run the batch on Windows + WSL2 (Tier‑1 canonical)
+  - `windows`: run only the Windows PE executable(s)
+  - `wsl` / `linux`: run only the WSL2 Linux executable(s)
+- `OREN_REMOTE_TIER1_TIMEOUT_SECS` (default: `180`) — outer wall-time budget for the remote Tier‑1 fixture batch
 
 Example:
 
@@ -106,6 +111,7 @@ scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_f
 ## Rolling guidance
 
 - Keep the remote-run steps **opt-in** in automated tests (use env flags like `OREN_REMOTE_RUN=1`) so CI remains deterministic/offline by default.
+- The remote batch runner uses a SHA-addressed bundle directory on the remote host so repeated runs can reuse the uploaded+extracted bundle when inputs are unchanged (reduces proxy/SCP overhead).
 - Never copy root CA private keys or other secrets into the repo or remote host unless explicitly designed for secure storage (`../oren-ca/` remains the secret boundary).
 
 ## Troubleshooting
