@@ -1,12 +1,12 @@
 // Chunked out of native_compile_expr call handling for include coherence.
 fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
-            if fn_name == "oren_list_len" || fn_name == "STD_list_len" {
-                // Intrinsic: list length (fast-path, no runtime call).
-                //
-                // Runtime layout: [count][capacity][buffer_ptr][magic]
-                // - nil list => 0
-                // - non-list => deterministic panic (matches runtime)
+	            if fn_name == "oren_list_len" || fn_name == "STD_list_len" {
+	                // Intrinsic: list length (fast-path, no runtime call).
+	                //
+	                // Runtime layout: [count][capacity][buffer_ptr][magic]
+	                // - nil list => 0
+	                // - non-list => deterministic panic (matches runtime)
                 var args0 = expr["args"]
                 if args0 == nil || oren_list_len(args0) != 1 {
                     native_error(ctx, expr["token"], "native backend: oren_list_len expects 1 argument")
@@ -25,18 +25,51 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var br_done = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
-                var non_nil_pos = oren_list_len(ctx["code"])
-                set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
-
-                // magic check
-                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
-                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
-                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
-                var br_is_list = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                native_emit_panic(ctx, "list_len on non-list")
-                var is_list_pos = oren_list_len(ctx["code"])
-                set_u32_le(ctx["code"], br_is_list, insn_b_cond((is_list_pos - br_is_list) / 4, 0)) // EQ
+	                var non_nil_pos = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
+	
+	                // Tier‑1 safety: never read object headers from untracked pointers.
+	                //
+	                // Use tracked-node kind to validate list-ness before any header loads.
+	                // This matches the native runtime contract:
+	                // - node.kind == 2 => LIST
+	                // - node.kind == 3 => MAP (not accepted here)
+	                push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = list
+	
+	                // node = oren_find_node(list)
+	                var bl_find_node = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
+	
+	                // node == 0 => panic
+	                push_u32_le(ctx["code"], insn_movz(1, 0))
+	                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+	                var br_node_nonzero = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                native_emit_panic(ctx, "list_len on non-list")
+	                var node_ok_pos = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
+	
+	                // kind = *(node + 16); require kind==LIST
+	                emit_load_ptr_from_base_plus(ctx, 1, 0, 16)   // X1 = kind
+	                emit_load_i64_imm(ctx, 2, 2)                 // X2 = LIST
+	                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+	                var br_kind_ok = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                native_emit_panic(ctx, "list_len on non-list")
+	                var kind_ok_pos = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_kind_ok, insn_b_cond((kind_ok_pos - br_kind_ok) / 4, 0)) // EQ
+	
+	                // Restore list pointer and validate magic.
+	                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+	                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
+	                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
+	                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+	                var br_is_list = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                native_emit_panic(ctx, "list_len on non-list")
+	                var is_list_pos = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_is_list, insn_b_cond((is_list_pos - br_is_list) / 4, 0)) // EQ
 
                 // count
                 emit_load_ptr_from_base_plus(ctx, 0, 0, 0)
@@ -46,10 +79,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 return true
             }
 
-            if fn_name == "oren_list_push" || fn_name == "STD_list_push" {
-                // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
-                //
-                // Signature: oren_list_push(list, value) -> nil
+	            if fn_name == "oren_list_push" || fn_name == "STD_list_push" {
+	                // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
+	                //
+	                // Signature: oren_list_push(list, value) -> nil
                 var args1 = expr["args"]
                 if args1 == nil || oren_list_len(args1) != 2 {
                     native_error(ctx, expr["token"], "native backend: oren_list_push expects 2 arguments")
@@ -82,18 +115,50 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var br_non_nil2 = oren_list_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 native_emit_panic(ctx, "list_push on nil")
-                var non_nil_pos2 = oren_list_len(ctx["code"])
-                set_u32_le(ctx["code"], br_non_nil2, insn_b_cond((non_nil_pos2 - br_non_nil2) / 4, 1)) // NE
-
-                // magic check (panic on non-list)
-                emit_load_ptr_from_base_plus(ctx, 2, 0, 24) // X2 = magic
-                emit_load_i64_imm(ctx, 3, 1279870019)       // X3 = 'LIST'
-                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
-                var br_is_list2 = oren_list_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                native_emit_panic(ctx, "list_push on non-list")
-                var is_list_pos2 = oren_list_len(ctx["code"])
-                set_u32_le(ctx["code"], br_is_list2, insn_b_cond((is_list_pos2 - br_is_list2) / 4, 0)) // EQ
+	                var non_nil_pos2 = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_non_nil2, insn_b_cond((non_nil_pos2 - br_non_nil2) / 4, 1)) // NE
+	
+	                // Tier‑1 safety: never read object headers from untracked pointers.
+	                // Validate list via tracked-node kind first (matches runtime contract).
+	                push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = list
+	                push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = value
+	
+	                // node = oren_find_node(list)
+	                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+	                var bl_find_node2 = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node2, "name": "oren_find_node"})
+	
+	                // node == 0 => panic
+	                push_u32_le(ctx["code"], insn_movz(2, 0))
+	                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+	                var br_node_nonzero2 = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                native_emit_panic(ctx, "list_push on non-list")
+	                var node_ok_pos2b = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_node_nonzero2, insn_b_cond((node_ok_pos2b - br_node_nonzero2) / 4, 1)) // NE
+	
+	                // kind = *(node + 16); require kind==LIST
+	                emit_load_ptr_from_base_plus(ctx, 2, 0, 16) // X2 = kind
+	                emit_load_i64_imm(ctx, 3, 2)               // X3 = LIST
+	                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
+	                var br_kind_ok2 = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                native_emit_panic(ctx, "list_push on non-list")
+	                var kind_ok_pos2 = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_kind_ok2, insn_b_cond((kind_ok_pos2 - br_kind_ok2) / 4, 0)) // EQ
+	
+	                // Restore list/value and validate magic.
+	                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+	                push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+	                emit_load_ptr_from_base_plus(ctx, 2, 0, 24) // X2 = magic
+	                emit_load_i64_imm(ctx, 3, 1279870019)       // X3 = 'LIST'
+	                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
+	                var br_is_list2 = oren_list_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                native_emit_panic(ctx, "list_push on non-list")
+	                var is_list_pos2 = oren_list_len(ctx["code"])
+	                set_u32_le(ctx["code"], br_is_list2, insn_b_cond((is_list_pos2 - br_is_list2) / 4, 0)) // EQ
 
                 // Load count/cap/buf
                 emit_load_ptr_from_base_plus(ctx, 4, 0, 0)   // X4 = count

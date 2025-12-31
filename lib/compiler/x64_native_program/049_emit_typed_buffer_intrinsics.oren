@@ -9,14 +9,39 @@
 // (x64 native runtime injection is still rolling).
 
 fn _emit_buf_magic_check_x64(ctx, buf_reg, expected_magic, what) {
+    // Tier‑1 safety: never read object headers from untracked pointers.
+    //
+    // Typed buffers are tracked heap objects (kind=7). Validate tracked kind first,
+    // then validate the magic word to catch corruption/misuse deterministically.
+    _emit_find_tracked_node_x64(ctx, buf_reg, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    var labels = {}
+    var local_fixups = []
+    var l_trk_ok = _new_label(ctx, what + "_tracked_ok")
+    var l_kind_ok = _new_label(ctx, what + "_kind_ok")
+
+    // node != 0
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok)
+    _emit_abort_panic_str(ctx, what + " on non-buf")
+    _emit_label(ctx, labels, l_trk_ok)
+
+    // kind = *(node + 16) ; require kind == 7 (BUF)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 7))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
+    _emit_abort_panic_str(ctx, what + " on non-buf")
+    _emit_label(ctx, labels, l_kind_ok)
+
     // if *(buf+24) != expected_magic => panic
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, buf_reg))
     bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
     bytes_extend(ctx["code"], insn_mov_rax_mrax())
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, expected_magic))
-    var labels = {}
-    var local_fixups = []
     var l_ok = _new_label(ctx, what + "_magic_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_ok)
     _emit_abort_panic_str(ctx, what + " on non-buf")

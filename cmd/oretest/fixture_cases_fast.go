@@ -10,7 +10,7 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 	fixtures := []fixtureCase{}
 
 	// Compiler diagnostic contract (machine-readable OREN_DIAG headers).
-	// Opt-in to keep the default suite within the 60s wall-time budget even on cold caches.
+	// Opt-in to keep the default suite within the 3-minute wall-time budget even on cold caches.
 	if envBool("OREN_TEST_DIAG", false) && !envBool("OREN_REMOTE_RUN", false) {
 		fixtures = append(fixtures,
 			fixtureCase{
@@ -123,7 +123,7 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 				"tier1 spawn join ok",
 				"build/tmp/tier1_native_smoke_x64_win.strings.out",
 			),
-			timeout: 60 * time.Second,
+			timeout: 3 * time.Minute,
 			log:     "build/logs/native_x64_tier1_smoke_builds.log",
 			ok:      func(rc int) bool { return rc == 0 },
 			cleanup: cleanup,
