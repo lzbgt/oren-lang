@@ -1,0 +1,19 @@
+// AArch64 / ARM64 ABI (AAPCS64) — integer/pointer subset.
+//
+// Registers use the arm64_core numbering:
+// - X0..X30 are 0..30 (X31 is SP/ZR in instruction encodings)
+
+fn arm64_aapcs() {
+    return {
+        // Integer/pointer args: X0..X7
+        "int_arg_regs": [0, 1, 2, 3, 4, 5, 6, 7],
+        // AAPCS64 has no mandatory shadow space.
+        "caller_shadow_bytes": 0,
+        // We do not reserve a fixed call-area in frames on arm64; outgoing stack args are
+        // materialized per call-site.
+        "callee_call_area_bytes": 0,
+        // Stack args are passed as 8-byte slots, with 16-byte SP alignment at public interfaces.
+        "stack_arg_slot_bytes": 8,
+        "stack_align_bytes": 16,
+    }
+}

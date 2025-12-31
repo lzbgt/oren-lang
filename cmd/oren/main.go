@@ -91,9 +91,8 @@ func main() {
 				cc = "cc"
 			}
 			codesignID := os.Getenv("OREN_CODESIGN_ID")
-			if codesignID == "" && runtime.GOOS == "darwin" {
-				codesignID = "Developer ID Application: Zongbao Lu (US56HHF2Y4)"
-			}
+			skipCodesign := os.Getenv("OREN_SKIP_CODESIGN") == "1"
+			codesignExplicit := false
 			noGC := os.Getenv("OREN_NO_GC") != ""
 			notarize := false
 			notaryProfile := os.Getenv("OREN_NOTARY_PROFILE")
@@ -131,6 +130,7 @@ func main() {
 						os.Exit(1)
 					}
 					codesignID = os.Args[i+1]
+					codesignExplicit = true
 					i += 2
 				case "--notarize":
 					notarize = true
@@ -156,6 +156,22 @@ func main() {
 					fmt.Printf("Unknown arg: %s\n", os.Args[i])
 					os.Exit(1)
 				}
+			}
+
+			if skipCodesign && !codesignExplicit {
+				codesignID = ""
+			}
+			if runtime.GOOS == "darwin" && target == "macos" && codesignID == "" && !skipCodesign {
+				// Default to ad-hoc signing so the output is runnable without a certificate.
+				codesignID = "-"
+			}
+			if target == "macos" && codesignID == "" && !skipCodesign {
+				// Default to ad-hoc signing so the output is runnable without a certificate.
+				codesignID = "-"
+			}
+			if notarize && target == "macos" && (codesignID == "" || codesignID == "-") {
+				fmt.Printf("Notarization requested but codesign is disabled (set --codesign or OREN_CODESIGN_ID; or unset OREN_SKIP_CODESIGN)\n")
+				os.Exit(1)
 			}
 
 			src, err := transpiler.ExpandIncludes(filename)
@@ -223,7 +239,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			if target == "macos" && codesignID != "" {
+			if runtime.GOOS == "darwin" && target == "macos" && codesignID != "" {
 				cs := exec.Command("codesign", "-s", codesignID, "--force", outFilename)
 				cs.Stdout = os.Stdout
 				cs.Stderr = os.Stderr

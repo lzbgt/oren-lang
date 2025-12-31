@@ -3,6 +3,14 @@
 This repo now has an x86_64 native backend bring-up path (Linux ELF + Windows PE).
 To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled.
 
+## Terminology: `--target` vs remote x64
+
+- `./oretest --target <os>` selects the **host** native-backend target (`macos` or `linux`) for tests that run locally (or in the local Linux Docker runner).
+- The remote x64 gate is controlled by env flags and runs **x64-windows + x64-linux (WSL2)** on the remote Win11 machine:
+  - enable: `OREN_REMOTE_RUN=1`
+  - choose run kind: `OREN_REMOTE_X64_RUN_KIND=both|windows|wsl` (default: `both`)
+- You generally do **not** pass `--target windows` when using the remote x64 gate; the remote runner cross-compiles and executes Windows+WSL artifacts internally.
+
 ## Prerequisites (local machine)
 
 - `socat` available in `PATH` (required for `ProxyCommand`).

@@ -42,8 +42,17 @@ type syscallBlock struct {
 
 func main() {
 	startWall := time.Now()
+	defaultTarget := "macos"
+	switch runtime.GOOS {
+	case "linux":
+		defaultTarget = "linux"
+	case "darwin":
+		defaultTarget = "macos"
+	case "windows":
+		defaultTarget = "windows"
+	}
 	var (
-		target         = flag.String("target", "macos", "native backend target: macos|linux")
+		target         = flag.String("target", defaultTarget, "native backend target: macos|linux")
 		platform       = flag.String("platform", os.Getenv("OREN_PLATFORM"), "platform selector (shorthand for host/remote runners): macos|linux|arm64-macos|arm64-linux|x64-windows|x64-linux (env OREN_PLATFORM)")
 		matrix         = flag.String("matrix", os.Getenv("OREN_TEST_MATRIX"), "run a multi-platform matrix (host orchestrator): tier1 (env OREN_TEST_MATRIX)")
 		noGC           = flag.Bool("no-gc", os.Getenv("OREN_NO_GC") != "", "disable GC scanning (also via env OREN_NO_GC=1)")

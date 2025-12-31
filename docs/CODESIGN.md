@@ -1,17 +1,41 @@
 # macOS Codesigning & Notarization
 
-Oren binaries can self-sign during `oren build` without extra flags (similar to Zig/Go).
+On macOS, the OS security model can reject/kill unsigned executables (especially newly-built binaries in developer workflows). To keep local iteration smooth, Oren uses **ad-hoc signing** by default for macOS native outputs.
 
-## Defaults
-- The CLI defaults to `Developer ID Application: Zongbao Lu (US56HHF2Y4)` on macOS and falls back to ad-hoc signing if unavailable.
-- Override with `--codesign "<identity>"`, `CODESIGN_IDENTITY`, or `OREN_CODESIGN_ID`.
-- Add `--notarize [--notary-profile name]` to submit via `xcrun notarytool` and staple the ticket; the CLI also accepts `APPLE_ID`, `APPLE_ID_PASS`, and `APPLE_TEAM_ID`.
+## Defaults (rolling)
 
-## Installing the identity
+- For `--backend native --target macos`, `oren build` defaults to **ad-hoc signing**:
+
+```bash
+codesign -s - --force <output>
+```
+
+- To sign for distribution, pass a Developer ID identity:
+  - `--codesign "Developer ID Application: ..."`
+  - or env `OREN_CODESIGN_ID="Developer ID Application: ..."`
+
+- To force-disable external signing (debug only): `OREN_SKIP_CODESIGN=1`.
+
+- Deterministic builds (`--deterministic`) disable external signing by design (signing mutates the output and breaks reproducibility).
+
+## Notarization
+
+- `--notarize [--notary-profile name]` submits via `xcrun notarytool` and staples the ticket.
+- Notarization requires a **Developer ID** identity; it is rejected when:
+  - `--codesign` is missing
+  - or `--codesign -` (ad-hoc)
+
+## Installing a signing identity
+
 1. Open Xcode → Settings → Accounts, sign in with your Apple Developer account.
-2. Select your team → **Manage Certificates…** → press `+` and create **Developer ID Application** (and/or Apple Development).
-3. Confirm the cert lives in your login keychain with `security find-identity -v -p codesigning`.
+2. Select your team → **Manage Certificates…** → press `+` and create **Developer ID Application**.
+3. Confirm the cert exists in your login keychain:
+
+```bash
+security find-identity -v -p codesigning
+```
 
 ## Distribution notes
-- End users **do not** need your certificate installed. A Developer ID–signed, notarized binary will satisfy Gatekeeper.
-- For local experiments, ad-hoc signing (`-s -`) is fine; for distribution, use Developer ID + notarization.
+
+- End users **do not** need your certificate installed. A Developer ID–signed, notarized binary satisfies Gatekeeper.
+- For local experiments/testing, ad-hoc signing is sufficient.

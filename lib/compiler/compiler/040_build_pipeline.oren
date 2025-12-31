@@ -422,7 +422,6 @@ fn compiler_main() {
     // Users can still disable by setting `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`).
     var debug_mode = false
     var link_libs = []
-    if target == "macos" { codesign_id = "Developer ID Application: Zongbao Lu (US56HHF2Y4)" }
     if cmd_name == "emit-c" { emit_c = true }
     // These options can also be configured via env (wired via std:argparse env defaults).
     // Use parsed opts as the canonical source to keep precedence consistent.
@@ -464,10 +463,35 @@ fn compiler_main() {
     link_obc = opts["link-obc"]
     link_libs = opts["link"]
 
-    if target == "macos" { codesign_id = "Developer ID Application: Zongbao Lu (US56HHF2Y4)" }
-    if seen["codesign"] == true { codesign_id = opts["codesign"] }
+    // macOS codesign policy (rolling):
+    // - For local execution, macOS can reject/kill unsigned binaries.
+    // - Default to *ad-hoc signing* (`codesign -s -`) so outputs are runnable.
+    // - Developer ID signing is opt-in via `--codesign <identity>` / `OREN_CODESIGN_ID`.
+    // - Use `OREN_SKIP_CODESIGN=1` to force-disable external signing (debug only).
+    var have_codesign = (oren_system("command -v codesign >/dev/null 2>&1") == 0)
+    codesign_id = opts["codesign"]
+    if codesign_id == nil { codesign_id = "" }
+    var skip_codesign = oren_env("OREN_SKIP_CODESIGN")
+    if skip_codesign != nil && skip_codesign == "1" { codesign_id = "" }
+    if target == "macos" && codesign_id != "" && have_codesign != true {
+        emit_diag("compile", 2, "oren build: codesign requested but `codesign` tool not found in PATH")
+        print("oren build: codesign requested but `codesign` tool not found in PATH")
+        oren_exit(2)
+    }
+    if target == "macos" && codesign_id == "" && deterministic != true && have_codesign == true && (skip_codesign == nil || skip_codesign != "1") {
+        // Ad-hoc signing is fast and does not require a certificate.
+        codesign_id = "-"
+    }
+
     notarize = seen["notarize"] == true
     if seen["notary-profile"] == true { notary_profile = opts["notary-profile"] }
+    if notarize == true && target == "macos" {
+        if codesign_id == "" || codesign_id == "-" {
+            emit_diag("compile", 2, "oren build: --notarize requires a Developer ID identity via --codesign / OREN_CODESIGN_ID")
+            print("oren build: --notarize requires a Developer ID identity via --codesign / OREN_CODESIGN_ID")
+            oren_exit(2)
+        }
+    }
 
     no_gc = (opts["no-gc"] == true)
     deterministic = (opts["deterministic"] == true)

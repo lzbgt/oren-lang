@@ -7,9 +7,16 @@ all: oren
 # Platform settings
 UNAME_S := $(shell uname -s)
 CC ?= cc
-CODESIGN_IDENTITY ?= Developer ID Application: Zongbao Lu (US56HHF2Y4)
+CODESIGN_IDENTITY ?= -
+# Speed knob for rolling iteration: allow disabling codesign during test runs.
+# Keep production builds signed by default on macOS.
+OREN_SKIP_CODESIGN ?=
 ifeq ($(UNAME_S),Darwin)
-  CODESIGN_ARG := --codesign "$(CODESIGN_IDENTITY)"
+  ifeq ($(strip $(OREN_SKIP_CODESIGN)),1)
+    CODESIGN_ARG :=
+  else
+    CODESIGN_ARG := --codesign "$(CODESIGN_IDENTITY)"
+  endif
 else
   CODESIGN_ARG :=
 endif

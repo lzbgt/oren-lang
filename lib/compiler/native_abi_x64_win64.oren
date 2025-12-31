@@ -12,5 +12,8 @@ fn x64_win64() {
         // v0: we reserve 64B in each function frame:
         // - 32B shadow + scratch for stack args used by WriteFile and future FFI.
         "callee_call_area_bytes": 64,
+        // Outgoing stack args are passed as 8-byte slots; stack must be 16-byte aligned.
+        "stack_arg_slot_bytes": 8,
+        "stack_align_bytes": 16,
     }
 }

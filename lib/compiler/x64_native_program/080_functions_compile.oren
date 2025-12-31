@@ -155,8 +155,10 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     }
 
     var locals_size = local_next - 8
-    // Align locals area to 16.
-    while core.int_mod(locals_size, 16) != 0 { locals_size = locals_size + 1 }
+    var align = abi.stack_align_bytes(ctx["abi"])
+    if align < 1 { align = 16 }
+    // Align locals area to ABI stack alignment so nested calls keep the required boundary.
+    while core.int_mod(locals_size, align) != 0 { locals_size = locals_size + 1 }
 
     // Reserve an outgoing call area at the bottom of the frame so call lowering can:
     // - satisfy Win64 32B shadow requirement (if applicable)
@@ -166,11 +168,14 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // For Win64, stack args begin at [rsp+0x20] at the call site.
     var regc = abi.max_int_reg_args(ctx["abi"])
     var shadow = abi.caller_shadow_bytes(ctx["abi"])
+    var slot = abi.stack_arg_slot_bytes(ctx["abi"])
     var stack_slots = 0
     if max_call_argc > regc { stack_slots = max_call_argc - regc }
-    var need_call_area = shadow + stack_slots * 8
+    var need_call_area = shadow + stack_slots * slot
     var call_area = abi.callee_call_area_bytes(ctx["abi"])
     if need_call_area > call_area { call_area = need_call_area }
+    // Keep RSP aligned after `push rbp; sub rsp, frame_size` so all nested calls satisfy the ABI.
+    while core.int_mod(call_area, align) != 0 { call_area = call_area + 1 }
 
     // Provide call lowering with the reserved call-area capacity for this function.
     ctx["cur_call_area_bytes"] = call_area

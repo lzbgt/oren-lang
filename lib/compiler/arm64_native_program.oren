@@ -10,6 +10,7 @@ import callable "native_callable.oren"
 import exprm "arm64_native_expr.oren"
 import rtinj "native_runtime_inject.oren"
 import bundle "native_runtime_bundle.oren"
+import nabi "native_abi.oren"
 
 // Re-export core helpers locally so the native program compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -272,6 +273,7 @@ fn native_compile_program_arm64(linked, platform) {
         "locals_stringy": {},
         "locals_list_stringy": {},
         "platform": platform,
+        "call_abi": nabi.arm64(platform),
         "aliases": linked["aliases"],
         "type_ns": linked["type_ns"],
         // Rolling v0: structs are map-shaped across backends, so member access uses map_get/map_set.

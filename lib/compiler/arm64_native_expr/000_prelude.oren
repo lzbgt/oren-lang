@@ -3,6 +3,7 @@ import sysm "arm64_native_expr_syscalls.oren"
 import abi "arm64_abi_macos.oren"
 import labi "arm64_abi_linux.oren"
 import token "token.oren"
+import callabi "native_abi.oren"
 
 fn native_src_line_col(src, pos) {
     // Map byte offset -> (line, col), 1-based.

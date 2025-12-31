@@ -5,10 +5,16 @@
 
 import win64 "native_abi_x64_win64.oren"
 import sysv "native_abi_x64_sysv.oren"
+import aapcs "native_abi_arm64_aapcs.oren"
 
 fn x64(platform) {
     if platform != nil && platform["os"] == "windows" { return win64.x64_win64() }
     return sysv.x64_sysv()
+}
+
+fn arm64(platform) {
+    // AAPCS64 calling convention is shared across Linux/macOS for integer/pointer args.
+    return aapcs.arm64_aapcs()
 }
 
 fn max_int_reg_args(abi) {
@@ -40,7 +46,21 @@ fn callee_call_area_bytes(abi) {
     return n
 }
 
-// ---- x86_64 Tier‑1 fixed-base emitters (rolling v0) ----
+fn stack_arg_slot_bytes(abi) {
+    if abi == nil { return 8 }
+    var n = abi["stack_arg_slot_bytes"]
+    if n == nil { return 8 }
+    return n
+}
+
+fn stack_align_bytes(abi) {
+    if abi == nil { return 16 }
+    var n = abi["stack_align_bytes"]
+    if n == nil { return 16 }
+    return n
+}
+
+// ---- x86_64 Tier-1 fixed-base emitters (rolling v0) ----
 //
 // The x64 native backend currently emits fixed-base executables without relocations:
 // - Linux: ET_EXEC at 0x400000 with headers prepended

@@ -12,5 +12,8 @@ fn x64_sysv() {
         "caller_shadow_bytes": 0,
         // v0: no dedicated call area needed (we avoid pushing during calls).
         "callee_call_area_bytes": 0,
+        // Outgoing stack args are passed as 8-byte slots, with 16-byte stack alignment.
+        "stack_arg_slot_bytes": 8,
+        "stack_align_bytes": 16,
     }
 }

@@ -148,7 +148,7 @@ func runTier1Matrix(timeoutBin string, includeOBCPortability bool) int {
 		{
 			name: "x64-remote(windows+wsl)",
 			// By design, remote gate is fixture-only unless OREN_REMOTE_RUN_ALL=1.
-			cmd: "OREN_REMOTE_RUN=1 ./oretest --target macos",
+			cmd: "OREN_REMOTE_RUN=1 OREN_REMOTE_X64_RUN_KIND=both ./oretest",
 			log: "build/logs/matrix_x64_remote.log",
 		},
 	}

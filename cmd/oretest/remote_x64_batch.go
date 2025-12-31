@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,7 +42,7 @@ type remoteX64BatchOptions struct {
 
 	// If 0, a conservative default is chosen.
 	buildJobs int
-	// If true, run Win + WSL in parallel (2 ssh sessions).
+	// If true, run Win + WSL in parallel (single ssh session; remote concurrency).
 	parallelRuns bool
 }
 
@@ -218,15 +219,32 @@ func remoteX64BatchTarGz(dst string, srcDir string) error {
 	if err != nil {
 		return err
 	}
+	// Determinism: gzip headers default to "now" which breaks cache keys.
+	gw.Header.ModTime = time.Unix(0, 0)
 	defer func() { _ = gw.Close() }()
+
 	tw := tar.NewWriter(gw)
 	defer func() { _ = tw.Close() }()
 
-	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+	type ent struct {
+		abs string
+		rel string
+		inf os.FileInfo
+	}
+	ents := []ent{}
+
+	if err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
 			return nil
 		}
 		rel, err := filepath.Rel(srcDir, path)
@@ -234,22 +252,36 @@ func remoteX64BatchTarGz(dst string, srcDir string) error {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		hdr, err := tar.FileInfoHeader(info, "")
-		if err != nil {
-			return err
+		ents = append(ents, ent{abs: path, rel: rel, inf: info})
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	sort.Slice(ents, func(i, j int) bool { return ents[i].rel < ents[j].rel })
+	for _, e := range ents {
+		hdr := &tar.Header{
+			Name:    e.rel,
+			Mode:    int64(e.inf.Mode().Perm()),
+			Size:    e.inf.Size(),
+			ModTime: time.Unix(0, 0),
+			Uid:     0,
+			Gid:     0,
 		}
-		hdr.Name = rel
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err
 		}
-		in, err := os.Open(path)
+		in, err := os.Open(e.abs)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = in.Close() }()
-		_, err = io.Copy(tw, in)
-		return err
-	})
+		_, copyErr := io.Copy(tw, in)
+		_ = in.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+	}
+	return nil
 }
 
 func remoteX64BatchAppendLog(logPath string, s string) {
@@ -356,7 +388,7 @@ func remoteX64BatchSCPArgs(opts remoteX64BatchOptions) []string {
 	return base
 }
 
-func remoteX64BatchParseOutput(out string, tests []remoteX64Test) (bool, string) {
+func remoteX64BatchParseOutput(out string, tests []remoteX64Test, wantPlatforms []string) (bool, string) {
 	// Validate markers and expectations.
 	//
 	// Expected format (from scripts):
@@ -364,6 +396,18 @@ func remoteX64BatchParseOutput(out string, tests []remoteX64Test) (bool, string)
 	//   ::BEGIN::<testname>
 	//   ... program output ...
 	//   ::EXIT::<testname>::<rc>
+	//
+	// Note: when we run both Windows + WSL in a single remote batch, the output contains
+	// two platform sections. We validate per-platform so each target remains a hard gate.
+	want := map[string]bool{}
+	for _, p := range wantPlatforms {
+		p = strings.ToLower(strings.TrimSpace(p))
+		if p == "" {
+			continue
+		}
+		want[p] = true
+	}
+
 	sc := bufio.NewScanner(strings.NewReader(out))
 	// Allow longer lines (stack traces).
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -373,28 +417,38 @@ func remoteX64BatchParseOutput(out string, tests []remoteX64Test) (bool, string)
 		rc   int
 		ok   bool
 	}
+	// key: platform + "\x00" + testname
 	seen := map[string]*segment{}
 
+	curPlatform := ""
 	curName := ""
+	curSegPlatform := ""
 	var curBuf strings.Builder
 
-	flush := func(name string, rc int) {
-		seg := seen[name]
+	flush := func(platform, name string, rc int) {
+		key := platform + "\x00" + name
+		seg := seen[key]
 		if seg == nil {
 			seg = &segment{}
-			seen[name] = seg
+			seen[key] = seg
 		}
 		seg.body = curBuf.String()
 		seg.rc = rc
 		seg.ok = true
 		curBuf.Reset()
 		curName = ""
+		curSegPlatform = ""
 	}
 
 	for sc.Scan() {
 		line := sc.Text()
+		if strings.HasPrefix(line, "::PLATFORM::") {
+			curPlatform = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(line, "::PLATFORM::")))
+			continue
+		}
 		if strings.HasPrefix(line, "::BEGIN::") {
 			curName = strings.TrimPrefix(line, "::BEGIN::")
+			curSegPlatform = curPlatform
 			curBuf.Reset()
 			continue
 		}
@@ -408,7 +462,15 @@ func remoteX64BatchParseOutput(out string, tests []remoteX64Test) (bool, string)
 			rcStr := parts[1]
 			rc := 999999
 			_, _ = fmt.Sscanf(rcStr, "%d", &rc)
-			flush(nm, rc)
+
+			plat := curSegPlatform
+			if plat == "" && len(want) == 1 {
+				for k := range want {
+					plat = k
+					break
+				}
+			}
+			flush(plat, nm, rc)
 			continue
 		}
 		if curName != "" {
@@ -420,28 +482,86 @@ func remoteX64BatchParseOutput(out string, tests []remoteX64Test) (bool, string)
 		return false, err.Error()
 	}
 
-	for _, t := range tests {
-		seg := seen[t.name]
-		if seg == nil || !seg.ok {
-			return false, fmt.Sprintf("missing markers for %s", t.name)
+	// Determine which platforms to validate.
+	required := []string{}
+	if len(want) > 0 {
+		for p := range want {
+			required = append(required, p)
 		}
-		expExit := t.expectExit
-		if len(t.expectSubstrings) > 0 && t.expectExit == 0 {
-			expExit = 0
+		sort.Strings(required)
+	} else {
+		// Infer from output.
+		plats := map[string]bool{}
+		for k := range seen {
+			parts := strings.SplitN(k, "\x00", 2)
+			if len(parts) == 2 {
+				plats[parts[0]] = true
+			}
 		}
-		if seg.rc != expExit {
-			return false, fmt.Sprintf("%s: exit=%d want=%d", t.name, seg.rc, expExit)
-		}
-		for _, s := range t.expectSubstrings {
-			if s == "" {
+		for p := range plats {
+			if p == "" {
 				continue
 			}
-			if !strings.Contains(seg.body, s) {
-				return false, fmt.Sprintf("%s: missing substring %q", t.name, s)
+			required = append(required, p)
+		}
+		sort.Strings(required)
+		if len(required) == 0 {
+			return false, "missing ::PLATFORM:: markers"
+		}
+	}
+
+	for _, plat := range required {
+		for _, t := range tests {
+			key := plat + "\x00" + t.name
+			seg := seen[key]
+			if seg == nil || !seg.ok {
+				return false, fmt.Sprintf("%s: missing markers for %s", plat, t.name)
+			}
+			expExit := t.expectExit
+			if len(t.expectSubstrings) > 0 && t.expectExit == 0 {
+				expExit = 0
+			}
+			if seg.rc != expExit {
+				return false, fmt.Sprintf("%s/%s: exit=%d want=%d", plat, t.name, seg.rc, expExit)
+			}
+			for _, sub := range t.expectSubstrings {
+				if sub == "" {
+					continue
+				}
+				if !strings.Contains(seg.body, sub) {
+					return false, fmt.Sprintf("%s/%s: missing substring %q", plat, t.name, sub)
+				}
 			}
 		}
 	}
 	return true, ""
+}
+
+func remoteX64BatchParallelRunCmd(remoteWinDir, remoteWslDir string) string {
+	// Run the Windows + WSL batches concurrently on the remote host, but keep
+	// transport simple by using a single ssh session.
+	//
+	// Implementation strategy:
+	// - invoke one `wsl.exe -e bash -lc ...` session
+	// - inside WSL, start the Windows cmd batch via interop (cmd.exe) in the background
+	// - run the WSL batch concurrently
+	// - wait for both, then print concatenated outputs
+	//
+	// This avoids flakey concurrent ssh sessions over the proxy transport.
+	winDir := strings.ReplaceAll(remoteWinDir, `\`, `/`)
+	winCmd := fmt.Sprintf(`cmd.exe /v:on /c %s/run_win.cmd`, winDir)
+	bash := fmt.Sprintf(
+		`cd %s; rm -f out_win.txt out_wsl.txt; `+
+			`(%s > out_win.txt 2>&1) & pid_win=$!; `+
+			`(./run_wsl.sh > out_wsl.txt 2>&1) & pid_wsl=$!; `+
+			`wait $pid_win; rc_win=$?; `+
+			`wait $pid_wsl; rc_wsl=$?; `+
+			`cat out_win.txt || true; cat out_wsl.txt || true; `+
+			`exit 0`,
+		remoteWslDir,
+		winCmd,
+	)
+	return fmt.Sprintf(`wsl.exe -e bash -lc "%s"`, bash)
 }
 
 func remoteX64BatchCopyFile(dst string, src string) error {
@@ -862,64 +982,75 @@ func remoteX64BatchFixtureRunner(timeoutBin string, timeout time.Duration, logPa
 		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] reuse remote bundle (sha=%s)", bundleSHA[:16]))
 	}
 
-	// 4) Run Windows + WSL scripts (optionally in parallel) and validate outputs locally.
-	type runOut struct {
-		kind string
-		rc   int
-		out  string
-	}
+	// 4) Run Windows + WSL scripts and validate outputs locally.
 	runTimeout := timeLeft()
 	if runTimeout <= 0 {
 		remoteX64BatchAppendLog(logPath, "[remote_x64_batch] out of time before remote run")
 		return 2
 	}
 
-	winRunCmd := fmt.Sprintf(`cmd.exe /v:on /c "%s\run_win.cmd"`, remoteWinDir)
+	winRunCmd := fmt.Sprintf(`cmd.exe /v:on /c "%s\\run_win.cmd"`, remoteWinDir)
 	wslRunCmd := fmt.Sprintf(`wsl.exe -e bash -lc "cd %s; ./run_wsl.sh"`, remoteWslDir)
 
-	runOne := func(kind string, cmdString string) runOut {
-		args := append([]string{}, sshArgs...)
-		args = append(args, opts.host, cmdString)
-		rc, out := remoteX64BatchRetry(logPath, runTimeout, 2, "ssh", args...)
-		return runOut{kind: kind, rc: rc, out: out}
-	}
-
-	var outs []runOut
 	runKind := strings.ToLower(strings.TrimSpace(os.Getenv("OREN_REMOTE_X64_RUN_KIND")))
 	wantWin := runKind == "" || runKind == "both" || runKind == "windows" || runKind == "win"
 	wantWsl := runKind == "" || runKind == "both" || runKind == "wsl" || runKind == "linux"
 	if !wantWin && !wantWsl {
 		wantWin, wantWsl = true, true
 	}
-	if wantWin && wantWsl {
-		if opts.parallelRuns {
-			ch := make(chan runOut, 2)
-			go func() { ch <- runOne("windows", winRunCmd) }()
-			go func() { ch <- runOne("wsl", wslRunCmd) }()
-			outs = append(outs, <-ch, <-ch)
-		} else {
-			outs = append(outs, runOne("windows", winRunCmd))
-			outs = append(outs, runOne("wsl", wslRunCmd))
+
+	wantPlatforms := []string{}
+	if wantWin {
+		wantPlatforms = append(wantPlatforms, "windows")
+	}
+	if wantWsl {
+		wantPlatforms = append(wantPlatforms, "wsl")
+	}
+
+	runSSH := func(cmdString string) (int, string) {
+		args := append([]string{}, sshArgs...)
+		args = append(args, opts.host, cmdString)
+		return remoteX64BatchRetry(logPath, runTimeout, 2, "ssh", args...)
+	}
+
+	var outAll strings.Builder
+	if wantWin && wantWsl && opts.parallelRuns {
+		bothCmd := remoteX64BatchParallelRunCmd(remoteWinDir, remoteWslDir)
+		rc, out := runSSH(bothCmd)
+		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] remote both rc=%d", rc))
+		if rc != 0 {
+			remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] remote both run failed (rc=%d)", rc))
+			return 2
 		}
-	} else if wantWin {
-		outs = append(outs, runOne("windows", winRunCmd))
+		outAll.WriteString(out)
 	} else {
-		outs = append(outs, runOne("wsl", wslRunCmd))
+		if wantWin {
+			rc, out := runSSH(winRunCmd)
+			remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] windows rc=%d", rc))
+			if rc != 0 {
+				remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] windows run failed (rc=%d)", rc))
+				return 2
+			}
+			outAll.WriteString(out)
+			outAll.WriteString("\n")
+		}
+		if wantWsl {
+			rc, out := runSSH(wslRunCmd)
+			remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] wsl rc=%d", rc))
+			if rc != 0 {
+				remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] wsl run failed (rc=%d)", rc))
+				return 2
+			}
+			outAll.WriteString(out)
+			outAll.WriteString("\n")
+		}
 	}
 
-	for _, ro := range outs {
-		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] %s rc=%d", ro.kind, ro.rc))
-		if ro.rc != 0 {
-			remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] %s run failed (rc=%d)", ro.kind, ro.rc))
-			return 2
-		}
-		ok, msg := remoteX64BatchParseOutput(ro.out, tests)
-		if !ok {
-			remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] %s output validation failed: %s", ro.kind, msg))
-			return 2
-		}
+	ok, msg := remoteX64BatchParseOutput(outAll.String(), tests, wantPlatforms)
+	if !ok {
+		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] output validation failed: %s", msg))
+		return 2
 	}
-
 	remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] ok (dur=%s)", time.Since(start)))
 	// Cleanup on success: keep tmp artifacts only when something fails.
 	_ = os.RemoveAll(workdir)

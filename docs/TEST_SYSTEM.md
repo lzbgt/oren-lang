@@ -15,22 +15,19 @@ This document explains the current state and the planned evolution.
 
 `make test` is a curated, timeout-protected suite intended for fast iteration:
 
-- runs the canonical curated runner: `./oretest --target macos`
-- platform shorthand (preferred mental model): `./oretest --platform arm64-macos`
+- runs the canonical curated runner: `./oretest` (host target inferred)
+- legacy explicit host target: `./oretest --target macos` / `./oretest --target linux`
+- platform selector (preferred mental model): `./oretest --platform <arch>-<os>` (e.g. `arm64-macos`)
 - Tier‑1 platform matrix (host orchestration): `./oretest --matrix tier1`
 - Tier‑1 + OBC portability (recommended after compiler/runtime changes): `./oretest --matrix tier1-obc`
+- remote x64 gate (Win11 + WSL2): `OREN_REMOTE_RUN=1 OREN_REMOTE_X64_RUN_KIND=both ./oretest`
 - captures per-test logs under `build/logs/`
 - prints **only summaries** on success; prints **details only on failures**
 - runs tests/fixtures in parallel by default (bounded); tune with:
   - `OREN_TEST_JOBS` (`./oretest --jobs`)
   - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
   - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
-- build throughput note:
-  - `./oretest` shells out to `./oren build ...` many times; `oren build` has a default-enabled build cache to keep repeated runs fast
-  - default cache location is `./build/cache` (repo-local)
-  - you can isolate cache state per run by setting `OREN_CACHE_DIR=...` or disable caching via `OREN_NO_CACHE=1`
-  - `.obc` is an AVM artifact and is intended to be platform-neutral; `oren build --backend bytecode` uses an AVM ABI profile (`target=avm`, `arch=avm64`) to keep bytecode semantics stable across hosts
-  - artifact layout note:
+- macOS speed knob: `OREN_SKIP_CODESIGN=1 make test` (skips codesign in rolling iteration)
     - `oren build` has a repo-local default output layout under `build/targets/...`
     - `./oretest` passes explicit `-o ...` paths for fixtures/tests (so logs and cleanup lists stay stable), but those outputs now also follow the `build/targets/...` layout for the main suites:
       - native: `build/targets/<arch>-<os>/native/<test>`

@@ -260,40 +260,56 @@ fn native_expr_chunk_call(ctx, expr) {
         i = i + 1
     }
 
-    // Native calling convention hardening (AAPCS64):
-    // - X0..X7 hold the first 8 args
-    // - args 8+ are passed on the stack as 8-byte slots at [SP + 0..]
+    // Native calling convention marshalling (Tier-1): use the shared ABI descriptor.
     //
+    // For arm64 Tier-1 targets this is AAPCS64:
+    // - first N integer/pointer args in registers (X0..)
+    // - remaining args on stack as 8-byte slots
+    // - stack is 16-byte aligned at call boundaries
+    var call_abi = nil
+    if ctx != nil { call_abi = ctx["call_abi"] }
+    if call_abi == nil {
+        // Best-effort fallback (should be set by the program compiler).
+        call_abi = callabi.arm64(ctx["platform"])
+    }
+    var regc = callabi.max_int_reg_args(call_abi)
+    var slot = callabi.stack_arg_slot_bytes(call_abi)
+    var align = callabi.stack_align_bytes(call_abi)
+
     // Our temporary arg-eval stack uses 16-byte slots. Convert into ABI form.
-    //
     // Save the current SP (points at arg[nargs-1] temporary slot) in X9.
     push_u32_le(ctx["code"], insn_add_imm(9, 31, 0)) // X9 = SP (temp args base)
 
     var stack_arg_count = 0
-    if nargs > 8 { stack_arg_count = nargs - 8 }
-    var abi_stack_bytes = align_up(stack_arg_count * 8, 16)
+    if nargs > regc { stack_arg_count = nargs - regc }
+    var abi_stack_bytes = align_up(stack_arg_count * slot, align)
     if abi_stack_bytes > 0 {
         emit_sub_sp_any(ctx, abi_stack_bytes)
         ctx["stack_size"] = ctx["stack_size"] + abi_stack_bytes
 
-        // Copy arg[8..] into ABI stack area at [SP + k*8].
+        // Copy arg[regc..] into ABI stack area at [SP + k*slot].
         var k = 0
         while k < stack_arg_count {
-            var arg_idx = 8 + k
+            var arg_idx = regc + k
             var src_off = (nargs - 1 - arg_idx) * 16
             emit_load_ptr_from_base_plus(ctx, 10, 9, src_off) // X10 = arg[arg_idx]
-            emit_str_reg_sp_any(ctx, 10, k * 8)
+            emit_str_reg_sp_any(ctx, 10, k * slot)
             k = k + 1
         }
     }
 
-    // Load X0..X7 from the temporary stack (do not destroy the ABI stack args).
+    // Load register args from the temporary stack (do not destroy the ABI stack args).
     var reg_arg_count = nargs
-    if reg_arg_count > 8 { reg_arg_count = 8 }
+    if reg_arg_count > regc { reg_arg_count = regc }
     var r = 0
     while r < reg_arg_count {
+        var dst_reg = callabi.int_arg_reg(call_abi, r)
+        if dst_reg == nil {
+            native_error(ctx, expr["token"], "native backend: missing ABI int arg reg for arg " + oren_int_to_string(r))
+            dst_reg = r
+        }
         var src_off2 = (nargs - 1 - r) * 16
-        emit_load_ptr_from_base_plus(ctx, r, 9, src_off2)
+        emit_load_ptr_from_base_plus(ctx, dst_reg, 9, src_off2)
         r = r + 1
     }
 

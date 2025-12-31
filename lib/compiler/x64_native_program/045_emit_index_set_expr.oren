@@ -151,6 +151,17 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     // idx -> rcx (1)
     _emit_mov_r64_mrbp(ctx, 1, 0 - off_idx)
 
+    // Tier-1 parity: validate list magic (matches native runtime list_set).
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
+    var l_magic_ok = _new_label(ctx, "idx_set_list_magic_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+    _emit_abort_panic_str(ctx, "list_set on non-list")
+    _emit_label(ctx, labels, l_magic_ok)
+
     // count = *(container + 0) -> r8
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
     bytes_extend(ctx["code"], insn_mov_rax_mrax())

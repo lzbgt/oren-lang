@@ -148,3 +148,10 @@ Rules for this tracker:
      - `docs/CONCURRENCY_MODEL.md`
      - `docs/NATIVE_GMP_SCHEDULER.md`
      - `docs/ASYNC_IO_AND_SELECT.md`
+
+4) **macOS Mach-O signing story (embedded vs external)** (S)
+   - Today Tier‑1 relies on external ad-hoc signing (`codesign -s -`) for reliable local execution on macOS.
+   - Decide and implement one coherent production rule:
+     - either remove/disable the custom embedded code signature generator in `lib/compiler/arm64_macho.oren`
+     - or make the embedded signature pass `codesign -dv` / `spctl --assess` without requiring an external signing step.
+

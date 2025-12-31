@@ -1,7 +1,7 @@
 // Generic call expression lowering for x64 native.
 //
 // Kept in a dedicated chunk to prevent `040_emit_expr.oren` from growing beyond
-// reviewable limits as x64 Tier‑1 call semantics converge with AVM/C.
+// reviewable limits as x64 Tier-1 call semantics converge with AVM/C.
 
 fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_expr) {
     // Intrinsic: indirect call through a native function object.
@@ -71,7 +71,7 @@ fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_ex
 }
 
 fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, args, spread) {
-    // Tier‑1 convergence: if the injected native runtime is enabled, lower call-site spread
+    // Tier-1 convergence: if the injected native runtime is enabled, lower call-site spread
     // via the shared helper:
     //   oren_call_obj_spread(fn_obj, fixed_args_list, spread_list)
     //
@@ -151,7 +151,7 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
 }
 
 fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
-    // Indirect call path (Tier‑1 convergence): callee is a first-class function value, not a direct symbol call.
+    // Indirect call path (Tier-1 convergence): callee is a first-class function value, not a direct symbol call.
     //
     // Lowering:
     // - without spread: build args_list and call the uniform callable ABI wrapper
@@ -261,7 +261,7 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
 }
 
 fn _emit_spawn_expr_v0(ctx, expr, locals) {
-    // Spawn expression lowering (Tier‑1): `spawn f(args...)`
+    // Spawn expression lowering (Tier-1): `spawn f(args...)`
     //
     // This is intentionally lowered through the injected native runtime helper:
     //   oren_spawn_call_list(fn_obj, args_list)
@@ -430,7 +430,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
 
     if is_windows {
-        // Windows Tier‑1: lower `spawn` to CreateThread(...) using syscall intrinsics.
+        // Windows Tier-1: lower `spawn` to CreateThread(...) using syscall intrinsics.
         //
         // We cannot use the POSIX fork+pipe runtime helper on Windows, and we also cannot take
         // the address of a function from Oren code. Instead, the code generator materializes
@@ -532,7 +532,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
 }
 
 fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
-    // Tier‑1 convergence: if the injected native runtime is enabled, lower varargs named calls
+    // Tier-1 convergence: if the injected native runtime is enabled, lower varargs named calls
     // through the uniform callable ABI, matching arm64:
     //   fn_obj(args...)  =>  args_list = [args...] ; oren_call_obj_list(fn_obj, args_list)
     //
@@ -608,10 +608,20 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
 
     var spread = expr["spread"]
 
-    // Tier‑1 parity + performance: inline `oren_index_set(container, index, value)` so
+    // Tier-1 parity + performance: inline `oren_index_set(container, index, value)` so
     // list in-bounds stores do not pay an extra runtime call.
     if nm == "oren_index_set" {
         _emit_index_set_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
+
+    // Tier‑1 parity: match arm64 by inlining core list operations with tracked-kind safety gates.
+    if nm == "oren_list_len" || nm == "STD_list_len" {
+        _emit_list_len_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
+    if nm == "oren_list_push" || nm == "STD_list_push" {
+        _emit_list_push_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }
 
@@ -622,7 +632,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         return nil
     }
 
-    // Tier‑1 parity: when runtime injection is enabled, lower call-site spread through the
+    // Tier-1 parity: when runtime injection is enabled, lower call-site spread through the
     // shared runtime helper (matches arm64). This also works for indirect calls (callee in a var).
     if spread != nil && ctx != nil && ctx["runtime_injected"] == true {
         _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, {"type": "Identifier", "value": nm}, args, spread)
@@ -657,7 +667,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         }
     }
 
-    // Tier‑1 parity: when runtime injection is enabled, lower varargs named calls through the
+    // Tier-1 parity: when runtime injection is enabled, lower varargs named calls through the
     // uniform callable ABI (args_list + fnobj wrapper), matching arm64.
     if is_varargs_named && ctx != nil && ctx["runtime_injected"] == true {
         _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args)
@@ -830,6 +840,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
             // Load ABI args for the real call: fixed args + rest_list.
             var regc = abi.max_int_reg_args(ctx["abi"])
             var shadow = abi.caller_shadow_bytes(ctx["abi"])
+            var slot = abi.stack_arg_slot_bytes(ctx["abi"])
             var k = 0
             while k < fixed + 1 {
                 var tmp_off = nil
@@ -851,12 +862,12 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
                 } else {
                     _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off)
                     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-                    var stack_disp = shadow + 8 * (k - regc)
+                    var stack_disp = shadow + slot * (k - regc)
                     var call_area = ctx["cur_call_area_bytes"]
                     if call_area == nil { call_area = 0 }
-                    if stack_disp + 8 > call_area {
+                    if stack_disp + slot > call_area {
                         _intr_tmp_pop(ctx, base)
-                        err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+8) + ", have " + oren_int_to_string(call_area) + ")")
+                        err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+slot) + ", have " + oren_int_to_string(call_area) + ")")
                         return nil
                     }
                     _emit_mov_mrsp_r64(ctx, stack_disp, 0)
@@ -928,6 +939,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         // Load args into ABI locations.
         var regc = abi.max_int_reg_args(ctx["abi"])
         var shadow = abi.caller_shadow_bytes(ctx["abi"])
+        var slot = abi.stack_arg_slot_bytes(ctx["abi"])
         var k = 0
         while k < arity {
             var src_idx = base + k
@@ -945,12 +957,12 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
             } else {
                 _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-                var stack_disp = shadow + 8 * (k - regc)
+                var stack_disp = shadow + slot * (k - regc)
                 var call_area = ctx["cur_call_area_bytes"]
                 if call_area == nil { call_area = 0 }
-                if stack_disp + 8 > call_area {
+                if stack_disp + slot > call_area {
                     _intr_tmp_pop(ctx, base)
-                    err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+8) + ", have " + oren_int_to_string(call_area) + ")")
+                    err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp+slot) + ", have " + oren_int_to_string(call_area) + ")")
                     return nil
                 }
                 _emit_mov_mrsp_r64(ctx, stack_disp, 0)
@@ -1040,6 +1052,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
 
     var regc2 = abi.max_int_reg_args(ctx["abi"])
     var shadow2 = abi.caller_shadow_bytes(ctx["abi"])
+    var slot2 = abi.stack_arg_slot_bytes(ctx["abi"])
     var i3 = 0
     while i3 < call_argc {
         var src_idx2 = base2 + i3
@@ -1057,12 +1070,12 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         } else {
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
-            var stack_disp2 = shadow2 + 8 * (i3 - regc2)
+            var stack_disp2 = shadow2 + slot2 * (i3 - regc2)
             var call_area2 = ctx["cur_call_area_bytes"]
             if call_area2 == nil { call_area2 = 0 }
-            if stack_disp2 + 8 > call_area2 {
+            if stack_disp2 + slot2 > call_area2 {
                 _intr_tmp_pop(ctx, base2)
-                err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp2+8) + ", have " + oren_int_to_string(call_area2) + ")")
+                err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp2+slot2) + ", have " + oren_int_to_string(call_area2) + ")")
                 return nil
             }
             _emit_mov_mrsp_r64(ctx, stack_disp2, 0)

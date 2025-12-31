@@ -506,7 +506,11 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, sig_size, entry_idx,
         // 9. LC_CODE_SIGNATURE
         push_u32_le(p, lc_code_signature())
         push_u32_le(p, cmdsize_code_signature())
-        push_u32_le(p, text_size + data_size) // dataoff
+        // Signature is appended after LINKEDIT tables in this order:
+        //   bind opcodes, symtab, dysymtab(indirect), strtab, signature
+        var indsymtab_size = imports_len * 4
+        var sig_off = text_size + data_size + bind_size + symtab_size + indsymtab_size + strtab_size
+        push_u32_le(p, sig_off) // dataoff
         push_u32_le(p, sig_size) // datasize
     }
 
@@ -588,19 +592,15 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
     var header_size = macho_header_size_exit_stub()
     var text_size = align_up(header_size + oren_list_len(code), macho_segment_align())
 
-    // Signature size depends on codeLimit (= text_size + extra).
-    var code_limit = text_size + codesign_code_limit_extra_bytes()
-    var n_code_slots = ceil_div(code_limit, codesign_page_size())
-    var code_dir_len = (codesign_codedir_fixed_len() + codesign_ident_cstr_len()) + (sha256_len() * n_code_slots)
-    var super_len = codesign_blob_header_len() + codesign_blob_index_len() + code_dir_len
-    var sig_size = align_up(super_len, 8)
-    
-    sig_size = 0
-    
+        // Embedded ad-hoc code signature (no external `codesign` dependency).
+    var code_limit = text_size
+    var sig_size = codesign_adhoc_sig_size(code_limit, "oren")
+
     var prefix = macho_build_prefix_arm64(text_size, 0, 0, sig_size, 0, header_size, 0, 0, 0, 0, 0, [], false, "")
     bytes_extend(prefix, code)
+    while oren_list_len(prefix) < text_size { bytes_push(prefix, 0) }
     if sig_size > 0 {
-        var sig = codesign_adhoc_superblob(prefix, "oren", oren_list_len(code))
+        var sig = codesign_adhoc_superblob(prefix, "oren")
         bytes_extend(prefix, sig)
     }
 
@@ -835,10 +835,12 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         bytes_push(strtab, 0)
     }
     
-    var sig_size = 0
     var symtab_size = oren_list_len(symtab)
     var strtab_size = oren_list_len(strtab)
     var imports_len = oren_list_len(imports)
+    var indsymtab_size = imports_len * 4
+    var code_limit = text_size + data_size + bind_size + symtab_size + indsymtab_size + strtab_size
+    var sig_size = codesign_adhoc_sig_size(code_limit, "oren")
     
     // Entry point is start of code (startup shim)
     var entry_idx = 0
@@ -862,7 +864,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     bytes_extend(prefix, strtab)
     
     if sig_size > 0 {
-        var sig = codesign_adhoc_superblob(prefix, "oren", text_size) 
+        var sig = codesign_adhoc_superblob(prefix, "oren") 
         bytes_extend(prefix, sig)
     }
     
@@ -885,7 +887,23 @@ fn push_u8(buf, n) {
     bytes_push(buf, int_mod(n, 256))
 }
 
-fn codesign_adhoc_superblob(code_bytes, ident, exec_seg_limit) {
+fn codesign_adhoc_sig_size(code_limit, ident) {
+    if code_limit == nil { return 0 }
+    if code_limit < 0 { return 0 }
+    var page_size = codesign_page_size()
+    var n_code_slots = ceil_div(code_limit, page_size)
+    var ident_bytes = oren_bytes_from_string(ident)
+    var ident_len = oren_list_len(ident_bytes) + 1
+    // CodeDirectory header is 44 bytes.
+    var ident_offset = 44
+    var hash_offset = ident_offset + ident_len
+    var hash_size = 32
+    var code_dir_len = hash_offset + hash_size * n_code_slots
+    var super_len = codesign_blob_header_len() + codesign_blob_index_len() + code_dir_len
+    return align_up(super_len, 8)
+}
+
+fn codesign_adhoc_superblob(code_bytes, ident) {
     var code_limit = oren_list_len(code_bytes)
     var page_size = codesign_page_size()
     var n_code_slots = ceil_div(code_limit, page_size)
@@ -922,7 +940,7 @@ fn codesign_adhoc_superblob(code_bytes, ident, exec_seg_limit) {
     push_u32_be(cd, 4208856066) // magic
     push_u32_be(cd, code_dir_len) // length
     push_u32_be(cd, 131328) // version 0x20100
-    push_u32_be(cd, 131074) // flags (0x20002 = kSecCodeSignatureAdhoc | kSecCodeSignatureLinkerSigned)
+    push_u32_be(cd, 2) // flags (0x20002 = kSecCodeSignatureAdhoc | kSecCodeSignatureLinkerSigned)
     push_u32_be(cd, hash_offset) // hashOffset
     push_u32_be(cd, ident_offset) // identOffset
     push_u32_be(cd, 0) // nSpecialSlots
@@ -943,8 +961,8 @@ fn codesign_adhoc_superblob(code_bytes, ident, exec_seg_limit) {
     
     // SuperBlob
     var sb = bytes_new()
-    push_u32_be(sb, 4208855872) // magic (0xfade0cc0)
-    push_u32_be(sb, sig_size) // length (aligned)
+    push_u32_be(sb, 4208856256) // magic (0xfade0cc0)
+    push_u32_be(sb, super_len) // length (aligned)
     push_u32_be(sb, 1) // count
     push_u32_be(sb, 0) // type (0 = CodeDirectory)
     push_u32_be(sb, codesign_superblob_first_blob_off())
