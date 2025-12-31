@@ -7,6 +7,7 @@ import (
 
 func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 	arch := hostOrenArch()
+	plat := platformKey(target, arch)
 	fixtures := []fixtureCase{}
 
 	// Compiler diagnostic contract (machine-readable OREN_DIAG headers).
@@ -16,10 +17,9 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 			fixtureCase{
 				name: "compiler_parse_diag",
 				cmd: fmt.Sprintf(
-					"sh -c 'out=$(./oren build %q --backend c --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=parse code=1\"'",
+					"sh -c 'out=$(./oren build %q --backend c --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=parse code=1\"'",
 					"tests/native/fixtures/parse_error.oren",
-					target,
-					arch,
+					plat,
 					targetsOutPath(target, arch, "c", "parse_error"),
 					gcArg,
 				),
@@ -30,10 +30,9 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 			fixtureCase{
 				name: "compiler_codegen_diag",
 				cmd: fmt.Sprintf(
-					"sh -c 'out=$(./oren build %q --backend native --target %s --arch %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"'",
+					"sh -c 'out=$(./oren build %q --backend native --platform %s -o %q%s 2>&1); rc=$?; printf \"%%s\\n\" \"$out\"; test $rc -ne 0; printf \"%%s\\n\" \"$out\" | grep -F \"OREN_DIAG kind=codegen code=1\"'",
 					"tests/native/fixtures/codegen_error.oren",
-					target,
-					arch,
+					plat,
 					targetsOutPath(target, arch, "native", "codegen_error"),
 					gcArg,
 				),
@@ -69,7 +68,7 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 		fixtures = append(fixtures, fixtureCase{
 			name: "native_x64_tier1_smoke_builds",
 			cmd: fmt.Sprintf(
-				"./oren build %q --backend native --target linux --arch x64 -o %q > %q 2>&1 && "+
+				"./oren build %q --backend native --platform x64-linux -o %q > %q 2>&1 && "+
 					"file %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
@@ -77,7 +76,7 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
-					"./oren build %q --backend native --target windows --arch x64 -o %q > %q 2>&1 && "+
+					"./oren build %q --backend native --platform x64-windows -o %q > %q 2>&1 && "+
 					"file %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
@@ -142,6 +141,7 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 				expectSubstrings: []string{
 					"tier1 smoke ok",
 					"tier1 spawn join ok",
+					"tier1 local fn ok",
 					"tier1 args ok",
 					"SIMD_ENABLED=1",
 					"tier1 typed buffers ok",

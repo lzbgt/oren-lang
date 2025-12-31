@@ -126,6 +126,20 @@ fn main() {
     var xs = [2, 3]
     if sum1(1, xs...) != 6 { return 20 }
 
+    // Local `fn name(...) { ... }` declaration sugar (Tier‑1 parity):
+    // inside blocks, `fn name(...) { ... }` lowers to `var name = fn (...) { ... }`.
+    //
+    // This is important for arch unification: nested functions must compile via the
+    // uniform callable ABI (lambda wrappers), not via backend-specific hacks.
+    var cap2 = 7
+    fn add_local(a, b) { return a + b + cap2 }
+    cap2 = 999
+    if add_local(1, 2) != 10 { return 21 }
+    fn count_local(x, ...rest) { return x + oren_list_len(rest) }
+    if count_local(10) != 10 { return 22 }
+    if count_local(10, 1, 2, 3) != 13 { return 23 }
+    print("tier1 local fn ok")
+
     // List ops + index.
     var ys = [1]
     oren_list_push(ys, 2)

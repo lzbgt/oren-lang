@@ -433,6 +433,11 @@ fn native_compile_program_arm64(linked, platform) {
     coreir.collect_top_level_functions(ctx, bun["linked"], "arm64 native")
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
+    // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
+    // so Tier‑1 native backends share the same nested-function semantics.
+    callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
+    callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
+
     // Collect lambdas from user code (lambdas are anonymous Function nodes with name="").
     // This annotates lambda nodes with:
     //   - lambda_name: generated wrapper name

@@ -194,6 +194,18 @@ fn compiler_main() {
         // Modern CLI: options parsed/validated by std:argparse.
         var target = opts["target"]
         var arch = opts["arch"]
+        var platform0 = opts["platform"]
+        if platform0 != nil && platform0 != "" {
+            var ps0 = parse_platform_spec(platform0)
+            if ps0 == nil {
+                var emsg0 = "oren dump: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+                emit_diag("compile", 2, emsg0)
+                print(emsg0)
+                oren_exit(2)
+            }
+            arch = ps0["arch"]
+            target = ps0["os"]
+        }
         var outp = ""
         if seen["out"] == true { outp = opts["out"] }
 
@@ -311,6 +323,18 @@ fn compiler_main() {
         // Modern CLI: options already parsed/validated by std/argparse.
         var target = opts["target"]
         var arch = opts["arch"]
+        var platform0 = opts["platform"]
+        if platform0 != nil && platform0 != "" {
+            var ps0 = parse_platform_spec(platform0)
+            if ps0 == nil {
+                var emsg0 = "oren meta: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+                emit_diag("compile", 2, emsg0)
+                print(emsg0)
+                oren_exit(2)
+            }
+            arch = ps0["arch"]
+            target = ps0["os"]
+        }
         // Default output: keep artifacts under build/targets/<arch>-<os>/<kind>/... for a clean repo layout.
         // (Repo-local outputs make rolling iteration predictable for humans + AI agents.)
         var out_meta = "build/targets/" + arch + "-" + target + "/meta/" + basename(strip_suffix(path, ".oren")) + ".meta.json"
@@ -437,6 +461,18 @@ fn compiler_main() {
     cc = opts["cc"]
     target = opts["target"]
     arch = opts["arch"]
+    var platform0 = opts["platform"]
+    if platform0 != nil && platform0 != "" {
+        var ps0 = parse_platform_spec(platform0)
+        if ps0 == nil {
+            var emsg0 = "oren build: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+            emit_diag("compile", 2, emsg0)
+            print(emsg0)
+            oren_exit(2)
+        }
+        arch = ps0["arch"]
+        target = ps0["os"]
+    }
     disasm = seen["disasm"] == true
     // Debug info policy (native backend):
     // - default: enabled for native builds (production ergonomics: readable stack traces)

@@ -83,12 +83,236 @@ fn func_decl_scan_stmt_list(ctx, stmts) {
     return nil
 }
 
+
+// --- Local `fn name(...) { ... }` lowering (shared) ---
+//
+// Goal: keep native backends aligned and avoid an ISA-specific "nested function" story.
+//
+// In statement position inside a block/function body, allow:
+//   fn add(x, y) { return x + y }
+// and lower it to:
+//   var add = fn (x, y) { return x + y }
+//
+// This ensures the local function is a first-class callable value (lambda wrapper) and can
+// capture variables deterministically.
+
+fn _rewrite_local_fn_decl_to_var_stmt(ctx, fun_node, tok) {
+    if fun_node == nil || fun_node["type"] != "Function" { return nil }
+    var nm = fun_node["name"]
+    if nm == nil || nm == "" { return nil }
+
+    // Convert to a lambda literal:
+    // - name="" marks it as a first-class function value for lambda wrapper synthesis.
+    // - keep the original declared name for debugging / future symbolication.
+    fun_node["decl_name"] = nm
+    fun_node["name"] = ""
+
+    // Rewrite nested local function declarations inside the local function body too.
+    if fun_node["body"] != nil {
+        fun_node["body"] = _rewrite_local_fn_decls_in_stmt(ctx, fun_node["body"], true)
+    }
+
+    return {"type": "Var", "token": tok, "name": {"type": "Identifier", "token": nil, "value": nm}, "value": fun_node}
+}
+
+fn _rewrite_local_fn_decls_in_expr(ctx, exp) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Function" {
+        if exp["body"] != nil {
+            exp["body"] = _rewrite_local_fn_decls_in_stmt(ctx, exp["body"], true)
+        }
+        return nil
+    }
+    if et == "Call" {
+        _rewrite_local_fn_decls_in_expr(ctx, exp["fn"])
+        var i = 0
+        var args = exp["args"]
+        if args == nil { args = [] }
+        while i < oren_list_len(args) {
+            _rewrite_local_fn_decls_in_expr(ctx, args[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if et == "Prefix" { _rewrite_local_fn_decls_in_expr(ctx, exp["right"]); return nil }
+    if et == "Infix" {
+        _rewrite_local_fn_decls_in_expr(ctx, exp["left"])
+        _rewrite_local_fn_decls_in_expr(ctx, exp["right"])
+        return nil
+    }
+    if et == "If" {
+        _rewrite_local_fn_decls_in_expr(ctx, exp["cond"])
+        if exp["consq"] != nil { exp["consq"] = _rewrite_local_fn_decls_in_stmt(ctx, exp["consq"], true) }
+        if exp["alt"] != nil { exp["alt"] = _rewrite_local_fn_decls_in_stmt(ctx, exp["alt"], true) }
+        return nil
+    }
+    if et == "Member" { _rewrite_local_fn_decls_in_expr(ctx, exp["left"]); return nil }
+    if et == "Index" {
+        _rewrite_local_fn_decls_in_expr(ctx, exp["left"])
+        _rewrite_local_fn_decls_in_expr(ctx, exp["index"])
+        return nil
+    }
+    if et == "Array" {
+        var j = 0
+        var els = exp["elements"]
+        if els == nil { els = [] }
+        while j < oren_list_len(els) {
+            _rewrite_local_fn_decls_in_expr(ctx, els[j])
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var k = 0
+        var pairs = exp["pairs"]
+        if pairs == nil { pairs = [] }
+        while k < oren_list_len(pairs) {
+            var pair = pairs[k]
+            if pair != nil {
+                _rewrite_local_fn_decls_in_expr(ctx, pair["key"])
+                _rewrite_local_fn_decls_in_expr(ctx, pair["value"])
+            }
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" { _rewrite_local_fn_decls_in_expr(ctx, exp["call"]); return nil }
+    return nil
+}
+
+fn _rewrite_local_fn_decls_in_stmt(ctx, stmt, allow_convert) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+
+    if st == "Block" {
+        var stmts = stmt["stmts"]
+        if stmts != nil {
+            var i = 0
+            while i < oren_list_len(stmts) {
+                var s = stmts[i]
+                var r = _rewrite_local_fn_decls_in_stmt(ctx, s, true)
+                if r != nil { stmts[i] = r }
+                i = i + 1
+            }
+        }
+        return stmt
+    }
+
+    if st == "Function" {
+        // Local `fn name(...) { ... }` in statement position.
+        if allow_convert == true {
+            var r0 = _rewrite_local_fn_decl_to_var_stmt(ctx, stmt, stmt["token"])
+            if r0 != nil { return r0 }
+        }
+        // Always rewrite inside function bodies.
+        if stmt["body"] != nil {
+            stmt["body"] = _rewrite_local_fn_decls_in_stmt(ctx, stmt["body"], true)
+        }
+        return stmt
+    }
+
+    if st == "Var" {
+        _rewrite_local_fn_decls_in_expr(ctx, stmt["value"])
+        return stmt
+    }
+    if st == "Assign" {
+        _rewrite_local_fn_decls_in_expr(ctx, stmt["value"])
+        return stmt
+    }
+    if st == "Set" {
+        _rewrite_local_fn_decls_in_expr(ctx, stmt["left"])
+        _rewrite_local_fn_decls_in_expr(ctx, stmt["value"])
+        return stmt
+    }
+    if st == "Return" { _rewrite_local_fn_decls_in_expr(ctx, stmt["value"]); return stmt }
+
+    if st == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" {
+            var tok = stmt["token"]
+            if tok == nil { tok = e["token"] }
+            if allow_convert == true {
+                var r2 = _rewrite_local_fn_decl_to_var_stmt(ctx, e, tok)
+                if r2 != nil { return r2 }
+            }
+            // Named function in expression position: still recurse into its body.
+            _rewrite_local_fn_decls_in_expr(ctx, e)
+            return stmt
+        }
+        _rewrite_local_fn_decls_in_expr(ctx, e)
+        return stmt
+    }
+
+    if st == "If" {
+        _rewrite_local_fn_decls_in_expr(ctx, stmt["cond"])
+        if stmt["consq"] != nil { stmt["consq"] = _rewrite_local_fn_decls_in_stmt(ctx, stmt["consq"], true) }
+        if stmt["alt"] != nil { stmt["alt"] = _rewrite_local_fn_decls_in_stmt(ctx, stmt["alt"], true) }
+        return stmt
+    }
+    if st == "While" {
+        _rewrite_local_fn_decls_in_expr(ctx, stmt["cond"])
+        if stmt["body"] != nil { stmt["body"] = _rewrite_local_fn_decls_in_stmt(ctx, stmt["body"], true) }
+        return stmt
+    }
+    if st == "For" {
+        if stmt["init"] != nil { stmt["init"] = _rewrite_local_fn_decls_in_stmt(ctx, stmt["init"], true) }
+        _rewrite_local_fn_decls_in_expr(ctx, stmt["cond"])
+        if stmt["post"] != nil { stmt["post"] = _rewrite_local_fn_decls_in_stmt(ctx, stmt["post"], true) }
+        if stmt["body"] != nil { stmt["body"] = _rewrite_local_fn_decls_in_stmt(ctx, stmt["body"], true) }
+        return stmt
+    }
+    if st == "Spawn" { _rewrite_local_fn_decls_in_expr(ctx, stmt["call"]); return stmt }
+
+    // Other statements: nothing to rewrite.
+    return stmt
+}
+
+fn rewrite_local_fn_decls_in_toplevel_statement(ctx, stmt) {
+    // Top-level statements may include:
+    // - function declarations (`fn name(...) { ... }`) which MUST remain declarations
+    // - executable statements that will run in `__top_level__`
+    //
+    // We rewrite only inside nested blocks and function bodies.
+    return _rewrite_local_fn_decls_in_stmt(ctx, stmt, false)
+}
+
+fn rewrite_local_fn_decls_in_stmt_list(ctx, stmts) {
+    if stmts == nil { return nil }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        var r = rewrite_local_fn_decls_in_toplevel_statement(ctx, st)
+        if r != nil { stmts[i] = r }
+        i = i + 1
+    }
+    return nil
+}
+
+fn rewrite_local_fn_decls_in_nested_statement(ctx, stmt) {
+    // Nested statements (function bodies / blocks) may contain local `fn name(...) { ... }`.
+    return _rewrite_local_fn_decls_in_stmt(ctx, stmt, true)
+}
+
 // --- Lambda capture analysis ---
 
 fn lambda_gensym(ctx) {
+    // Generate a fresh wrapper name that does not collide with any already-seen lambda names.
+    //
+    // Note: this must be robust to cached ASTs where `lambda_name` is already populated.
+    if ctx == nil { return "__oren_lambda_0" }
+    if ctx["_lambda_defs_seen"] == nil { ctx["_lambda_defs_seen"] = {} }
+
     var n = ctx["lambda_counter"]
-    ctx["lambda_counter"] = n + 1
-    return "__oren_lambda_" + oren_int_to_string(n)
+    if n == nil { n = 0 }
+    while true {
+        var name = "__oren_lambda_" + oren_int_to_string(n)
+        if ctx["_lambda_defs_seen"][name] == nil {
+            ctx["lambda_counter"] = n + 1
+            return name
+        }
+        n = n + 1
+    }
 }
 
 fn lambda_maybe_add_capture(ctx, name, declared, seen, out) {
@@ -353,11 +577,25 @@ fn collect_lambdas_in_expression(ctx, exp) {
     var et = exp["type"]
     if et == "Function" {
         if exp["name"] == "" {
+            // Lambdas are anonymous Function nodes. They must be recorded in ctx["lambda_defs"]
+            // so backends can synthesize and compile the wrapper functions.
+            //
+            // IMPORTANT: this must also handle cached ASTs where `lambda_name` is already set.
+            if ctx["_lambda_defs_seen"] == nil { ctx["_lambda_defs_seen"] = {} }
+
             if exp["lambda_name"] == nil {
                 exp["lambda_name"] = lambda_gensym(ctx)
-                exp["captures"] = lambda_free_vars(ctx, exp)
-                oren_list_push(ctx["lambda_defs"], {"name": exp["lambda_name"], "fun": exp, "captures": exp["captures"]})
             }
+            if exp["captures"] == nil {
+                exp["captures"] = lambda_free_vars(ctx, exp)
+            }
+
+            var lname = exp["lambda_name"]
+            if lname != nil && ctx["_lambda_defs_seen"][lname] == nil {
+                ctx["_lambda_defs_seen"][lname] = true
+                oren_list_push(ctx["lambda_defs"], {"name": lname, "fun": exp, "captures": exp["captures"]})
+            }
+
             // Still recurse to find nested lambdas in the body.
             collect_lambdas_in_statement(ctx, exp["body"])
             return nil
@@ -418,6 +656,10 @@ fn collect_lambdas_in_expression(ctx, exp) {
 fn collect_lambdas_in_statement(ctx, stmt) {
     if stmt == nil { return nil }
     var st = stmt["type"]
+    // Top-level function declarations are often represented as ExprStmt(Function), but
+    // some passes/runtime injection can also produce raw Function nodes in statement lists.
+    // Ensure we still recurse into their bodies so lambda pre-collection is complete.
+    if st == "Function" { collect_lambdas_in_expression(ctx, stmt); return nil }
     if st == "Var" { collect_lambdas_in_expression(ctx, stmt["value"]); return nil }
     if st == "Assign" { collect_lambdas_in_expression(ctx, stmt["value"]); return nil }
     if st == "Set" {
@@ -562,16 +804,31 @@ fn synth_lambda_wrapper(def) {
     if fixed < 0 {
         i = 0
         while i < param_count {
-            var pname = fun["params"][i]["value"]
-            var vstmt2 = {"type": "Var", "name": node_id(pname), "value": node_call("oren_list_get", [node_id("__args"), node_int(i)])}
+            var pnode = fun["params"][i]
+            var pname = pnode["value"]
+            var val = node_call("oren_list_get", [node_id("__args"), node_int(i)])
+            // Preserve float semantics for typed params by making the binding expression floaty.
+            var ann = nil
+            if pnode != nil { ann = pnode["ann_type"] }
+            if ann != nil && _str_starts_with(ann, "oren.") { ann = oren_string_slice(ann, 5, oren_string_len(ann)) }
+            if ann == "f64" { val = node_call("oren_u64_bits_to_f64", [val]) }
+            if ann == "f32" { val = node_call("oren_u32_bits_to_f32", [val]) }
+            var vstmt2 = {"type": "Var", "name": node_id(pname), "value": val}
             oren_list_push(stmts, vstmt2)
             i = i + 1
         }
     } else {
         i = 0
         while i < fixed {
-            var pname2 = fun["params"][i]["value"]
-            var vstmt3 = {"type": "Var", "name": node_id(pname2), "value": node_call("oren_list_get", [node_id("__args"), node_int(i)])}
+            var pnode2 = fun["params"][i]
+            var pname2 = pnode2["value"]
+            var val2 = node_call("oren_list_get", [node_id("__args"), node_int(i)])
+            var ann2 = nil
+            if pnode2 != nil { ann2 = pnode2["ann_type"] }
+            if ann2 != nil && _str_starts_with(ann2, "oren.") { ann2 = oren_string_slice(ann2, 5, oren_string_len(ann2)) }
+            if ann2 == "f64" { val2 = node_call("oren_u64_bits_to_f64", [val2]) }
+            if ann2 == "f32" { val2 = node_call("oren_u32_bits_to_f32", [val2]) }
+            var vstmt3 = {"type": "Var", "name": node_id(pname2), "value": val2}
             oren_list_push(stmts, vstmt3)
             i = i + 1
         }

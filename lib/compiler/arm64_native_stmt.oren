@@ -962,7 +962,22 @@ fn native_compile_stmt(ctx, stmt) {
         
         if expr["type"] == "Function" {
             var fn_name = expr["name"]
-            
+
+            // Function expressions are only valid as lambdas in Tier‑1 native: name=="".
+            //
+            // Named functions are declarations and must only appear at top-level. Local
+            // `fn name(...) { ... }` declarations are lowered earlier into:
+            //   var name = fn (...) { ... }
+            // so they compile via the uniform callable ABI (lambda wrappers).
+            if fn_name == nil || fn_name == "" {
+                native_compile_expr(ctx, expr)
+                return nil
+            }
+            if ctx["in_function"] == true {
+                native_error(ctx, expr["token"], "native backend: local fn decl not lowered (expected var name = fn (...) { ... })")
+                return nil
+            }
+
             while int_mod(oren_list_len(ctx["code"]), 4) != 0 {
                 bytes_push(ctx["code"], 0)
             }

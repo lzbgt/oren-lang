@@ -338,6 +338,28 @@ fn split_csv(s) {
     return out
 }
 
+fn parse_platform_spec(s) {
+    // Parse <arch>-<os> into {"arch": ..., "os": ...}.
+    // Used by the CLI to support a single platform flag for arch+OS.
+    if s == nil { return nil }
+    if s == "" { return nil }
+    var n = oren_string_len(s)
+    if n == 0 { return nil }
+    var dash = -1
+    var i = 0
+    while i < n {
+        if oren_string_char_at(s, i) == "-" { dash = i; break }
+        i = i + 1
+    }
+    if dash <= 0 { return nil }
+    if dash + 1 >= n { return nil }
+    var arch = oren_string_slice(s, 0, dash)
+    var os = oren_string_slice(s, dash + 1, n)
+    if arch != "arm64" && arch != "x64" { return nil }
+    if os != "macos" && os != "linux" && os != "windows" { return nil }
+    return {"arch": arch, "os": os}
+}
+
 fn new_module_prefix() {
     MODULE_ID_COUNTER = MODULE_ID_COUNTER + 1
     return "M" + oren_int_to_string(MODULE_ID_COUNTER) + "_"

@@ -284,7 +284,7 @@ func runNativeSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Durati
 	}
 
 	// Build Stage2 native compiler (deterministic mode exercises hashing path too).
-	buildNative := fmt.Sprintf("./oren build oren.oren --backend native --target %s --arch %s --deterministic -o %q%s", target, arch, stage2Native, gcArg)
+	buildNative := fmt.Sprintf("./oren build oren.oren --backend native --platform %s --deterministic -o %q%s", platformKey(target, arch), stage2Native, gcArg)
 	if rc := runWithTimeout(timeoutBin, selfHostTimeout, buildNative, logBuildNative); rc != 0 {
 		return fmt.Errorf("native self-host gate: failed to build stage2 native (rc=%d), see %s", rc, logBuildNative)
 	}

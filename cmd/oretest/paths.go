@@ -17,6 +17,12 @@ func hostOrenArch() string {
 	}
 }
 
+func platformKey(target, arch string) string {
+	// CLI-facing platform string: <arch>-<os>.
+	// This mirrors the repo output layout under build/targets/.
+	return arch + "-" + target
+}
+
 func targetsOutPath(target, arch, backend, name string) string {
 	// Repo-local canonical output layout:
 	//   build/targets/<arch>-<os>/<backend>/<name>           for native/c

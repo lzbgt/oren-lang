@@ -20,11 +20,24 @@ fn _err(ctx, prefix, msg) {
 }
 
 fn _stmt_to_function_decl(stmt) {
+    // Top-level named function declarations are represented as either:
+    // - a raw Function node (rare)
+    // - ExprStmt(Function) (the common parse form)
+    //
+    // IMPORTANT: anonymous Function literals (name="") are NOT treated as declarations.
+    // They are first-class values (lambdas) and must be collected/compiled via the callable path.
     if stmt == nil { return nil }
-    if stmt["type"] == "Function" { return stmt }
+    if stmt["type"] == "Function" {
+        var nm0 = stmt["name"]
+        if nm0 != nil && nm0 != "" { return stmt }
+        return nil
+    }
     if stmt["type"] == "ExprStmt" {
         var e = stmt["expr"]
-        if e != nil && e["type"] == "Function" { return e }
+        if e != nil && e["type"] == "Function" {
+            var nm1 = e["name"]
+            if nm1 != nil && nm1 != "" { return e }
+        }
     }
     return nil
 }

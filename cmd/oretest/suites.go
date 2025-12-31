@@ -38,6 +38,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 	res := suiteResult{ok: true, total: len(tests)}
 	envPrefix := sanitizedAllocatorEnvPrefix()
 	arch := hostOrenArch()
+	plat := platformKey(target, arch)
 	results := runParallel(jobs, tests, func(path string) testResult {
 		start := time.Now()
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
@@ -48,7 +49,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 		out := targetsOutPath(target, arch, "native", name)
 		log := filepath.Join("build", "logs", "native_"+name+".log")
 
-		buildCmd := fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", path, target, arch, out, gcArg)
+		buildCmd := fmt.Sprintf("./oren build %q --backend native --platform %s -o %q%s", path, plat, out, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}
@@ -67,7 +68,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			sleepSrc := filepath.Join("tests", "native", "tools", sleepName+".oren")
 			sleepOut := targetsOutPath(target, arch, "native", sleepName)
 			sleepLog := filepath.Join("build", "logs", "native_"+sleepName+".log")
-			buildSleep := fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", sleepSrc, target, arch, sleepOut, gcArg)
+			buildSleep := fmt.Sprintf("./oren build %q --backend native --platform %s -o %q%s", sleepSrc, plat, sleepOut, gcArg)
 			if rc2 := runWithTimeout(timeoutBin, buildTimeout, buildSleep, sleepLog); rc2 != 0 {
 				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: sleepLog, dur: time.Since(start)}
 			}
@@ -76,7 +77,7 @@ func runNativeTests(timeoutBin, target, gcArg string, buildTimeout, runTimeout t
 			envSrc := filepath.Join("tests", "native", "tools", envName+".oren")
 			envOut := targetsOutPath(target, arch, "native", envName)
 			envLog := filepath.Join("build", "logs", "native_"+envName+".log")
-			buildEnv := fmt.Sprintf("./oren build %q --backend native --target %s --arch %s -o %q%s", envSrc, target, arch, envOut, gcArg)
+			buildEnv := fmt.Sprintf("./oren build %q --backend native --platform %s -o %q%s", envSrc, plat, envOut, gcArg)
 			if rc2 := runWithTimeout(timeoutBin, buildTimeout, buildEnv, envLog); rc2 != 0 {
 				return testResult{tc: testCase{kind: "native", name: name, path: path}, ok: false, log: envLog, dur: time.Since(start)}
 			}
@@ -440,6 +441,7 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 	res := suiteResult{ok: true, total: len(tests)}
 	envPrefix := sanitizedAllocatorEnvPrefix()
 	arch := hostOrenArch()
+	plat := platformKey(target, arch)
 	results := runParallel(jobs, tests, func(path string) testResult {
 		start := time.Now()
 		name := strings.TrimSuffix(filepath.Base(path), ".oren")
@@ -449,9 +451,9 @@ func runModuleTestsParallel(timeoutBin, target, gcArg string, buildTimeout, runT
 		log := filepath.Join("build", "logs", "mod_"+name+".log")
 
 		out := targetsOutPath(target, arch, "c", name)
-		// IMPORTANT: pass `--target` explicitly so running oretest on Linux doesn't
+		// IMPORTANT: pass `--platform` explicitly so running oretest on Linux doesn't
 		// default to macOS and attempt codesigning.
-		buildCmd := fmt.Sprintf("./oren build %q --backend c --target %s --arch %s -o %q%s", path, target, arch, out, gcArg)
+		buildCmd := fmt.Sprintf("./oren build %q --backend c --platform %s -o %q%s", path, plat, out, gcArg)
 		if rc := runWithTimeout(timeoutBin, buildTimeout, buildCmd, log); rc != 0 {
 			return testResult{tc: testCase{kind: "module", name: name, path: path}, ok: false, log: log, dur: time.Since(start)}
 		}

@@ -312,90 +312,6 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     return nil
 }
 
-fn _x64_rewrite_local_fn_decl_to_var_stmt(ctx, fun_node, tok) {
-    if fun_node == nil || fun_node["type"] != "Function" { return nil }
-    var nm = fun_node["name"]
-    if nm == nil || nm == "" { return nil }
-
-    // Convert to a lambda literal:
-    // - name="" marks it as a first-class function value for lambda wrapper synthesis.
-    // - keep the original declared name for debugging / future symbolication.
-    fun_node["decl_name"] = nm
-    fun_node["name"] = ""
-
-    // Rewrite nested local function declarations inside the local function body too.
-    if fun_node["body"] != nil { fun_node["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, fun_node["body"]) }
-
-    return {"type": "Var", "token": tok, "name": {"type": "Identifier", "token": nil, "value": nm}, "value": fun_node}
-}
-
-// Normalize local function declarations into lambda + var assignment so:
-// - lambda wrappers (`__oren_lambda_N`) can be synthesized up-front
-// - x64 native v0 can compile nested functions via the uniform callable ABI (indirect calls)
-//
-// Example:
-//   fn outer() {
-//     fn addf(x: f64, y: f64): f64 { return x + y }
-//     return addf(1.0, 2.0)
-//   }
-//
-// Rewrites to:
-//   fn outer() {
-//     var addf = fn(x: f64, y: f64): f64 { return x + y }
-//     return addf(1.0, 2.0)
-//   }
-fn _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt) {
-    if stmt == nil { return nil }
-    var st = stmt["type"]
-    if st == "Block" {
-        var stmts = stmt["stmts"]
-        if stmts != nil {
-            var i = 0
-            while i < oren_list_len(stmts) {
-                var s = stmts[i]
-                var r = _x64_rewrite_local_fn_decls_in_stmt(ctx, s)
-                if r != nil { stmts[i] = r }
-                i = i + 1
-            }
-        }
-        return stmt
-    }
-    if st == "Function" {
-        // Local `fn name(...) { ... }` in statement position.
-        return _x64_rewrite_local_fn_decl_to_var_stmt(ctx, stmt, stmt["token"])
-    }
-    if st == "ExprStmt" {
-        var e = stmt["expr"]
-        if e != nil && e["type"] == "Function" {
-            var tok = stmt["token"]
-            if tok == nil { tok = e["token"] }
-            var r2 = _x64_rewrite_local_fn_decl_to_var_stmt(ctx, e, tok)
-            if r2 != nil { return r2 }
-            // Named function in expression position: still recurse into its body to find nested lambdas.
-            if e["body"] != nil { e["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, e["body"]) }
-            return stmt
-        }
-        return stmt
-    }
-    if st == "If" {
-        if stmt["consq"] != nil { stmt["consq"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["consq"]) }
-        if stmt["alt"] != nil { stmt["alt"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["alt"]) }
-        return stmt
-    }
-    if st == "While" {
-        if stmt["body"] != nil { stmt["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["body"]) }
-        return stmt
-    }
-    if st == "For" {
-        if stmt["init"] != nil { stmt["init"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["init"]) }
-        if stmt["post"] != nil { stmt["post"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["post"]) }
-        if stmt["body"] != nil { stmt["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, stmt["body"]) }
-        return stmt
-    }
-    // Other statement types: no nested statement list to rewrite.
-    return stmt
-}
-
 fn native_compile_program_x64(linked, platform) {
     // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
     //
@@ -471,6 +387,11 @@ fn native_compile_program_x64(linked, platform) {
     linked2 = bun["linked"]
     ctx["runtime_injected"] = true
 
+    // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
+    // so Tier‑1 native backends share the same nested-function semantics.
+    callable.rewrite_local_fn_decls_in_stmt_list(ctx, bun["runtime_stmts"])
+    callable.rewrite_local_fn_decls_in_stmt_list(ctx, bun["user_stmts"])
+
     var fns = _extract_functions_v0(ctx, linked2)
     if fns == nil { return ctx }
 
@@ -499,19 +420,61 @@ fn native_compile_program_x64(linked, platform) {
     var top_info = _x64_collect_top_level_globals_and_stmts(ctx, bun["runtime_stmts"], bun["user_stmts"])
     if top_info == nil { return ctx }
 
-    // Collect lambdas in function bodies before wrapper synthesis.
+    // Collect lambdas (anonymous Function nodes with name="") from the full statement set
+    // that will actually be compiled.
+    //
+    // This annotates lambda nodes with:
+    //   - lambda_name: generated wrapper name
+    //   - captures: free vars in deterministic first-use order
+    //
+    // NOTE: We must scan more than just `bun["user_stmts"]` because:
+    // - runtime injection + DCE can keep runtime lambdas alive,
+    // - x64 synthesizes `__top_level__` from user global initializers,
+    // - x64 synthesizes type constructors.
+    var stmts_all = linked2["statements"]
+    if stmts_all == nil { stmts_all = [] }
     var li = 0
-    while li < oren_list_len(fns) {
-        var fn0 = fns[li]
-        if fn0 != nil && fn0["body"] != nil {
-            // Normalize local `fn name(...) { ... }` declarations into lambdas before lambda collection,
-            // otherwise their wrappers won't be synthesized and x64 would fail to link.
-            fn0["body"] = _x64_rewrite_local_fn_decls_in_stmt(ctx, fn0["body"])
-            callable.collect_lambdas_in_statement(ctx, fn0["body"])
-        }
+    while li < oren_list_len(stmts_all) {
+        callable.collect_lambdas_in_statement(ctx, stmts_all[li])
         li = li + 1
     }
+    // Also scan synthesized `__top_level__` (not present in `linked2["statements"]`).
+    if top_info["top_level_fn"] != nil {
+        callable.collect_lambdas_in_expression(ctx, top_info["top_level_fn"])
+    }
+    // Also scan synthesized type constructors (not present in `linked2["statements"]`).
+    var ltc = 0
+    while ltc < oren_list_len(type_ctors) {
+        callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
+        ltc = ltc + 1
+    }
 
+
+    var dbg_lam = oren_env("OREN_DEBUG_X64_LAMBDAS")
+    if dbg_lam != nil {
+        var raw_fn = 0
+        var expr_fn = 0
+        var si = 0
+        while si < oren_list_len(stmts_all) {
+            var st0 = stmts_all[si]
+            if st0 != nil {
+                if st0["type"] == "Function" { raw_fn = raw_fn + 1 }
+                if st0["type"] == "ExprStmt" {
+                    var e0 = st0["expr"]
+                    if e0 != nil && e0["type"] == "Function" { expr_fn = expr_fn + 1 }
+                }
+            }
+            si = si + 1
+        }
+        print("DEBUG_X64_LAMBDAS stmts_all=" + oren_int_to_string(oren_list_len(stmts_all)) + " raw_fn=" + oren_int_to_string(raw_fn) + " expr_fn=" + oren_int_to_string(expr_fn))
+        print("DEBUG_X64_LAMBDAS lambda_defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+        var di = 0
+        while di < oren_list_len(ctx["lambda_defs"]) {
+            var d0 = ctx["lambda_defs"][di]
+            if d0 != nil { print("DEBUG_X64_LAMBDA_DEF " + d0["name"]) }
+            di = di + 1
+        }
+    }
     // --- Callable wrappers (Tier‑1 convergence) ---
     //
     // Synthesize `__oren_fnwrap_<name>` wrappers for all named functions so:
@@ -887,6 +850,20 @@ fn native_compile_program_x64(linked, platform) {
         j1 = j1 + 1
     }
 
+
+    var dbg_lam2 = oren_env("OREN_DEBUG_X64_LAMBDAS")
+    if dbg_lam2 != nil {
+        var mi = 0
+        while mi < oren_list_len(ctx["lambda_defs"]) {
+            var d1 = ctx["lambda_defs"][mi]
+            var nm = nil
+            if d1 != nil { nm = d1["name"] }
+            if nm != nil && ctx["functions"][nm] == nil {
+                print("DEBUG_X64_LAMBDAS missing_wrapper " + nm)
+            }
+            mi = mi + 1
+        }
+    }
     // Fill the symtab now that `ctx["functions"]` contains final offsets.
     _data_finalize_symtab(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }

@@ -139,7 +139,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		{
 			name: "native_x64_tier1_smoke_builds",
 			cmd: fmt.Sprintf(
-				"./oren build %q --backend native --target linux --arch x64 -o %q > %q 2>&1 && "+
+				"./oren build %q --backend native --platform x64-linux -o %q > %q 2>&1 && "+
 					"file %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
@@ -147,7 +147,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
-					"./oren build %q --backend native --target windows --arch x64 -o %q > %q 2>&1 && "+
+					"./oren build %q --backend native --platform x64-windows -o %q > %q 2>&1 && "+
 					"file %q > %q && "+
 					"grep -Fq %q %q && "+
 					"grep -Fq %q %q && "+
@@ -1063,6 +1063,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 				expectSubstrings: []string{
 					"tier1 smoke ok",
 					"tier1 spawn join ok",
+					"tier1 local fn ok",
 					"tier1 args ok",
 					"SIMD_ENABLED=1",
 					"tier1 typed buffers ok",

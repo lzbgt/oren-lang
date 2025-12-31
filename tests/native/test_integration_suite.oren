@@ -147,6 +147,19 @@ fn test_core_smoke() {
     xcap = 999 // capture-by-value check (g should still see 10)
     assert_eq(g(1), 11, 51)
 
+    // Local `fn name(...) { ... }` declaration sugar (Tier‑1 native):
+    // inside blocks, `fn name(...) { ... }` lowers to `var name = fn (...) { ... }`.
+    //
+    // This must work across Tier‑1 native backends (arm64 + x86_64) and must obey
+    // capture-by-value semantics.
+    var cap2 = 7
+    fn add_local(a, b) { return a + b + cap2 }
+    cap2 = 999
+    assert_eq(add_local(1, 2), 10, 55)
+    fn count_local(x, ...rest) { return x + oren_list_len(rest) }
+    assert_eq(count_local(10), 10, 56)
+    assert_eq(count_local(10, 1, 2, 3), 13, 57)
+
     // spawn a callable stored in a variable
     var t1 = spawn g(5)
     var r1 = oren_join(t1)

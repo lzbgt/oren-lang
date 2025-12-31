@@ -761,7 +761,7 @@ func remoteX64BatchBuildArtifacts(logPath string, workdir string, tests []remote
 				artifact:  art,
 				src:       src,
 				outPath:   linuxBuilt,
-				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--target", "linux", "--arch", "x64", "-o", linuxBuilt},
+				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-linux", "-o", linuxBuilt},
 			})
 		}
 		if !remoteX64BatchShouldReuse("windows", art+".exe", buildID) {
@@ -770,7 +770,7 @@ func remoteX64BatchBuildArtifacts(logPath string, workdir string, tests []remote
 				artifact:  art + ".exe",
 				src:       src,
 				outPath:   winBuilt,
-				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--target", "windows", "--arch", "x64", "-o", winBuilt},
+				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-windows", "-o", winBuilt},
 			})
 		}
 	}
