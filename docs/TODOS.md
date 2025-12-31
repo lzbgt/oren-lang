@@ -50,11 +50,13 @@ Rules for this tracker:
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
      - `./oretest --matrix tier1` runs the practical Tier‑1 platform matrix from the dev host (arm64-macos + arm64-linux docker + x64 remote gate).
+     - **done (rolling):** `./oretest --matrix ...` writes a dedicated matrix summary log + rc under `build/logs/oretest_matrix_<name>.log` and `build/logs/oretest_matrix_<name>.rc` (per-step logs remain `build/logs/matrix_*.log`).
      - Keep tests OS-neutral where possible (e.g., avoid calling `oren_tcp_wait_kqueue` directly in cross-platform NET tests; prefer `oren_fd_wait_{readable,writable}`).
    - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:
      - **done**: `== != < <= > >=` in condition lowering treat tracked strings by content/lexicographic order (no pointer-compare regressions).
      - **done (rolling):** x86_64 `%` lowering now routes through the shared runtime helper `oren_mod` (panic/message parity with arm64 and AVM MOD contract).
      - **done (rolling):** x86_64 `__top_level__` now executes **user** global initializers only; injected runtime globals are allocated as zero and are initialized by `native_runtime_init` (arm64 parity). Runtime now sets typed-buffer tags (`BUF_TAG_*`) in `native_runtime_init`, and the compiler enforces this invariant for constant-like runtime globals.
+     - **done (rolling):** arm64 + x86_64 native backends share Tier‑1 top-level split rules (`lib/compiler/native_toplevel.oren`): injected runtime has no top-level exec, globals cannot shadow functions, and duplicate globals are detected deterministically.
 
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
