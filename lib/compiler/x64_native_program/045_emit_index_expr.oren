@@ -212,8 +212,11 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     // Note: for dynamic keys, we infer key kind using the same tracking contract as the
     // native runtime (strings are tracked kind=1), then dispatch to the typed helper.
     var known_kk = -1
-    if idx["type"] == "Integer" { known_kk = 0 }
-    else if idx["type"] == "String" { known_kk = 1 }
+    if expr["known_key_kind"] != nil { known_kk = expr["known_key_kind"] }
+    if known_kk < 0 {
+        if idx["type"] == "Integer" { known_kk = 0 }
+        else if idx["type"] == "String" { known_kk = 1 }
+    }
 
     if known_kk == 0 {
         _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int", tmp0, tmp_idx)

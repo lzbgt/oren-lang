@@ -4,7 +4,7 @@
 // Many intrinsic lowerings need to spill evaluated args into stack slots so they can
 // freely use registers for the actual implementation. If those spill slots are fixed
 // names (e.g. `$tmp1..$tmp7`), nested expression evaluation can clobber the outer
-// intrinsic's spilled args (e.g. `{ "a": {"b": 7} }` where the outer `oren_map_set`
+// intrinsic's spilled args (e.g. `{ "a": {"b": 7} }` where the outer `oren_map_set_{int,str}`
 // evaluates a nested map literal as its value).
 //
 // Solution:

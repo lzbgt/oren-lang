@@ -1,10 +1,9 @@
-// Tier‑1 x86_64 native parity: maps must accept dynamic string keys without explicit key-kind.
+// Tier‑1 native parity: maps must accept dynamic string keys (with explicit key kind) and keep
+// deterministic iteration order across arm64 + x86_64 (macOS/Linux/Windows).
 //
-// Why this matters:
-// - In the language model, `m[k]` should work when `k` is a string value produced at runtime,
-//   even when the map starts empty (`{}`) and therefore has no syntactic key kind to infer.
-// - Tier‑1 native backends implement this by inferring key kind using allocation tracking
-//   metadata for string values (kind=STRING).
+// Native backends do not infer key kinds at runtime in Tier‑1 mode. If a key is produced
+// dynamically, annotate it (e.g. `var k: string = ...`) so codegen can select
+// `oren_map_set_str` / `oren_map_get_str` deterministically.
 //
 // This fixture is gated by `OREN_REMOTE_RUN=1` and executed on Win11 + WSL2 x86_64.
 // See: docs/REMOTE_X64_ENV.md
@@ -26,6 +25,10 @@ fn main() {
 
     // Validate lookup via literal key too.
     if m["ab"] != 7 { return 1 }
+
+    // Integer-key map path must be deterministic too (no key-kind inference).
+    m[50000] = 9
+    if m[50000] != 9 { return 11 }
 
     // Deterministic map iteration (Tier‑1 parity rule):
     // iteration order must be stable and key-sorted (matches C backend + native runtime).

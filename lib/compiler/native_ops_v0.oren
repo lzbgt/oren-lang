@@ -424,10 +424,17 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                     "fn": {"type": "Identifier", "token": nil, "value": "oren_index_set"},
                     "args": [recv, idx, v3],
                 }
-                // Rolling x64 Tier‑1: map index assignment always infers key kind at runtime,
-                // so do not propagate any compile-time hints here.
-                // Preserve receiver kind when known so codegen can avoid dynamic LIST/MAP dispatch.
+                // Tier-1 determinism: propagate key-kind hints from the shared lowering pass.
+                //
+                // Without a universal native tagged value representation, the backend must not infer
+                // map key kinds at runtime (nondeterministic across runs if an integer key happens to
+                // alias a heap pointer value).
+                //
+                // `impl_lowering.oren` annotates Index nodes with:
+                // - `recv_kind`: list|map when inferred
+                // - `known_key_kind`: 0=int, 1=string for map keys when inferred
                 if left["recv_kind"] != nil { call["recv_kind"] = left["recv_kind"] }
+                if left["known_key_kind"] != nil { call["known_key_kind"] = left["known_key_kind"] }
                 _expr_int_check(ctx, call, nil)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call})

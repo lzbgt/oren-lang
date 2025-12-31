@@ -285,7 +285,6 @@ fn _oren_assert_string_ptr(k) {
     // - string values that flow through generic container ops are tracked heap strings (kind=1)
     // - embedded string literals are marked tracked via `oren_ensure_tracked(ptr, kind=1)` in codegen
     if k == 0 { oren_panic("map: string key is nil") }
-    if k < 4096 { oren_panic("map: string key is not a pointer") }
     var node = oren_find_node(k)
     if node == 0 { oren_panic("map: string key is not tracked") }
     if ptr_get(iadd(node, 16)) != 1 { oren_panic("map: key is not a string") }
@@ -376,6 +375,7 @@ fn oren_map_set_str(m, k, v) {
     return _oren_map_set_kind(m, k, v, 1)
 }
 
+@oren.keep
 fn oren_map_set(m, k, v) {
     // Rolling v0 map key kind inference (native runtime):
     // - ints are raw and untracked
@@ -524,6 +524,7 @@ fn oren_map_get_str(m, k) {
     return _oren_map_get_kind(m, k, 1)
 }
 
+@oren.keep
 fn oren_map_get(m, k) {
     // Rolling v0 map key kind inference (native runtime):
     // - ints are raw and untracked

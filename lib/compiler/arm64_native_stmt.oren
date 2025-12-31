@@ -168,7 +168,7 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
 
             // Native backend fast-path: list in-bounds store without calling stdlib.
-            // Falls back to `oren_map_set` for non-list containers (same behavior as the runtime `oren_index_set`).
+            // Falls back to typed `oren_map_set_{int,str}` for map containers (deterministic; no runtime key-kind inference).
 
             // If container is nil, panic deterministically.
             push_u32_le(ctx["code"], insn_movz(4, 0))
@@ -330,60 +330,108 @@ fn native_compile_stmt(ctx, stmt) {
                 if kk == 1 { map_set_sym = "oren_map_set_str" }
 
                 if map_set_sym == nil {
+
                     // Do not fail compilation: keep the list fast-path, and if a map fallback is
+
                     // actually taken at runtime, infer key kind via tracked allocation metadata:
+
                     // - ints are raw and untracked
+
                     // - strings are tracked heap strings (kind=1)
 
+
                     // Save map/key/value across the probe call.
+
                     push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3 = map
+
                     push_u32_le(ctx["code"], insn_mov_reg(4, 1)) // X4 = key
+
                     push_u32_le(ctx["code"], insn_mov_reg(5, 2)) // X5 = val
 
+
                     // node = oren_find_node(key)
+
                     push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = key
+
                     var bl_find = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], 0)
+
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
 
+
                     // if node == 0 => treat as int key
+
                     push_u32_le(ctx["code"], insn_movz(6, 0))
+
                     push_u32_le(ctx["code"], insn_cmp_reg(0, 6))
+
                     var br_node_zero = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], 0)
+
 
                     // kind = *(node + 16); if kind == 1 => string, else int
+
                     emit_load_ptr_from_base_plus(ctx, 7, 0, 16) // X7 = kind
+
                     push_u32_le(ctx["code"], insn_movz(6, 1))    // X6 = 1 (STRING)
+
                     push_u32_le(ctx["code"], insn_cmp_reg(7, 6))
+
                     var br_is_string = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], 0)
+
 
                     // --- int key path ---
+
                     var int_pos = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // X0 = map
+
                     push_u32_le(ctx["code"], insn_mov_reg(1, 4)) // X1 = key
+
                     push_u32_le(ctx["code"], insn_mov_reg(2, 5)) // X2 = val
+
                     var bl_int = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], 0)
+
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_int, "name": "oren_map_set_int"})
+
                     var br_done2 = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], 0)
+
 
                     // --- string key path ---
+
                     var str_pos = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // X0 = map
+
                     push_u32_le(ctx["code"], insn_mov_reg(1, 4)) // X1 = key
+
                     push_u32_le(ctx["code"], insn_mov_reg(2, 5)) // X2 = val
+
                     var bl_str = oren_list_len(ctx["code"])
+
                     push_u32_le(ctx["code"], 0)
+
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_str, "name": "oren_map_set_str"})
 
+
                     // Done.
+
                     var done2_pos = oren_list_len(ctx["code"])
+
                     set_u32_le(ctx["code"], br_node_zero, insn_b_cond((int_pos - br_node_zero) / 4, 0)) // EQ
+
                     set_u32_le(ctx["code"], br_is_string, insn_b_cond((str_pos - br_is_string) / 4, 0)) // EQ
+
                     set_u32_le(ctx["code"], br_done2, insn_b((done2_pos - br_done2) / 4))
+
                 } else {
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": map_set_sym})
@@ -399,7 +447,7 @@ fn native_compile_stmt(ctx, stmt) {
             return nil
         }
         if stmt["left"]["type"] == "Member" {
-             // obj.prop = val -> oren_map_set(obj, "prop", val)
+             // obj.prop = val -> oren_map_set_str(obj, "prop", val)
              // Similar logic, but index is string literal
              
              native_compile_expr(ctx, stmt["left"]["left"]) // obj -> X0

@@ -66,6 +66,9 @@ Rules for this tracker:
    - Interim (done, keep): native runtime infers map key kind using tracking metadata (`oren_find_node(...).kind == STRING`), and native codegen ensures string literals / member keys are tracked via `oren_ensure_tracked`.
    - Harden runtime safety in the interim model: container ops must never dereference untracked values; prefer `oren_find_node` + `kind` guards before any `ptr_get(x+...)` on user-provided values.
      - **done (rolling):** arm64 + x86_64 Index get/set dispatch now checks tracked node kind (LIST/MAP) before touching container headers (no untracked `*(x+24)` probes).
+   - **done (rolling):** removed native-runtime numeric-range string-key heuristic (`k < 4096`); string-key validation now relies on tracked-allocation metadata only.
+   - **done (rolling):** compiler lowering learns kind hints from `oren_track_alloc(x, ..., kind)` / `oren_ensure_tracked(x, kind)` statement calls (e.g. kind=1 => `string`), improving key-kind inference for dynamic string keys.
+   - **done (rolling):** Tier‑1 fixtures cover dynamic string keys + a large integer key (`50000`) for map set/get determinism guards.
    - Deliverable: a native value representation that can distinguish:
      - immediates (ints/bools/nil) vs pointers
      - string/list/map/buf payload kinds

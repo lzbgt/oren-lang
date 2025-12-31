@@ -1,10 +1,8 @@
-// Tier‑1 x86_64 native parity: map get must work with a dynamic string key even when the
-// map was populated using a literal key.
+// Tier‑1 native parity: map get must work with a dynamic string key when the key kind is
+// explicit (via annotation), and must use string content compare (not pointer equality).
 //
-// This validates:
-// - the map entry stores key kind per-entry
-// - lookup infers key kind using value metadata (tracked allocations for strings)
-// - string equality path is taken when required (not just pointer equality)
+// Native Tier‑1 does not infer key kinds at runtime. Dynamic keys must be annotated as
+// `string` so codegen selects `oren_map_get_str`.
 //
 // Gated by `OREN_REMOTE_RUN=1` (Win11 + WSL2 x86_64). See: docs/REMOTE_X64_ENV.md
 
@@ -22,9 +20,9 @@ fn main() {
     // Dynamic-key lookup must succeed and use string compare (not pointer equality).
     if m[k] != 7 { return 1 }
 
-    // Nil key => miss (0), matches `oren_map_get` contract.
-    var nil_key = 0
-    if m[nil_key] != 0 { return 2 }
+    // Deterministic miss for an int key not present.
+    var k0 = 0
+    if m[k0] != 0 { return 2 }
 
     print("tier1 map get dynamic key ok")
     return 0

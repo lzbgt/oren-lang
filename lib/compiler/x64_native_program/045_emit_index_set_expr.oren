@@ -211,12 +211,15 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     // --- map path ---
     _emit_label(ctx, labels, l_is_map)
 
-    // Known key kind fast path (syntax).
+    // Known key kind fast path (shared lowering + syntax).
     var known_kk = -1
-    var idx_expr = args[1]
-    if idx_expr != nil {
-        if idx_expr["type"] == "Integer" { known_kk = 0 }
-        else if idx_expr["type"] == "String" { known_kk = 1 }
+    if expr["known_key_kind"] != nil { known_kk = expr["known_key_kind"] }
+    if known_kk < 0 {
+        var idx_expr = args[1]
+        if idx_expr != nil {
+            if idx_expr["type"] == "Integer" { known_kk = 0 }
+            else if idx_expr["type"] == "String" { known_kk = 1 }
+        }
     }
 
     if known_kk == 0 {

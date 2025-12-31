@@ -12,12 +12,12 @@ fn main() {
     // ptr_set must preserve `ptr` across nested expression evaluation.
     var m = {"a": 123}
     var p = malloc(8)
-    ptr_set(p, oren_map_get(m, "a"))
+    ptr_set(p, oren_map_get_str(m, "a"))
     if ptr_get(p) != 123 { return 2 }
 
     // list_set must preserve idx across nested expression evaluation of the value.
     var xs = [0]
-    oren_list_set(xs, 0, oren_map_get({"a": 9}, "a"))
+    oren_list_set(xs, 0, oren_map_get_str({"a": 9}, "a"))
     if oren_list_get(xs, 0) != 9 { return 3 }
 
     return 0

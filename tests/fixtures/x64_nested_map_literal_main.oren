@@ -9,12 +9,12 @@ fn main() {
     var m = {"a": {"b": 7}}
     if oren_map_len(m) != 1 { return 1 }
 
-    var inner = oren_map_get(m, "a")
+    var inner = oren_map_get_str(m, "a")
     if inner == 0 { return 2 }
     if inner == m { return 3 }
     if oren_map_len(inner) != 1 { return 4 }
 
-    if oren_map_get(inner, "b") != 7 { return 5 }
+    if oren_map_get_str(inner, "b") != 7 { return 5 }
     return 0
 }
 

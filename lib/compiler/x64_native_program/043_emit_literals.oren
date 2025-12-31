@@ -80,7 +80,7 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
 fn _emit_hash_literal_expr(ctx, expr, locals) {
     // Map literal `{k: v, ...}` lowered as:
     // - allocate map with cap>=len
-    // - insert pairs in source order via `oren_map_set`
+    // - insert pairs in source order via `oren_map_set_{int,str}`
     //
     // Key kinds (rolling x64 v0):
     // - Integer keys => kind=0
@@ -146,8 +146,8 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
             "fn": {"type": "Identifier", "token": nil, "value": set_nm},
             "args": [{"type": "Identifier", "token": nil, "value": hn}, k, v],
             // Hash literals have deterministic key types, so annotate them explicitly.
-            // Note: x64 native currently infers key kind at runtime for safety; this hint
-            // is kept for other backends and future x64 optimizations.
+            // Tier-1 determinism: x64 native does not infer map key kind at runtime.
+            // Keep `known_key_kind` as an annotation for backends that consult it.
             "known_key_kind": kk,
         }
         _emit_eval_int_to_rax(ctx, set_call, locals)

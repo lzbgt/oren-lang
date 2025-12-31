@@ -458,12 +458,13 @@ fn annotate_intrinsic_key_kinds(expr, kind_env) {
     }
 
     if nm == "oren_map_get" || nm == "oren_map_set" {
-        // Rolling: `oren_map_get/set` are dynamic (runtime selects int vs string key kind safely
-        // using tracked-allocation metadata on native, and tagged values on C/AVM).
+        // Rolling (Tier-1 determinism): `oren_map_get/set` are legacy/dynamic entry points.
         //
-        // When key kind can be inferred statically, rewrite to the typed entry points:
-        // - reduces runtime dispatch work
-        // - keeps native backends deterministic without relying on numeric-range heuristics
+        // Native backends must NOT infer key kinds at runtime (nondeterministic without tagged values).
+        // This pass rewrites `oren_map_get/set` to the typed entry points whenever key kind is
+        // inferable from syntax and local assignments. Any remaining dynamic uses are expected
+        // to be rejected (or to panic) on native backends; prefer typed calls or make key kinds
+        // explicit via annotations.
         expr["recv_kind"] = "map"
         if oren_list_len(args) >= 2 {
             var kk = infer_map_key_kind(args[1], kind_env)
@@ -482,15 +483,13 @@ fn annotate_intrinsic_key_kinds(expr, kind_env) {
     }
 
     if nm == "oren_index_set" {
-        // Polymorphic intrinsic. If the receiver is inferred as a map and the key kind
-        // can be inferred, annotate so codegen stays deterministic.
+        // Polymorphic intrinsic. If we can infer receiver kind and/or key kind, annotate
+        // so native backends can stay deterministic without runtime key-kind inference.
         if oren_list_len(args) >= 2 {
             var recv_k = infer_container_kind(args[0], kind_env)
             if recv_k != nil { expr["recv_kind"] = recv_k }
-            if recv_k == "map" {
-                var kk2 = infer_map_key_kind(args[1], kind_env)
-                if kk2 != nil { expr["known_key_kind"] = kk2 }
-            }
+            var kk2 = infer_map_key_kind(args[1], kind_env)
+            if kk2 != nil { expr["known_key_kind"] = kk2 }
         }
         return nil
     }
@@ -764,14 +763,12 @@ fn lower_expr_in_place(expr, regs, trait_set, env, kind_env, errs) {
     if t == "Index" {
         expr["left"] = lower_expr_in_place(expr["left"], regs, trait_set, env, kind_env, errs)
         expr["index"] = lower_expr_in_place(expr["index"], regs, trait_set, env, kind_env, errs)
-        // If this is a map index expression and we can infer key kind, annotate it so
-        // x64 native can avoid runtime heuristics.
+        // If we can infer key kind, annotate it so native backends can select the typed
+        // map path deterministically (even when the receiver kind is unknown at compile time).
         var recv_k = infer_container_kind(expr["left"], kind_env)
         if recv_k != nil { expr["recv_kind"] = recv_k }
-        if recv_k == "map" {
-            var kk = infer_map_key_kind(expr["index"], kind_env)
-            if kk != nil { expr["known_key_kind"] = kk }
-        }
+        var kk = infer_map_key_kind(expr["index"], kind_env)
+        if kk != nil { expr["known_key_kind"] = kk }
         return expr
     }
     if t == "Member" {
@@ -843,6 +840,34 @@ fn lower_stmt_in_place(stmt, regs, trait_set, env, kind_env, errs) {
     }
     if t == "ExprStmt" {
         stmt["expr"] = lower_expr_in_place(stmt["expr"], regs, trait_set, env, kind_env, errs)
+        // Track kind hints from explicit runtime tracking calls (native runtime + Tier-1 fixtures).
+        //
+        // If we see `oren_track_alloc(x, ..., kind)` or `oren_ensure_tracked(x, kind)` in statement
+        // position, treat it as a best-effort hint that `x` is a particular container kind for the
+        // remainder of the current lexical scope.
+        //
+        // This improves determinism and reduces reliance on backend-specific runtime key-kind inference
+        // when compiling patterns like:
+        //   var k = malloc_raw(...); ...; oren_track_alloc(k, n, 1); m[k] = v
+        //
+        // NOTE: this is a v0 lowering hint layer, not a full type system.
+        var _e0 = stmt["expr"]
+        if _e0 != nil && _e0["type"] == "Call" && _e0["fn"] != nil && _e0["fn"]["type"] == "Identifier" {
+            var _nm0 = _e0["fn"]["value"]
+            if _nm0 == "oren_track_alloc" || _nm0 == "oren_ensure_tracked" {
+                var _a0 = _e0["args"]
+                if _a0 != nil && oren_list_len(_a0) >= 2 {
+                    var _ptr0 = _a0[0]
+                    var _kind0 = _a0[oren_list_len(_a0) - 1]
+                    if _ptr0 != nil && _ptr0["type"] == "Identifier" && _kind0 != nil && _kind0["type"] == "Integer" {
+                        var _ks = _kind0["value"]
+                        if _ks == "1" { kind_env_set(kind_env, _ptr0["value"], "string") }
+                        else if _ks == "2" { kind_env_set(kind_env, _ptr0["value"], "list") }
+                        else if _ks == "3" { kind_env_set(kind_env, _ptr0["value"], "map") }
+                    }
+                }
+            }
+        }
         // Statement-only sugar: map.set(k,v) / list.set(i,v) -> (container[idx] = v)
         var e = stmt["expr"]
         if e != nil && e["type"] == "Call" && e["fn"] != nil && e["fn"]["type"] == "Member" {
