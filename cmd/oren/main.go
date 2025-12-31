@@ -165,10 +165,6 @@ func main() {
 				// Default to ad-hoc signing so the output is runnable without a certificate.
 				codesignID = "-"
 			}
-			if target == "macos" && codesignID == "" && !skipCodesign {
-				// Default to ad-hoc signing so the output is runnable without a certificate.
-				codesignID = "-"
-			}
 			if notarize && target == "macos" && (codesignID == "" || codesignID == "-") {
 				fmt.Printf("Notarization requested but codesign is disabled (set --codesign or OREN_CODESIGN_ID; or unset OREN_SKIP_CODESIGN)\n")
 				os.Exit(1)
