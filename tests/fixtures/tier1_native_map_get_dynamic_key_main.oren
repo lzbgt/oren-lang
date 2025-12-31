@@ -1,8 +1,9 @@
-// Tier‑1 native parity: map get must work with a dynamic string key when the key kind is
-// explicit (via annotation), and must use string content compare (not pointer equality).
+// Tier‑1 native parity: map get must work with a dynamic string key (distinct pointer) and
+// must use string content compare (not pointer equality).
 //
-// Native Tier‑1 does not infer key kinds at runtime. Dynamic keys must be annotated as
-// `string` so codegen selects `oren_map_get_str`.
+// We build a distinct NUL-terminated "ab" at runtime, mark it tracked via
+// `oren_track_alloc(k, ..., 1)`, and rely on compiler lowering to treat that as a `string`
+// kind hint so native codegen selects `oren_map_get_str`.
 //
 // Gated by `OREN_REMOTE_RUN=1` (Win11 + WSL2 x86_64). See: docs/REMOTE_X64_ENV.md
 

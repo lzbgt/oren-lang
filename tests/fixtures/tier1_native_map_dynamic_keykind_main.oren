@@ -1,11 +1,12 @@
-// Tier‑1 native parity: maps must accept dynamic string keys (with explicit key kind) and keep
-// deterministic iteration order across arm64 + x86_64 (macOS/Linux/Windows).
+// Tier‑1 native parity: maps must accept dynamic string keys and keep deterministic iteration
+// order across arm64 + x86_64 (macOS/Linux/Windows).
 //
-// Native backends do not infer key kinds at runtime in Tier‑1 mode. If a key is produced
-// dynamically, annotate it (e.g. `var k: string = ...`) so codegen can select
-// `oren_map_set_str` / `oren_map_get_str` deterministically.
+// This fixture builds a NUL-terminated string at runtime and marks it tracked via
+// `oren_track_alloc(k, ..., 1)`. The compiler lowering treats that as a best-effort hint
+// that `k` is a `string` kind in the remaining scope, so native codegen can select
+// `oren_map_set_str` / `oren_map_get_str` without runtime key-kind inference.
 //
-// This fixture is gated by `OREN_REMOTE_RUN=1` and executed on Win11 + WSL2 x86_64.
+// Gated by `OREN_REMOTE_RUN=1` and executed on Win11 + WSL2 x86_64.
 // See: docs/REMOTE_X64_ENV.md
 
 fn main() {
