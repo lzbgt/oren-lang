@@ -86,6 +86,13 @@ Implementation:
 - x86_64 native injects runtime by default: `lib/compiler/x64_native_program/090_program_entry.oren`
   - Tier‑1 rule: runtime injection is mandatory on x86_64; debug uses narrower fixtures/matrices rather than a runtime toggle.
 
+- Shared injection + post-injection DCE: `lib/compiler/native_runtime_bundle.oren`
+  - tags injected statements as runtime vs user (so backends do not rely on indices)
+  - Tier-1 invariant: the injected runtime must not contain top-level executable statements
+  - startup order: `native_runtime_init` runs first; then a synthesized `__top_level__` runs user global initializers and top-level statements
+    - runtime global initializers are **not** executed in `__top_level__` (runtime init owns runtime globals)
+  - compiler guardrail: constant-like runtime globals with non-zero initializers must be assigned in `native_runtime_init` (so Tier‑1 does not depend on top-level init order).
+
 - the injected native runtime references syscall stubs (`sys_*`) that must be correctly lowered by the backend.
 
 The CLI entry and dispatch live under `lib/compiler/compiler/**` (including `040_build_pipeline.oren`).

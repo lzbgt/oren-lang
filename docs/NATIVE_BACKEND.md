@@ -65,6 +65,9 @@ bring-up fixtures are **ABI facts**, not language constraints.
     - bump allocator state (`malloc`/`malloc_raw`) and raw memory ops (`ptr_get`/`ptr_set` + byte variants),
     - syscall/WinAPI ABI surfaces needed for entry + IO + capsule gating.
     - Tier‑1 rule: x86_64 always injects the shared native runtime bundle (no bring-up toggle).
+  - Startup order (Tier-1): entry stub -> `native_runtime_init` -> `__top_level__` (user global init + top-level stmts) -> `main` (optional).
+    - Runtime globals are allocated as zero and are owned/initialized by `native_runtime_init`; runtime `var` initializers are not executed in `__top_level__`.
+    - Compiler guardrail: constant-like runtime globals with non-zero initializers must be assigned in `native_runtime_init` (so x64/arm64 do not drift by init-order accidents).
   - Includes `oren_readdir(path)` built on syscall-first `sys_getdirentries64`.
   - `oren_net_get(url)` is implemented on native as a minimal HTTP/1.0 GET over syscall-first TCP:
     - supported form: `http://<ipv4>[:port][/path]`

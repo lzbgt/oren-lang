@@ -125,6 +125,21 @@ fn native_runtime_init(target_os) {
     OREN_SO_REUSEADDR = 2
     OREN_SO_ERROR = 4
 
+    // Typed buffer tags.
+    //
+    // IMPORTANT:
+    // The native backend treats the injected runtime as a library and does not rely on
+    // top-level global initializers to run before `native_runtime_init`.
+    //
+    // These constants are used by:
+    // - typed-buffer alloc/load/store helpers
+    // - `oren_iter_next` typed-buffer iteration (Tier-1 fixture hard gate)
+    BUF_TAG_U8 = 5
+    BUF_TAG_I32 = 1
+    BUF_TAG_I64 = 2
+    BUF_TAG_F32 = 3
+    BUF_TAG_F64 = 4
+
     // Per-fd kind tags (capsule hardening).
     FD_KIND_NONE = 0
     FD_KIND_TCP_STREAM = 1

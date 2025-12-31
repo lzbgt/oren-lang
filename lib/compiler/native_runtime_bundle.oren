@@ -23,6 +23,7 @@ import parser "parser.oren"
 import rtinj "native_runtime_inject.oren"
 import global_dce "global_dce.oren"
 import capsule "capsule.oren"
+import intparse "int_lit.oren"
 
 fn _bundle_err(ctx, msg) {
     if ctx == nil { return nil }
@@ -154,6 +155,166 @@ fn _bundle_split_stmt_list_by_runtime_tag(stmts) {
     return {"runtime": runtime, "user": user}
 }
 
+
+fn _bundle_is_upper_name(name) {
+    if name == nil || name == "" { return false }
+
+    // Avoid ordering comparisons on chars: `oren_string_char_at` returns a single-char value
+    // and the native `>=`/`<=` operators are int-only.
+    var ch = oren_string_char_at(name, 0)
+    var ups = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    var i = 0
+    while i < 26 {
+        if oren_string_char_at(ups, i) == ch { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _bundle_is_zero_const_expr(expr) {
+    if expr == nil { return true }
+    var t = expr["type"]
+    if t == "Nil" { return true }
+    if t == "Integer" {
+        var v = intparse.parse_int_lit(expr["value"])
+        if v == nil { return false }
+        if v == 0 { return true }
+        return false
+    }
+    if t == "Boolean" {
+        var b = expr["value"]
+        if b == false || b == "false" { return true }
+        return false
+    }
+    return false
+}
+
+fn _bundle_maybe_get_toplevel_function_node(stmt) {
+    if stmt == nil { return nil }
+    if stmt["type"] == "Function" { return stmt }
+    if stmt["type"] == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" { return e }
+    }
+    return nil
+}
+
+fn _bundle_find_toplevel_function(stmts, name) {
+    if stmts == nil { return nil }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var fn0 = _bundle_maybe_get_toplevel_function_node(stmts[i])
+        if fn0 != nil && fn0["name"] == name { return fn0 }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _bundle_collect_assigned_names_stmt(out, stmt) {
+    if out == nil || stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Assign" {
+        var n = stmt["name"]
+        if n != nil && n["type"] == "Identifier" {
+            out[n["value"]] = true
+        }
+        return nil
+    }
+    if t == "Block" {
+        var xs = stmt["stmts"]
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            _bundle_collect_assigned_names_stmt(out, xs[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "If" {
+        _bundle_collect_assigned_names_stmt(out, stmt["consq"])
+        if stmt["alt"] != nil { _bundle_collect_assigned_names_stmt(out, stmt["alt"]) }
+        return nil
+    }
+    if t == "While" { _bundle_collect_assigned_names_stmt(out, stmt["body"]); return nil }
+    if t == "For" {
+        _bundle_collect_assigned_names_stmt(out, stmt["init"])
+        _bundle_collect_assigned_names_stmt(out, stmt["post"])
+        _bundle_collect_assigned_names_stmt(out, stmt["body"])
+        return nil
+    }
+    if t == "Function" { return nil }
+    if t == "ExprStmt" {
+        // Some front-end lowering forms represent control-flow as an expression that is
+        // wrapped in an ExprStmt. Track assignments inside those expression blocks too.
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            _bundle_collect_assigned_names_stmt(out, e["consq"])
+            if e["alt"] != nil { _bundle_collect_assigned_names_stmt(out, e["alt"]) }
+        }
+        return nil
+    }
+    if t == "Return" { return nil }
+    if t == "Var" { return nil }
+    if t == "Set" { return nil }
+    if t == "Spawn" { return nil }
+    return nil
+}
+
+fn _bundle_collect_assigned_names_in_fn(fn0) {
+    var out = {}
+    if fn0 == nil { return out }
+    var body = fn0["body"]
+    _bundle_collect_assigned_names_stmt(out, body)
+    return out
+}
+
+fn _bundle_validate_runtime_global_consts(ctx, runtime_prog) {
+    if ctx == nil { return false }
+    if runtime_prog == nil { _bundle_err(ctx, "native runtime bundle: runtime_prog is nil"); return false }
+
+    var sts = runtime_prog["statements"]
+    if sts == nil { sts = [] }
+
+    // Tier-1 invariant: injected runtime globals are allocated as zero; any constant-like
+    // runtime globals must be explicitly initialized by native_runtime_init (or remain zero).
+    var init_fn = _bundle_find_toplevel_function(sts, "native_runtime_init")
+    if init_fn == nil { _bundle_err(ctx, "native runtime bundle: missing native_runtime_init"); return false }
+    var assigned = _bundle_collect_assigned_names_in_fn(init_fn)
+
+    var i = 0
+    while i < oren_list_len(sts) {
+        var st = sts[i]
+        if st == nil { i = i + 1; continue }
+        if st["type"] == "Var" {
+            var n = st["name"]
+            var v = st["value"]
+            if n != nil && n["type"] == "Identifier" {
+                var nm = n["value"]
+                if _bundle_is_upper_name(nm) == true {
+                    // Enforce trivial initializer shape for constant-like runtime globals:
+                    // any non-trivial init must move into native_runtime_init.
+                    if v != nil {
+                        var vt = v["type"]
+                        if vt != "Integer" && vt != "Boolean" && vt != "Nil" {
+                            _bundle_err(ctx, "native runtime bundle: runtime global var initializer must be constant; move init into native_runtime_init: " + nm)
+                            return false
+                        }
+                    }
+                    // If the declared initializer is non-zero, require init to assign it.
+                    if _bundle_is_zero_const_expr(v) == false {
+                        if assigned[nm] != true {
+                            _bundle_err(ctx, "native runtime bundle: runtime global var has non-zero initializer but is not assigned in native_runtime_init: " + nm)
+                            return false
+                        }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return true
+}
+
 fn load_and_parse_runtime_native(ctx, runtime_path) {
     // Expand and parse a native runtime source file.
     //
@@ -190,6 +351,28 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         return nil
     }
 
+
+    // Validate that the injected native runtime does not contain top-level executable statements.
+    //
+    // Tier-1 invariant: the runtime is injected as a library; its side effects must be
+    // driven by `native_runtime_init` (and explicit runtime calls), not by implicit top-level
+    // execution order inside `__top_level__`.
+    var sts = runtime_prog["statements"]
+    if sts == nil { sts = [] }
+    var si = 0
+    while si < oren_list_len(sts) {
+        var st = sts[si]
+        if st == nil { si = si + 1; continue }
+        if st["type"] == "Function" { si = si + 1; continue }
+        if st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" { si = si + 1; continue }
+        }
+        if st["type"] == "Type" || st["type"] == "FFI" || st["type"] == "Var" { si = si + 1; continue }
+        _bundle_err(ctx, "native runtime bundle: runtime contains top-level executable stmt type=" + st["type"])
+        return nil
+    }
+    if _bundle_validate_runtime_global_consts(ctx, runtime_prog) == false { return nil }
     return runtime_prog
 }
 

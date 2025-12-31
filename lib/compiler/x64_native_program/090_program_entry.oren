@@ -496,7 +496,7 @@ fn native_compile_program_x64(linked, platform) {
     // that will run before `main` as a synthesized `__top_level__` function.
     //
     // We scan after function collection so we can reject global names that shadow functions.
-    var top_info = _x64_collect_top_level_globals_and_stmts(ctx, linked2)
+    var top_info = _x64_collect_top_level_globals_and_stmts(ctx, bun["runtime_stmts"], bun["user_stmts"])
     if top_info == nil { return ctx }
 
     // Collect lambdas in function bodies before wrapper synthesis.
@@ -898,86 +898,100 @@ fn native_compile_program_x64(linked, platform) {
     return ctx
 }
 
-fn _x64_collect_top_level_globals_and_stmts(ctx, linked) {
+fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     // Collect top-level `var` declarations as globals and build the statement list to run
     // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
     //
-    // Rolling rules:
-    // - Every global is an 8-byte slot in the appended data blob.
-    // - Constant init (Integer/Boolean/Nil) is stored directly into the data blob.
-    // - Non-constant init is lowered as an `Assign` executed in `__top_level__`.
-    //
-    // This keeps the x64 backend usable for injecting more of `lib/runtime_native/**`
-    // (which relies heavily on globals initialized to 0) without forcing immediate
-    // full runtime injection in this turn.
+    // Tier‑1 convergence (arm64 parity):
+    // - Allocate runtime globals, but do NOT execute runtime global initializers in __top_level__.
+    //   The injected runtime must initialize its own globals in `native_runtime_init`.
+    // - Defer ALL user global initializers into __top_level__ as assignments, so
+    //   startup order is deterministic and matches arm64.
+    // - Disallow top-level executable statements in the injected runtime.
     if ctx == nil { return nil }
-    var stmts = nil
-    if linked != nil { stmts = linked["statements"] }
-    if stmts == nil { return {"top_level_fn": _x64_synth_top_level_fn([])} }
+    if runtime_stmts == nil { runtime_stmts = [] }
+    if user_stmts == nil { user_stmts = [] }
 
     var init_stmts = []
     var other_stmts = []
 
+    // Runtime statements: keep only declarations; allocate globals but never execute them at top-level.
     var i = 0
-    while i < oren_list_len(stmts) {
-        var st = stmts[i]
+    while i < oren_list_len(runtime_stmts) {
+        var st = runtime_stmts[i]
         if st == nil { i = i + 1; continue }
-
-        // Skip function declarations (they are compiled separately).
         var fn0 = coreir._stmt_to_function_decl(st)
-        if fn0 != nil { i = i + 1; continue }
-
-        // Skip type declarations: they are compiled as synthetic constructor functions
-        // (see `_x64_extract_type_constructors_v0`), not executed at top-level.
-        if st["type"] == "Type" { i = i + 1; continue }
-
-        if st["type"] == "Var" {
-            var name_node = st["name"]
-            var v = st["value"]
-            if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: global var name must be identifier"); return nil }
-            var nm = name_node["value"]
-            if nm == nil || nm == "" { err(ctx, "x64 native v0: global var name is empty"); return nil }
-            if nm == "__top_level__" { err(ctx, "x64 native v0: reserved global name __top_level__"); return nil }
-            if ctx["globals"] != nil && ctx["globals"][nm] != nil { err(ctx, "x64 native v0: duplicate global var " + nm); return nil }
-            if ctx["declared_functions"] != nil && ctx["declared_functions"][nm] != nil {
-                err(ctx, "x64 native v0: global var shadows function " + nm)
-                return nil
-            }
-            if v == nil { err(ctx, "x64 native v0: global var init missing for " + nm); return nil }
-
-            // Allocate storage slot.
-            var init_bits = _x64_try_const_global_init_bits(v)
-            var off = nil
-            if init_bits != nil {
-                off = _data_add_u64(ctx, init_bits)
-            } else {
-                off = _data_add_u64(ctx, 0)
-                // Defer init into __top_level__ as an assignment to the global.
-                oren_list_push(init_stmts, {"type": "Assign", "token": st["token"], "name": name_node, "value": v})
-            }
-            if off == nil { err(ctx, "x64 native v0: failed to allocate global var slot"); return nil }
-            ctx["globals"][nm] = off
+        if fn0 != nil {
+            if fn0["name"] == "__top_level__" { err(ctx, "x64 native v0: injected runtime defines reserved __top_level__"); return nil }
             i = i + 1
             continue
         }
+        if st["type"] == "Type" || st["type"] == "FFI" { i = i + 1; continue }
+        if st["type"] == "Var" {
+            var name_node = st["name"]
+            if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: runtime global var name must be identifier"); return nil }
+            var nm = name_node["value"]
+            if nm == nil || nm == "" { err(ctx, "x64 native v0: runtime global var name is empty"); return nil }
+            if nm == "__top_level__" { err(ctx, "x64 native v0: reserved global name __top_level__"); return nil }
+            if ctx["globals"] != nil && ctx["globals"][nm] != nil { err(ctx, "x64 native v0: duplicate global var " + nm); return nil }
+            // Runtime globals start at 0 by design; runtime init owns their initialization.
+            var off0 = _data_add_u64(ctx, 0)
+            if off0 == nil { err(ctx, "x64 native v0: failed to allocate runtime global var slot"); return nil }
+            ctx["globals"][nm] = off0
+            i = i + 1
+            continue
+        }
+        err(ctx, "x64 native v0: injected runtime must not contain top-level executable stmt type=" + st["type"])
+        return nil
+    }
 
-        // Any other non-function statement is part of top-level execution.
-        oren_list_push(other_stmts, st)
+    // User statements: split declarations vs executable top-level and defer all global init.
+    i = 0
+    while i < oren_list_len(user_stmts) {
+        var st2 = user_stmts[i]
+        if st2 == nil { i = i + 1; continue }
+        var fn1 = coreir._stmt_to_function_decl(st2)
+        if fn1 != nil {
+            if fn1["name"] == "__top_level__" { err(ctx, "x64 native v0: reserved function name __top_level__"); return nil }
+            i = i + 1
+            continue
+        }
+        if st2["type"] == "Type" || st2["type"] == "FFI" { i = i + 1; continue }
+        if st2["type"] == "Var" {
+            var name_node2 = st2["name"]
+            var v2 = st2["value"]
+            if name_node2 == nil || name_node2["type"] != "Identifier" { err(ctx, "x64 native v0: global var name must be identifier"); return nil }
+            var nm2 = name_node2["value"]
+            if nm2 == nil || nm2 == "" { err(ctx, "x64 native v0: global var name is empty"); return nil }
+            if nm2 == "__top_level__" { err(ctx, "x64 native v0: reserved global name __top_level__"); return nil }
+            if ctx["globals"] != nil && ctx["globals"][nm2] != nil { err(ctx, "x64 native v0: duplicate global var " + nm2); return nil }
+            if ctx["declared_functions"] != nil && ctx["declared_functions"][nm2] != nil { err(ctx, "x64 native v0: global var shadows function " + nm2); return nil }
+            if v2 == nil { err(ctx, "x64 native v0: global var init missing for " + nm2); return nil }
+            // Allocate storage slot (always zero-initialized).
+            var off2 = _data_add_u64(ctx, 0)
+            if off2 == nil { err(ctx, "x64 native v0: failed to allocate global var slot"); return nil }
+            ctx["globals"][nm2] = off2
+            // Defer user global initialization into __top_level__ so globals are initialized
+            // deterministically after runtime init and before user `main` runs.
+            oren_list_push(init_stmts, {"type": "Assign", "token": st2["token"], "name": name_node2, "value": v2})
+            i = i + 1
+            continue
+        }
+        // Any other top-level statement is executed in __top_level__.
+        oren_list_push(other_stmts, st2)
         i = i + 1
     }
 
     // Top-level exec order:
-    // - non-const global initializers
+    // - user global initializers
     // - other top-level statements (expr/assign/control flow)
     var top_stmts = []
     var j = 0
     while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
     j = 0
     while j < oren_list_len(other_stmts) { oren_list_push(top_stmts, other_stmts[j]); j = j + 1 }
-
     return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
 }
-
 fn _x64_extract_type_constructors_v0(ctx, linked) {
     if ctx == nil { return nil }
     var stmts = nil
@@ -1032,22 +1046,6 @@ fn _x64_extract_type_constructors_v0(ctx, linked) {
         i = i + 1
     }
     return out
-}
-
-fn _x64_try_const_global_init_bits(expr) {
-    // Return an i64/u64 bit-pattern to store into the global slot if the initializer
-    // is a safe compile-time constant for x64 v0 globals.
-    if expr == nil { return nil }
-    var t = expr["type"]
-    if t == "Integer" {
-        return intparse.parse_int_lit(expr["value"])
-    }
-    if t == "Boolean" {
-        if expr["value"] == "true" { return 1 }
-        return 0
-    }
-    if t == "Nil" { return 0 }
-    return nil
 }
 
 fn _x64_synth_top_level_fn(stmts) {

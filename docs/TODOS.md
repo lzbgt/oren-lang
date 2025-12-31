@@ -54,6 +54,7 @@ Rules for this tracker:
    - Tier‑1 correctness gap (x86_64 native): keep string compare semantics consistent with arm64:
      - **done**: `== != < <= > >=` in condition lowering treat tracked strings by content/lexicographic order (no pointer-compare regressions).
      - **done (rolling):** x86_64 `%` lowering now routes through the shared runtime helper `oren_mod` (panic/message parity with arm64 and AVM MOD contract).
+     - **done (rolling):** x86_64 `__top_level__` now executes **user** global initializers only; injected runtime globals are allocated as zero and are initialized by `native_runtime_init` (arm64 parity). Runtime now sets typed-buffer tags (`BUF_TAG_*`) in `native_runtime_init`, and the compiler enforces this invariant for constant-like runtime globals.
 
 2) **Native value tagging (remove “key kind inference” fragility)** (L)
    - Goal: **maps do not require explicit key kind** in the language model; the runtime can safely decide based on tagged values.
