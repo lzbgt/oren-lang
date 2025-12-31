@@ -43,7 +43,8 @@ Rules for this tracker:
        - `sys_unlink/sys_rmdir/sys_rename/sys_mkdir` (Win32 shims)
        - `sys_chmod` (currently a no-op on Windows; still enforces capsule FS write enrollment via prehook)
        - Stat ABI (done): `sys_stat/sys_lstat/sys_fstat` write OrenStatV0 into the caller buffer; callers/tests should allocate via `oren_stat_alloc()` (64B), not oversized host `struct stat` buffers.
-    - **done (rolling):** x86_64 call-depth guard now uses the injected native runtime hooks only (`oren_call_depth_enter/exit`); removed the x64-only data-blob guard and entry-stub env parsing fallback.
+   - **done (rolling):** x86_64 call-depth guard now uses the injected native runtime hooks only (`oren_call_depth_enter/exit`); removed the x64-only data-blob guard and entry-stub env parsing fallback.
+    - **done (rolling):** x86_64 now inlines `oren_index_set(container, index, value)` in native codegen (list in-bounds store fast-path + typed `oren_map_set_{int,str}` fallback), matching arm64’s Tier‑1 container semantics without an extra runtime call; the native runtime `oren_index_set` no longer probes headers on untracked integers (tracked-kind gate first).
      - Windows PE stack sizing: **done** — increased PE `SizeOfStackReserve` so deep recursion tests no longer need Windows skips (still a stopgap until heap-frame stackless recursion lands).
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:
@@ -113,6 +114,7 @@ Rules for this tracker:
 
 9) **Tests & iteration speed (integration-first; backend/arch neutral by default)** (S)
    - Keep `make test` iteration-fast and deterministic.
+   - **done (rolling):** build-cache dependency scan is no longer O(n^2) and no longer parses full ASTs just to find `import` edges; it now uses a lexer token scan + a persistent scan cache under the selected `--cache-dir`/`OREN_CACHE_DIR` to reduce repeated work on large graphs.
    - Prefer a small number of high-signal integration suites + fixtures as living spec.
    - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
    - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts; prefer Oren-owned stable ABIs (e.g. OrenStatV0 via `oren_stat_alloc()`).

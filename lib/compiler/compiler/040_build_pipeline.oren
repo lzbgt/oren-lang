@@ -540,6 +540,9 @@ fn compiler_main() {
             "arch": arch,
             "cc": cc,
             "codesign_id": codesign_id,
+            // Performance-only: pass the selected cache dir so the dependency scan cache
+            // lives next to the artifact cache (does not affect cache key).
+            "cache_dir": cache_dir,
             "emit_c": 0,
             "no_gc": 0,
             "enable_python": 0,

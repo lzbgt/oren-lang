@@ -1,0 +1,242 @@
+// x64-native Index assignment intrinsic (`oren_index_set`).
+//
+// Tier‑1 parity notes:
+// - arm64 native inlines `xs[i]=v` with a list fast-path + typed map fallback.
+// - x64 native historically lowered `xs[i]=v` through the runtime helper `oren_index_set`,
+//   which adds overhead and (in older runtime code) could be unsafe if it probed headers
+//   on untracked integers.
+//
+// This module adds an x64 inline lowering for `oren_index_set(container, index, value)`:
+// - checks tracked allocation metadata first (never probes untracked pointers)
+// - list: bounds-check and store in-bounds
+// - map: dispatch to `oren_map_set_{int,str}` (key kind inferred via tracking metadata when needed)
+//
+// Result:
+// - leaves the written value in RAX (matches runtime helper behavior).
+
+fn _emit_call_rel32_3args_x64(ctx, locals, sym, arg0_off, arg1_off, arg2_off) {
+    var a0 = abi.int_arg_reg(ctx["abi"], 0)
+    var a1 = abi.int_arg_reg(ctx["abi"], 1)
+    var a2 = abi.int_arg_reg(ctx["abi"], 2)
+    if a0 == nil || a1 == nil || a2 == nil {
+        err(ctx, "x64 native v0: missing ABI arg regs for call3 " + sym)
+        return nil
+    }
+    _emit_mov_r64_mrbp(ctx, a0, 0 - arg0_off)
+    _emit_mov_r64_mrbp(ctx, a1, 0 - arg1_off)
+    _emit_mov_r64_mrbp(ctx, a2, 0 - arg2_off)
+    var call_pos = oren_list_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": sym})
+    return nil
+}
+
+fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
+    if ctx == nil { return nil }
+    if expr == nil { err(ctx, "x64 native v0: missing oren_index_set expr"); return nil }
+    if locals == nil { err(ctx, "x64 native v0: oren_index_set requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        // Map fallback requires injected runtime (`oren_map_set_*`), so keep this strict.
+        err(ctx, "x64 native v0: oren_index_set requires injected native runtime")
+        return nil
+    }
+
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 3 {
+        err(ctx, "x64 native v0: oren_index_set expects 3 args")
+        return nil
+    }
+    if expr["spread"] != nil {
+        err(ctx, "x64 native v0: oren_index_set does not support spread")
+        return nil
+    }
+
+    var recv_kind = expr["recv_kind"]
+
+    // Spill layout (LTR eval):
+    // - container
+    // - index
+    // - value
+    var base0 = _intr_tmp_push(ctx, 3)
+    if base0 == nil { return nil }
+    var off_cont = _intr_tmp_off(ctx, locals, base0 + 0)
+    var off_idx = _intr_tmp_off(ctx, locals, base0 + 1)
+    var off_val = _intr_tmp_off(ctx, locals, base0 + 2)
+    if off_cont == nil || off_idx == nil || off_val == nil {
+        _intr_tmp_pop(ctx, base0)
+        return nil
+    }
+
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_cont, 0)
+
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
+
+    _emit_eval_int_to_rax(ctx, args[2], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_val, 0)
+
+    // container -> rdx (2)
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_cont)
+
+    // If container is nil, panic deterministically.
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    var labels = {}
+    var local_fixups = []
+    var l_non_nil = _new_label(ctx, "idx_set_non_nil")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
+    _emit_abort_panic_str(ctx, "index_set on nil")
+    _emit_label(ctx, labels, l_non_nil)
+
+    // Tier‑1 safety: never read object headers from untracked pointers.
+    _emit_find_tracked_node_x64(ctx, 2, 11) // r11 = node or 0
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base0); return nil }
+
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    var l_is_list = _new_label(ctx, "idx_set_is_list")
+    var l_is_map = _new_label(ctx, "idx_set_is_map")
+    var l_done = _new_label(ctx, "idx_set_done")
+
+    if recv_kind == "list" {
+        var l_trk_ok = _new_label(ctx, "idx_set_list_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
+        _emit_label(ctx, labels, l_trk_ok)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2)) // LIST
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=list but value is not a list")
+    } else if recv_kind == "map" {
+        var l_trk_ok2 = _new_label(ctx, "idx_set_map_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok2)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
+        _emit_label(ctx, labels, l_trk_ok2)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3)) // MAP
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
+        _emit_abort_panic_str(ctx, "index_set recv_kind=map but value is not a map")
+    } else {
+        // Unknown at compile-time => dynamic kind dispatch (LIST or MAP).
+        var l_trk_ok3 = _new_label(ctx, "idx_set_tracked_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_trk_ok3)
+        _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
+        _emit_label(ctx, labels, l_trk_ok3)
+
+        // kind = *(node + 16)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)
+        _emit_abort_panic_str(ctx, "index_set on non-container (expected list or map)")
+    }
+
+    // --- list path ---
+    _emit_label(ctx, labels, l_is_list)
+
+    // idx -> rcx (1)
+    _emit_mov_r64_mrbp(ctx, 1, 0 - off_idx)
+
+    // count = *(container + 0) -> r8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
+
+    // idx >= 0
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+    var l_nonneg = _new_label(ctx, "idx_set_nonneg")
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_nonneg)
+    _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
+    _emit_label(ctx, labels, l_nonneg)
+
+    // idx < count
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
+    var l_inbounds = _new_label(ctx, "idx_set_inbounds")
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
+    _emit_abort_panic_str(ctx, "Index out of bounds")
+    _emit_label(ctx, labels, l_inbounds)
+
+    // buf = *(container + 16) -> r9
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+
+    // buf != 0
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+    var l_buf_ok = _new_label(ctx, "idx_set_buf_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
+    _emit_abort_panic_str(ctx, "list buffer is nil")
+    _emit_label(ctx, labels, l_buf_ok)
+
+    // addr = buf + idx*8  (r10)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+
+    // value -> r11, store *(addr) = value
+    _emit_mov_r64_mrbp(ctx, 11, 0 - off_val)
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
+
+    // Return value in RAX.
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    // --- map path ---
+    _emit_label(ctx, labels, l_is_map)
+
+    // Known key kind fast path (syntax).
+    var known_kk = -1
+    var idx_expr = args[1]
+    if idx_expr != nil {
+        if idx_expr["type"] == "Integer" { known_kk = 0 }
+        else if idx_expr["type"] == "String" { known_kk = 1 }
+    }
+
+    if known_kk == 0 {
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+    } else if known_kk == 1 {
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+    } else {
+        // Infer key kind into r13 using tracked allocation metadata.
+        _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx) // r10 = key
+        _emit_infer_map_key_kind_x64(ctx, locals, 10, 13)
+
+        var l_kk_int = _new_label(ctx, "idx_set_map_kk_int")
+        var l_kk_done = _new_label(ctx, "idx_set_map_kk_done")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_kk_int)
+
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
+        _emit_jmp_to_label(ctx, local_fixups, l_kk_done)
+
+        _emit_label(ctx, labels, l_kk_int)
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)
+        _emit_label(ctx, labels, l_kk_done)
+
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+    }
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base0)
+    return nil
+}
+

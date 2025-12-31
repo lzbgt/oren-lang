@@ -17,6 +17,7 @@
 // @include "x64_native_program/071_panic.oren"
 // @include "x64_native_program/045_emit_member_expr.oren"
 // @include "x64_native_program/045_emit_index_expr.oren"
+// @include "x64_native_program/045_emit_index_set_expr.oren"
 // @include "x64_native_program/046_emit_string_helpers.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics_windows_fs.oren"

@@ -608,6 +608,13 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
 
     var spread = expr["spread"]
 
+    // Tier‑1 parity + performance: inline `oren_index_set(container, index, value)` so
+    // list in-bounds stores do not pay an extra runtime call.
+    if nm == "oren_index_set" {
+        _emit_index_set_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
+
     if nm == "oren_call_obj_list" {
         if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return nil }
         if argc != 2 { err(ctx, "x64 native v0: oren_call_obj_list expects 2 args"); return nil }

@@ -13,6 +13,8 @@
 //
 // This intentionally does not attempt fine-grained incremental compilation yet.
 
+import token "token.oren"
+
 fn _cache_sort_strings(xs) {
     // Insertion sort (small lists expected).
     if xs == nil { return [] }
@@ -80,6 +82,11 @@ fn _cache_dir_from_opts(seen, opts) {
 
 fn _cache_scan_imports_for_file(full_path, config) {
     // Returns {"ok":bool, "imports":[full,...], "src_hash":hex, "err":string}
+    //
+    // Performance note:
+    // - this function is called for every module reachable from the entrypoint.
+    // - avoid parsing the full program AST; we only need top-level `import` statements.
+    // - use token scanning via the lexer for a much cheaper dependency walk.
     var src = expand_includes_file(full_path, [])
     if src == nil {
         var msg = include_last_err()
@@ -90,41 +97,218 @@ fn _cache_scan_imports_for_file(full_path, config) {
 
     var l = lexer.new_lexer(src)
     l["file"] = full_path
-    var p = parser.new_parser(l)
-    // For cache scanning, use the same strictness as the build so dependencies are consistent.
-    p["strict_attrs"] = STRICT_ATTRS
-    p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
-    var prog = parser.parse_program(p)
-    if oren_list_len(p["errors"]) > 0 {
-        var first_err = p["errors"][0]
-        return {"ok": false, "err": first_err}
-    }
-
     var imports = []
-    var stmts = prog["statements"]
-    if stmts == nil { stmts = [] }
     var base_dir = dirname(full_path)
-    var i = 0
-    while i < oren_list_len(stmts) {
-        var s = stmts[i]
-        if s != nil && s["type"] == "Import" {
-            var imp_path = s["path"]
+    var tok = lexer.next_token(l)
+    while tok != nil && tok["type"] != token.TOK_EOF {
+        if tok["type"] == token.TOK_IMPORT {
+            // Grammar: import <ident> <string> [;]
+            var tname = lexer.next_token(l)
+            if tname == nil || tname["type"] != token.TOK_IDENT {
+                return {"ok": false, "err": "cache scan: invalid import (expected identifier after import) in " + full_path}
+            }
+            var tpath = lexer.next_token(l)
+            if tpath == nil || tpath["type"] != token.TOK_STRING {
+                return {"ok": false, "err": "cache scan: invalid import (expected string path) in " + full_path}
+            }
+            var imp_path = tpath["literal"]
             if imp_path != nil {
                 // In stdlib `.obc` mode, treat std imports as external (do not walk sources).
                 if config != nil && config["stdlib_mode"] == "obc" {
                     if starts_with(imp_path, "std:") || starts_with(imp_path, "std/") {
                         // Record the spec itself as a dependency marker.
                         oren_list_push(imports, imp_path)
-                        i = i + 1
-                        continue
+                    } else {
+                        var full = resolve_import_path(base_dir, imp_path)
+                        oren_list_push(imports, full)
                     }
+                } else {
+                    var full2 = resolve_import_path(base_dir, imp_path)
+                    oren_list_push(imports, full2)
                 }
-                var full = resolve_import_path(base_dir, imp_path)
-                oren_list_push(imports, full)
             }
+        }
+        tok = lexer.next_token(l)
+    }
+    return {"ok": true, "imports": imports, "src_hash": sh}
+}
+
+fn _scan_cache_file(cache_dir) {
+    if cache_dir == nil || cache_dir == "" { cache_dir = _cache_default_dir() }
+    return path_norm(cache_dir + "/scan_cache_v1.txt")
+}
+
+fn _scan_cache_split_lines(s) {
+    if s == nil { return [] }
+    var bs = oren_bytes_from_string(s)
+    var out = []
+    var cur = []
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == 10 { // \n
+            oren_list_push(out, oren_string_from_bytes(cur))
+            cur = []
+            i = i + 1
+            continue
+        }
+        if b == 13 { // \r
+            oren_list_push(out, oren_string_from_bytes(cur))
+            cur = []
+            // consume optional \n
+            if i + 1 < oren_list_len(bs) && bs[i + 1] == 10 { i = i + 2 } else { i = i + 1 }
+            continue
+        }
+        oren_list_push(cur, b)
+        i = i + 1
+    }
+    // final line
+    oren_list_push(out, oren_string_from_bytes(cur))
+    return out
+}
+
+fn _scan_cache_parse_u32(s) {
+    if s == nil { return 0 }
+    var bs = oren_bytes_from_string(s)
+    var n = 0
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b < 48 || b > 57 { return 0 }
+        n = n * 10 + (b - 48)
+        i = i + 1
+    }
+    if n < 0 { n = 0 }
+    return n
+}
+
+fn _scan_cache_load(cache_dir) {
+    // Returns a map: path -> {"hash":hex, "imports":[...]}
+    var p = _scan_cache_file(cache_dir)
+    if !file_exists(p) { return {} }
+    var s = oren_read_file(p)
+    if s == nil { return {} }
+    var lines = _scan_cache_split_lines(s)
+    if lines == nil || oren_list_len(lines) == 0 { return {} }
+    if lines[0] != "OREN_SCAN_CACHE_V1" { return {} }
+
+    var out = {}
+    var i = 1
+    while i + 2 < oren_list_len(lines) {
+        var path = lines[i]
+        var hash = lines[i + 1]
+        var nline = lines[i + 2]
+        i = i + 3
+        if path == nil || path == "" { continue }
+        if hash == nil { hash = "" }
+        var n = _scan_cache_parse_u32(nline)
+        var imps = []
+        var j = 0
+        while j < n && i < oren_list_len(lines) {
+            oren_list_push(imps, lines[i])
+            i = i + 1
+            j = j + 1
+        }
+        out[path] = {"hash": hash, "imports": imps}
+    }
+    return out
+}
+
+fn _scan_cache_save(cache_dir, cache_map) {
+    var p = _scan_cache_file(cache_dir)
+    ensure_dir(dirname(p))
+    var paths = []
+    for k in cache_map { oren_list_push(paths, k) }
+    paths = _cache_sort_strings(paths)
+    var out = "OREN_SCAN_CACHE_V1\n"
+    var i = 0
+    while i < oren_list_len(paths) {
+        var path = paths[i]
+        var rec = cache_map[path]
+        if rec == nil { i = i + 1; continue }
+        var hh = rec["hash"]
+        if hh == nil { hh = "" }
+        var imps = rec["imports"]
+        if imps == nil { imps = [] }
+        out = out + path + "\n"
+        out = out + hh + "\n"
+        out = out + oren_int_to_string(oren_list_len(imps)) + "\n"
+        var j = 0
+        while j < oren_list_len(imps) {
+            var imp = imps[j]
+            if imp == nil { imp = "" }
+            out = out + imp + "\n"
+            j = j + 1
         }
         i = i + 1
     }
+    oren_write_file(p, out)
+    return nil
+}
+
+fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
+    // scan_state:
+    // - "dir": cache dir
+    // - "cache": map(path -> {"hash":hex, "imports":[...]})
+    // - "dirty": bool
+    //
+    // Returns {"ok":bool, "imports":[...], "src_hash":hex, "err":string}
+    if scan_state == nil { return _cache_scan_imports_for_file(full_path, config) }
+    var cache_dir = scan_state["dir"]
+    var cache_map = scan_state["cache"]
+    if cache_map == nil { cache_map = {} ; scan_state["cache"] = cache_map }
+
+    // Compute expanded-source hash (still required for correctness).
+    var src = expand_includes_file(full_path, [])
+    if src == nil {
+        var msg = include_last_err()
+        if msg == nil { msg = "failed to read" }
+        return {"ok": false, "err": msg}
+    }
+    var sh = _sha256_hex(oren_bytes_from_string(src))
+
+    // Cache hit: reuse imports without token scanning.
+    var rec = cache_map[full_path]
+    if rec != nil && rec["hash"] == sh {
+        var imps = rec["imports"]
+        if imps == nil { imps = [] }
+        return {"ok": true, "imports": imps, "src_hash": sh}
+    }
+
+    // Miss: token scan and update cache.
+    var l = lexer.new_lexer(src)
+    l["file"] = full_path
+    var imports = []
+    var base_dir = dirname(full_path)
+    var tok = lexer.next_token(l)
+    while tok != nil && tok["type"] != token.TOK_EOF {
+        if tok["type"] == token.TOK_IMPORT {
+            var tname = lexer.next_token(l)
+            if tname == nil || tname["type"] != token.TOK_IDENT {
+                return {"ok": false, "err": "cache scan: invalid import (expected identifier after import) in " + full_path}
+            }
+            var tpath = lexer.next_token(l)
+            if tpath == nil || tpath["type"] != token.TOK_STRING {
+                return {"ok": false, "err": "cache scan: invalid import (expected string path) in " + full_path}
+            }
+            var imp_path = tpath["literal"]
+            if imp_path != nil {
+                if config != nil && config["stdlib_mode"] == "obc" {
+                    if starts_with(imp_path, "std:") || starts_with(imp_path, "std/") {
+                        oren_list_push(imports, imp_path)
+                    } else {
+                        oren_list_push(imports, resolve_import_path(base_dir, imp_path))
+                    }
+                } else {
+                    oren_list_push(imports, resolve_import_path(base_dir, imp_path))
+                }
+            }
+        }
+        tok = lexer.next_token(l)
+    }
+
+    cache_map[full_path] = {"hash": sh, "imports": imports}
+    scan_state["dirty"] = true
     return {"ok": true, "imports": imports, "src_hash": sh}
 }
 
@@ -150,18 +334,21 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     // Returns {"ok":bool, "key":hex, "err":string, "inputs":map(path->hash)}
     var visited = {}
     var inputs = {} // path/spec -> sha256
+    // Use an explicit stack pointer to avoid O(n^2) copying behavior.
     var stack = [entry_path]
+    var sp = 1
 
-    while oren_list_len(stack) > 0 {
+    // Persistent scan cache (performance only): stored under the selected build cache dir.
+    var cache_dir = nil
+    if build_cfg != nil && build_cfg["cache_dir"] != nil { cache_dir = build_cfg["cache_dir"] }
+    if cache_dir == nil || cache_dir == "" { cache_dir = _cache_default_dir() }
+    var scan_state = {"dir": cache_dir, "cache": _scan_cache_load(cache_dir), "dirty": false}
+
+    while sp > 0 {
         // pop
-        var pth = stack[oren_list_len(stack) - 1]
-        var tmp = []
-        var si = 0
-        while si + 1 < oren_list_len(stack) {
-            oren_list_push(tmp, stack[si])
-            si = si + 1
-        }
-        stack = tmp
+        sp = sp - 1
+        var pth = stack[sp]
+        stack[sp] = nil
 
         if pth == nil || pth == "" { continue }
         if visited[pth] == true { continue }
@@ -173,7 +360,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
             continue
         }
 
-        var r = _cache_scan_imports_for_file(pth, build_cfg)
+        var r = _cache_scan_imports_for_file_cached(pth, build_cfg, scan_state)
         if r["ok"] != true {
             return {"ok": false, "err": r["err"]}
         }
@@ -182,9 +369,15 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         if imps == nil { imps = [] }
         var ii = 0
         while ii < oren_list_len(imps) {
-            oren_list_push(stack, imps[ii])
+            // push onto stack (reuse capacity where possible)
+            if sp < oren_list_len(stack) { stack[sp] = imps[ii] }
+            else { oren_list_push(stack, imps[ii]) }
+            sp = sp + 1
             ii = ii + 1
         }
+    }
+    if scan_state["dirty"] == true {
+        _scan_cache_save(cache_dir, scan_state["cache"])
     }
 
     // Include stdlib `.obc` and linked `.obc` libraries (bytecode mode) into the key.

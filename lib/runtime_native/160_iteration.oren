@@ -229,12 +229,16 @@ fn oren_iter_next(container, idx, out_pair) {
     // NOTE (rolling native backend):
     // Fill a provided out-pair when possible to avoid per-iteration allocations in `for x in ...`.
     var out = out_pair
-    if out != 0 && ptr_get(out + 24) == list_magic() {
-        var cap = ptr_get(out + 8)
-        var buf = ptr_get(out + 16)
-        if cap < 2 || buf == 0 { out = 0 }
-    } else {
-        out = 0
+    if out != 0 {
+        // Safety: do not probe `out+...` unless `out` is a tracked list pointer.
+        var onode = oren_find_node(out)
+        if onode != 0 && ptr_get(iadd(onode, 16)) == 2 && ptr_get(out + 24) == list_magic() {
+            var cap = ptr_get(out + 8)
+            var buf = ptr_get(out + 16)
+            if cap < 2 || buf == 0 { out = 0 }
+        } else {
+            out = 0
+        }
     }
     if out == 0 {
         out = oren_new_list(2)

@@ -188,6 +188,19 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
 
     // --- map indexing path ---
     _emit_label(ctx, labels, l_is_map)
+    // If shared lowering inferred this is a map, validate magic deterministically.
+    // (Tier‑1 parity with arm64; avoids silent miscompilations if inference is wrong.)
+    if recv_kind == "map" {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax()) // rax = magic
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1296121168)) // map_magic()
+        var l_magic_ok = _new_label(ctx, "idx_map_magic_ok")
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+        _emit_abort_panic_str(ctx, "Index recv_kind=map but value is not a map")
+        _emit_label(ctx, labels, l_magic_ok)
+    }
     // Runtime-injected path: call typed helpers `oren_map_get_{int,str}`.
     //
     // Note: for dynamic keys, we infer key kind using the same tracking contract as the
