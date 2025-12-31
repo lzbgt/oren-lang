@@ -51,6 +51,8 @@ Rules for this tracker:
      - `docs/REMOTE_X64_ENV.md` (Win11 + WSL2)
      - `./oretest --matrix tier1` runs the practical Tier‑1 platform matrix from the dev host (arm64-macos + arm64-linux docker + x64 remote gate).
      - **done (rolling):** `./oretest --matrix ...` writes a dedicated matrix summary log + rc under `build/logs/oretest_matrix_<name>.log` and `build/logs/oretest_matrix_<name>.rc` (per-step logs remain `build/logs/matrix_*.log`).
+     - **done (rolling):** remote x64 batch runner keys the remote bundle cache by a content digest (scripts+artifacts) and only tars/uploads when needed; tarballs are cached locally under `build/tmp/remote_x64_bundle_<sha>.tar.gz` for fast reruns.
+     - **done (rolling):** linux/arm64 Docker runner sets `OREN_TEST_NATIVE_JOBS=1` and `OREN_TEST_FIXTURE_JOBS=1` by default to avoid flaky SIGKILLs under contention while keeping the Tier‑1 docker step under the 3‑minute budget.
      - **done (rolling):** the compiler CLI supports `--platform <arch>-<os>` for `oren build|meta|dump` (overrides legacy `--target/--arch`), and Tier‑1 x64 gates use it to avoid OS/arch flag drift.
      - **done (rolling):** `OREN_PLATFORM=<arch>-<os>` is honored by `oren` as a fallback when `--platform` is omitted, and Tier‑1 fixture suites pass `--platform` explicitly to keep host-defaults irrelevant.
      - **done (rolling):** Tier‑1 native supports local `fn name(...) { ... }` declarations inside blocks by lowering them to `var name = fn (...) { ... }` (lambda wrapper path), validated by the Tier‑1 x64 remote fixture output `tier1 local fn ok`.
@@ -69,6 +71,7 @@ Rules for this tracker:
    - **done (rolling):** removed native-runtime numeric-range string-key heuristic (`k < 4096`); string-key validation now relies on tracked-allocation metadata only.
    - **done (rolling):** compiler lowering learns kind hints from `oren_track_alloc(x, ..., kind)` / `oren_ensure_tracked(x, kind)` statement calls (e.g. kind=1 => `string`), improving key-kind inference for dynamic string keys.
    - **done (rolling):** Tier‑1 fixtures cover dynamic string keys + a large integer key (`50000`) for map set/get determinism guards.
+   - **done (rolling):** arm64 + x86_64 native index get/set fallbacks now delegate unknown map key kinds to the shared runtime helpers `oren_map_get` / `oren_map_set` (reduces backend drift while value tagging is in flight).
    - Deliverable: a native value representation that can distinguish:
      - immediates (ints/bools/nil) vs pointers
      - string/list/map/buf payload kinds

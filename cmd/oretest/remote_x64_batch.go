@@ -114,7 +114,7 @@ func remoteX64BatchSplitEnv(env string) []string {
 	return remoteX64SplitEnvAssignments(env)
 }
 
-func remoteX64BatchWriteWinScript(path string, tests []remoteX64Test) error {
+func remoteX64BatchWinScript(tests []remoteX64Test) []byte {
 	// Script prints machine-readable markers so the local runner can parse + validate results.
 	var b strings.Builder
 	b.WriteString("@echo off\r\n")
@@ -154,10 +154,14 @@ func remoteX64BatchWriteWinScript(path string, tests []remoteX64Test) error {
 		b.WriteString("::!RC!\r\n")
 	}
 	b.WriteString("exit /b %FAILED%\r\n")
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return []byte(b.String())
 }
 
-func remoteX64BatchWriteWslScript(path string, tests []remoteX64Test) error {
+func remoteX64BatchWriteWinScript(path string, tests []remoteX64Test) error {
+	return os.WriteFile(path, remoteX64BatchWinScript(tests), 0o644)
+}
+
+func remoteX64BatchWslScript(tests []remoteX64Test) []byte {
 	var b strings.Builder
 	b.WriteString("#!/usr/bin/env bash\n")
 	b.WriteString("set -euo pipefail\n")
@@ -204,7 +208,11 @@ func remoteX64BatchWriteWslScript(path string, tests []remoteX64Test) error {
 		b.WriteString(t.name)
 		b.WriteString("::$rc\n")
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o755)
+	return []byte(b.String())
+}
+
+func remoteX64BatchWriteWslScript(path string, tests []remoteX64Test) error {
+	return os.WriteFile(path, remoteX64BatchWslScript(tests), 0o755)
 }
 
 func remoteX64BatchTarGz(dst string, srcDir string) error {
@@ -683,6 +691,232 @@ type remoteX64BuildTask struct {
 	buildArgs []string
 }
 
+func remoteX64BatchEnsureBuiltArtifacts(logPath string, tests []remoteX64Test, jobs int, deadline time.Time) ([]string, string, error) {
+	// Build (or reuse) artifacts deterministically into canonical output paths.
+	//
+	// Return:
+	// - keys: stable sorted artifact base names (no extension)
+	// - buildID: the local cache signature used for build reuse stamps
+	seen := map[string]string{} // artifact -> src (must be consistent)
+	keys := []string{}
+	for _, t := range tests {
+		art := t.artifact
+		if art == "" {
+			art = t.name
+		}
+		if prev, ok := seen[art]; ok && prev != t.src {
+			return nil, "", fmt.Errorf("remote x64 batch: artifact %q has multiple sources (%q vs %q)", art, prev, t.src)
+		}
+		if _, ok := seen[art]; !ok {
+			keys = append(keys, art)
+		}
+		seen[art] = t.src
+	}
+	// Stable order so logs are deterministic.
+	sort.Strings(keys)
+
+	buildID := remoteX64BatchBuildID()
+
+	timeLeft := func() time.Duration {
+		d := time.Until(deadline)
+		if d <= 0 {
+			return 0
+		}
+		return d
+	}
+	if jobs < 1 {
+		jobs = 1
+	}
+	if jobs > 8 {
+		jobs = 8
+	}
+
+	tasks := []remoteX64BuildTask{}
+	for _, art := range keys {
+		src := seen[art]
+		linuxBuilt := targetsOutPath("linux", "x64", "native", art)
+		winBuilt := targetsOutPath("windows", "x64", "native", art+".exe")
+		if err := os.MkdirAll(filepath.Dir(linuxBuilt), 0o755); err != nil {
+			return nil, "", err
+		}
+		if err := os.MkdirAll(filepath.Dir(winBuilt), 0o755); err != nil {
+			return nil, "", err
+		}
+
+		if !remoteX64BatchShouldReuse("linux", art, buildID) {
+			tasks = append(tasks, remoteX64BuildTask{
+				target:    "linux",
+				artifact:  art,
+				src:       src,
+				outPath:   linuxBuilt,
+				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-linux", "-o", linuxBuilt},
+			})
+		}
+		if !remoteX64BatchShouldReuse("windows", art+".exe", buildID) {
+			tasks = append(tasks, remoteX64BuildTask{
+				target:    "windows",
+				artifact:  art + ".exe",
+				src:       src,
+				outPath:   winBuilt,
+				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-windows", "-o", winBuilt},
+			})
+		}
+	}
+
+	if len(tasks) > 0 {
+		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] building %d x64 artifacts (jobs=%d)", len(tasks), jobs))
+	}
+
+	type taskRes struct {
+		task remoteX64BuildTask
+		rc   int
+	}
+	taskCh := make(chan remoteX64BuildTask, len(tasks))
+	resCh := make(chan taskRes, len(tasks))
+	for _, t := range tasks {
+		taskCh <- t
+	}
+	close(taskCh)
+
+	var wg sync.WaitGroup
+	for i := 0; i < jobs; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for t := range taskCh {
+				if timeLeft() <= 0 {
+					resCh <- taskRes{task: t, rc: 2}
+					continue
+				}
+				remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] build %s %s", t.target, t.artifact))
+				rc, _ := remoteX64BatchExecCapture(logPath, timeLeft(), t.buildArgs[0], t.buildArgs[1:]...)
+				resCh <- taskRes{task: t, rc: rc}
+			}
+		}()
+	}
+	wg.Wait()
+	close(resCh)
+
+	for r := range resCh {
+		if r.rc != 0 {
+			return nil, "", fmt.Errorf("build failed: %s (%s)", r.task.artifact, r.task.target)
+		}
+	}
+
+	// Record build IDs after successful builds so subsequent remote runs can reuse.
+	for _, art := range keys {
+		remoteX64BatchWriteBuildID("linux", art, buildID)
+		remoteX64BatchWriteBuildID("windows", art+".exe", buildID)
+	}
+	return keys, buildID, nil
+}
+
+func remoteX64BatchBundleDigest(tests []remoteX64Test, keys []string) (string, error) {
+	// Hash the *content* of the upload bundle (scripts + artifacts) so we can:
+	// - skip local tarball creation when the remote already has the exact same bundle
+	// - avoid relying on file mtimes as the remote-cache key
+	//
+	// Digest includes:
+	// - run_win.cmd, run_wsl.sh bodies
+	// - linux/<artifact>, win/<artifact>.exe bytes for each requested artifact
+	h := sha256.New()
+	writeBytes := func(name string, b []byte) {
+		_, _ = io.WriteString(h, name)
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write(b)
+		_, _ = h.Write([]byte{'\n'})
+	}
+	writeFile := func(name string, path string) error {
+		_, _ = io.WriteString(h, name)
+		_, _ = h.Write([]byte{0})
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+		if _, err := io.Copy(h, f); err != nil {
+			return err
+		}
+		_, _ = h.Write([]byte{'\n'})
+		return nil
+	}
+
+	writeBytes("run_win.cmd", remoteX64BatchWinScript(tests))
+	writeBytes("run_wsl.sh", remoteX64BatchWslScript(tests))
+	for _, art := range keys {
+		linuxBuilt := targetsOutPath("linux", "x64", "native", art)
+		winBuilt := targetsOutPath("windows", "x64", "native", art+".exe")
+		if err := writeFile("linux/"+art, linuxBuilt); err != nil {
+			return "", err
+		}
+		if err := writeFile("win/"+art+".exe", winBuilt); err != nil {
+			return "", err
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func remoteX64BatchEnsureBundleTarball(logPath string, bundleSHA string, tests []remoteX64Test, keys []string) (string, error) {
+	// Create (or reuse) a tar.gz for upload.
+	//
+	// NOTE: This function is only called when the remote cache does not already have this bundle.
+	// The tarball itself is cached locally by bundleSHA to avoid repeated gzip work.
+	if bundleSHA == "" {
+		return "", fmt.Errorf("remote x64 batch: empty bundle sha")
+	}
+	cacheDir := filepath.Join("build", "tmp")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return "", err
+	}
+	finalTar := filepath.Join(cacheDir, "remote_x64_bundle_"+bundleSHA+".tar.gz")
+	if remoteX64BatchFileNonEmpty(finalTar) {
+		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] reuse local tarball (sha=%s)", bundleSHA[:16]))
+		return finalTar, nil
+	}
+
+	stagingDir, err := os.MkdirTemp(cacheDir, "remote_x64_bundle_")
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = os.RemoveAll(stagingDir) }()
+
+	bundleDir := filepath.Join(stagingDir, "bundle")
+	winDir := filepath.Join(bundleDir, "win")
+	linuxDir := filepath.Join(bundleDir, "linux")
+	if err := os.MkdirAll(winDir, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(linuxDir, 0o755); err != nil {
+		return "", err
+	}
+
+	for _, art := range keys {
+		linuxBuilt := targetsOutPath("linux", "x64", "native", art)
+		winBuilt := targetsOutPath("windows", "x64", "native", art+".exe")
+		if err := remoteX64BatchCopyFile(filepath.Join(linuxDir, art), linuxBuilt); err != nil {
+			return "", err
+		}
+		if err := remoteX64BatchCopyFile(filepath.Join(winDir, art+".exe"), winBuilt); err != nil {
+			return "", err
+		}
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "run_win.cmd"), remoteX64BatchWinScript(tests), 0o644); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "run_wsl.sh"), remoteX64BatchWslScript(tests), 0o755); err != nil {
+		return "", err
+	}
+
+	tmpTar := filepath.Join(stagingDir, "bundle.tar.gz")
+	if err := remoteX64BatchTarGz(tmpTar, bundleDir); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmpTar, finalTar); err != nil {
+		return "", err
+	}
+	return finalTar, nil
+}
+
 func remoteX64BatchBuildArtifacts(logPath string, workdir string, tests []remoteX64Test, jobs int, deadline time.Time) (string, error) {
 	// Produce:
 	//   workdir/
@@ -889,33 +1123,20 @@ func remoteX64BatchFixtureRunner(timeoutBin string, timeout time.Duration, logPa
 		return d
 	}
 
-	runID, err := remoteX64BatchRunID()
-	if err != nil {
-		remoteX64BatchAppendLog(logPath, fmt.Sprintf("remote_x64_batch: run id error: %v", err))
-		return 2
-	}
+	remoteX64BatchAppendLog(logPath, "[remote_x64_batch] start")
 
-	workdir := filepath.Join("build", "tmp", "fixture_remote_x64_batch_"+runID)
-	if err := os.RemoveAll(workdir); err != nil {
-		remoteX64BatchAppendLog(logPath, fmt.Sprintf("remote_x64_batch: failed to clean workdir: %v", err))
-		return 2
-	}
-	if err := os.MkdirAll(workdir, 0o755); err != nil {
-		remoteX64BatchAppendLog(logPath, fmt.Sprintf("remote_x64_batch: failed to mkdir workdir: %v", err))
-		return 2
-	}
-
-	remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] start (run_id=%s)", runID))
-
-	tarPath, err := remoteX64BatchBuildArtifacts(logPath, workdir, tests, opts.buildJobs, deadline)
+	// 0) Ensure local artifacts exist (reuse cached builds when possible).
+	keys, buildID, err := remoteX64BatchEnsureBuiltArtifacts(logPath, tests, opts.buildJobs, deadline)
 	if err != nil {
 		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] build failed: %v", err))
 		return 2
 	}
+	remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] local artifacts ok (build_id=%s)", buildID))
 
-	bundleSHA, err := remoteX64BatchSHA256File(tarPath)
+	// 1) Compute the bundle content digest (scripts + artifacts).
+	bundleSHA, err := remoteX64BatchBundleDigest(tests, keys)
 	if err != nil {
-		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] sha256 failed: %v", err))
+		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] digest failed: %v", err))
 		return 2
 	}
 	remoteKey := "bundle_" + bundleSHA[:16]
@@ -926,8 +1147,19 @@ func remoteX64BatchFixtureRunner(timeoutBin string, timeout time.Duration, logPa
 	sshArgs := remoteX64BatchSSHArgs(opts)
 	scpArgs := remoteX64BatchSCPArgs(opts)
 
-	// 1) Fast path: reuse remote bundle if already uploaded/extracted for this SHA.
+	// 2) Fast path: reuse remote bundle if already uploaded/extracted for this digest.
 	if !remoteX64BatchRemoteHasBundle(logPath, sshArgs, opts.host, remoteUnixDir, bundleSHA, 10*time.Second) {
+		// Create tarball only when we actually need to upload.
+		if timeLeft() <= 0 {
+			remoteX64BatchAppendLog(logPath, "[remote_x64_batch] out of time before tar")
+			return 2
+		}
+		tarPath, err := remoteX64BatchEnsureBundleTarball(logPath, bundleSHA, tests, keys)
+		if err != nil {
+			remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] tar failed: %v", err))
+			return 2
+		}
+
 		// Ensure remote directory exists (Windows cmd).
 		ensureCmd := fmt.Sprintf(`cmd.exe /c "if not exist %%USERPROFILE%%\tmp_oren\%s mkdir %%USERPROFILE%%\tmp_oren\%s"`, remoteKey, remoteKey)
 		{
@@ -982,7 +1214,7 @@ func remoteX64BatchFixtureRunner(timeoutBin string, timeout time.Duration, logPa
 		remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] reuse remote bundle (sha=%s)", bundleSHA[:16]))
 	}
 
-	// 4) Run Windows + WSL scripts and validate outputs locally.
+	// 3) Run Windows + WSL scripts and validate outputs locally.
 	runTimeout := timeLeft()
 	if runTimeout <= 0 {
 		remoteX64BatchAppendLog(logPath, "[remote_x64_batch] out of time before remote run")
@@ -1052,8 +1284,6 @@ func remoteX64BatchFixtureRunner(timeoutBin string, timeout time.Duration, logPa
 		return 2
 	}
 	remoteX64BatchAppendLog(logPath, fmt.Sprintf("[remote_x64_batch] ok (dur=%s)", time.Since(start)))
-	// Cleanup on success: keep tmp artifacts only when something fails.
-	_ = os.RemoveAll(workdir)
 	return 0
 }
 

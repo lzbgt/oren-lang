@@ -251,7 +251,6 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 					"grep -Fq %q %q",
 				"tests/modules/test_json_serde_attrs.oren",
 				plat,
-				arch,
 				targetsMetaPath(target, arch, "serde_schema"),
 				"\"serde\": {\"version\": 1, \"format\": \"json\", \"tag\": \"User\"",
 				targetsMetaPath(target, arch, "serde_schema"),

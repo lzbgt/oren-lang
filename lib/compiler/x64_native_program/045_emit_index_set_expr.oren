@@ -229,22 +229,8 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
         _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
         _emit_jmp_to_label(ctx, local_fixups, l_done)
     } else {
-        // Infer key kind into r13 using tracked allocation metadata.
-        _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx) // r10 = key
-        _emit_infer_map_key_kind_x64(ctx, locals, 10, 13)
-
-        var l_kk_int = _new_label(ctx, "idx_set_map_kk_int")
-        var l_kk_done = _new_label(ctx, "idx_set_map_kk_done")
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_kk_int)
-
-        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_str", off_cont, off_idx, off_val)
-        _emit_jmp_to_label(ctx, local_fixups, l_kk_done)
-
-        _emit_label(ctx, labels, l_kk_int)
-        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set_int", off_cont, off_idx, off_val)
-        _emit_label(ctx, labels, l_kk_done)
-
+        // Dynamic map set: delegate key-kind selection to the injected runtime helper.
+        _emit_call_rel32_3args_x64(ctx, locals, "oren_map_set", off_cont, off_idx, off_val)
         _emit_jmp_to_label(ctx, local_fixups, l_done)
     }
 

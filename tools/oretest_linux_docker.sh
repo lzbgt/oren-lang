@@ -134,6 +134,8 @@ rm -f ./oren ./oren_bootstrap ./oretest ./avm || true
 rm -f ./oredoc || true
 rm -rf ./build/logs || true
 export OREN_TEST_JOBS='$JOBS'
+export OREN_TEST_NATIVE_JOBS='${OREN_TEST_NATIVE_JOBS:-1}'
+export OREN_TEST_FIXTURE_JOBS='${OREN_TEST_FIXTURE_JOBS:-1}'
 export OREN_TEST_FULL='${OREN_TEST_FULL:-0}'
 export OREN_TEST_VERBOSE='${OREN_TEST_VERBOSE:-0}'
 export OREN_NO_GC='${OREN_NO_GC:-}'

@@ -225,22 +225,8 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
         _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_str", tmp0, tmp_idx)
         _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
     } else {
-        // Compute key kind into r13 using a scratch key register.
-        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_idx) // r10 = key
-        _emit_infer_map_key_kind_x64(ctx, locals, 10, 13)
-
-        var l_kk_int = _new_label(ctx, "idx_map_kk_int")
-        var l_kk_done = _new_label(ctx, "idx_map_kk_done")
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(13, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_kk_int)
-
-        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_str", tmp0, tmp_idx)
-        _emit_jmp_to_label(ctx, local_fixups, l_kk_done)
-
-        _emit_label(ctx, labels, l_kk_int)
-        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get_int", tmp0, tmp_idx)
-        _emit_label(ctx, labels, l_kk_done)
-
+        // Dynamic map get: delegate key-kind selection to the injected runtime helper.
+        _emit_call_rel32_2args_x64(ctx, locals, "oren_map_get", tmp0, tmp_idx)
         _emit_jmp_to_label(ctx, local_fixups, l_idx_done)
     }
 

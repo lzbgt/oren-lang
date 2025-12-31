@@ -1,10 +1,15 @@
 // x64 native: minimal allocation tracking (rolling Tier‑1 convergence).
 //
 // Motivation:
-// - Native v0 represents non-pointer values as raw integers, so `k >= 4096` is ambiguous:
-//   it can be an integer key or a pointer.
-// - To keep map semantics safe (no `strcmp` on integers) without heuristics, we use a
-//   minimal "tracked allocations" list to classify string pointers.
+// - Native v0 represents non-pointer values as raw integers, so we need a safe way to
+//   classify tracked heap pointers for container/string safety.
+// - To keep container/string semantics safe (no dereference of untracked integers), we use a
+//   minimal "tracked allocations" list to classify heap pointers by kind.
+//
+// Rolling parity note:
+// - The syscall-first native runtime treats values < 4096 as non-pointers for tracking/list-scan
+//   purposes (perf + avoids accidental tracking of small integers).
+// - Keep the same guard here so x64 behavior matches arm64 Tier‑1 until native value tagging lands.
 //
 // Design (rolling, x64 v0):
 // - Track only what we need for correctness of key-kind inference:
@@ -53,12 +58,13 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     // Default dst = 0.
     bytes_extend(ctx["code"], insn_mov_r32_imm32(dst_node_reg, 0))
 
-    // If ptr < 4096 => not a pointer in native v0 model => not tracked.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
     var labels = {}
     var local_fixups = []
     var l_done = _new_label(ctx, "trk_find_done")
     var l_scan = _new_label(ctx, "trk_find_scan")
+
+    // Match the native runtime guard: do not scan for small integers.
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
 
     // r10 = &head_slot ; r11 = head
@@ -92,58 +98,6 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     return nil
 }
 
-fn _emit_infer_map_key_kind_x64(ctx, locals, key_reg, dst_kind_reg) {
-    // Infer map key kind using the rolling native runtime contract:
-    // - if key < 4096 => integer kind=0
-    // - else if tracked node exists and node.kind == 1 => string kind=1
-    // - else if tracked node exists and node.kind != 1 => abort (unsupported key type)
-    // - else => integer kind=0
-    //
-    // Output:
-    // - dst_kind_reg: 0 or 1
-    //
-    // Clobbers: R10, R11, R12, RAX
-    if ctx == nil { return nil }
-    if locals == nil { err(ctx, "x64 native v0: key kind inference requires locals"); return nil }
-
-    // Default kind=0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(dst_kind_reg, 0))
-
-    // Save key into r12.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, key_reg))
-
-    // If key < 4096 => kind=0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
-    var labels = {}
-    var local_fixups = []
-    var l_done = _new_label(ctx, "trk_kind_done")
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
-
-    // r11 = find_node(key)
-    _emit_find_tracked_node_x64(ctx, 12, 11)
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-
-    // if r11 == 0 => kind stays 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-
-    // r10 = *(u64*)(node + 16) => kind
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-
-    // if kind == 1 => dst_kind_reg = 1 else abort
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 1))
-    var l_is_str = _new_label(ctx, "trk_kind_is_str")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_is_str)
-    _emit_abort_panic_str(ctx, "map key kind inference: unsupported tracked key type (need int or string)")
-    _emit_label(ctx, labels, l_is_str)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(dst_kind_reg, 1))
-
-    _emit_label(ctx, labels, l_done)
-    _patch_local_fixups(ctx, labels, local_fixups)
-    return nil
-}
 
 fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     // x64 native: lightweight `oren_track_alloc(ptr,size,kind)` implementation.
@@ -155,7 +109,7 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     //   native runtime globals model), so we must ensure runtime calls update the same list.
     //
     // Semantics (match the rolling runtime contract closely enough for Tier‑1):
-    // - If ptr == 0 or ptr < 4096: no-op (return ptr).
+    // - If ptr == 0: no-op (return ptr).
     // - If ptr is already tracked: update `size` when size!=0; update `kind` when kind!=0.
     // - Otherwise: allocate a node and insert at head; store ptr/size/kind; flags=0.
     //
@@ -186,10 +140,9 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     // if ptr == 0 => done
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-    // If ptr < 4096 => not a pointer => done
+    // Match the native runtime guard: do not attach tracking metadata to small integers.
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
-
     // r11 = head
     _emit_load_tracked_allocs_head_addr_x64(ctx, 11)
     bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 11))
@@ -315,8 +268,7 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
     // if ptr == 0 => done
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-
-    // If ptr < 4096 => not a pointer => done (prevents accidental tracking of integers).
+    // Match the native runtime guard: do not track small integers as pointers.
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
 
