@@ -211,10 +211,8 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     // Stack safety (Tier‑1 parity with arm64):
     //
-    // - When the injected native runtime is enabled, prefer the shared runtime call-depth
-    //   hooks (`oren_call_depth_enter/exit`) so arm64/x64 converge on one semantics set.
-    // - When runtime injection is disabled (bring-up/debug), keep the legacy x64-only
-    //   data-blob guard (`_emit_call_depth_*_guard_x64`) so stack safety remains deterministic.
+    // With runtime injection enabled (default), use the shared runtime call-depth hooks
+    // (`oren_call_depth_enter/exit`) so arm64/x64 converge on one semantics set.
     var call_depth_enabled = true
     if ctx != nil && ctx["inject_runtime"] == true {
         // Do not instrument the injected runtime itself; it contains the call-depth hooks.
@@ -235,9 +233,6 @@ fn _compile_function_v0(ctx, fn_node, platform) {
             var pos_enter = oren_list_len(ctx["code"])
             bytes_extend(ctx["code"], insn_call_rel32(0))
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_enter, "name": "oren_call_depth_enter"})
-        } else {
-            // Legacy x64-only data-blob guard.
-            _emit_call_depth_enter_guard_x64(ctx, labels, local_fixups)
         }
     }
     _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
@@ -257,8 +252,6 @@ fn _compile_function_v0(ctx, fn_node, platform) {
             bytes_extend(ctx["code"], insn_call_rel32(0))
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_exit, "name": "oren_call_depth_exit"})
             _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret) // rax = [tmp]
-        } else {
-            _emit_call_depth_exit_guard_x64(ctx)
         }
     }
     if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }

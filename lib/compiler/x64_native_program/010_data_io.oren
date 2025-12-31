@@ -77,7 +77,7 @@ fn _data_add_u64(ctx, val) {
     // - string literals
     // - fnobj records (function values)
     // - best-effort panic symbolication tables
-    // - (rolling) mutable globals like call-depth counters (requires writable mappings)
+    // - (rolling) mutable globals like tracking list heads (requires writable mappings)
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     while core.int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
@@ -100,29 +100,6 @@ fn _data_add_zeros(ctx, nbytes) {
     var i = 0
     while i < nbytes { bytes_push(ctx["data"], 0); i = i + 1 }
     return off
-}
-
-fn _data_reserve_call_depth_guard(ctx) {
-    // Reserve global storage for the x64 native call depth guard.
-    //
-    // Note: x64 v0 does not yet inject the full native runtime, so we keep this minimal
-    // and self-contained (counter + max in the data blob, updated by compiler-inserted code).
-    if ctx == nil { return nil }
-    if ctx["call_depth_off"] != nil { return nil }
-
-    var max0 = 8192
-    if ctx["platform"] != nil && ctx["platform"]["call_depth_max"] != nil {
-        max0 = ctx["platform"]["call_depth_max"]
-    }
-    if max0 == nil { max0 = 8192 }
-    else if max0 < 0 { max0 = 8192 }
-    else if max0 == 0 { max0 = -1 } // u64max => "no limit"
-    var off_depth = _data_add_u64(ctx, 0)
-    var off_max = _data_add_u64(ctx, max0)
-    if off_depth == nil || off_max == nil { err(ctx, "x64 native v0: failed to reserve call depth globals"); return nil }
-    ctx["call_depth_off"] = off_depth
-    ctx["call_depth_max_off"] = off_max
-    return nil
 }
 
 fn _emit_linux_write_cstr(ctx, s) {

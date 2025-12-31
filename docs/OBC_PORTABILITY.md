@@ -31,6 +31,10 @@ Or via Make:
 
 `make obc-portability`
 
+Or via the integrated Tier‑1 matrix (host orchestrator):
+
+`./oretest --matrix tier1-obc`
+
 It verifies the same `.obc` (`tests/avm/test_smoke_suite.oren`) runs identically on:
 
 - macOS arm64 (host)

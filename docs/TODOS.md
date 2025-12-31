@@ -43,7 +43,7 @@ Rules for this tracker:
        - `sys_unlink/sys_rmdir/sys_rename/sys_mkdir` (Win32 shims)
        - `sys_chmod` (currently a no-op on Windows; still enforces capsule FS write enrollment via prehook)
        - Stat ABI (done): `sys_stat/sys_lstat/sys_fstat` write OrenStatV0 into the caller buffer; callers/tests should allocate via `oren_stat_alloc()` (64B), not oversized host `struct stat` buffers.
-     - Unify stack-safety call depth storage with the injected native runtime (remove the x86_64 data-blob-only guard once parity is proven).
+    - **done (rolling):** x86_64 call-depth guard now uses the injected native runtime hooks only (`oren_call_depth_enter/exit`); removed the x64-only data-blob guard and entry-stub env parsing fallback.
      - Windows PE stack sizing: **done** — increased PE `SizeOfStackReserve` so deep recursion tests no longer need Windows skips (still a stopgap until heap-frame stackless recursion lands).
    - Post-injection DCE roots: **done** — global DCE now supports `@oren.keep` (explicit pin) and treats capsule syscall hooks (`native_capsule_sys_*`) as an internal ABI surface; runtime entry-stub/fixup helpers are pinned near their definitions.
    - Keep validation integration-first, and keep the remote x64 path as a hard gate:

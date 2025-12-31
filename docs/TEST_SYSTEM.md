@@ -17,6 +17,8 @@ This document explains the current state and the planned evolution.
 
 - runs the canonical curated runner: `./oretest --target macos`
 - platform shorthand (preferred mental model): `./oretest --platform arm64-macos`
+- Tier‑1 platform matrix (host orchestration): `./oretest --matrix tier1`
+- Tier‑1 + OBC portability (recommended after compiler/runtime changes): `./oretest --matrix tier1-obc`
 - captures per-test logs under `build/logs/`
 - prints **only summaries** on success; prints **details only on failures**
 - runs tests/fixtures in parallel by default (bounded); tune with:

@@ -116,9 +116,11 @@ func main() {
 	if strings.TrimSpace(*matrix) != "" {
 		switch strings.ToLower(strings.TrimSpace(*matrix)) {
 		case "tier1":
-			os.Exit(runTier1Matrix(timeoutBin))
+			os.Exit(runTier1Matrix(timeoutBin, false))
+		case "tier1-obc":
+			os.Exit(runTier1Matrix(timeoutBin, true))
 		default:
-			fmt.Fprintf(os.Stderr, "ERROR: unknown --matrix %q (supported: tier1)\n", *matrix)
+			fmt.Fprintf(os.Stderr, "ERROR: unknown --matrix %q (supported: tier1, tier1-obc)\n", *matrix)
 			os.Exit(2)
 		}
 	}
