@@ -872,6 +872,12 @@ fn compiler_main() {
         }
 
         var linked = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib})
+        // Memory hygiene (rolling):
+        // After linking, the native backend no longer needs the parsed AST `prog`.
+        // Clearing it allows the conservative GC to reclaim large parse structures,
+        // keeping native self-host builds bounded without relying on auto-GC.
+        prog = nil
+        oren_gc_collect()
         var export_names = []
         
         if is_shared_lib {
@@ -1062,6 +1068,10 @@ fn compiler_main() {
         if msg3 != nil { print(msg3) }
         oren_exit(1)
     }
+    // Keep compiler RSS bounded: the generated C string can be very large for whole-program builds.
+    // Once it is written to disk, drop it so the GC can reclaim that memory before invoking `cc`.
+    c_code = nil
+    oren_gc_collect()
     if emit_c {
         print("Wrote " + c_path)
         return nil

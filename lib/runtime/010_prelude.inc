@@ -320,8 +320,35 @@ static OrenThreadState* oren_thread_state() {
             fprintf(stderr, "thread state alloc failed\n");
             exit(1);
         }
+        // Capture a conservative "stack top" (highest address) so GC can scan all live frames.
+        //
+        // IMPORTANT:
+        // Using the address of a local variable here is NOT sufficient, because that
+        // address lives in the current call frame (and can be *below* older frames).
+        // When GC runs later, scanning only up to that marker can miss live pointers
+        // in outer frames, leading to use-after-free and memory corruption.
+        //
+        // Prefer OS APIs when available; fall back to a best-effort marker otherwise.
+#if defined(__APPLE__)
+        st->stack_top = pthread_get_stackaddr_np(pthread_self()); // high address
+#elif defined(__linux__)
+        pthread_attr_t attr;
+        if (pthread_getattr_np(pthread_self(), &attr) == 0) {
+            void* stack_addr = NULL;
+            size_t stack_size = 0;
+            if (pthread_attr_getstack(&attr, &stack_addr, &stack_size) == 0 && stack_addr && stack_size > 0) {
+                st->stack_top = (void*)((char*)stack_addr + stack_size); // high address
+            }
+            pthread_attr_destroy(&attr);
+        }
+        if (!st->stack_top) {
+            int stack_marker = 0;
+            st->stack_top = (void*)&stack_marker;
+        }
+#else
         int stack_marker = 0;
         st->stack_top = (void*)&stack_marker;
+#endif
         st->stack_sp = NULL;
         st->has_panic_buf = 0;
         st->call_depth = 0;
@@ -725,6 +752,12 @@ void oren_gc_collect() {
             }
             oren_mark_ptr_range_words((void*)lo, (void*)hi);
         }
+        if (cur->has_panic_buf) {
+            // Panics are implemented via setjmp/longjmp. The saved register image can
+            // contain live heap pointers (callee-saved regs) that may not be present
+            // as a well-formed OrenValue on the stack.
+            oren_mark_ptr_range_words((void*)&cur->panic_buf, (void*)((char*)&cur->panic_buf + sizeof(cur->panic_buf)));
+        }
         if (cur->has_gc_buf) {
             oren_mark_ptr_range_words((void*)&cur->gc_buf, (void*)((char*)&cur->gc_buf + sizeof(cur->gc_buf)));
             cur->has_gc_buf = 0;
@@ -808,6 +841,10 @@ void oren_gc_safepoint() {
     }
     unlock_collections();
     if (do_auto) {
+        // Spill registers to a stable memory image so the collector can conservatively
+        // find live pointers even under -O2 (locals often live only in registers).
+        (void)setjmp(st->gc_buf);
+        st->has_gc_buf = 1;
         oren_gc_collect();
         return;
     }
