@@ -53,3 +53,11 @@ Fetch method:
 ## Mach-O headers
 
 See `docs/refs/macho/SOURCES.md` (pinned from Apple OSS `cctools`).
+
+## Windows x64 calling convention (audit)
+
+Vendored from Microsoft Learn (audit/reference only).
+
+Fetched on **2026-01-01**.
+
+- `docs/refs/windows/msvc_x64_calling_convention.html`
