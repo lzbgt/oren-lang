@@ -8,23 +8,28 @@ set -euo pipefail
 # - runs them inside a linux/arm64 Docker container with `timeout`
 #
 # Config:
-#   OREN_DOCKER_IMAGE : container image (default: ubuntu:24.04)
+#   OREN_DOCKER_ID : existing persistent linux container id/name (default: c7e5f7bd9f5c)
 #   OREN_DOCKER_TIMEOUT_SECS : per-binary run timeout (default: 15)
-#   OREN_DOCKER_KEEP : set to 1 to keep the container around for reuse (default: 0)
-#   OREN_DOCKER_NAME : container name when keeping (default: oren-linux-smoke)
+#   OREN_DOCKER_SMOKE_DIR : container workdir (default: /work/smoke)
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-IMAGE="${OREN_DOCKER_IMAGE:-ubuntu:24.04}"
+DOCKER_ID="${OREN_DOCKER_ID:-c7e5f7bd9f5c}"
 TIMEOUT_SECS="${OREN_DOCKER_TIMEOUT_SECS:-15}"
-# Default to a persistent container so we can reuse installed tools and avoid
-# repeated apt installs / cold starts.
-KEEP="${OREN_DOCKER_KEEP:-1}"
-NAME="${OREN_DOCKER_NAME:-oren-linux-dev}"
-RESTART="${OREN_DOCKER_RESTART:-1}"
+SMOKE_DIR="${OREN_DOCKER_SMOKE_DIR:-/work/smoke}"
 
-echo "[linux-docker-smoke] image=$IMAGE timeout=${TIMEOUT_SECS}s"
+if ! docker inspect "$DOCKER_ID" >/dev/null 2>&1; then
+  echo "[linux-docker-smoke] ERROR: required persistent docker container not found: $DOCKER_ID" >&2
+  exit 2
+fi
+running="$(docker inspect "$DOCKER_ID" --format '{{.State.Running}}' 2>/dev/null || echo false)"
+if [[ "$running" != "true" ]]; then
+  echo "[linux-docker-smoke] ERROR: docker container is not running: $DOCKER_ID" >&2
+  exit 2
+fi
+
+echo "[linux-docker-smoke] container=$DOCKER_ID timeout=${TIMEOUT_SECS}s"
 
 make -s oren
 
@@ -60,54 +65,34 @@ done
 
 echo "[linux-docker-smoke] running in container..."
 
-DOCKER_RUN_ARGS=(--platform linux/arm64 -v "$PWD/build/linux-smoke:/smoke:ro")
-if [[ "$KEEP" == "1" ]]; then
-  # Create the container once and reuse it (useful for installing tools like strace/binutils).
-  if ! docker inspect "$NAME" >/dev/null 2>&1; then
-    docker create --name "$NAME" "${DOCKER_RUN_ARGS[@]}" "$IMAGE" bash -lc "sleep infinity" >/dev/null
-  fi
-  docker start "$NAME" >/dev/null || true
-  if [[ "$RESTART" == "1" ]]; then
-    # On Docker Desktop's bind mounts, updating a file in-place on the host can
-    # sometimes be observed late inside a long-lived container. A cheap restart
-    # makes the test runner deterministic.
-    docker restart "$NAME" >/dev/null
-  fi
-  docker exec "$NAME" bash -lc "
+# Copy built ELF binaries into the container (no bind-mount assumptions).
+tar -czf - -C build/linux-smoke . | docker exec -i "$DOCKER_ID" bash -lc "
 set -euo pipefail
-cd /smoke
-for name in ${BIN_NAMES[*]}; do
-  echo \"[linux-docker-smoke] run \$name\"
-  chmod +x \"./\$name\" 2>/dev/null || true
-  set +e
-  timeout '${TIMEOUT_SECS}s' \"./\$name\"
-  rc=\$?
-  set -e
-  if [[ \$rc -ne 0 ]]; then
-    echo \"[linux-docker-smoke] FAIL: \$name rc=\$rc\"
-    exit \$rc
-  fi
-done
-echo \"[linux-docker-smoke] OK\"
+rm -rf \"$SMOKE_DIR\"
+mkdir -p \"$SMOKE_DIR\"
+tar -xzf - -C \"$SMOKE_DIR\"
 "
-else
-  docker run --rm \
-    "${DOCKER_RUN_ARGS[@]}" \
-    "$IMAGE" bash -lc "
-set -euo pipefail
-cd /smoke
-for name in ${BIN_NAMES[*]}; do
-  echo \"[linux-docker-smoke] run \$name\"
-  chmod +x \"./\$name\" 2>/dev/null || true
-  set +e
-  timeout '${TIMEOUT_SECS}s' \"./\$name\"
-  rc=\$?
-  set -e
-  if [[ \$rc -ne 0 ]]; then
-    echo \"[linux-docker-smoke] FAIL: \$name rc=\$rc\"
-    exit \$rc
-  fi
-done
-echo \"[linux-docker-smoke] OK\"
+
+docker exec "$DOCKER_ID" bash -lc "
+	set -euo pipefail
+	cd \"$SMOKE_DIR\"
+	timeout_bin=\"\"
+	if command -v timeout >/dev/null 2>&1; then timeout_bin=\"timeout\"; fi
+	for name in ${BIN_NAMES[*]}; do
+	  echo \"[linux-docker-smoke] run \$name\"
+	  chmod +x \"./\$name\" 2>/dev/null || true
+	  set +e
+	  if [[ -n \"\$timeout_bin\" ]]; then
+	    \"\$timeout_bin\" '${TIMEOUT_SECS}s' \"./\$name\"
+	  else
+	    \"./\$name\"
+	  fi
+	  rc=\$?
+	  set -e
+	  if [[ \$rc -ne 0 ]]; then
+	    echo \"[linux-docker-smoke] FAIL: \$name rc=\$rc\"
+	    exit \$rc
+	  fi
+	done
+	echo \"[linux-docker-smoke] OK\"
 "
-fi

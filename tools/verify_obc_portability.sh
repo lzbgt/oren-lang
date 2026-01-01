@@ -14,8 +14,7 @@ set -euo pipefail
 # compile a known integrated Oren program, then runs it on multiple AVM builds.
 #
 # Inputs:
-# - OREN_LINUX_DOCKER_IMAGE (default: ubuntu:24.04)
-# - OREN_LINUX_DOCKER_NAME  (default: oren-linux-oretest)
+# - OREN_LINUX_DOCKER_ID      : existing persistent linux container id/name (default: c7e5f7bd9f5c)
 # - OREN_REMOTE_X64_HOST    (default: lzbgt@pc.work)
 # - OREN_REMOTE_X64_PROXY   (default: "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002")
 #
@@ -83,22 +82,27 @@ MAC_HASHES="$(extract_hashes "$OUT_DIR/mac_arm64.out")"
 echo "[obc-portability] mac RESULT/TRACE: $MAC_HASHES"
 
 echo "[obc-portability] run: linux/arm64 docker AVM"
-IMAGE="${OREN_LINUX_DOCKER_IMAGE:-ubuntu:24.04}"
-NAME="${OREN_LINUX_DOCKER_NAME:-oren-linux-oretest}"
-
-# Create a persistent container if missing.
-if ! docker inspect "$NAME" >/dev/null 2>&1; then
-  docker create --name "$NAME" --init --platform linux/arm64 -v "$PWD:/repo:ro" "$IMAGE" bash -lc 'sleep infinity' >/dev/null
+DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+if ! docker inspect "$DOCKER_ID" >/dev/null 2>&1; then
+  echo "ERROR: required persistent docker container not found: $DOCKER_ID" >&2
+  exit 2
 fi
-docker start "$NAME" >/dev/null || true
+running="$(docker inspect "$DOCKER_ID" --format '{{.State.Running}}' 2>/dev/null || echo false)"
+if [[ "$running" != "true" ]]; then
+  echo "ERROR: docker container is not running: $DOCKER_ID" >&2
+  exit 2
+fi
 
 # Sync tracked sources into /work/repo so the container's AVM matches the host repo.
-git ls-files -z | tar -czf - --null -T - | docker exec -i "$NAME" bash -lc 'set -euo pipefail; rm -rf /work/repo/*; mkdir -p /work/repo; tar -xzf - -C /work/repo'
+git ls-files -z | tar -czf - --null -T - | docker exec -i "$DOCKER_ID" bash -lc 'set -euo pipefail; rm -rf /work/repo/*; mkdir -p /work/repo; tar -xzf - -C /work/repo'
+
+# Copy the same `.obc` into the container (no bind-mount assumptions).
+cat "$OB_OBC" | docker exec -i "$DOCKER_ID" bash -lc "set -euo pipefail; cd /work/repo; mkdir -p \"$OUT_DIR\"; cat > \"$OB_OBC\""
 
 # Rebuild avm (fast; avoids running the full test suite).
 DOCKER_TIMEOUT_SECS="${OREN_DOCKER_TIMEOUT_SECS:-600}"
-run_with_timeout "$DOCKER_TIMEOUT_SECS" docker exec "$NAME" bash -lc 'set -euo pipefail; cd /work/repo; rm -f ./avm; make avm CC=gcc >/dev/null'
-run_with_timeout "$DOCKER_TIMEOUT_SECS" docker exec "$NAME" bash -lc "set -euo pipefail; cd /work/repo; ./avm --print-result-hash --print-trace-hash /repo/$OB_OBC" \
+run_with_timeout "$DOCKER_TIMEOUT_SECS" docker exec "$DOCKER_ID" bash -lc 'set -euo pipefail; cd /work/repo; rm -f ./avm; make avm CC=gcc >/dev/null'
+run_with_timeout "$DOCKER_TIMEOUT_SECS" docker exec "$DOCKER_ID" bash -lc "set -euo pipefail; cd /work/repo; ./avm --print-result-hash --print-trace-hash \"$OB_OBC\"" \
   | tee "$OUT_DIR/linux_docker_arm64.out" >/dev/null
 LINUX_HASHES="$(extract_hashes "$OUT_DIR/linux_docker_arm64.out")"
 echo "[obc-portability] linux/arm64 RESULT/TRACE: $LINUX_HASHES"
