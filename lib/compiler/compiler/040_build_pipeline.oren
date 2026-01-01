@@ -873,10 +873,16 @@ fn compiler_main() {
 
         var linked = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib})
         // Memory hygiene (rolling):
-        // After linking, the native backend no longer needs the parsed AST `prog`.
-        // Clearing it allows the conservative GC to reclaim large parse structures,
-        // keeping native self-host builds bounded without relying on auto-GC.
+        // - After linking, the native backend no longer needs the parsed root AST `prog`.
+        // - The module loader globals (MODULES/MODULE_ORDER/MODULE_STACK) retain per-module
+        //   program wrappers and statement lists; those are redundant once we have the merged
+        //   `linked["statements"]` list.
+        // Clear them so GC can reclaim those scaffolding objects and keep RSS bounded.
         prog = nil
+        MODULES = {}
+        MODULE_STACK = []
+        MODULE_ORDER = []
+        MODULE_ID_COUNTER = 0
         oren_gc_collect()
         var export_names = []
         

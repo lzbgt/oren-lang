@@ -20,10 +20,25 @@ OrenValue oren_add(OrenValue a, OrenValue b) {
     }
     // TODO: String concat
     if (a.type == OREN_TYPE_STRING && b.type == OREN_TYPE_STRING) {
-         // POC: simplistic concat
-         char* new_s = malloc(strlen(a.as.string_val) + strlen(b.as.string_val) + 1);
-         strcpy(new_s, a.as.string_val);
-         strcat(new_s, b.as.string_val);
+         // Rolling: deterministic string concat.
+         //
+         // IMPORTANT: the result must be registered as a GC-tracked STRING allocation.
+         // The compiler and tooling build many transient strings (e.g. lexing/printing);
+         // failing to register here causes unbounded RSS growth (leak-by-bug).
+         const char* as = a.as.string_val ? a.as.string_val : "";
+         const char* bs = b.as.string_val ? b.as.string_val : "";
+         size_t al = strlen(as);
+         size_t bl = strlen(bs);
+         size_t nl = al + bl;
+         char* new_s = (char*)malloc(nl + 1);
+         if (!new_s) {
+             oren_panic("string concat: malloc failed");
+             return OREN_NIL; // Should not be reached
+         }
+         if (al) memcpy(new_s, as, al);
+         if (bl) memcpy(new_s + al, bs, bl);
+         new_s[nl] = '\0';
+         oren_register_alloc(new_s, OREN_ALLOC_STRING);
          OrenValue val;
          val.type = OREN_TYPE_STRING;
          val.as.string_val = new_s;
@@ -403,4 +418,3 @@ OrenValue oren_set_attr(OrenValue obj, const char* attr, OrenValue value) {
     oren_panic("set_attr only supported for Python objects and maps currently");
     return value; // Should not be reached
 }
-

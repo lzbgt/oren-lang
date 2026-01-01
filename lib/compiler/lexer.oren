@@ -27,7 +27,9 @@ fn read_char(l) {
     if l["read_position"] >= input_len {
         l["ch"] = ""
     } else {
-        l["ch"] = oren_string_char_at(l["input"], l["read_position"])
+        // PERF: caller already bounds-checks against `input_len`, so avoid `char_at`'s
+        // per-call length scan (O(n) `strlen` on C backend, O(n) byte scan on native).
+        l["ch"] = oren_string_char_at_unchecked(l["input"], l["read_position"])
     }
     l["position"] = l["read_position"]
     l["read_position"] = l["read_position"] + 1
@@ -38,14 +40,14 @@ fn peek_char(l) {
     if l["read_position"] >= input_len {
         return ""
     }
-    return oren_string_char_at(l["input"], l["read_position"])
+    return oren_string_char_at_unchecked(l["input"], l["read_position"])
 }
 
 fn peek_char2(l) {
     var input_len = l["input_len"]
     var pos = l["read_position"] + 1
     if pos >= input_len { return "" }
-    return oren_string_char_at(l["input"], pos)
+    return oren_string_char_at_unchecked(l["input"], pos)
 }
 
 fn skip_whitespace(l) {

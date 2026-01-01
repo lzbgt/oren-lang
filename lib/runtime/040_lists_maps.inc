@@ -1651,6 +1651,21 @@ OrenValue oren_string_char_at(OrenValue s, OrenValue index) {
     return oren_string_from_single_byte((unsigned char)s.as.string_val[idx]);
 }
 
+OrenValue oren_string_char_at_unchecked(OrenValue s, OrenValue index) {
+    if (s.type != OREN_TYPE_STRING || index.type != OREN_TYPE_INT) {
+        oren_panic("char_at_unchecked expects (string, int)");
+        return OREN_NIL; // Should not be reached
+    }
+    long long idx = index.as.int_val;
+    if (idx < 0) {
+        oren_panic("char_at_unchecked index out of range");
+        return OREN_NIL; // Should not be reached
+    }
+    // Caller guarantees idx is within the string's known length.
+    // Avoid `strlen` here: lexing is otherwise O(n^2).
+    return oren_string_from_single_byte((unsigned char)s.as.string_val[(size_t)idx]);
+}
+
 OrenValue oren_char(OrenValue code) {
     if (code.type != OREN_TYPE_INT) {
         oren_panic("char expects int");

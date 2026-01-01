@@ -198,6 +198,10 @@ OrenValue oren_map_len(OrenValue map);
 
 OrenValue oren_string_len(OrenValue s);
 OrenValue oren_string_char_at(OrenValue s, OrenValue index);
+// Fast path for tooling (compiler/lexer): like `oren_string_char_at`, but assumes
+// the caller has already bounds-checked `index` against a known string length.
+// This avoids an O(n) `strlen` per character, which is catastrophic for lexing.
+OrenValue oren_string_char_at_unchecked(OrenValue s, OrenValue index);
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end);
 OrenValue oren_char(OrenValue code);
 OrenValue oren_int_to_string(OrenValue v);

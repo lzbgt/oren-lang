@@ -104,9 +104,11 @@ fn enforce_svc_emit_policy(file, allowed_svc_emits) {
 }
 
 fn dirname(path) {
-    var i = oren_string_len(path) - 1
+    if path == nil { return "." }
+    var n = oren_string_len(path)
+    var i = n - 1
     while i >= 0 {
-        if oren_string_char_at(path, i) == "/" {
+        if oren_string_char_at_unchecked(path, i) == "/" {
             if i == 0 { return "/" }
             return oren_string_slice(path, 0, i)
         }
@@ -121,7 +123,7 @@ fn starts_with(s, prefix) {
     if sl < pl { return false }
     var i = 0
     while i < pl {
-        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        if oren_string_char_at_unchecked(s, i) != oren_string_char_at_unchecked(prefix, i) { return false }
         i = i + 1
     }
     return true
@@ -132,7 +134,7 @@ fn trim_left_ws(s) {
     var i = 0
     var n = oren_string_len(s)
     while i < n {
-        var c = oren_string_char_at(s, i)
+        var c = oren_string_char_at_unchecked(s, i)
         if c != " " && c != "\t" && c != "\r" { break }
         i = i + 1
     }
@@ -144,7 +146,7 @@ fn ends_with_newline(s) {
     if s == nil { return false }
     var n = oren_string_len(s)
     if n == 0 { return false }
-    return oren_string_char_at(s, n - 1) == "\n"
+    return oren_string_char_at_unchecked(s, n - 1) == "\n"
 }
 
 fn include_path_from_line(line) {
@@ -161,13 +163,13 @@ fn include_path_from_line(line) {
     var n = oren_string_len(t)
     var i = 0
     while i < n {
-        if oren_string_char_at(t, i) == "\"" { break }
+        if oren_string_char_at_unchecked(t, i) == "\"" { break }
         i = i + 1
     }
     if i >= n { return "" }
     var j = i + 1
     while j < n {
-        if oren_string_char_at(t, j) == "\"" { break }
+        if oren_string_char_at_unchecked(t, j) == "\"" { break }
         j = j + 1
     }
     if j >= n { return "" }
@@ -250,7 +252,10 @@ fn expand_includes_file(full_path, include_stack) {
     var i = 0
     var n = oren_string_len(src)
     while i < n {
-        var ch = oren_string_char_at(src, i)
+        // PERF: `oren_string_char_at` does a `strlen` per call on the C backend.
+        // This loop is hot (runs over every source byte for include scanning),
+        // so use the unchecked variant once we have `n`.
+        var ch = oren_string_char_at_unchecked(src, i)
         if ch == "\n" {
             var line = oren_string_slice(src, line_start, i)
             var inc = include_path_from_line(line)
@@ -263,7 +268,7 @@ fn expand_includes_file(full_path, include_stack) {
                     if seg != nil && oren_string_len(seg) > 0 { oren_list_push(out_parts, seg) }
                 }
                 var inc_full = inc
-                if oren_string_len(inc) > 0 && oren_string_char_at(inc, 0) != "/" {
+                if oren_string_len(inc) > 0 && oren_string_char_at_unchecked(inc, 0) != "/" {
                     inc_full = resolve_path(dirname(full_path), inc)
                 }
                 if dbg_inc != nil { print("DEBUG_INCLUDES include full=" + inc_full) }
@@ -286,7 +291,7 @@ fn expand_includes_file(full_path, include_stack) {
 
     // Ensure expanded file ends with '\n' when the original file didn't.
     // Do this as a part to avoid copying the entire output just to append one byte.
-    if n > 0 && oren_string_char_at(src, n - 1) != "\n" {
+    if n > 0 && oren_string_char_at_unchecked(src, n - 1) != "\n" {
         oren_list_push(out_parts, "\n")
     }
 
@@ -296,7 +301,7 @@ fn expand_includes_file(full_path, include_stack) {
 fn default_output_path(path) {
     var i = oren_string_len(path) - 1
     while i >= 0 {
-        if oren_string_char_at(path, i) == "." {
+        if oren_string_char_at_unchecked(path, i) == "." {
             return oren_string_slice(path, 0, i)
         }
         i = i - 1
@@ -324,7 +329,7 @@ fn split_csv(s) {
     var cur = ""
     var i = 0
     while i < oren_string_len(s) {
-        var ch = oren_string_char_at(s, i)
+        var ch = oren_string_char_at_unchecked(s, i)
         if ch == "," {
             if cur != "" { oren_list_push(out, cur) }
             cur = ""
@@ -347,7 +352,7 @@ fn parse_platform_spec(s) {
     var dash = -1
     var i = 0
     while i < n {
-        if oren_string_char_at(s, i) == "-" { dash = i; break }
+        if oren_string_char_at_unchecked(s, i) == "-" { dash = i; break }
         i = i + 1
     }
     if dash <= 0 { return nil }
@@ -370,14 +375,14 @@ fn path_norm(path) {
     var n = oren_string_len(path)
     if n == 0 { return "" }
 
-    var is_abs = oren_string_char_at(path, 0) == "/"
+    var is_abs = oren_string_char_at_unchecked(path, 0) == "/"
     var segs = []
 
     var i = 0
     var start = 0
     while i <= n {
         var at_end = i == n
-        if at_end || oren_string_char_at(path, i) == "/" {
+        if at_end || oren_string_char_at_unchecked(path, i) == "/" {
             var seg = oren_string_slice(path, start, i)
             if seg != "" && seg != "." {
                 if seg == ".." {
@@ -403,28 +408,28 @@ fn path_norm(path) {
         i = i + 1
     }
 
-    var out = ""
-    if is_abs { out = "/" }
-
-    i = 0
-    while i < oren_list_len(segs) {
-        if out != "" && oren_string_char_at(out, oren_string_len(out) - 1) != "/" {
-            out = out + "/"
-        }
-        out = out + segs[i]
-        i = i + 1
-    }
-
-    if out == "" {
+    if oren_list_len(segs) == 0 {
         if is_abs { return "/" }
         return "."
     }
+
+    // PERF: build the normalized path in one allocation.
+    var parts = []
+    if is_abs { oren_list_push(parts, "/") }
+    i = 0
+    while i < oren_list_len(segs) {
+        if i > 0 { oren_list_push(parts, "/") }
+        oren_list_push(parts, segs[i])
+        i = i + 1
+    }
+    var out = oren_string_join(parts)
+
     return out
 }
 
 fn resolve_path(base, path) {
     if path == nil { return "" }
-    if oren_string_len(path) > 0 && oren_string_char_at(path, 0) == "/" { return path_norm(path) }
+    if oren_string_len(path) > 0 && oren_string_char_at_unchecked(path, 0) == "/" { return path_norm(path) }
     return path_norm(base + "/" + path)
 }
 
@@ -434,7 +439,7 @@ fn _path_last_segment(path) {
     var n = oren_string_len(path)
     var i = n - 1
     while i >= 0 {
-        if oren_string_char_at(path, i) == "/" {
+        if oren_string_char_at_unchecked(path, i) == "/" {
             return oren_string_slice(path, i + 1, n)
         }
         i = i - 1
@@ -445,8 +450,9 @@ fn _path_last_segment(path) {
 fn _segment_has_dot(seg) {
     if seg == nil { return false }
     var i = 0
-    while i < oren_string_len(seg) {
-        if oren_string_char_at(seg, i) == "." { return true }
+    var n = oren_string_len(seg)
+    while i < n {
+        if oren_string_char_at_unchecked(seg, i) == "." { return true }
         i = i + 1
     }
     return false
@@ -471,7 +477,7 @@ fn _starts_with2(s, pref) {
     if sl < pl { return false }
     var i = 0
     while i < pl {
-        if oren_string_char_at(s, i) != oren_string_char_at(pref, i) { return false }
+        if oren_string_char_at_unchecked(s, i) != oren_string_char_at_unchecked(pref, i) { return false }
         i = i + 1
     }
     return true

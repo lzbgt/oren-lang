@@ -7,6 +7,8 @@
 #include <sys/time.h>
 #include <limits.h>
 #include <sys/mman.h>
+#include <stdint.h>
+#include <stdatomic.h>
 
 // Some platforms name the anonymous-map flag MAP_ANON instead of MAP_ANONYMOUS.
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
@@ -43,6 +45,27 @@ typedef struct OrenAllocNode {
 static OrenAllocNode* g_allocs = NULL;
 static pthread_mutex_t g_alloc_mutex = PTHREAD_MUTEX_INITIALIZER;
 static OrenAllocNode* g_roots = NULL;
+
+// Fast conservative-GC filter:
+// Most machine words on the stack/register snapshots are not pointers into the Oren heap.
+// Track a coarse [min,max] allocation address range so the mark phase can skip the vast
+// majority of false positives without hashing into the alloc index.
+//
+// This is an optimization only (does not affect correctness): we still confirm with the
+// alloc registry/index before marking anything as live.
+static uintptr_t g_alloc_ptr_min = UINTPTR_MAX;
+static uintptr_t g_alloc_ptr_max = 0;
+
+static inline uintptr_t oren_ptr_canon(uintptr_t p) {
+    // Some architectures/OSes use tagged pointers (e.g. AArch64 TBI).
+    // For conservative scanning, treat any value that differs only in the top byte
+    // as the same address.
+#if defined(__aarch64__)
+    return p & (uintptr_t)0x00FFFFFFFFFFFFFFULL;
+#else
+    return p;
+#endif
+}
 
 // Large raw blocks: use mmap so memory can be returned to the OS on free/GC sweep.
 // Keep this conservative; below this threshold libc allocation is typically faster.
@@ -108,12 +131,22 @@ static size_t gc_stack_scan_limit_bytes_cached(void) {
     // Keep this bounded by default to avoid pathological GC pauses on deep stacks.
     static size_t cached = (size_t)-1;
     if (cached != (size_t)-1) return cached;
-    cached = parse_env_size(getenv("OREN_GC_STACK_SCAN_LIMIT_BYTES"), (size_t)(2u << 20)); // 2 MiB
+    const char* env = getenv("OREN_GC_STACK_SCAN_LIMIT_BYTES");
+    if (env && env[0]) {
+        cached = parse_env_size(env, (size_t)(2u << 20)); // 2 MiB fallback
+        return cached;
+    }
+    // Safety bias:
+    // - When auto-GC is enabled, prefer scanning the full stack by default to avoid
+    //   missing roots on deep call stacks (stack limit remains available via env).
+    // - When auto-GC is disabled, keep a bounded default (collector is rarely used).
+    if (gc_auto_enabled_cached()) cached = 0u;
+    else cached = (size_t)(2u << 20); // 2 MiB
     return cached;
 }
 
 static size_t g_gc_allocs_since_collect = 0;
-static int g_gc_auto_pending = 0;
+static _Atomic int g_gc_auto_pending = 0;
 
 typedef struct {
     uint64_t magic;
@@ -239,6 +272,9 @@ static void oren_alloc_index_remove_locked(void* ptr) {
         if (slot == NULL) return;
         if (slot != OREN_ALLOC_INDEX_TOMBSTONE && slot->ptr == ptr) {
             g_alloc_index[i] = OREN_ALLOC_INDEX_TOMBSTONE;
+            // Maintain an accurate occupied-entry count so the index does not grow
+            // without bound across GC cycles (tombstones are not counted as live).
+            if (g_alloc_index_len > 0) g_alloc_index_len--;
             return;
         }
         i = (i + 1) & mask;
@@ -246,8 +282,8 @@ static void oren_alloc_index_remove_locked(void* ptr) {
 }
 static pthread_mutex_t g_collection_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_collection_cv = PTHREAD_COND_INITIALIZER;
-static int g_gc_requested = 0;
-static int g_gc_in_progress = 0;
+static _Atomic int g_gc_requested = 0;
+static _Atomic int g_gc_in_progress = 0;
 static int g_threads_total = 0;
 static int g_threads_waiting = 0;
 static pthread_key_t g_thread_key;
@@ -279,6 +315,7 @@ typedef struct OrenThreadState {
     int at_safepoint;
     void* stack_top;
     void* stack_sp;
+    uint64_t safepoint_tick;
     uint64_t call_depth;
     uint64_t call_depth_max;
     jmp_buf panic_buf;
@@ -451,7 +488,7 @@ static void oren_thread_unregister() {
     if (!st) return;
 
     // Cooperate if a collection is in progress.
-    if (g_gc_requested) {
+    if (atomic_load_explicit(&g_gc_requested, memory_order_relaxed)) {
         oren_gc_safepoint();
     }
 
@@ -552,6 +589,9 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     n->next = g_allocs;
     g_allocs = n;
     oren_alloc_index_put_locked(n);
+    uintptr_t p = oren_ptr_canon((uintptr_t)ptr);
+    if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
+    if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
     pthread_mutex_unlock(&g_alloc_mutex);
 
 #ifndef OREN_NO_GC
@@ -568,8 +608,8 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     // Avoid deadlocks: skip if the collections mutex is already held (or contended).
     // Mark a pending GC request instead; the next `oren_gc_safepoint()` will initiate the collection.
     if (pthread_mutex_trylock(&g_collection_mutex) != 0) return;
-    if (!g_gc_in_progress) {
-        g_gc_auto_pending = 1;
+    if (!atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed)) {
+        atomic_store_explicit(&g_gc_auto_pending, 1, memory_order_relaxed);
     }
     pthread_mutex_unlock(&g_collection_mutex);
 #endif
@@ -578,11 +618,14 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
 static OrenAllocNode* oren_find_node(void* ptr) {
     // Contract: caller holds g_alloc_mutex (mark/sweep or explicit frees).
     // Fallback to linear scan only if index isn't initialized (should not happen in practice).
-    OrenAllocNode* n = oren_alloc_index_get_locked(ptr);
+    uintptr_t p = oren_ptr_canon((uintptr_t)ptr);
+    if (g_alloc_ptr_max < g_alloc_ptr_min) return NULL;
+    if (p < g_alloc_ptr_min || p > g_alloc_ptr_max) return NULL;
+    OrenAllocNode* n = oren_alloc_index_get_locked((void*)p);
     if (n) return n;
     OrenAllocNode* cur = g_allocs;
     while (cur) {
-        if (cur->ptr == ptr) return cur;
+        if (cur->ptr == (void*)p) return cur;
         cur = cur->next;
     }
     return NULL;
@@ -680,11 +723,11 @@ void oren_gc_collect() {
     (void)self;
 
     lock_collections();
-    while (g_gc_in_progress) {
+    while (atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed)) {
         pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
     }
-    g_gc_in_progress = 1;
-    g_gc_requested = 1;
+    atomic_store_explicit(&g_gc_in_progress, 1, memory_order_relaxed);
+    atomic_store_explicit(&g_gc_requested, 1, memory_order_relaxed);
     pthread_cond_broadcast(&g_collection_cv);
     while (g_threads_waiting < (g_threads_total - 1)) {
         pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
@@ -815,8 +858,8 @@ void oren_gc_collect() {
     }
     pthread_mutex_unlock(&g_alloc_mutex);
 
-    g_gc_requested = 0;
-    g_gc_in_progress = 0;
+    atomic_store_explicit(&g_gc_requested, 0, memory_order_relaxed);
+    atomic_store_explicit(&g_gc_in_progress, 0, memory_order_relaxed);
     pthread_cond_broadcast(&g_collection_cv);
     unlock_collections();
 }
@@ -831,12 +874,29 @@ void oren_gc_safepoint() {
     int sp_marker = 0;
     st->stack_sp = (void*)&sp_marker;
 
+    // PERF (rolling):
+    // Calling into the slow safepoint path on every loop iteration is very expensive for
+    // compiler workloads (lexer/parser). Most safepoints do not need to take locks.
+    //
+    // Use a per-thread tick so we only poll the global GC flags periodically, while still
+    // guaranteeing eventual stop-the-world progress.
+    st->safepoint_tick++;
+    uint64_t tick = st->safepoint_tick;
+    if ((tick & 255u) != 0u) {
+        if (!atomic_load_explicit(&g_gc_requested, memory_order_relaxed) &&
+            !atomic_load_explicit(&g_gc_auto_pending, memory_order_relaxed)) {
+            return;
+        }
+    }
+
     // Auto-GC initiation (single-thread only): request is set by allocation counting
     // and collected only at this safepoint call boundary (keeps stack/register state safe).
     int do_auto = 0;
     lock_collections();
-    if (g_gc_auto_pending && !g_gc_in_progress && g_threads_total <= 1) {
-        g_gc_auto_pending = 0;
+    if (atomic_load_explicit(&g_gc_auto_pending, memory_order_relaxed) &&
+        !atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed) &&
+        g_threads_total <= 1) {
+        atomic_store_explicit(&g_gc_auto_pending, 0, memory_order_relaxed);
         do_auto = 1;
     }
     unlock_collections();
@@ -851,16 +911,14 @@ void oren_gc_safepoint() {
 
     // If a collection is requested, snapshot registers so the collector can conservatively
     // find live pointers even when locals are optimized into registers.
-    lock_collections();
-    int req = g_gc_requested;
-    unlock_collections();
+    int req = atomic_load_explicit(&g_gc_requested, memory_order_relaxed);
     if (req) {
         (void)setjmp(st->gc_buf);
         st->has_gc_buf = 1;
     }
 
     lock_collections();
-    if (!g_gc_requested) {
+    if (!atomic_load_explicit(&g_gc_requested, memory_order_relaxed)) {
         unlock_collections();
         return;
     }
@@ -869,7 +927,7 @@ void oren_gc_safepoint() {
         g_threads_waiting++;
         pthread_cond_broadcast(&g_collection_cv);
     }
-    while (g_gc_requested) {
+    while (atomic_load_explicit(&g_gc_requested, memory_order_relaxed)) {
         pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
     }
     if (st->at_safepoint) {
@@ -947,7 +1005,10 @@ static void oren_mark_ptr_range_words(void* a, void* b) {
     for (uintptr_t p = lo; p + sizeof(uintptr_t) <= hi; p += sizeof(uintptr_t)) {
         uintptr_t w = 0;
         memcpy(&w, (void*)p, sizeof(w));
+        w = oren_ptr_canon(w);
         if ((w & (uintptr_t)0x7) != 0) continue;
+        if (g_alloc_ptr_max < g_alloc_ptr_min) continue;
+        if (w < g_alloc_ptr_min || w > g_alloc_ptr_max) continue;
         oren_mark_alloc_ptr((void*)w);
     }
 }

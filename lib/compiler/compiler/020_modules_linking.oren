@@ -137,6 +137,14 @@ fn load_module(base, path, config) {
         oren_exit(1)
     }
 
+    // Memory hygiene (rolling):
+    // The include-expanded source string and lexer/parser scaffolding can be very large.
+    // Once we have the AST (and have checked for parse errors), drop them so GC can
+    // reclaim memory deterministically during self-host builds.
+    src = nil
+    l = nil
+    p = nil
+
     var prefix = new_module_prefix()
     if is_std { prefix = _stable_std_prefix(path) }
     var mod = {"prefix": prefix, "path": full, "program": prog, "aliases": {}, "imports": [], "added": false}

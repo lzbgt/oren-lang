@@ -99,6 +99,14 @@ fn oren_string_char_at(s, idx) {
     return _oren_string_from_single_byte(ptr_get_byte(iadd(s, idx)))
 }
 
+fn oren_string_char_at_unchecked(s, idx) {
+    // Tooling fast path: caller guarantees bounds by checking against a known length.
+    // Avoids an O(n) `oren_string_len` per character, which is catastrophic for lexing.
+    if s == 0 { oren_panic("char_at_unchecked expects string") }
+    if idx < 0 { oren_panic("char_at_unchecked index out of range") }
+    return _oren_string_from_single_byte(ptr_get_byte(iadd(s, idx)))
+}
+
 fn oren_char(code) {
     // Return a freshly allocated 1-byte NUL-terminated string for an integer codepoint.
     //
