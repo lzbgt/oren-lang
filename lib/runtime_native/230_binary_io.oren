@@ -108,6 +108,15 @@ fn oren_chmod(path, mode) {
     return sys_chmod(path, mode)
 }
 
+@cap.requires(domain="FS")
+fn oren_rename(from, to) {
+    // Rename a filesystem entry.
+    //
+    // Return convention (syscall-like): 0 on success, negative errno on failure.
+    // The syscall lowering already applies capsule FS enforcement for sys_rename.
+    return sys_rename(from, to)
+}
+
 
 @cap.requires(domain="FS")
 fn oren_readdir(path) {

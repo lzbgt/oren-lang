@@ -7,6 +7,13 @@ fn arm64_aapcs() {
     return {
         // Integer/pointer args: X0..X7
         "int_arg_regs": [0, 1, 2, 3, 4, 5, 6, 7],
+        // AAPCS64 callee-saved (non-volatile) integer regs preserved by the Oren native backend:
+        // X19..X26 (X29=FP, X30=LR are handled by the backend prologue/epilogue as needed).
+        //
+        // IMPORTANT (arch unification; Tier-1):
+        // The arm64 backend reserves X27/X28 as global heap registers (heap_limit/heap_ptr),
+        // so they MUST NOT be saved/restored by prologues/epilogues.
+        "callee_saved_regs": [19, 20, 21, 22, 23, 24, 25, 26],
         // AAPCS64 has no mandatory shadow space.
         "caller_shadow_bytes": 0,
         // We do not reserve a fixed call-area in frames on arm64; outgoing stack args are

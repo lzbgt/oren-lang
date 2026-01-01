@@ -95,6 +95,27 @@ fn runtime_include_path_from_line(line) {
     return oren_string_slice(t, i + 1, j)
 }
 
+fn _rtinj_join_parts(parts) {
+    if parts == nil { return "" }
+    if oren_list_len(parts) == 0 { return "" }
+    var cur = parts
+    while oren_list_len(cur) > 1 {
+        var next = []
+        var i = 0
+        var n = oren_list_len(cur)
+        while i < n {
+            if i + 1 < n {
+                oren_list_push(next, cur[i] + cur[i + 1])
+            } else {
+                oren_list_push(next, cur[i])
+            }
+            i = i + 2
+        }
+        cur = next
+    }
+    return cur[0]
+}
+
 fn runtime_expand_includes_file(ctx, full_path, stack) {
     // Returns expanded source string, or nil on error (errors pushed into ctx["errors"]).
     if full_path == nil || full_path == "" {
@@ -134,14 +155,20 @@ fn runtime_expand_includes_file(ctx, full_path, stack) {
     oren_list_push(next_stack, full_path)
 
     var out_parts = []
-    var line = ""
+    var seg_start = 0
+    var line_start = 0
     var i = 0
     var n = oren_string_len(src)
     while i < n {
         var ch = oren_string_char_at(src, i)
         if ch == "\n" {
+            var line = oren_string_slice(src, line_start, i)
             var inc = runtime_include_path_from_line(line)
-            if inc != "" {
+            if inc != nil && oren_string_len(inc) > 0 {
+                if seg_start < line_start {
+                    var seg = oren_string_slice(src, seg_start, line_start)
+                    if seg != nil && oren_string_len(seg) > 0 { oren_list_push(out_parts, seg) }
+                }
                 var inc_full = path_join(path_dirname(full_path), inc)
                 var child = runtime_expand_includes_file(ctx, inc_full, next_stack)
                 if child == nil { return nil }
@@ -149,40 +176,21 @@ fn runtime_expand_includes_file(ctx, full_path, stack) {
                 if !str_ends_with_newline(child) {
                     oren_list_push(out_parts, "\n")
                 }
-            } else {
-                oren_list_push(out_parts, line)
-                oren_list_push(out_parts, "\n")
+                seg_start = i + 1
             }
-            line = ""
-        } else {
-            line = line + ch
+            line_start = i + 1
         }
         i = i + 1
     }
 
-    // Handle last line if file doesn't end in '\n'
-    if line != "" {
-        var inc2 = runtime_include_path_from_line(line)
-        if inc2 != "" {
-            var inc_full2 = path_join(path_dirname(full_path), inc2)
-            var child2 = runtime_expand_includes_file(ctx, inc_full2, next_stack)
-            if child2 == nil { return nil }
-            oren_list_push(out_parts, child2)
-            if !str_ends_with_newline(child2) {
-                oren_list_push(out_parts, "\n")
-            }
-        } else {
-            oren_list_push(out_parts, line)
-            oren_list_push(out_parts, "\n")
-        }
+    if seg_start < n {
+        var seg2 = oren_string_slice(src, seg_start, n)
+        if seg2 != nil && oren_string_len(seg2) > 0 { oren_list_push(out_parts, seg2) }
     }
 
-    var out = ""
-    var pi = 0
-    while pi < oren_list_len(out_parts) {
-        out = out + out_parts[pi]
-        pi = pi + 1
+    if n > 0 && oren_string_char_at(src, n - 1) != "\n" {
+        oren_list_push(out_parts, "\n")
     }
-    return out
+
+    return _rtinj_join_parts(out_parts)
 }
-

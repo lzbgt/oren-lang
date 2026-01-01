@@ -78,6 +78,24 @@ OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
     return OREN_NIL;
 }
 
+// Rename a filesystem entry.
+//
+// Return convention (syscall-like):
+// - 0 on success
+// - negative errno on failure
+//
+// This is used by compiler tooling to atomically install cached artifacts on macOS
+// (avoid in-place overwrites that can trip kernel code-sign caches).
+OrenValue oren_rename(OrenValue from, OrenValue to) {
+    if (from.type != OREN_TYPE_STRING || to.type != OREN_TYPE_STRING) {
+        return oren_int(-EINVAL);
+    }
+    if (rename(from.as.string_val, to.as.string_val) != 0) {
+        return oren_int(-errno);
+    }
+    return oren_int(0);
+}
+
 OrenValue oren_read_bytes(OrenValue path) {
     if (path.type != OREN_TYPE_STRING) {
         oren_panic("read_bytes expects string path");

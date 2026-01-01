@@ -7,11 +7,32 @@ fn x64_win64() {
     return {
         // Integer/pointer args: rcx, rdx, r8, r9
         "int_arg_regs": [1, 2, 8, 9],
+        // Win64 callee-saved (non-volatile) integer regs preserved by the Oren native backend:
+        // rbx, rsi, rdi, r12, r13 (rbp is handled by the frame-pointer prologue).
+        //
+        // Note: Win64 also has non-volatile XMM registers (XMM6..XMM15). The current x64 backend
+        // only uses XMM0/XMM1 as scratch, so integer preservation is sufficient for now.
+        //
+        // IMPORTANT (arch unification; Tier-1):
+        // The x64 backend reserves:
+        // - r14: heap_limit
+        // - r15: heap_ptr
+        // as global heap registers (mirrors arm64's X27/X28 convention).
+        //
+        // Those registers are part of the backend's global machine state and MUST NOT be
+        // saved/restored by function prologues/epilogues, otherwise heap pointer updates done
+        // inside callees would be rolled back on return (allocator corruption / hangs).
+        "callee_saved_regs": [3, 6, 7, 12, 13],
         // Win64 requires 32B shadow space reserved by the caller for every call.
         "caller_shadow_bytes": 32,
-        // v0: we reserve 64B in each function frame:
-        // - 32B shadow + scratch for stack args used by WriteFile and future FFI.
-        "callee_call_area_bytes": 64,
+        // v0: reserve a fixed call-area in each function frame so intrinsic lowering can
+        // place stack args without mutating RSP.
+        //
+        // Must cover the worst-case Win64 IAT calls emitted by intrinsics (e.g. CreateProcessA):
+        // - 32B shadow space
+        // - up to 6 stack args (CreateProcessA has 10 args total, 4 in regs + 6 on stack)
+        // Total: 32 + 6*8 = 80 bytes; reserve 96 to keep 16B alignment slack.
+        "callee_call_area_bytes": 96,
         // Outgoing stack args are passed as 8-byte slots; stack must be 16-byte aligned.
         "stack_arg_slot_bytes": 8,
         "stack_align_bytes": 16,

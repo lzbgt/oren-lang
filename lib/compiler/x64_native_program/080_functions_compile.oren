@@ -177,11 +177,48 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // Keep RSP aligned after `push rbp; sub rsp, frame_size` so all nested calls satisfy the ABI.
     while core.int_mod(call_area, align) != 0 { call_area = call_area + 1 }
 
+    // Win64 ABI: keep RSP 16B-aligned in non-prolog code regions.
+    //
+    // MSVC x64 conventions require the stack pointer to remain 16-byte aligned outside
+    // prolog/epilog sequences (non-leaf functions included).
+    //
+    // Our prologue uses `push rbp` (8B) and then subtracts `frame_size`. Because the
+    // incoming RSP at function entry is 8 mod 16 (return address pushed by the call),
+    // `push rbp` brings it back to 0 mod 16. Therefore `frame_size` must be a multiple
+    // of 16 to keep RSP aligned for all nested calls (including WinAPI IAT calls).
+
     // Provide call lowering with the reserved call-area capacity for this function.
     ctx["cur_call_area_bytes"] = call_area
 
-    var frame_size = locals_size + call_area
+    // ABI hygiene (Tier-1): preserve a stable callee-saved set.
+    //
+    // The injected runtime is compiled by the same backend, and we freely call across
+    // user/runtime boundaries. Preserving a stable set of non-volatile regs prevents subtle
+    // miscompiles when callers keep values in registers across calls.
+    //
+    // IMPORTANT (arch unification): r14/r15 are reserved global heap registers on x64
+    // (heap_limit/heap_ptr, mirrors arm64 X27/X28). They MUST NOT be saved/restored by
+    // prologues/epilogues, otherwise allocator updates performed inside callees would be
+    // rolled back on return. The platform ABI tables reflect this by excluding r14/r15
+    // from `callee_saved_regs` for x64.
+    var save_regs = abi.callee_saved_regs(ctx["abi"])
+    var save_n = 0
+    if save_regs != nil { save_n = oren_list_len(save_regs) }
+    var save_bytes = save_n * 8
+    // Keep the full frame aligned so nested calls satisfy the ABI.
+    while core.int_mod(save_bytes, align) != 0 { save_bytes = save_bytes + 8 }
+
+    var frame_size = locals_size + save_bytes + call_area
     if frame_size > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(frame_size)) }
+
+    // Spill callee-saved regs into a dedicated region below locals (above call-area).
+    var si = 0
+    while si < save_n {
+        var reg_save = save_regs[si]
+        var off_save = locals_size + 8 * (si + 1)
+        _emit_mov_mrbp_r64(ctx, 0 - off_save, reg_save)
+        si = si + 1
+    }
 
     // Spill incoming params to their stack slots.
     i = 0
@@ -252,6 +289,14 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_exit, "name": "oren_call_depth_exit"})
         _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret) // rax = [tmp]
+    }
+    // Restore ABI callee-saved regs (inverse of prologue spill).
+    var sj = save_n - 1
+    while sj >= 0 {
+        var reg_restore = save_regs[sj]
+        var off_restore = locals_size + 8 * (sj + 1)
+        _emit_mov_r64_mrbp(ctx, reg_restore, 0 - off_restore)
+        sj = sj - 1
     }
     if frame_size > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(frame_size)) }
     bytes_extend(ctx["code"], insn_pop_rbp())

@@ -94,10 +94,27 @@ fn stacktrace_mid() {
 }
 
 fn main() {
+    print("tier1 smoke: main entered")
     // Tier‑1: argv must be exposed to the injected runtime on:
     // - Linux x86_64 (SysV entry stack)
     // - Windows x64 (no CRT: entry stub must synthesize argv)
+    var argc_dbg = global_get_argc()
+    var argv_dbg = global_get_argv()
+    print("tier1 smoke: raw argc=" + oren_int_to_string(argc_dbg))
+    print("tier1 smoke: raw argv=" + oren_int_to_string(argv_dbg))
+    if argv_dbg != 0 {
+        var p0 = ptr_get(argv_dbg + 0)
+        print("tier1 smoke: argv0 ptr=" + oren_int_to_string(p0))
+        if p0 != 0 {
+            var b0 = ptr_get_byte(p0 + 0) & 255
+            var b1 = ptr_get_byte(p0 + 1) & 255
+            var b2 = ptr_get_byte(p0 + 2) & 255
+            var b3 = ptr_get_byte(p0 + 3) & 255
+            print("tier1 smoke: argv0 bytes=" + oren_int_to_string(b0) + "," + oren_int_to_string(b1) + "," + oren_int_to_string(b2) + "," + oren_int_to_string(b3))
+        }
+    }
     var args = oren_args()
+    print("tier1 smoke: args returned")
     var n = oren_list_len(args)
     var mode = ""
     if n >= 4 {
@@ -109,8 +126,13 @@ fn main() {
     if mode == "MODE_ABORT" {
         // Not enough args to satisfy fixed params (needs 2).
         // x64 native should deterministically abort(1) (checked via remote-run).
-        var xs = [1]
-        return add2(xs...)
+        // Use an indirect call so the runtime arity contract is exercised even when
+        // the compiler can statically know the callee name.
+        //
+        // This keeps the abort contract focused (arity mismatch => panic+exit(1))
+        // without depending on spread lowering details in this mode.
+        var f = add2
+        return f(1)
     }
     if mode == "MODE_CALL_DEPTH" {
         // Validate that x64 native entry stubs honor the runtime env override:
@@ -377,31 +399,43 @@ fn main() {
     print("tier1 forin typed buffers ok")
 
     // Map ops + index assignment/get with literal keys (including int >= 4096).
+    print("tier1 map begin")
     var m = {"a": 7}
+    print("tier1 map literal ok")
     m["b"] = 8
+    print("tier1 map set b ok")
     if m["a"] != 7 { return 50 }
     if m["b"] != 8 { return 51 }
+    print("tier1 map get literal ok")
     m[50000] = 9
+    print("tier1 map set int ok")
     if m[50000] != 9 { return 52 }
     // Map ops with *non-literal* keys (x64 Tier‑1 must not rely on `key < 4096` heuristics).
     var k = 50000
     m[k] = 10
+    print("tier1 map set dyn int ok")
     if m[k] != 10 { return 53 }
     var ks = "c"
     m[ks] = 11
+    print("tier1 map set dyn str ok")
     if m[ks] != 11 { return 54 }
     if map_key_param_i64(50000) != 123 { return 55 }
+    print("tier1 map ok")
 
     // First-class function values + indirect call.
+    print("tier1 fnval begin")
     var f = inc
     if f(4) != 5 { return 60 }
+    print("tier1 fnval fixed ok")
 
     // First-class function values for varargs functions:
     // - indirect call must route through the uniform-call wrapper and preserve varargs packing.
     var g = sum1
     if g(1, 2, 3) != 6 { return 61 }
+    print("tier1 fnval varargs ok")
 
     // Lambdas as values (capture-free).
+    print("tier1 lambda begin")
     var h = |x| x + 2
     if h(3) != 5 { return 62 }
 
@@ -410,6 +444,7 @@ fn main() {
     var addz = |x| x + z
     z = 100
     if addz(2) != 42 { return 63 }
+    print("tier1 lambda ok")
 
     // Bool annotation lowering (`: bool`) must normalize to 0/1 deterministically.
     if bool_norm_val(0) != 0 { return 64 }
@@ -420,20 +455,28 @@ fn main() {
 
     // Tier‑1: language-level spawn/join must work on Windows (thread-based) and Linux (POSIX).
     // Spawn a lambda with capture-by-value.
+    print("tier1 spawn begin")
+    print("tier1 lock before spawn owner=" + oren_int_to_string(global_get_lock()) + " count=" + oren_int_to_string(global_get_lock_count()))
     var base = 10
     var f2 = |y| base + y
     base = 999
     var h1 = spawn f2(5)
+    print("tier1 spawn h1 ok")
+    print("tier1 lock after spawn owner=" + oren_int_to_string(global_get_lock()) + " count=" + oren_int_to_string(global_get_lock_count()))
     var r1 = oren_join(h1)
+    print("tier1 join h1 ok")
     if r1 != 15 { return 71 }
 
     // Spawn a named function (direct call lowered through callable ABI).
     var h2 = spawn worker_add(40, 2)
+    print("tier1 spawn h2 ok")
     var r2 = oren_join(h2)
+    print("tier1 join h2 ok")
     if r2 != 42 { return 72 }
 
     // Join timeout contract (rolling): should deterministically return -ETIMEDOUT (BSD 60).
     var h3 = spawn worker_sleep_long()
+    print("tier1 spawn h3 ok")
     var r3 = oren_join_timeout(h3, 20)
     if r3 != 0 - 60 { return 73 }
     print("tier1 spawn join ok")
@@ -453,6 +496,7 @@ fn main() {
     // - ensures `oren_system` and the Windows CreateProcess path are wired correctly
     // - keeps the smoke program OS-neutral (`oren_system` should work on Windows + Linux)
     var rc = oren_system("echo tier1 smoke proc ok")
+    print("tier1 proc system rc=" + oren_int_to_string(rc))
     if rc != 0 { return 80 }
     print("tier1 proc ok")
 

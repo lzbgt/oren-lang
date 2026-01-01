@@ -168,49 +168,39 @@ fn collect_impl_registries(linked, errs) {
     return {"impl_methods": impl_methods, "impl_trait_methods": impl_trait_methods}
 }
 
-fn type_env_new() { return [{}] }
+// Persistent environment for local type/kind inference.
+//
+// IMPORTANT:
+// - This must be *persistent* so nested traversals don't leak locals across scopes.
+// - It must also be *cheap* to push/pop because this pass runs on whole programs.
+//
+// Use a linked-list of frames rather than copying a list on every push/pop.
+fn type_env_new() { return {"frame": {}, "parent": nil} }
 
 fn type_env_push(env) {
-    // Persistent env: do not mutate parent scopes.
-    // (We pass `env` down recursive traversals; mutating in-place leaks locals across
-    // unrelated scopes/functions and breaks kind/type inference determinism.)
-    var out = []
-    var i = 0
-    while i < oren_list_len(env) {
-        oren_list_push(out, env[i])
-        i = i + 1
-    }
-    oren_list_push(out, {})
-    return out
+    return {"frame": {}, "parent": env}
 }
 
 fn type_env_pop(env) {
-    if oren_list_len(env) > 1 {
-        // Remove last scope by rebuilding slice (no pop primitive).
-        var out = []
-        var i = 0
-        while i < oren_list_len(env) - 1 {
-            oren_list_push(out, env[i])
-            i = i + 1
-        }
-        return out
-    }
+    if env != nil && env["parent"] != nil { return env["parent"] }
     return env
 }
 
 fn type_env_set(env, name, tname) {
-    if name == nil || tname == nil { return nil }
-    env[oren_list_len(env) - 1][name] = tname
+    if env == nil || name == nil || tname == nil { return nil }
+    var f = env["frame"]
+    if f == nil { f = {}; env["frame"] = f }
+    f[name] = tname
     return nil
 }
 
 fn type_env_get(env, name) {
     if name == nil { return nil }
-    var i = oren_list_len(env) - 1
-    while i >= 0 {
-        var m = env[i]
-        if m[name] != nil { return m[name] }
-        i = i - 1
+    var cur = env
+    while cur != nil {
+        var m = cur["frame"]
+        if m != nil && m[name] != nil { return m[name] }
+        cur = cur["parent"]
     }
     return nil
 }
@@ -220,46 +210,32 @@ fn type_env_get(env, name) {
 // Native backend values are untagged, so we cannot fully do dynamic dispatch at runtime.
 // Instead we infer receiver kinds from syntax + local assignments, and only lower
 // when we have enough information.
-fn kind_env_new() { return [{}] }
+fn kind_env_new() { return {"frame": {}, "parent": nil} }
 
 fn kind_env_push(env) {
-    // Persistent env: do not mutate parent scopes.
-    var out = []
-    var i = 0
-    while i < oren_list_len(env) {
-        oren_list_push(out, env[i])
-        i = i + 1
-    }
-    oren_list_push(out, {})
-    return out
+    return {"frame": {}, "parent": env}
 }
 
 fn kind_env_pop(env) {
-    if oren_list_len(env) > 1 {
-        var out = []
-        var i = 0
-        while i < oren_list_len(env) - 1 {
-            oren_list_push(out, env[i])
-            i = i + 1
-        }
-        return out
-    }
+    if env != nil && env["parent"] != nil { return env["parent"] }
     return env
 }
 
 fn kind_env_set(env, name, kind) {
-    if name == nil || kind == nil { return nil }
-    env[oren_list_len(env) - 1][name] = kind
+    if env == nil || name == nil || kind == nil { return nil }
+    var f = env["frame"]
+    if f == nil { f = {}; env["frame"] = f }
+    f[name] = kind
     return nil
 }
 
 fn kind_env_get(env, name) {
     if name == nil { return nil }
-    var i = oren_list_len(env) - 1
-    while i >= 0 {
-        var m = env[i]
-        if m[name] != nil { return m[name] }
-        i = i - 1
+    var cur = env
+    while cur != nil {
+        var m = cur["frame"]
+        if m != nil && m[name] != nil { return m[name] }
+        cur = cur["parent"]
     }
     return nil
 }

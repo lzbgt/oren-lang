@@ -178,6 +178,27 @@ var INCLUDE_LAST_ERR = nil
 
 fn include_last_err() { return INCLUDE_LAST_ERR }
 
+fn _include_join_parts(parts) {
+    if parts == nil { return "" }
+    if oren_list_len(parts) == 0 { return "" }
+    var cur = parts
+    while oren_list_len(cur) > 1 {
+        var next = []
+        var i = 0
+        var n = oren_list_len(cur)
+        while i < n {
+            if i + 1 < n {
+                oren_list_push(next, cur[i] + cur[i + 1])
+            } else {
+                oren_list_push(next, cur[i])
+            }
+            i = i + 2
+        }
+        cur = next
+    }
+    return cur[0]
+}
+
 fn expand_includes_file(full_path, include_stack) {
     // Expand `// @include "..."` directives recursively and return the concatenated source.
     //
@@ -236,17 +257,24 @@ fn expand_includes_file(full_path, include_stack) {
     oren_list_push(next_stack, full_path)
 
     var out_parts = []
-    var line = ""
+    // Keep segments between include lines as big slices to avoid O(n^2) string churn.
+    var seg_start = 0
+    var line_start = 0
     var i = 0
     var n = oren_string_len(src)
     while i < n {
         var ch = oren_string_char_at(src, i)
         if ch == "\n" {
+            var line = oren_string_slice(src, line_start, i)
             var inc = include_path_from_line(line)
-            // Avoid relying on `inc != ""` because the native backend may lower it as pointer compare
+            // Avoid relying on `inc != ""` because some backends may lower it as pointer compare
             // if stringiness inference misses `inc`. Length check is robust across backends.
             if inc != nil && oren_string_len(inc) > 0 {
                 if dbg_inc != nil { print("DEBUG_INCLUDES include raw=" + inc + " base=" + full_path) }
+                if seg_start < line_start {
+                    var seg = oren_string_slice(src, seg_start, line_start)
+                    if seg != nil && oren_string_len(seg) > 0 { oren_list_push(out_parts, seg) }
+                }
                 var inc_full = inc
                 if oren_string_len(inc) > 0 && oren_string_char_at(inc, 0) != "/" {
                     inc_full = resolve_path(dirname(full_path), inc)
@@ -256,42 +284,26 @@ fn expand_includes_file(full_path, include_stack) {
                 if child == nil { return nil }
                 oren_list_push(out_parts, child)
                 if !ends_with_newline(child) { oren_list_push(out_parts, "\n") }
-            } else {
-                oren_list_push(out_parts, line)
-                oren_list_push(out_parts, "\n")
+                seg_start = i + 1
             }
-            line = ""
-        } else {
-            line = line + ch
+            line_start = i + 1
         }
         i = i + 1
     }
 
-    // Last line if file doesn't end with '\n'
-    if line != nil && oren_string_len(line) > 0 {
-        var inc2 = include_path_from_line(line)
-        if inc2 != nil && oren_string_len(inc2) > 0 {
-            var inc_full2 = inc2
-            if oren_string_len(inc2) > 0 && oren_string_char_at(inc2, 0) != "/" {
-                inc_full2 = resolve_path(dirname(full_path), inc2)
-            }
-            var child2 = expand_includes_file(inc_full2, next_stack)
-            if child2 == nil { return nil }
-            oren_list_push(out_parts, child2)
-            if !ends_with_newline(child2) { oren_list_push(out_parts, "\n") }
-        } else {
-            oren_list_push(out_parts, line)
-            oren_list_push(out_parts, "\n")
-        }
+    // Trailing segment after the last include (or whole file if no includes).
+    if seg_start < n {
+        var seg2 = oren_string_slice(src, seg_start, n)
+        if seg2 != nil && oren_string_len(seg2) > 0 { oren_list_push(out_parts, seg2) }
     }
 
-    var out = ""
-    var pi = 0
-    while pi < oren_list_len(out_parts) {
-        out = out + out_parts[pi]
-        pi = pi + 1
+    // Ensure expanded file ends with '\n' when the original file didn't.
+    // Do this as a part to avoid copying the entire output just to append one byte.
+    if n > 0 && oren_string_char_at(src, n - 1) != "\n" {
+        oren_list_push(out_parts, "\n")
     }
-    return out
+
+    return _include_join_parts(out_parts)
 }
 
 fn default_output_path(path) {

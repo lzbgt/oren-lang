@@ -114,7 +114,7 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
 
-    var base = _intr_tmp_push(ctx, 3) // path, st_ptr, pair
+    var base = _intr_tmp_push(ctx, 9) // path, st_ptr, pair, win32_attr_buf(6q)
     if base == nil { return nil }
     var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_st = _intr_tmp_off(ctx, locals, base + 1)
@@ -137,7 +137,8 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
 
     // GetFileAttributesExA(path, GetFileExInfoStandard=0, &WIN32_FILE_ATTRIBUTE_DATA) -> BOOL
     //
-    // Use a fixed stack buffer (48 bytes, aligned) to avoid depending on host libc.
+    // Use an intrinsic-temp buffer (48 bytes, 8B aligned) to avoid mutating RSP and to
+    // keep nested call-site ABI alignment deterministic.
     // WIN32_FILE_ATTRIBUTE_DATA layout (documented; 36 bytes) is:
     //   +0  DWORD dwFileAttributes
     //   +4  FILETIME ftCreationTime (8)
@@ -145,9 +146,19 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     //   +20 FILETIME ftLastWriteTime (8)
     //   +28 DWORD nFileSizeHigh
     //   +32 DWORD nFileSizeLow
-    bytes_extend(ctx["code"], insn_sub_rsp_imm8(48))
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))          // edx = 0 (GetFileExInfoStandard)
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(8, 0))      // r8  = &buf
+    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    var bi = 0
+    while bi < 6 {
+        var offb = _intr_tmp_off(ctx, locals, base + 3 + bi)
+        if offb == nil { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - offb, 0)
+        bi = bi + 1
+    }
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // edx = 0 (GetFileExInfoStandard)
+    var off_buf0 = _intr_tmp_off(ctx, locals, base + 3)
+    if off_buf0 == nil { _intr_tmp_pop(ctx, base); return nil }
+    _emit_addr_rbp_minus_off_x64(ctx, 8, off_buf0) // r8 = &buf
     _emit_call_iat_x64(ctx, "IAT_GetFileAttributesExA")
 
     var labels = {}
@@ -164,6 +175,11 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _emit_jmp_to_label(ctx, fixups, l_done)
 
     _emit_label(ctx, labels, l_ok)
+    // Recompute &WIN32_FILE_ATTRIBUTE_DATA (intrinsic-temp buffer) into r11.
+    var off_buf1 = _intr_tmp_off(ctx, locals, base + 3)
+    if off_buf1 == nil { _intr_tmp_pop(ctx, base); return nil }
+    _emit_addr_rbp_minus_off_x64(ctx, 11, off_buf1)
+
     // --- Translate into OrenStatV0 at st_ptr ---
     // Load st_ptr into r9 (from intrinsic temp spill).
     _intr_load_x64(ctx, 9, tmp_st)
@@ -177,14 +193,14 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     }
 
     // size = (nFileSizeHigh<<32) | nFileSizeLow
-    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(11, 4, 32)) // r11d = low
-    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(8, 4, 28))  // r8d  = high
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, 32)) // r10d = low
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(8, 11, 28))  // r8d  = high
     bytes_extend(ctx["code"], insn_shl_r64_imm8(8, 32))          // r8  <<= 32
-    bytes_extend(ctx["code"], insn_or_r64_r64(8, 11))            // r8   |= low
+    bytes_extend(ctx["code"], insn_or_r64_r64(8, 10))            // r8   |= low
     bytes_extend(ctx["code"], insn_mov_mr64_r64(9, 8))           // [st_ptr+0] = size
 
     // mode: at minimum distinguish directory vs file.
-    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 4, 0))  // r10d = attrs
+    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, 0))  // r10d = attrs
     bytes_extend(ctx["code"], insn_and_r64_imm32(10, 16))        // FILE_ATTRIBUTE_DIRECTORY (0x10)
     var l_is_dir = _new_label(ctx, "sys_stat_win_is_dir")
     var l_mode_done = _new_label(ctx, "sys_stat_win_mode_done")
@@ -204,7 +220,6 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     bytes_extend(ctx["code"], insn_cdqe())
 
     _emit_label(ctx, labels, l_done)
-    bytes_extend(ctx["code"], insn_add_rsp_imm8(48))
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
@@ -222,7 +237,7 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_fstat expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_fstat does not support spread"); return nil }
 
-    var base = _intr_tmp_push(ctx, 2) // fd, st_ptr
+    var base = _intr_tmp_push(ctx, 4) // fd, st_ptr, li(2q)
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_st = _intr_tmp_off(ctx, locals, base + 1)
@@ -307,10 +322,11 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     var l_size_ok = _new_label(ctx, "sys_fstat_size_ok")
     var l_size_done = _new_label(ctx, "sys_fstat_size_done")
 
-    // LARGE_INTEGER tmp (16B, aligned)
-    bytes_extend(ctx["code"], insn_sub_rsp_imm8(16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 11))      // rcx = handle
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, 0))  // rdx = &li
+    // LARGE_INTEGER tmp (16B, aligned) in intrinsic temp slots (avoid mutating RSP).
+    var off_li0 = _intr_tmp_off(ctx, locals, base + 2)
+    if off_li0 == nil { _intr_tmp_pop(ctx, base); return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 11)) // rcx = handle
+    _emit_addr_rbp_minus_off_x64(ctx, 2, off_li0)         // rdx = &li
     _emit_call_iat_x64(ctx, "IAT_GetFileSizeEx")
     bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "ne", l_size_ok)
@@ -318,9 +334,8 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10))
     _emit_jmp_to_label(ctx, fixups, l_size_done)
     _emit_label(ctx, labels, l_size_ok)
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, 0)) // r10 = li.QuadPart
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_li0) // r10 = li.QuadPart
     _emit_label(ctx, labels, l_size_done)
-    bytes_extend(ctx["code"], insn_add_rsp_imm8(16))
 
     // st_ptr
     _intr_load_x64(ctx, 8, tmp_st) // r8 = st_ptr

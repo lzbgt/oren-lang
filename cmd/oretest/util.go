@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -83,6 +82,17 @@ func runWithTimeout(timeoutBin string, d time.Duration, cmd string, logPath stri
 	ctx, cancel := context.WithTimeout(context.Background(), d)
 	defer cancel()
 
+	// Write logs directly to file to avoid buffering + pipe-copy deadlocks.
+	//
+	// If a command spawns a detached background process that inherits stdout/stderr,
+	// capturing output via an in-memory buffer can hang forever waiting for EOF.
+	f, err := os.Create(logPath)
+	if err != nil {
+		return 1
+	}
+	defer f.Close()
+	_, _ = fmt.Fprintf(f, "[cmd] %s\n", cmd)
+
 	// Keep behavior aligned with Makefile: enforce timeouts everywhere.
 	// Important: run the actual command via `sh -c` so call sites can use shell syntax
 	// (env vars, quoting, etc.) safely.
@@ -92,9 +102,7 @@ func runWithTimeout(timeoutBin string, d time.Duration, cmd string, logPath stri
 	var c *exec.Cmd
 	sh, ok := detectShellPrefix()
 	if !ok {
-		// Make the log actionable even in minimal environments.
-		// (We do not silently degrade to `cmd.exe` because our command strings are POSIX-shell syntax.)
-		_ = os.WriteFile(logPath, []byte("oretest: no POSIX shell found; set ORETEST_SHELL to an executable that supports `-c`\n"), 0o644)
+		_, _ = f.WriteString("oretest: no POSIX shell found; set ORETEST_SHELL to an executable that supports `-c`\n")
 		return 1
 	}
 
@@ -106,27 +114,16 @@ func runWithTimeout(timeoutBin string, d time.Duration, cmd string, logPath stri
 		args = append(args, cmd)
 		c = exec.CommandContext(ctx, timeoutBin, args...)
 	} else {
-		// Always use CommandContext so ctx cancellation is wired even without external `timeout`.
 		args := append(sh.args, cmd)
 		c = exec.CommandContext(ctx, sh.argv0, args[1:]...)
 	}
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	var buf bytes.Buffer
-	// Always include the executed shell command to make failures reproducible from logs.
-	_, _ = buf.WriteString("[cmd] ")
-	_, _ = buf.WriteString(cmd)
-	_, _ = buf.WriteString("\n")
-	c.Stdout = &buf
-	c.Stderr = &buf
+	c.Stdout = f
+	c.Stderr = f
 
 	runErr := c.Start()
 	if runErr != nil {
-		// Ensure the log is actionable even when the process failed to start.
-		if buf.Len() == 0 {
-			_, _ = buf.WriteString(runErr.Error())
-			_, _ = buf.WriteString("\n")
-		}
-		_ = os.WriteFile(logPath, buf.Bytes(), 0o644)
+		_, _ = fmt.Fprintf(f, "oretest: start failed: %v\n", runErr)
 		return 1
 	}
 
@@ -142,8 +139,6 @@ func runWithTimeout(timeoutBin string, d time.Duration, cmd string, logPath stri
 		killProcessGroup(c.Process.Pid)
 		runErr = <-waitCh
 	}
-
-	_ = os.WriteFile(logPath, buf.Bytes(), 0o644)
 
 	if timedOut || ctx.Err() == context.DeadlineExceeded {
 		// GNU timeout uses 124; align on that.

@@ -343,10 +343,15 @@ fn native_windows_envblock_for_proc_child() {
     // Build an env block for a proc child using the same capsule policy as POSIX execve.
     //
     // Returns malloc()'d memory (or 0 to inherit), caller must free when non-zero.
-    var parent_envp = native_runtime_get_envp_ptr()
     if global_get_capsule_mode() != 1 {
-        return native_windows_envblock_from_envp(parent_envp)
+        // Non-capsule: inherit the host environment by passing envblock=NULL to CreateProcessA.
+        //
+        // This keeps `oren_system`/`oren_proc_spawn` robust even when the entry stub envp
+        // capture/conversion is still rolling on Windows.
+        return 0
     }
+
+    var parent_envp = native_runtime_get_envp_ptr()
     if global_get_proc_inherit_env() == 1 {
         return native_windows_envblock_from_envp(parent_envp)
     }
@@ -641,10 +646,11 @@ fn oren_system_timeout(cmd, timeout_ms) {
     if g_target_os == 3 {
         // Windows: use cmd.exe /C <cmd>
         //
-        // Prefer COMSPEC if present, otherwise fall back to the canonical System32 path.
-        var comspec = oren_getenv("ComSpec")
-        if comspec == 0 { comspec = oren_getenv("COMSPEC") }
-        if comspec == 0 { comspec = "C:\\Windows\\System32\\cmd.exe" }
+        // Rolling robustness:
+        // Prefer a stable absolute path over relying on entry-stub env capture on Windows.
+        // In some remote/SSH configurations the environment block conversion is still rolling,
+        // and using COMSPEC can produce non-deterministic results.
+        var comspec = "C:\\Windows\\System32\\cmd.exe"
         var args = [comspec, "/C", cmd]
         return oren_proc_spawn(comspec, args, timeout_ms)
     }

@@ -116,9 +116,37 @@ fn oren_spawn_call_list(fn_obj, args_list) {
 @oren.keep
 fn __oren_win_spawn_thread_entry(arg_ptr) {
     if arg_ptr == 0 { return 0 }
+    // Tier‑1 Windows correctness: register the thread so:
+    // - allocator locks have a stable per-thread identity (`sys_gettid`)
+    // - call-depth tracking can attach to the thread node when available
+    // - future GC stack scanning can discover this thread deterministically
+    //
+    // Note: we conservatively use the current SP as the "top" hint, matching the entry stub's
+    // behavior for the main thread (registered near startup).
+    oren_register_thread(get_sp())
+
+    var dbg = native_envp_get_value_ptr("OREN_DEBUG_SPAWN")
+    var dbg_on = false
+    if dbg != 0 {
+        if ptr_get_byte(dbg) != 0 { dbg_on = true }
+    }
     var fn_obj = ptr_get(arg_ptr + 0)
     var args_list = ptr_get(arg_ptr + 8)
     var out_ptr = ptr_get(arg_ptr + 16)
+    if dbg_on {
+        print("spawn debug (win thread):")
+        print("  arg_ptr=" + oren_int_to_string(arg_ptr))
+        print("  fn_obj=" + oren_int_to_string(fn_obj))
+        if fn_obj != 0 {
+            print("  fn.code_ptr=" + oren_int_to_string(ptr_get(fn_obj)))
+            print("  fn.env_ptr=" + oren_int_to_string(ptr_get(fn_obj + 8)))
+        }
+        print("  args_list=" + oren_int_to_string(args_list))
+        if args_list != 0 {
+            print("  args_len=" + oren_int_to_string(oren_list_len(args_list)))
+        }
+        print("  out_ptr=" + oren_int_to_string(out_ptr))
+    }
     if out_ptr != 0 {
         var ret = oren_call_obj_list(fn_obj, args_list)
         ptr_set(out_ptr, ret)

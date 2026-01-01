@@ -1121,9 +1121,36 @@ fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
     // `sys_*` are compiler intrinsics (not user-declared functions). Their implementations
     // use the intrinsic temp pool for spill slots and must be sized conservatively here.
     //
-    // Keep this aligned with `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`.
-    // Current max literal `_intr_tmp_push(ctx, N)` in sys lowering is 6.
+    // Keep this aligned with `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren` and
+    // the Windows-specific syscall intrinsic modules.
     if _x64_is_syscall_intrinsic_name(nm) {
+        var plat = nil
+        var os = nil
+        if ctx != nil { plat = ctx["platform"] }
+        if plat != nil { os = plat["os"] }
+
+        // Windows-only: sys_win_createprocess needs a large scratch region (STARTUPINFOA + PROCINFO).
+        if nm == "sys_win_createprocess" { return 24 }
+
+        // `sys_stat`/`sys_lstat` need an internal host-stat buffer on Linux x86_64.
+        if nm == "sys_stat" || nm == "sys_lstat" {
+            if os == "windows" { return 9 }
+            return 21
+        }
+
+        // `sys_fstat` also needs the host-stat buffer on Linux x86_64.
+        if nm == "sys_fstat" {
+            if os == "windows" { return 4 }
+            return 20
+        }
+
+        // Linux x86_64 nanosleep lowering needs a 16B timespec scratch.
+        if nm == "sys_nanosleep" {
+            if argc > 3 { return argc }
+            return 3
+        }
+
+        // Default: keep a small conservative floor for syscall intrinsics.
         if argc > 6 { return argc }
         return 6
     }

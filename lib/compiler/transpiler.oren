@@ -1,33 +1,110 @@
 // ----- Transpiler helpers ----- 
 import intparse "int_lit.oren"
 import coreir "coreir.oren"
+
+var _CH_LF = "\n"
 fn new_transpiler() {
-    return {"lines": [], "indent": 0, "functions": [], "func_varargs_fixed": {}, "aliases": {}, "type_ns": {}, "lambda_defs": [], "lambda_counter": 0}
+    return {
+        "lines": [],
+        "chunks": [],
+        // Cache indentation pads by level to avoid repeated allocations.
+        "pad_cache": {0: ""},
+        // Flush accumulated lines into `chunks` when this many are buffered.
+        // Keeps peak memory bounded during large transpiles (e.g. stage2 self-hosting).
+        "flush_lines": 512,
+        "indent": 0,
+        "functions": [],
+        "func_varargs_fixed": {},
+        "aliases": {},
+        "type_ns": {},
+        "lambda_defs": [],
+        "lambda_counter": 0,
+    }
 }
 
-fn emit(t, s) {
-    var pad = ""
+fn _transpiler_get_pad(t) {
+    var ind = t["indent"]
+    if ind == nil { ind = 0 }
+    var cache = t["pad_cache"]
+    if cache == nil { cache = {0: ""}; t["pad_cache"] = cache }
+    var pad = cache[ind]
+    if pad != nil { return pad }
+    pad = ""
     var i = 0
-    while i < t["indent"] {
+    while i < ind {
         pad = pad + "    "
         i = i + 1
     }
+    cache[ind] = pad
+    return pad
+}
+
+fn _transpiler_flush_lines(t, add_trailing_sep) {
+    if t == nil { return nil }
+    var lines = t["lines"]
+    if lines == nil || oren_list_len(lines) == 0 { return nil }
+    var chunk = list_join(lines, _CH_LF)
+    if chunk != nil && chunk != "" {
+        if t["chunks"] == nil { t["chunks"] = [] }
+        oren_list_push(t["chunks"], chunk)
+        if add_trailing_sep == true {
+            oren_list_push(t["chunks"], _CH_LF)
+        }
+    }
+    t["lines"] = []
+    return nil
+}
+
+fn emit(t, s) {
+    var pad = _transpiler_get_pad(t)
     oren_list_push(t["lines"], pad + s)
+
+    var limit = t["flush_lines"]
+    if limit != nil && oren_list_len(t["lines"]) >= limit {
+        _transpiler_flush_lines(t, true)
+    }
 }
 
 fn indent_more(t) { t["indent"] = t["indent"] + 1 }
 fn indent_less(t) { t["indent"] = t["indent"] - 1 }
 
+fn _transpiler_join_parts(parts) {
+    if parts == nil { return "" }
+    if oren_list_len(parts) == 0 { return "" }
+    var cur = parts
+    while oren_list_len(cur) > 1 {
+        var next = []
+        var i = 0
+        var n = oren_list_len(cur)
+        while i < n {
+            if i + 1 < n {
+                oren_list_push(next, cur[i] + cur[i + 1])
+            } else {
+                oren_list_push(next, cur[i])
+            }
+            i = i + 2
+        }
+        cur = next
+    }
+    return cur[0]
+}
+
 fn list_join(lines, sep) {
-    var out = ""
-    var i = 0
+    // NOTE: naive `out = out + ...` in a loop is O(n^2) and can blow up memory
+    // when transpiling large programs (e.g. stage2 self-hosting).
+    //
+    // Build a parts list and join via pairwise concatenation to keep it near-linear.
+    if lines == nil { return "" }
     var n = oren_list_len(lines)
+    if n == 0 { return "" }
+    var parts = []
+    var i = 0
     while i < n {
-        out = out + lines[i]
-        if i < n - 1 { out = out + sep }
+        oren_list_push(parts, lines[i])
+        if i < n - 1 { oren_list_push(parts, sep) }
         i = i + 1
     }
-    return out
+    return _transpiler_join_parts(parts)
 }
 
 fn list_contains(lst, val) {
@@ -1477,5 +1554,6 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     indent_less(t)
     emit(t, "}")
 
-    return list_join(t["lines"], CH_LF)
+    _transpiler_flush_lines(t, false)
+    return _transpiler_join_parts(t["chunks"])
 }

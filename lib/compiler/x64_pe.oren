@@ -119,7 +119,10 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         "GetFileSizeEx",
         // ENV block freeing (used after copying env strings into runtime-owned memory).
         // Keep at end to preserve existing IAT offsets.
-        "FreeEnvironmentStringsA"
+        "FreeEnvironmentStringsA",
+        // Thread identity (Tier‑1 Windows): used by the native runtime lock implementation.
+        // Keep at end to preserve existing IAT offsets.
+        "GetCurrentThreadId"
     ]
     // WinSock NET substrate (WS2_32.dll).
     // Keep this list minimal and explicit so the IAT label mapping below stays auditable.
@@ -363,6 +366,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             else if label == "IAT_GetFileAttributesExA" { target_off = off_iat_k32 + 224 }
             else if label == "IAT_GetFileSizeEx" { target_off = off_iat_k32 + 232 }
             else if label == "IAT_FreeEnvironmentStringsA" { target_off = off_iat_k32 + 240 }
+            else if label == "IAT_GetCurrentThreadId" { target_off = off_iat_k32 + 248 }
             // WS2_32.dll IAT slots (order matches ws2_32_funcs above)
             else if label == "IAT_WSAStartup" { target_off = off_iat_ws2 + 0 }
             else if label == "IAT_WSAGetLastError" { target_off = off_iat_ws2 + 8 }

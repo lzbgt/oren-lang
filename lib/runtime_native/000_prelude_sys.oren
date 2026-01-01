@@ -19,19 +19,30 @@ fn print_hex(n) {
 
 fn stack_trace() {
     print("Traceback (most recent call first):")
+    var sp = get_sp()
     var fp = get_fp()
+    var max_fp = sp + 1048576 // 1 MiB above current SP (best-effort corruption guard)
     var i = 0
     while fp != 0 {
         if i > 20 { 
             print("  ... (truncated)")
             return 0 
         }
+        // Best-effort safety guards:
+        // - require frame pointer to be within a reasonable range relative to SP
+        // - require 8-byte alignment
+        if fp < sp { print("  ... (invalid fp < sp)"); return 0 }
+        if fp > max_fp { print("  ... (invalid fp > sp+1MiB)"); return 0 }
+        var align_bits = fp & 7
+        if align_bits != 0 { print("  ... (unaligned fp)"); return 0 }
         var lr = ptr_get(iadd(fp, 8))
         var name = resolve_symbol(lr)
         // Prefer language-level string `+` over manual `string_concat` chains.
         print("  at " + name + " (pc=" + oren_int_to_string(lr) + ")")
         // print_hex(lr)
-        fp = ptr_get(fp)
+        var next = ptr_get(fp)
+        if next != 0 && next <= fp { print("  ... (corrupt fp chain)"); return 0 }
+        fp = next
         i = i + 1
     }
 }

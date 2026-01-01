@@ -31,13 +31,32 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_createprocess does not support spread"); return nil }
 
     // Spill args so we can freely use registers.
-    var base = _intr_tmp_push(ctx, 4) // app, cmdline, envblock, timeout
+    //
+    // We also allocate STARTUPINFOA / PROCESS_INFORMATION / exit-code storage in intrinsic-temp
+    // slots (RBP-relative) so we do not mutate RSP inside expression lowering.
+    var STARTUP_Q = 14 // 112 bytes (covers STARTUPINFOA.cb=104 and stdio fields)
+    var PROC_Q = 4     // 32 bytes (PROCESS_INFORMATION)
+    var total = 4 + 1 + STARTUP_Q + PROC_Q + 1
+
+    var base = _intr_tmp_push(ctx, total)
     if base == nil { return nil }
+
     var tmp_app = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_cmd = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_env = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 3)
     if tmp_app == nil || tmp_cmd == nil || tmp_env == nil || tmp_to == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    var slot_ret = base + 4
+    var slot_start = base + 5
+    var slot_proc = slot_start + STARTUP_Q
+    var slot_exit = slot_proc + PROC_Q
+
+    var off_ret = _intr_tmp_off(ctx, locals, slot_ret)
+    var off_start0 = _intr_tmp_off(ctx, locals, slot_start)
+    var off_proc0 = _intr_tmp_off(ctx, locals, slot_proc)
+    var off_exit0 = _intr_tmp_off(ctx, locals, slot_exit)
+    if off_ret == nil || off_start0 == nil || off_proc0 == nil || off_exit0 == nil { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_app)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_cmd)
@@ -45,42 +64,23 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     _intr_eval_spill_x64(ctx, locals, args[3], tmp_to)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-    // Windows scratch stack layout inside this intrinsic:
-    // - We temporarily extend the function frame (sub rsp, SCRATCH).
-    // - This region provides:
-    //   - Win64 shadow space for the API calls
-    //   - stack args for CreateProcessA
-    //   - STARTUPINFOA + PROCESS_INFORMATION + exit-code storage
-    //
-    // Keep STARTUPINFOA/PROCESS_INFORMATION above the CreateProcess stack args region.
-    var SCRATCH = 256
-    var RET_SAVE_OFF = 80   // qword
-    var STARTUP_OFF = 96    // STARTUPINFOA (we treat as 112B)
-    var PROCINFO_OFF = 208  // PROCESS_INFORMATION (we treat as 32B)
-    var EXITCODE_OFF = 240  // DWORD storage (we reserve qword)
-
-    bytes_extend(ctx["code"], insn_sub_rsp_imm32(SCRATCH))
-
-    // Zero scratch region (qword loop): r10 = rsp, r11 = rsp+SCRATCH, rax=0
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))     // rax=0
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 4))    // r10=rsp
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 4))    // r11=rsp
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, SCRATCH))
-    var labels = {}
-    var fixups = []
-    var l_zero = _new_label(ctx, "win_cp_zero")
-    var l_zero_done = _new_label(ctx, "win_cp_zero_done")
-    _emit_label(ctx, labels, l_zero)
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 11))
-    _emit_jcc_to_label(ctx, fixups, "ge", l_zero_done)
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))   // [r10]=rax
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-    _emit_jmp_to_label(ctx, fixups, l_zero)
-    _emit_label(ctx, labels, l_zero_done)
+    // Zero the scratch structures for determinism and for best-effort cleanup on failure.
+    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax=0
+    var zi = 0
+    while zi < (1 + STARTUP_Q + PROC_Q + 1) {
+        var slot = slot_ret + zi
+        var offz = _intr_tmp_off(ctx, locals, slot)
+        if offz == nil { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - offz, 0)
+        zi = zi + 1
+    }
 
     // Validate app != 0 and cmdline != 0.
+    var labels = {}
+    var fixups = []
     var l_fail = _new_label(ctx, "win_cp_fail")
     var l_after_validate = _new_label(ctx, "win_cp_after_validate")
+
     _intr_load_x64(ctx, 0, tmp_app)
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_fail)
@@ -96,86 +96,61 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_after_validate)
 
+    // startup = &STARTUPINFOA
+    _emit_addr_rbp_minus_off_x64(ctx, 10, off_start0) // r10 = startup
+
     // STARTUPINFOA.cb = 104 (dword)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(STARTUP_OFF, 104))
-
-    // Configure stdio inheritance so `oren_system("echo ...")` behaves like POSIX fork/exec:
-    // - Set STARTF_USESTDHANDLES
-    // - Provide parent STD handles
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 104))
+    bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(10, 0, 0))
+    // Note (rolling):
+    // We do not currently force stdio handle inheritance for CreateProcessA.
+    // In some remote/SSH environments, GetStdHandle/SetHandleInformation can fail or yield
+    // non-inheritable handles; passing STARTF_USESTDHANDLES + bInheritHandles=TRUE can make
+    // CreateProcessA fail with ERROR_INVALID_PARAMETER.
     //
-    // Note: This relies on the parent std handles being inheritable (typical console process default).
-    // If this proves false on some hosts, we should add KERNEL32!SetHandleInformation to force
-    // HANDLE_FLAG_INHERIT for the std handles at process start (entry stub).
+    // Instead, default to bInheritHandles=FALSE and let the host decide stdio wiring.
+
+    // CreateProcessA args (Win64):
+    // rcx=lpApplicationName(NULL), rdx=lpCommandLine, r8=lpProcessAttributes(NULL), r9=lpThreadAttributes(NULL)
     //
-    // STARTUPINFOA.dwFlags is at offset 60; hStd* are at offsets 80/88/96.
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 256)) // eax = STARTF_USESTDHANDLES
-    bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(4, STARTUP_OFF + 60, 0)) // [rsp+...]=eax
-
-    // STD_INPUT_HANDLE = -10
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967286)) // ecx = -10
-    _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    // Ensure handle is inheritable for CreateProcessA when launched under OpenSSH (pipe stdio).
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(RET_SAVE_OFF, 0)) // save handle
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))                  // rcx = handle
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 1))                // edx = HANDLE_FLAG_INHERIT
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1))                // r8d = HANDLE_FLAG_INHERIT
-    _emit_call_iat_x64(ctx, "IAT_SetHandleInformation")
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, RET_SAVE_OFF)) // reload handle
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 4)) // r10 = rsp
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, STARTUP_OFF + 80))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0)) // hStdInput = rax
-
-    // STD_OUTPUT_HANDLE = -11
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
-    _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(RET_SAVE_OFF, 0)) // save handle
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))                  // rcx = handle
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 1))                // edx = HANDLE_FLAG_INHERIT
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1))                // r8d = HANDLE_FLAG_INHERIT
-    _emit_call_iat_x64(ctx, "IAT_SetHandleInformation")
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, RET_SAVE_OFF)) // reload handle
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 4)) // r10 = rsp
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, STARTUP_OFF + 88))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0)) // hStdOutput = rax
-
-    // STD_ERROR_HANDLE = -12
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
-    _emit_call_iat_x64(ctx, "IAT_GetStdHandle")
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(RET_SAVE_OFF, 0)) // save handle
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))                  // rcx = handle
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 1))                // edx = HANDLE_FLAG_INHERIT
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1))                // r8d = HANDLE_FLAG_INHERIT
-    _emit_call_iat_x64(ctx, "IAT_SetHandleInformation")
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, RET_SAVE_OFF)) // reload handle
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 4)) // r10 = rsp
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, STARTUP_OFF + 96))
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0)) // hStdError = rax
-
-    // Set up CreateProcessA args (Win64):
-    // rcx=lpApplicationName, rdx=lpCommandLine, r8=lpProcessAttributes(NULL), r9=lpThreadAttributes(NULL)
-    _intr_load_x64(ctx, 1, tmp_app) // rcx
-    _intr_load_x64(ctx, 2, tmp_cmd) // rdx
-    bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8))     // r8=0
-    bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9))     // r9=0
+    // NOTE (rolling robustness):
+    // Pass lpApplicationName=NULL and rely on argv0 being the executable path in the command line.
+    // This avoids passing pointers that may not be valid Win32 module paths in some remote/SSH
+    // environments, and aligns with the typical CreateProcess usage where the command line is
+    // the authoritative argv surface.
+    bytes_extend(ctx["code"], insn_xor_r64_r64(1, 1)) // rcx = NULL
+    _intr_load_x64(ctx, 2, tmp_cmd)
+    bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // r8=0
+    bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9)) // r9=0
 
     // Stack args begin at [rsp+0x20] (after shadow space).
-    // bInheritHandles = TRUE (inherit std handles)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 1))
-    // dwCreationFlags = 0
+    // IMPORTANT (Win64 ABI): stack args occupy 8-byte slots. When passing 32-bit values
+    // (BOOL/DWORD), ensure the high 32 bits are zeroed too; CreateProcessA may load 64-bit
+    // values from the stack, and leaving stale high bits can turn NULL pointers into
+    // garbage addresses (observed as CreateProcessA failure).
+
+    // bInheritHandles = FALSE (BOOL)
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(36, 0))
+
+    // dwCreationFlags = 0 (DWORD)
     bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(40, 0))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(44, 0))
+
     // lpEnvironment = envblock (may be 0)
     _intr_load_x64(ctx, 0, tmp_env)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(48, 0))
-    // lpCurrentDirectory = NULL
+    _emit_mov_mrsp_r64(ctx, 48, 0)
+
+    // lpCurrentDirectory = NULL (LPSTR)
     bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(56, 0))
-    // lpStartupInfo = rsp + STARTUP_OFF
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 4))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, STARTUP_OFF))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(64, 0))
-    // lpProcessInformation = rsp + PROCINFO_OFF
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 4))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, PROCINFO_OFF))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(72, 0))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(60, 0))
+
+    // lpStartupInfo = &startup
+    _emit_addr_rbp_minus_off_x64(ctx, 0, off_start0)
+    _emit_mov_mrsp_r64(ctx, 64, 0)
+    // lpProcessInformation = &procinfo
+    _emit_addr_rbp_minus_off_x64(ctx, 0, off_proc0)
+    _emit_mov_mrsp_r64(ctx, 72, 0)
 
     _emit_call_iat_x64(ctx, "IAT_CreateProcessA")
 
@@ -183,8 +158,9 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
     var l_created = _new_label(ctx, "win_cp_created")
     _emit_jcc_to_label(ctx, fixups, "ne", l_created)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
+    _emit_win32_get_last_error_x64(ctx)
     bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_neg_r64(0))
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
 
     _emit_label(ctx, labels, l_created)
@@ -201,15 +177,15 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     _emit_jcc_to_label(ctx, fixups, "ge", l_poll)
 
     // Infinite wait
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(1, PROCINFO_OFF)) // rcx = hProcess
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 4294967295))        // edx = INFINITE
+    _emit_addr_rbp_minus_off_x64(ctx, 10, off_proc0)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(1, 10, 0))      // rcx = hProcess
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 4294967295))     // edx = INFINITE
     _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
-    // WAIT_OBJECT_0 == 0
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))             // WAIT_OBJECT_0 == 0
     _emit_jcc_to_label(ctx, fixups, "e", l_wait_done)
-    // Failure / unexpected: return -1
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
+    _emit_win32_get_last_error_x64(ctx)
     bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_neg_r64(0))
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
 
     // Poll wait
@@ -219,8 +195,9 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "le", l_timeout)
 
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(1, PROCINFO_OFF)) // rcx = hProcess
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))                 // edx = 0 (no wait)
+    _emit_addr_rbp_minus_off_x64(ctx, 10, off_proc0)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(1, 10, 0))  // rcx = hProcess
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))          // edx = 0 (no wait)
     _emit_call_iat_x64(ctx, "IAT_WaitForSingleObject")
     bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_wait_done)
@@ -228,10 +205,11 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 4294967295))
     var l_poll_continue = _new_label(ctx, "win_cp_poll_continue")
     _emit_jcc_to_label(ctx, fixups, "ne", l_poll_continue)
-    // failure => -1
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
+    _emit_win32_get_last_error_x64(ctx)
     bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_neg_r64(0))
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
+
     _emit_label(ctx, labels, l_poll_continue)
 
     // Decrement budget and continue.
@@ -247,31 +225,32 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     _emit_label(ctx, labels, l_wait_done)
 
     // GetExitCodeProcess(hProcess, &exitcode)
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(1, PROCINFO_OFF)) // rcx = hProcess
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 4))                   // rdx = rsp
-    bytes_extend(ctx["code"], insn_add_r64_imm32(2, EXITCODE_OFF))      // rdx = &exitcode
+    _emit_addr_rbp_minus_off_x64(ctx, 10, off_proc0)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(1, 10, 0)) // rcx = hProcess
+    _emit_addr_rbp_minus_off_x64(ctx, 2, off_exit0)             // rdx = &exitcode
     _emit_call_iat_x64(ctx, "IAT_GetExitCodeProcess")
     bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
     var l_got_exit = _new_label(ctx, "win_cp_got_exit")
     _emit_jcc_to_label(ctx, fixups, "ne", l_got_exit)
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967295))
+    _emit_win32_get_last_error_x64(ctx)
     bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_neg_r64(0))
     _emit_jmp_to_label(ctx, fixups, l_cleanup)
+
     _emit_label(ctx, labels, l_got_exit)
 
     // status = (exitcode & 0xFF) << 8
-    // exitcode is a DWORD; scratch is zeroed so loading a qword is safe.
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(0, EXITCODE_OFF)) // rax = exitcode
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_exit0)
     bytes_extend(ctx["code"], insn_and_r64_imm32(0, 255))
     bytes_extend(ctx["code"], insn_shl_r64_imm8(0, 8))
 
     // Common cleanup: close hThread and hProcess (best-effort), preserve rax.
     _emit_label(ctx, labels, l_cleanup)
-    // Save rax
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(RET_SAVE_OFF, 0))
+    _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0) // save rax
 
     // CloseHandle(hThread) if non-zero
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(1, PROCINFO_OFF + 8)) // rcx = hThread
+    _emit_addr_rbp_minus_off_x64(ctx, 10, off_proc0)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(1, 10, 8)) // rcx = hThread
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
     var l_skip_th = _new_label(ctx, "win_cp_skip_th")
     _emit_jcc_to_label(ctx, fixups, "e", l_skip_th)
@@ -279,16 +258,17 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     _emit_label(ctx, labels, l_skip_th)
 
     // CloseHandle(hProcess) if non-zero
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp32(1, PROCINFO_OFF)) // rcx = hProcess
+    _emit_addr_rbp_minus_off_x64(ctx, 10, off_proc0)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(1, 10, 0)) // rcx = hProcess
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
     var l_skip_ph = _new_label(ctx, "win_cp_skip_ph")
     _emit_jcc_to_label(ctx, fixups, "e", l_skip_ph)
     _emit_call_iat_x64(ctx, "IAT_CloseHandle")
     _emit_label(ctx, labels, l_skip_ph)
 
-    // Restore rax and stack
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, RET_SAVE_OFF))
-    bytes_extend(ctx["code"], insn_add_rsp_imm32(SCRATCH))
+    // Restore rax
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret)
+
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
     return nil

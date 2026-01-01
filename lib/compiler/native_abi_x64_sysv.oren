@@ -8,6 +8,19 @@ fn x64_sysv() {
         // Integer/pointer args (subset used by current x64 backend).
         // SysV order: rdi, rsi, rdx, rcx, r8, r9
         "int_arg_regs": [7, 6, 2, 1, 8, 9],
+        // SysV callee-saved (non-volatile) integer regs preserved by the Oren native backend:
+        // rbx, r12, r13 (rbp is handled by the frame-pointer prologue).
+        //
+        // IMPORTANT (arch unification; Tier-1):
+        // The x64 backend reserves:
+        // - r14: heap_limit
+        // - r15: heap_ptr
+        // as global heap registers (mirrors arm64's X27/X28 convention).
+        //
+        // Those registers are part of the backend's global machine state and MUST NOT be
+        // saved/restored by function prologues/epilogues, otherwise heap pointer updates done
+        // inside callees would be rolled back on return (allocator corruption / hangs).
+        "callee_saved_regs": [3, 12, 13],
         // SysV has no mandatory shadow space.
         "caller_shadow_bytes": 0,
         // v0: no dedicated call area needed (we avoid pushing during calls).

@@ -503,6 +503,7 @@ void oren_free_raw(uint64_t ptr);
 OrenValue oren_system(OrenValue cmd);
 OrenValue oren_exit(OrenValue code);
 OrenValue oren_chmod(OrenValue path, OrenValue mode);
+OrenValue oren_rename(OrenValue from, OrenValue to);
 
 void oren_print(OrenValue v);
 void oren_print_multi(int count, ...);

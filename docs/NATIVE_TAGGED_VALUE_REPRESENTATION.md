@@ -24,7 +24,7 @@ This document is **design guidance** for converging the **native backend** (arm6
      - Current interim strategy avoids “magic numeric range” semantics by using **tracked-allocation metadata**:
        - string keys are tracked heap strings (`oren_track_alloc(..., kind=STRING)`),
        - dynamic `oren_map_get(m, key)` can consult `oren_find_node(key)` to detect `STRING` vs “untracked” (treat as `int`).
-     - For performance, the native runtime keeps a small-int fast path (`key < 4096`) to avoid scanning the tracked allocation list; this is a bring-up optimization, not a semantics rule.
+     - Rolling update: the numeric-range map key heuristic has been removed; key-kind inference now relies on tracked-allocation metadata only (deterministic, semantics-safe).
      - The compiler still performs best-effort key-kind inference from syntax and local assignments so hot code can avoid runtime dispatch where possible.
      - This remains a stopgap until the native backend adopts an explicit tagged value representation where the key kind is carried in the value itself.
 
@@ -111,7 +111,7 @@ This is viable for a production VM, but should be staged in after a simpler “p
 
 ### Phase 1 — Remove “heuristics” by introducing explicit key tagging
 
-Goal: remove the x64 map key heuristic and make map key type checks explicit.
+Goal: remove remaining map key-kind inference stopgaps and make key type checks explicit.
 
 Minimal work required:
 
@@ -154,7 +154,7 @@ This requires:
 
 1) Decide and document a **canonical runtime tag set** for: `nil/bool/int/float/string/list/map/func/buf`.
 2) Define the native string object layout (header + length + bytes pointer / inline bytes policy).
-3) Replace x64 map key heuristic with explicit tagging:
+3) Replace runtime key-kind inference with explicit tagging:
    - store key tag in each entry
    - compare keys by `(tag, value)` not by “value range”
 4) Add fixtures:

@@ -328,6 +328,20 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
+fn _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_gettid expects 0 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_gettid does not support spread"); return nil }
+
+    // Windows: GetCurrentThreadId() -> DWORD.
+    //
+    // The native runtime lock implementation uses `sys_gettid()` as a stable per-thread identity.
+    // Returning a non-zero ID is mandatory for correctness under multi-threaded spawn/join.
+    _emit_call_iat_x64(ctx, "IAT_GetCurrentThreadId")
+    // DWORD in eax is already zero-extended into rax.
+    return nil
+}
+
 fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
     var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
@@ -344,6 +358,7 @@ fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
         if nm == "sys_unlink" || nm == "sys_rmdir" { return _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) }
         if nm == "sys_rename" { return _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_mkdir" || nm == "sys_chmod" { return _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) }
+        if nm == "sys_gettid" { return _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
         if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }

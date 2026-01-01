@@ -165,7 +165,6 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1)) // r11d=1
         _emit_windows_write_ptr_len(ctx, 2, 11)
 
-        _emit_stack_trace_best_effort(ctx)
         _emit_abort_exitcode(ctx, 1)
         return nil
     }
@@ -531,13 +530,20 @@ fn _emit_stack_trace_best_effort(ctx) {
 
     _emit_hex_table_ptr_to_r13(ctx)
 
+    // Scratch layout (rsp-relative, within the 128B reservation):
+    // - [rsp+0x00..0x1F] is Win64 shadow space (not safe across calls).
+    // - [rsp+0x20..0x3F] is safe across Win64 calls.
+    // Keep persistent values we need across WriteFile calls in this safe region.
+    var SCRATCH_SAVE_OFF = 48 // 0x30: saved symbol offset
+    var SCRATCH_RET_ADDR = 56 // 0x38: saved return address
+
     if platform != nil && platform["os"] == "windows" {
         // Header
         _emit_windows_write_cstr(ctx, "STACK_TRACE:")
         // Cursor (r12) = rbp
         bytes_extend(ctx["code"], insn_mov_r64_r64(12, 5))
-        // frame counter (r14) = 0
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(14, 0))
+        // frame counter (rbx) = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(3, 0))
 
         var labels = {}
         var fixups = []
@@ -545,60 +551,56 @@ fn _emit_stack_trace_best_effort(ctx) {
         var l_done = _new_label(ctx, "stack_trace_done")
         _emit_label(ctx, labels, l_loop)
 
-        // if r14 >= 16 => done
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(14, 16))
+        // if rbx >= 16 => done
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(3, 16))
         _emit_jcc_to_label(ctx, fixups, "ge", l_done)
         // if r12 == 0 => done
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
         _emit_jcc_to_label(ctx, fixups, "e", l_done)
 
-        // ret = *(r12 + 8) into r15
+        // Best-effort safety guards (avoid crashing while unwinding a corrupted chain):
+        // - fp must be 8-byte aligned
+        // - fp must be within [rsp, rsp+1MiB]
+        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 12))      // r11 = fp
+        bytes_extend(ctx["code"], insn_and_r64_imm32(11, 7))     // r11 &= 7
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))     // if (fp&7)!=0 => done
+        _emit_jcc_to_label(ctx, fixups, "ne", l_done)
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 4))       // fp < rsp => done
+        _emit_jcc_to_label(ctx, fixups, "b", l_done)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 4))       // r11 = rsp
+        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1048576)) // r11 = rsp + 1MiB
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 11))      // fp > rsp+1MiB => done
+        _emit_jcc_to_label(ctx, fixups, "a", l_done)
+
+        // ret = *(r12 + 8) into r10
         bytes_extend(ctx["code"], insn_mov_r64_r64(11, 12))
         bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(15, 11))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 11))
+        // Save ret across Win64 calls (do NOT use shadow space slots [rsp+0..0x1F]).
+        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(SCRATCH_RET_ADDR, 10))
 
         // buf = rsp + 0x60
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 96))
-        _emit_format_u64_hex_prefix(ctx, 15, 11)
-        // write buf prefix (ptr=r11, len=19 in r10)
+        // Reload ret into r10 for formatting (r10 is volatile).
+        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, SCRATCH_RET_ADDR))
+        _emit_format_u64_hex_prefix(ctx, 10, 11)
+        // Windows Tier-1 (rolling): print raw PCs only.
+        // - avoids PE/Mach-O debug format assumptions during bring-up
+        // - avoids crashing inside best-effort symbolication when tables are missing/partial
+        // Replace trailing space with newline and write 19 bytes.
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 10)) // al = '\n'
+        bytes_extend(ctx["code"], insn_mov_mr8_al_disp(11, 18))
         bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 19))
         _emit_windows_write_ptr_len(ctx, 11, 10)
 
-        // Symbolicate: print best-effort name + offset and newline.
-        // - r11 = name ptr
-        // - r10 = offset (clobberable after)
-        _emit_resolve_symbol_ptr_and_off_best_effort(ctx, 15, 11, 10)
-        // Preserve offset across helper calls (strlen clobbers r10).
-        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(0, 10))
-        _emit_strlen_cstr0_to_rdx(ctx, 11) // rdx = len
-        bytes_extend(ctx["code"], insn_mov_r64_r64(9, 2)) // r9 = len
-        _emit_windows_write_ptr_len(ctx, 11, 9)
-
-        // Call-site location (debug-only linetab).
-        if ctx["linetab_off"] != nil {
-            // Important: do not use R11 as the output pointer register here.
-            // `_emit_resolve_loc_ptr_best_effort` uses R11 as an internal scratch
-            // (linetab ptr / entries base). When no match is found it relies on the
-            // "default empty string" pointer remaining intact; if out_ptr_reg==R11,
-            // the scratch use clobbers it and we end up printing garbage bytes.
-            _emit_resolve_loc_ptr_best_effort(ctx, 15, 7) // rdi = loc ptr (or "")
-            _emit_strlen_cstr0_to_rdx(ctx, 7)
-            bytes_extend(ctx["code"], insn_mov_r64_r64(9, 2))
-            _emit_windows_write_ptr_len(ctx, 7, 9)
-        }
-
-        // Restore offset into r10 for "+0x...".
-        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, 0))
-        // print "+0x<off>\n"
-        bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 64)) // buf2 = rsp + 0x40
-        _emit_format_plus0x_u64_hex_line(ctx, 10, 11)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 20))
-        _emit_windows_write_ptr_len(ctx, 11, 9)
-
-        // r12 = *(r12) (next frame)
+        // next_fp = *(fp); require monotonic growth to avoid loops.
+        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(SCRATCH_SAVE_OFF, 12))
         bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 12))
-        // r14++
-        bytes_extend(ctx["code"], insn_add_r64_imm32(14, 1))
+        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(11, SCRATCH_SAVE_OFF))
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 11))
+        _emit_jcc_to_label(ctx, fixups, "be", l_done)
+        // rbx++
+        bytes_extend(ctx["code"], insn_add_r64_imm32(3, 1))
         _emit_jmp_to_label(ctx, fixups, l_loop)
 
         _emit_label(ctx, labels, l_done)
@@ -611,8 +613,8 @@ fn _emit_stack_trace_best_effort(ctx) {
     _emit_linux_write_str(ctx, "STACK_TRACE:\n")
     // Cursor (r12) = rbp
     bytes_extend(ctx["code"], insn_mov_r64_r64(12, 5))
-    // frame counter (r14) = 0
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(14, 0))
+    // frame counter (rbx) = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(3, 0))
 
     var labels2 = {}
     var fixups2 = []
@@ -620,38 +622,42 @@ fn _emit_stack_trace_best_effort(ctx) {
     var l_done2 = _new_label(ctx, "stack_trace_done")
     _emit_label(ctx, labels2, l_loop2)
 
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(14, 16))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(3, 16))
     _emit_jcc_to_label(ctx, fixups2, "ge", l_done2)
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
     _emit_jcc_to_label(ctx, fixups2, "e", l_done2)
 
-    // ret = *(r12 + 8) into r15
+    // ret = *(r12 + 8) into r10
     bytes_extend(ctx["code"], insn_mov_r64_r64(11, 12))
     bytes_extend(ctx["code"], insn_add_r64_imm32(11, 8))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(15, 11))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 11))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(SCRATCH_RET_ADDR, 10))
 
     // buf = rsp + 0x60
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 96))
-    _emit_format_u64_hex_prefix(ctx, 15, 11)
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, SCRATCH_RET_ADDR))
+    _emit_format_u64_hex_prefix(ctx, 10, 11)
     // len=19 in r10
     bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 19))
     _emit_linux_write_ptr_len(ctx, 11, 10)
 
-    _emit_resolve_symbol_ptr_and_off_best_effort(ctx, 15, 11, 10)
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, SCRATCH_RET_ADDR))
+    _emit_resolve_symbol_ptr_and_off_best_effort(ctx, 10, 11, 9)
     // Preserve offset across helper calls (strlen clobbers r10).
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(0, 10))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(SCRATCH_SAVE_OFF, 9))
     _emit_strlen_cstr0_to_rdx(ctx, 11)
     _emit_linux_write_ptr_len(ctx, 11, 2)
 
     if ctx["linetab_off"] != nil {
         // See Win64 comment above: keep loc ptr out of R11 so the default isn't clobbered.
-        _emit_resolve_loc_ptr_best_effort(ctx, 15, 7) // rdi = loc ptr (or "")
+        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, SCRATCH_RET_ADDR))
+        _emit_resolve_loc_ptr_best_effort(ctx, 10, 7) // rdi = loc ptr (or "")
         _emit_strlen_cstr0_to_rdx(ctx, 7)
         _emit_linux_write_ptr_len(ctx, 7, 2)
     }
 
     // Restore offset into r10 for "+0x...".
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, 0))
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, SCRATCH_SAVE_OFF))
     // "+0x<off>\n" into buf2 then write it
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 64)) // buf2 = rsp + 0x40
     _emit_format_plus0x_u64_hex_line(ctx, 10, 11)
@@ -660,7 +666,7 @@ fn _emit_stack_trace_best_effort(ctx) {
 
     // r12 = *(r12)
     bytes_extend(ctx["code"], insn_mov_r64_mr64(12, 12))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(14, 1))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(3, 1))
     _emit_jmp_to_label(ctx, fixups2, l_loop2)
 
     _emit_label(ctx, labels2, l_done2)

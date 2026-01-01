@@ -655,7 +655,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if oren_list_len(args) != 2 { err(ctx, "x64 native v0: " + nm + " expects 2 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return nil }
 
-        var base5 = _intr_tmp_push(ctx, 3) // path, st_ptr, pair
+        var base5 = _intr_tmp_push(ctx, 21) // path, st_ptr, pair, host_stat(18q)
         if base5 == nil { return nil }
         var tmp_path = _intr_tmp_off(ctx, locals, base5 + 0)
         var tmp_st = _intr_tmp_off(ctx, locals, base5 + 1)
@@ -678,12 +678,15 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
         // Use a private host `struct stat` buffer and translate into OrenStatV0
         // (stable cross-OS layout) in the caller-provided `st_ptr`.
-        var host_stat_bytes = labi.linux_stat_size_bytes()
-        bytes_extend(ctx["code"], insn_sub_rsp_imm32(host_stat_bytes))
+        //
+        // Linux x86_64: sizeof(struct stat)=144 => 18 qwords.
+        // Keep it in intrinsic-temp slots (RBP-relative) so we do not mutate RSP during lowering.
+        var off_host0 = _intr_tmp_off(ctx, locals, base5 + 3)
+        if off_host0 == nil { _intr_tmp_pop(ctx, base5); return nil }
 
         // newfstatat(AT_FDCWD, path, tmp_host_stat, flags)
         bytes_extend(ctx["code"], insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
-        bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, 0)) // rdx = tmp_host_stat (rsp)
+        _emit_addr_rbp_minus_off_x64(ctx, 2, off_host0) // rdx = tmp_host_stat
         var at_flags = 0
         if nm == "sys_lstat" { at_flags = labi.linux_at_symlink_nofollow() }
         bytes_extend(ctx["code"], insn_mov_r32_imm32(10, at_flags)) // r10d = flags
@@ -708,15 +711,15 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         }
 
         // size (i64)
-        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, labi.linux_stat_off_st_size()))
+        _emit_addr_rbp_minus_off_x64(ctx, 11, off_host0)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_size()))
         bytes_extend(ctx["code"], insn_mov_mr64_r64(8, 10)) // [st_ptr+0] = size
 
         // mode (u32)
-        bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 4, labi.linux_stat_off_st_mode())) // r10d = *(u32*)(rsp+off)
+        bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, labi.linux_stat_off_st_mode())) // r10d = *(u32*)(host_stat+off)
         bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(8, nstat.oren_stat_v0_off_mode(), 10))
 
         _emit_label(ctx, labels, l_norm_done)
-        bytes_extend(ctx["code"], insn_add_rsp_imm32(host_stat_bytes))
         _patch_local_fixups(ctx, labels, fixups)
 
         // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
@@ -732,7 +735,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fstat expects 2 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fstat does not support spread"); return nil }
 
-        var base6 = _intr_tmp_push(ctx, 2) // fd, st_ptr
+        var base6 = _intr_tmp_push(ctx, 20) // fd, st_ptr, host_stat(18q)
         if base6 == nil { return nil }
         var tmp_fd = _intr_tmp_off(ctx, locals, base6 + 0)
         var tmp_st = _intr_tmp_off(ctx, locals, base6 + 1)
@@ -747,11 +750,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base6); return nil }
 
-        var host_stat_bytes = labi.linux_stat_size_bytes()
-        bytes_extend(ctx["code"], insn_sub_rsp_imm32(host_stat_bytes))
+        var off_host0 = _intr_tmp_off(ctx, locals, base6 + 2)
+        if off_host0 == nil { _intr_tmp_pop(ctx, base6); return nil }
 
         _intr_load_x64(ctx, 7, tmp_fd)
-        bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(6, 0)) // rsi = tmp_host_stat (rsp)
+        _emit_addr_rbp_minus_off_x64(ctx, 6, off_host0) // rsi = tmp_host_stat
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_fstat()))
         bytes_extend(ctx["code"], insn_syscall())
 
@@ -769,13 +772,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(8, zoff, 9))
             zoff = zoff + 4
         }
-        bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(10, labi.linux_stat_off_st_size()))
+        _emit_addr_rbp_minus_off_x64(ctx, 11, off_host0)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_size()))
         bytes_extend(ctx["code"], insn_mov_mr64_r64(8, 10))
-        bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 4, labi.linux_stat_off_st_mode()))
+        bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, labi.linux_stat_off_st_mode()))
         bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(8, nstat.oren_stat_v0_off_mode(), 10))
 
         _emit_label(ctx, labels, l_norm_done)
-        bytes_extend(ctx["code"], insn_add_rsp_imm32(host_stat_bytes))
         _patch_local_fixups(ctx, labels, fixups)
 
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
@@ -1440,7 +1443,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return nil }
 
-        var base25 = _intr_tmp_push(ctx, 1) // ns
+        var base25 = _intr_tmp_push(ctx, 3) // ns, timespec(2q)
         if base25 == nil { return nil }
         var tmp_ns = _intr_tmp_off(ctx, locals, base25 + 0)
         if tmp_ns == nil { _intr_tmp_pop(ctx, base25); return nil }
@@ -1477,7 +1480,9 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         // - rax = __NR_nanosleep (35)
         // - rdi = &timespec
         // - rsi = NULL
-        bytes_extend(ctx["code"], insn_sub_rsp_imm8(16))
+        var off_ts0 = _intr_tmp_off(ctx, locals, base25 + 1)
+        var off_ts1 = _intr_tmp_off(ctx, locals, base25 + 2)
+        if off_ts0 == nil || off_ts1 == nil { _intr_tmp_pop(ctx, base25); return nil }
 
         // rax = ns
         _intr_load_x64(ctx, 0, tmp_ns)
@@ -1488,22 +1493,18 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         // rax = sec, rdx = nsec
         bytes_extend(ctx["code"], insn_idiv_r64(10))
 
-        // [rsp+0] = tv_sec (rax)
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(4, 0))
-        // [rsp+8] = tv_nsec (rdx)
-        bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(11, 8))
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 2))
+        // [timespec+0] = tv_sec (rax)
+        _emit_mov_mrbp_r64(ctx, 0 - off_ts0, 0)
+        // [timespec+8] = tv_nsec (rdx)
+        _emit_mov_mrbp_r64(ctx, 0 - off_ts1, 2)
 
-        // rdi = req = rsp
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 4))
+        // rdi = req = &timespec
+        _emit_addr_rbp_minus_off_x64(ctx, 7, off_ts0)
         // rsi = rem = 0
         bytes_extend(ctx["code"], insn_mov_r32_imm32(6, 0))
 
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_nanosleep()))
         bytes_extend(ctx["code"], insn_syscall())
-
-        // Pop timespec
-        bytes_extend(ctx["code"], insn_add_rsp_imm8(16))
 
         _emit_label(ctx, labels25, l_done)
         _patch_local_fixups(ctx, labels25, fixups25)

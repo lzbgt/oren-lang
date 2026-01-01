@@ -60,6 +60,18 @@ fn stack_align_bytes(abi) {
     return n
 }
 
+fn callee_saved_regs(abi) {
+    // Return the ABI's callee-saved integer regs (backend register-numbering).
+    //
+    // Backends may choose to save/restore these conservatively in their function prologues
+    // so generated code obeys the platform ABI when calling injected runtime helpers and
+    // external OS APIs / syscalls.
+    if abi == nil { return [] }
+    var regs = abi["callee_saved_regs"]
+    if regs == nil { return [] }
+    return regs
+}
+
 // ---- x86_64 Tier-1 fixed-base emitters (rolling v0) ----
 //
 // The x64 native backend currently emits fixed-base executables without relocations:

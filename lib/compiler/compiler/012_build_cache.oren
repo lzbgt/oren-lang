@@ -496,13 +496,37 @@ fn cache_try_restore_artifact(cache_dir, key, out_path, chmod_mode) {
         return {"hit": false, "err": "cache read failed: " + p}
     }
     ensure_dir(dirname(out_path))
-    var w = oren_write_bytes(out_path, bs)
+
+    // IMPORTANT (macOS): writing a signed Mach-O binary "in place" can leave the kernel with
+    // stale code-sign validation state for that vnode. This can manifest as "Killed: 9
+    // (code signing error)" even when `codesign --verify` passes on disk.
+    //
+    // Avoid in-place overwrites by:
+    // 1) writing to a temp file, then
+    // 2) atomic rename into place.
+    //
+    // This also improves robustness for concurrent readers (they either see the old artifact
+    // or the new one, never a partially-written file).
+    var tmp = out_path + ".cachetmp." + key
+    var w = oren_write_bytes(tmp, bs)
     if oren_is_err(w) {
-        return {"hit": false, "err": "cache write failed: " + out_path}
+        return {"hit": false, "err": "cache write failed: " + tmp}
     }
     if chmod_mode != nil && chmod_mode > 0 {
         // Best-effort: chmod may not exist on all targets; ignore failures.
-        oren_chmod(out_path, chmod_mode)
+        oren_chmod(tmp, chmod_mode)
+    }
+    var rr = oren_rename(tmp, out_path)
+    if rr != 0 {
+        // Fallback: best-effort direct write if rename isn't available on this platform.
+        // Leave tmp behind for debugging; it will be overwritten on the next attempt.
+        var w2 = oren_write_bytes(out_path, bs)
+        if oren_is_err(w2) {
+            return {"hit": false, "err": "cache write failed: " + out_path}
+        }
+        if chmod_mode != nil && chmod_mode > 0 {
+            oren_chmod(out_path, chmod_mode)
+        }
     }
     return {"hit": true, "bytes": bs}
 }

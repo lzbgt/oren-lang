@@ -452,6 +452,46 @@ fn insn_mov_mr32_r32_disp(base_reg, disp, src_reg) {
     return out
 }
 
+fn insn_mov_r64_mr64_disp(dst_reg, base_reg, disp) {
+    // mov r64, qword ptr [base_reg + disp]
+    // Encoding: REX.W 8B /r (+ optional REX) + disp8/disp32
+    if dst_reg < 0 || dst_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 0x48 (REX.W)
+    if dst_reg >= 8 { rex = rex + 4 } // REX.R
+    if base_reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 139) // 8B
+    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(dst_reg, 8), disp)
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    return out
+}
+
+fn insn_mov_mr64_r64_disp(base_reg, disp, src_reg) {
+    // mov qword ptr [base_reg + disp], r64
+    // Encoding: REX.W 89 /r (+ optional REX) + disp8/disp32
+    if src_reg < 0 || src_reg > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = []
+    var rex = 72 // 0x48 (REX.W)
+    if src_reg >= 8 { rex = rex + 4 } // REX.R
+    if base_reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 137) // 89
+    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(src_reg, 8), disp)
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    return out
+}
+
 fn insn_lea_rsi_rip_disp32(disp32) {
     // lea rsi, [rip+disp32] => 48 8D 35 disp32
     var out = [72, 141, 53]
