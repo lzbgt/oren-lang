@@ -103,9 +103,19 @@ fn compiler_main() {
 
     if cmd_name == "scan" {
         var lib = pos[0]
-        var nm_out = "scan_tmp.txt"
-        // macOS: nm -gU. Linux: nm -gD?
-        var cmd = "nm -gU " + shell_quote(lib) + " > " + nm_out
+        ensure_dir("build/tmp")
+        var nm_out = "build/tmp/scan_tmp.txt"
+
+        // Host-aware nm flags:
+        // - macOS: `nm -gU` (external, no undefineds; underscores in symbols)
+        // - Linux: `nm -gD` (dynamic symbols from shared objects)
+        // - Windows: best-effort (`nm -g` if present)
+        var hostp = detect_host_platform()
+        var nm_flags = "-gU"
+        if hostp != nil && hostp["target"] == "linux" { nm_flags = "-gD" }
+        else if hostp != nil && hostp["target"] == "windows" { nm_flags = "-g" }
+
+        var cmd = "nm " + nm_flags + " " + shell_quote(lib) + " > " + shell_quote(nm_out)
         if oren_system(cmd) != 0 {
             print("Scan failed (nm not found or lib invalid?)")
             return nil
@@ -132,18 +142,16 @@ fn compiler_main() {
                 var line = oren_string_slice(content, line_start, idx)
                 // Parse line
                 // Format: "0000000000003f50 T _my_api_func"
-                // Check if contains " T "
+                // Check if contains " T " (or " t " on some toolchains)
                 // Simple search
                 var t_idx = -1
                 var k = 0
                 var l_len = oren_string_len(line)
                 while k < l_len - 3 {
                     if oren_string_char_at(line, k) == " " {
-                        if oren_string_char_at(line, k+1) == "T" {
-                            if oren_string_char_at(line, k+2) == " " {
-                                t_idx = k
-                                k = l_len // break
-                            }
+                        var kind = oren_string_char_at(line, k+1)
+                        if kind == "T" || kind == "t" {
+                            if oren_string_char_at(line, k+2) == " " { t_idx = k; k = l_len }
                         }
                     }
                     k = k + 1
@@ -165,7 +173,7 @@ fn compiler_main() {
             idx = idx + 1
         }
         
-        oren_system("rm " + nm_out)
+        oren_system("rm -f " + shell_quote(nm_out))
         return nil
     }
 
@@ -206,6 +214,14 @@ fn compiler_main() {
             }
             arch = ps0["arch"]
             target = ps0["os"]
+        } else {
+            // Default to the runtime host platform when the user did not specify
+            // --platform/--target/--arch (rolling correctness for Linux+Windows bring-up).
+            var host0 = detect_host_platform()
+            if host0 != nil {
+                if seen["arch"] != true { arch = host0["arch"] }
+                if seen["target"] != true { target = host0["target"] }
+            }
         }
         var outp = ""
         if seen["out"] == true { outp = opts["out"] }
@@ -336,6 +352,13 @@ fn compiler_main() {
             }
             arch = ps0["arch"]
             target = ps0["os"]
+        } else {
+            // Default to runtime host platform unless the user explicitly overrides.
+            var host0 = detect_host_platform()
+            if host0 != nil {
+                if seen["arch"] != true { arch = host0["arch"] }
+                if seen["target"] != true { target = host0["target"] }
+            }
         }
         // Default output: keep artifacts under build/targets/<arch>-<os>/<kind>/... for a clean repo layout.
         // (Repo-local outputs make rolling iteration predictable for humans + AI agents.)
@@ -464,7 +487,7 @@ fn compiler_main() {
     target = opts["target"]
     arch = opts["arch"]
     var platform0 = opts["platform"]
-        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
+	        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
     if platform0 != nil && platform0 != "" {
         var ps0 = parse_platform_spec(platform0)
         if ps0 == nil {
@@ -475,6 +498,14 @@ fn compiler_main() {
         }
         arch = ps0["arch"]
         target = ps0["os"]
+    } else {
+        // Default to the compiler's runtime host platform unless explicitly overridden.
+        // This keeps `oren build ... --backend native` runnable on Linux/Windows hosts.
+        var host0 = detect_host_platform()
+        if host0 != nil {
+            if seen["arch"] != true { arch = host0["arch"] }
+            if seen["target"] != true { target = host0["target"] }
+        }
     }
     disasm = seen["disasm"] == true
     // Debug info policy (native backend):

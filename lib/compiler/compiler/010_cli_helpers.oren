@@ -1,4 +1,62 @@
 
+import strings "std:strings"
+
+fn _host_detect_cmd_out_trim(cmd, out_path) {
+    if cmd == nil || cmd == "" { return nil }
+    if out_path == nil || out_path == "" { return nil }
+    // Best-effort: write stdout to a file so we can read it back (oren_system has no capture).
+    // If the command fails, return nil so callers can fall back to conservative defaults.
+    var rc = oren_system(cmd + " > " + shell_quote(out_path) + " 2>/dev/null")
+    if rc != 0 { return nil }
+    var s = oren_read_file(out_path)
+    if oren_is_err(s) { return nil }
+    return strings.trim(s)
+}
+
+fn detect_host_platform() {
+    // Return {"target": <os>, "arch": <arch>} for the current host, or nil if unknown.
+    // This is used only as a default when the user does not specify --platform/--target/--arch.
+    //
+    // Priority:
+    // - POSIX-ish hosts: uname -s / uname -m
+    // - Native Windows: env vars (OS=Windows_NT, PROCESSOR_ARCHITECTURE)
+    //
+    // NOTE: we intentionally avoid embedding build-time constants here; the compiler binary
+    // can run on multiple hosts (macOS, Linux, Windows) and should default to its *runtime* host.
+
+    // Windows hint (system() uses cmd.exe; uname may be absent).
+    var os_env = oren_env("OS")
+    if os_env == "Windows_NT" {
+        var arch_env = oren_env("PROCESSOR_ARCHITECTURE")
+        var arch = "x64"
+        if arch_env == "ARM64" { arch = "arm64" }
+        else if arch_env == "AMD64" { arch = "x64" }
+        else if arch_env == "x86_64" { arch = "x64" }
+        else if arch_env == "aarch64" { arch = "arm64" }
+        return {"target": "windows", "arch": arch}
+    }
+
+    // POSIX-ish: uname.
+    if oren_system("command -v uname >/dev/null 2>&1") != 0 { return nil }
+    ensure_dir("build/tmp")
+    var os_s = _host_detect_cmd_out_trim("uname -s", "build/tmp/_oren_host_os.txt")
+    var arch_s = _host_detect_cmd_out_trim("uname -m", "build/tmp/_oren_host_arch.txt")
+    if os_s == nil || os_s == "" { return nil }
+    if arch_s == nil || arch_s == "" { return nil }
+
+    var target = nil
+    if os_s == "Darwin" { target = "macos" }
+    else if os_s == "Linux" { target = "linux" }
+    else { return nil }
+
+    var arch = nil
+    if arch_s == "arm64" || arch_s == "aarch64" { arch = "arm64" }
+    else if arch_s == "x86_64" || arch_s == "amd64" { arch = "x64" }
+    else { return nil }
+
+    return {"target": target, "arch": arch}
+}
+
 fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
     var src = expand_includes_file(file, [])
     if src == nil {

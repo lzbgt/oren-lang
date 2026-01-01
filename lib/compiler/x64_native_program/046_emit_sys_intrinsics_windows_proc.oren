@@ -111,14 +111,11 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     // Instead, default to bInheritHandles=FALSE and let the host decide stdio wiring.
 
     // CreateProcessA args (Win64):
-    // rcx=lpApplicationName(NULL), rdx=lpCommandLine, r8=lpProcessAttributes(NULL), r9=lpThreadAttributes(NULL)
+    // rcx=lpApplicationName, rdx=lpCommandLine, r8=lpProcessAttributes(NULL), r9=lpThreadAttributes(NULL)
     //
-    // NOTE (rolling robustness):
-    // Pass lpApplicationName=NULL and rely on argv0 being the executable path in the command line.
-    // This avoids passing pointers that may not be valid Win32 module paths in some remote/SSH
-    // environments, and aligns with the typical CreateProcess usage where the command line is
-    // the authoritative argv surface.
-    bytes_extend(ctx["code"], insn_xor_r64_r64(1, 1)) // rcx = NULL
+    // Use the explicit `app` path for lpApplicationName (runtime passes an absolute path for `cmd.exe`).
+    // This avoids relying on command-line parsing to locate the executable.
+    _intr_load_x64(ctx, 1, tmp_app) // rcx = app
     _intr_load_x64(ctx, 2, tmp_cmd)
     bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // r8=0
     bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9)) // r9=0
@@ -129,21 +126,21 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
     // values from the stack, and leaving stale high bits can turn NULL pointers into
     // garbage addresses (observed as CreateProcessA failure).
 
-    // bInheritHandles = FALSE (BOOL)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(32, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(36, 0))
-
-    // dwCreationFlags = 0 (DWORD)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(40, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(44, 0))
+    // bInheritHandles = FALSE (BOOL), dwCreationFlags = 0 (DWORD), lpCurrentDirectory = NULL.
+    //
+    // Use 64-bit stores (8-byte slots) to avoid relying on paired 32-bit writes for zeroing:
+    // Win64 stack args are always 8-byte slots.
+    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    _emit_mov_mrsp_r64(ctx, 32, 0) // bInheritHandles
+    _emit_mov_mrsp_r64(ctx, 40, 0) // dwCreationFlags
 
     // lpEnvironment = envblock (may be 0)
     _intr_load_x64(ctx, 0, tmp_env)
     _emit_mov_mrsp_r64(ctx, 48, 0)
 
     // lpCurrentDirectory = NULL (LPSTR)
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(56, 0))
-    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(60, 0))
+    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    _emit_mov_mrsp_r64(ctx, 56, 0)
 
     // lpStartupInfo = &startup
     _emit_addr_rbp_minus_off_x64(ctx, 0, off_start0)

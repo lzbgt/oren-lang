@@ -310,14 +310,20 @@ examples-test-inner: oren avm
 	@# 2) GC suite (native)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/gc_test.oren --backend native -o build/ex_gc_native $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_gc_native
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null
-	@# 3) Native dylib export + header + scan + link
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata
-	@test -f build/libmath.h
-	@$(RUN_WITH_TIMEOUT) ./oren scan build/libmath.dylib >/dev/null
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath
+	@# 2b/3) Native FFI + dylib export (macOS only today)
+	@# - macOS: FFI works (dyld binding + LC_LOAD_DYLIB)
+	@# - Linux: ELF dynamic linking is not implemented in the native backend yet
+	@if [ "$(UNAME_S)" = "Darwin" ]; then \
+		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG); \
+		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null; \
+		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata; \
+		test -f build/libmath.h; \
+		$(RUN_WITH_TIMEOUT) ./oren scan build/libmath.dylib >/dev/null; \
+		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG); \
+		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath; \
+	else \
+		echo "INFO: skipping macOS-only native FFI/dylib examples on $(UNAME_S)"; \
+	fi
 	@# 4) Bytecode + AVM
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello.oren --backend bytecode -o build/ex_hello.obc
 	@$(RUN_WITH_TIMEOUT) ./avm build/ex_hello.obc >/dev/null

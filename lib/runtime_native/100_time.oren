@@ -12,7 +12,31 @@
 fn oren_sleep_ns(ns) {
     native_capsule_require(CAP_TIME, "TIME")
     if ns <= 0 { return 0 }
-    return sys_nanosleep(ns)
+    // Primary path: native intrinsic sleep.
+    //
+    // Rolling safety (x86_64 bring-up):
+    // Some platforms/environments can temporarily have a stubbed or failing nanosleep path.
+    // To keep Tier‑1 semantics stable (and to keep join-timeout contracts meaningful),
+    // we fall back to a gettimeofday-based spin if the observed elapsed time is suspiciously low.
+    var t0 = oren_time_unix_ns()
+    var rc = sys_nanosleep(ns)
+    var t1 = oren_time_unix_ns()
+    if t0 != 0 && t1 != 0 {
+        var dt = t1 - t0
+        // If we asked for a positive sleep and got essentially no time advancement,
+        // treat it as a no-op and spin until the deadline (best-effort).
+        if dt >= 0 && dt < (ns / 4) {
+            var deadline = t0 + ns
+            var guard = 0
+            while guard < 100000000 {
+                var now = oren_time_unix_ns()
+                if now == 0 { break }
+                if now >= deadline { break }
+                guard = guard + 1
+            }
+        }
+    }
+    return rc
 }
 
 @cap.requires(domain="TIME")
@@ -20,7 +44,7 @@ fn oren_sleep_ms(ms) {
     native_capsule_require(CAP_TIME, "TIME")
     if ms <= 0 { return 0 }
     // ms -> ns
-    return sys_nanosleep(ms * 1000000)
+    return oren_sleep_ns(ms * 1000000)
 }
 
 fn oren_kill(pid, signum) {
@@ -257,7 +281,7 @@ fn native_alloc_index_put_node(node) {
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
 
     // Resize when load factor exceeds ~0.75.
-    if (g_alloc_index_len * 4) >= (g_alloc_index_cap * 3) {
+    if g_alloc_index_len * 4 >= g_alloc_index_cap * 3 {
         // Rebuild from allocs list (deterministic, keeps table fresh and avoids tombstone drift).
         var new_cap = g_alloc_index_cap * 2
         var new_tab = malloc_raw(new_cap * 8)

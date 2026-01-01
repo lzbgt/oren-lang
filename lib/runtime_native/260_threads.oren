@@ -498,6 +498,36 @@ fn native_runtime_get_envp_for_proc_child() {
     return out
 }
 
+fn _win_proc_debug_enabled() {
+    // Debug helper for the Windows CreateProcessA bring-up path.
+    // Enabled only when explicitly set to avoid affecting Tier‑1 fixture output.
+    var v = oren_getenv("OREN_DEBUG_WIN_PROC")
+    if v == 0 { return false }
+    if ptr_get_byte(v) == 0 { return false }
+    return true
+}
+
+fn _win_proc_debug_dump_cstr(prefix, p, max_bytes) {
+    if prefix == 0 { prefix = "" }
+    if max_bytes == nil || max_bytes <= 0 { max_bytes = 64 }
+    if max_bytes > 256 { max_bytes = 256 }
+
+    print(prefix + "ptr=" + oren_int_to_string(p))
+    if p == 0 { return 0 }
+
+    var out = prefix + "bytes="
+    var i = 0
+    while i < max_bytes {
+        var b = ptr_get_byte(iadd(p, i)) & 255
+        out = out + oren_int_to_string(b)
+        if b == 0 { break }
+        if i + 1 < max_bytes { out = out + "," }
+        i = i + 1
+    }
+    print(out)
+    return 0
+}
+
 @cap.requires(domain="PROC")
 fn oren_proc_spawn(path, argv, timeout_ms) {
     // Syscall-first subprocess spawn (no libc, no PATH search).
@@ -557,7 +587,16 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
         var envblock = native_windows_envblock_for_proc_child()
         // envblock may be 0 (inherit env), which is valid.
 
+        if _win_proc_debug_enabled() {
+            print("WIN_PROC_DEBUG app=" + path)
+            _win_proc_debug_dump_cstr("WIN_PROC_DEBUG cmdline_", cmdline, 160)
+            print("WIN_PROC_DEBUG envblock_ptr=" + oren_int_to_string(envblock) + " timeout_ms=" + oren_int_to_string(timeout_ms))
+        }
+
         var rc = sys_win_createprocess(path, cmdline, envblock, timeout_ms)
+        if _win_proc_debug_enabled() {
+            print("WIN_PROC_DEBUG sys_win_createprocess rc=" + oren_int_to_string(rc))
+        }
         free(cmdline)
         if envblock != 0 { free(envblock) }
         free(child_argv)
