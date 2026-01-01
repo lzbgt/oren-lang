@@ -90,16 +90,16 @@ func applyPlatformSpec(timeoutBin string, raw string, nativeTarget string, passT
 				newNativeTarget = "linux"
 				return false, 0, newNativeTarget
 			}
-			// External runner on macOS: use the persistent linux/arm64 docker container.
-			// Enforce the same 3-minute budget per invocation.
-			logPath := "build/logs/matrix_arm64_linux_docker.log"
-			cmd := "OREN_LINUX_DOCKER_RESTART=0 OREN_LINUX_DOCKER_ALLOW_DIRTY=1 tools/oretest_linux_docker.sh"
-			rc := runWithTimeout(timeoutBin, 3*time.Minute, cmd, logPath)
-			if rc != 0 {
-				fmt.Fprintf(os.Stderr, "FAIL: linux/arm64 docker run failed (log: %s)\n", logPath)
-				return true, rc, newNativeTarget
-			}
-			return true, 0, newNativeTarget
+				// External runner on macOS: use the persistent Linux docker container runner.
+				// Enforce the same 3-minute budget per invocation.
+				logPath := "build/logs/matrix_arm64_linux_docker.log"
+				cmd := "OREN_LINUX_DOCKER_ID=c7e5f7bd9f5c OREN_LINUX_DOCKER_ALLOW_DIRTY=1 tools/oretest_linux_docker.sh"
+				rc := runWithTimeout(timeoutBin, 3*time.Minute, cmd, logPath)
+				if rc != 0 {
+					fmt.Fprintf(os.Stderr, "FAIL: linux docker container runner failed (log: %s)\n", logPath)
+					return true, rc, newNativeTarget
+				}
+				return true, 0, newNativeTarget
 		case "windows":
 			fmt.Fprintf(os.Stderr, "ERROR: --platform %q cannot run locally; use x64-windows via remote gate\n", raw)
 			return true, 2, newNativeTarget
@@ -144,11 +144,11 @@ func runTier1Matrix(timeoutBin string, includeOBCPortability bool, out io.Writer
 			cmd:  "make test",
 			log:  "build/logs/matrix_arm64_macos.log",
 		},
-		{
-			name: "arm64-linux(docker)",
-			cmd:  "OREN_LINUX_DOCKER_RESTART=0 OREN_LINUX_DOCKER_ALLOW_DIRTY=1 tools/oretest_linux_docker.sh",
-			log:  "build/logs/matrix_arm64_linux_docker.log",
-		},
+			{
+				name: "arm64-linux(docker)",
+				cmd:  "OREN_LINUX_DOCKER_ID=c7e5f7bd9f5c OREN_LINUX_DOCKER_ALLOW_DIRTY=1 tools/oretest_linux_docker.sh",
+				log:  "build/logs/matrix_arm64_linux_docker.log",
+			},
 		{
 			name: "x64-remote(windows+wsl)",
 			// By design, remote gate is fixture-only unless OREN_REMOTE_RUN_ALL=1.
