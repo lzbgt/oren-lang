@@ -9,9 +9,7 @@ set -euo pipefail
 # - Uses a persistent container to avoid repeated `apt-get install` cost.
 #
 # Config:
-#   OREN_LINUX_DOCKER_IMAGE    : container image (default: ubuntu:24.04)
-#   OREN_LINUX_DOCKER_NAME     : container name (default: oren-linux-oretest)
-#   OREN_LINUX_DOCKER_RESTART  : restart container before running (default: 1)
+#   OREN_LINUX_DOCKER_ID       : existing persistent container id/name (default: c7e5f7bd9f5c)
 #   OREN_LINUX_DOCKER_JOBS     : forwarded to OREN_TEST_JOBS (default: detected via nproc)
 #   OREN_LINUX_DOCKER_CLEAN    : if 1, wipe /work/repo before sync (default: 0)
 #
@@ -19,20 +17,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-IMAGE="${OREN_LINUX_DOCKER_IMAGE:-ubuntu:24.04}"
-NAME="${OREN_LINUX_DOCKER_NAME:-oren-linux-oretest}"
-RESTART="${OREN_LINUX_DOCKER_RESTART:-1}"
+DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 CLEAN="${OREN_LINUX_DOCKER_CLEAN:-0}"
 JOBS="${OREN_LINUX_DOCKER_JOBS:-}"
-
-# Use `--init` so PID 1 reaps zombies created by fork/spawn tests.
-# NOTE: the container may have been created earlier with a different mountpoint
-# (`/repo`). We detect which one exists at runtime and adapt.
-DOCKER_RUN_ARGS=(--init --platform linux/arm64 -v "$PWD:/repo:ro")
-
-# Optional apt mirror to speed up installs, e.g.:
-#   OREN_LINUX_DOCKER_APT_MIRROR=https://mirrors.aliyun.com/ubuntu-ports/
-APT_MIRROR="${OREN_LINUX_DOCKER_APT_MIRROR:-}"
 
 # Go module mirrors (the repo uses the Go toolchain directive; on some networks
 # the default proxy can time out).
@@ -43,45 +30,35 @@ APT_MIRROR="${OREN_LINUX_DOCKER_APT_MIRROR:-}"
 GOPROXY="${OREN_LINUX_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
 GOSUMDB="${OREN_LINUX_DOCKER_GOSUMDB:-sum.golang.google.cn}"
 
-if ! docker inspect "$NAME" >/dev/null 2>&1; then
-  docker create --name "$NAME" "${DOCKER_RUN_ARGS[@]}" "$IMAGE" bash -lc 'sleep infinity' >/dev/null
+if ! docker inspect "$DOCKER_ID" >/dev/null 2>&1; then
+  echo "[linux-oretest-docker] ERROR: required persistent container not found: $DOCKER_ID" >&2
+  echo "[linux-oretest-docker] Hint: restore/start the existing Ubuntu toolchain container (do not create a new one)." >&2
+  exit 2
 fi
-
-docker start "$NAME" >/dev/null || true
-if [[ "$RESTART" == "1" ]]; then
-  docker restart "$NAME" >/dev/null
+running="$(docker inspect "$DOCKER_ID" --format '{{.State.Running}}' 2>/dev/null || echo false)"
+if [[ "$running" != "true" ]]; then
+  echo "[linux-oretest-docker] ERROR: container is not running: $DOCKER_ID" >&2
+  echo "[linux-oretest-docker] Hint: start it, then retry." >&2
+  exit 2
 fi
 
 if [[ -z "$JOBS" ]]; then
-  JOBS="$(docker exec "$NAME" bash -lc 'nproc 2>/dev/null || echo 4' | tr -d '\r' | tr -d '\n' || true)"
+  JOBS="$(docker exec "$DOCKER_ID" bash -lc 'nproc 2>/dev/null || echo 4' | tr -d '\r' | tr -d '\n' || true)"
   if [[ -z "$JOBS" ]]; then
     JOBS=4
   fi
 fi
 
-# Install deps only if missing.
-docker exec "$NAME" bash -lc '
+# Verify the container has the required tooling (we do not mutate/provision it here).
+docker exec "$DOCKER_ID" bash -lc '
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
-if [[ -n "'"$APT_MIRROR"'" ]]; then
-  # Ubuntu ports images use `ports.ubuntu.com/ubuntu-ports`.
-  # Keep this best-effort: if the mirror is unreachable, apt will fail and the user can unset it.
-  if [[ -f /etc/apt/sources.list ]]; then
-    sed -i "s|http://ports.ubuntu.com/ubuntu-ports/|'"$APT_MIRROR"'|g" /etc/apt/sources.list || true
-    sed -i "s|https://ports.ubuntu.com/ubuntu-ports/|'"$APT_MIRROR"'|g" /etc/apt/sources.list || true
-  fi
-fi
 if ! command -v go >/dev/null 2>&1; then
-  apt-get update -qq
-  apt-get install -y -qq golang-go >/dev/null
+  echo "missing go toolchain in container" >&2
+  exit 2
 fi
 if ! command -v cc >/dev/null 2>&1; then
-  apt-get update -qq
-  apt-get install -y -qq build-essential >/dev/null
-fi
-if ! command -v tini >/dev/null 2>&1; then
-  apt-get update -qq
-  apt-get install -y -qq tini >/dev/null
+  echo "missing C compiler (cc) in container" >&2
+  exit 2
 fi
 '
 
@@ -109,19 +86,26 @@ if [[ "$ALLOW_DIRTY" != "1" ]]; then
 fi
 git ls-files -z \
   | tar -czf - --null -T - \
-  | docker exec -i "$NAME" bash -lc '
-set -euo pipefail
-mkdir -p /work/repo
-if [[ "'"$CLEAN"'" == "1" ]]; then
-  rm -rf /work/repo/*
+  | docker exec -i "$DOCKER_ID" bash -lc '
+	set -euo pipefail
+	mkdir -p /work/repo
+	if [[ "'"$CLEAN"'" == "1" ]]; then
+	  rm -rf /work/repo/*
 fi
 tar -xzf - -C /work/repo
 '
 
-# Use `tini -s` as a child subreaper even if the container was not created with
-# `--init`. This prevents zombie buildup from fork/spawn tests inside long-lived
-# containers whose PID 1 does not reap children.
-docker exec "$NAME" tini -s -- bash -lc "
+run_in_container() {
+  if docker exec "$DOCKER_ID" bash -lc 'command -v tini >/dev/null 2>&1'; then
+    docker exec "$DOCKER_ID" tini -s -- bash -lc "$1"
+  else
+    docker exec "$DOCKER_ID" bash -lc "$1"
+  fi
+}
+
+# Prefer `tini -s` as a child subreaper when available. This prevents zombie buildup
+# from fork/spawn tests inside long-lived containers whose PID 1 does not reap children.
+run_in_container "
 set -euo pipefail
 mkdir -p /work/repo
 cd /work/repo

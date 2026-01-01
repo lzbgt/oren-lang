@@ -147,8 +147,12 @@ stage2: oren_stage2
 # Run all tests using Stage 1 compiler
 test: oren
 	@echo "=== Running Tests ==="
-	@# Hard requirement in rolling mode: tests must not be able to hang forever.
-	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
+	@# Rolling safety:
+	@# - Prefer an outer suite timeout when `timeout`/`gtimeout` exists.
+	@# - If missing, proceed anyway: `./oretest` has internal process-group timeouts.
+	@if [ -z "$(TIMEOUT_BIN)" ]; then \
+		echo "WARN: 'timeout'/'gtimeout' not found; running without outer suite timeout (oretest uses internal timeouts)."; \
+	fi
 	@# Global failsafe: wrap the entire suite.
 	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) OREN_SKIP_CODESIGN= test-inner || { \
 			rc=$$?; \
@@ -197,8 +201,11 @@ test-legacy: test-legacy-inner
 
 test-legacy-inner: oren avm oretest oredoc orensign
 	@echo "=== Running Tests (Legacy Alias: oretest --full) ==="
-	@# Hard requirement in rolling mode: tests must not be able to hang forever.
-	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
+	@# Prefer an outer suite timeout when `timeout`/`gtimeout` exists. If missing, proceed:
+	@# `./oretest` has internal process-group timeouts.
+	@if [ -z "$(TIMEOUT_BIN)" ]; then \
+		echo "WARN: 'timeout'/'gtimeout' not found; running without outer suite timeout (oretest uses internal timeouts)."; \
+	fi
 	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG) --full"; \
 			if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
 			if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
@@ -272,14 +279,17 @@ avm: $(AVM_C_SRC) build/avm_root_pubkey.inc
 
 examples-test: oren avm
 	@echo "=== Running Examples ==="
-	@# Hard requirement in rolling mode: tests must not be able to hang forever.
-	@[ -n "$(TIMEOUT_BIN)" ] || { echo "ERROR: 'timeout' not found. Install coreutils (macOS: brew install coreutils) or provide gtimeout/timeout in PATH."; exit 2; }
+	@# Prefer an outer suite timeout when `timeout`/`gtimeout` exists. If missing, proceed:
+	@# example binaries are short-lived and the inner tooling has timeouts.
+	@if [ -z "$(TIMEOUT_BIN)" ]; then \
+		echo "WARN: 'timeout'/'gtimeout' not found; running without outer suite timeout."; \
+	fi
 	@# Global failsafe: wrap the entire suite.
 	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) examples-test-inner || { \
-		rc=$$?; \
-		if [ $$rc -eq 124 ]; then echo "FAIL: examples suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
-		exit $$rc; \
-	}
+			rc=$$?; \
+			if [ $$rc -eq 124 ]; then echo "FAIL: examples suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
+			exit $$rc; \
+		}
 
 examples-test-inner: oren avm
 	@mkdir -p build
