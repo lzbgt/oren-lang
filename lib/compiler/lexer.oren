@@ -5,7 +5,8 @@ fn new_lexer(input) {
     // so tokens can carry location info for diagnostics.
     // Track 1-based line/col for the current character at `position`.
     // This enables cheap deterministic diagnostics without rescanning the source.
-    var l = {"input": input, "position": 0, "read_position": 0, "ch": "", "file": nil, "line": 1, "col": 1}
+    if input == nil { input = "" }
+    var l = {"input": input, "input_len": oren_string_len(input), "position": 0, "read_position": 0, "ch": "", "file": nil, "line": 1, "col": 1}
     read_char(l)
     return l
 }
@@ -22,7 +23,7 @@ fn read_char(l) {
         }
     }
 
-    var input_len = oren_string_len(l["input"])
+    var input_len = l["input_len"]
     if l["read_position"] >= input_len {
         l["ch"] = ""
     } else {
@@ -33,7 +34,7 @@ fn read_char(l) {
 }
 
 fn peek_char(l) {
-    var input_len = oren_string_len(l["input"])
+    var input_len = l["input_len"]
     if l["read_position"] >= input_len {
         return ""
     }
@@ -41,7 +42,7 @@ fn peek_char(l) {
 }
 
 fn peek_char2(l) {
-    var input_len = oren_string_len(l["input"])
+    var input_len = l["input_len"]
     var pos = l["read_position"] + 1
     if pos >= input_len { return "" }
     return oren_string_char_at(l["input"], pos)
@@ -63,13 +64,65 @@ fn skip_comment(l) {
 
 fn read_line_comment_text(l) {
     // Read until '\n' or EOF, leaving l["ch"] on '\n' or "".
-    var out = ""
+    var start = l["position"]
     while l["ch"] != "" {
-        if l["ch"] == token.CH_LF { return out }
-        out = out + l["ch"]
+        if l["ch"] == token.CH_LF { return oren_string_slice(l["input"], start, l["position"]) }
         read_char(l)
     }
-    return out
+    return oren_string_slice(l["input"], start, l["position"])
+}
+
+fn _join_parts(parts) {
+    if parts == nil { return "" }
+    if oren_list_len(parts) == 0 { return "" }
+    var cur = parts
+    while oren_list_len(cur) > 1 {
+        var next = []
+        var i = 0
+        var n = oren_list_len(cur)
+        while i < n {
+            if i + 1 < n {
+                oren_list_push(next, cur[i] + cur[i + 1])
+            } else {
+                oren_list_push(next, cur[i])
+            }
+            i = i + 2
+        }
+        cur = next
+    }
+    return cur[0]
+}
+
+fn _strip_underscores(s) {
+    if s == nil { return "" }
+    var n = oren_string_len(s)
+    if n == 0 { return s }
+
+    // Fast path: no underscores.
+    var has = false
+    var i = 0
+    while i < n {
+        if oren_string_char_at(s, i) == "_" { has = true; break }
+        i = i + 1
+    }
+    if has == false { return s }
+
+    var parts = []
+    var seg_start = 0
+    i = 0
+    while i < n {
+        if oren_string_char_at(s, i) == "_" {
+            if seg_start < i {
+                oren_list_push(parts, oren_string_slice(s, seg_start, i))
+            }
+            seg_start = i + 1
+        }
+        i = i + 1
+    }
+    if seg_start < n {
+        oren_list_push(parts, oren_string_slice(s, seg_start, n))
+    }
+    return _join_parts(parts)
 }
 
 fn trim_one_leading_space(s) {
@@ -110,32 +163,31 @@ fn skip_block_comment(l) {
 }
 
 fn read_identifier(l) {
-    var out = ""
+    var start = l["position"]
     while token.is_letter(l["ch"]) || token.is_digit(l["ch"]) {
-        out = out + l["ch"]
         read_char(l)
     }
-    return out
+    return oren_string_slice(l["input"], start, l["position"])
 }
 
 fn read_number(l) {
-    var out = ""
+    var start = l["position"]
     while token.is_digit(l["ch"]) || l["ch"] == "_" {
-        if l["ch"] != "_" { out = out + l["ch"] }
         read_char(l)
     }
-    return out
+    var raw = oren_string_slice(l["input"], start, l["position"])
+    return _strip_underscores(raw)
 }
 
 fn read_exponent(l) {
     // Read scientific exponent digits (after optional +/-, allowing `_` separators).
     // Caller has already consumed the 'e'/'E' and optional sign, and expects at least one digit.
-    var out = ""
+    var start = l["position"]
     while token.is_digit(l["ch"]) || l["ch"] == "_" {
-        if l["ch"] != "_" { out = out + l["ch"] }
         read_char(l)
     }
-    return out
+    var raw = oren_string_slice(l["input"], start, l["position"])
+    return _strip_underscores(raw)
 }
 
 fn is_hex_digit(ch) {
@@ -146,36 +198,36 @@ fn is_hex_digit(ch) {
 }
 
 fn read_hex_number(l) {
-    var out = ""
+    var start = l["position"]
     while is_hex_digit(l["ch"]) || l["ch"] == "_" {
-        if l["ch"] != "_" { out = out + l["ch"] }
         read_char(l)
     }
-    return out
+    var raw = oren_string_slice(l["input"], start, l["position"])
+    return _strip_underscores(raw)
 }
 
 fn read_bin_number(l) {
-    var out = ""
+    var start = l["position"]
     while l["ch"] == "0" || l["ch"] == "1" || l["ch"] == "_" {
-        if l["ch"] != "_" { out = out + l["ch"] }
         read_char(l)
     }
-    return out
+    var raw = oren_string_slice(l["input"], start, l["position"])
+    return _strip_underscores(raw)
 }
 
 fn read_oct_number(l) {
-    var out = ""
+    var start = l["position"]
     while 1 {
         var ch = l["ch"]
         var is_oct = ch >= "0" && ch <= "7"
         if is_oct || ch == "_" {
-            if ch != "_" { out = out + ch }
             read_char(l)
         } else {
             break
         }
     }
-    return out
+    var raw = oren_string_slice(l["input"], start, l["position"])
+    return _strip_underscores(raw)
 }
 
 fn read_string(l) {

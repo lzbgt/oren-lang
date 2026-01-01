@@ -25,6 +25,10 @@ import global_dce "global_dce.oren"
 import capsule "capsule.oren"
 import intparse "int_lit.oren"
 
+// Compiler process GC hook (C backend runtime).
+// Used sparingly to keep native self-hosting builds within resource bounds.
+ffi oren_gc_collect
+
 fn _bundle_err(ctx, msg) {
     if ctx == nil { return nil }
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -328,6 +332,13 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
     var runtime_src = rtinj.runtime_expand_includes_file(ctx, runtime_path, [])
     if runtime_src == nil { return nil }
 
+    // Include expansion can allocate many temporary strings/slices.
+    // Collecting here is expensive (full heap scan) so we only do it in "aggressive"
+    // compiler GC mode (used for native self-hosting / very large programs).
+    if ctx["__compiler_gc_aggressive"] == true {
+        oren_gc_collect()
+    }
+
     // Debug aid: dump expanded runtime after include expansion, before parsing.
     // This is intentionally opt-in because the expanded runtime is large.
     var dump_runtime = oren_env("OREN_DUMP_NATIVE_RUNTIME")
@@ -373,6 +384,12 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         return nil
     }
     if _bundle_validate_runtime_global_consts(ctx, runtime_prog) == false { return nil }
+
+    // Parser/lexer temporaries become unreachable after building the runtime AST.
+    // Collect here so long native builds don't accumulate dead objects.
+    if ctx["__compiler_gc_aggressive"] == true {
+        oren_gc_collect()
+    }
     return runtime_prog
 }
 
@@ -450,6 +467,19 @@ fn prepare_native_runtime_bundle(ctx, backend, linked, platform, opts) {
     if inject_runtime == false {
         return {"inject_runtime": false, "runtime_prog": nil, "linked2": linked, "runtime_stmts": [], "user_stmts": linked["statements"]}
     }
+
+    // Heuristic for whether to spend time doing full-heap GC during compilation.
+    // - For small programs this is wasted work and can push builds over test timeouts.
+    // - For self-hosting / huge graphs, it prevents runaway memory growth from dead temporaries.
+    var force_gc = oren_env("OREN_COMPILER_GC")
+    var aggressive_gc = (force_gc == "1" || force_gc == "true")
+    if aggressive_gc == false {
+        var st = linked["statements"]
+        if st != nil && oren_list_len(st) >= 20000 {
+            aggressive_gc = true
+        }
+    }
+    ctx["__compiler_gc_aggressive"] = aggressive_gc
 
     var runtime_prog = load_and_parse_runtime_native(ctx, runtime_path)
     if runtime_prog == nil { return nil }

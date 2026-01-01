@@ -36,7 +36,7 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
                 // pre: native_capsule_sys_bsdthread_register_pre()
-                var bl_bsdthread_pre = oren_list_len(ctx["code"])
+                var bl_bsdthread_pre = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_bsdthread_pre, "name": "native_capsule_sys_bsdthread_register_pre"})
     
@@ -82,10 +82,10 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                 emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
     
                 // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno (so callers can debug).
-                var br_ok = oren_list_len(ctx["code"])
+                var br_ok = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.CC ok
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = 0 - X0 = -errno
-                var ok_pos = oren_list_len(ctx["code"])
+                var ok_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 return true
             }
@@ -95,7 +95,7 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                 compile_expr(ctx, args[0]) // ptr to int[2] -> X0
     
                 // pre: native_capsule_sys_pipe_pre(ptr) -> ptr
-                var bl_pipe_pre = oren_list_len(ctx["code"])
+                var bl_pipe_pre = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_pre, "name": "native_capsule_sys_pipe_pre"})
                 
@@ -127,16 +127,16 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
     
                     // macOS syscall convention: on error, carry is set and X0 contains errno (positive).
                     // Do not store fds on error. Normalize to X0=-errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
     
                     // Error path: X0 = -errno, skip stores + post-hook.
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var br_end = oren_list_len(ctx["code"])
+                    var br_end = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B end
     
                     // Ok path:
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     
                     // Store X0 -> [X2]
                     push_u32_le(ctx["code"], insn_str_ptr(0, 2))
@@ -148,12 +148,12 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_movz(0, 0)) // rc=0
                     push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1=rc
                     push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // X0=ptr
-                    var bl_pipe_post = oren_list_len(ctx["code"])
+                    var bl_pipe_post = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post, "name": "native_capsule_sys_pipe_post"})
                     push_u32_le(ctx["code"], insn_movz(0, 0)) // return 0
     
-                    var end_pos = oren_list_len(ctx["code"])
+                    var end_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                     set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
                 } else {
@@ -203,7 +203,7 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                     // If rc==0: widen fds into caller buffer.
                     push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
                     // B.NE skip_store
-                    var br_skip = oren_list_len(ctx["code"])
+                    var br_skip = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
     
                     // Load both 32-bit fds in one 64-bit word, then split:
@@ -225,7 +225,7 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_add_imm(6, 2, 8))
                     push_u32_le(ctx["code"], insn_str_ptr(5, 6))
     
-                    var skip_pos = oren_list_len(ctx["code"])
+                    var skip_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_skip, insn_b_cond((skip_pos - br_skip) / 4, 1)) // NE
     
                     // Restore callee-saved regs and pop scratch frame.
@@ -242,7 +242,7 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                     // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
                     push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // X0=ptr (caller buffer)
                     push_u32_le(ctx["code"], insn_mov_reg(1, 3)) // X1=rc
-                    var bl_pipe_post2 = oren_list_len(ctx["code"])
+                    var bl_pipe_post2 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post2, "name": "native_capsule_sys_pipe_post"})
                     push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // return rc
@@ -263,7 +263,7 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
                 // pre: native_capsule_sys_clone_pre()
-                var bl_clone_pre = oren_list_len(ctx["code"])
+                var bl_clone_pre = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_clone_pre, "name": "native_capsule_sys_clone_pre"})
     
@@ -336,12 +336,12 @@ fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
                 //
                 // Output:
                 // - X0 = old value
-                var loop_pos = oren_list_len(ctx["code"])
+                var loop_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldaxr(3, 2))        // X3 = *ptr (acquire)
                 push_u32_le(ctx["code"], insn_add_reg(5, 3, 1))   // X5 = old + addend
                 push_u32_le(ctx["code"], insn_stlxr(4, 5, 2))     // W4 = status, *ptr = new (release)
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 31))     // status ?= 0
-                var br_retry = oren_list_len(ctx["code"])
+                var br_retry = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)                       // B.NE loop
                 set_u32_le(ctx["code"], br_retry, insn_b_cond((loop_pos - br_retry) / 4, 1)) // NE
     

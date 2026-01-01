@@ -181,22 +181,9 @@ fn include_last_err() { return INCLUDE_LAST_ERR }
 fn _include_join_parts(parts) {
     if parts == nil { return "" }
     if oren_list_len(parts) == 0 { return "" }
-    var cur = parts
-    while oren_list_len(cur) > 1 {
-        var next = []
-        var i = 0
-        var n = oren_list_len(cur)
-        while i < n {
-            if i + 1 < n {
-                oren_list_push(next, cur[i] + cur[i + 1])
-            } else {
-                oren_list_push(next, cur[i])
-            }
-            i = i + 2
-        }
-        cur = next
-    }
-    return cur[0]
+    // Use a runtime helper that preallocates exactly once.
+    // This avoids huge intermediate allocations when expanding many includes.
+    return oren_string_join(parts)
 }
 
 fn expand_includes_file(full_path, include_stack) {

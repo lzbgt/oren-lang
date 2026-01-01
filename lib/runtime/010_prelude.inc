@@ -20,7 +20,7 @@ static OrenList *OREN_ARG_LIST = NULL;
 static OrenValue OREN_RESULT_VALUE;
 
 // Forward decl: runtime uses "const string" keys in hot paths without heap allocation.
-static OrenValue oren_string_const(const char* s);
+OrenValue oren_string_const(const char* s);
 
 typedef enum {
     OREN_ALLOC_STRING = 1,
@@ -73,6 +73,47 @@ static size_t raw_mmap_threshold_cached(void) {
     cached = thr;
     return cached;
 }
+
+// --- GC auto-collection (rolling) ---
+//
+// The safepoint+stop-the-world collector requires some thread to *initiate* a collection.
+// In rolling builds we enable a conservative auto-trigger in single-threaded programs so
+// long-running tools (like the compiler self-hosting stage2) don't balloon to multi‑GB RSS.
+//
+// Multi-threaded auto-GC remains opt-in; initiating a stop-the-world collection while other
+// threads don't reach safepoints would deadlock. Keep this conservative until concurrency
+// semantics are formalized.
+static size_t gc_alloc_threshold_cached(void) {
+    // 0 disables auto-GC.
+    // Default tuned for compiler workloads; adjust via env as needed.
+    static size_t cached = (size_t)-1;
+    if (cached != (size_t)-1) return cached;
+    cached = parse_env_size(getenv("OREN_GC_ALLOC_THRESHOLD"), 200000u);
+    return cached;
+}
+
+static int gc_auto_enabled_cached(void) {
+    // 0 disables; any other non-empty numeric value enables. Default: disabled.
+    static int cached = -1;
+    if (cached != -1) return cached;
+    // Default off: keep baseline fast and avoid unexpected stop-the-world pauses.
+    // Compiler self-hosting can opt in via env (Makefile stage2 does this).
+    size_t v = parse_env_size(getenv("OREN_GC_AUTO"), 0u);
+    cached = (v != 0u);
+    return cached;
+}
+
+static size_t gc_stack_scan_limit_bytes_cached(void) {
+    // 0 disables the limit (scan the full [sp,top] range).
+    // Keep this bounded by default to avoid pathological GC pauses on deep stacks.
+    static size_t cached = (size_t)-1;
+    if (cached != (size_t)-1) return cached;
+    cached = parse_env_size(getenv("OREN_GC_STACK_SCAN_LIMIT_BYTES"), (size_t)(2u << 20)); // 2 MiB
+    return cached;
+}
+
+static size_t g_gc_allocs_since_collect = 0;
+static int g_gc_auto_pending = 0;
 
 typedef struct {
     uint64_t magic;
@@ -242,6 +283,10 @@ typedef struct OrenThreadState {
     uint64_t call_depth_max;
     jmp_buf panic_buf;
     int has_panic_buf;
+    // Best-effort register snapshot for conservative GC (setjmp spills caller-saved state).
+    // Cleared by the collector after each collection so stale snapshots don't pin objects.
+    jmp_buf gc_buf;
+    int has_gc_buf;
     struct OrenThreadState* next;
 } OrenThreadState;
 
@@ -481,6 +526,26 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     g_allocs = n;
     oren_alloc_index_put_locked(n);
     pthread_mutex_unlock(&g_alloc_mutex);
+
+#ifndef OREN_NO_GC
+    // Single-thread auto-collection: keep memory bounded for long-running tools.
+    if (!gc_auto_enabled_cached()) return;
+    // Avoid stop-the-world coordination in multi-threaded programs by default.
+    if (g_threads_total > 1) return;
+    size_t thr = gc_alloc_threshold_cached();
+    if (thr == 0u) return;
+    g_gc_allocs_since_collect++;
+    if (g_gc_allocs_since_collect < thr) return;
+    g_gc_allocs_since_collect = 0;
+
+    // Avoid deadlocks: skip if the collections mutex is already held (or contended).
+    // Mark a pending GC request instead; the next `oren_gc_safepoint()` will initiate the collection.
+    if (pthread_mutex_trylock(&g_collection_mutex) != 0) return;
+    if (!g_gc_in_progress) {
+        g_gc_auto_pending = 1;
+    }
+    pthread_mutex_unlock(&g_collection_mutex);
+#endif
 }
 
 static OrenAllocNode* oren_find_node(void* ptr) {
@@ -577,6 +642,7 @@ static void oren_mark_value(OrenValue v) {
 }
 
 static int oren_type_valid(int t);
+static void oren_mark_ptr_range_words(void* a, void* b);
 static void oren_mark_stack_range(void* a, void* b);
 
 void oren_gc_collect() {
@@ -631,6 +697,13 @@ void oren_gc_collect() {
     // Conservative stack scanning over all registered threads.
     int self_sp_marker = 0;
     void* self_sp = (void*)&self_sp_marker;
+
+    // Snapshot this thread's registers so GC can see OrenValues kept in registers under -O2.
+    // We scan the saved register image as raw pointer words.
+    jmp_buf self_regs;
+    (void)setjmp(self_regs);
+    oren_mark_ptr_range_words((void*)&self_regs, (void*)((char*)&self_regs + sizeof(self_regs)));
+
     OrenThreadState* cur = g_thread_states;
     while (cur) {
         void* sp = cur->stack_sp;
@@ -640,6 +713,21 @@ void oren_gc_collect() {
         }
         if (sp != NULL && top != NULL) {
             oren_mark_stack_range(sp, top);
+
+            // Extra conservative scan: look for raw heap pointers even when the compiler
+            // has split an OrenValue across registers/stack slots under -O2.
+            uintptr_t lo = (uintptr_t)sp;
+            uintptr_t hi = (uintptr_t)top;
+            if (lo > hi) { uintptr_t tmp = lo; lo = hi; hi = tmp; }
+            size_t lim = gc_stack_scan_limit_bytes_cached();
+            if (lim != 0u && hi > lo && (hi - lo) > (uintptr_t)lim) {
+                hi = lo + (uintptr_t)lim;
+            }
+            oren_mark_ptr_range_words((void*)lo, (void*)hi);
+        }
+        if (cur->has_gc_buf) {
+            oren_mark_ptr_range_words((void*)&cur->gc_buf, (void*)((char*)&cur->gc_buf + sizeof(cur->gc_buf)));
+            cur->has_gc_buf = 0;
         }
         cur = cur->next;
     }
@@ -710,6 +798,30 @@ void oren_gc_safepoint() {
     int sp_marker = 0;
     st->stack_sp = (void*)&sp_marker;
 
+    // Auto-GC initiation (single-thread only): request is set by allocation counting
+    // and collected only at this safepoint call boundary (keeps stack/register state safe).
+    int do_auto = 0;
+    lock_collections();
+    if (g_gc_auto_pending && !g_gc_in_progress && g_threads_total <= 1) {
+        g_gc_auto_pending = 0;
+        do_auto = 1;
+    }
+    unlock_collections();
+    if (do_auto) {
+        oren_gc_collect();
+        return;
+    }
+
+    // If a collection is requested, snapshot registers so the collector can conservatively
+    // find live pointers even when locals are optimized into registers.
+    lock_collections();
+    int req = g_gc_requested;
+    unlock_collections();
+    if (req) {
+        (void)setjmp(st->gc_buf);
+        st->has_gc_buf = 1;
+    }
+
     lock_collections();
     if (!g_gc_requested) {
         unlock_collections();
@@ -735,6 +847,74 @@ static int oren_type_valid(int t) {
     return t >= OREN_TYPE_NIL && t <= OREN_TYPE_F64_BUF;
 }
 
+static void oren_mark_alloc_ptr(void* ptr) {
+#ifdef OREN_NO_GC
+    (void)ptr;
+    return;
+#endif
+    if (!ptr) return;
+    OrenAllocNode* n = oren_find_node(ptr);
+    if (!n || n->freed != 0) return;
+
+    if (n->kind == OREN_ALLOC_STRING) {
+        n->freed = -1;
+        return;
+    }
+    if (n->kind == OREN_ALLOC_LIST) {
+        n->freed = -1;
+        OrenList* lst = (OrenList*)ptr;
+        if (!lst) return;
+        for (int i = 0; i < lst->count; i++) {
+            oren_mark_value(lst->items[i]);
+        }
+        return;
+    }
+    if (n->kind == OREN_ALLOC_MAP) {
+        n->freed = -1;
+        OrenMap* mp = (OrenMap*)ptr;
+        if (!mp) return;
+        for (int i = 0; i < mp->count; i++) {
+            oren_mark_value(mp->keys[i]);
+            oren_mark_value(mp->values[i]);
+        }
+        return;
+    }
+    if (n->kind == OREN_ALLOC_STRUCT) {
+        n->freed = -1;
+        // Best-effort: if this looks like an OrenBuf header, keep its payload alive too.
+        OrenBuf* b = (OrenBuf*)ptr;
+        if (b && (b->elem_size == 1u || b->elem_size == 4u || b->elem_size == 8u)) {
+            if (b->data) {
+                OrenAllocNode* dn = oren_find_node(b->data);
+                if (dn && dn->freed == 0 && (dn->kind == OREN_ALLOC_RAW || dn->kind == OREN_ALLOC_RAW_MMAP)) dn->freed = -1;
+            }
+        }
+        return;
+    }
+
+    // RAW / unknown allocations are leaf nodes from the GC perspective.
+    n->freed = -1;
+}
+
+static void oren_mark_ptr_range_words(void* a, void* b) {
+    uintptr_t lo = (uintptr_t)a;
+    uintptr_t hi = (uintptr_t)b;
+    if (lo == 0 || hi == 0) return;
+    if (lo > hi) {
+        uintptr_t tmp = lo;
+        lo = hi;
+        hi = tmp;
+    }
+    lo &= ~(uintptr_t)0x7;
+    hi &= ~(uintptr_t)0x7;
+    for (uintptr_t p = lo; p + sizeof(uintptr_t) <= hi; p += sizeof(uintptr_t)) {
+        uintptr_t w = 0;
+        memcpy(&w, (void*)p, sizeof(w));
+        if ((w & (uintptr_t)0x7) != 0) continue;
+        oren_mark_alloc_ptr((void*)w);
+    }
+}
+
 static void oren_mark_stack_range(void* a, void* b) {
     uintptr_t lo = (uintptr_t)a;
     uintptr_t hi = (uintptr_t)b;
@@ -747,6 +927,8 @@ static void oren_mark_stack_range(void* a, void* b) {
     lo &= ~(uintptr_t)0x7;
     hi &= ~(uintptr_t)0x7;
 
+    // OrenValue-shaped stack scan (fast path): scan for well-formed OrenValues and mark them.
+    // Register-only values are handled separately via `setjmp` snapshots + pointer scanning.
     for (uintptr_t p = lo; p + sizeof(OrenValue) <= hi; p += 8) {
         OrenValue v;
         memcpy(&v, (void*)p, sizeof(OrenValue));

@@ -11,6 +11,39 @@
 // literals as tracked via `oren_ensure_tracked(ptr, kind=1)` so map key-kind inference can be safe
 // without relying on pointer/int heuristics.
 var g_intern_cstr_cache = 0 // map<int ptr -> string_ptr>
+var g_single_byte_string_cache = 0 // ptr to [256] pointers (untracked; roots keep strings alive)
+
+fn _oren_init_single_byte_string_cache() {
+    if g_single_byte_string_cache != 0 { return 0 }
+
+    // A 256-entry table of pointers to tracked 1-byte strings.
+    // We keep the table itself untracked (leak-by-design, bounded) and root each string
+    // so GC cannot collect them even though they are only referenced by a global pointer table.
+    var table = malloc(256 * 8)
+    if table == 0 { oren_panic("single_byte_string_cache: malloc failed") }
+    if table == -1 { oren_panic("single_byte_string_cache: malloc failed") }
+
+    var i = 0
+    while i < 256 {
+        var s = malloc(2)
+        if s == 0 { oren_panic("single_byte_string_cache: malloc failed") }
+        if s == -1 { oren_panic("single_byte_string_cache: malloc failed") }
+        ptr_set_byte(s + 0, i)
+        ptr_set_byte(s + 1, 0)
+        oren_track_alloc(s, 2, 1)
+        native_gc_register_root(s)
+        ptr_set(table + i * 8, s)
+        i = i + 1
+    }
+
+    g_single_byte_string_cache = table
+    return 0
+}
+
+fn _oren_string_from_single_byte(b) {
+    if g_single_byte_string_cache == 0 { _oren_init_single_byte_string_cache() }
+    return ptr_get(g_single_byte_string_cache + (b & 255) * 8)
+}
 
 fn oren_intern_cstr(cstr_ptr) {
     // Convert a const C-string pointer (usually from embedded string literal data)
@@ -63,12 +96,7 @@ fn oren_string_char_at(s, idx) {
     if idx < 0 || idx >= len {
         oren_panic("char_at index out of range")
     }
-    var out = malloc(2)
-    if out == 0 { oren_panic("malloc failed") }
-    ptr_set_byte(out + 0, ptr_get_byte(iadd(s, idx)))
-    ptr_set_byte(out + 1, 0)
-    oren_track_alloc(out, 2, 1)
-    return out
+    return _oren_string_from_single_byte(ptr_get_byte(iadd(s, idx)))
 }
 
 fn oren_char(code) {
@@ -79,13 +107,7 @@ fn oren_char(code) {
     //   (strings are C strings; iteration yields bytes until NUL).
     // - Values outside [0..255] are masked to keep behavior deterministic across backends.
     if code == nil { oren_panic("char expects int") }
-    var b = code & 255
-    var out = malloc(2)
-    if out == 0 { oren_panic("malloc failed") }
-    ptr_set_byte(out + 0, b)
-    ptr_set_byte(out + 1, 0)
-    oren_track_alloc(out, 2, 1)
-    return out
+    return _oren_string_from_single_byte(code)
 }
 
 fn oren_string_to_float_bits(s) {

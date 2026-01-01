@@ -168,7 +168,7 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
                     return nil
                 }
                 // r10 = &global_slot ; rdx = *(u64*)r10
-                var lea_pos0 = oren_list_len(ctx["code"])
+                var lea_pos0 = bytes_len(ctx["code"])
                 bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
                 oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
 	                bytes_extend(ctx["code"], insn_mov_r64_mr64(2, 10))
@@ -264,17 +264,17 @@ fn _new_label(ctx, prefix) {
 }
 
 fn _emit_label(ctx, labels, name) {
-    labels[name] = oren_list_len(ctx["code"])
+    labels[name] = bytes_len(ctx["code"])
 }
 
 fn _emit_jmp_to_label(ctx, local_fixups, name) {
-    var pos = oren_list_len(ctx["code"])
+    var pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_jmp_rel32(0))
     oren_list_push(local_fixups, {"disp_pos": pos + 1, "insn_start": pos, "insn_len": 5, "label": name})
 }
 
 fn _emit_jcc_to_label(ctx, local_fixups, cc, name) {
-    var pos = oren_list_len(ctx["code"])
+    var pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_jcc_rel32(cc, 0))
     oren_list_push(local_fixups, {"disp_pos": pos + 2, "insn_start": pos, "insn_len": 6, "label": name})
 }

@@ -18,6 +18,9 @@ import abi "native_abi.oren"
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return codegen.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return codegen.bytes_len(b) }
+fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 fn push_u32_le(b, n) { return codegen.push_u32_le(b, n) }
 fn push_u64_le(b, n) { return codegen.push_u64_le(b, n) }
 fn set_u32_le(b, off, n) { return codegen.set_u32_le(b, off, n) }
@@ -73,7 +76,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // We record offsets for RVAs and patch descriptors later.
     var rdata = bytes_new()
 
-    var off_import_desc = oren_list_len(rdata)
+    var off_import_desc = bytes_len(rdata)
     // 4 descriptors * 20 bytes: kernel32 + ws2_32 + shell32 + null
     push_u8_n(rdata, 0, 80)
 
@@ -151,38 +154,38 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     var n_s32 = oren_list_len(shell32_funcs)
 
     // Align to 8 for thunk arrays.
-    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
-    var off_ilt_k32 = oren_list_len(rdata)
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_ilt_k32 = bytes_len(rdata)
     // ILT(KERNEL32): imports + null entry
     var i0 = 0
     while i0 < n_k32 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
 
-    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
-    var off_ilt_ws2 = oren_list_len(rdata)
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_ilt_ws2 = bytes_len(rdata)
     // ILT(WS2_32): imports + null entry
     i0 = 0
     while i0 < n_ws2 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
 
-    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
-    var off_ilt_s32 = oren_list_len(rdata)
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_ilt_s32 = bytes_len(rdata)
     // ILT(SHELL32): imports + null entry
     i0 = 0
     while i0 < n_s32 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
 
-    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
-    var off_iat_k32 = oren_list_len(rdata)
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_iat_k32 = bytes_len(rdata)
     // IAT(KERNEL32): imports + null entry
     var i1 = 0
     while i1 < n_k32 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
 
-    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
-    var off_iat_ws2 = oren_list_len(rdata)
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_iat_ws2 = bytes_len(rdata)
     // IAT(WS2_32): imports + null entry
     i1 = 0
     while i1 < n_ws2 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
 
-    while int_mod(oren_list_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
-    var off_iat_s32 = oren_list_len(rdata)
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_iat_s32 = bytes_len(rdata)
     // IAT(SHELL32): imports + null entry
     i1 = 0
     while i1 < n_s32 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
@@ -192,36 +195,36 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     i0 = 0
     while i0 < n_k32 {
         var nm = kernel32_funcs[i0]
-        hn_offs[nm] = oren_list_len(rdata)
+        hn_offs[nm] = bytes_len(rdata)
         push_u16_le(rdata, 0)
         push_ascii_z(rdata, nm)
-        if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
         i0 = i0 + 1
     }
     i0 = 0
     while i0 < n_ws2 {
         var nmw = ws2_32_funcs[i0]
-        hn_offs[nmw] = oren_list_len(rdata)
+        hn_offs[nmw] = bytes_len(rdata)
         push_u16_le(rdata, 0)
         push_ascii_z(rdata, nmw)
-        if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
         i0 = i0 + 1
     }
     i0 = 0
     while i0 < n_s32 {
         var nm2 = shell32_funcs[i0]
-        hn_offs[nm2] = oren_list_len(rdata)
+        hn_offs[nm2] = bytes_len(rdata)
         push_u16_le(rdata, 0)
         push_ascii_z(rdata, nm2)
-        if int_mod(oren_list_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
         i0 = i0 + 1
     }
 
-    var off_dll_k32 = oren_list_len(rdata)
+    var off_dll_k32 = bytes_len(rdata)
     push_ascii_z(rdata, "KERNEL32.dll")
-    var off_dll_ws2 = oren_list_len(rdata)
+    var off_dll_ws2 = bytes_len(rdata)
     push_ascii_z(rdata, "WS2_32.dll")
-    var off_dll_s32 = oren_list_len(rdata)
+    var off_dll_s32 = bytes_len(rdata)
     push_ascii_z(rdata, "SHELL32.dll")
 
     // Section layout constants.
@@ -236,10 +239,10 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // NOTE: .rdata must not overlap .text in virtual address space. When .text grows beyond
     // 1 page, the next section RVA must advance accordingly (Windows loader rejects overlap).
     var text_rva = abi.x64_v0_windows_text_rva()
-    var text_vsize = oren_list_len(code)
+    var text_vsize = bytes_len(code)
     var rdata_rva = text_rva + align_up(text_vsize, sect_align)
     // `.data` follows `.rdata` (SectAlign pages). `.rdata` contains only the import table.
-    var data_rva = rdata_rva + align_up(oren_list_len(rdata), sect_align)
+    var data_rva = rdata_rva + align_up(bytes_len(rdata), sect_align)
 
     // Patch thunk entries with RVA to hint/name.
     i0 = 0
@@ -306,7 +309,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // Keep it 8-byte aligned for u64 tables.
     var data = bytes_new()
     if user_data != nil { bytes_extend(data, user_data) }
-    while int_mod(oren_list_len(data), 8) != 0 { bytes_push(data, 0) }
+    while int_mod(bytes_len(data), 8) != 0 { bytes_push(data, 0) }
 
     // ---- Apply code fixups (rel32 call + rip-relative IAT load) ----
     //
@@ -459,9 +462,9 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
 
     // ---- Build headers ----
     var n_sections = 3
-    var text_raw_size = align_up(oren_list_len(code), file_align)
-    var rdata_raw_size = align_up(oren_list_len(rdata), file_align)
-    var data_raw_size = align_up(oren_list_len(data), file_align)
+    var text_raw_size = align_up(bytes_len(code), file_align)
+    var rdata_raw_size = align_up(bytes_len(rdata), file_align)
+    var data_raw_size = align_up(bytes_len(data), file_align)
 
     // PE headers size:
     // DOS(64) + stub/pad to e_lfanew (0x80) + PE sig(4) + COFF(20) + OPT(240) + SECHDR(40*n)
@@ -477,7 +480,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     var size_of_code = text_raw_size
     var size_of_init_data = rdata_raw_size + data_raw_size
 
-    var size_of_image = align_up(data_rva + align_up(oren_list_len(data), sect_align), sect_align)
+    var size_of_image = align_up(data_rva + align_up(bytes_len(data), sect_align), sect_align)
 
     // ---- DOS header ----
     var out = bytes_new()
@@ -487,7 +490,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // e_lfanew at offset 0x3C
     push_u32_le(out, pe_off)
     // pad to pe_off
-    while oren_list_len(out) < pe_off { bytes_push(out, 0) }
+    while bytes_len(out) < pe_off { bytes_push(out, 0) }
 
     // ---- PE signature ----
     bytes_push(out, 80); bytes_push(out, 69); bytes_push(out, 0); bytes_push(out, 0) // "PE\0\0"
@@ -502,7 +505,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     push_u16_le(out, 34)  // Characteristics: EXECUTABLE | LARGE_ADDRESS_AWARE
 
     // ---- Optional header (PE32+, 240 bytes) ----
-    var opt_start = oren_list_len(out)
+    var opt_start = bytes_len(out)
     push_u16_le(out, 523) // 0x20B
     bytes_push(out, 0) // MajorLinkerVersion
     bytes_push(out, 0) // MinorLinkerVersion
@@ -554,7 +557,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     }
 
     // Pad optional header to 240 bytes
-    while oren_list_len(out) - opt_start < 240 { bytes_push(out, 0) }
+    while bytes_len(out) - opt_start < 240 { bytes_push(out, 0) }
 
     // ---- Section headers (3 * 40 bytes) ----
     // .text
@@ -565,7 +568,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
         j = j + 1
     }
-    push_u32_le(out, oren_list_len(code)) // VirtualSize
+    push_u32_le(out, bytes_len(code)) // VirtualSize
     push_u32_le(out, text_rva)
     push_u32_le(out, text_raw_size)
     push_u32_le(out, text_raw_ptr)
@@ -581,7 +584,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
         j = j + 1
     }
-    push_u32_le(out, oren_list_len(rdata))
+    push_u32_le(out, bytes_len(rdata))
     push_u32_le(out, rdata_rva)
     push_u32_le(out, rdata_raw_size)
     push_u32_le(out, rdata_raw_ptr)
@@ -597,7 +600,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
         j = j + 1
     }
-    push_u32_le(out, oren_list_len(data)) // VirtualSize
+    push_u32_le(out, bytes_len(data)) // VirtualSize
     push_u32_le(out, data_rva)
     push_u32_le(out, data_raw_size)
     push_u32_le(out, data_raw_ptr)
@@ -606,20 +609,20 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     push_u32_le(out, 3221225536) // CNT_INITIALIZED_DATA | MEM_READ | MEM_WRITE (0xC0000040)
 
     // Pad headers to SizeOfHeaders
-    while oren_list_len(out) < size_of_headers { bytes_push(out, 0) }
+    while bytes_len(out) < size_of_headers { bytes_push(out, 0) }
 
     // ---- Section raw data ----
     // .text raw
     bytes_extend(out, code)
-    while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
+    while int_mod(bytes_len(out), file_align) != 0 { bytes_push(out, 0) }
     // .rdata raw
     bytes_extend(out, rdata)
-    while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
+    while int_mod(bytes_len(out), file_align) != 0 { bytes_push(out, 0) }
     // .data raw
     bytes_extend(out, data)
-    while int_mod(oren_list_len(out), file_align) != 0 { bytes_push(out, 0) }
+    while int_mod(bytes_len(out), file_align) != 0 { bytes_push(out, 0) }
 
-    var w = oren_write_bytes(out_path, out)
+    var w = oren_write_bytes(out_path, bytes_finalize(out))
     if oren_is_err(w) {
         print("x64 pe: failed to write: " + out_path)
         var code = oren_err_code(w)

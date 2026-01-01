@@ -52,7 +52,8 @@ fn _cache_compiler_sig() {
     if args != nil && oren_list_len(args) > 0 {
         var exe = args[0]
         if exe != nil && exe != "" && file_exists(exe) {
-            var bs = oren_read_bytes(exe)
+            // Prefer u8_buf to avoid boxing each byte as an int (can blow up memory for big binaries).
+            var bs = oren_read_u8_buf(exe)
             if !oren_is_err(bs) {
                 return _sha256_hex(bs)
             }
@@ -384,7 +385,8 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     if build_cfg != nil && build_cfg["stdlib_mode"] == "obc" {
         var std_obc = build_cfg["stdlib_obc"]
         if std_obc != nil && std_obc != "" {
-            var bs = oren_read_bytes(std_obc)
+            // OBC blobs can be large; use u8_buf to keep memory bounded.
+            var bs = oren_read_u8_buf(std_obc)
             if oren_is_err(bs) {
                 return {"ok": false, "err": "failed to read stdlib obc: " + std_obc}
             }
@@ -396,7 +398,8 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         while li < oren_list_len(build_cfg["link_obc"]) {
             var lp = build_cfg["link_obc"][li]
             if lp != nil && lp != "" {
-                var bs2 = oren_read_bytes(lp)
+                // OBC blobs can be large; use u8_buf to keep memory bounded.
+                var bs2 = oren_read_u8_buf(lp)
                 if oren_is_err(bs2) {
                     return {"ok": false, "err": "failed to read link obc: " + lp}
                 }
@@ -486,12 +489,13 @@ fn cache_artifact_path(cache_dir, key) {
 }
 
 fn cache_try_restore_artifact(cache_dir, key, out_path, chmod_mode) {
-    // Returns {"hit":bool, "bytes":list<int>, "err":string}
+    // Returns {"hit":bool, "bytes":list<int>|u8_buf, "err":string}
     var p = cache_artifact_path(cache_dir, key)
     if !file_exists(p) {
         return {"hit": false}
     }
-    var bs = oren_read_bytes(p)
+    // Artifacts can be large; use u8_buf to keep memory bounded.
+    var bs = oren_read_u8_buf(p)
     if oren_is_err(bs) {
         return {"hit": false, "err": "cache read failed: " + p}
     }

@@ -18,6 +18,9 @@ import nabi "native_abi.oren"
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_finalize(b) { return core.bytes_finalize(b) }
 fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
 fn align_up(n, align) { return core.align_up(n, align) }
 fn ceil_div(a, b) { return core.ceil_div(a, b) }
@@ -114,8 +117,8 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     // Globals live in `.data` as 8-byte slots. Do not rely on runtime execution order to
     // initialize them; the entry stub calls `__top_level__` before `main` to handle user
     // initializers deterministically.
-    while int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
-    var data_off = oren_list_len(ctx["data"])
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var data_off = bytes_len(ctx["data"])
     var k = 0
     while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
     ctx["globals"][nm] = data_off
@@ -307,7 +310,7 @@ fn native_compile_program_arm64(linked, platform) {
     var target_os_id = 1
     if ctx["platform"]["os"] == "linux" { target_os_id = 2 }
     push_u32_le(ctx["code"], insn_movz(0, target_os_id))
-    var bl_init = oren_list_len(ctx["code"])
+    var bl_init = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
 
@@ -330,7 +333,7 @@ fn native_compile_program_arm64(linked, platform) {
     // native_runtime_set_args(argc, argv)
     push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // argc
     push_u32_le(ctx["code"], insn_mov_reg(1, 20)) // argv
-    var bl_set_args = oren_list_len(ctx["code"])
+    var bl_set_args = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_args, "name": "native_runtime_set_args"})
 
@@ -340,13 +343,13 @@ fn native_compile_program_arm64(linked, platform) {
     ctx["stack_size"] = ctx["stack_size"] - 16
 
     push_u32_le(ctx["code"], insn_mov_reg(0, 21)) // envp
-    var bl_set_envp = oren_list_len(ctx["code"])
+    var bl_set_envp = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
 
     // Initialize runtime capsule mode (defense-in-depth; runtime-side deny-by-default).
     // This reads envp and sets global capsule flags/mask before user code runs.
-    var bl_capsule = oren_list_len(ctx["code"])
+    var bl_capsule = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
 
@@ -356,42 +359,42 @@ fn native_compile_program_arm64(linked, platform) {
     var gc_default = 1
     if ctx["platform"]["no_gc"] == true { gc_default = 0 }
     push_u32_le(ctx["code"], insn_movz(0, gc_default))
-    var bl_init_gc = oren_list_len(ctx["code"])
+    var bl_init_gc = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init_gc, "name": "native_runtime_init_gc_mode"})
 
     if platform["debug"] == true {
-        var debug_adr_pos = oren_list_len(ctx["code"])
+        var debug_adr_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         push_u32_le(ctx["code"], 0)
         ctx["debug_fixup_pos"] = debug_adr_pos
         
-        var static_addr_pos = oren_list_len(ctx["code"])
+        var static_addr_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], insn_movz(1, 0))
         push_u32_le(ctx["code"], insn_movk(1, 0, 1))
         push_u32_le(ctx["code"], insn_movk(1, 0, 2))
         push_u32_le(ctx["code"], insn_movk(1, 0, 3))
         ctx["debug_static_addr_pos"] = static_addr_pos
         
-        var bl_set_dbg = oren_list_len(ctx["code"])
+        var bl_set_dbg = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_dbg, "name": "oren_set_debug_info"})
     }
 
     // Register Main Thread
     push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
-    var bl_reg = oren_list_len(ctx["code"])
+    var bl_reg = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reg, "name": "oren_register_thread"})
     
     // Run synthesized top-level initializers/statements before main.
-    var bl_top = oren_list_len(ctx["code"])
+    var bl_top = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_top, "name": "__top_level__"})
 
     // Run user main if present; otherwise exit with 0.
     if has_main {
-        var main_fix = oren_list_len(ctx["code"])
+        var main_fix = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
         // Preserve exit code across shutdown
@@ -399,7 +402,7 @@ fn native_compile_program_arm64(linked, platform) {
     } else {
         push_u32_le(ctx["code"], insn_movz(19, 0)) // X19 = 0
     }
-    var shutdown_fix = oren_list_len(ctx["code"])
+    var shutdown_fix = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
     push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // restore X0
@@ -410,7 +413,7 @@ fn native_compile_program_arm64(linked, platform) {
 
     // Record the end of the entry stub so debug symbolization can label it
     // without overlapping the injected runtime function ranges.
-    ctx["entry_stub_end"] = oren_list_len(ctx["code"])
+    ctx["entry_stub_end"] = bytes_len(ctx["code"])
     
     // Inject Runtime (supports `// @include "..."` expansion for modular runtime sources),
     // and re-run whole-program DCE after injection to keep compilation time bounded.

@@ -23,6 +23,9 @@ import nops "native_ops_v0.oren"
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_finalize(b) { return core.bytes_finalize(b) }
 fn push_u32_le(b, n) { return core.push_u32_le(b, n) }
 fn push_u64_le(b, n) { return core.push_u64_le(b, n) }
 fn set_u32_le(b, off, n) { return core.set_u32_le(b, off, n) }

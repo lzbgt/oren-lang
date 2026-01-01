@@ -24,7 +24,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
     var max_call_argc = _max_call_argc_in_ops(ctx, ops)
 
-    var fn_off = oren_list_len(ctx["code"])
+    var fn_off = bytes_len(ctx["code"])
     ctx["functions"][name] = fn_off
 
     bytes_extend(ctx["code"], insn_push_rbp())
@@ -269,7 +269,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if name == "oren_call_depth_exit" { call_depth_enabled = false }
     if call_depth_enabled == true {
         // Call runtime hook (no args).
-        var pos_enter = oren_list_len(ctx["code"])
+        var pos_enter = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_enter, "name": "oren_call_depth_enter"})
     }
@@ -285,7 +285,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         var off_ret = locals["$tmp0"]
         if off_ret == nil { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0) // [tmp] = rax
-        var pos_exit = oren_list_len(ctx["code"])
+        var pos_exit = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_exit, "name": "oren_call_depth_exit"})
         _emit_mov_r64_mrbp(ctx, 0, 0 - off_ret) // rax = [tmp]

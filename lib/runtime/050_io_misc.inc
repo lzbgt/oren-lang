@@ -47,29 +47,65 @@ OrenValue oren_write_file(OrenValue path, OrenValue content) {
 }
 
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes) {
-    if (path.type != OREN_TYPE_STRING || bytes.type != OREN_TYPE_LIST) {
-        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects (string, list<int>)"));
+    if (path.type != OREN_TYPE_STRING || !(bytes.type == OREN_TYPE_LIST || bytes.type == OREN_TYPE_U8_BUF)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes expects (string, list<int>|u8_buf)"));
     }
     FILE *f = fopen(path.as.string_val, "wb");
     if (!f) {
         return oren_err_from_errno("cannot open file for write", path.as.string_val, errno);
     }
-    for (int i = 0; i < bytes.as.list_val->count; i++) {
-        OrenValue b = bytes.as.list_val->items[i];
-        if (b.type != OREN_TYPE_INT) {
+
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b || b->elem_size != 1u) {
             fclose(f);
-            char buf[160];
-            snprintf(buf, sizeof(buf), "write_bytes expects list<int>; element %d has type=%d", i, b.type);
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes: expected u8_buf"));
         }
-        long long v = b.as.int_val;
-        if (v < 0 || v > 255) {
+        if (b->len != 0u && !b->data) {
             fclose(f);
-            char buf[160];
-            snprintf(buf, sizeof(buf), "write_bytes byte out of range: element %d has value=%lld", i, v);
-            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("write_bytes: u8_buf payload is nil"));
         }
-        if (fputc((unsigned char)v, f) == EOF) {
+        if (b->len != 0u) {
+            size_t n = fwrite(b->data, 1, (size_t)b->len, f);
+            if (n != (size_t)b->len) {
+                fclose(f);
+                return oren_err_from_errno("cannot write bytes", path.as.string_val, errno);
+            }
+        }
+        fclose(f);
+        return OREN_NIL;
+    }
+
+    // list<int 0..255>
+    int nbytes = bytes.as.list_val ? bytes.as.list_val->count : 0;
+    if (nbytes > 0) {
+        uint8_t* tmp = (uint8_t*)malloc((size_t)nbytes);
+        if (!tmp) {
+            fclose(f);
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("write_bytes: alloc failed"));
+        }
+        for (int i = 0; i < nbytes; i++) {
+            OrenValue v = bytes.as.list_val->items[i];
+            if (v.type != OREN_TYPE_INT) {
+                free(tmp);
+                fclose(f);
+                char buf[160];
+                snprintf(buf, sizeof(buf), "write_bytes expects list<int>; element %d has type=%d", i, v.type);
+                return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
+            }
+            long long b = v.as.int_val;
+            if (b < 0 || b > 255) {
+                free(tmp);
+                fclose(f);
+                char buf[160];
+                snprintf(buf, sizeof(buf), "write_bytes byte out of range: element %d has value=%lld", i, b);
+                return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
+            }
+            tmp[i] = (uint8_t)b;
+        }
+        size_t nw = fwrite(tmp, 1, (size_t)nbytes, f);
+        free(tmp);
+        if (nw != (size_t)nbytes) {
             fclose(f);
             return oren_err_from_errno("cannot write bytes", path.as.string_val, errno);
         }
@@ -179,19 +215,100 @@ OrenValue oren_read_bytes(OrenValue path) {
     return v;
 }
 
+OrenValue oren_read_u8_buf(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        oren_panic("read_u8_buf expects string path");
+        return OREN_NIL; // Should not be reached
+    }
+
+    FILE *f = fopen(path.as.string_val, "rb");
+    if (!f) {
+        return oren_err_from_errno("cannot open file", path.as.string_val, errno);
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return oren_err_from_errno("read_u8_buf: fseek failed", path.as.string_val, errno);
+    }
+    long size_long = ftell(f);
+    if (size_long < 0) {
+        fclose(f);
+        return oren_err_from_errno("read_u8_buf: ftell failed", path.as.string_val, errno);
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return oren_err_from_errno("read_u8_buf: fseek failed", path.as.string_val, errno);
+    }
+
+    if (size_long > (long)UINT32_MAX) {
+        fclose(f);
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("read_u8_buf: file too large"));
+    }
+    uint32_t size = (uint32_t)size_long;
+
+    OrenValue out = oren_u8_buf_new(oren_int((long long)size));
+    if (oren_is_err(out).as.bool_val) {
+        fclose(f);
+        return out;
+    }
+    if (out.type != OREN_TYPE_U8_BUF || !out.as.buf_val) {
+        fclose(f);
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_u8_buf: invalid buffer"));
+    }
+    OrenBuf* b = out.as.buf_val;
+    if (b->elem_size != 1u) {
+        fclose(f);
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_u8_buf: invalid elem_size"));
+    }
+    if (size > 0 && !b->data) {
+        fclose(f);
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("read_u8_buf: u8_buf payload is nil"));
+    }
+
+    if (size > 0) {
+        size_t nread = fread((void*)b->data, 1, (size_t)size, f);
+        if (nread != (size_t)size) {
+            fclose(f);
+            return oren_err_from_errno("read_u8_buf: short read", path.as.string_val, errno);
+        }
+    }
+    fclose(f);
+    return out;
+}
+
 OrenValue oren_bytes_from_string(OrenValue s) {
     if (s.type != OREN_TYPE_STRING) {
         oren_panic("bytes_from_string expects string");
         return OREN_NIL; // Should not be reached
     }
     size_t n = strlen(s.as.string_val);
+    if (n > (size_t)INT32_MAX) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_from_string: string too large"));
+    }
+
+    lock_collections();
     OrenList* list = malloc(sizeof(OrenList));
+    if (!list) {
+        unlock_collections();
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("bytes_from_string: alloc failed"));
+    }
+    oren_register_alloc(list, OREN_ALLOC_LIST);
+
     list->count = (int)n;
     list->capacity = (int)n;
-    list->items = malloc(sizeof(OrenValue) * n);
-    for (size_t i = 0; i < n; i++) {
-        list->items[i] = oren_int((unsigned char)s.as.string_val[i]);
+    list->items = NULL;
+    if (n > 0) {
+        list->items = malloc(sizeof(OrenValue) * n);
+        if (!list->items) {
+            unlock_collections();
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("bytes_from_string: alloc failed"));
+        }
+        for (size_t i = 0; i < n; i++) {
+            list->items[i] = oren_int((unsigned char)s.as.string_val[i]);
+        }
     }
+    unlock_collections();
+
     OrenValue v;
     v.type = OREN_TYPE_LIST;
     v.as.list_val = list;
@@ -226,6 +343,58 @@ OrenValue oren_string_from_bytes(OrenValue bytes) {
     v.type = OREN_TYPE_STRING;
     v.as.string_val = buf;
     oren_register_alloc(buf, OREN_ALLOC_STRING);
+    return v;
+}
+
+OrenValue oren_string_join(OrenValue parts) {
+    if (parts.type != OREN_TYPE_LIST) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_join expects list<string>"));
+    }
+    OrenList* list = parts.as.list_val;
+    if (!list) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_join: invalid list"));
+    }
+
+    size_t total = 0;
+    for (int i = 0; i < list->count; i++) {
+        OrenValue it = list->items[i];
+        if (it.type == OREN_TYPE_NIL) continue;
+        if (it.type != OREN_TYPE_STRING) {
+            char buf[160];
+            snprintf(buf, sizeof(buf), "string_join expects list<string>; element %d has type=%d", i, it.type);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(buf));
+        }
+        const char* s = it.as.string_val ? it.as.string_val : "";
+        total += strlen(s);
+    }
+
+    // total+1 fits in size_t by construction unless overflowed; best-effort guard.
+    if (total > (SIZE_MAX - 1u)) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_join: size overflow"));
+    }
+
+    char* out = (char*)malloc(total + 1u);
+    if (!out) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_join: out of memory"));
+    }
+
+    char* p = out;
+    for (int i = 0; i < list->count; i++) {
+        OrenValue it = list->items[i];
+        if (it.type != OREN_TYPE_STRING) continue;
+        const char* s = it.as.string_val ? it.as.string_val : "";
+        size_t n = strlen(s);
+        if (n) {
+            memcpy(p, s, n);
+            p += n;
+        }
+    }
+    out[total] = 0;
+
+    OrenValue v;
+    v.type = OREN_TYPE_STRING;
+    v.as.string_val = out;
+    oren_register_alloc(out, OREN_ALLOC_STRING);
     return v;
 }
 
@@ -368,15 +537,28 @@ static void oren_sha256_final(OrenSha256Ctx* ctx, uint8_t out[32]) {
 }
 
 OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) {
-    if (bytes.type != OREN_TYPE_LIST || start.type != OREN_TYPE_INT || length.type != OREN_TYPE_INT) {
-        oren_panic("sha256_range expects (list, int, int)");
+    if (!(bytes.type == OREN_TYPE_LIST || bytes.type == OREN_TYPE_U8_BUF) || start.type != OREN_TYPE_INT || length.type != OREN_TYPE_INT) {
+        oren_panic("sha256_range expects (list<int>|u8_buf, int, int)");
         return OREN_NIL; // Should not be reached
     }
     long long s = start.as.int_val;
     long long n = length.as.int_val;
-    if (s < 0 || n < 0 || s + n > bytes.as.list_val->count) {
+
+    long long total = 0;
+    if (bytes.type == OREN_TYPE_LIST) {
+        total = (long long)bytes.as.list_val->count;
+    } else {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b || b->elem_size != 1u) {
+            oren_panic("sha256_range expects u8_buf");
+            return OREN_NIL;
+        }
+        total = (long long)b->len;
+    }
+
+    if (s < 0 || n < 0 || s + n > total) {
         char buf[256];
-        snprintf(buf, sizeof(buf), "sha256_range out of bounds (s=%lld, n=%lld, count=%d)", s, n, bytes.as.list_val->count);
+        snprintf(buf, sizeof(buf), "sha256_range out of bounds (s=%lld, n=%lld, count=%lld)", s, n, total);
         oren_panic(buf);
         return OREN_NIL; // Should not be reached
     }
@@ -384,33 +566,60 @@ OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) 
     OrenSha256Ctx ctx;
     oren_sha256_init(&ctx);
 
-    for (long long i = 0; i < n; i++) {
-        OrenValue b = bytes.as.list_val->items[(int)(s + i)];
-        if (b.type != OREN_TYPE_INT) {
-            oren_panic("sha256_range expects list of ints");
-            return OREN_NIL; // Should not be reached
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (n > 0 && !b->data) {
+            oren_panic("sha256_range: u8_buf payload is nil");
+            return OREN_NIL;
         }
-        long long v = b.as.int_val;
-        if (v < 0 || v > 255) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "sha256_range byte out of range (val=%lld)", v);
-            oren_panic(buf);
-            return OREN_NIL; // Should not be reached
+        if (n > 0) {
+            if ((uint64_t)n > (uint64_t)SIZE_MAX) {
+                oren_panic("sha256_range: length too large");
+                return OREN_NIL;
+            }
+            oren_sha256_update(&ctx, (uint8_t*)b->data + (size_t)s, (size_t)n);
         }
-        uint8_t byte = (uint8_t)v;
-        oren_sha256_update(&ctx, &byte, 1);
+    } else {
+        for (long long i = 0; i < n; i++) {
+            OrenValue b = bytes.as.list_val->items[(int)(s + i)];
+            if (b.type != OREN_TYPE_INT) {
+                oren_panic("sha256_range expects list of ints");
+                return OREN_NIL; // Should not be reached
+            }
+            long long v = b.as.int_val;
+            if (v < 0 || v > 255) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "sha256_range byte out of range (val=%lld)", v);
+                oren_panic(buf);
+                return OREN_NIL; // Should not be reached
+            }
+            uint8_t byte = (uint8_t)v;
+            oren_sha256_update(&ctx, &byte, 1);
+        }
     }
 
     uint8_t digest[32];
     oren_sha256_final(&ctx, digest);
 
+    lock_collections();
     OrenList* out = malloc(sizeof(OrenList));
+    if (!out) {
+        unlock_collections();
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("sha256_range: alloc failed"));
+    }
+    oren_register_alloc(out, OREN_ALLOC_LIST);
+
     out->count = 32;
     out->capacity = 32;
     out->items = malloc(sizeof(OrenValue) * 32);
+    if (!out->items) {
+        unlock_collections();
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("sha256_range: alloc failed"));
+    }
     for (int i = 0; i < 32; i++) {
         out->items[i] = oren_int(digest[i]);
     }
+    unlock_collections();
     OrenValue v;
     v.type = OREN_TYPE_LIST;
     v.as.list_val = out;
@@ -555,12 +764,17 @@ OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end) {
     if (i < 0) i = 0;
     if (j > len) j = len;
     if (i >= j) {
-        return oren_string("");
+        return oren_string_const("");
     }
     long long n = j - i;
     char* sub = malloc(n + 1);
-    strncpy(sub, str + i, n);
+    if (!sub) {
+        oren_panic("string_slice: malloc failed");
+        return OREN_NIL; // Should not be reached
+    }
+    memcpy(sub, str + i, (size_t)n);
     sub[n] = '\0';
+    oren_register_alloc(sub, OREN_ALLOC_STRING);
     
     OrenValue v;
     v.type = OREN_TYPE_STRING;

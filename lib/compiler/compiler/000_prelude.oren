@@ -197,9 +197,17 @@ fn _bytes_to_hex(bs) {
     return out
 }
 
+fn _bytes_len_any(bs) {
+    if bs == nil { return 0 }
+    // Prefer typed-buffer length when available, otherwise fall back to list length.
+    var n = oren_buf_len(bs)
+    if !oren_is_err(n) { return n }
+    return oren_list_len(bs)
+}
+
 fn _sha256_hex(bs) {
     if bs == nil { return "" }
-    var n = oren_list_len(bs)
+    var n = _bytes_len_any(bs)
     var d = oren_sha256_range(bs, 0, n)
     return _bytes_to_hex(d)
 }

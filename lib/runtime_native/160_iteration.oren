@@ -326,3 +326,41 @@ fn string_concat(a, b) {
     oren_track_alloc(buf, la + lb + 1, 1)
     return buf
 }
+
+fn oren_string_join(parts) {
+    // Join list<string> into one string with a single allocation.
+    if parts == nil { return "" }
+    var n = oren_list_len(parts)
+    if n <= 0 { return "" }
+
+    var total = 0
+    var i = 0
+    while i < n {
+        var s = oren_list_get(parts, i)
+        if s != nil {
+            var ln = oren_string_len(s)
+            if ln > 0 { total = total + ln }
+        }
+        i = i + 1
+    }
+
+    var out = malloc(total + 1)
+    if out == 0 { exit(302) }
+
+    var off = 0
+    i = 0
+    while i < n {
+        var s2 = oren_list_get(parts, i)
+        if s2 != nil {
+            var ln2 = oren_string_len(s2)
+            if ln2 > 0 {
+                oren_memcpy(out + off, s2, ln2)
+                off = off + ln2
+            }
+        }
+        i = i + 1
+    }
+    ptr_set_byte(out + total, 0)
+    oren_track_alloc(out, total + 1, 1) // 1=STRING
+    return out
+}

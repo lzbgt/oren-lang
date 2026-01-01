@@ -137,7 +137,7 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 // Try reuse:
                 // - malloc(): reuse freed blocks (tracked alloc records pointing at object memory)
                 // - malloc_raw(): reuse free node storage (tracking/root nodes), never object blocks
-                var bl_reuse_pos = oren_list_len(ctx["code"])
+                var bl_reuse_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 if fn_name == "malloc" {
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
@@ -150,7 +150,7 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-                var jump_reuse_done = oren_list_len(ctx["code"])
+                var jump_reuse_done = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.NE reuse_done
     
                 // Bump path: candidate_end = heap_ptr (X28) + size
@@ -158,17 +158,17 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_mov_reg(1, 28))      // X1 = heap_ptr
                 push_u32_le(ctx["code"], insn_add_reg(2, 28, 0))   // X2 = heap_ptr + size
                 push_u32_le(ctx["code"], insn_cmp_reg(2, 27))      // cmp end, limit
-                var jump_slow = oren_list_len(ctx["code"])
+                var jump_slow = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.GT slow
     
                 // Fast path: return old heap_ptr, bump X28
                 push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = old heap_ptr
                 push_u32_le(ctx["code"], insn_mov_reg(28, 2)) // X28 = new heap_ptr
-                var jump_end_malloc = oren_list_len(ctx["code"])
+                var jump_end_malloc = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B end
     
                 // Slow path: mmap a fresh chunk (max(size, 64KB))
-                var slow_target = oren_list_len(ctx["code"])
+                var slow_target = bytes_len(ctx["code"])
                 var sys_mmap = abi.darwin_sys_mmap()
                 var mmap_flags = abi.darwin_mmap_flags_private_anon()
                 var mmap_prot = abi.darwin_mmap_prot_read_write()
@@ -189,16 +189,16 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_movz(3, 0))
                 push_u32_le(ctx["code"], insn_movk(3, 1, 1)) // X3 = 0x10000
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 3))
-                var jump_use_chunk = oren_list_len(ctx["code"])
+                var jump_use_chunk = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.LT use_chunk
                 // use size
                 push_u32_le(ctx["code"], insn_mov_reg(3, 0))
-                var jump_choose_end = oren_list_len(ctx["code"])
+                var jump_choose_end = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B choose_end
                 // use_chunk:
-                var chunk_target = oren_list_len(ctx["code"])
+                var chunk_target = bytes_len(ctx["code"])
                 // choose_end:
-                var choose_target = oren_list_len(ctx["code"])
+                var choose_target = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], jump_choose_end, insn_b((choose_target - jump_choose_end) / 4))
     
                 // mmap(0, chunk, PROT=3, flags, -1, 0)
@@ -220,10 +220,10 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
     
                 // Normalize macOS syscall error (carry set, X0=errno) to X0 = -errno.
                 if is_macos {
-                    var br_ok_macos = oren_list_len(ctx["code"])
+                    var br_ok_macos = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos_macos = oren_list_len(ctx["code"])
+                    var ok_pos_macos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok_macos, insn_b_cond((ok_pos_macos - br_ok_macos) / 4, 3)) // CC
                 }
     
@@ -232,7 +232,7 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 // - success: X0 >= 0 (pointer)
                 // - failure: X0 < 0  (-errno)
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-                var br_mmap_ok = oren_list_len(ctx["code"])
+                var br_mmap_ok = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.GE ok
     
                 // Error path: exit(errno)
@@ -244,7 +244,7 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_svc(svc_imm))
     
                 // ok:
-                var mmap_ok_target = oren_list_len(ctx["code"])
+                var mmap_ok_target = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_mmap_ok, insn_b_cond((mmap_ok_target - br_mmap_ok) / 4, 10)) // GE
     
                 // RESTORE X3 (chunk) and X9 (aligned size)
@@ -263,7 +263,7 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 // X0 already holds return ptr (base)
     
                 // Patch branches for bump/mmap paths
-                var end_target = oren_list_len(ctx["code"])
+                var end_target = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], jump_slow, insn_b_cond((slow_target - jump_slow) / 4, 12)) // GT -> slow
                 set_u32_le(ctx["code"], jump_end_malloc, insn_b((end_target - jump_end_malloc) / 4))
                 set_u32_le(ctx["code"], jump_use_chunk, insn_b_cond((chunk_target - jump_use_chunk) / 4, 11)) // LT -> chunk
@@ -272,13 +272,13 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                     // Track allocation (kind = misc)
                     push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
                     push_u32_le(ctx["code"], insn_movz(2, 5))       // kind = 5
-                    var bl_track_pos = oren_list_len(ctx["code"])
+                    var bl_track_pos = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc"})
                 }
                 
                 // Return path
-                var malloc_end = oren_list_len(ctx["code"])
+                var malloc_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], jump_reuse_done, insn_b_cond((malloc_end - jump_reuse_done) / 4, 1)) // B.NE -> reuse_done/end
                 return true
             }
@@ -353,22 +353,22 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 //
                 // Output:
                 // - X0 = old value
-                var loop_pos = oren_list_len(ctx["code"])
+                var loop_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldaxr(3, 2))       // X3 = *ptr (acquire)
                 push_u32_le(ctx["code"], insn_cmp_reg(3, 1))     // old ?= expected
-                var br_fail = oren_list_len(ctx["code"])
+                var br_fail = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)                      // B.NE fail
                 push_u32_le(ctx["code"], insn_stlxr(4, 0, 2))    // W4 = status, *ptr = new (release)
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 31))    // status ?= 0
-                var br_retry = oren_list_len(ctx["code"])
+                var br_retry = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)                      // B.NE loop
-                var br_done = oren_list_len(ctx["code"])
+                var br_done = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)                      // B done
     
-                var fail_pos = oren_list_len(ctx["code"])
+                var fail_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_clrex())           // drop exclusivity when abandoning store
     
-                var done_pos = oren_list_len(ctx["code"])
+                var done_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_fail, insn_b_cond((fail_pos - br_fail) / 4, 1))     // NE
                 set_u32_le(ctx["code"], br_retry, insn_b_cond((loop_pos - br_retry) / 4, 1))   // NE
                 set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))

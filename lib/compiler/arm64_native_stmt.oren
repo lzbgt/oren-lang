@@ -8,6 +8,9 @@ import labi "arm64_abi_linux.oren"
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_finalize(b) { return core.bytes_finalize(b) }
 fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
 fn align_up(n, align) { return core.align_up(n, align) }
 fn ceil_div(a, b) { return core.ceil_div(a, b) }
@@ -77,7 +80,7 @@ fn native_compile_stmt(ctx, stmt) {
         }
 
         // Jump to loop end (patched after body is compiled).
-        var jpos = oren_list_len(ctx["code"])
+        var jpos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(loop["break_jumps"], jpos)
         return nil
@@ -101,12 +104,12 @@ fn native_compile_stmt(ctx, stmt) {
         // - for: post start (so post runs before re-checking condition)
         var cont = loop2["continue_pos"]
         if cont != nil {
-            var back_pos = oren_list_len(ctx["code"])
+            var back_pos = bytes_len(ctx["code"])
             var back_off = (cont - back_pos) / 4
             push_u32_le(ctx["code"], insn_b(back_off))
         } else {
             // Patch later (used for `for`, whose post-start is only known after body compilation).
-            var jpos = oren_list_len(ctx["code"])
+            var jpos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(loop2["continue_jumps"], jpos)
         }
@@ -173,10 +176,10 @@ fn native_compile_stmt(ctx, stmt) {
             // If container is nil, panic deterministically.
             push_u32_le(ctx["code"], insn_movz(4, 0))
             push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
-            var br_non_nil = oren_list_len(ctx["code"])
+            var br_non_nil = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             exprm.native_emit_panic(ctx, "index_set on nil")
-            var non_nil_pos = oren_list_len(ctx["code"])
+            var non_nil_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
 
             // Tier‑1 safety: never read object headers from untracked pointers.
@@ -195,14 +198,14 @@ fn native_compile_stmt(ctx, stmt) {
 
             // node = oren_find_node(container)
             push_u32_le(ctx["code"], insn_mov_reg(0, 19))
-            var bl_find_node = oren_list_len(ctx["code"])
+            var bl_find_node = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
 
             // If node == 0 => not a tracked container => panic deterministically.
             push_u32_le(ctx["code"], insn_movz(4, 0))
             push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
-            var br_node_nonzero = oren_list_len(ctx["code"])
+            var br_node_nonzero = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             var recv_kind0 = stmt["left"]["recv_kind"]
             if recv_kind0 == "list" {
@@ -212,7 +215,7 @@ fn native_compile_stmt(ctx, stmt) {
             } else {
                 exprm.native_emit_panic(ctx, "index_set on non-container (expected list or map)")
             }
-            var node_ok_pos = oren_list_len(ctx["code"])
+            var node_ok_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
 
             // kind = *(node + 16)
@@ -223,15 +226,15 @@ fn native_compile_stmt(ctx, stmt) {
             if recv_kind0 == "list" {
                 emit_load_i64_imm(ctx, 5, 2) // X5 = LIST
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
-                var br_is_list = oren_list_len(ctx["code"])
+                var br_is_list = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
-                var list_ok_pos = oren_list_len(ctx["code"])
+                var list_ok_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_is_list, insn_b_cond((list_ok_pos - br_is_list) / 4, 0)) // EQ
             } else if recv_kind0 == "map" {
                 emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
-                br_to_map = oren_list_len(ctx["code"])
+                br_to_map = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 exprm.native_emit_panic(ctx, "index_set recv_kind=map but value is not a map")
                 // map label is patched later; list block will be skipped by the branch.
@@ -239,16 +242,16 @@ fn native_compile_stmt(ctx, stmt) {
                 // Unknown at compile-time => dynamic kind dispatch (LIST or MAP).
                 emit_load_i64_imm(ctx, 5, 2) // X5 = LIST
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
-                var br_is_list2 = oren_list_len(ctx["code"])
+                var br_is_list2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
                 emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
-                br_to_map = oren_list_len(ctx["code"])
+                br_to_map = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
                 exprm.native_emit_panic(ctx, "index_set on non-container (expected list or map)")
-                var list_pos = oren_list_len(ctx["code"])
+                var list_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_is_list2, insn_b_cond((list_pos - br_is_list2) / 4, 0)) // EQ
                 // If kind==MAP, `br_to_map` is patched later to map_pos.
             }
@@ -264,18 +267,18 @@ fn native_compile_stmt(ctx, stmt) {
             // idx < 0 => panic
             push_u32_le(ctx["code"], insn_movz(4, 0))
             push_u32_le(ctx["code"], insn_cmp_reg(1, 4))
-            var br_nonneg = oren_list_len(ctx["code"])
+            var br_nonneg = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             exprm.native_emit_panic(ctx, "Index out of bounds (negative)")
-            var nonneg_pos = oren_list_len(ctx["code"])
+            var nonneg_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], br_nonneg, insn_b_cond((nonneg_pos - br_nonneg) / 4, 10)) // GE
 
             // idx >= count => panic
             push_u32_le(ctx["code"], insn_cmp_reg(1, 6))
-            var br_in_bounds = oren_list_len(ctx["code"])
+            var br_in_bounds = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             exprm.native_emit_panic(ctx, "Index out of bounds")
-            var in_bounds_pos = oren_list_len(ctx["code"])
+            var in_bounds_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], br_in_bounds, insn_b_cond((in_bounds_pos - br_in_bounds) / 4, 11)) // LT
 
             // buf = *(container + 16)
@@ -284,10 +287,10 @@ fn native_compile_stmt(ctx, stmt) {
             // buf == 0 => panic (should only happen for empty lists, but keep it deterministic)
             push_u32_le(ctx["code"], insn_movz(4, 0))
             push_u32_le(ctx["code"], insn_cmp_reg(6, 4))
-            var br_buf_ok = oren_list_len(ctx["code"])
+            var br_buf_ok = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             exprm.native_emit_panic(ctx, "list buffer is nil")
-            var buf_ok_pos = oren_list_len(ctx["code"])
+            var buf_ok_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], br_buf_ok, insn_b_cond((buf_ok_pos - br_buf_ok) / 4, 1)) // NE
 
             // addr = buf + idx*8
@@ -299,16 +302,16 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_str_ptr(2, 7))
 
             // Done.
-            var br_done = oren_list_len(ctx["code"])
+            var br_done = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
 
             // --- Map fallback ---
-            var map_pos = oren_list_len(ctx["code"])
+            var map_pos = bytes_len(ctx["code"])
             // Restore container/index/value (X0=container, X1=index, X2=value).
             push_u32_le(ctx["code"], insn_mov_reg(0, 19))
             push_u32_le(ctx["code"], insn_mov_reg(1, 20))
             push_u32_le(ctx["code"], insn_mov_reg(2, 21))
-            var bl_pos = oren_list_len(ctx["code"])
+            var bl_pos = bytes_len(ctx["code"])
             var recv_kind = stmt["left"]["recv_kind"]
             if recv_kind == "list" {
                 // Deterministic contract: list index_set never falls back to map ops.
@@ -333,7 +336,7 @@ fn native_compile_stmt(ctx, stmt) {
 
                     // Dynamic map set: delegate key-kind selection to the injected runtime helper.
 
-                    var bl_pos2 = oren_list_len(ctx["code"])
+                    var bl_pos2 = bytes_len(ctx["code"])
 
                     push_u32_le(ctx["code"], 0)
 
@@ -345,7 +348,7 @@ fn native_compile_stmt(ctx, stmt) {
                 }
             }
 
-            var done_pos = oren_list_len(ctx["code"])
+            var done_pos = bytes_len(ctx["code"])
             if br_to_map != nil {
                 set_u32_le(ctx["code"], br_to_map, insn_b_cond((map_pos - br_to_map) / 4, 0)) // EQ
             }
@@ -365,17 +368,17 @@ fn native_compile_stmt(ctx, stmt) {
              // Prop name string
              var prop = stmt["left"]["prop"]["value"]
              var bytes = oren_bytes_from_string(prop)
-             bytes_push(bytes, 0)
-             while int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
-             var data_off = oren_list_len(ctx["data"])
-             bytes_extend(ctx["data"], bytes)
-             var adr_pos = oren_list_len(ctx["code"])
+             oren_list_push(bytes, 0)
+             while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+             var data_off = bytes_len(ctx["data"])
+             bytes_extend_list(ctx["data"], bytes)
+             var adr_pos = bytes_len(ctx["code"])
              push_u32_le(ctx["code"], 0)
              push_u32_le(ctx["code"], 0)
              oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
              // X0 has key ptr
              push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
-             var bl_track = oren_list_len(ctx["code"])
+             var bl_track = bytes_len(ctx["code"])
              push_u32_le(ctx["code"], 0)
              oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
              
@@ -402,7 +405,7 @@ fn native_compile_stmt(ctx, stmt) {
              // X1 is key (ok)
              push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
              
-             var bl_pos2 = oren_list_len(ctx["code"])
+             var bl_pos2 = bytes_len(ctx["code"])
              push_u32_le(ctx["code"], 0)
              oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set_str"})
              
@@ -435,7 +438,7 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
             
-            var adr_pos = oren_list_len(ctx["code"])
+            var adr_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": global_off})
@@ -502,7 +505,7 @@ fn native_compile_stmt(ctx, stmt) {
             if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
             ctx["stack_size"] = ctx["stack_size"] + 16
         } else {
-            var data_off = oren_list_len(ctx["data"])
+            var data_off = bytes_len(ctx["data"])
             var k = 0
             while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
             ctx["globals"][name] = data_off
@@ -514,7 +517,7 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
             
-            var adr_pos = oren_list_len(ctx["code"])
+            var adr_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
@@ -545,7 +548,7 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
 
-            var bl_exit = oren_list_len(ctx["code"])
+            var bl_exit = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit, "name": "oren_call_depth_exit"})
 
@@ -595,7 +598,7 @@ fn native_compile_stmt(ctx, stmt) {
         if stmt["init"] != nil { native_compile_stmt(ctx, stmt["init"]) }
         var loop_base_stack = ctx["stack_size"]
 
-        var start_pos = oren_list_len(ctx["code"])
+        var start_pos = bytes_len(ctx["code"])
 
         var prev_loop = ctx["loop_ctx"]
         var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": nil, "break_jumps": [], "continue_jumps": []}
@@ -608,7 +611,7 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_movz(0, 1))
         }
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-        var jump_end_pos = oren_list_len(ctx["code"])
+        var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
 
         native_compile_stmt(ctx, stmt["body"])
@@ -621,7 +624,7 @@ fn native_compile_stmt(ctx, stmt) {
         }
 
         // Post clause (continue target).
-        var post_start = oren_list_len(ctx["code"])
+        var post_start = bytes_len(ctx["code"])
         loop["continue_pos"] = post_start
         if stmt["post"] != nil { native_compile_stmt(ctx, stmt["post"]) }
 
@@ -632,11 +635,11 @@ fn native_compile_stmt(ctx, stmt) {
         }
 
         // Jump back to the condition.
-        var loop_back_pos = oren_list_len(ctx["code"])
+        var loop_back_pos = bytes_len(ctx["code"])
         var back_off = (start_pos - loop_back_pos) / 4
         push_u32_le(ctx["code"], insn_b(back_off))
 
-        var end_target = oren_list_len(ctx["code"])
+        var end_target = bytes_len(ctx["code"])
         var end_off = (end_target - jump_end_pos) / 4
         set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0))
 
@@ -685,10 +688,10 @@ fn native_compile_stmt(ctx, stmt) {
         // Rolling v0 decision: structs are map-shaped across backends.
         // Constructor returns a map with string keys:
         //   struct User { id, name }  =>  fn User(id, name) { return {"id":id,"name":name} }
-        var jump_skip_pos = oren_list_len(ctx["code"])
+        var jump_skip_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
 
-        var func_start = oren_list_len(ctx["code"])
+        var func_start = bytes_len(ctx["code"])
         ctx["functions"][name] = func_start
         oren_list_push(ctx["function_names"], name)
 
@@ -722,7 +725,7 @@ fn native_compile_stmt(ctx, stmt) {
 
         // m = oren_new_map(n_fields)
         push_u32_le(ctx["code"], insn_movz(0, n_fields))
-        var bl_new_map = oren_list_len(ctx["code"])
+        var bl_new_map = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_map, "name": "oren_new_map"})
 
@@ -745,16 +748,16 @@ fn native_compile_stmt(ctx, stmt) {
 
             // Build key string in data and push it on stack (adr_data loads into X0).
             var bytes = oren_bytes_from_string(f_name2)
-            bytes_push(bytes, 0)
-            while int_mod(oren_list_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
-            var data_off = oren_list_len(ctx["data"])
-            bytes_extend(ctx["data"], bytes)
-            var adr_pos = oren_list_len(ctx["code"])
+            oren_list_push(bytes, 0)
+            while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+            var data_off = bytes_len(ctx["data"])
+            bytes_extend_list(ctx["data"], bytes)
+            var adr_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
             push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
-            var bl_track = oren_list_len(ctx["code"])
+            var bl_track = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
 
@@ -783,7 +786,7 @@ fn native_compile_stmt(ctx, stmt) {
             // X1 is key (ok)
             push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
 
-            var bl_set = oren_list_len(ctx["code"])
+            var bl_set = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set, "name": "oren_map_set_str"})
 
@@ -800,7 +803,7 @@ fn native_compile_stmt(ctx, stmt) {
         push_u32_le(ctx["code"], insn_ldp_post())
         push_u32_le(ctx["code"], insn_ret())
 
-        var func_end = oren_list_len(ctx["code"])
+        var func_end = bytes_len(ctx["code"])
         var skip_off = (func_end - jump_skip_pos) / 4
         set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
 
@@ -816,7 +819,7 @@ fn native_compile_stmt(ctx, stmt) {
     
     if stmt["type"] == "While" {
         var loop_base_stack = ctx["stack_size"]
-        var start_pos = oren_list_len(ctx["code"])
+        var start_pos = bytes_len(ctx["code"])
 
         var prev_loop = ctx["loop_ctx"]
         var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": start_pos, "break_jumps": [], "continue_jumps": []}
@@ -826,7 +829,7 @@ fn native_compile_stmt(ctx, stmt) {
         
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
         
-        var jump_end_pos = oren_list_len(ctx["code"])
+        var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) 
         
         native_compile_stmt(ctx, stmt["body"])
@@ -838,11 +841,11 @@ fn native_compile_stmt(ctx, stmt) {
             ctx["stack_size"] = loop_base_stack
         }
         
-        var loop_back_pos = oren_list_len(ctx["code"])
+        var loop_back_pos = bytes_len(ctx["code"])
         var back_off = (start_pos - loop_back_pos) / 4
         push_u32_le(ctx["code"], insn_b(back_off))
         
-        var end_target = oren_list_len(ctx["code"])
+        var end_target = bytes_len(ctx["code"])
         var end_off = (end_target - jump_end_pos) / 4
         set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0)) 
 
@@ -880,7 +883,7 @@ fn native_compile_stmt(ctx, stmt) {
             
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             
-            var jump_else_pos = oren_list_len(ctx["code"])
+            var jump_else_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) 
             
             native_compile_stmt(ctx, expr["consq"])
@@ -891,10 +894,10 @@ fn native_compile_stmt(ctx, stmt) {
                 ctx["stack_size"] = base_stack
             }
             
-            var jump_end_pos = oren_list_len(ctx["code"])
+            var jump_end_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) 
             
-            var else_target = oren_list_len(ctx["code"])
+            var else_target = bytes_len(ctx["code"])
             var else_off = (else_target - jump_else_pos) / 4
             set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, 0)) 
             
@@ -908,7 +911,7 @@ fn native_compile_stmt(ctx, stmt) {
                 ctx["stack_size"] = base_stack
             }
             
-            var end_target = oren_list_len(ctx["code"])
+            var end_target = bytes_len(ctx["code"])
             var end_off = (end_target - jump_end_pos) / 4
             set_u32_le(ctx["code"], jump_end_pos, insn_b(end_off))
             
@@ -933,14 +936,14 @@ fn native_compile_stmt(ctx, stmt) {
                 return nil
             }
 
-            while int_mod(oren_list_len(ctx["code"]), 4) != 0 {
+            while int_mod(bytes_len(ctx["code"]), 4) != 0 {
                 bytes_push(ctx["code"], 0)
             }
             
-            var jump_skip_pos = oren_list_len(ctx["code"])
+            var jump_skip_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) 
             
-            var func_start = oren_list_len(ctx["code"])
+            var func_start = bytes_len(ctx["code"])
             ctx["functions"][fn_name] = func_start
             oren_list_push(ctx["function_names"], fn_name)
             if fn_name == "main" {
@@ -1071,7 +1074,7 @@ fn native_compile_stmt(ctx, stmt) {
             // Stack safety: increment call depth after params are spilled so arg registers
             // are free to be clobbered by the helper call.
             if ctx["call_depth_enabled"] == true {
-                var bl_enter = oren_list_len(ctx["code"])
+                var bl_enter = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_enter, "name": "oren_call_depth_enter"})
             }
@@ -1080,7 +1083,7 @@ fn native_compile_stmt(ctx, stmt) {
             
             push_u32_le(ctx["code"], insn_movz(0, 0))
             if ctx["call_depth_enabled"] == true {
-                var bl_exit2 = oren_list_len(ctx["code"])
+                var bl_exit2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit2, "name": "oren_call_depth_exit"})
                 // Ensure X0 remains 0 (helper may clobber caller-saved regs).
@@ -1099,7 +1102,7 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_ldp_post())
             push_u32_le(ctx["code"], insn_ret())
             
-            var func_end = oren_list_len(ctx["code"])
+            var func_end = bytes_len(ctx["code"])
             
             if ctx["platform"]["debug"] == true {
                 var ftok = expr["token"]
@@ -1161,7 +1164,7 @@ fn native_compile_stmt(ctx, stmt) {
                     if is_fmt {
                         // fixed list is args[1..]
                         push_u32_le(ctx["code"], insn_movz(0, 0))
-                        var bl_new_list2 = oren_list_len(ctx["code"])
+                        var bl_new_list2 = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list2, "name": "oren_new_list"})
 
@@ -1183,7 +1186,7 @@ fn native_compile_stmt(ctx, stmt) {
 
                             push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
 
-                            var bl_push2 = oren_list_len(ctx["code"])
+                            var bl_push2 = bytes_len(ctx["code"])
                             push_u32_le(ctx["code"], 0)
                             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push2, "name": "oren_list_push"})
                             k2 = k2 + 1
@@ -1202,7 +1205,7 @@ fn native_compile_stmt(ctx, stmt) {
                         push_u32_le(ctx["code"], insn_add_sp(32))
                         ctx["stack_size"] = ctx["stack_size"] - 32
 
-                        var bl_fmt_sp = oren_list_len(ctx["code"])
+                        var bl_fmt_sp = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fmt_sp, "name": "oren_print_fmt_spread"})
                         return nil
@@ -1210,7 +1213,7 @@ fn native_compile_stmt(ctx, stmt) {
 
                     // Non-format: fixed list is args[0..] (may be empty)
                     push_u32_le(ctx["code"], insn_movz(0, 0))
-                    var bl_new_list3 = oren_list_len(ctx["code"])
+                    var bl_new_list3 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list3, "name": "oren_new_list"})
 
@@ -1231,7 +1234,7 @@ fn native_compile_stmt(ctx, stmt) {
                         ctx["stack_size"] = ctx["stack_size"] - 16
 
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-                        var bl_push3 = oren_list_len(ctx["code"])
+                        var bl_push3 = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push3, "name": "oren_list_push"})
                         k3 = k3 + 1
@@ -1244,7 +1247,7 @@ fn native_compile_stmt(ctx, stmt) {
                     push_u32_le(ctx["code"], insn_add_sp(16))
                     ctx["stack_size"] = ctx["stack_size"] - 16
 
-                    var bl_sp = oren_list_len(ctx["code"])
+                    var bl_sp = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sp, "name": "oren_print_spread"})
                     return nil
@@ -1252,7 +1255,7 @@ fn native_compile_stmt(ctx, stmt) {
 
                 if is_fmt {
                     push_u32_le(ctx["code"], insn_movz(0, 0))
-                    var bl_new_list = oren_list_len(ctx["code"])
+                    var bl_new_list = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list, "name": "oren_new_list"})
                     
@@ -1273,7 +1276,7 @@ fn native_compile_stmt(ctx, stmt) {
                         
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
                         
-                        var bl_push = oren_list_len(ctx["code"])
+                        var bl_push = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push, "name": "oren_list_push"})
                         
@@ -1286,7 +1289,7 @@ fn native_compile_stmt(ctx, stmt) {
                     
                     native_compile_expr(ctx, arg0)
                     
-                    var bl_fmt = oren_list_len(ctx["code"])
+                    var bl_fmt = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fmt, "name": "oren_print_fmt"})
                     return nil
@@ -1297,14 +1300,14 @@ fn native_compile_stmt(ctx, stmt) {
                 if argc == 0 {
                     // print() => newline
                     push_u32_le(ctx["code"], insn_movz(0, 0))
-                    var bl_nl = oren_list_len(ctx["code"])
+                    var bl_nl = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_nl, "name": "oren_print_list"})
                     return nil
                 }
                 if argc == 1 {
                     native_compile_expr(ctx, arg0)
-                    var bl_pos_print = oren_list_len(ctx["code"])
+                    var bl_pos_print = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_print, "name": "oren_print"})
                     return nil
@@ -1312,7 +1315,7 @@ fn native_compile_stmt(ctx, stmt) {
 
                 // print(a,b,...) => build args list and call oren_print_list(list)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
-                var bl_new_list4 = oren_list_len(ctx["code"])
+                var bl_new_list4 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list4, "name": "oren_new_list"})
 
@@ -1332,7 +1335,7 @@ fn native_compile_stmt(ctx, stmt) {
                     ctx["stack_size"] = ctx["stack_size"] - 16
 
                     push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-                    var bl_push4 = oren_list_len(ctx["code"])
+                    var bl_push4 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push4, "name": "oren_list_push"})
                     k4 = k4 + 1
@@ -1341,7 +1344,7 @@ fn native_compile_stmt(ctx, stmt) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 ctx["stack_size"] = ctx["stack_size"] - 16
-                var bl_pl = oren_list_len(ctx["code"])
+                var bl_pl = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pl, "name": "oren_print_list"})
                 return nil

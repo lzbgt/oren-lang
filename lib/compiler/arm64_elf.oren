@@ -24,6 +24,8 @@ fn elf_diag_escape(msg) {
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn bytes_len(b) { return codegen.bytes_len(b) }
+fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
 fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
@@ -70,7 +72,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
         push_u64_le(p, oren_list_len(name_bytes))
         var k = 0
         while k < oren_list_len(name_bytes) { bytes_push(p, name_bytes[k]); k = k + 1 }
-        while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+        while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
 
         // Optional source location for deterministic "panic" diagnostics.
         // File stored as UTF-8; line/col are 1-based (0 means unknown).
@@ -80,7 +82,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
         push_u64_le(p, oren_list_len(file_bytes))
         k = 0
         while k < oren_list_len(file_bytes) { bytes_push(p, file_bytes[k]); k = k + 1 }
-        while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+        while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
         var line = f["line"]
         var col = f["col"]
         if line == nil { line = 0 }
@@ -97,7 +99,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
             push_u64_le(p, oren_list_len(pname_bytes))
             var m = 0
             while m < oren_list_len(pname_bytes) { bytes_push(p, pname_bytes[m]); m = m + 1 }
-            while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+            while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
             push_u64_le(p, param["offset"])
             j = j + 1
         }
@@ -138,8 +140,8 @@ fn elf_build_prefix_arm64(text_size, code, entry_idx) {
     push_u64_le(p, 0) // Offset
     push_u64_le(p, 4194304) // VAddr (0x400000)
     push_u64_le(p, 4194304) // PAddr
-    push_u64_le(p, text_file_off + oren_list_len(code)) // FileSize
-    push_u64_le(p, text_file_off + oren_list_len(code)) // MemSize
+    push_u64_le(p, text_file_off + bytes_len(code)) // FileSize
+    push_u64_le(p, text_file_off + bytes_len(code)) // MemSize
     push_u64_le(p, 65536) // Align
     
     return p
@@ -160,7 +162,7 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
         var name = imports[i_imp]
-        var stub_pos = oren_list_len(code)
+        var stub_pos = bytes_len(code)
         functions[name] = stub_pos
         
         // Stub: return 0 (avoid syscalls on missing FFI)
@@ -173,8 +175,8 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     // Keep data 8-byte aligned in the final image.
     // The native runtime does `ptr_get_u64` reads from tables in `.data` (debug info,
     // container headers, etc), which must be aligned for `LDR Xn, [Xm]` on some kernels.
-    while int_mod(oren_list_len(code), 8) != 0 { bytes_push(code, 0) }
-    var code_len_before_data = oren_list_len(code)
+    while int_mod(bytes_len(code), 8) != 0 { bytes_push(code, 0) }
+    var code_len_before_data = bytes_len(code)
     
     // Append debug info (Linux ELF).
     //
@@ -185,13 +187,9 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         var text_base = 4194304 // 0x400000
         var header_size = 120   // Ehdr + Phdr size
         var debug_blob = emit_debug_info(ctx, text_base, header_size)
-        while int_mod(oren_list_len(data), 8) != 0 { bytes_push(data, 0) }
-        var bi = 0
-        while bi < oren_list_len(debug_blob) {
-            bytes_push(data, debug_blob[bi])
-            bi = bi + 1
-        }
-        var debug_off = oren_list_len(data) - oren_list_len(debug_blob)
+        while int_mod(bytes_len(data), 8) != 0 { bytes_push(data, 0) }
+        var debug_off = bytes_len(data)
+        bytes_extend(data, debug_blob)
         if ctx["debug_fixup_pos"] != nil {
             oren_list_push(fixups, {"type": "adr_data", "pos": ctx["debug_fixup_pos"], "data_off": debug_off})
             
@@ -287,13 +285,13 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         i = i + 1
     }
     
-    var text_size = 120 + oren_list_len(code)
+    var text_size = 120 + bytes_len(code)
     // Entry point is start of code (startup shim)
     var entry_idx = 0
     var prefix = elf_build_prefix_arm64(text_size, code, entry_idx)
     bytes_extend(prefix, code)
     
-    var w3 = oren_write_bytes(out_path, prefix)
+    var w3 = oren_write_bytes(out_path, bytes_finalize(prefix))
     if oren_is_err(w3) {
         var msg3 = oren_err_msg(w3)
         var e = "Failed to write output: " + out_path

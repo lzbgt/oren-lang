@@ -1,12 +1,95 @@
 // --- Binary Utils ---
-fn bytes_new() { return [] }
-fn bytes_push(b, v) { oren_list_push(b, v) }
-fn bytes_extend(b, other) {
+// In the compiler we need a *growable* byte container for building binaries.
+//
+// Using `list<int>` for bytes is extremely memory-expensive in the native backend
+// (each byte becomes a boxed value). Instead we use a u8 typed buffer for storage.
+//
+// Because `u8_buf` is fixed-length, we wrap it in a small builder map:
+//   {"buf": u8_buf(cap), "len": used_bytes, "cap": capacity_bytes}
+//
+// This keeps codegen memory bounded and makes `bytes_len(...)` O(1).
+fn bytes_new() {
+    var cap = 256
+    var buf = oren_u8_buf_new(cap)
+    if oren_is_err(buf) { oren_fail(1, "bytes_new: u8_buf alloc failed") }
+    return {"buf": buf, "len": 0, "cap": cap}
+}
+
+fn bytes_len(b) { return b["len"] }
+
+fn _bytes_ensure_capacity(b, want) {
+    // Ensure capacity >= want.
+    if want <= b["cap"] { return nil }
+    var new_cap = b["cap"]
+    if new_cap < 16 { new_cap = 16 }
+    while new_cap < want { new_cap = new_cap * 2 }
+    var nb = oren_u8_buf_new(new_cap)
+    if oren_is_err(nb) { oren_fail(1, "bytes_grow: u8_buf alloc failed") }
     var i = 0
-    while i < oren_list_len(other) {
-        oren_list_push(b, other[i])
+    var used = b["len"]
+    while i < used {
+        oren_buf_store_u8(nb, i, oren_buf_load_u8(b["buf"], i))
         i = i + 1
     }
+    b["buf"] = nb
+    b["cap"] = new_cap
+    return nil
+}
+
+fn bytes_push(b, v) {
+    var used = b["len"]
+    _bytes_ensure_capacity(b, used + 1)
+    oren_buf_store_u8(b["buf"], used, v)
+    b["len"] = used + 1
+    return nil
+}
+
+fn bytes_extend(b, other) {
+    var n = other["len"]
+    if n == nil { oren_fail(1, "bytes_extend: expected bytes builder") }
+    var used = b["len"]
+    _bytes_ensure_capacity(b, used + n)
+    var i = 0
+    while i < n {
+        oren_buf_store_u8(b["buf"], used + i, oren_buf_load_u8(other["buf"], i))
+        i = i + 1
+    }
+    b["len"] = used + n
+    return nil
+}
+
+fn bytes_extend_list(b, xs) {
+    // Extend from a legacy `list<int 0..255>` (e.g. `oren_bytes_from_string(...)`).
+    var n = oren_list_len(xs)
+    if n <= 0 { return nil }
+    var used = b["len"]
+    _bytes_ensure_capacity(b, used + n)
+    var i = 0
+    while i < n {
+        oren_buf_store_u8(b["buf"], used + i, xs[i])
+        i = i + 1
+    }
+    b["len"] = used + n
+    return nil
+}
+
+fn bytes_set_u8(b, idx, v) {
+    if idx < 0 || idx >= b["len"] { oren_fail(1, "bytes_set_u8: index out of bounds") }
+    oren_buf_store_u8(b["buf"], idx, v)
+    return nil
+}
+
+fn bytes_finalize(b) {
+    // Materialize a tight `u8_buf` (len==used) for IO/hashing.
+    var n = b["len"]
+    var out = oren_u8_buf_new(n)
+    if oren_is_err(out) { oren_fail(1, "bytes_finalize: u8_buf alloc failed") }
+    var i = 0
+    while i < n {
+        oren_buf_store_u8(out, i, oren_buf_load_u8(b["buf"], i))
+        i = i + 1
+    }
+    return out
 }
 
 // --- Codegen Scopes (native backend locals) ---
@@ -89,10 +172,10 @@ fn scope_exit_codegen(ctx) {
 
 fn set_u32_le(buf, offset, n) {
     var base = offset
-    oren_index_set(buf, base, int_mod(n, 256))
-    oren_index_set(buf, base+1, int_mod(n / 256, 256))
-    oren_index_set(buf, base+2, int_mod(n / 65536, 256))
-    oren_index_set(buf, base+3, int_mod(n / 16777216, 256))
+    bytes_set_u8(buf, base, int_mod(n, 256))
+    bytes_set_u8(buf, base + 1, int_mod(n / 256, 256))
+    bytes_set_u8(buf, base + 2, int_mod(n / 65536, 256))
+    bytes_set_u8(buf, base + 3, int_mod(n / 16777216, 256))
 }
 
 fn align_up(n, align) {

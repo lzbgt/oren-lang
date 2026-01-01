@@ -22,7 +22,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen
-                var bl_pre3 = oren_list_len(ctx["code"])
+                var bl_pre3 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre3, "name": "native_capsule_sys_bind_pre"})
     
@@ -52,10 +52,10 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
                 if ctx["platform"]["os"] != "linux" {
                     // Normalize macOS syscall error to X0 = -errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
@@ -63,7 +63,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // addr
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // addrlen
-                var bl_post3 = oren_list_len(ctx["code"])
+                var bl_post3 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post3, "name": "native_capsule_sys_bind_post"})
     
@@ -91,7 +91,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 // pre: native_capsule_sys_listen_pre(fd, backlog)
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // backlog
-                var bl_pre4 = oren_list_len(ctx["code"])
+                var bl_pre4 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre4, "name": "native_capsule_sys_listen_pre"})
     
@@ -120,17 +120,17 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
                 if ctx["platform"]["os"] != "linux" {
                     // Normalize macOS syscall error to X0 = -errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
                 // post: native_capsule_sys_listen_post(rc, fd, backlog) -> rc
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // backlog
-                var bl_post4 = oren_list_len(ctx["code"])
+                var bl_post4 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post4, "name": "native_capsule_sys_listen_post"})
     
@@ -163,7 +163,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen_ptr
-                var bl_pre5 = oren_list_len(ctx["code"])
+                var bl_pre5 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre5, "name": "native_capsule_sys_accept_pre"})
     
@@ -193,10 +193,10 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
                 if ctx["platform"]["os"] != "linux" {
                     // Normalize macOS syscall error to X0 = -errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
@@ -204,7 +204,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // listen_fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // addr
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // addrlen_ptr
-                var bl_post5 = oren_list_len(ctx["code"])
+                var bl_post5 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post5, "name": "native_capsule_sys_accept_post"})
     
@@ -240,7 +240,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // addr
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // addrlen_ptr
-                var bl_pre = oren_list_len(ctx["code"])
+                var bl_pre = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 if fn_name == "sys_getsockname" {
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_getsockname_pre"})
@@ -276,10 +276,10 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
                 if ctx["platform"]["os"] != "linux" {
                     // Normalize macOS syscall error to X0 = -errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
@@ -325,7 +325,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 32)) // optname
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 16)) // optval
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))  // optlen(_ptr)
-                var bl_pre = oren_list_len(ctx["code"])
+                var bl_pre = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 if fn_name == "sys_setsockopt" {
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_setsockopt_pre"})
@@ -361,7 +361,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 // Only translate the portable subset when level == OREN_SOL_SOCKET.
                 push_u32_le(ctx["code"], insn_movz(5, oren_sol_socket))
                 push_u32_le(ctx["code"], insn_cmp_reg(1, 5))
-                var br_skip_all = oren_list_len(ctx["code"])
+                var br_skip_all = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.NE skip all translations
     
                 // Preserve original optname so translations don't cascade after we mutate X2.
@@ -375,26 +375,26 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 // If optname == OREN_SO_REUSEADDR, translate.
                 push_u32_le(ctx["code"], insn_movz(5, oren_so_reuseaddr))
                 push_u32_le(ctx["code"], insn_cmp_reg(6, 5)) // compare original optname
-                var br_skip_opt1 = oren_list_len(ctx["code"])
+                var br_skip_opt1 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.NE skip
                 var os_opt1 = abi.darwin_so_reuseaddr()
                 if ctx["platform"]["os"] == "linux" { os_opt1 = labi.linux_so_reuseaddr() }
                 emit_load_u64_imm(ctx, 2, os_opt1)
-                var after_opt1 = oren_list_len(ctx["code"])
+                var after_opt1 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_opt1, insn_b_cond((after_opt1 - br_skip_opt1) / 4, 1)) // NE
     
                 // If optname == OREN_SO_ERROR, translate.
                 push_u32_le(ctx["code"], insn_movz(5, oren_so_error))
                 push_u32_le(ctx["code"], insn_cmp_reg(6, 5)) // compare original optname
-                var br_skip_opt2 = oren_list_len(ctx["code"])
+                var br_skip_opt2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0) // B.NE skip
                 var os_opt2 = abi.darwin_so_error()
                 if ctx["platform"]["os"] == "linux" { os_opt2 = labi.linux_so_error() }
                 emit_load_u64_imm(ctx, 2, os_opt2)
-                var after_opt2 = oren_list_len(ctx["code"])
+                var after_opt2 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_opt2, insn_b_cond((after_opt2 - br_skip_opt2) / 4, 1)) // NE
     
-                var after_all = oren_list_len(ctx["code"])
+                var after_all = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_all, insn_b_cond((after_all - br_skip_all) / 4, 1)) // NE
     
                 var sys_reg = abi.darwin_syscall_reg()
@@ -420,10 +420,10 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
                 if ctx["platform"]["os"] != "linux" {
                     // Normalize macOS syscall error to X0 = -errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
@@ -454,7 +454,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 // pre: native_capsule_sys_shutdown_pre(fd, how)
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // how
-                var bl_pre = oren_list_len(ctx["code"])
+                var bl_pre = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_shutdown_pre"})
     
@@ -483,10 +483,10 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
                 if ctx["platform"]["os"] != "linux" {
                     // Normalize macOS syscall error to X0 = -errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
@@ -540,7 +540,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 32))
                     push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 16))
                     push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 0))
-                    var bl_pre6 = oren_list_len(ctx["code"])
+                    var bl_pre6 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     if fn_name == "sys_sendto" {
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre6, "name": "native_capsule_sys_sendto_pre"})
@@ -551,7 +551,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
     
                 // pre: enforce TIME for kevent (no bypass)
                 if fn_name == "sys_kevent" {
-                    var bl_kevent_pre = oren_list_len(ctx["code"])
+                    var bl_kevent_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kevent_pre, "name": "native_capsule_sys_kevent_pre"})
                 }
@@ -593,10 +593,10 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
                 if ctx["platform"]["os"] != "linux" {
                     // Normalize macOS syscall error to X0 = -errno.
-                    var br_ok = oren_list_len(ctx["code"])
+                    var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
-                    var ok_pos = oren_list_len(ctx["code"])
+                    var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     

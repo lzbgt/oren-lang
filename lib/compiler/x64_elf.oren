@@ -10,6 +10,8 @@ import abi "native_abi.oren"
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn bytes_len(b) { return codegen.bytes_len(b) }
+fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
 fn push_u16_le(buf, n) {
     bytes_push(buf, codegen.int_mod(n, 256))
@@ -59,7 +61,7 @@ fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
     push_u16_le(p, 0)   // e_shstrndx
 
     var page = 4096
-    var text_filesz = hdr_size + oren_list_len(code) + code_pad_len
+    var text_filesz = hdr_size + bytes_len(code) + code_pad_len
     // Caller is expected to align the start of data to a page boundary by choosing code_pad_len.
     if int_mod(text_filesz, page) != 0 {
         // Fallback: round up so segment offsets stay valid even if caller forgot.
@@ -83,8 +85,8 @@ fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
     push_u64_le(p, data_off)        // p_offset
     push_u64_le(p, base + data_off) // p_vaddr
     push_u64_le(p, base + data_off) // p_paddr
-    push_u64_le(p, oren_list_len(data)) // p_filesz
-    push_u64_le(p, oren_list_len(data)) // p_memsz
+    push_u64_le(p, bytes_len(data)) // p_filesz
+    push_u64_le(p, bytes_len(data)) // p_memsz
     push_u64_le(p, 4096)    // p_align
 
     return p
@@ -109,7 +111,7 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, cap
     var base = abi.x64_v0_linux_elf_base_addr()
     var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes()
     var text_base = base + hdr_size
-    var code_len = oren_list_len(code)
+    var code_len = bytes_len(code)
 
     // Ensure the data segment begins on a page boundary (required for PT_LOAD alignment).
     var code_pad = bytes_new()
@@ -119,7 +121,7 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, cap
     var pad_len = data_file_off - text_end_off
     var pi = 0
     while pi < pad_len { bytes_push(code_pad, 0); pi = pi + 1 }
-    var data_base_off = code_len + oren_list_len(code_pad)
+    var data_base_off = code_len + bytes_len(code_pad)
 
     var i = 0
     while i < oren_list_len(fixups) {
@@ -203,11 +205,11 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, cap
         i = i + 1
     }
 
-    var prefix = elf_build_prefix_x64(code, oren_list_len(code_pad), data, ctx["entry_off"])
+    var prefix = elf_build_prefix_x64(code, bytes_len(code_pad), data, ctx["entry_off"])
     bytes_extend(prefix, code)
     bytes_extend(prefix, code_pad)
     bytes_extend(prefix, data)
-    var w = oren_write_bytes(out_path, prefix)
+    var w = oren_write_bytes(out_path, bytes_finalize(prefix))
     if oren_is_err(w) {
         print("x64 elf: failed to write: " + out_path)
         var code = oren_err_code(w)

@@ -25,7 +25,7 @@ fn _emit_call_rel32_3args_x64(ctx, locals, sym, arg0_off, arg1_off, arg2_off) {
     _emit_mov_r64_mrbp(ctx, a0, 0 - arg0_off)
     _emit_mov_r64_mrbp(ctx, a1, 0 - arg1_off)
     _emit_mov_r64_mrbp(ctx, a2, 0 - arg2_off)
-    var call_pos = oren_list_len(ctx["code"])
+    var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": sym})
     return nil

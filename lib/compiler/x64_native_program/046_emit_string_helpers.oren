@@ -77,7 +77,7 @@ fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
     }
     _emit_mov_r64_mrbp(ctx, a0, 0 - tmp_a)
     _emit_mov_r64_mrbp(ctx, a1, 0 - tmp_b)
-    var call_pos = oren_list_len(ctx["code"])
+    var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_add"})
 

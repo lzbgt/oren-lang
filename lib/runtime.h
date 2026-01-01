@@ -135,6 +135,13 @@ OrenValue oren_closure(OrenFn fn, int capture_count, ...);
 OrenValue oren_int(long long v);
 OrenValue oren_float(double v);
 OrenValue oren_string(const char* s);
+// Construct a string backed by a constant NUL-terminated C string.
+// This avoids heap allocation and GC tracking and is intended for literals and other process-lifetime strings.
+OrenValue oren_string_const(const char* s);
+
+// Join a list<string> into one string with a single allocation.
+// Used by compiler tooling (include expansion) to avoid O(n^2) string churn.
+OrenValue oren_string_join(OrenValue parts);
 OrenValue oren_bool(int v);
 
 int oren_is_truthy(OrenValue v);
@@ -399,9 +406,12 @@ OrenValue oren_buf_gemm_f32_4x4_slice_into(
 	OrenValue oren_buf_axpy_i32_in_place(OrenValue alpha, OrenValue x, OrenValue y);
 
 	OrenValue oren_read_file(OrenValue path);
-	OrenValue oren_write_file(OrenValue path, OrenValue content);
+OrenValue oren_write_file(OrenValue path, OrenValue content);
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes);
 OrenValue oren_read_bytes(OrenValue path);
+// Read a file into a typed byte buffer (u8_buf) with one allocation.
+// This avoids boxing each byte as an int (which can explode memory for large artifacts).
+OrenValue oren_read_u8_buf(OrenValue path);
 OrenValue oren_bytes_from_string(OrenValue s);
 // Build a string from list<int 0..255> (inverse of bytes_from_string).
 OrenValue oren_string_from_bytes(OrenValue bytes);

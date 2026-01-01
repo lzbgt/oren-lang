@@ -130,12 +130,20 @@ orensign: $(GO_SRC)
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
 oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 1 (Oren)..."
-	./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG)
+	@if [ "$(UNAME_S)" = "Darwin" ]; then \
+		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG); \
+	else \
+		./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG); \
+	fi
 
 # Stage 2: Self-Hosted Compiler (Built by Stage 1)
 oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 2 (Self-Hosted)..."
-	./oren build $(OREN_SRC) -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)
+	@if [ "$(UNAME_S)" = "Darwin" ]; then \
+		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=500000 ./oren build $(OREN_SRC) -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG); \
+	else \
+		OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=500000 ./oren build $(OREN_SRC) -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG); \
+	fi
 
 # Aliases
 bootstrap: oren_bootstrap

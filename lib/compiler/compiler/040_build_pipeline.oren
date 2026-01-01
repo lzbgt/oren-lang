@@ -408,7 +408,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("meta", out_meta, bs) }
             if emit_manifest {
                 var h = _sha256_hex(bs)
-                _write_artifact_manifest("meta", out_meta, h, target, arch, deterministic, oren_list_len(bs))
+                _write_artifact_manifest("meta", out_meta, h, target, arch, deterministic, _bytes_len_any(bs))
             }
         }
         return nil
@@ -639,7 +639,7 @@ fn compiler_main() {
                 if out_bytes != nil && deterministic { _emit_artifact_hash(backend, out_path, out_bytes) }
                 if out_bytes != nil && emit_manifest {
                     var hh = _sha256_hex(out_bytes)
-                    _write_artifact_manifest(backend, out_path, hh, target, arch, deterministic, oren_list_len(out_bytes))
+                    _write_artifact_manifest(backend, out_path, hh, target, arch, deterministic, _bytes_len_any(out_bytes))
                 }
                 if disasm {
                     if target == "macos" { oren_system("otool -tV " + shell_quote(out_path)) }
@@ -842,7 +842,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
             if emit_manifest {
                 var h = _sha256_hex(out_bytes)
-                _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic, oren_list_len(out_bytes))
+                _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic, _bytes_len_any(out_bytes))
             }
             if cache_enabled && cache_key != nil {
                 cache_store_artifact(cache_dir, cache_key, out_bytes)
@@ -856,7 +856,7 @@ fn compiler_main() {
         if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes2) }
         if emit_manifest {
             var h2 = _sha256_hex(out_bytes2)
-            _write_artifact_manifest("bytecode", out_path, h2, target, arch, deterministic, oren_list_len(out_bytes2))
+            _write_artifact_manifest("bytecode", out_path, h2, target, arch, deterministic, _bytes_len_any(out_bytes2))
         }
         if cache_enabled && cache_key != nil {
             cache_store_artifact(cache_dir, cache_key, out_bytes2)
@@ -1006,7 +1006,8 @@ fn compiler_main() {
         }
         
         if deterministic || emit_manifest {
-            var bs = oren_read_bytes(out_path)
+            // Use u8_buf to avoid boxing the artifact into list<int> (huge memory blowups).
+            var bs = oren_read_u8_buf(out_path)
             if oren_is_err(bs) {
                 print("Failed to read artifact for hashing: " + out_path)
                 var msgH = oren_err_msg(bs)
@@ -1016,7 +1017,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("native", out_path, bs) }
             if emit_manifest {
                 var h = _sha256_hex(bs)
-                _write_artifact_manifest("native", out_path, h, target, arch, deterministic, oren_list_len(bs))
+                _write_artifact_manifest("native", out_path, h, target, arch, deterministic, _bytes_len_any(bs))
             }
         }
 
@@ -1024,10 +1025,8 @@ fn compiler_main() {
         
         if cache_enabled && cache_key != nil {
             // Store native artifact bytes for future cache hits.
-            var bsn = oren_read_bytes(out_path)
-            if !oren_is_err(bsn) {
-                cache_store_artifact(cache_dir, cache_key, bsn)
-            }
+            var bsn = oren_read_u8_buf(out_path)
+            if !oren_is_err(bsn) { cache_store_artifact(cache_dir, cache_key, bsn) }
         }
 
         if disasm {
@@ -1129,7 +1128,8 @@ fn compiler_main() {
     }
     print("Build successful: " + out_path)
     if deterministic || emit_manifest {
-        var bsC = oren_read_bytes(out_path)
+        // Use u8_buf to avoid boxing the artifact into list<int> (huge memory blowups).
+        var bsC = oren_read_u8_buf(out_path)
         if oren_is_err(bsC) {
             print("Failed to read artifact for hashing: " + out_path)
             var msgHC = oren_err_msg(bsC)
@@ -1139,12 +1139,12 @@ fn compiler_main() {
         if deterministic { _emit_artifact_hash("c", out_path, bsC) }
         if emit_manifest {
             var h = _sha256_hex(bsC)
-            _write_artifact_manifest("c", out_path, h, target, arch, deterministic, oren_list_len(bsC))
+            _write_artifact_manifest("c", out_path, h, target, arch, deterministic, _bytes_len_any(bsC))
         }
     }
     if cache_enabled && cache_key != nil {
         // Store C backend final artifact bytes for future cache hits.
-        var bsCache = oren_read_bytes(out_path)
+        var bsCache = oren_read_u8_buf(out_path)
         if !oren_is_err(bsCache) {
             cache_store_artifact(cache_dir, cache_key, bsCache)
             // Ensure restored binaries are runnable (cp from cache uses write_bytes).

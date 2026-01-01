@@ -19,13 +19,13 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 // nil => 0
                 push_u32_le(ctx["code"], insn_movz(1, 0))
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
-                var br_non_nil = oren_list_len(ctx["code"])
+                var br_non_nil = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
-                var br_done = oren_list_len(ctx["code"])
+                var br_done = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
-	                var non_nil_pos = oren_list_len(ctx["code"])
+	                var non_nil_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
 	
 	                // Tier‑1 safety: never read object headers from untracked pointers.
@@ -37,27 +37,27 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = list
 	
 	                // node = oren_find_node(list)
-	                var bl_find_node = oren_list_len(ctx["code"])
+	                var bl_find_node = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
 	
 	                // node == 0 => panic
 	                push_u32_le(ctx["code"], insn_movz(1, 0))
 	                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
-	                var br_node_nonzero = oren_list_len(ctx["code"])
+	                var br_node_nonzero = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                native_emit_panic(ctx, "list_len on non-list")
-	                var node_ok_pos = oren_list_len(ctx["code"])
+	                var node_ok_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
 	
 	                // kind = *(node + 16); require kind==LIST
 	                emit_load_ptr_from_base_plus(ctx, 1, 0, 16)   // X1 = kind
 	                emit_load_i64_imm(ctx, 2, 2)                 // X2 = LIST
 	                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
-	                var br_kind_ok = oren_list_len(ctx["code"])
+	                var br_kind_ok = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                native_emit_panic(ctx, "list_len on non-list")
-	                var kind_ok_pos = oren_list_len(ctx["code"])
+	                var kind_ok_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_kind_ok, insn_b_cond((kind_ok_pos - br_kind_ok) / 4, 0)) // EQ
 	
 	                // Restore list pointer and validate magic.
@@ -65,16 +65,16 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
 	                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
 	                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
-	                var br_is_list = oren_list_len(ctx["code"])
+	                var br_is_list = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                native_emit_panic(ctx, "list_len on non-list")
-	                var is_list_pos = oren_list_len(ctx["code"])
+	                var is_list_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_is_list, insn_b_cond((is_list_pos - br_is_list) / 4, 0)) // EQ
 
                 // count
                 emit_load_ptr_from_base_plus(ctx, 0, 0, 0)
 
-                var done_pos = oren_list_len(ctx["code"])
+                var done_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
                 return true
             }
@@ -112,10 +112,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 // nil => panic
                 push_u32_le(ctx["code"], insn_movz(2, 0))
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
-                var br_non_nil2 = oren_list_len(ctx["code"])
+                var br_non_nil2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 native_emit_panic(ctx, "list_push on nil")
-	                var non_nil_pos2 = oren_list_len(ctx["code"])
+	                var non_nil_pos2 = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_non_nil2, insn_b_cond((non_nil_pos2 - br_non_nil2) / 4, 1)) // NE
 	
 	                // Tier‑1 safety: never read object headers from untracked pointers.
@@ -125,27 +125,27 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	
 	                // node = oren_find_node(list)
 	                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
-	                var bl_find_node2 = oren_list_len(ctx["code"])
+	                var bl_find_node2 = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node2, "name": "oren_find_node"})
 	
 	                // node == 0 => panic
 	                push_u32_le(ctx["code"], insn_movz(2, 0))
 	                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
-	                var br_node_nonzero2 = oren_list_len(ctx["code"])
+	                var br_node_nonzero2 = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                native_emit_panic(ctx, "list_push on non-list")
-	                var node_ok_pos2b = oren_list_len(ctx["code"])
+	                var node_ok_pos2b = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_node_nonzero2, insn_b_cond((node_ok_pos2b - br_node_nonzero2) / 4, 1)) // NE
 	
 	                // kind = *(node + 16); require kind==LIST
 	                emit_load_ptr_from_base_plus(ctx, 2, 0, 16) // X2 = kind
 	                emit_load_i64_imm(ctx, 3, 2)               // X3 = LIST
 	                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
-	                var br_kind_ok2 = oren_list_len(ctx["code"])
+	                var br_kind_ok2 = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                native_emit_panic(ctx, "list_push on non-list")
-	                var kind_ok_pos2 = oren_list_len(ctx["code"])
+	                var kind_ok_pos2 = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_kind_ok2, insn_b_cond((kind_ok_pos2 - br_kind_ok2) / 4, 0)) // EQ
 	
 	                // Restore list/value and validate magic.
@@ -154,10 +154,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                emit_load_ptr_from_base_plus(ctx, 2, 0, 24) // X2 = magic
 	                emit_load_i64_imm(ctx, 3, 1279870019)       // X3 = 'LIST'
 	                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
-	                var br_is_list2 = oren_list_len(ctx["code"])
+	                var br_is_list2 = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                native_emit_panic(ctx, "list_push on non-list")
-	                var is_list_pos2 = oren_list_len(ctx["code"])
+	                var is_list_pos2 = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_is_list2, insn_b_cond((is_list_pos2 - br_is_list2) / 4, 0)) // EQ
 
                 // Load count/cap/buf
@@ -167,18 +167,18 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
                 // if count < cap => fast store; else => slow path call
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
-                var br_fast = oren_list_len(ctx["code"])
+                var br_fast = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
                 // Slow path: call runtime oren_list_push(list, value)
-                var bl_pos = oren_list_len(ctx["code"])
+                var bl_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_list_push"})
-                var br_done2 = oren_list_len(ctx["code"])
+                var br_done2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
                 // Fast path
-                var fast_pos = oren_list_len(ctx["code"])
+                var fast_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_fast, insn_b_cond((fast_pos - br_fast) / 4, 11)) // LT
 
                 // addr = buf + count*8
@@ -191,7 +191,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_imm(4, 4, 1))
                 push_u32_le(ctx["code"], insn_str_ptr(4, 0))     // *(list) = count+1
 
-                var done_pos2 = oren_list_len(ctx["code"])
+                var done_pos2 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done2, insn_b((done_pos2 - br_done2) / 4))
 
                 // Language-level semantics: return `nil` regardless of the underlying runtime helper's return value.
@@ -319,10 +319,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
     
                 // If groups == 0, skip vector loop.
                 push_u32_le(ctx["code"], insn_cmp_reg(5, 31))      // CMP X5, XZR
-                var br_skip_vec = oren_list_len(ctx["code"])
+                var br_skip_vec = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_loop = oren_list_len(ctx["code"])
+                var vec_loop = bytes_len(ctx["code"])
                 // Load 16 bytes (4x i32) from each pointer.
                 push_u32_le(ctx["code"], insn_ldr_q(0, 3))         // Q0 = *(u128*)a_ptr
                 push_u32_le(ctx["code"], insn_ldr_q(1, 4))         // Q1 = *(u128*)b_ptr
@@ -342,10 +342,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 // groups--
                 push_u32_le(ctx["code"], insn_sub_imm(5, 5, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
-                var br_vec_loop = oren_list_len(ctx["code"])
+                var br_vec_loop = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_end = oren_list_len(ctx["code"])
+                var vec_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_vec, insn_b_cond((vec_end - br_skip_vec) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_vec_loop, insn_b_cond((vec_loop - br_vec_loop) / 4, 1)) // NE
     
@@ -365,11 +365,11 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
     
                 // If rem == 0, done.
                 push_u32_le(ctx["code"], insn_cmp_reg(2, 31))
-                var br_done = oren_list_len(ctx["code"])
+                var br_done = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
                 // Scalar tail loop (sign-extended i32 loads).
-                var tail_loop = oren_list_len(ctx["code"])
+                var tail_loop = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldrsw(9, 3, 0))       // X9 = (i64)*(i32*)a_ptr
                 push_u32_le(ctx["code"], insn_add_imm(3, 3, 4))
                 push_u32_le(ctx["code"], insn_ldrsw(10, 4, 0))      // X10 = (i64)*(i32*)b_ptr
@@ -378,10 +378,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_reg(0, 0, 9))
                 push_u32_le(ctx["code"], insn_sub_imm(2, 2, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(2, 31))
-                var br_tail = oren_list_len(ctx["code"])
+                var br_tail = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var done_pos = oren_list_len(ctx["code"])
+                var done_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done, insn_b_cond((done_pos - br_done) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_tail, insn_b_cond((tail_loop - br_tail) / 4, 1)) // NE
     
@@ -492,10 +492,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
     
                 // If groups == 0, skip vector loop.
                 push_u32_le(ctx["code"], insn_cmp_reg(8, 31))
-                var br_skip_vec4i = oren_list_len(ctx["code"])
+                var br_skip_vec4i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_loop4i = oren_list_len(ctx["code"])
+                var vec_loop4i = bytes_len(ctx["code"])
                 // Load A (4x i32) once.
                 push_u32_le(ctx["code"], insn_ldr_q(0, 5))
                 push_u32_le(ctx["code"], insn_add_imm(5, 5, 16))
@@ -535,10 +535,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 // groups--
                 push_u32_le(ctx["code"], insn_sub_imm(8, 8, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(8, 31))
-                var br_vec_loop4i_b = oren_list_len(ctx["code"])
+                var br_vec_loop4i_b = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_end4i = oren_list_len(ctx["code"])
+                var vec_end4i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_vec4i, insn_b_cond((vec_end4i - br_skip_vec4i) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_vec_loop4i_b, insn_b_cond((vec_loop4i - br_vec_loop4i_b) / 4, 1)) // NE
     
@@ -562,11 +562,11 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
     
                 // If rem == 0, skip tail.
                 push_u32_le(ctx["code"], insn_cmp_reg(7, 31))
-                var br_done4i = oren_list_len(ctx["code"])
+                var br_done4i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
                 // Scalar tail: sign-extended i32 loads.
-                var tail_loop4i = oren_list_len(ctx["code"])
+                var tail_loop4i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldrsw(11, 5, 0))      // X11 = av
                 push_u32_le(ctx["code"], insn_add_imm(5, 5, 4))
     
@@ -596,10 +596,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
     
                 push_u32_le(ctx["code"], insn_sub_imm(7, 7, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(7, 31))
-                var br_tail4i = oren_list_len(ctx["code"])
+                var br_tail4i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var done_pos4i = oren_list_len(ctx["code"])
+                var done_pos4i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done4i, insn_b_cond((done_pos4i - br_done4i) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_tail4i, insn_b_cond((tail_loop4i - br_tail4i) / 4, 1)) // NE
     
@@ -762,10 +762,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
     
                 // If groups == 0, skip vector loop.
                 push_u32_le(ctx["code"], insn_cmp_reg(13, 31))
-                var br_skip_vec_gemm_i = oren_list_len(ctx["code"])
+                var br_skip_vec_gemm_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_loop_gemm_i = oren_list_len(ctx["code"])
+                var vec_loop_gemm_i = bytes_len(ctx["code"])
     
                 // Load B vectors once per group and keep them in V16..V19.
                 push_u32_le(ctx["code"], insn_ldr_q(16, 4))
@@ -810,10 +810,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 // groups--
                 push_u32_le(ctx["code"], insn_sub_imm(13, 13, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(13, 31))
-                var br_vec_loop_gemm_i_b = oren_list_len(ctx["code"])
+                var br_vec_loop_gemm_i_b = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_end_gemm_i = oren_list_len(ctx["code"])
+                var vec_end_gemm_i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_vec_gemm_i, insn_b_cond((vec_end_gemm_i - br_skip_vec_gemm_i) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_vec_loop_gemm_i_b, insn_b_cond((vec_loop_gemm_i - br_vec_loop_gemm_i_b) / 4, 1)) // NE
     
@@ -841,12 +841,12 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
     
                 // If rem == 0, done.
                 push_u32_le(ctx["code"], insn_cmp_reg(10, 31))
-                var br_done_gemm_i = oren_list_len(ctx["code"])
+                var br_done_gemm_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
                 // Scalar tail loop:
                 // Update the already-stored 16 i64 outputs in memory for each remaining k.
-                var tail_loop_gemm_i = oren_list_len(ctx["code"])
+                var tail_loop_gemm_i = bytes_len(ctx["code"])
     
                 // Load a0..a3 (sign-extend i32) and advance pointers.
                 push_u32_le(ctx["code"], insn_ldrsw(11, 5, 0))
@@ -901,10 +901,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 // rem--
                 push_u32_le(ctx["code"], insn_sub_imm(10, 10, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(10, 31))
-                var br_tail_gemm_i = oren_list_len(ctx["code"])
+                var br_tail_gemm_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var done_pos_gemm_i = oren_list_len(ctx["code"])
+                var done_pos_gemm_i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done_gemm_i, insn_b_cond((done_pos_gemm_i - br_done_gemm_i) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_tail_gemm_i, insn_b_cond((tail_loop_gemm_i - br_tail_gemm_i) / 4, 1)) // NE
     

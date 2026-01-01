@@ -96,6 +96,8 @@ fn bind_done() { return 0 } // BIND_OPCODE_DONE
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
 fn bytes_extend(b, other) { return codegen.bytes_extend(b, other) }
+fn bytes_len(b) { return codegen.bytes_len(b) }
+fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
 fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
@@ -200,7 +202,7 @@ fn macho_build_bind_opcodes(imports, got_offset) {
     bytes_push(p, bind_done())
     
     // Pad to 8 bytes? Not strictly required but good for alignment.
-    while int_mod(oren_list_len(p), 8) != 0 {
+    while int_mod(bytes_len(p), 8) != 0 {
         bytes_push(p, 0)
     }
     
@@ -387,7 +389,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     
     // 6. LC_LOAD_DYLINKER
     var dyld_bytes = oren_bytes_from_string(dyld_path)
-    var cmd_start = oren_list_len(p)
+    var cmd_start = bytes_len(p)
     push_u32_le(p, lc_load_dylinker())
     push_u32_le(p, dyld_cmdsize)
     push_u32_le(p, dylinker_name_offset())
@@ -397,13 +399,13 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
         i = i + 1
     }
     bytes_push(p, 0)
-    while oren_list_len(p) < cmd_start + dyld_cmdsize {
+    while bytes_len(p) < cmd_start + dyld_cmdsize {
         bytes_push(p, 0)
     }
     
     // 7. LC_LOAD_DYLIB (libSystem) - optional for syscall-only binaries
     if need_libsystem {
-        var cmd_start_lib = oren_list_len(p)
+        var cmd_start_lib = bytes_len(p)
         push_u32_le(p, lc_load_dylib())
         push_u32_le(p, libsys_cmdsize)
         push_u32_le(p, dylib_name_offset())
@@ -417,7 +419,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
             k_lib = k_lib + 1
         }
         bytes_push(p, 0) // null terminator
-        while oren_list_len(p) < cmd_start_lib + libsys_cmdsize {
+        while bytes_len(p) < cmd_start_lib + libsys_cmdsize {
             bytes_push(p, 0) // padding
         }
     }
@@ -426,7 +428,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     k_lib = 0
     while k_lib < oren_list_len(libs) {
         var lib_path2 = libs[k_lib]
-        var cmd_start_lib2 = oren_list_len(p)
+        var cmd_start_lib2 = bytes_len(p)
         var lib_cmdsize2 = align_up(24 + oren_string_len(lib_path2) + 1, 8)
         push_u32_le(p, lc_load_dylib())
         push_u32_le(p, lib_cmdsize2)
@@ -441,7 +443,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
             kl2 = kl2 + 1
         }
         bytes_push(p, 0)
-        while oren_list_len(p) < cmd_start_lib2 + lib_cmdsize2 {
+        while bytes_len(p) < cmd_start_lib2 + lib_cmdsize2 {
             bytes_push(p, 0)
         }
         k_lib = k_lib + 1
@@ -463,7 +465,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     
     // 8. LC_MAIN or LC_ID_DYLIB
     if is_shared {
-        var id_start = oren_list_len(p)
+        var id_start = bytes_len(p)
         var id_name = lib_name
         var id_size = align_up(24 + oren_string_len(id_name) + 1, 8)
         push_u32_le(p, lc_id_dylib())
@@ -479,7 +481,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
             ki = ki + 1
         }
         bytes_push(p, 0)
-        while oren_list_len(p) < id_start + id_size { bytes_push(p, 0) }
+        while bytes_len(p) < id_start + id_size { bytes_push(p, 0) }
     } else {
         push_u32_le(p, lc_main())
         push_u32_le(p, cmdsize_main())
@@ -488,7 +490,7 @@ fn macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_si
     }
                 
 
-    while oren_list_len(p) < header_size {
+    while bytes_len(p) < header_size {
         bytes_push(p, 0)
     }
     return p
@@ -525,7 +527,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
         push_u64_le(p, oren_list_len(name_bytes))
         var k = 0
         while k < oren_list_len(name_bytes) { bytes_push(p, name_bytes[k]); k = k + 1 }
-        while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+        while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
 
         // Optional source location for deterministic "panic" diagnostics.
         // File stored as UTF-8; line/col are 1-based (0 means unknown).
@@ -535,7 +537,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
         push_u64_le(p, oren_list_len(file_bytes))
         k = 0
         while k < oren_list_len(file_bytes) { bytes_push(p, file_bytes[k]); k = k + 1 }
-        while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+        while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
         var line = f["line"]
         var col = f["col"]
         if line == nil { line = 0 }
@@ -552,7 +554,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
             push_u64_le(p, oren_list_len(pname_bytes))
             var m = 0
             while m < oren_list_len(pname_bytes) { bytes_push(p, pname_bytes[m]); m = m + 1 }
-            while int_mod(oren_list_len(p), 8) != 0 { bytes_push(p, 0) }
+            while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
             push_u64_le(p, param["offset"])
             j = j + 1
         }
@@ -564,12 +566,12 @@ fn emit_debug_info(ctx, text_base, header_size) {
 fn macho_emit_exit_arm64(out_path, exit_code) {
     var code = macho_exit_code_bytes(exit_code)
     var header_size = macho_header_size_exit_stub()
-    var text_size = align_up(header_size + oren_list_len(code), macho_segment_align())
+    var text_size = align_up(header_size + bytes_len(code), macho_segment_align())
     var prefix = macho_build_prefix_arm64(text_size, 0, 0, 0, header_size, 0, 0, 0, 0, 0, [], false, "")
     bytes_extend(prefix, code)
-    while oren_list_len(prefix) < text_size { bytes_push(prefix, 0) }
+    while bytes_len(prefix) < text_size { bytes_push(prefix, 0) }
 
-    var w = oren_write_bytes(out_path, prefix)
+    var w = oren_write_bytes(out_path, bytes_finalize(prefix))
     if oren_is_err(w) {
         var msg = oren_err_msg(w)
         var e = "Failed to write output: " + out_path
@@ -603,10 +605,10 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var indsymtab = bytes_new()
     
     // Append GOT placeholder to Data (Aligned)
-    while int_mod(oren_list_len(data), 8) != 0 {
+    while int_mod(bytes_len(data), 8) != 0 {
         bytes_push(data, 0)
     }
-    var got_offset = oren_list_len(data)
+    var got_offset = bytes_len(data)
     var k_got = 0
     while k_got < oren_list_len(imports) {
         var k = 0
@@ -615,12 +617,12 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     }
 
     var bind_opcodes = macho_build_bind_opcodes(imports, got_offset)
-    var bind_size = oren_list_len(bind_opcodes)
+    var bind_size = bytes_len(bind_opcodes)
 
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
         var name = imports[i_imp]
-        var stub_pos = oren_list_len(code)
+        var stub_pos = bytes_len(code)
         functions[name] = stub_pos 
         
         // Stub: ADRP X16, <got>@PAGE; ADD X16, X16, <got>@PAGEOFF; LDR X16, [X16]; BR X16
@@ -632,7 +634,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         oren_list_push(fixups, {"type": "got_load", "pos": stub_pos, "got_index": i_imp})
         
         // Symbol Table
-        var name_idx = oren_list_len(strtab)
+        var name_idx = bytes_len(strtab)
         
         bytes_push(strtab, 95) // '_'
         var name_bytes = oren_bytes_from_string(name)
@@ -660,7 +662,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var f_name = exports[i_exp]
             var f_addr = functions[f_name]
             
-            var name_idx_exp = oren_list_len(strtab)
+            var name_idx_exp = bytes_len(strtab)
             bytes_push(strtab, 95) // '_'
             var name_bytes_exp = oren_bytes_from_string(f_name)
             var k3 = 0
@@ -680,7 +682,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         }
     }
     
-    while int_mod(oren_list_len(code), 4) != 0 { bytes_push(code, 0) }
+    while int_mod(bytes_len(code), 4) != 0 { bytes_push(code, 0) }
     
     if functions["main"] == nil {
         if functions["__top_level__"] != nil { functions["main"] = functions["__top_level__"] }
@@ -699,19 +701,15 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     
     var header_size = macho_header_size_default()
     var text_base = vmaddr_text_base()
-    var code_len = oren_list_len(code)
+    var code_len = bytes_len(code)
     var text_size = align_up(header_size + code_len, macho_segment_align())
     
     // Append debug info
     if debug_mode {
         var debug_blob = emit_debug_info(ctx, text_base, header_size)
-        while int_mod(oren_list_len(data), 8) != 0 { bytes_push(data, 0) }
-        var bi = 0
-        while bi < oren_list_len(debug_blob) {
-            bytes_push(data, debug_blob[bi])
-            bi = bi + 1
-        }
-        var debug_off = oren_list_len(data) - oren_list_len(debug_blob)
+        while int_mod(bytes_len(data), 8) != 0 { bytes_push(data, 0) }
+        var debug_off = bytes_len(data)
+        bytes_extend(data, debug_blob)
         if ctx["debug_fixup_pos"] != nil {
             oren_list_push(fixups, {"type": "adr_data", "pos": ctx["debug_fixup_pos"], "data_off": debug_off})
             
@@ -724,7 +722,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         }
     }
 
-    var data_len = oren_list_len(data)
+    var data_len = bytes_len(data)
     var data_size = align_up(data_len, macho_segment_align())
     var data_vmaddr = text_base + text_size
     
@@ -796,12 +794,12 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     }
     
     // Pad strtab to 16 bytes for stable layout/alignment
-    while int_mod(oren_list_len(strtab), 16) != 0 {
+    while int_mod(bytes_len(strtab), 16) != 0 {
         bytes_push(strtab, 0)
     }
     
-    var symtab_size = oren_list_len(symtab)
-    var strtab_size = oren_list_len(strtab)
+    var symtab_size = bytes_len(symtab)
+    var strtab_size = bytes_len(strtab)
     var imports_len = oren_list_len(imports)
     var indsymtab_size = imports_len * 4
     
@@ -812,11 +810,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var prefix = macho_build_prefix_arm64(text_size, data_size, data_len, entry_idx, header_size, imports_len, symtab_size, strtab_size, bind_size, bind_off, libs, is_shared, out_path)
     
     bytes_extend(prefix, code)
-    while oren_list_len(prefix) < text_size {
+    while bytes_len(prefix) < text_size {
         bytes_push(prefix, 0)
     }
     bytes_extend(prefix, data)
-    while oren_list_len(prefix) < text_size + data_size {
+    while bytes_len(prefix) < text_size + data_size {
         bytes_push(prefix, 0)
     }
     
@@ -826,7 +824,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     bytes_extend(prefix, indsymtab)
     bytes_extend(prefix, strtab)
     
-    var w2 = oren_write_bytes(out_path, prefix)
+    var w2 = oren_write_bytes(out_path, bytes_finalize(prefix))
     if oren_is_err(w2) {
         var msg = oren_err_msg(w2)
         var e = "Failed to write output: " + out_path

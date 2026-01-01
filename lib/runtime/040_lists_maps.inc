@@ -1620,6 +1620,21 @@ OrenValue oren_string_len(OrenValue s) {
     return oren_int((long long)strlen(s.as.string_val));
 }
 
+static pthread_once_t g_single_byte_strings_once = PTHREAD_ONCE_INIT;
+static char g_single_byte_strings[256][2];
+
+static void init_single_byte_strings(void) {
+    for (int i = 0; i < 256; i++) {
+        g_single_byte_strings[i][0] = (char)i;
+        g_single_byte_strings[i][1] = '\0';
+    }
+}
+
+static inline OrenValue oren_string_from_single_byte(unsigned char b) {
+    pthread_once(&g_single_byte_strings_once, init_single_byte_strings);
+    return oren_string_const(g_single_byte_strings[b]);
+}
+
 OrenValue oren_string_char_at(OrenValue s, OrenValue index) {
     if (s.type != OREN_TYPE_STRING || index.type != OREN_TYPE_INT) {
         oren_panic("char_at expects (string, int)");
@@ -1633,10 +1648,7 @@ OrenValue oren_string_char_at(OrenValue s, OrenValue index) {
         oren_panic(buf);
         return OREN_NIL; // Should not be reached
     }
-    char buf[2];
-    buf[0] = s.as.string_val[idx];
-    buf[1] = '\0';
-    return oren_string(buf);
+    return oren_string_from_single_byte((unsigned char)s.as.string_val[idx]);
 }
 
 OrenValue oren_char(OrenValue code) {
@@ -1651,13 +1663,10 @@ OrenValue oren_char(OrenValue code) {
         oren_panic(buf);
         return OREN_NIL; // Should not be reached
     }
-    char buf[2];
-    buf[0] = (char)v;
-    buf[1] = '\0';
-    return oren_string(buf);
+    return oren_string_from_single_byte((unsigned char)v);
 }
 
-static OrenValue oren_string_const(const char* s) {
+OrenValue oren_string_const(const char* s) {
     OrenValue v;
     v.type = OREN_TYPE_STRING;
     v.as.string_val = (char*)s;

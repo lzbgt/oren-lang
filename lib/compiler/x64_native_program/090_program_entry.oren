@@ -70,7 +70,7 @@ fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {
     // Clobbers: RAX
     if ctx == nil { return nil }
 
-    var mov_iat_pos = oren_list_len(ctx["code"])
+    var mov_iat_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_GetEnvironmentStringsA"})
     bytes_extend(ctx["code"], insn_call_rax()) // rax = env_block (or 0)
@@ -119,7 +119,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     var l_free = _new_label(ctx, "win_argv_free")
 
     // r13 = argv_out_cur = &argv_out[0]
-    var lea_argv = oren_list_len(ctx["code"])
+    var lea_argv = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(13, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_argv + 3, "data_off": off_argv})
 
@@ -133,7 +133,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     _emit_mov_mrsp_r64(ctx, scratch_base + 24, 0)
 
     // r12 = pool_cur = &pool[0]
-    var lea_pool = oren_list_len(ctx["code"])
+    var lea_pool = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(12, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pool + 3, "data_off": off_pool})
     // r15 = pool_end = pool_cur + pool_cap
@@ -141,7 +141,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     bytes_extend(ctx["code"], insn_add_r64_imm32(15, pool_cap))
 
     // GetCommandLineW() -> rax
-    var mov_iat_cmd = oren_list_len(ctx["code"])
+    var mov_iat_cmd = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_cmd + 3, "data_label": "IAT_GetCommandLineW"})
     bytes_extend(ctx["code"], insn_call_rax())
@@ -152,7 +152,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     // rdx = &scratch_argc (in the entry scratch region)
     // NOTE: scratch_base is chosen so scratch_base+24 fits disp8 for lea.
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, scratch_base + 24))
-    var mov_iat_argvw = oren_list_len(ctx["code"])
+    var mov_iat_argvw = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_argvw + 3, "data_label": "IAT_CommandLineToArgvW"})
     bytes_extend(ctx["code"], insn_call_rax())
@@ -217,7 +217,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     _emit_mov_mrsp_r64(ctx, 48, 0) // lpDefaultChar = NULL
     _emit_mov_mrsp_r64(ctx, 56, 0) // lpUsedDefaultChar = NULL
 
-    var mov_iat_wctmb0 = oren_list_len(ctx["code"])
+    var mov_iat_wctmb0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_wctmb0 + 3, "data_label": "IAT_WideCharToMultiByte"})
     bytes_extend(ctx["code"], insn_call_rax())
@@ -267,7 +267,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     _emit_mov_mrsp_r64(ctx, 48, 0)
     _emit_mov_mrsp_r64(ctx, 56, 0)
 
-    var mov_iat_wctmb1 = oren_list_len(ctx["code"])
+    var mov_iat_wctmb1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_wctmb1 + 3, "data_label": "IAT_WideCharToMultiByte"})
     bytes_extend(ctx["code"], insn_call_rax())
@@ -302,7 +302,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     bytes_extend(ctx["code"], insn_mov_r64_r64(1, 3))
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-    var mov_iat_free = oren_list_len(ctx["code"])
+    var mov_iat_free = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_free + 3, "data_label": "IAT_LocalFree"})
     bytes_extend(ctx["code"], insn_call_rax())
@@ -686,7 +686,7 @@ fn native_compile_program_x64(linked, platform) {
     } else {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(7, target_os_id)) // rdi
     }
-    var call_init_pos = oren_list_len(ctx["code"])
+    var call_init_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_init_pos, "name": "native_runtime_init"})
 
@@ -698,7 +698,7 @@ fn native_compile_program_x64(linked, platform) {
         _emit_mov_r64_mrsp(ctx, 7, scratch_base + 0) // rdi=argc
         _emit_mov_r64_mrsp(ctx, 6, scratch_base + 8) // rsi=argv
     }
-    var call_set_args_pos = oren_list_len(ctx["code"])
+    var call_set_args_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_args_pos, "name": "native_runtime_set_args"})
 
@@ -713,7 +713,7 @@ fn native_compile_program_x64(linked, platform) {
 
         // rcx = env_block
         bytes_extend(ctx["code"], insn_mov_r64_r64(1, 10))
-        var call_build_envp_pos = oren_list_len(ctx["code"])
+        var call_build_envp_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_build_envp_pos, "name": "native_envp_build_from_win_envblock"})
         // scratch[16] = envp
@@ -726,7 +726,7 @@ fn native_compile_program_x64(linked, platform) {
         _emit_mov_r64_mrsp(ctx, 1, scratch_base + 32) // rcx = env_block
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
         _emit_jcc_to_label(ctx, local_fixups_free_env, "e", l_skip_free_env)
-        var mov_iat_free_pos = oren_list_len(ctx["code"])
+        var mov_iat_free_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_free_pos + 3, "data_label": "IAT_FreeEnvironmentStringsA"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -740,12 +740,12 @@ fn native_compile_program_x64(linked, platform) {
     } else {
         _emit_mov_r64_mrsp(ctx, 7, scratch_base + 16) // rdi=envp
     }
-    var call_set_envp_pos = oren_list_len(ctx["code"])
+    var call_set_envp_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_envp_pos, "name": "native_runtime_set_envp"})
 
     // native_runtime_capsule_init()
-    var call_capsule_pos = oren_list_len(ctx["code"])
+    var call_capsule_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
 
@@ -757,7 +757,7 @@ fn native_compile_program_x64(linked, platform) {
     } else {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(7, gc_default)) // rdi
     }
-    var call_gc_pos = oren_list_len(ctx["code"])
+    var call_gc_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_gc_pos, "name": "native_runtime_init_gc_mode"})
 
@@ -767,7 +767,7 @@ fn native_compile_program_x64(linked, platform) {
     } else {
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 4)) // rdi = rsp
     }
-    var call_reg_pos = oren_list_len(ctx["code"])
+    var call_reg_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_reg_pos, "name": "oren_register_thread"})
 
@@ -775,12 +775,12 @@ fn native_compile_program_x64(linked, platform) {
     //
     // This converges x64 behavior with the other backends while keeping the x64 v0
     // "fn main() required" rule.
-    var call_top_pos = oren_list_len(ctx["code"])
+    var call_top_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
 
     if has_main {
-        var call_pos = oren_list_len(ctx["code"])
+        var call_pos = bytes_len(ctx["code"])
         // placeholder rel32=0
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "main"})
@@ -793,7 +793,7 @@ fn native_compile_program_x64(linked, platform) {
         // - call [IAT ExitProcess]
         bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
 
-        var mov_iat_pos = oren_list_len(ctx["code"])
+        var mov_iat_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
         bytes_extend(ctx["code"], insn_call_rax())

@@ -7,6 +7,9 @@ import nstat "native_stat_abi.oren"
 fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_finalize(b) { return core.bytes_finalize(b) }
 fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
 fn align_up(n, align) { return core.align_up(n, align) }
 fn ceil_div(a, b) { return core.ceil_div(a, b) }
@@ -162,7 +165,7 @@ fn emit_translate_open_flags(ctx) {
     push_u32_le(ctx["code"], insn_movz(5, OREN_O_CREAT))
     push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_CREAT
     push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
-    var br_skip_creat = oren_list_len(ctx["code"])
+    var br_skip_creat = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // B.EQ skip
     var os_creat = abi.darwin_open_flag_creat()
     if ctx["platform"]["os"] == "linux" {
@@ -170,14 +173,14 @@ fn emit_translate_open_flags(ctx) {
     }
     push_u32_le(ctx["code"], insn_movz(7, os_creat))
     push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_CREAT
-    var after_creat = oren_list_len(ctx["code"])
+    var after_creat = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_creat, insn_b_cond((after_creat - br_skip_creat) / 4, 0)) // EQ
 
     // If (oren_flags & OREN_O_TRUNC) != 0 => OR in OS O_TRUNC.
     push_u32_le(ctx["code"], insn_movz(5, OREN_O_TRUNC))
     push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_TRUNC
     push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
-    var br_skip_trunc = oren_list_len(ctx["code"])
+    var br_skip_trunc = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // B.EQ skip
     var os_trunc = abi.darwin_open_flag_trunc()
     if ctx["platform"]["os"] == "linux" {
@@ -185,14 +188,14 @@ fn emit_translate_open_flags(ctx) {
     }
     push_u32_le(ctx["code"], insn_movz(7, os_trunc))
     push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_TRUNC
-    var after_trunc = oren_list_len(ctx["code"])
+    var after_trunc = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_trunc, insn_b_cond((after_trunc - br_skip_trunc) / 4, 0)) // EQ
 
     // If (oren_flags & OREN_O_NONBLOCK) != 0 => OR in OS O_NONBLOCK.
     push_u32_le(ctx["code"], insn_movz(5, OREN_O_NONBLOCK))
     push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_NONBLOCK
     push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
-    var br_skip_nb = oren_list_len(ctx["code"])
+    var br_skip_nb = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // B.EQ skip
     var os_nb = abi.darwin_open_flag_nonblock()
     if ctx["platform"]["os"] == "linux" {
@@ -200,7 +203,7 @@ fn emit_translate_open_flags(ctx) {
     }
     push_u32_le(ctx["code"], insn_movz(7, os_nb))
     push_u32_le(ctx["code"], insn_orr_reg(1, 1, 7)) // flags |= O_NONBLOCK
-    var after_nb = oren_list_len(ctx["code"])
+    var after_nb = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
 
     return nil
@@ -218,7 +221,7 @@ fn emit_translate_fcntl_setfl_flags(ctx) {
     push_u32_le(ctx["code"], insn_movz(5, OREN_O_NONBLOCK))
     push_u32_le(ctx["code"], insn_and_reg(6, 4, 5)) // X6 = oren_flags & OREN_O_NONBLOCK
     push_u32_le(ctx["code"], insn_cmp_reg(6, 31))   // cmp X6, XZR
-    var br_skip_nb = oren_list_len(ctx["code"])
+    var br_skip_nb = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // B.EQ skip
     var os_nb = abi.darwin_open_flag_nonblock()
     if ctx["platform"]["os"] == "linux" {
@@ -226,7 +229,7 @@ fn emit_translate_fcntl_setfl_flags(ctx) {
     }
     push_u32_le(ctx["code"], insn_movz(7, os_nb))
     push_u32_le(ctx["code"], insn_orr_reg(2, 2, 7)) // os_flags |= O_NONBLOCK
-    var after_nb = oren_list_len(ctx["code"])
+    var after_nb = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
     return nil
 }
@@ -240,7 +243,7 @@ fn emit_translate_fcntl_getfl_return(ctx) {
 
     // If rc < 0, skip translation.
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // cmp X0, XZR
-    var br_skip_all = oren_list_len(ctx["code"])
+    var br_skip_all = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // B.LT skip
 
     // X0 = os_flags & 3
@@ -256,14 +259,14 @@ fn emit_translate_fcntl_getfl_return(ctx) {
     push_u32_le(ctx["code"], insn_movz(5, os_nb))
     push_u32_le(ctx["code"], insn_and_reg(6, 4, 5))
     push_u32_le(ctx["code"], insn_cmp_reg(6, 31))
-    var br_skip_nb = oren_list_len(ctx["code"])
+    var br_skip_nb = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // B.EQ skip
     push_u32_le(ctx["code"], insn_movz(7, OREN_O_NONBLOCK))
     push_u32_le(ctx["code"], insn_orr_reg(0, 0, 7))
-    var after_nb = oren_list_len(ctx["code"])
+    var after_nb = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_nb, insn_b_cond((after_nb - br_skip_nb) / 4, 0)) // EQ
 
-    var after_all = oren_list_len(ctx["code"])
+    var after_all = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_skip_all, insn_b_cond((after_all - br_skip_all) / 4, 11)) // LT
     return nil
 }

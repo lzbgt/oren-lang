@@ -20,7 +20,7 @@ var OREN_O_TRUNC = 512
 var OREN_O_NONBLOCK = 1024
 
 fn _emit_call_rel32_named_x64(ctx, name) {
-    var call_pos = oren_list_len(ctx["code"])
+    var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": name})
     return nil
@@ -196,7 +196,7 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
 
         // STD_INPUT_HANDLE = -10
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967286)) // ecx = -10
-        var mov_iat0 = oren_list_len(ctx["code"])
+        var mov_iat0 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -226,7 +226,7 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(44, 0))
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(9, 40)) // r9 = &read
 
-        var mov_iat1 = oren_list_len(ctx["code"])
+        var mov_iat1 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_ReadFile"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -352,7 +352,7 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
 
         _emit_label(ctx, labels, l_use_stdout)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
-        var mov_iat0 = oren_list_len(ctx["code"])
+        var mov_iat0 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -361,7 +361,7 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
 
         _emit_label(ctx, labels, l_use_stderr)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
-        var mov_iat1 = oren_list_len(ctx["code"])
+        var mov_iat1 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_GetStdHandle"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -381,7 +381,7 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(9, 40)) // r9 = &written
 
         // call WriteFile
-        var mov_iat2 = oren_list_len(ctx["code"])
+        var mov_iat2 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat2 + 3, "data_label": "IAT_WriteFile"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -433,7 +433,7 @@ fn _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) {
     if platform != nil && platform["os"] == "windows" {
         // ExitProcess((u32)code)
         bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
-        var mov_iat0 = oren_list_len(ctx["code"])
+        var mov_iat0 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_ExitProcess"})
         bytes_extend(ctx["code"], insn_call_rax())

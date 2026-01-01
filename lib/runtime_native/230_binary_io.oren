@@ -12,19 +12,36 @@ fn oren_write_bytes(path, bytes) {
     var fd = sys_open(rpath, flags, 420) // 0644
     if fd < 0 { exit(260) }
 
-    var n = oren_list_len(bytes)
-    if n > 0 {
-        var buf = malloc(n)
-        if buf == 0 { exit(261) }
-        var i = 0
-        while i < n {
-            // bytes[i] is an int 0..255
-            var v = bytes[i]
-            if v < 0 { sys_close(fd); exit(264) }
-            if v > 255 { sys_close(fd); exit(265) }
-            ptr_set_byte(buf + i, v)
-            i = i + 1
+    var n = 0
+    var buf = 0
+    var owned_buf = 0
+
+    if native_bytes_is_u8_buf(bytes) == true {
+        // Zero-copy write from typed buffer payload.
+        n = ptr_get(bytes + 0)
+        if n > 0 {
+            buf = native_buf_data_ptr(bytes)
+            if buf == 0 { sys_close(fd); exit(261) }
         }
+    } else {
+        // Legacy path: list<int 0..255>
+        n = oren_list_len(bytes)
+        if n > 0 {
+            buf = malloc(n)
+            owned_buf = 1
+            if buf == 0 { sys_close(fd); exit(261) }
+            var i = 0
+            while i < n {
+                var v = bytes[i]
+                if v < 0 { sys_close(fd); exit(264) }
+                if v > 255 { sys_close(fd); exit(265) }
+                ptr_set_byte(buf + i, v)
+                i = i + 1
+            }
+        }
+    }
+
+    if n > 0 {
         // Handle short writes and propagate errno deterministically.
         var off = 0
         while off < n {
@@ -33,8 +50,8 @@ fn oren_write_bytes(path, bytes) {
             if wn == 0 { sys_close(fd); exit(267) } // can't make progress
             off = off + wn
         }
-        free(buf)
     }
+    if owned_buf == 1 { free(buf) }
 
     var crc = sys_close(fd)
     if crc < 0 { exit(268) }
@@ -70,6 +87,70 @@ fn oren_read_bytes(path) {
     free(buf)
     var crc = sys_close(fd)
     if crc < 0 { exit(270) }
+    if owned == 1 { free(rpath) }
+    return out
+}
+
+@cap.requires(domain="FS")
+fn oren_read_u8_buf(path) {
+    // Read a file into a typed byte buffer (u8_buf) without boxing each byte as an int.
+    // This is critical for compiler pipelines that hash/cache large artifacts.
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    // Stat size first so we can do a single allocation.
+    var st = oren_stat_alloc()
+    var src = sys_stat(rpath, st)
+    if src < 0 {
+        free(st)
+        if owned == 1 { free(rpath) }
+        exit(276)
+    }
+    var size = oren_stat_get_size(st)
+    free(st)
+    if size < 0 {
+        if owned == 1 { free(rpath) }
+        exit(277)
+    }
+    // Guard against pathological sizes (u8_buf len is u32).
+    if size > 4294967295 {
+        if owned == 1 { free(rpath) }
+        exit(278)
+    }
+
+    var fd = sys_open(rpath, 0, 0) // O_RDONLY
+    if fd < 0 {
+        if owned == 1 { free(rpath) }
+        exit(279)
+    }
+
+    var out = oren_u8_buf_new(size)
+    var off = 0
+    while off < size {
+        var want = size - off
+        if want > 65536 { want = 65536 }
+        var rn = sys_read_u8_buf(fd, out, off, want)
+        if rn < 0 {
+            sys_close(fd)
+            if owned == 1 { free(rpath) }
+            exit(280)
+        }
+        if rn == 0 {
+            // Unexpected EOF: keep behavior deterministic by failing fast.
+            sys_close(fd)
+            if owned == 1 { free(rpath) }
+            exit(281)
+        }
+        off = off + rn
+    }
+
+    var crc = sys_close(fd)
+    if crc < 0 {
+        if owned == 1 { free(rpath) }
+        exit(282)
+    }
     if owned == 1 { free(rpath) }
     return out
 }

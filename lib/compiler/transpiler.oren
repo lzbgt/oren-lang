@@ -71,22 +71,9 @@ fn indent_less(t) { t["indent"] = t["indent"] - 1 }
 fn _transpiler_join_parts(parts) {
     if parts == nil { return "" }
     if oren_list_len(parts) == 0 { return "" }
-    var cur = parts
-    while oren_list_len(cur) > 1 {
-        var next = []
-        var i = 0
-        var n = oren_list_len(cur)
-        while i < n {
-            if i + 1 < n {
-                oren_list_push(next, cur[i] + cur[i + 1])
-            } else {
-                oren_list_push(next, cur[i])
-            }
-            i = i + 2
-        }
-        cur = next
-    }
-    return cur[0]
+    // Prefer the runtime join helper so we do a single allocation (O(n) time/mem).
+    // This matters for stage2 self-hosting where we join extremely large parts lists.
+    return oren_string_join(parts)
 }
 
 fn list_join(lines, sep) {
@@ -323,7 +310,7 @@ fn transpile_type_ctor(t, type_decl) {
         var i = 0
         while i < n {
             if i > 0 { args = args + ", " }
-            args = args + "oren_string(" + CH_QUOTE + c_escape_string(type_decl["fields"][i]["value"]) + CH_QUOTE + "), " + type_decl["fields"][i]["value"]
+            args = args + "oren_string_const(" + CH_QUOTE + c_escape_string(type_decl["fields"][i]["value"]) + CH_QUOTE + "), " + type_decl["fields"][i]["value"]
             i = i + 1
         }
         emit(t, "return oren_new_map(" + int_str(n) + ", " + args + ");")
@@ -845,14 +832,17 @@ fn transpile_statement(t, stmt) {
     }
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
-        var out = "{" + CH_LF
+        var parts = []
+        oren_list_push(parts, "{")
+        oren_list_push(parts, CH_LF)
         var i = 0
         while i < oren_list_len(stmts) {
-            out = out + "    " + transpile_statement(t, stmts[i]) + CH_LF
+            oren_list_push(parts, "    " + transpile_statement(t, stmts[i]))
+            oren_list_push(parts, CH_LF)
             i = i + 1
         }
-        out = out + "}"
-        return out
+        oren_list_push(parts, "}")
+        return _transpiler_join_parts(parts)
     }
     if stmt["type"] == "Set" {
         if stmt["left"]["type"] == "Index" {
@@ -892,13 +882,16 @@ fn transpile_statement(t, stmt) {
     }
     if stmt["type"] == "While" {
         var cond = transpile_expression(t, stmt["cond"])
-        var inner = ""
-        inner = inner + "    oren_gc_safepoint();" + CH_LF
+        var inner_parts = []
+        oren_list_push(inner_parts, "    oren_gc_safepoint();")
+        oren_list_push(inner_parts, CH_LF)
         var i = 0
         while i < oren_list_len(stmt["body"]["stmts"]) {
-            inner = inner + "    " + transpile_statement(t, stmt["body"]["stmts"][i]) + CH_LF
+            oren_list_push(inner_parts, "    " + transpile_statement(t, stmt["body"]["stmts"][i]))
+            oren_list_push(inner_parts, CH_LF)
             i = i + 1
         }
+        var inner = _transpiler_join_parts(inner_parts)
         return "while (oren_is_truthy(" + cond + ")) {" + CH_LF + inner + "}"
     }
     if stmt["type"] == "For" {
@@ -908,13 +901,16 @@ fn transpile_statement(t, stmt) {
         if stmt["cond"] != nil {
             cond_s = "oren_is_truthy(" + transpile_expression(t, stmt["cond"]) + ")"
         }
-        var inner2 = ""
-        inner2 = inner2 + "    oren_gc_safepoint();" + CH_LF
+        var inner2_parts = []
+        oren_list_push(inner2_parts, "    oren_gc_safepoint();")
+        oren_list_push(inner2_parts, CH_LF)
         var j = 0
         while j < oren_list_len(stmt["body"]["stmts"]) {
-            inner2 = inner2 + "    " + transpile_statement(t, stmt["body"]["stmts"][j]) + CH_LF
+            oren_list_push(inner2_parts, "    " + transpile_statement(t, stmt["body"]["stmts"][j]))
+            oren_list_push(inner2_parts, CH_LF)
             j = j + 1
         }
+        var inner2 = _transpiler_join_parts(inner2_parts)
         return "for (" + init_s + "; " + cond_s + "; " + post_s + ") {" + CH_LF + inner2 + "}"
     }
     if stmt["type"] == "Break" {
@@ -931,30 +927,35 @@ fn transpile_statement(t, stmt) {
 
 fn transpile_if(t, expr) {
     var cond = transpile_expression(t, expr["cond"])
-    var out = "if (oren_is_truthy(" + cond + ")) {" + CH_LF
+    var parts = []
+    oren_list_push(parts, "if (oren_is_truthy(" + cond + ")) {")
+    oren_list_push(parts, CH_LF)
     var i = 0
     while i < oren_list_len(expr["consq"]["stmts"]) {
-        out = out + "    " + transpile_statement(t, expr["consq"]["stmts"][i]) + CH_LF
+        oren_list_push(parts, "    " + transpile_statement(t, expr["consq"]["stmts"][i]))
+        oren_list_push(parts, CH_LF)
         i = i + 1
     }
-    out = out + "}"
+    oren_list_push(parts, "}")
     if expr["alt"] != nil {
-        out = out + " else {" + CH_LF
+        oren_list_push(parts, " else {")
+        oren_list_push(parts, CH_LF)
         i = 0
         while i < oren_list_len(expr["alt"]["stmts"]) {
-            out = out + "    " + transpile_statement(t, expr["alt"]["stmts"][i]) + CH_LF
+            oren_list_push(parts, "    " + transpile_statement(t, expr["alt"]["stmts"][i]))
+            oren_list_push(parts, CH_LF)
             i = i + 1
         }
-        out = out + "}"
+        oren_list_push(parts, "}")
     }
-    return out
+    return _transpiler_join_parts(parts)
 }
 
 fn transpile_expression(t, exp) {
     var et = exp["type"]
     if et == "Integer" { return "oren_int(" + int_str(parse_int_lit(exp["value"])) + ")" }
     if et == "Float" { return "oren_float(" + exp["value"] + ")" }
-    if et == "String" { return "oren_string(" + CH_QUOTE + c_escape_string(exp["value"]) + CH_QUOTE + ")" }
+    if et == "String" { return "oren_string_const(" + CH_QUOTE + c_escape_string(exp["value"]) + CH_QUOTE + ")" }
     if et == "Boolean" {
         if exp["value"] { return "OREN_TRUE" }
         return "OREN_FALSE"

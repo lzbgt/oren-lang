@@ -5,7 +5,7 @@ fn _emit_abort_exitcode(ctx, exit_code) {
     if platform != nil && platform["os"] == "windows" {
         // ExitProcess(exit_code)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, exit_code)) // mov ecx, imm32
-        var mov_iat_pos = oren_list_len(ctx["code"])
+        var mov_iat_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -33,7 +33,7 @@ fn _emit_abort_panic_str(ctx, msg) {
         _emit_abort_exitcode(ctx, 1)
         return nil
     }
-    var lea_pos = oren_list_len(ctx["code"])
+    var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // rax = &msg
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
     _emit_panic_with_msg_ptr(ctx, 0)
@@ -95,7 +95,7 @@ fn _emit_malloc_size_in_rax(ctx, locals) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 12288)) // r8d = 0x3000
         bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4))     // r9d = 4
 
-        var mov_iat_va = oren_list_len(ctx["code"])
+        var mov_iat_va = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
         oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_va + 3, "data_label": "IAT_VirtualAlloc"})
         bytes_extend(ctx["code"], insn_call_rax())
@@ -233,7 +233,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var s = expr["value"]
         var off = _data_add_cstr0(ctx, s)
         if off == nil { err(ctx, "x64 native v0: failed to add string literal data"); return nil }
-        var lea_pos = oren_list_len(ctx["code"])
+        var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
         // Tier‑1 convergence (rolling): mark embedded string literals as tracked (kind=1)
@@ -303,7 +303,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // code_ptr = &__oren_lambda_N
         //
         // lea r11, [rip+disp32]  (patched to function entry)
-        var lea_pos = oren_list_len(ctx["code"])
+        var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": lname})
 
@@ -337,7 +337,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if ctx["globals"] != nil { goff = ctx["globals"][name] }
         if goff != nil {
             // r10 = &global_slot ; rax = *(u64*)r10
-            var lea_pos0 = oren_list_len(ctx["code"])
+            var lea_pos0 = bytes_len(ctx["code"])
             bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
             oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
             bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
@@ -359,7 +359,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var fnobj_off = _data_add_fnobj(ctx, wname)
             if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
 
-            var lea_pos = oren_list_len(ctx["code"])
+            var lea_pos = bytes_len(ctx["code"])
             bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
             // Patch disp32 to point at the fnobj data record.
             oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})
@@ -844,7 +844,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if a0m == nil || a1m == nil { err(ctx, "x64 native v0: missing ABI arg regs for oren_mod"); _intr_tmp_pop(ctx, base_mod); return nil }
             _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp_a)
             _emit_mov_r64_mrbp(ctx, a1m, 0 - tmp_b)
-            var call_posm = oren_list_len(ctx["code"])
+            var call_posm = bytes_len(ctx["code"])
             bytes_extend(ctx["code"], insn_call_rel32(0))
             oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_posm, "name": "oren_mod"})
 

@@ -63,7 +63,7 @@ fn _emit_linux_write_str(ctx, s) {
     // rax=1 write, rdi=1 stdout, rsi=&data, rdx=len
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
     bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 1))
-    var lea_pos = oren_list_len(ctx["code"])
+    var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_rsi_rip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea_rsi", "pos": lea_pos + 3, "data_off": off})
     bytes_extend(ctx["code"], insn_mov_r32_imm32(2, nbytes))
@@ -88,7 +88,7 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
 
     // --- GetStdHandle(STD_OUTPUT_HANDLE=-11) ---
     bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
-    var mov_iat0 = oren_list_len(ctx["code"])
+    var mov_iat0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
     bytes_extend(ctx["code"], insn_call_rax())
@@ -107,7 +107,7 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(9, 40))
 
     // --- WriteFile ---
-    var mov_iat1 = oren_list_len(ctx["code"])
+    var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_WriteFile"})
     bytes_extend(ctx["code"], insn_call_rax())
@@ -143,7 +143,7 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         if pref_off == nil { _emit_abort_exitcode(ctx, 1); return nil }
         // lea rdx, [rip+pref] ; r8d=len
         // GetStdHandle/WriteFile for (ptr,len)
-        var lea_pos = oren_list_len(ctx["code"])
+        var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
         // Windows PE: dynamic strings live in the user data blob (mapped as `.data` in v0).
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": pref_off})
@@ -159,7 +159,7 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         // newline literal
         var nl_off = _data_add_cstr0(ctx, "\n")
         if nl_off == nil { _emit_abort_exitcode(ctx, 1); return nil }
-        var lea_pos2 = oren_list_len(ctx["code"])
+        var lea_pos2 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": nl_off})
         bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1)) // r11d=1
@@ -183,7 +183,7 @@ fn _emit_hex_table_ptr_to_r13(ctx) {
     // r13 = &"0123456789abcdef"
     var off = _data_add_cstr0(ctx, "0123456789abcdef")
     if off == nil { return nil }
-    var lea_pos = oren_list_len(ctx["code"])
+    var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(13, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
     return nil
@@ -269,7 +269,7 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     }
 
     // Default out_ptr_reg = "???"; out_off_reg = 0
-    var lea_unk = oren_list_len(ctx["code"])
+    var lea_unk = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(out_ptr_reg, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_unk + 3, "data_off": unk_off})
     bytes_extend(ctx["code"], insn_mov_r64_imm64(out_off_reg, 0))
@@ -297,7 +297,7 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     bytes_extend(ctx["code"], insn_sub_r64_r64(9, 10))
 
     // r11 = &symtab (RIP-relative into appended data)
-    var lea_sym = oren_list_len(ctx["code"])
+    var lea_sym = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": symtab_off})
 
@@ -372,7 +372,7 @@ fn _emit_resolve_loc_ptr_best_effort(ctx, addr_reg, out_ptr_reg) {
     if empty_off == nil { return nil }
 
     // Default out_ptr_reg = "".
-    var lea_empty = oren_list_len(ctx["code"])
+    var lea_empty = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(out_ptr_reg, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_empty + 3, "data_off": empty_off})
 
@@ -396,7 +396,7 @@ fn _emit_resolve_loc_ptr_best_effort(ctx, addr_reg, out_ptr_reg) {
     bytes_extend(ctx["code"], insn_sub_r64_r64(9, 10))
 
     // r11 = &linetab (RIP-relative into appended data)
-    var lea_tab = oren_list_len(ctx["code"])
+    var lea_tab = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_tab + 3, "data_off": linetab_off})
 
@@ -498,7 +498,7 @@ fn _emit_write_newline(ctx) {
     if platform != nil && platform["os"] == "windows" {
         var nl_off = _data_add_cstr0(ctx, "\n")
         if nl_off == nil { return nil }
-        var lea_pos = oren_list_len(ctx["code"])
+        var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})
         bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1))

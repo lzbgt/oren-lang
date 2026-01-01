@@ -64,7 +64,7 @@ fn _linetab_record_tok(ctx, tok) {
         return nil
     }
 
-    var code_off = oren_list_len(ctx["code"])
+    var code_off = bytes_len(ctx["code"])
     ctx["linetab_last_code_off"] = code_off
     ctx["linetab_last_loc_off"] = loc_off
     oren_list_push(ctx["linetab_entries"], {"off": code_off, "loc_off": loc_off})
@@ -108,7 +108,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 if goff == nil { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
 
                 // r10 = &global_slot ; *(u64*)r10 = rax
-                var lea_pos = oren_list_len(ctx["code"])
+                var lea_pos = bytes_len(ctx["code"])
                 bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
                 oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": goff})
                 bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))

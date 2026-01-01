@@ -46,7 +46,7 @@ fn _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args) {
         var symtab_off = ctx["symtab_off"]
         var unk_off = _data_add_cstr0(ctx, "???")
         if unk_off == nil { err(ctx, "x64 native v0: resolve_symbol: failed to add cstr"); return 1 }
-        var lea_unk = oren_list_len(ctx["code"])
+        var lea_unk = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // rax = &"???"
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_unk + 3, "data_off": unk_off})
 
@@ -76,7 +76,7 @@ fn _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_sub_r64_r64(9, 11))
 
         // r11 = &symtab (RIP-relative into appended data)
-        var lea_sym = oren_list_len(ctx["code"])
+        var lea_sym = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": symtab_off})
 

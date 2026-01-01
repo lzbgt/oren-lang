@@ -66,7 +66,7 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     bytes_extend(ctx["code"], insn_cdqe())
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
-    var lea_pos = oren_list_len(ctx["code"])
+    var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})
     _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)

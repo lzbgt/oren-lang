@@ -152,10 +152,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
     
                 // If groups == 0, skip vector loop.
                 push_u32_le(ctx["code"], insn_cmp_reg(13, 31))
-                var br_skip_vec_gemm64 = oren_list_len(ctx["code"])
+                var br_skip_vec_gemm64 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_loop_gemm64 = oren_list_len(ctx["code"])
+                var vec_loop_gemm64 = bytes_len(ctx["code"])
     
                 // Load B vectors once:
                 //   B0 -> V16, B1 -> V17, B2 -> V18, B3 -> V19
@@ -317,10 +317,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 // groups--
                 push_u32_le(ctx["code"], insn_sub_imm(13, 13, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(13, 31))
-                var br_vec_loop_gemm64_b = oren_list_len(ctx["code"])
+                var br_vec_loop_gemm64_b = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_end_gemm64 = oren_list_len(ctx["code"])
+                var vec_end_gemm64 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_vec_gemm64, insn_b_cond((vec_end_gemm64 - br_skip_vec_gemm64) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_vec_loop_gemm64_b, insn_b_cond((vec_loop_gemm64 - br_vec_loop_gemm64_b) / 4, 1)) // NE
     
@@ -333,10 +333,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
     
                 // Tail loop if rem != 0.
                 push_u32_le(ctx["code"], insn_cmp_reg(10, 31))
-                var br_done_tail_gemm64 = oren_list_len(ctx["code"])
+                var br_done_tail_gemm64 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var tail_loop_gemm64 = oren_list_len(ctx["code"])
+                var tail_loop_gemm64 = bytes_len(ctx["code"])
                 // Load a0..a3 f64 -> D24..D27
                 push_u32_le(ctx["code"], insn_ldr_ptr(11, 5))
                 push_u32_le(ctx["code"], insn_add_imm(5, 5, 8))
@@ -396,10 +396,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 // rem--
                 push_u32_le(ctx["code"], insn_sub_imm(10, 10, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(10, 31))
-                var br_tail_gemm64_b = oren_list_len(ctx["code"])
+                var br_tail_gemm64_b = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var done_tail_pos64 = oren_list_len(ctx["code"])
+                var done_tail_pos64 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done_tail_gemm64, insn_b_cond((done_tail_pos64 - br_done_tail_gemm64) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_tail_gemm64_b, insn_b_cond((tail_loop_gemm64 - br_tail_gemm64_b) / 4, 1)) // NE
     
@@ -475,10 +475,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
     
                 // If groups == 0, skip vector loop.
                 push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
-                var br_skip_vec2 = oren_list_len(ctx["code"])
+                var br_skip_vec2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_loop2 = oren_list_len(ctx["code"])
+                var vec_loop2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldr_q(0, 2))       // Q0 = *a
                 push_u32_le(ctx["code"], insn_ldr_q(1, 1))       // Q1 = *b
                 if fn_name == "simd_add_i32_ptr" {
@@ -492,10 +492,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_imm(3, 3, 16)) // dst += 16
                 push_u32_le(ctx["code"], insn_sub_imm(5, 5, 1))  // groups--
                 push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
-                var br_vec_loop2 = oren_list_len(ctx["code"])
+                var br_vec_loop2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_end2 = oren_list_len(ctx["code"])
+                var vec_end2 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_vec2, insn_b_cond((vec_end2 - br_skip_vec2) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_vec_loop2, insn_b_cond((vec_loop2 - br_vec_loop2) / 4, 1)) // NE
     
@@ -509,11 +509,11 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
     
                 // If rem == 0, done.
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
-                var br_done2 = oren_list_len(ctx["code"])
+                var br_done2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
                 // Scalar tail (operate mod 2^32; store w).
-                var tail_loop2 = oren_list_len(ctx["code"])
+                var tail_loop2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldr_w(9, 2, 0))      // W9 = *a (zero-extended)
                 push_u32_le(ctx["code"], insn_ldr_w(10, 1, 0))     // W10 = *b
                 if fn_name == "simd_add_i32_ptr" {
@@ -527,10 +527,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_imm(3, 3, 4))
                 push_u32_le(ctx["code"], insn_sub_imm(4, 4, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
-                var br_tail2 = oren_list_len(ctx["code"])
+                var br_tail2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var done_pos2 = oren_list_len(ctx["code"])
+                var done_pos2 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done2, insn_b_cond((done_pos2 - br_done2) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_tail2, insn_b_cond((tail_loop2 - br_tail2) / 4, 1)) // NE
     
@@ -595,10 +595,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_dup_4s(2, 1))
     
                 push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
-                var br_skip_vec_sc32 = oren_list_len(ctx["code"])
+                var br_skip_vec_sc32 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_loop_sc32 = oren_list_len(ctx["code"])
+                var vec_loop_sc32 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldr_q(0, 2))        // Q0 = *a
                 push_u32_le(ctx["code"], insn_mul_4s(0, 0, 2))    // Q0 *= scalar
                 push_u32_le(ctx["code"], insn_str_q(0, 3))        // *dst = Q0
@@ -606,10 +606,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_imm(3, 3, 16))  // dst += 16
                 push_u32_le(ctx["code"], insn_sub_imm(5, 5, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(5, 31))
-                var br_vec_loop_sc32 = oren_list_len(ctx["code"])
+                var br_vec_loop_sc32 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var vec_end_sc32 = oren_list_len(ctx["code"])
+                var vec_end_sc32 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_vec_sc32, insn_b_cond((vec_end_sc32 - br_skip_vec_sc32) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_vec_loop_sc32, insn_b_cond((vec_loop_sc32 - br_vec_loop_sc32) / 4, 1)) // NE
     
@@ -622,10 +622,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_sub_reg(4, 4, 7))
     
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
-                var br_done_sc32 = oren_list_len(ctx["code"])
+                var br_done_sc32 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var tail_loop_sc32 = oren_list_len(ctx["code"])
+                var tail_loop_sc32 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_ldr_w(9, 2, 0))      // W9 = *a
                 push_u32_le(ctx["code"], insn_mul(9, 9, 1))        // W9 *= W1 (wrap)
                 push_u32_le(ctx["code"], insn_str_w(9, 3, 0))      // *dst = W9
@@ -633,10 +633,10 @@ fn native_call_chunk_060_lowering_f(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_imm(3, 3, 4))
                 push_u32_le(ctx["code"], insn_sub_imm(4, 4, 1))
                 push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
-                var br_tail_sc32 = oren_list_len(ctx["code"])
+                var br_tail_sc32 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
     
-                var done_pos_sc32 = oren_list_len(ctx["code"])
+                var done_pos_sc32 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done_sc32, insn_b_cond((done_pos_sc32 - br_done_sc32) / 4, 0)) // EQ
                 set_u32_le(ctx["code"], br_tail_sc32, insn_b_cond((tail_loop_sc32 - br_tail_sc32) / 4, 1)) // NE
     

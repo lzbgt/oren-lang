@@ -13,7 +13,7 @@
 // - map common WSA error codes to the POSIX errno numbers used by the runtime
 
 fn _emit_call_iat_x64(ctx, data_label) {
-    var mov_iat = oren_list_len(ctx["code"])
+    var mov_iat = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat + 3, "data_label": data_label})
     bytes_extend(ctx["code"], insn_call_rax())
